@@ -315,11 +315,14 @@ android {
                     '-DDISABLE_QML=OFF',
                     '-DDISABLE_KTX_CACHE=OFF',
                     '-DUSE_BREAKPAD=OFF'
-                // The qualified F-Droid executor provisions and verifies Ninja
-                // 1.13.2 at this immutable path.  Force CMake to use that
-                // binary instead of the older Ninja bundled in the Android SDK.
+                // Use the system Ninja validated by the F-Droid executor,
+                // rather than the older copy bundled in the Android SDK.
                 if (fdroidSourceOnlyConanDir != null) {
                     arguments '-DCMAKE_MAKE_PROGRAM=/usr/bin/ninja'
+                    def reproducibleCmake = System.getenv('OVERTE_FDROID_REPRODUCIBLE_CMAKE')
+                    if (reproducibleCmake != null) {
+                        arguments '-DCMAKE_PROJECT_INCLUDE=' + reproducibleCmake
+                    }
                 }
                 targets 'phoneInterface'
             }

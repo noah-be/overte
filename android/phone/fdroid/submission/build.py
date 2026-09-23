@@ -107,6 +107,12 @@ def preflight(args, env):
         if shutil.which(tool, path=env.get('PATH')) is None:
             raise ValueError('missing APK inspection tool: ' + tool)
     run([env['PHONE_APK_ANALYZER'], '--help'], env=env)
+    epoch = subprocess.check_output(['git', 'show', '-s', '--format=%ct', 'HEAD'],
+                                    cwd=ROOT, text=True).strip()
+    if not epoch.isdigit():
+        raise ValueError('invalid source commit timestamp')
+    env.update(SOURCE_DATE_EPOCH=epoch, QT_RCC_SOURCE_DATE_OVERRIDE=epoch,
+               TZ='UTC', LC_ALL='C.UTF-8', PYTHONHASHSEED='0', QT_HASH_SEED='0')
     run([sys.executable, FDROID / 'submission/toolchain.py'], env=env)
     run([*isolation_prefix(), sys.executable, '-c',
          'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); '
@@ -138,6 +144,21 @@ def acquire(args, env):
         'gradle_sha256': digest(archive),
     }, indent=2) + '\n')
     return gradle
+
+
+def write_reproducible_cmake(args):
+    mappings = {str(ROOT): '/usr/src/overte', str(args.work_dir): '/usr/src/overte-build',
+                str(args.sdk): '/opt/android-sdk'}
+    for path in sorted((args.work_dir / 'reproducible-paths').glob('*.json')):
+        mappings.update(json.loads(path.read_text()))
+    output = args.work_dir / 'reproducible-paths.cmake'
+    lines = ['# Generated diagnostic/debug paths; original sources remain untouched.']
+    for old, new in sorted(mappings.items(), key=lambda pair: (len(pair[0]), pair[0])):
+        if any(c in old + new for c in ('"', ';', '$', '\\', '\n', '\r')):
+            raise ValueError('unsafe compiler path mapping')
+        lines.append(f'add_compile_options("-ffile-prefix-map={old}={new}")')
+    output.write_text('\n'.join(lines) + '\n')
+    return output
 
 
 def release_command(args, gradle):
@@ -182,6 +203,7 @@ def main():
     env['OVERTE_FDROID_CONAN_DIR'] = str(args.work_dir / 'target')
     isolation = isolation_prefix()
     run([*isolation, FDROID / 'scripts/build-dependencies.sh', '--build'], env=env)
+    env['OVERTE_FDROID_REPRODUCIBLE_CMAKE'] = str(write_reproducible_cmake(args))
     run([*isolation, *release_command(args, gradle)], env=env)
     if not APK.is_file():
         raise ValueError('unsigned release APK is absent')

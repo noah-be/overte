@@ -147,6 +147,10 @@ preflight
 if [ "$resume" -eq 0 ]; then
   mkdir "$conan_home"
   conan remote remove conancenter >/dev/null
+  if [ "${OVERTE_FDROID_STANDARD_TOOLCHAIN:-0}" = 1 ]; then
+    mkdir -p "$conan_home/extensions/hooks"
+    cp "$repo_root/android/phone/fdroid/submission/hook_reproducible.py"       "$conan_home/extensions/hooks/hook_reproducible.py"
+  fi
   python3 "$repo_root/android/phone/fdroid/conan/recipe_export_store.py" restore \
     --index "$index" --scanned-root "$repo_root" \
     --output "$OVERTE_ATTEMPT_ROOT/recipe-transport.tgz" --conan-home "$conan_home"

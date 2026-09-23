@@ -223,3 +223,38 @@ tested source until the new revision is qualified and published.
 - [Current F-Droid categories](https://gitlab.com/fdroid/fdroiddata/-/blob/master/config/categories.yml)
 - [Debian trixie GCC package](https://packages.debian.org/trixie/gcc)
 - [Debian trixie OpenJDK package](https://packages.debian.org/trixie/openjdk-21-jdk-headless)
+
+## Reproducibility findings and corrections
+
+Independent standard-toolchain jobs `16664209585` and `16666614920` both passed
+build and APK checks, but their unsigned APKs differed. The ZIP entry order was
+identical. Differences were concentrated in native libraries and Qt resources:
+
+- Native diagnostic strings and DWARF-derived build IDs contained random Conan
+  cache paths. The submission-only Conan hook adds `-ffile-prefix-map` for the
+  package's source/build roots and dependency headers. The app receives the same
+  recorded mappings through a generated CMake include. Compilers are unmodified.
+- OpenSSL included the wall-clock build date. The adapter now derives
+  `SOURCE_DATE_EPOCH` from the exact source commit and fixes the locale/timezone.
+  OpenSSL receives no additional path-bearing flags because its build-info string
+  would embed them; the observed OpenSSL difference was the date.
+- Both standalone RCC files had identical data regions; only the resource tree
+  metadata differed. Qt's source-date override fixes those timestamps, including
+  resources generated during compilation. Cache-manifest hashes are regenerated
+  from the resulting assets, as before.
+- Node embeds `config.gypi` in `process.config`, including random build and
+  dependency paths. A guarded build-hook adjustment to `tools/js2c.cc` normalizes
+  only that informational embedded copy. Actual GYP include/link paths remain
+  unchanged. The hook rejects an unexpected generator implementation.
+
+The hook is installed only in the new, isolated submission Conan home. It does
+not modify global Conan configuration, recipes in the source export store,
+application features, assets, or sibling-platform builds. The source commit binds
+these additional build instructions. Original failed comparisons are retained;
+comparison after these corrections must still pass before claiming reproducibility.
+
+Tests cover prefix-map context selection, all Qt build variants, OpenSSL's
+build-info exception, and actual C++ compilation of the Node normalization.
+A real Conan/GCC test built the same small library in two distinct caches and
+obtained byte-identical output, including the build ID. Full Android rebuilds are
+still required; this small regression is not the release reproducibility proof.
