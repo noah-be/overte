@@ -1484,6 +1484,15 @@ bool AudioClient::switchAudioDevice(QAudio::Mode mode, const QString& deviceName
         QReadLocker readLock(&_hmdNameLock);
         hmdName = mode == QAudio::AudioInput ? _hmdInputName : _hmdOutputName;
     }
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // Android exposes the real source name even for default device entries.
+    // Resolving the saved "default " alias by name would stop a working input
+    // and replace it with silent dummy input after initial device discovery.
+    if (mode == QAudio::AudioInput &&
+            deviceName.trimmed() == HifiAudioDeviceInfo::DEFAULT_DEVICE_NAME.trimmed()) {
+        return switchAudioDevice(mode, defaultAudioDeviceForMode(mode, hmdName));
+    }
+#endif
     return switchAudioDevice(mode, getNamedAudioDeviceForMode(mode, deviceName, hmdName, isHmd));
 }
 
