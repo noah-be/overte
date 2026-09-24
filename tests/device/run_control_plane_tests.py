@@ -49,6 +49,7 @@ def commands(profile: str) -> list[tuple[str, list[str], bool]]:
         # packages and a host C++ compiler; no device or native client build.
         for path in (
             "audio/test_phone_default_input.py",
+            "lifecycle/test_phone_editor_teardown.py",
             "audio/test_injector_buffer_publication.py",
             "audio/test_injector_event_delivery.py",
             "audio/test_injector_preparation_lifetime.py",
