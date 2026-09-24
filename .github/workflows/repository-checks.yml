@@ -1,0 +1,74 @@
+name: Repository checks
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, edited, ready_for_review]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: repository-checks-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  route:
+    name: Select required repository checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      mode: ${{ steps.plan.outputs.mode }}
+      security: ${{ steps.plan.outputs.security }}
+    steps:
+      - name: Check out trusted routing policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: trusted
+          persist-credentials: false
+      - name: Read the candidate tree without executing it
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: candidate
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Select checks from the exact merge candidate
+        id: plan
+        run: >-
+          python3 trusted/tools/repository-checks/check.py plan
+          --event "$GITHUB_EVENT_PATH" --candidate candidate
+          --sha "$GITHUB_SHA" --output "$GITHUB_OUTPUT"
+
+  project:
+    needs: route
+    if: needs.route.outputs.mode == 'full'
+    uses: ./.github/workflows/project-tests.yml
+
+  documentation:
+    needs: route
+    uses: ./.github/workflows/documentation-checks.yml
+
+  workflow-security:
+    needs: route
+    if: needs.route.outputs.security == 'true'
+    uses: ./.github/workflows/workflow-security.yml
+
+  repository-checks:
+    name: repository-checks
+    if: always()
+    needs: [route, project, documentation, workflow-security]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out trusted result verifier
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Require all selected checks to succeed
+        env:
+          CHECK_RESULTS: ${{ toJSON(needs) }}
+        run: >-
+          python3 tools/repository-checks/check.py verify
+          --needs-json "$CHECK_RESULTS"

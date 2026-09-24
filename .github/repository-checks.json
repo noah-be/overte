@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "repository": "noah-be/overte",
+  "repository_id": 1319052603,
+  "documentation_suffixes": [".md"],
+  "workflow_security_paths": [
+    ".github/**",
+    "tools/workflow-security/**",
+    "tools/branch-cleanup/**",
+    "tools/repository-checks/**",
+    "tools/repository-policy/**",
+    "tests/workflow-*",
+    "tests/branch-cleanup-test.py",
+    "tests/repository-checks-test.py",
+    "tests/repository-policy-test.py"
+  ],
+  "required_contexts": [
+    "dependency-release-policy",
+    "branch-policy",
+    "sync-test-reuse",
+    "repository-checks"
+  ]
+}

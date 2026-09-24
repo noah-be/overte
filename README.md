@@ -21,6 +21,16 @@ SPDX-License-Identifier: Apache-2.0
 > back to the upstream project. The one-way review process is documented in
 > the [upstream intake policy](docs/UPSTREAM_INTAKE.md).
 
+### Start developing
+
+Start with the [developer guide and documentation index](docs/README.md). It
+links the correct branch and build guide for each target, the first local check,
+and the [source architecture](docs/ARCHITECTURE.md).
+
+For a contribution, read [CONTRIBUTING.md](CONTRIBUTING.md) and the current
+[roadmap](docs/ROADMAP.md). Repository maintenance commands are indexed in
+[`tools/README.md`](tools/README.md).
+
 ### Repository structure
 
 The branches in this fork are organized by platform and device target:

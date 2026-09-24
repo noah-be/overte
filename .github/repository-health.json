@@ -1,5 +1,5 @@
 {
-  "schema": 1,
+  "schema": 2,
   "repository": "noah-be/overte",
   "reference_issue": 599,
   "wip_limits": {
@@ -33,28 +33,97 @@
     }
   },
   "required_workflows": [
-    "Android tests",
-    "Branch policy",
-    "Branch synchronization",
-    "CodeQL",
-    "Documentation checks",
-    "Workflow security",
-    "Android branch topology",
-    "Apple branch topology",
-    "Desktop branch topology",
-    "Dependabot Updates",
-    "Dependency Graph",
-    "Repository Health Doctor"
+    {
+      "path": ".github/workflows/android-tests.yml",
+      "owner_branch": "android-main"
+    },
+    {
+      "path": ".github/workflows/branch-policy.yml",
+      "owner_branch": "main"
+    },
+    {
+      "path": ".github/workflows/branch-sync.yml",
+      "owner_branch": "main"
+    },
+    {
+      "path": ".github/workflows/codeql.yml",
+      "owner_branch": "main"
+    },
+    {
+      "path": ".github/workflows/documentation-checks.yml",
+      "owner_branch": "main"
+    },
+    {
+      "path": ".github/workflows/workflow-security.yml",
+      "owner_branch": "main"
+    },
+    {
+      "path": ".github/workflows/android-branch-topology.yml",
+      "owner_branch": "android-main"
+    },
+    {
+      "path": ".github/workflows/apple-branch-topology.yml",
+      "owner_branch": "apple-main"
+    },
+    {
+      "path": ".github/workflows/project-tests.yml",
+      "owner_branch": "main"
+    },
+    {
+      "path": ".github/workflows/branch-cleanup.yml",
+      "owner_branch": "main"
+    },
+    {
+      "path": ".github/workflows/issue-intake.yml",
+      "owner_branch": "main"
+    },
+    {
+      "path": ".github/workflows/repository-health.yml",
+      "owner_branch": "main"
+    },
+    {
+      "path": "dynamic/dependabot/dependabot-updates",
+      "owner_branch": null
+    },
+    {
+      "path": "dynamic/dependabot/update-graph",
+      "owner_branch": null
+    },
+    {
+      "path": ".github/workflows/repository-checks.yml",
+      "owner_branch": "main"
+    },
+    {
+      "path": ".github/workflows/parent-qualification.yml",
+      "owner_branch": "main"
+    },
+    {
+      "path": ".github/workflows/sync-test-reuse.yml",
+      "owner_branch": "main"
+    },
+    {
+      "path": ".github/workflows/sync-validation.yml",
+      "owner_branch": "main"
+    },
+    {
+      "path": ".github/workflows/dependency-releases.yml",
+      "owner_branch": "main"
+    }
   ],
   "security_workflows": [
-    "CodeQL",
-    "Dependabot Updates",
-    "Dependency Graph",
-    "Workflow security"
+    ".github/workflows/codeql.yml",
+    "dynamic/dependabot/dependabot-updates",
+    "dynamic/dependabot/update-graph",
+    ".github/workflows/workflow-security.yml"
   ],
   "security_thresholds": {
     "codeql": 0,
     "dependabot": 0,
     "secret_scanning": 0
+  },
+  "freshness": {
+    "max_age_hours": 30,
+    "workflow_path": ".github/workflows/repository-health.yml",
+    "artifact_prefix": "repository-health-report"
   }
 }

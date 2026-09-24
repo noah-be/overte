@@ -7,8 +7,6 @@ SPDX-License-Identifier: Apache-2.0
 
 # Build Linux
 
-*Last Updated on 2026-04-16*
-
 Please read the [general build guide](BUILD.md) for information on dependencies required for all platforms. Only Linux specific instructions are found in this file.
 
 ~~You can use the [Overte Builder](https://github.com/overte-org/overte-builder) to build on Linux more easily. Alternatively, you can follow the manual steps below.~~ (Currently outdated.)
@@ -23,13 +21,15 @@ sudo apt update
 sudo apt upgrade
 ```
 
--  Install git and g++
+-  Install Git, a C++ compiler, and Ninja
 ```bash
-sudo apt install git g++
+sudo apt install git g++ ninja-build
 ```
 
 -  Install CMake
-We require a newer CMake version than 3.22.1, which is shipped in Ubuntu 22.04, so we install CMake packages provided by upstream here: https://apt.kitware.com/
+Use the CMake minimum in [the general build guide](BUILD.md). Ubuntu 22.04's
+CMake 3.22.1 is below that minimum; Kitware provides newer packages at
+https://apt.kitware.com/.
 
 -  Install Conan
 Get the Conan "Ubuntu / Debian installer" from https://conan.io/downloads and install it using:
@@ -65,21 +65,24 @@ sudo apt install libpulse0 libnss3 libnspr4 libfontconfig1 libxcursor1 libxcompo
 sudo apt install libasound2 libxmu-dev libxi-dev freeglut3-dev libasound2-dev libjack0 libjack-dev libxrandr-dev libudev-dev libssl-dev zlib1g-dev
 ```
 
--  Install Python 3 and required packages:
+- Install a Python version that satisfies [the general build guide](BUILD.md)
+  and the matching `distro` package. The distribution's default `python3` may be
+  older than the repository tooling requires. Check `python3 --version` before
+  running the tests; do not replace the operating system's Python in place.
 ```bash
-sudo apt install python python3 python3-distro
+sudo apt install python3 python3-distro
 ```
 
--  Install Node.js as it is required to build the jsdoc documentation:
-```bash
-sudo apt install nodejs
-```
+- Install Node.js using the version described in
+  [the general build guide](BUILD.md); the distribution's default package may
+  be older. Node.js is used by JSDoc and the repository tests.
 
 ## Get code and checkout the branch you need
 
 Clone this repository:
 ```bash
 git clone https://github.com/noah-be/overte.git
+cd overte
 ```
 
 Then check out this fork's default `main` branch:
@@ -90,7 +93,8 @@ git switch main
 The official upstream repository uses `master`; this fork uses `main`. See the
 [upstream intake policy](docs/UPSTREAM_INTAKE.md) before combining the two.
 
-If you need a different branch, you can get a list of all tags with:
+Select a product branch using the [platform guide index](docs/interfaces/README.md).
+To inspect available release tags separately:
 ```bash
 git fetch --tags
 git tag
@@ -121,7 +125,6 @@ If you don't do this, Conan will still complain if it notices system packages be
 
 Install the dependencies with conan
 ```bash
-cd overte
 conan install . -s build_type=Release -b missing -pr:a=tools/conan-profiles/linux -of build -c tools.cmake.cmaketoolchain:generator="Ninja Multi-Config"
 ```
 
@@ -153,49 +156,48 @@ cmake --build --preset conan-release --target interface
 
 ## Running the software
 
+The following paths assume the Ninja Multi-Config `Release` build above and a
+shell in the repository root. Other build directories or configurations change
+the corresponding path.
+
 ### Domain server
 
 Running Domain server:
 ```bash
-./domain-server/domain-server
+./build/domain-server/Release/domain-server
 ```
 
 ### Assignment clients
 
 Running assignment client:
 ```bash
-./assignment-client/assignment-client -n 6
+./build/assignment-client/Release/assignment-client -n 6
 ```
 
 ### Interface
 
 Running Interface:
 ```bash
-./interface/interface
+./build/interface/Release/interface
 ```
 
 Go to "localhost" in the running Interface to visit your newly launched Domain server.
 
-### Unit Testing
+### Testing
 
-Overte contains some unit tests based on the Qt Test API. Using them for developing changes and improvements is highly encouraged. They're also useful when testing thread safety and memory safety is needed, as the `interface` binary is far too big to run under Valgrind.
+Start with the [project testing guide](tests/PROJECT_TESTING.md) for repository
+checks, portable C++/QML contracts, and the limits of host evidence.
 
-To build the tests, first run CMake with the `-DOVERTE_BUILD_TESTS=ON` argument, eg:
+For the native C++/Qt tests, first install the Debug dependencies as described
+above, then configure the same Ninja Multi-Config build with tests enabled:
 
-    cmake --preset conan-debug -DOVERTE_BUILD_TESTS=ON
+```bash
+cmake --preset conan-default -DOVERTE_BUILD_TESTS=ON
+OVERTE_TEST_BUILD_CONFIG=Debug bash tests/project-native-test.sh build
+```
 
-The tests are still not built by default, the test target has to be built with:
-
-    make all-tests
-
-The tests will be generated under the `tests/` directory, grouped by category. To run all of them, use the `test` target. This produces a test summary of
-pass/fail results.
-
-    make test
-
-To run just one, go into the corresponding directory and run the binary. This will produce a more detailed output, which can be useful for debugging.
-
-    cd tests/audio
-    ./audio-CodecTests
-
-For developing new tests, see the [Qt Test documentation](https://doc.qt.io/archives/qt-5.15/qttest-index.html). Tests need to be in `tests/$category/${name}Tests.h` and `tests/$category/${name}Tests.cpp` (the `Tests.cpp` naming is important).
+The helper builds `all-tests` and runs CTest against `build`, reporting failure
+when no tests are registered. To inspect individual registered tests, use
+`ctest --test-dir build -C Debug -N`; use `-R PATTERN` to run a selection.
+Tests are registered in [tests/CMakeLists.txt](tests/CMakeLists.txt) and its
+component directories. Follow a neighboring suite when adding a regression.

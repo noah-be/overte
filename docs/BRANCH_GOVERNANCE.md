@@ -2,19 +2,24 @@
 
 This fork uses permanent integration branches as an ownership hierarchy:
 
-```text
-main
-├── android-main
-│   ├── android-phone
-│   └── android-vr
-│       └── android-vr-pico
-└── apple-main
-    └── apple-ios
-```
+<!-- generated:branch-table:start -->
+| Permanent branch | Parent | Task scope |
+| --- | --- | --- |
+| `main` | — | `main` |
+| `android-main` | `main` | `android` |
+| `android-phone` | `android-main` | `android-phone` |
+| `android-vr` | `android-main` | `android-vr` |
+| `android-vr-pico` | `android-vr` | `android-pico` |
+| `apple-main` | `main` | `apple` |
+| `apple-ios` | `apple-main` | `ios` |
+<!-- generated:branch-table:end -->
 
 The machine-readable source of truth is
 [`../.github/branch-policy.json`](../.github/branch-policy.json). Changes to the
-hierarchy, CI policy, and this document must be reviewed together.
+hierarchy and CI policy must be reviewed together. The table above is generated
+from that policy. After an intentional policy change, run
+`python3 tools/repository-policy/check.py --write`; the read-only check rejects
+stale displays and inconsistent cleanup, synchronization, or ruleset topology.
 
 The seven permanent branches have six parent-to-child edges. Linux and Windows
 implementation, tests, desktop adapters, and target matrices belong on `main`.

@@ -10,15 +10,20 @@ The experimental Overte Interface ports use one documentation layout so that
 support boundaries, build commands, test evidence, and release readiness can be
 compared without guessing which document is authoritative.
 
-| Platform | Documentation path | Development branch |
+| Platform | Developer entry point | Build instructions |
 | --- | --- | --- |
-| Pico 4 | `docs/interfaces/pico4/README.md` | `android-vr-pico` |
-| Android phones | `docs/interfaces/android-phone/README.md` | `android-phone` |
-| iPhone and iPad | `docs/interfaces/ios/README.md` | `apple-ios` |
+| Android phones | [`android-phone` guide](https://github.com/noah-be/overte/blob/android-phone/docs/interfaces/android-phone/README.md) | [Phone build](https://github.com/noah-be/overte/blob/android-phone/docs/interfaces/android-phone/BUILD.md) |
+| Pico 4 | [`android-vr-pico` guide](https://github.com/noah-be/overte/blob/android-vr-pico/docs/interfaces/pico4/README.md) | [Pico build](https://github.com/noah-be/overte/blob/android-vr-pico/docs/interfaces/pico4/BUILD.md) |
+| iPhone and iPad | [`apple-ios` guide](https://github.com/noah-be/overte/blob/apple-ios/docs/interfaces/ios/README.md) | [iOS build](https://github.com/noah-be/overte/blob/apple-ios/docs/interfaces/ios/BUILD.md) |
 
 The active platform branches contain their corresponding documentation.
 Historical platform documentation may remain on a frozen archival branch, but
 it is not a current development or support target.
+
+Read the target's current status before running its build commands. Its build
+host and dependencies may differ from the shared repository checks. For shared
+changes, use the [source ownership guide](../SOURCE_LAYOUT.md); for Linux and
+Windows, use the [general build guide](../../BUILD.md).
 
 ## Shared document roles
 

@@ -7,22 +7,30 @@ SPDX-License-Identifier: Apache-2.0
 
 # General Build Information
 
-*Last Updated on 2025-03-17*
+Start with the [developer guide](docs/README.md) to select the owning branch and
+run repository checks before preparing a native build.
 
 ## OS Specific Build Guides
 
 * [Build Windows](BUILD_WIN.md) - complete instructions for Windows.
 * [Build Linux](BUILD_LINUX.md) - additional instructions for Linux.
-* [Build OSX](BUILD_OSX.md) - additional instructions for OS X.
-* [Build Android](https://github.com/noah-be/overte/blob/android-main/BUILD_ANDROID.md) - additional instructions for Android.
+* [Platform ports](docs/interfaces/README.md) - branch-specific Android Phone,
+  Pico 4, and iOS build guides.
+* [Build OSX](BUILD_OSX.md) - inherited historical guidance; macOS is not an
+  active product target in the [fork roadmap](docs/ROADMAP.md).
 
 ## Dependencies
-- [git](https://git-scm.com/downloads): >= 1.6
-- [CMake](https://cmake.org/download/):  3.9 (or greater up to latest 3.x.x)
+- [Git](https://git-scm.com/downloads): use a version with `git switch` support
+  (2.23 or newer) for the documented development workflow.
+- [CMake](https://cmake.org/download/): 3.24 or newer for the modern build;
+  [CMakeLists.txt](CMakeLists.txt) defines the enforced minimum and the isolated
+  legacy Android exception. Follow a platform guide's exact version when given.
 - [Conan](https://conan.io/downloads): 2.x
-- [Python](https://www.python.org/downloads/): 3.6 or higher
-- [Node.JS](https://nodejs.org/en/): >= 12.13.1 LTS
-    - Used to build the server-console, JSDoc, and script console autocomplete.
+- [Python](https://www.python.org/downloads/): 3.11 or newer for repository
+  tooling; the [test environment](tests/PROJECT_TESTING.md) uses Python 3.12.
+- [Node.js](https://nodejs.org/en/): use the Node.js 22 CI baseline for repository
+  tests. Node.js also builds the server console, JSDoc, and script autocomplete;
+  platform dependency pins remain authoritative for the embedded runtime.
 
 ## Conan Dependencies
 Most of our dependencies are automatically fetched and built using Conan.

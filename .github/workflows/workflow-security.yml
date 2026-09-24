@@ -1,17 +1,7 @@
 name: Workflow security
 
 on:
-  pull_request:
-    paths:
-      - ".github/actions/**"
-      - ".github/workflows/**"
-      - ".github/actionlint.yaml"
-      - ".github/branch-cleanup.json"
-      - "tools/branch-cleanup/**"
-      - "tests/branch-cleanup-test.py"
-      - "tools/workflow-security/**"
-      - "tests/workflow-action-pin-test.py"
-      - "tests/workflow-contract-test.py"
+  workflow_call:
   push:
     branches: [main]
     paths:
