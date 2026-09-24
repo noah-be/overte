@@ -48,11 +48,11 @@ struct AudioClient {
 int main() {
     AudioClient client;
 #ifdef ANDROID_APP_PHONE_INTERFACE
-    for (const QString name : {QString("default "), QString("default"), QString(" default ")}) {
+    for (const QString name : {QString("default "), QString("default"), QString(" default "), QString(""), QString("   ")}) {
         assert(client.switchAudioDevice(QAudio::AudioInput, name, false));
         assert(client.selected == "voicecommunication");
     }
-    assert(defaultLookups == 3);
+    assert(defaultLookups == 5);
 #else
     assert(!client.switchAudioDevice(QAudio::AudioInput, "default ", false));
     assert(defaultLookups == 0);
@@ -60,7 +60,9 @@ int main() {
     assert(client.switchAudioDevice(QAudio::AudioInput, "mic", false));
     assert(client.selected == "mic");
     assert(!client.switchAudioDevice(QAudio::AudioInput, "missing", false));
+#ifndef ANDROID_APP_PHONE_INTERFACE
     assert(!client.switchAudioDevice(QAudio::AudioInput, "", false));
+#endif
     assert(client.switchAudioDevice(QAudio::AudioOutput, "speaker", false));
     assert(!client.switchAudioDevice(QAudio::AudioOutput, "default ", false));
 }

@@ -1488,8 +1488,11 @@ bool AudioClient::switchAudioDevice(QAudio::Mode mode, const QString& deviceName
     // Android exposes the real source name even for default device entries.
     // Resolving the saved "default " alias by name would stop a working input
     // and replace it with silent dummy input after initial device discovery.
+    // Older failed selections could also persist an empty device name.
+    // Recover those installations without clearing unrelated user settings.
     if (mode == QAudio::AudioInput &&
-            deviceName.trimmed() == HifiAudioDeviceInfo::DEFAULT_DEVICE_NAME.trimmed()) {
+            (deviceName.trimmed().isEmpty() ||
+             deviceName.trimmed() == HifiAudioDeviceInfo::DEFAULT_DEVICE_NAME.trimmed())) {
         return switchAudioDevice(mode, defaultAudioDeviceForMode(mode, hmdName));
     }
 #endif
