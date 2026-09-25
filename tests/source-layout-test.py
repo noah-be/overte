@@ -36,10 +36,11 @@ PHONE_SHARED_MOBILE_REPLACEMENTS = {
 
 class SourceLayoutTests(unittest.TestCase):
     def test_product_reintroduction_cannot_bypass_the_pull_request_gate(self):
-        workflow = (ROOT / ".github/workflows/project-tests.yml").read_text()
-        pull_request = workflow.split("  pull_request:\n", 1)[1].split("  push:\n", 1)[0]
-        self.assertIn('"android/**"', pull_request)
-        self.assertIn('".github/platform-source-policy.json"', pull_request)
+        workflow = (ROOT / ".github/workflows/repository-checks.yml").read_text()
+        pull_request = workflow.split("  pull_request:\n", 1)[1].split("  workflow_dispatch:\n", 1)[0]
+        self.assertNotIn("paths", pull_request)
+        self.assertIn("uses: ./.github/workflows/project-tests.yml", workflow)
+        self.assertIn("tools/repository-checks/check.py plan", workflow)
 
     def test_branch_profile_matches_owned_sources(self):
         profile = json.loads((ROOT / "tests/platform-profile.json").read_text())
