@@ -64,6 +64,8 @@ class FakeApi:
             for name, expected in CONFIG["labels"].items()
         ]
         self.refs = []
+        self.branches = [{"name": name, "sha": SHA} for name in
+                         json.loads((ROOT / ".github/branch-policy.json").read_text())["branches"]]
         self.prs = []
         self.workflows = [
             {"id": index + 1, "name": item["path"], "path": item["path"], "state": "active"}
@@ -112,6 +114,10 @@ class FakeApi:
     def pinned_issue_numbers(self, owner, repository):
         return self.pinned
 
+    def branch_inventory(self, repository):
+        self._failure(f"repos/{repository}/branches")
+        return self.branches
+
 
 def doctor(api=None):
     return HEALTH.Doctor(ROOT, deepcopy(CONFIG), api or FakeApi())
@@ -149,6 +155,138 @@ class BranchFixtures(unittest.TestCase):
         subject.check_branches()
         names = {edge["child"] for edge in subject.data["branches"]["edges"]}
         self.assertNotIn("reconcile/main/S1-B04", names)
+
+    def test_all_remote_names_are_checked_without_a_pull_request(self):
+        api = FakeApi()
+        invalid = ["fix/android-phone-default-microphone", "fix/android-phone-editor-teardown",
+                   "experiment/android-phone-apk-size"]
+        api.branches += [{"name": name, "sha": SHA} for name in invalid]
+        subject = doctor(api)
+        subject._guard("branches", subject.check_branches)
+        findings = subject.findings["branches"]
+        self.assertEqual([finding.code for finding in findings], ["BRANCH_NAME_INVALID"] * 3)
+        self.assertTrue(all(any(name in finding.message for finding in findings) for name in invalid))
+        data = subject.data["branches"]
+        self.assertTrue(data["inventory_complete"])
+        self.assertEqual((data["total_branches"], data["valid_branch_names"], data["invalid_branch_names"]), (10, 7, 3))
+        self.assertEqual(api.prs, [])
+        self.assertEqual(subject.report("live")["exit_code"], 1)
+
+    def test_central_policy_accepts_permanent_scoped_task_reconcile_promotion_and_dependabot(self):
+        api = FakeApi()
+        names = ["fix/android-phone/microphone", "ci/ios/build", "task/ios/948-prerelease-quality-gate",
+                 "reconcile/android-pico/parent-refresh", "promote/apple/shared-fix",
+                 "dependabot/npm_and_yarn/tools/jsdoc/example-1.2.3"]
+        api.branches += [{"name": name, "sha": SHA} for name in names]
+        subject = doctor(api)
+        module = subject.branch_policy_module()
+        with mock.patch.object(module, "validate_branch_name", wraps=module.validate_branch_name) as validate:
+            subject.check_branches()
+        self.assertEqual(subject.findings["branches"], [])
+        self.assertEqual({call.args[1] for call in validate.call_args_list}, {row["name"] for row in api.branches})
+        self.assertEqual(validate.call_count, len(api.branches))
+        self.assertEqual(subject.data["branches"]["invalid_branch_names"], 0)
+
+    def test_inventory_errors_are_operational_not_complete_health_evidence(self):
+        for error, code in ((HEALTH.AuditError("incomplete inventory"), "BRANCH_API_ERROR"),
+                            (HEALTH.PermissionUnknown("permission unavailable"), "UNKNOWN_PERMISSION")):
+            with self.subTest(code=code):
+                api = FakeApi()
+                api.fail_contains["/branches"] = error
+                subject = doctor(api)
+                heads = {row["name"]: row["sha"] for row in api.branches}
+                admission = {"status": "READY", "heads": heads, "reasons": [], "hierarchy_synchronized": True}
+                with mock.patch.object(subject, "propagation_state", return_value=admission):
+                    report = subject.live_when_idle("workflow_dispatch")
+                self.assertFalse(report["audit_complete"])
+                self.assertIsNone(report["audit_completed_at"])
+                self.assertEqual(report["exit_code"], 2)
+                self.assertIn(code, {item["code"] for item in report["results"]["branches"]["findings"]})
+                self.assertFalse(report["results"]["branches"]["data"]["inventory_complete"])
+
+    def test_missing_duplicate_malformed_or_stale_inventory_fails_closed(self):
+        complete = FakeApi().branches
+        for inventory in (None, {}, [], complete[:-1], complete + [complete[0]],
+                          complete + [None], complete + [{"name": "fix/ios/test", "sha": "invalid"}],
+                          complete + [{"name": None, "sha": SHA}],
+                          [{**row, "sha": "2" * 40} for row in complete]):
+            with self.subTest(inventory=inventory):
+                api = FakeApi()
+                api.branches = inventory
+                subject = doctor(api)
+                subject.check_branches()
+                self.assertEqual(subject.findings["branches"][0].code, "BRANCH_API_ERROR")
+                self.assertEqual(subject.report("live")["exit_code"], 2)
+                self.assertFalse(subject.data["branches"]["inventory_complete"])
+
+
+class BranchInventoryApiFixtures(unittest.TestCase):
+    def response(self, names, *, count=None, more=False, cursor=None):
+        return {"data": {"repository": {"nameWithOwner": CONFIG["repository"], "refs": {
+            "totalCount": len(names) if count is None else count,
+            "nodes": [{"name": name, "target": {"oid": SHA}} for name in names],
+            "pageInfo": {"hasNextPage": more, "endCursor": cursor},
+        }}}}
+
+    def read(self, responses):
+        api = HEALTH.GitHubApi("fixture-token")
+        with mock.patch.object(api, "_request", side_effect=responses) as request:
+            result = api.branch_inventory(CONFIG["repository"])
+        for call in request.call_args_list:
+            self.assertEqual(call.args[0], "graphql")
+            self.assertTrue(call.args[1]["query"].startswith("query("))
+            self.assertEqual(call.args[1]["variables"]["owner"], "noah-be")
+            self.assertEqual(call.args[1]["variables"]["name"], "overte")
+        return result, request.call_args_list
+
+    def test_counted_cursor_pages_return_all_branches(self):
+        result, calls = self.read([self.response(["main"], count=2, more=True, cursor="next"),
+                                   self.response(["fix/main/example"], count=2)])
+        self.assertEqual([row["name"] for row in result], ["main", "fix/main/example"])
+        self.assertIsNone(calls[0].args[1]["variables"]["cursor"])
+        self.assertEqual(calls[1].args[1]["variables"]["cursor"], "next")
+
+    def test_missing_changed_duplicate_and_nonprogressing_pages_fail_closed(self):
+        variants = [
+            [self.response(["main"], count=2)],
+            [self.response(["main"], count=0)],
+            [self.response(["main", "main"])],
+            [self.response([], count=1, more=True, cursor="next")],
+            [self.response(["main"], count=2, more=True)],
+            [self.response(["main"], count=1, more=True, cursor="next")],
+            [self.response(["main"], count=1001)],
+            [self.response(["main"], count=2, more=True, cursor="next"), self.response(["fix/main/test"], count=3)],
+            [self.response(["main"], count=2, more=True, cursor="next"), self.response(["main"], count=2)],
+            [self.response(["main"], count=3, more=True, cursor="next"),
+             self.response(["fix/main/test"], count=3, more=True, cursor="next")],
+        ]
+        for pages in variants:
+            with self.subTest(pages=pages), self.assertRaises(HEALTH.AuditError):
+                self.read(pages)
+
+    def test_invalid_graphql_identity_shape_and_errors_fail_closed(self):
+        valid = self.response(["main"])
+        variants = [None, [], {}, {"data": None}, {"data": []}, {"data": {"repository": None}},
+                    {"errors": [{"message": "unavailable"}]},
+                    {**valid, "errors": [{"message": "partial response"}]}]
+        wrong_owner = deepcopy(valid)
+        wrong_owner["data"]["repository"]["nameWithOwner"] = "overte-org/overte"
+        variants.append(wrong_owner)
+        for key, value in (("totalCount", True), ("nodes", None), ("nodes", [None]),
+                           ("nodes", [{"name": "main", "target": {"oid": "bad"}}]),
+                           ("pageInfo", {"hasNextPage": "false"})):
+            document = deepcopy(valid)
+            document["data"]["repository"]["refs"][key] = value
+            variants.append(document)
+        for document in variants:
+            with self.subTest(document=document), self.assertRaises(HEALTH.AuditError):
+                self.read([document])
+
+    def test_pagination_has_a_hard_bound(self):
+        pages = [self.response([f"fix/main/item-{index}"], count=11, more=True, cursor=str(index))
+                 for index in range(10)]
+        with self.assertRaisesRegex(HEALTH.AuditError, "pagination exceeded"):
+            self.read(pages)
 
 
 class IssueFixtures(unittest.TestCase):

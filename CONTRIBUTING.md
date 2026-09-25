@@ -60,6 +60,21 @@ fix/ios/tablet-focus
 Linux and Windows product support, desktop adapters, and their tests are
 maintained on `main`; use the `main` scope for that work.
 
+Install the local branch-name guards once per clone, from a reviewed checkout:
+
+```bash
+python3 tools/branch-policy/install.py install
+python3 tools/branch-policy/install.py status
+```
+
+The installation covers linked worktrees as well. Before creating a branch,
+you can also run `python3 tools/branch-policy/check.py check-name --branch
+fix/android-phone/default-microphone`. The guards reject invalid new branch
+names and invalid push destination names. See
+[the guard's coverage and limits](docs/BRANCH_WORKFLOW.md#local-branch-name-guards),
+including Git's local rename/copy behavior. Reinstall after a reviewed policy
+update; cloning alone does not install Git hooks.
+
 Shared changes flow only from a parent branch to its children. Do not merge a
 product branch into its parent or sibling.
 
