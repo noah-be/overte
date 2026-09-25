@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 """Behavioral tests: rejected writes, ownership, concurrency, retries and round trips."""
 import copy
+import contextlib
 import importlib.util
+import io
 import json
+import os
 from pathlib import Path
 import sys
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools/issue-intake"))
@@ -116,6 +120,73 @@ class IntakeTests(unittest.TestCase):
             value = draft(kind)
             self.assertEqual(intake.validate(value, POLICY), [])
             self.assertEqual(intake.parse(issue(value), POLICY), value)
+
+    def test_extra_section_separators_preserve_field_markdown(self):
+        for kind in POLICY["kinds"]:
+            for separator in ("\n\n\n", "\n \n\t\n\n"):
+                with self.subTest(kind=kind, separator=repr(separator)):
+                    value = draft(kind)
+                    value["fields"]["summary"] = ("First paragraph.  \nContinued line.\n\n\n"
+                        "### Nested heading\n\n```text\nline\n\n\n  ## Literal example\n```\n\nLast paragraph.")
+                    original = issue(value)
+                    original["body"] = original["body"].replace("\n\n## ", separator + "## ")
+                    body = original["body"]
+                    self.assertEqual(intake.parse(original, POLICY), value)
+                    self.assertEqual(original["body"], body)
+
+    def test_section_spacing_does_not_hide_unknown_duplicate_or_stray_text(self):
+        for unexpected in ("## Unknown section\n\nUnmapped content.",
+                           "## Platforms\n\nios", "Unstructured introduction."):
+            original = issue()
+            original["body"] = original["body"].replace("\n\n## Issue type", "\n\n" + unexpected + "\n\n\n## Issue type")
+            with self.subTest(unexpected=unexpected), self.assertRaises(intake.IntakeError):
+                intake.parse(original, POLICY)
+        for suffix in ("\nUser observation.", "\n\n## Expected behavior\n\nUnstructured appendix."):
+            original = issue()
+            original["body"] = original["body"].replace("\n\n## Expected behavior", "\n\n\n## Expected behavior") + suffix
+            with self.subTest(suffix=suffix), self.assertRaises(intake.IntakeError):
+                intake.parse(original, POLICY)
+
+    def test_comparison_preserves_fenced_heading_whitespace(self):
+        for opening, closing in (("```markdown", "```"), ("~~~~", "~~~~~"), ("   ````", "   ````")):
+            text = opening + "\ncontent\n\n\n## Example\n\ninside\n" + closing
+            body = text + "\n\n\n## Actual section\n\nvalue\n"
+            self.assertEqual(intake.section_spacing_for_comparison(body), text + "\n\n## Actual section\n\nvalue\n")
+            value = draft(); value["fields"]["summary"] = text
+            self.assertTrue(intake.validate(value, POLICY))  # Reserved headings stay unsupported inside fields.
+
+    def test_cli_show_and_update_repair_only_section_spacing(self):
+        original = issue()
+        canonical = original["body"]
+        original["body"] = canonical.replace("\n\n## Expected behavior", "\n\n\n## Expected behavior")
+        self.api.rows[100] = copy.deepcopy(original)
+
+        def fake_gh(args, **kwargs):
+            self.assertEqual(args[:4], ["gh", "api", "--hostname", "github.com"])
+            response = self.api.call(args[6], args[5], json.loads(kwargs["input"]) if kwargs["input"] else None)
+            return subprocess.CompletedProcess(args, 0, json.dumps(response), "")
+
+        def cli(*args):
+            output = io.StringIO()
+            argv = ["overte-issue", "--policy", str(ROOT / ".github/issue-policy.json"), *args]
+            with mock.patch.object(sys, "argv", argv), contextlib.redirect_stdout(output):
+                self.assertEqual(intake.main(), 0)
+            return json.loads(output.getvalue())
+
+        with tempfile.TemporaryDirectory() as directory, mock.patch.dict(os.environ, {"XDG_CACHE_HOME": directory}), mock.patch.object(intake.subprocess, "run", side_effect=fake_gh):
+            shown = cli("show", "100")
+            self.assertEqual(shown["draft"], draft())
+            self.assertEqual(shown["issue"], original)
+            self.assertEqual(shown["validation"]["status"], "valid")
+            self.assertEqual(shown["snapshot"], intake.snapshot(original))
+            self.assertEqual(self.api.writes, [])
+            path = Path(directory) / "draft.json"
+            path.write_text(json.dumps(shown["draft"]))
+            repaired = cli("update", "100", str(path), "--snapshot", shown["snapshot"], "--apply")
+        self.assertTrue(repaired["verified"])
+        self.assertEqual(self.api.rows[100], {**original, "body": canonical})
+        self.assertEqual(intake.parse(self.api.rows[100], POLICY), shown["draft"])
+        self.assertEqual(len(self.api.writes), 1)
 
     def test_unknown_bug_details_allowed_inbox_but_not_ready(self):
         self.assertEqual(intake.validate(draft(), POLICY), [])
@@ -422,6 +493,25 @@ class MigrationTests(unittest.TestCase):
         self.assertEqual(intake.inspect_issue(row, POLICY)["status"], "invalid")
         self.assertIn("validation: needs-info", guard.plan(row, POLICY, [row])["patch"]["labels"])
         self.assertNotIn("body", guard.plan(row, POLICY, [row])["patch"])
+
+    def test_separator_repair_preserves_archive_and_rejects_whitespace_tampering(self):
+        self.original["body"] = "Original prose.\n\n\n## Historical heading\n\nHistorical details.\n"
+        self.api.rows[100] = copy.deepcopy(self.original)
+        self.migrate()
+        row = self.api.rows[100]
+        canonical = row["body"]
+        row["body"] = canonical.replace("\n\n## Expected behavior", "\n \n\t\n## Expected behavior")
+        value = intake.parse(row, POLICY)
+        self.assertEqual(value["legacy"]["body"], self.original["body"])
+        intake.update(self.api.client, 100, value, POLICY, intake.snapshot(row))
+        self.assertEqual(row["body"], canonical)
+        row["body"] = canonical.replace("\n\n\n## Historical heading", "\n\n## Historical heading")
+        writes_before = len(self.api.writes)
+        with self.assertRaisesRegex(intake.IntakeError, "archive hash mismatch"):
+            intake.parse(row, POLICY)
+        with self.assertRaisesRegex(intake.IntakeError, "archive hash mismatch"):
+            intake.update(self.api.client, 100, value, POLICY, intake.snapshot(row))
+        self.assertEqual(len(self.api.writes), writes_before)
 
     def test_archive_cannot_be_changed_or_dropped_by_update(self):
         self.migrate(); row = self.api.rows[100]; value = intake.parse(row, POLICY)
