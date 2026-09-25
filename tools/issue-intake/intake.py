@@ -105,7 +105,7 @@ def load_policy(client=None, path=None):
         client.verify_repository()
         content = client.api(f"{API}/contents/.github/issue-policy.json?ref=main")
         policy = json.loads(base64.b64decode(content["content"]))
-    if policy.get("repository") != REPOSITORY or policy.get("schema") != 1 or policy.get("minimum_tool_revision", 1) > 2:
+    if policy.get("repository") != REPOSITORY or policy.get("schema") != 1 or policy.get("minimum_tool_revision", 1) > 3:
         raise IntakeError("Unsupported issue policy; update the installed tool instead of bypassing validation")
     return policy
 
@@ -163,7 +163,7 @@ def validate(draft, policy, state="inbox", completion=False, not_planned=False):
     errors = []
     if not isinstance(draft, dict):
         return ["Draft must be a JSON object"]
-    allowed = {"title", "kind", "platforms", "fields", "milestone", "request_id", "extra_labels", "legacy", "test_runs"}
+    allowed = {"title", "kind", "platforms", "fields", "milestone", "request_id", "extra_labels", "legacy", "test_runs", "completion_decisions"}
     if set(draft) - allowed:
         errors.append("Unknown draft keys: " + ", ".join(sorted(set(draft) - allowed)))
     title = draft.get("title")
@@ -188,6 +188,10 @@ def validate(draft, policy, state="inbox", completion=False, not_planned=False):
         acceptance.check_runs(draft)
     except (ValueError, TypeError, KeyError) as exc:
         errors.append("test_runs: " + str(exc))
+    try:
+        acceptance.check_decisions(draft, policy)
+    except (ValueError, TypeError, KeyError) as exc:
+        errors.append("completion_decisions: " + str(exc))
     extras = draft.get("extra_labels", [])
     managed = set(policy["kinds"].values()) | set(policy["platforms"]) | set(policy["validation_labels"].values()) | {"system: reference", policy.get("history_label")} | set(policy.get("acceptance_labels", {}).values())
     if not isinstance(extras, list) or any(not isinstance(x, str) or x in managed or x.startswith("workflow:") for x in extras):
@@ -264,6 +268,8 @@ def render(draft, policy):
         sections.append((heading, value))
     if "test_runs" in draft:
         sections.append((acceptance.RECORD_HEADING, "```json\n" + json.dumps(draft["test_runs"], indent=2, ensure_ascii=False) + "\n```"))
+    if "completion_decisions" in draft:
+        sections.append((acceptance.DECISION_HEADING, "```json\n" + json.dumps(draft["completion_decisions"], indent=2, ensure_ascii=False) + "\n```"))
     result = (f"<!-- overte-issue:v1 request:{draft['request_id']} -->\n\n"
             + "\n\n".join(f"## {heading}\n\n{value}" for heading, value in sections)
             + "\n\n---\nPrepared with AI assistance; factual claims and evidence require review.\n")
@@ -286,7 +292,7 @@ def parse(issue, policy):
     sections = {}
     kind = next((content.strip() for heading, content in pairs if heading == "Issue type"), None)
     mapping = field_headings({"kind": kind}, policy)
-    headings = {"Issue type", "Platforms", acceptance.RECORD_HEADING} | set(mapping.values())
+    headings = {"Issue type", "Platforms", acceptance.RECORD_HEADING, acceptance.DECISION_HEADING} | set(mapping.values())
     for heading, content in pairs:
         if heading not in headings or heading in sections:
             raise IntakeError("Unknown or duplicate section: " + heading)
@@ -314,6 +320,11 @@ def parse(issue, policy):
         if not record.startswith("```json\n") or not record.endswith("\n```"):
             raise IntakeError("Test records require their JSON block")
         draft["test_runs"] = json.loads(record[8:-4])
+    if acceptance.DECISION_HEADING in sections:
+        record = sections[acceptance.DECISION_HEADING]
+        if not record.startswith("```json\n") or not record.endswith("\n```"):
+            raise IntakeError("Completion decisions require their JSON block")
+        draft["completion_decisions"] = json.loads(record[8:-4])
     if legacy is not None:
         if legacy.get("issue") != issue["number"]:
             raise IntakeError("Original-description archive belongs to a different issue")
@@ -334,7 +345,7 @@ def expected_labels(draft, policy, state="inbox", existing=()):
     return sorted(result)
 
 
-def check_remote(client, draft, policy, desired_labels, state="inbox", exclude=None):
+def check_remote(client, draft, policy, desired_labels, state="inbox", exclude=None, retained_milestone=None):
     client.verify_repository()
     known = {x["name"] for x in client.pages("labels")}
     missing = set(desired_labels) - known
@@ -342,7 +353,8 @@ def check_remote(client, draft, policy, desired_labels, state="inbox", exclude=N
         raise IntakeError("Repository labels missing: " + ", ".join(sorted(missing)))
     if draft.get("milestone"):
         milestone = client.api(f"{API}/milestones/{draft['milestone']}")
-        if milestone.get("state") != "open" or not milestone.get("url", "").startswith(f"https://api.github.com/{API}/milestones/"):
+        if (milestone.get("url") != f"https://api.github.com/{API}/milestones/{draft['milestone']}"
+                or (milestone.get("state") != "open" and retained_milestone != draft["milestone"])):
             raise IntakeError("Milestone is closed or belongs to another repository")
     if state in policy["wip_limits"]:
         count = sum(x["number"] != exclude and "workflow: " + state in labels(x) for x in client.issues())
@@ -363,6 +375,8 @@ def verify_saved(client, number, payload):
 
 
 def create(client, draft, policy):
+    if draft.get("completion_decisions"):
+        raise IntakeError("Record owner completion through an explicit update of the existing criterion")
     if draft.get("legacy"):
         raise IntakeError("Use migrate to preserve an existing issue; new issues cannot import a legacy identity")
     require_valid(draft, policy)
@@ -380,7 +394,7 @@ def create(client, draft, policy):
     return verify_saved(client, created["number"], payload)
 
 
-def update(client, number, draft, policy, expected_snapshot, state=None, close_reason=None):
+def update(client, number, draft, policy, expected_snapshot, state=None, close_reason=None, owner_approved=False):
     original = client.issue(number)
     if "system: reference" in labels(original):
         raise IntakeError("Operating references are not task issues")
@@ -401,6 +415,14 @@ def update(client, number, draft, policy, expected_snapshot, state=None, close_r
     old_runs = parse(original, policy).get("test_runs", [])
     if draft.get("test_runs", [])[:len(old_runs)] != old_runs:
         raise IntakeError("Test records are append-only; preserve earlier results unchanged")
+    old_decisions = parse(original, policy).get("completion_decisions", [])
+    decisions = draft.get("completion_decisions", [])
+    if decisions[:len(old_decisions)] != old_decisions:
+        raise IntakeError("Completion decisions are append-only; preserve earlier owner decisions")
+    if decisions != old_decisions and not owner_approved:
+        raise IntakeError("Recording an owner decision requires explicit --owner-approved authorization")
+    if owner_approved and (close_reason != "completed" or not acceptance.owner_completed(draft, policy)):
+        raise IntakeError("--owner-approved requires completed closure and a decision for the unchanged criterion")
     effective_reason = original.get("state_reason") if preserve_closed else close_reason
     require_valid(draft, policy, state, completion=effective_reason == "completed", not_planned=effective_reason == "not_planned")
     old_marker = MARKER.search(original.get("body") or "")
@@ -408,9 +430,11 @@ def update(client, number, draft, policy, expected_snapshot, state=None, close_r
         raise IntakeError("Preserve the existing request_id")
     desired = expected_labels(draft, policy, None if close_reason or preserve_closed else state, labels(original))
     desired = with_candidate_labels(client, draft, policy, desired)
-    if close_reason == "completed" and draft["kind"] == "acceptance" and policy["acceptance_labels"]["verified"] not in desired:
-        raise IntakeError("Acceptance completion requires a passing record for the pinned candidate and unchanged criterion")
-    check_remote(client, draft, policy, desired, state if not close_reason else "inbox", number)
+    if (close_reason == "completed" and draft["kind"] == "acceptance"
+            and policy["acceptance_labels"]["verified"] not in desired and not owner_approved):
+        raise IntakeError("Acceptance completion requires a passing record for the pinned candidate, or an explicit --owner-approved decision for the unchanged criterion")
+    check_remote(client, draft, policy, desired, state if not close_reason else "inbox", number,
+                 retained_milestone=(original.get("milestone") or {}).get("number"))
     payload = {"title": draft["title"], "body": render(draft, policy), "labels": desired, "milestone": draft.get("milestone")}
     if close_reason:
         payload.update(state="closed", state_reason=close_reason)
@@ -452,6 +476,8 @@ def inspect_issue(issue, policy):
 
 def migrate(client, number, draft, policy, expected_snapshot, apply=False):
     """Restructure an existing issue without changing disposition or losing its body."""
+    if draft.get("completion_decisions"):
+        raise IntakeError("Record owner completion through an explicit update after migration")
     original = client.issue(number)
     if snapshot(original) != expected_snapshot:
         raise IntakeError("Issue changed since migration review; re-read and rebuild the draft")
@@ -566,7 +592,8 @@ def overview(client, policy):
                 result = acceptance.status(draft, candidate)
             except (IntakeError, ValueError, TypeError, KeyError):
                 result = "needs-correction"
-            results.append({**brief(criterion), "result": result})
+            results.append({**brief(criterion), "result": result,
+                            "owner_approved_completion": acceptance.owner_completed(draft, policy) if result != "needs-correction" else False})
         milestones.append({"number": milestone["number"], "title": milestone["title"], "criteria": len(criteria),
                            "recorded_completed_criteria": completed, "other_issues": len(members) - len(criteria),
                            "candidate": candidate, "candidate_passed_criteria": sum(x["result"] == "passed" for x in results),
@@ -601,7 +628,7 @@ def main():
     p = sub.add_parser("search"); p.add_argument("terms", nargs="+")
     p = sub.add_parser("show"); p.add_argument("number", type=int)
     p = sub.add_parser("create"); p.add_argument("file"); p.add_argument("--apply", action="store_true")
-    p = sub.add_parser("update"); p.add_argument("number", type=int); p.add_argument("file"); p.add_argument("--snapshot", required=True); p.add_argument("--state"); p.add_argument("--close", choices=("completed", "not_planned")); p.add_argument("--apply", action="store_true")
+    p = sub.add_parser("update"); p.add_argument("number", type=int); p.add_argument("file"); p.add_argument("--snapshot", required=True); p.add_argument("--state"); p.add_argument("--close", choices=("completed", "not_planned")); p.add_argument("--owner-approved", action="store_true", help="record the project owner's explicit completion decision; not a candidate PASS"); p.add_argument("--apply", action="store_true")
     sub.add_parser("audit")
     sub.add_parser("overview")
     p = sub.add_parser("candidate"); p.add_argument("milestone", type=int); p.add_argument("file", nargs="?"); p.add_argument("--snapshot"); p.add_argument("--apply", action="store_true")
@@ -644,7 +671,7 @@ def main():
             result = {"valid": True, "write_performed": False, "body": render(draft, policy)}
         else:
             with local_lock():
-                result = create(client, draft, policy) if args.command == "create" else update(client, args.number, draft, policy, args.snapshot, args.state, args.close)
+                result = create(client, draft, policy) if args.command == "create" else update(client, args.number, draft, policy, args.snapshot, args.state, args.close, args.owner_approved)
     print(json.dumps(result, indent=2, ensure_ascii=False))
     return 0
 

@@ -1,17 +1,7 @@
 name: Workflow security
 
 on:
-  pull_request:
-    paths:
-      - ".github/actions/**"
-      - ".github/workflows/**"
-      - ".github/actionlint.yaml"
-      - ".github/branch-cleanup.json"
-      - "tools/branch-cleanup/**"
-      - "tests/branch-cleanup-test.py"
-      - "tools/workflow-security/**"
-      - "tests/workflow-action-pin-test.py"
-      - "tests/workflow-contract-test.py"
+  workflow_call:
   push:
     branches: [main]
     paths:
@@ -73,27 +63,7 @@ jobs:
           echo "$tools_dir/bin" >> "$GITHUB_PATH"
 
       - name: Lint workflow syntax and runner labels
-        env:
-          # Fork-only labels used by the isolated device and trusted build pools.
-          ACTIONLINT_SELF_HOSTED_LABELS: |
-            overte-android-build
-            overte-android-phone-build
-            overte-android-phone-emulator
-            overte-android-phone-release
-            overte-android-release
-            overte-pico4-device
-            depot-ubuntu-24.04
-        run: |
-          set -euo pipefail
-          config_file="$RUNNER_TEMP/actionlint-session-21.yaml"
-          {
-            echo "self-hosted-runner:"
-            echo "  labels:"
-            while IFS= read -r label; do
-              [[ -z "$label" ]] || printf '    - %s\n' "$label"
-            done <<< "$ACTIONLINT_SELF_HOSTED_LABELS"
-          } > "$config_file"
-          actionlint -config-file "$config_file" -no-color
+        run: actionlint -config-file .github/actionlint.yaml -no-color
 
       - name: Audit workflow security
         if: always()
@@ -102,3 +72,7 @@ jobs:
       - name: Scan workflow files for secrets with redacted output
         if: always()
         run: gitleaks dir --redact=100 --no-banner --no-color .github
+
+      - name: Verify fail-closed workflow contracts
+        if: always()
+        run: PYTHONDONTWRITEBYTECODE=1 python3 tests/workflow-contract-test.py

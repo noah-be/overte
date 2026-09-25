@@ -1136,6 +1136,8 @@ class AppiumAdapter:
     @staticmethod
     def start_android_e2e(client: WebDriver, session: str, target: dict) -> None:
         component = f"{target['appId']}/.E2eLauncherActivity"
+        if target['appId'] == 'io.github.noah_be.overte.phone':
+            component = f"{target['appId']}/org.overte.phone.E2eLauncherActivity"
         client.execute(session, "mobile: startActivity", {
             "intent": component,
             "stop": True,

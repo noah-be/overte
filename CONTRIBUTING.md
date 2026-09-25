@@ -78,7 +78,9 @@ auditable. Never bypass required checks for routine work.
 
 ## Verification
 
-For dependency-light repository checks, run:
+Start with the [developer guide](docs/README.md) for branch selection and the
+[testing guide](tests/PROJECT_TESTING.md) for host prerequisites and test layers.
+From the repository root, run the dependency-light repository checks:
 
 ```bash
 python3 tests/run-project-tests.py --profile quick --timeout 240
@@ -88,6 +90,11 @@ git diff --check
 Platform changes must also run the relevant branch-specific host, simulator,
 emulator, or device checks. A successful host test must not be presented as
 physical-device evidence.
+
+When a change alters a command, source location, prerequisite, or policy, update
+its authoritative guide in the same change. Link from summaries instead of
+copying procedures. Use the [documentation index](docs/README.md) to find that
+guide and record skipped or unavailable verification explicitly.
 
 ## Bugs and feature requests
 
