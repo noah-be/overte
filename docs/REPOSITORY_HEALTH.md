@@ -67,11 +67,20 @@ absence; a later read-only freshness invocation detects the overdue evidence.
 
 ## Audit scope and workflow ownership
 
-The seven independently reported areas are permanent branch synchronization,
+The seven independently reported areas are branch synchronization and naming,
 Issue workflow/WIP and pinned reference #599, governance labels, task-branch
 relationships, required workflows, security alerts, and versioned repository
 contracts. Configuration is in
 [`.github/repository-health.json`](../.github/repository-health.json).
+The branch area checks every remote branch name against the shared branch policy,
+including branches without a pull request. It accepts permanent branches and
+configured scoped, task, reconciliation, promotion and Dependabot names.
+An invalid name produces `BRANCH_NAME_INVALID`; an incomplete or malformed
+inventory is an operational error, never an empty successful inventory. Existing
+invalid branches are reported without an age exemption and are never renamed or
+deleted by the Doctor. Local prevention is described in
+[the branch-name guard setup](BRANCH_WORKFLOW.md#local-branch-name-guards).
+
 Issue workflow fields are checked only in the current description after the
 intake parser verifies any preserved archive and its issue identity. Historical
 headings cannot duplicate or supply current next actions, blockers, or unblock
