@@ -8,8 +8,8 @@ Default configuration is diagnostic/unbound and emits no execution identity.
 `appium.json` similarly delegates to the original Shared Android Appium adapter,
 retaining `appium-android` and its actual Tablet/text/touch capabilities. Use the
 same candidate arguments after `appium_adapter.py` in a private manifest. Bound
-Appium mode requires an `org.overte.phone` target with one explicit ADB/
-Appium device mapping, `appium:appPackage=org.overte.phone`, and a loopback Appium
+Appium mode requires an `io.github.noah_be.overte.phone` target with one explicit ADB/
+Appium device mapping, `appium:appPackage=io.github.noah_be.overte.phone`, and a loopback Appium
 server. Any `appium:app` must be a local byte-verified copy of the same candidate,
 not an unverified path or download URL. Remote-grid binding fails closed; local
 ADB cannot attest a remote grid's selected device. Physical targets pass the
@@ -46,7 +46,7 @@ candidate; equivalent emulator build acceptance still needs its own evidence.
 The original Phone/SH-009 verifier checks candidate bytes, source association,
 version/channel and independent input/evidence bytes before discovery. At each
 reserved `describe`, the wrapper asks PackageManager for the installed
-`org.overte.phone` path and hashes that actual file on Android. It accepts only
+`io.github.noah_be.overte.phone` path and hashes that actual file on Android. It accepts only
 one monolithic `/data/app/.../base.apk`, rejects split packages and unsafe paths,
 rechecks the PackageManager path and local candidate binding, and emits the exact
 SH-004 v003 `executionIdentity` extension only after all checks pass. Missing

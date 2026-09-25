@@ -88,7 +88,7 @@ elif cmd[:2] == ["shell", "getprop"]:
       "ro.opengles.version": "196610", "ro.kernel.qemu": "0"}
     print(values.get(prop, ""))
 elif cmd == ["shell", "pm", "list", "features"]: print("feature:android.hardware.touchscreen")
-elif cmd[:4] == ["shell", "pidof", "-s", "org.overte.phone"] and process_state != "stopped": print("45" if process_state == "restarted" else "42")
+elif cmd[:4] == ["shell", "pidof", "-s", "io.github.noah_be.overte.phone"] and process_state != "stopped": print("45" if process_state == "restarted" else "42")
 elif cmd[:4] == ["shell", "pidof", "-s", "org.overte.pico"] and process_state != "stopped": print("44" if process_state == "restarted" else "43")
 elif cmd[:3] == ["shell", "cat", "/proc/42/stat"]: print("42 (app) S " + "0 "*18 + "123 0")
 elif cmd[:3] == ["shell", "cat", "/proc/43/stat"]: print("43 (app) S " + "0 "*18 + "124 0")
@@ -96,7 +96,7 @@ elif cmd[:3] == ["shell", "cat", "/proc/44/stat"]: print("44 (app) S " + "0 "*18
 elif cmd[:3] == ["shell", "cat", "/proc/45/stat"]: print("45 (app) S " + "0 "*18 + "126 0")
 elif cmd == ["shell", "dumpsys", "activity", "activities"]:
     package=("com.pvr.home" if foreground_state == "background" else
-             ("org.overte.pico" if target and target.startswith("pico-secret") else "org.overte.phone"))
+             ("org.overte.pico" if target and target.startswith("pico-secret") else "io.github.noah_be.overte.phone"))
     print("mResumedActivity: x u0 " + package + "/.Main t1")
 elif cmd[:3] == ["shell", "am", "force-stop"]:
     if process_path: open(process_path,"w").write("stopped")
@@ -180,7 +180,7 @@ elif cmd and cmd[0] == "exec-out" and "grant.json" in cmd[-1]:
         status["detail"]="grant-removed"; status["updatedEpochMs"]=int(time.time()*1000)
         open(status_path,"w").write(json.dumps(status))
 elif (len(cmd) == 2 and cmd[0] == "shell"
-      and (shlex.split(cmd[1])[:3] == ["run-as", "org.overte.phone", "sh"]
+      and (shlex.split(cmd[1])[:3] == ["run-as", "io.github.noah_be.overte.phone", "sh"]
            or shlex.split(cmd[1])[:3] == ["run-as", "org.overte.pico", "sh"])):
     payload=sys.stdin.read()
     remote_arguments=shlex.split(cmd[1])
@@ -201,7 +201,7 @@ elif (len(cmd) == 2 and cmd[0] == "shell"
             output.write(json.dumps({"path":remote,"payload":payload})+"\n")
     if os.environ.get("MOCK_ANDROID_RESTART_ON_CONTROL", "") == "1" and process_path:
         open(process_path,"w").write("restarted")
-elif cmd[:4] == ["shell", "run-as", "org.overte.phone", "cat"] or cmd[:4] == ["shell", "run-as", "org.overte.pico", "cat"]:
+elif cmd[:4] == ["shell", "run-as", "io.github.noah_be.overte.phone", "cat"] or cmd[:4] == ["shell", "run-as", "org.overte.pico", "cat"]:
     remote=cmd[4]
     if remote.endswith("android-control.json"):
         control_sequence += 1
@@ -491,7 +491,7 @@ class AndroidAdapterTest(unittest.TestCase):
                       "android-control-command.json")]
         self.assertEqual(3, len(writes))
         self.assertTrue(all(shlex.split(command[3])[:4]
-                            == ["run-as", "org.overte.phone", "sh", "-c"]
+                            == ["run-as", "io.github.noah_be.overte.phone", "sh", "-c"]
                             for command in writes))
         self.assertFalse(any("am" in command and "start" in command
                              for command in adb_commands))
@@ -525,7 +525,7 @@ class AndroidAdapterTest(unittest.TestCase):
             "#!/bin/sh\n"
             "case \"$3\" in *source.apk) code=1; version=1.0.0 ;; "
             "*) code=2; version=2.0.0 ;; esac\n"
-            "printf \"package: name='org.overte.phone' versionCode='%s' "
+            "printf \"package: name='io.github.noah_be.overte.phone' versionCode='%s' "
             "versionName='%s'\\n\" \"$code\" \"$version\"\n", encoding="utf-8")
         aapt.chmod(0o700)
         self.environment.update({
@@ -1068,10 +1068,10 @@ class AndroidAdapterTest(unittest.TestCase):
         commands = [json.loads(line) for line in argv_log.read_text().splitlines()]
         force_stop = [index for index, command in enumerate(commands)
                       if command[2:] == ["shell", "am", "force-stop",
-                                         "org.overte.phone"]]
+                                         "io.github.noah_be.overte.phone"]]
         stopped_probe = [index for index, command in enumerate(commands)
                          if command[2:] == ["shell", "pidof", "-s",
-                                            "org.overte.phone"]]
+                                            "io.github.noah_be.overte.phone"]]
         self.assertEqual(1, len(force_stop))
         self.assertTrue(stopped_probe)
         self.assertGreater(stopped_probe[-1], force_stop[0])
