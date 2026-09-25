@@ -4,15 +4,17 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import importlib.util
+import io
 import json
 import os
 import re
 import sys
 import tempfile
 import unittest
+import zipfile
 from unittest import mock
 
 
@@ -64,8 +66,8 @@ class FakeApi:
         self.refs = []
         self.prs = []
         self.workflows = [
-            {"id": index + 1, "name": name, "state": "active"}
-            for index, name in enumerate(CONFIG["required_workflows"])
+            {"id": index + 1, "name": item["path"], "path": item["path"], "state": "active"}
+            for index, item in enumerate(CONFIG["required_workflows"])
         ]
         self.alerts = {"code-scanning": [], "dependabot": [], "secret-scanning": []}
         self.pinned = {599}
@@ -84,8 +86,10 @@ class FakeApi:
         if "/compare/" in path:
             child = path.rsplit("...", 1)[-1]
             return self.comparisons.get(child, {"status": "identical", "ahead_by": 0, "behind_by": 0})
-        if path.endswith("/actions/workflows?per_page=100"):
-            return {"workflows": self.workflows}
+        if "/actions/workflows?per_page=100&page=" in path:
+            return {"total_count": len(self.workflows), "workflows": self.workflows}
+        if "/contents/" in path:
+            return {"type": "file", "path": path.split("/contents/")[1].split("?")[0]}
         if "/actions/workflows/" in path and "/runs?" in path:
             return {"workflow_runs": [{"status": "completed", "conclusion": "success"}]}
         raise AssertionError(f"unexpected GET {path}")
@@ -148,6 +152,30 @@ class BranchFixtures(unittest.TestCase):
 
 
 class IssueFixtures(unittest.TestCase):
+    def archived_task(self, *, workflow='active', include_next=True, archive_issue=1):
+        spec = importlib.util.spec_from_file_location('doctor_archive_fixture', ROOT / 'tools/issue-intake/intake.py')
+        intake = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(intake)
+        policy = intake.load_policy(path=ROOT / '.github/issue-policy.json')
+        historical = issue(archive_issue, body=(
+            '## Next physical action\nOld action.\n\n## Next action\nAnother old action.\n\n'
+            '## Blocker\nAn old dependency.\n\n## Unblock condition\nHistorical recovery.\n'))
+        historical['updated_at'] = '2026-09-01T12:00:00Z'
+        fields = {'summary': 'Retain the current task and its original evidence.', 'scope': 'Repository checks.',
+                  'outcome': 'Audit the current workflow.', 'done_criteria': ['The current task is verified.'],
+                  'dependencies': [], 'required_checks': ['Run the offline fixture.']}
+        if include_next:
+            fields['next_action'] = 'Review the current handoff.'
+        if workflow == 'blocked':
+            fields['blocker'] = 'A current dependency is unavailable.'
+        draft = {'title': 'Archive fixture', 'kind': 'task', 'platforms': [], 'fields': fields,
+                 'milestone': None, 'request_id': '12345678-1234-4234-8234-123456789abc',
+                 'legacy': intake.archive_description(historical)}
+        value = issue(1, labels=('type: task', 'workflow: ' + workflow, 'validation: passed', 'history: preserved'),
+                      body=intake.render(draft, policy))
+        value['title'] = draft['title']
+        return value
+
     def run_issues(self, values, *, pinned=True):
         api = FakeApi()
         api.issues = values
@@ -179,6 +207,29 @@ class IssueFixtures(unittest.TestCase):
                 values = [reference(), issue(1, labels=("workflow: active", "type: task"), body=body)]
                 codes = {item.code for item in self.run_issues(values).findings["issues"]}
                 self.assertIn("NEXT_ACTION_INVALID", codes)
+
+    def test_verified_preserved_headings_do_not_duplicate_current_next_action(self):
+        task = self.archived_task()
+        original = deepcopy(task)
+        subject = self.run_issues([reference(), task])
+        self.assertEqual(subject.findings['issues'], [])
+        self.assertEqual(task, original, 'audit must not rewrite current or preserved evidence')
+
+    def test_preserved_history_cannot_supply_missing_current_workflow_fields(self):
+        for task, expected in ((self.archived_task(include_next=False), 'NEXT_ACTION_INVALID'),
+                               (self.archived_task(workflow='blocked'), 'BLOCKED_CONTRACT')):
+            with self.subTest(expected=expected):
+                codes = {item.code for item in self.run_issues([reference(), task]).findings['issues']}
+                self.assertIn(expected, codes)
+
+    def test_tampered_or_wrong_issue_archive_cannot_hide_current_findings(self):
+        tampered = self.archived_task()
+        tampered['body'] = tampered['body'].replace('Old action.', 'Altered action.')
+        for task in (tampered, self.archived_task(archive_issue=999)):
+            with self.subTest(body=task['body'][:40]):
+                codes = {item.code for item in self.run_issues([reference(), task]).findings['issues']}
+                self.assertIn('ISSUE_ARCHIVE_INVALID', codes)
+                self.assertIn('ISSUE_STRUCTURE', codes)
 
     def test_valid_blocked_issue_and_missing_unblock_condition(self):
         valid = issue(1, labels=("workflow: blocked", "type: task"), body="## Blocker\nWaiting for X\n## Unblock condition\nX completes\n")
@@ -285,6 +336,22 @@ class WorkflowAndSecurityFixtures(unittest.TestCase):
         subject.check_security()
         self.assertEqual(subject.findings["security"], [])
         self.assertEqual(set(subject.data["security"]["workflow_conclusions"].values()), {"failure"})
+        rendered = HEALTH.summary(subject.report('live'))
+        self.assertIn('Latest observed terminal run (not necessarily main)', rendered)
+        self.assertIn('**failure**', rendered)
+        self.assertIn('Overall: **PASS**', rendered)
+
+    def test_every_operational_gate_is_registered_with_its_main_owner(self):
+        inventory = {entry['path']: entry['owner_branch'] for entry in CONFIG['required_workflows']}
+        for name in ('repository-checks.yml', 'parent-qualification.yml', 'sync-test-reuse.yml',
+                     'sync-validation.yml', 'dependency-releases.yml'):
+            with self.subTest(workflow=name):
+                self.assertEqual(inventory['.github/workflows/' + name], 'main')
+                api = FakeApi()
+                api.workflows = [row for row in api.workflows if row['path'] != '.github/workflows/' + name]
+                subject = doctor(api)
+                subject.check_workflows()
+                self.assertIn('WORKFLOW_MISSING', {finding.code for finding in subject.findings['workflows']})
 
     def test_development_scope_and_codeql_severity_are_grouped(self):
         api = FakeApi()
@@ -326,7 +393,7 @@ class WorkflowContractTests(unittest.TestCase):
 
     def test_yaml_shape_schedule_dispatch_and_pr_paths(self):
         self.assertRegex(self.source, r"(?m)^name: Repository Health Doctor$")
-        self.assertIn('cron: "17 2 * * *"', self.source)
+        self.assertIn('cron: "17 2,8,14,20 * * *"', self.source)
         self.assertIn('timezone: "Europe/Berlin"', self.source)
         self.assertIn('--when-idle --event "$HEALTH_EVENT"', self.source)
         self.assertIn("workflow_dispatch:", self.source)
@@ -349,6 +416,8 @@ class WorkflowContractTests(unittest.TestCase):
             "GITHUB_TOKEN: ${{ secrets.REPOSITORY_HEALTH_READ_TOKEN || github.token }}",
             live,
         )
+        self.assertIn("ref: ${{ github.sha }}", live)
+        self.assertIn("HEALTH_SOURCE_SHA: ${{ github.sha }}", live)
         self.assertIn("persist-credentials: false", self.source)
 
     def test_timeout_concurrency_summary_and_always_artifact(self):
@@ -358,6 +427,13 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("retention-days: 14", self.source)
         checker = CHECKER.read_text(encoding="utf-8")
         self.assertIn("GITHUB_STEP_SUMMARY", checker)
+
+    def test_both_jobs_install_the_declared_python_dependencies(self):
+        for job in self.source.split('  live-audit:'):
+            self.assertIn('actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1', job)
+            self.assertIn('python-version: "3.12"', job)
+            self.assertIn('python3 -m pip install -r tests/requirements-repository.txt', job)
+        self.assertIn('"tests/requirements-repository.txt"', self.source)
 
     def test_local_repository_contracts_pass(self):
         subject = doctor()
@@ -434,13 +510,13 @@ class QuiescenceTests(unittest.TestCase):
         self.assertEqual(subject.live_when_idle('workflow_dispatch', lambda: self.NOW)['status'], 'FAIL')
         subject.live.assert_called_once()
 
-    def test_night_window_uses_berlin_summer_and_winter(self):
+    def test_delayed_schedule_runs_in_daytime_in_summer_and_winter(self):
         for moment in (datetime(2026, 9, 6, 10, tzinfo=timezone.utc),
-                       datetime(2026, 1, 6, 6, tzinfo=timezone.utc)):
+                       datetime(2027, 1, 6, 6, tzinfo=timezone.utc)):
             subject, _ = self.subject()
             report = subject.live_when_idle('schedule', lambda: moment)
-            self.assertEqual(report['status'], 'DEFERRED_OUTSIDE_NIGHT_WINDOW')
-            subject.live.assert_not_called()
+            self.assertEqual(report['status'], 'PASS')
+            subject.live.assert_called_once()
         subject, _ = self.subject()
         self.assertEqual(subject.live_when_idle('schedule', lambda: self.NOW)['status'], 'PASS')
 
@@ -509,6 +585,41 @@ class QuiescenceTests(unittest.TestCase):
         self.assertEqual(report['status'], 'DEFERRED_REPOSITORY_CHANGED')
         self.assertFalse(report['admission']['accepted'])
 
+    def test_complete_failure_and_operational_failure_have_different_completion(self):
+        for code, complete in (('BRANCH_DRIFT', True), ('UNKNOWN_PERMISSION', False)):
+            with self.subTest(code=code):
+                subject, api = self.subject()
+                def audited():
+                    subject.executed.update(HEALTH.AREAS)
+                    subject.fail('branches', code, 'fixture')
+                    return subject.report('live')
+                subject.live.side_effect = audited
+                report = subject.live_when_idle('schedule', lambda: self.NOW)
+                self.assertEqual(report['status'], 'FAIL')
+                self.assertEqual(report['audit_complete'], complete)
+                self.assertEqual(report['audit_completed_at'] is not None, complete)
+
+    def test_stale_checked_out_main_defers_before_running(self):
+        subject, _ = self.subject()
+        with mock.patch.dict(os.environ, {'HEALTH_SOURCE_SHA': '2' * 40}):
+            report = subject.live_when_idle('schedule', lambda: self.NOW)
+        self.assertEqual(report['status'], 'DEFERRED_SOURCE_CHANGED')
+        subject.live.assert_not_called()
+
+    def test_final_admission_error_preserves_audit_failure(self):
+        subject, api = self.subject()
+        def audited():
+            subject.executed.update(HEALTH.AREAS)
+            subject.fail('security', 'SECURITY_ALERTS', 'fixture')
+            api.failure = True
+            return subject.report('live')
+        subject.live.side_effect = audited
+        report = subject.live_when_idle('schedule', lambda: self.NOW)
+        self.assertEqual(report['status'], 'FAIL')
+        self.assertTrue(report['audit_executed'])
+        self.assertFalse(report['audit_complete'])
+        self.assertEqual(report['results']['security']['findings'][0]['code'], 'SECURITY_ALERTS')
+
     def test_legacy_live_cli_cannot_bypass_admission(self):
         report = doctor().report('live')
         with tempfile.TemporaryDirectory(prefix='overte-health-cli-') as directory:
@@ -521,6 +632,225 @@ class QuiescenceTests(unittest.TestCase):
                 self.assertEqual(HEALTH.main(), 0)
                 admitted.assert_called_once_with('workflow_dispatch')
                 self.assertEqual(json.loads(output.read_text())['status'], 'PASS')
+
+
+class EvidenceFixtures(unittest.TestCase):
+    NOW = datetime(2026, 9, 24, 14, tzinfo=timezone.utc)
+
+    @classmethod
+    def report(cls, status='PASS'):
+        return {
+            'schema': 2, 'repository': CONFIG['repository'], 'mode': 'live',
+            'status': status, 'exit_code': 0 if status == 'PASS' else 1,
+            'source_sha': SHA, 'run_id': '123', 'run_attempt': '1',
+            'generated_at': HEALTH.timestamp(cls.NOW),
+            'audit_executed': True, 'audit_complete': True,
+            'audit_started_at': HEALTH.timestamp(cls.NOW - timedelta(minutes=5)),
+            'audit_completed_at': HEALTH.timestamp(cls.NOW - timedelta(minutes=1)),
+            'admission': {'accepted': True, **{
+                side: {'heads': {name: SHA for name in doctor().policy()}}
+                for side in ('before', 'after')}},
+            'results': {area: {'status': 'PASS', 'findings': [], 'data': {}} for area in HEALTH.AREAS},
+        }
+
+    class Api:
+        def __init__(self, report):
+            self.report = report
+            self.run = {
+                'id': 123, 'run_attempt': 1, 'event': 'schedule', 'head_sha': SHA,
+                'head_branch': 'main', 'workflow_id': 7,
+                'path': CONFIG['freshness']['workflow_path'],
+                'repository': {'full_name': CONFIG['repository']},
+                'head_repository': {'full_name': CONFIG['repository']},
+                'created_at': '2026-09-24T13:50:00Z',
+                'updated_at': '2026-09-24T14:00:00Z',
+                'conclusion': 'success', 'status': 'completed',
+            }
+            self.artifacts = [{'id': 456, 'expired': False, 'name': 'repository-health-report-123-1',
+                               'workflow_run': {'id': 123, 'head_sha': SHA}}]
+
+        def get(self, path):
+            if path == f"repos/{CONFIG['repository']}":
+                return {'full_name': CONFIG['repository'], 'default_branch': 'main'}
+            if path.endswith('/actions/workflows/repository-health.yml'):
+                return {'id': 7, 'state': 'active', 'path': CONFIG['freshness']['workflow_path']}
+            if '/runs?' in path:
+                return {'total_count': 1, 'workflow_runs': [self.run]}
+            if '/artifacts?' in path:
+                return {'total_count': len(self.artifacts), 'artifacts': self.artifacts}
+            raise AssertionError(path)
+
+        def artifact_report(self, repository, artifact_id):
+            assert repository == CONFIG['repository'] and artifact_id == 456
+            return self.report
+
+    def assess(self, report=None, api=None, now=None):
+        return HEALTH.freshness(CONFIG, api or self.Api(report or self.report()), now or self.NOW)
+
+    def test_full_failed_audit_is_fresh_without_claiming_pass(self):
+        report = self.report('FAIL')
+        report['results']['branches'].update(status='FAIL', findings=[{'code': 'BRANCH_DRIFT', 'message': 'fixture'}])
+        api = self.Api(report)
+        api.run['conclusion'] = 'failure'
+        result = self.assess(api=api)
+        self.assertEqual(result['status'], 'FRESH')
+        self.assertEqual(result['last_complete_status'], 'FAIL')
+        self.assertEqual(result['source_run_id'], '123')
+
+    def test_green_deferred_workflow_does_not_refresh_evidence(self):
+        report = self.report()
+        report.update(status='DEFERRED_PROPAGATION', audit_complete=False, audit_executed=False)
+        result = self.assess(report)
+        self.assertEqual(result['status'], 'MISSING')
+        self.assertIsNone(result['last_complete_at'])
+
+    def test_stale_and_expired_evidence_fail(self):
+        self.assertEqual(self.assess(now=self.NOW + timedelta(hours=31))['status'], 'STALE')
+        api = self.Api(self.report())
+        api.artifacts[0]['expired'] = True
+        self.assertEqual(self.assess(api=api)['status'], 'MISSING')
+        api.artifacts = []
+        self.assertEqual(self.assess(api=api)['status'], 'MISSING')
+
+    def test_wrong_repository_sha_attempt_and_incomplete_report_fail_closed(self):
+        for field, value in (('repository', 'elsewhere/overte'), ('source_sha', '2' * 40),
+                             ('run_attempt', '2'), ('mode', 'local')):
+            with self.subTest(field=field):
+                report = self.report()
+                report[field] = value
+                self.assertEqual(self.assess(report)['status'], 'UNKNOWN')
+        report = self.report()
+        report['results']['security']['status'] = 'NOT_RUN'
+        self.assertEqual(self.assess(report)['status'], 'UNKNOWN')
+        report = self.report('FAIL')
+        report['results']['security'].update(status='FAIL', findings=[{'code': 'UNKNOWN_PERMISSION'}])
+        self.assertEqual(self.assess(report)['status'], 'UNKNOWN')
+
+    def test_fork_run_or_other_workflow_is_not_trusted(self):
+        for key, value in (('head_repository', {'full_name': 'stranger/overte'}),
+                           ('path', '.github/workflows/other.yml'), ('head_branch', 'topic')):
+            with self.subTest(key=key):
+                api = self.Api(self.report())
+                api.run[key] = value
+                self.assertEqual(self.assess(api=api)['status'], 'UNKNOWN')
+        api = self.Api(self.report())
+        api.run['event'] = 'pull_request'
+        self.assertEqual(self.assess(api=api)['status'], 'MISSING')
+
+    def test_future_or_invalid_timestamp_cannot_refresh(self):
+        for field, value in (('generated_at', '2026-09-25T00:00:00Z'),
+                             ('audit_completed_at', '2026-09-24T13:00:00Z'),
+                             ('audit_started_at', 'not a timestamp')):
+            with self.subTest(field=field):
+                report = self.report()
+                report[field] = value
+                self.assertEqual(self.assess(report)['status'], 'UNKNOWN')
+
+    def test_permission_failure_is_unknown_not_missing_or_fresh(self):
+        api = self.Api(self.report())
+        api.get = mock.Mock(side_effect=HEALTH.PermissionUnknown('fixture'))
+        self.assertEqual(self.assess(api=api)['status'], 'UNKNOWN')
+
+    def test_older_run_artifacts_are_not_downloaded_after_newest_complete_proof(self):
+        api = self.Api(self.report())
+        older = deepcopy(api.run)
+        older.update(id=122, created_at='2026-09-23T12:00:00Z', updated_at='2026-09-23T13:00:00Z')
+        original = api.get
+        def get(path):
+            if '/runs?' in path:
+                # Do not depend on provider ordering, including old reruns.
+                return {'total_count': 2, 'workflow_runs': [older, api.run]}
+            if '/runs/122/artifacts?' in path:
+                self.fail('older artifact lookup is unnecessary')
+            return original(path)
+        api.get = get
+        result = self.assess(api=api)
+        self.assertEqual(result['status'], 'FRESH')
+        self.assertEqual(result['artifact_inventories_read'], 1)
+
+    def test_newer_malformed_artifact_cannot_be_hidden_by_recent_complete_audit(self):
+        api = self.Api(self.report())
+        newer = deepcopy(api.run)
+        newer.update(id=124, status='in_progress')
+        original = api.get
+        def get(path):
+            if '/runs?' in path:
+                return {'total_count': 2, 'workflow_runs': [api.run, newer]}
+            if '/runs/124/artifacts?' in path:
+                return {'total_count': 1, 'artifacts': [{'id': 457, 'expired': False,
+                    'name': 'repository-health-report-124-1', 'workflow_run': {'id': 999, 'head_sha': SHA}}]}
+            return original(path)
+        api.get = get
+        self.assertEqual(self.assess(api=api)['status'], 'UNKNOWN')
+
+    def test_repeated_missing_evidence_has_a_fail_closed_query_budget(self):
+        api = self.Api(self.report())
+        original = api.get
+        def get(path):
+            if '/runs?' in path:
+                return {'total_count': 100, 'workflow_runs': [dict(api.run, id=index) for index in range(100)]}
+            if '/artifacts?' in path:
+                return {'total_count': 0, 'artifacts': []}
+            return original(path)
+        api.get = get
+        result = self.assess(api=api)
+        self.assertEqual(result['status'], 'UNKNOWN')
+        self.assertEqual(result['artifact_inventories_read'], HEALTH.MAX_FRESHNESS_ARTIFACT_READS)
+        self.assertIn('budget', result['findings'][0]['message'])
+
+    def test_local_audit_only_reports_executed_contracts(self):
+        report = doctor().local()
+        self.assertFalse(report['audit_executed'])
+        self.assertFalse(report['audit_complete'])
+        for area, value in report['results'].items():
+            self.assertEqual(value['status'], 'PASS' if area == 'repository_contracts' else 'NOT_RUN')
+
+    def test_report_download_rejects_extra_or_traversal_members(self):
+        for names in (['../repository-health-report.json'], ['repository-health-report.json', 'extra']):
+            with self.subTest(names=names):
+                data = io.BytesIO()
+                with zipfile.ZipFile(data, 'w') as archive:
+                    for name in names:
+                        archive.writestr(name, '{}')
+                response = mock.MagicMock()
+                response.__enter__.return_value.read.return_value = data.getvalue()
+                opener = mock.Mock()
+                opener.open.return_value = response
+                with mock.patch.object(HEALTH, 'build_opener', return_value=opener):
+                    with self.assertRaises(HEALTH.AuditError):
+                        HEALTH.GitHubApi('fixture-token').artifact_report(CONFIG['repository'], 456)
+
+    def test_artifact_redirect_strips_authentication(self):
+        response = mock.MagicMock()
+        data = io.BytesIO()
+        with zipfile.ZipFile(data, 'w') as archive:
+            archive.writestr('repository-health-report.json', '{}')
+        response.__enter__.return_value.read.return_value = data.getvalue()
+        opener = mock.Mock()
+        opener.open.return_value = response
+        with mock.patch.object(HEALTH, 'build_opener', return_value=opener) as build:
+            HEALTH.GitHubApi('fixture-token').artifact_report(CONFIG['repository'], 456)
+        redirect = build.call_args.args[0]
+        request = HEALTH.Request('https://api.github.com/example', headers={'Authorization': 'fixture-token'})
+        target = redirect.redirect_request(request, None, 302, 'Found', {}, 'https://example.blob.core.windows.net/report')
+        self.assertFalse(target.has_header('Authorization'))
+        with self.assertRaises(HEALTH.AuditError):
+            redirect.redirect_request(request, None, 302, 'Found', {}, 'http://example.test/report')
+
+    def test_renaming_workflow_display_name_does_not_hide_registration(self):
+        api = FakeApi()
+        for workflow in api.workflows:
+            workflow['name'] = 'New display name'
+        subject = doctor(api)
+        subject.check_workflows()
+        self.assertEqual(subject.findings['workflows'], [])
+
+    def test_product_owned_workflows_are_not_required_on_main(self):
+        entries = {item['path']: item['owner_branch'] for item in CONFIG['required_workflows']}
+        self.assertEqual(entries['.github/workflows/android-tests.yml'], 'android-main')
+        self.assertEqual(entries['.github/workflows/apple-branch-topology.yml'], 'apple-main')
+        self.assertNotIn('.github/workflows/desktop-branch-topology.yml', entries)
+
 
 
 if __name__ == "__main__":
