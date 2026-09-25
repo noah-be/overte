@@ -26,9 +26,14 @@ class Suite:
 
 
 SUITES = (
-    Suite("repository-checks", "quick", (sys.executable, "tests/repository-checks-test.py")),
     Suite("dependency-releases", "quick", (sys.executable, "tools/dependency-releases/test.py")),
     Suite("project-runner", "quick", (sys.executable, "tests/project-suite-self-test.py")),
+    Suite("repository-checks", "quick", (sys.executable, "tests/repository-checks-test.py")),
+    Suite("repository-policy", "quick", (sys.executable, "tests/repository-policy-test.py")),
+    Suite("policy-consistency", "quick", (sys.executable, "tools/repository-policy/check.py")),
+    Suite("documentation-contracts", "quick", (sys.executable, "tests/documentation-test.py")),
+    Suite("repository-doctor", "quick", (sys.executable, "tests/repository-health-test.py")),
+    Suite("repository-maintenance", "quick", (sys.executable, "tests/repository-maintenance-test.py")),
     Suite("branch-policy", "quick", (sys.executable, "tests/branch-policy-test.py")),
     Suite("branch-cleanup", "quick", (sys.executable, "tests/branch-cleanup-test.py")),
     Suite("sync-test-reuse", "quick", (sys.executable, "tools/sync-test-reuse/test.py")),
@@ -43,8 +48,10 @@ SUITES = (
     Suite("device-e2e-contracts", "quick", (
         sys.executable, "tests/device/run_control_plane_tests.py", "--profile", "quick",
         "--junit", "build/test-results/device-e2e-contracts.xml")),
-    Suite("documentation", "documentation", (
-        sys.executable, "tests/check-documentation.py", "--base", "HEAD^1")),
+    Suite("documentation", "quick", (
+        sys.executable, "tests/check-documentation.py", "--all")),
+    Suite("native-smoke", "quick", (
+        sys.executable, "tests/device/contracts/world-entry/test_phone_spawn_gate.py")),
     Suite("source-layout", "quick", (sys.executable, "tests/source-layout-test.py")),
     Suite("shared-script-behavior", "quick", ("node", "--test", *tuple(
         str(path.relative_to(ROOT)) for path in sorted((ROOT / "tests/javascript/test").glob("*.test.js"))))),

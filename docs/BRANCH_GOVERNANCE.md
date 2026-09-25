@@ -2,19 +2,24 @@
 
 This fork uses permanent integration branches as an ownership hierarchy:
 
-```text
-main
-├── android-main
-│   ├── android-phone
-│   └── android-vr
-│       └── android-vr-pico
-└── apple-main
-    └── apple-ios
-```
+<!-- generated:branch-table:start -->
+| Permanent branch | Parent | Task scope |
+| --- | --- | --- |
+| `main` | — | `main` |
+| `android-main` | `main` | `android` |
+| `android-phone` | `android-main` | `android-phone` |
+| `android-vr` | `android-main` | `android-vr` |
+| `android-vr-pico` | `android-vr` | `android-pico` |
+| `apple-main` | `main` | `apple` |
+| `apple-ios` | `apple-main` | `ios` |
+<!-- generated:branch-table:end -->
 
 The machine-readable source of truth is
 [`../.github/branch-policy.json`](../.github/branch-policy.json). Changes to the
-hierarchy, CI policy, and this document must be reviewed together.
+hierarchy and CI policy must be reviewed together. The table above is generated
+from that policy. After an intentional policy change, run
+`python3 tools/repository-policy/check.py --write`; the read-only check rejects
+stale displays and inconsistent cleanup, synchronization, or ruleset topology.
 
 The seven permanent branches have six parent-to-child edges. Linux and Windows
 implementation, tests, desktop adapters, and target matrices belong on `main`.
@@ -61,7 +66,8 @@ carry those parent-owned files into its immediate child only when the permanent
 parent branch itself is the pull-request head. The workflow requires that head
 to be the current remote parent SHA.
 
-When a direct synchronization conflicts, a same-repository reconciliation PR
+When a direct synchronization conflicts or cannot satisfy the target's strict
+up-to-date requirement, a same-repository reconciliation PR
 may carry the privileged paths only after a separate fail-closed attestation.
 The trusted checker reads the current base and its configured direct parent's
 SHA from the GitHub API, requires the reconciliation head to be the direct merge
@@ -78,13 +84,19 @@ executes PR-owned scripts or workflows. Its workflow permissions remain
 scopes, skipped hierarchy levels, child-to-parent flows, sibling flows, and
 ordinary `sync/*` topics cannot use this exception.
 
-Required status checks intentionally do not require a direct permanent-parent
-synchronization PR's head branch to contain the latest target-branch commits.
-Requiring that would force a forbidden child-to-parent merge before a
-parent-to-child synchronization could complete. An attested reconciliation is
-different: its head must directly merge the current target and current parent.
-Pull-request workflows still test GitHub's merge result, and merge conflicts,
-required checks, and every direction rule continue to fail closed.
+Required status checks use strict mode in the permanent, Android and Apple
+ruleset manifests; the September 2026 rollout inspection confirmed the same
+requirement in the live rulesets. A direct parent PR may therefore be considered
+out of date when its child contains commits absent from that parent. Do not
+disable strict checks or merge a permanent child back into its parent.
+
+Use an attested `reconcile/<child-scope>/<name>` branch based on the current
+child, with the current direct parent merged into it. This produces an
+up-to-date candidate while preserving the parent-to-child direction. Its exact
+head, ancestry, privileged paths and target checks must satisfy the existing
+reconciliation contract. Direct parent PRs remain valid only when all applicable
+rules allow them. Pull-request workflows test GitHub's merge result, and merge
+conflicts, required checks and direction rules continue to fail closed.
 Drift-detection runs are serialized per parent branch, so simultaneous Android,
 Apple, and shared-parent checks cannot cancel or replace one another.
 If GitHub cannot compare a configured pair, it reports a warning and continues
@@ -97,27 +109,16 @@ Desktop work uses the `main` rules and its applicable product checks.
 
 ## Enforcement bootstrap
 
-The status check must exist on GitHub before it can be required. Activate the
-system in this order:
+The permanent, Android and Apple rulesets already exist. Preserve their required
+contexts, strict checks and other protections while adding enforcement. A new
+status check must run successfully before it becomes required.
 
-1. Merge the policy, checker, tests, and workflows into `main`.
-2. Confirm that the `Branch policy` workflow has produced the
-   `branch-policy` check at least once.
-3. Create the repository rulesets from
-   `.github/rulesets/permanent-branches.json` using the GitHub Rulesets API or
-   repository settings; retain the Android and Apple target rulesets.
-4. Confirm with local negative fixtures that ownership and topology checks
-   reject invalid branch relationships.
-5. Synchronize the policy commit from `main` down through every permanent
-   child branch.
-
-With GitHub CLI authenticated for the repository, an administrator can create
-the prepared ruleset with:
-
-```bash
-gh api --method POST "repos/noah-be/overte/rulesets" \
-  --input .github/rulesets/permanent-branches.json
-```
+Follow the [maintenance deployment sequence](REPOSITORY_MAINTENANCE.md#deployment):
+stage trusted tools first, integrate and propagate workflow wiring, verify the
+live success and failure paths, then update the existing ruleset by its freshly
+resolved ID after retaining a rollback export. Read back the saved settings.
+Do not create another ruleset merely because a versioned manifest exists, and
+do not treat editing that manifest as a live settings change.
 
 Do not add a routine administrator bypass. Emergency changes should still use a
 pull request so the policy decision and CI result remain auditable.
