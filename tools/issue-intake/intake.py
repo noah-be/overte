@@ -281,6 +281,29 @@ def render(draft, policy):
     return result
 
 
+def section_spacing_for_comparison(body):
+    """Ignore blank section separators without changing field or archive text."""
+    core, archive_start, archive = body.partition(ARCHIVE_START)
+    lines = []
+    fence = None
+    for line in core.split("\n"):
+        if fence:
+            if re.fullmatch(r" {0,3}" + re.escape(fence[0]) + "{" + str(len(fence)) + r",}[ \t]*", line):
+                fence = None
+        else:
+            opening = re.fullmatch(r" {0,3}(`{3,}|~{3,})(.*)", line)
+            if opening and (opening[1][0] != "`" or "`" not in opening[2]):
+                fence = opening[1]
+            elif line.startswith("## "):
+                start = len(lines)
+                while start and not lines[start - 1].strip(" \t"):
+                    start -= 1
+                if start < len(lines):
+                    lines[start:] = [""]
+        lines.append(line)
+    return "\n".join(lines) + archive_start + archive
+
+
 def parse(issue, policy):
     body = issue.get("body") or ""
     body, legacy = extract_archive(body)
@@ -329,7 +352,7 @@ def parse(issue, policy):
         if legacy.get("issue") != issue["number"]:
             raise IntakeError("Original-description archive belongs to a different issue")
         draft["legacy"] = legacy
-    if render(draft, policy).strip() != (issue.get("body") or "").strip():
+    if section_spacing_for_comparison(render(draft, policy)).strip() != section_spacing_for_comparison(issue.get("body") or "").strip():
         raise IntakeError("Description contains unstructured text or formatting; preserve it in the draft before normalizing")
     return draft
 
