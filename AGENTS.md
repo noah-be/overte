@@ -1,3 +1,16 @@
+# Branch creation in this fork
+
+Before creating a branch, run `python3 tools/branch-policy/check.py check-name
+--branch <name>` from a current reviewed checkout. Use the canonical
+`<kind>/<scope>/<lowercase-hyphenated-name>` form; do not substitute a hyphen for
+the separator after the scope. Install or update the reviewed local safeguards
+with `python3 tools/branch-policy/install.py install` and verify them with
+`python3 tools/branch-policy/install.py status`. They cover the clone's linked
+worktrees. Do not bypass or replace conflicting hooks. See
+[the branch workflow](docs/BRANCH_WORKFLOW.md#local-branch-name-guards) for coverage
+and Git's rename/copy limitations. Invalid naming does not authorize deletion of
+unintegrated work.
+
 # Issue work in this fork
 
 For creating or changing issues in `noah-be/overte`, follow
