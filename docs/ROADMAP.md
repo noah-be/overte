@@ -5,11 +5,10 @@
 > Overte project commitment or a statement of official platform support.
 
 - **Updated:** 2026-09-25
-- **Repository baseline:** Seven permanent branches and six synchronization
-  edges; Linux and Windows support and tests maintained on `main`. Session 53X
-  records remain historical evidence.
-- **Current primary milestone:** `PICO-P1`
-- **Current maintenance milestone:** `R0`
+- **Current milestone:** `PICO-P1` — Pico 4 personal alpha
+- **Next:** `IOS-P1` — iPad personal alpha
+- **Later:** `PHONE-V1` — broader Android Phone device coverage
+- **Completed:** `PHONE-P1` — Android Phone personal alpha; `R0` — repository baseline
 
 ## North star
 
@@ -64,28 +63,29 @@ bootstrap boundary with the integrated client, then meet the common definition
 on one explicitly named physical iPad. iPhone coverage follows later. See the
 [IOS-P1 milestone](https://github.com/noah-be/overte/milestone/3).
 
+## LATER
+
+**PHONE-V1 — Broader Android Phone device coverage.** Extend the completed
+`PHONE-P1` personal alpha with at least one Adreno and one Mali device, plus
+longer lifecycle, thermal, battery, and audio checks. This is a future preview
+stage, not a reopening of the personal-alpha milestone.
+
+Signing, store publication, and wider device support can proceed separately
+once the corresponding personal alpha is repeatable.
+
 ## COMPLETED
 
 ### PHONE-P1 — Android Phone personal alpha (2026-09-25)
 
-The owner accepted the personal-alpha outcome and closed the
-[PHONE-P1 milestone](https://github.com/noah-be/overte/milestone/2), with all
-eleven acceptance issues completed. The milestone records the device evidence,
-source revisions, and retained limitations; the final tested app was 0.1.2
-(version code 3), built from `cd08e500d73d661c6050a8f3ad4c45921c03770c`.
+All eleven acceptance issues are complete. The owner accepted the recorded
+physical-device evidence, including the final audio and keyboard checks. See the
+[closed PHONE-P1 milestone](https://github.com/noah-be/overte/milestone/2)
+for source revisions, test records, and the scope of that acceptance.
 
-The final audio and keyboard criteria,
-[#802](https://github.com/noah-be/overte/issues/802) and
-[#807](https://github.com/noah-be/overte/issues/807), were closed through explicit
-owner approval of the recorded evidence. This completion does not claim a new
-single-candidate rerun of all eleven criteria. Microphone permission regrant
-requires an app restart; the intermittent Go To/Back crash remains tracked
-separately in [#933](https://github.com/noah-be/overte/issues/933).
-
-Broader `PHONE-V1` device coverage and F-Droid admission/publication remain
-separate from this completed personal-alpha milestone.
-
-## MAINTENANCE
+Known limitations remain documented: microphone permission regrant requires an
+app restart, and the intermittent Go To/Back crash is tracked in
+[#933](https://github.com/noah-be/overte/issues/933). Broader device coverage and
+F-Droid admission/publication are separate from personal-alpha completion.
 
 ### R0 — Reliable baseline and project compass (complete)
 
@@ -106,47 +106,30 @@ the product surface.
   retired using the [`R0 cleanup record`](BRANCH_CLEANUP.md); local workspace
   cleanup is deliberately post-review and is not a repository exit criterion.
 
-**Maintenance handoff:** Keep the seven-branch topology, required checks,
-workflow pins, recovery bundles, and security settings consistent. Review local
-worktrees separately before any local deletion.
+## Routine maintenance
 
-## LATER
+Maintain repository checks, security settings, and the parent-to-child branch
+flow alongside the current product milestone. R0 remains completed; routine
+maintenance is not a second active milestone. Technical ownership and branch
+structure are documented in [branch governance](BRANCH_GOVERNANCE.md).
 
-- **PHONE-V1 — Android Phone preview coverage.** Add at least one Adreno and one
-  Mali device plus longer lifecycle, thermal, battery, and audio evidence.
-- Optional signing, notarization, store work, and wider device support begin
-  only after the corresponding personal alpha is repeatable.
+## Retired targets
 
-## ARCHIVED
+Meta Quest and macOS are no longer development targets. Their history is
+retained in the [cleanup record](BRANCH_CLEANUP.md); neither has a planned
+resumption milestone.
 
-- **Meta Quest.** Quest is not a development target for this fork. The retired
-  `android-vr-quest` branch and its hardware-unverified preview evidence are
-  retained for history only. There is no resume milestone or synchronization
-  path from `android-vr`.
-- **macOS.** macOS is not a development target for this fork. The retired
-  `apple-macos` branch, hosted Intel evidence, and unfinished diagnostic work
-  are retained for history only. There is no resume milestone or
-  synchronization path from `apple-main`.
+## Product overview
 
-## Portfolio
+| Product | Priority | Current status | Next milestone |
+| --- | --- | --- | --- |
+| Pico 4 | NOW | Physical-device acceptance still open | [PICO-P1: personal alpha](https://github.com/noah-be/overte/milestone/1) |
+| iPad | NEXT | Integrated client experimental; physical-device acceptance still open | [IOS-P1: personal alpha](https://github.com/noah-be/overte/milestone/3); iPhone coverage later |
+| Android Phone | LATER (broader coverage) | [Personal alpha completed](https://github.com/noah-be/overte/milestone/2); known limitations retained | PHONE-V1: broader device coverage |
 
-Priority describes current project attention. Maturity describes evidence; it
-does not imply that a target is actively being developed.
-
-| Interface or area | Priority | Current maturity | Development branch | Last reviewed evidence | Next gate |
-| --- | --- | --- | --- | --- | --- |
-| Repository baseline | MAINTENANCE | Structurally verified; remote cleanup complete | `main` | Historical Session 53X: 9 branches, 143 tags and device-free checks; current hierarchy has 7 permanent branches | Preserve the verified baseline |
-| Android phones | LATER (preview expansion) | Personal alpha accepted on one physical phone; known limitations retained | `android-phone` | [PHONE-P1 completion, 2026-09-25](https://github.com/noah-be/overte/milestone/2), including owner-approved audio and keyboard evidence | `PHONE-V1` broader device coverage; [#933](https://github.com/noah-be/overte/issues/933) tracked separately |
-| Pico 4 | NOW | Host-verified and build-ready; device acceptance incomplete | `android-vr-pico` | Session 53X device-free contracts and selective fixes | `PICO-P1` |
-| iPhone and iPad | NEXT | Host-verified bootstrap; integrated client experimental | `apple-ios` | Session 53X device-free contracts and selective fixes | `IOS-P1` after Pico |
-| macOS | ARCHIVED | Historical hosted Intel evidence; never accepted on owned physical hardware | None (retired) | Historical archival evidence verified 2026-09-03; [cleanup record](BRANCH_CLEANUP.md) | None; not a project target |
-| Meta Quest | ARCHIVED | Historical experimental code; never accepted on physical hardware | None (retired) | Historical archival evidence verified 2026-09-03; [cleanup record](BRANCH_CLEANUP.md) | None; not a project target |
-| Linux desktop | OUT OF SCOPE product; E2E MAINTENANCE | Inherited client support and tests maintained on main | `main` | Historical Session 53X checks; branch ownership simplified 2026-09-16 | Repeatable Linux `e2e-core` target evidence |
-| Windows desktop | OUT OF SCOPE product; E2E MAINTENANCE | Inherited client support and tests maintained on main | `main` | Historical Session 53X checks; branch ownership simplified 2026-09-16 | Hardware-free adapter contracts, then an interactive target |
-
-Detailed technical facts and evidence remain authoritative in the interface
-documentation on each named product branch. This table records only portfolio
-order and the next acceptance boundary.
+The linked milestones hold detailed acceptance criteria and evidence. Historical
+records and technical ownership belong in the linked documentation rather than
+this priority overview.
 
 ## Working rules
 
