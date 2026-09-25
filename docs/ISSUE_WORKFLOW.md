@@ -99,6 +99,11 @@ and retries. The helper reads back title, body, labels and milestone after write
 It does not automatically repeat a failed creation request. Reusing the same
 request ID finds an already-saved issue; mismatched content requires inspection.
 
+Extra blank separator lines before structured section headings do not prevent
+`show` or `update`; an update restores the usual section spacing. Field Markdown
+and the original-description archive remain intact, and unstructured text,
+unknown or duplicate sections, and archive tampering still require correction.
+
 ## GitHub reconciliation and rollout
 
 The [Issue intake workflow](../.github/workflows/issue-intake.yml) checks new and
