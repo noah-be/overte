@@ -36,10 +36,27 @@ ACTION_USE = re.compile(r"^\s*uses:\s*([^\s#]+)", re.MULTILINE)
 FULL_SHA_ACTION = re.compile(r"^[^@\s]+@[0-9a-f]{40}$")
 
 
+def has_automatic_app_trigger(source):
+    return re.search(r"(?m)^  (?:push|pull_request):", source) is not None
+
+
+def artifact_retention_limit(workflow_name, artifact_lines):
+    # The existing iOS source checkpoint is a verified reusable build input.
+    # Diagnostic artifacts and every other workflow retain the ordinary limit.
+    checkpoint_paths = {
+        "build-ios/qt-source-checkpoint/checkpoint.tar.gz",
+        "build-ios/qt-source-checkpoint/manifest.json",
+    }
+    source_checkpoint = (workflow_name == "ios-qt-source.yml" and
+                         checkpoint_paths <= {line.strip() for line in artifact_lines})
+    return 90 if source_checkpoint else 30
+
+
 class LightweightWorkflowContracts(unittest.TestCase):
     def test_documentation_changes_use_lightweight_checks(self):
         documentation = DOCUMENTATION_WORKFLOW.read_text(encoding="utf-8")
-        self.assertIn('"**/*.md"', documentation)
+        self.assertIn('workflow_call:', documentation)
+        self.assertIn('--all', documentation)
         self.assertIn("tests/check-documentation.py", documentation)
         self.assertIn("timeout-minutes: 5", documentation)
         self.assertIn("persist-credentials: false", documentation)
@@ -55,11 +72,37 @@ class LightweightWorkflowContracts(unittest.TestCase):
         self.assertIn('    paths-ignore:\n      - "**/*.md"', pull_request)
 
     def test_app_test_workflows_exclude_markdown(self):
-        for workflow in (WORKFLOW,):
-            self.assertIn('"!**/*.md"', workflow.read_text(encoding="utf-8"))
+        aggregate = (WORKFLOW_DIRECTORY / "repository-checks.yml").read_text(encoding="utf-8")
+        self.assertIn("if: needs.route.outputs.mode == 'full'", aggregate)
+        self.assertIn("uses: ./.github/workflows/project-tests.yml", aggregate)
         for workflow in (IOS_WORKFLOW, MACOS_WORKFLOW):
             if workflow.exists():
-                self.assertIn("'!**/*.md'", workflow.read_text(encoding="utf-8"))
+                source = workflow.read_text(encoding="utf-8")
+                if has_automatic_app_trigger(source):
+                    self.assertRegex(source, r"[\"']!\*\*/\*\.md[\"']", workflow.name)
+
+    def test_manual_app_workflows_do_not_need_nonexistent_pr_filters(self):
+        self.assertFalse(has_automatic_app_trigger("on:\n  workflow_dispatch:\n"))
+        self.assertTrue(has_automatic_app_trigger("on:\n  pull_request:\n"))
+        self.assertTrue(has_automatic_app_trigger("on:\n  push:\n"))
+
+    def test_canonical_runner_inventory_covers_descendants_and_is_governed(self):
+        config = (ROOT / ".github/actionlint.yaml").read_text()
+        labels = set(re.findall(r"(?m)^    - (overte-[a-z0-9-]+)$", config))
+        self.assertEqual(labels, {
+            "overte-android-build", "overte-android-phone-build",
+            "overte-android-phone-emulator", "overte-android-phone-release",
+            "overte-android-release", "overte-pico4-device", "overte-ios-ipad",
+        })
+        workflow = (WORKFLOW_DIRECTORY / "workflow-security.yml").read_text()
+        self.assertIn("actionlint -config-file .github/actionlint.yaml -no-color", workflow)
+        self.assertNotIn("ACTIONLINT_SELF_HOSTED_LABELS", workflow)
+        self.assertIn("PYTHONDONTWRITEBYTECODE=1 python3 tests/workflow-contract-test.py", workflow)
+        policy = (ROOT / "tools/branch-policy/check.py").read_text().split("PRIVILEGED_PATHS = (", 1)[1].split(")", 1)[0]
+        self.assertIn('".github/actionlint.yaml"', policy)
+        reuse = json.loads((ROOT / ".github/sync-test-reuse.json").read_text())
+        self.assertIn(".github/actionlint.yaml", reuse["qualified_inputs"])
+        self.assertIn(".github/actionlint.yaml", reuse["required_qualified_inputs"])
 
 
 class WorkflowStorageContracts(unittest.TestCase):
@@ -89,9 +132,17 @@ class WorkflowStorageContracts(unittest.TestCase):
                     1,
                     f"{workflow.name}: each artifact upload needs one retention-days value",
                 )
-                self.assertLessEqual(retentions[0], 30, workflow.name)
+                self.assertLessEqual(retentions[0], artifact_retention_limit(workflow.name, block), workflow.name)
                 self.assertGreaterEqual(retentions[0], 1, workflow.name)
         self.assertGreater(upload_count, 0)
+
+    def test_source_checkpoint_retention_exception_cannot_cover_other_artifacts(self):
+        checkpoint = ["build-ios/qt-source-checkpoint/checkpoint.tar.gz",
+                      "build-ios/qt-source-checkpoint/manifest.json"]
+        self.assertEqual(artifact_retention_limit("ios-qt-source.yml", checkpoint), 90)
+        self.assertEqual(artifact_retention_limit("other.yml", checkpoint), 30)
+        self.assertEqual(artifact_retention_limit("ios-qt-source.yml", checkpoint[:1]), 30)
+        self.assertEqual(artifact_retention_limit("ios-qt-source.yml", ["build-ios/log.txt"]), 30)
 
     def test_native_sccache_github_backend_stays_disabled(self):
         sources = "\n".join(
@@ -263,19 +314,16 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
         self.assertIn("tests/run-project-tests.py --platform-only --timeout 240", source)
         self.assertIn("working-directory: candidate", source)
 
-    def test_common_suites_delegate_only_governed_same_repository_sync_shapes(self):
-        for path in (
-            ROOT / ".github/workflows/project-tests.yml",
-        ):
-            source = path.read_text(encoding="utf-8")
-            self.assertIn("SAME_REPOSITORY", source)
-            self.assertIn("run_full=true", source)
-            self.assertIn("needs.route.outputs.run_full == 'true'", source)
-            pull_request = source.split("  pull_request:", 1)[1].split("  push:", 1)[0]
-            self.assertNotIn("paths-ignore:", pull_request)
-
-
-
+    def test_project_workflow_is_reusable_with_single_caller_routing(self):
+        source = WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("workflow_call:", source)
+        self.assertNotIn("run_full", source)
+        self.assertNotIn("needs: route", source)
+        aggregate = (WORKFLOW_DIRECTORY / "repository-checks.yml").read_text()
+        self.assertIn("if: needs.route.outputs.mode == 'full'", aggregate)
+        pull_request = aggregate.split("  pull_request:", 1)[1].split("  workflow_dispatch:", 1)[0]
+        self.assertNotIn("paths", pull_request)
+        self.assertIn("edited", pull_request)
 
 
 class RulesetManifestContracts(unittest.TestCase):
@@ -325,6 +373,9 @@ class RulesetManifestContracts(unittest.TestCase):
                 expected_checks.insert(0, {"context": "dependency-release-policy", "integration_id": 15368})
                 expected_checks.append(
                     {"context": "sync-test-reuse", "integration_id": 15368}
+                )
+                expected_checks.append(
+                    {"context": "repository-checks", "integration_id": 15368}
                 )
             self.assertEqual(parameters["required_status_checks"], expected_checks)
 
@@ -456,7 +507,11 @@ class ProjectWorkflowContracts(unittest.TestCase):
         cls.source = WORKFLOW.read_text(encoding="utf-8")
 
     def test_untrusted_pull_requests_have_read_only_permissions(self):
-        self.assertIn("pull_request:", self.source)
+        self.assertIn("workflow_call:", self.source)
+        caller = (WORKFLOW_DIRECTORY / "repository-checks.yml").read_text()
+        self.assertIn("pull_request:", caller)
+        self.assertNotIn("pull_request_target:", caller)
+        self.assertNotRegex(caller, r"(?m)^\s+[a-z-]+: write$")
         self.assertNotIn("pull_request_target:", self.source)
         self.assertRegex(self.source, r"(?m)^permissions:\n  contents: read$")
         self.assertNotRegex(self.source, r"(?m)^\s*(id-token|packages|actions): write$")

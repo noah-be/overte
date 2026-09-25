@@ -6,6 +6,49 @@ from datetime import datetime, timezone
 
 PIN = re.compile(r"<!-- overte-candidate:v1 (.*?) -->")
 RECORD_HEADING = "Candidate-bound test records"
+DECISION_HEADING = "Owner-approved completion decisions"
+
+
+def check_decisions(draft, policy):
+    """Validate recorded owner decisions without turning them into test results."""
+    decisions = draft.get("completion_decisions", [])
+    if not isinstance(decisions, list):
+        raise ValueError("Completion decisions must be a list")
+    if not decisions:
+        return
+    if draft.get("kind") != "acceptance" or not policy.get("owner_completion"):
+        raise ValueError("Owner completion is only available for acceptance criteria under the current policy")
+    seen, previous_date = set(), ""
+    for decision in decisions:
+        keys = {"id", "approved_by", "approved_at", "criterion_sha256", "authorization", "rationale", "evidence", "limitations"}
+        if not isinstance(decision, dict) or set(decision) != keys:
+            raise ValueError("Completion decision needs ID, approver, UTC date, criterion hash, authorization, rationale, evidence and limitations")
+        if "<!--" in json.dumps(decision) or "Prepared with AI assistance;" in json.dumps(decision):
+            raise ValueError("Completion decision contains reserved metadata syntax")
+        if not isinstance(decision["id"], str) or not re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", decision["id"]) or decision["id"] in seen:
+            raise ValueError("Completion decision IDs must be nonempty and unique")
+        seen.add(decision["id"])
+        if decision["approved_by"] != policy["owner_completion"]["approver"]:
+            raise ValueError("Completion decision must name the policy's project owner")
+        if not isinstance(decision["criterion_sha256"], str) or not re.fullmatch(r"[0-9a-f]{64}", decision["criterion_sha256"]):
+            raise ValueError("Completion decision requires the exact criterion hash")
+        date = decision["approved_at"]
+        if not isinstance(date, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", date):
+            raise ValueError("Decision date must be YYYY-MM-DDTHH:MM:SSZ")
+        if datetime.fromisoformat(date.replace("Z", "+00:00")) > datetime.now(timezone.utc) or date < previous_date:
+            raise ValueError("Decision dates must be chronological and not in the future")
+        previous_date = date
+        for key in ("authorization", "rationale", "limitations"):
+            if not isinstance(decision[key], str) or decision[key].strip().lower() in ("", "unknown", "none", "todo", "tbd"):
+                raise ValueError(f"Completion decision must document {key}")
+        if not isinstance(decision["evidence"], list) or not decision["evidence"] or any(not isinstance(x, str) or not x.strip() for x in decision["evidence"]):
+            raise ValueError("Completion decision requires retained evidence references")
+
+
+def owner_completed(draft, policy):
+    check_decisions(draft, policy)
+    decisions = draft.get("completion_decisions", [])
+    return bool(decisions and decisions[-1]["criterion_sha256"] == criterion_id(draft))
 
 
 def fingerprint(value):
