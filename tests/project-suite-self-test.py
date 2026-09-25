@@ -2,8 +2,11 @@
 """Black-box regression tests for the project-suite CLI."""
 
 from pathlib import Path
+import json
+import shutil
 import subprocess
 import sys
+import tempfile
 import unittest
 
 
@@ -22,12 +25,36 @@ class ProjectSuiteCliTests(unittest.TestCase):
         self.assertIn("source-layout", result.stdout)
         self.assertIn("shared-script-behavior", result.stdout)
         self.assertIn("device-e2e-contracts", result.stdout)
+        self.assertIn("documentation ", result.stdout)
+        self.assertIn("repository-checks", result.stdout)
+        self.assertIn("native-smoke", result.stdout)
         self.assertNotIn("native-ctest", result.stdout)
 
     def test_full_profile_includes_native_build(self):
         result = self.run_cli("--list", "--profile", "full")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("native-ctest", result.stdout)
+        self.assertIn("documentation ", result.stdout)
+
+    def test_coverage_cli_propagates_real_assertion_failures(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "tests").mkdir()
+            (root / "src").mkdir()
+            checker = root / "tests/project-coverage-test.py"
+            shutil.copyfile(RUNNER.with_name("project-coverage-test.py"), checker)
+            area = {"id": "fixture", "roots": ["src"], "automated": [], "native": [],
+                    "hardware": ["audio-device-acceptance", "distributed-system-acceptance",
+                                 "gpu-driver-acceptance"]}
+            matrix = root / "tests/project-coverage.json"
+            matrix.write_text(json.dumps({"schema": 1, "areas": [area]}))
+            failed = subprocess.run([sys.executable, str(checker)], capture_output=True, text=True)
+            self.assertNotEqual(failed.returncode, 0, failed.stderr)
+            self.assertIn("FAILED (failures=1)", failed.stderr)
+            area["automated"] = ["fixture-check"]
+            matrix.write_text(json.dumps({"schema": 1, "areas": [area]}))
+            passed = subprocess.run([sys.executable, str(checker)], capture_output=True, text=True)
+            self.assertEqual(passed.returncode, 0, passed.stderr)
 
     def test_explicit_suite_can_select_native_independently(self):
         result = self.run_cli("--list", "--suite", "native-ctest")

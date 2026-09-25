@@ -20,6 +20,17 @@ CHANGE_PREFIXES = (
     "feature", "fix", "docs", "refactor", "test", "tests", "ci", "sync"
 )
 PRIVILEGED_PATHS = (
+    ".github/actionlint.yaml",
+    ".github/repository-checks.json",
+    ".github/workflows/repository-checks.yml",
+    ".github/workflows/project-tests.yml",
+    ".github/workflows/documentation-checks.yml",
+    ".github/workflows/workflow-security.yml",
+    ".github/rulesets/",
+    "tools/repository-checks/",
+    "tools/repository-policy/",
+    "tools/repository-maintenance/",
+    "tests/run-project-tests.py",
     ".github/platform-source-policy.json",
     ".github/dependency-releases.json",
     ".github/workflows/dependency-releases.yml",
