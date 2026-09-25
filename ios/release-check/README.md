@@ -379,7 +379,7 @@ After the reviewed source branch is available in the authorized fork:
 
 ```bash
 gh workflow run ios-bootstrap.yml --repo noah-be/overte \
-  --ref task/ios/prerelease-quality-gate -f prerelease_build=true
+  --ref task/ios/948-prerelease-quality-gate -f prerelease_build=true
 ```
 
 Supply all four existing `qt_*` inputs to reuse audited Qt checkpoints, or leave
