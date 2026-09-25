@@ -127,6 +127,46 @@ class BranchPolicyTests(unittest.TestCase):
         cls.branches = BRANCH_POLICY.load_policy(POLICY)
         cls.dependabot_targets = BRANCH_POLICY.load_dependabot_targets(POLICY)
 
+    def test_name_validation_without_a_pull_request(self):
+        for name, kind in (
+            ("main", "permanent"),
+            ("android-phone", "permanent"),
+            ("fix/android-phone/default-microphone", "scoped-change"),
+            ("fix/ios/tablet-focus", "scoped-change"),
+            ("task/ios/948-prerelease-quality-gate", "task"),
+            ("reconcile/android-pico/shared-policy", "reconciliation"),
+            ("promote/main/shared-fix", "promotion"),
+            ("dependabot/npm_and_yarn/tools/jsdoc/example-1.2.3", "dependabot-security"),
+        ):
+            with self.subTest(name=name):
+                self.assertEqual(BRANCH_POLICY.validate_branch_name(
+                    self.branches, name, self.dependabot_targets), kind)
+
+    def test_name_validation_rejects_ungoverned_and_malformed_names(self):
+        for name in (
+            "fix/android-phone-default-microphone", "fix/android-phone-editor-teardown",
+            "experiment/android-phone-apk-size", "fix/unknown/a", "fix/android-phone/",
+            "fix/android-phone/Nested", "fix/android-phone/nested/name",
+            "fix/android-phone/two--hyphens", "fix/android-phone/name.lock",
+            "task/ios/0-name", "task/ios/name", "reconcile/main/name",
+            "dependabot/npm_and_yarn/unknown/package-1.0", "", None,
+        ):
+            with self.subTest(name=name), self.assertRaises(BRANCH_POLICY.PolicyError):
+                BRANCH_POLICY.validate_branch_name(self.branches, name, self.dependabot_targets)
+
+    def test_pr_and_creation_checks_agree_on_scoped_slug(self):
+        for name in ("fix/android-phone/", "fix/android-phone/a/b", "fix/android-phone/Upper"):
+            with self.subTest(name=name), self.assertRaises(BRANCH_POLICY.PolicyError):
+                BRANCH_POLICY.classify_pull_request(self.branches, "android-phone", name)
+
+    def test_check_name_cli_uses_policy(self):
+        result = subprocess.run([sys.executable, str(CHECKER), "check-name", "--branch",
+                                 "fix/android-phone/default-microphone"], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        result = subprocess.run([sys.executable, str(CHECKER), "check-name", "--branch",
+                                 "fix/android-phone-default-microphone"], capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+
     def test_expected_hierarchy_is_complete(self):
         self.assertEqual(
             set(self.branches),
