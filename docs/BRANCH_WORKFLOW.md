@@ -5,6 +5,50 @@ change flows only from a less specific branch to a more specific descendant.
 Do not merge a device branch back into its parent merely to distribute one
 device's implementation.
 
+## Local branch-name guards
+
+Use the policy's `<kind>/<scope>/<lowercase-hyphenated-name>` form, such as
+`fix/android-phone/default-microphone`. A task branch uses
+`task/<scope>/<positive-issue-number>-<lowercase-hyphenated-name>`.
+`fix/android-phone-default-microphone` is invalid: it omits the separator after
+the scope. Permanent branch names and configured Dependabot security-update
+names have their own explicit rules.
+
+Before creating a branch, validate it without requiring a pull request:
+
+```bash
+python3 tools/branch-policy/check.py check-name --branch fix/android-phone/default-microphone
+```
+
+Install or update the guards from a reviewed checkout once per clone:
+
+```bash
+python3 tools/branch-policy/install.py install
+python3 tools/branch-policy/install.py status
+```
+
+The installer places a copy of the reviewed checker and policy in the shared Git
+directory, so linked worktrees, including older checkouts, use the same installed
+rules. It preserves unrelated hooks and refuses conflicting hooks or custom
+`core.hooksPath` settings. It does not silently replace another developer's hook
+setup. Reinstall after a reviewed policy update; policy edits in a working branch
+do not replace the installed copy.
+
+The reference-transaction guard rejects invalid new local branch refs before
+creation, including ordinary `git branch`, `git switch -c`, and `git worktree add
+-b`. Existing branch updates and deletions, tags and remote-tracking fetches remain
+possible. The pre-push guard validates each destination branch name, including
+an alias such as `HEAD:refs/heads/another-name`, before publishing any refs.
+
+These are local safeguards, not server-side authorization. Git's files backend
+does not expose the new name to the reference-transaction hook for every local
+rename or copy (`git branch -m` / `-c`); pre-push still rejects publishing those
+invalid names. Git hooks can be bypassed or disabled, and they are not installed
+automatically by a clone. The read-only Repository Health Doctor therefore also
+audits all remote branch names, even without a pull request. An invalid name is
+a finding, never permission to delete that branch. Preserve its commits when
+correcting its name.
+
 ## Branch hierarchy
 
 ```text
