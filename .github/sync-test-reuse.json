@@ -20,6 +20,8 @@
     "android/common/conan/prebuilt/android-phone-16k-deps-v3.sha256": "4376bfdaa8a83681a01d714c57cfe5b3f3e5f666"
   },
   "qualified_inputs": [
+    ".github/repository-checks.json",
+    "tools/repository-checks/**",
     ".github/dependency-releases.json",
     "tools/dependency-releases/**",
     ".github/actions/**",
@@ -58,6 +60,8 @@
     "conanfile.txt"
   ],
   "required_qualified_inputs": [
+    ".github/repository-checks.json",
+    "tools/repository-checks/check.py",
     ".github/platform-source-policy.json",
     ".github/workflows/parent-qualification.yml",
     ".github/workflows/sync-test-reuse.yml",
