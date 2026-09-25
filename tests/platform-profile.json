@@ -41,6 +41,16 @@
       "name": "android-source-host-tools",
       "entrypoint": "android/phone/fdroid/conan/test_stage_host_tools.py",
       "interpreter": "python"
+    },
+    {
+      "name": "phone-default-input",
+      "entrypoint": "android/phone/tests/test_phone_default_input.py",
+      "interpreter": "python"
+    },
+    {
+      "name": "phone-editor-teardown",
+      "entrypoint": "android/phone/tests/test_phone_editor_teardown.py",
+      "interpreter": "python"
     }
   ]
 }

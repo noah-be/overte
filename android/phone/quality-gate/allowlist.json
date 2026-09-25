@@ -19,16 +19,16 @@
     {
       "rule": "gitleaks-generic-api-key",
       "path": "android/phone/fdroid/manifests/recipe-source.lock.json",
-      "sha256": "41ef5aa9ad18cebdcef8413f3802b8cad889cdae3f0d87429b6c1107b3ca766b",
-      "reason": "The flagged value is a SHA-256 source-file digest in a source-closure path-to-digest map, not a credential. Re-reviewed 2026-09-21 after the libpng/OpenEXR/libdeflate lock update: current redacted Gitleaks findings still match only 64-hex SHA-256 map values; no credential was introduced. Subsequent namespace-extraction and approved application-ID updates change only reviewed source-file digests.",
+      "sha256": "719be1b805da9ef4e887f03d083355884fc96a0a513ac022c543452a87e5530a",
+      "reason": "The previously reviewed hit is a SHA-256 source-file digest in a source-closure path-to-digest map, not a credential. Re-reviewed 2026-09-25: the manifest changes only three SHA-256 bindings for the Phone F-Droid target profile, release Gradle file and dependency build script. Each new digest matches its reviewed source file; all other fields are unchanged and no credential or source URL was added. Re-review if the file changes.",
       "owner": "Android quality gate qualification review",
       "expires": "2026-12-18"
     },
     {
       "rule": "gitleaks-discord-api-token",
       "path": "android/phone/fdroid/manifests/recipe-source.lock.json",
-      "sha256": "41ef5aa9ad18cebdcef8413f3802b8cad889cdae3f0d87429b6c1107b3ca766b",
-      "reason": "Both hits are SHA-256 values for discord-rpc source paths in a source-closure digest map, not Discord authentication tokens. Re-reviewed 2026-09-21 after the libpng/OpenEXR/libdeflate lock update: current redacted Gitleaks findings still match only 64-hex SHA-256 map values; no credential was introduced. Subsequent namespace-extraction and approved application-ID updates change only reviewed source-file digests.",
+      "sha256": "719be1b805da9ef4e887f03d083355884fc96a0a513ac022c543452a87e5530a",
+      "reason": "Both previously reviewed hits are SHA-256 values for discord-rpc source paths in a source-closure digest map, not Discord authentication tokens. Re-reviewed 2026-09-25: both Discord-related digests are unchanged and still match their source files. The manifest changes only three unrelated Phone profile/build SHA-256 bindings; no authentication material was added. Re-review if the file changes.",
       "owner": "Android quality gate qualification review",
       "expires": "2026-12-18"
     },
