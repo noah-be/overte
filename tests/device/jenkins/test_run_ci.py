@@ -156,7 +156,9 @@ class JenkinsGlueTest(unittest.TestCase):
                     "tests/device/adapters/appium/ios-flat-touch-policy.json",
                 "OVERTE_MOCK_TABLET_UI_PROFILE": "flat",
                 "OVERTE_MOCK_ASSERT_POLICY_ISOLATED": "1",
-                "OVERTE_E2E_TIMEOUT_SECONDS": "1",
+                # Each stability sample launches adapter subprocesses; allow
+                # startup jitter while retaining the two-sample requirement.
+                "OVERTE_E2E_TIMEOUT_SECONDS": "5",
             })
             with patch.dict(os.environ, values, clear=False):
                 self.assertEqual(0, RUN_CI.run_suite())

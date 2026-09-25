@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "minimum_tool_revision": 2,
+  "minimum_tool_revision": 3,
   "repository": "noah-be/overte",
   "reference_issue": 599,
   "enforce_created_after": "2026-09-14T07:13:56Z",
@@ -134,5 +134,8 @@
       "blocker",
       "unblock_condition"
     ]
+  },
+  "owner_completion": {
+    "approver": "noah-be"
   }
 }

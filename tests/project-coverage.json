@@ -74,6 +74,7 @@
         "repository-health"
       ],
       "native": [
+        "crash-recovery-policy",
         "gpu",
         "ktx"
       ],
