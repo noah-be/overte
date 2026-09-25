@@ -16,7 +16,6 @@ import re
 import shutil
 import subprocess
 import sys
-import tempfile
 import urllib.request
 import zipfile
 
@@ -75,6 +74,7 @@ def environment(args):
         ANDROID_NDK_HOME=str(args.sdk / 'ndk/27.3.13750724'),
         GRADLE_USER_HOME=str(args.work_dir / 'gradle-home'),
         JAVA_HOME=str(args.java_home),
+        OVERTE_FDROID_STANDARD_TOOLCHAIN='1',
     )
     env['PATH'] = os.pathsep.join([str(args.java_home / 'bin'),
                                     str(args.sdk / 'cmdline-tools/22.0/bin'),
@@ -107,22 +107,13 @@ def preflight(args, env):
         if shutil.which(tool, path=env.get('PATH')) is None:
             raise ValueError('missing APK inspection tool: ' + tool)
     run([env['PHONE_APK_ANALYZER'], '--help'], env=env)
-    versions = [(['gcc', '-dumpfullversion'], '15.3.0'),
-                (['g++', '-dumpfullversion'], '15.3.0'),
-                (['cmake', '--version'], 'cmake version 3.31.6'),
-                (['ninja', '--version'], '1.13.2'),
-                (['conan', '--version'], 'Conan version 2.25.2')]
-    # Even `conan --version` initializes a home. Do not touch a personal cache
-    # or create the future build directory during the check-only operation.
-    with tempfile.TemporaryDirectory(prefix='overte-fdroid-probe-') as probe:
-        probe_env = dict(env, CONAN_HOME=probe)
-        for command, expected in versions:
-            output = subprocess.check_output(command, env=probe_env, text=True).splitlines()[0]
-            if output != expected:
-                raise ValueError(f'tool version mismatch: {command[0]} (expected {expected})')
-    java = subprocess.check_output([args.java_home / 'bin/java', '-version'], stderr=subprocess.STDOUT, text=True)
-    if not re.search(r'version "17\.', java):
-        raise ValueError('OpenJDK 17 is required')
+    epoch = subprocess.check_output(['git', 'show', '-s', '--format=%ct', 'HEAD'],
+                                    cwd=ROOT, text=True).strip()
+    if not epoch.isdigit():
+        raise ValueError('invalid source commit timestamp')
+    env.update(SOURCE_DATE_EPOCH=epoch, QT_RCC_SOURCE_DATE_OVERRIDE=epoch,
+               TZ='UTC', LC_ALL='C.UTF-8', PYTHONHASHSEED='0', QT_HASH_SEED='0')
+    run([sys.executable, FDROID / 'submission/toolchain.py'], env=env)
     run([*isolation_prefix(), sys.executable, '-c',
          'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); '
          's.listen(); c=socket.create_connection(s.getsockname(),timeout=3); '
@@ -155,6 +146,21 @@ def acquire(args, env):
     return gradle
 
 
+def write_reproducible_cmake(args):
+    mappings = {str(ROOT): '/usr/src/overte', str(args.work_dir): '/usr/src/overte-build',
+                str(args.sdk): '/opt/android-sdk'}
+    for path in sorted((args.work_dir / 'reproducible-paths').glob('*.json')):
+        mappings.update(json.loads(path.read_text()))
+    output = args.work_dir / 'reproducible-paths.cmake'
+    lines = ['# Generated diagnostic/debug paths; original sources remain untouched.']
+    for old, new in sorted(mappings.items(), key=lambda pair: (len(pair[0]), pair[0])):
+        if any(c in old + new for c in ('"', ';', '$', '\\', '\n', '\r')):
+            raise ValueError('unsafe compiler path mapping')
+        lines.append(f'add_compile_options("-ffile-prefix-map={old}={new}")')
+    output.write_text('\n'.join(lines) + '\n')
+    return output
+
+
 def release_command(args, gradle):
     return [gradle, '--offline', '--no-daemon', '--no-build-cache',
             '-Dorg.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8',
@@ -171,7 +177,7 @@ def main():
     parser.add_argument('--version-code', required=True, type=int)
     parser.add_argument('--version-name', required=True)
     parser.add_argument('--sdk', required=True, type=Path)
-    parser.add_argument('--java-home', type=Path, default=Path('/usr/lib/jvm/java-17-openjdk-amd64'))
+    parser.add_argument('--java-home', type=Path, default=Path('/usr/lib/jvm/java-21-openjdk-amd64'))
     parser.add_argument('--work-dir', required=True, type=Path)
     parser.add_argument('--source-store', type=Path, help='optional existing hash-verified source archives, never binary packages')
     parser.add_argument('--check', action='store_true', help='check prerequisites only')
@@ -197,9 +203,21 @@ def main():
     env['OVERTE_FDROID_CONAN_DIR'] = str(args.work_dir / 'target')
     isolation = isolation_prefix()
     run([*isolation, FDROID / 'scripts/build-dependencies.sh', '--build'], env=env)
+    # Qualify the lossless resource transform against this build's native Qt.
+    nodes = json.loads((args.work_dir / 'host-tools-result.json').read_text())['graph']['nodes'].values()
+    qt = [node for node in nodes if (node.get('ref') or '').startswith('qt/')
+          and node.get('context') == 'host' and node.get('settings', {}).get('os') == 'Linux']
+    if len(qt) != 1:
+        raise ValueError('expected one native Qt package for compaction regression tests')
+    run([*isolation, sys.executable, ROOT / 'android/phone/tests/phone-resource-compaction-test.py',
+         '--qt-root', qt[0]['package_folder']], env=env)
+    run([*isolation, sys.executable, ROOT / 'android/phone/tests/phone-apk-repack-test.py'], env=env)
+    env['OVERTE_FDROID_REPRODUCIBLE_CMAKE'] = str(write_reproducible_cmake(args))
     run([*isolation, *release_command(args, gradle)], env=env)
     if not APK.is_file():
         raise ValueError('unsigned release APK is absent')
+    run([sys.executable, ROOT / 'android/phone/tools/repack_unsigned_apk.py', APK,
+         '--zipalign', args.sdk / 'build-tools/36.0.0/zipalign'], env=env)
     (args.work_dir / 'result.json').write_text(json.dumps({
         'source_commit': args.commit, 'apk_sha256': digest(APK),
         'version_code': args.version_code, 'version_name': args.version_name,

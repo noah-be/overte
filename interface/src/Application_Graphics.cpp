@@ -358,6 +358,15 @@ void Application::initializeUi() {
     // offscreen QML text field owns focus.
     connect(offscreenUi.data(), &OffscreenUi::focusTextChanged, _primaryWidget, [this](bool focusText) {
         _primaryWidget->setAttribute(Qt::WA_InputMethodEnabled, focusText);
+        if (!focusText && _primaryWidget->hasFocus()) {
+            // The offscreen editor changed, but Android still sees the same
+            // focused GL widget. Qt 5's Android reset/hideInputPanel does not
+            // remove native selection handles; setFocusObject does. Notify the
+            // platform of the editor teardown, then restore game input focus.
+            // Do not steal focus if another widget already owns it.
+            _primaryWidget->clearFocus();
+            _primaryWidget->setFocus(Qt::OtherFocusReason);
+        }
     });
 #endif
 

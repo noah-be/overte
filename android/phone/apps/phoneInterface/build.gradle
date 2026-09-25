@@ -315,11 +315,14 @@ android {
                     '-DDISABLE_QML=OFF',
                     '-DDISABLE_KTX_CACHE=OFF',
                     '-DUSE_BREAKPAD=OFF'
-                // The qualified F-Droid executor provisions and verifies Ninja
-                // 1.13.2 at this immutable path.  Force CMake to use that
-                // binary instead of the older Ninja bundled in the Android SDK.
+                // Use the system Ninja validated by the F-Droid executor,
+                // rather than the older copy bundled in the Android SDK.
                 if (fdroidSourceOnlyConanDir != null) {
                     arguments '-DCMAKE_MAKE_PROGRAM=/usr/bin/ninja'
+                    def reproducibleCmake = System.getenv('OVERTE_FDROID_REPRODUCIBLE_CMAKE')
+                    if (reproducibleCmake != null) {
+                        arguments '-DCMAKE_PROJECT_INCLUDE=' + reproducibleCmake
+                    }
                 }
                 targets 'phoneInterface'
             }
@@ -372,7 +375,7 @@ android {
             matchingFallbacks = ['debug']
         }
         release {
-            minifyEnabled false
+            minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'),
                 'proguard-rules.pro'
             buildConfigField 'String', 'BACKTRACE_URL', '""'
@@ -473,11 +476,15 @@ android {
                 from new File(qtPackageDir, 'qml/QtQml')
                 into new File(mergedAssetsDir, 'qml/QtQml')
                 exclude '**/*.so'
+                // Qt Creator designer panels are editor-only, not runtime QML.
+                exclude '**/designer/**'
             }
             copy {
                 from new File(qtPackageDir, 'qml/QtQuick.2')
                 into new File(mergedAssetsDir, 'qml/QtQuick.2')
                 exclude '**/*.so'
+                // Qt Creator designer panels are editor-only, not runtime QML.
+                exclude '**/designer/**'
             }
             ['QtQuick/Controls', 'QtQuick/Controls.2', 'QtQuick/Dialogs',
              'QtQuick/PrivateWidgets', 'QtQuick/Templates.2', 'QtQuick/Layouts',
@@ -487,6 +494,8 @@ android {
                     from new File(qtPackageDir, "qml/${modulePath}")
                     into new File(mergedAssetsDir, "qml/${modulePath}")
                     exclude '**/*.so'
+                    // Qt Creator designer panels are editor-only, not runtime QML.
+                    exclude '**/designer/**'
                 }
             }
 

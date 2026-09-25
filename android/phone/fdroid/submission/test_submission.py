@@ -80,20 +80,25 @@ class BuildContractTests(unittest.TestCase):
         splash = ET.parse(res / 'values-v31/styles.xml').getroot()
         self.assertEqual('@drawable/ic_launcher', splash.find(".//item[@name='android:windowSplashScreenAnimatedIcon']").text)
 
-    def test_provisioning_runs_from_fdroid_home_before_source_preparation(self):
-        # fdroidserver.build.build_local runs sudo from the builder home, not
-        # the app checkout. Exercise that directory layout without root/APT.
+    def test_sudo_only_installs_standard_packages_without_repository_code(self):
         template = (HERE / 'metadata/io.github.noah_be.overte.phone.yml.in').read_text()
         sudo = template.split('    sudo:\n', 1)[1].split('    output:', 1)[0]
-        commands = [line.strip()[2:] for line in sudo.splitlines() if line.strip().startswith('- ')]
-        with tempfile.TemporaryDirectory() as td:
-            home = Path(td)
-            script = home / 'build/io.github.noah_be.overte.phone' / staging.BASE / 'provision.sh'
-            script.parent.mkdir(parents=True)
-            script.write_text('set -eu\n[ "$1" = --fdroid-buildserver ]\nprintf ready > provisioned\n')
-            subprocess.run(['bash', '-e', '-u', '-o', 'pipefail', '-c', '; '.join(commands)],
-                           cwd=home, check=True)
-            self.assertEqual('ready', (home / 'build/io.github.noah_be.overte.phone/provisioned').read_text())
+        # Fold YAML continuation lines, then intercept apt rather than run it.
+        commands = []
+        for line in sudo.splitlines():
+            if line.strip().startswith('- '):
+                commands.append(line.strip()[2:])
+            elif line.strip():
+                commands[-1] += ' ' + line.strip()
+        self.assertEqual('cd /tmp', commands[0])
+        self.assertEqual('apt-get update', commands[1])
+        self.assertEqual(3, len(commands))
+        self.assertTrue(commands[2].startswith('apt-get install -y --no-install-recommends '))
+        for forbidden in ('snapshot', 'unstable', 'provision.sh', 'update-alternatives', '='):
+            self.assertNotIn(forbidden, sudo)
+        for package in ('gcc', 'g++', 'cmake', 'ninja-build', 'openjdk-21-jdk-headless'):
+            self.assertIn(package, commands[2].split())
+        subprocess.run(['sh', '-n', '-c', '\n'.join(commands)], check=True)
 
     def test_metadata_work_directory_is_outside_scanned_checkout(self):
         # Exercise shell expansion in the actual metadata argument. The recipe
@@ -102,9 +107,9 @@ class BuildContractTests(unittest.TestCase):
         argument = re.search(r'--work-dir ("[^"\n]+")', template).group(1)
         with tempfile.TemporaryDirectory() as td:
             checkout = Path(td) / 'build/io.github.noah_be.overte.phone'
-            checkout.mkdir(parents=True)
+            (checkout / 'android/phone').mkdir(parents=True)
             expanded = subprocess.check_output(
-                ['sh', '-c', 'printf "%s" ' + argument], cwd=checkout, text=True)
+                ['sh', '-c', 'printf "%s" ' + argument], cwd=checkout / 'android/phone', text=True)
             work = Path(expanded).resolve()
             self.assertTrue(work.is_absolute())
             self.assertNotEqual(checkout, work)
