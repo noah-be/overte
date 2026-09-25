@@ -329,12 +329,39 @@ def classify_pull_request(
         )
 
     prefixes = expected_prefixes(target)
-    if head.startswith(prefixes):
+    if any(head.startswith(prefix) and re.fullmatch(
+        r"[a-z0-9]+(?:-[a-z0-9]+)*", head[len(prefix):]
+    ) for prefix in prefixes):
         return "promotion" if head.startswith(f"promote/{target.scope}/") else "scoped-change"
 
     expected = ", ".join(f"{prefix}<name>" for prefix in prefixes)
     raise PolicyError(
         f"branch {head!r} cannot target {base!r}; expected a direct parent sync or one of: {expected}"
+    )
+
+
+def validate_branch_name(
+    branches: dict[str, Branch],
+    name: str,
+    dependabot_targets: tuple[DependabotTarget, ...] = (),
+) -> str:
+    """Validate a name without assuming that a pull request already exists.
+
+    Creation hooks, push hooks, the Doctor and PR checks share the same policy.
+    Name validity does not establish PR identity, ancestry or permission to merge.
+    """
+    if not isinstance(name, str) or not name:
+        raise PolicyError("branch name must be a non-empty string")
+    if name in branches:
+        return "permanent"
+    for target in branches:
+        try:
+            return classify_pull_request(branches, target, name, dependabot_targets)
+        except PolicyError:
+            continue
+    raise PolicyError(
+        f"invalid branch name {name!r}; use <kind>/<scope>/<lowercase-hyphenated-name> "
+        "from the branch policy (task names also require a positive issue number)"
     )
 
 
@@ -534,6 +561,8 @@ def parse_arguments() -> argparse.Namespace:
     children.add_argument("--parent", required=True)
     permanent = subparsers.add_parser("is-permanent", help="check whether a branch is permanent")
     permanent.add_argument("--branch", required=True)
+    name = subparsers.add_parser("check-name", help="validate a branch name before creation or push")
+    name.add_argument("--branch", required=True)
     subparsers.add_parser("parents", help="print branches with direct children, one per line")
     subparsers.add_parser("validate", help="validate the policy document")
     return parser.parse_args()
@@ -544,7 +573,9 @@ def main() -> int:
     try:
         branches = load_policy(args.policy)
         dependabot_targets = load_dependabot_targets(args.policy)
-        if args.command == "check-pr":
+        if args.command == "check-name":
+            print(f"allowed: {validate_branch_name(branches, args.branch, dependabot_targets)}: {args.branch}")
+        elif args.command == "check-pr":
             changed_files = ()
             if args.changed_files_stdin:
                 changed_files = tuple(
