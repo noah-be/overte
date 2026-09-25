@@ -522,6 +522,106 @@ class CandidateTests(unittest.TestCase):
         self.assertEqual((milestone["criteria"], milestone["other_issues"], milestone["recorded_completed_criteria"], milestone["candidate_passed_criteria"]), (2, 1, 1, 0))
 
 
+class OwnerCompletionTests(unittest.TestCase):
+    def setUp(self):
+        self.api = FakeGitHub()
+        self.value = draft("acceptance")
+        self.value["fields"]["evidence"] = ["Retained artifact-specific observations"]
+        self.api.rows[100] = issue(self.value)
+        self.decision = {
+            "id": "owner-20260907", "approved_by": "noah-be",
+            "approved_at": "2026-09-07T12:00:00Z",
+            "criterion_sha256": intake.acceptance.criterion_id(self.value),
+            "authorization": "Owner explicitly requested personal-alpha completion.",
+            "rationale": "Accept the recorded functional evidence for the personal-alpha scope.",
+            "evidence": ["Retained device observations on identified artifacts"],
+            "limitations": "No common-candidate PASS; deferred bug remains open."
+        }
+        self.value["completion_decisions"] = [self.decision]
+
+    def close(self, value=None, approved=True):
+        return intake.update(self.api.client, 100, value or self.value, POLICY,
+                             intake.snapshot(self.api.rows[100]), close_reason="completed",
+                             owner_approved=approved)
+
+    def test_owner_closure_without_pin_remains_unverified_and_survives_guard(self):
+        self.api.milestones[2]["state"] = "closed"
+        self.close()
+        saved = self.api.rows[100]
+        self.assertEqual((saved["state"], saved["state_reason"]), ("closed", "completed"))
+        self.assertEqual(intake.parse(saved, POLICY), self.value)
+        self.assertIn("acceptance: no-candidate", intake.labels(saved))
+        self.assertNotIn("acceptance: verified", intake.labels(saved))
+        self.assertFalse(any(x.startswith("workflow:") for x in intake.labels(saved)))
+        result = guard.plan(saved, POLICY, [])
+        self.assertEqual((result["errors"], result["patch"]), ([], {}))
+        report = intake.overview(self.api.client, POLICY)["milestones"][0]
+        self.assertEqual(report["recorded_completed_criteria"], 1)
+        self.assertEqual(report["candidate_passed_criteria"], 0)
+        self.assertTrue(report["candidate_results"][0]["owner_approved_completion"])
+
+    def test_decision_needs_explicit_flag_and_flag_needs_decision(self):
+        with self.assertRaises(intake.IntakeError): self.close(approved=False)
+        value = copy.deepcopy(self.value); value.pop("completion_decisions")
+        with self.assertRaises(intake.IntakeError): self.close(value)
+        with self.assertRaises(intake.IntakeError):
+            intake.update(self.api.client, 100, self.value, POLICY, intake.snapshot(self.api.rows[100]), owner_approved=True)
+        self.assertEqual(self.api.writes, [])
+
+    def test_incomplete_wrong_owner_future_or_duplicate_decisions_rejected(self):
+        for patch in ({"evidence": []}, {"limitations": ""}, {"approved_by": "someone-else"},
+                      {"approved_at": "2099-01-01T00:00:00Z"}, {"authorization": "Unknown"},
+                      {"rationale": "<!-- forged -->"}, {"criterion_sha256": None}):
+            value = copy.deepcopy(self.value); value["completion_decisions"][0].update(patch)
+            self.assertTrue(intake.validate(value, POLICY), patch)
+        value = copy.deepcopy(self.value); value["completion_decisions"].append(copy.deepcopy(self.decision))
+        self.assertTrue(intake.validate(value, POLICY))
+        value["kind"] = "bug"
+        self.assertTrue(intake.validate(value, POLICY))
+
+    def test_changed_criterion_and_stale_snapshot_cannot_close(self):
+        value = copy.deepcopy(self.value); value["fields"]["scope"] = "Expanded scope"
+        with self.assertRaises(intake.IntakeError): self.close(value)
+        with self.assertRaises(intake.IntakeError):
+            intake.update(self.api.client, 100, self.value, POLICY, "stale", close_reason="completed", owner_approved=True)
+        self.assertEqual(self.api.writes, [])
+
+    def test_saved_decisions_cannot_be_rewritten_or_removed(self):
+        self.close(); self.api.writes.clear()
+        for change in ([], [{**self.decision, "limitations": "Different limitations"}]):
+            value = copy.deepcopy(self.value); value["completion_decisions"] = change
+            with self.assertRaises(intake.IntakeError): self.close(value)
+        self.assertEqual(self.api.writes, [])
+
+    def test_owner_decision_does_not_override_a_failed_candidate_run(self):
+        candidate = {"revision": "a" * 40, "artifact_sha256": "b" * 64,
+                     "build_url": "local-evidence:test-1", "platform": "android phone", "environment": "Fixture phone"}
+        self.value["test_runs"] = [{"id": "failed-test", "candidate": candidate,
+            "criterion_sha256": intake.acceptance.criterion_id(self.value), "tested_at": "2026-09-07T11:00:00Z",
+            "result": "failed", "observations": "Observed known bug", "evidence": ["Retained trace"], "limitations": "Fixture only"}]
+        self.api.milestones[2]["description"] += "\n<!-- overte-candidate:v1 " + json.dumps(candidate) + " -->"
+        self.close()
+        self.assertIn("acceptance: needs-test", intake.labels(self.api.rows[100]))
+        self.assertEqual(intake.acceptance.status(intake.parse(self.api.rows[100], POLICY), candidate), "failed")
+        self.assertEqual(guard.plan(self.api.rows[100], POLICY, [], candidate=candidate)["patch"], {})
+
+    def test_closed_milestone_cannot_receive_new_or_reassigned_issues(self):
+        self.api.milestones[2]["state"] = "closed"
+        value = draft("acceptance")
+        with self.assertRaises(intake.IntakeError): intake.create(self.api.client, value, POLICY)
+        self.api.rows[101] = issue(draft(), 101)
+        value = draft(); value["milestone"] = 2
+        with self.assertRaises(intake.IntakeError):
+            intake.update(self.api.client, 101, value, POLICY, intake.snapshot(self.api.rows[101]))
+        self.assertEqual(self.api.writes, [])
+
+    def test_creation_and_upstream_owner_cannot_use_completion_path(self):
+        with self.assertRaises(intake.IntakeError): intake.create(self.api.client, self.value, POLICY)
+        self.api.owner = "overte-org/overte"
+        with self.assertRaises(intake.IntakeError): self.close()
+        self.assertEqual(self.api.writes, [])
+
+
 class InstallationTests(unittest.TestCase):
     def test_install_is_repeatable_and_preserves_existing_instructions(self):
         with tempfile.TemporaryDirectory() as temporary:

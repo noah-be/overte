@@ -33,7 +33,10 @@ Make sure to reload your environment (by restarting your terminal for example), 
 
 ## Step 1a. Alternate Python
 
-If you do not wish to use the Python installation bundled with Visual Studio, you can download the installer from [here](https://www.python.org/downloads/). Ensure that you get version 3.6.6 or higher.
+If you do not wish to use the Python installation bundled with Visual Studio,
+download the installer from [Python](https://www.python.org/downloads/). Use
+the Python version in [the general build guide](BUILD.md) so repository tooling
+and the native build share a compatible environment.
 
 ## Step 2. Python Dependencies
 
@@ -57,7 +60,8 @@ conan profile detect
 
 ## Step 4. Installing CMake
 
-Download and install CMake version 3.15 or higher.
+Download and install a CMake version satisfying
+[the general build guide](BUILD.md); the modern build requires 3.24 or newer.
 
 Download the file named cmake-[version]-windows-x86_64.msi Installer from the [CMake Website](https://cmake.org/download/). During installation, make sure to check "Add CMake to system PATH for all users" when prompted.
 

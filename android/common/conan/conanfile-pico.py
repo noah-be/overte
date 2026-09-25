@@ -26,6 +26,8 @@ class PicoOverte(_module.Overte):
         "#4fc772a2dbcd84731eb6ff9904e6e358"
     )
 
+    openexr_ref = "openexr/3.1.9"
+
     def generate(self):
         # The dependency packages intentionally remain Debug packages, but an
         # Android release variant configures the native build as
@@ -57,7 +59,7 @@ class PicoOverte(_module.Overte):
         # the legacy nvtt sources.
         self.requires("nvidia-texture-tools/2023.01@overte/stable")
         self.requires("onetbb/2021.10.0")
-        self.requires("openexr/3.1.9")
+        self.requires(self.openexr_ref)
         self.requires("openxr/1.1.46@overte/stable")
         self.requires("opus/1.5.2")
         self.requires("quazip/1.4")
