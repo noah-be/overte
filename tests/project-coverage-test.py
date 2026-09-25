@@ -4,6 +4,7 @@
 from pathlib import Path
 import json
 import re
+import sys
 import unittest
 
 
@@ -54,3 +55,4 @@ if __name__ == "__main__":
     if result.result.wasSuccessful():
         areas = MATRIX["areas"]
         print(f"Project coverage: {len(areas)}/{len(areas)} areas have host automation")
+    sys.exit(0 if result.result.wasSuccessful() else 1)

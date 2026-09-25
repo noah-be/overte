@@ -20,6 +20,7 @@
     "android/common/conan/prebuilt/android-phone-16k-deps-v3.sha256": "4376bfdaa8a83681a01d714c57cfe5b3f3e5f666"
   },
   "qualified_inputs": [
+    ".github/actionlint.yaml",
     ".github/dependency-releases.json",
     "tools/dependency-releases/**",
     ".github/actions/**",
@@ -27,7 +28,13 @@
     ".github/branch-policy.json",
     ".github/platform-source-policy.json",
     ".github/sync-test-reuse.json",
+    ".github/repository-checks.json",
+    ".github/repository-health.json",
     "tools/sync-test-reuse/**",
+    "tools/repository-checks/**",
+    "tools/repository-health/**",
+    "tools/repository-maintenance/**",
+    "tools/repository-policy/**",
     "tools/branch-policy/**",
     "tests/**",
     "android/**/build.gradle*",
@@ -58,6 +65,7 @@
     "conanfile.txt"
   ],
   "required_qualified_inputs": [
+    ".github/actionlint.yaml",
     ".github/platform-source-policy.json",
     ".github/workflows/parent-qualification.yml",
     ".github/workflows/sync-test-reuse.yml",
@@ -66,6 +74,13 @@
     "tools/sync-test-reuse/gate.py",
     "tools/sync-test-reuse/qualification.py",
     "tools/sync-test-reuse/differential.py",
+    ".github/repository-checks.json",
+    ".github/workflows/repository-checks.yml",
+    "tools/repository-checks/check.py",
+    "tools/repository-health/check.py",
+    "tools/repository-maintenance/check.py",
+    "tools/repository-policy/check.py",
+    "tests/requirements-repository.txt",
     "tests/run-project-tests.py"
   ],
   "redundant_pull_request_workflows": [
