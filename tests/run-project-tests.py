@@ -35,6 +35,7 @@ SUITES = (
     Suite("repository-doctor", "quick", (sys.executable, "tests/repository-health-test.py")),
     Suite("repository-maintenance", "quick", (sys.executable, "tests/repository-maintenance-test.py")),
     Suite("branch-policy", "quick", (sys.executable, "tests/branch-policy-test.py")),
+    Suite("branch-name-guard", "quick", (sys.executable, "tests/branch-name-guard-test.py")),
     Suite("branch-cleanup", "quick", (sys.executable, "tests/branch-cleanup-test.py")),
     Suite("sync-test-reuse", "quick", (sys.executable, "tools/sync-test-reuse/test.py")),
     Suite("workflow-action-pins", "quick", (sys.executable, "tests/workflow-action-pin-test.py")),
