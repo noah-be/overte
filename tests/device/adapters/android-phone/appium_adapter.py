@@ -28,9 +28,9 @@ class PhoneAppiumAdapter(AppiumAdapter):
         target = self.target(selector)
         capabilities = target["capabilities"]
         device = capabilities.get("appium:udid")
-        require(target.get("appId") == "org.overte.phone" and type(target.get("physical")) is bool,
+        require(target.get("appId") == "io.github.noah_be.overte.phone" and type(target.get("physical")) is bool,
                 "PHONE_APPIUM_PACKAGE_AND_DEVICE_CLASS_REQUIRED")
-        require(capabilities.get("appium:appPackage") == "org.overte.phone",
+        require(capabilities.get("appium:appPackage") == "io.github.noah_be.overte.phone",
                 "PHONE_APPIUM_PACKAGE_MAPPING_REQUIRED")
         require(type(device) is str and bool(device) and device.lower() != "auto"
                 and "appium:avd" not in capabilities

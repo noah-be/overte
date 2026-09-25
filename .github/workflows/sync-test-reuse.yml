@@ -3,7 +3,7 @@ run-name: Sync test reuse for PR ${{ github.event.pull_request.number || 'contra
 
 on: # zizmor: ignore[dangerous-triggers] Default-branch data-only gate; candidate execution is dispatched read-only without secrets.
   pull_request_target:
-    types: [opened, reopened, synchronize]
+    types: [opened, reopened, synchronize, edited, ready_for_review]
     branches:
       - main
       - android-main

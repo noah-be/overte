@@ -10,14 +10,15 @@ from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlsplit
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
 import argparse
 import importlib.util
+import io
 import json
 import os
 import re
 import sys
-from zoneinfo import ZoneInfo
+import zipfile
 
 try:
     import yaml
@@ -32,6 +33,8 @@ AREAS = (
     "branches", "issues", "labels", "task_branches", "workflows", "security",
     "repository_contracts",
 )
+OPERATIONAL_ERRORS = {"CHECK_ERROR", "STARTUP_ERROR", "UNKNOWN_PERMISSION", "SECURITY_API_ERROR", "BRANCH_API_ERROR"}
+MAX_FRESHNESS_ARTIFACT_READS = 12
 WORKFLOW_LABEL = re.compile(r"^workflow: ")
 TASK_BRANCH = re.compile(
     r"^task/(?P<scope>[a-z0-9]+(?:-[a-z0-9]+)*)/"
@@ -126,6 +129,40 @@ class GitHubApi:
                 return output
         raise AuditError("GitHub API pagination exceeded 100 pages")
 
+    def artifact_report(self, repository: str, artifact_id: int) -> dict[str, Any]:
+        """Read one small JSON member; never extract or execute downloaded content."""
+        class SafeRedirect(HTTPRedirectHandler):
+            def redirect_request(self, request, response, code, message, headers, target):
+                parsed = urlsplit(target)
+                if parsed.scheme != 'https' or parsed.username or parsed.password:
+                    raise AuditError('artifact redirect is not an HTTPS download')
+                redirected = super().redirect_request(request, response, code, message, headers, target)
+                # The archive is served through a signed URL, never forward the API token.
+                redirected.remove_header('Authorization')
+                return redirected
+
+        request = Request(
+            f'https://api.github.com/repos/{repository}/actions/artifacts/{artifact_id}/zip',
+            headers={'Authorization': f'Bearer {self.token}',
+                     'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28'})
+        try:
+            with build_opener(SafeRedirect()).open(request, timeout=30) as response:
+                archive = response.read(2_000_001)
+            if len(archive) > 2_000_000:
+                raise AuditError('health artifact exceeds the download size limit')
+            with zipfile.ZipFile(io.BytesIO(archive)) as bundle:
+                members = bundle.infolist()
+                if (len(members) != 1 or members[0].filename != 'repository-health-report.json'
+                        or members[0].file_size > 1_000_000 or members[0].flag_bits & 1):
+                    raise AuditError('health artifact must contain only one bounded JSON report')
+                document = json.loads(bundle.read(members[0]))
+            if not isinstance(document, dict):
+                raise AuditError('health report is not an object')
+            return document
+        except (HTTPError, URLError, TimeoutError, zipfile.BadZipFile, json.JSONDecodeError,
+                RuntimeError, UnicodeDecodeError) as error:
+            raise AuditError(f'cannot read health artifact ({type(error).__name__})') from error
+
     def pinned_issue_numbers(self, owner: str, repository: str) -> set[int]:
         query = """query($owner:String!,$name:String!){repository(owner:$owner,name:$name){pinnedIssues(first:10){nodes{issue{number}}}}}"""
         document = self._request(
@@ -145,6 +182,7 @@ class Doctor:
         self.api = api
         self.findings: dict[str, list[Finding]] = {area: [] for area in AREAS}
         self.data: dict[str, Any] = {area: {} for area in AREAS}
+        self.executed: set[str] = set()
         self._issues: list[dict[str, Any]] | None = None
         self._workflows: list[dict[str, Any]] | None = None
 
@@ -152,11 +190,12 @@ class Doctor:
         self.findings[area].append(Finding(code, redact(message)))
 
     def _guard(self, area: str, function: Any) -> None:
+        self.executed.add(area)
         try:
             function()
         except PermissionUnknown as error:
             self.fail(area, "UNKNOWN_PERMISSION", str(error))
-        except (AuditError, OSError, ValueError, KeyError, TypeError) as error:
+        except (AuditError, OSError, ValueError, AttributeError, KeyError, TypeError) as error:
             self.fail(area, "CHECK_ERROR", str(error))
 
     def live(self) -> dict[str, Any]:
@@ -261,51 +300,63 @@ class Doctor:
     def live_when_idle(self, event: str, clock: Any = None) -> dict[str, Any]:
         clock = clock or (lambda: datetime.now(timezone.utc))
         now = clock()
-
-        def deferred(reason: str, admission: dict[str, Any]) -> dict[str, Any]:
-            return {'schema': 1, 'mode': 'live', 'repository': self.config['repository'],
-                    'status': reason, 'exit_code': 0, 'audit_executed': False,
-                    'admission': admission,
-                    'results': {area: {'status': 'NOT_RUN', 'findings': [], 'data': {}} for area in AREAS}}
-
-        if event == 'schedule' and not 0 <= now.astimezone(ZoneInfo('Europe/Berlin')).hour < 6:
-            return deferred('DEFERRED_OUTSIDE_NIGHT_WINDOW', {'timezone': 'Europe/Berlin'})
         before = self.propagation_state(now)
         if before['status'] != 'READY':
-            return deferred(before['status'], before)
+            report = self.report('live')
+            report.update(status=before['status'], exit_code=0, admission=before, generated_at=timestamp(now))
+            return report
+        source_sha = os.environ.get('HEALTH_SOURCE_SHA')
+        if source_sha and before['heads']['main'] != source_sha:
+            report = self.report('live')
+            report.update(status='DEFERRED_SOURCE_CHANGED', exit_code=0,
+                          admission={'accepted': False, 'before': before}, generated_at=timestamp(now))
+            return report
         report = self.live()
-        after = self.propagation_state(clock())
-        report.update(audit_executed=True, admission={'before': before, 'after': after})
+        report.update(audit_executed=True, audit_started_at=timestamp(now))
+        try:
+            after = self.propagation_state(clock())
+        except (AuditError, AttributeError, KeyError, TypeError, ValueError) as error:
+            report.update(status='FAIL', exit_code=2,
+                          admission={'accepted': False, 'error': redact(str(error)), 'before': before})
+            return report
+        report['admission'] = {'before': before, 'after': after}
         if after['status'] != 'READY' or before['heads'] != after['heads']:
-            # Withdraw unstable branch proof, but never suppress independent
-            # security/permission/contract failures found by the real audit.
+            # A changing repository withdraws the proof, never an independent failure.
             report['admission']['accepted'] = False
             if all(not result['findings'] for area, result in report['results'].items() if area != 'branches'):
                 report.update(status='DEFERRED_REPOSITORY_CHANGED', exit_code=0)
         else:
             report['admission']['accepted'] = True
+            report['audit_complete'] = (
+                all(result['status'] in ('PASS', 'FAIL') for result in report['results'].values())
+                and report['exit_code'] != 2)
+            if report['audit_complete']:
+                # A complete failed audit is fresh evidence, not a healthy repository.
+                report['audit_completed_at'] = timestamp(clock())
+        report['generated_at'] = timestamp(clock())
         return report
 
     def report(self, mode: str) -> dict[str, Any]:
         results = {}
         for area in AREAS:
             results[area] = {
-                "status": "FAIL" if self.findings[area] else "PASS",
+                "status": "FAIL" if self.findings[area] else ("PASS" if area in self.executed else "NOT_RUN"),
                 "findings": [asdict(item) for item in self.findings[area]],
                 "data": self.data[area],
             }
         has_operational_error = any(
-            finding.code in {"CHECK_ERROR", "STARTUP_ERROR", "UNKNOWN_PERMISSION", "SECURITY_API_ERROR"}
-            for findings in self.findings.values()
-            for finding in findings
-        )
+            finding.code in OPERATIONAL_ERRORS
+            for findings in self.findings.values() for finding in findings)
         status = "FAIL" if any(self.findings.values()) else "PASS"
         return {
-            "schema": 1,
-            "mode": mode,
-            "repository": self.config["repository"],
+            "schema": 2, "mode": mode, "repository": self.config["repository"],
             "status": status,
             "exit_code": 0 if status == "PASS" else (2 if has_operational_error else 1),
+            "generated_at": timestamp(), "audit_executed": False, "audit_complete": False,
+            "audit_started_at": None, "audit_completed_at": None,
+            "source_sha": os.environ.get('HEALTH_SOURCE_SHA'),
+            "run_id": os.environ.get('GITHUB_RUN_ID'),
+            "run_attempt": os.environ.get('GITHUB_RUN_ATTEMPT'),
             "results": results,
         }
 
@@ -328,11 +379,25 @@ class Doctor:
 
     def all_workflows(self) -> list[dict[str, Any]]:
         if self._workflows is None:
-            document = self.api.get(f"repos/{self.config['repository']}/actions/workflows?per_page=100")
-            workflows = document.get("workflows") if isinstance(document, dict) else None
-            if not isinstance(workflows, list):
-                raise AuditError("workflow response is invalid")
-            self._workflows = workflows
+            collected = []
+            for page in range(1, 11):
+                document = self.api.get(
+                    f"repos/{self.config['repository']}/actions/workflows?per_page=100&page={page}")
+                workflows = document.get("workflows") if isinstance(document, dict) else None
+                count = document.get('total_count') if isinstance(document, dict) else None
+                if not isinstance(workflows, list) or type(count) is not int or count < 0:
+                    raise AuditError("workflow response is invalid")
+                collected.extend(workflows)
+                if len(collected) == count:
+                    self._workflows = collected
+                    break
+                if not workflows or len(collected) > count:
+                    raise AuditError("workflow response is incomplete or changed during pagination")
+            if self._workflows is None:
+                raise AuditError("workflow inventory exceeds 1000 entries")
+            paths = [item.get('path') for item in self._workflows]
+            if not all(isinstance(path, str) for path in paths) or len(paths) != len(set(paths)):
+                raise AuditError("workflow inventory has missing or duplicate paths")
         return self._workflows
 
     def check_branches(self) -> None:
@@ -380,7 +445,25 @@ class Doctor:
         return [match.strip() for match in pattern.findall(body or "")]
 
     def check_issues(self) -> None:
+        # Intake owns the archive format and hash verification. Workflow checks
+        # must inspect the current body without treating preserved history as work.
+        spec = importlib.util.spec_from_file_location("overte_issue_intake", self.root / "tools/issue-intake/intake.py")
+        if not spec or not spec.loader:
+            raise AuditError("cannot load the issue-intake validator")
+        intake = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(intake)
+        policy = intake.load_policy(path=self.root / ".github/issue-policy.json")
         issues = [item for item in self.all_issues() if "pull_request" not in item]
+        current_bodies = {}
+        for issue in issues:
+            try:
+                current, archive = intake.extract_archive(issue.get('body') or '')
+                if archive is not None and archive.get('issue') != issue['number']:
+                    raise intake.IntakeError('Original-description archive belongs to a different issue')
+                current_bodies[issue['number']] = current
+            except (intake.IntakeError, ValueError, TypeError, AttributeError) as error:
+                self.fail('issues', 'ISSUE_ARCHIVE_INVALID', f"issue #{issue['number']}: {error}")
+                current_bodies[issue['number']] = None
         open_issues = [item for item in issues if item.get("state") == "open"]
         counts = Counter()
         for issue in open_issues:
@@ -389,16 +472,16 @@ class Doctor:
             if len(workflows) > 1:
                 self.fail("issues", "MULTIPLE_WORKFLOW_LABELS", f"issue #{issue['number']} has {len(workflows)} workflow labels")
             state = workflows[0] if len(workflows) == 1 else None
+            body = current_bodies[issue['number']]
             if state:
                 counts[state] += 1
             if state in ("workflow: ready", "workflow: active"):
                 if not {"type: task", "bug", "acceptance"}.intersection(names):
                     self.fail("issues", "TASK_LABEL_MISSING", f"issue #{issue['number']} is {state} without a concrete work type")
-                sections = self.sections(issue.get("body") or "", "Next physical action") + self.sections(issue.get("body") or "", "Next action")
-                if len(sections) != 1 or not sections[0]:
+                sections = self.sections(body or '', "Next physical action") + self.sections(body or '', "Next action")
+                if body is not None and (len(sections) != 1 or not sections[0]):
                     self.fail("issues", "NEXT_ACTION_INVALID", f"issue #{issue['number']} must contain exactly one nonempty Next physical action section")
-            if state == "workflow: blocked":
-                body = issue.get("body") or ""
+            if state == "workflow: blocked" and body is not None:
                 blocker = self.sections(body, "Blocker") or re.findall(r"(?im)^\s*-?\s*Blocker:\s*(\S.*)$", body)
                 unblock = self.sections(body, "Unblock condition") or re.findall(r"(?im)^\s*-?\s*Unblock condition:\s*(\S.*)$", body)
                 if not blocker or not unblock or not blocker[0].strip() or not unblock[0].strip():
@@ -422,7 +505,7 @@ class Doctor:
                 self.fail("issues", "REFERENCE_CLOSED", f"reference issue #{number} is not open")
             if self.labels(reference) != ["system: reference"]:
                 self.fail("issues", "REFERENCE_LABELS", f"reference issue #{number} must carry only system: reference")
-            body = reference.get("body") or ""
+            body = current_bodies[reference['number']] or ''
             contract = (
                 re.search(r"GitHub Issues are the only authoritative task source", body, re.I),
                 re.search(r"Inbox\s*[→>-]+\s*Ready\s*[→>-]+\s*Active\s*[→>-]+\s*Closed", body, re.I),
@@ -438,17 +521,12 @@ class Doctor:
         self.data["issues"] = {"open_issue_count": len(open_issues), "workflow_counts": dict(sorted(counts.items())), "reference_issue": number}
         # The same validator handles structured intake; legacy issues remain visible
         # as migration work without silently redefining their historical contract.
-        spec = importlib.util.spec_from_file_location("overte_issue_intake", self.root / "tools/issue-intake/intake.py")
-        if spec and spec.loader:
-            intake = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(intake)
-            policy = intake.load_policy(path=self.root / ".github/issue-policy.json")
-            structured = [intake.inspect_issue(item, policy) for item in issues]
-            for item in structured:
-                for error in item["errors"]:
-                    self.fail("issues", "ISSUE_STRUCTURE", f"issue #{item['number']}: {error}")
-            self.data["issues"]["legacy_issue_count"] = sum(item["status"] == "legacy" for item in structured)
-            self.data["issues"]["structured_issue_count"] = sum(item["status"] in ("valid", "invalid") for item in structured)
+        structured = [intake.inspect_issue(item, policy) for item in issues]
+        for item in structured:
+            for error in item["errors"]:
+                self.fail("issues", "ISSUE_STRUCTURE", f"issue #{item['number']}: {error}")
+        self.data["issues"]["legacy_issue_count"] = sum(item["status"] == "legacy" for item in structured)
+        self.data["issues"]["structured_issue_count"] = sum(item["status"] in ("valid", "invalid") for item in structured)
 
     def check_labels(self) -> None:
         labels = {item["name"]: item for item in self.api.pages(f"repos/{self.config['repository']}/labels")}
@@ -516,14 +594,36 @@ class Doctor:
         self.data["task_branches"] = {"count": len(branches), "valid_format": valid}
 
     def check_workflows(self) -> None:
-        workflows = {item.get("name"): item for item in self.all_workflows()}
-        for name in self.config["required_workflows"]:
-            workflow = workflows.get(name)
+        workflows = {item['path']: item for item in self.all_workflows()}
+        heads = {}
+        for expected in self.config['required_workflows']:
+            path, owner = expected['path'], expected['owner_branch']
+            workflow = workflows.get(path)
             if workflow is None:
-                self.fail("workflows", "WORKFLOW_MISSING", f"required workflow {name!r} is missing")
-            elif workflow.get("state") != "active":
-                self.fail("workflows", "WORKFLOW_DISABLED", f"required workflow {name!r} is {workflow.get('state')}")
-        self.data["workflows"] = {"required": len(self.config["required_workflows"]), "active": sum(workflows.get(name, {}).get("state") == "active" for name in self.config["required_workflows"])}
+                self.fail('workflows', 'WORKFLOW_MISSING', f'required workflow {path!r} is missing')
+            elif workflow.get('state') != 'active':
+                self.fail('workflows', 'WORKFLOW_DISABLED', f'required workflow {path!r} is {workflow.get("state")}')
+            if owner:
+                if owner not in heads:
+                    ref = self.api.get(f"repos/{self.config['repository']}/git/ref/heads/{quote(owner, safe='')}")
+                    heads[owner] = ref['object']['sha']
+                    if not isinstance(heads[owner], str) or not re.fullmatch('[0-9a-f]{40}', heads[owner]):
+                        raise AuditError('workflow owner head is invalid')
+                try:
+                    source = self.api.get(
+                        f"repos/{self.config['repository']}/contents/{path}?ref={heads[owner]}")
+                    if not isinstance(source, dict) or source.get('type') != 'file' or source.get('path') != path:
+                        raise AuditError('workflow source is not the expected file')
+                except AuditError as error:
+                    if 'HTTP 404' not in str(error):
+                        raise
+                    self.fail('workflows', 'WORKFLOW_SOURCE_MISSING', f'{path!r} is missing from owning branch {owner!r}')
+        self.data['workflows'] = {
+            'required': len(self.config['required_workflows']),
+            'active': sum(workflows.get(item['path'], {}).get('state') == 'active'
+                          for item in self.config['required_workflows']),
+            'owner_heads': heads,
+        }
 
     def _alerts(self, kind: str, endpoint: str) -> None:
         try:
@@ -558,7 +658,7 @@ class Doctor:
         self._alerts("codeql", f"repos/{repository}/code-scanning/alerts?state=open")
         self._alerts("dependabot", f"repos/{repository}/dependabot/alerts?state=open")
         self._alerts("secret_scanning", f"repos/{repository}/secret-scanning/alerts?state=open")
-        by_name = {item.get("name"): item for item in self.all_workflows()}
+        by_name = {item.get("path"): item for item in self.all_workflows()}
         states = {}
         for name in self.config["security_workflows"]:
             workflow = by_name.get(name)
@@ -594,6 +694,10 @@ class Doctor:
                 load_json_strict(json_path)
             except (OSError, json.JSONDecodeError, AuditError) as error:
                 self.fail("repository_contracts", "POLICY_JSON", f"{json_path.relative_to(self.root)} is invalid: {error}")
+        for entry in self.config['required_workflows']:
+            if entry['owner_branch'] == 'main' and not (self.root / entry['path']).is_file():
+                self.fail('repository_contracts', 'WORKFLOW_SOURCE_MISSING',
+                          f"main-owned workflow {entry['path']!r} is missing")
         for path in sorted((self.root / ".github/rulesets").glob("*.json")):
             try:
                 load_json_strict(path)
@@ -627,6 +731,159 @@ class Doctor:
         self.data["repository_contracts"] = {"permanent_branches": len(policy), "branch_edges": len(edges), "workflow_files": len(workflows)}
 
 
+def timestamp(moment: datetime | None = None) -> str:
+    return (moment or datetime.now(timezone.utc)).astimezone(timezone.utc).isoformat().replace('+00:00', 'Z')
+
+
+def moment(value: Any) -> datetime:
+    if not isinstance(value, str):
+        raise AuditError('missing audit timestamp')
+    try:
+        parsed = datetime.fromisoformat(value.replace('Z', '+00:00'))
+    except ValueError as error:
+        raise AuditError('invalid audit timestamp') from error
+    if parsed.tzinfo is None:
+        raise AuditError('audit timestamp has no timezone')
+    return parsed
+
+
+def validate_audit_evidence(report: dict[str, Any], run: dict[str, Any],
+                            config: dict[str, Any], now: datetime) -> bool:
+    """Validate provenance even for a deferred report; completeness is separate."""
+    if not isinstance(report, dict) or not isinstance(run, dict):
+        raise AuditError('health evidence is not an object')
+    if (report.get('schema') != 2 or report.get('repository') != config['repository']
+            or report.get('mode') != 'live' or report.get('source_sha') != run['head_sha']
+            or str(report.get('run_id')) != str(run['id'])
+            or str(report.get('run_attempt')) != str(run['run_attempt'])):
+        raise AuditError('health report identity does not match its trusted workflow run')
+    generated = moment(report.get('generated_at'))
+    if generated > now or generated < moment(run['created_at']):
+        raise AuditError('health report timestamp is outside its workflow run')
+    if run.get('status') == 'completed' and generated > moment(run.get('updated_at')):
+        raise AuditError('health report was generated after its workflow completed')
+    if report.get('audit_complete') is not True:
+        return False
+    areas = report.get('results')
+    admission = report.get('admission', {})
+    before = admission.get('before', {}).get('heads')
+    after = admission.get('after', {}).get('heads')
+    if (report.get('audit_executed') is not True or report.get('status') not in ('PASS', 'FAIL')
+            or report.get('exit_code') != (0 if report['status'] == 'PASS' else 1)
+            or not isinstance(areas, dict) or set(areas) != set(AREAS)
+            or any(not isinstance(result, dict) or result.get('status') not in ('PASS', 'FAIL')
+                   for result in areas.values())
+            or admission.get('accepted') is not True or not isinstance(before, dict)
+            or set(before) != {'main', 'android-main', 'android-phone', 'android-vr', 'android-vr-pico', 'apple-main', 'apple-ios'}
+            or before != after or before.get('main') != run['head_sha']
+            or not all(isinstance(sha, str) and re.fullmatch('[0-9a-f]{40}', sha) for sha in before.values())):
+        raise AuditError('complete health report lacks a stable, fully executed audit')
+    for result in areas.values():
+        findings = result.get('findings')
+        if (not isinstance(findings, list)
+                or any(not isinstance(finding, dict) or not isinstance(finding.get('code'), str)
+                       or finding['code'] in OPERATIONAL_ERRORS for finding in findings)
+                or (result['status'] == 'PASS' and findings)):
+            raise AuditError('complete health report contains unknown or inconsistent findings')
+    if (report['status'] == 'PASS') != all(result['status'] == 'PASS' for result in areas.values()):
+        raise AuditError('health result disagrees with area results')
+    started, completed = moment(report.get('audit_started_at')), moment(report.get('audit_completed_at'))
+    if not moment(run['created_at']) <= started <= completed <= generated:
+        raise AuditError('audit completion timestamp is invalid')
+    return True
+
+
+def freshness(config: dict[str, Any], api: Any, now: datetime | None = None) -> dict[str, Any]:
+    """Inspect authenticated run artifacts, including complete audits with findings."""
+    now = now or datetime.now(timezone.utc)
+    result = {'schema': 2, 'mode': 'freshness', 'repository': config['repository'],
+              'generated_at': timestamp(now), 'status': 'MISSING', 'exit_code': 1,
+              'max_age_hours': config['freshness']['max_age_hours'],
+              'last_complete_at': None, 'last_complete_status': None, 'source_run_id': None,
+              'source_sha': None, 'last_attempt_status': None, 'reports_checked': 0,
+              'artifact_inventories_read': 0,
+              'evidence_verification': 'authenticated_github_artifact', 'findings': []}
+    prefix = f"repos/{config['repository']}"
+    try:
+        repository = api.get(prefix)
+        if repository.get('full_name') != config['repository'] or repository.get('default_branch') != 'main':
+            raise AuditError('freshness requires the configured fork and its trusted main branch')
+        workflow = api.get(f"{prefix}/actions/workflows/repository-health.yml")
+        path = config['freshness']['workflow_path']
+        if workflow.get('path') != path or workflow.get('state') != 'active' or type(workflow.get('id')) is not int:
+            raise AuditError('trusted health workflow is missing or inactive')
+        document = api.get(f"{prefix}/actions/workflows/{workflow['id']}/runs?branch=main&per_page=100")
+        runs = document.get('workflow_runs') if isinstance(document, dict) else None
+        if (not isinstance(runs, list) or type(document.get('total_count')) is not int
+                or document['total_count'] < len(runs) or len(runs) > 100
+                or any(not isinstance(run, dict) for run in runs)):
+            raise AuditError('health run inventory is invalid')
+        eligible = []
+        # A terminal run's API update time bounds its report completion. Nonterminal
+        # runs may already have uploaded a report, so their upper bound is now.
+        for run in runs:
+            if run.get('event') not in ('schedule', 'workflow_dispatch'):
+                continue
+            if (run.get('repository', {}).get('full_name') != config['repository']
+                    or run.get('head_repository', {}).get('full_name') != config['repository']
+                    or run.get('head_branch') != 'main' or run.get('path') != path
+                    or run.get('workflow_id') != workflow['id']
+                    or type(run.get('id')) is not int or type(run.get('run_attempt')) is not int
+                    or not isinstance(run.get('head_sha'), str)
+                    or not re.fullmatch('[0-9a-f]{40}', run['head_sha'])):
+                raise AuditError('health run does not match trusted repository/workflow identity')
+            created, updated = moment(run.get('created_at')), moment(run.get('updated_at'))
+            if not created <= updated <= now:
+                raise AuditError('health run timestamps are invalid')
+            if run.get('status') not in ('completed', 'queued', 'in_progress', 'waiting', 'pending', 'requested'):
+                raise AuditError('health run status is invalid')
+            eligible.append((updated if run['status'] == 'completed' else now, run))
+        eligible.sort(key=lambda item: item[0], reverse=True)
+        complete = []
+        for upper_bound, run in eligible:
+            if complete and max(moment(item['audit_completed_at']) for item in complete) > upper_bound:
+                # Every remaining candidate must be older; do not download history.
+                break
+            if result['artifact_inventories_read'] >= MAX_FRESHNESS_ARTIFACT_READS:
+                raise AuditError('health evidence query budget exhausted before the newest complete audit was established')
+            result['artifact_inventories_read'] += 1
+            artifacts = api.get(f"{prefix}/actions/runs/{run['id']}/artifacts?per_page=100")
+            rows = artifacts.get('artifacts') if isinstance(artifacts, dict) else None
+            if (not isinstance(rows, list) or artifacts.get('total_count') != len(rows)
+                    or any(not isinstance(row, dict) for row in rows)):
+                raise AuditError('health artifact inventory is incomplete')
+            name = f"{config['freshness']['artifact_prefix']}-{run['id']}-{run['run_attempt']}"
+            candidates = [item for item in rows if item.get('name') == name and item.get('expired') is False]
+            if len(candidates) > 1:
+                raise AuditError('health report artifact is ambiguous')
+            if not candidates:
+                if result['last_attempt_status'] is None:
+                    result['last_attempt_status'] = 'MISSING_ARTIFACT'
+                continue
+            artifact = candidates[0]
+            if (type(artifact.get('id')) is not int or artifact.get('workflow_run', {}).get('id') != run['id']
+                    or artifact['workflow_run'].get('head_sha') != run['head_sha']):
+                raise AuditError('health artifact does not belong to its workflow run')
+            report = api.artifact_report(config['repository'], artifact['id'])
+            is_complete = validate_audit_evidence(report, run, config, now)
+            result['reports_checked'] += 1
+            if result['last_attempt_status'] is None:
+                result['last_attempt_status'] = report['status']
+            if is_complete:
+                complete.append(report)
+        if complete:
+            latest = max(complete, key=lambda item: moment(item['audit_completed_at']))
+            age = (now - moment(latest['audit_completed_at'])).total_seconds() / 3600
+            result.update(last_complete_at=latest['audit_completed_at'], last_complete_status=latest['status'],
+                          source_run_id=latest['run_id'], source_sha=latest['source_sha'], age_hours=round(age, 3),
+                          status='FRESH' if age <= result['max_age_hours'] else 'STALE')
+            result['exit_code'] = 0 if result['status'] == 'FRESH' else 1
+    except (AuditError, AttributeError, KeyError, TypeError, ValueError) as error:
+        result.update(status='UNKNOWN', exit_code=2)
+        result['findings'].append({'code': 'FRESHNESS_EVIDENCE_ERROR', 'message': redact(str(error))})
+    return result
+
+
 def redact(value: str) -> str:
     return SENSITIVE.sub("[REDACTED]", value)
 
@@ -647,9 +904,9 @@ def load_config(path: Path) -> dict[str, Any]:
         document = load_json_strict(path)
     except (OSError, json.JSONDecodeError, AuditError) as error:
         raise AuditError(f"cannot read repository-health configuration: {error}") from error
-    required = {"schema", "repository", "reference_issue", "wip_limits", "labels", "required_workflows", "security_workflows", "security_thresholds"}
-    if document.get("schema") != 1 or set(document) != required:
-        raise AuditError("repository-health configuration does not match schema 1")
+    required = {"schema", "repository", "reference_issue", "wip_limits", "labels", "required_workflows", "security_workflows", "security_thresholds", "freshness"}
+    if document.get("schema") != 2 or set(document) != required:
+        raise AuditError("repository-health configuration does not match schema 2")
     expected_labels = {
         "workflow: inbox", "workflow: ready", "workflow: active", "workflow: blocked",
         "type: task", "system: reference",
@@ -665,17 +922,45 @@ def load_config(path: Path) -> dict[str, Any]:
     for name, label in document["labels"].items():
         if not isinstance(label, dict) or set(label) != {"color", "description"} or re.fullmatch(r"[0-9A-Fa-f]{6}", label.get("color", "")) is None or not isinstance(label.get("description"), str) or not label["description"]:
             raise AuditError(f"label contract for {name!r} is invalid")
-    for key in ("required_workflows", "security_workflows"):
-        values = document[key]
-        if not isinstance(values, list) or not values or len(values) != len(set(values)) or not all(isinstance(value, str) and value for value in values):
-            raise AuditError(f"{key} must be a nonempty list of unique names")
+    inventory = document['required_workflows']
+    if not isinstance(inventory, list) or not inventory:
+        raise AuditError('required_workflows must be a nonempty path inventory')
+    paths = []
+    owners = {'main', 'android-main', 'android-phone', 'android-vr', 'android-vr-pico', 'apple-main', 'apple-ios'}
+    for entry in inventory:
+        if not isinstance(entry, dict) or set(entry) != {'path', 'owner_branch'}:
+            raise AuditError('invalid workflow inventory entry')
+        path, owner = entry['path'], entry['owner_branch']
+        if not isinstance(path, str) or not (
+            (re.fullmatch(r'\.github/workflows/[a-z0-9-]+\.yml', path) and owner in owners)
+            or (path in {'dynamic/dependabot/dependabot-updates', 'dynamic/dependabot/update-graph'} and owner is None)):
+            raise AuditError('workflow path or owning branch is invalid')
+        paths.append(path)
+    if len(paths) != len(set(paths)):
+        raise AuditError('workflow inventory paths must be unique')
+    security = document['security_workflows']
+    if not isinstance(security, list) or not security or not all(isinstance(path, str) and path in paths for path in security) or len(security) != len(set(security)):
+        raise AuditError('security_workflows must contain unique registered paths')
+    freshness = document['freshness']
+    if (not isinstance(freshness, dict) or set(freshness) != {'max_age_hours', 'workflow_path', 'artifact_prefix'}
+            or type(freshness['max_age_hours']) is not int or not 6 <= freshness['max_age_hours'] <= 168
+            or freshness['workflow_path'] != '.github/workflows/repository-health.yml'
+            or freshness['artifact_prefix'] != 'repository-health-report'):
+        raise AuditError('invalid freshness policy')
     if set(document["security_thresholds"]) != {"codeql", "dependabot", "secret_scanning"} or any(value != 0 for value in document["security_thresholds"].values()):
         raise AuditError("all three security thresholds must be zero")
     return document
 
 
 def summary(report: dict[str, Any]) -> str:
-    lines = ["# Repository Health Doctor", "", f"Overall: **{report['status']}**", "", "| Area | Status | Findings |", "|---|---:|---:|"]
+    if report['mode'] == 'freshness':
+        return (f"# Repository Health Freshness\n\nEvidence: **{report['status']}**\n\n"
+                f"Last complete audit: {report['last_complete_at'] or 'none'}; "
+                f"result: {report['last_complete_status'] or 'unknown'}.\n\n"
+                "Freshness records execution, not repository health.\n")
+    lines = ["# Repository Health Doctor", "", f"Overall: **{report['status']}** ({report['mode']})",
+             f"Full audit complete: **{report.get('audit_complete', False)}**; completed at: {report.get('audit_completed_at') or 'none'}.",
+             "", "| Area | Status | Findings |", "|---|---:|---:|"]
     for area, result in report["results"].items():
         lines.append(f"| {area.replace('_', ' ')} | {result['status']} | {len(result['findings'])} |")
     branches = report["results"]["branches"]["data"]
@@ -684,6 +969,14 @@ def summary(report: dict[str, Any]) -> str:
         for edge in branches["edges"]:
             mark = "PASS" if edge["valid"] else "FAIL"
             lines.append(f"- {mark}: `{edge['parent']}` → `{edge['child']}` ({edge['status']}; ahead {edge['ahead_by']}, behind {edge['behind_by']})")
+    workflow_conclusions = report['results']['security']['data'].get('workflow_conclusions', {})
+    if workflow_conclusions:
+        lines.extend(['', '## Security workflow observations', '',
+                      'Latest observed terminal run (not necessarily main). Candidate failures remain visible observations; '
+                      'they do not establish a failure of the current default branch.', '',
+                      '| Workflow path | Latest observed conclusion |', '| --- | --- |'])
+        for path, conclusion in sorted(workflow_conclusions.items()):
+            lines.append(f'| `{path}` | **{conclusion}** |')
     findings = [(area, item) for area, result in report["results"].items() for item in result["findings"]]
     if findings:
         lines.extend(["", "## Findings", ""])
@@ -696,19 +989,22 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--report", type=Path, default=DEFAULT_REPORT)
+    parser.add_argument("--freshness", action="store_true", help="verify recent full live audits from trusted GitHub artifacts")
     parser.add_argument("--local", action="store_true", help="validate versioned contracts only")
     parser.add_argument("--when-idle", action="store_true", help="explicit alias for default live propagation admission")
     parser.add_argument("--event", choices=('schedule', 'workflow_dispatch'), default='workflow_dispatch')
     args = parser.parse_args()
     try:
         config = load_config(args.config)
+        if args.local and args.freshness:
+            raise AuditError("freshness requires authenticated live evidence, not local contract checks")
         doctor = Doctor(ROOT, config, None if args.local else GitHubApi(os.environ.get("GITHUB_TOKEN", "")))
         if args.local and args.when_idle:
             raise AuditError("local tests cannot claim live quiescence")
         # Legacy direct CLI invocations must not bypass the new live admission.
-        report = doctor.local() if args.local else doctor.live_when_idle(args.event)
-    except (AuditError, KeyError, TypeError, ValueError) as error:
-        report = {"schema": 1, "mode": "local" if args.local else "live", "repository": "UNKNOWN", "status": "FAIL", "exit_code": 2, "results": {area: {"status": "FAIL" if area == "repository_contracts" else "PASS", "findings": [{"code": "STARTUP_ERROR", "message": redact(str(error))}] if area == "repository_contracts" else [], "data": {}} for area in AREAS}}
+        report = freshness(config, doctor.api) if args.freshness else (doctor.local() if args.local else doctor.live_when_idle(args.event))
+    except (AuditError, AttributeError, KeyError, TypeError, ValueError) as error:
+        report = {"schema": 2, "generated_at": timestamp(), "audit_executed": False, "audit_complete": False, "audit_started_at": None, "audit_completed_at": None, "mode": "local" if args.local else "live", "repository": "UNKNOWN", "status": "FAIL", "exit_code": 2, "results": {area: {"status": "FAIL" if area == "repository_contracts" else "NOT_RUN", "findings": [{"code": "STARTUP_ERROR", "message": redact(str(error))}] if area == "repository_contracts" else [], "data": {}} for area in AREAS}}
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     rendered = summary(report)

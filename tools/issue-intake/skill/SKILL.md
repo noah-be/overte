@@ -107,6 +107,18 @@ does not prove product behavior. Acceptance evidence must identify the tested
 candidate, date, observations, result and limitations. Use `--close not_planned`
 for an authorized rejection/duplicate instead of claiming completion.
 
+For an expressly owner-approved personal-alpha completion based on reviewed
+historical/focused evidence, append a `completion_decisions` entry as documented
+in `docs/ISSUE_WORKFLOW.md` and use `--close completed --owner-approved`.
+Record the policy owner, actual UTC approval date, unchanged criterion hash,
+explicit authorization, rationale, retained evidence and known limitations.
+This is a separate completion decision, not a test run: preserve every existing
+`test_runs` entry and candidate-derived label, including failed or unverified
+results. Never infer approval from a build, a generic update request, or this
+skill. A changed scope requires a new decision; existing decisions are append-only.
+Keep deferred bugs open unless separately authorized to resolve them. An existing
+issue can retain a closed milestone during this update; new assignments cannot.
+
 Keep GitHub Issues authoritative. Dashboards, local notes and branches do not
 override issue state. Do not store personal health information in public issues.
 

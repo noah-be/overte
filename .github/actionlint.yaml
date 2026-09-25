@@ -16,5 +16,12 @@ self-hosted-runner:
     - depot-windows-202?-??
     - depot-macos-latest
     - depot-macos-??
+    # Protected fork build and device pools; shared so synchronization preserves labels.
+    - overte-android-build
+    - overte-android-phone-build
+    - overte-android-phone-emulator
+    - overte-android-phone-release
+    - overte-android-release
+    - overte-pico4-device
     # Dedicated protected runner with one paired physical iPad.
     - overte-ios-ipad
