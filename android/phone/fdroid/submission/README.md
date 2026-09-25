@@ -67,21 +67,34 @@ No F-Droid upstream write or merge request is authorized by these instructions.
 
 ## Build phases and prerequisites
 
-`provision.sh --fdroid-buildserver` is for the disposable VM's privileged `sudo`
-stage **only**, not a workstation. It installs the existing qualified compiler
-versions and Conan. F-Droid executes this stage from the builder home before
-source preparation, so its metadata path includes `build/io.github.noah_be.overte.phone/`.
-Debian's rolling mirror no longer serves all those exact
-versions, so the recipe uses its signed `20260904T000000Z` snapshot for unstable
-packages. Only archive expiry checking is disabled for this immutable snapshot;
-APT signature verification is retained. This does not change the existing local
-builder image or its provenance lock.
+The metadata installs standard Debian trixie packages inline in F-Droid's
+`sudo` stage, from `/tmp`. No source repository script runs as root. There is
+no Debian snapshot, unstable repository, exact distro package pin or
+`update-alternatives` override. Conan 2.25.2 is installed in the build user's
+virtual environment during `prebuild`, without sudo. The optional `provision.sh`
+helper is only for a disposable local VM and is not called by the metadata.
+
+The submission adapter uses GCC/G++ 14, OpenJDK 21, system CMake 3.31 or newer
+within major 3, and Ninja 1.12 or newer within major 1. Debian patch updates are
+accepted, with actual versions printed in the preflight log. These bounds match
+the trixie packages; they are not claims about minimum application requirements.
+`OVERTE_FDROID_STANDARD_TOOLCHAIN=1`, set by the adapter, selects this check and
+explicit GCC 14 settings for both Linux Conan contexts. The Android host context
+retains NDK Clang 18. Shared Phone/Pico profiles and the historical local
+qualification image/locks are unchanged; their checks remain on the legacy path.
 
 The metadata acquires SDK 36, Build-Tools 35.0.0 (the AGP default) and 36.0.0
 (the explicit aapt2 override), Command-line Tools 22.0 (`apkanalyzer`),
-SDK CMake 3.31.6 and NDK
-27.3.13750724 through F-Droid's SDK tooling. Other required tools are GCC/G++
-15.3.0, CMake 3.31.6, Ninja 1.13.2, OpenJDK 17, Conan 2.25.2 and `unshare`/`ip`.
+SDK CMake 3.31.6 and NDK 27.3.13750724 through F-Droid's SDK tooling.
+Dependency source versions, recipe locks and archive hashes remain unchanged.
+Source-built Conan build tools remain locked too; this changes the host's
+Debian tools, not the dependency graph's source identity.
+
+**Validation boundary:** the successful GCC 15/OpenJDK 17 builds do not qualify
+this new toolchain. Run a clean source build before enabling the generated draft.
+Reproducible APK comparison and the signing/reference-APK workflow are separate
+follow-up work. Keep the existing public `android-phone-v0.1.0+1` tag unchanged.
+
 The recipe targets ARM64 only, Android 8.0+ (API 26), versionCode 1/versionName
 0.1.0. The new workspace, Conan cache and Gradle home are isolated from developer
 caches. The metadata places the work directory beside the checkout: recipe
@@ -158,9 +171,9 @@ The maintainer approved the following release configuration:
   debug key remains test-only. Signing for any separate distribution channel
   must be planned separately.
 - **Publication:** disabled draft, full commit binding, unsigned release APK,
-  four-hour build timeout and manual update metadata. Public integration,
-  an Android-specific tag, qualification of the final public revision and
-  submission are still pending. Maintainer notes will be refreshed before submission.
+  twelve-hour build timeout and Android-specific tag update detection. The
+  current submission and existing tag use the earlier qualified toolchain.
+  Publish a newly validated source revision before updating that submission.
 
 The [earlier qualification record](VALIDATION.md) documents the old test identity
 and is historical evidence, not validation of the renamed APK. On 2026-09-21,
@@ -191,10 +204,85 @@ environment isolation, wrapper-independent release commands and store limits.
 Actual `fdroid readmeta`, `fdroid lint`, source scanning and APK scanning must also
 be run; unit tests are not replacements for them.
 
+### Standard-toolchain preparation (2026-09-22)
+
+The submission tests (18) and cold-build executor tests (8) passed. A disposable
+container based on the actual CI buildserver image, digest
+`sha256:9cb68105642ca4e7b295f0ceab10f069f5b3247dc18fa7c36046e9d81aa469a8`,
+installed the unpinned standard packages successfully. Its toolchain check passed
+with GCC/G++ 14.2.0, CMake 3.31.6, Ninja 1.12.1, OpenJDK 21.0.12.1 and Conan
+2.25.2. Real `conan profile show` confirmed GCC 14 in both Linux contexts and
+Clang 18 in the Android context. No full APK build or reproducibility claim is
+part of this preparation. The online submission still references the previously
+tested source until the new revision is qualified and published.
+
 ## Primary references
 
 - [F-Droid submission guide](https://f-droid.org/docs/Submitting_to_F-Droid_Quick_Start_Guide/)
 - [Build metadata reference](https://f-droid.org/docs/Build_Metadata_Reference/)
 - [Current F-Droid categories](https://gitlab.com/fdroid/fdroiddata/-/blob/master/config/categories.yml)
-- [Debian GCC archive](https://snapshot.debian.org/package/gcc-15/15.3.0-3/)
-- [Debian OpenJDK archive](https://snapshot.debian.org/package/openjdk-17/17.0.20.1%2B1-1/)
+- [Debian trixie GCC package](https://packages.debian.org/trixie/gcc)
+- [Debian trixie OpenJDK package](https://packages.debian.org/trixie/openjdk-21-jdk-headless)
+
+## Reproducibility findings and corrections
+
+Independent standard-toolchain jobs `16664209585` and `16666614920` both passed
+build and APK checks, but their unsigned APKs differed. The ZIP entry order was
+identical. Differences were concentrated in native libraries and Qt resources:
+
+- Native diagnostic strings and DWARF-derived build IDs contained random Conan
+  cache paths. The submission-only Conan hook adds `-ffile-prefix-map` for the
+  package's source/build roots and dependency headers. The app receives the same
+  recorded mappings through a generated CMake include. Compilers are unmodified.
+- OpenSSL included the wall-clock build date. The adapter now derives
+  `SOURCE_DATE_EPOCH` from the exact source commit and fixes the locale/timezone.
+  OpenSSL receives no additional path-bearing flags because its build-info string
+  would embed them; the observed OpenSSL difference was the date.
+- Both standalone RCC files had identical data regions; only the resource tree
+  metadata differed. Qt's source-date override fixes those timestamps, including
+  resources generated during compilation. Cache-manifest hashes are regenerated
+  from the resulting assets, as before.
+- Node embeds `config.gypi` in `process.config`, including random build and
+  dependency paths. A guarded build-hook adjustment to `tools/js2c.cc` normalizes
+  only that informational embedded copy. Actual GYP include/link paths remain
+  unchanged. The hook rejects an unexpected generator implementation.
+- The next full pair differed only in `libshaders.so`: Scribe inserted wall-clock
+  dates into generated shader comments. The isolated hook binds `_SCRIBE_DATE`
+  to the same commit epoch before compiling Scribe. Shader instructions and
+  copyright comments are preserved; unexpected Scribe implementations fail.
+
+The hook is installed only in the new, isolated submission Conan home. It does
+not modify global Conan configuration, recipes in the source export store,
+application features, assets, or sibling-platform builds. The source commit binds
+these additional build instructions. Original failed comparisons are retained;
+comparison after these corrections must still pass before claiming reproducibility.
+
+Tests cover prefix-map context selection, all Qt build variants, OpenSSL's
+build-info exception, and actual C++ compilation of the Node normalization.
+A real Conan/GCC test built the same small library in two distinct caches and
+obtained byte-identical output, including the build ID. Full Android rebuilds are
+still required; this small regression is not the release reproducibility proof.
+
+The first corrected full build (`16668521593`) passed but still contained random
+paths in Qt and CMake-built Android dependencies. A real NDK/CMake regression
+reproduced the problem: NDK initialization discarded Conan's initial compiler
+flags. The hook now also emits directory compile options after toolchain
+generation. Qt receives the flags in its late `default_post.prf` feature, after
+mkspec initialization. Node's embedded paths were already normalized correctly.
+The redundant comparison pipeline was stopped after this concrete evidence.
+
+Both corrections passed two-build regressions using the actual NDK and Qt5/qmake,
+respectively. They can be repeated in a disposable standard buildserver:
+
+```sh
+# Requires Conan 2.25.2, GCC 14, CMake, Ninja and the declared Android NDK.
+export ANDROID_NDK_HOME="$ANDROID_SDK_ROOT/ndk/27.3.13750724"
+python3 android/phone/fdroid/submission/verify_reproducible_ndk.py
+# Requires Qt5 qmake, GCC/G++ and make; override QMAKE if necessary.
+QMAKE=/usr/lib/qt5/bin/qmake python3 android/phone/fdroid/submission/verify_reproducible_qmake.py
+```
+
+These tests use fresh temporary Conan caches/build directories, no downloads or
+application assets, and compare complete ELF files. They fail on a surviving
+random build path or any binary difference. Full independent APK comparison is
+still the final gate.

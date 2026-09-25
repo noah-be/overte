@@ -10,6 +10,17 @@ cd android/phone
 The host gate uses source, unit, contract, JavaScript, Java, and mock-ADB checks.
 It does not prove an APK build or physical runtime behavior.
 
+The repository quick profile also runs the Phone default microphone selection
+and editor focus teardown contracts registered in
+[`tests/platform-profile.json`](../../../tests/platform-profile.json).
+These compile small host fixtures and require a C++17 compiler, `pkg-config`,
+and Qt 6 Core and Widgets development packages (`qt6-base-dev` on Ubuntu).
+Run them from the repository root:
+
+```bash
+python3 tests/run-project-tests.py --suite phone-default-input --suite phone-editor-teardown
+```
+
 ## Emulator
 
 ```bash

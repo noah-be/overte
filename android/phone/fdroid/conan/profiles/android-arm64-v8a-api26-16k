@@ -3,6 +3,8 @@ include(../../profiles/android-arm64-v8a-api26-16k)
 {% set android_sdk = os.getenv("ANDROID_SDK_ROOT") %}
 
 [settings]
+# Phone size experiment: optimize Node/V8 without changing the other Qt cohort.
+libnode/*:build_type=Release
 webrtc-audio-processing/*:build_type=Release
 # ETC encoding dominates first-load CPU time on Phone. Keep debug symbols but
 # optimize this CPU codec even when the application dependency cohort is Debug.

@@ -461,6 +461,29 @@ macro(AUTOSCRIBE_SHADER_LIBS)
         ShaderEnums.h.in
         ${CMAKE_CURRENT_BINARY_DIR}/ShaderEnums.h)
 
+    if (HIFI_ANDROID AND HIFI_ANDROID_APP STREQUAL "phoneInterface")
+        # One logical resource pool permits lossless sharing across variant groups.
+        # Every alias and its exact content is retained by the compactor.
+        set(SHADER_QRC "")
+        foreach(QRC_INDEX RANGE 1 ${SHADER_QRC_COUNT})
+            string(APPEND SHADER_QRC "${SHADER_QRC_${QRC_INDEX}}")
+        endforeach()
+        set(PHONE_SHADER_QRC "${CMAKE_CURRENT_BINARY_DIR}/phone-shaders.qrc")
+        configure_file(shaders.qrc.in "${PHONE_SHADER_QRC}")
+        find_package(Qt5 COMPONENTS Core QUIET REQUIRED CMAKE_FIND_ROOT_PATH_BOTH)
+        set(PHONE_SHADER_CPP "${CMAKE_CURRENT_BINARY_DIR}/qrc_phone_shaders.cpp")
+        add_custom_command(OUTPUT "${PHONE_SHADER_CPP}"
+            COMMAND ${Qt5Core_RCC_EXECUTABLE} --format-version 3 --name phone_shaders
+                "${PHONE_SHADER_QRC}" -o "${PHONE_SHADER_CPP}.raw"
+            COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/android/phone/tools/compact_qt_resources.py"
+                cpp "${PHONE_SHADER_CPP}.raw" "${PHONE_SHADER_CPP}"
+            DEPENDS "${PHONE_SHADER_QRC}" ${SCRIBED_SHADERS} ${REFLECTED_SHADERS}
+                "${CMAKE_SOURCE_DIR}/android/phone/tools/compact_qt_resources.py"
+            VERBATIM)
+        set_source_files_properties("${PHONE_SHADER_CPP}" PROPERTIES SKIP_AUTOMOC ON)
+        list(APPEND AUTOSCRIBE_SHADER_LIB_SRC "${PHONE_SHADER_CPP}")
+        set(SHADER_QRC_INITS "Q_INIT_RESOURCE(phone_shaders);\n")
+    else()
     # Loop over the generated shader QRC chunks and create qrc files for each
     foreach(QRC_INDEX RANGE 1 ${SHADER_QRC_COUNT})
         set(_qrc_var_name "SHADER_QRC_${QRC_INDEX}")
@@ -471,6 +494,8 @@ macro(AUTOSCRIBE_SHADER_LIBS)
 
         string(CONCAT SHADER_QRC_INITS "${SHADER_QRC_INITS}" "Q_INIT_RESOURCE(shaders${QRC_INDEX});\n")
     endforeach()
+
+    endif()
 
     configure_file(
         ${CMAKE_CURRENT_SOURCE_DIR}/src/shaders/Shaders.cpp.in
