@@ -208,7 +208,9 @@ failure overrides a previous pass. Candidate labels are derived automatically:
 `acceptance: verified`, `acceptance: needs-test`, or `acceptance: no-candidate`.
 Failed and blocked observations remain distinct in the overview. Historical
 closure stays intact when the candidate changes; it is not a current green result.
-The helper rejects a new completed closure without matching passing evidence.
+By default, the helper rejects a new completed closure without matching passing
+evidence. The explicit owner-completion path below records a scope decision
+without changing that candidate result.
 The guard repairs derived labels on issue/milestone events and scheduled audits.
 
 During development, use change-impact analysis to choose relevant regression tests;
@@ -224,3 +226,50 @@ This follows the separation of requirements, builds and test results described i
 [Microsoft's traceability guidance](https://learn.microsoft.com/en-us/azure/devops/pipelines/test/requirements-traceability?view=azure-devops)
 and the impact-based regression selection in the
 [NASA software engineering handbook](https://swehb.nasa.gov/spaces/SWEHBVD/pages/102695526/SWE-191%2B-%2BSoftware%2BRegression%2BTesting).
+
+
+### Explicit owner-approved completion
+
+A project owner may accept a personal-alpha criterion using reviewed historical
+and focused regression evidence, while retaining known limitations for separate
+follow-up. This is an issue-disposition decision, not a new candidate-bound test
+PASS. Use this path only when the owner explicitly authorizes that completion;
+a general request to update an issue, a successful build, or an agent's inference
+is not such authorization. It must not close separately deferred bugs.
+
+Read the issue with `overte-issue show NUMBER`. Append a `completion_decisions`
+entry containing these exact fields:
+
+- `id`: a unique decision identifier.
+- `approved_by`: the project owner configured in `owner_completion.approver`.
+- `approved_at`: the actual UTC decision time (`YYYY-MM-DDTHH:MM:SSZ`).
+- `criterion_sha256`: the unchanged criterion hash returned by `show`.
+- `authorization`: a faithful reference/summary of the explicit owner instruction.
+- `rationale`: why the recorded evidence is sufficient for the accepted scope.
+- `evidence`: nonempty retained evidence references, with actual artifact identities
+  and dates in the linked records; do not transfer observations between artifacts.
+- `limitations`: explicit unverified coverage, accepted restrictions and linked
+  unresolved follow-up issues. Do not describe a deferred defect as fixed.
+
+Use the existing snapshot and the explicit flag:
+
+```sh
+overte-issue update NUMBER DRAFT.json --snapshot TOKEN --close completed --owner-approved --apply
+```
+
+Decisions are append-only, separate from `test_runs`, and cannot close an expanded
+criterion without a new matching decision. Normal closure still requires a
+matching candidate PASS. This path preserves `acceptance: no-candidate` or
+`acceptance: needs-test` as applicable; a failed candidate test remains failed.
+The overview shows owner approval separately from the candidate result and keeps
+native completed counts distinct from candidate-passed counts. The guard accepts
+valid decisions and continues deriving labels from actual test records only.
+
+The authorization flag and record document the reviewed conversation; they are
+not a cryptographic owner attestation or an access-control boundary. Agents must
+not fabricate approval. The policy's minimum tool revision is 3; update older
+local installations before using the new policy.
+
+An existing issue may retain its closed milestone when it is updated or closed.
+New issues and reassignment into a closed milestone remain rejected. This avoids
+reopening an already completed milestone merely to record its existing issues.
