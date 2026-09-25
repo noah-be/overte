@@ -174,6 +174,55 @@ class GitHubApi:
         except (KeyError, TypeError) as error:
             raise AuditError("GitHub GraphQL returned invalid pinned-Issue data") from error
 
+    def branch_inventory(self, repository: str) -> list[dict[str, str]]:
+        """Read a counted branch inventory without accepting truncated pages."""
+        owner, name = repository.split("/", 1)
+        query = """query($owner:String!,$name:String!,$cursor:String){repository(owner:$owner,name:$name){nameWithOwner refs(refPrefix:"refs/heads/",first:100,after:$cursor){totalCount nodes{name target{oid}} pageInfo{hasNextPage endCursor}}}}"""
+        rows, names, cursors = [], set(), set()
+        cursor, expected_count = None, None
+        for _page in range(10):
+            document = self._request("graphql", {
+                "query": query, "variables": {"owner": owner, "name": name, "cursor": cursor}})
+            data = document.get("data") if isinstance(document, dict) else None
+            source = data.get("repository") if isinstance(data, dict) else None
+            if (not isinstance(document, dict) or document.get("errors")
+                    or not isinstance(source, dict) or source.get("nameWithOwner") != repository):
+                raise AuditError("GitHub returned an invalid branch inventory identity or query error")
+            connection = source.get("refs")
+            if not isinstance(connection, dict):
+                raise AuditError("branch inventory connection is missing")
+            count, nodes, page = connection.get("totalCount"), connection.get("nodes"), connection.get("pageInfo")
+            if (type(count) is not int or count < 0 or not isinstance(nodes, list) or len(nodes) > 100
+                    or not isinstance(page, dict) or type(page.get("hasNextPage")) is not bool):
+                raise AuditError("branch inventory page is invalid")
+            if count > 1000:
+                raise AuditError("branch inventory exceeds 1000 entries")
+            if expected_count is not None and count != expected_count:
+                raise AuditError("branch inventory changed during pagination")
+            expected_count = count
+            for node in nodes:
+                branch = node.get("name") if isinstance(node, dict) else None
+                target = node.get("target") if isinstance(node, dict) else None
+                sha = target.get("oid") if isinstance(target, dict) else None
+                if (not isinstance(branch, str) or not branch or not isinstance(sha, str)
+                        or not re.fullmatch("[0-9a-f]{40}", sha) or branch in names):
+                    raise AuditError("branch inventory has malformed or duplicate entries")
+                names.add(branch)
+                rows.append({"name": branch, "sha": sha})
+            if len(rows) > count:
+                raise AuditError("branch inventory exceeds its reported count")
+            if not page["hasNextPage"]:
+                if len(rows) != count:
+                    raise AuditError("branch inventory is incomplete")
+                return rows
+            next_cursor = page.get("endCursor")
+            if (not nodes or len(rows) >= count or not isinstance(next_cursor, str)
+                    or not next_cursor or next_cursor in cursors):
+                raise AuditError("branch inventory pagination made no valid progress")
+            cursors.add(next_cursor)
+            cursor = next_cursor
+        raise AuditError("branch inventory pagination exceeded its bound")
+
 
 class Doctor:
     def __init__(self, root: Path, config: dict[str, Any], api: Any | None = None):
@@ -185,6 +234,7 @@ class Doctor:
         self.executed: set[str] = set()
         self._issues: list[dict[str, Any]] | None = None
         self._workflows: list[dict[str, Any]] | None = None
+        self._branch_policy_module: Any | None = None
 
     def fail(self, area: str, code: str, message: str) -> None:
         self.findings[area].append(Finding(code, redact(message)))
@@ -360,15 +410,24 @@ class Doctor:
             "results": results,
         }
 
-    def policy(self) -> dict[str, Any]:
-        path = self.root / ".github/branch-policy.json"
+    def branch_policy_module(self) -> Any:
+        if self._branch_policy_module is not None:
+            return self._branch_policy_module
         spec = importlib.util.spec_from_file_location("repository_health_branch_policy", self.root / "tools/branch-policy/check.py")
         if not spec or not spec.loader:
             raise AuditError("cannot load branch-policy checker")
         module = importlib.util.module_from_spec(spec)
         sys.modules[spec.name] = module
         spec.loader.exec_module(module)
-        return module.load_policy(path)
+        self._branch_policy_module = module
+        return module
+
+    def policy(self) -> dict[str, Any]:
+        module = self.branch_policy_module()
+        try:
+            return module.load_policy(self.root / ".github/branch-policy.json")
+        except module.PolicyError as error:
+            raise AuditError(f"cannot load branch policy: {error}") from error
 
     def all_issues(self) -> list[dict[str, Any]]:
         if self._issues is None:
@@ -403,7 +462,7 @@ class Doctor:
     def check_branches(self) -> None:
         policy = self.policy()
         edges = [(branch.parent, branch.name) for branch in policy.values() if branch.parent]
-        results = []
+        results, heads = [], {}
         for parent, child in edges:
             try:
                 parent_doc = self.api.get(
@@ -414,6 +473,7 @@ class Doctor:
                 )
                 parent_sha = parent_doc["object"]["sha"]
                 child_sha = child_doc["object"]["sha"]
+                heads.update({parent: parent_sha, child: child_sha})
                 comparison = self.api.get(
                     f"repos/{self.config['repository']}/compare/{parent_sha}...{child_sha}"
                 )
@@ -431,7 +491,44 @@ class Doctor:
                 raise
             except (AuditError, KeyError, TypeError) as error:
                 self.fail("branches", "BRANCH_API_ERROR", f"{parent} -> {child}: {error}")
-        self.data["branches"] = {"valid_edges": sum(row["valid"] for row in results), "total_edges": len(edges), "edges": results}
+        self.data["branches"] = {
+            "valid_edges": sum(row["valid"] for row in results), "total_edges": len(edges), "edges": results,
+            "inventory_complete": False, "total_branches": None, "valid_branch_names": None,
+            "invalid_branch_names": None, "branch_inventory": [],
+        }
+        try:
+            inventory = self.api.branch_inventory(self.config["repository"])
+            if (not isinstance(inventory, list) or any(
+                    not isinstance(row, dict) or not isinstance(row.get("name"), str) or not row["name"]
+                    or not isinstance(row.get("sha"), str) or not re.fullmatch("[0-9a-f]{40}", row["sha"])
+                    for row in inventory)):
+                raise AuditError("branch inventory contains malformed entries")
+            indexed = {row["name"]: row["sha"] for row in inventory}
+            if len(indexed) != len(inventory) or not set(policy).issubset(indexed):
+                raise AuditError("branch inventory has duplicates or missing permanent branches")
+            if any(indexed[name] != sha for name, sha in heads.items()):
+                raise AuditError("branch inventory disagrees with permanent head observations")
+            module = self.branch_policy_module()
+            try:
+                dependabot_targets = module.load_dependabot_targets(self.root / ".github/branch-policy.json")
+            except module.PolicyError as error:
+                raise AuditError(f"cannot load branch naming policy: {error}") from error
+            checked, invalid = [], 0
+            for row in sorted(inventory, key=lambda item: item["name"]):
+                try:
+                    kind = module.validate_branch_name(policy, row["name"], dependabot_targets)
+                    checked.append({**row, "status": "PASS", "kind": kind})
+                except module.PolicyError as error:
+                    invalid += 1
+                    checked.append({**row, "status": "FAIL", "kind": None})
+                    self.fail("branches", "BRANCH_NAME_INVALID", f"branch {row['name']!r}: {error}")
+            self.data["branches"].update(
+                inventory_complete=True, total_branches=len(checked), valid_branch_names=len(checked) - invalid,
+                invalid_branch_names=invalid, branch_inventory=checked)
+        except PermissionUnknown:
+            raise
+        except (AuditError, AttributeError, KeyError, TypeError, ValueError) as error:
+            self.fail("branches", "BRANCH_API_ERROR", f"remote branch inventory: {error}")
 
     @staticmethod
     def labels(issue: dict[str, Any]) -> list[str]:

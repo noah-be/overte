@@ -84,6 +84,7 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `repository-doctor` | `quick` | `python3 tests/run-project-tests.py --suite repository-doctor` |
 | `repository-maintenance` | `quick` | `python3 tests/run-project-tests.py --suite repository-maintenance` |
 | `branch-policy` | `quick` | `python3 tests/run-project-tests.py --suite branch-policy` |
+| `branch-name-guard` | `quick` | `python3 tests/run-project-tests.py --suite branch-name-guard` |
 | `branch-cleanup` | `quick` | `python3 tests/run-project-tests.py --suite branch-cleanup` |
 | `sync-test-reuse` | `quick` | `python3 tests/run-project-tests.py --suite sync-test-reuse` |
 | `workflow-action-pins` | `quick` | `python3 tests/run-project-tests.py --suite workflow-action-pins` |
