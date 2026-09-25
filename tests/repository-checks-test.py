@@ -119,18 +119,37 @@ class AggregateTests(unittest.TestCase):
                                  "verify", "--needs-json", json.dumps(candidate)], capture_output=True)
         self.assertNotEqual(result.returncode, 0)
 
-
-
-    def test_bootstrap_preserves_existing_enforcement(self):
-        self.assertFalse((ROOT / ".github/workflows/repository-checks.yml").exists())
+    def test_manifest_keeps_both_aggregate_and_independent_sync_gate_required(self):
         manifest = json.loads((ROOT / ".github/rulesets/permanent-branches.json").read_text())
         required = next(rule for rule in manifest["rules"] if rule["type"] == "required_status_checks")
-        contexts = {item["context"] for item in required["parameters"]["required_status_checks"]}
-        self.assertEqual(contexts, {"dependency-release-policy", "branch-policy", "sync-test-reuse"})
-        self.assertEqual(set(CONFIG["required_contexts"]), contexts | {"repository-checks"})
+        entries = required["parameters"]["required_status_checks"]
+        self.assertEqual({item["context"] for item in entries}, set(CONFIG["required_contexts"]))
+        self.assertTrue(all(item["integration_id"] == 15368 for item in entries))
+        source = (ROOT / ".github/workflows/repository-checks.yml").read_text()
+        self.assertIn("if: always()", source)
+        self.assertIn("needs: [route, project, documentation, workflow-security]", source)
+        self.assertNotIn("paths:", source)
+        self.assertNotIn("secrets:", source)
+        self.assertNotIn("secrets.", source)
+        self.assertNotIn(": write", source)
+
+    def test_reusable_concurrency_groups_do_not_cancel_the_caller(self):
+        workflows = ROOT / ".github/workflows"
+        groups = []
+        for name in ("repository-checks.yml", "project-tests.yml", "documentation-checks.yml", "workflow-security.yml"):
+            text = (workflows / name).read_text()
+            groups.append(text.split("  group: ", 1)[1].splitlines()[0])
+        self.assertEqual(len(groups), len(set(groups)))
+        self.assertTrue(all("github.workflow" not in group for group in groups))
+
+    def test_new_governance_inputs_are_bound_to_parent_qualification(self):
+        import fnmatch
         reuse = json.loads((ROOT / ".github/sync-test-reuse.json").read_text())
-        for path in (".github/repository-checks.json", "tools/repository-checks/check.py"):
-            self.assertIn(path, reuse["required_qualified_inputs"])
+        for path in (".github/repository-checks.json", ".github/repository-health.json",
+                     "tools/repository-checks/check.py", "tools/repository-maintenance/check.py",
+                     "tools/repository-policy/check.py", "tools/repository-health/check.py",
+                     "tests/requirements-repository.txt"):
+            self.assertTrue(any(fnmatch.fnmatchcase(path, pattern) for pattern in reuse["qualified_inputs"]), path)
 
 
 class CandidateTests(unittest.TestCase):
