@@ -35,4 +35,4 @@ Keep final run URLs, exact branch SHAs and the ruleset backup in the rollout
 handoff and PR evidence. Do not keep changing shared documentation after every
 child merge merely to record synchronization: that would create new drift.
 
-[Repository maintenance guide](../REPOSITORY_MAINTENANCE.missing.md)
+[Repository maintenance guide](../REPOSITORY_MAINTENANCE.md)
