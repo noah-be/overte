@@ -25,6 +25,8 @@ def configuration(root: Path = ROOT) -> tuple[dict, dict]:
             or config.get("documentation_suffixes") != [".md"]
             or not config.get("workflow_security_paths")):
         raise ValueError("invalid repository-check configuration")
+    if type(config.get("native_required", False)) is not bool:
+        raise ValueError("invalid native activation setting")
     expected = {"dependency-release-policy", "branch-policy", "sync-test-reuse", "repository-checks"}
     if set(config.get("required_contexts", [])) != expected:
         raise ValueError("aggregate and independent synchronization gates must remain required")
@@ -66,7 +68,8 @@ def plan(event: dict, paths: list[str], config: dict, branches: dict,
     return {"mode": mode, "security": str(security).lower()}
 
 
-def changed_paths(candidate: Path, event: dict, expected_sha: str) -> tuple[list[str], bool]:
+def changed_paths(candidate: Path, event: dict, expected_sha: str, *,
+                  allow_executable: bool = False) -> tuple[list[str], bool]:
     def git(*args: str) -> str:
         return subprocess.check_output(["git", *args], cwd=candidate, text=True,
                                        stderr=subprocess.PIPE, timeout=30)
@@ -95,13 +98,19 @@ def changed_paths(candidate: Path, event: dict, expected_sha: str) -> tuple[list
         if len(metadata) != 5 or not metadata[0].startswith(":"):
             raise ValueError("invalid candidate change metadata")
         modes = (metadata[0][1:], metadata[1])
-        documentation_safe &= all(mode in {"000000", "100644"} for mode in modes)
+        allowed_modes = {"000000", "100644", "100755"} if allow_executable else {"000000", "100644"}
+        documentation_safe &= all(mode in allowed_modes for mode in modes)
         paths.append(fields[index + 1])
     return paths, documentation_safe
 
 
-def verify(needs: dict) -> dict:
-    expected_jobs = {"route", "project", "documentation", "workflow-security"}
+def verify(needs: dict, require_native: bool = True) -> dict:
+    expected_jobs = {"route", "project", "documentation", "workflow-security", "native"}
+    if not require_native and isinstance(needs, dict) and set(needs) == expected_jobs - {"native"}:
+        # Bootstrap compatibility is controlled only by the trusted default-branch
+        # configuration. Once activated, missing native jobs fail closed.
+        needs = {**needs, "route": {**needs["route"], "outputs": {
+            **needs["route"].get("outputs", {}), "native": "skip"}}, "native": {"result": "skipped"}}
     if not isinstance(needs, dict) or set(needs) != expected_jobs:
         raise ValueError("incomplete aggregate dependencies")
     if needs["route"].get("result") != "success":
@@ -110,7 +119,11 @@ def verify(needs: dict) -> dict:
     mode, security = outputs.get("mode"), outputs.get("security")
     if mode not in MODES or security not in {"true", "false"}:
         raise ValueError("missing or invalid trusted route")
-    required = {"documentation": "success",
+    native = outputs.get("native")
+    if native not in {"skip", "core", "full"}:
+        raise ValueError("missing or invalid native route")
+    required = {"native": "skipped" if native == "skip" else "success",
+                "documentation": "success",
                 "project": "success" if mode == "full" else "skipped",
                 "workflow-security": "success" if security == "true" else "skipped"}
     for job, conclusion in required.items():
@@ -145,7 +158,7 @@ def main() -> int:
             with args.output.open("a") as output:
                 output.write("".join(f"{key}={value}\n" for key, value in result.items()))
         else:
-            result = verify(json.loads(args.needs_json))
+            result = verify(json.loads(args.needs_json), config.get("native_required", False))
         print(json.dumps(result, sort_keys=True))
         return 0
     except (ValueError, KeyError, TypeError, OSError, subprocess.SubprocessError) as error:

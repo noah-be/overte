@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
+# Host-only evidence validators; install in a test venv, never a product build cache.
+-r requirements-repository.txt
+-r ../tools/sbom/requirements-validation.txt

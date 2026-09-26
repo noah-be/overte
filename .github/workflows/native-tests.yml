@@ -1,0 +1,137 @@
+name: Native C++ checks
+
+on:
+  workflow_call:
+    inputs:
+      mode:
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    container:
+      image: docker.io/overte/overte-server-build:2026-02-09-ubuntu-24.04-amd64@sha256:babe51f7c369e303aac67f0a9e7620707319b1d017a3ac13c4376b0d9fed056e
+    env:
+      CONAN_HOME: ${{ github.workspace }}/.native-conan
+      CCACHE_DIR: ${{ github.workspace }}/.native-ccache
+      CCACHE_MAXSIZE: 2G
+      # Checkout/output mtimes must not invalidate unchanged Qt resource objects.
+      QT_RCC_SOURCE_DATE_OVERRIDE: '1'
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out candidate without credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Check out trusted selection tools
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: trusted
+          persist-credentials: false
+          sparse-checkout: |
+            tools/native-tests
+            tools/repository-checks
+
+      - name: Recheck exact candidate selection
+        env:
+          EXPECTED_MODE: ${{ inputs.mode }}
+        run: |
+          python3 trusted/tools/native-tests/check.py plan --candidate . \
+            --event "$GITHUB_EVENT_PATH" --sha "$GITHUB_SHA" --report build/native-plan.json
+          python3 -c 'import json, os; assert json.load(open("build/native-plan.json"))["mode"] == os.environ["EXPECTED_MODE"] in ("core", "full")'
+
+      - name: Install small native prerequisites
+        run: |
+          apt-get update -qq
+          apt-get install -y --no-install-recommends ccache libglm-dev nlohmann-json3-dev
+
+      - name: Restore compiler cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .native-ccache
+          key: native-ccache-babe51f7c369-v1-${{ inputs.mode }}-${{ github.sha }}
+          restore-keys: native-ccache-babe51f7c369-v1-${{ inputs.mode }}-
+
+      - name: Restore native dependency cache
+        if: inputs.mode == 'full'
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .native-conan
+          key: native-deps-babe51f7c369-v1-${{ hashFiles('conanfile.py', 'tools/conan-profiles/linux', 'tools/native-tests/conan-linux.lock') }}
+
+      - name: Resolve prebuilt dependencies without source rebuilds
+        if: inputs.mode == 'full'
+        timeout-minutes: 10
+        run: |
+          mkdir -p "$CONAN_HOME"
+          cp -an /root/.conan2/. "$CONAN_HOME/"
+          conan install . -pr tools/conan-profiles/linux -s compiler.cppstd=gnu20 \
+            -s build_type=Release -o 'Overte/*:qt_source=system' --lockfile=tools/native-tests/conan-linux.lock --build=never \
+            -of build/native --format=json > build/native-dependency-graph.json
+          # Preserve the existing OpenSSL provider's second-resolution workaround.
+          conan install . -pr tools/conan-profiles/linux -s compiler.cppstd=gnu20 \
+            -s build_type=Release -o 'Overte/*:qt_source=system' --lockfile=tools/native-tests/conan-linux.lock --build=never -of build/native
+
+      - name: Configure and select affected targets
+        env:
+          NATIVE_MODE: ${{ inputs.mode }}
+        run: |
+          bash tools/native-tests/configure.sh "$NATIVE_MODE"
+          python3 trusted/tools/native-tests/select.py --source . --build build/native \
+            --plan build/native-plan.json --output build/native-selection.json
+
+      - name: Identify reusable shader outputs
+        if: inputs.mode == 'full'
+        id: shader-key
+        run: |
+          python3 trusted/tools/native-tests/shader-cache.py key --build build/native \
+            --selection build/native-selection.json --output "$GITHUB_OUTPUT"
+
+      - name: Restore generated shaders for identical inputs
+        if: inputs.mode == 'full' && steps.shader-key.outputs.key != ''
+        id: shaders
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            build/native/libraries/shaders/shaders
+            build/native/libraries/shaders/shaderDeps.json
+          key: native-shaders-babe51f7c369-v1-${{ steps.shader-key.outputs.key }}
+
+      - name: Refresh only verified shader output timestamps
+        if: inputs.mode == 'full' && steps.shaders.outputs.cache-hit == 'true'
+        run: python3 trusted/tools/native-tests/shader-cache.py refresh --build build/native
+
+      - name: Build and run selected native tests
+        run: |
+          python3 trusted/tools/native-tests/run.py --build build/native \
+            --selection build/native-selection.json --jobs 2
+
+      - name: Report compiler cache use
+        if: always()
+        run: ccache --show-stats
+
+      - name: Upload native diagnostics
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: native-test-results
+          path: |
+            build/native-plan.json
+            build/native-selection.json
+            build/native-dependency-graph.json
+            build/native/native-ctest.xml
+            build/native/native-result.json
+            build/native/native-results
+            build/native/Testing/Temporary/LastTest.log
+          if-no-files-found: warn
+          retention-days: 7

@@ -27,9 +27,10 @@ def event(base="main", head="fix/main/example", fork=False):
 
 
 def results(mode="full", security="true"):
-    return {"route": {"result": "success", "outputs": {"mode": mode, "security": security}},
+    return {"route": {"result": "success", "outputs": {"mode": mode, "security": security, "native": "full"}},
             "project": {"result": "success" if mode == "full" else "skipped"},
             "documentation": {"result": "success"},
+            "native": {"result": "success"},
             "workflow-security": {"result": "success" if security == "true" else "skipped"}}
 
 
@@ -127,7 +128,10 @@ class AggregateTests(unittest.TestCase):
         self.assertTrue(all(item["integration_id"] == 15368 for item in entries))
         source = (ROOT / ".github/workflows/repository-checks.yml").read_text()
         self.assertIn("if: always()", source)
-        self.assertIn("needs: [route, project, documentation, workflow-security]", source)
+        if CONFIG.get("native_required", False):
+            self.assertIn("needs: [route, project, documentation, workflow-security, native]", source)
+        else:
+            self.assertRegex(source, r"needs: \[route, project, documentation, workflow-security(?:, native)?\]")
         self.assertNotIn("paths:", source)
         self.assertNotIn("secrets:", source)
         self.assertNotIn("secrets.", source)
