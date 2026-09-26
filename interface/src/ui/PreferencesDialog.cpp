@@ -554,11 +554,19 @@ void setupPreferences() {
         preferences->addPreference(preference);
     }
 
+#if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)
+    static const QString AVATAR_CAMERA{ "Touch Camera Sensitivity" };
+    static const QString PITCH_INPUT{ "Vertical swipe:" };
+    static const QString YAW_INPUT{ "Horizontal swipe:" };
+#else
     static const QString AVATAR_CAMERA{ "Mouse Sensitivity" };
+    static const QString PITCH_INPUT{ "Y input:" };
+    static const QString YAW_INPUT{ "X input:" };
+#endif
     {
         auto getter = [myAvatar]()->float { return myAvatar->getPitchSpeed(); };
         auto setter = [myAvatar](float value) { myAvatar->setPitchSpeed(value); };
-        auto preference = new SpinnerSliderPreference(AVATAR_CAMERA, "Y input:", getter, setter);
+        auto preference = new SpinnerSliderPreference(AVATAR_CAMERA, PITCH_INPUT, getter, setter);
         preference->setMin(1.0f);
         preference->setMax(360.0f);
         preference->setStep(1);
@@ -568,7 +576,7 @@ void setupPreferences() {
     {
         auto getter = [myAvatar]()->float { return myAvatar->getYawSpeed(); };
         auto setter = [myAvatar](float value) { myAvatar->setYawSpeed(value); };
-        auto preference = new SpinnerSliderPreference(AVATAR_CAMERA, "X input:", getter, setter);
+        auto preference = new SpinnerSliderPreference(AVATAR_CAMERA, YAW_INPUT, getter, setter);
         preference->setMin(1.0f);
         preference->setMax(360.0f);
         preference->setStep(1);

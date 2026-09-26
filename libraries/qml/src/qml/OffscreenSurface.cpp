@@ -344,6 +344,7 @@ void OffscreenSurface::loadInternal(const QUrl& qmlSource,
 
     if (!validator(qmlSource)) {
         qCWarning(qmlLogging) << "Unauthorized QML URL found" << qmlSource;
+        emit qmlLoadFailed(parent, parent ? parent->property("qmlLoadGeneration").toInt() : 0);
         return;
     }
 
@@ -370,6 +371,7 @@ void OffscreenSurface::loadInternal(const QUrl& qmlSource,
         PROFILE_RANGE(app, "new QQmlComponent");
         qmlComponent = new QQmlComponent(getSurfaceContext()->engine(), finalQmlSource, QQmlComponent::PreferSynchronous);
     }
+    qmlComponent->setProperty("overteLoadGeneration", parent ? parent->property("qmlLoadGeneration").toInt() : 0);
     if (qmlComponent->isLoading()) {
         connect(qmlComponent, &QQmlComponent::statusChanged, this,
                 [=, this](QQmlComponent::Status) { finishQmlLoad(qmlComponent, targetContext, parent, callback); });
@@ -389,6 +391,7 @@ void OffscreenSurface::finishQmlLoad(QQmlComponent* qmlComponent,
         for (const auto& error : qmlComponent->errors()) {
             qCWarning(qmlLogging) << error.url() << error.line() << error;
         }
+        emit qmlLoadFailed(parent, qmlComponent->property("overteLoadGeneration").toInt());
         qmlComponent->deleteLater();
         return;
     }
@@ -401,6 +404,7 @@ void OffscreenSurface::finishQmlLoad(QQmlComponent* qmlComponent,
         if (!getRootItem()) {
             qFatal("Unable to finish loading QML root");
         }
+        emit qmlLoadFailed(parent, qmlComponent->property("overteLoadGeneration").toInt());
         qmlComponent->deleteLater();
         return;
     }
@@ -411,6 +415,8 @@ void OffscreenSurface::finishQmlLoad(QQmlComponent* qmlComponent,
             return;
         }
         qCWarning(qmlLogging) << "Unable to load QML item";
+        emit qmlLoadFailed(parent, qmlComponent->property("overteLoadGeneration").toInt());
+        qmlComponent->deleteLater();
         return;
     }
 

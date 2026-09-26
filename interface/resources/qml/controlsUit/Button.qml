@@ -35,8 +35,9 @@ Original.Button {
     // the signal.
     property var androidClickAction: null
     // Derived handlers must use the same dispatch decision as this base.
-    // Apple retains its Android-or-iOS expression in this single binding.
-    readonly property bool usesAndroidClickAction: Qt.platform.os === "android"
+    // Every direct-touch adapter uses the same action path. The legacy property
+    // name remains for existing callers.
+    readonly property bool usesAndroidClickAction: touchMetrics.directTouch
 
     width: hifi.dimensions.buttonWidth
     height: Math.max(hifi.dimensions.controlLineHeight,

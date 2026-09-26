@@ -1,5 +1,5 @@
 import QtQuick 2.5
-import QtQuick.Controls 1.4
+import QtQuick.Controls 2.3
 import QtQml 2.2
 
 
@@ -14,7 +14,7 @@ FocusScope {
     width: parent.width
     height: parent.height
 
-    property var rootMenu: Menu { objectName:"rootMenu" }
+    property var rootMenu: WrappedMenu { objectName:"rootMenu" }
     property var point: Qt.point(50, 50);
     TabletMenuStack { id: menuPopperUpper }
     property string subMenu: ""
@@ -81,6 +81,10 @@ FocusScope {
 
     function pop() {
         menuPopperUpper.closeLastMenu();
+    }
+
+    function handleTabletBack() {
+        return menuPopperUpper.closeLastMenu();
     }
 
     function setRootMenu(rootMenu, subMenu) {
