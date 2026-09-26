@@ -35,7 +35,7 @@ TextField {
     property int styleRenderType: Text.NativeRendering
     property var prohibitedCharacters: [""];
 
-
+    renderType: styleRenderType
     font.family: "Fira Sans"
     font.pixelSize: Math.round(hifi.fontSizes.textFieldInput * touchMetrics.textScale)
     height: Math.max(implicitHeight + 3,
@@ -138,20 +138,27 @@ TextField {
             visible: isSearchField
         }
 
-        HiFiGlyphs {
-            text: hifi.glyphs.error
-            color: textField.color
-            size: 40
-            anchors.right: parent.right
-            anchors.rightMargin: hifi.dimensions.textPadding - 2
-            anchors.verticalCenter: parent.verticalCenter
-            visible: hasClearButton && textField.text !== "";
 
-            MouseArea {
-                anchors.fill: parent;
-                onClicked: {
-                    textField.text = "";
-                }
+    }
+    // Keep the clear target above TextInput; background children lose pointer
+    // events to the Controls 2 text editor.
+    HiFiGlyphs {
+        objectName: "textfield.clear"
+        text: hifi.glyphs.error
+        color: textField.color
+        size: 40
+        width: Math.max(40, touchMetrics.adaptiveMinimumControlHeight)
+        height: parent.height
+        z: 1
+        anchors.right: parent.right
+        anchors.rightMargin: hifi.dimensions.textPadding - 2
+        anchors.verticalCenter: parent.verticalCenter
+        visible: hasClearButton && textField.text !== "";
+
+        MouseArea {
+            anchors.fill: parent;
+            onClicked: {
+                textField.text = "";
             }
         }
     }
