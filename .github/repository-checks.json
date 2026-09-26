@@ -26,5 +26,8 @@
     "sync-test-reuse",
     "repository-checks"
   ],
-  "native_required": false
+  "native_required": false,
+  "native_required_branches": [
+    "main"
+  ]
 }

@@ -176,8 +176,11 @@ Deploy in stages because selection and aggregation execute default-branch tools:
    proposed source and pinned Linux environment. Confirm cold/warm build costs
    and all eligible tests. Do not activate an unqualified broad merge gate.
 3. Integrate and propagate the workflow caller while the compatible trusted
-   verifier is present. Finally set trusted `native_required` true (the desired
-   state in this change) to reject every legacy workflow shape.
+   verifier is present. Activate a reviewed target through trusted `native_required_branches`
+   (initially `["main"]`) to reject legacy callers on that target. The verifier
+   reads the PR base from the runner event, including for older callers. Other
+   platform targets retain bootstrap compatibility until their native lanes are
+   qualified. `native_required: true` is reserved for a later all-target rollout.
    Verify ordinary, docs-only, failed-native and sync PR cases. The existing
    `repository-checks` context is retained; no new ruleset context is needed.
 

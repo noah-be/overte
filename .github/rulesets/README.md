@@ -31,7 +31,8 @@ project validation to the independently required `sync-test-reuse` gate. Both
 checks must remain required. A skipped or missing selected job fails aggregation. Native checks have their own
 change selection and cannot be replaced by host-only parent qualification. Follow
 the [native activation sequence](../../tools/native-tests/README.md#dependency-preparation-and-activation)
-before enabling trusted `native_required`.
+before adding a target to trusted `native_required_branches` (initially `main`).
+Other targets retain their existing required checks until their native lane is qualified.
 
 This is a deployment payload, not evidence that GitHub already enforces the new
 check. Integrate and propagate the workflow and trusted checker first, seed the

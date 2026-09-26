@@ -26,6 +26,7 @@ POLICY = load('native_policy', 'tools/native-tests/check.py')
 SELECT = load('native_select', 'tools/native-tests/select.py')
 GATE = load('native_gate', 'tools/repository-checks/check.py')
 SHADERS = load('native_shaders', 'tools/native-tests/shader-cache.py')
+PACKAGES = load('native_packages', 'tools/native-tests/packages.py')
 
 
 class RoutingTests(unittest.TestCase):
@@ -127,13 +128,51 @@ class RoutingTests(unittest.TestCase):
         self.assertEqual(candidates, covered, 'Every native executable needs an explicit CI disposition')
 
 
+class PreparedPackageTests(unittest.TestCase):
+    def test_input_identity_allows_code_edits_but_rejects_unprepared_dependencies(self):
+        import hashlib
+        import copy
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            inputs = {}
+            for name in PACKAGES.INPUTS:
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(name)
+                inputs[name] = hashlib.sha256(path.read_bytes()).hexdigest()
+            metadata = {'schema': 1, 'repository': 'noah-be/overte', 'source_sha': 'a' * 40,
+                        'run_id': '123', 'archive_sha256': 'b' * 64, 'inputs': inputs}
+            self.assertEqual(PACKAGES.verify(root, metadata)['status'], 'PASS')
+            (root / 'main.cpp').write_text('changed production code')
+            self.assertEqual(PACKAGES.verify(root, metadata)['status'], 'PASS')
+            for name in PACKAGES.INPUTS:
+                path = root / name
+                original = path.read_bytes()
+                path.write_bytes(original + b' changed')
+                with self.assertRaisesRegex(ValueError, 'prepare and review'):
+                    PACKAGES.verify(root, metadata)
+                path.write_bytes(original)
+            for key, value in (('repository', 'overte-org/overte'), ('source_sha', 'main'),
+                               ('run_id', '0'), ('archive_sha256', ''), ('inputs', {})):
+                wrong = copy.deepcopy(metadata)
+                wrong[key] = value
+                with self.assertRaises(ValueError):
+                    PACKAGES.verify(root, wrong)
+            target = root / PACKAGES.INPUTS[0]
+            target.unlink()
+            target.symlink_to(root / PACKAGES.INPUTS[1])
+            with self.assertRaisesRegex(ValueError, 'regular file'):
+                PACKAGES.verify(root, metadata)
+
+
 class WorkflowCostTests(unittest.TestCase):
     def test_native_jobs_are_selected_once_and_cache_hits_do_not_skip_tests(self):
         workflow = (ROOT / '.github/workflows/native-tests.yml').read_text()
         caller = (ROOT / '.github/workflows/repository-checks.yml').read_text()
         self.assertIn('  workflow_call:', workflow)
         self.assertNotRegex(workflow, r'(?m)^  (push|pull_request|pull_request_target):')
-        if json.loads((ROOT / '.github/repository-checks.json').read_text()).get('native_required', False):
+        config = json.loads((ROOT / '.github/repository-checks.json').read_text())
+        if config.get('native_required', False) or 'main' in config.get('native_required_branches', []):
             self.assertIn("if: needs.route.outputs.native != 'skip'", caller)
             self.assertIn('workflow-security, native]', caller)
         self.assertIn('timeout-minutes: 45', workflow)
