@@ -2,6 +2,7 @@
 """Verify the shared/platform source boundary and fail-closed suite selection."""
 
 import json
+import importlib.util
 from pathlib import Path
 import shutil
 import subprocess
@@ -10,9 +11,43 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
+SPEC = importlib.util.spec_from_file_location("source_boundary", ROOT / "tools/source-boundary/check.py")
+BOUNDARY = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(BOUNDARY)
 
 
 class SourceLayoutTests(unittest.TestCase):
+    def test_shared_sources_do_not_include_android_owned_headers_unconditionally(self):
+        self.assertEqual(BOUNDARY.audit(ROOT), [])
+
+    def test_removed_header_regression_and_conditional_paths(self):
+        include = '#include "AndroidHelper.h"\n'
+        unsafe = [include,
+                  '#ifdef Q_OS_IOS\n' + include + '#endif\n',
+                  '#if defined(Q_OS_ANDROID) || defined(Q_OS_IOS)\n' + include + '#endif\n',
+                  '#ifndef Q_OS_ANDROID\n' + include + '#endif\n',
+                  '#if defined(Q_OS_ANDROID)\n#else\n' + include + '#endif\n',
+                  '#if defined(Q_OS_ANDROID)\n#elif FEATURE\n' + include + '#endif\n',
+                  '#if UNKNOWN_FEATURE\n' + include + '#endif\n',
+                  '#if Q_OS_ANDROID == 0\n' + include + '#endif\n',
+                  '#if Q_OS_/**/ANDROID\n' + include + '#endif\n']
+        safe = ['#if defined(Q_OS_ANDROID)\n' + include + '#endif\n',
+                '#if defined Q_OS_ANDROID && FEATURE\n' + include + '#endif\n',
+                '#if FEATURE\n#if defined(__ANDROID__)\n' + include + '#endif\n#endif\n',
+                '#if FEATURE\n#elif defined(Q_OS_ANDROID)\n' + include + '#endif\n',
+                '#ifndef Q_OS_ANDROID\n#else\n' + include + '#endif\n',
+                '/* ' + include + '*/\n',
+                '#if defined(ANDROID_APP_PHONE_INTERFACE)\n' + include + '#endif\n']
+        for source in unsafe:
+            with self.subTest(source=source):
+                self.assertTrue(BOUNDARY.violations(source, {"AndroidHelper.h"}, []))
+        for source in safe:
+            with self.subTest(source=source):
+                self.assertEqual(BOUNDARY.violations(source, {"AndroidHelper.h"}, []), [])
+        self.assertTrue(BOUNDARY.violations('#include "../../android/phone/NewHeader.h"', set(), [("android",)]))
+        with self.assertRaises(ValueError):
+            BOUNDARY.violations('#if FEATURE\n', set(), [])
+
     def test_product_reintroduction_cannot_bypass_the_pull_request_gate(self):
         workflow = (ROOT / ".github/workflows/repository-checks.yml").read_text()
         pull_request = workflow.split("  pull_request:\n", 1)[1].split("  workflow_dispatch:\n", 1)[0]
