@@ -215,7 +215,8 @@ function virtualBatonf(options) {
         if (betterNumber(data, bestPromise)) {
             bestPromise = data;
         }
-        if ((data.proposalNumber === proposalNumber) && (++nPromises >= nQuorum)) { // Note check for not being a previous round
+        // Choose a winner once per proposal; later promises must not change it after a synchronous claim callback.
+        if ((data.proposalNumber === proposalNumber) && (++nPromises === nQuorum)) { // Note check for not being a previous round
             var answer = {number: data.proposalNumber, proposerId: data.proposerId, winner: bestPromise.winner}; // Not data.number.
             if (!answer.winner || (answer.winner === instanceId)) { // We get to pick.
                 answer.winner = claimCallback ? instanceId : null;
@@ -352,8 +353,8 @@ function virtualBatonf(options) {
         return exports;
     };
     exports.recheckWatchdog = timers.setInterval(function recheck() {
-        var holder = acceptedId();  // If we're waiting and we notice the holder is gone, ...
-        if (holder && claimCallback && !electionWatchdog && !connectionTest(holder)) {
+        var holder = acceptedId();  // Retry a pending claim when the baton is free or its holder is gone.
+        if (claimCallback && !electionWatchdog && (!holder || !connectionTest(holder))) {
             bestPromise.winner = null; // used if the quorum agrees that old winner is not there
             propose();  // ... propose an election.
         }

@@ -49,8 +49,8 @@ jobs:
           [[ "$(jq -r .base.sha <<< "$actual")" == "$BASE_SHA" ]]
           [[ "$(jq -r .head.sha <<< "$actual")" == "$HEAD_SHA" ]]
           [[ "$(jq -r .merge_commit_sha <<< "$actual")" == "$MERGE_SHA" ]]
-          gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PULL_REQUEST/files" \
-            --jq '.[].filename' > changed-paths.txt
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/pulls/$PULL_REQUEST/files" \
+            | jq '[.[][] | {filename, status, previous_filename}]' > changed-files.json
       - name: Check out the immutable candidate merge without credentials
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -64,7 +64,7 @@ jobs:
         run: >-
           python3 trusted/tools/sync-test-reuse/differential.py
           --candidate candidate --profile "$PROFILE"
-          --changed-paths changed-paths.txt
+          --changed-files changed-files.json
       - name: Set up candidate Python
         if: inputs.mode == 'fallback' || inputs.profile != 'documentation'
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
@@ -99,8 +99,11 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m pip install --disable-pip-version-check -r ../trusted/tests/requirements-repository.txt
+          unshare --user --map-root-user --net true
+          python3 -m venv build/host-tests-env
+          build/host-tests-env/bin/python -m pip install --disable-pip-version-check -r ../trusted/tests/requirements-host.txt
           python3 tests/run-project-tests.py --profile quick --timeout 240 \
             --junit build/test-results/sync-fallback-project.xml
-          python3 tests/device/run_control_plane_tests.py --profile full \
+          build/host-tests-env/bin/python tests/device/run_control_plane_tests.py --profile full \
             --require-qml --timeout-seconds 900 \
             --junit build/test-results/sync-fallback-device.xml

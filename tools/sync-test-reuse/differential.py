@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 import argparse
 import json
@@ -22,7 +23,51 @@ PROFILES = {
 }
 
 
+@dataclass(frozen=True)
+class ChangedFile:
+    filename: str
+    status: str
+    previous_filename: str | None = None
+
+
+def load_changes(path: Path, *, structured: bool) -> list[ChangedFile]:
+    source = path.read_text(encoding="utf-8")
+    if not structured:
+        # A filename alone never authorizes ignoring a missing candidate file.
+        return [ChangedFile(line, "modified") for line in source.splitlines() if line]
+    documents = json.loads(source)
+    if not isinstance(documents, list):
+        raise ValueError("changed files must be a JSON array")
+    changes = []
+    seen = set()
+    for item in documents:
+        if not isinstance(item, dict):
+            raise ValueError("changed file must be an object")
+        filename = item.get("filename")
+        status = item.get("status")
+        previous = item.get("previous_filename")
+        if not isinstance(filename, str) or not filename:
+            raise ValueError("changed file has no filename")
+        if not isinstance(status, str) or status not in {
+            "added", "modified", "removed", "renamed", "copied", "changed",
+        }:
+            raise ValueError(f"invalid changed file status for {filename}: {status!r}")
+        if status == "renamed" and (not isinstance(previous, str) or not previous):
+            raise ValueError(f"renamed file has no previous filename: {filename}")
+        if previous is not None and (
+            status not in {"renamed", "copied"} or not isinstance(previous, str) or not previous
+        ):
+            raise ValueError(f"invalid previous filename for {filename}")
+        if filename in seen:
+            raise ValueError(f"duplicate changed filename: {filename}")
+        seen.add(filename)
+        changes.append(ChangedFile(filename, status, previous))
+    return changes
+
+
 def safe_candidate(root: Path, relative: str) -> Path:
+    if not relative or relative == "." or Path(relative).is_absolute() or ".." in Path(relative).parts:
+        raise ValueError(f"unsafe changed path: {relative}")
     candidate = root / relative
     current = root
     for part in Path(relative).parts:
@@ -34,6 +79,22 @@ def safe_candidate(root: Path, relative: str) -> Path:
     except ValueError as error:
         raise ValueError(f"candidate path escapes the checkout: {relative}") from error
     return candidate
+
+
+def current_paths(root: Path, changes: list[ChangedFile]) -> list[str]:
+    paths = []
+    for change in changes:
+        candidate = safe_candidate(root, change.filename)
+        if change.previous_filename is not None:
+            safe_candidate(root, change.previous_filename)
+        if change.status == "removed":
+            if candidate.exists():
+                raise ValueError(f"removed candidate path is still present: {change.filename}")
+        else:
+            if not candidate.exists():
+                raise ValueError(f"changed candidate path is missing: {change.filename}")
+            paths.append(change.filename)
+    return paths
 
 
 def ensure_no_conflict_markers(root: Path, paths: list[str]) -> None:
@@ -80,22 +141,23 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--candidate", type=Path, required=True)
     parser.add_argument("--profile", required=True)
-    parser.add_argument("--changed-paths", type=Path, required=True)
+    inputs = parser.add_mutually_exclusive_group(required=True)
+    inputs.add_argument("--changed-files", type=Path, help="Trusted PR file objects, including status, as a JSON array")
+    inputs.add_argument("--changed-paths", type=Path, help="Legacy filename list; all paths must exist in the candidate")
     args = parser.parse_args()
     root = args.candidate.resolve()
-    changed = [line for line in args.changed_paths.read_text(encoding="utf-8").splitlines() if line]
     try:
-        for relative in changed:
-            if relative.startswith("/") or ".." in Path(relative).parts:
-                raise ValueError(f"unsafe changed path: {relative}")
-        ensure_no_conflict_markers(root, changed)
-        validate_json(root, changed)
+        changes = load_changes(args.changed_files or args.changed_paths, structured=args.changed_files is not None)
+        current = current_paths(root, changes)
+        changed = [path for change in changes for path in (change.filename, change.previous_filename) if path is not None]
+        ensure_no_conflict_markers(root, current)
+        validate_json(root, current)
         required_roots(root, args.profile, changed)
-        syntax_contracts(root, changed)
+        syntax_contracts(root, current)
     except (OSError, ValueError, json.JSONDecodeError, subprocess.CalledProcessError) as error:
         print(f"differential error: {error}", file=sys.stderr)
         return 2
-    print(f"differential={args.profile} paths={len(changed)} PASS")
+    print(f"differential={args.profile} paths={len(changes)} PASS")
     return 0
 
 

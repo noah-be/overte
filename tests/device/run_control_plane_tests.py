@@ -33,10 +33,15 @@ def commands(profile: str) -> list[tuple[str, list[str], bool]]:
         ("fixtures", [sys.executable, str(ROOT / "fixture/orchestrate.py"), "--check"], False),
     ]
     if profile == "full":
+        # Isolated validation dependencies are pinned in tests/requirements-host.txt.
+        # These tests also exercise their CLIs inside Linux network namespaces.
+        checks.append((
+            "artifact-identity",
+            [sys.executable, "tests/run-unittest-suite.py",
+             "tests/device/schema/artifact-identity"], False))
         checks.append((
             "python-self-tests",
-            [sys.executable, "-m", "unittest", "discover", "-s",
-             "tests/device/self_tests", "-p", "test_*.py"], False))
+            [sys.executable, "tests/run-unittest-suite.py", "tests/device/self_tests"], False))
         # These production C++ regressions require only the host compiler;
         # Qt-dependent lifecycle harnesses need separate prepared-host validation.
         for name, path in (
@@ -75,8 +80,8 @@ def commands(profile: str) -> list[tuple[str, list[str], bool]]:
         for pattern in patterns:
             checks.append((
                 "python-" + pattern.removeprefix("test_").removesuffix(".py").replace("_", "-"),
-                [sys.executable, "-m", "unittest", "discover", "-s",
-                 "tests/device/self_tests", "-p", pattern], False))
+                [sys.executable, "tests/run-unittest-suite.py",
+                 "tests/device/self_tests", "--pattern", pattern], False))
     checks.append(("qml-contracts", [str(ROOT / "qml/run-qml-tests.sh")], True))
     return checks
 

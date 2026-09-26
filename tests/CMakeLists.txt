@@ -2,7 +2,9 @@
 file(GLOB TEST_SUBDIRS RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/*")
 list(REMOVE_ITEM TEST_SUBDIRS "CMakeFiles" "mocha")
 foreach(DIR ${TEST_SUBDIRS})
-  if(IS_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/${DIR}")
+  # Host-only test folders and generated caches are not native CMake projects.
+  if(IS_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/${DIR}" AND
+     EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${DIR}/CMakeLists.txt")
     set(TEST_PROJ_NAME ${DIR})
     add_subdirectory(${DIR})
   endif()

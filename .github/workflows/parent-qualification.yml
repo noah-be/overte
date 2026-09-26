@@ -45,13 +45,18 @@ jobs:
           sudo apt-get -o Acquire::Retries=4 update
           sudo apt-get -o Acquire::Retries=4 install --no-install-recommends -y \
             qml-module-qttest qtdeclarative5-dev-tools qt6-base-dev qt6-base-dev-tools
+      - name: Prepare isolated host evidence validators
+        run: |
+          unshare --user --map-root-user --net true
+          python3 -m venv build/host-tests-env
+          build/host-tests-env/bin/python -m pip install --disable-pip-version-check -r tests/requirements-host.txt
       - name: Run shared project qualification
         run: >-
           python3 tests/run-project-tests.py --profile quick --timeout 240
           --junit build/test-results/parent-project-tests.xml
       - name: Run complete device control-plane qualification
         run: >-
-          python3 tests/device/run_control_plane_tests.py --profile full
+          build/host-tests-env/bin/python tests/device/run_control_plane_tests.py --profile full
           --require-qml --timeout-seconds 900
           --junit build/test-results/parent-device-control-plane.xml
       - name: Create content-addressed qualification evidence

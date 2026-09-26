@@ -65,6 +65,8 @@ jobs:
           set -euo pipefail
           command -v bash
           command -v jq
+          command -v cmake
+          command -v ctest
           python3 --version
           node --version
           java -version
@@ -76,6 +78,15 @@ jobs:
           sudo apt-get install --no-install-recommends -y \
             qml-module-qttest qtdeclarative5-dev-tools qt6-base-dev qt6-base-dev-tools
 
+      - name: Prepare isolated host evidence validators
+        env:
+          GH_TOKEN: ""
+          GITHUB_TOKEN: ""
+        run: |
+          unshare --user --map-root-user --net true
+          python3 -m venv build/host-tests-env
+          build/host-tests-env/bin/python -m pip install --disable-pip-version-check -r tests/requirements-host.txt
+
       - name: Run project suite
         run: |
           set -euo pipefail
@@ -86,7 +97,7 @@ jobs:
       - name: Run full device E2E control-plane gate
         run: |
           set -euo pipefail
-          python3 tests/device/run_control_plane_tests.py \
+          build/host-tests-env/bin/python tests/device/run_control_plane_tests.py \
             --profile full --require-qml --timeout-seconds 900 \
             --junit build/test-results/device-e2e-control-plane.xml
 

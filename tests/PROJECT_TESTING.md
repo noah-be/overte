@@ -12,11 +12,14 @@ POSIX process groups; native Windows application builds follow
 is declared in [project-tests.yml](../.github/workflows/project-tests.yml):
 Ubuntu 24.04, Python 3.12, Node.js 22, and JDK 17.
 
-Install Git, Bash, Python 3.11 or newer, Node.js, `jq`, and a C++17 compiler
-available as `c++`; Android branch suites also need Java/Javac. Python 3.11 is
+Install Git, Bash, Python 3.11 or newer, Node.js 22 or newer, `jq`, CMake 3.16
+or newer, CTest, Ninja or Make, and a C++17 compiler available as `c++`;
+Android branch suites also need Java/Javac. Python 3.11 is
 required by repository helpers using `hashlib.file_digest`; use the CI versions
-above when reproducing CI behavior. The quick profile compiles a small portable
-production C++ regression. It needs no configured Overte build, Android SDK,
+above when reproducing CI behavior. The quick profile compiles small portable
+production C++ regressions and checks CMake test registration using stub targets.
+Local Unix sockets must be available for the input-protocol tests.
+It needs no configured Overte build, Android SDK,
 emulator, or physical target. A QML test runner is optional locally and its
 absence is reported as skipped by the device control-plane report.
 
@@ -32,9 +35,22 @@ The dependency is used by offline Doctor contract tests; it grants no network or
 GitHub access to the quick suite. CI installs the same requirements explicitly.
 
 For the complete host control-plane gate, also provide `pkg-config`, Qt 6
-development packages, and Qt Quick Test tools. The workflow contains the exact
-Ubuntu package list. These host Qt contracts are separate from the complete
-client's platform-specific Qt/Conan dependency graph.
+development packages, Qt Quick Test tools, and `unshare` with permission to
+create user and network namespaces. Artifact validation runs real CLIs without
+network access; unavailable isolation fails those tests. The workflow contains
+the exact Ubuntu package list. These host Qt contracts are separate from the
+complete client's platform-specific Qt/Conan dependency graph.
+
+Prepare the additional pinned SPDX/CycloneDX validators in a dedicated environment:
+
+```bash
+python3 -m venv build/host-tests-env
+build/host-tests-env/bin/python -m pip install -r tests/requirements-host.txt
+unshare --user --map-root-user --net true
+```
+
+This environment is used only for host tests and does not populate a product
+dependency cache. The quick profile needs only `requirements-repository.txt`.
 
 ## Quick profile
 
@@ -52,11 +68,19 @@ inspect the device control-plane report for individual skipped host checks.
 
 The quick profile checks repository policies, source/syntax integrity,
 dependency and release contracts, JavaScript behavior, documentation, a
-portable production C++ regression, and the portable E2E control plane. It also
+portable production C++ regressions, and the portable E2E control plane. It also
 runs the product suites declared by
 [`platform-profile.json`](platform-profile.json). The shared profile declares
 no product suites; Android branches declare their own entry points. A missing
 declared entry point is an error. See [source ownership](../docs/SOURCE_LAYOUT.md).
+
+Additional host suites cover device-result schemas, mocked Jenkins orchestration,
+the desktop input protocol, performance-result contracts and native metrics,
+dependency-free server-console behavior, and native CMake test registration.
+The Jenkins tests use local fixtures and never contact a laboratory or device.
+VirtualBaton scenarios exercise both shipped copies with deterministic delivery
+orders and real event-loop smoke tests. Python suite discovery fails if it finds
+no tests, so moving or removing a test directory cannot silently leave a green gate.
 
 Use `--suite NAME` to focus a run and `--fail-fast` to stop after the first
 failure. `--timeout` is a limit for each suite. The default continues after
@@ -99,6 +123,12 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `device-e2e-contracts` | `quick` | `python3 tests/run-project-tests.py --suite device-e2e-contracts` |
 | `documentation` | `quick` | `python3 tests/run-project-tests.py --suite documentation` |
 | `native-smoke` | `quick` | `python3 tests/run-project-tests.py --suite native-smoke` |
+| `native-registration` | `quick` | `python3 tests/run-project-tests.py --suite native-registration` |
+| `device-result-schema` | `quick` | `python3 tests/run-project-tests.py --suite device-result-schema` |
+| `device-jenkins` | `quick` | `python3 tests/run-project-tests.py --suite device-jenkins` |
+| `desktop-input-protocol` | `quick` | `python3 tests/run-project-tests.py --suite desktop-input-protocol` |
+| `performance-contracts` | `quick` | `python3 tests/run-project-tests.py --suite performance-contracts` |
+| `server-console-behavior` | `quick` | `python3 tests/run-project-tests.py --suite server-console-behavior` |
 | `source-layout` | `quick` | `python3 tests/run-project-tests.py --suite source-layout` |
 | `shared-script-behavior` | `quick` | `python3 tests/run-project-tests.py --suite shared-script-behavior` |
 | `native-ctest` | `native` | `python3 tests/run-project-tests.py --suite native-ctest` |
@@ -107,16 +137,25 @@ entries out of this shared table allows it to propagate unchanged to children.
 ## Complete portable host contracts
 
 ```bash
-python3 tests/device/run_control_plane_tests.py --profile full \
+build/host-tests-env/bin/python tests/device/run_control_plane_tests.py --profile full \
   --require-qml --timeout-seconds 900 \
   --junit build/test-results/device-e2e-control-plane.xml
 ```
 
-This gate runs the complete control-plane self-tests, standalone production
-C++ regressions, and QML contracts on the host. `--require-qml` makes unavailable
+This gate runs the complete control-plane self-tests, artifact identity/SBOM
+validation, selected standalone production C++ regressions, and QML contracts
+on the host. `--require-qml` makes unavailable
 required host checks fail instead of skip. It needs no connected target and
 does not build the complete Overte client. The shared CI runs it in addition to
 the project quick profile.
+
+Other drivers under `tests/device/contracts` require separately prepared hosts
+(for example Qt Quick, V8, or platform SDKs) and are not all selected by this
+gate. Follow their owning platform instructions and each driver's prerequisites.
+Likewise, server-console dependency compatibility tests and Electron smoke tests
+need the dependencies declared in `server-console/package.json`; only the three
+dependency-free behavior files run in the common quick profile. This gate does
+not claim that those separate environments were tested.
 
 <a id="full-profile"></a>
 

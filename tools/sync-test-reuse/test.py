@@ -12,7 +12,9 @@ import hashlib
 import importlib.util
 import io
 import json
+import subprocess
 import sys
+import tempfile
 import unittest
 import zipfile
 
@@ -132,6 +134,82 @@ class QualificationContracts(unittest.TestCase):
             "cmake/init.cmake",
         ):
             self.assertTrue(qualification.selected(path, patterns), path)
+
+    def test_new_host_suite_inputs_change_git_tree_digest_and_prevent_candidate_reuse(self):
+        paths = (
+            "server-console/src/modules/open-url.js",
+            "server-console/test/open-url.test.js",
+            "interface/src/metrics/NativeMetrics.cpp",
+            "interface/src/metrics/NativeMetrics.h",
+            "interface/src/RefreshRateManager.cpp",
+            "provenance/artifact_identity.py",
+            "provenance/sbom_validation.py",
+            "tools/sbom/verify-sbom-pair.py",
+            "tools/sbom/requirements-validation.txt",
+            "tests/requirements-host.txt",
+            "ios/ci/evidence/verify-shared-evidence.py",
+            "scripts/developer/libraries/virtualBaton.js",
+            "unpublishedScripts/DomainContent/Home/virtualBaton.js",
+            "scripts/+android_phoneInterface/defaultScripts.js",
+            "scripts/system/+android_phoneInterface/mobileActionBar.js",
+            "scripts/system/+android_phoneInterface/mobileTabletApps.js",
+            "scripts/system/+android_phoneInterface/phoneEmote.js",
+            "scripts/system/places/places.js",
+            "scripts/system/places/portal.js",
+            "scripts/system/quickGoto.js",
+        )
+        settings = config()
+        with tempfile.TemporaryDirectory(prefix="sync-qualified-inputs-") as directory:
+            root = Path(directory)
+
+            def git(*arguments):
+                return subprocess.run(
+                    ["git", "-C", str(root), *arguments], check=True,
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                ).stdout.strip()
+
+            git("init", "--quiet")
+            git("config", "user.name", "Regression Test")
+            git("config", "user.email", "regression@example.invalid")
+            for relative in (*settings["required_qualified_inputs"], *paths):
+                self.assertTrue((HERE.parents[1] / relative).is_file(), relative)
+                target = root / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text("original fixture content\n", encoding="utf-8")
+            git("add", ".")
+            git("commit", "--quiet", "-m", "Qualified fixture")
+            entries = qualification.tree_entries(git("rev-parse", "HEAD"), settings["qualified_inputs"], cwd=root)
+            parent_tree = {item["path"]: item for item in entries}
+            self.assertTrue(set(paths).issubset(parent_tree), set(paths) - parent_tree.keys())
+            document, _ = evidence_fixture()
+            document["qualified_inputs"] = entries
+            document["qualified_inputs_digest"] = qualification.entries_digest(entries)
+            document["workflow"]["blob_sha"] = parent_tree[settings["qualification_workflow"]]["sha"]
+            document.pop("evidence_digest")
+            document["evidence_digest"] = "sha256:" + hashlib.sha256(gate.canonical_json(document)).hexdigest()
+
+            # An unrelated file is deliberately outside the manifest; source inputs below are not.
+            (root / "unrelated.txt").write_text("unqualified content\n", encoding="utf-8")
+            git("add", "unrelated.txt")
+            git("commit", "--quiet", "-m", "Unrelated fixture change")
+            unchanged = qualification.tree_entries(git("rev-parse", "HEAD"), settings["qualified_inputs"], cwd=root)
+            self.assertEqual(qualification.entries_digest(unchanged), document["qualified_inputs_digest"])
+            for relative in paths:
+                with self.subTest(path=relative):
+                    before = qualification.entries_digest(unchanged)
+                    (root / relative).write_text("changed fixture content\n", encoding="utf-8")
+                    git("add", relative)
+                    git("commit", "--quiet", "-m", "Changed qualified fixture input")
+                    changed = qualification.tree_entries(git("rev-parse", "HEAD"), settings["qualified_inputs"], cwd=root)
+                    self.assertNotEqual(before, qualification.entries_digest(changed))
+                    merge_tree = {item["path"]: item for item in changed}
+                    self.assertEqual(gate.digest_entries(gate.select_entries(merge_tree, settings["qualified_inputs"])),
+                                     qualification.entries_digest(changed))
+                    with mock.patch.object(gate, "artifact_evidence", return_value=({"id": 99, "run_attempt": 1}, document)), \
+                         mock.patch.object(gate, "recursive_tree", side_effect=[(TREE, parent_tree), ("7" * 40, merge_tree)]):
+                        with self.assertRaisesRegex(gate.EvidenceError, "qualified parent-delta input changed"):
+                            gate.verify_evidence(object(), settings, request(parent_changed_paths=(relative,)))
+                    unchanged = changed
 
 
 class EvidenceContracts(unittest.TestCase):
@@ -364,6 +442,174 @@ class DifferentialContracts(unittest.TestCase):
             "apple-family", "apple-ios",
         })
         self.assertTrue(all(differential.PROFILES[name] for name in differential.PROFILES if name != "documentation"))
+
+
+class DifferentialCandidateTests(unittest.TestCase):
+    """Exercise the CLI with changes obtained from a real Git repository."""
+
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory(prefix="sync-differential-")
+        self.addCleanup(temporary.cleanup)
+        self.directory = Path(temporary.name)
+        self.root = self.directory / "candidate"
+        self.root.mkdir()
+        self.git("init", "--quiet")
+        self.git("config", "user.name", "Regression Test")
+        self.git("config", "user.email", "regression@example.invalid")
+        for name, content in {
+            "android/phone/.keep": "", "android/common/.keep": "",
+            "old.json": '{"value": 1}\n', "old.py": "value = 1\n",
+            "docs/old.md": "Documentation\n",
+        }.items():
+            path = self.root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+        self.git("add", ".")
+        self.git("commit", "--quiet", "-m", "Initial fixture")
+        self.base = self.git("rev-parse", "HEAD").strip()
+
+    def git(self, *arguments):
+        return subprocess.run(
+            ["git", "-C", str(self.root), *arguments], check=True,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        ).stdout
+
+    def changes(self):
+        self.git("add", "-A")
+        self.git("commit", "--quiet", "-m", "Candidate fixture")
+        fields = iter(self.git("diff", "--name-status", "-z", "--find-renames", self.base, "HEAD").split("\0")[:-1])
+        changes = []
+        statuses = {"A": "added", "D": "removed", "M": "modified", "T": "changed"}
+        for status in fields:
+            if status.startswith("R"):
+                previous, filename = next(fields), next(fields)
+                changes.append({"filename": filename, "status": "renamed", "previous_filename": previous})
+            else:
+                changes.append({"filename": next(fields), "status": statuses[status]})
+        return changes
+
+    def run_candidate(self, changes, *, profile="android-phone", legacy=False, raw=False):
+        manifest = self.directory / "changes.json"
+        if legacy:
+            source = "".join(change["filename"] + "\n" for change in changes)
+        else:
+            source = changes if raw else json.dumps(changes)
+        manifest.write_text(source, encoding="utf-8")
+        return subprocess.run(
+            [sys.executable, str(HERE / "differential.py"), "--candidate", str(self.root),
+             "--profile", profile, "--changed-paths" if legacy else "--changed-files", str(manifest)],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        )
+
+    def assert_failure(self, result, message):
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn(message, result.stderr)
+        self.assertNotIn("PASS", result.stdout)
+
+    def test_git_deleted_json_and_python_skip_content_checks(self):
+        self.git("rm", "old.json", "old.py")
+        changes = self.changes()
+        self.assertEqual({item["status"] for item in changes}, {"removed"})
+        result = self.run_candidate(changes)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("paths=2 PASS", result.stdout)
+
+    def test_legacy_filenames_cannot_authorize_a_missing_file(self):
+        self.git("rm", "old.py")
+        self.assert_failure(self.run_candidate(self.changes(), legacy=True), "changed candidate path is missing")
+
+    def test_added_and_modified_files_must_be_present(self):
+        (self.root / "old.json").write_text('{"value": 2}\n', encoding="utf-8")
+        (self.root / "new.py").write_text("value = 2\n", encoding="utf-8")
+        changes = self.changes()
+        self.assertEqual({item["status"] for item in changes}, {"added", "modified"})
+        for change in changes:
+            path = self.root / change["filename"]
+            content = path.read_bytes()
+            path.unlink()
+            with self.subTest(status=change["status"]):
+                self.assert_failure(self.run_candidate(changes), "changed candidate path is missing")
+            path.write_bytes(content)
+        for legacy in (False, True):
+            with self.subTest(legacy=legacy):
+                result = self.run_candidate(changes, legacy=legacy)
+                self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_removed_file_must_actually_be_absent(self):
+        self.git("rm", "old.json")
+        changes = self.changes()
+        (self.root / "old.json").write_text("{}", encoding="utf-8")
+        self.assert_failure(self.run_candidate(changes), "removed candidate path is still present")
+
+    def test_required_root_removal_still_fails(self):
+        self.git("rm", "-r", "android/common")
+        self.assert_failure(self.run_candidate(self.changes()), "required candidate path is missing: android/common")
+
+    def test_malformed_current_json_still_fails(self):
+        (self.root / "old.json").write_text('{"broken": }', encoding="utf-8")
+        self.assert_failure(self.run_candidate(self.changes()), "differential error:")
+
+    def test_malformed_current_python_still_fails(self):
+        (self.root / "old.py").write_text("def broken(\n", encoding="utf-8")
+        self.assert_failure(self.run_candidate(self.changes()), "py_compile")
+
+    def test_current_conflict_markers_still_fail(self):
+        (self.root / "docs/old.md").write_text("<<<<<<< HEAD\nconflict\n=======\nother\n>>>>>>> branch\n", encoding="utf-8")
+        self.assert_failure(self.run_candidate(self.changes(), profile="documentation"), "unresolved merge marker")
+
+    def test_git_rename_checks_the_destination(self):
+        self.git("mv", "old.py", "renamed.py")
+        changes = self.changes()
+        self.assertEqual(changes, [{"filename": "renamed.py", "status": "renamed", "previous_filename": "old.py"}])
+        result = self.run_candidate(changes)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        (self.root / "renamed.py").write_text("def broken(\n", encoding="utf-8")
+        self.assert_failure(self.run_candidate(changes), "py_compile")
+        (self.root / "renamed.py").unlink()
+        self.assert_failure(self.run_candidate(changes), "changed candidate path is missing")
+
+    def test_code_renamed_to_markdown_cannot_use_documentation_profile(self):
+        self.git("mv", "old.py", "docs/code.md")
+        self.assert_failure(self.run_candidate(self.changes(), profile="documentation"), "non-documentation change")
+
+    def test_documentation_deletion_is_valid(self):
+        self.git("rm", "docs/old.md")
+        result = self.run_candidate(self.changes(), profile="documentation")
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_removed_paths_cannot_hide_symlinks_or_traversal(self):
+        self.git("rm", "old.py")
+        changes = self.changes()
+        (self.root / "old.py").symlink_to(self.directory / "absent.py")
+        self.assert_failure(self.run_candidate(changes), "symbolic link")
+        (self.root / "linked").symlink_to(self.directory, target_is_directory=True)
+        for filename, message in (
+            ("linked/absent.py", "symbolic link"),
+            ("../absent.py", "unsafe changed path"),
+            (str(self.directory / "absent.py"), "unsafe changed path"),
+        ):
+            with self.subTest(filename=filename):
+                self.assert_failure(self.run_candidate([{"filename": filename, "status": "removed"}]), message)
+
+    def test_rename_source_is_also_checked_for_unsafe_paths(self):
+        self.assert_failure(self.run_candidate([{
+            "filename": "old.py", "status": "renamed", "previous_filename": "../outside.py",
+        }]), "unsafe changed path")
+
+    def test_malformed_change_metadata_fails_closed(self):
+        invalid = [
+            "{", "{}", "[null]", '[{"filename": "old.py"}]',
+            '[{"filename": "old.py", "status": "renamed"}]',
+            '[{"filename": "old.py", "status": "removed", "previous_filename": "old.json"}]',
+            '[{"filename": "", "status": "removed"}]',
+        ]
+        for status in ("", "REMOVED", "deleted", "unchanged", "unknown", None, 1, []):
+            invalid.append(json.dumps([{"filename": "absent.py", "status": status}]))
+        duplicate = {"filename": "old.py", "status": "modified"}
+        invalid.append(json.dumps([duplicate, duplicate]))
+        for source in invalid:
+            with self.subTest(source=source):
+                self.assert_failure(self.run_candidate(source, raw=True), "differential error:")
 
 
 class LargeComparisonTests(unittest.TestCase):

@@ -54,6 +54,19 @@ SUITES = (
         sys.executable, "tests/check-documentation.py", "--all")),
     Suite("native-smoke", "quick", (
         sys.executable, "tests/device/contracts/world-entry/test_phone_spawn_gate.py")),
+    Suite("native-registration", "quick", (sys.executable, "tests/native-registration-test.py")),
+    Suite("device-result-schema", "quick", (
+        sys.executable, "tests/run-unittest-suite.py", "tests/device/schema")),
+    Suite("device-jenkins", "quick", (
+        sys.executable, "tests/run-unittest-suite.py", "tests/device/jenkins")),
+    Suite("desktop-input-protocol", "quick", (
+        sys.executable, "tests/run-unittest-suite.py", "tests/device/adapters/desktop_oculix",
+        "--pattern", "test_wayland_libei_client.py")),
+    Suite("performance-contracts", "quick", (
+        sys.executable, "tests/run-unittest-suite.py", "tests/performance/schema")),
+    Suite("server-console-behavior", "quick", (
+        "node", "--test", "server-console/test/open-url.test.js", "server-console/test/file-tail.test.js",
+        "server-console/test/notification-compat.test.js")),
     Suite("source-layout", "quick", (sys.executable, "tests/source-layout-test.py")),
     Suite("shared-script-behavior", "quick", ("node", "--test", *tuple(
         str(path.relative_to(ROOT)) for path in sorted((ROOT / "tests/javascript/test").glob("*.test.js"))))),
