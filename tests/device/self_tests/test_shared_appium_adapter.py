@@ -190,7 +190,10 @@ class AppiumAdapterTest(unittest.TestCase):
         AppiumHandler.page_source = (
             '<hierarchy><node content-desc="OverteTablet"/></hierarchy>')
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), AppiumHandler)
-        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        # This synthetic server has no idle workload. Poll shutdown promptly so
+        # each test does not spend the default 0.5 seconds waiting for teardown.
+        self.thread = threading.Thread(
+            target=self.server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
         self.thread.start()
         self.probe = self.root / "probe.json"
         self.write_probe()

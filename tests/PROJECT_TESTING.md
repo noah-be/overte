@@ -1,8 +1,8 @@
 # Project testing
 
 Run commands from the repository root. The shared runner provides repository
-checks and an optional configured native layer. Portable host contracts and
-physical-device acceptance have separate commands and evidence requirements.
+checks, a complete portable host profile, and an optional configured native
+layer. Physical-device acceptance has separate commands and evidence requirements.
 
 ## Host prerequisites
 
@@ -18,6 +18,8 @@ Android branch suites also need Java/Javac. Python 3.11 is
 required by repository helpers using `hashlib.file_digest`; use the CI versions
 above when reproducing CI behavior. The quick profile compiles small portable
 production C++ regressions and checks CMake test registration using stub targets.
+JavaScript syntax checks use two bounded subprocesses and preserve complete,
+ordered diagnostics; neither JavaScript nor shell source is executed by syntax checks.
 Local Unix sockets must be available for the input-protocol tests.
 It needs no configured Overte build, Android SDK,
 emulator, or physical target. A QML test runner is optional locally and its
@@ -86,6 +88,31 @@ Use `--suite NAME` to focus a run and `--fail-fast` to stop after the first
 failure. `--timeout` is a limit for each suite. The default continues after
 failures so one run can report independent problems.
 
+## Combined host profile for CI
+
+```bash
+build/host-tests-env/bin/python tests/run-project-tests.py --profile host \
+  --timeout 240 --host-timeout 900 --junit build/test-results/project-tests.xml
+```
+
+This profile covers the union of the quick and complete portable host checks.
+It runs the full device control plane once, including the quick device tests and
+the phone-spawn regression; it omits those two redundant quick invocations.
+All other quick suites and every branch-owned product suite remain selected.
+Unlike the native `full` profile, `host` needs no configured Overte build.
+
+The full control-plane suite requires QML and writes its detailed report to
+`build/test-results/device-e2e-control-plane.xml`. Its total time limit is
+`--host-timeout`; other suites retain `--timeout`. On timeout the runner allows
+up to five additional seconds to clean up isolated workers before forcing exit.
+Failures in the full group fail the combined project result.
+
+Shared CI, parent qualification and sync fallback use this combined profile.
+Parent branches run their push tests only in parent qualification, which creates
+the same exact-commit evidence after success. Shared CI retains leaf and
+development-branch pushes, reusable PR calls and manual runs. The actual PR
+merge candidate and the integrated parent commit remain distinct test inputs.
+
 ## Available project suites
 
 The following inventory is generated from the runner's common and native
@@ -101,6 +128,7 @@ entries out of this shared table allows it to propagate unchanged to children.
 | --- | --- | --- |
 | `dependency-releases` | `quick` | `python3 tests/run-project-tests.py --suite dependency-releases` |
 | `project-runner` | `quick` | `python3 tests/run-project-tests.py --suite project-runner` |
+| `python-test-runner` | `quick` | `python3 tests/run-project-tests.py --suite python-test-runner` |
 | `repository-checks` | `quick` | `python3 tests/run-project-tests.py --suite repository-checks` |
 | `ios-build-qualification` | `quick` | `python3 tests/run-project-tests.py --suite ios-build-qualification` |
 | `repository-policy` | `quick` | `python3 tests/run-project-tests.py --suite repository-policy` |
@@ -121,6 +149,7 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `codeql-remediation` | `quick` | `python3 tests/run-project-tests.py --suite codeql-remediation` |
 | `javascript-behavior` | `quick` | `python3 tests/run-project-tests.py --suite javascript-behavior` |
 | `device-e2e-contracts` | `quick` | `python3 tests/run-project-tests.py --suite device-e2e-contracts` |
+| `device-control-plane-full` | `host` | `python3 tests/run-project-tests.py --suite device-control-plane-full` |
 | `documentation` | `quick` | `python3 tests/run-project-tests.py --suite documentation` |
 | `native-smoke` | `quick` | `python3 tests/run-project-tests.py --suite native-smoke` |
 | `native-registration` | `quick` | `python3 tests/run-project-tests.py --suite native-registration` |
@@ -146,8 +175,20 @@ This gate runs the complete control-plane self-tests, artifact identity/SBOM
 validation, selected standalone production C++ regressions, and QML contracts
 on the host. `--require-qml` makes unavailable
 required host checks fail instead of skip. It needs no connected target and
-does not build the complete Overte client. The shared CI runs it in addition to
-the project quick profile.
+does not build the complete Overte client. The shared CI runs it as part of
+the combined host profile above; run this separate command when focusing on the
+control plane itself.
+
+The full self-tests use two isolated Python worker processes, keeping each test
+module together. Every discovered case is retained; global Python mocks and
+environment changes are never shared between workers. Temporary target locks
+belong to their individual fixtures. Use `--self-test-jobs 1` on this command
+for serial debugging. Worker failures, import failures, missing cases and
+timeouts fail the gate; reports include deterministic module output and counts.
+Parallel workers require Linux process cleanup support. Other hosts default to
+serial execution. The parallel run also writes
+`build/test-results/device-self-tests.json` with selected/loaded case identities
+and execution counts, which CI retains with the JUnit reports.
 
 Other drivers under `tests/device/contracts` require separately prepared hosts
 (for example Qt Quick, V8, or platform SDKs) and are not all selected by this

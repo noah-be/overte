@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Security and reproducibility contracts for shared repository workflows."""
 
+import fnmatch
 import json
 from pathlib import Path
 import re
@@ -38,6 +39,61 @@ FULL_SHA_ACTION = re.compile(r"^[^@\s]+@[0-9a-f]{40}$")
 
 def has_automatic_app_trigger(source):
     return re.search(r"(?m)^  (?:push|pull_request):", source) is not None
+
+
+def push_filters(source):
+    """Read the deliberately small push-filter syntax used by the two host lanes.
+
+    This is not a general YAML parser. Reject any new syntax so a workflow edit
+    cannot silently make the routing matrix test a different configuration.
+    Actionlint remains responsible for complete workflow syntax validation.
+    """
+    match = re.search(r"(?ms)^  push:\n(.*?)(?=^  [a-z_]+:|^[^ \n]|\Z)", source)
+    if match is None:
+        raise ValueError("expected an explicit push trigger")
+    result = {}
+    current = None
+
+    def pattern(value):
+        token = re.fullmatch(r'''(?:"([^"]+)"|'([^']+)'|([A-Za-z0-9_./*-]+))''', value)
+        if token is None:
+            raise ValueError(f"unsupported push pattern: {value}")
+        decoded = next(item for item in token.groups() if item is not None)
+        if not re.fullmatch(r"[A-Za-z0-9_./*-]+", decoded):
+            raise ValueError(f"unsupported push pattern: {value}")
+        return decoded
+
+    for line in match.group(1).splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        field = re.fullmatch(r"    (branches|paths-ignore):(?: \[([^\]]+)\])?", line)
+        if field:
+            current = field.group(1)
+            if current in result:
+                raise ValueError(f"duplicate push field: {current}")
+            inline = field.group(2)
+            result[current] = [pattern(item.strip()) for item in inline.split(",")] if inline else []
+            if inline:
+                current = None
+            continue
+        item = re.fullmatch(r"      - (.+)", line)
+        if item and current:
+            result[current].append(pattern(item.group(1)))
+            continue
+        raise ValueError(f"unsupported push filter syntax: {line}")
+    if set(result) != {"branches", "paths-ignore"} or not all(result.values()):
+        raise ValueError("expected nonempty branches and paths-ignore lists")
+    if result["paths-ignore"] != ["**/*.md"]:
+        raise ValueError("routing matrix supports only the existing Markdown exclusion")
+    return result
+
+
+def selects_host_push(source, branch, changed_paths):
+    filters = push_filters(source)
+    if not any(fnmatch.fnmatchcase(branch, item) for item in filters["branches"]):
+        return False
+    # GitHub's **/ also matches the repository root, unlike fnmatch's **/.
+    return any(not path.endswith(".md") for path in changed_paths)
 
 
 def artifact_retention_limit(workflow_name, artifact_lines):
@@ -551,9 +607,99 @@ class ProjectWorkflowContracts(unittest.TestCase):
     def test_ci_runs_complete_device_control_plane_with_qml(self):
         self.assertIn("qml-module-qttest", self.source)
         self.assertIn("qtdeclarative5-dev-tools", self.source)
-        self.assertIn("tests/device/run_control_plane_tests.py", self.source)
-        self.assertIn("--profile full --require-qml", self.source)
+        self.assertIn("--profile host --timeout 240 --host-timeout 900", self.source)
         self.assertIn("device-e2e-control-plane.xml", self.source)
+
+
+class HostWorkflowRoutingContracts(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.workflows = {
+            "shared": WORKFLOW.read_text(encoding="utf-8"),
+            "parent": PARENT_QUALIFICATION_WORKFLOW.read_text(encoding="utf-8"),
+        }
+        cls.branches = json.loads((ROOT / ".github/branch-policy.json").read_text())["branches"]
+
+    def selected(self, branch, changed_paths):
+        return [name for name, source in self.workflows.items()
+                if selects_host_push(source, branch, changed_paths)]
+
+    def test_every_permanent_branch_push_runs_exactly_one_complete_host_lane(self):
+        for branch, settings in self.branches.items():
+            with self.subTest(branch=branch):
+                expected = "parent" if settings["children"] else "shared"
+                self.assertEqual(self.selected(branch, ["interface/src/Application.cpp"]), [expected])
+
+    def test_development_push_coverage_and_manual_reusable_entrypoints_remain(self):
+        for branch in ("ci/main/workflow-change", "test/main/test-change", "ci/example", "test/example"):
+            with self.subTest(branch=branch):
+                self.assertEqual(self.selected(branch, ["tests/new-test.py"]), ["shared"])
+        for branch in ("feature/main/example", "ci", "testing/example"):
+            self.assertEqual(self.selected(branch, ["tests/new-test.py"]), [])
+        for event in ("workflow_call", "workflow_dispatch"):
+            self.assertRegex(self.workflows["shared"], rf"(?m)^  {event}:$")
+            self.assertNotRegex(self.workflows["parent"], rf"(?m)^  {event}:$")
+        aggregate = (WORKFLOW_DIRECTORY / "repository-checks.yml").read_text()
+        self.assertIn("pull_request:", aggregate)
+        self.assertIn("if: needs.route.outputs.mode == 'full'", aggregate)
+        self.assertIn("uses: ./.github/workflows/project-tests.yml", aggregate)
+
+    def test_only_markdown_changes_skip_push_lanes(self):
+        for branch in (*self.branches, "ci/main/example", "test/main/example"):
+            with self.subTest(branch=branch):
+                self.assertEqual(self.selected(branch, ["README.md", "docs/guide.md"]), [])
+                self.assertEqual(len(self.selected(branch, ["README.md", "tests/new-test.py"])), 1)
+                self.assertEqual(len(self.selected(branch, ["unknown.extension"])), 1)
+
+    def test_routing_parser_rejects_unsupported_or_incomplete_configuration(self):
+        valid = 'on:\n  push:\n    branches: [main]\n    paths-ignore:\n      - "**/*.md"\n'
+        self.assertTrue(selects_host_push(valid, "main", ["tests/test.py"]))
+        variants = (
+            valid.replace("branches: [main]", "branches-ignore: [main]"),
+            valid.replace("branches: [main]", "branches: []"),
+            valid.replace("branches: [main]", "branches: [main, '!apple-main']"),
+            valid.replace('"**/*.md"', '"**/*.py"'),
+            valid.replace("    branches: [main]\n", ""),
+            valid.replace("  push:\n", "  push: {}\n"),
+            valid + "    tags: [v*]\n",
+        )
+        for source in variants:
+            with self.subTest(source=source), self.assertRaises(ValueError):
+                push_filters(source)
+
+    def test_parent_and_shared_keep_matching_tools_and_complete_host_coverage(self):
+        for name, source in self.workflows.items():
+            with self.subTest(workflow=name):
+                for fragment in ('python-version: "3.12"', 'node-version: "22"',
+                                 'java-version: "17"', "distribution: temurin",
+                                 "command -v cmake", "command -v ctest",
+                                 "qml-module-qttest", "qtdeclarative5-dev-tools",
+                                 "qt6-base-dev qt6-base-dev-tools",
+                                 "unshare --user --map-root-user --net true",
+                                 "-r tests/requirements-host.txt"):
+                    self.assertIn(fragment, source)
+                self.assertEqual(source.count("tests/run-project-tests.py"), 1)
+                self.assertIn("build/host-tests-env/bin/python tests/run-project-tests.py", source)
+                self.assertIn("--profile host --timeout 240 --host-timeout 900", source)
+                self.assertNotIn("tests/device/run_control_plane_tests.py", source)
+                self.assertNotIn("--shared-only", source)
+                self.assertNotIn("--platform-only", source)
+                self.assertNotIn("continue-on-error:", source)
+
+    def test_parent_evidence_stays_bound_to_the_successful_exact_push(self):
+        source = self.workflows["parent"]
+        self.assertIn("ref: ${{ github.sha }}", source)
+        self.assertIn("PARENT_COMMIT: ${{ github.sha }}", source)
+        self.assertIn("RUN_ATTEMPT: ${{ github.run_attempt }}", source)
+        self.assertIn("RUN_ID: ${{ github.run_id }}", source)
+        self.assertIn("cancel-in-progress: false", source)
+        self.assertLess(source.index("tests/run-project-tests.py"), source.index("qualification.py"))
+        evidence = source.split("      - name: Create content-addressed qualification evidence\n", 1)[1]
+        evidence = evidence.split("      - name: Upload qualification test reports\n", 1)[0]
+        self.assertNotIn("if:", evidence)
+        self.assertNotIn("continue-on-error:", source)
+        self.assertIn("name: parent-qualification-${{ github.sha }}", evidence)
+        self.assertIn("if-no-files-found: error", evidence)
 
 
 

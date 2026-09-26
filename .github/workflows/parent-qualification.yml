@@ -37,8 +37,21 @@ jobs:
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: "22"
-      - name: Install repository-check dependencies
-        run: python3 -m pip install --disable-pip-version-check -r tests/requirements-repository.txt
+      - name: Set up Java
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Verify runner prerequisites
+        run: |
+          set -euo pipefail
+          command -v bash
+          command -v jq
+          command -v cmake
+          command -v ctest
+          python3 --version
+          node --version
+          java -version
       - name: Install QML and portable C++ contract prerequisites
         run: |
           set -euo pipefail
@@ -50,15 +63,11 @@ jobs:
           unshare --user --map-root-user --net true
           python3 -m venv build/host-tests-env
           build/host-tests-env/bin/python -m pip install --disable-pip-version-check -r tests/requirements-host.txt
-      - name: Run shared project qualification
+      - name: Run complete host qualification
         run: >-
-          python3 tests/run-project-tests.py --profile quick --timeout 240
+          build/host-tests-env/bin/python tests/run-project-tests.py
+          --profile host --timeout 240 --host-timeout 900
           --junit build/test-results/parent-project-tests.xml
-      - name: Run complete device control-plane qualification
-        run: >-
-          build/host-tests-env/bin/python tests/device/run_control_plane_tests.py --profile full
-          --require-qml --timeout-seconds 900
-          --junit build/test-results/parent-device-control-plane.xml
       - name: Create content-addressed qualification evidence
         env:
           PARENT_BRANCH: ${{ github.ref_name }}
@@ -68,7 +77,7 @@ jobs:
           RUN_ATTEMPT: ${{ github.run_attempt }}
           RUN_ID: ${{ github.run_id }}
         run: >-
-          python3 tools/sync-test-reuse/qualification.py
+          build/host-tests-env/bin/python tools/sync-test-reuse/qualification.py
           --repository "$REPOSITORY" --repository-id "$REPOSITORY_ID"
           --parent-branch "$PARENT_BRANCH" --commit "$PARENT_COMMIT"
           --run-id "$RUN_ID" --run-attempt "$RUN_ATTEMPT"

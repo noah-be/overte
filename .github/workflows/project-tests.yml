@@ -3,13 +3,11 @@ name: Shared project CI
 on:
   workflow_call:
   push:
+    # Parent pushes run these checks in parent-qualification.yml, where the same
+    # successful execution also produces evidence for downstream syncs.
     branches:
-      - main
-      - android-main
       - android-phone
-      - android-vr
       - android-vr-pico
-      - apple-main
       - apple-ios
       - "ci/**"
       - "test/**"
@@ -48,12 +46,6 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Install repository-check dependencies
-        env:
-          GH_TOKEN: ""
-          GITHUB_TOKEN: ""
-        run: python3 -m pip install --disable-pip-version-check -r tests/requirements-repository.txt
-
       - name: Set up Java
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         with:
@@ -87,19 +79,12 @@ jobs:
           python3 -m venv build/host-tests-env
           build/host-tests-env/bin/python -m pip install --disable-pip-version-check -r tests/requirements-host.txt
 
-      - name: Run project suite
+      - name: Run complete host test suite
         run: |
           set -euo pipefail
-          tests/run-project-tests.py \
-            --timeout 240 \
+          build/host-tests-env/bin/python tests/run-project-tests.py \
+            --profile host --timeout 240 --host-timeout 900 \
             --junit build/test-results/project-tests.xml
-
-      - name: Run full device E2E control-plane gate
-        run: |
-          set -euo pipefail
-          build/host-tests-env/bin/python tests/device/run_control_plane_tests.py \
-            --profile full --require-qml --timeout-seconds 900 \
-            --junit build/test-results/device-e2e-control-plane.xml
 
       - name: Upload test report
         if: always()
@@ -108,7 +93,7 @@ jobs:
           name: project-test-results
           path: |
             build/test-results/project-tests.xml
-            build/test-results/device-e2e-contracts.xml
             build/test-results/device-e2e-control-plane.xml
+            build/test-results/device-self-tests.json
           if-no-files-found: warn
           retention-days: 7

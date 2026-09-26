@@ -98,12 +98,19 @@ jobs:
           GITHUB_TOKEN: ""
         run: |
           set -euo pipefail
-          python3 -m pip install --disable-pip-version-check -r ../trusted/tests/requirements-repository.txt
           unshare --user --map-root-user --net true
           python3 -m venv build/host-tests-env
           build/host-tests-env/bin/python -m pip install --disable-pip-version-check -r ../trusted/tests/requirements-host.txt
-          python3 tests/run-project-tests.py --profile quick --timeout 240 \
+          build/host-tests-env/bin/python tests/run-project-tests.py \
+            --profile host --timeout 240 --host-timeout 900 \
             --junit build/test-results/sync-fallback-project.xml
-          build/host-tests-env/bin/python tests/device/run_control_plane_tests.py --profile full \
-            --require-qml --timeout-seconds 900 \
-            --junit build/test-results/sync-fallback-device.xml
+      - name: Upload validation test reports
+        if: always() && (inputs.mode == 'fallback' || inputs.profile != 'documentation')
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: sync-validation-reports-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            candidate/build/test-results/*.xml
+            candidate/build/test-results/device-self-tests.json
+          if-no-files-found: warn
+          retention-days: 7
