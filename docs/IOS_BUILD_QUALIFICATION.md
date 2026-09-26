@@ -14,10 +14,13 @@ The trusted tools under
 
 The independent required repository router compares the candidate's orchestration
 with the template on the trusted default branch. A PR cannot replace the final
-verifier or make it optional. The rollout flag in
-[the trusted configuration](../.github/ios-build-qualification.json) is initially
-off until the product workflow exists. An off flag is an incomplete deployment,
-not evidence that build protection is active.
+verifier or make it optional. The `enforceWorkflow` flag in
+[the trusted configuration](../.github/ios-build-qualification.json) requires the
+workflow to exist and match the template. The versioned Apple target ruleset also
+requires `ios-device-build` alongside its existing topology check, with strict
+up-to-date validation and GitHub Actions integration binding. An off flag or a
+missing live required check is an incomplete deployment. Verify live settings;
+the versioned files alone do not establish active protection.
 
 The workflow runs for every PR targeting `apple-ios`, including parent merges and
 retargeting. The router reads the exact synthetic merge candidate, checks its two

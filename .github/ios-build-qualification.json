@@ -4,5 +4,5 @@
   "repositoryId": 1319052603,
   "requiredContext": "ios-device-build",
   "workflowPath": ".github/workflows/ios-build-qualification.yml",
-  "enforceWorkflow": false
+  "enforceWorkflow": true
 }
