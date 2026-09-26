@@ -10,13 +10,21 @@ import "../audio" as HifiAudio
 
 Item {
     id: tablet
-    objectName: "tablet"
     readonly property string semanticScreenId: "tablet.home"
+    objectName: "tablet"
     property var tabletProxy: Tablet.getTablet("com.highfidelity.interface.tablet.system");
 
     property var currentGridItems: null
 
     focus: true
+
+    Item {
+        objectName: tablet.semanticScreenId
+        anchors.fill: parent
+        z: -1
+        Accessible.role: Accessible.Client
+        Accessible.name: qsTr("Tablet home")
+    }
 
     TabletTouchConfiguration {
         id: presentation
@@ -119,7 +127,7 @@ Item {
                 height: clockTimeTextMetrics.height
                 anchors {
                     top: parent.top
-                    topMargin: -10
+                    topMargin: presentation.profile.stackedTabletHeader ? 0 : -10
                     right: clockAmPmItem.left
                     rightMargin: 5
                 }
@@ -305,6 +313,12 @@ Item {
                                 anchors.centerIn: parent
                                 width: gridView.buttonExtent
                                 height: gridView.buttonExtent
+                                iconExtent: presentation.profile.stackedTabletHeader
+                                    ? Math.min(50, height * 0.42) : 50
+                                captionPixelSize: presentation.profile.stackedTabletHeader
+                                    ? Math.min(18, width / 7.5) : 18
+                                captionBottomMargin: presentation.profile.stackedTabletHeader
+                                    ? Math.min(20, height * 0.12) : 20
                                 hoverEnabled: !presentation.touchOptimized
                                 prioritizeTap: presentation.touchOptimized
                                 gridView: wrapper.GridView.view

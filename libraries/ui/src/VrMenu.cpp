@@ -86,9 +86,10 @@ void MenuUserData::updateQmlItemFromAction() {
     _qml->setProperty("text", text);
     _qml->setProperty("shortcut", _action->shortcut().toString());
     _qml->setProperty("checked", _action->isChecked());
-#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
-    _qml->setProperty("visible", _action->isVisible());
-#endif
+    // A closed Qt 6 popup hides its content items, even while their QAction
+    // remains visible in the tablet projection.
+    _qml->setProperty("tabletVisible", _action->isVisible());
+    _qml->setProperty("tabletShortcut", _action->shortcut().toString());
 }
 
 void MenuUserData::clear() {
@@ -97,7 +98,7 @@ void MenuUserData::clear() {
     _qml->setProperty("text", 0);
     _qml->setProperty("shortcut", 0);
     _qml->setProperty("checked", 0);
-    _qml->setProperty("visible", 0);
+    _qml->setProperty("tabletVisible", false);
 
     _action->setProperty(USER_DATA, QVariant());
     _qml->setProperty(USER_DATA, QVariant());
@@ -234,7 +235,7 @@ void VrMenu::addAction(QMenu* menu, QAction* action) {
     }
 
     QQmlComponent menuItemComponent(engine);
-    menuItemComponent.loadFromModule("QtQuick.Controls", "MenuItem");
+    menuItemComponent.loadUrl(PathUtils::qmlUrl("controls/WrappedMenuItem.qml"));
     if (menuItemComponent.status() == QQmlComponent::Error) {
         qWarning() << "Unable to load Qt 6 QML MenuItem:" << menuItemComponent.errorString();
         return;
@@ -276,7 +277,7 @@ void VrMenu::addSeparator(QMenu* menu) {
     }
 
     QQmlComponent separatorComponent(engine);
-    separatorComponent.loadFromModule("QtQuick.Controls", "MenuSeparator");
+    separatorComponent.loadUrl(PathUtils::qmlUrl("controls/WrappedMenuSeparator.qml"));
     if (separatorComponent.status() == QQmlComponent::Error) {
         qWarning() << "Unable to load Qt 6 QML MenuSeparator:" << separatorComponent.errorString();
         return;
@@ -316,7 +317,7 @@ void VrMenu::insertAction(QAction* before, QAction* action) {
     }
 
     QQmlComponent menuItemComponent(engine);
-    menuItemComponent.loadFromModule("QtQuick.Controls", "MenuItem");
+    menuItemComponent.loadUrl(PathUtils::qmlUrl("controls/WrappedMenuItem.qml"));
     if (menuItemComponent.status() == QQmlComponent::Error) {
         qWarning() << "Unable to load inserted Qt 6 QML MenuItem:" << menuItemComponent.errorString();
         return;
@@ -328,14 +329,16 @@ void VrMenu::insertAction(QAction* before, QAction* action) {
     menuItemObject->setObjectName(action->text());
     menuItemObject->setProperty("text", action->text());
     menuItemObject->setParent(menu);
-    // FIXME this needs to find the index of the beforeQml item and call insertItem(int, object)
+    QVariant inserted;
     const bool invokeResult = QMetaObject::invokeMethod(
-        menu, "addItemWrap", Qt::DirectConnection,
+        menu, "insertItemWrap", Qt::DirectConnection,
+        Q_RETURN_ARG(QVariant, inserted),
+        Q_ARG(QVariant, QVariant::fromValue(beforeQml)),
         Q_ARG(QVariant, QVariant::fromValue(menuItemObject)));
-    if (invokeResult) {
+    if (invokeResult && inserted.toBool()) {
         bindActionToQmlAction(menuItemObject, action, _rootMenu);
     } else {
-        qWarning() << "Failed to find addItemWrap() method in object" << menu
+        qWarning() << "Failed to insert Qt 6 menu item in object" << menu
                    << ". Not inserting action" << action;
         menuItemObject->deleteLater();
     }

@@ -41,8 +41,8 @@ TABLET_HOME = (ROOT / "interface/resources/qml/hifi/tablet/TabletHome.qml").read
 TABLET_ROOT = (ROOT / "interface/resources/qml/hifi/tablet/TabletRoot.qml").read_text()
 TABLET_ADDRESS = (ROOT / "interface/resources/qml/hifi/tablet/TabletAddressDialog.qml").read_text()
 TABLET_MESSAGE_BOX = (ROOT / "interface/resources/qml/dialogs/TabletMessageBox.qml").read_text()
-IOS_AUDIO_CONFIGURATION = (
-    ROOT / "interface/resources/qml/hifi/audio/+ios/AudioTouchConfiguration.qml"
+SHARED_AUDIO_CONFIGURATION = (
+    ROOT / "interface/resources/qml/hifi/audio/AudioTouchConfiguration.qml"
 ).read_text()
 SETTINGS_ADVANCED = (ROOT / "scripts/system/settings/qml/AdvancedOptions.qml").read_text()
 SETTINGS_NUMBER = (ROOT / "scripts/system/settings/qml/SettingNumber.qml").read_text()
@@ -113,13 +113,13 @@ assert "defined(Q_OS_ANDROID) || defined(Q_OS_IOS)" in APPLICATION_UI
 assert "scriptEngines->loadDefaultScripts();" in APPLICATION_UI
 assert "dismissIOSKeyboard();" in APPLICATION_UI
 assert "defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)" in GRAPHICS
-assert 'Qt.platform.os === "android" || Qt.platform.os === "ios"' in BUTTON
+assert "usesAndroidClickAction: touchMetrics.directTouch" in BUTTON
 
 assert "OverteControls.WrappedMenu" in DESKTOP
 assert "addMenuWrap" in WRAPPED_MENU and "addItemWrap" in WRAPPED_MENU
 assert 'loadUrl(PathUtils::qmlUrl("controls/WrappedMenu.qml"))' in VR_MENU
-assert 'loadFromModule("QtQuick.Controls", "MenuItem")' in VR_MENU
-assert 'loadFromModule("QtQuick.Controls", "MenuSeparator")' in VR_MENU
+assert 'loadUrl(PathUtils::qmlUrl("controls/WrappedMenuItem.qml"))' in VR_MENU
+assert 'loadUrl(PathUtils::qmlUrl("controls/WrappedMenuSeparator.qml"))' in VR_MENU
 
 assert "Position:" in IOS_STATS
 assert "Present:" in IOS_STATS
@@ -174,8 +174,8 @@ assert "stage=hardware-key-forwarded" in OFFSCREEN_SURFACE
 assert 'objectName: "tabletAddressLine"' in TABLET_ADDRESS
 assert "focus: false" in TABLET_ADDRESS
 assert "addressLine.forceActiveFocus()" in TABLET_ADDRESS
-assert "import QtQuick.Dialogs as OriginalDialogs" in TABLET_MESSAGE_BOX
-assert "HifiControls.TouchUiMetrics" in IOS_AUDIO_CONFIGURATION
+assert "StandardControls.DialogButtonBox.Ok" in TABLET_MESSAGE_BOX
+assert "HifiControls.TouchUiMetrics" in SHARED_AUDIO_CONFIGURATION
 for migrated_settings_qml in (SETTINGS_ADVANCED, SETTINGS_NUMBER, SETTINGS_SLIDER):
     assert "QtQuick.Controls.Styles" not in migrated_settings_qml
 assert "RegularExpressionValidator" in SETTINGS_NUMBER
@@ -209,7 +209,7 @@ assert "defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)" in APPLICATIO
 assert "OVERTE_IOS_FRAME_PACING" in APPLICATION_PLUGINS
 assert "onClicked: modelData.clicked()" in TABLET_HOME
 assert "onClicked: tabletProxy.hideAndroidTablet()" in TABLET_HOME
-assert 'contentFlickableInteractive: Qt.platform.os !== "ios" || !screenSpaceMode' in WINDOW_ROOT
+assert "contentFlickableInteractive: !touchUiProfile.directTouch || !screenSpaceMode" in WINDOW_ROOT
 assert "property bool contentFlickableInteractive: true" in SCROLLING_WINDOW
 assert "interactive: window.contentFlickableInteractive" in SCROLLING_WINDOW
 assert "UITextInputAssistantItem" in SOURCE
@@ -250,9 +250,13 @@ for texture in ("analog_stick.png", "analog_stick_base.png", "fly.png", "handsha
 assert "_desktopWindow->setPosition(0, 0)" in TABLET_SOURCE
 assert "_desktopWindow->setPosition(leftInset, topInset)" in TABLET_SOURCE
 assert '"coordinate_space=safe-content"' in TABLET_SOURCE
-assert "x = 0" in WINDOW_ROOT
-assert 'Qt.platform.os === "ios"' in WINDOW_ROOT
-assert "x = screenSpaceSafeInsetLeft" in WINDOW_ROOT
+assert "screenSpaceOriginAtSafeArea: true" in PROFILE
+assert "x = surfaceGeometry.x" in WINDOW_ROOT
+assert "y = surfaceGeometry.y" in WINDOW_ROOT
+assert "footer: TabletNavigation" in WINDOW_ROOT
+assert "TabletPageLoader {" in WINDOW_ROOT
+assert 'Qt.platform.os === "ios"' not in WINDOW_ROOT
+assert not (ROOT / "interface/resources/qml/hifi/audio/+ios/AudioTouchConfiguration.qml").exists()
 assert 'iosRuntimeDiagnosticInt("touchJumpMinimumPulseMs", 120, 0, 500)' in VIRTUAL_PAD
 assert "_jumpReleaseAwaitingMapperSample { false }" in VIRTUAL_PAD_HEADER
 assert "if (_jumpReleaseAwaitingMapperSample)" in VIRTUAL_PAD

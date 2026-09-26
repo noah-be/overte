@@ -30,12 +30,14 @@ Original.Button {
     property int buttonGlyphRightMargin: 0;
     property int fontCapitalization: Font.AllUppercase
     // QML-derived signal handlers do not reliably replace this component's
-    // onClicked handler on the mobile Qt builds. Let callers that need a
+    // onClicked handler on the Android Qt build.  Let callers that need a
     // guaranteed action route it through the handler that actually receives
     // the signal.
     property var androidClickAction: null
-    // Keep Apple's existing callback route; derived handlers read this binding.
-    readonly property bool usesAndroidClickAction: Qt.platform.os === "android" || Qt.platform.os === "ios"
+    // Derived handlers must use the same dispatch decision as this base.
+    // Every direct-touch adapter uses the same action path. The legacy property
+    // name remains for existing callers.
+    readonly property bool usesAndroidClickAction: touchMetrics.directTouch
 
     width: hifi.dimensions.buttonWidth
     height: Math.max(hifi.dimensions.controlLineHeight,

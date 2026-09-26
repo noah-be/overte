@@ -11,6 +11,7 @@ SharedControls.TouchUiProfileBase {
     hardwareKeyboardSupported: true
     systemImeAvailable: true
     screenSpacePresentation: true
+    screenSpaceOriginAtSafeArea: true
 
     safeInsetLeft: runtimeMetrics.safeInsetLeft
     safeInsetTop: runtimeMetrics.safeInsetTop
@@ -28,6 +29,8 @@ SharedControls.TouchUiProfileBase {
     vrAudioAvailable: false
     pushToTalkAvailable: false
     avatarAudioToolsAvailable: false
+    systemManagedAudioInput: true
+    systemManagedAudioOutput: true
     dominantHandSettingsAvailable: false
     hmdAlignmentAvailable: false
     externalAvatarCatalogAvailable: false
@@ -37,6 +40,7 @@ SharedControls.TouchUiProfileBase {
     graphicsSettingsAvailable: true
     controllerSettingsAvailable: false
     picoResolutionSettingsAvailable: false
+    touchCameraPreferencesAvailable: true
     navigationPreferencesAvailable: true
     userInterfacePreferencesAvailable: false
     hmdPreferencesAvailable: false

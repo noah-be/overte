@@ -91,8 +91,11 @@ def main() -> None:
     assert "QQuickItem* TabletProxy::getIOSTabletRoot() const" in tablet_proxy_source
     assert "OVERTE_IOS_E2E_TEST_BUILD" in application
     assert "tabletAccessibilityRefresh->setInterval(100)" in application
-    for semantic_navigation_id in ("nav.back", "nav.home", "nav.close"):
-        assert f'objectName: "{semantic_navigation_id}"' in window_root
+    navigation = (ROOT / "interface/resources/qml/hifi/tablet/TabletNavigation.qml").read_text()
+    assert "footer: TabletNavigation" in window_root
+    assert 'objectName: "nav." + modelData.key' in navigation
+    for semantic_navigation_key in ("back", "home", "close"):
+        assert f'key: "{semantic_navigation_key}"' in navigation
     assert "returnToPreviousSemanticScreen" in window_root
     assert "tabletProxy.gotoHomeScreen()" in window_root
     assert "tabletProxy.hideAndroidTablet()" in window_root

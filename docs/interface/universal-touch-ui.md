@@ -143,3 +143,46 @@ duplicated platform QML.
 5. Preserve pointer defaults and the existing Tablet scripting API. A new
    adapter is complete only when the same feature QML works with both the new
    profile and the default pointer profile.
+
+## Shared tablet application surface
+
+`hifi/tablet/WindowRoot.qml` owns the flat-touch presentation on all hosts.
+`TabletNavigation.qml` provides the same Back, Home and Close controls, scaled
+with the host's content scale. Settings retains its own internal Back header;
+other screens use the host's navigation. Feature pages can set
+`tabletNavigationProvided` to avoid duplicating controls when embedded. Back
+first calls the page's `handleTabletBack()`, then follows the host's page history.
+General preferences restore unsaved values before leaving; Avatar closes its
+settings or wearable editor before leaving the app.
+
+`TabletPageLoader.qml` owns loading and recovery. An unavailable component leaves
+a visible recovery view. Native `qmlLoadFailed(parent, generation)` notifications
+carry neither URLs nor diagnostic text; late callbacks and failures cannot
+replace a newer page. Native hosts retain their context validation and security
+rules. Shared page focus is deferred until component completion on every host.
+
+The compatibility startup entry `+android_phoneInterface/mobileTabletApps.js`
+loads `tablet-ui/mobileTabletApps.js`. The shared router registers Audio,
+Settings and Menu with a fixed allowlist of settings destinations; existing
+People, Avatar and Places scripts register the other first-party apps. Flat-touch
+Places uses the same QML directory on both mobile hosts, regardless of optional
+web support. Desktop keeps its existing web route. `PicoPlaces.qml` retains its
+historical filename for compatibility; it is shared presentation.
+
+The People table and styled text field use Controls 2 rather than the removed
+Controls 1 module. Native registrations are deliberately stubbed by the host
+compile audit; that audit validates the real transitive QML graph, not native
+services or physical rendering. The manifest includes all six app entries,
+retained settings subpages/editors, tablet presenters, navigation and dialogs:
+
+```bash
+python3 tests/device/contracts/tablet/test_tablet_qml.py
+OVERTE_QML_TEST_RUNNER=/path/to/qt6/qmltestrunner tests/device/qml/run-qml-tests.sh
+```
+
+The compile audit runs in the complete device control-plane suite. Quick Test
+also exercises People cells/selection/sorting, rendered navigation targets at
+compact/portrait/landscape/scaled-phone sizes, and page-load failure/race recovery.
+An actual client build and device acceptance remain necessary for native input,
+keyboard, safe-area geometry, services, audio, avatar actions and network data.
+Do not count compile-ready components as successful device journeys.

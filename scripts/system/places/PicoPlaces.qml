@@ -1,9 +1,12 @@
 import QtQuick 2.7
 import QtQuick.Controls 2.3
 import QtQuick.Layouts 1.3
+import controlsUit 1.0 as HifiControls
 
 Rectangle {
     id: root
+    readonly property string semanticScreenId: "places.home"
+    HifiControls.TouchUiMetrics { id: touchMetrics; availableWidth: root.width; availableHeight: root.height }
     color: "#303030"
 
     signal sendToScript(var message)
@@ -46,7 +49,9 @@ Rectangle {
         }
     }
 
-    Component.onCompleted: requestContent()
+    // Some hosts complete the QML component before wiring sendToScript.
+    // Dispatch after the loader callback has installed the signal bridge.
+    Component.onCompleted: Qt.callLater(requestContent)
 
     ColumnLayout {
         anchors.fill: parent
@@ -57,15 +62,17 @@ Rectangle {
             Layout.fillWidth: true
 
             Text {
-                text: "OVERTE PLACES"
+                text: qsTr("OVERTE PLACES")
+                wrapMode: Text.WordWrap
                 color: "white"
-                font.pixelSize: 24
+                font.pixelSize: Math.round(24 * touchMetrics.textScale)
                 font.bold: true
                 Layout.fillWidth: true
             }
 
             Button {
-                text: "Refresh"
+                text: qsTr("Refresh")
+                implicitHeight: Math.max(48, touchMetrics.adaptiveMinimumControlHeight)
                 enabled: !root.loading
                 onClicked: root.requestContent()
             }
@@ -76,7 +83,7 @@ Rectangle {
             visible: root.loading
             text: "Loading current domain directory..."
             color: "#b8e6ff"
-            font.pixelSize: 18
+            font.pixelSize: Math.round(18 * touchMetrics.textScale)
             horizontalAlignment: Text.AlignHCenter
         }
 
@@ -85,7 +92,7 @@ Rectangle {
             visible: !root.loading && placesModel.count === 0
             text: "No compatible online places found."
             color: "#dddddd"
-            font.pixelSize: 18
+            font.pixelSize: Math.round(18 * touchMetrics.textScale)
             horizontalAlignment: Text.AlignHCenter
         }
 
@@ -94,6 +101,8 @@ Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            pressDelay: touchMetrics.directTouch ? 100 : 0
             spacing: 8
             model: placesModel
 
@@ -122,7 +131,7 @@ Rectangle {
                             width: parent.width - users.width - 10
                             text: placeName
                             color: "white"
-                            font.pixelSize: 20
+                            font.pixelSize: Math.round(20 * touchMetrics.textScale)
                             font.bold: true
                             elide: Text.ElideRight
                         }
@@ -131,7 +140,7 @@ Rectangle {
                             id: users
                             text: capacity > 0 ? attendance + "/" + capacity : attendance + " online"
                             color: attendance > 0 ? "#76e09a" : "#bbbbbb"
-                            font.pixelSize: 16
+                            font.pixelSize: Math.round(16 * touchMetrics.textScale)
                         }
                     }
 
@@ -139,7 +148,7 @@ Rectangle {
                         width: parent.width
                         text: placeDescription || placeAddress
                         color: "#dddddd"
-                        font.pixelSize: 15
+                        font.pixelSize: Math.round(15 * touchMetrics.textScale)
                         elide: Text.ElideRight
                     }
                 }
@@ -147,7 +156,7 @@ Rectangle {
                 MouseArea {
                     id: mouseArea
                     anchors.fill: parent
-                    hoverEnabled: true
+                    hoverEnabled: touchMetrics.hoverSupported
                     onClicked: {
                         if (placeAddress !== "") {
                             root.sendToScript({

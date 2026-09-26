@@ -127,6 +127,8 @@ public slots:
 signals:
     void rootContextCreated(QQmlContext* rootContext);
     void rootItemCreated(QQuickItem* rootContext);
+    // Internal recovery notification; never contains page contents or error text.
+    void qmlLoadFailed(QQuickItem* parent, int generation);
 
 protected:
     virtual void loadFromQml(const QUrl& qmlSource, QQuickItem* parent, const QJSValue& callback);

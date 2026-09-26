@@ -791,7 +791,12 @@ bool TabletProxy::handleAndroidTabletBack() {
         // replace its content; passing its reduced size back through
         // the presenter entry point would apply the safety inset a second time and
         // make the tablet drift toward the top-left after every Back gesture.
-        gotoHomeScreen();
+        QVariant handled;
+        if (!_desktopWindow || !_desktopWindow->asQuickItem() ||
+                !QMetaObject::invokeMethod(_desktopWindow->asQuickItem(), "returnToPreviousSemanticScreen",
+                    Q_RETURN_ARG(QVariant, handled)) || !handled.toBool()) {
+            gotoHomeScreen();
+        }
     } else {
         hideAndroidTablet();
     }

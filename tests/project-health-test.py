@@ -62,7 +62,7 @@ class ProjectHealthTests(unittest.TestCase):
         custom_query = (
             ROOT / "interface/resources/qml/dialogs/TabletCustomQueryDialog.qml"
         ).read_text(encoding="utf-8")
-        self.assertIn("import QtQuick.Dialogs as OriginalDialogs", custom_query)
+        self.assertNotIn("OriginalDialogs.", custom_query)
         self.assertNotRegex(custom_query, r"import QtQuick\.Dialogs\s+[0-9]")
 
         tablet_root = (

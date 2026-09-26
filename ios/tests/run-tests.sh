@@ -77,6 +77,7 @@ python3 "$script_dir/qt-source-recovery-contract-test.py"
 # Linux image need not install a second Qt toolchain just to run source checks.
 if command -v pkg-config >/dev/null && pkg-config --exists Qt6Qml; then
     python3 "$script_dir/development-reload-test.py"
+    python3 "$script_dir/../../tests/device/contracts/tablet/test_tablet_qml.py"
 else
     echo "SKIP executable development reload test: host Qt6Qml unavailable"
 fi

@@ -22,6 +22,11 @@ Windows.ScrollingWindow {
     id: tabletRoot
     objectName: "tabletRoot"
     property string username: "Unknown user"
+    readonly property string semanticScreenId: {
+        if (!loader.item) { return "" }
+        return loader.item.hasOwnProperty("semanticScreenId")
+            ? loader.item.semanticScreenId : loader.item.objectName || ""
+    }
     signal screenChanged(var type, var url);
 
     property var rootMenu;
@@ -48,49 +53,40 @@ Windows.ScrollingWindow {
     closable: !screenSpaceMode
     pinnable: !screenSpaceMode
     alwaysOnTop: screenSpaceMode
-    contentFlickableInteractive: Qt.platform.os !== "ios" || !screenSpaceMode
+    contentFlickableInteractive: !touchUiProfile.directTouch || !screenSpaceMode
+    TabletSurfaceGeometry { id: surfaceGeometry; profile: touchUiProfile }
 
     function setScreenSpaceMode(value) {
         screenSpaceMode = value
         frame.visible = !value
         if (value) {
             // Windows.Window repositions newly visible framed windows so their
-            // hidden title decoration remains on-screen. Reassert the local
-            // safe-content origin after that visibility pass for the
-            // frameless mobile presenter.
+            // hidden title decoration remains on-screen. Reassert the real
+            // screen origin after that visibility pass for the frameless
+            // Android presenter.
             Qt.callLater(alignScreenSpaceWindow)
         }
     }
 
     function alignScreenSpaceWindow() {
         if (screenSpaceMode) {
-            if (Qt.platform.os === "ios") {
-                // The iOS offscreen surface already represents UIKit's safe
-                // content rectangle, so its children use a local origin.
-                x = 0
-                y = 0
-            } else {
-                // Android's surface covers the full display and still needs
-                // explicit rounded-corner and status-bar margins.
-                x = screenSpaceSafeInsetLeft
-                y = screenSpaceSafeInsetTop
+            x = surfaceGeometry.x
+            y = surfaceGeometry.y
+            if (surfaceGeometry.valid) {
+                width = surfaceGeometry.width
+                height = surfaceGeometry.height
             }
-            width = Math.max(1, screenSpaceSurfaceWidth
-                - screenSpaceSafeInsetLeft - screenSpaceSafeInsetRight)
-            height = Math.max(1, screenSpaceSurfaceHeight
-                - screenSpaceSafeInsetTop
-                - Math.max(screenSpaceSafeInsetBottom, screenSpaceImeInsetBottom))
         }
     }
 
     onVisibleChanged: if (visible && screenSpaceMode) Qt.callLater(alignScreenSpaceWindow)
-    onScreenSpaceSafeInsetLeftChanged: if (screenSpaceMode) Qt.callLater(alignScreenSpaceWindow)
-    onScreenSpaceSafeInsetTopChanged: if (screenSpaceMode) Qt.callLater(alignScreenSpaceWindow)
-    onScreenSpaceSafeInsetRightChanged: if (screenSpaceMode) Qt.callLater(alignScreenSpaceWindow)
-    onScreenSpaceSafeInsetBottomChanged: if (screenSpaceMode) Qt.callLater(alignScreenSpaceWindow)
-    onScreenSpaceImeInsetBottomChanged: if (screenSpaceMode) Qt.callLater(alignScreenSpaceWindow)
-    onScreenSpaceSurfaceWidthChanged: if (screenSpaceMode) Qt.callLater(alignScreenSpaceWindow)
-    onScreenSpaceSurfaceHeightChanged: if (screenSpaceMode) Qt.callLater(alignScreenSpaceWindow)
+    Connections {
+        target: surfaceGeometry
+        function onXChanged() { if (screenSpaceMode) Qt.callLater(alignScreenSpaceWindow) }
+        function onYChanged() { if (screenSpaceMode) Qt.callLater(alignScreenSpaceWindow) }
+        function onWidthChanged() { if (screenSpaceMode) Qt.callLater(alignScreenSpaceWindow) }
+        function onHeightChanged() { if (screenSpaceMode) Qt.callLater(alignScreenSpaceWindow) }
+    }
 
     Settings {
         id: settings
@@ -205,119 +201,15 @@ Windows.ScrollingWindow {
         source: "../../../sounds/Gamemaster-Audio-button-click.wav"
     }
 
-    readonly property string semanticScreenId: {
-        if (!loader.item) {
-            return ""
-        }
-        if (loader.item.hasOwnProperty("semanticScreenId")) {
-            return loader.item.semanticScreenId
-        }
-        return loader.item.objectName || ""
-    }
-    readonly property bool semanticSettingsScreen:
-        semanticScreenId.indexOf("settings.") === 0
-    readonly property bool semanticBackUsesSettingsHeader:
-        loader.source.indexOf("scripts/system/settings/Settings.qml") !== -1
-
-    // Flat-touch iOS keeps navigation visible on every non-home QML screen. These
-    // are production controls; the E2E-only native bridge merely projects the
-    // same frames and Accessible press actions into XCUITest.
-    footer: Row {
-        id: semanticNavigation
-        // ScrollingWindow has a singular default `content` property, occupied
-        // by loader below. Its dedicated footer slot both parents navigation
-        // visibly and reserves space so it cannot cover the page's controls.
-        z: 100000
-        visible: Qt.platform.os === "ios" && tabletRoot.screenSpaceMode
+    footer: TabletNavigation {
+        width: parent.width
+        visible: touchUiProfile.directTouch && tabletRoot.screenSpaceMode
             && loader.source !== "" && loader.source !== "hifi/tablet/TabletHome.qml"
-        spacing: 12
-        anchors.horizontalCenter: parent.horizontalCenter
-        height: visible ? 56 : 0
-        property real buttonWidth: Math.max(80, Math.min(112,
-            (tabletRoot.width - 2 * spacing - 16) / 3))
-
-        Rectangle {
-            id: semanticBack
-            objectName: "nav.back"
-            visible: tabletRoot.semanticScreenId !== "settings.home"
-                && !tabletRoot.semanticBackUsesSettingsHeader
-            width: visible ? semanticNavigation.buttonWidth : 0
-            height: parent.height
-            radius: 8
-            color: backMouse.pressed ? "#161616" : "#2b2b2b"
-            border.color: "#75ead5"
-            Accessible.id: objectName
-            Accessible.role: Accessible.Button
-            Accessible.name: qsTr("Back")
-            Accessible.onPressAction: activate()
-            function activate() { tabletProxy.handleAndroidTabletBack() }
-            Text {
-                anchors.centerIn: parent
-                text: qsTr("BACK")
-                color: "white"
-                font.bold: true
-            }
-            MouseArea {
-                id: backMouse
-                anchors.fill: parent
-                Accessible.ignored: true
-                onClicked: semanticBack.activate()
-            }
-        }
-
-        Rectangle {
-            id: semanticHome
-            objectName: "nav.home"
-            width: semanticNavigation.buttonWidth
-            height: parent.height
-            radius: 8
-            color: homeMouse.pressed ? "#161616" : "#2b2b2b"
-            border.color: "#75ead5"
-            Accessible.id: objectName
-            Accessible.role: Accessible.Button
-            Accessible.name: qsTr("Tablet home")
-            Accessible.onPressAction: activate()
-            function activate() { tabletProxy.gotoHomeScreen() }
-            Text {
-                anchors.centerIn: parent
-                text: qsTr("HOME")
-                color: "white"
-                font.bold: true
-            }
-            MouseArea {
-                id: homeMouse
-                anchors.fill: parent
-                Accessible.ignored: true
-                onClicked: semanticHome.activate()
-            }
-        }
-
-        Rectangle {
-            id: semanticClose
-            objectName: "nav.close"
-            width: semanticNavigation.buttonWidth
-            height: parent.height
-            radius: 8
-            color: closeMouse.pressed ? "#169c86" : "#1fc6a6"
-            border.color: "#75ead5"
-            Accessible.id: objectName
-            Accessible.role: Accessible.Button
-            Accessible.name: qsTr("Close tablet")
-            Accessible.onPressAction: activate()
-            function activate() { tabletProxy.hideAndroidTablet() }
-            Text {
-                anchors.centerIn: parent
-                text: qsTr("CLOSE")
-                color: "#10252d"
-                font.bold: true
-            }
-            MouseArea {
-                id: closeMouse
-                anchors.fill: parent
-                Accessible.ignored: true
-                onClicked: semanticClose.activate()
-            }
-        }
+        contentScale: tabletRoot.screenSpaceContentScale
+        backVisible: !loader.item || !loader.item.hasOwnProperty("currentPage")
+        onBackRequested: tabletRoot.returnToPreviousSemanticScreen()
+        onHomeRequested: tabletProxy.gotoHomeScreen()
+        onCloseRequested: tabletProxy.hideAndroidTablet()
     }
 
     function playButtonClickSound() {
@@ -343,25 +235,21 @@ Windows.ScrollingWindow {
         }
     }
 
-    Item {
+    TabletPageLoader {
         id: loader
-        objectName: "loader";
-        property string source: "";
-        property var item: null;
-        // One host-level scale covers the status bar, launcher, close control,
-        // QML applications and web applications consistently on Android.
+        rootMenu: tabletRoot.rootMenu
+        subMenu: tabletRoot.subMenu
+        sharedTouchNavigation: tabletRoot.screenSpaceMode && touchUiProfile.directTouch
+        onScreenChanged: function(type, url) { tabletRoot.screenChanged(type, url) }
+        onSendToScript: function(message) { tabletRoot.sendToScript(message) }
+        onHomeRequested: tabletProxy.gotoHomeScreen()
         readonly property real contentScale: tabletRoot.screenSpaceMode
             ? tabletRoot.screenSpaceContentScale : 1.0
-
         transformOrigin: Item.TopLeft
         scale: contentScale
         height: pane.scrollHeight / contentScale
         width: pane.contentWidth / contentScale
-
-        // this might be looking not clear from the first look
-        // but loader.parent is not tabletRoot and it can be null!
-        // unfortunately we can't use conditional bindings here due to https://bugreports.qt.io/browse/QTBUG-22005
-
+        // ScrollingWindow reparents its content into the Flickable.
         onParentChanged: {
             if (parent) {
                 anchors.left = Qt.binding(function() { return parent.left })
@@ -370,87 +258,6 @@ Windows.ScrollingWindow {
                 anchors.left = undefined
                 anchors.top = undefined
             }
-        }
-
-        signal loaded;
-        
-        onWidthChanged: {
-            resizeLoadedItem();
-        }
-        
-        onHeightChanged: {
-            resizeLoadedItem();
-        }
-
-        onContentScaleChanged: resizeLoadedItem()
-
-        function resizeLoadedItem() {
-            if (!loader.item) {
-                return;
-            }
-            loader.item.width = loader.width;
-            loader.item.height = loader.height;
-        }
-        
-        function load(newSource, callback) {
-            if (Qt.platform.os === "ios") {
-                console.info("OVERTE_IOS_TABLET_QML stage=load-requested source=" + newSource +
-                    " previous=" + loader.source + " had_item=" + (loader.item !== null))
-            }
-            if (loader.item) {
-                loader.item.destroy();
-                loader.item = null;
-            }
-            
-            loader.source = newSource;
-            QmlSurface.load(newSource, loader, function(newItem) {
-                loader.item = newItem;
-                loader.resizeLoadedItem();
-                loader.loaded();
-                if (loader.item.hasOwnProperty("sendToScript")) {
-                    loader.item.sendToScript.connect(tabletRoot.sendToScript);
-                }
-                if (loader.item.hasOwnProperty("setRootMenu")) {
-                    loader.item.setRootMenu(tabletRoot.rootMenu, tabletRoot.subMenu);
-                }
-                if (Qt.platform.os !== "ios") {
-                    loader.item.forceActiveFocus();
-                }
-                
-                if (callback) {
-                    callback();
-                }                
-
-                var type = "Unknown";
-                if (newSource === "") {
-                    type = "Closed";
-                } else if (newSource === "hifi/tablet/TabletMenu.qml") {
-                    type = "Menu";
-                } else if (newSource === "hifi/tablet/TabletHome.qml") {
-                    type = "Home";
-                } else if (newSource === "hifi/tablet/TabletWebView.qml") {
-                    // Handled in `callback()`
-                    return;
-                } else if (newSource.toLowerCase().indexOf(".qml") > -1) {
-                    type = "QML";
-                } else {
-                    console.log("newSource is of unknown type!");
-                }
-                
-                screenChanged(type, newSource);
-
-                if (Qt.platform.os === "ios") {
-                    Qt.callLater(function() {
-                        if (loader.item !== newItem) {
-                            return
-                        }
-                        loader.item.forceActiveFocus()
-                        console.info("OVERTE_IOS_TABLET_QML stage=load-complete source=" + newSource +
-                            " class=" + loader.item + " size=" + loader.item.width + "x" + loader.item.height +
-                            " visible=" + loader.item.visible + " active_focus=" + loader.item.activeFocus)
-                    })
-                }
-            });
         }
     }
 

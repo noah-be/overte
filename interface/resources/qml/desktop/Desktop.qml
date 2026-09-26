@@ -55,29 +55,10 @@ FocusScope {
         id: rootMenuId
         objectName: "rootMenu" 
 
-        property var exclusionGroups: ({});
-        property Component exclusiveGroupMaker: Component {
-            ActionGroup {
-                exclusive: true
-            }
-        }
-
-        function addMenuWrap(menu) {
-            return addMenu(menu)
-        }
-
-        function addItemWrap(item) {
-            addItem(item)
-        }
-
         function addExclusionGroup(qmlAction, exclusionGroup) {
-
-            var exclusionGroupId = exclusionGroup.toString();
-            if(!exclusionGroups[exclusionGroupId]) {
-                exclusionGroups[exclusionGroupId] = exclusiveGroupMaker.createObject(rootMenuId);
-            }
-
-            exclusionGroups[exclusionGroupId].addAction(qmlAction)
+            // QAction owns exclusivity and checked state. The tablet only needs
+            // this marker to render the corresponding radio indicator.
+            qmlAction.tabletExclusive = !!exclusionGroup;
         }
     }
 

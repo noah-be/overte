@@ -36,8 +36,7 @@ Windows.Window {
     property bool keyboardEnabled: false
     property bool keyboardRaised: false
     property bool punctuationMode: false
-    // Full-screen tablet applications commonly provide their own Flickable.
-    // A non-scrolling outer Flickable otherwise steals direct-touch drags.
+
     property bool contentFlickableInteractive: true
 
     readonly property real verticalScrollWidth: 10
