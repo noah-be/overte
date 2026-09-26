@@ -41,6 +41,10 @@
           {
             "context": "Enforce apple-main sync path",
             "integration_id": 15368
+          },
+          {
+            "context": "ios-device-build",
+            "integration_id": 15368
           }
         ],
         "strict_required_status_checks_policy": true
