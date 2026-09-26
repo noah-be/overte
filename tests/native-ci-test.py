@@ -197,6 +197,8 @@ class WorkflowCostTests(unittest.TestCase):
         self.assertNotRegex(source, r'(?m)^  (push|pull_request|schedule):')
         self.assertIn("if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)", source)
         self.assertIn('--build=missing', source)
+        self.assertLess(source.index('Install native system prerequisites'), source.index('Prepare missing binaries once'))
+        self.assertIn('qtbase5-private-dev', source)
         self.assertIn("conan cache clean '*' --source --build --download --temp", source)
         cache_key = "native-deps-babe51f7c369-v1-${{ hashFiles('conanfile.py', 'tools/conan-profiles/linux', 'tools/native-tests/conan-linux.lock') }}"
         self.assertIn(cache_key, source)
@@ -232,6 +234,36 @@ class WorkflowCostTests(unittest.TestCase):
         self.assertIn('org.opencontainers.image.source="https://github.com/noah-be/overte"', dockerfile)
         self.assertIn('conan cache restore /native-packages/conan-packages.tgz', dockerfile)
         self.assertNotIn('COPY . ', dockerfile)
+
+    def test_container_workspace_uses_runtime_paths_and_exact_git_trust(self):
+        import yaml
+        for name in ('native-tests.yml', 'native-dependencies.yml'):
+            with self.subTest(workflow=name), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                workspace = root / 'container workspace'
+                workspace.mkdir()
+                subprocess.run(['git', 'init', '-q', str(workspace)], check=True)
+                workflow = yaml.safe_load((ROOT / '.github/workflows' / name).read_text())
+                job = workflow['jobs']['build' if name == 'native-tests.yml' else 'prepare']
+                steps = job['steps']
+                setup = next(step for step in steps if step.get('name') == 'Initialize the container workspace')
+                self.assertNotIn('CONAN_HOME', job.get('env', {}))
+                self.assertNotIn('CCACHE_DIR', job.get('env', {}))
+                self.assertLess(steps.index(setup), next(i for i, step in enumerate(steps)
+                    if 'check.py plan' in step.get('run', '')))
+                env_file = root / 'environment'
+                config = root / 'gitconfig'
+                env = {**os.environ, 'GITHUB_WORKSPACE': str(workspace),
+                       'GITHUB_ENV': str(env_file), 'GIT_CONFIG_GLOBAL': str(config),
+                       'GIT_CONFIG_NOSYSTEM': '1'}
+                subprocess.run(['bash', '-euo', 'pipefail', '-c', setup['run']],
+                               cwd=workspace, env=env, check=True)
+                values = dict(line.split('=', 1) for line in env_file.read_text().splitlines())
+                self.assertEqual(values['CONAN_HOME'], str(workspace / '.native-conan'))
+                self.assertEqual(values['CCACHE_DIR'], str(workspace / '.native-ccache'))
+                trusted = subprocess.check_output(['git', 'config', '--global', '--get-all',
+                    'safe.directory'], env=env, text=True).splitlines()
+                self.assertEqual(trusted, [str(workspace)])
 
     def test_cache_actions_use_the_existing_repository_allowlist(self):
         for name in ('native-tests.yml', 'native-dependencies.yml'):
