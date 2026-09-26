@@ -454,7 +454,12 @@ Item {
                 anchors.fill: parent
                 objectName: "OverteTabletClose"
                 activeFocusOnTab: visible
-                Accessible.id: objectName
+                // Older host Qt versions lack the optional native identifier property.
+                Component.onCompleted: {
+                    if ("id" in Accessible) {
+                        Accessible.id = Qt.binding(function() { return objectName })
+                    }
+                }
                 Accessible.role: Accessible.Button
                 Accessible.name: qsTr("Close tablet")
                 Accessible.description: qsTr("Return to the world controls")
