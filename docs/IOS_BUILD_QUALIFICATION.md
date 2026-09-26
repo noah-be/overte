@@ -53,11 +53,15 @@ later commit.
 
 ## Inspect before a manual build
 
-The helper intentionally searches the recent `iOS bootstrap` history across iOS
-topics: run 686 on a prerelease topic already exposed the missing header later
+The helper searches both `iOS bootstrap` and `iOS device build qualification`
+history across iOS topics and PRs: run 686 on a prerelease topic already exposed the missing header later
 reported by run 687 on `apple-ios`. It inspects the latest failed log and outputs
 only bounded diagnostic categories, not raw logs or private device information.
-The report declares its bounded history window.
+The report declares a bounded window of 50 runs per workflow and records workflow
+identity alongside run/attempt/build number, because build numbers are local to
+each workflow. Before initial deployment, an unregistered qualification workflow
+is explicit; an incomplete workflow inventory fails rather than silently omitting
+it. Compilation failures and timeouts from either workflow require investigation.
 Expired or unavailable logs are explicitly reported as uninspected with an unknown
 diagnosis; they do not erase the recorded failure or claim a successful review.
 The manual dispatch still requires a concrete diagnosis from retained evidence.

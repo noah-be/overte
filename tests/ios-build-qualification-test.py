@@ -257,6 +257,53 @@ class CandidateTests(unittest.TestCase):
 
 
 class HistoryTests(unittest.TestCase):
+    def test_history_covers_qualification_failures_and_workflow_identity(self):
+        repo = {"full_name": HISTORY.REPOSITORY, "id": HISTORY.REPOSITORY_ID}
+        workflows = [{"id": index, "path": f".github/workflows/{name}"}
+                     for index, name in enumerate(HISTORY.HISTORY_WORKFLOWS, 1)]
+        runs = [{"id": 9000 + item["id"], "workflow_id": item["id"], "path": item["path"],
+                 "name": item["path"], "repository": repo, "run_attempt": 1,
+                 "run_number": 688 if item["id"] == 1 else 1, "head_sha": SOURCE,
+                 "head_branch": "apple-ios" if item["id"] == 1 else "ci/ios/example",
+                 "status": "completed", "conclusion": "failure", "event": "pull_request",
+                 "created_at": f"2026-09-26T10:0{item['id']}:00Z",
+                 "html_url": f"https://github.com/noah-be/overte/actions/runs/{9000 + item['id']}"}
+                for item in workflows]
+        responses = {
+            f"repos/{HISTORY.REPOSITORY}/actions/workflows?per_page=100":
+                {"total_count": 2, "workflows": workflows},
+            **{f"repos/{HISTORY.REPOSITORY}/actions/workflows/{run['workflow_id']}/runs?per_page=50":
+               {"workflow_runs": [run]} for run in runs}}
+        with patch.object(HISTORY, "api", side_effect=responses.__getitem__):
+            selected, coverage = HISTORY.read_history()
+        self.assertEqual(len(selected), 2)
+        self.assertTrue(all(item["status"] == "inspected" for item in coverage.values()))
+        jobs = lambda _: [{"name": HISTORY.BUILD_JOB, "conclusion": "failure"}]
+        report = HISTORY.analyze(selected, jobs, lambda _: [], SOURCE)
+        self.assertEqual(report["latestFailure"]["runId"], 9002)
+        self.assertEqual(report["latestFailure"]["buildNumber"], 1)
+        self.assertEqual(report["latestFailure"]["workflow"]["path"], workflows[1]["path"])
+        self.assertIsNone(report["latestDeviceBuild"])
+        # A timed-out qualification is also a failure requiring investigation.
+        selected[-1]["conclusion"] = "timed_out"
+        self.assertEqual(HISTORY.analyze(selected, jobs, lambda _: [], SOURCE)
+                         ["latestFailure"]["runId"], 9002)
+        # A foreign run must not silently become this fork's build history.
+        runs[1]["repository"] = {"full_name": "other/overte", "id": 99}
+        with patch.object(HISTORY, "api", side_effect=responses.__getitem__), self.assertRaises(ValueError):
+            HISTORY.read_history()
+
+    def test_unregistered_qualification_is_explicit_and_inventory_must_be_complete(self):
+        workflow = {"id": 1, "path": ".github/workflows/ios-bootstrap.yml"}
+        inventory = {"total_count": 1, "workflows": [workflow]}
+        with patch.object(HISTORY, "api", side_effect=[inventory, {"workflow_runs": []}]):
+            runs, coverage = HISTORY.read_history()
+        self.assertEqual(runs, [])
+        self.assertEqual(coverage["ios-build-qualification.yml"]["status"], "not-registered")
+        inventory["total_count"] = 2
+        with patch.object(HISTORY, "api", return_value=inventory), self.assertRaises(ValueError):
+            HISTORY.read_history()
+
     def test_expired_failure_logs_remain_explicitly_unknown(self):
         with patch.object(HISTORY, "gh", side_effect=subprocess.CalledProcessError(1, ["gh"])):
             result = HISTORY.failure_diagnostics(687)
