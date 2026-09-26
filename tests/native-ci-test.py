@@ -227,6 +227,56 @@ class WorkflowCostTests(unittest.TestCase):
 
 
 class GitInventoryTests(unittest.TestCase):
+    def test_sparse_routing_checkout_runs_real_main_and_ios_preflight(self):
+        import shutil
+        import yaml
+        workflow = yaml.safe_load((ROOT / '.github/workflows/repository-checks.yml').read_text())
+        checkout = next(step for step in workflow['jobs']['route']['steps']
+                        if step.get('name') == 'Check out trusted routing policy')
+        directories = checkout['with']['sparse-checkout'].splitlines()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            trusted, candidate = root / 'trusted', root / 'candidate'
+            trusted.mkdir()
+            candidate.mkdir()
+            for directory in directories:
+                shutil.copytree(ROOT / directory, trusted / directory)
+            def git(*args):
+                return subprocess.check_output(['git', *args], cwd=candidate,
+                                               text=True, stderr=subprocess.PIPE).strip()
+            git('init', '-q', '-b', 'base')
+            git('config', 'user.email', 'native-test@example.invalid')
+            git('config', 'user.name', 'Native fixture')
+            (candidate / 'README.md').write_text('base')
+            wiring = candidate / '.github/workflows/ios-build-qualification.yml'
+            wiring.parent.mkdir(parents=True)
+            wiring.write_bytes((ROOT / 'tools/ios-build-qualification/workflow.yml').read_bytes())
+            git('add', '.')
+            git('commit', '-qm', 'Base fixture')
+            base = git('rev-parse', 'HEAD')
+            git('switch', '-qc', 'candidate')
+            (candidate / 'README.md').write_text('documentation update')
+            git('commit', '-qam', 'Candidate fixture')
+            head = git('rev-parse', 'HEAD')
+            git('switch', '-q', 'base')
+            git('merge', '--no-ff', '-m', 'Merge fixture', head)
+            merge = git('rev-parse', 'HEAD')
+            repository = {'id': 1319052603, 'full_name': 'noah-be/overte'}
+            event_file, output = root / 'event.json', root / 'output'
+            command = [sys.executable, str(trusted / 'tools/repository-checks/check.py'), 'plan',
+                       '--event', str(event_file), '--candidate', str(candidate), '--sha', merge,
+                       '--output', str(output)]
+            for branch in ('main', 'apple-ios'):
+                event = {'repository': repository, 'pull_request': {
+                    'base': {'ref': branch, 'sha': base, 'repo': repository},
+                    'head': {'ref': 'fix/main/fixture', 'sha': head, 'repo': repository}}}
+                event_file.write_text(json.dumps(event))
+                result = subprocess.run(command, capture_output=True, text=True, timeout=10)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(json.loads(result.stdout)['mode'], 'documentation')
+            shutil.rmtree(trusted / 'tools/ios-build-qualification')
+            self.assertNotEqual(subprocess.run(command, capture_output=True, timeout=10).returncode, 0)
+
     def test_actual_merge_inventory_covers_deletion_rename_and_more_than_300_files(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
