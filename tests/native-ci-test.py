@@ -26,6 +26,7 @@ POLICY = load('native_policy', 'tools/native-tests/check.py')
 SELECT = load('native_select', 'tools/native-tests/select.py')
 GATE = load('native_gate', 'tools/repository-checks/check.py')
 SHADERS = load('native_shaders', 'tools/native-tests/shader-cache.py')
+PACKAGES = load('native_packages', 'tools/native-tests/packages.py')
 
 
 class RoutingTests(unittest.TestCase):
@@ -127,6 +128,43 @@ class RoutingTests(unittest.TestCase):
         self.assertEqual(candidates, covered, 'Every native executable needs an explicit CI disposition')
 
 
+class PreparedPackageTests(unittest.TestCase):
+    def test_input_identity_allows_code_edits_but_rejects_unprepared_dependencies(self):
+        import hashlib
+        import copy
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            inputs = {}
+            for name in PACKAGES.INPUTS:
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(name)
+                inputs[name] = hashlib.sha256(path.read_bytes()).hexdigest()
+            metadata = {'schema': 1, 'repository': 'noah-be/overte', 'source_sha': 'a' * 40,
+                        'run_id': '123', 'archive_sha256': 'b' * 64, 'inputs': inputs}
+            self.assertEqual(PACKAGES.verify(root, metadata)['status'], 'PASS')
+            (root / 'main.cpp').write_text('changed production code')
+            self.assertEqual(PACKAGES.verify(root, metadata)['status'], 'PASS')
+            for name in PACKAGES.INPUTS:
+                path = root / name
+                original = path.read_bytes()
+                path.write_bytes(original + b' changed')
+                with self.assertRaisesRegex(ValueError, 'prepare and review'):
+                    PACKAGES.verify(root, metadata)
+                path.write_bytes(original)
+            for key, value in (('repository', 'overte-org/overte'), ('source_sha', 'main'),
+                               ('run_id', '0'), ('archive_sha256', ''), ('inputs', {})):
+                wrong = copy.deepcopy(metadata)
+                wrong[key] = value
+                with self.assertRaises(ValueError):
+                    PACKAGES.verify(root, wrong)
+            target = root / PACKAGES.INPUTS[0]
+            target.unlink()
+            target.symlink_to(root / PACKAGES.INPUTS[1])
+            with self.assertRaisesRegex(ValueError, 'regular file'):
+                PACKAGES.verify(root, metadata)
+
+
 class WorkflowCostTests(unittest.TestCase):
     def test_native_jobs_are_selected_once_and_cache_hits_do_not_skip_tests(self):
         workflow = (ROOT / '.github/workflows/native-tests.yml').read_text()
@@ -175,6 +213,37 @@ class WorkflowCostTests(unittest.TestCase):
         for workflow in (source, ordinary):
             self.assertIn('native-deps-' + image.group(2)[:12] + '-v1-', workflow)
             self.assertIn('native-ccache-' + image.group(2)[:12] + '-v1-', workflow)
+
+    def test_package_publishing_requires_successful_manual_qualification(self):
+        workflow = (ROOT / '.github/workflows/native-dependencies.yml').read_text()
+        prepare, publish = workflow.split('  publish:', 1)
+        self.assertNotIn('packages: write', prepare)
+        self.assertIn('needs: prepare', publish)
+        self.assertNotIn('always()', publish.split('    steps:', 1)[0])
+        self.assertIn("github.repository == 'noah-be/overte'", publish)
+        self.assertIn("github.event.repository.default_branch", publish)
+        self.assertIn('ref: ${{ github.sha }}', publish)
+        self.assertIn('ghcr.io/noah-be/overte/native-dependencies:', publish)
+        self.assertIn("metadata['source_sha'] == os.environ['BASELINE_SHA']", publish)
+        self.assertIn("metadata['run_id'] == os.environ['GITHUB_RUN_ID']", publish)
+        self.assertIn("== metadata['archive_sha256']", publish)
+        self.assertIn("conan cache save '*#*:*#*' --no-source", prepare)
+        dockerfile = (ROOT / 'tools/native-tests/package-image.Dockerfile').read_text()
+        self.assertIn('org.opencontainers.image.source="https://github.com/noah-be/overte"', dockerfile)
+        self.assertIn('conan cache restore /native-packages/conan-packages.tgz', dockerfile)
+        self.assertNotIn('COPY . ', dockerfile)
+
+    def test_cache_actions_use_the_existing_repository_allowlist(self):
+        for name in ('native-tests.yml', 'native-dependencies.yml'):
+            source = (ROOT / '.github/workflows' / name).read_text()
+            self.assertNotIn('uses: actions/cache@', source)
+            for action, sha in re.findall(r'uses: (actions/cache(?:/[^@\s]+)?)@([0-9a-f]+)', source):
+                self.assertIn(action, ('actions/cache/restore', 'actions/cache/save'))
+                self.assertEqual(sha, 'caa296126883cff596d87d8935842f9db880ef25')
+            for title in ('Save successful compiler cache', 'Save successful shader outputs'):
+                step = source.split('      - name: ' + title, 1)[1].split('      - name:', 1)[0]
+                self.assertIn('if: success()', step)
+                self.assertIn('cache-primary-key', step)
 
     def test_linux_dependency_lock_freezes_recipe_revisions(self):
         lock = json.loads((ROOT / 'tools/native-tests/conan-linux.lock').read_text())
