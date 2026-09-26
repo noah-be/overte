@@ -148,7 +148,7 @@ class V8IOSCheckpointContractTest(unittest.TestCase):
         self.assertNotIn("fail-on-cache-miss: true", consumer)
         self.assertIn("Restore durable V8 artifact after cache miss", consumer)
         self.assertIn("needs.v8-checkpoint.outputs.artifact-prefix", consumer)
-        self.assertIn("OVERTE_CHECKPOINT_BRANCH: ${{ github.ref_name }}", consumer)
+        self.assertIn("OVERTE_CHECKPOINT_BRANCH: ${{ github.head_ref || github.ref_name }}", consumer)
         self.assertIn('--expected-branch "$OVERTE_CHECKPOINT_BRANCH"', consumer)
         self.assertIn("Fail closed without validated V8", consumer)
 

@@ -64,7 +64,7 @@ jobs:
       qt_ios_artifact_prefix: ${{ steps.cache-key.outputs.ios_artifact_prefix }}
     env:
       OVERTE_CHECKPOINT_REPOSITORY_ID: ${{ github.repository_id }}
-      OVERTE_CHECKPOINT_BRANCH: ${{ github.ref_name }}
+      OVERTE_CHECKPOINT_BRANCH: ${{ github.head_ref || github.ref_name }}
       OVERTE_ARTIFACT_INDEX_CACHE: ${{ github.workspace }}/build-ios/ios-artifact-index-${{ github.run_id }}-${{ github.run_attempt }}-qt.json
       OVERTE_TARGET_SDK: ${{ inputs.target_sdk }}
       QT_WORK_ROOT: ${{ github.workspace }}/build-ios/qt-work

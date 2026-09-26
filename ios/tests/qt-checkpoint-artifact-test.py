@@ -376,6 +376,19 @@ assert module.select_artifact(artifacts, "qt-host", 99, "apple-ios")["id"] == 5
 assert module.select_artifact(artifacts, "qt-host", 42, "other")["id"] == 6
 assert module.select_artifact(artifacts, "absent", 42, "apple-ios") is None
 
+# The Actions artifact API records a PR's head branch, not its synthetic merge
+# ref. Keep exact branch and head-repository validation rather than broadening the
+# selector to make the wrong ref work.
+pr_artifacts = [
+    {"id": 7, "name": "client-objects-7-1", "created_at": "2026-09-26T00:00:00Z", "expired": False,
+     "workflow_run": {"repository_id": 42, "head_repository_id": 42, "head_branch": "fix/ios/cache"}},
+    {"id": 8, "name": "client-objects-8-1", "created_at": "2026-09-26T01:00:00Z", "expired": False,
+     "workflow_run": {"repository_id": 42, "head_repository_id": 99, "head_branch": "fix/ios/cache"}},
+]
+assert module.select_artifact(pr_artifacts, "client-objects", 42, "973/merge") is None
+assert module.select_artifact(pr_artifacts, "client-objects", 42, "fix/ios/cache")["id"] == 7
+assert module.select_artifact(pr_artifacts, "client-objects", 42, "apple-ios") is None
+
 # The opt-in index reuses only complete, recent repository listings. Selection
 # still runs for each request, including every repository/branch provenance gate.
 with tempfile.TemporaryDirectory(prefix="artifact-index-test-") as index_temp:

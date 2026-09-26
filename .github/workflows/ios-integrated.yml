@@ -137,7 +137,7 @@ jobs:
       artifact-prefix: ${{ steps.v8-cache-key.outputs.artifact-prefix }}
     env:
       OVERTE_CHECKPOINT_REPOSITORY_ID: ${{ github.repository_id }}
-      OVERTE_CHECKPOINT_BRANCH: ${{ github.ref_name }}
+      OVERTE_CHECKPOINT_BRANCH: ${{ github.head_ref || github.ref_name }}
       OVERTE_ARTIFACT_INDEX_CACHE: ${{ github.workspace }}/build-ios/ios-artifact-index-${{ github.run_id }}-${{ github.run_attempt }}-v8.json
       OVERTE_IOS_V8_ROOT: ${{ github.workspace }}/build-ios/external/v8-ios
       IOS_RUNNER_TELEMETRY_DIR: ${{ github.workspace }}/build-ios/v8-telemetry
@@ -457,7 +457,7 @@ jobs:
     timeout-minutes: 185
     env:
       OVERTE_CHECKPOINT_REPOSITORY_ID: ${{ github.repository_id }}
-      OVERTE_CHECKPOINT_BRANCH: ${{ github.ref_name }}
+      OVERTE_CHECKPOINT_BRANCH: ${{ github.head_ref || github.ref_name }}
       OVERTE_ARTIFACT_INDEX_CACHE: ${{ github.workspace }}/build-ios/ios-artifact-index-${{ github.run_id }}-${{ github.run_attempt }}-client.json
       OVERTE_IOS_QT_ROOT: ${{ github.workspace }}/build-ios/qt-install/qt/ios
       OVERTE_IOS_QT_HOST_ROOT: ${{ github.workspace }}/build-ios/qt-install/qt/macos
@@ -746,8 +746,24 @@ jobs:
             --install-root "build-ios/client-checkpoint-restore/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
             --github-output "$GITHUB_OUTPUT"
 
+      - name: Restore trusted apple-ios full-client compiler checkpoint
+        id: client-sccache-apple-ios-artifact
+        if: steps.client-sccache-artifact.outputs.restored != 'true' && github.ref_name != 'apple-ios'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 ios/ci/qt-checkpoint-artifact.py restore \
+            --artifact-prefix "${{ steps.client-sccache-key.outputs.artifact-prefix }}" \
+            --kind client-sccache \
+            --cache-key "${{ steps.client-sccache-key.outputs.namespace }}" \
+            --expected-repository-id "$OVERTE_CHECKPOINT_REPOSITORY_ID" \
+            --expected-branch apple-ios \
+            --install-root "build-ios/client-checkpoint-restore/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --github-output "$GITHUB_OUTPUT"
+
       - name: Merge validated compiler objects without deleting existing entries
-        if: steps.client-sccache-artifact.outputs.restored == 'true'
+        if: steps.client-sccache-artifact.outputs.restored == 'true' || steps.client-sccache-apple-ios-artifact.outputs.restored == 'true'
         run: |
           python3 ios/ci/merge-compiler-checkpoint.py \
             "build-ios/client-checkpoint-restore/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/client-sccache" \
@@ -755,7 +771,7 @@ jobs:
 
       - name: Restore compatible full-client compiler checkpoint
         id: client-sccache-cache
-        if: steps.client-sccache-artifact.outputs.restored != 'true'
+        if: steps.client-sccache-artifact.outputs.restored != 'true' && steps.client-sccache-apple-ios-artifact.outputs.restored != 'true'
         uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: ${{ github.workspace }}/build-ios/client-sccache
@@ -800,9 +816,26 @@ jobs:
             --install-root "${{ github.workspace }}/build-ios" \
             --github-output "$GITHUB_OUTPUT"
 
+      - name: Restore trusted apple-ios Conan package checkpoint
+        id: conan-apple-ios-artifact
+        if: steps.conan-cache.outputs.cache-hit != 'true' && steps.conan-artifact.outputs.restored != 'true' && github.ref_name != 'apple-ios'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 ios/ci/qt-checkpoint-artifact.py restore \
+            --artifact-prefix "${{ steps.conan-cache-key.outputs.artifact-prefix }}" \
+            --kind conan \
+            --cache-key "${{ steps.conan-cache-key.outputs.key }}" \
+            --expected-repository-id "$OVERTE_CHECKPOINT_REPOSITORY_ID" \
+            --expected-branch apple-ios \
+            --max-age-days 21 \
+            --install-root "${{ github.workspace }}/build-ios" \
+            --github-output "$GITHUB_OUTPUT"
+
       - name: Restore partial Conan package checkpoint
         id: conan-partial-cache
-        if: steps.conan-cache.outputs.cache-hit != 'true' && steps.conan-artifact.outputs.restored != 'true'
+        if: steps.conan-cache.outputs.cache-hit != 'true' && steps.conan-artifact.outputs.restored != 'true' && steps.conan-apple-ios-artifact.outputs.restored != 'true'
         uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: ${{ env.CONAN_HOME }}
