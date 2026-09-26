@@ -62,6 +62,16 @@ jobs:
           path: .native-conan
           key: native-deps-babe51f7c369-v1-${{ hashFiles('conanfile.py', 'tools/conan-profiles/linux', 'tools/native-tests/conan-linux.lock') }}
 
+      - name: Install native system prerequisites before Conan validation
+        run: |
+          apt-get update -qq
+          apt-get install -y --no-install-recommends ccache libglm-dev nlohmann-json3-dev \
+            qtbase5-private-dev qtwebengine5-dev-tools libqt5multimedia5-plugins \
+            qt5-image-formats-plugins fcitx5-frontend-qt5 qtxmlpatterns5-dev-tools \
+            qttools5-dev libqt5x11extras5-dev libqt5svg5-dev qml-module-qtwebchannel \
+            qml-module-qtquick-controls qml-module-qtquick-controls2 qml-module-qt-labs-settings \
+            qml-module-qtquick-dialogs qml-module-qtwebengine
+
       - name: Prepare missing binaries once
         run: |
           mkdir -p "$CONAN_HOME"
@@ -116,11 +126,6 @@ jobs:
           path: .native-ccache
           key: native-ccache-babe51f7c369-v1-full-${{ inputs.candidate_sha || github.sha }}
           restore-keys: native-ccache-babe51f7c369-v1-full-
-
-      - name: Install compiler cache and core prerequisites
-        run: |
-          apt-get update -qq
-          apt-get install -y --no-install-recommends ccache libglm-dev nlohmann-json3-dev
 
       - name: Configure the baseline
         run: |

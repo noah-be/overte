@@ -197,6 +197,8 @@ class WorkflowCostTests(unittest.TestCase):
         self.assertNotRegex(source, r'(?m)^  (push|pull_request|schedule):')
         self.assertIn("if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)", source)
         self.assertIn('--build=missing', source)
+        self.assertLess(source.index('Install native system prerequisites'), source.index('Prepare missing binaries once'))
+        self.assertIn('qtbase5-private-dev', source)
         self.assertIn("conan cache clean '*' --source --build --download --temp", source)
         cache_key = "native-deps-babe51f7c369-v1-${{ hashFiles('conanfile.py', 'tools/conan-profiles/linux', 'tools/native-tests/conan-linux.lock') }}"
         self.assertIn(cache_key, source)
