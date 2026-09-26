@@ -163,9 +163,21 @@ Review its diff and qualify the new packages before activating them. The lock
 fixes recipe resolution; it does not promise identical system packages or
 replace binary availability. Cache eviction or a
 missing/new dependency must remain a visible prerequisite failure. Before relying
-on this as an unattended long-term gate, distribute the qualified packages through
-a durable fork-owned artifact or image store; GitHub cache retention is not a
-package availability guarantee. That publication is outside local-only work.
+on this as an unattended long-term gate, pin a qualified package image from the
+fork-owned registry; GitHub cache retention is not a package availability
+guarantee. Package publication and consumer activation are separate reviewed steps.
+
+The manual baseline also exports Conan recipe/package data with `conan cache
+save --no-source`. The archive excludes authentication databases, profiles,
+source/build trees, and project sources. Only after product qualification succeeds,
+a separate publisher job with `packages: write` stores it in
+`ghcr.io/noah-be/overte/native-dependencies`, linked to this fork. Candidate build
+and test execution has no package-write token. The publisher checks archive hash,
+source SHA, and workflow run identity, then builds from the trusted default-branch
+Dockerfile. Transport archives expire after one day; the registry image persists
+independently of Actions cache eviction. The published immutable digest and input
+hashes are recorded for review before updating the native consumer. Publishing a
+package is not a product release and does not activate the native gate.
 
 Deploy in stages because selection and aggregation execute default-branch tools:
 

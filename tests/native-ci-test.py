@@ -176,6 +176,37 @@ class WorkflowCostTests(unittest.TestCase):
             self.assertIn('native-deps-' + image.group(2)[:12] + '-v1-', workflow)
             self.assertIn('native-ccache-' + image.group(2)[:12] + '-v1-', workflow)
 
+    def test_package_publishing_requires_successful_manual_qualification(self):
+        workflow = (ROOT / '.github/workflows/native-dependencies.yml').read_text()
+        prepare, publish = workflow.split('  publish:', 1)
+        self.assertNotIn('packages: write', prepare)
+        self.assertIn('needs: prepare', publish)
+        self.assertNotIn('always()', publish.split('    steps:', 1)[0])
+        self.assertIn("github.repository == 'noah-be/overte'", publish)
+        self.assertIn("github.event.repository.default_branch", publish)
+        self.assertIn('ref: ${{ github.sha }}', publish)
+        self.assertIn('ghcr.io/noah-be/overte/native-dependencies:', publish)
+        self.assertIn("metadata['source_sha'] == os.environ['BASELINE_SHA']", publish)
+        self.assertIn("metadata['run_id'] == os.environ['GITHUB_RUN_ID']", publish)
+        self.assertIn("== metadata['archive_sha256']", publish)
+        self.assertIn("conan cache save '*#*:*#*' --no-source", prepare)
+        dockerfile = (ROOT / 'tools/native-tests/package-image.Dockerfile').read_text()
+        self.assertIn('org.opencontainers.image.source="https://github.com/noah-be/overte"', dockerfile)
+        self.assertIn('conan cache restore /native-packages/conan-packages.tgz', dockerfile)
+        self.assertNotIn('COPY . ', dockerfile)
+
+    def test_cache_actions_use_the_existing_repository_allowlist(self):
+        for name in ('native-tests.yml', 'native-dependencies.yml'):
+            source = (ROOT / '.github/workflows' / name).read_text()
+            self.assertNotIn('uses: actions/cache@', source)
+            for action, sha in re.findall(r'uses: (actions/cache(?:/[^@\s]+)?)@([0-9a-f]+)', source):
+                self.assertIn(action, ('actions/cache/restore', 'actions/cache/save'))
+                self.assertEqual(sha, 'caa296126883cff596d87d8935842f9db880ef25')
+            for title in ('Save successful compiler cache', 'Save successful shader outputs'):
+                step = source.split('      - name: ' + title, 1)[1].split('      - name:', 1)[0]
+                self.assertIn('if: success()', step)
+                self.assertIn('cache-primary-key', step)
+
     def test_linux_dependency_lock_freezes_recipe_revisions(self):
         lock = json.loads((ROOT / 'tools/native-tests/conan-linux.lock').read_text())
         self.assertEqual(lock['version'], '0.5')
