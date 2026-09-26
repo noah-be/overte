@@ -14,10 +14,13 @@ The trusted tools under
 
 The independent required repository router compares the candidate's orchestration
 with the template on the trusted default branch. A PR cannot replace the final
-verifier or make it optional. The rollout flag in
-[the trusted configuration](../.github/ios-build-qualification.json) is initially
-off until the product workflow exists. An off flag is an incomplete deployment,
-not evidence that build protection is active.
+verifier or make it optional. The `enforceWorkflow` flag in
+[the trusted configuration](../.github/ios-build-qualification.json) requires the
+workflow to exist and match the template. The versioned Apple target ruleset also
+requires `ios-device-build` alongside its existing topology check, with strict
+up-to-date validation and GitHub Actions integration binding. An off flag or a
+missing live required check is an incomplete deployment. Verify live settings;
+the versioned files alone do not establish active protection.
 
 The workflow runs for every PR targeting `apple-ios`, including parent merges and
 retargeting. The router reads the exact synthetic merge candidate, checks its two
@@ -50,11 +53,15 @@ later commit.
 
 ## Inspect before a manual build
 
-The helper intentionally searches the recent `iOS bootstrap` history across iOS
-topics: run 686 on a prerelease topic already exposed the missing header later
+The helper searches both `iOS bootstrap` and `iOS device build qualification`
+history across iOS topics and PRs: run 686 on a prerelease topic already exposed the missing header later
 reported by run 687 on `apple-ios`. It inspects the latest failed log and outputs
 only bounded diagnostic categories, not raw logs or private device information.
-The report declares its bounded history window.
+The report declares a bounded window of 50 runs per workflow and records workflow
+identity alongside run/attempt/build number, because build numbers are local to
+each workflow. Before initial deployment, an unregistered qualification workflow
+is explicit; an incomplete workflow inventory fails rather than silently omitting
+it. Compilation failures and timeouts from either workflow require investigation.
 Expired or unavailable logs are explicitly reported as uninspected with an unknown
 diagnosis; they do not erase the recorded failure or claim a successful review.
 The manual dispatch still requires a concrete diagnosis from retained evidence.

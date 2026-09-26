@@ -369,6 +369,10 @@ class RulesetManifestContracts(unittest.TestCase):
             self.assertTrue(parameters["strict_required_status_checks_policy"])
             self.assertFalse(parameters["do_not_enforce_on_create"])
             expected_checks = [{"context": context, "integration_id": 15368}]
+            if name == "Apple target branch topology":
+                expected_checks.append(
+                    {"context": "ios-device-build", "integration_id": 15368}
+                )
             if name == "Permanent branch governance":
                 expected_checks.insert(0, {"context": "dependency-release-policy", "integration_id": 15368})
                 expected_checks.append(
