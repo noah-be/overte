@@ -25,8 +25,6 @@ jobs:
     container:
       image: docker.io/overte/overte-server-build:2026-02-09-ubuntu-24.04-amd64@sha256:babe51f7c369e303aac67f0a9e7620707319b1d017a3ac13c4376b0d9fed056e
     env:
-      CONAN_HOME: ${{ github.workspace }}/.native-conan
-      CCACHE_DIR: ${{ github.workspace }}/.native-ccache
       CCACHE_MAXSIZE: 2G
       QT_RCC_SOURCE_DATE_OVERRIDE: '1'
       BASELINE_SHA: ${{ inputs.candidate_sha || github.sha }}
@@ -44,6 +42,14 @@ jobs:
           ref: ${{ inputs.candidate_sha || github.sha }}
           persist-credentials: false
 
+      - name: Initialize the container workspace
+        run: |
+          # Checkout's temporary Git configuration does not persist to shell steps.
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          # github.workspace expressions refer to host paths; use container paths.
+          printf 'CONAN_HOME=%s/.native-conan\nCCACHE_DIR=%s/.native-ccache\n' \
+            "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
+
       - name: Bind preparation to the reviewed source
         run: |
           python3 tools/native-tests/check.py plan --candidate . --event "$GITHUB_EVENT_PATH" \
@@ -55,6 +61,16 @@ jobs:
         with:
           path: .native-conan
           key: native-deps-babe51f7c369-v1-${{ hashFiles('conanfile.py', 'tools/conan-profiles/linux', 'tools/native-tests/conan-linux.lock') }}
+
+      - name: Install native system prerequisites before Conan validation
+        run: |
+          apt-get update -qq
+          apt-get install -y --no-install-recommends ccache libglm-dev nlohmann-json3-dev \
+            qtbase5-private-dev qtwebengine5-dev-tools libqt5multimedia5-plugins \
+            qt5-image-formats-plugins fcitx5-frontend-qt5 qtxmlpatterns5-dev-tools \
+            qttools5-dev libqt5x11extras5-dev libqt5svg5-dev qml-module-qtwebchannel \
+            qml-module-qtquick-controls qml-module-qtquick-controls2 qml-module-qt-labs-settings \
+            qml-module-qtquick-dialogs qml-module-qtwebengine
 
       - name: Prepare missing binaries once
         run: |
@@ -110,11 +126,6 @@ jobs:
           path: .native-ccache
           key: native-ccache-babe51f7c369-v1-full-${{ inputs.candidate_sha || github.sha }}
           restore-keys: native-ccache-babe51f7c369-v1-full-
-
-      - name: Install compiler cache and core prerequisites
-        run: |
-          apt-get update -qq
-          apt-get install -y --no-install-recommends ccache libglm-dev nlohmann-json3-dev
 
       - name: Configure the baseline
         run: |
