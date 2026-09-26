@@ -382,7 +382,7 @@ void ScriptEngineV8::registerValue(ScriptEngineScopeGuardV8* scopeGuard, const Q
     }
 }
 
-void ScriptEngineV8::registerGlobalObject(ScriptEngineScopeGuard* scopeGuard, const QString& name, QObject* object, ScriptEngine::ValueOwnership) {
+void ScriptEngineV8::registerGlobalObject(ScriptEngineScopeGuard* scopeGuard, const QString& name, QObject* object, ScriptEngine::ValueOwnership ownership) {
     Q_ASSERT(scopeGuard && dynamic_cast<ScriptEngineScopeGuardV8*>(scopeGuard));
     Q_ASSERT(QThread::currentThread() == thread());
     Q_ASSERT(_v8Isolate->IsCurrent());
@@ -395,7 +395,7 @@ void ScriptEngineV8::registerGlobalObject(ScriptEngineScopeGuard* scopeGuard, co
 
     if (!v8GlobalObject->Get(context, v8Name).IsEmpty()) {
         if (object) {
-            V8ScriptValue value = ScriptObjectV8Proxy::newQObject(this, object, ScriptEngine::QtOwnership);
+            V8ScriptValue value = ScriptObjectV8Proxy::newQObject(this, object, ownership);
             if(!v8GlobalObject->Set(context, v8Name, value.get()).FromMaybe(false)) {
                 Q_ASSERT(false);
             }

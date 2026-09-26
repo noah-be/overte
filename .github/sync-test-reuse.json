@@ -29,6 +29,7 @@
     ".github/platform-source-policy.json",
     ".github/sync-test-reuse.json",
     ".github/repository-checks.json",
+    ".github/native-tests.json",
     ".github/repository-health.json",
     "tools/sync-test-reuse/**",
     "tools/repository-checks/**",
@@ -78,7 +79,8 @@
     "**/conanfile.py",
     "**/conanfile.txt",
     "conanfile.py",
-    "conanfile.txt"
+    "conanfile.txt",
+    "tools/native-tests/**"
   ],
   "required_qualified_inputs": [
     ".github/actionlint.yaml",
@@ -91,13 +93,15 @@
     "tools/sync-test-reuse/qualification.py",
     "tools/sync-test-reuse/differential.py",
     ".github/repository-checks.json",
+    ".github/native-tests.json",
     ".github/workflows/repository-checks.yml",
     "tools/repository-checks/check.py",
     "tools/repository-health/check.py",
     "tools/repository-maintenance/check.py",
     "tools/repository-policy/check.py",
     "tests/requirements-repository.txt",
-    "tests/run-project-tests.py"
+    "tests/run-project-tests.py",
+    "tools/native-tests/check.py"
   ],
   "redundant_pull_request_workflows": [
     "android-tests.yml",

@@ -10,6 +10,9 @@
 
 #include "DualQuaternionTests.h"
 
+#include <algorithm>
+#include <limits>
+
 #include <iostream>
 
 #include <DualQuaternion.h>
@@ -70,7 +73,11 @@ void DualQuaternionTests::mult() {
     translation = extractTranslation(m3);
 
     quatComp(rotation, dq3.getRotation());
-    QCOMPARE_WITH_ABS_ERROR(translation, dq3.getTranslation(), EPSILON);
+    // Matrix and dual-quaternion composition take different float arithmetic
+    // paths. Bound accumulated rounding relative to the translation magnitude.
+    const float tolerance = 4.0f * std::numeric_limits<float>::epsilon()
+        * std::max(1.0f, glm::length(translation));
+    QCOMPARE_WITH_ABS_ERROR(translation, dq3.getTranslation(), tolerance);
 }
 
 void DualQuaternionTests::xform() {

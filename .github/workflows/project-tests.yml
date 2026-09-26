@@ -58,6 +58,7 @@ jobs:
           command -v bash
           command -v jq
           command -v cmake
+          command -v ninja
           command -v ctest
           python3 --version
           node --version

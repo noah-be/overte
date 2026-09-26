@@ -1,0 +1,136 @@
+name: Prepare native baseline
+
+# Deliberately manual: missing third-party binaries must never trigger a source
+# build in an ordinary PR. Run the default-branch workflow only for reviewed fork commits.
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_sha:
+        description: "Optional reviewed commit SHA from this fork (for dependency-update PRs)"
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-dependency-preparation
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    container:
+      image: docker.io/overte/overte-server-build:2026-02-09-ubuntu-24.04-amd64@sha256:babe51f7c369e303aac67f0a9e7620707319b1d017a3ac13c4376b0d9fed056e
+    env:
+      CONAN_HOME: ${{ github.workspace }}/.native-conan
+      CCACHE_DIR: ${{ github.workspace }}/.native-ccache
+      CCACHE_MAXSIZE: 2G
+      QT_RCC_SOURCE_DATE_OVERRIDE: '1'
+      BASELINE_SHA: ${{ inputs.candidate_sha || github.sha }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Require an immutable reviewed source identity
+        run: '[[ "$BASELINE_SHA" =~ ^[0-9a-f]{40}$ ]]'
+
+      - name: Check out reviewed dependency definitions
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: noah-be/overte
+          ref: ${{ inputs.candidate_sha || github.sha }}
+          persist-credentials: false
+
+      - name: Bind preparation to the reviewed source
+        run: |
+          python3 tools/native-tests/check.py plan --candidate . --event "$GITHUB_EVENT_PATH" \
+            --sha "$BASELINE_SHA" --report build/native-plan.json
+
+      - name: Restore prepared dependencies
+        id: dependencies
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .native-conan
+          key: native-deps-babe51f7c369-v1-${{ hashFiles('conanfile.py', 'tools/conan-profiles/linux', 'tools/native-tests/conan-linux.lock') }}
+
+      - name: Prepare missing binaries once
+        run: |
+          mkdir -p "$CONAN_HOME"
+          cp -an /root/.conan2/. "$CONAN_HOME/"
+          conan install . -pr tools/conan-profiles/linux -s compiler.cppstd=gnu20 \
+            -s build_type=Release -o 'Overte/*:qt_source=system' --lockfile=tools/native-tests/conan-linux.lock --build=missing \
+            -c tools.build:jobs=2 -of build/native
+
+      - name: Keep only reusable package data
+        run: conan cache clean '*' --source --build --download --temp
+
+      - name: Save prepared packages before qualifying the product
+        if: steps.dependencies.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .native-conan
+          key: native-deps-babe51f7c369-v1-${{ hashFiles('conanfile.py', 'tools/conan-profiles/linux', 'tools/native-tests/conan-linux.lock') }}
+
+      - name: Restore and save the default-branch compiler cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .native-ccache
+          key: native-ccache-babe51f7c369-v1-full-${{ inputs.candidate_sha || github.sha }}
+          restore-keys: native-ccache-babe51f7c369-v1-full-
+
+      - name: Install compiler cache and core prerequisites
+        run: |
+          apt-get update -qq
+          apt-get install -y --no-install-recommends ccache libglm-dev nlohmann-json3-dev
+
+      - name: Configure the baseline
+        run: |
+          conan install . -pr tools/conan-profiles/linux -s compiler.cppstd=gnu20 \
+            -s build_type=Release -o 'Overte/*:qt_source=system' --lockfile=tools/native-tests/conan-linux.lock --build=never \
+            -of build/native --format=json > build/native-dependency-graph.json
+          bash tools/native-tests/configure.sh full
+          python3 tools/native-tests/select.py --source . --build build/native \
+            --plan build/native-plan.json --output build/native-selection.json
+
+      - name: Identify reusable shader outputs
+        id: shader-key
+        run: |
+          python3 tools/native-tests/shader-cache.py key --build build/native \
+            --selection build/native-selection.json --output "$GITHUB_OUTPUT"
+
+      - name: Restore and save qualified shader outputs
+        id: shaders
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            build/native/libraries/shaders/shaders
+            build/native/libraries/shaders/shaderDeps.json
+          key: native-shaders-babe51f7c369-v1-${{ steps.shader-key.outputs.key }}
+
+      - name: Refresh only verified shader output timestamps
+        if: steps.shaders.outputs.cache-hit == 'true'
+        run: python3 tools/native-tests/shader-cache.py refresh --build build/native
+
+      - name: Qualify the baseline and seed reusable compiler objects
+        run: |
+          python3 tools/native-tests/run.py --build build/native --selection build/native-selection.json --jobs 2
+          ccache --show-stats
+
+      - name: Upload baseline qualification results
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: native-baseline-results
+          path: |
+            build/native-plan.json
+            build/native-dependency-graph.json
+            build/native-selection.json
+            build/native/native-ctest.xml
+            build/native/native-result.json
+            build/native/native-results
+            build/native/Testing/Temporary/LastTest.log
+          if-no-files-found: warn
+          retention-days: 7

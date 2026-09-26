@@ -58,6 +58,7 @@ SUITES = (
         sys.executable, "tests/check-documentation.py", "--all")),
     Suite("native-smoke", "quick", (
         sys.executable, "tests/device/contracts/world-entry/test_phone_spawn_gate.py")),
+    Suite("native-ci-policy", "quick", (sys.executable, "tests/native-ci-test.py")),
     Suite("native-registration", "quick", (sys.executable, "tests/native-registration-test.py")),
     Suite("device-result-schema", "quick", (
         sys.executable, "tests/run-unittest-suite.py", "tests/device/schema")),

@@ -12,8 +12,8 @@ POSIX process groups; native Windows application builds follow
 is declared in [project-tests.yml](../.github/workflows/project-tests.yml):
 Ubuntu 24.04, Python 3.12, Node.js 22, and JDK 17.
 
-Install Git, Bash, Python 3.11 or newer, Node.js 22 or newer, `jq`, CMake 3.16
-or newer, CTest, Ninja or Make, and a C++17 compiler available as `c++`;
+Install Git, Bash, Python 3.11 or newer, Node.js 22 or newer, `jq`, CMake 3.24
+or newer, CTest, Ninja, Make, and a C++17 compiler available as `c++`;
 Android branch suites also need Java/Javac. Python 3.11 is
 required by repository helpers using `hashlib.file_digest`; use the CI versions
 above when reproducing CI behavior. The quick profile compiles small portable
@@ -152,6 +152,7 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `device-control-plane-full` | `host` | `python3 tests/run-project-tests.py --suite device-control-plane-full` |
 | `documentation` | `quick` | `python3 tests/run-project-tests.py --suite documentation` |
 | `native-smoke` | `quick` | `python3 tests/run-project-tests.py --suite native-smoke` |
+| `native-ci-policy` | `quick` | `python3 tests/run-project-tests.py --suite native-ci-policy` |
 | `native-registration` | `quick` | `python3 tests/run-project-tests.py --suite native-registration` |
 | `device-result-schema` | `quick` | `python3 tests/run-project-tests.py --suite device-result-schema` |
 | `device-jenkins` | `quick` | `python3 tests/run-project-tests.py --suite device-jenkins` |
@@ -201,6 +202,15 @@ not claim that those separate environments were tested.
 <a id="full-profile"></a>
 
 ## Native C++/Qt suites
+
+The selective PR lane is described in the [native CI guide](../tools/native-tests/README.md).
+It routes from the exact merge candidate, builds affected production/test targets,
+and runs bounded headless Qt tests. Documentation and known host-only changes do
+not start a native build. The existing `repository-checks` aggregate requires the
+selected native result; host sync qualification cannot substitute for it. Its
+broad dependency environment must be prepared and qualified before activation.
+This local wiring does not establish that the gate is deployed on GitHub.
+
 
 Prepare a native build with `OVERTE_BUILD_TESTS=ON` using the relevant
 [build guide](../BUILD.md). Then run the project full profile against it:
