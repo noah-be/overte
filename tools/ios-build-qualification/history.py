@@ -21,6 +21,8 @@ from urllib.parse import quote
 REPOSITORY = "noah-be/overte"
 REPOSITORY_ID = 1319052603
 WORKFLOW = "ios-bootstrap.yml"
+HISTORY_WORKFLOWS = (WORKFLOW, "ios-build-qualification.yml")
+FAILURES = {"failure", "timed_out", "startup_failure"}
 BUILD_JOB = "Toolchain, dependencies, build and package"
 
 
@@ -34,12 +36,15 @@ def gh(*args):
 
 
 def api(path):
-    require(path.startswith(f"repos/{REPOSITORY}"), "foreign API target")
+    require(path == f"repos/{REPOSITORY}" or path.startswith(f"repos/{REPOSITORY}/"),
+            "foreign API target")
     return json.loads(gh("api", path))
 
 
 def run_record(run):
     return {"runId": run["id"], "runAttempt": run["run_attempt"],
+            "workflow": {"id": run.get("workflow_id"), "path": run.get("path"),
+                         "name": run.get("name")},
             "buildNumber": run["run_number"], "sourceRevision": run["head_sha"],
             "branch": run["head_branch"], "status": run["status"],
             "conclusion": run["conclusion"], "url": run["html_url"]}
@@ -57,8 +62,8 @@ def analyze(runs, jobs, artifacts, current_source):
         record = run_record(run)
         job_list = jobs(run["id"])
         device_jobs = [job for job in job_list if job["name"].endswith(BUILD_JOB)]
-        if result["latestFailure"] is None and run["conclusion"] == "failure":
-            failed = [job for job in job_list if job["conclusion"] == "failure"]
+        if result["latestFailure"] is None and run["conclusion"] in FAILURES:
+            failed = [job for job in job_list if job["conclusion"] in FAILURES]
             result["latestFailure"] = {**record, "failedJobs": [job["name"] for job in failed]}
         if (result["latestDeviceBuild"] is None and run["conclusion"] == "success"
                 and device_jobs and all(job["conclusion"] == "success" for job in device_jobs)):
@@ -128,13 +133,41 @@ def failure_diagnostics(run_id):
             "logAvailability": "available"}
 
 
+def read_history():
+    inventory = api(f"repos/{REPOSITORY}/actions/workflows?per_page=100")
+    require(inventory["total_count"] <= len(inventory["workflows"]),
+            "incomplete workflow inventory")
+    runs, coverage = [], {}
+    for name in HISTORY_WORKFLOWS:
+        path = f".github/workflows/{name}"
+        matches = [item for item in inventory["workflows"] if item["path"] == path]
+        require(len(matches) <= 1, "ambiguous workflow identity")
+        if not matches:
+            require(name != WORKFLOW, "bootstrap workflow is not registered")
+            coverage[name] = {"status": "not-registered", "runLimit": 50}
+            continue
+        workflow = matches[0]
+        require(type(workflow["id"]) is int and workflow["id"] > 0, "invalid workflow identity")
+        selected = api(f"repos/{REPOSITORY}/actions/workflows/{workflow['id']}/runs?per_page=50")["workflow_runs"]
+        for run in selected:
+            require(run["workflow_id"] == workflow["id"]
+                    and run["repository"]["full_name"] == REPOSITORY
+                    and run["repository"]["id"] == REPOSITORY_ID, "foreign workflow history")
+        runs.extend(selected)
+        coverage[name] = {"status": "inspected", "workflowId": workflow["id"],
+                          "runLimit": 50, "runsRead": len(selected)}
+    require(len({run["id"] for run in runs}) == len(runs), "duplicate run identity")
+    return runs, coverage
+
+
 def snapshot(ref="apple-ios"):
     require(ref == "apple-ios", "this device-build handoff only targets apple-ios")
     repo = api(f"repos/{REPOSITORY}")
     require(repo["full_name"] == REPOSITORY and repo["id"] == REPOSITORY_ID, "repository identity mismatch")
     source = api(f"repos/{REPOSITORY}/git/ref/heads/{quote(ref, safe='')}")["object"]["sha"]
-    # Include sibling iOS topics: run 686 already exposed the run-687 failure.
-    runs = api(f"repos/{REPOSITORY}/actions/workflows/{WORKFLOW}/runs?per_page=50")["workflow_runs"]
+    # Include sibling topics and qualification PRs; their failures must not be
+    # hidden by a later host-only bootstrap success.
+    runs, coverage = read_history()
     def jobs(run_id):
         response = api(f"repos/{REPOSITORY}/actions/runs/{run_id}/jobs?per_page=100")
         require(response["total_count"] <= len(response["jobs"]), "incomplete job inventory")
@@ -145,7 +178,8 @@ def snapshot(ref="apple-ios"):
         return response["artifacts"]
     report = analyze(runs, jobs, artifacts, source)
     report.update(schema=1, repository=REPOSITORY, repositoryId=REPOSITORY_ID,
-                  ref=ref, historyLimit=50, capturedAt=datetime.now(timezone.utc).isoformat())
+                  ref=ref, historyLimitPerWorkflow=50, workflows=coverage,
+                  capturedAt=datetime.now(timezone.utc).isoformat())
     if report["latestFailure"]:
         run_id = report["latestFailure"]["runId"]
         # Emit only bounded compiler diagnostic categories, never raw hosted logs.
