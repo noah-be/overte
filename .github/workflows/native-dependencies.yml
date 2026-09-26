@@ -228,9 +228,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_ACTOR: ${{ github.actor }}
         run: |
+          test "$(docker image inspect "$IMAGE" --format '{{index .Config.Labels "org.opencontainers.image.source"}}')" = https://github.com/noah-be/overte
           echo "$GH_TOKEN" | docker login ghcr.io --username "$GH_ACTOR" --password-stdin
           docker push "$IMAGE"
           docker image inspect "$IMAGE" --format '{{index .RepoDigests 0}}' > build/native-package-image.txt
+          docker pull "$(cat build/native-package-image.txt)"
           cat build/native-package-image.txt >> "$GITHUB_STEP_SUMMARY"
 
       - name: Remove registry credentials
