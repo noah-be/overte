@@ -2,7 +2,8 @@ name: Repository checks
 
 on:
   pull_request:
-    types: [opened, reopened, synchronize, edited, ready_for_review]
+    # Drafts are already checked on opened/synchronize.
+    types: [opened, reopened, synchronize, edited]
   workflow_dispatch:
 
 permissions:
