@@ -172,7 +172,12 @@ save --no-source`. The archive excludes authentication databases, profiles,
 source/build trees, and project sources. Only after product qualification succeeds,
 a separate publisher job with `packages: write` stores it in
 `ghcr.io/noah-be/overte/native-dependencies`, linked to this fork. Candidate build
-and test execution has no package-write token. The publisher checks archive hash,
+and test execution has no package-write token. Before product qualification, preparation
+restores the exported archive into a fresh cache initialized from the publisher's
+pinned base cache (including its build profile), then replaces its disposable
+workspace cache. This canonicalizes paths of source-built packages (`p/b/...`)
+to the same portable layout restored by the image publisher. Otherwise identical
+packages would invalidate compiler and shader caches when moving to a PR image. The publisher checks archive hash,
 source SHA, and workflow run identity, then builds from the trusted default-branch
 Dockerfile. Transport archives expire after one day; the registry image persists
 independently of Actions cache eviction. The published immutable digest and input
