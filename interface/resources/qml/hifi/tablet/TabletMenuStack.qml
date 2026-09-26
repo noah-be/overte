@@ -9,6 +9,7 @@
 //
 
 import QtQuick 2.5
+import "TabletMenuAdapter.js" as MenuAdapter
 import QtQuick.Controls 2.3
 
 import "."
@@ -31,7 +32,8 @@ Item {
         property var menuViewMaker: Component {
             TabletMenuView {
                 id: subMenu
-                onSelected: d.handleSelection(subMenu, currentItem, item)
+                StackView.onRemoved: destroy()
+                onSelected: function(item) { d.handleSelection(subMenu, currentItem, item) }
             }
         }
         property var delay: Timer { // No setTimeout in QML.
@@ -53,7 +55,7 @@ Item {
                 menuItem = null;
                 // The menu or platform policy may have changed between touch
                 // release and this deferred callback. Revalidate fail-closed.
-                if (pendingItem === null ||
+                if (pendingItem === null || !pendingItem.enabled || !MenuAdapter.isVisible(pendingItem) ||
                         (d.isAndroidPhoneTablet() && !d.isPhoneMenuItemSupported(pendingItem))) {
                     return;
                 }
@@ -86,7 +88,7 @@ Item {
         }
 
         function toModel(items, newMenu) {
-            var result = modelMaker.createObject(tabletMenu);
+            var result = modelMaker.createObject(newMenu);
 
             for (var i = 0; i < items.length; ++i) {
                 var item = items[i];
@@ -94,14 +96,14 @@ Item {
                 var unavailableSuffix = isAndroidPhoneTablet() && !phoneSupported
                     ? " (Unavailable on this device)" : "";
                 switch (item.type) {
-                case MenuItemType.Menu:
+                case MenuAdapter.Menu:
                     result.append({
                         "name": item.title + unavailableSuffix,
                         "item": item,
                         "phoneSupported": phoneSupported
                     })
                     break;
-                case MenuItemType.Item:
+                case MenuAdapter.Item:
                     if (item.text !== "Users Online") {
                         result.append({
                             "name": item.text + unavailableSuffix,
@@ -110,7 +112,7 @@ Item {
                         })
                     }
                     break;
-                case MenuItemType.Separator:
+                case MenuAdapter.Separator:
                     result.append({"name": "", "item": item, "phoneSupported": true})
                     break;
                 }
@@ -123,7 +125,7 @@ Item {
                 return true;
             }
 
-            var label = item.type === MenuItemType.Menu ? item.title : item.text;
+            var label = item.type === MenuAdapter.Menu ? item.title : item.text;
             // Fail closed at the root. New desktop menus must be reviewed before
             // the phone tablet can trigger any of their actions.
             var supportedRootMenus = ["File", "View", "Navigate", "Settings"];
@@ -140,11 +142,11 @@ Item {
                 // The phone's dedicated SETTINGS app remains available separately.
                 "General..."
             ];
-            if (topMenu === null && item.type === MenuItemType.Menu
+            if (topMenu === null && item.type === MenuAdapter.Menu
                     && supportedRootMenus.indexOf(label) === -1) {
                 return false;
             }
-            if (item.type === MenuItemType.Item && unsupportedActions.indexOf(label) !== -1) {
+            if (item.type === MenuAdapter.Item && unsupportedActions.indexOf(label) !== -1) {
                 return false;
             }
 
@@ -178,7 +180,7 @@ Item {
         }
 
         function pushMenu(newMenu) {
-            d.push({ item:newMenu, destroyOnPop: true});
+            d.push(newMenu);
             topMenu = newMenu;
             topMenu.focus = true;
             topMenu.forceActiveFocus();
@@ -225,7 +227,8 @@ Item {
         }
 
         function handleSelection(parentMenu, selectedItem, item) {
-            if (isAndroidPhoneTablet() && !selectedItem.platformEnabled) {
+            if (!item || !item.enabled || !MenuAdapter.isVisible(item) ||
+                    (isAndroidPhoneTablet() && !selectedItem.platformEnabled)) {
                 return;
             }
             while (topMenu && topMenu !== parentMenu) {
@@ -233,14 +236,14 @@ Item {
             }
 
             switch (item.type) {
-                case MenuItemType.Menu:
+                case MenuAdapter.Menu:
                     var target = Qt.vector2d(topMenu.x, topMenu.y).plus(Qt.vector2d(selectedItem.x + 96, selectedItem.y));
                     buildMenu(item.items, target).objectName = item.title;
                     // show current menu level on nav bar
                     breadcrumbText.text = item.title;
                     break;
 
-                case MenuItemType.Item:
+                case MenuAdapter.Item:
                     console.log("Triggering " + item.text)
                     // Don't block waiting for modal dialogs and such that the menu might open.
                     delay.trigger(item);
