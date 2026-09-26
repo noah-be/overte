@@ -186,3 +186,16 @@ compact/portrait/landscape/scaled-phone sizes, and page-load failure/race recove
 An actual client build and device acceptance remain necessary for native input,
 keyboard, safe-area geometry, services, audio, avatar actions and network data.
 Do not count compile-ready components as successful device journeys.
+
+The shared CI and parent qualification install the Qt 6 QML development/runtime
+modules and explicitly select the Qt 6 test runner. Ubuntu module names are
+listed in the [Qt 6 declarative package catalog](https://packages.ubuntu.com/source/noble/qt6-declarative).
+The existing Qt 5 tools remain available for other legacy host checks.
+
+The tablet menu accepts both the legacy desktop menu model and shared Controls 2
+wrappers. Native Qt 6 adapters create `WrappedMenuItem` and
+`WrappedMenuSeparator`; `WrappedMenu.items` exposes submenus without depending on
+removed Controls 1 enums. `tabletVisible` preserves QAction visibility independently
+of whether the native popup is open. QAction remains the owner of checked and
+exclusive state. Runtime tests open submenus, dispatch actions, reject disabled or
+unsupported actions and return through Back while the native popup stays closed.

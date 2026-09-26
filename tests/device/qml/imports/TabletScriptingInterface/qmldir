@@ -1,0 +1,3 @@
+module TabletScriptingInterface
+singleton Tablet 1.0 Tablet.qml
+TabletEnums 1.0 TabletEnums.qml

@@ -22,6 +22,11 @@ Windows.ScrollingWindow {
     id: tabletRoot
     objectName: "tabletRoot"
     property string username: "Unknown user"
+    readonly property string semanticScreenId: {
+        if (!loader.item) { return "" }
+        return loader.item.hasOwnProperty("semanticScreenId")
+            ? loader.item.semanticScreenId : loader.item.objectName || ""
+    }
     signal screenChanged(var type, var url);
 
     property var rootMenu;

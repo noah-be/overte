@@ -23,9 +23,11 @@ int main() {
     assert(controlSupport(Product::IOS,"settings.hmd-preferences")==Support::Hidden);
     assert(controlSupport(Product::Pico,"settings.controllers")==Support::Supported);
     assert(controlSupport(Product::Unknown,"nav.back")==Support::Hidden);
-    assert(preferenceAllowed(Product::Phone,"Touch Camera Sensitivity","Vertical swipe:"));
-    assert(!preferenceAllowed(Product::Phone,"Mouse Sensitivity","Y input:"));
-    for (auto product : {Product::Pico,Product::IOS}) {
+    for (auto product : {Product::Phone,Product::IOS}) {
+        assert(preferenceAllowed(product,"Touch Camera Sensitivity","Vertical swipe:"));
+        assert(!preferenceAllowed(product,"Mouse Sensitivity","Y input:"));
+    }
+    for (auto product : {Product::Pico}) {
         assert(preferenceAllowed(product,"Mouse Sensitivity","Y input:"));
         assert(!preferenceAllowed(product,"Touch Camera Sensitivity","Vertical swipe:"));
     }
