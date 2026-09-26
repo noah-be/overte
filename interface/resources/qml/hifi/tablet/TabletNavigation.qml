@@ -27,7 +27,7 @@ Item {
                 { key: "home", label: qsTr("Home"), accessible: qsTr("Tablet home") },
                 { key: "close", label: qsTr("Close"), accessible: qsTr("Close tablet") }
             ]
-            delegate: Button {
+            delegate: HifiControls.Button {
                 objectName: "nav." + modelData.key
                 visible: modelData.key !== "back" || navigation.backVisible
                 width: Math.max(48, Math.min(112,
@@ -36,7 +36,9 @@ Item {
                 text: modelData.label
                 font.pixelSize: Math.round(16 * metrics.textScale)
                 Accessible.name: modelData.accessible
-                onClicked: {
+                androidClickAction: activate
+                onClicked: { if (!usesAndroidClickAction) { activate() } }
+                function activate() {
                     if (modelData.key === "back") { navigation.backRequested() }
                     else if (modelData.key === "home") { navigation.homeRequested() }
                     else { navigation.closeRequested() }
