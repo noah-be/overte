@@ -9,6 +9,7 @@ For the first developer check, use [project testing](../tests/PROJECT_TESTING.md
 | Run repository and host checks | [Project runner](../tests/run-project-tests.py) | [Testing guide](../tests/PROJECT_TESTING.md); local checks |
 | Inspect local maintenance state | [Maintenance snapshot](repository-maintenance/) | [Maintenance guide](../docs/REPOSITORY_MAINTENANCE.md); offline report without fetching or deleting |
 | Route and aggregate required PR checks | [Repository checks](repository-checks/) | [Required-check design](../docs/REPOSITORY_MAINTENANCE.md#required-checks); local fixtures, separate staged deployment |
+| Qualify iOS builds and inspect provenance | [iOS build qualification](ios-build-qualification/) | [Build qualification guide](../docs/IOS_BUILD_QUALIFICATION.md); exact candidate, IPA and separate installation evidence |
 | Check or regenerate policy-derived documentation | [Policy consistency](repository-policy/) | [Branch table](../docs/BRANCH_GOVERNANCE.md), [suite inventory](../tests/PROJECT_TESTING.md); default read-only, `--write` updates marked blocks |
 | Validate branch direction and naming | [Branch policy](branch-policy/) | [Branch governance](../docs/BRANCH_GOVERNANCE.md); local validation and separate live inspection |
 | Inspect repository health | [Repository Doctor](repository-health/) | [Doctor guide](../docs/REPOSITORY_HEALTH.md); local contracts or read-only live audit |

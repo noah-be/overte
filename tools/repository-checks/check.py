@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import fnmatch
+import importlib.util
 import json
 from pathlib import Path, PurePosixPath
 import re
@@ -135,6 +136,11 @@ def main() -> int:
         if args.command == "plan":
             event = json.loads(args.event.read_text())
             paths, documentation_safe = changed_paths(args.candidate, event, args.sha)
+            spec = importlib.util.spec_from_file_location(
+                "ios_build_policy", ROOT / "tools/ios-build-qualification/check.py")
+            build_policy = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(build_policy)
+            build_policy.validate_wiring(args.candidate, event)
             result = plan(event, paths, config, branches, documentation_safe)
             with args.output.open("a") as output:
                 output.write("".join(f"{key}={value}\n" for key, value in result.items()))
