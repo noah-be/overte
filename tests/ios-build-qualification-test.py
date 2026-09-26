@@ -7,6 +7,7 @@ import importlib.util
 import json
 from pathlib import Path
 import plistlib
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -66,6 +67,32 @@ def fixture(directory, info_changes=None, **changes):
 
 
 class QualificationTests(unittest.TestCase):
+    def test_deployed_template_passes_actual_repository_health_contracts(self):
+        spec = importlib.util.spec_from_file_location(
+            "qualification_repository_health", ROOT / "tools/repository-health/check.py")
+        health = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = health
+        spec.loader.exec_module(health)
+        config = health.load_config(ROOT / ".github/repository-health.json")
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            shutil.copytree(ROOT / ".github", root / ".github")
+            shutil.copytree(ROOT / "tools/branch-policy", root / "tools/branch-policy")
+            canonical = (ROOT / "tools/ios-build-qualification/workflow.yml").read_text()
+            deployed = root / ".github/workflows/ios-build-qualification.yml"
+            deployed.write_text(canonical)
+            report = health.Doctor(root, config).local()
+            self.assertEqual(report["status"], "PASS", report)
+            # YAML permits this spelling, but our repository's
+            # workflow structure contract requires an unquoted trigger key.
+            previous = canonical.replace("\non:\n", "\n'on':\n", 1)
+            self.assertNotEqual(previous, canonical)
+            deployed.write_text(previous)
+            report = health.Doctor(root, config).local()
+            self.assertEqual(report["status"], "FAIL")
+            self.assertIn("WORKFLOW_SYNTAX", [finding["code"] for finding in
+                          report["results"]["repository_contracts"]["findings"]])
+
     def test_canonical_workflow_keeps_immutable_action_references(self):
         # The template is outside .github/workflows on main. Audit it here
         # before the product branch installs it as an executable workflow.
