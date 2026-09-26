@@ -23,11 +23,12 @@ host-tools rebuild in build 656. Do not evict Qt or Conan to make room for objec
 
 ## Implemented changes
 
-The Full Client disk cache now has a 4 GiB limit. The old 512 MiB restore remains
-a seed fallback, preserving existing data and its namespace. New snapshots are
-workflow artifacts, not additional large entries in the shared Actions cache.
-The Qt, V8, Conan, SDK, compiler and policy inputs in the cache namespace are
-unchanged. Source changes do not introduce an artificial per-build cache buster.
+The Full Client disk cache has a 4 GiB limit. Compatible existing Actions caches
+remain a seed fallback. New snapshots are workflow artifacts, not additional
+large entries in the shared Actions cache. The current namespace binds compiler
+identity, SDK/toolchain identity, architecture and the cache policy epoch.
+Dependency packaging receipts and source revisions do not introduce an artificial
+per-build cache buster; sccache still checks actual source, headers and flags.
 
 Object artifacts use their own bounded archive kind and retain the existing
 repository-ID, producer-branch, toolchain-key, SHA-256 and extraction checks.
@@ -48,6 +49,26 @@ warning. Cache saturation supports working-set pressure as a problem; it does
 **not** prove why every individual cache lookup missed. Do not claim a speedup
 until a subsequent build reuses this enlarged checkpoint successfully.
 
+## Pull-request checkpoint reuse
+
+Artifact branch identity follows the PR head branch (`github.head_ref`) and uses
+`github.ref_name` for non-PR runs. A synthetic name such as `973/merge` does not
+match the artifact API's `workflow_run.head_branch`; recording it would prevent
+later consumers from finding that PR's checkpoints.
+
+Full-client compiler objects restore first from the current head branch, then
+from the trusted `apple-ios` branch in the same repository, before falling back
+to the compatible Actions cache. Validated objects from either artifact source
+use the same staging directory and non-destructive merge. Conan likewise tries
+the trusted `apple-ios` artifact after a complete cache/current-branch artifact
+miss, before its partial-cache fallback. Qt and V8 retain their existing trusted
+branch fallbacks. Repository IDs, exact compatibility keys, manifest branch and
+archive hashes remain mandatory; this does not reuse an older IPA or build tree.
+
+The first device qualification exposed the missing compiler-artifact fallback.
+The correction requires a subsequent live restore and hit-rate measurement;
+workflow routing tests alone do not establish a faster build.
+
 ## Evaluate the next runs
 
 1. First build with this workflow: record cache restore source, hits/misses,
@@ -57,8 +78,9 @@ until a subsequent build reuses this enlarged checkpoint successfully.
    namespace. Compare hit rate and Full Client duration with the 3,470 s baseline.
 3. If restored objects still produce no hits, inspect actual compiler/preprocessor
    key inputs and generated headers. Do not relax compatibility keys blindly.
-4. Keep the two host-contract phases for now: removing about two minutes is lower
-   priority than restoring compiler reuse, and must preserve caller validation.
+4. Reuse host-contract results only when the caller has already validated the
+   exact source revision. The reusable job verifies that revision before skipping
+   its duplicate work; a different candidate still needs its own host checks.
 
 Pure QML/client-JS iterations can instead use
 [development sync](../development/README.md), bypassing the native workflow after

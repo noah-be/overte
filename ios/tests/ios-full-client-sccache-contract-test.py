@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import re
+import itertools
 from pathlib import Path
 
 
@@ -20,10 +21,51 @@ def require(pattern: str, text: str, message: str) -> None:
         raise AssertionError(message)
 
 
+def verify_branch_restore_routing(workflow: str) -> None:
+    """Execute the actual workflow predicates for warm/cold PR and branch cases."""
+    def step(name):
+        return workflow.split("      - name: " + name + "\n", 1)[1].split("      - name:", 1)[0]
+
+    def evaluate(name, values, ref):
+        expression = re.search(r"^        if: (.+)$", step(name), re.MULTILINE)[1]
+        expression = re.sub(r"steps\.([\w-]+)\.outputs\.([\w-]+)",
+                            lambda m: repr(values.get((m[1], m[2]), "")), expression)
+        expression = expression.replace("github.ref_name", repr(ref))
+        expression = expression.replace("&&", " and ").replace("||", " or ")
+        return bool(eval(expression, {"__builtins__": {}}, {}))
+
+    for ref, own, trusted in itertools.product(("973/merge", "fix/ios/cache", "apple-ios"), (False, True), (False, True)):
+        values = {("client-sccache-artifact", "restored"): str(own).lower(),
+                  ("client-sccache-apple-ios-artifact", "restored"): str(trusted).lower()}
+        assert evaluate("Restore trusted apple-ios full-client compiler checkpoint", values, ref) == (not own and ref != "apple-ios")
+        assert evaluate("Merge validated compiler objects without deleting existing entries", values, ref) == (own or trusted)
+        assert evaluate("Restore compatible full-client compiler checkpoint", values, ref) == (not own and not trusted)
+        for cached in (False, True):
+            values.update({("conan-cache", "cache-hit"): str(cached).lower(),
+                           ("conan-artifact", "restored"): str(own).lower(),
+                           ("conan-apple-ios-artifact", "restored"): str(trusted).lower()})
+            assert evaluate("Restore trusted apple-ios Conan package checkpoint", values, ref) == (not cached and not own and ref != "apple-ios")
+            assert evaluate("Restore partial Conan package checkpoint", values, ref) == (not cached and not own and not trusted)
+
+    for name, kind, key in (
+        ("Restore trusted apple-ios full-client compiler checkpoint", "client-sccache", "client-sccache-key.outputs.namespace"),
+        ("Restore trusted apple-ios Conan package checkpoint", "conan", "conan-cache-key.outputs.key"),
+    ):
+        block = step(name)
+        for required in ('--expected-repository-id "$OVERTE_CHECKPOINT_REPOSITORY_ID"',
+                         '--expected-branch apple-ios', '--kind ' + kind, key,
+                         '--artifact-prefix', '--github-output "$GITHUB_OUTPUT"'):
+            assert required in block, (name, required)
+
+
 def main() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
     integrated = workflow[workflow.index("  integrated-configure:") :]
     build_script = BUILD_SCRIPT.read_text(encoding="utf-8")
+    verify_branch_restore_routing(workflow)
+    identity = "OVERTE_CHECKPOINT_BRANCH: ${{ github.head_ref || github.ref_name }}"
+    assert workflow.count(identity) == 2, "V8/client artifacts must use API-compatible PR head identity"
+    assert identity in (ROOT / ".github/workflows/ios-qt-source.yml").read_text(), "Qt artifacts must use the same PR identity"
 
     install = integrated.index("Install pinned full-client compiler checkpoint")
     namespace = integrated.index("Select full-client compiler cache namespace")
