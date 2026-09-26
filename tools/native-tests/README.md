@@ -60,10 +60,14 @@ intentional native skip is accepted only when the trusted route says `skip`.
 Host qualification artifacts do not certify native results and cannot bypass
 this additional gate.
 
-The native job has a 45-minute ceiling, dependency resolution a 10-minute
-ceiling, and each CTest program a 120-second ceiling. Build concurrency is two
+The full native job has a 90-minute ceiling; the small core job has a 15-minute
+ceiling. Dependency resolution has a 10-minute ceiling and each CTest program
+a 120-second ceiling. The first GitHub full build took 68 minutes 22 seconds
+plus 4.95 seconds of tests, so a missing compiler cache must not cause an
+otherwise correct build to exceed an unrealistic 45-minute limit. Build concurrency is two
 on the GitHub runner. These are failure bounds, not measured performance goals.
-Compiler objects (2 GiB ccache limit), generated shaders, and Conan dependencies are cached;
+Compiler objects (2 GiB ccache limit) and generated shaders are cached for PRs;
+manual preparation also caches Conan dependencies;
 CMake configuration, target selection, and test results are always regenerated.
 Compiler cache validity includes compiler and source/header contents. Dependency
 cache identity includes the pinned image generation and dependency definitions.
@@ -83,11 +87,25 @@ ordinary incremental builds. Qt resource metadata is fixed with
 contents acquire new embedded timestamps and miss the compiler cache. Changed
 resource contents still generate different code. This is build reuse, not reuse
 of any test result.
-The prepared Conan cache currently also supplies binaries missing from the
-public remotes. Losing that cache is an infrastructure failure, not a passing
-test or a reason to rebuild dependencies inside an ordinary PR. GitHub's
-branch-scoped cache isolation prevents a PR cache from becoming a default-branch
-cache. Do not change this to a privileged PR-target workflow.
+Native jobs use the fork's digest-pinned prepared package image. Before full
+resolution, trusted tooling checks the candidate's recipe, Linux profile, and
+lock hashes against the image metadata. A dependency change requires a newly
+reviewed baseline image; an ordinary source edit does not. Conan resolves with
+`--build=never --no-remote`, so missing packages fail without remote downloads
+or source compilation. The image also contains the system prerequisites for
+both lanes; ordinary PRs do not run package-manager updates.
+
+Only manual preparation restores the dependency Actions cache. Ordinary PRs
+copy packages from their already available image into the container workspace;
+they do not download the same package data a second time from Actions cache.
+This also preserves the compiler input paths used by the baseline. GitHub's branch-scoped cache
+isolation prevents a PR cache from becoming a default-branch cache. Only the
+native consumer receives package-read permission; its container credentials use
+`secrets.GITHUB_TOKEN`, available when the job image is pulled; publication remains confined
+to the separate successful manual publisher. Do not change this to a privileged
+PR-target workflow. Container steps initialize the exact checkout's Git trust and
+cache paths using the runtime container workspace, rather than host-path
+expressions. No wildcard Git trust exception is needed.
 
 ## Selected tests and exclusions
 
@@ -106,9 +124,10 @@ are reused; there are no replacement/mock implementations of Overte libraries.
 
 ## Local execution
 
-Use Ubuntu 24.04 with the pinned build image from `native-tests.yml`, or a host
-with equivalent prerequisites. The core lane additionally needs `ccache`,
-`libglm-dev`, and `nlohmann-json3-dev`. From the repository root:
+Use the pinned prepared Ubuntu 24.04 image from `native-tests.yml`, or a host
+with equivalent prerequisites. The image already includes the core requirements
+`ccache`, `libglm-dev`, and `nlohmann-json3-dev`; install them separately only
+when using an equivalent host. From the repository root:
 
 ```bash
 bash tools/native-tests/configure.sh core
@@ -161,11 +180,10 @@ conan lock create . -pr tools/conan-profiles/linux -s compiler.cppstd=gnu20 \
 The lock command expands source-build requirements without compiling packages.
 Review its diff and qualify the new packages before activating them. The lock
 fixes recipe resolution; it does not promise identical system packages or
-replace binary availability. Cache eviction or a
-missing/new dependency must remain a visible prerequisite failure. Before relying
-on this as an unattended long-term gate, pin a qualified package image from the
-fork-owned registry; GitHub cache retention is not a package availability
-guarantee. Package publication and consumer activation are separate reviewed steps.
+replace binary availability. A missing/new dependency must remain a visible prerequisite failure.
+The qualified image in the fork-owned registry makes package availability
+independent of GitHub cache retention. Package publication and consumer
+activation remain separate reviewed steps.
 
 The manual baseline also exports Conan recipe/package data with `conan cache
 save --no-source`. The archive excludes authentication databases, profiles,
@@ -200,7 +218,8 @@ Local source changes are not evidence that GitHub enforces this gate. Publishing
 cache preparation on GitHub, branch propagation, and live ruleset changes are
 separate operations. Keep unavailable broad-build qualification explicit.
 
-References: [GitHub required checks](https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks),
+References: [GitHub container registry credentials](https://docs.github.com/en/actions/how-tos/write-workflows/choose-where-workflows-run/run-jobs-in-a-container#defining-credentials-for-a-container-registry),
+[GitHub required checks](https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks),
 [CMake file API](https://cmake.org/cmake/help/latest/manual/cmake-file-api.7.html),
 [Conan lockfiles](https://docs.conan.io/2/tutorial/versioning/lockfiles.html),
 [Qt resource timestamp handling](https://github.com/qt/qtbase/blob/5.15/src/tools/rcc/rcc.cpp),

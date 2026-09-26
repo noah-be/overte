@@ -175,7 +175,7 @@ class WorkflowCostTests(unittest.TestCase):
         if config.get('native_required', False) or 'main' in config.get('native_required_branches', []):
             self.assertIn("if: needs.route.outputs.native != 'skip'", caller)
             self.assertIn('workflow-security, native]', caller)
-        self.assertIn('timeout-minutes: 45', workflow)
+        self.assertIn("timeout-minutes: ${{ inputs.mode == 'full' && 90 || 15 }}", workflow)
         self.assertIn('timeout-minutes: 10', workflow)
         self.assertNotIn('--build=missing', workflow)
         self.assertIn('--build=never', workflow)
@@ -203,19 +203,51 @@ class WorkflowCostTests(unittest.TestCase):
         self.assertIn("conan cache clean '*' --source --build --download --temp", source)
         cache_key = "native-deps-babe51f7c369-v1-${{ hashFiles('conanfile.py', 'tools/conan-profiles/linux', 'tools/native-tests/conan-linux.lock') }}"
         self.assertIn(cache_key, source)
-        self.assertIn(cache_key, ordinary)
+        self.assertNotIn(cache_key, ordinary)
+        self.assertNotIn('name: Restore native dependency cache', ordinary)
+        self.assertIn('cp -an /root/.conan2/. "$CONAN_HOME/"', ordinary)
+        self.assertIn('--no-remote', ordinary)
+        self.assertNotIn('apt-get', ordinary)
         for workflow in (source, ordinary):
             self.assertEqual(workflow.count('conan install .'),
                              workflow.count('--lockfile=tools/native-tests/conan-linux.lock'))
         self.assertIn('native-ccache-babe51f7c369-v1-full-', source)
         self.assertIn('native-ccache-babe51f7c369-v1-${{ inputs.mode }}-', ordinary)
         self.assertIn('tools/native-tests/run.py', source)
-        image = re.search(r'image: (.+@sha256:([0-9a-f]{64}))', ordinary)
+        image = re.search(r'image: (.+@sha256:([0-9a-f]{64}))', source)
         self.assertIsNotNone(image)
-        self.assertIn(image.group(1), source)
+        self.assertIn('FROM ' + image.group(1),
+                      (ROOT / 'tools/native-tests/package-image.Dockerfile').read_text())
         for workflow in (source, ordinary):
-            self.assertIn('native-deps-' + image.group(2)[:12] + '-v1-', workflow)
+            if workflow == source:
+                self.assertIn('native-deps-' + image.group(2)[:12] + '-v1-', workflow)
             self.assertIn('native-ccache-' + image.group(2)[:12] + '-v1-', workflow)
+
+    def test_consumer_requires_a_pinned_fork_image_before_offline_resolution(self):
+        import yaml
+        workflow = yaml.safe_load((ROOT / '.github/workflows/native-tests.yml').read_text())
+        caller = yaml.safe_load((ROOT / '.github/workflows/repository-checks.yml').read_text())
+        job = workflow['jobs']['build']
+        self.assertRegex(job['container']['image'],
+                         r'^ghcr\.io/noah-be/overte/native-dependencies@sha256:[0-9a-f]{64}$')
+        self.assertEqual(job['container']['credentials'],
+                         {'username': '${{ github.actor }}', 'password': '${{ secrets.GITHUB_TOKEN }}'})
+        self.assertEqual(workflow['permissions'], {'contents': 'read', 'packages': 'read'})
+        self.assertEqual(caller['jobs']['native']['permissions'], {'contents': 'read', 'packages': 'read'})
+        self.assertNotIn('packages', caller['permissions'])
+        for name, entry in caller['jobs'].items():
+            if name != 'native':
+                self.assertNotIn('packages', entry.get('permissions', {}))
+        steps = job['steps']
+        verify = next(step for step in steps if step.get('name') == 'Verify reviewed prepared dependency inputs')
+        resolve = next(step for step in steps if step.get('name') == 'Resolve prebuilt dependencies without source rebuilds')
+        self.assertIn('trusted/tools/native-tests/packages.py', verify['run'])
+        self.assertEqual(verify['if'], "inputs.mode == 'full'")
+        self.assertLess(steps.index(verify), steps.index(resolve))
+        self.assertEqual(resolve['run'].count('conan install .'), resolve['run'].count('--no-remote'))
+        self.assertEqual(resolve['run'].count('conan install .'), resolve['run'].count('--build=never'))
+        self.assertTrue(any('build/native-package-identity.json' in step.get('with', {}).get('path', '')
+                            for step in steps))
 
     def test_package_publishing_requires_successful_manual_qualification(self):
         workflow = (ROOT / '.github/workflows/native-dependencies.yml').read_text()

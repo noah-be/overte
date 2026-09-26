@@ -58,6 +58,9 @@ jobs:
           --output "$GITHUB_OUTPUT" --report native-plan.json
 
   native:
+    permissions:
+      contents: read
+      packages: read
     needs: route
     if: needs.route.outputs.native != 'skip'
     uses: ./.github/workflows/native-tests.yml
