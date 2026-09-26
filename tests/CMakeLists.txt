@@ -1,8 +1,22 @@
+# Optional CI narrowing; ordinary developer builds retain every native group.
+option(OVERTE_NATIVE_CI "Select bounded headless native CI tests" OFF)
+set(OVERTE_TEST_GROUPS "" CACHE STRING "Native test groups to configure; empty means all")
+foreach(GROUP IN LISTS OVERTE_TEST_GROUPS)
+  if(NOT GROUP MATCHES "^[a-z][a-z0-9-]*$" OR
+     NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${GROUP}/CMakeLists.txt")
+    message(FATAL_ERROR "Unknown native test group: ${GROUP}")
+  endif()
+endforeach()
 # add the test directories
 file(GLOB TEST_SUBDIRS RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/*")
 list(REMOVE_ITEM TEST_SUBDIRS "CMakeFiles" "mocha")
 foreach(DIR ${TEST_SUBDIRS})
-  if(IS_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/${DIR}")
+  # Host-only test folders and generated caches are not native CMake projects.
+  if(IS_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/${DIR}" AND
+     EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${DIR}/CMakeLists.txt")
+    if(OVERTE_TEST_GROUPS AND NOT DIR IN_LIST OVERTE_TEST_GROUPS)
+      continue()
+    endif()
     set(TEST_PROJ_NAME ${DIR})
     add_subdirectory(${DIR})
   endif()

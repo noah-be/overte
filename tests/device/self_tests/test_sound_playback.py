@@ -59,6 +59,7 @@ class SoundPlaybackTest(unittest.TestCase):
         environment = os.environ.copy()
         environment.update({
             "OVERTE_MOCK_E2E_STATE": str(root / "state.json"),
+            "OVERTE_DEVICE_LOCK_ROOT": str(root / "locks"),
             "OVERTE_DEVICE_LAUNCH_SETTLE_SECONDS": "0",
             "OVERTE_E2E_POLL_SECONDS": "0.05",
             "OVERTE_E2E_SOUND_TIMEOUT_SECONDS": "1",

@@ -239,6 +239,7 @@ class VerticalLocomotionTest(unittest.TestCase):
             environment = os.environ.copy()
             environment.update({
                 "OVERTE_MOCK_E2E_STATE": str(root / "state.json"),
+                "OVERTE_DEVICE_LOCK_ROOT": str(root / "locks"),
                 "OVERTE_DEVICE_LAUNCH_SETTLE_SECONDS": "0",
                 "OVERTE_E2E_SCENE_URL": "http://fixture.invalid/scene.json",
                 "OVERTE_E2E_POLL_SECONDS": "0.05",
@@ -274,6 +275,7 @@ class VerticalLocomotionTest(unittest.TestCase):
             environment = os.environ.copy()
             environment.update({
                 "OVERTE_MOCK_E2E_STATE": str(root / "state.json"),
+                "OVERTE_DEVICE_LOCK_ROOT": str(root / "locks"),
                 "OVERTE_MOCK_PROCESS_EVIDENCE": str(process_evidence),
                 "OVERTE_DEVICE_LAUNCH_SETTLE_SECONDS": "0",
                 "OVERTE_E2E_SCENE_URL": "http://fixture.invalid/scene.json",
@@ -391,6 +393,7 @@ class VerticalLocomotionTest(unittest.TestCase):
             environment = os.environ.copy()
             environment.update({
                 "OVERTE_MOCK_E2E_STATE": str(root / "state.json"),
+                "OVERTE_DEVICE_LOCK_ROOT": str(root / "locks"),
                 "OVERTE_DEVICE_LAUNCH_SETTLE_SECONDS": "0",
                 "OVERTE_E2E_SCENE_URL": "http://fixture.invalid/scene.json",
                 "OVERTE_E2E_POLL_SECONDS": "0.05",

@@ -15,6 +15,7 @@
 #include <QtTest/QtTest>
 
 class MovingMinMaxAvgTests : public QObject {
+    Q_OBJECT
     
 private slots:
     void testQuint64();

@@ -2,7 +2,9 @@ name: Repository checks
 
 on:
   pull_request:
-    types: [opened, reopened, synchronize, edited, ready_for_review]
+    # Drafts are checked on opened/synchronize already. Marking one ready does
+    # not change the candidate and must not duplicate an expensive native run.
+    types: [opened, reopened, synchronize, edited]
   workflow_dispatch:
 
 permissions:
@@ -20,6 +22,7 @@ jobs:
     outputs:
       mode: ${{ steps.plan.outputs.mode }}
       security: ${{ steps.plan.outputs.security }}
+      native: ${{ steps.native.outputs.mode }}
     steps:
       - name: Check out trusted routing policy
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -27,18 +30,38 @@ jobs:
           ref: ${{ github.event.repository.default_branch }}
           path: trusted
           persist-credentials: false
+          sparse-checkout: |
+            .github
+            tools/repository-checks
+            tools/native-tests
       - name: Read the candidate tree without executing it
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: candidate
           fetch-depth: 2
           persist-credentials: false
+          # Routing reads Git tree metadata, not candidate source contents.
+          sparse-checkout: .github
       - name: Select checks from the exact merge candidate
         id: plan
         run: >-
           python3 trusted/tools/repository-checks/check.py plan
           --event "$GITHUB_EVENT_PATH" --candidate candidate
           --sha "$GITHUB_SHA" --output "$GITHUB_OUTPUT"
+
+      - name: Select native checks from the exact merge candidate
+        id: native
+        run: >-
+          python3 trusted/tools/native-tests/check.py plan
+          --event "$GITHUB_EVENT_PATH" --candidate candidate --sha "$GITHUB_SHA"
+          --output "$GITHUB_OUTPUT" --report native-plan.json
+
+  native:
+    needs: route
+    if: needs.route.outputs.native != 'skip'
+    uses: ./.github/workflows/native-tests.yml
+    with:
+      mode: ${{ needs.route.outputs.native }}
 
   project:
     needs: route
@@ -57,7 +80,7 @@ jobs:
   repository-checks:
     name: repository-checks
     if: always()
-    needs: [route, project, documentation, workflow-security]
+    needs: [route, project, documentation, workflow-security, native]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
