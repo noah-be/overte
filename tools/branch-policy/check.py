@@ -28,6 +28,8 @@ PRIVILEGED_PATHS = (
     ".github/workflows/workflow-security.yml",
     ".github/rulesets/",
     "tools/repository-checks/",
+    "tools/ios-build-qualification/",
+    ".github/ios-build-qualification.json",
     "tools/repository-policy/",
     "tools/repository-maintenance/",
     "tests/run-project-tests.py",
