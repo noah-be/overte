@@ -686,6 +686,24 @@ class HostWorkflowRoutingContracts(unittest.TestCase):
                 self.assertNotIn("--platform-only", source)
                 self.assertNotIn("continue-on-error:", source)
 
+    def test_host_namespace_setup_is_ephemeral_and_preserves_isolation(self):
+        for name, source in self.workflows.items():
+            with self.subTest(workflow=name):
+                self.assertIn("runs-on: ubuntu-24.04", source)
+                setup = source.split("      - name: Prepare isolated host evidence validators\n", 1)[1]
+                setup = setup.split("      - name:", 1)[0]
+                guard = 'test "$RUNNER_ENVIRONMENT" = github-hosted'
+                setting = "sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0"
+                probe = "unshare --user --map-root-user --net true"
+                self.assertLess(setup.index(guard), setup.index(setting))
+                self.assertLess(setup.index(setting), setup.index(probe))
+                self.assertLess(setup.index(probe), setup.index("python3 -m venv"))
+                self.assertNotIn("||", setup)
+                self.assertNotIn("/etc/sysctl", setup)
+                self.assertNotIn("sudo unshare", source)
+                self.assertNotIn("sudo python", source)
+                self.assertNotIn("continue-on-error:", source)
+
     def test_parent_evidence_stays_bound_to_the_successful_exact_push(self):
         source = self.workflows["parent"]
         self.assertIn("ref: ${{ github.sha }}", source)

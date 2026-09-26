@@ -43,6 +43,17 @@ network access; unavailable isolation fails those tests. The workflow contains
 the exact Ubuntu package list. These host Qt contracts are separate from the
 complete client's platform-specific Qt/Conan dependency graph.
 
+On disposable GitHub-hosted Ubuntu 24.04 runners, both host workflows enable
+unprivileged user namespaces for the current VM through the runtime-only
+`kernel.apparmor_restrict_unprivileged_userns=0` setting, then require the
+`unshare` probe to succeed. This accommodates Ubuntu's
+[AppArmor namespace restriction](https://documentation.ubuntu.com/security/security-features/privilege-restriction/apparmor/).
+The setup refuses other runner environments, writes no persistent system
+configuration, and does not run tests with host root privileges. The isolated
+test commands retain `--net`; failures are never replaced by an unsandboxed
+fallback. Local hosts and device-lab runners need their own reviewed namespace
+policy; these workflows do not configure them.
+
 Prepare the additional pinned SPDX/CycloneDX validators in a dedicated environment:
 
 ```bash
