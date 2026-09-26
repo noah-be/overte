@@ -13,6 +13,7 @@
 import "../../windows" as Windows
 import QtQuick 2.0
 import Hifi 1.0
+import TabletScriptingInterface 1.0
 
 import Qt.labs.settings 1.0
 import controlsUit 1.0 as HifiControls
@@ -25,6 +26,9 @@ Windows.ScrollingWindow {
 
     property var rootMenu;
     property string subMenu: ""
+    property var tabletProxy: Tablet.getTablet("com.highfidelity.interface.tablet.system")
+    property var semanticSourceHistory: []
+    property string semanticBackTarget: ""
     HifiControls.TouchUiProfile { id: touchUiProfile }
     property bool screenSpaceMode: false
     property real screenSpaceContentScale: touchUiProfile.screenSpaceContentScale
@@ -44,6 +48,8 @@ Windows.ScrollingWindow {
     closable: !screenSpaceMode
     pinnable: !screenSpaceMode
     alwaysOnTop: screenSpaceMode
+    contentFlickableInteractive: !touchUiProfile.directTouch || !screenSpaceMode
+    TabletSurfaceGeometry { id: surfaceGeometry; profile: touchUiProfile }
 
     function setScreenSpaceMode(value) {
         screenSpaceMode = value
@@ -59,12 +65,23 @@ Windows.ScrollingWindow {
 
     function alignScreenSpaceWindow() {
         if (screenSpaceMode) {
-            x = screenSpaceSafeInsetLeft
-            y = screenSpaceSafeInsetTop
+            x = surfaceGeometry.x
+            y = surfaceGeometry.y
+            if (surfaceGeometry.valid) {
+                width = surfaceGeometry.width
+                height = surfaceGeometry.height
+            }
         }
     }
 
     onVisibleChanged: if (visible && screenSpaceMode) Qt.callLater(alignScreenSpaceWindow)
+    Connections {
+        target: surfaceGeometry
+        function onXChanged() { if (screenSpaceMode) Qt.callLater(alignScreenSpaceWindow) }
+        function onYChanged() { if (screenSpaceMode) Qt.callLater(alignScreenSpaceWindow) }
+        function onWidthChanged() { if (screenSpaceMode) Qt.callLater(alignScreenSpaceWindow) }
+        function onHeightChanged() { if (screenSpaceMode) Qt.callLater(alignScreenSpaceWindow) }
+    }
 
     Settings {
         id: settings
@@ -104,7 +121,41 @@ Windows.ScrollingWindow {
     }
 
     function loadSource(url) {
-        loader.load(url) 
+        var restoringPrevious = semanticBackTarget !== "" && semanticBackTarget === url
+        semanticBackTarget = ""
+        if (url === "hifi/tablet/TabletHome.qml") {
+            semanticSourceHistory = []
+        } else if (!restoringPrevious && loader.source !== "" && loader.source !== url) {
+            semanticSourceHistory = semanticSourceHistory.concat([loader.source])
+        }
+        loader.load(url)
+    }
+
+    function returnToPreviousSemanticScreen() {
+        if (semanticBackTarget !== "") { return true }
+        if (loader.item && typeof loader.item.handleTabletBack === "function"
+                && loader.item.handleTabletBack() === true) {
+            return true
+        }
+        if (loader.source === "hifi/tablet/TabletHome.qml") {
+            tabletProxy.hideAndroidTablet()
+            return true
+        }
+        if (semanticSourceHistory.length === 0) {
+            tabletProxy.gotoHomeScreen()
+            return true
+        }
+        var previous = semanticSourceHistory[semanticSourceHistory.length - 1]
+        semanticSourceHistory = semanticSourceHistory.slice(0, -1)
+        semanticBackTarget = previous
+        // Use the proxy so its current source/state and screenChanged clients
+        // agree with the page shown by the loader after Back.
+        if (previous === "hifi/tablet/TabletHome.qml") {
+            tabletProxy.gotoHomeScreen()
+        } else {
+            tabletProxy.loadQMLSource(previous)
+        }
+        return true
     }
 
     function loadWebContent(source, url, injectJavaScriptUrl) {
@@ -145,6 +196,17 @@ Windows.ScrollingWindow {
         source: "../../../sounds/Gamemaster-Audio-button-click.wav"
     }
 
+    footer: TabletNavigation {
+        width: parent.width
+        visible: touchUiProfile.directTouch && tabletRoot.screenSpaceMode
+            && loader.source !== "" && loader.source !== "hifi/tablet/TabletHome.qml"
+        contentScale: tabletRoot.screenSpaceContentScale
+        backVisible: !loader.item || !loader.item.hasOwnProperty("currentPage")
+        onBackRequested: tabletRoot.returnToPreviousSemanticScreen()
+        onHomeRequested: tabletProxy.gotoHomeScreen()
+        onCloseRequested: tabletProxy.hideAndroidTablet()
+    }
+
     function playButtonClickSound() {
         // Because of the asynchronous nature of initalization, it is possible for this function to be
         // called before the C++ has set the globalPosition context variable.
@@ -168,25 +230,21 @@ Windows.ScrollingWindow {
         }
     }
 
-    Item {
+    TabletPageLoader {
         id: loader
-        objectName: "loader";
-        property string source: "";
-        property var item: null;
-        // One host-level scale covers the status bar, launcher, close control,
-        // QML applications and web applications consistently on Android.
+        rootMenu: tabletRoot.rootMenu
+        subMenu: tabletRoot.subMenu
+        sharedTouchNavigation: tabletRoot.screenSpaceMode && touchUiProfile.directTouch
+        onScreenChanged: function(type, url) { tabletRoot.screenChanged(type, url) }
+        onSendToScript: function(message) { tabletRoot.sendToScript(message) }
+        onHomeRequested: tabletProxy.gotoHomeScreen()
         readonly property real contentScale: tabletRoot.screenSpaceMode
             ? tabletRoot.screenSpaceContentScale : 1.0
-
         transformOrigin: Item.TopLeft
         scale: contentScale
         height: pane.scrollHeight / contentScale
         width: pane.contentWidth / contentScale
-
-        // this might be looking not clear from the first look
-        // but loader.parent is not tabletRoot and it can be null!
-        // unfortunately we can't use conditional bindings here due to https://bugreports.qt.io/browse/QTBUG-22005
-
+        // ScrollingWindow reparents its content into the Flickable.
         onParentChanged: {
             if (parent) {
                 anchors.left = Qt.binding(function() { return parent.left })
@@ -195,69 +253,6 @@ Windows.ScrollingWindow {
                 anchors.left = undefined
                 anchors.top = undefined
             }
-        }
-
-        signal loaded;
-        
-        onWidthChanged: {
-            resizeLoadedItem();
-        }
-        
-        onHeightChanged: {
-            resizeLoadedItem();
-        }
-
-        onContentScaleChanged: resizeLoadedItem()
-
-        function resizeLoadedItem() {
-            if (!loader.item) {
-                return;
-            }
-            loader.item.width = loader.width;
-            loader.item.height = loader.height;
-        }
-        
-        function load(newSource, callback) {
-            if (loader.item) {
-                loader.item.destroy();
-                loader.item = null;
-            }
-            
-            loader.source = newSource;
-            QmlSurface.load(newSource, loader, function(newItem) {
-                loader.item = newItem;
-                loader.resizeLoadedItem();
-                loader.loaded();
-                if (loader.item.hasOwnProperty("sendToScript")) {
-                    loader.item.sendToScript.connect(tabletRoot.sendToScript);
-                }
-                if (loader.item.hasOwnProperty("setRootMenu")) {
-                    loader.item.setRootMenu(tabletRoot.rootMenu, tabletRoot.subMenu);
-                }
-                loader.item.forceActiveFocus();
-                
-                if (callback) {
-                    callback();
-                }                
-
-                var type = "Unknown";
-                if (newSource === "") {
-                    type = "Closed";
-                } else if (newSource === "hifi/tablet/TabletMenu.qml") {
-                    type = "Menu";
-                } else if (newSource === "hifi/tablet/TabletHome.qml") {
-                    type = "Home";
-                } else if (newSource === "hifi/tablet/TabletWebView.qml") {
-                    // Handled in `callback()`
-                    return;
-                } else if (newSource.toLowerCase().indexOf(".qml") > -1) {
-                    type = "QML";
-                } else {
-                    console.log("newSource is of unknown type!");
-                }
-                
-                screenChanged(type, newSource);
-            });
         }
     }
 

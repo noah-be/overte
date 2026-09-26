@@ -12,12 +12,12 @@
 //
 
 import QtQuick 2.5
-import QtQuick.Controls 1.4
+import QtQuick.Controls 2.3
 import Qt.labs.settings 1.0
 import stylesUit 1.0
 import controlsUit 1.0 as HifiControlsUit
 import "../controls" as HifiControls
-import "qrc:////qml//hifi//models" as HifiModels  // Absolute path so the same code works everywhere.
+import "models" as HifiModels  // Absolute path so the same code works everywhere.
 
 // references HMD, Users, UserActivityLogger from root context
 
@@ -424,7 +424,7 @@ Rectangle {
             }
         }
         // This TableView refers to the Nearby Table (on the "Nearby" tab below the current user's NameCard)
-        HifiControlsUit.Table {
+        PeopleTable {
             id: nearbyTable;
             flickableItem.interactive: true;
             // Anchors
@@ -449,7 +449,7 @@ Rectangle {
                 sortModel();
             }
 
-            TableViewColumn {
+            PeopleTableColumn {
                 role: "avgAudioLevel";
                 title: "LOUD";
                 width: actionButtonWidth;
@@ -457,7 +457,7 @@ Rectangle {
                 resizable: false;
             }
 
-            TableViewColumn {
+            PeopleTableColumn {
                 id: displayNameHeader;
                 role: "displayName";
                 title: nearbyTable.rowCount + (nearbyTable.rowCount === 1 ? " NAME" : " NAMES");
@@ -466,14 +466,14 @@ Rectangle {
                 resizable: false;
             }
 
-            TableViewColumn {
+            PeopleTableColumn {
                 role: "ignore";
                 title: "IGNORE";
                 width: actionButtonWidth;
                 movable: false;
                 resizable: false;
             }
-            TableViewColumn {
+            PeopleTableColumn {
                 visible: iAmAdmin;
                 role: "mute";
                 title: "SILENCE";
@@ -481,7 +481,7 @@ Rectangle {
                 movable: false;
                 resizable: false;
             }
-            TableViewColumn {
+            PeopleTableColumn {
                 visible: iAmAdmin;
                 role: "kick";
                 title: "BAN";
@@ -821,7 +821,7 @@ Rectangle {
         }
 
         // This TableView refers to the Connections Table (on the "Connections" tab below the current user's NameCard)
-        HifiControlsUit.Table {
+        PeopleTable {
             id: connectionsTable;
             flickableItem.interactive: true;
             visible: !connectionsLoading.visible;
@@ -840,7 +840,7 @@ Rectangle {
                 settings.connectionsSortIndicatorOrder = sortIndicatorOrder;
             }
 
-            TableViewColumn {
+            PeopleTableColumn {
                 id: connectionsUserNameHeader;
                 role: "userName";
                 title: connectionsUserModel.totalEntries + (connectionsUserModel.totalEntries === 1 ? " NAME" : " NAMES");
@@ -848,14 +848,14 @@ Rectangle {
                 movable: false;
                 resizable: false;
             }
-            TableViewColumn {
+            PeopleTableColumn {
                 role: "placeName";
                 title: "LOCATION";
                 width: locationColumnWidth;
                 movable: false;
                 resizable: false;
             }
-            TableViewColumn {
+            PeopleTableColumn {
                 role: "connection";
                 title: "FRIEND";
                 width: actionButtonWidth;

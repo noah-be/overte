@@ -9,7 +9,6 @@
 //
 
 import QtQuick 2.7
-import QtQuick.Dialogs 1.2 as OriginalDialogs
 import QtQuick.Controls 2.3
 
 import controlsUit 1.0

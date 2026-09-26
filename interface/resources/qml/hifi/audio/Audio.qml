@@ -23,7 +23,10 @@ import "./" as AudioControls
 
 Rectangle {
     id: root;
+    property bool tabletNavigationProvided: false
     objectName: "settings.audio"
+    Accessible.role: Accessible.Client
+    Accessible.name: qsTr("Audio settings")
 
     HifiConstants { id: hifi; }
     AudioTouchConfiguration {
@@ -45,6 +48,24 @@ Rectangle {
     signal sendToScript(var message);
 
     color: hifi.colors.baseGray;
+
+    HifiControlsUit.Button {
+        id: semanticBackButton
+        objectName: "nav.back"
+        visible: touchConfiguration.directTouch && !root.tabletNavigationProvided
+        z: 1000
+        text: qsTr("Back")
+        width: Math.max(88, touchConfiguration.minimumControlHeight * 2)
+        height: Math.max(44, touchConfiguration.minimumControlHeight)
+        anchors.top: parent.top
+        anchors.right: parent.right
+        Accessible.role: Accessible.Button
+        Accessible.name: qsTr("Back to settings")
+        Accessible.description: qsTr("Return to the settings category list")
+        androidClickAction: function() {
+            root.sendToScript({ type: "settings.back" });
+        }
+    }
 
     // only show the title if loaded through a "loader"
     function showTitle() {
@@ -789,7 +810,8 @@ Rectangle {
                 anchors.leftMargin: margins.sizeCheckBox;
                 size: Math.round(22 * touchConfiguration.textScale);
                 color: hifi.colors.white;
-                text: qsTr("Choose input device");
+                text: touchConfiguration.systemManagedAudioInput
+                    ? qsTr("Microphone") : qsTr("Choose input device");
             }
         }
 
@@ -810,10 +832,19 @@ Rectangle {
             anchors.topMargin: 10;
             x: margins.paddings
             interactive: false;
-            height: contentHeight;
+            height: touchConfiguration.systemManagedAudioInput ? 60 : contentHeight;
 
             clip: true;
-            model: AudioScriptingInterface.devices.input;
+            model: touchConfiguration.systemManagedAudioInput ? null : AudioScriptingInterface.devices.input;
+            RalewayRegular {
+                anchors.fill: parent
+                visible: touchConfiguration.systemManagedAudioInput
+                text: qsTr("Uses the active microphone on your device or connected headset.")
+                color: hifi.colors.white
+                size: Math.round(16 * touchConfiguration.textScale)
+                wrapMode: Text.WordWrap
+                verticalAlignment: Text.AlignVCenter
+            }
             delegate: Item {
                 width: rightMostInputLevelPos - margins.paddings*2
                 height: ((type != "hmd" && bar.currentIndex === 0) || (type != "desktop" && bar.currentIndex === 1)) ?
@@ -883,7 +914,8 @@ Rectangle {
                 anchors.verticalCenter: parent.verticalCenter;
                 size: Math.round(22 * touchConfiguration.textScale);
                 color: hifi.colors.white;
-                text: qsTr("Choose output device");
+                text: touchConfiguration.systemManagedAudioOutput
+                    ? qsTr("Audio output") : qsTr("Choose output device");
             }
         }
 
@@ -899,11 +931,20 @@ Rectangle {
             width: parent.width - margins.paddings*2
             x: margins.paddings;
             interactive: false;
-            height: contentHeight + 10;
+            height: touchConfiguration.systemManagedAudioOutput ? 60 : contentHeight + 10;
             anchors.top: playSampleSound.bottom;
             anchors.topMargin: 10;
             clip: true;
-            model: AudioScriptingInterface.devices.output;
+            model: touchConfiguration.systemManagedAudioOutput ? null : AudioScriptingInterface.devices.output;
+            RalewayRegular {
+                anchors.fill: parent
+                visible: touchConfiguration.systemManagedAudioOutput
+                text: qsTr("Plays sound through your device speaker or connected audio device.")
+                color: hifi.colors.white
+                size: Math.round(16 * touchConfiguration.textScale)
+                wrapMode: Text.WordWrap
+                verticalAlignment: Text.AlignVCenter
+            }
             delegate: Item {
                 width: rightMostInputLevelPos
                 height: ((type != "hmd" && bar.currentIndex === 0) || (type != "desktop" && bar.currentIndex === 1)) ?

@@ -48,7 +48,7 @@ int main(int argc, char** argv) {
                         ? (variant == "phone" ? "nav.back" : "GeneralPreferencesCancel") : "GeneralPreferencesSave");
                     assert(button);
                     const bool baseCallback = QString::fromLatin1(platform) == "android"
-                        || (variant == "apple" && QString::fromLatin1(platform) == "ios");
+                        || QString::fromLatin1(platform) == "ios";
                     assert(button->property("usesAndroidClickAction").isValid());
                     assert(button->property("usesAndroidClickAction").toBool() == baseCallback);
                     QCoreApplication::processEvents();
@@ -74,7 +74,7 @@ int main(int argc, char** argv) {
                     assert(root->property("saves").toInt() == (cancel ? 0 : 1));
                     assert(root->property("restores").toInt() == (cancel ? 1 : 0));
                     const bool callbackCancel = cancel && baseCallback;
-                    const bool settingsBack = callbackCancel && variant == "phone";
+                    const bool settingsBack = callbackCancel;
                     assert(root->property("homes").toInt() == ((callbackCancel && !settingsBack) || (!callbackCancel && !active && route == 0) ? 1 : 0));
                     assert(root->property("previous").toInt() == (!callbackCancel && route == 1 ? 1 : 0));
                     assert(root->property("scripts").toInt() == (settingsBack || (!callbackCancel && route == 2) ? 1 : 0));

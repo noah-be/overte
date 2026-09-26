@@ -9,7 +9,7 @@
 //
 
 import QtQuick 2.5
-import QtQuick.Controls 1.4
+import QtQuick.Controls 2.3
 
 import "."
 
@@ -92,7 +92,7 @@ Item {
                 var item = items[i];
                 var phoneSupported = isPhoneMenuItemSupported(item);
                 var unavailableSuffix = isAndroidPhoneTablet() && !phoneSupported
-                    ? " (Unavailable on Android)" : "";
+                    ? " (Unavailable on this device)" : "";
                 switch (item.type) {
                 case MenuItemType.Menu:
                     result.append({
@@ -206,7 +206,7 @@ Item {
         }
 
         property Component exclusiveGroupMaker: Component {
-            ExclusiveGroup {
+            ButtonGroup {
             }
         }
 

@@ -124,7 +124,7 @@ function startPlaces(options = {}) {
     runProductionScript(source, globals);
     const button = tablet.buttons.find((candidate) => candidate.properties.text === "PLACES");
     button.click();
-    if (options.has3DHTML) {
+    if (options.has3DHTML && options.androidPhone === false) {
         tablet.webEventReceived.emit(JSON.stringify({ channel: "com.overte.places", action: "READY_FOR_CONTENT" }));
     } else {
         tablet.fromQml.emit({ channel: "com.overte.places", action: "READY_FOR_CONTENT" });
@@ -469,4 +469,13 @@ test("production Places processes a large adversarial directory batch exactly on
     assert.equal(results.length, 1);
     assert.ok(results[0].data.length > 0);
     assert.ok(results[0].data.length <= places.length);
+});
+
+// iOS uses the shared flat-touch startup even when native web content is supported.
+test("flat-touch Places keeps the Android native UI on web-capable hosts", () => {
+    const harness = startPlaces({ androidPhone: true, has3DHTML: true });
+    assert.equal(harness.tablet.navigation[0].type, "qml");
+    assert.match(harness.tablet.navigation[0].args[0], /PicoPlaces[.]qml$/);
+    assert.equal(harness.tablet.webEventReceived.listenerCount, 0);
+    assert.equal(harness.xhr.requests.length, 1);
 });
