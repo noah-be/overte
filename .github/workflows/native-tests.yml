@@ -56,7 +56,8 @@ jobs:
           apt-get install -y --no-install-recommends ccache libglm-dev nlohmann-json3-dev
 
       - name: Restore compiler cache
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        id: compiler-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: .native-ccache
           key: native-ccache-babe51f7c369-v1-${{ inputs.mode }}-${{ github.sha }}
@@ -64,7 +65,7 @@ jobs:
 
       - name: Restore native dependency cache
         if: inputs.mode == 'full'
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: .native-conan
           key: native-deps-babe51f7c369-v1-${{ hashFiles('conanfile.py', 'tools/conan-profiles/linux', 'tools/native-tests/conan-linux.lock') }}
@@ -100,7 +101,7 @@ jobs:
       - name: Restore generated shaders for identical inputs
         if: inputs.mode == 'full' && steps.shader-key.outputs.key != ''
         id: shaders
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: |
             build/native/libraries/shaders/shaders
@@ -119,6 +120,22 @@ jobs:
       - name: Report compiler cache use
         if: always()
         run: ccache --show-stats
+
+      - name: Save successful compiler cache
+        if: success() && steps.compiler-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: .native-ccache
+          key: ${{ steps.compiler-cache.outputs.cache-primary-key }}
+
+      - name: Save successful shader outputs
+        if: success() && inputs.mode == 'full' && steps.shader-key.outputs.key != '' && steps.shaders.outputs.cache-hit != 'true'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: |
+            build/native/libraries/shaders/shaders
+            build/native/libraries/shaders/shaderDeps.json
+          key: ${{ steps.shaders.outputs.cache-primary-key }}
 
       - name: Upload native diagnostics
         if: always()
