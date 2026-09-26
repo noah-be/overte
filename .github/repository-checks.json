@@ -8,6 +8,8 @@
     "tools/workflow-security/**",
     "tools/branch-cleanup/**",
     "tools/repository-checks/**",
+    "tools/ios-build-qualification/**",
+    "tests/ios-build-qualification-test.py",
     "tools/repository-policy/**",
     "tests/workflow-*",
     "tests/branch-cleanup-test.py",
