@@ -95,7 +95,7 @@ assert "profileSelectors(product, gles)" in SELECTORS
 PROFILE_IMPLEMENTATION = (ROOT / "libraries/ui/src/CapabilityProfile.h").read_text()
 assert 'case Product::IOS: result = {"ios", "mobile", "touch",' in PROFILE_IMPLEMENTATION
 assert "android_phoneInterface" in PROFILE_IMPLEMENTATION
-assert 'import ".." as SharedControls' in PROFILE
+assert 'import controlsUit 1.0 as SharedControls' in PROFILE
 assert "SharedControls.TouchUiProfileBase" in PROFILE
 assert "graphicsSettingsAvailable: true" in PROFILE
 

@@ -1,6 +1,6 @@
 import QtQuick 2.7
 import OverteIOS 1.0
-import ".." as SharedControls
+import controlsUit 1.0 as SharedControls
 
 SharedControls.TouchUiProfileBase {
     readonly property var runtimeMetrics: IOSTouchUiMetrics
