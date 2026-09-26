@@ -125,6 +125,7 @@ jobs:
       - name: Run device-free contracts
         if: inputs.validated_host_contracts_sha == ''
         env:
+          OVERTE_QML_TEST_RUNNER: /usr/lib/qt6/bin/qmltestrunner
           OVERTE_HOST_TEST_NETWORK_RUNNER: ${{ github.workspace }}/ios/ci/host-test-network.sh
         run: ios/tests/run-tests.sh
 

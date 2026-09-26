@@ -73,13 +73,14 @@ python3 "$script_dir/ios-integrated-recovery-contract-test.py"
 python3 "$script_dir/qt-checkpoint-artifact-test.py"
 python3 "$script_dir/merge-compiler-checkpoint-test.py"
 python3 "$script_dir/qt-source-recovery-contract-test.py"
-# Execute the real QML loader where host Qt is available. The preparation-only
-# Linux image need not install a second Qt toolchain just to run source checks.
+# Execute real Qt 6 loading and interaction tests. All iOS CI entry points
+# install the same host QML dependencies; developer hosts may omit them.
 if command -v pkg-config >/dev/null && pkg-config --exists Qt6Qml; then
     python3 "$script_dir/development-reload-test.py"
     python3 "$script_dir/../../tests/device/contracts/tablet/test_tablet_qml.py"
+    "$script_dir/../../tests/device/qml/run-qml-tests.sh"
 else
-    echo "SKIP executable development reload test: host Qt6Qml unavailable"
+    echo "SKIP executable development reload and tablet tests: host Qt6Qml unavailable"
 fi
 python3 "$script_dir/interface-ios-macos-source-isolation-test.py"
 python3 "$script_dir/interface-ios-input-platform-test.py"
