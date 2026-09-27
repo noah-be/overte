@@ -192,7 +192,9 @@ the combined host profile above; run this separate command when focusing on the
 control plane itself.
 
 The full self-tests use two isolated Python worker processes, keeping each test
-module together. Every discovered case is retained; global Python mocks and
+module together. Re-exported test classes loaded under a synthetic module name
+are reloaded through their importing module, while their original test IDs remain
+the basis for selection and execution accounting. Every discovered case is retained; global Python mocks and
 environment changes are never shared between workers. Temporary target locks
 belong to their individual fixtures. Use `--self-test-jobs 1` on this command
 for serial debugging. Worker failures, import failures, missing cases and
