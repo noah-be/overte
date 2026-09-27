@@ -75,7 +75,9 @@ The reviewed manual default-branch `Prepare native baseline` run seeds the compi
 cache for later PRs; caches written by one PR are not shared with other PRs.
 Refresh the default-branch cache deliberately when hit rates deteriorate, without
 adding a duplicate native build to every push.
-Compiler caches are speed aids; a hit never substitutes for executing tests.
+Compiler statistics are reset after restoration so the reported hit rate describes
+the current run rather than earlier builds stored in the cache. Cached objects
+remain intact. Compiler caches are speed aids; a hit never substitutes for executing tests.
 The shader cache is keyed from Ninja's declared shader inputs, the generated
 command list, the actual commands, and shader compiler binary contents. It uses
 exact matches only and is omitted when the selected targets do not need shaders.

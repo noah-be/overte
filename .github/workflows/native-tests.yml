@@ -73,6 +73,9 @@ jobs:
           key: native-ccache-babe51f7c369-v1-${{ inputs.mode }}-${{ github.sha }}
           restore-keys: native-ccache-babe51f7c369-v1-${{ inputs.mode }}-
 
+      - name: Measure compiler cache use for this run
+        run: ccache --zero-stats
+
       - name: Resolve prebuilt dependencies without source rebuilds
         if: inputs.mode == 'full'
         timeout-minutes: 10
