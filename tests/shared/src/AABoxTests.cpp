@@ -65,7 +65,7 @@ void AABoxTests::testContainsPoint() {
         const glm::vec3 point((vertex & 1) ? maximum.x : corner.x,
                               (vertex & 2) ? maximum.y : corner.y,
                               (vertex & 4) ? maximum.z : corner.z);
-        QVERIFY(!box.contains(point)); // Intentional native merge-gate qualification fault.
+        QVERIFY(box.contains(point));
     }
 
     float delta = 0.00001f;
