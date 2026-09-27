@@ -136,6 +136,43 @@ class UnittestRunnerTests(unittest.TestCase):
         positions = [result.stderr.index(f"=== test_{index} ") for index in range(4)]
         self.assertEqual(positions, sorted(positions), "completion order must not reorder reports")
 
+    def test_reexported_dynamic_cases_keep_identity_and_failure_propagation(self):
+        external = self.root / "consumer-contract.py"
+        external.write_text(textwrap.dedent("""
+            from pathlib import Path
+            import unittest
+            class Contract(unittest.TestCase):
+                def test_contract(self):
+                    self.assertFalse(Path('fail-contract').exists(), 'contract-canary')
+                def test_retained(self):
+                    pass
+        """))
+        self.write("test_consumer.py", """
+            import importlib.util
+            from pathlib import Path
+            spec = importlib.util.spec_from_file_location('synthetic_contract', Path('consumer-contract.py'))
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            ExportedContract = module.Contract
+        """)
+        report = self.root / "dynamic.json"
+        for failing in (False, True):
+            with self.subTest(failing=failing):
+                if failing:
+                    (self.root / "fail-contract").touch()
+                result = self.run_cli("--jobs", "2", "--report-json", str(report))
+                self.assertEqual(result.returncode, int(failing), result.stderr)
+                saved = json.loads(report.read_text())
+                expected = ['synthetic_contract.Contract.test_contract',
+                            'synthetic_contract.Contract.test_retained']
+                self.assertEqual(saved['modules'][0]['selected_ids'], expected)
+                self.assertEqual(saved['modules'][0]['result']['loaded_ids'], expected)
+                self.assertEqual(saved['modules'][0]['result']['executed_ids'], expected)
+                self.assertEqual(saved['ran'], 2)
+                self.assertEqual(saved['skipped'], 0)
+                if failing:
+                    self.assertIn('contract-canary', result.stderr)
+
     def test_assertion_failure_does_not_hide_other_modules_or_cases(self):
         self.write("test_a_failed.py", """
             import unittest
