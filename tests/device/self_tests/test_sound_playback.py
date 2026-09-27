@@ -59,6 +59,7 @@ class SoundPlaybackTest(unittest.TestCase):
         environment = os.environ.copy()
         environment.update({
             "OVERTE_MOCK_E2E_STATE": str(root / "state.json"),
+            "OVERTE_DEVICE_LOCK_ROOT": str(root / "locks"),
             "OVERTE_DEVICE_LAUNCH_SETTLE_SECONDS": "0",
             "OVERTE_E2E_POLL_SECONDS": "0.05",
             "OVERTE_E2E_SOUND_TIMEOUT_SECONDS": "1",
@@ -124,11 +125,20 @@ class SoundPlaybackTest(unittest.TestCase):
         with self.assertRaises(HTTPError) as missing:
             urlopen(self.ready["baseUrl"] + "/audio/missing.wav", timeout=2)
         self.assertEqual(404, missing.exception.code)
+        # Consume the error body before closing the socket. The fixture records
+        # completed sends after writing it, on another request-handling thread.
+        self.assertEqual({"error": "not found"}, json.load(missing.exception))
         missing.exception.close()
-        with urlopen(self.ready["soundRequestsUrl"], timeout=2) as response:
-            requests = json.load(response)["requests"]
-        self.assertIn(200, [item["status"] for item in requests])
-        self.assertIn(404, [item["status"] for item in requests])
+        deadline = time.monotonic() + 2
+        while True:
+            with urlopen(self.ready["soundRequestsUrl"], timeout=2) as response:
+                requests = json.load(response)["requests"]
+            statuses = {item["status"] for item in requests}
+            if {200, 404} <= statuses or time.monotonic() >= deadline:
+                break
+            time.sleep(0.01)
+        self.assertIn(200, statuses)
+        self.assertIn(404, statuses)
 
     def test_sound_operation_and_probe_contracts_reject_invalid_state(self):
         arguments = {

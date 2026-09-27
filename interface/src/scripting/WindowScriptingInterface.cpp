@@ -23,6 +23,7 @@
 #include <SettingHandle.h>
 
 #if defined(Q_OS_ANDROID)
+#include "AndroidHelper.h"
 #include <dlfcn.h>
 #include <jni.h>
 #endif
@@ -30,7 +31,6 @@
 #include <plugins/PluginManager.h>
 #include <display-plugins/CompositorHelper.h>
 #include <AddressManager.h>
-#include "AndroidHelper.h"
 #include "Application.h"
 #include "DomainHandler.h"
 #include "MainWindow.h"
