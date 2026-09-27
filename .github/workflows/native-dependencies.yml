@@ -119,6 +119,19 @@ jobs:
           compression-level: 0
           retention-days: 1
 
+      - name: Recreate the published package layout before qualification
+        run: |
+          # Portable restore canonicalizes packages that were built in p/b/.
+          # Seed compiler/shader caches from the same paths the PR image uses.
+          test "$CONAN_HOME" = "$GITHUB_WORKSPACE/.native-conan"
+          portable="$(mktemp -d "$GITHUB_WORKSPACE/.native-conan-portable.XXXXXX")"
+          trap 'rm -rf "$portable"' EXIT
+          # Match the publisher's pinned base cache, including its build profile.
+          cp -a /root/.conan2/. "$portable/"
+          CONAN_HOME="$portable" conan cache restore build/native-package/conan-packages.tgz
+          rm -rf "$CONAN_HOME"
+          mv "$portable" "$CONAN_HOME"
+
       - name: Restore the default-branch compiler cache
         id: compiler-cache
         uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
@@ -126,6 +139,9 @@ jobs:
           path: .native-ccache
           key: native-ccache-babe51f7c369-v1-full-${{ inputs.candidate_sha || github.sha }}
           restore-keys: native-ccache-babe51f7c369-v1-full-
+
+      - name: Measure compiler cache use for this run
+        run: ccache --zero-stats
 
       - name: Configure the baseline
         run: |

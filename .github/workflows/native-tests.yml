@@ -9,13 +9,18 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 jobs:
   build:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    # The measured cold full build takes 69 minutes; core stays tightly bounded.
+    timeout-minutes: ${{ inputs.mode == 'full' && 90 || 15 }}
     container:
-      image: docker.io/overte/overte-server-build:2026-02-09-ubuntu-24.04-amd64@sha256:babe51f7c369e303aac67f0a9e7620707319b1d017a3ac13c4376b0d9fed056e
+      image: ghcr.io/noah-be/overte/native-dependencies@sha256:a692b477cd2efdfc1f3d0f059a8eebba4852d37509a2efa945937ef2fe073373
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     env:
       CCACHE_MAXSIZE: 2G
       # Checkout/output mtimes must not invalidate unchanged Qt resource objects.
@@ -56,10 +61,9 @@ jobs:
             --event "$GITHUB_EVENT_PATH" --sha "$GITHUB_SHA" --report build/native-plan.json
           python3 -c 'import json, os; assert json.load(open("build/native-plan.json"))["mode"] == os.environ["EXPECTED_MODE"] in ("core", "full")'
 
-      - name: Install small native prerequisites
-        run: |
-          apt-get update -qq
-          apt-get install -y --no-install-recommends ccache libglm-dev nlohmann-json3-dev
+      - name: Verify reviewed prepared dependency inputs
+        if: inputs.mode == 'full'
+        run: python3 trusted/tools/native-tests/packages.py --source . > build/native-package-identity.json
 
       - name: Restore compiler cache
         id: compiler-cache
@@ -69,12 +73,8 @@ jobs:
           key: native-ccache-babe51f7c369-v1-${{ inputs.mode }}-${{ github.sha }}
           restore-keys: native-ccache-babe51f7c369-v1-${{ inputs.mode }}-
 
-      - name: Restore native dependency cache
-        if: inputs.mode == 'full'
-        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
-        with:
-          path: .native-conan
-          key: native-deps-babe51f7c369-v1-${{ hashFiles('conanfile.py', 'tools/conan-profiles/linux', 'tools/native-tests/conan-linux.lock') }}
+      - name: Measure compiler cache use for this run
+        run: ccache --zero-stats
 
       - name: Resolve prebuilt dependencies without source rebuilds
         if: inputs.mode == 'full'
@@ -83,11 +83,11 @@ jobs:
           mkdir -p "$CONAN_HOME"
           cp -an /root/.conan2/. "$CONAN_HOME/"
           conan install . -pr tools/conan-profiles/linux -s compiler.cppstd=gnu20 \
-            -s build_type=Release -o 'Overte/*:qt_source=system' --lockfile=tools/native-tests/conan-linux.lock --build=never \
+            -s build_type=Release -o 'Overte/*:qt_source=system' --lockfile=tools/native-tests/conan-linux.lock --build=never --no-remote \
             -of build/native --format=json > build/native-dependency-graph.json
           # Preserve the existing OpenSSL provider's second-resolution workaround.
           conan install . -pr tools/conan-profiles/linux -s compiler.cppstd=gnu20 \
-            -s build_type=Release -o 'Overte/*:qt_source=system' --lockfile=tools/native-tests/conan-linux.lock --build=never -of build/native
+            -s build_type=Release -o 'Overte/*:qt_source=system' --lockfile=tools/native-tests/conan-linux.lock --build=never --no-remote -of build/native
 
       - name: Configure and select affected targets
         env:
@@ -152,6 +152,7 @@ jobs:
             build/native-plan.json
             build/native-selection.json
             build/native-dependency-graph.json
+            build/native-package-identity.json
             build/native/native-ctest.xml
             build/native/native-result.json
             build/native/native-results

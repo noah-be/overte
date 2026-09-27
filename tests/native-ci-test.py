@@ -171,10 +171,11 @@ class WorkflowCostTests(unittest.TestCase):
         caller = (ROOT / '.github/workflows/repository-checks.yml').read_text()
         self.assertIn('  workflow_call:', workflow)
         self.assertNotRegex(workflow, r'(?m)^  (push|pull_request|pull_request_target):')
-        if json.loads((ROOT / '.github/repository-checks.json').read_text()).get('native_required', False):
+        config = json.loads((ROOT / '.github/repository-checks.json').read_text())
+        if config.get('native_required', False) or 'main' in config.get('native_required_branches', []):
             self.assertIn("if: needs.route.outputs.native != 'skip'", caller)
             self.assertIn('workflow-security, native]', caller)
-        self.assertIn('timeout-minutes: 45', workflow)
+        self.assertIn("timeout-minutes: ${{ inputs.mode == 'full' && 90 || 15 }}", workflow)
         self.assertIn('timeout-minutes: 10', workflow)
         self.assertNotIn('--build=missing', workflow)
         self.assertIn('--build=never', workflow)
@@ -202,19 +203,51 @@ class WorkflowCostTests(unittest.TestCase):
         self.assertIn("conan cache clean '*' --source --build --download --temp", source)
         cache_key = "native-deps-babe51f7c369-v1-${{ hashFiles('conanfile.py', 'tools/conan-profiles/linux', 'tools/native-tests/conan-linux.lock') }}"
         self.assertIn(cache_key, source)
-        self.assertIn(cache_key, ordinary)
+        self.assertNotIn(cache_key, ordinary)
+        self.assertNotIn('name: Restore native dependency cache', ordinary)
+        self.assertIn('cp -an /root/.conan2/. "$CONAN_HOME/"', ordinary)
+        self.assertIn('--no-remote', ordinary)
+        self.assertNotIn('apt-get', ordinary)
         for workflow in (source, ordinary):
             self.assertEqual(workflow.count('conan install .'),
                              workflow.count('--lockfile=tools/native-tests/conan-linux.lock'))
         self.assertIn('native-ccache-babe51f7c369-v1-full-', source)
         self.assertIn('native-ccache-babe51f7c369-v1-${{ inputs.mode }}-', ordinary)
         self.assertIn('tools/native-tests/run.py', source)
-        image = re.search(r'image: (.+@sha256:([0-9a-f]{64}))', ordinary)
+        image = re.search(r'image: (.+@sha256:([0-9a-f]{64}))', source)
         self.assertIsNotNone(image)
-        self.assertIn(image.group(1), source)
+        self.assertIn('FROM ' + image.group(1),
+                      (ROOT / 'tools/native-tests/package-image.Dockerfile').read_text())
         for workflow in (source, ordinary):
-            self.assertIn('native-deps-' + image.group(2)[:12] + '-v1-', workflow)
+            if workflow == source:
+                self.assertIn('native-deps-' + image.group(2)[:12] + '-v1-', workflow)
             self.assertIn('native-ccache-' + image.group(2)[:12] + '-v1-', workflow)
+
+    def test_consumer_requires_a_pinned_fork_image_before_offline_resolution(self):
+        import yaml
+        workflow = yaml.safe_load((ROOT / '.github/workflows/native-tests.yml').read_text())
+        caller = yaml.safe_load((ROOT / '.github/workflows/repository-checks.yml').read_text())
+        job = workflow['jobs']['build']
+        self.assertRegex(job['container']['image'],
+                         r'^ghcr\.io/noah-be/overte/native-dependencies@sha256:[0-9a-f]{64}$')
+        self.assertEqual(job['container']['credentials'],
+                         {'username': '${{ github.actor }}', 'password': '${{ secrets.GITHUB_TOKEN }}'})
+        self.assertEqual(workflow['permissions'], {'contents': 'read', 'packages': 'read'})
+        self.assertEqual(caller['jobs']['native']['permissions'], {'contents': 'read', 'packages': 'read'})
+        self.assertNotIn('packages', caller['permissions'])
+        for name, entry in caller['jobs'].items():
+            if name != 'native':
+                self.assertNotIn('packages', entry.get('permissions', {}))
+        steps = job['steps']
+        verify = next(step for step in steps if step.get('name') == 'Verify reviewed prepared dependency inputs')
+        resolve = next(step for step in steps if step.get('name') == 'Resolve prebuilt dependencies without source rebuilds')
+        self.assertIn('trusted/tools/native-tests/packages.py', verify['run'])
+        self.assertEqual(verify['if'], "inputs.mode == 'full'")
+        self.assertLess(steps.index(verify), steps.index(resolve))
+        self.assertEqual(resolve['run'].count('conan install .'), resolve['run'].count('--no-remote'))
+        self.assertEqual(resolve['run'].count('conan install .'), resolve['run'].count('--build=never'))
+        self.assertTrue(any('build/native-package-identity.json' in step.get('with', {}).get('path', '')
+                            for step in steps))
 
     def test_package_publishing_requires_successful_manual_qualification(self):
         workflow = (ROOT / '.github/workflows/native-dependencies.yml').read_text()
@@ -234,6 +267,23 @@ class WorkflowCostTests(unittest.TestCase):
         self.assertIn('org.opencontainers.image.source="https://github.com/noah-be/overte"', dockerfile)
         self.assertIn('conan cache restore /native-packages/conan-packages.tgz', dockerfile)
         self.assertNotIn('COPY . ', dockerfile)
+
+    def test_baseline_qualifies_the_same_portable_layout_as_the_publisher(self):
+        import yaml
+        workflow = yaml.safe_load((ROOT / '.github/workflows/native-dependencies.yml').read_text())
+        steps = workflow['jobs']['prepare']['steps']
+        names = [step.get('name') for step in steps]
+        restore = next(step for step in steps if step.get('name') ==
+                       'Recreate the published package layout before qualification')
+        self.assertLess(names.index('Export portable packages without credentials or build trees'),
+                        steps.index(restore))
+        self.assertLess(steps.index(restore), names.index('Configure the baseline'))
+        self.assertIn('conan cache restore build/native-package/conan-packages.tgz', restore['run'])
+        self.assertIn('CONAN_HOME="$portable"', restore['run'])
+        self.assertIn('cp -a /root/.conan2/. "$portable/"', restore['run'])
+        self.assertLess(restore['run'].index('conan cache restore'),
+                        restore['run'].index('rm -rf "$CONAN_HOME"'))
+        self.assertIn('mv "$portable" "$CONAN_HOME"', restore['run'])
 
     def test_container_workspace_uses_runtime_paths_and_exact_git_trust(self):
         import yaml
@@ -289,6 +339,56 @@ class WorkflowCostTests(unittest.TestCase):
 
 
 class GitInventoryTests(unittest.TestCase):
+    def test_sparse_routing_checkout_runs_real_main_and_ios_preflight(self):
+        import shutil
+        import yaml
+        workflow = yaml.safe_load((ROOT / '.github/workflows/repository-checks.yml').read_text())
+        checkout = next(step for step in workflow['jobs']['route']['steps']
+                        if step.get('name') == 'Check out trusted routing policy')
+        directories = checkout['with']['sparse-checkout'].splitlines()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            trusted, candidate = root / 'trusted', root / 'candidate'
+            trusted.mkdir()
+            candidate.mkdir()
+            for directory in directories:
+                shutil.copytree(ROOT / directory, trusted / directory)
+            def git(*args):
+                return subprocess.check_output(['git', *args], cwd=candidate,
+                                               text=True, stderr=subprocess.PIPE).strip()
+            git('init', '-q', '-b', 'base')
+            git('config', 'user.email', 'native-test@example.invalid')
+            git('config', 'user.name', 'Native fixture')
+            (candidate / 'README.md').write_text('base')
+            wiring = candidate / '.github/workflows/ios-build-qualification.yml'
+            wiring.parent.mkdir(parents=True)
+            wiring.write_bytes((ROOT / 'tools/ios-build-qualification/workflow.yml').read_bytes())
+            git('add', '.')
+            git('commit', '-qm', 'Base fixture')
+            base = git('rev-parse', 'HEAD')
+            git('switch', '-qc', 'candidate')
+            (candidate / 'README.md').write_text('documentation update')
+            git('commit', '-qam', 'Candidate fixture')
+            head = git('rev-parse', 'HEAD')
+            git('switch', '-q', 'base')
+            git('merge', '--no-ff', '-m', 'Merge fixture', head)
+            merge = git('rev-parse', 'HEAD')
+            repository = {'id': 1319052603, 'full_name': 'noah-be/overte'}
+            event_file, output = root / 'event.json', root / 'output'
+            command = [sys.executable, str(trusted / 'tools/repository-checks/check.py'), 'plan',
+                       '--event', str(event_file), '--candidate', str(candidate), '--sha', merge,
+                       '--output', str(output)]
+            for branch in ('main', 'apple-ios'):
+                event = {'repository': repository, 'pull_request': {
+                    'base': {'ref': branch, 'sha': base, 'repo': repository},
+                    'head': {'ref': 'fix/main/fixture', 'sha': head, 'repo': repository}}}
+                event_file.write_text(json.dumps(event))
+                result = subprocess.run(command, capture_output=True, text=True, timeout=10)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(json.loads(result.stdout)['mode'], 'documentation')
+            shutil.rmtree(trusted / 'tools/ios-build-qualification')
+            self.assertNotEqual(subprocess.run(command, capture_output=True, timeout=10).returncode, 0)
+
     def test_actual_merge_inventory_covers_deletion_rename_and_more_than_300_files(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
