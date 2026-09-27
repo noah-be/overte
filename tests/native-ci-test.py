@@ -424,7 +424,15 @@ class GitInventoryTests(unittest.TestCase):
             shutil.rmtree(trusted / 'tools/ios-build-qualification')
             self.assertNotEqual(subprocess.run(command, capture_output=True, timeout=10).returncode, 0)
 
-            # Exercise the actual native CLI in the same sparse trusted checkout.
+            # Exercise the native job's own sparse checkout, which also needs
+            # the trusted activation configuration loaded by the real CLI.
+            native_workflow = yaml.safe_load((ROOT / '.github/workflows/native-tests.yml').read_text())
+            native_checkout = next(step for step in native_workflow['jobs']['build']['steps']
+                                   if step.get('name') == 'Check out trusted selection tools')
+            shutil.rmtree(trusted)
+            trusted.mkdir()
+            for directory in native_checkout['with']['sparse-checkout'].splitlines():
+                shutil.copytree(ROOT / directory, trusted / directory)
             # A propagated caller must not activate Linux builds on platform bases.
             base = merge
             git('switch', '-qc', 'native-candidate')
