@@ -5,6 +5,11 @@ import controlsUit 1.0 as HifiControls
 // One navigation surface for every direct-touch, screen-space tablet host.
 Item {
     id: navigation
+    // QQuickItem.visible also becomes false when an ancestor is hidden. The
+    // footer host hides itself while this height is zero, so geometry must
+    // follow requested visibility rather than that inherited visual state.
+    property bool shown: true
+    visible: shown
     property bool backVisible: true
     property real contentScale: 1
     signal backRequested()
@@ -15,7 +20,7 @@ Item {
         availableWidth: navigation.width / navigation.contentScale
     }
     implicitHeight: Math.max(48, Math.ceil(48 * metrics.textScale)) * contentScale
-    height: visible ? implicitHeight : 0
+    height: shown ? implicitHeight : 0
 
     Row {
         anchors.centerIn: parent

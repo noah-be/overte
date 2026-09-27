@@ -148,7 +148,10 @@ duplicated platform QML.
 
 `hifi/tablet/WindowRoot.qml` owns the flat-touch presentation on all hosts.
 `TabletNavigation.qml` provides the same Back, Home and Close controls, scaled
-with the host's content scale. Settings retains its own internal Back header;
+with the host's content scale. The navigation's `shown` property expresses whether the current app requests
+navigation. Its height must not depend on effective `visible`: the scrolling
+window hides a zero-height footer, which would otherwise prevent that footer
+from ever becoming visible again after leaving Home. Settings retains its own internal Back header;
 other screens use the host's navigation. Feature pages can set
 `tabletNavigationProvided` to avoid duplicating controls when embedded. Back
 first calls the page's `handleTabletBack()`, then follows the host's page history.
@@ -199,3 +202,10 @@ removed Controls 1 enums. `tabletVisible` preserves QAction visibility independe
 of whether the native popup is open. QAction remains the owner of checked and
 exclusive state. Runtime tests open submenus, dispatch actions, reject disabled or
 unsupported actions and return through Back while the native popup stays closed.
+
+`tests/device/qml/tst_tablet_window.qml` exercises the actual `WindowRoot`,
+`ScrollingWindow`, navigation and Places components together. Only native
+services and the home-page payload are substituted. It covers Home → Places →
+Home, Back, closing/reopening the tablet, rotation, safe-area/IME resizing and
+recovery from a failed page load. Isolated button tests cannot replace this
+container test; they do not reproduce inherited visibility from the footer host.
