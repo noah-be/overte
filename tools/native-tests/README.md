@@ -231,3 +231,8 @@ References: [GitHub container registry credentials](https://docs.github.com/en/a
 [Conan lockfiles](https://docs.conan.io/2/tutorial/versioning/lockfiles.html),
 [Qt resource timestamp handling](https://github.com/qt/qtbase/blob/5.15/src/tools/rcc/rcc.cpp),
 [GitHub cache scope](https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows#restrictions-for-accessing-a-cache).
+
+## Recorded GitHub qualification
+
+See [the native CI qualification report](../../docs/NATIVE_CI_QUALIFICATION.md)
+for source identities, measured cold and warm costs, cache provenance, and rollout limits.
