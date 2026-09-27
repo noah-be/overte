@@ -4,6 +4,7 @@
 from copy import deepcopy
 import importlib.util
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -27,9 +28,10 @@ def event(base="main", head="fix/main/example", fork=False):
 
 
 def results(mode="full", security="true"):
-    return {"route": {"result": "success", "outputs": {"mode": mode, "security": security}},
+    return {"route": {"result": "success", "outputs": {"mode": mode, "security": security, "native": "full"}},
             "project": {"result": "success" if mode == "full" else "skipped"},
             "documentation": {"result": "success"},
+            "native": {"result": "success"},
             "workflow-security": {"result": "success" if security == "true" else "skipped"}}
 
 
@@ -112,6 +114,45 @@ class AggregateTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             CHECKS.verify(candidate)
 
+    def test_scoped_native_activation_uses_the_trusted_base_not_head(self):
+        config = {**CONFIG, "native_required": False, "native_required_branches": ["main"]}
+        legacy = results()
+        del legacy["native"]
+        del legacy["route"]["outputs"]["native"]
+        for head in ("fix/main/example", "apple-ios", "main"):
+            self.assertTrue(CHECKS.native_required(config, event("main", head)))
+            with self.assertRaises(ValueError):
+                CHECKS.verify(legacy, CHECKS.native_required(config, event("main", head)))
+        for target in ("apple-main", "apple-ios", "android-main", "android-phone"):
+            self.assertFalse(CHECKS.native_required(config, event(target, "main")))
+            self.assertEqual(CHECKS.verify(legacy, CHECKS.native_required(config, event(target)))["status"], "PASS")
+        manual = {"repository": event()["repository"], "ref": "refs/heads/main"}
+        self.assertTrue(CHECKS.native_required(config, manual))
+        self.assertTrue(CHECKS.native_required({**config, "native_required": True}, event("apple-ios")))
+        self.assertFalse(CHECKS.native_required({**config, "native_required_branches": []}, None))
+        for invalid in (None, {}, {"repository": {"full_name": "overte-org/overte", "id": 1}}):
+            with self.assertRaises(ValueError):
+                CHECKS.native_required(config, invalid)
+        wrong = deepcopy(event())
+        wrong["pull_request"]["base"]["repo"] = {"full_name": "contributor/fork", "id": 123}
+        with self.assertRaises(ValueError):
+            CHECKS.native_required(config, wrong)
+
+    def test_legacy_cli_inherits_the_runner_event_for_scoped_activation(self):
+        legacy = results()
+        del legacy["native"]
+        del legacy["route"]["outputs"]["native"]
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / 'event.json'
+            for target in ('main', 'apple-ios'):
+                payload = event(target)
+                path.write_text(json.dumps(payload))
+                result = subprocess.run([sys.executable, str(ROOT / 'tools/repository-checks/check.py'),
+                                         'verify', '--needs-json', json.dumps(legacy)],
+                                        env={**os.environ, 'GITHUB_EVENT_PATH': str(path)}, capture_output=True)
+                self.assertEqual(result.returncode == 0, not CHECKS.native_required(CONFIG, payload),
+                                 result.stderr.decode())
+
     def test_cli_returns_nonzero_for_failed_aggregate(self):
         candidate = results()
         candidate["documentation"]["result"] = "failure"
@@ -127,7 +168,10 @@ class AggregateTests(unittest.TestCase):
         self.assertTrue(all(item["integration_id"] == 15368 for item in entries))
         source = (ROOT / ".github/workflows/repository-checks.yml").read_text()
         self.assertIn("if: always()", source)
-        self.assertIn("needs: [route, project, documentation, workflow-security]", source)
+        if CONFIG.get("native_required", False) or "main" in CONFIG.get("native_required_branches", []):
+            self.assertIn("needs: [route, project, documentation, workflow-security, native]", source)
+        else:
+            self.assertRegex(source, r"needs: \[route, project, documentation, workflow-security(?:, native)?\]")
         self.assertNotIn("paths:", source)
         self.assertNotIn("secrets:", source)
         self.assertNotIn("secrets.", source)
