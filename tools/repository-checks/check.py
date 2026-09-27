@@ -7,6 +7,7 @@ import argparse
 import fnmatch
 import importlib.util
 import json
+import os
 from pathlib import Path, PurePosixPath
 import re
 import subprocess
@@ -27,6 +28,10 @@ def configuration(root: Path = ROOT) -> tuple[dict, dict]:
         raise ValueError("invalid repository-check configuration")
     if type(config.get("native_required", False)) is not bool:
         raise ValueError("invalid native activation setting")
+    targets = config.get("native_required_branches", [])
+    if (not isinstance(targets, list) or any(not isinstance(name, str) or name not in branches for name in targets)
+            or len(targets) != len(set(targets))):
+        raise ValueError("invalid native activation targets")
     expected = {"dependency-release-policy", "branch-policy", "sync-test-reuse", "repository-checks"}
     if set(config.get("required_contexts", [])) != expected:
         raise ValueError("aggregate and independent synchronization gates must remain required")
@@ -104,6 +109,31 @@ def changed_paths(candidate: Path, event: dict, expected_sha: str, *,
     return paths, documentation_safe
 
 
+def native_required(config: dict, event: dict | None) -> bool:
+    """Scope activation by trusted event base, while older descendants still work."""
+    if config.get("native_required", False):
+        return True
+    targets = config.get("native_required_branches", [])
+    if not targets:
+        return False
+    if not isinstance(event, dict):
+        raise ValueError("native activation requires a trusted event")
+    repository = event.get("repository") or {}
+    if (repository.get("full_name") != config["repository"]
+            or repository.get("id") != config["repository_id"]):
+        raise ValueError("native activation repository mismatch")
+    pr = event.get("pull_request")
+    if pr is None:
+        return True  # Manual runs have no PR base and always require the full native route.
+    base = pr.get("base") or {}
+    base_repository = base.get("repo") or {}
+    if (base_repository.get("full_name") != config["repository"]
+            or base_repository.get("id") != config["repository_id"]
+            or not isinstance(base.get("ref"), str) or not base["ref"]):
+        raise ValueError("invalid native activation base")
+    return base["ref"] in targets
+
+
 def verify(needs: dict, require_native: bool = True) -> dict:
     expected_jobs = {"route", "project", "documentation", "workflow-security", "native"}
     if not require_native and isinstance(needs, dict) and set(needs) == expected_jobs - {"native"}:
@@ -143,6 +173,8 @@ def main() -> int:
     route.add_argument("--output", type=Path, required=True)
     aggregate = commands.add_parser("verify")
     aggregate.add_argument("--needs-json", required=True)
+    # Older platform callers inherit the event through the runner environment.
+    aggregate.add_argument("--event", type=Path, default=os.environ.get("GITHUB_EVENT_PATH"))
     args = parser.parse_args()
     try:
         config, branches = configuration()
@@ -158,7 +190,8 @@ def main() -> int:
             with args.output.open("a") as output:
                 output.write("".join(f"{key}={value}\n" for key, value in result.items()))
         else:
-            result = verify(json.loads(args.needs_json), config.get("native_required", False))
+            event = json.loads(args.event.read_text()) if args.event is not None else None
+            result = verify(json.loads(args.needs_json), native_required(config, event))
         print(json.dumps(result, sort_keys=True))
         return 0
     except (ValueError, KeyError, TypeError, OSError, subprocess.SubprocessError) as error:
