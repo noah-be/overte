@@ -96,6 +96,17 @@ def validate_input_routes(targets, source, planner):
                 raise ValueError(f'Native input falls under a host-only routing exemption: {path}')
 
 
+def configured_test_names(policy, source, mode):
+    names = set(policy['tests'])
+    for name in policy.get('optional_tests', {}):
+        group, cls = name.rsplit('-', 1)
+        if (source / 'tests' / group / 'src' / (cls + '.cpp')).is_file():
+            names.add(name)
+    if mode == 'core':
+        names = {name for name in names if name.startswith('shared-')}
+    return names
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source', type=Path, required=True)
@@ -118,9 +129,7 @@ def main():
     validate_input_routes(targets, args.source.resolve(), routing.plan)
     policy = json.loads((args.source / '.github/native-tests.json').read_text())
     plan = json.loads(args.plan.read_text())
-    names = set(policy['tests'])
-    if plan['mode'] == 'core':
-        names = {name for name in names if name.startswith('shared-')}
+    names = configured_test_names(policy, args.source, plan['mode'])
     result = select(targets, names, plan['paths'], args.source.resolve(),
                     broad=plan.get('force_broad', False) or not plan['paths'])
     discovered = json.loads(subprocess.check_output(['ctest', '--test-dir', str(args.build), '--show-only=json-v1'], text=True))

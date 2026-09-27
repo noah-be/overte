@@ -155,6 +155,17 @@ a plan or result from another candidate as merge evidence.
 
 ## Dependency preparation and activation
 
+The method shortlists in `.github/native-tests.json` also declare known
+descendant-only cases through `optional_methods`. These methods are absent on
+some parent branches; CMake adds each one to the actual test command whenever
+its implementation exists. The existing iOS `rejectEmptyHullShapes` regression
+is covered this way. Unknown methods still fail the inventory check, and
+ordinary required methods must still exist. This preserves descendant coverage
+without activating a native lane on an unqualified platform.
+Known descendant-only executables, such as the iOS crash-recovery policy tests,
+use `optional_tests`. When their source exists, they are required in the selected
+native manifest and must be registered with CTest; an absent target is an error.
+
 The first broad build requires prepared third-party binaries. The manual
 `Prepare native baseline` workflow runs only on the default branch and
 seeds the same dependency cache using `--build=missing`, then builds and tests

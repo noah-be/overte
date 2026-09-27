@@ -10,6 +10,7 @@ from pathlib import Path
 import json
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -148,6 +149,65 @@ class NativeRegistrationTests(unittest.TestCase):
         result = self.run_command("ctest", "--output-on-failure", cwd=self.build)
         self.assertNotEqual(result.returncode, 0, result.stdout)
         self.assertIn(f"{name}-stub", result.stdout)
+
+    def test_known_descendant_methods_are_selected_only_when_implemented(self):
+        for present in (False, True):
+            with self.subTest(descendant_method=present):
+                source = self.root / ("methods-present" if present else "methods-absent")
+                unit = source / "unit"
+                (unit / "src").mkdir(parents=True)
+                (source / ".github").mkdir()
+                (source / "qt").mkdir()
+                (source / ".github/native-tests.json").write_text(json.dumps({
+                    "tests": {"fixture-FixtureTests": ["baseMethod"]},
+                    "optional_tests": {"fixture-DescendantTests": []},
+                    "optional_methods": {"fixture-FixtureTests": ["descendantMethod"]},
+                }))
+                (source / "qt/Qt5Config.cmake").write_text(
+                    "set(Qt5_FOUND TRUE)\n"
+                    "foreach(component IN LISTS Qt5_FIND_COMPONENTS)\n"
+                    "  if(NOT TARGET Qt5::${component})\n"
+                    "    add_library(Qt5::${component} INTERFACE IMPORTED GLOBAL)\n"
+                    "  endif()\n"
+                    "endforeach()\n"
+                )
+                implementation = "class FixtureTests { public: void baseMethod();"
+                implementation += " void descendantMethod();" if present else ""
+                implementation += " };\nvoid FixtureTests::baseMethod() {}\n"
+                implementation += "void FixtureTests::descendantMethod() {}\n" if present else ""
+                (unit / "src/FixtureTests.cpp").write_text(implementation + "int main() { return 0; }\n")
+                if present:
+                    (unit / "src/DescendantTests.cpp").write_text("int main() { return 0; }\n")
+                (unit / "CMakeLists.txt").write_text(
+                    "set(TEST_PROJ_NAME fixture)\nsetup_hifi_testcase()\n"
+                )
+                macro = TESTS.parent / "cmake/macros/SetupHifiTestCase.cmake"
+                (source / "CMakeLists.txt").write_text(
+                    "cmake_minimum_required(VERSION 3.19)\nproject(MethodFixture CXX)\n"
+                    "enable_testing()\nset(OVERTE_NATIVE_CI ON)\n"
+                    f'set(Python3_EXECUTABLE "{sys.executable}")\n'
+                    'set(Qt5_DIR "${CMAKE_SOURCE_DIR}/qt")\n'
+                    "macro(SETUP_TESTCASE_DEPENDENCIES)\nendmacro()\n"
+                    "macro(target_glm)\nendmacro()\n"
+                    "macro(overte_find_qt)\n  find_package(Qt5 ${ARGN})\nendmacro()\n"
+                    "macro(overte_link_qt_modules target)\n"
+                    "  foreach(component IN ITEMS ${ARGN})\n"
+                    "    target_link_libraries(${target} Qt5::${component})\n"
+                    "  endforeach()\nendmacro()\n"
+                    f'include("{macro}")\nadd_subdirectory(unit)\n'
+                )
+                build = source / "build"
+                self.assert_success(self.run_command("cmake", "-S", str(source), "-B", str(build),
+                                                     "-G", self.generator))
+                self.assert_success(self.run_command("cmake", "--build", str(build),
+                                                     "--target", "fixture-tests"))
+                discovery = self.run_command("ctest", "--show-only=json-v1", cwd=build)
+                self.assert_success(discovery)
+                tests = {test['name']: test['command'] for test in json.loads(discovery.stdout)['tests']}
+                self.assertEqual('fixture-DescendantTests-test' in tests, present)
+                command = tests['fixture-FixtureTests-test']
+                self.assertIn("baseMethod", command)
+                self.assertEqual("descendantMethod" in command, present)
 
 
 if __name__ == "__main__":
