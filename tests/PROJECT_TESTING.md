@@ -43,6 +43,11 @@ network access; unavailable isolation fails those tests. The workflow contains
 the exact Ubuntu package list. These host Qt contracts are separate from the
 complete client's platform-specific Qt/Conan dependency graph.
 
+Platform-only synchronization checks install the same QML and Qt 6 host packages
+before running their product suites. Android Phone regressions require Qt 6 Core
+and Widgets even when shared parent results are reused. Documentation-only
+synchronization skips this prerequisite installation.
+
 On disposable GitHub-hosted Ubuntu 24.04 runners, both host workflows enable
 unprivileged user namespaces for the current VM through the runtime-only
 `kernel.apparmor_restrict_unprivileged_userns=0` setting, then require the

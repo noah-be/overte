@@ -708,6 +708,22 @@ class HostWorkflowRoutingContracts(unittest.TestCase):
                 self.assertNotIn("sudo python", source)
                 self.assertNotIn("continue-on-error:", source)
 
+    def test_sync_platform_and_fallback_install_host_packages_before_execution(self):
+        import yaml
+        workflow = yaml.safe_load(SYNC_VALIDATION_WORKFLOW.read_text())
+        steps = workflow['jobs']['validate']['steps']
+        installs = [(index, step) for index, step in enumerate(steps)
+                    if 'apt-get' in step.get('run', '') and 'install' in step['run']]
+        self.assertEqual(len(installs), 1, 'Both paths must share one prerequisite installation')
+        index, install = installs[0]
+        self.assertEqual(install['if'], "inputs.mode == 'fallback' || inputs.profile != 'documentation'")
+        for package in ('qt6-base-dev', 'qt6-base-dev-tools', 'pkg-config',
+                        'qml-module-qttest', 'qtdeclarative5-dev-tools'):
+            self.assertIn(package, install['run'].split())
+        for name in ('Run product suites not covered by shared parent qualification',
+                     'Run the complete common fallback'):
+            self.assertLess(index, next(i for i, step in enumerate(steps) if step.get('name') == name))
+
     def test_parent_evidence_stays_bound_to_the_successful_exact_push(self):
         source = self.workflows["parent"]
         self.assertIn("ref: ${{ github.sha }}", source)
