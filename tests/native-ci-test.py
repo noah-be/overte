@@ -268,6 +268,23 @@ class WorkflowCostTests(unittest.TestCase):
         self.assertIn('conan cache restore /native-packages/conan-packages.tgz', dockerfile)
         self.assertNotIn('COPY . ', dockerfile)
 
+    def test_baseline_qualifies_the_same_portable_layout_as_the_publisher(self):
+        import yaml
+        workflow = yaml.safe_load((ROOT / '.github/workflows/native-dependencies.yml').read_text())
+        steps = workflow['jobs']['prepare']['steps']
+        names = [step.get('name') for step in steps]
+        restore = next(step for step in steps if step.get('name') ==
+                       'Recreate the published package layout before qualification')
+        self.assertLess(names.index('Export portable packages without credentials or build trees'),
+                        steps.index(restore))
+        self.assertLess(steps.index(restore), names.index('Configure the baseline'))
+        self.assertIn('conan cache restore build/native-package/conan-packages.tgz', restore['run'])
+        self.assertIn('CONAN_HOME="$portable"', restore['run'])
+        self.assertIn('cp -a /root/.conan2/. "$portable/"', restore['run'])
+        self.assertLess(restore['run'].index('conan cache restore'),
+                        restore['run'].index('rm -rf "$CONAN_HOME"'))
+        self.assertIn('mv "$portable" "$CONAN_HOME"', restore['run'])
+
     def test_container_workspace_uses_runtime_paths_and_exact_git_trust(self):
         import yaml
         for name in ('native-tests.yml', 'native-dependencies.yml'):
