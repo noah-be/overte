@@ -103,9 +103,16 @@ class RoutingTests(unittest.TestCase):
     def test_manifest_has_real_test_sources_and_explicit_exclusions(self):
         config = json.loads((ROOT / '.github/native-tests.json').read_text())
         self.assertEqual(config['schema'], 1)
-        for name, methods in config['tests'].items():
+        optional = config.get('optional_methods', {})
+        self.assertLessEqual(set(optional), set(config['tests']))
+        optional_tests = config.get('optional_tests', {})
+        self.assertFalse(set(config['tests']) & set(optional_tests))
+        entries = {**config['tests'], **optional_tests}
+        for name, methods in entries.items():
             group, cls = name.rsplit('-', 1)
             source = ROOT / 'tests' / group / 'src' / (cls + '.cpp')
+            if name in optional_tests and not source.exists():
+                continue
             self.assertTrue(source.is_file(), name)
             self.assertIsInstance(methods, list)
             for method in methods:
@@ -113,8 +120,17 @@ class RoutingTests(unittest.TestCase):
             if methods:
                 implemented = set(re.findall(r'void ' + re.escape(cls) + r'::(\w+)\(', source.read_text()))
                 implemented -= {'initTestCase', 'cleanupTestCase'}
-                self.assertEqual(set(methods) | set(config['method_exclusions'][name]), implemented,
+                additions = optional.get(name, [])
+                self.assertIsInstance(additions, list)
+                self.assertEqual(len(additions), len(set(additions)))
+                for method in additions:
+                    self.assertRegex(method, r'^[A-Za-z_]\w*$')
+                required = set(methods) | set(config['method_exclusions'][name])
+                self.assertFalse(required & set(additions))
+                self.assertEqual(required | (set(additions) & implemented), implemented,
                                  'New methods must not disappear behind an old explicit Qt method list')
+            else:
+                self.assertNotIn(name, optional, 'Unfiltered tests already run every method')
         candidates = set()
         for cmake in (ROOT / 'tests').glob('*/CMakeLists.txt'):
             if not any('setup_hifi_testcase(' in line.lower() and not line.lstrip().startswith('#')
@@ -123,9 +139,28 @@ class RoutingTests(unittest.TestCase):
             for source in (cmake.parent / 'src').glob('*.cpp'):
                 if source.stem.endswith(('Test', 'Tests')):
                     candidates.add(cmake.parent.name + '-' + source.stem)
-        covered = set(config['tests'])
+        covered = SELECT.configured_test_names(config, ROOT, 'full')
         covered.update(name for name in candidates if any(name == excluded or name.startswith(excluded + '-') for excluded in config['excluded']))
         self.assertEqual(candidates, covered, 'Every native executable needs an explicit CI disposition')
+
+    def test_known_descendant_programs_are_required_whenever_their_source_exists(self):
+        policy = {'tests': {'shared-RequiredTests': []},
+                  'optional_tests': {'platform-DescendantTests': []}}
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.assertEqual(SELECT.configured_test_names(policy, root, 'full'), {'shared-RequiredTests'})
+            source = root / 'tests/platform/src/DescendantTests.cpp'
+            source.parent.mkdir(parents=True)
+            source.write_text('int main() { return 0; }\n')
+            names = SELECT.configured_test_names(policy, root, 'full')
+            self.assertEqual(names, {'shared-RequiredTests', 'platform-DescendantTests'})
+            self.assertEqual(SELECT.configured_test_names(policy, root, 'core'), {'shared-RequiredTests'})
+            required_target = {'name': 'shared-RequiredTests', 'id': 'required', 'type': 'EXECUTABLE'}
+            with self.assertRaises(ValueError):
+                SELECT.select([required_target], names, [], root, broad=True)
+            descendant_target = {'name': 'platform-DescendantTests', 'id': 'descendant', 'type': 'EXECUTABLE'}
+            selected = SELECT.select([required_target, descendant_target], names, [], root, broad=True)
+            self.assertEqual(set(selected['tests']), {name + '-test' for name in names})
 
 
 class PreparedPackageTests(unittest.TestCase):
