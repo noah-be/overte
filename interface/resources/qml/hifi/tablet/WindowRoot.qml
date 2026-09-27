@@ -29,12 +29,13 @@ Windows.ScrollingWindow {
     }
     signal screenChanged(var type, var url);
 
+    property var pageSurface: QmlSurface
     property var rootMenu;
     property string subMenu: ""
     property var tabletProxy: Tablet.getTablet("com.highfidelity.interface.tablet.system")
     property var semanticSourceHistory: []
     property string semanticBackTarget: ""
-    HifiControls.TouchUiProfile { id: touchUiProfile }
+    HifiControls.TouchUiProfile { id: touchUiProfile; objectName: "tabletTouchProfile" }
     property bool screenSpaceMode: false
     property real screenSpaceContentScale: touchUiProfile.screenSpaceContentScale
     property int screenSpaceSafeInsetLeft: touchUiProfile.safeInsetLeft
@@ -203,7 +204,7 @@ Windows.ScrollingWindow {
 
     footer: TabletNavigation {
         width: parent.width
-        visible: touchUiProfile.directTouch && tabletRoot.screenSpaceMode
+        shown: touchUiProfile.directTouch && tabletRoot.screenSpaceMode
             && loader.source !== "" && loader.source !== "hifi/tablet/TabletHome.qml"
         contentScale: tabletRoot.screenSpaceContentScale
         backVisible: !loader.item || !loader.item.hasOwnProperty("currentPage")
@@ -237,6 +238,7 @@ Windows.ScrollingWindow {
 
     TabletPageLoader {
         id: loader
+        surface: tabletRoot.pageSurface
         rootMenu: tabletRoot.rootMenu
         subMenu: tabletRoot.subMenu
         sharedTouchNavigation: tabletRoot.screenSpaceMode && touchUiProfile.directTouch
