@@ -42,6 +42,7 @@ jobs:
           path: trusted
           persist-credentials: false
           sparse-checkout: |
+            .github
             tools/native-tests
             tools/repository-checks
 
