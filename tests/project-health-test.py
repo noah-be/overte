@@ -3,17 +3,22 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import json
 import os
 import py_compile
 import subprocess
 import tempfile
+import threading
 import unittest
+from unittest.mock import patch
 import xml.etree.ElementTree as ET
 
 
 ROOT = Path(__file__).resolve().parents[1]
+SYNTAX_WORKERS = 2
+SYNTAX_TIMEOUT_SECONDS = 30
 
 
 def tracked(*patterns: str) -> list[Path]:
@@ -21,6 +26,40 @@ def tracked(*patterns: str) -> list[Path]:
     output = subprocess.check_output(command, cwd=ROOT)
     return sorted(path for item in output.rstrip(b"\0").split(b"\0") if item
                   and (path := ROOT / item.decode()).exists())
+
+
+def syntax_checks(sources: list[Path], language: str) -> list[tuple[Path, int | None, str]]:
+    """Parse every file in a bounded child process, retaining input order."""
+    if language not in {"javascript", "shell"}:
+        raise ValueError("unsupported syntax checker")
+
+    def check(source: Path) -> tuple[Path, int | None, str]:
+        try:
+            contents = None
+            command = (["node", "--check", str(source)] if language == "javascript"
+                       else ["bash", "-n", str(source)])
+            if language == "javascript":
+                lines = source.read_text(encoding="utf-8").splitlines()
+                if ".pragma library" in lines:
+                    if lines.count(".pragma library") != 1:
+                        raise ValueError("expected exactly one QML library directive")
+                    # Keep line numbers and validate the complete body after
+                    # removing only the QML-specific module directive.
+                    contents = "\n".join("" if line == ".pragma library" else line for line in lines)
+                    command = ["node", "--check", "-"]
+            result = subprocess.run(
+                command, input=contents, text=True, stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT, timeout=SYNTAX_TIMEOUT_SECONDS)
+            return source, result.returncode, result.stdout.strip()
+        except subprocess.TimeoutExpired:
+            return source, None, f"syntax check timed out after {SYNTAX_TIMEOUT_SECONDS}s"
+        except (OSError, UnicodeError, ValueError) as error:
+            return source, None, f"syntax checker failed: {error}"
+
+    # Workers supervise independent syntax-only subprocesses; repository code
+    # is never executed. map() retains deterministic diagnostics on completion.
+    with ThreadPoolExecutor(max_workers=SYNTAX_WORKERS) as executor:
+        return list(executor.map(check, sources))
 
 
 class ProjectHealthTests(unittest.TestCase):
@@ -110,15 +149,16 @@ class ProjectHealthTests(unittest.TestCase):
         }
         failures = []
         seen_allowlist = set()
-        for source in tracked("*.sh"):
-            result = subprocess.run(["bash", "-n", str(source)], text=True,
-                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-            if result.returncode:
-                relative = source.relative_to(ROOT)
-                if relative in template_allowlist and "<%=" in source.read_text(encoding="utf-8"):
+        for source, returncode, output in syntax_checks(tracked("*.sh"), "shell"):
+            relative = source.relative_to(ROOT)
+            if returncode is None:
+                failures.append(f"{relative}:\n{output}")
+            elif returncode:
+                if (returncode == 2 and relative in template_allowlist
+                        and "<%=" in source.read_text(encoding="utf-8")):
                     seen_allowlist.add(relative)
                 else:
-                    failures.append(f"{relative}:\n{result.stdout.strip()}")
+                    failures.append(f"{relative}:\n{output}")
         self.assertEqual(failures, [])
         self.assertEqual(seen_allowlist, template_allowlist, "remove stale shell-template exceptions")
 
@@ -206,25 +246,15 @@ class ProjectHealthTests(unittest.TestCase):
         }
         failures = []
         seen_allowlist = set()
-        for source in tracked("*.js"):
+        for source, returncode, output in syntax_checks(tracked("*.js"), "javascript"):
             relative = source.relative_to(ROOT)
-            contents = source.read_text(encoding="utf-8")
-            if ".pragma library" in contents.splitlines():
-                # QML's module directive is not JavaScript syntax. Retain line
-                # numbers and check the complete JS body rather than exempting
-                # this production pixel algorithm from syntax validation.
-                self.assertEqual(contents.splitlines().count(".pragma library"), 1)
-                contents = "\n".join("" if line == ".pragma library" else line for line in contents.splitlines())
-                result = subprocess.run(["node", "--check", "-"], input=contents, text=True,
-                                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-            else:
-                result = subprocess.run(["node", "--check", str(source)], text=True,
-                                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-            if result.returncode:
-                if relative in allowlist:
+            if returncode is None:
+                failures.append(f"{relative}:\n{output}")
+            elif returncode:
+                if returncode == 1 and relative in allowlist:
                     seen_allowlist.add(relative)
                 else:
-                    failures.append(f"{relative}:\n{result.stdout.strip()}")
+                    failures.append(f"{relative}:\n{output}")
         self.assertEqual(failures, [])
         self.assertEqual(seen_allowlist, allowlist, "remove stale JavaScript exceptions")
 
@@ -250,6 +280,108 @@ class ProjectHealthTests(unittest.TestCase):
         self.assertGreaterEqual(registered, 12)
         self.assertEqual(failures, [])
 
+
+class SyntaxWorkerTests(unittest.TestCase):
+    def test_parsing_keeps_all_failures_in_order_without_executing_files(self):
+        with tempfile.TemporaryDirectory(prefix="overte-syntax-fixtures-") as directory:
+            root = Path(directory)
+            marker = root / "must-not-exist"
+            for language, suffix, valid, invalid in (
+                ("javascript", "js", f"require('fs').writeFileSync({json.dumps(str(marker))}, 'ran');", "const broken = ;"),
+                ("shell", "sh", f"touch '{marker}'", "if then"),
+            ):
+                with self.subTest(language=language):
+                    sources = [root / f"{name}.{suffix}" for name in ("broken-z", "valid", "broken-a")]
+                    for source, contents in zip(sources, (invalid, valid, invalid)):
+                        source.write_text(contents, encoding="utf-8")
+                    results = syntax_checks(sources, language)
+                    self.assertEqual(sources, [source for source, _, _ in results])
+                    self.assertEqual([True, False, True], [bool(code) for _, code, _ in results])
+                    self.assertTrue(all(output for _, code, output in results if code))
+                    self.assertFalse(marker.exists(), "syntax checks must never execute source")
+
+    def test_qml_normalization_still_checks_the_entire_javascript_body(self):
+        with tempfile.TemporaryDirectory(prefix="overte-qml-syntax-") as directory:
+            sources = [Path(directory) / f"{name}.js" for name in ("valid", "invalid", "duplicate")]
+            for source, contents in zip(sources, (
+                ".pragma library\nfunction valid() {}\n",
+                ".pragma library\nfunction invalid( {}\n",
+                ".pragma library\n.pragma library\nfunction valid() {}\n",
+            )):
+                source.write_text(contents, encoding="utf-8")
+            results = syntax_checks(sources, "javascript")
+            self.assertEqual(0, results[0][1])
+            self.assertNotEqual(0, results[1][1])
+            self.assertIsNone(results[2][1])
+            self.assertIn("exactly one", results[2][2])
+
+    def test_health_gate_reports_broken_files_from_both_workers(self):
+        with tempfile.TemporaryDirectory(prefix="overte-syntax-gate-") as directory:
+            root = Path(directory)
+            sources = [root / name for name in ("broken-a.js", "broken-b.js")]
+            for source in sources:
+                source.write_text("const broken = ;\n", encoding="utf-8")
+            with patch.dict(globals(), ROOT=root), patch.dict(globals(), tracked=lambda *_: sources):
+                with self.assertRaises(AssertionError) as failure:
+                    ProjectHealthTests().test_javascript_syntax()
+            for source in sources:
+                self.assertIn(source.name, str(failure.exception))
+
+    def test_two_workers_overlap_with_bounded_concurrency(self):
+        active = 0
+        maximum = 0
+        lock = threading.Lock()
+        overlap = threading.Barrier(2, timeout=5)
+
+        def parse(command, **options):
+            nonlocal active, maximum
+            self.assertEqual(SYNTAX_TIMEOUT_SECONDS, options["timeout"])
+            with lock:
+                active += 1
+                maximum = max(maximum, active)
+            try:
+                overlap.wait()
+                return subprocess.CompletedProcess(command, 0, "")
+            finally:
+                with lock:
+                    active -= 1
+
+        sources = [Path(f"fixture-{index}.sh") for index in range(4)]
+        with patch.object(subprocess, "run", side_effect=parse):
+            self.assertEqual(sources, [source for source, _, _ in syntax_checks(sources, "shell")])
+        self.assertEqual(2, maximum)
+
+    def test_allowlists_do_not_accept_timeouts_or_unavailable_checkers(self):
+        with tempfile.TemporaryDirectory(prefix="overte-syntax-errors-") as directory:
+            root = Path(directory)
+            for language, relative, method in (
+                ("javascript", "scripts/developer/tests/unit_tests/scriptTests/nested/syntax-error.js",
+                 "test_javascript_syntax"),
+                ("shell", "tools/ci-scripts/linux-package-release/after-install.sh", "test_all_shell_files_parse"),
+            ):
+                source = root / relative
+                source.parent.mkdir(parents=True, exist_ok=True)
+                source.write_text("<%= invalid template %>", encoding="utf-8")
+                for error, message in (
+                    (subprocess.TimeoutExpired(["checker"], SYNTAX_TIMEOUT_SECONDS), "timed out"),
+                    (FileNotFoundError("checker is unavailable"), "checker is unavailable"),
+                ):
+                    with self.subTest(language=language, error=type(error).__name__), \
+                            patch.dict(globals(), ROOT=root), \
+                            patch.dict(globals(), tracked=lambda *_: [source]), \
+                            patch.object(subprocess, "run", side_effect=error):
+                        with self.assertRaisesRegex(AssertionError, message):
+                            getattr(ProjectHealthTests(), method)()
+
+    def test_correcting_an_allowlisted_file_is_reported_as_stale(self):
+        with tempfile.TemporaryDirectory(prefix="overte-stale-syntax-") as directory:
+            root = Path(directory)
+            source = root / "scripts/developer/tests/unit_tests/scriptTests/nested/syntax-error.js"
+            source.parent.mkdir(parents=True)
+            source.write_text("const fixed = true;\n", encoding="utf-8")
+            with patch.dict(globals(), ROOT=root), patch.dict(globals(), tracked=lambda *_: [source]):
+                with self.assertRaisesRegex(AssertionError, "remove stale JavaScript exceptions"):
+                    ProjectHealthTests().test_javascript_syntax()
 
 
 if __name__ == "__main__":

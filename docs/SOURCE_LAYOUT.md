@@ -56,6 +56,22 @@ Portal, Places, QuickGoto, and script-API tests moved from the Android tree to
 inputs on the Android branch. Shared source/syntax checks do not establish
 Android runtime acceptance or replace device tests.
 
+The source-layout suite also runs
+[`tools/source-boundary/check.py`](../tools/source-boundary/check.py). Shared
+C/C++ sources must guard includes of Android-owned headers, including paths
+under Android-owned roots. The check treats unknown preprocessor conditions as
+potentially active on non-Android targets. It recognizes `Q_OS_ANDROID`,
+`__ANDROID__`, `ANDROID_APP_PHONE_INTERFACE` and `OVERTE_PICO_SETUP` as
+Android-only selectors. Existing shared headers with historical Phone names
+remain allowed according to the ownership inventory.
+
+When moving or deleting a platform file, audit its consumers in the same
+change. A removed header can leave a syntactically valid unconditional include
+in a different branch. The September 2026 `AndroidHelper.h` regression is covered
+by this check, including `else`, `elif`, nested and mixed-platform conditions.
+This conservative check does not implement the complete C++ preprocessor or
+replace the required target application build.
+
 Reusing a shared parent's qualification never waives the child's declared product
 suites: non-documentation reuse runs `--platform-only` on the candidate. The full
 fallback runs both shared and product suites. This keeps the first
