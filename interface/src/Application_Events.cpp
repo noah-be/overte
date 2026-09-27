@@ -19,6 +19,7 @@
 #include <QtCore/QMimeData>
 #include <QtCore/QCoreApplication>
 #include <QtCore/QThread>
+#include <AddressManager.h>
 #include <DomainAccountManager.h>
 
 #include <controllers/InputRecorder.h>
