@@ -218,6 +218,11 @@ Deploy in stages because selection and aggregation execute default-branch tools:
    reads the PR base from the runner event, including for older callers. Other
    platform targets retain bootstrap compatibility until their native lanes are
    qualified. `native_required: true` is reserved for a later all-target rollout.
+   The native selector uses that same trusted target configuration: propagating
+   the caller alone must not start the Linux native lane on an unqualified
+   Android or Apple target. Candidate configuration cannot activate or disable
+   the lane; manual validation retains its full native route. Platform host,
+   synchronization, and device-build gates keep their independent requirements.
    Verify ordinary, docs-only, failed-native and sync PR cases. The existing
    `repository-checks` context is retained; no new ruleset context is needed.
 

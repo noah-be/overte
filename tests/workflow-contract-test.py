@@ -687,10 +687,14 @@ class HostWorkflowRoutingContracts(unittest.TestCase):
                 self.assertNotIn("continue-on-error:", source)
 
     def test_host_namespace_setup_is_ephemeral_and_preserves_isolation(self):
-        for name, source in self.workflows.items():
+        workflows = [(name, source, "Prepare isolated host evidence validators")
+                     for name, source in self.workflows.items()]
+        workflows.append(("sync-fallback", SYNC_VALIDATION_WORKFLOW.read_text(encoding="utf-8"),
+                          "Run the complete common fallback"))
+        for name, source, step in workflows:
             with self.subTest(workflow=name):
                 self.assertIn("runs-on: ubuntu-24.04", source)
-                setup = source.split("      - name: Prepare isolated host evidence validators\n", 1)[1]
+                setup = source.split(f"      - name: {step}\n", 1)[1]
                 setup = setup.split("      - name:", 1)[0]
                 guard = 'test "$RUNNER_ENVIRONMENT" = github-hosted'
                 setting = "sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0"

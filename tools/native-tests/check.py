@@ -81,11 +81,26 @@ def plan(paths: list[str], regular: bool = True, *, verified_empty: bool = False
             'reasons': reasons or ['host-only changes']}
 
 
-def candidate_changes(candidate: Path, event: dict, sha: str):
+def repository_checks():
     spec = importlib.util.spec_from_file_location('repository_checks', ROOT / 'tools/repository-checks/check.py')
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    return module.changed_paths(candidate, event, sha, allow_executable=True)
+    return module
+
+
+def candidate_changes(candidate: Path, event: dict, sha: str):
+    return repository_checks().changed_paths(candidate, event, sha, allow_executable=True)
+
+
+def candidate_plan(candidate: Path, event: dict, sha: str) -> dict:
+    checks = repository_checks()
+    config, _ = checks.configuration()
+    activated = checks.native_required(config, event)
+    paths, regular = checks.changed_paths(candidate, event, sha, allow_executable=True)
+    result = plan(paths, regular, verified_empty=isinstance(event.get('pull_request'), dict) and not paths)
+    if not activated:
+        result.update(mode='skip', reasons=['native lane not activated for this target branch'])
+    return result
 
 
 def main():
@@ -101,8 +116,7 @@ def main():
     try:
         if args.command == 'plan':
             event = json.loads(args.event.read_text())
-            paths, regular = candidate_changes(args.candidate, event, args.sha)
-            result = plan(paths, regular, verified_empty=isinstance(event.get('pull_request'), dict) and not paths)
+            result = candidate_plan(args.candidate, event, args.sha)
             result['sha'] = args.sha
             args.report.parent.mkdir(parents=True, exist_ok=True)
             args.report.write_text(json.dumps(result, indent=2) + '\n')
