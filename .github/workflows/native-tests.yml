@@ -17,7 +17,7 @@ jobs:
     # The measured cold full build takes 69 minutes; core stays tightly bounded.
     timeout-minutes: ${{ inputs.mode == 'full' && 90 || 15 }}
     container:
-      image: ghcr.io/noah-be/overte/native-dependencies@sha256:3655c6c8599f8d9bfe1f7489e8bc75c9c98f117418e0ec0495c7b647da802783
+      image: ghcr.io/noah-be/overte/native-dependencies@sha256:a692b477cd2efdfc1f3d0f059a8eebba4852d37509a2efa945937ef2fe073373
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
