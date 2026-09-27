@@ -1,0 +1,108 @@
+{
+  "schema": 1,
+  "tests": {
+    "shared-AABoxTests": [],
+    "shared-AACubeTests": [
+      "ctorsAndSetters",
+      "containsPoint",
+      "touchesSphere"
+    ],
+    "shared-BitVectorHelperTests": [],
+    "shared-BlendshapePackingTests": [],
+    "shared-CubicHermiteSplineTests": [],
+    "shared-DependencyManagerTests": [],
+    "shared-DualQuaternionTests": [],
+    "shared-GLMHelpersTests": [
+      "testEulerDecomposition",
+      "testInvalidFixedPointInput",
+      "testInvalidAngleInput",
+      "testInvalidAudioGainInput",
+      "testInvalidRatioInput",
+      "testInvalidOrientationInput",
+      "testSixByteOrientationCompression",
+      "testMalformedSixByteOrientationCompression",
+      "testInvalidSixByteOrientationInput",
+      "testSimd",
+      "testGenerateBasisVectors"
+    ],
+    "shared-GeometryUtilTests": [],
+    "shared-MovingMinMaxAvgTests": [],
+    "shared-MovingPercentileTests": [],
+    "shared-PathUtilsTests": [],
+    "shared-SerializerTests": [
+      "testCreate",
+      "testAdd",
+      "testAddAndRead",
+      "testReadPastEnd",
+      "testWritePastEnd"
+    ],
+    "shared-StorageTests": [],
+    "shared-TraceTests": [],
+    "shared-TransformTests": [],
+    "animation-AnimInverseKinematicsTests": [],
+    "animation-RotationConstraintTests": [],
+    "audio-AudioRingBufferTests": [],
+    "audio-PositionalAudioStreamTests": [],
+    "avatars-AvatarDataTests": [],
+    "baking-JSBakerTest": [],
+    "networking-PacketTests": [],
+    "networking-ReceivedMessageTests": [],
+    "networking-SequenceNumberStatsTests": [],
+    "octree-AABoxCubeTests": [],
+    "octree-ViewFrustumTests": [],
+    "physics-BulletUtilTests": [],
+    "physics-MeshMassPropertiesTests": [],
+    "physics-ShapeInfoTests": [
+      "testHashFunctions",
+      "testBoxShape",
+      "testSphereShape"
+    ],
+    "physics-ShapeManagerTests": [
+      "testShapeAccounting",
+      "addManyShapes",
+      "addBoxShape",
+      "addSphereShape",
+      "addCompoundShape"
+    ],
+    "script-engine-ScriptEngineTests": []
+  },
+  "excluded": {
+    "animation-AnimTests": "External network fixture with a one-second deadline.",
+    "audio-AudioTests": "Requires host audio devices.",
+    "audio-CodecTests": "Requires runtime codec plugins.",
+    "shared-FileCacheTests": "Depends on concurrent free disk space changes.",
+    "shared-SettingsTests": "Uses persistent global settings and benchmark threads.",
+    "gpu": "OpenGL context, external fixtures, and benchmarks.",
+    "jitter": "Placeholder without assertions.",
+    "ktx": "External image fixtures and benchmarks.",
+    "model-serializers": "Build-time external fixture downloads.",
+    "octree-ModelTests": "Placeholder without assertions.",
+    "octree-OctreeTests": "Disabled legacy assertions.",
+    "workload": "Correctness case skipped; remaining cases benchmark workloads.",
+    "networking-QtNetworkTests": "External internet services and initialization-dependent hangs.",
+    "networking-ResourceTests": "External resource downloads with one-second deadlines.",
+    "script-engine-ScriptEngineNetworkedTests": "Separate networked JavaScript fixture qualification.",
+    "script-engine-ScriptEngineBenchmarkTests": "Benchmarks belong outside the required correctness gate."
+  },
+  "method_exclusions": {
+    "shared-AACubeTests": {
+      "rayVsParabolaPerformance": "Throughput workload, not a merge-blocking correctness case."
+    },
+    "shared-GLMHelpersTests": {
+      "roundPerf": "Throughput workload, not a merge-blocking correctness case."
+    },
+    "shared-SerializerTests": {
+      "benchmarkEncodingDynamicAlloc": "Qt benchmark; keep separate from correctness cases.",
+      "benchmarkEncodingStaticAlloc": "Qt benchmark; keep separate from correctness cases.",
+      "benchmarkDecoding": "Qt benchmark; keep separate from correctness cases."
+    },
+    "physics-ShapeInfoTests": {
+      "testCylinderShape": "Empty legacy TODO body; not exercised coverage.",
+      "testCapsuleShape": "Empty legacy TODO body; not exercised coverage."
+    },
+    "physics-ShapeManagerTests": {
+      "addCylinderShape": "Empty legacy TODO body; not exercised coverage.",
+      "addCapsuleShape": "Empty legacy TODO body; not exercised coverage."
+    }
+  }
+}
