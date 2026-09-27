@@ -40,7 +40,9 @@ complete client or establish device acceptance.
 For a native build, follow [Linux](../BUILD_LINUX.md),
 [Windows](../BUILD_WIN.md), or your [platform's guide](interfaces/README.md).
 Keep the build variant and output paths from that guide together. The
-[architecture map](ARCHITECTURE.md) connects code areas to tests.
+[architecture map](ARCHITECTURE.md) connects code areas to tests. The
+[selective native CI guide](../tools/native-tests/README.md) explains when a PR
+needs a native build, cache preparation, and staged gate activation.
 
 ## Find the authoritative guide
 
