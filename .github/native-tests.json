@@ -84,6 +84,14 @@
     "script-engine-ScriptEngineNetworkedTests": "Separate networked JavaScript fixture qualification.",
     "script-engine-ScriptEngineBenchmarkTests": "Benchmarks belong outside the required correctness gate."
   },
+  "optional_tests": {
+    "crash-recovery-policy-CrashRecoveryPolicyTests": []
+  },
+  "optional_methods": {
+    "physics-ShapeManagerTests": [
+      "rejectEmptyHullShapes"
+    ]
+  },
   "method_exclusions": {
     "shared-AACubeTests": {
       "rayVsParabolaPerformance": "Throughput workload, not a merge-blocking correctness case."
