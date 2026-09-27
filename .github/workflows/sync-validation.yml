@@ -98,6 +98,9 @@ jobs:
           GITHUB_TOKEN: ""
         run: |
           set -euo pipefail
+          # Match the other complete host jobs on disposable GitHub runners.
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           unshare --user --map-root-user --net true
           python3 -m venv build/host-tests-env
           build/host-tests-env/bin/python -m pip install --disable-pip-version-check -r ../trusted/tests/requirements-host.txt

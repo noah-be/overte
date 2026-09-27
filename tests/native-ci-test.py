@@ -389,6 +389,44 @@ class GitInventoryTests(unittest.TestCase):
             shutil.rmtree(trusted / 'tools/ios-build-qualification')
             self.assertNotEqual(subprocess.run(command, capture_output=True, timeout=10).returncode, 0)
 
+            # Exercise the actual native CLI in the same sparse trusted checkout.
+            # A propagated caller must not activate Linux builds on platform bases.
+            base = merge
+            git('switch', '-qc', 'native-candidate')
+            (candidate / 'source.cpp').write_text('int value = 1;\n')
+            candidate_config = candidate / '.github/repository-checks.json'
+            candidate_config.write_text('{"native_required": true}\n')
+            git('add', '.')
+            git('commit', '-qm', 'Native candidate fixture')
+            head = git('rev-parse', 'HEAD')
+            git('switch', '-q', 'base')
+            git('merge', '--no-ff', '-m', 'Native merge fixture', head)
+            merge = git('rev-parse', 'HEAD')
+            native_command = [sys.executable, '-P', str(trusted / 'tools/native-tests/check.py'), 'plan',
+                              '--event', str(event_file), '--candidate', str(candidate), '--sha', merge,
+                              '--output', str(output), '--report', str(root / 'native-report.json')]
+            for branch in ('main', 'android-main', 'android-phone', 'android-vr',
+                           'android-vr-pico', 'apple-main', 'apple-ios'):
+                with self.subTest(native_target=branch):
+                    event = {'repository': repository, 'pull_request': {
+                        'base': {'ref': branch, 'sha': base, 'repo': repository},
+                        'head': {'ref': 'main', 'sha': head, 'repo': repository}}}
+                    event_file.write_text(json.dumps(event))
+                    result = subprocess.run(native_command, capture_output=True, text=True, timeout=10)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(json.loads(result.stdout)['mode'], 'full' if branch == 'main' else 'skip')
+            event_file.write_text(json.dumps({'repository': repository}))
+            result = subprocess.run(native_command, capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(json.loads(result.stdout)['mode'], 'full')
+            event['pull_request']['base']['repo'] = {'id': 123, 'full_name': 'foreign/repository'}
+            event_file.write_text(json.dumps(event))
+            self.assertNotEqual(subprocess.run(native_command, capture_output=True, timeout=10).returncode, 0)
+            event['pull_request']['base']['repo'] = repository
+            event['pull_request']['base']['sha'] = head
+            event_file.write_text(json.dumps(event))
+            self.assertNotEqual(subprocess.run(native_command, capture_output=True, timeout=10).returncode, 0)
+
     def test_actual_merge_inventory_covers_deletion_rename_and_more_than_300_files(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
