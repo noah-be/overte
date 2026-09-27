@@ -89,13 +89,55 @@ macro(SETUP_HIFI_TESTCASE)
         get_filename_component(TEST_NAME ${TEST_FILE} NAME_WE)
         set(TARGET_NAME ${TEST_PROJ_NAME}-${TEST_NAME})
             
+        if(OVERTE_NATIVE_CI)
+          file(READ "${CMAKE_SOURCE_DIR}/.github/native-tests.json" NATIVE_POLICY)
+          string(JSON CI_ARGS ERROR_VARIABLE CI_ERROR GET "${NATIVE_POLICY}" tests "${TARGET_NAME}")
+          if(CI_ERROR)
+            string(JSON CI_ARGS ERROR_VARIABLE CI_ERROR GET "${NATIVE_POLICY}" optional_tests "${TARGET_NAME}")
+          endif()
+          if(CI_ERROR)
+            continue()
+          endif()
+        endif()
         project(${TARGET_NAME}) 
       
         # grab the implemenation and header files
         set(TARGET_SRCS ${TEST_FILE})  # only one source / .cpp file (the test class)
       
         add_executable(${TARGET_NAME} ${TEST_FILE} ${EXTRA_FILES})
-        add_test(${TARGET_NAME}-test  ${TARGET_NAME})
+        if(OVERTE_NATIVE_CI)
+          set(CI_METHODS "")
+          string(JSON CI_LENGTH LENGTH "${CI_ARGS}")
+          if(CI_LENGTH GREATER 0)
+            math(EXPR CI_LAST "${CI_LENGTH} - 1")
+            foreach(INDEX RANGE ${CI_LAST})
+              string(JSON CI_METHOD GET "${CI_ARGS}" ${INDEX})
+              list(APPEND CI_METHODS "${CI_METHOD}")
+            endforeach()
+            # Known descendant tests may not exist on their shared parent yet.
+            # Include them whenever present instead of losing them to the parent's shortlist.
+            string(JSON CI_OPTIONAL_COUNT ERROR_VARIABLE CI_OPTIONAL_ERROR
+              LENGTH "${NATIVE_POLICY}" optional_methods "${TARGET_NAME}")
+            if(NOT CI_OPTIONAL_ERROR AND CI_OPTIONAL_COUNT GREATER 0)
+              file(READ "${TEST_FILE}" CI_TEST_SOURCE)
+              math(EXPR CI_OPTIONAL_LAST "${CI_OPTIONAL_COUNT} - 1")
+              foreach(INDEX RANGE ${CI_OPTIONAL_LAST})
+                string(JSON CI_METHOD GET "${NATIVE_POLICY}" optional_methods "${TARGET_NAME}" ${INDEX})
+                string(FIND "${CI_TEST_SOURCE}" "${TEST_NAME}::${CI_METHOD}(" CI_METHOD_POSITION)
+                if(NOT CI_METHOD_POSITION EQUAL -1)
+                  list(APPEND CI_METHODS "${CI_METHOD}")
+                endif()
+              endforeach()
+            endif()
+          endif()
+          add_test(NAME ${TARGET_NAME}-test
+            COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tools/native-tests/qt-test.py"
+              --report "${CMAKE_BINARY_DIR}/native-results/${TARGET_NAME}.xml"
+              -- $<TARGET_FILE:${TARGET_NAME}> ${CI_METHODS})
+          set_tests_properties(${TARGET_NAME}-test PROPERTIES TIMEOUT 120 LABELS "native-ci;${TEST_PROJ_NAME}")
+        else()
+          add_test(${TARGET_NAME}-test ${TARGET_NAME})
+        endif()
         set_target_properties(${TARGET_NAME} PROPERTIES 
           EXCLUDE_FROM_DEFAULT_BUILD TRUE
           EXCLUDE_FROM_ALL TRUE)
@@ -124,7 +166,7 @@ macro(SETUP_HIFI_TESTCASE)
       set(TEST_TARGET ${TEST_PROJ_NAME}-tests)
       
       # Add a dummy target so that the project files are visible.
-      # This target will also build + run the other test targets using ctest when built.
+      # This target builds the test executables; CTest runs them separately.
 
       add_custom_target(${TEST_TARGET}
         SOURCES ${TEST_PROJ_SRC_FILES}    # display source files under the testcase target
