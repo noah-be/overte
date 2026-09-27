@@ -75,8 +75,8 @@ UDTTest::UDTTest(int& argc, char** argv) :
     // randomize the seed for packet size randomization
     srand(time(NULL));
 
-    _socket.bind(QHostAddress::AnyIPv4, _argumentParser.value(PORT_OPTION).toUInt());
-    qDebug() << "Test socket is listening on" << _socket.localPort();
+    _socket.bind(SocketType::UDP, QHostAddress::AnyIPv4, _argumentParser.value(PORT_OPTION).toUInt());
+    qDebug() << "Test socket is listening on" << _socket.localPort(SocketType::UDP);
     
     if (_argumentParser.isSet(TARGET_OPTION)) {
         // parse the IP and port combination for this target
@@ -91,7 +91,7 @@ UDTTest::UDTTest(int& argc, char** argv) :
             
             QMetaObject::invokeMethod(this, "quit", Qt::QueuedConnection);
         } else {
-            _target = SockAddr(address, port);
+            _target = SockAddr(SocketType::UDP, address, port);
             qDebug() << "Packets will be sent to" << _target;
         }
     }
@@ -415,7 +415,7 @@ void UDTTest::sampleStats() {
                 QString::number(stats.rtt / USECS_PER_MSEC, 'f', 2).rightJustified(SERVER_STATS_TABLE_HEADERS[++headerIndex].size()),
                 QString::number(stats.congestionWindowSize).rightJustified(SERVER_STATS_TABLE_HEADERS[++headerIndex].size()),
                 QString::number(stats.events[udt::ConnectionStats::Stats::SentACK]).rightJustified(SERVER_STATS_TABLE_HEADERS[++headerIndex].size()),
-                QString::number(stats.events[udt::ConnectionStats::Stats::Duplicate]).rightJustified(SERVER_STATS_TABLE_HEADERS[++headerIndex].size())
+                QString::number(stats.duplicatePackets).rightJustified(SERVER_STATS_TABLE_HEADERS[++headerIndex].size())
             };
             
             // output this line of values
