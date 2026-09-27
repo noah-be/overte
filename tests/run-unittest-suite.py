@@ -27,6 +27,23 @@ def cases(suite):
             yield item
 
 
+def load_name(case):
+    """Locate re-exported TestCases without changing their recorded identities."""
+    cls = type(case)
+    if cls.__module__ in sys.modules:
+        return case.id()
+    # A discovered module may export a class loaded with spec_from_file_location
+    # without registering its synthetic module name. Import the exporter in the
+    # worker, while retaining the original case ID for completeness checks.
+    for name, module in tuple(sys.modules.items()):
+        if module is None or not re.fullmatch(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*", name):
+            continue
+        for attribute, value in tuple(vars(module).items()):
+            if value is cls and attribute.isidentifier():
+                return f"{name}.{attribute}.{case._testMethodName}"
+    raise ValueError(f"no importable exporter for discovered test {case.id()}")
+
+
 class RecordingResult(unittest.TextTestResult):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -55,19 +72,22 @@ def worker(manifest_path: Path) -> int:
     signal.pthread_sigmask(signal.SIG_UNBLOCK, (signal.SIGINT, signal.SIGTERM))
     document = json.loads(manifest_path.read_text(encoding="utf-8"))
     if (not isinstance(document, dict)
-            or set(document) != {"schema", "module", "ids", "sys_path"}
+            or set(document) != {"schema", "module", "ids", "load_names", "sys_path"}
             or document["schema"] != 1
             or not isinstance(document["module"], str)
             or not re.fullmatch(r"[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*", document["module"])
             or not isinstance(document["ids"], list) or not document["ids"]
             or any(not isinstance(item, str) or not item.startswith(document["module"] + ".")
                    for item in document["ids"])
+            or not isinstance(document["load_names"], list)
+            or len(document["load_names"]) != len(document["ids"])
+            or any(not isinstance(item, str) or not item for item in document["load_names"])
             or not isinstance(document["sys_path"], list)
             or any(not isinstance(item, str) for item in document["sys_path"])):
         raise ValueError("invalid internal unittest worker manifest")
     sys.path[:] = document["sys_path"]
     loader = unittest.TestLoader()
-    suite = loader.loadTestsFromNames(document["ids"])
+    suite = loader.loadTestsFromNames(document["load_names"])
     if loader.errors:
         raise RuntimeError("worker test loading failed:\n" + "\n".join(loader.errors))
     loaded = [case.id() for case in cases(suite)]
@@ -155,8 +175,10 @@ class TerminationRequested(BaseException):
 
 def parallel_run(suite, jobs: int, timeout: int, report_path: Path | None = None) -> int:
     groups = OrderedDict()
+    names = OrderedDict()
     for case in cases(suite):
         groups.setdefault(type(case).__module__, []).append(case.id())
+        names.setdefault(type(case).__module__, []).append(load_name(case))
     selected = sum(len(ids) for ids in groups.values())
     records = []
     active = []
@@ -174,7 +196,8 @@ def parallel_run(suite, jobs: int, timeout: int, report_path: Path | None = None
             for index, (module, ids) in enumerate(groups.items()):
                 manifest = root / f"{index:04d}.json"
                 manifest.write_text(json.dumps({
-                    "schema": 1, "module": module, "ids": ids, "sys_path": sys.path,
+                    "schema": 1, "module": module, "ids": ids,
+                    "load_names": names[module], "sys_path": sys.path,
                 }), encoding="utf-8")
                 records.append({"module": module, "ids": ids, "manifest": manifest,
                                 "output": root / f"{index:04d}.log", "error": ""})
