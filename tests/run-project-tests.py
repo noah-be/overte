@@ -28,6 +28,7 @@ class Suite:
 SUITES = (
     Suite("dependency-releases", "quick", (sys.executable, "tools/dependency-releases/test.py")),
     Suite("project-runner", "quick", (sys.executable, "tests/project-suite-self-test.py")),
+    Suite("python-test-runner", "quick", (sys.executable, "tests/unittest-runner-test.py")),
     Suite("repository-checks", "quick", (sys.executable, "tests/repository-checks-test.py")),
     Suite("ios-build-qualification", "quick", (sys.executable, "tests/ios-build-qualification-test.py")),
     Suite("repository-policy", "quick", (sys.executable, "tests/repository-policy-test.py")),
@@ -50,10 +51,27 @@ SUITES = (
     Suite("device-e2e-contracts", "quick", (
         sys.executable, "tests/device/run_control_plane_tests.py", "--profile", "quick",
         "--junit", "build/test-results/device-e2e-contracts.xml")),
+    Suite("device-control-plane-full", "host", (
+        sys.executable, "tests/device/run_control_plane_tests.py", "--profile", "full", "--require-qml",
+        "--junit", "build/test-results/device-e2e-control-plane.xml")),
     Suite("documentation", "quick", (
         sys.executable, "tests/check-documentation.py", "--all")),
     Suite("native-smoke", "quick", (
         sys.executable, "tests/device/contracts/world-entry/test_phone_spawn_gate.py")),
+    Suite("native-ci-policy", "quick", (sys.executable, "tests/native-ci-test.py")),
+    Suite("native-registration", "quick", (sys.executable, "tests/native-registration-test.py")),
+    Suite("device-result-schema", "quick", (
+        sys.executable, "tests/run-unittest-suite.py", "tests/device/schema")),
+    Suite("device-jenkins", "quick", (
+        sys.executable, "tests/run-unittest-suite.py", "tests/device/jenkins")),
+    Suite("desktop-input-protocol", "quick", (
+        sys.executable, "tests/run-unittest-suite.py", "tests/device/adapters/desktop_oculix",
+        "--pattern", "test_wayland_libei_client.py")),
+    Suite("performance-contracts", "quick", (
+        sys.executable, "tests/run-unittest-suite.py", "tests/performance/schema")),
+    Suite("server-console-behavior", "quick", (
+        "node", "--test", "server-console/test/open-url.test.js", "server-console/test/file-tail.test.js",
+        "server-console/test/notification-compat.test.js")),
     Suite("source-layout", "quick", (sys.executable, "tests/source-layout-test.py")),
     Suite("shared-script-behavior", "quick", ("node", "--test", *tuple(
         str(path.relative_to(ROOT)) for path in sorted((ROOT / "tests/javascript/test").glob("*.test.js"))))),
@@ -99,19 +117,24 @@ SUITE_ALIASES = {"device-control-plane": "device-e2e-contracts"}
 
 def arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--profile", choices=("quick", "full"), default="quick",
-                        help="quick is dependency-light; full also requires a configured native build")
+    parser.add_argument("--profile", choices=("quick", "host", "full"), default="quick",
+                        help="quick is dependency-light; host includes complete portable contracts; "
+                             "full adds a configured native build to quick")
     parser.add_argument("--list", action="store_true")
     parser.add_argument("--suite", action="append", default=[])
     parser.add_argument("--platform-only", action="store_true",
                         help="run declared product suites when reusing shared parent qualification")
     parser.add_argument("--timeout", type=int, default=180)
+    parser.add_argument("--host-timeout", type=int, default=900,
+                        help="total timeout for the complete host control-plane suite (default: 900 seconds)")
     parser.add_argument("--junit", type=Path)
     parser.add_argument("--fail-fast", action="store_true")
     parser.add_argument("--native-build-dir", type=Path)
     args = parser.parse_args()
     if args.timeout <= 0:
         parser.error("--timeout must be positive")
+    if not 1 <= args.host_timeout <= 1800:
+        parser.error("--host-timeout must be from 1 through 1800")
     if args.platform_only and args.suite:
         parser.error("--platform-only cannot be combined with --suite")
     return args
@@ -128,6 +151,11 @@ def select(args: argparse.Namespace) -> list[Suite]:
     names = {SUITE_ALIASES.get(name, name) for name in requested}
     if names:
         return [suite for suite in SUITES if suite.name in names]
+    if args.profile == "host":
+        # The full control plane includes all quick device checks and the same
+        # phone-spawn production regression; do not execute those subsets twice.
+        return [suite for suite in SUITES if suite.layer in {"quick", "host"}
+                and suite.name not in {"device-e2e-contracts", "native-smoke"}]
     layers = {"quick"} if args.profile == "quick" else {"quick", "native"}
     return [suite for suite in SUITES if suite.layer in layers]
 
@@ -147,6 +175,88 @@ def write_junit(path: Path, results: list[dict[str, object]], elapsed: float) ->
     ET.ElementTree(root).write(path, encoding="utf-8", xml_declaration=True)
 
 
+def stop_process(process: subprocess.Popen) -> str:
+    """Let nested schedulers clean their workers before forcing the suite down."""
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    try:
+        output, _ = process.communicate(timeout=5)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        output, _ = process.communicate()
+    return output
+
+
+def run_command(command: list[str], timeout: int, cancelled: list[int]) -> tuple[int, str, str]:
+    if cancelled:
+        return 128 + cancelled[0], "", f"interrupted by signal {cancelled[0]}"
+    # Signal handlers only set a flag. Cancellation cannot interrupt Popen before
+    # its process is registered here for cleanup, even while the child starts.
+    process = subprocess.Popen(command, cwd=ROOT, text=True,
+                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                               start_new_session=True)
+    deadline = time.monotonic() + timeout
+    try:
+        while True:
+            if cancelled:
+                return (128 + cancelled[0], stop_process(process),
+                        f"interrupted by signal {cancelled[0]}")
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return 1, stop_process(process), f"timeout after {timeout}s"
+            try:
+                output, _ = process.communicate(timeout=min(0.1, remaining))
+                if cancelled:
+                    return (128 + cancelled[0], stop_process(process),
+                            f"interrupted by signal {cancelled[0]}")
+                return process.returncode, output, ""
+            except subprocess.TimeoutExpired:
+                continue
+    except BaseException:
+        stop_process(process)
+        raise
+
+
+def run_suites(args: argparse.Namespace, suites: list[Suite], cancelled: list[int]) -> int:
+
+    results = []
+    overall_started = time.monotonic()
+    for suite in suites:
+        command = list(suite.command)
+        timeout = args.timeout
+        if suite.name == "device-control-plane-full":
+            timeout = args.host_timeout
+            command.extend(("--timeout-seconds", str(timeout)))
+        if suite.name == "native-ctest" and args.native_build_dir:
+            command.append(str(args.native_build_dir))
+        started = time.monotonic()
+        returncode, output, message = run_command(command, timeout, cancelled)
+        duration = time.monotonic() - started
+        status = "passed" if returncode == 0 else "failed"
+        message = message or ("" if returncode == 0 else f"exit code {returncode}")
+        print(f"{status.upper():7} {suite.name:<24} {duration:7.3f}s")
+        if status == "failed":
+            print(output.rstrip(), file=sys.stderr)
+        results.append(dict(name=suite.name, status=status, message=message,
+                            output=output, time=duration))
+        if cancelled or (status == "failed" and args.fail_fast):
+            break
+
+    elapsed = time.monotonic() - overall_started
+    if args.junit:
+        write_junit(args.junit, results, elapsed)
+        print(f"JUnit: {args.junit}")
+    passed = sum(item["status"] == "passed" for item in results)
+    failed = sum(item["status"] == "failed" for item in results)
+    print(f"Overte project suite: {passed} passed, {failed} failed ({elapsed:.2f}s)")
+    return 128 + cancelled[0] if cancelled else 1 if failed else 0
+
+
 def main() -> int:
     args = arguments()
     try:
@@ -158,45 +268,19 @@ def main() -> int:
         for suite in suites:
             print(f"{suite.name:<24} {suite.layer}")
         return 0
+    cancelled = []
 
-    results = []
-    overall_started = time.monotonic()
-    for suite in suites:
-        command = list(suite.command)
-        if suite.name == "native-ctest" and args.native_build_dir:
-            command.append(str(args.native_build_dir))
-        started = time.monotonic()
-        process = subprocess.Popen(command, cwd=ROOT, text=True,
-                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                   start_new_session=True)
-        try:
-            output, _ = process.communicate(timeout=args.timeout)
-            duration = time.monotonic() - started
-            status = "passed" if process.returncode == 0 else "failed"
-            message = "" if process.returncode == 0 else f"exit code {process.returncode}"
-        except subprocess.TimeoutExpired as error:
-            os.killpg(process.pid, signal.SIGKILL)
-            remaining, _ = process.communicate()
-            duration = time.monotonic() - started
-            status, message = "failed", f"timeout after {args.timeout}s"
-            prefix = error.stdout if isinstance(error.stdout, str) else ""
-            output = prefix + remaining
-        print(f"{status.upper():7} {suite.name:<24} {duration:7.3f}s")
-        if status == "failed":
-            print(output.rstrip(), file=sys.stderr)
-        results.append(dict(name=suite.name, status=status, message=message,
-                            output=output, time=duration))
-        if status == "failed" and args.fail_fast:
-            break
+    def interrupted(signum, _frame):
+        if not cancelled:
+            cancelled.append(signum)
 
-    elapsed = time.monotonic() - overall_started
-    if args.junit:
-        write_junit(args.junit, results, elapsed)
-        print(f"JUnit: {args.junit}")
-    passed = sum(item["status"] == "passed" for item in results)
-    failed = sum(item["status"] == "failed" for item in results)
-    print(f"Overte project suite: {passed} passed, {failed} failed ({elapsed:.2f}s)")
-    return 1 if failed else 0
+    previous = {signum: signal.signal(signum, interrupted)
+                for signum in (signal.SIGINT, signal.SIGTERM)}
+    try:
+        return run_suites(args, suites, cancelled)
+    finally:
+        for signum, handler in previous.items():
+            signal.signal(signum, handler)
 
 
 if __name__ == "__main__":

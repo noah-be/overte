@@ -573,8 +573,12 @@ class BranchPolicyTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertFalse(BRANCH_POLICY.changes_privileged_policy((path,)))
 
-    def test_maintenance_paths_follow_existing_privileged_transfer_rules(self):
+    def test_shared_control_paths_follow_existing_privileged_transfer_rules(self):
         paths = (
+            ".github/native-tests.json",
+            ".github/workflows/native-tests.yml",
+            ".github/workflows/native-dependencies.yml",
+            "tests/native-ci-test.py",
             ".github/maintenance-policy.json",
             "tools/maintenance/contracts.py",
             "tests/maintenance/policy/test_policy.py",
