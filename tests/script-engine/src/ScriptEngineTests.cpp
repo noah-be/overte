@@ -189,6 +189,18 @@ void ScriptEngineTests::testRuntimeError() {
 void ScriptEngineTests::testJSThrow() {
     auto sm = makeManager("throw(42);", "testThrow.js");
     auto scopeGuard = sm->engine()->getScopeGuard();
+    // Inspect the live JS value when the exception is delivered. run() then
+    // permanently aborts the engine, and value conversions must not re-enter it.
+    bool captured = false;
+    qint32 thrownValue = 0;
+    connect(sm.get(), &ScriptManager::unhandledException,
+            [&captured, &thrownValue](std::shared_ptr<ScriptException> exception) {
+        auto runtime = std::dynamic_pointer_cast<ScriptRuntimeException>(exception);
+        if (runtime && !captured) {
+            thrownValue = runtime->thrownValue.toInt32();
+            captured = true;
+        }
+    });
     sm->run();
 
     std::shared_ptr<ScriptException> ex = sm->getUncaughtException();
@@ -199,7 +211,11 @@ void ScriptEngineTests::testJSThrow() {
 
     QVERIFY(ex);
     QVERIFY(runtime_ex);
-    QVERIFY(runtime_ex && runtime_ex->thrownValue.toInt32() == 42);
+    QVERIFY(captured);
+    QCOMPARE(thrownValue, 42);
+    QVERIFY(sm->isFinished());
+    QVERIFY(runtime_ex->errorMessage.contains("42"));
+    QCOMPARE(runtime_ex->thrownValue.toInt32(), 0); // Stopped-engine guard remains active.
 }
 
 void ScriptEngineTests::testRegisterClass() {
@@ -361,4 +377,3 @@ void ScriptEngineTests::testQuat() {
 
     sm->run();
 }
-

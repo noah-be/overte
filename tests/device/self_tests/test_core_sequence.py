@@ -102,6 +102,7 @@ class CoreSequenceTest(unittest.TestCase):
             environment = os.environ.copy()
             environment.update({
                 "OVERTE_MOCK_E2E_STATE": str(root / "state.json"),
+                "OVERTE_DEVICE_LOCK_ROOT": str(root / "locks"),
                 "OVERTE_DEVICE_LAUNCH_SETTLE_SECONDS": "0",
                 "OVERTE_E2E_SCENE_URL": "http://fixture.invalid/scene.json",
                 "OVERTE_E2E_POLL_SECONDS": "0.05",
@@ -149,6 +150,7 @@ class CoreSequenceTest(unittest.TestCase):
             environment = os.environ.copy()
             environment.update({
                 "OVERTE_MOCK_E2E_STATE": str(root / "state.json"),
+                "OVERTE_DEVICE_LOCK_ROOT": str(root / "locks"),
                 "OVERTE_MOCK_FAILURES": "transient-look",
                 "OVERTE_DEVICE_LAUNCH_SETTLE_SECONDS": "0",
                 "OVERTE_E2E_SCENE_URL": "http://fixture.invalid/scene.json",
@@ -185,6 +187,7 @@ class CoreSequenceTest(unittest.TestCase):
             environment = os.environ.copy()
             environment.update({
                 "OVERTE_MOCK_E2E_STATE": str(root / "state.json"),
+                "OVERTE_DEVICE_LOCK_ROOT": str(root / "locks"),
                 "OVERTE_DEVICE_LAUNCH_SETTLE_SECONDS": "0",
                 "OVERTE_E2E_SCENE_URL": "http://fixture.invalid/scene.json",
                 "OVERTE_E2E_POLL_SECONDS": "0.05",
@@ -220,6 +223,7 @@ class CoreSequenceTest(unittest.TestCase):
             environment = os.environ.copy()
             environment.update({
                 "OVERTE_MOCK_E2E_STATE": str(root / "state.json"),
+                "OVERTE_DEVICE_LOCK_ROOT": str(root / "locks"),
                 "OVERTE_MOCK_E2E_DOMAIN_ID": domain_id,
                 "OVERTE_DEVICE_LAUNCH_SETTLE_SECONDS": "0",
                 "OVERTE_E2E_DOMAIN_URL": "hifi://127.0.0.1:40102/0,2,4/0,0,0,1",
@@ -280,6 +284,7 @@ class CoreSequenceTest(unittest.TestCase):
                 environment = os.environ.copy()
                 environment.update({
                     "OVERTE_MOCK_E2E_STATE": str(root / "state.json"),
+                    "OVERTE_DEVICE_LOCK_ROOT": str(root / "locks"),
                     "OVERTE_DEVICE_LAUNCH_SETTLE_SECONDS": "0",
                     "OVERTE_E2E_DOMAIN_URL":
                         "hifi://127.0.0.1:40102/0,2,4/0,0,0,1",
@@ -316,6 +321,7 @@ class CoreSequenceTest(unittest.TestCase):
             environment = os.environ.copy()
             environment.update({
                 "OVERTE_MOCK_E2E_STATE": str(root / "state.json"),
+                "OVERTE_DEVICE_LOCK_ROOT": str(root / "locks"),
                 "OVERTE_DEVICE_LAUNCH_SETTLE_SECONDS": "0",
                 "OVERTE_E2E_SCENE_URL": "http://fixture.invalid/scene.json",
                 "OVERTE_E2E_POLL_SECONDS": "0.05",
@@ -356,6 +362,7 @@ class CoreSequenceTest(unittest.TestCase):
             environment = os.environ.copy()
             environment.update({
                 "OVERTE_MOCK_E2E_STATE": str(root / "state.json"),
+                "OVERTE_DEVICE_LOCK_ROOT": str(root / "locks"),
                 "OVERTE_DEVICE_LAUNCH_SETTLE_SECONDS": "0",
                 "OVERTE_E2E_SCENE_URL": "http://fixture.invalid/scene.json",
                 "OVERTE_E2E_POLL_SECONDS": "0.05",
