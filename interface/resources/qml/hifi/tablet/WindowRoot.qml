@@ -82,6 +82,18 @@ Windows.ScrollingWindow {
 
     onVisibleChanged: if (visible && screenSpaceMode) Qt.callLater(alignScreenSpaceWindow)
     Connections {
+        target: tabletRoot
+        function onShownChanged() {
+            // Host/window closes can bypass the navigation footer. Release the
+            // shared mobile input capture whenever the tablet is dismissed.
+            // Observe the requested state, not visibility during a fade.
+            if (tabletRoot.screenSpaceMode && !tabletRoot.shown
+                    && tabletProxy && tabletProxy.tabletShown) {
+                tabletProxy.hideAndroidTablet()
+            }
+        }
+    }
+    Connections {
         target: surfaceGeometry
         function onXChanged() { if (screenSpaceMode) Qt.callLater(alignScreenSpaceWindow) }
         function onYChanged() { if (screenSpaceMode) Qt.callLater(alignScreenSpaceWindow) }
