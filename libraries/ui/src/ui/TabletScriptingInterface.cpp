@@ -1056,8 +1056,10 @@ void TabletProxy::loadHomeScreen(bool forceOntoHomeScreen) {
             if (_screenSpaceMode) {
                 auto root = _desktopWindow->asQuickItem();
                 if (root) {
+                    // Home is also loaded by app cleanup after tablet dismissal
+                    // (for example People). Preserve the window's shown state;
+                    // only an explicit open should reveal a closed tablet.
                     QMetaObject::invokeMethod(root, "loadSource", Q_ARG(const QVariant&, QVariant(TABLET_HOME_SOURCE_URL)));
-                    QMetaObject::invokeMethod(root, "setShown", Q_ARG(const QVariant&, QVariant(true)));
                 }
             } else
 #endif
@@ -1214,6 +1216,14 @@ QQuickItem* TabletProxy::getIOSTabletRoot() const {
 
 
 void TabletProxy::desktopWindowClosed() {
+#if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)
+    if (_screenSpaceMode) {
+        // Home navigation keeps a screen-space tablet open. A window close
+        // must instead release the touch capture owned by tabletShown.
+        hideAndroidTablet();
+        return;
+    }
+#endif
     gotoHomeScreen();
 }
 

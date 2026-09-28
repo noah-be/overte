@@ -55,6 +55,7 @@ def commands(profile: str) -> list[tuple[str, list[str], bool]]:
             "audio/test_sample_sound_controls.py",
             "dependency/test_cache.py",
             "tablet/test_tablet_qml.py",
+            "tablet/test_tablet_close.py",
             "lifecycle/test_domain_list_history.py",
             "lifecycle/test_domain_list_receiver.py",
             "lifecycle/test_v8_wrapper_teardown.py",

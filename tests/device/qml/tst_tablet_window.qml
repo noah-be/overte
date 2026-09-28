@@ -30,8 +30,13 @@ TestCase {
         id: proxy
         property int homes: 0
         property int closes: 0
+        property bool tabletShown: false
         function gotoHomeScreen() { homes++; currentWindow.loadSource(homeSource) }
-        function hideAndroidTablet() { closes++; currentWindow.setShown(false) }
+        function hideAndroidTablet() {
+            closes++
+            currentWindow.setShown(false)
+            tabletShown = false
+        }
         function loadQMLSource(source) { currentWindow.loadSource(source) }
     }
     QtObject {
@@ -56,8 +61,89 @@ TestCase {
         }
     }
 
-    function init() { proxy.homes = 0; proxy.closes = 0 }
+    function init() { proxy.homes = 0; proxy.closes = 0; proxy.tabletShown = false }
     function cleanup() { currentWindow = null }
+
+    function openTablet() {
+        var window = createTemporaryObject(windowFactory, testCase)
+        verify(window !== null)
+        currentWindow = window
+        window.setScreenSpaceMode(true)
+        window.loadSource(placesSource)
+        window.setShown(true)
+        proxy.tabletShown = true
+        tryCompare(window, "opacity", 1)
+        return window
+    }
+
+    function test_windowHideReleasesTabletState() {
+        var window = openTablet()
+        // A host/window close bypasses the footer's hideAndroidTablet call.
+        // The native proxy must still notify mobileActionBar to release input.
+        window.setShown(false)
+        compare(proxy.tabletShown, false)
+        compare(proxy.closes, 1)
+        tryCompare(window, "visible", false)
+        window.setShown(false)
+        compare(proxy.closes, 1)
+    }
+
+    function test_reopenDuringFade_data() {
+        return [
+            {tag: "touch", screenSpace: true},
+            {tag: "desktop", screenSpace: false}
+        ]
+    }
+
+    function test_reopenDuringFade(data) {
+        var window = openTablet()
+        window.setScreenSpaceMode(data.screenSpace)
+        for (var cycle = 0; cycle < 3; ++cycle) {
+            // Also cancel a close before the first animation frame is drawn.
+            window.setShown(false)
+            window.setShown(true)
+            proxy.tabletShown = true
+            wait(350)
+            compare(window.opacity, 1)
+            window.setShown(false)
+            tryVerify(function() { return window.opacity > 0 && window.opacity < 1 })
+            window.setShown(true)
+            proxy.tabletShown = true
+            tryCompare(window, "opacity", 1)
+            verify(window.visible)
+            verify(window.shown)
+        }
+    }
+
+    function test_desktopHideDoesNotOwnTouchState() {
+        var window = openTablet()
+        window.setScreenSpaceMode(false)
+        window.setShown(false)
+        compare(proxy.closes, 0)
+        compare(proxy.tabletShown, true)
+    }
+
+    function test_repeatedNavigationAndClose() {
+        var window = openTablet()
+        findChild(window, "tabletTouchProfile").directTouch = true
+        var loader = findChild(window, "loader")
+        for (var cycle = 0; cycle < 3; ++cycle) {
+            proxy.gotoHomeScreen()
+            verify(window.shown)
+            verify(proxy.tabletShown)
+            window.loadSource(placesSource)
+            tryVerify(function() { return window.footer.visible })
+            var close = findChild(window.footer, "nav.close")
+            mouseClick(close, close.width / 2, close.height / 2)
+            verify(!window.shown)
+            verify(!proxy.tabletShown)
+            tryCompare(window, "visible", false)
+            window.setShown(true)
+            proxy.tabletShown = true
+            tryCompare(window, "opacity", 1)
+            compare(loader.source, placesSource)
+        }
+    }
 
     function verifyNavigation(window, loader) {
         ;["back", "home", "close"].forEach(function(action) {
