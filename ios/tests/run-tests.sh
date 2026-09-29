@@ -77,6 +77,7 @@ python3 "$script_dir/qt-source-recovery-contract-test.py"
 # install the same host QML dependencies; developer hosts may omit them.
 if command -v pkg-config >/dev/null && pkg-config --exists Qt6Qml; then
     python3 "$script_dir/development-reload-test.py"
+    python3 "$script_dir/tablet-close-hit-target-test.py"
     python3 "$script_dir/../../tests/device/contracts/tablet/test_tablet_qml.py"
     "$script_dir/../../tests/device/qml/run-qml-tests.sh"
 else

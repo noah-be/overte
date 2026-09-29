@@ -66,12 +66,15 @@ def main() -> None:
     assert "OverteIOSAccessibilityOverlay : UIView" in native_bridge
     assert "pointInside:(CGPoint)point withEvent:(UIEvent*)event" in native_bridge
     assert "return NO;" in native_bridge
-    assert native_bridge.count("#if defined(OVERTE_IOS_E2E_TEST_BUILD)") == 3
+    assert native_bridge.count("#if defined(OVERTE_IOS_E2E_TEST_BUILD)") == 4
     assert "OverteIOSE2EAccessibilityButton : UIButton" in native_bridge
     assert "forControlEvents:UIControlEventTouchUpInside" in native_bridge
     assert "overlay.accessibilityElements = @[];" in native_bridge
     assert "button.frame = controlFrame;" in native_bridge
     assert "button.activationHandler = activationHandler;" in native_bridge
+    assert "tabletCloseControl(tablet->getIOSTabletRoot())" in native_bridge
+    assert "button.hidden = CGRectIsNull(controlFrame) || CGRectIsEmpty(controlFrame);" in native_bridge
+    assert "button.enabled = !button.hidden;" in native_bridge
     assert "OverteTabletScreen.%s" in native_bridge
     assert "OverteTabletReady.%s" in native_bridge
     assert "OverteTabletControl.%s" in native_bridge

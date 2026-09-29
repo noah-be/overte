@@ -297,6 +297,7 @@ const QSet<QString>& tabletSemanticControlIds() {
     };
     return ids;
 }
+#endif
 
 bool visibleTabletItem(QQuickItem* item) {
     if (item == nullptr || !item->isVisible() || !item->isEnabled() ||
@@ -332,6 +333,22 @@ QList<QQuickItem*> tabletVisualItems(QQuickItem* tabletRoot) {
     return items;
 }
 
+QQuickItem* tabletCloseControl(QQuickItem* tabletRoot) {
+    QQuickItem* result = nullptr;
+    for (QQuickItem* item : tabletVisualItems(tabletRoot)) {
+        const QString id = item->objectName();
+        if ((id != QStringLiteral("nav.close") && id != QStringLiteral("OverteTabletClose")) ||
+                !visibleTabletItem(item)) {
+            continue;
+        }
+        // During page replacement, never invent a target between two controls.
+        if (result != nullptr) { return nullptr; }
+        result = item;
+    }
+    return result;
+}
+
+#if defined(OVERTE_IOS_E2E_TEST_BUILD)
 QString observedTabletScreen(QQuickItem* tabletRoot) {
     if (tabletRoot == nullptr) {
         return {};
@@ -598,16 +615,20 @@ void updateIOSTabletAccessibilityControls(
         identifier = @"OverteTabletClose";
         label = @"Close tablet";
         hint = @"Return to the world controls";
-        const CGFloat width = std::min<CGFloat>(240.0, safeBounds.size.width * 0.30);
-        controlFrame = CGRectMake(
-            CGRectGetMidX(safeBounds) - width * 0.5,
-            CGRectGetMaxY(safeBounds) - 72.0, width, 56.0);
+        // Project the actual shared QML Close control, including on pages that
+        // have no E2E screen contract. The old bottom-center rectangle covered
+        // Home and intercepted real touches in Personal Team/E2E builds.
+        QQuickItem* closeControl = tabletCloseControl(tablet->getIOSTabletRoot());
+        controlFrame = closeControl ? tabletItemFrame(closeControl, safeBounds) : CGRectZero;
+        QPointer<QQuickItem> guardedClose(closeControl);
         activationHandler = ^BOOL {
-            if (!guardedTablet) {
+            if (!guardedTablet || !guardedClose ||
+                    tabletCloseControl(guardedTablet->getIOSTabletRoot()) != guardedClose.data()) {
                 return NO;
             }
-            QMetaObject::invokeMethod(guardedTablet.data(), [guardedTablet] {
-                if (guardedTablet) {
+            QMetaObject::invokeMethod(guardedTablet.data(), [guardedTablet, guardedClose] {
+                if (guardedTablet && guardedClose &&
+                        tabletCloseControl(guardedTablet->getIOSTabletRoot()) == guardedClose.data()) {
                     guardedTablet->hideAndroidTablet();
                 }
             }, Qt::QueuedConnection);
@@ -647,7 +668,12 @@ void updateIOSTabletAccessibilityControls(
     button.accessibilityLabel = label;
     button.accessibilityHint = hint;
     button.activationHandler = activationHandler;
-    UIAccessibilityPostNotification(UIAccessibilityLayoutChangedNotification, button);
+    // A missing/hidden QML Close must never leave an invisible fallback button.
+    button.hidden = CGRectIsNull(controlFrame) || CGRectIsEmpty(controlFrame);
+    button.enabled = !button.hidden;
+    if (!button.hidden) {
+        UIAccessibilityPostNotification(UIAccessibilityLayoutChangedNotification, button);
+    }
 
     QQuickItem* tabletRoot = tablet->getIOSTabletRoot();
     QQuickItem* loader = tabletRoot
@@ -750,6 +776,10 @@ void updateIOSTabletAccessibilityControls(
     retainTabletE2EAccessibilityButtons(window, activeIdentifiers);
 #else
     OverteIOSAccessibilityElement* element = nil;
+    if (CGRectIsNull(controlFrame) || CGRectIsEmpty(controlFrame)) {
+        overlay.accessibilityElements = @[];
+        return;
+    }
     NSArray* existingElements = overlay.accessibilityElements;
     if (existingElements.count == 1 &&
             [existingElements.firstObject isKindOfClass:OverteIOSAccessibilityElement.class]) {
