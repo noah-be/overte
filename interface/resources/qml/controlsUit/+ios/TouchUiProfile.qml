@@ -1,6 +1,6 @@
 import QtQuick 2.7
 import OverteIOS 1.0
-import ".." as SharedControls
+import controlsUit 1.0 as SharedControls
 
 SharedControls.TouchUiProfileBase {
     readonly property var runtimeMetrics: IOSTouchUiMetrics
@@ -11,6 +11,11 @@ SharedControls.TouchUiProfileBase {
     hardwareKeyboardSupported: true
     systemImeAvailable: true
     screenSpacePresentation: true
+    // Declare product facts so both the current and incoming shared base work.
+    property bool screenSpaceOriginAtSafeArea: true
+    property bool systemManagedAudioInput: true
+    property bool systemManagedAudioOutput: true
+    property bool touchCameraPreferencesAvailable: true
 
     safeInsetLeft: runtimeMetrics.safeInsetLeft
     safeInsetTop: runtimeMetrics.safeInsetTop

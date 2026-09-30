@@ -48,14 +48,16 @@ def main() -> None:
     assert "tabletButton = addButton(navigationBar" in action_bar
     assert "onClicked: tabletProxy.hideAndroidTablet()" in tablet_home
     assert "Accessible.role: Accessible.Button" in button_qml
-    assert "Accessible.id: objectName" in button_qml
+    assert 'if ("id" in Accessible)' in button_qml
+    assert "Accessible.id = Qt.binding(function() { return objectName })" in button_qml
     assert "property string accessibleName: text" in button_qml
     assert 'property string accessibleDescription: ""' in button_qml
     assert "Accessible.name: accessibleName" in button_qml
     assert "Accessible.description: accessibleDescription" in button_qml
     assert "Accessible.onPressAction: button.clicked()" in button_qml
     assert "activeFocusOnTab: true" in button_qml
-    assert "Accessible.id: objectName" in tablet_home
+    assert 'if ("id" in Accessible)' in tablet_home
+    assert "Accessible.id = Qt.binding(function() { return objectName })" in tablet_home
     assert "Accessible.onPressAction: tabletProxy.hideAndroidTablet()" in tablet_home
     assert native_bridge.count('@"OverteTabletOpen"') == 1
     assert native_bridge.count('@"OverteTabletClose"') == 1
@@ -91,8 +93,14 @@ def main() -> None:
     assert "QQuickItem* TabletProxy::getIOSTabletRoot() const" in tablet_proxy_source
     assert "OVERTE_IOS_E2E_TEST_BUILD" in application
     assert "tabletAccessibilityRefresh->setInterval(100)" in application
-    for semantic_navigation_id in ("nav.back", "nav.home", "nav.close"):
-        assert f'objectName: "{semantic_navigation_id}"' in window_root
+    if "footer: TabletNavigation" in window_root:
+        navigation = (ROOT / "interface/resources/qml/hifi/tablet/TabletNavigation.qml").read_text()
+        assert 'objectName: "nav." + modelData.key' in navigation
+        for key in ("back", "home", "close"):
+            assert f'key: "{key}"' in navigation
+    else:
+        for semantic_navigation_id in ("nav.back", "nav.home", "nav.close"):
+            assert f'objectName: "{semantic_navigation_id}"' in window_root
     assert "returnToPreviousSemanticScreen" in window_root
     assert "tabletProxy.gotoHomeScreen()" in window_root
     assert "tabletProxy.hideAndroidTablet()" in window_root

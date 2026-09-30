@@ -41,9 +41,9 @@ TABLET_HOME = (ROOT / "interface/resources/qml/hifi/tablet/TabletHome.qml").read
 TABLET_ROOT = (ROOT / "interface/resources/qml/hifi/tablet/TabletRoot.qml").read_text()
 TABLET_ADDRESS = (ROOT / "interface/resources/qml/hifi/tablet/TabletAddressDialog.qml").read_text()
 TABLET_MESSAGE_BOX = (ROOT / "interface/resources/qml/dialogs/TabletMessageBox.qml").read_text()
-IOS_AUDIO_CONFIGURATION = (
-    ROOT / "interface/resources/qml/hifi/audio/+ios/AudioTouchConfiguration.qml"
-).read_text()
+audio_selector = ROOT / "interface/resources/qml/hifi/audio/+ios/AudioTouchConfiguration.qml"
+IOS_AUDIO_CONFIGURATION = (audio_selector if audio_selector.exists() else
+    ROOT / "interface/resources/qml/hifi/audio/AudioTouchConfiguration.qml").read_text()
 SETTINGS_ADVANCED = (ROOT / "scripts/system/settings/qml/AdvancedOptions.qml").read_text()
 SETTINGS_NUMBER = (ROOT / "scripts/system/settings/qml/SettingNumber.qml").read_text()
 SETTINGS_SLIDER = (ROOT / "scripts/system/settings/qml/SettingSlider.qml").read_text()
@@ -72,7 +72,9 @@ for native_contract in (
 for capability in (
     "directTouch: true", "systemImeAvailable: true",
     "hardwareKeyboardSupported: true",
-    "screenSpacePresentation: true", "vrAudioAvailable: false",
+    "screenSpacePresentation: true", "screenSpaceOriginAtSafeArea: true",
+    "systemManagedAudioInput: true", "systemManagedAudioOutput: true",
+    "touchCameraPreferencesAvailable: true", "vrAudioAvailable: false",
     "controllerSettingsAvailable: false", "navigationPreferencesAvailable: true",
 ):
     assert capability in PROFILE
@@ -95,7 +97,7 @@ assert "profileSelectors(product, gles)" in SELECTORS
 PROFILE_IMPLEMENTATION = (ROOT / "libraries/ui/src/CapabilityProfile.h").read_text()
 assert 'case Product::IOS: result = {"ios", "mobile", "touch",' in PROFILE_IMPLEMENTATION
 assert "android_phoneInterface" in PROFILE_IMPLEMENTATION
-assert 'import ".." as SharedControls' in PROFILE
+assert 'import controlsUit 1.0 as SharedControls' in PROFILE
 assert "SharedControls.TouchUiProfileBase" in PROFILE
 assert "graphicsSettingsAvailable: true" in PROFILE
 
@@ -113,7 +115,10 @@ assert "defined(Q_OS_ANDROID) || defined(Q_OS_IOS)" in APPLICATION_UI
 assert "scriptEngines->loadDefaultScripts();" in APPLICATION_UI
 assert "dismissIOSKeyboard();" in APPLICATION_UI
 assert "defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)" in GRAPHICS
-assert 'Qt.platform.os === "android" || Qt.platform.os === "ios"' in BUTTON
+if "usesAndroidClickAction: touchMetrics.directTouch" in BUTTON:
+    assert "TouchUiMetrics { id: touchMetrics }" in BUTTON
+else:
+    assert 'Qt.platform.os === "android" || Qt.platform.os === "ios"' in BUTTON
 
 assert "OverteControls.WrappedMenu" in DESKTOP
 assert "addMenuWrap" in WRAPPED_MENU and "addItemWrap" in WRAPPED_MENU
@@ -174,7 +179,10 @@ assert "stage=hardware-key-forwarded" in OFFSCREEN_SURFACE
 assert 'objectName: "tabletAddressLine"' in TABLET_ADDRESS
 assert "focus: false" in TABLET_ADDRESS
 assert "addressLine.forceActiveFocus()" in TABLET_ADDRESS
-assert "import QtQuick.Dialogs as OriginalDialogs" in TABLET_MESSAGE_BOX
+if "StandardControls.DialogButtonBox.Ok" in TABLET_MESSAGE_BOX:
+    assert "import QtQuick.Controls 2." in TABLET_MESSAGE_BOX
+else:
+    assert "import QtQuick.Dialogs as OriginalDialogs" in TABLET_MESSAGE_BOX
 assert "HifiControls.TouchUiMetrics" in IOS_AUDIO_CONFIGURATION
 for migrated_settings_qml in (SETTINGS_ADVANCED, SETTINGS_NUMBER, SETTINGS_SLIDER):
     assert "QtQuick.Controls.Styles" not in migrated_settings_qml
@@ -209,7 +217,10 @@ assert "defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)" in APPLICATIO
 assert "OVERTE_IOS_FRAME_PACING" in APPLICATION_PLUGINS
 assert "onClicked: modelData.clicked()" in TABLET_HOME
 assert "onClicked: tabletProxy.hideAndroidTablet()" in TABLET_HOME
-assert 'contentFlickableInteractive: Qt.platform.os !== "ios" || !screenSpaceMode' in WINDOW_ROOT
+if "footer: TabletNavigation" in WINDOW_ROOT:
+    assert "contentFlickableInteractive: !touchUiProfile.directTouch || !screenSpaceMode" in WINDOW_ROOT
+else:
+    assert 'contentFlickableInteractive: Qt.platform.os !== "ios" || !screenSpaceMode' in WINDOW_ROOT
 assert "property bool contentFlickableInteractive: true" in SCROLLING_WINDOW
 assert "interactive: window.contentFlickableInteractive" in SCROLLING_WINDOW
 assert "UITextInputAssistantItem" in SOURCE
@@ -250,9 +261,15 @@ for texture in ("analog_stick.png", "analog_stick_base.png", "fly.png", "handsha
 assert "_desktopWindow->setPosition(0, 0)" in TABLET_SOURCE
 assert "_desktopWindow->setPosition(leftInset, topInset)" in TABLET_SOURCE
 assert '"coordinate_space=safe-content"' in TABLET_SOURCE
-assert "x = 0" in WINDOW_ROOT
-assert 'Qt.platform.os === "ios"' in WINDOW_ROOT
-assert "x = screenSpaceSafeInsetLeft" in WINDOW_ROOT
+if "footer: TabletNavigation" in WINDOW_ROOT:
+    assert "screenSpaceOriginAtSafeArea: true" in PROFILE
+    assert "x = surfaceGeometry.x" in WINDOW_ROOT
+    assert "y = surfaceGeometry.y" in WINDOW_ROOT
+    assert "TabletPageLoader {" in WINDOW_ROOT
+else:
+    assert "x = 0" in WINDOW_ROOT
+    assert 'Qt.platform.os === "ios"' in WINDOW_ROOT
+    assert "x = screenSpaceSafeInsetLeft" in WINDOW_ROOT
 assert 'iosRuntimeDiagnosticInt("touchJumpMinimumPulseMs", 120, 0, 500)' in VIRTUAL_PAD
 assert "_jumpReleaseAwaitingMapperSample { false }" in VIRTUAL_PAD_HEADER
 assert "if (_jumpReleaseAwaitingMapperSample)" in VIRTUAL_PAD

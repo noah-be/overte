@@ -115,7 +115,7 @@ def test_device_observed_startup_qml_is_ported_to_qt6() -> None:
     assert "property string scriptUrl: null" not in web3d_surface
     assert "import QtQuick.Controls 2.3" in mobile_desktop
     assert "import QtQuick.Controls 1.4" not in mobile_desktop
-    assert "import QtQuick.Dialogs as OriginalDialogs" in tablet_query_dialog
+    assert "OriginalDialogs." not in tablet_query_dialog
     assert "import QtQuick.Dialogs 1.2" not in tablet_query_dialog
 
 
