@@ -17,6 +17,10 @@
 #include <QtCore/QObject>
 #include <QtCore/QSharedPointer>
 
+#include <cstdint>
+#include <limits>
+#include <map>
+#include <mutex>
 #include <set>
 
 #include "EntityItem.h"
@@ -47,7 +51,7 @@ public:
     void stopTracking();
     void reset();
     void restartSequenceTracking();
-    bool isTracking() const { return _trackingEntities; }
+    bool isTracking() const;
     bool trackingIsComplete() const;
 
     void finishSequence(OCTREE_PACKET_SEQUENCE first, OCTREE_PACKET_SEQUENCE last);  // 'last' exclusive.
@@ -55,16 +59,20 @@ public:
     float loadingProgressPercentage();
     LoadingStatus loadingStatus();
 
-private slots:
-    void addTrackedEntity(const EntityItemID& entityID);
-    void deleteTrackedEntity(const EntityItemID& entityID);
-
 private:
+    void addTrackedEntity(const EntityItemID& entityID, uint64_t generation);
+    void deleteTrackedEntity(const EntityItemID& entityID, uint64_t generation);
+    // Caller holds _lock. Does not wait for callbacks already in flight.
+    void stopTrackingLocked();
     bool isEntityPhysicsReady(const EntityItemPointer& entity);
     void debugDumpSequenceIDs() const;
 
-    std::mutex _lock;
+    mutable std::mutex _lock;
     using Locker = std::lock_guard<std::mutex>;
+    // All tracking state, including callback ownership, is protected by _lock.
+    uint64_t _generation { 0 };
+    QMetaObject::Connection _addingEntityConnection;
+    QMetaObject::Connection _deletingEntityConnection;
     bool _trackingEntities { false };
     QSharedPointer<EntityTreeRenderer> _entityTreeRenderer;
     using EntityMap = std::map<EntityItemID, EntityItemPointer>;
