@@ -38,52 +38,66 @@ bool SafeLanding::SequenceLessThan::operator()(const OCTREE_PACKET_SEQUENCE& a, 
 }
 
 void SafeLanding::startTracking(QSharedPointer<EntityTreeRenderer> entityTreeRenderer) {
-    if (!entityTreeRenderer.isNull()) {
-        auto entityTree = entityTreeRenderer->getTree();
-        if (entityTree && !_trackingEntities) {
-            Locker lock(_lock);
-            _entityTreeRenderer = entityTreeRenderer;
-            _trackedEntities.clear();
-            _maxTrackedEntityCount = 0;
-            _sequenceStart = SafeLanding::INVALID_SEQUENCE;
-            _sequenceEnd = SafeLanding::INVALID_SEQUENCE;
-            _sequenceNumbers.clear();
-            _trackingEntities = true;
-            _startTime = usecTimestampNow();
-
-            connect(std::const_pointer_cast<EntityTree>(entityTree).get(),
-                &EntityTree::addingEntity, this, &SafeLanding::addTrackedEntity, Qt::DirectConnection);
-            connect(std::const_pointer_cast<EntityTree>(entityTree).get(),
-                &EntityTree::deletingEntity, this, &SafeLanding::deleteTrackedEntity);
-
-            _prevEntityLoadingPriorityOperator = EntityTreeRenderer::getEntityLoadingPriorityOperator();
-            EntityTreeRenderer::setEntityLoadingPriorityFunction(entityLoadingOperatorElevateCollidables);
-        }
+    if (entityTreeRenderer.isNull()) {
+        return;
     }
+    auto entityTree = entityTreeRenderer->getTree();
+    Locker lock(_lock);
+    if (!entityTree || _trackingEntities) {
+        return;
+    }
+
+    _entityTreeRenderer = entityTreeRenderer;
+    _trackedEntities.clear();
+    _maxTrackedEntityCount = 0;
+    _trackedEntityStabilityCount = 0;
+    _sequenceStart = SafeLanding::INVALID_SEQUENCE;
+    _sequenceEnd = SafeLanding::INVALID_SEQUENCE;
+    _sequenceNumbers.clear();
+    _trackingEntities = true;
+    _startTime = usecTimestampNow();
+    const auto generation = ++_generation;
+
+    // Disconnect cannot cancel a callback already in flight. Bind both direct
+    // and queued callbacks to this session so they cannot affect a later start.
+    _addingEntityConnection = connect(std::const_pointer_cast<EntityTree>(entityTree).get(),
+        &EntityTree::addingEntity, this, [this, generation](const EntityItemID& entityID) {
+            addTrackedEntity(entityID, generation);
+        }, Qt::DirectConnection);
+    _deletingEntityConnection = connect(std::const_pointer_cast<EntityTree>(entityTree).get(),
+        &EntityTree::deletingEntity, this, [this, generation](const EntityItemID& entityID) {
+            deleteTrackedEntity(entityID, generation);
+        });
+
+    _prevEntityLoadingPriorityOperator = EntityTreeRenderer::getEntityLoadingPriorityOperator();
+    EntityTreeRenderer::setEntityLoadingPriorityFunction(entityLoadingOperatorElevateCollidables);
 }
 
-void SafeLanding::addTrackedEntity(const EntityItemID& entityID) {
-    if (_trackingEntities && _entityTreeRenderer) {
-        Locker lock(_lock);
-        auto entityTree = _entityTreeRenderer->getTree();
-        if (entityTree) {
-            EntityItemPointer entity = entityTree->findEntityByID(entityID);
-            if (entity && !entity->isLocalEntity() && entity->getCreated() < _startTime) {
-                _trackedEntities.emplace(entityID, entity);
+void SafeLanding::addTrackedEntity(const EntityItemID& entityID, uint64_t generation) {
+    Locker lock(_lock);
+    if (!_trackingEntities || !_entityTreeRenderer || generation != _generation) {
+        return;
+    }
+    auto entityTree = _entityTreeRenderer->getTree();
+    if (entityTree) {
+        EntityItemPointer entity = entityTree->findEntityByID(entityID);
+        if (entity && !entity->isLocalEntity() && entity->getCreated() < _startTime) {
+            _trackedEntities.emplace(entityID, entity);
 
-                int32_t trackedEntityCount = (int32_t)_trackedEntities.size();
-                if (trackedEntityCount > _maxTrackedEntityCount) {
-                    _maxTrackedEntityCount = trackedEntityCount;
-                    _trackedEntityStabilityCount = 0;
-                }
+            int32_t trackedEntityCount = (int32_t)_trackedEntities.size();
+            if (trackedEntityCount > _maxTrackedEntityCount) {
+                _maxTrackedEntityCount = trackedEntityCount;
+                _trackedEntityStabilityCount = 0;
             }
         }
     }
 }
 
-void SafeLanding::deleteTrackedEntity(const EntityItemID& entityID) {
+void SafeLanding::deleteTrackedEntity(const EntityItemID& entityID, uint64_t generation) {
     Locker lock(_lock);
-    _trackedEntities.erase(entityID);
+    if (_trackingEntities && generation == _generation) {
+        _trackedEntities.erase(entityID);
+    }
 }
 
 void SafeLanding::finishSequence(OCTREE_PACKET_SEQUENCE first, OCTREE_PACKET_SEQUENCE last) {
@@ -98,92 +112,93 @@ void SafeLanding::finishSequence(OCTREE_PACKET_SEQUENCE first, OCTREE_PACKET_SEQ
 
 void SafeLanding::addToSequence(OCTREE_PACKET_SEQUENCE sequenceNumber) {
     Locker lock(_lock);
-    _sequenceNumbers.insert(sequenceNumber);
+    if (_trackingEntities) {
+        _sequenceNumbers.insert(sequenceNumber);
+    }
 }
 
 void SafeLanding::updateTracking() {
+    Locker lock(_lock);
     if (!_trackingEntities || !_entityTreeRenderer) {
         return;
     }
 
-    {
-        Locker lock(_lock);
 #if defined(ANDROID_APP_PICO_INTERFACE)
-        // On Pico the interstitial must only cover the playable handoff.  Visual assets may continue
-        // streaming after the user can move; blocking safe landing on model/texture readiness caused
-        // the loading screen to enter an endless "missing entities" recovery loop.
-        constexpr bool requireVisualReadiness = false;
+    // On Pico the interstitial must only cover the playable handoff.  Visual assets may continue
+    // streaming after the user can move; blocking safe landing on model/texture readiness caused
+    // the loading screen to enter an endless "missing entities" recovery loop.
+    constexpr bool requireVisualReadiness = false;
 #else
-        const bool enableInterstitial = DependencyManager::get<NodeList>()->getDomainHandler().getInterstitialModeEnabled();
-        const bool requireVisualReadiness = enableInterstitial;
+    const bool enableInterstitial = DependencyManager::get<NodeList>()->getDomainHandler().getInterstitialModeEnabled();
+    const bool requireVisualReadiness = enableInterstitial;
 #endif
-        auto entityMapIter = _trackedEntities.begin();
-        while (entityMapIter != _trackedEntities.end()) {
-            auto entity = entityMapIter->second;
-            bool isVisuallyReady = true;
-            if (requireVisualReadiness) {
-                auto entityRenderable = _entityTreeRenderer->renderableForEntityId(entityMapIter->first);
-                if (!entityRenderable) {
-                    _entityTreeRenderer->addingEntity(entityMapIter->first);
-                }
-                isVisuallyReady = entity->isVisuallyReady() || (!entityRenderable && !entity->isParentPathComplete());
-            }
-            if (isEntityPhysicsReady(entity) && isVisuallyReady) {
-                entityMapIter = _trackedEntities.erase(entityMapIter);
-            } else {
-                entityMapIter++;
-            }
-        }
+    auto entityMapIter = _trackedEntities.begin();
+    while (entityMapIter != _trackedEntities.end()) {
+        auto entity = entityMapIter->second;
+        bool isVisuallyReady = true;
         if (requireVisualReadiness) {
-            _trackedEntityStabilityCount++;
+            auto entityRenderable = _entityTreeRenderer->renderableForEntityId(entityMapIter->first);
+            if (!entityRenderable) {
+                _entityTreeRenderer->addingEntity(entityMapIter->first);
+            }
+            isVisuallyReady = entity->isVisuallyReady() || (!entityRenderable && !entity->isParentPathComplete());
+        }
+        if (isEntityPhysicsReady(entity) && isVisuallyReady) {
+            entityMapIter = _trackedEntities.erase(entityMapIter);
+        } else {
+            entityMapIter++;
         }
     }
+    if (requireVisualReadiness) {
+        _trackedEntityStabilityCount++;
+    }
 
-    if (_trackedEntities.empty()) {
-        // no more tracked entities --> check sequenceNumbers
-        if (_sequenceStart != SafeLanding::INVALID_SEQUENCE) {
-            bool shouldStop = false;
-            {
-                Locker lock(_lock);
-                auto sequenceSize = _sequenceEnd - _sequenceStart; // this works even in rollover case
-                auto startIter = _sequenceNumbers.find(_sequenceStart);
-                auto endIter = _sequenceNumbers.find(_sequenceEnd - 1);
-
-                bool missingSequenceNumbers = qApp->isMissingSequenceNumbers();
-                shouldStop = (sequenceSize == 0 ||
-                    (startIter != _sequenceNumbers.end() &&
-                     endIter != _sequenceNumbers.end() &&
-                     ((distance(startIter, endIter) == sequenceSize - 1) || !missingSequenceNumbers)));
-            }
-            if (shouldStop) {
-                stopTracking();
-            }
+    // Evaluate completion and retire this session without dropping the lock:
+    // neither a concurrent entity callback nor a new start may cross the commit.
+    if (_trackedEntities.empty() && _sequenceStart != SafeLanding::INVALID_SEQUENCE) {
+        auto sequenceSize = _sequenceEnd - _sequenceStart; // this works even in rollover case
+        auto startIter = _sequenceNumbers.find(_sequenceStart);
+        auto endIter = _sequenceNumbers.find(_sequenceEnd - 1);
+        bool missingSequenceNumbers = qApp->isMissingSequenceNumbers();
+        if (sequenceSize == 0 ||
+            (startIter != _sequenceNumbers.end() &&
+             endIter != _sequenceNumbers.end() &&
+             ((distance(startIter, endIter) == sequenceSize - 1) || !missingSequenceNumbers))) {
+            stopTrackingLocked();
         }
     }
 }
 
 void SafeLanding::stopTracking() {
     Locker lock(_lock);
-    if (_trackingEntities) {
-        _trackingEntities = false;
-        if (_entityTreeRenderer) {
-            auto entityTree = _entityTreeRenderer->getTree();
-            disconnect(std::const_pointer_cast<EntityTree>(entityTree).get(),
-                &EntityTree::addingEntity, this, &SafeLanding::addTrackedEntity);
-            disconnect(std::const_pointer_cast<EntityTree>(entityTree).get(),
-                &EntityTree::deletingEntity, this, &SafeLanding::deleteTrackedEntity);
-            _entityTreeRenderer.reset();
-        }
-        EntityTreeRenderer::setEntityLoadingPriorityFunction(_prevEntityLoadingPriorityOperator);
+    stopTrackingLocked();
+}
+
+void SafeLanding::stopTrackingLocked() {
+    if (!_trackingEntities) {
+        return;
     }
+    _trackingEntities = false;
+    disconnect(_addingEntityConnection);
+    disconnect(_deletingEntityConnection);
+    _addingEntityConnection = {};
+    _deletingEntityConnection = {};
+    _entityTreeRenderer.reset();
+    EntityTreeRenderer::setEntityLoadingPriorityFunction(_prevEntityLoadingPriorityOperator);
+    _prevEntityLoadingPriorityOperator = nullptr;
 }
 
 void SafeLanding::reset() {
-    _trackingEntities = false;
+    Locker lock(_lock);
+    // Physics becoming ready must also retire signal connections and restore
+    // loading priority, otherwise the next start would attach a second session.
+    stopTrackingLocked();
     _trackedEntities.clear();
     _maxTrackedEntityCount = 0;
+    _trackedEntityStabilityCount = 0;
     _sequenceStart = SafeLanding::INVALID_SEQUENCE;
     _sequenceEnd = SafeLanding::INVALID_SEQUENCE;
+    _sequenceNumbers.clear();
 }
 
 void SafeLanding::restartSequenceTracking() {
@@ -195,7 +210,13 @@ void SafeLanding::restartSequenceTracking() {
     }
 }
 
+bool SafeLanding::isTracking() const {
+    Locker lock(_lock);
+    return _trackingEntities;
+}
+
 bool SafeLanding::trackingIsComplete() const {
+    Locker lock(_lock);
     return !_trackingEntities && (_sequenceStart != SafeLanding::INVALID_SEQUENCE);
 }
 
@@ -293,6 +314,7 @@ bool SafeLanding::isEntityPhysicsReady(const EntityItemPointer& entity) {
 }
 
 void SafeLanding::debugDumpSequenceIDs() const {
+    Locker lock(_lock);
     qCDebug(interfaceapp) << "Sequence set size:" << _sequenceNumbers.size();
 
     auto itr = _sequenceNumbers.begin();

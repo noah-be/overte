@@ -19,6 +19,14 @@
   "retired_parent_paths": {
     "android/common/conan/prebuilt/android-phone-16k-deps-v3.sha256": "4376bfdaa8a83681a01d714c57cfe5b3f3e5f666"
   },
+  "reconciliation_repair_paths": {
+    "android-vr-pico": [
+      "android/vr/pico/tests/pico-tablet-e2e-adapter-test.py",
+      "android/vr/pico/tests/pico-tablet-settings-test.js",
+      "interface/resources/qml/hifi/tablet/+android_picoInterface/TabletGeneralPreferencesPolicy.qml",
+      "interface/resources/qml/hifi/tablet/TabletHome.qml"
+    ]
+  },
   "qualified_inputs": [
     ".github/actionlint.yaml",
     ".github/dependency-releases.json",
