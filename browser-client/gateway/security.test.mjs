@@ -6,7 +6,33 @@ import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
 import { once } from 'node:events';
 import { WebSocket } from 'ws';
-import { domainAddress, pose, validateNativePermissions, EXPOSED_PERMISSION_KEYS, nativeDomainAddress, ASSET_SANDBOX_POLICY } from './validation.mjs';
+import { domainAddress, pose, validateNativePermissions, EXPOSED_PERMISSION_KEYS, nativeDomainAddress, ASSET_SANDBOX_POLICY, approvedAssetAddress } from './validation.mjs';
+
+test('asset destinations use only the configured authority and preserve resource paths', () => {
+    const origins = new Set(['https://assets.example:8443', 'http://127.0.0.1:45110']);
+    const requested = new URL('https://assets.example:8443/models/../textures/checker.png?version=2#ignored');
+    const destination = approvedAssetAddress(requested, origins);
+    assert.notEqual(destination, requested);
+    assert.equal(destination.href, 'https://assets.example:8443/textures/checker.png?version=2');
+    // Even authority-looking paths stay paths on the configured server.
+    assert.equal(approvedAssetAddress('https://assets.example:8443//attacker.example/texture?next=https://attacker.example', origins).host, 'assets.example:8443');
+    assert.equal(approvedAssetAddress('https://assets.example:8443/%2f%2fattacker.example/texture', origins).host, 'assets.example:8443');
+    assert.equal(approvedAssetAddress('https://assets.example:8443\\@attacker.example/texture', origins).host, 'assets.example:8443');
+    assert.equal(approvedAssetAddress('http://127.0.0.1:45110/model.gltf', origins).href, 'http://127.0.0.1:45110/model.gltf');
+});
+test('asset authorities cannot escape via credentials, redirects, host suffixes or protocols', () => {
+    const origins = new Set(['https://assets.example:8443']);
+    for (const address of [
+        'https://assets.example:8443.attacker.example/texture', 'https://assets.example:8443@attacker.example/texture',
+        'https://attacker.example@assets.example:8443/texture', 'https://attacker.example\\@assets.example:8443/texture',
+        'https://assets.example/texture', 'http://assets.example:8443/texture', 'file:///etc/passwd',
+        'https://assets.example.attacker.example:8443/texture', 'https://127.0.0.1:8443/admin',
+    ]) assert.throws(() => approvedAssetAddress(address, origins));
+    const permitted = approvedAssetAddress('https://assets.example:8443/model.gltf', origins);
+    assert.throws(() => approvedAssetAddress(new URL('//attacker.example/redirected', permitted), origins));
+    assert.equal(approvedAssetAddress(new URL('../textures/local.png', permitted), origins).href, 'https://assets.example:8443/textures/local.png');
+    assert.throws(() => approvedAssetAddress('https://assets.example:8443/model', new Set(['https://assets.example:8443/path'])));
+});
 
 test('invalid session limits cannot silently disable the native process bound', async () => {
     for (const value of ['NaN', 'Infinity', '0', '-1', '1.5']) {

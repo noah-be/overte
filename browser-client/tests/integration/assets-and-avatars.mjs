@@ -15,6 +15,7 @@ try {
     await mkdir(directory,{recursive:true});
     report.sourceSHA256={};
     const files=['browser-client/gateway/server.mjs','browser-client/gateway/native-bridge.js',
+        'browser-client/gateway/validation.mjs','browser-client/gateway/permission-policy.mjs','browser-client/gateway/process-lifecycle.mjs',
         'browser-client/dist/index.html','browser-client/tests/integration/assets-and-avatars.mjs'];
     for(const asset of await readdir(path.join(repo,'browser-client/dist/assets')))files.push(`browser-client/dist/assets/${asset}`);
     for(const file of files)report.sourceSHA256[file]=sha(await readFile(path.join(repo,file)));

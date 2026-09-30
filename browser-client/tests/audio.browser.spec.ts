@@ -2,8 +2,10 @@
 import { test, expect } from '@playwright/test';
 
 test('late microphone permission cannot resume capture after muting or leaving', async ({page}) => {
-    await page.route('**/', route => route.fulfill({contentType:'text/html',body:'<!doctype html><body>Audio test</body>'}));
+    await page.route('**/', route => route.fulfill({contentType:'text/html',body:'<!doctype html><body><button>Enable audio test</button></body>'}));
     await page.goto('/');
+    // Resume the real AudioContext after trusted user activation, as the application does.
+    await page.getByRole('button', {name:'Enable audio test'}).click();
     const result = await page.evaluate(async () => {
         const path = '/src/audio.ts';
         const {BrowserAudio} = await import(/* @vite-ignore */ path);

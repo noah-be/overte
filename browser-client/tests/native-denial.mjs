@@ -6,11 +6,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { mkdir, mkdtemp, readFile, writeFile, open } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
-import { randomBytes, createHash } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { once } from 'node:events';
 import http from 'node:http';
 import { WebSocketServer } from 'ws';
 import { PERMISSION_KEYS } from '../gateway/permission-policy.mjs';
+import { nativeAdminCredential } from '../lab/native-admin.mjs';
 
 if (process.env.OVERTE_DENIAL_PRIVATE_IPC !== '1') {
     const isolated = spawn('unshare', ['--user', '--map-current-user', '--ipc', '--', process.execPath, fileURLToPath(import.meta.url)], {
@@ -27,8 +28,8 @@ const processes = [], handles = [];
 const observer = http.createServer();
 const websocketServer = new WebSocketServer({ server: observer });
 const token = randomBytes(32).toString('hex');
-const administratorPassword = randomBytes(32).toString('hex');
-const administratorAuthorization = 'Basic ' + Buffer.from(`browser-denial:${administratorPassword}`).toString('base64');
+const administratorCredential = nativeAdminCredential();
+const administratorAuthorization = 'Basic ' + Buffer.from(`browser-denial:${administratorCredential.token}`).toString('base64');
 const base = { ...process.env, QT_QPA_PLATFORM: 'xcb', DISPLAY: ':94', QT_SCALE_FACTOR: '1', QT_AUTO_SCREEN_SCALE_FACTOR: '0',
     XDG_CONFIG_HOME: path.join(directory, 'config'), XDG_DATA_HOME: path.join(directory, 'data'), XDG_CACHE_HOME: path.join(directory, 'cache') };
 async function processFor(label, executable, args, env) {
@@ -50,7 +51,7 @@ try {
     await new Promise((resolve, reject) => { observer.once('error', reject); observer.listen(45310, '127.0.0.1', resolve); });
     const deny = Object.fromEntries(PERMISSION_KEYS.map(key => [key, false]));
     const settings = { version: 2.7, metaverse: { local_port: 45302, automatic_networking: 'disabled', enable_packet_verification: true },
-        security: { http_username: 'browser-denial', http_password: createHash('sha256').update(administratorPassword).digest('hex'), standard_permissions: ['anonymous', 'localhost', 'logged-in', 'friends'].map(permissions_id => ({ permissions_id, ...deny })),
+        security: { http_username: 'browser-denial', http_password: administratorCredential.nativeVerifier, standard_permissions: ['anonymous', 'localhost', 'logged-in', 'friends'].map(permissions_id => ({ permissions_id, ...deny })),
             ip_permissions: [], machine_fingerprint_permissions: [], allowed_subnets: ['127.0.0.0/8'] }, wizard: { completed: true } };
     const settingsFile = path.join(directory, 'domain.json'); await writeFile(settingsFile, JSON.stringify(settings), { mode: 0o600 });
     const serverDirectory = path.join(lab, 'server/opt/overte');
@@ -97,7 +98,8 @@ try {
     const reason = await refusal; clearTimeout(timer);
     assert.match(reason, /authoriz|permission|connect/i);
     const result = { test: 'native-domain-permission-refusal', result: 'passed', protocolArtifacts: 'Overte 2026.04.1 client and server',
-        at: new Date().toISOString(), domain: 'hifi://127.0.0.1:45302', reason, worldDataExposed: false, administrationRequiresAuthentication: true, domainIpcIsolated: true };
+        at: new Date().toISOString(), domain: 'hifi://127.0.0.1:45302', reason, worldDataExposed: false, administrationRequiresAuthentication: true,
+        authorizedAdministrationStatus: 200, unauthenticatedAdministrationStatus: unauthenticated, domainIpcIsolated: true };
     await mkdir(path.join(repo, 'browser-client/test-results'), { recursive: true });
     await writeFile(path.join(repo, 'browser-client/test-results/native-denial.json'), JSON.stringify(result, null, 2) + '\n');
     console.log(JSON.stringify(result));

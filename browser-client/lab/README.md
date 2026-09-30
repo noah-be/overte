@@ -63,6 +63,14 @@ profile. The released native HTTP server binds all IPv4 interfaces; the launcher
 limits the independent native viewport to half resolution for readable software-rendered
 screenshots without starving the browser compositor. It protects administration with a random password held only in the ignored,
 mode-0600 `build/browser-lab/runtime/admin.json` file. It never prints that password.
+The no-input Python/JavaScript credential generators always create 32 CSPRNG
+bytes, encoded as a 256-bit hexadecimal machine token. They never accept human
+passwords or supplied low-entropy secrets. Their SHA-256 verifier is the format
+required by the native [DomainServer HTTP Basic implementation](../../domain-server/src/DomainServer.cpp#L2952),
+which hashes the received credential before comparing `security.http_password`.
+It is a native protocol compatibility requirement, not a general password
+storage API; substituting bcrypt or PBKDF2 would prevent the pinned native
+server from authenticating administration requests.
 
 ## Actual browser and native journeys
 

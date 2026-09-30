@@ -6,7 +6,6 @@ No system packages are installed, no existing domain settings are changed, and
 all mutable state is kept under the repository's ignored build/browser-lab.
 """
 import base64
-import secrets
 import argparse
 import hashlib
 import json
@@ -20,6 +19,7 @@ import sys
 import time
 import urllib.request
 import webbrowser
+from native_admin import native_admin_credential
 
 REPO = Path(__file__).resolve().parents[2]
 SOURCE = Path(__file__).resolve().parent
@@ -155,14 +155,15 @@ def start(gateway=False):
                   "XDG_CONFIG_HOME":str(ROOT / "config"),"XDG_DATA_HOME":str(ROOT / "data"),
                   "HIFI_DOMAIN_SERVER_HTTP_PORT":"45100","HIFI_DOMAIN_SERVER_HTTPS_PORT":"45101",
                   "HIFI_DOMAIN_SERVER_PORT":"45102","HIFI_DOMAIN_SERVER_DTLS_PORT":"45103"}
-    admin_password = secrets.token_hex(32)
+    admin_credential = native_admin_credential()
+    admin_password = admin_credential["token"]
     admin_file = ROOT / "runtime/admin.json"
     admin_file.write_text(json.dumps({"username":"browser-lab-admin","password":admin_password})+"\n")
     admin_file.chmod(0o600)
     admin_authorization = "Basic " + base64.b64encode(("browser-lab-admin:"+admin_password).encode()).decode()
     permissions = {key:True for key in PERMISSION_KEYS}
     config = {"version":2.7,"metaverse":{"local_port":45102,"automatic_networking":"disabled","enable_packet_verification":True},
-              "security":{"http_username":"browser-lab-admin","http_password":hashlib.sha256(admin_password.encode()).hexdigest(),
+              "security":{"http_username":"browser-lab-admin","http_password":admin_credential["nativeVerifier"],
                           "allowed_subnets":["127.0.0.0/8"],"standard_permissions":[{"permissions_id":"localhost",**permissions},
                                                                                         {"permissions_id":"anonymous","id_can_connect":False}]},
               "authentication":{"enable_oauth2":False},"wizard":{"completed":True}}

@@ -133,7 +133,12 @@ remote server configuration.
 Asset reads use an HttpOnly SameSite session cookie and the owning active native
 session. `atp:` requests pass through that session's native asset client. HTTP and
 HTTPS requests, including redirects, are limited to administrator-approved
-origins. Asset responses carry a Content Security Policy sandbox so HTML/SVG
+origins. Each outgoing URL is rebuilt from the selected configured origin;
+world-provided URLs contribute only the resource path and query. Credentials,
+alternate schemes and unapproved redirect authorities are rejected before fetch.
+The origin allowlist permits every resource path on each listed server; configure
+asset-serving origins whose readable content may be exposed to domain visitors.
+Asset responses carry a Content Security Policy sandbox so HTML/SVG
 navigations cannot execute scripts with the gateway origin or credentials.
 Assets are capped at 32 MiB and requests time out after 30 seconds. Responses
 are not cached and recheck active session permission before sending their bytes.

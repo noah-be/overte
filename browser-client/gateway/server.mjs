@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { spawn, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { WebSocketServer, WebSocket } from 'ws';
-import { domainAddress, pose, validateNativePermissions, nativeDomainAddress, ASSET_SANDBOX_POLICY } from './validation.mjs';
+import { domainAddress, pose, validateNativePermissions, nativeDomainAddress, ASSET_SANDBOX_POLICY, approvedAssetAddress } from './validation.mjs';
 import { readPolicyFile } from './permission-policy.mjs';
 import { terminateProcess } from './process-lifecycle.mjs';
 
@@ -196,8 +196,8 @@ const server = http.createServer(async (request, response) => {
                 const deadline = AbortSignal.any([controller.signal, AbortSignal.timeout(30000)]);
                 let target = new URL(asset);
                 for (let redirects = 0; redirects < 5; redirects++) {
-                    if (!assetOrigins.has(target.origin) || target.username || target.password) throw Error('The asset origin is not enabled by the gateway administrator.');
-                    const remote = await fetch(target, { redirect: 'manual', signal: deadline });
+                    const destination = approvedAssetAddress(target, assetOrigins);
+                    const remote = await fetch(destination, { redirect: 'manual', signal: deadline });
                     if ([301, 302, 303, 307, 308].includes(remote.status)) { target = new URL(remote.headers.get('location'), target); continue; }
                     if (!remote.ok) throw Error(`Asset server returned HTTP ${remote.status}.`);
                     type = remote.headers.get('content-type') || type;

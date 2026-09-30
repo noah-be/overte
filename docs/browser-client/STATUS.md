@@ -40,8 +40,8 @@ Last updated: 2026-09-30. **Implementation and real functional verification pass
 - Branch name checker: allowed.
 - Branch guard installation/status: installed, reviewed source matches.
 - Production TypeScript/Vite build: passed.
-- `npm test`: 41 passed, covering protocol, guest permission policy, self-avatar,
-  collision, PCM and bounded audio worklet buffering. The full 41-test suite and
+- `npm test`: 45 passed, covering protocol, guest permission policy, self-avatar,
+  collision, PCM and bounded audio worklet buffering. The full 45-test suite and
   production build also passed under Node.js 22.23.3.
 - `npm run test:browser`: 30 passed in Chromium and Firefox, including actual
   WebGL texture pixels, avatar movement, attached materials, held controls,
@@ -76,7 +76,18 @@ Last updated: 2026-09-30. **Implementation and real functional verification pass
 
 ## Next concrete step
 
-Commit and push the reviewed topic branch, create a draft PR in `noah-be/overte`,
-and inspect the remote CI results. The final gateway security/lifecycle build
+Implementation commit `4abf6f2d3d688beba30633fd469e83348eb93bc4` is published on
+`feature/main/browser-client` in the authorized fork. [Draft PR #1023](https://github.com/noah-be/overte/pull/1023)
+targets `main`; its repository, head and draft state were read back and verified.
+The production UI is running and opened at `http://127.0.0.1:8090`.
+
+Publish the reviewed CI/security follow-up and inspect its remote results.
+The initial repository project, branch, documentation and workflow-security
+checks passed. Initial browser CI exposed Ubuntu display/audio prerequisites
+and a fixed-delay collision test; actual headed Mesa/WebGL2 and isolated audio
+backends now pass all 30 cases locally, with original bounds retained. CodeQL
+findings prompted a trusted-configured-origin request boundary and no-input
+256-bit native administration token generators. No rules or assertions were
+disabled; the next remote analysis must confirm these fixes. The final gateway security/lifecycle build
 passed the actual stock Chromium 154 journey and focused binary-asset/avatar
 checks. No endurance test is authorized or required.

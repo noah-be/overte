@@ -5,6 +5,24 @@ import { lookup } from 'node:dns/promises';
 // Asset bodies can be HTML/SVG; a direct navigation must never inherit the gateway origin.
 export const ASSET_SANDBOX_POLICY = "sandbox; script-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'";
 
+export function approvedAssetAddress(input, configuredOrigins) {
+    const requested = new URL(input);
+    if (!['https:', 'http:'].includes(requested.protocol) || requested.username || requested.password) {
+        throw Error('The asset origin is not enabled by the gateway administrator.');
+    }
+    // Select the authority from actual administrator configuration. Only the resource
+    // path and query may come from world data; never fetch its original URL object.
+    const approvedOrigin = [...configuredOrigins].find(origin => origin === requested.origin);
+    if (!approvedOrigin) throw Error('The asset origin is not enabled by the gateway administrator.');
+    const destination = new URL(approvedOrigin);
+    if (!['https:', 'http:'].includes(destination.protocol) || destination.username || destination.password || destination.href !== `${destination.origin}/`) {
+        throw Error('Asset origins must be plain HTTP(S) origins without credentials, paths or fragments.');
+    }
+    destination.pathname = requested.pathname;
+    destination.search = requested.search;
+    return destination;
+}
+
 export async function nativeDomainAddress(domain, resolver = lookup) {
     const url = new URL(domain);
     const hostname = url.hostname.replace(/^\[|\]$/g, '');

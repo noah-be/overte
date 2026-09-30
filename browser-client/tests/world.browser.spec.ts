@@ -37,6 +37,13 @@ test.beforeEach(async ({ page }) => {
     ]);
     state.world.setEnabled(true);
   });
+  const backend = await page.evaluate(() => {
+    const renderer = (window as any).world.renderer;
+    const context = renderer.getContext();
+    return {webgl2:context instanceof WebGL2RenderingContext, version:context.getParameter(context.VERSION)};
+  });
+  expect(backend.webgl2).toBe(true);
+  expect(backend.version).toContain('WebGL 2.0');
 });
 
 test.afterEach(async ({ page }) => {
@@ -51,8 +58,14 @@ test('rendered entity is picked, floor supports walking and wall blocks it', asy
   await page.keyboard.down('KeyW');
   await page.waitForTimeout(500);
   await page.evaluate(() => (window as any).world.setEnabled(true));
-  await page.waitForTimeout(1000);
-  await page.keyboard.up('KeyW');
+  try {
+    // Software rendering may run below real time: wait for the actual wall collision.
+    await expect.poll(() => page.evaluate(() => (window as any).world.getPose().position.z)).toBeCloseTo(-2.62, 3);
+    // Keep the key held until the collision also stops forward velocity.
+    await expect.poll(() => page.evaluate(() => (window as any).world.getPose().velocity.z)).toBeCloseTo(0, 3);
+  } finally {
+    await page.keyboard.up('KeyW');
+  }
   const pose = await page.evaluate(() => (window as any).world.getPose());
   const wire = await page.evaluate(() => JSON.parse(JSON.stringify((window as any).world.getPose())));
   expect(wire.orientation).toEqual({ x: 0, y: 0, z: 0, w: 1 });

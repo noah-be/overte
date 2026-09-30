@@ -64,6 +64,7 @@ Chromium with its dependencies on the normal loader path needs only
 | Bundled Firefox 155.0 | 13:51:36.245 → 13:52:37.610 | Passed |
 | Installed Firefox 156.0 | 14:07:34.579 → 14:08:37.206 | Passed |
 | Stock Chromium 154.0.8037.57 | 14:47:22.184 → 14:48:26.933 | Passed |
+| Stock Chromium 154.0.8037.57, trusted-origin gateway | 15:18:26.663 → 15:19:36.414 | Passed |
 
 Every journey joined the actual domain alongside an independent native client,
 loaded seven actual entities and HTTPS/ATP textured models, synchronized browser
@@ -78,8 +79,8 @@ without unexpected reconnects throughout its journey.
 
 [real-journeys.json](evidence/real-journeys.json) retains timestamps, measured
 positions/colors/audio levels and exact tested source/bundle SHA-256 identities.
-The stock Chromium 154 journey ran against the final gateway security/lifecycle
-source and additionally hashes its permission-policy, validation and process-lifecycle
+The latest stock Chromium 154 journey ran against the final gateway security/lifecycle
+and trusted-origin asset boundary and additionally hashes its permission-policy, validation and process-lifecycle
 modules. These are short functional journeys, not endurance tests. Chromium viewport
 screenshots use the real CDP surface because its clipped Playwright capture
 could stall after pointer lock under SwiftShader. Bundled Firefox uses
@@ -101,6 +102,7 @@ playback outputs and verified the known tones, rather than only counting packets
 | Bundled Firefox | 0.008081 | 0.011577 | 0.009505 |
 | Installed Firefox | 0.008140 | 0.011635 | 0.009476 |
 | Stock Chromium 154 | 0.008640 | 0.011323 | 0.009469 |
+| Stock Chromium 154, trusted-origin gateway | 0.008642 | 0.011425 | 0.009339 |
 
 A separate installed Firefox 156.0 test at **14:14:48.821–14:15:04.551 UTC**
 connected to the real domain and opened a physical ALSA capture device
@@ -148,8 +150,8 @@ relative `atp:/browser-lab/checker.png` texture through the gateway. The downloa
 79 bytes exactly matched SHA-256
 `18e1d2c0906dacb97f5f2bee825f1b5714c481c299e9401261ac21c0cf7b903c`.
 The full journeys retain their own tested source hashes. The later focused
-asset/avatar run at **14:37:21.127–14:37:42.483 UTC** records the final
-gateway hash after the sandbox/CSP asset-response security header change; the production browser bundle is unchanged. See
+asset/avatar run at **15:10:33.171–15:10:54.700 UTC** records the final
+gateway hash after sandbox/CSP and trusted-origin reconstruction; the production browser bundle is unchanged. See
 [evidence/assets-and-avatars.json](evidence/assets-and-avatars.json).
 
 The browser image shows its own cyan representation and the named independent
@@ -172,3 +174,17 @@ Portable records omit session/entity UUIDs, private filesystem paths,
 credentials, device labels and raw audio. Screenshots retain the actual tested
 pixels. Broader unit, browser and repository checks are recorded in
 [STATUS.md](STATUS.md).
+
+The native administration credential generators only accept zero inputs and
+create fresh 256-bit CSPRNG machine tokens. Their SHA-256 verifier is the exact
+existing native HTTP Basic format, not a human password hashing API. A new actual
+refusal fixture at **15:08:50.170 UTC** confirmed authenticated administration
+HTTP 200, unauthenticated HTTP 401 and refusal without world exposure.
+
+Initial Ubuntu browser CI exposed missing display/audio backends and a
+fixed-duration movement assertion. The CI environment now provides headed Xvfb,
+actual software Mesa/WebGL2 and isolated PulseAudio output. All 30 browser cases
+passed with those settings locally; collision waiting is bounded and requires
+actual wall contact and stopped forward velocity, preserving original bounds.
+No assertion or scanner rule is disabled. Remote CI results remain authoritative
+and are available on [Draft PR #1023](https://github.com/noah-be/overte/pull/1023).

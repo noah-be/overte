@@ -2,10 +2,12 @@
   "test": "native-domain-permission-refusal",
   "result": "passed",
   "protocolArtifacts": "Overte 2026.04.1 client and server",
-  "at": "2026-09-30T13:34:49.332Z",
+  "at": "2026-09-30T15:08:50.170Z",
   "domain": "hifi://127.0.0.1:45302",
   "reason": "You lack the required Directory Services permissions to connect to this domain.",
   "worldDataExposed": false,
   "administrationRequiresAuthentication": true,
+  "authorizedAdministrationStatus": 200,
+  "unauthenticatedAdministrationStatus": 401,
   "domainIpcIsolated": true
 }

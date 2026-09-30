@@ -1,12 +1,15 @@
 {
-  "startedAt": "2026-09-30T14:37:21.127Z",
-  "finishedAt": "2026-09-30T14:37:42.483Z",
+  "startedAt": "2026-09-30T15:10:33.171Z",
+  "finishedAt": "2026-09-30T15:10:54.700Z",
   "completed": true,
   "sourceSHA256": {
-    "browser-client/gateway/server.mjs": "bd4417108f1d93858ddd3e1ce27c43de948a7380613848f37a1f40574da35d09",
+    "browser-client/gateway/server.mjs": "247705a47072c87b2f455118b8ff8b035e2a88604614c2bbe39a3e8d26768d36",
     "browser-client/gateway/native-bridge.js": "99fcb3ecd48be7b712b8df805ce71aa7ee3bc3d7e6dd50c7fa071ffd92c92e29",
+    "browser-client/gateway/validation.mjs": "70197ced4d7f012973012ae9f3ca5e3c724440b622e6758c28d4cdb8be723402",
+    "browser-client/gateway/permission-policy.mjs": "1547f4106e4b4fb72701a434a4afb57907f3af9797e4daf4c8793e034587d591",
+    "browser-client/gateway/process-lifecycle.mjs": "c2c28210110992dcbdd5b64981bb3c201b69386ea64280de54e075505d41197f",
     "browser-client/dist/index.html": "0174aafcefd3b5346610ed01f2503c653d39bc8b4340a7346b4c3324c183fd13",
-    "browser-client/tests/integration/assets-and-avatars.mjs": "7b2f5ac9f6438222b4af735a6383f1329cb4da6b0b0aeb9f12f83015a3896a1d",
+    "browser-client/tests/integration/assets-and-avatars.mjs": "fbe638039c34936820e78e41bf7e7b42e7877ae1fcf19966b4c0ef39b8aa07e7",
     "browser-client/dist/assets/FBXLoader-DYpVg82l.js": "a0a5770f07f5dafeecb08624d8dbc073a4e517927f0ce59396258aee805bae65",
     "browser-client/dist/assets/FBXLoader-DYpVg82l.js.map": "bf8d69dbd7459a6e87cd93d827d90fc8a0900f021ef1a8c8e223ac894dff46ab",
     "browser-client/dist/assets/GLTFLoader-B1lZGHM3.js": "ce0da28cbbdb8e0a2847a643fc79c46c32c608cebcc367fe2c81e1cb2d9cf380",
@@ -31,9 +34,9 @@
   },
   "pose": {
     "position": {
-      "x": 5.26937645730194e-05,
-      "y": 0.8500099972774873,
-      "z": -5.2692156511479324e-05
+      "x": 5.5432291470155487e-05,
+      "y": 0.8500099971103434,
+      "z": -5.5430599836682254e-05
     },
     "orientation": {
       "x": 0,
@@ -57,9 +60,9 @@
         "z": -1
       },
       "orientation": {
-        "x": 6.827002206827651e-14,
-        "y": 6.827002206827651e-14,
-        "z": 6.827002206827651e-14,
+        "x": 7.254869041671899e-14,
+        "y": 7.254869041671899e-14,
+        "z": 7.254869041671899e-14,
         "w": 1
       },
       "scale": 0.999786376953125
@@ -67,9 +70,9 @@
     {
       "displayName": "Browser asset and avatar proof",
       "position": {
-        "x": 5.269376561045647e-05,
+        "x": 5.468459858093411e-05,
         "y": 0.8500099778175354,
-        "z": -5.269215762382373e-05
+        "z": -5.468293238664046e-05
       },
       "orientation": {
         "x": 0,

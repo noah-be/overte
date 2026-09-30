@@ -1169,5 +1169,301 @@
         "at": "2026-09-30T14:48:26.933Z"
       }
     ]
+  },
+  {
+    "startedAt": "2026-09-30T15:18:26.663Z",
+    "finishedAt": "2026-09-30T15:19:36.414Z",
+    "browser": "system-chromium",
+    "browserVersion": "154.0.8037.57",
+    "nativeVersion": "2026.04.1",
+    "domain": "hifi://127.0.0.2:45102",
+    "completed": true,
+    "syntheticMicrophone": true,
+    "durationSeconds": 0,
+    "journeySeconds": 69.751,
+    "sourceSHA256": {
+      "browser-client/gateway/server.mjs": "247705a47072c87b2f455118b8ff8b035e2a88604614c2bbe39a3e8d26768d36",
+      "browser-client/gateway/native-bridge.js": "99fcb3ecd48be7b712b8df805ce71aa7ee3bc3d7e6dd50c7fa071ffd92c92e29",
+      "browser-client/gateway/process-lifecycle.mjs": "c2c28210110992dcbdd5b64981bb3c201b69386ea64280de54e075505d41197f",
+      "browser-client/gateway/validation.mjs": "70197ced4d7f012973012ae9f3ca5e3c724440b622e6758c28d4cdb8be723402",
+      "browser-client/gateway/permission-policy.mjs": "1547f4106e4b4fb72701a434a4afb57907f3af9797e4daf4c8793e034587d591",
+      "browser-client/dist/index.html": "0174aafcefd3b5346610ed01f2503c653d39bc8b4340a7346b4c3324c183fd13",
+      "browser-client/tests/integration/real-session.mjs": "7f0564bbc706780bef4221bf250f38fd3664ed72c0b7899c5484d4385ebd9b7d",
+      "browser-client/tests/integration/system-firefox.mjs": "91460afd8a38d4543a344503105f4c60cfaa946f6ea0eb0855ef489491053a08",
+      "browser-client/package-lock.json": "db81eafbd691c96c6c253265f765aa4f9f3dd517059e5ed4ff7e9c1b7c3935ad",
+      "browser-client/dist/assets/FBXLoader-DYpVg82l.js": "a0a5770f07f5dafeecb08624d8dbc073a4e517927f0ce59396258aee805bae65",
+      "browser-client/dist/assets/FBXLoader-DYpVg82l.js.map": "bf8d69dbd7459a6e87cd93d827d90fc8a0900f021ef1a8c8e223ac894dff46ab",
+      "browser-client/dist/assets/GLTFLoader-B1lZGHM3.js": "ce0da28cbbdb8e0a2847a643fc79c46c32c608cebcc367fe2c81e1cb2d9cf380",
+      "browser-client/dist/assets/GLTFLoader-B1lZGHM3.js.map": "f0ba7271e6a84c1ea9308dcdfdcaab80f7257b7648f6a345839fbbbc6d702d39",
+      "browser-client/dist/assets/OBJLoader-xNoXB-9E.js": "429ceafb87061eb60ffca1e0fb14e1f3a89b61e332b90676df2b29159e408bce",
+      "browser-client/dist/assets/OBJLoader-xNoXB-9E.js.map": "9508d9037cebdf05e981af97f46580507ef95e3019d4ac4899e0809e7495c675",
+      "browser-client/dist/assets/index-B2mAMfm4.css": "cbf321b921d05ff91c3020a6ccffc91385eeebf223ea6ec0577c6354df12a521",
+      "browser-client/dist/assets/index-Dwjc-qtg.js": "a7f170f4da215438be9ed4c4f2da36f0a71b944aff1382525553e2853a66c2d0",
+      "browser-client/dist/assets/index-Dwjc-qtg.js.map": "fd2f67205fcbd27a8e5cfd8b6cc224eaa765af9fe23ed4932b97099676ad7fc9"
+    },
+    "testType": "Short actual-domain/native functional journey; endurance omitted at the user\u2019s instruction.",
+    "checkpoints": [
+      {
+        "name": "actual-domain-joined",
+        "at": "2026-09-30T15:18:41.479Z",
+        "connected": true,
+        "entityCount": 7,
+        "avatarCount": 1,
+        "pose": {
+          "position": {
+            "x": 2.735162105394101e-05,
+            "y": 0.8500099988242253,
+            "z": -2.735078636144506e-05
+          },
+          "orientation": {
+            "x": 0,
+            "y": 0,
+            "z": 0,
+            "w": 1
+          },
+          "velocity": {
+            "x": 9.959258420839283e-06,
+            "y": -6.078556546995628e-10,
+            "z": -9.95895449302993e-06
+          }
+        }
+      },
+      {
+        "name": "native-sees-browser",
+        "at": "2026-09-30T15:18:42.642Z",
+        "nativeOtherParticipants": 1
+      },
+      {
+        "name": "movement-measured",
+        "at": "2026-09-30T15:18:46.865Z",
+        "before": {
+          "x": 3.341656717325181e-05,
+          "y": 0.8500099984540561,
+          "z": -3.341554739611298e-05
+        },
+        "after": {
+          "x": 5.875768187300296e-05,
+          "y": 0.849961565029205,
+          "z": -1.5870987558887617
+        }
+      },
+      {
+        "name": "browser-movement-synchronized",
+        "at": "2026-09-30T15:18:46.921Z",
+        "before": {
+          "x": 3.341656717325181e-05,
+          "y": 0.8500099984540561,
+          "z": -3.341554739611298e-05
+        },
+        "after": {
+          "x": 5.875768187300296e-05,
+          "y": 0.849961565029205,
+          "z": -1.5870987558887617
+        },
+        "nativePosition": {
+          "x": 5.568350388784893e-05,
+          "y": 0.8499615788459778,
+          "z": -1.5870957374572754
+        }
+      },
+      {
+        "name": "native-movement-synchronized",
+        "at": "2026-09-30T15:18:49.776Z"
+      },
+      {
+        "name": "actual-world-collision",
+        "at": "2026-09-30T15:18:51.797Z",
+        "position": {
+          "x": 7.809857639960297e-05,
+          "y": 0.8499422513921999,
+          "z": -2.2199583286022344
+        }
+      },
+      {
+        "name": "interaction-measured",
+        "at": "2026-09-30T15:18:54.648Z",
+        "before": {
+          "red": 40,
+          "green": 190,
+          "blue": 90
+        },
+        "after": {
+          "red": 230,
+          "green": 90,
+          "blue": 40
+        },
+        "pose": {
+          "position": {
+            "x": 9.105726658849824e-05,
+            "y": 0.8499422509130743,
+            "z": -2.2199610697453642
+          },
+          "orientation": {
+            "x": 0,
+            "y": 0,
+            "z": 0,
+            "w": 1
+          },
+          "velocity": {
+            "x": 1.4953841458762495e-05,
+            "y": -9.126961408867373e-10,
+            "z": -1.4953385110700827e-05
+          }
+        },
+        "connected": true
+      },
+      {
+        "name": "interaction-observed-by-native",
+        "at": "2026-09-30T15:18:54.651Z",
+        "before": {
+          "red": 40,
+          "green": 190,
+          "blue": 90
+        },
+        "after": {
+          "red": 230,
+          "green": 90,
+          "blue": 40
+        }
+      },
+      {
+        "name": "browser-to-native-audio",
+        "at": "2026-09-30T15:19:00.881Z",
+        "input": "Synthetic 440Hz fake microphone WAV",
+        "nativeOutput": {
+          "rms": 0.008641814427076346,
+          "peak": 0.020263671875,
+          "bytes": 959020,
+          "tone440Amplitude": 0.01054537513669274,
+          "tone997Amplitude": 1.982922127956246e-07
+        },
+        "browser": {
+          "incomingNonzero": 0,
+          "incomingPeak": 6.103515625e-05,
+          "outgoingNonzero": 297,
+          "outgoingPeak": 0.124969482421875
+        }
+      },
+      {
+        "name": "native-to-browser-audio",
+        "at": "2026-09-30T15:19:15.233Z",
+        "input": "Synthetic 997Hz injected private native microphone",
+        "browserOutput": {
+          "rms": 0.011424831750941904,
+          "peak": 0.02532958984375,
+          "bytes": 958196,
+          "tone440Amplitude": 6.742357697699543e-06,
+          "tone997Amplitude": 0.009338752623395723
+        }
+      },
+      {
+        "name": "stable-real-connection",
+        "at": "2026-09-30T15:19:15.240Z",
+        "connectedAt": 1790781520440,
+        "connectedSeconds": 34.8
+      },
+      {
+        "name": "native-observed-clean-leave",
+        "at": "2026-09-30T15:19:16.616Z"
+      },
+      {
+        "name": "reconnected-to-actual-domain",
+        "at": "2026-09-30T15:19:30.970Z",
+        "pose": {
+          "position": {
+            "x": 3.757008038008676e-05,
+            "y": 0.8500099982005493,
+            "z": -3.756893384971826e-05
+          },
+          "orientation": {
+            "x": 0,
+            "y": 0,
+            "z": 0,
+            "w": 1
+          },
+          "velocity": {
+            "x": 1.4953841458762495e-05,
+            "y": -9.126961408867373e-10,
+            "z": -1.4953385110700827e-05
+          }
+        }
+      },
+      {
+        "name": "reconnection-movement",
+        "at": "2026-09-30T15:19:32.196Z",
+        "before": {
+          "x": 3.757008038008676e-05,
+          "y": 0.8500099982005493,
+          "z": -3.756893384971826e-05
+        },
+        "after": {
+          "x": 1.0268067082084142,
+          "y": 0.8499786629361656,
+          "z": -4.6706783002392256e-05
+        }
+      },
+      {
+        "name": "mouse-look",
+        "at": "2026-09-30T15:19:32.676Z",
+        "before": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "after": {
+          "x": 0,
+          "y": -0.19866933079506122,
+          "z": 0,
+          "w": 0.9800665778412416
+        }
+      },
+      {
+        "name": "final-view",
+        "at": "2026-09-30T15:19:32.689Z",
+        "pose": {
+          "position": {
+            "x": 1.0268104466687789,
+            "y": 0.8499786627079917,
+            "z": -5.044512928006749e-05
+          },
+          "orientation": {
+            "x": 0,
+            "y": -0.19866933079506122,
+            "z": 0,
+            "w": 0.9800665778412416
+          },
+          "velocity": {
+            "x": 1.4953841458762495e-05,
+            "y": -9.126961408867373e-10,
+            "z": -1.4953385110700827e-05
+          }
+        },
+        "participants": [
+          {
+            "role": "independent-native",
+            "position": {
+              "x": 4,
+              "y": 1.7999999523162842,
+              "z": 2
+            },
+            "scale": 0.999786376953125
+          },
+          {
+            "role": "browser",
+            "position": {
+              "x": 1.0268096923828125,
+              "y": 0.8499786853790283,
+              "z": -4.9697460781317204e-05
+            },
+            "scale": 1
+          }
+        ]
+      },
+      {
+        "name": "all-real-session-assertions-passed",
+        "at": "2026-09-30T15:19:36.414Z"
+      }
+    ]
   }
 ]
