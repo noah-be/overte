@@ -221,6 +221,10 @@ not claim that those separate environments were tested.
 
 ## Native C++/Qt suites
 
+For document-root, symlink, index, and SSI regressions, the
+[embedded-webserver guide](embedded-webserver/README.md) also provides a focused
+Qt5 build of the actual product library and its registered native test.
+
 The selective PR lane is described in the [native CI guide](../tools/native-tests/README.md).
 It routes from the exact merge candidate, builds affected production/test targets,
 and runs bounded headless Qt tests. Documentation and known host-only changes do
