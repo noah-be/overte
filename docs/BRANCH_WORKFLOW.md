@@ -208,6 +208,29 @@ parent delta, and accepts exactly one matching non-expired qualification from a
 successful `push` run of the expected workflow. It re-reads both permanent refs
 after verification so a target or parent race fails closed.
 
+Dispatched validation is correlated by both the gate's `GITHUB_RUN_ID` and
+`GITHUB_RUN_ATTEMPT` (`gate-<run-id>-attempt-<attempt>`). The `dispatch-and-wait`
+command requires `--gate-run-id` and takes the attempt from `--gate-run-attempt`
+when supplied, otherwise from `GITHUB_RUN_ATTEMPT` for compatibility with older
+workflow definitions. Missing, invalid, or nonpositive attempts are rejected
+before any API request; there is no constant default. A rerun must not reuse
+an earlier attempt's result. The gate waits for the current attempt to
+become visible and complete successfully. Multiple matching runs, an
+unsuccessful current run, or a timeout fail the gate in both reuse and full
+fallback mode.
+
+The trusted default-branch `reconciliation_repair_paths` configuration can
+authorize exact nonprivileged product paths per target. A reconciliation
+touching one of these paths (including either side of a rename) must pass the
+existing branch-policy API attestation: exact current base/direct-parent merge,
+same repository, parent-identical privileged tree, and unchanged refs. The
+executed merge candidate must also retain the exact parent's privileged tree.
+Only listed extra paths are allowed outside the parent delta; the exact legacy
+retirement contract remains separate. Such reconciliations always select the
+complete fallback, even for Markdown or valid parent qualification. This is
+conservative: a listed path inherited unchanged from the parent also forces
+fallback. No new direct-sync, topology, or ruleset exception is introduced.
+
 When all bindings match, a separate read-only validation workflow runs only the
 edge-specific hardware-free differential profile. The redundant Android and
 project-wide suites delegate to this required check, while topology, policy,
