@@ -197,8 +197,11 @@ after verification so a target or parent race fails closed.
 
 Dispatched validation is correlated by both the gate's `GITHUB_RUN_ID` and
 `GITHUB_RUN_ATTEMPT` (`gate-<run-id>-attempt-<attempt>`). The `dispatch-and-wait`
-command requires both `--gate-run-id` and `--gate-run-attempt`; a rerun must not
-reuse an earlier attempt's result. The gate waits for the current attempt to
+command requires `--gate-run-id` and takes the attempt from `--gate-run-attempt`
+when supplied, otherwise from `GITHUB_RUN_ATTEMPT` for compatibility with older
+workflow definitions. Missing, invalid, or nonpositive attempts are rejected
+before any API request; there is no constant default. A rerun must not reuse
+an earlier attempt's result. The gate waits for the current attempt to
 become visible and complete successfully. Multiple matching runs, an
 unsuccessful current run, or a timeout fail the gate in both reuse and full
 fallback mode.
