@@ -6,6 +6,8 @@ HifiControls.TouchUiMetrics {
     readonly property bool showVrMode: profile.vrAudioAvailable
     readonly property bool showPushToTalk: profile.pushToTalkAvailable
     readonly property bool showAvatarAudioTools: profile.avatarAudioToolsAvailable
+    readonly property bool systemManagedAudioInput: profile.systemManagedAudioInput
+    readonly property bool systemManagedAudioOutput: profile.systemManagedAudioOutput
     readonly property int minimumControlHeight: directTouch
         ? Math.max(20, adaptiveMinimumControlHeight,
             Math.ceil(20 * textScale))
