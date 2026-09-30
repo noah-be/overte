@@ -11,11 +11,7 @@ SharedControls.TouchUiProfileBase {
     hardwareKeyboardSupported: true
     systemImeAvailable: true
     screenSpacePresentation: true
-    // Declare product facts so both the current and incoming shared base work.
-    property bool screenSpaceOriginAtSafeArea: true
-    property bool systemManagedAudioInput: true
-    property bool systemManagedAudioOutput: true
-    property bool touchCameraPreferencesAvailable: true
+    screenSpaceOriginAtSafeArea: true
 
     safeInsetLeft: runtimeMetrics.safeInsetLeft
     safeInsetTop: runtimeMetrics.safeInsetTop
@@ -33,6 +29,8 @@ SharedControls.TouchUiProfileBase {
     vrAudioAvailable: false
     pushToTalkAvailable: false
     avatarAudioToolsAvailable: false
+    systemManagedAudioInput: true
+    systemManagedAudioOutput: true
     dominantHandSettingsAvailable: false
     hmdAlignmentAvailable: false
     externalAvatarCatalogAvailable: false
@@ -42,6 +40,7 @@ SharedControls.TouchUiProfileBase {
     graphicsSettingsAvailable: true
     controllerSettingsAvailable: false
     picoResolutionSettingsAvailable: false
+    touchCameraPreferencesAvailable: true
     navigationPreferencesAvailable: true
     userInterfacePreferencesAvailable: false
     hmdPreferencesAvailable: false

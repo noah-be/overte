@@ -3,6 +3,7 @@ import QtQuick 2.5
 Item {
     id: button
     activeFocusOnTab: true
+    // Older host Qt versions lack the optional native identifier property.
     Component.onCompleted: {
         if ("id" in Accessible) {
             Accessible.id = Qt.binding(function() { return objectName })

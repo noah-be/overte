@@ -29,21 +29,10 @@ Rectangle {
     Accessible.name: qsTr("Audio settings")
 
     HifiConstants { id: hifi; }
-    // Use the shared capability profile directly. The retained legacy iOS
-    // selector predates system-managed audio and has incompatible relative
-    // import resolution on older Qt 6 hosts.
-    HifiControlsUit.TouchUiMetrics {
+    AudioTouchConfiguration {
         id: touchConfiguration
         availableWidth: root.width
         availableHeight: root.height
-        readonly property bool showModeTabs: profile.audioModeTabsAvailable
-        readonly property bool showVrMode: profile.vrAudioAvailable
-        readonly property bool showPushToTalk: profile.pushToTalkAvailable
-        readonly property bool showAvatarAudioTools: profile.avatarAudioToolsAvailable
-        readonly property bool systemManagedAudioInput: profile.systemManagedAudioInput
-        readonly property bool systemManagedAudioOutput: profile.systemManagedAudioOutput
-        readonly property int minimumControlHeight: directTouch
-            ? Math.max(20, adaptiveMinimumControlHeight, Math.ceil(20 * textScale)) : 16
     }
 
     property var eventBridge;

@@ -48,16 +48,14 @@ def main() -> None:
     assert "tabletButton = addButton(navigationBar" in action_bar
     assert "onClicked: tabletProxy.hideAndroidTablet()" in tablet_home
     assert "Accessible.role: Accessible.Button" in button_qml
-    assert 'if ("id" in Accessible)' in button_qml
-    assert "Accessible.id = Qt.binding(function() { return objectName })" in button_qml
+    assert 'if ("id" in Accessible)' in button_qml and "Accessible.id = Qt.binding(function() { return objectName })" in button_qml
     assert "property string accessibleName: text" in button_qml
     assert 'property string accessibleDescription: ""' in button_qml
     assert "Accessible.name: accessibleName" in button_qml
     assert "Accessible.description: accessibleDescription" in button_qml
     assert "Accessible.onPressAction: button.clicked()" in button_qml
     assert "activeFocusOnTab: true" in button_qml
-    assert 'if ("id" in Accessible)' in tablet_home
-    assert "Accessible.id = Qt.binding(function() { return objectName })" in tablet_home
+    assert 'if ("id" in Accessible)' in tablet_home and "Accessible.id = Qt.binding(function() { return objectName })" in tablet_home
     assert "Accessible.onPressAction: tabletProxy.hideAndroidTablet()" in tablet_home
     assert native_bridge.count('@"OverteTabletOpen"') == 1
     assert native_bridge.count('@"OverteTabletClose"') == 1
@@ -68,12 +66,15 @@ def main() -> None:
     assert "OverteIOSAccessibilityOverlay : UIView" in native_bridge
     assert "pointInside:(CGPoint)point withEvent:(UIEvent*)event" in native_bridge
     assert "return NO;" in native_bridge
-    assert native_bridge.count("#if defined(OVERTE_IOS_E2E_TEST_BUILD)") == 3
+    assert native_bridge.count("#if defined(OVERTE_IOS_E2E_TEST_BUILD)") == 4
     assert "OverteIOSE2EAccessibilityButton : UIButton" in native_bridge
     assert "forControlEvents:UIControlEventTouchUpInside" in native_bridge
     assert "overlay.accessibilityElements = @[];" in native_bridge
     assert "button.frame = controlFrame;" in native_bridge
     assert "button.activationHandler = activationHandler;" in native_bridge
+    assert "tabletCloseControl(tablet->getIOSTabletRoot())" in native_bridge
+    assert "button.hidden = CGRectIsNull(controlFrame) || CGRectIsEmpty(controlFrame);" in native_bridge
+    assert "button.enabled = !button.hidden;" in native_bridge
     assert "OverteTabletScreen.%s" in native_bridge
     assert "OverteTabletReady.%s" in native_bridge
     assert "OverteTabletControl.%s" in native_bridge
@@ -93,14 +94,11 @@ def main() -> None:
     assert "QQuickItem* TabletProxy::getIOSTabletRoot() const" in tablet_proxy_source
     assert "OVERTE_IOS_E2E_TEST_BUILD" in application
     assert "tabletAccessibilityRefresh->setInterval(100)" in application
-    if "footer: TabletNavigation" in window_root:
-        navigation = (ROOT / "interface/resources/qml/hifi/tablet/TabletNavigation.qml").read_text()
-        assert 'objectName: "nav." + modelData.key' in navigation
-        for key in ("back", "home", "close"):
-            assert f'key: "{key}"' in navigation
-    else:
-        for semantic_navigation_id in ("nav.back", "nav.home", "nav.close"):
-            assert f'objectName: "{semantic_navigation_id}"' in window_root
+    navigation = (ROOT / "interface/resources/qml/hifi/tablet/TabletNavigation.qml").read_text()
+    assert "footer: TabletNavigation" in window_root
+    assert 'objectName: "nav." + modelData.key' in navigation
+    for semantic_navigation_key in ("back", "home", "close"):
+        assert f'key: "{semantic_navigation_key}"' in navigation
     assert "returnToPreviousSemanticScreen" in window_root
     assert "tabletProxy.gotoHomeScreen()" in window_root
     assert "tabletProxy.hideAndroidTablet()" in window_root
