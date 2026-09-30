@@ -89,7 +89,8 @@
         "domain-server",
         "ice-server",
         "libraries/networking",
-        "libraries/octree"
+        "libraries/octree",
+        "libraries/embedded-webserver"
       ],
       "automated": [
         "repository-health"
@@ -97,7 +98,8 @@
       "native": [
         "networking",
         "jitter",
-        "octree"
+        "octree",
+        "embedded-webserver"
       ],
       "hardware": []
     },
