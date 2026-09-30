@@ -7,8 +7,11 @@ QtObject {
     property bool hoverSupported: !directTouch
     property bool hapticsSupported: false
     property bool hardwareKeyboardSupported: true
+    property bool stackedTabletHeader: directTouch
     property bool systemImeAvailable: false
     property bool screenSpacePresentation: false
+    // UIKit may already position the render surface at the safe-content origin.
+    property bool screenSpaceOriginAtSafeArea: false
 
     property int safeInsetLeft: 0
     property int safeInsetTop: 0
@@ -26,6 +29,9 @@ QtObject {
     property bool vrAudioAvailable: true
     property bool pushToTalkAvailable: true
     property bool avatarAudioToolsAvailable: true
+    property bool systemManagedAudioInput: false
+    property bool systemManagedAudioOutput: false
+    property bool recordedVoiceTest: false
 
     property bool dominantHandSettingsAvailable: true
     property bool hmdAlignmentAvailable: true
@@ -39,6 +45,7 @@ QtObject {
     property bool picoResolutionSettingsAvailable: true
     readonly property bool vrRenderResolutionAvailable: picoResolutionSettingsAvailable
 
+    property bool touchCameraPreferencesAvailable: false
     property bool navigationPreferencesAvailable: false
     property bool userInterfacePreferencesAvailable: true
     property bool hmdPreferencesAvailable: true
