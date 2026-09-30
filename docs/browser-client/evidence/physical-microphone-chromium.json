@@ -1,0 +1,12 @@
+{
+  "startedAt": "2026-09-30T14:23:50.711Z",
+  "browser": "chromium",
+  "syntheticMicrophone": false,
+  "speechTest": false,
+  "completed": false,
+  "hardwareDefaultSource": true,
+  "browserVersion": "153.0.8010.12",
+  "availableAudioInputs": 0,
+  "error": "The browser must expose an actual audio input before a hardware capture can be tested",
+  "finishedAt": "2026-09-30T14:23:51.633Z"
+}

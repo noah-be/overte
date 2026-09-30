@@ -1,0 +1,83 @@
+{
+  "startedAt": "2026-09-30T14:37:21.127Z",
+  "finishedAt": "2026-09-30T14:37:42.483Z",
+  "completed": true,
+  "sourceSHA256": {
+    "browser-client/gateway/server.mjs": "bd4417108f1d93858ddd3e1ce27c43de948a7380613848f37a1f40574da35d09",
+    "browser-client/gateway/native-bridge.js": "99fcb3ecd48be7b712b8df805ce71aa7ee3bc3d7e6dd50c7fa071ffd92c92e29",
+    "browser-client/dist/index.html": "0174aafcefd3b5346610ed01f2503c653d39bc8b4340a7346b4c3324c183fd13",
+    "browser-client/tests/integration/assets-and-avatars.mjs": "7b2f5ac9f6438222b4af735a6383f1329cb4da6b0b0aeb9f12f83015a3896a1d",
+    "browser-client/dist/assets/FBXLoader-DYpVg82l.js": "a0a5770f07f5dafeecb08624d8dbc073a4e517927f0ce59396258aee805bae65",
+    "browser-client/dist/assets/FBXLoader-DYpVg82l.js.map": "bf8d69dbd7459a6e87cd93d827d90fc8a0900f021ef1a8c8e223ac894dff46ab",
+    "browser-client/dist/assets/GLTFLoader-B1lZGHM3.js": "ce0da28cbbdb8e0a2847a643fc79c46c32c608cebcc367fe2c81e1cb2d9cf380",
+    "browser-client/dist/assets/GLTFLoader-B1lZGHM3.js.map": "f0ba7271e6a84c1ea9308dcdfdcaab80f7257b7648f6a345839fbbbc6d702d39",
+    "browser-client/dist/assets/OBJLoader-xNoXB-9E.js": "429ceafb87061eb60ffca1e0fb14e1f3a89b61e332b90676df2b29159e408bce",
+    "browser-client/dist/assets/OBJLoader-xNoXB-9E.js.map": "9508d9037cebdf05e981af97f46580507ef95e3019d4ac4899e0809e7495c675",
+    "browser-client/dist/assets/index-B2mAMfm4.css": "cbf321b921d05ff91c3020a6ccffc91385eeebf223ea6ec0577c6354df12a521",
+    "browser-client/dist/assets/index-Dwjc-qtg.js": "a7f170f4da215438be9ed4c4f2da36f0a71b944aff1382525553e2853a66c2d0",
+    "browser-client/dist/assets/index-Dwjc-qtg.js.map": "fd2f67205fcbd27a8e5cfd8b6cc224eaa765af9fe23ed4932b97099676ad7fc9"
+  },
+  "browserVersion": "153.0.8010.12",
+  "binaryTexture": {
+    "url": "atp:/browser-lab/checker.png",
+    "bytes": 79,
+    "sha256": "18e1d2c0906dacb97f5f2bee825f1b5714c481c299e9401261ac21c0cf7b903c",
+    "rendererRequests": [
+      {
+        "status": 200,
+        "url": "atp:/browser-lab/checker.png"
+      }
+    ]
+  },
+  "pose": {
+    "position": {
+      "x": 5.26937645730194e-05,
+      "y": 0.8500099972774873,
+      "z": -5.2692156511479324e-05
+    },
+    "orientation": {
+      "x": 0,
+      "y": 0,
+      "z": 0,
+      "w": 1
+    },
+    "velocity": {
+      "x": 1.4953841458762495e-05,
+      "y": -9.126961408867373e-10,
+      "z": -1.4953385110700827e-05
+    }
+  },
+  "screenshot": "world-native-peer.png",
+  "participants": [
+    {
+      "displayName": "Native-Lab-Participant",
+      "position": {
+        "x": 2,
+        "y": 1.7999999523162842,
+        "z": -1
+      },
+      "orientation": {
+        "x": 6.827002206827651e-14,
+        "y": 6.827002206827651e-14,
+        "z": 6.827002206827651e-14,
+        "w": 1
+      },
+      "scale": 0.999786376953125
+    },
+    {
+      "displayName": "Browser asset and avatar proof",
+      "position": {
+        "x": 5.269376561045647e-05,
+        "y": 0.8500099778175354,
+        "z": -5.269215762382373e-05
+      },
+      "orientation": {
+        "x": 0,
+        "y": 0,
+        "z": 0,
+        "w": 1
+      },
+      "scale": 1
+    }
+  ]
+}

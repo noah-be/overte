@@ -1,0 +1,47 @@
+name: Browser client
+
+on:
+  pull_request:
+    paths:
+      - 'browser-client/**'
+      - '.github/workflows/browser-client.yml'
+  push:
+    branches: ['feature/main/browser-client']
+    paths:
+      - 'browser-client/**'
+      - '.github/workflows/browser-client.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: browser-client-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: browser-client
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: browser-client/package-lock.json
+      - name: Install reproducible dependencies
+        run: npm ci
+      - name: Build browser distribution
+        run: npm run build
+      - name: Test protocol, collision and audio contracts
+        run: npm test
+      - name: Install browser engines
+        run: npx playwright install --with-deps chromium firefox
+      - name: Test Chromium and Firefox user interface and renderer
+        run: npm run test:browser

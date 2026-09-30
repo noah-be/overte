@@ -1,0 +1,22 @@
+{
+  "recordedAt": "2026-09-30T14:11:32Z",
+  "commands": [
+    "python3 browser-client/lab/manage.py prepare",
+    "python3 browser-client/lab/manage.py start --gateway"
+  ],
+  "nativeVersion": "2026.04.1",
+  "domain": "hifi://127.0.0.2:45102",
+  "browserURL": "http://127.0.0.1:8090",
+  "namespacedDomainIPC": true,
+  "unauthorizedHTTPAdminStatus": 401,
+  "guestPermissionsEqual": true,
+  "binaryAssetProvisioned": true,
+  "sourceSHA256": {
+    "browser-client/lab/manage.py": "191443cfc4b2bd18104895eab72d8eb10763025778293ca4082691e6b93b2b57",
+    "browser-client/lab/native-participant.js": "20d9838f7a6969ca58cd49fee7ff63777aa84fadc241528bc36752c73303107a",
+    "browser-client/lab/pulseaudio-local.sh": "0147c0717c3f7208c0ebcf769ede5561fea4f25466c4eb4cea3f281c138811ce",
+    "browser-client/lab/create-assets.py": "7bc1e32a3ccf41c3118d7cae101a90275ffbdd997dc9ec7f339cd6b941821479",
+    "browser-client/lab/textured-cube.gltf": "b1193d45a74443fcf07c695ddd8ee4c4b737ff7d276af79d539ef82f61655ab3",
+    "browser-client/lab/checker.png": "18e1d2c0906dacb97f5f2bee825f1b5714c481c299e9401261ac21c0cf7b903c"
+  }
+}
