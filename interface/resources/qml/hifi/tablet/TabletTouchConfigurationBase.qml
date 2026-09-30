@@ -10,9 +10,9 @@ HifiControls.TouchUiMetrics {
     property int columns: directTouch
         ? (compact ? 3 : expanded ? 6 : 5)
         : 3
-    property int topBarHeight: directTouch
-        ? clamp(availableHeight * 0.20, 64, 90)
-        : 90
+    property int topBarHeight: profile.stackedTabletHeader
+        ? Math.max(90, Math.round(48 * textScale) + minimumTouchTarget + 20)
+        : directTouch ? clamp(availableHeight * 0.20, 64, 90) : 90
     property int horizontalMargin: directTouch
         ? clamp(availableWidth * 0.025, 8, expanded ? 24 : 16)
         : 30
@@ -21,6 +21,6 @@ HifiControls.TouchUiMetrics {
     property int maximumButtonExtent: directTouch ? 120 : 129
     property int buttonSpacing: directTouch ? 5 : 0
     property bool showCloseButton: directTouch && profile.screenSpacePresentation
-    property int closeButtonHeight: showCloseButton ? 32 : 0
+    property int closeButtonHeight: showCloseButton ? Math.max(32, adaptiveMinimumControlHeight) : 0
     property int closeButtonBottomMargin: showCloseButton ? 28 : 0
 }

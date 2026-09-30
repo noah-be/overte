@@ -49,6 +49,8 @@ class TabletPreferenceActions(unittest.TestCase):
             controls.mkdir()
             for name in ("Button.qml", "TouchUiMetrics.qml", "TouchUiProfile.qml", "TouchUiProfileBase.qml"):
                 text = (qml / "controlsUit" / name).read_text()
+                if name == "TouchUiProfile.qml":
+                    text = text.replace("TouchUiProfileBase {", 'TouchUiProfileBase {\n    directTouch: testPlatformOS === "android" || testPlatformOS === "ios"')
                 (controls / name).write_text(text.replace("Qt.platform.os", "testPlatformOS"))
             (temporary / "stylesUit").symlink_to(qml / "stylesUit", target_is_directory=True)
             fixture = '''import QtQuick 2.7
