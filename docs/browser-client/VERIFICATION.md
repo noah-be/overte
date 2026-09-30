@@ -7,7 +7,7 @@ was explicitly cancelled by the user; no endurance result is claimed.
 ## Environment and reproducible commands
 
 The test host ran Fedora 44, Node.js 24.21.0, Python 3.14.7 and FFmpeg 8.1.2.
-The production build and complete 41-test unit suite also passed under Node.js
+The production build and complete component test suite also passed under Node.js
 22.23.3. Browser automation used Playwright 1.63.0 and Puppeteer Core 25.12.0.
 The independent Interface, gateway Interface processes and domain/assignment
 servers used the pinned official Overte 2026.04.1 release artifacts. Exact
@@ -65,6 +65,8 @@ Chromium with its dependencies on the normal loader path needs only
 | Installed Firefox 156.0 | 14:07:34.579 → 14:08:37.206 | Passed |
 | Stock Chromium 154.0.8037.57 | 14:47:22.184 → 14:48:26.933 | Passed |
 | Stock Chromium 154.0.8037.57, trusted-origin gateway | 15:18:26.663 → 15:19:36.414 | Passed |
+| Stock Chromium 154.0.8037.57, final lifecycle gateway | 16:10:14.677 → 16:11:18.904 | Passed |
+| Installed Firefox 156.0, final lifecycle gateway | 16:17:44.607 → 16:18:47.653 | Passed |
 
 Every journey joined the actual domain alongside an independent native client,
 loaded seven actual entities and HTTPS/ATP textured models, synchronized browser
@@ -103,6 +105,8 @@ playback outputs and verified the known tones, rather than only counting packets
 | Installed Firefox | 0.008140 | 0.011635 | 0.009476 |
 | Stock Chromium 154 | 0.008640 | 0.011323 | 0.009469 |
 | Stock Chromium 154, trusted-origin gateway | 0.008642 | 0.011425 | 0.009339 |
+| Stock Chromium 154, final lifecycle gateway | 0.008822 | 0.011307 | 0.009468 |
+| Installed Firefox 156, final lifecycle gateway | 0.008036 | 0.011284 | 0.006084 |
 
 A separate installed Firefox 156.0 test at **14:14:48.821–14:15:04.551 UTC**
 connected to the real domain and opened a physical ALSA capture device
@@ -188,3 +192,47 @@ passed with those settings locally; collision waiting is bounded and requires
 actual wall contact and stopped forward velocity, preserving original bounds.
 No assertion or scanner rule is disabled. Remote CI results remain authoritative
 and are available on [Draft PR #1023](https://github.com/noah-be/overte/pull/1023).
+
+## Independently installed production deployment and concurrent shutdown
+
+At **16:08:28.718–16:08:46.818 UTC**, a separately extracted production tree
+installed with `npm ci --omit=dev` (only Three.js and ws, zero audit findings)
+served its compiled browser on a separate loopback port. An actual Chromium
+153.0.8010.12 visitor joined the real domain and independent native participant,
+rendered seven real entities through WebGL2, and downloaded the exact 79-byte ATP
+texture with the session asset sandbox and private no-store policy intact.
+
+The test then overlapped browser leave with gateway shutdown while seven owned
+children were still alive, sent a second SIGTERM, and awaited normal gateway
+exit. All nine observed native/audio descendant processes exited; no owned
+child survived, and the private session profile was removed. Teardown completed
+in 5.706 seconds. Exact tested source/bundle identities and results are in
+[production-shutdown.json](evidence/production-shutdown.json).
+
+Reproduce against the running managed laboratory, after building the frontend
+and installing the development/browser test tools in the original checkout:
+
+```bash
+production_tree="$(mktemp -d)"
+git archive HEAD browser-client docs/browser-client LICENSE LICENSES docs/LICENSING.md | tar -x -C "$production_tree"
+cp -a browser-client/dist "$production_tree/browser-client/dist"
+npm --prefix "$production_tree/browser-client" ci --omit=dev
+OVERTE_DISTRIBUTION_ROOT="$production_tree" node browser-client/tests/integration/production-shutdown.mjs
+rm -rf "$production_tree"
+```
+
+Port 8091 must be unused; the test refuses occupied services and preserves the
+primary gateway on port 8090. The separate deployment shares only the reviewed
+actual domain settings and native runtime dependencies. Production source comes
+from the extracted tree. It never uses a simulated world.
+
+The final lifecycle regressions reproduce TERM-resistant child processes,
+concurrent cleanup, shutdown admission refusal, rapid leave/rejoin and a
+cancelled bridge write. A negative control against the old cleanup implementation
+failed both new concurrent-close assertions as expected; no assertion was removed.
+The final component suite passed **52/52** under Node.js 22.23.3 and 24.21.0.
+The final lifecycle gateway also passed the entire actual stock Chromium 154
+journey at **16:10:14.677–16:11:18.904 UTC**, including both voice playback
+directions, interaction, clean native departure and reconnect. The actual
+installed Firefox 156 journey with that same final gateway passed at
+**16:17:44.607–16:18:47.653 UTC**.

@@ -151,7 +151,11 @@ disconnect packets, with a three-second grace period before process termination.
 After the quit grace period, any remaining child receives SIGTERM followed by
 SIGKILL after three seconds. Teardown awaits process exit before deleting private
 files or releasing the session slot; closing sessions still count against the
-process limit.
+process limit. Concurrent leave, socket-loss and gateway-shutdown requests share
+the same cleanup promise, so shutdown also waits for an already-closing session.
+Shutdown rejects new HTTP requests, WebSocket upgrades and joins before draining
+sessions, while retaining existing native bridges for the normal Quit action.
+Obsolete join failures and leave notices cannot reset a replacement session.
 Native bridge startup is limited to 90 seconds and domain connection to 45
 seconds. Reconnection creates a new native session rather than reusing stale
 authentication state.

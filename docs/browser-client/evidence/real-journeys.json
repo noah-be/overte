@@ -1465,5 +1465,597 @@
         "at": "2026-09-30T15:19:36.414Z"
       }
     ]
+  },
+  {
+    "startedAt": "2026-09-30T16:10:14.677Z",
+    "finishedAt": "2026-09-30T16:11:18.904Z",
+    "browser": "system-chromium",
+    "browserVersion": "154.0.8037.57",
+    "nativeVersion": "2026.04.1",
+    "domain": "hifi://127.0.0.2:45102",
+    "completed": true,
+    "syntheticMicrophone": true,
+    "durationSeconds": 0,
+    "journeySeconds": 64.228,
+    "sourceSHA256": {
+      "browser-client/gateway/server.mjs": "0d38ce57f501bfc4de50003376e391f9844f6a042ea39f40c54be27ae8101512",
+      "browser-client/gateway/native-bridge.js": "99fcb3ecd48be7b712b8df805ce71aa7ee3bc3d7e6dd50c7fa071ffd92c92e29",
+      "browser-client/gateway/process-lifecycle.mjs": "e8d7e021a8b934b271910883e27c2a1109aedd22e12044b763d4bf8acc274eaf",
+      "browser-client/gateway/validation.mjs": "70197ced4d7f012973012ae9f3ca5e3c724440b622e6758c28d4cdb8be723402",
+      "browser-client/gateway/permission-policy.mjs": "1547f4106e4b4fb72701a434a4afb57907f3af9797e4daf4c8793e034587d591",
+      "browser-client/dist/index.html": "0174aafcefd3b5346610ed01f2503c653d39bc8b4340a7346b4c3324c183fd13",
+      "browser-client/tests/integration/real-session.mjs": "7f0564bbc706780bef4221bf250f38fd3664ed72c0b7899c5484d4385ebd9b7d",
+      "browser-client/tests/integration/system-firefox.mjs": "91460afd8a38d4543a344503105f4c60cfaa946f6ea0eb0855ef489491053a08",
+      "browser-client/package-lock.json": "db81eafbd691c96c6c253265f765aa4f9f3dd517059e5ed4ff7e9c1b7c3935ad",
+      "browser-client/dist/assets/FBXLoader-DYpVg82l.js": "a0a5770f07f5dafeecb08624d8dbc073a4e517927f0ce59396258aee805bae65",
+      "browser-client/dist/assets/FBXLoader-DYpVg82l.js.map": "bf8d69dbd7459a6e87cd93d827d90fc8a0900f021ef1a8c8e223ac894dff46ab",
+      "browser-client/dist/assets/GLTFLoader-B1lZGHM3.js": "ce0da28cbbdb8e0a2847a643fc79c46c32c608cebcc367fe2c81e1cb2d9cf380",
+      "browser-client/dist/assets/GLTFLoader-B1lZGHM3.js.map": "f0ba7271e6a84c1ea9308dcdfdcaab80f7257b7648f6a345839fbbbc6d702d39",
+      "browser-client/dist/assets/OBJLoader-xNoXB-9E.js": "429ceafb87061eb60ffca1e0fb14e1f3a89b61e332b90676df2b29159e408bce",
+      "browser-client/dist/assets/OBJLoader-xNoXB-9E.js.map": "9508d9037cebdf05e981af97f46580507ef95e3019d4ac4899e0809e7495c675",
+      "browser-client/dist/assets/index-B2mAMfm4.css": "cbf321b921d05ff91c3020a6ccffc91385eeebf223ea6ec0577c6354df12a521",
+      "browser-client/dist/assets/index-Dwjc-qtg.js": "a7f170f4da215438be9ed4c4f2da36f0a71b944aff1382525553e2853a66c2d0",
+      "browser-client/dist/assets/index-Dwjc-qtg.js.map": "fd2f67205fcbd27a8e5cfd8b6cc224eaa765af9fe23ed4932b97099676ad7fc9"
+    },
+    "testType": "Final lifecycle gateway: short actual domain/native/browser journey; synthetic microphone input.",
+    "checkpoints": [
+      {
+        "name": "actual-domain-joined",
+        "at": "2026-09-30T16:10:28.233Z",
+        "connected": true,
+        "entityCount": 7,
+        "avatarCount": 1,
+        "pose": {
+          "position": {
+            "x": 2.710338728572556e-05,
+            "y": 0.8500099988393759,
+            "z": -2.710256016860741e-05
+          },
+          "orientation": {
+            "x": 0,
+            "y": 0,
+            "z": 0,
+            "w": 1
+          },
+          "velocity": {
+            "x": 9.959258420839283e-06,
+            "y": -6.078556546995628e-10,
+            "z": -9.95895449302993e-06
+          }
+        }
+      },
+      {
+        "name": "native-sees-browser",
+        "at": "2026-09-30T16:10:28.611Z",
+        "nativeOtherParticipants": 1
+      },
+      {
+        "name": "movement-measured",
+        "at": "2026-09-30T16:10:32.826Z",
+        "before": {
+          "x": 2.9511296707391064e-05,
+          "y": 0.850009998692411,
+          "z": -2.9510396107830262e-05
+        },
+        "after": {
+          "x": 5.817183821444886e-05,
+          "y": 0.8499516103828735,
+          "z": -1.913298170062976
+        }
+      },
+      {
+        "name": "browser-movement-synchronized",
+        "at": "2026-09-30T16:10:32.853Z",
+        "before": {
+          "x": 2.9511296707391064e-05,
+          "y": 0.850009998692411,
+          "z": -2.9510396107830262e-05
+        },
+        "after": {
+          "x": 5.817183821444886e-05,
+          "y": 0.8499516103828735,
+          "z": -1.913298170062976
+        },
+        "nativePosition": {
+          "x": 5.50162440049462e-05,
+          "y": 0.8499516248703003,
+          "z": -1.913295030593872
+        }
+      },
+      {
+        "name": "native-movement-synchronized",
+        "at": "2026-09-30T16:10:35.661Z"
+      },
+      {
+        "name": "actual-world-collision",
+        "at": "2026-09-30T16:10:37.679Z",
+        "position": {
+          "x": 5.8284523094026265e-05,
+          "y": 0.8499422520044126,
+          "z": -2.2199580819750606
+        }
+      },
+      {
+        "name": "interaction-measured",
+        "at": "2026-09-30T16:10:38.527Z",
+        "before": {
+          "red": 230,
+          "green": 90,
+          "blue": 40
+        },
+        "after": {
+          "red": 40,
+          "green": 190,
+          "blue": 90
+        },
+        "pose": {
+          "position": {
+            "x": 6.384771278466971e-05,
+            "y": 0.8499422519741202,
+            "z": -2.2199535112414006
+          },
+          "orientation": {
+            "x": 0,
+            "y": 0,
+            "z": 0,
+            "w": 1
+          },
+          "velocity": {
+            "x": 1.495384144483522e-05,
+            "y": -9.126961408867373e-10,
+            "z": -1.4953385096773977e-05
+          }
+        },
+        "connected": true
+      },
+      {
+        "name": "interaction-observed-by-native",
+        "at": "2026-09-30T16:10:38.530Z",
+        "before": {
+          "red": 230,
+          "green": 90,
+          "blue": 40
+        },
+        "after": {
+          "red": 40,
+          "green": 190,
+          "blue": 90
+        }
+      },
+      {
+        "name": "browser-to-native-audio",
+        "at": "2026-09-30T16:10:44.797Z",
+        "input": "Synthetic 440Hz fake microphone WAV",
+        "nativeOutput": {
+          "rms": 0.00882209534658256,
+          "peak": 0.0203857421875,
+          "bytes": 952584,
+          "tone440Amplitude": 0.01052956066505506,
+          "tone997Amplitude": 1.1717639030471954e-07
+        },
+        "browser": {
+          "incomingNonzero": 0,
+          "incomingPeak": 6.103515625e-05,
+          "outgoingNonzero": 304,
+          "outgoingPeak": 0.124969482421875
+        }
+      },
+      {
+        "name": "native-to-browser-audio",
+        "at": "2026-09-30T16:10:59.330Z",
+        "input": "Synthetic 997Hz injected private native microphone",
+        "browserOutput": {
+          "rms": 0.011306840942693885,
+          "peak": 0.025970458984375,
+          "bytes": 960036,
+          "tone440Amplitude": 1.9922697826772301e-07,
+          "tone997Amplitude": 0.009468073725708176
+        }
+      },
+      {
+        "name": "stable-real-connection",
+        "at": "2026-09-30T16:10:59.336Z",
+        "connectedAt": 1790784627223,
+        "connectedSeconds": 32.113
+      },
+      {
+        "name": "native-observed-clean-leave",
+        "at": "2026-09-30T16:11:00.521Z"
+      },
+      {
+        "name": "reconnected-to-actual-domain",
+        "at": "2026-09-30T16:11:13.735Z",
+        "pose": {
+          "position": {
+            "x": 3.732384444416466e-05,
+            "y": 0.8500099982155784,
+            "z": -3.732270542820594e-05
+          },
+          "orientation": {
+            "x": 0,
+            "y": 0,
+            "z": 0,
+            "w": 1
+          },
+          "velocity": {
+            "x": 1.4953841458762495e-05,
+            "y": -9.126961408867373e-10,
+            "z": -1.4953385110700827e-05
+          }
+        }
+      },
+      {
+        "name": "reconnection-movement",
+        "at": "2026-09-30T16:11:14.954Z",
+        "before": {
+          "x": 3.732384444416466e-05,
+          "y": 0.8500099982155784,
+          "z": -3.732270542820594e-05
+        },
+        "after": {
+          "x": 1.166807209664551,
+          "y": 0.8499743903794288,
+          "z": -4.7208223836414924e-05
+        }
+      },
+      {
+        "name": "mouse-look",
+        "at": "2026-09-30T16:11:15.360Z",
+        "before": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "after": {
+          "x": 0,
+          "y": -0.19866933079506122,
+          "z": 0,
+          "w": 0.9800665778412416
+        }
+      },
+      {
+        "name": "final-view",
+        "at": "2026-09-30T16:11:15.373Z",
+        "pose": {
+          "position": {
+            "x": 1.16681053407099,
+            "y": 0.849974390176526,
+            "z": -5.053252882428348e-05
+          },
+          "orientation": {
+            "x": 0,
+            "y": -0.19866933079506122,
+            "z": 0,
+            "w": 0.9800665778412416
+          },
+          "velocity": {
+            "x": 1.4953841458762495e-05,
+            "y": -9.126961408867373e-10,
+            "z": -1.4953385110700827e-05
+          }
+        },
+        "participants": [
+          {
+            "role": "independent-native",
+            "position": {
+              "x": 4,
+              "y": 1.7999999523162842,
+              "z": 2
+            },
+            "scale": 0.999786376953125
+          },
+          {
+            "role": "browser",
+            "position": {
+              "x": 1.1668105125427246,
+              "y": 0.8499743938446045,
+              "z": -5.053252971265465e-05
+            },
+            "scale": 1
+          }
+        ]
+      },
+      {
+        "name": "all-real-session-assertions-passed",
+        "at": "2026-09-30T16:11:18.905Z"
+      }
+    ]
+  },
+  {
+    "startedAt": "2026-09-30T16:17:44.607Z",
+    "finishedAt": "2026-09-30T16:18:47.653Z",
+    "browser": "system-firefox",
+    "browserVersion": "firefox/156.0",
+    "nativeVersion": "2026.04.1",
+    "domain": "hifi://127.0.0.2:45102",
+    "completed": true,
+    "syntheticMicrophone": true,
+    "durationSeconds": 0,
+    "journeySeconds": 63.046,
+    "sourceSHA256": {
+      "browser-client/gateway/server.mjs": "0d38ce57f501bfc4de50003376e391f9844f6a042ea39f40c54be27ae8101512",
+      "browser-client/gateway/native-bridge.js": "99fcb3ecd48be7b712b8df805ce71aa7ee3bc3d7e6dd50c7fa071ffd92c92e29",
+      "browser-client/gateway/process-lifecycle.mjs": "e8d7e021a8b934b271910883e27c2a1109aedd22e12044b763d4bf8acc274eaf",
+      "browser-client/gateway/validation.mjs": "70197ced4d7f012973012ae9f3ca5e3c724440b622e6758c28d4cdb8be723402",
+      "browser-client/gateway/permission-policy.mjs": "1547f4106e4b4fb72701a434a4afb57907f3af9797e4daf4c8793e034587d591",
+      "browser-client/dist/index.html": "0174aafcefd3b5346610ed01f2503c653d39bc8b4340a7346b4c3324c183fd13",
+      "browser-client/tests/integration/real-session.mjs": "7f0564bbc706780bef4221bf250f38fd3664ed72c0b7899c5484d4385ebd9b7d",
+      "browser-client/tests/integration/system-firefox.mjs": "91460afd8a38d4543a344503105f4c60cfaa946f6ea0eb0855ef489491053a08",
+      "browser-client/package-lock.json": "db81eafbd691c96c6c253265f765aa4f9f3dd517059e5ed4ff7e9c1b7c3935ad",
+      "browser-client/dist/assets/FBXLoader-DYpVg82l.js": "a0a5770f07f5dafeecb08624d8dbc073a4e517927f0ce59396258aee805bae65",
+      "browser-client/dist/assets/FBXLoader-DYpVg82l.js.map": "bf8d69dbd7459a6e87cd93d827d90fc8a0900f021ef1a8c8e223ac894dff46ab",
+      "browser-client/dist/assets/GLTFLoader-B1lZGHM3.js": "ce0da28cbbdb8e0a2847a643fc79c46c32c608cebcc367fe2c81e1cb2d9cf380",
+      "browser-client/dist/assets/GLTFLoader-B1lZGHM3.js.map": "f0ba7271e6a84c1ea9308dcdfdcaab80f7257b7648f6a345839fbbbc6d702d39",
+      "browser-client/dist/assets/OBJLoader-xNoXB-9E.js": "429ceafb87061eb60ffca1e0fb14e1f3a89b61e332b90676df2b29159e408bce",
+      "browser-client/dist/assets/OBJLoader-xNoXB-9E.js.map": "9508d9037cebdf05e981af97f46580507ef95e3019d4ac4899e0809e7495c675",
+      "browser-client/dist/assets/index-B2mAMfm4.css": "cbf321b921d05ff91c3020a6ccffc91385eeebf223ea6ec0577c6354df12a521",
+      "browser-client/dist/assets/index-Dwjc-qtg.js": "a7f170f4da215438be9ed4c4f2da36f0a71b944aff1382525553e2853a66c2d0",
+      "browser-client/dist/assets/index-Dwjc-qtg.js.map": "fd2f67205fcbd27a8e5cfd8b6cc224eaa765af9fe23ed4932b97099676ad7fc9"
+    },
+    "testType": "Final lifecycle gateway: short actual domain/native/browser journey; synthetic microphone input.",
+    "checkpoints": [
+      {
+        "name": "actual-domain-joined",
+        "at": "2026-09-30T16:17:58.774Z",
+        "connected": true,
+        "entityCount": 7,
+        "avatarCount": 1,
+        "pose": {
+          "position": {
+            "x": 2.793260614591041e-05,
+            "y": 0.8500099987887655,
+            "z": -2.793175372342707e-05
+          },
+          "orientation": {
+            "x": 0,
+            "y": 0,
+            "z": 0,
+            "w": 1
+          },
+          "velocity": {
+            "x": 1.495384144043476e-05,
+            "y": -9.126961408867373e-10,
+            "z": -1.4953385092373651e-05
+          }
+        }
+      },
+      {
+        "name": "native-sees-browser",
+        "at": "2026-09-30T16:17:58.948Z",
+        "nativeOtherParticipants": 1
+      },
+      {
+        "name": "movement-measured",
+        "at": "2026-09-30T16:18:03.162Z",
+        "before": {
+          "x": 3.1333849369708396e-05,
+          "y": 0.8500099985811731,
+          "z": -3.1332893151103055e-05
+        },
+        "after": {
+          "x": 5.105887656251878e-05,
+          "y": 0.849942252187909,
+          "z": -2.2199592949340574
+        }
+      },
+      {
+        "name": "browser-movement-synchronized",
+        "at": "2026-09-30T16:18:03.182Z",
+        "before": {
+          "x": 3.1333849369708396e-05,
+          "y": 0.8500099985811731,
+          "z": -3.1332893151103055e-05
+        },
+        "after": {
+          "x": 5.105887656251878e-05,
+          "y": 0.849942252187909,
+          "z": -2.2199592949340574
+        },
+        "nativePosition": {
+          "x": 3.8986847357591614e-05,
+          "y": 0.8499422669410706,
+          "z": -2.2199575901031494
+        }
+      },
+      {
+        "name": "native-movement-synchronized",
+        "at": "2026-09-30T16:18:05.995Z"
+      },
+      {
+        "name": "actual-world-collision",
+        "at": "2026-09-30T16:18:08.008Z",
+        "position": {
+          "x": 2.6354926972685208e-05,
+          "y": 0.8499422530651937,
+          "z": -2.2199552523454535
+        }
+      },
+      {
+        "name": "interaction-measured",
+        "at": "2026-09-30T16:18:08.532Z",
+        "before": {
+          "red": 40,
+          "green": 190,
+          "blue": 90
+        },
+        "after": {
+          "red": 230,
+          "green": 90,
+          "blue": 40
+        },
+        "pose": {
+          "position": {
+            "x": 3.139442836829997e-05,
+            "y": 0.8499422527576113,
+            "z": -2.219960291693057
+          },
+          "orientation": {
+            "x": 0,
+            "y": 0,
+            "z": 0,
+            "w": 1
+          },
+          "velocity": {
+            "x": 1.0001129176589945e-05,
+            "y": -6.10411166057645e-10,
+            "z": -1.0000823971006028e-05
+          }
+        },
+        "connected": true
+      },
+      {
+        "name": "interaction-observed-by-native",
+        "at": "2026-09-30T16:18:08.535Z",
+        "before": {
+          "red": 40,
+          "green": 190,
+          "blue": 90
+        },
+        "after": {
+          "red": 230,
+          "green": 90,
+          "blue": 40
+        }
+      },
+      {
+        "name": "browser-to-native-audio",
+        "at": "2026-09-30T16:18:14.406Z",
+        "input": "Firefox generated fake microphone signal",
+        "nativeOutput": {
+          "rms": 0.008036199773598332,
+          "peak": 0.02099609375,
+          "bytes": 954344,
+          "tone440Amplitude": 5.227462709975374e-07,
+          "tone997Amplitude": 4.253247692912363e-06
+        },
+        "browser": {
+          "incomingNonzero": 0,
+          "incomingPeak": 6.103515625e-05,
+          "outgoingNonzero": 285,
+          "outgoingPeak": 0.0999755859375
+        }
+      },
+      {
+        "name": "native-to-browser-audio",
+        "at": "2026-09-30T16:18:29.024Z",
+        "input": "Synthetic 997Hz injected private native microphone",
+        "browserOutput": {
+          "rms": 0.011283537488150756,
+          "peak": 0.025634765625,
+          "bytes": 957396,
+          "tone440Amplitude": 9.982379514916227e-06,
+          "tone997Amplitude": 0.006084443088379776
+        }
+      },
+      {
+        "name": "stable-real-connection",
+        "at": "2026-09-30T16:18:29.028Z",
+        "connectedAt": 1790785078012,
+        "connectedSeconds": 31.016
+      },
+      {
+        "name": "native-observed-clean-leave",
+        "at": "2026-09-30T16:18:30.606Z"
+      },
+      {
+        "name": "reconnected-to-actual-domain",
+        "at": "2026-09-30T16:18:42.694Z",
+        "pose": {
+          "position": {
+            "x": 4.637233555135718e-05,
+            "y": 0.8500099976633109,
+            "z": -4.637092040157762e-05
+          },
+          "orientation": {
+            "x": 0,
+            "y": 0,
+            "z": 0,
+            "w": 1
+          },
+          "velocity": {
+            "x": 4.851026188040862e-06,
+            "y": -2.960786060768328e-10,
+            "z": -4.850878148729083e-06
+          }
+        }
+      },
+      {
+        "name": "reconnection-movement",
+        "at": "2026-09-30T16:18:43.918Z",
+        "before": {
+          "x": 4.637233555135718e-05,
+          "y": 0.8500099976633109,
+          "z": -4.637092040157762e-05
+        },
+        "after": {
+          "x": 1.9116779862631612,
+          "y": 0.8499516579295228,
+          "z": -6.198437149455453e-05
+        }
+      },
+      {
+        "name": "mouse-look",
+        "at": "2026-09-30T16:18:44.396Z",
+        "before": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "after": {
+          "x": 0,
+          "y": -0.19866933079506122,
+          "z": 0,
+          "w": 0.9800665778412416
+        }
+      },
+      {
+        "name": "final-view",
+        "at": "2026-09-30T16:18:44.404Z",
+        "pose": {
+          "position": {
+            "x": 1.9116846152050158,
+            "y": 0.8499516575249304,
+            "z": -6.861311105279939e-05
+          },
+          "orientation": {
+            "x": 0,
+            "y": -0.19866933079506122,
+            "z": 0,
+            "w": 0.9800665778412416
+          },
+          "velocity": {
+            "x": 1.4953841458639938e-05,
+            "y": -9.126961408867373e-10,
+            "z": -1.4953385110578273e-05
+          }
+        },
+        "participants": [
+          {
+            "role": "independent-native",
+            "position": {
+              "x": 4,
+              "y": 1.7999999523162842,
+              "z": 2
+            },
+            "scale": 0.999786376953125
+          },
+          {
+            "role": "browser",
+            "position": {
+              "x": 1.9116839170455933,
+              "y": 0.8499516844749451,
+              "z": -6.786543963244185e-05
+            },
+            "scale": 1
+          }
+        ]
+      },
+      {
+        "name": "all-real-session-assertions-passed",
+        "at": "2026-09-30T16:18:47.653Z"
+      }
+    ]
   }
 ]

@@ -95,7 +95,11 @@ Build the production assets with `npm run build`, configure the environment in
 the gateway guide, and run `npm start`. Use the supplied
 [Nginx example](../../browser-client/deploy/nginx.conf) for HTTPS hosting. The
 gateway runs one native Interface and private audio environment per visitor;
-choose its session cap according to available CPU and memory.
+choose its session cap according to available CPU and memory. A deployment
+with prebuilt `dist/` assets needs only `npm ci --omit=dev` and `npm start`
+from `browser-client`; development dependencies are unnecessary on that host.
+The independently installed production deployment and concurrent shutdown were
+[verified against the actual domain](VERIFICATION.md#independently-installed-production-deployment-and-concurrent-shutdown).
 
 ## Controls
 

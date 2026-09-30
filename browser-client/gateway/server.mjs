@@ -11,7 +11,7 @@ import { promisify } from 'node:util';
 import { WebSocketServer, WebSocket } from 'ws';
 import { domainAddress, pose, validateNativePermissions, nativeDomainAddress, ASSET_SANDBOX_POLICY, approvedAssetAddress } from './validation.mjs';
 import { readPolicyFile } from './permission-policy.mjs';
-import { terminateProcess } from './process-lifecycle.mjs';
+import { terminateProcess, SharedTeardown } from './process-lifecycle.mjs';
 
 const run = promisify(execFile);
 const directory = path.dirname(fileURLToPath(import.meta.url));
@@ -24,15 +24,19 @@ const maximumSessions = Number(process.env.OVERTE_GATEWAY_MAX_SESSIONS || 4);
 if (!Number.isSafeInteger(maximumSessions) || maximumSessions < 1) throw Error('OVERTE_GATEWAY_MAX_SESSIONS must be a positive safe integer.');
 const sessions = new Map();
 const sockets = new Set();
+let shuttingDown = false;
+let shutdownPromise;
 const send = (socket, value) => { if (socket?.readyState === WebSocket.OPEN && socket.bufferedAmount < 4 * 1024 * 1024) socket.send(JSON.stringify(value)); };
 const cookie = request => /(?:^|;\s*)overte_browser=([a-f0-9]{64})(?:;|$)/.exec(request.headers.cookie || '')?.[1];
 const json = (response, code, value) => { response.writeHead(code, { 'content-type': 'application/json', 'cache-control': 'no-store' }); response.end(JSON.stringify(value)); };
 const equal = (a, b) => typeof a === 'string' && Buffer.byteLength(a) === Buffer.byteLength(b) && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 
-class Session {
-    constructor(browser, owner) {
+class Session extends SharedTeardown {
+    constructor(browser, owner, isCurrent = () => true) {
+        super();
         this.id = randomUUID(); this.token = randomBytes(32).toString('hex'); this.browser = browser;
         this.owner = owner; this.modules = []; this.processes = []; this.pendingAssets = new Map();
+        this.isCurrent = isCurrent;
         this.httpAssets = new Set();
         this.closed = false; this.muted = true; this.lastPose = 0;
     }
@@ -82,6 +86,7 @@ class Session {
         const configuration = { url: `ws://127.0.0.1:${port}/native`, token: this.token, domain: nativeDomain, radius: Number(process.env.OVERTE_GATEWAY_RADIUS || 512) };
         const script = path.join(this.directory, 'bridge.js');
         await writeFile(script, `var BROWSER_GATEWAY = ${JSON.stringify(configuration)};\n${bridge}`, { mode: 0o600 });
+        if (this.closed) throw Error('Session cancelled.');
         const env = { ...process.env, XDG_CONFIG_HOME: path.join(this.directory, 'config'),
             XDG_DATA_HOME: path.join(this.directory, 'data'), XDG_CACHE_HOME: path.join(this.directory, 'cache'),
             PULSE_SERVER: this.pulseServer, PULSE_SOURCE: `${this.input}.monitor`, PULSE_SINK: this.output };
@@ -113,7 +118,7 @@ class Session {
     process(command, args, env, label) {
         const child = spawn(command, args, { env, stdio: ['pipe', 'pipe', 'pipe'] });
         this.processes.push(child);
-        child.on('error', () => { send(this.browser, { type: 'state', state: 'error', message: `${label} could not be started.` }); this.close(false); });
+        child.on('error', () => { if (!this.closed) send(this.browser, { type: 'state', state: 'error', message: `${label} could not be started.` }); this.close(false); });
         // Native logs may contain domain/account data; keep them private to this temporary session.
         if (label === 'Native Overte client') {
             let diagnostics = '';
@@ -146,10 +151,11 @@ class Session {
             }
         }, 45000);
     }
-    async close(notify = true) {
-        if (this.closed) return;
+    revoke() {
         this.closed = true; this.permissionsApproved = false; this.connected = false; this.muted = true;
         clearTimeout(this.timeout); clearTimeout(this.connectionTimeout);
+    }
+    async teardown(notify = true) {
         if (this.launching) await this.launching.catch(() => {});
         for (const controller of this.httpAssets) controller.abort();
         this.httpAssets.clear();
@@ -167,12 +173,13 @@ class Session {
         await Promise.all(this.processes.map(child => terminateProcess(child)));
         sessions.delete(this.id);
         if (this.directory) await rm(this.directory, { recursive: true, force: true }).catch(() => {});
-        if (notify) send(this.browser, { type: 'state', state: 'disconnected', message: 'You left the domain.' });
+        if (notify && this.isCurrent()) send(this.browser, { type: 'state', state: 'disconnected', message: 'You left the domain.' });
     }
 }
 
 const server = http.createServer(async (request, response) => {
     try {
+        if (shuttingDown) return json(response, 503, { error: 'The gateway is shutting down.' });
         const url = new URL(request.url, `http://localhost:${port}`);
         if (url.pathname === '/api/config') return json(response, 200, { domains: domains.map(address => ({ address, name: new URL(address).hostname })), transport: 'native-gateway', audio: { sampleRate: 48000, inputChannels: 1, outputChannels: 2 } });
         if (url.pathname === '/api/session') {
@@ -226,7 +233,7 @@ const server = http.createServer(async (request, response) => {
 const browserServer = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 });
 const nativeServer = new WebSocketServer({ noServer: true, maxPayload: 48 * 1024 * 1024 });
 server.on('upgrade', (request, socket, head) => {
-    if (sockets.size >= maximumSessions * 4) { socket.end('HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n'); return; }
+    if (shuttingDown || sockets.size >= maximumSessions * 4) { socket.end('HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n'); return; }
     const endpoint = new URL(request.url, `http://localhost:${port}`).pathname;
     if (endpoint === '/native' && ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(request.socket.remoteAddress)) return nativeServer.handleUpgrade(request, socket, head, ws => nativeServer.emit('connection', ws, request));
     if (endpoint !== '/session' || !origins.has(request.headers.origin) || !cookie(request)) { socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n'); return; }
@@ -235,6 +242,7 @@ server.on('upgrade', (request, socket, head) => {
 browserServer.on('connection', (browser, request) => {
     sockets.add(browser); let session; let joins = 0;
     browser.on('message', async (data, binary) => {
+        let attempt;
         try {
             if (binary) {
                 if (session?.playback && !session.closed && session.connected && session.permissionsApproved && !session.muted && data.length % 2 === 0 && data.length <= 19200 && session.playback.stdin.writableLength < 19200) session.playback.stdin.write(data);
@@ -242,18 +250,23 @@ browserServer.on('connection', (browser, request) => {
             }
             const message = JSON.parse(data.toString());
             if (message.type === 'join') {
+                if (shuttingDown) throw Error('The gateway is shutting down.');
                 if (session && !session.closed) throw Error('Leave your current domain before joining another.');
                 if (sessions.size >= maximumSessions || ++joins > 20) throw Error('The gateway session limit has been reached.');
-                session = new Session(browser, cookie(request)); sessions.set(session.id, session);
-                session.launching = session.launch(message);
-                await session.launching;
+                attempt = new Session(browser, cookie(request), () => session === attempt);
+                session = attempt; sessions.set(attempt.id, attempt);
+                attempt.launching = attempt.launch(message);
+                await attempt.launching;
             } else if (message.type === 'leave') { await session?.close(); }
             else if (session && !session.closed) {
                 if (message.type === 'pose') { if (Date.now() - session.lastPose < 20) return; session.lastPose = Date.now(); send(session.native, pose(message)); }
                 else if (message.type === 'mute' && typeof message.muted === 'boolean') { session.muted = message.muted; send(session.native, { type: 'mute', muted: message.muted }); }
                 else if (message.type === 'interact' && typeof message.entityId === 'string' && /^\{?[a-f0-9-]{36}\}?$/i.test(message.entityId)) send(session.native, { type: 'interact', entityId: message.entityId });
             }
-        } catch (error) { send(browser, { type: 'state', state: 'error', message: error.message }); if (session && !session.native) await session.close(false); }
+        } catch (error) {
+            if (!attempt || (attempt === session && !attempt.closed)) send(browser, { type: 'state', state: 'error', message: error.message });
+            if (attempt && !attempt.native) await attempt.close(false);
+        }
     });
     browser.on('close', () => { sockets.delete(browser); session?.close(); });
     browser.on('error', () => {});
@@ -354,10 +367,17 @@ for (const websocketServer of [browserServer, nativeServer]) websocketServer.on(
     socket.gatewayAlive = true; socket.on('pong', () => { socket.gatewayAlive = true; });
 });
 server.listen(port, host, () => console.log(`Overte browser gateway: http://${host}:${port} (${domains.length} enabled domain(s))`));
-for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, async () => {
+function shutdown() {
+    if (shutdownPromise) return shutdownPromise;
+    shuttingDown = true;
     clearInterval(heartbeat);
     clearInterval(policyWatchdog);
-    await Promise.all([...sessions.values()].map(session => session.close()));
-    for (const socket of sockets) socket.terminate();
-    server.close(() => process.exit(0));
-});
+    shutdownPromise = (async () => {
+        await Promise.all([...sessions.values()].map(session => session.close()));
+        for (const socket of sockets) socket.terminate();
+        await new Promise(resolve => server.close(resolve));
+        process.exit(0);
+    })();
+    return shutdownPromise;
+}
+for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, shutdown);

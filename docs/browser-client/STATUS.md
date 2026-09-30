@@ -1,6 +1,6 @@
 # Browser client status
 
-Last updated: 2026-09-30. **Implementation and real functional verification passed; delivery in progress.**
+Last updated: 2026-09-30. **Implementation and real functional verification passed; production delivery prepared for review.**
 
 ## Completed
 
@@ -40,13 +40,13 @@ Last updated: 2026-09-30. **Implementation and real functional verification pass
 - Branch name checker: allowed.
 - Branch guard installation/status: installed, reviewed source matches.
 - Production TypeScript/Vite build: passed.
-- `npm test`: 45 passed, covering protocol, guest permission policy, self-avatar,
-  collision, PCM and bounded audio worklet buffering. The full 45-test suite and
+- `npm test`: 52 passed, covering protocol, guest permission policy, self-avatar,
+  collision, PCM and bounded audio worklet buffering. The full 52-test suite and
   production build also passed under Node.js 22.23.3.
 - `npm run test:browser`: 30 passed in Chromium and Firefox, including actual
   WebGL texture pixels, avatar movement, attached materials, held controls,
   microphone denial/cancellation, clean leave and reconnect.
-- `build/repository-checks-env/bin/python tests/run-project-tests.py --profile quick --timeout 240 --junit build/test-results/browser-client-project-tests.xml`:
+- `build/repository-checks-env/bin/python tests/run-project-tests.py --profile quick --timeout 240 --junit build/test-results/browser-client-delivery-project-tests.xml`:
   34 passed, 0 failed. This is repository/host evidence, not native coexistence.
 - Actual Chromium 153.0.8010.12, stock Chromium 154.0.8037.57, bundled Firefox 155.0 and installed Firefox
   156.0 journeys passed with an independent native participant: actual world
@@ -72,22 +72,49 @@ Last updated: 2026-09-30. **Implementation and real functional verification pass
   participants; no simulated-world evidence is used.
 - A separate actual domain refused native access without exposing world data;
   its administration was authenticated and its fixture used isolated IPC.
+- Independently extracted production installation (`npm ci --omit=dev`): passed
+  with only two runtime dependencies and zero audit findings. Actual world, native
+  peer and binary ATP proof passed. Overlapping leave/repeated gateway SIGTERM
+  drained all nine owned descendants, left zero survivors and removed the private
+  profile. Final rapid reconnect and bridge-write cancellation regressions passed.
 - The user cancelled the 30-minute test on 2026-09-30. It is intentionally omitted.
 
-## Next concrete step
+## Delivery and current work
 
-Implementation commit `4abf6f2d3d688beba30633fd469e83348eb93bc4` is published on
-`feature/main/browser-client` in the authorized fork. [Draft PR #1023](https://github.com/noah-be/overte/pull/1023)
+Implementation and CI/security follow-up commit `53a0d3ac39093ed16490cf2c5a4bd993a06b0141` was published on
+`feature/main/browser-client` in the authorized fork; the final lifecycle follow-up
+contains the separately verified production deployment and reconnect corrections. [Draft PR #1023](https://github.com/noah-be/overte/pull/1023)
 targets `main`; its repository, head and draft state were read back and verified.
 The production UI is running and opened at `http://127.0.0.1:8090`.
 
-Publish the reviewed CI/security follow-up and inspect its remote results.
+Browser CI on the published head passed both Ubuntu runs: 45 component tests
+and 30 actual headed Mesa/WebGL2 browser checks each. CodeQL reports no new
+alerts; all three initial findings were fixed automatically without dismissal
+or suppression. Workflow security and documentation passed. The complete required repository
+run [36736872233](https://github.com/noah-be/overte/actions/runs/36736872233)
+also passed, including the full native build/tests and host-project lane; its
+successful compiler cache is preserved for the final lifecycle follow-up.
+
+Final production deployment testing exposed and fixed concurrent teardown,
+shutdown admission and stale launch state/errors during rapid reconnect. All
+callers now await the same cleanup; shutdown refuses new sessions synchronously;
+cancelled attempts cannot reset a replacement connection. Independent review,
+52 component tests under Node.js 22 and 24, actual production-only deployment
+teardown and the final actual stock Chromium 154 and installed Firefox 156
+journeys with the native participant all passed.
+
+Delivery requires all exact-head CI gates to pass; their authoritative current
+state is recorded on the draft PR. The final lifecycle commit preserves all
+existing required repository gates, scanners and test bounds. No long session
+test runs. After those checks pass, the next concrete step is review of the
+draft PR for integration; authenticated transport and full desktop features
+remain explicitly documented later extensions.
 The initial repository project, branch, documentation and workflow-security
 checks passed. Initial browser CI exposed Ubuntu display/audio prerequisites
 and a fixed-delay collision test; actual headed Mesa/WebGL2 and isolated audio
 backends now pass all 30 cases locally, with original bounds retained. CodeQL
 findings prompted a trusted-configured-origin request boundary and no-input
 256-bit native administration token generators. No rules or assertions were
-disabled; the next remote analysis must confirm these fixes. The final gateway security/lifecycle build
+disabled; remote analysis confirmed these fixes on the published head. The final gateway security/lifecycle build
 passed the actual stock Chromium 154 journey and focused binary-asset/avatar
 checks. No endurance test is authorized or required.
