@@ -55,7 +55,7 @@ assert.match(picoSettingNumber, /RegularExpressionValidator/);
 assert.match(picoGeneralPreferencesPolicy,
     /"VR Movement":\s*"settings\.hmd-preferences"/);
 assert.match(picoGeneralPreferencesPolicy,
-    /import "\.\.\/\.\.\/controlsUit" as HifiControls/);
+    /import controlsUit 1\.0 as HifiControls/);
 assert.ok(
     picoGeneralPreferencesPolicy.indexOf('categories.push("VR Movement")') <
         picoGeneralPreferencesPolicy.indexOf('categories.push("User Interface")'),
