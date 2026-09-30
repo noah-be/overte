@@ -87,9 +87,11 @@ def validate_input_routes(targets, source, planner):
         if target.get('type') not in ('EXECUTABLE', 'STATIC_LIBRARY', 'SHARED_LIBRARY', 'MODULE_LIBRARY', 'OBJECT_LIBRARY'):
             continue
         for item in target.get('sources', []):
-            if item.get('isGenerated'):
-                continue
             path = source / item['path']
+            # Generated build-tree inputs need no source route. A generated
+            # file in the source tree must still obey host-exemption checks.
+            if item.get('isGenerated') and not path.is_relative_to(source):
+                continue
             if path.suffix.lower() not in ('.c', '.cc', '.cpp', '.cxx', '.h', '.hh', '.hpp', '.hxx', '.qrc'):
                 continue
             if path.is_relative_to(source) and planner([path.relative_to(source).as_posix()])['mode'] == 'skip':
