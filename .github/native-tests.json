@@ -64,7 +64,8 @@
       "addSphereShape",
       "addCompoundShape"
     ],
-    "script-engine-ScriptEngineTests": []
+    "script-engine-ScriptEngineTests": [],
+    "embedded-webserver-HTTPManagerTests": []
   },
   "excluded": {
     "animation-AnimTests": "External network fixture with a one-second deadline.",

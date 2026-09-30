@@ -56,6 +56,8 @@ SUITES = (
         "--junit", "build/test-results/device-e2e-control-plane.xml")),
     Suite("documentation", "quick", (
         sys.executable, "tests/check-documentation.py", "--all")),
+    Suite("safe-landing-lifecycle", "host", (
+        sys.executable, "tests/safe-landing/test_safe_landing_lifecycle.py")),
     Suite("native-smoke", "quick", (
         sys.executable, "tests/device/contracts/world-entry/test_phone_spawn_gate.py")),
     Suite("native-ci-policy", "quick", (sys.executable, "tests/native-ci-test.py")),
