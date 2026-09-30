@@ -72,7 +72,8 @@
       ],
       "automated": [
         "repository-health",
-        "performance-contracts"
+        "performance-contracts",
+        "safe-landing-lifecycle"
       ],
       "native": [
         "gpu",
