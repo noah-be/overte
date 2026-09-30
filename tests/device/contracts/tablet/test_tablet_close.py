@@ -6,6 +6,17 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[4]
+# The shared/Android layer retains its Android presenter member; the iOS
+# product extends that API. Bind the fixture to the actual declared member.
+HEADER = (ROOT / "libraries/ui/src/ui/TabletScriptingInterface.h").read_text()
+SCREEN_SPACE_MEMBER = "_screenSpaceMode" if "bool _screenSpaceMode" in HEADER else "_androidScreenSpaceMode"
+
+
+def platforms(method):
+    result = ["ANDROID_APP_PHONE_INTERFACE"]
+    if "defined(Q_OS_IOS)" in method:
+        result.append("Q_OS_IOS")
+    return result
 
 
 class TabletClose(unittest.TestCase):
@@ -24,10 +35,11 @@ class TabletClose(unittest.TestCase):
             subprocess.run([str(Path(qt_libexec) / "moc"), str(fixture),
                             "-o", str(directory / "tablet-home-visibility-test.moc")],
                            check=True, timeout=10)
-            for platform in ("ANDROID_APP_PHONE_INTERFACE", "Q_OS_IOS"):
+            for platform in platforms(source[start:end]):
                 with self.subTest(platform=platform):
                     binary = directory / platform
                     subprocess.run(["c++", "-std=c++17", "-fPIC", f"-D{platform}",
+                                    f"-DOVERTE_TABLET_SCREEN_SPACE_MEMBER={SCREEN_SPACE_MEMBER}",
                                     "-I", str(directory), str(fixture), "-o", str(binary),
                                     *flags], check=True, timeout=30)
                     subprocess.run([str(binary)], check=True, timeout=5)
@@ -42,7 +54,7 @@ class TabletClose(unittest.TestCase):
         fixture = """
 class TabletProxy {
 public:
-    bool _screenSpaceMode = false;
+    bool OVERTE_TABLET_SCREEN_SPACE_MEMBER = false;
     int homes = 0, closes = 0;
     void gotoHomeScreen() { ++homes; }
     void hideAndroidTablet() { ++closes; }
@@ -55,7 +67,7 @@ int main() {
     if (desktop.homes != 1 || desktop.closes != 0) return 1;
 #if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)
     TabletProxy touch;
-    touch._screenSpaceMode = true;
+    touch.OVERTE_TABLET_SCREEN_SPACE_MEMBER = true;
     touch.desktopWindowClosed();
     if (touch.homes != 0 || touch.closes != 1) return 2;
 #endif
@@ -64,10 +76,11 @@ int main() {
         with tempfile.TemporaryDirectory(prefix="overte-tablet-close-") as directory:
             cpp = Path(directory) / "close.cpp"
             cpp.write_text(fixture)
-            for platform in ("DESKTOP_TEST", "ANDROID_APP_PHONE_INTERFACE", "Q_OS_IOS"):
+            for platform in ["DESKTOP_TEST", *platforms(method)]:
                 with self.subTest(platform=platform):
                     binary = Path(directory) / platform
-                    subprocess.run(["c++", "-std=c++17", f"-D{platform}", str(cpp),
+                    subprocess.run(["c++", "-std=c++17", f"-D{platform}",
+                                    f"-DOVERTE_TABLET_SCREEN_SPACE_MEMBER={SCREEN_SPACE_MEMBER}", str(cpp),
                                     "-o", str(binary)], check=True, timeout=30)
                     subprocess.run([str(binary)], check=True, timeout=5)
 

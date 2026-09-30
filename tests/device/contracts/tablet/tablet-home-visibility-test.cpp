@@ -25,7 +25,7 @@ public:
     enum class State { Home, Uninitialized, QML };
     State _state { State::QML };
     bool _toolbarMode { true };
-    bool _screenSpaceMode { true };
+    bool OVERTE_TABLET_SCREEN_SPACE_MEMBER { true };
     QObject* _qmlTabletRoot { nullptr };
     DesktopWindow window;
     DesktopWindow* _desktopWindow { &window };
@@ -54,7 +54,7 @@ int main(int argc, char** argv) {
         }
     }
     TabletProxy desktop;
-    desktop._screenSpaceMode = false;
+    desktop.OVERTE_TABLET_SCREEN_SPACE_MEMBER = false;
     desktop.window.root.shown = true;
     desktop.loadHomeScreen(false);
     if (desktop.window.root.shown || !desktop.stopped) return 5;

@@ -1125,8 +1125,8 @@ OffscreenQmlSurface* TabletProxy::getTabletSurface() {
 
 
 void TabletProxy::desktopWindowClosed() {
-#if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)
-    if (_screenSpaceMode) {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    if (_androidScreenSpaceMode) {
         // Home navigation keeps a screen-space tablet open. A window close
         // must instead release the touch capture owned by tabletShown.
         hideAndroidTablet();
