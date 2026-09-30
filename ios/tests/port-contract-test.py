@@ -889,7 +889,7 @@ def test_scope_contract() -> None:
     require_text(http_manager, r'includeRegExp\.match\(localFileString, matchPosition\)', "SSI scanning must retain its search offset")
     require_text(http_manager, r'includeMatch\.captured\(1\) == "file"', "SSI file/virtual capture semantics must be preserved")
     require_text(http_manager, r'includeMatch\.captured\(2\)', "SSI include paths must still come from capture group two")
-    require_text(http_manager, r'matchPosition \+= matchedLength;', "SSI scanning must retain its post-replacement advance")
+    require_text(http_manager, r'matchPosition \+= replacementString\.size\(\);', "SSI scanning must advance by replacement size without skipping adjacent directives")
     if "QRegExp" in http_manager.read_text(encoding="utf-8"):
         raise AssertionError("HTTPManager retained removed QRegExp API")
 
