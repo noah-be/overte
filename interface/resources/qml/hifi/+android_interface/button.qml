@@ -3,7 +3,11 @@ import QtQuick 2.5
 Item {
     id: button
     activeFocusOnTab: true
-    Accessible.id: objectName
+    Component.onCompleted: {
+        if ("id" in Accessible) {
+            Accessible.id = Qt.binding(function() { return objectName })
+        }
+    }
     Accessible.role: Accessible.Button
     Accessible.name: accessibleName
     Accessible.description: accessibleDescription
