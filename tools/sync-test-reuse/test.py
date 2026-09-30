@@ -444,6 +444,158 @@ class DifferentialContracts(unittest.TestCase):
         self.assertTrue(all(differential.PROFILES[name] for name in differential.PROFILES if name != "documentation"))
 
 
+class DispatchContracts(unittest.TestCase):
+    def run_document(self, correlation="gate-700-attempt-2", *, run_id=902,
+                     status="completed", conclusion="success"):
+        return {"id": run_id, "display_title": f"Sync validation {correlation}",
+                "status": status, "conclusion": conclusion,
+                "html_url": f"https://github.com/{REPOSITORY}/actions/runs/{run_id}"}
+
+    def dispatch(self, snapshots, *, mode="reuse", attempt=2, arguments=None):
+        args = SimpleNamespace(
+            config=gate.DEFAULT_CONFIG, repository=REPOSITORY, pull_request=610,
+            mode=mode, profile="android-family", base_sha=BASE, head_sha=HEAD,
+            merge_sha=MERGE, gate_run_id=700, gate_run_attempt=attempt,
+            timeout=30, output=None,
+        )
+        self.api = mock.Mock()
+        self.api.json.side_effect = [{}, *({"workflow_runs": runs} for runs in snapshots)]
+        clock = [0]
+
+        def sleep(seconds):
+            clock[0] += seconds
+
+        with mock.patch.object(gate, "GitHubApi", return_value=self.api), \
+             mock.patch.object(gate.time, "monotonic", side_effect=lambda: clock[0]), \
+             mock.patch.object(gate.time, "sleep", side_effect=sleep) as self.sleep, \
+             mock.patch.object(gate, "write_outputs") as self.outputs:
+            if arguments is not None:
+                with mock.patch.object(sys, "argv", ["gate.py", *arguments]):
+                    return gate.main()
+            return gate.dispatch_and_wait(args)
+
+    def legacy_arguments(self, mode="reuse"):
+        return [
+            "dispatch-and-wait", "--repository", REPOSITORY, "--pull-request", "610",
+            "--mode", mode, "--profile", "android-family", "--base-sha", BASE,
+            "--head-sha", HEAD, "--merge-sha", MERGE, "--gate-run-id", "700",
+            "--timeout", "30",
+        ]
+
+    def assert_dispatch_binding(self, mode, attempt=2):
+        self.assertEqual(self.api.json.call_args_list[0], mock.call(
+            f"repos/{REPOSITORY}/actions/workflows/{config()['validation_workflow']}/dispatches",
+            method="POST", fields={
+                "ref": "main", "inputs[correlation]": f"gate-700-attempt-{attempt}",
+                "inputs[mode]": mode, "inputs[profile]": "android-family",
+                "inputs[pull_request]": "610", "inputs[expected_base_sha]": BASE,
+                "inputs[expected_head_sha]": HEAD, "inputs[expected_merge_sha]": MERGE,
+            },
+        ))
+
+    def test_retry_ignores_old_failures_until_current_run_becomes_visible(self):
+        old = [self.run_document("gate-700", run_id=900, conclusion="failure"),
+               self.run_document("gate-700-attempt-1", run_id=901, conclusion="failure"),
+               self.run_document("gate-701-attempt-2", run_id=903, conclusion="failure")]
+        current = self.run_document(status="in_progress", conclusion=None)
+        for mode in ("reuse", "fallback"):
+            with self.subTest(mode=mode):
+                self.assertEqual(self.dispatch([old, [*old, current],
+                                                [*old, self.run_document()]], mode=mode), 0)
+                self.assert_dispatch_binding(mode)
+                self.assertEqual(self.sleep.call_count, 2)
+                self.outputs.assert_called_once_with(None, {
+                    "validation_run_id": 902,
+                    "validation_url": f"https://github.com/{REPOSITORY}/actions/runs/902",
+                })
+
+    def test_first_attempt_and_retry_dispatch_distinct_correlations(self):
+        for attempt in (1, 2):
+            with self.subTest(attempt=attempt):
+                self.assertEqual(self.dispatch([[self.run_document(
+                    f"gate-700-attempt-{attempt}")]], attempt=attempt), 0)
+                self.assert_dispatch_binding("reuse", attempt)
+
+    def test_legacy_workflow_uses_environment_attempt_and_ignores_old_failure(self):
+        old = self.run_document("gate-700-attempt-1", run_id=901, conclusion="failure")
+        for mode in ("reuse", "fallback"):
+            with self.subTest(mode=mode), mock.patch.dict(
+                gate.os.environ, {"GITHUB_RUN_ATTEMPT": "2"}, clear=True
+            ):
+                self.assertEqual(self.dispatch([
+                    [old], [old, self.run_document(status="in_progress", conclusion=None)],
+                    [old, self.run_document()],
+                ], arguments=self.legacy_arguments(mode)), 0)
+                self.assert_dispatch_binding(mode)
+                self.assertEqual(self.sleep.call_count, 2)
+                self.outputs.assert_called_once_with(None, {
+                    "validation_run_id": 902,
+                    "validation_url": f"https://github.com/{REPOSITORY}/actions/runs/902",
+                })
+
+    def test_missing_invalid_or_nonpositive_environment_attempt_fails_before_api(self):
+        for value in (None, "", "invalid", "2.5", "0", "-1"):
+            environment = {} if value is None else {"GITHUB_RUN_ATTEMPT": value}
+            with self.subTest(value=value), mock.patch.dict(gate.os.environ, environment, clear=True), \
+                 mock.patch("sys.stderr", new_callable=io.StringIO):
+                self.assertEqual(self.dispatch([], arguments=self.legacy_arguments()), 2)
+                self.api.json.assert_not_called()
+                self.outputs.assert_not_called()
+
+    def test_explicit_attempt_takes_priority_over_environment(self):
+        for value in (None, "1", "invalid", "0", "-1"):
+            environment = {} if value is None else {"GITHUB_RUN_ATTEMPT": value}
+            with self.subTest(value=value), mock.patch.dict(gate.os.environ, environment, clear=True):
+                self.assertEqual(self.dispatch([[self.run_document()]], arguments=[
+                    *self.legacy_arguments(), "--gate-run-attempt", "2",
+                ]), 0)
+                self.assert_dispatch_binding("reuse", 2)
+
+    def test_invalid_explicit_attempt_never_falls_back_to_valid_environment(self):
+        for value in ("", "invalid", "2.5", "0", "-1"):
+            with self.subTest(value=value), mock.patch.dict(
+                gate.os.environ, {"GITHUB_RUN_ATTEMPT": "2"}, clear=True
+            ), mock.patch("sys.stderr", new_callable=io.StringIO):
+                if value in ("0", "-1"):
+                    self.assertEqual(self.dispatch([], arguments=[
+                        *self.legacy_arguments(), "--gate-run-attempt", value,
+                    ]), 2)
+                else:
+                    with self.assertRaises(SystemExit) as error:
+                        self.dispatch([], arguments=[
+                            *self.legacy_arguments(), "--gate-run-attempt", value,
+                        ])
+                    self.assertEqual(error.exception.code, 2)
+                self.api.json.assert_not_called()
+                self.outputs.assert_not_called()
+
+    def test_current_unsuccessful_run_cannot_be_hidden_by_old_success(self):
+        old = self.run_document("gate-700-attempt-1", run_id=901)
+        for mode in ("reuse", "fallback"):
+            for conclusion in ("failure", "cancelled", "timed_out", "skipped", None):
+                with self.subTest(mode=mode, conclusion=conclusion):
+                    with self.assertRaisesRegex(gate.GateError, f"{mode} validation did not succeed"):
+                        self.dispatch([[old, self.run_document(conclusion=conclusion)]], mode=mode)
+                    self.outputs.assert_not_called()
+
+    def test_duplicate_current_correlation_fails_before_accepting_success(self):
+        for mode in ("reuse", "fallback"):
+            with self.subTest(mode=mode), self.assertRaisesRegex(gate.GateError, "ambiguous"):
+                self.dispatch([[self.run_document(), self.run_document(run_id=903)]], mode=mode)
+            self.outputs.assert_not_called()
+
+    def test_missing_or_nonterminal_current_run_times_out(self):
+        for mode in ("reuse", "fallback"):
+            for runs in ([], [self.run_document("gate-700-attempt-1", run_id=901)],
+                         [self.run_document(status="queued", conclusion=None)],
+                         [self.run_document(status="in_progress", conclusion=None)]):
+                with self.subTest(mode=mode, runs=runs):
+                    with self.assertRaisesRegex(gate.GateError, "before timeout"):
+                        self.dispatch([runs] * 3, mode=mode)
+                    self.outputs.assert_not_called()
+                    self.assertEqual(self.sleep.call_count, 3)
+
+
 class DifferentialCandidateTests(unittest.TestCase):
     """Exercise the CLI with changes obtained from a real Git repository."""
 
