@@ -6,7 +6,7 @@ const test = require("node:test");
 const { createScriptApi, createTabletApi, runProductionScript } = require("../support");
 
 const source = path.resolve(__dirname,
-    "../../../scripts/system/+android_phoneInterface/mobileTabletApps.js");
+    "../../../scripts/system/tablet-ui/mobileTabletApps.js");
 
 function start() {
     const Script = createScriptApi();

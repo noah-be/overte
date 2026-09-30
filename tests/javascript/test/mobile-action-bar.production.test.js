@@ -151,20 +151,24 @@ test("camera toggle preserves the third-person boom across both directions", () 
     assert.equal(state.MyAvatar.cameraBoomLength, 3.75);
 });
 
-test("tablet visibility owns touch capture and hides both action bars", () => {
-    const state = start();
-    state.tablet.tabletShown = true;
-    state.tablet.tabletShownChanged.emit();
-    assert.equal(state.navigation.visible, false);
-    assert.equal(state.audio.visible, false);
-    assert.deepEqual(state.controllerCalls.slice(-2), [["hidden", true], ["capture"]]);
+for (const operatingSystem of ["ANDROID", "IOS"]) {
+    test(`${operatingSystem} tablet visibility releases world input and restores both action bars`, () => {
+        const state = start({ operatingSystem });
+        for (let cycle = 0; cycle < 3; ++cycle) {
+            state.tablet.tabletShown = true;
+            state.tablet.tabletShownChanged.emit();
+            assert.equal(state.navigation.visible, false);
+            assert.equal(state.audio.visible, false);
+            assert.deepEqual(state.controllerCalls.slice(-2), [["hidden", true], ["capture"]]);
 
-    state.tablet.tabletShown = false;
-    state.tablet.tabletShownChanged.emit();
-    assert.equal(state.navigation.visible, true);
-    assert.equal(state.audio.visible, true);
-    assert.deepEqual(state.controllerCalls.slice(-2), [["hidden", false], ["release"]]);
-});
+            state.tablet.tabletShown = false;
+            state.tablet.tabletShownChanged.emit();
+            assert.equal(state.navigation.visible, true);
+            assert.equal(state.audio.visible, true);
+            assert.deepEqual(state.controllerCalls.slice(-2), [["hidden", false], ["release"]]);
+        }
+    });
+}
 
 test("geometry changes resize the tablet and clamp small and large control layouts", () => {
     const state = start({ width: 200, height: 100 });
