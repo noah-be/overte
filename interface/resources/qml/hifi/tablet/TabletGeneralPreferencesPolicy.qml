@@ -13,7 +13,8 @@ HifiControls.TouchUiMetrics {
         if (profile.userInterfacePreferencesAvailable) {
             categories.push("User Interface")
         }
-        categories.push("Mouse Sensitivity")
+        categories.push(profile.touchCameraPreferencesAvailable
+            ? "Touch Camera Sensitivity" : "Mouse Sensitivity")
         if (profile.hmdPreferencesAvailable) {
             categories.push("HMD")
         }
