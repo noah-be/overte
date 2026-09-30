@@ -167,6 +167,7 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `device-e2e-contracts` | `quick` | `python3 tests/run-project-tests.py --suite device-e2e-contracts` |
 | `device-control-plane-full` | `host` | `python3 tests/run-project-tests.py --suite device-control-plane-full` |
 | `documentation` | `quick` | `python3 tests/run-project-tests.py --suite documentation` |
+| `safe-landing-lifecycle` | `host` | `python3 tests/run-project-tests.py --suite safe-landing-lifecycle` |
 | `native-smoke` | `quick` | `python3 tests/run-project-tests.py --suite native-smoke` |
 | `native-ci-policy` | `quick` | `python3 tests/run-project-tests.py --suite native-ci-policy` |
 | `native-registration` | `quick` | `python3 tests/run-project-tests.py --suite native-registration` |
@@ -219,7 +220,32 @@ not claim that those separate environments were tested.
 
 <a id="full-profile"></a>
 
+## SafeLanding host lifecycle regression
+
+The common host suite compiles the SafeLanding header and implementation with
+real Qt signals, bounded thread scheduling, and entity/render fixtures. It runs
+both the Pico physics-only handoff and the shared visual-readiness path. Physics
+readiness is substituted and the mutex has scheduling hooks; this is host
+synchronization evidence, not a product build or device acceptance.
+
+~~~bash
+python3 tests/run-project-tests.py --suite safe-landing-lifecycle --timeout 240
+SAFE_LANDING_QT_CORE=Qt5Core python3 tests/safe-landing/test_safe_landing_lifecycle.py
+~~~
+
+The host profile uses Qt 6 Core development files, pkg-config, moc, and c++.
+The explicit Qt 5 command requires matching Qt 5 Core development files and moc.
+Missing prerequisites fail the suite. See
+[the suite guide](safe-landing/README.md) for isolated baseline reproduction,
+negative controls, and later native/Pico qualification. The Pico runtime-parity
+copy should delegate to this common suite when the change reaches its child
+branch, so there is one authoritative driver.
+
 ## Native C++/Qt suites
+
+For document-root, symlink, index, and SSI regressions, the
+[embedded-webserver guide](embedded-webserver/README.md) also provides a focused
+Qt5 build of the actual product library and its registered native test.
 
 The selective PR lane is described in the [native CI guide](../tools/native-tests/README.md).
 It routes from the exact merge candidate, builds affected production/test targets,

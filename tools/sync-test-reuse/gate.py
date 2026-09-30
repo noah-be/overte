@@ -10,6 +10,7 @@ from pathlib import Path
 from urllib.parse import quote
 import argparse
 import hashlib
+import importlib.util
 import io
 import json
 import os
@@ -23,6 +24,11 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONFIG = ROOT / ".github/sync-test-reuse.json"
 SHA_RE = re.compile(r"[0-9a-f]{40}")
+_policy_spec = importlib.util.spec_from_file_location("sync_branch_policy", ROOT / "tools/branch-policy/check.py")
+assert _policy_spec and _policy_spec.loader
+branch_policy = importlib.util.module_from_spec(_policy_spec)
+sys.modules[_policy_spec.name] = branch_policy
+_policy_spec.loader.exec_module(branch_policy)
 
 
 class GateError(ValueError):
@@ -103,6 +109,7 @@ class SyncRequest:
     profile: str
     changed_paths: tuple[str, ...]
     parent_changed_paths: tuple[str, ...]
+    repair_paths: tuple[str, ...] = ()
 
 
 def load_config(path: Path = DEFAULT_CONFIG) -> dict:
@@ -161,18 +168,89 @@ def paginate_pull_files(api: GitHubApi, repository: str, number: int) -> list[di
     raise GateError("pull request exceeds the bounded changed-file audit")
 
 
+def changed_paths(documents: list[dict]) -> set[str]:
+    """Audit both sides of renames; path spelling never grants authorization."""
+    paths = set()
+    for item in documents:
+        if not isinstance(item, dict) or "filename" not in item:
+            raise GateError("changed-file metadata is malformed")
+        if item.get("status") == "renamed" and "previous_filename" not in item:
+            raise GateError("renamed file is missing its source path")
+        for key in ("filename", "previous_filename"):
+            if key not in item:
+                continue
+            path = item[key]
+            if (not isinstance(path, str) or not path or "\\" in path or "\x00" in path
+                    or path.startswith("/") or any(part in ("", ".", "..") for part in path.split("/"))):
+                raise GateError("changed-file path is unsafe")
+            paths.add(path)
+    return paths
+
+
+def allowed_repair_paths(config: dict, base: str) -> set[str]:
+    """Exact, nonprivileged paths from the trusted default-branch configuration."""
+    mapping = config.get("reconciliation_repair_paths", {})
+    if not isinstance(mapping, dict) or set(mapping) - set(config["edges"]):
+        raise GateError("invalid reconciliation repair targets")
+    paths = mapping.get(base, [])
+    if (not isinstance(paths, list) or any(not isinstance(path, str) for path in paths)
+            or len(paths) != len(set(paths))):
+        raise GateError("invalid reconciliation repair paths")
+    changed_paths([{"filename": path} for path in paths])
+    if (any(any(char in path for char in "*?[]") for path in paths)
+            or branch_policy.changes_privileged_policy(tuple(paths))):
+        raise GateError("repair paths must be exact and nonprivileged")
+    return set(paths)
+
+
+def attest_product_repair(api, repository, repository_id, pr, current_pr,
+                          base, parent, head, base_sha, parent_sha, head_sha, merge_sha):
+    """Reuse the unchanged branch-policy attestation, including its drift checks."""
+    class BranchApi(branch_policy.GitHubBranchApi):
+        def _request(self, endpoint, label):
+            value = api.json(endpoint)
+            if not isinstance(value, dict):
+                raise branch_policy.PolicyError(f"invalid API object for {label}")
+            return value
+
+    try:
+        for document in (pr, current_pr):
+            for side, ref, sha in (("base", base, base_sha), ("head", head, head_sha)):
+                identity = document[side]
+                if (identity["repo"]["id"] != repository_id
+                        or identity["repo"]["full_name"] != repository
+                        or identity["ref"] != ref or identity["sha"] != sha):
+                    raise GateError("repair pull-request identity does not match the current event")
+        adapter = BranchApi()
+        branches = branch_policy.load_policy(branch_policy.DEFAULT_POLICY)
+        if branches[base].parent != parent:
+            raise GateError("repair parent does not match the trusted branch policy")
+        attestation = branch_policy.attest_reconciliation(
+            branches, base=base, head=head,
+            repository=repository, repository_id=repository_id,
+            base_repository_id=pr["base"]["repo"]["id"], head_repository_id=pr["head"]["repo"]["id"],
+            head_sha=head_sha, api=adapter,
+        )
+        if attestation.base_sha != base_sha or attestation.parent_sha != parent_sha:
+            raise GateError("repair attestation does not match the current sync parents")
+        if adapter.tree_entries(repository, merge_sha) != adapter.tree_entries(repository, parent_sha):
+            raise GateError("repair candidate privileged tree does not match the current direct parent")
+    except (KeyError, TypeError, branch_policy.PolicyError) as error:
+        raise GateError(f"product repair attestation failed: {error}") from error
+
+
 def compare_files(api: GitHubApi, repository: str, base: str, head: str) -> tuple[str, set[str]]:
     value = api.json(f"repos/{repository}/compare/{base}...{head}")
     if not isinstance(value, dict) or not isinstance(value.get("files"), list):
         raise GateError("GitHub API returned incomplete ancestry comparison")
     try:
         merge_base = validate_sha(value["merge_base_commit"]["sha"], "merge-base SHA")
-        files = {item["filename"] for item in value["files"]}
+        files = changed_paths(value["files"])
     except (KeyError, TypeError) as error:
         raise GateError("GitHub API returned malformed ancestry comparison") from error
     if any(not isinstance(path, str) for path in files):
         raise GateError("GitHub API returned an invalid comparison path")
-    if len(files) >= 300:
+    if len(value["files"]) >= 300:
         if value.get("base_commit", {}).get("sha") != base:
             raise GateError("GitHub API returned a mismatched comparison base")
         # The compare endpoint caps file lists. Compare complete immutable
@@ -212,7 +290,7 @@ def authorize_retired_paths(api, repository, config, unexpected, changed_documen
     """Allow only a named, exact legacy blob to disappear under parent policy."""
     retired = config.get("retired_parent_paths", {})
     changes = {item["filename"]: item for item in changed_documents}
-    if any(path not in retired or changes[path].get("status") != "removed" for path in unexpected):
+    if any(path not in retired or path not in changes or changes[path].get("status") != "removed" for path in unexpected):
         raise GateError("sync changes paths absent from the exact parent delta: " + ", ".join(unexpected[:10]))
     base = comparison_entries(api, repository, base_sha)
     parent = comparison_entries(api, repository, parent_sha)
@@ -296,11 +374,13 @@ def classify_event(event: dict, config: dict, api: GitHubApi) -> SyncRequest | N
     merge_base = compare_merge_base(api, repository, current_parent, current_base)
     _, parent_delta = compare_files(api, repository, merge_base, current_parent)
     changed_documents = paginate_pull_files(api, repository, number)
-    try:
-        changed = tuple(sorted({item["filename"] for item in changed_documents}))
-    except (KeyError, TypeError) as error:
-        raise GateError("pull request contains malformed changed paths") from error
-    unexpected = sorted(set(changed) - parent_delta)
+    changed = tuple(sorted(changed_paths(changed_documents)))
+    allowed = allowed_repair_paths(config, base)
+    repairs = tuple(sorted(set(changed) & allowed)) if reconciliation else ()
+    if repairs:
+        attest_product_repair(api, repository, repository_id, pr, current_pr,
+                              base, parent, head, current_base, current_parent, head_sha, merge_sha)
+    unexpected = sorted(set(changed) - parent_delta - set(repairs))
     if unexpected:
         authorize_retired_paths(api, repository, config, unexpected, changed_documents,
                                 current_base, current_parent, merge_sha)
@@ -317,8 +397,9 @@ def classify_event(event: dict, config: dict, api: GitHubApi) -> SyncRequest | N
         base=base, base_sha=current_base, head=head, head_sha=head_sha,
         head_repository_id=head_repository_id, merge_sha=merge_sha,
         classification="direct" if direct else "reconciliation", parent=parent,
-        parent_sha=current_parent, profile="documentation" if doc_only else edge["differential"],
+        parent_sha=current_parent, profile="documentation" if doc_only and not repairs else edge["differential"],
         changed_paths=changed, parent_changed_paths=tuple(sorted(parent_delta)),
+        repair_paths=repairs,
     )
 
 
@@ -479,7 +560,9 @@ def inspect(args: argparse.Namespace) -> int:
         write_outputs(args.output, {"classification": "ordinary", "mode": "ordinary"})
         return 0
     mode, reason, evidence_run = "reuse", "exact qualification accepted", ""
-    if request.profile == "documentation":
+    if request.repair_paths:
+        mode, reason = "fallback", "attested product repair requires complete fallback"
+    elif request.profile == "documentation":
         reason = "documentation-only delta; no executable inputs require qualification"
     else:
         try:
@@ -508,8 +591,18 @@ def inspect(args: argparse.Namespace) -> int:
 
 def dispatch_and_wait(args: argparse.Namespace) -> int:
     config = load_config(args.config)
+    gate_run_attempt = args.gate_run_attempt
+    if gate_run_attempt is None:
+        # Older workflow definitions still load this trusted code from main.
+        try:
+            gate_run_attempt = int(os.environ["GITHUB_RUN_ATTEMPT"])
+        except (KeyError, ValueError) as error:
+            raise GateError("gate run attempt must be an integer argument or GITHUB_RUN_ATTEMPT") from error
+    if args.gate_run_id <= 0 or gate_run_attempt <= 0:
+        raise GateError("gate run ID and attempt must be positive")
     api = GitHubApi()
-    correlation = f"gate-{args.gate_run_id}"
+    # GitHub keeps the run ID when a gate is rerun; bind the child to this attempt.
+    correlation = f"gate-{args.gate_run_id}-attempt-{gate_run_attempt}"
     fields = {
         "ref": "main",
         "inputs[correlation]": correlation,
@@ -591,6 +684,8 @@ def parser() -> argparse.ArgumentParser:
     dispatch.add_argument("--head-sha", required=True)
     dispatch.add_argument("--merge-sha", required=True)
     dispatch.add_argument("--gate-run-id", type=int, required=True)
+    dispatch.add_argument("--gate-run-attempt", type=int,
+                          help="gate attempt; defaults to GITHUB_RUN_ATTEMPT when omitted")
     dispatch.add_argument("--timeout", type=int, default=1800)
     dispatch.add_argument("--output", type=Path)
     dispatch.set_defaults(handler=dispatch_and_wait)

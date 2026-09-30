@@ -252,3 +252,14 @@ References: [GitHub container registry credentials](https://docs.github.com/en/a
 
 See [the native CI qualification report](../../docs/NATIVE_CI_QUALIFICATION.md)
 for source identities, measured cold and warm costs, cache provenance, and rollout limits.
+
+## SafeLanding fixture routing
+
+Only the standalone host driver and fixture header under tests/safe-landing
+have exact native-routing exemptions. Unknown C++ files in that directory and
+build definitions still require product configuration. Real SafeLanding.cpp/.h
+changes require the full graph and build the interface target plus affected
+native tests. The initial combined product/router change can select broadly.
+The CMake file API audit rejects compiled/header inputs that would enter this
+host exception, including source-tree files marked generated. Build-directory
+generated inputs remain separate from source routing.
