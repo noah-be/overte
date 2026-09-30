@@ -39,6 +39,30 @@ class RoutingTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertEqual(POLICY.plan([path])['mode'], 'skip')
 
+    def test_safe_landing_host_fixtures_have_exact_exemptions(self):
+        fixtures = ['tests/safe-landing/safe-landing-driver.cpp',
+                    'tests/safe-landing/safe-landing-fixture.h',
+                    'tests/safe-landing/test_safe_landing_lifecycle.py']
+        for paths in ([path] for path in fixtures):
+            self.assertEqual(POLICY.plan(paths)['mode'], 'skip')
+        self.assertEqual(POLICY.plan(fixtures)['mode'], 'skip')
+        for path in ('tests/safe-landing/new.cpp', 'tests/safe-landing/new.h',
+                     'tests/safe-landing/nested/unknown.cc',
+                     'tests/safe-landing/CMakeLists.txt',
+                     'tests/safe-landing/configure.cmake',
+                     'tests/safe-landing/resources.qrc'):
+            with self.subTest(path=path):
+                self.assertEqual(POLICY.plan([path])['mode'], 'full')
+        self.assertEqual(POLICY.plan(fixtures, regular=False)['mode'], 'full')
+
+    def test_safe_landing_product_changes_always_require_full_graph(self):
+        for path in ('interface/src/octree/SafeLanding.cpp',
+                     'interface/src/octree/SafeLanding.h'):
+            with self.subTest(path=path):
+                route = POLICY.plan(['tests/safe-landing/safe-landing-driver.cpp', path])
+                self.assertEqual(route['mode'], 'full')
+                self.assertEqual(route['paths'], [path])
+
     def test_core_test_edit_uses_bounded_core_lane(self):
         for path in ('tests/shared/src/AABoxTests.cpp', 'tools/native-tests/check.py', 'tools/native-tests/run.py'):
             self.assertEqual(POLICY.plan([path])['mode'], 'core')
@@ -542,6 +566,70 @@ class CMakeGraphTests(unittest.TestCase):
             SELECT.validate_input_routes(targets, source, POLICY.plan)
         targets[0]['sources'][0]['path'] = 'libraries/shared/src/value.cpp'
         SELECT.validate_input_routes(targets, source, POLICY.plan)
+
+    def test_safe_landing_production_route_builds_interface(self):
+        source = Path('/fixture')
+        targets = [
+            {'name': 'interface', 'id': 'interface-id', 'type': 'EXECUTABLE',
+             'paths': {'source': 'interface'},
+             'sources': [{'path': 'interface/src/octree/SafeLanding.cpp'},
+                         {'path': 'interface/src/octree/SafeLanding.h'}]},
+            {'name': 'shared-Fixture', 'id': 'shared-id', 'type': 'EXECUTABLE',
+             'paths': {'source': 'tests/shared'},
+             'sources': [{'path': 'tests/shared/src/Fixture.cpp'}]},
+            {'name': 'unrelated', 'id': 'unrelated-id', 'type': 'STATIC_LIBRARY',
+             'paths': {'source': 'libraries/unrelated'},
+             'sources': [{'path': 'libraries/unrelated/value.cpp'}]},
+        ]
+        for path in ('interface/src/octree/SafeLanding.cpp',
+                     'interface/src/octree/SafeLanding.h'):
+            route = POLICY.plan([path, 'tests/safe-landing/safe-landing-driver.cpp'])
+            selected = SELECT.select(targets, {'shared-Fixture'}, route['paths'], source)
+            self.assertFalse(selected['broad'])
+            self.assertEqual(set(selected['targets']), {'interface', 'shared-Fixture'})
+        combined = POLICY.plan(['interface/src/octree/SafeLanding.cpp',
+                                'tools/native-tests/check.py',
+                                'tests/safe-landing/safe-landing-driver.cpp'])
+        self.assertEqual(combined['mode'], 'full')
+        selected = SELECT.select(targets, {'shared-Fixture'}, combined['paths'], source)
+        self.assertTrue(selected['broad'])
+        self.assertEqual(set(selected['targets']), {'interface', 'shared-Fixture', 'unrelated'})
+
+    def test_actual_cmake_fixture_inputs_cannot_hide_in_host_exception(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary) / 'src'
+            build = Path(temporary) / 'build'
+            fixture = source / 'tests/safe-landing/safe-landing-driver.cpp'
+            fixture.parent.mkdir(parents=True)
+            fixture.write_text('int main() { return 0; }\n')
+            (source / 'CMakeLists.txt').write_text(
+                'cmake_minimum_required(VERSION 3.24)\nproject(HostRoute LANGUAGES CXX)\n'
+                'add_executable(fixture tests/safe-landing/safe-landing-driver.cpp)\n')
+            query = build / '.cmake/api/v1/query'; query.mkdir(parents=True)
+            (query / 'codemodel-v2').touch()
+            subprocess.run(['cmake', '-S', str(source), '-B', str(build)], check=True,
+                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=30)
+            reply = build / '.cmake/api/v1/reply'
+            index = json.loads(next(reply.glob('index-*.json')).read_text())
+            model = json.loads((reply / index['reply']['codemodel-v2']['jsonFile']).read_text())
+            targets = [json.loads((reply / entry['jsonFile']).read_text())
+                       for entry in model['configurations'][0]['targets']]
+            with self.assertRaisesRegex(ValueError, 'host-only routing exemption'):
+                SELECT.validate_input_routes(targets, source, POLICY.plan)
+            # isGenerated cannot hide a source-tree fixture either.
+            generated = copy.deepcopy(targets)
+            for target in generated:
+                for item in target.get('sources', []): item['isGenerated'] = True
+            with self.assertRaisesRegex(ValueError, 'host-only routing exemption'):
+                SELECT.validate_input_routes(generated, source, POLICY.plan)
+            # External generated build inputs remain accepted.
+            outside = [{'type': 'STATIC_LIBRARY', 'sources': [
+                {'path': str(build / 'generated.cpp'), 'isGenerated': True}]}]
+            SELECT.validate_input_routes(outside, source, POLICY.plan)
+            header = [{'type': 'STATIC_LIBRARY', 'sources': [
+                {'path': 'tests/safe-landing/safe-landing-fixture.h'}]}]
+            with self.assertRaisesRegex(ValueError, 'host-only routing exemption'):
+                SELECT.validate_input_routes(header, source, POLICY.plan)
 
     def test_real_graph_limits_builds_and_tracks_include_only_consumers(self):
         with tempfile.TemporaryDirectory() as temporary:
