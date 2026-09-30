@@ -72,7 +72,9 @@ for native_contract in (
 for capability in (
     "directTouch: true", "systemImeAvailable: true",
     "hardwareKeyboardSupported: true",
-    "screenSpacePresentation: true", "vrAudioAvailable: false",
+    "screenSpacePresentation: true", "screenSpaceOriginAtSafeArea: true",
+    "systemManagedAudioInput: true", "systemManagedAudioOutput: true",
+    "touchCameraPreferencesAvailable: true", "vrAudioAvailable: false",
     "controllerSettingsAvailable: false", "navigationPreferencesAvailable: true",
 ):
     assert capability in PROFILE
@@ -114,6 +116,7 @@ assert "scriptEngines->loadDefaultScripts();" in APPLICATION_UI
 assert "dismissIOSKeyboard();" in APPLICATION_UI
 assert "defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)" in GRAPHICS
 assert "usesAndroidClickAction: touchMetrics.directTouch" in BUTTON
+assert "TouchUiMetrics { id: touchMetrics }" in BUTTON
 
 assert "OverteControls.WrappedMenu" in DESKTOP
 assert "addMenuWrap" in WRAPPED_MENU and "addItemWrap" in WRAPPED_MENU

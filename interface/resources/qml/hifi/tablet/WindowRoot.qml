@@ -254,6 +254,29 @@ Windows.ScrollingWindow {
         rootMenu: tabletRoot.rootMenu
         subMenu: tabletRoot.subMenu
         sharedTouchNavigation: tabletRoot.screenSpaceMode && touchUiProfile.directTouch
+        property string diagnosticPreviousSource: ""
+        onSourceChanged: {
+            if (touchUiProfile.screenSpaceOriginAtSafeArea) {
+                console.info("OVERTE_IOS_TABLET_QML stage=load-requested source=" + source +
+                    " previous=" + diagnosticPreviousSource + " had_item=" + (item !== null))
+            }
+            diagnosticPreviousSource = source
+        }
+        onLoaded: {
+            if (!touchUiProfile.screenSpaceOriginAtSafeArea) { return }
+            var loadedItem = item
+            var loadedSource = source
+            // The shared loader defers focus after loaded(); report after that
+            // pass while rejecting an item replaced by a newer request.
+            Qt.callLater(function() {
+                Qt.callLater(function() {
+                    if (loader.item !== loadedItem || !loadedItem) { return }
+                    console.info("OVERTE_IOS_TABLET_QML stage=load-complete source=" + loadedSource +
+                        " class=" + loadedItem + " size=" + loadedItem.width + "x" + loadedItem.height +
+                        " visible=" + loadedItem.visible + " active_focus=" + loadedItem.activeFocus)
+                })
+            })
+        }
         onScreenChanged: function(type, url) { tabletRoot.screenChanged(type, url) }
         onSendToScript: function(message) { tabletRoot.sendToScript(message) }
         onHomeRequested: tabletProxy.gotoHomeScreen()
