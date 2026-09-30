@@ -12,8 +12,7 @@
 import "avatarapp" as AvatarImages
 import "audio" as AudioMeters
 import QtQuick 2.5
-import QtQuick.Controls 1.4
-import QtQuick.Controls.Styles 1.4
+import QtQuick.Controls 2.3
 import stylesUit 1.0
 import controlsUit 1.0 as HifiControls
 import "toolbars"
@@ -506,16 +505,17 @@ Item {
         id: gainSlider
         // Size
         width: isMyCard ? thisNameCard.width - 20 : thisNameCard.width;
-        height: 14
+        height: Math.max(14, gainMetrics.adaptiveMinimumControlHeight)
+        HifiControls.TouchUiMetrics { id: gainMetrics }
         // Anchors
         anchors.verticalCenter: nameCardVUMeter.verticalCenter;
         anchors.left: nameCardVUMeter.left;
         // Properties
         visible: (!isMyCard && (selected && pal.activeTab == "nearbyTab")) && isPresent;
-        minimumValue: -60.0
-        maximumValue: 20.0
+        from: -60.0
+        to: 20.0
         stepSize: 5
-        updateValueWhileDragging: true
+        live: true
         value: Users.getAvatarGain(uuid)
         onValueChanged: {
             updateGainFromQML(uuid, value, false);
@@ -543,20 +543,20 @@ Item {
                 mouse.accepted = false
             }
         }
-        style: SliderStyle {
-            groove: Rectangle {
-                color: "#c5c5c5"
-                implicitWidth: gainSlider.width
-                implicitHeight: 4
-                radius: 2
-                opacity: 0
-            }
-            handle: Rectangle {
-                anchors.centerIn: parent
-                color: (control.pressed || control.hovered) ? "#00b4ef" : "#8F8F8F"
-                implicitWidth: 10
-                implicitHeight: 16
-            }
+        background: Rectangle {
+            x: gainSlider.leftPadding
+            y: gainSlider.topPadding + gainSlider.availableHeight / 2 - height / 2
+            width: gainSlider.availableWidth
+            height: 4
+            radius: 2
+            color: "#c5c5c5"
+        }
+        handle: Rectangle {
+            x: gainSlider.leftPadding + gainSlider.visualPosition * (gainSlider.availableWidth - width)
+            y: gainSlider.topPadding + gainSlider.availableHeight / 2 - height / 2
+            color: (gainSlider.pressed || gainSlider.hovered) ? "#00b4ef" : "#8F8F8F"
+            implicitWidth: 10
+            implicitHeight: 16
         }
     }
 

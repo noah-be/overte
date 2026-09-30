@@ -9,7 +9,7 @@
 //
 
 import QtQuick 2.5
-import QtQuick.Dialogs 1.2 as OriginalDialogs
+import QtQuick.Controls 2.3 as StandardControls
 
 import controlsUit 1.0
 import stylesUit 1.0
@@ -42,14 +42,14 @@ TabletModalWindow {
     property alias detailedText: detailedText.text
     property alias text: mainTextContainer.text
     property alias informativeText: informativeTextContainer.text
-    property int buttons: OriginalDialogs.StandardButton.Ok
-    property int icon: OriginalDialogs.StandardIcon.NoIcon
+    property int buttons: StandardControls.DialogButtonBox.Ok
+    property int icon: hifi.icons.none
     property string iconText: ""
     property int iconSize: 50
     onIconChanged: updateIcon();
-    property int defaultButton: OriginalDialogs.StandardButton.NoButton;
-    property int clickedButton: OriginalDialogs.StandardButton.NoButton;
-    focus: defaultButton === OriginalDialogs.StandardButton.NoButton
+    property int defaultButton: StandardControls.DialogButtonBox.NoButton;
+    property int clickedButton: StandardControls.DialogButtonBox.NoButton;
+    focus: defaultButton === StandardControls.DialogButtonBox.NoButton
 
     property int titleWidth: 0
     onTitleWidthChanged: d.resize();
@@ -134,23 +134,23 @@ TabletModalWindow {
                 margins: 0
                 topMargin: 2 * hifi.dimensions.contentSpacing.y
             }
-            MessageDialogButton { dialog: root; text: qsTr("Close"); button: OriginalDialogs.StandardButton.Close; }
-            MessageDialogButton { dialog: root; text: qsTr("Abort"); button: OriginalDialogs.StandardButton.Abort; }
-            MessageDialogButton { dialog: root; text: qsTr("Cancel"); button: OriginalDialogs.StandardButton.Cancel; }
-            MessageDialogButton { dialog: root; text: qsTr("Restore Defaults"); button: OriginalDialogs.StandardButton.RestoreDefaults; }
-            MessageDialogButton { dialog: root; text: qsTr("Reset"); button: OriginalDialogs.StandardButton.Reset; }
-            MessageDialogButton { dialog: root; text: qsTr("Discard"); button: OriginalDialogs.StandardButton.Discard; }
-            MessageDialogButton { dialog: root; text: qsTr("No to All"); button: OriginalDialogs.StandardButton.NoToAll; }
-            MessageDialogButton { dialog: root; text: qsTr("No"); button: OriginalDialogs.StandardButton.No; }
-            MessageDialogButton { dialog: root; text: qsTr("Yes to All"); button: OriginalDialogs.StandardButton.YesToAll; }
-            MessageDialogButton { dialog: root; text: qsTr("Yes"); button: OriginalDialogs.StandardButton.Yes; }
-            MessageDialogButton { dialog: root; text: qsTr("Apply"); button: OriginalDialogs.StandardButton.Apply; }
-            MessageDialogButton { dialog: root; text: qsTr("Ignore"); button: OriginalDialogs.StandardButton.Ignore; }
-            MessageDialogButton { dialog: root; text: qsTr("Retry"); button: OriginalDialogs.StandardButton.Retry; }
-            MessageDialogButton { dialog: root; text: qsTr("Save All"); button: OriginalDialogs.StandardButton.SaveAll; }
-            MessageDialogButton { dialog: root; text: qsTr("Save"); button: OriginalDialogs.StandardButton.Save; }
-            MessageDialogButton { dialog: root; text: qsTr("Open"); button: OriginalDialogs.StandardButton.Open; }
-            MessageDialogButton { dialog: root; text: qsTr("OK"); button: OriginalDialogs.StandardButton.Ok; }
+            MessageDialogButton { dialog: root; text: qsTr("Close"); button: StandardControls.DialogButtonBox.Close; }
+            MessageDialogButton { dialog: root; text: qsTr("Abort"); button: StandardControls.DialogButtonBox.Abort; }
+            MessageDialogButton { dialog: root; text: qsTr("Cancel"); button: StandardControls.DialogButtonBox.Cancel; }
+            MessageDialogButton { dialog: root; text: qsTr("Restore Defaults"); button: StandardControls.DialogButtonBox.RestoreDefaults; }
+            MessageDialogButton { dialog: root; text: qsTr("Reset"); button: StandardControls.DialogButtonBox.Reset; }
+            MessageDialogButton { dialog: root; text: qsTr("Discard"); button: StandardControls.DialogButtonBox.Discard; }
+            MessageDialogButton { dialog: root; text: qsTr("No to All"); button: StandardControls.DialogButtonBox.NoToAll; }
+            MessageDialogButton { dialog: root; text: qsTr("No"); button: StandardControls.DialogButtonBox.No; }
+            MessageDialogButton { dialog: root; text: qsTr("Yes to All"); button: StandardControls.DialogButtonBox.YesToAll; }
+            MessageDialogButton { dialog: root; text: qsTr("Yes"); button: StandardControls.DialogButtonBox.Yes; }
+            MessageDialogButton { dialog: root; text: qsTr("Apply"); button: StandardControls.DialogButtonBox.Apply; }
+            MessageDialogButton { dialog: root; text: qsTr("Ignore"); button: StandardControls.DialogButtonBox.Ignore; }
+            MessageDialogButton { dialog: root; text: qsTr("Retry"); button: StandardControls.DialogButtonBox.Retry; }
+            MessageDialogButton { dialog: root; text: qsTr("Save All"); button: StandardControls.DialogButtonBox.SaveAll; }
+            MessageDialogButton { dialog: root; text: qsTr("Save"); button: StandardControls.DialogButtonBox.Save; }
+            MessageDialogButton { dialog: root; text: qsTr("Open"); button: StandardControls.DialogButtonBox.Open; }
+            MessageDialogButton { dialog: root; text: qsTr("OK"); button: StandardControls.DialogButtonBox.Ok; }
 
             Button {
                 id: moreButton
@@ -159,7 +159,7 @@ TabletModalWindow {
                 onClicked: { content.state = (content.state === "" ? "expanded" : "") }
                 visible: detailedText && detailedText.length > 0
             }
-            MessageDialogButton { dialog: root; text: qsTr("Help"); button: OriginalDialogs.StandardButton.Help; }
+            MessageDialogButton { dialog: root; text: qsTr("Help"); button: StandardControls.DialogButtonBox.Help; }
         }
 
         Item {
@@ -235,7 +235,7 @@ TabletModalWindow {
             case Qt.Key_Escape:
             case Qt.Key_Back:
                 event.accepted = true
-                root.click(OriginalDialogs.StandardButton.Cancel)
+                root.click(StandardControls.DialogButtonBox.Cancel)
                 break
 
             case Qt.Key_Enter:
