@@ -508,8 +508,11 @@ def inspect(args: argparse.Namespace) -> int:
 
 def dispatch_and_wait(args: argparse.Namespace) -> int:
     config = load_config(args.config)
+    if args.gate_run_id <= 0 or args.gate_run_attempt <= 0:
+        raise GateError("gate run ID and attempt must be positive")
     api = GitHubApi()
-    correlation = f"gate-{args.gate_run_id}"
+    # GitHub keeps the run ID when a gate is rerun; bind the child to this attempt.
+    correlation = f"gate-{args.gate_run_id}-attempt-{args.gate_run_attempt}"
     fields = {
         "ref": "main",
         "inputs[correlation]": correlation,
@@ -591,6 +594,7 @@ def parser() -> argparse.ArgumentParser:
     dispatch.add_argument("--head-sha", required=True)
     dispatch.add_argument("--merge-sha", required=True)
     dispatch.add_argument("--gate-run-id", type=int, required=True)
+    dispatch.add_argument("--gate-run-attempt", type=int, required=True)
     dispatch.add_argument("--timeout", type=int, default=1800)
     dispatch.add_argument("--output", type=Path)
     dispatch.set_defaults(handler=dispatch_and_wait)

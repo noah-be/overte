@@ -195,6 +195,14 @@ parent delta, and accepts exactly one matching non-expired qualification from a
 successful `push` run of the expected workflow. It re-reads both permanent refs
 after verification so a target or parent race fails closed.
 
+Dispatched validation is correlated by both the gate's `GITHUB_RUN_ID` and
+`GITHUB_RUN_ATTEMPT` (`gate-<run-id>-attempt-<attempt>`). The `dispatch-and-wait`
+command requires both `--gate-run-id` and `--gate-run-attempt`; a rerun must not
+reuse an earlier attempt's result. The gate waits for the current attempt to
+become visible and complete successfully. Multiple matching runs, an
+unsuccessful current run, or a timeout fail the gate in both reuse and full
+fallback mode.
+
 When all bindings match, a separate read-only validation workflow runs only the
 edge-specific hardware-free differential profile. The redundant Android and
 project-wide suites delegate to this required check, while topology, policy,
