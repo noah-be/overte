@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from copy import deepcopy
 from dataclasses import replace
 from types import SimpleNamespace
 from pathlib import Path
@@ -365,7 +366,7 @@ class TopologyContracts(unittest.TestCase):
                  mock.patch.object(gate, "branch_sha", side_effect=[BASE, PARENT, BASE, PARENT]), \
                  mock.patch.object(gate, "commit", side_effect=[{"sha": PARENT}, {"sha": MERGE, "parents": [{"sha": BASE}, {"sha": PARENT}]}]), \
                  mock.patch.object(gate, "compare_merge_base", return_value=HEAD), \
-                 mock.patch.object(gate, "compare_files", return_value=(HEAD, {change["filename"]})), \
+                 mock.patch.object(gate, "compare_files", return_value=(HEAD, {change["filename"], change.get("previous_filename", change["filename"])})), \
                  mock.patch.object(gate, "paginate_pull_files", return_value=[change]):
                 api = MappingApi({f"repos/{REPOSITORY}/pulls/610": {"state": "open", "mergeable": True, "merge_commit_sha": MERGE}})
                 result = gate.classify_event(self.event("android-main", "main"), config(), api)
@@ -395,6 +396,259 @@ class TopologyContracts(unittest.TestCase):
         self.assertIsNone(gate.classify_event(self.event("main", "android-main"), config(), MappingApi()))
         with self.assertRaises(gate.GateError):
             gate.classify_event(self.event("android-main", "main", repo_id=44), config(), MappingApi())
+
+
+class ProductRepairContracts(unittest.TestCase):
+    """Exercise real gate and branch attestation code against fake GET responses."""
+
+    def fixture(self, changes=None):
+        settings = config()
+        paths = settings["reconciliation_repair_paths"]["android-vr-pico"]
+        repo = {"id": REPOSITORY_ID, "full_name": REPOSITORY}
+        pr = {
+            "number": 610, "state": "open", "mergeable": True, "merge_commit_sha": MERGE,
+            "base": {"ref": "android-vr-pico", "sha": BASE, "repo": deepcopy(repo)},
+            "head": {"ref": "reconcile/android-pico/tablet-repair", "sha": HEAD, "repo": deepcopy(repo)},
+        }
+        event = {"repository": deepcopy(repo), "pull_request": deepcopy(pr)}
+        privileged = [entry(".github/sync-test-reuse.json"), entry("tools/branch-policy/check.py")]
+        tree = {"truncated": False, "tree": privileged}
+        old = "8" * 40
+        documents = {
+            f"repos/{REPOSITORY}/git/ref/heads/android-vr-pico": {"object": {"sha": BASE}},
+            f"repos/{REPOSITORY}/git/ref/heads/android-vr": {"object": {"sha": PARENT}},
+            f"repos/{REPOSITORY}/git/commits/{HEAD}": {
+                "sha": HEAD, "parents": [{"sha": BASE}, {"sha": PARENT}]},
+            f"repos/{REPOSITORY}/git/commits/{MERGE}": {
+                "sha": MERGE, "parents": [{"sha": BASE}, {"sha": HEAD}]},
+            f"repos/{REPOSITORY}/pulls/610": pr,
+            f"repos/{REPOSITORY}/pulls/610/files?per_page=100&page=1": changes if changes is not None else [
+                {"filename": path, "status": "modified"} for path in paths
+            ],
+            f"repos/{REPOSITORY}/compare/{PARENT}...{BASE}": {
+                "base_commit": {"sha": PARENT}, "merge_base_commit": {"sha": old}},
+            f"repos/{REPOSITORY}/compare/{old}...{PARENT}": {
+                "base_commit": {"sha": old}, "merge_base_commit": {"sha": old},
+                "files": [{"filename": paths[1]}, {"filename": paths[3]},
+                          {"filename": ".github/sync-test-reuse.json"}]},
+        }
+        for ancestor in (BASE, PARENT):
+            documents[f"repos/{REPOSITORY}/compare/{ancestor}...{HEAD}"] = {
+                "status": "ahead", "behind_by": 0, "base_commit": {"sha": ancestor},
+                "merge_base_commit": {"sha": ancestor},
+            }
+        for sha in (PARENT, HEAD, MERGE):
+            documents[f"repos/{REPOSITORY}/git/trees/{sha}?recursive=1"] = deepcopy(tree)
+
+        class Api(MappingApi):
+            def __init__(self):
+                super().__init__(documents)
+                self.calls = []
+
+            def json(self, endpoint, **kwargs):
+                if kwargs.get("method", "GET") != "GET":
+                    raise AssertionError("repair attestation must be read-only")
+                self.calls.append(endpoint)
+                value = super().json(endpoint)
+                return value() if callable(value) else value
+
+        return event, settings, Api()
+
+    def classify(self, event, settings, api):
+        return gate.classify_event(event, settings, api)
+
+    def inspect(self, event, settings, api):
+        source = mock.Mock()
+        source.read_text.return_value = json.dumps(event)
+        with mock.patch.object(gate, "load_config", return_value=settings), \
+             mock.patch.object(gate, "GitHubApi", return_value=api), \
+             mock.patch.object(gate, "verify_evidence", side_effect=AssertionError("repair must never reuse evidence")), \
+             mock.patch.object(gate, "write_outputs") as output:
+            self.assertEqual(gate.inspect(SimpleNamespace(config=None, event=source, output=None)), 0)
+            result = output.call_args.args[1]
+            self.assertEqual(result["mode"], "fallback")
+            self.assertEqual(result["profile"], "android-pico")
+            self.assertEqual(result["evidence_run_id"], "")
+            self.assertEqual(result["merge_sha"], MERGE)
+            return result
+
+    def test_attested_four_path_pico_repair_requires_full_fallback(self):
+        event, settings, api = self.fixture()
+        sync = self.classify(event, settings, api)
+        self.assertEqual(sync.repair_paths, tuple(sorted(settings["reconciliation_repair_paths"]["android-vr-pico"])))
+        # Extra product paths never become part of the qualified parent delta.
+        self.assertNotIn(sync.repair_paths[0], sync.parent_changed_paths)
+        self.inspect(*self.fixture())
+
+    def test_every_individually_allowed_path_forces_fallback_including_parent_delta_paths(self):
+        for path in config()["reconciliation_repair_paths"]["android-vr-pico"]:
+            with self.subTest(path=path):
+                self.inspect(*self.fixture([{"filename": path, "status": "modified"}]))
+
+    def test_even_explicitly_allowed_markdown_repairs_cannot_take_documentation_shortcut(self):
+        path = "docs/product-repair.md"
+        event, settings, api = self.fixture([{"filename": path, "status": "modified"}])
+        settings["reconciliation_repair_paths"]["android-vr-pico"].append(path)
+        self.inspect(event, settings, api)
+
+    def test_unlisted_extra_paths_or_missing_target_allowlist_are_rejected(self):
+        for path in ("android/vr/pico/src/unknown.cpp", ".github/workflows/sync-validation.yml",
+                     "tools/branch-policy/extra.py", "ios/product.cpp"):
+            with self.subTest(path=path):
+                event, settings, api = self.fixture()
+                api.documents[f"repos/{REPOSITORY}/pulls/610/files?per_page=100&page=1"].append(
+                    {"filename": path, "status": "modified"})
+                with self.assertRaisesRegex(gate.GateError, "absent from the exact parent delta"):
+                    self.classify(event, settings, api)
+        event, settings, api = self.fixture()
+        settings.pop("reconciliation_repair_paths")
+        with self.assertRaises(gate.GateError):
+            self.classify(event, settings, api)
+
+    def test_malformed_or_privileged_allowlists_fail_closed(self):
+        for paths in (None, "android/**", ["android/**"], ["../escape"],
+                      ["tools/branch-policy/check.py"], [".github/sync-test-reuse.json"],
+                      ["same", "same"], [None]):
+            with self.subTest(paths=paths):
+                event, settings, api = self.fixture()
+                settings["reconciliation_repair_paths"]["android-vr-pico"] = paths
+                with self.assertRaises(gate.GateError):
+                    self.classify(event, settings, api)
+
+    def test_rename_checks_both_sides_and_requires_both_extra_paths_to_be_allowed(self):
+        one, two = config()["reconciliation_repair_paths"]["android-vr-pico"][:2]
+        self.inspect(*self.fixture([{"filename": two, "previous_filename": one, "status": "renamed"}]))
+        for unlisted in ("android/vr/pico/unknown.cpp", ".github/workflows/sync-validation.yml",
+                         "../escape", "tools/branch-policy/check.py"):
+            for source, target in ((unlisted, one), (one, unlisted)):
+                with self.subTest(source=source, target=target), self.assertRaises(gate.GateError):
+                    self.classify(*self.fixture([{
+                        "filename": target, "previous_filename": source, "status": "renamed",
+                    }]))
+        with self.assertRaisesRegex(gate.GateError, "source path"):
+            self.classify(*self.fixture([{"filename": one, "status": "renamed"}]))
+
+    def test_parent_delta_rename_audits_both_paths(self):
+        endpoint = f"repos/{REPOSITORY}/compare/{BASE}...{PARENT}"
+        api = MappingApi({endpoint: {"merge_base_commit": {"sha": BASE}, "files": [{
+            "filename": "new.qml", "previous_filename": "old.qml", "status": "renamed",
+        }]}})
+        self.assertEqual(gate.compare_files(api, REPOSITORY, BASE, PARENT), (BASE, {"old.qml", "new.qml"}))
+
+    def test_wrong_or_stale_reconciliation_and_candidate_parents_are_rejected(self):
+        for sha, parents in ((HEAD, (BASE,)), (HEAD, (PARENT, BASE)), (HEAD, (BASE, "9" * 40)),
+                             (HEAD, ("9" * 40, PARENT)), (HEAD, (BASE, PARENT, MERGE)),
+                             (MERGE, (PARENT, HEAD)), (MERGE, (BASE, "9" * 40))):
+            with self.subTest(sha=sha, parents=parents):
+                event, settings, api = self.fixture()
+                api.documents[f"repos/{REPOSITORY}/git/commits/{sha}"]["parents"] = [{"sha": p} for p in parents]
+                with self.assertRaises(gate.GateError):
+                    self.classify(event, settings, api)
+
+    def test_repository_identity_and_live_pr_head_are_bound(self):
+        for document, side, field, value in (
+            ("event", "repository", "id", 7), ("event", "repository", "full_name", "foreign/fork"),
+            ("event", "base", "id", 7), ("event", "head", "id", 7),
+            ("event", "base", "full_name", "foreign/fork"),
+            ("event", "head", "full_name", "foreign/fork"),
+            ("live", "head", "id", 7), ("live", "base", "full_name", "foreign/fork"),
+        ):
+            with self.subTest(document=document, side=side, field=field):
+                event, settings, api = self.fixture()
+                target = event if document == "event" else api.documents[f"repos/{REPOSITORY}/pulls/610"]
+                if side == "repository":
+                    target[side][field] = value
+                else:
+                    (target["pull_request"] if document == "event" else target)[side]["repo"][field] = value
+                with self.assertRaises(gate.GateError):
+                    self.classify(event, settings, api)
+        for side in ("base", "head"):
+            event, settings, api = self.fixture()
+            api.documents[f"repos/{REPOSITORY}/pulls/610"][side]["sha"] = "9" * 40
+            with self.subTest(side=side), self.assertRaises(gate.GateError):
+                self.classify(event, settings, api)
+        event, settings, api = self.fixture()
+        stale = "9" * 40
+        event["pull_request"]["head"]["sha"] = stale
+        api.documents[f"repos/{REPOSITORY}/git/commits/{stale}"] = {
+            "sha": stale, "parents": [{"sha": BASE}, {"sha": PARENT}],
+        }
+        with self.assertRaisesRegex(gate.GateError, "merge parents"):
+            self.classify(event, settings, api)
+
+    def test_stale_event_base_and_inconsistent_parent_policy_are_rejected(self):
+        event, settings, api = self.fixture()
+        event["pull_request"]["base"]["sha"] = "9" * 40
+        with self.assertRaisesRegex(gate.GateError, "drifted"):
+            self.classify(event, settings, api)
+        event, settings, api = self.fixture()
+        settings["edges"]["android-vr-pico"]["parent"] = "main"
+        api.documents[f"repos/{REPOSITORY}/git/ref/heads/main"] = {"object": {"sha": PARENT}}
+        with self.assertRaisesRegex(gate.GateError, "trusted branch policy"):
+            self.classify(event, settings, api)
+
+    def test_privileged_head_and_executed_candidate_must_exactly_match_parent(self):
+        for sha in (HEAD, MERGE):
+            for mutation in ("blob", "mode", "delete", "add", "truncated"):
+                with self.subTest(sha=sha, mutation=mutation):
+                    event, settings, api = self.fixture()
+                    tree = api.documents[f"repos/{REPOSITORY}/git/trees/{sha}?recursive=1"]
+                    if mutation == "blob":
+                        tree["tree"][0]["sha"] = "9" * 40
+                    elif mutation == "mode":
+                        tree["tree"][0]["mode"] = "120000"
+                    elif mutation == "delete":
+                        tree["tree"].pop()
+                    elif mutation == "add":
+                        tree["tree"].append(entry("tools/branch-policy/added.py"))
+                    else:
+                        tree["truncated"] = True
+                    with self.assertRaises(gate.GateError):
+                        self.classify(event, settings, api)
+
+    def test_base_and_parent_drift_at_every_repair_attestation_phase_fail_closed(self):
+        for branch, original in (("android-vr-pico", BASE), ("android-vr", PARENT)):
+            for phase in (1, 2, 3):
+                event, settings, api = self.fixture()
+                responses = [original] * phase + ["9" * 40] * (4 - phase)
+                api.documents[f"repos/{REPOSITORY}/git/ref/heads/{branch}"] = (
+                    lambda values=responses: {"object": {"sha": values.pop(0)}})
+                with self.subTest(branch=branch, phase=phase), self.assertRaises(gate.GateError):
+                    self.classify(event, settings, api)
+
+    def test_wrong_reconciliation_name_cannot_use_repair_authorization(self):
+        event, settings, api = self.fixture()
+        for pr in (event["pull_request"], api.documents[f"repos/{REPOSITORY}/pulls/610"]):
+            pr["head"]["ref"] = "reconcile/android-pico/-invalid"
+        with self.assertRaises(gate.GateError):
+            self.classify(event, settings, api)
+
+    def test_direct_sync_cannot_use_the_extra_repair_path_exception(self):
+        event, settings, api = self.fixture()
+        for pr in (event["pull_request"], api.documents[f"repos/{REPOSITORY}/pulls/610"]):
+            pr["head"].update(ref="android-vr", sha=PARENT)
+        api.documents[f"repos/{REPOSITORY}/git/commits/{PARENT}"] = {"sha": PARENT}
+        api.documents[f"repos/{REPOSITORY}/git/commits/{MERGE}"]["parents"] = [
+            {"sha": BASE}, {"sha": PARENT}]
+        with self.assertRaisesRegex(gate.GateError, "absent from the exact parent delta"):
+            self.classify(event, settings, api)
+
+    def test_failed_or_stale_ancestry_attestation_cannot_authorize_repairs(self):
+        for ancestor in (BASE, PARENT):
+            for field, value in (("status", "diverged"), ("behind_by", 1),
+                                 ("merge_base_commit", {"sha": "9" * 40}),
+                                 ("base_commit", {"sha": "9" * 40})):
+                event, settings, api = self.fixture()
+                api.documents[f"repos/{REPOSITORY}/compare/{ancestor}...{HEAD}"][field] = value
+                with self.subTest(ancestor=ancestor, field=field), self.assertRaises(gate.GateError):
+                    self.classify(event, settings, api)
+
+    def test_attestation_api_failure_or_malformed_tree_never_becomes_fallback_authorization(self):
+        for response in (gate.GateError("lookup failed"), [], {"truncated": False, "tree": [None]}):
+            event, settings, api = self.fixture()
+            api.documents[f"repos/{REPOSITORY}/git/trees/{HEAD}?recursive=1"] = response
+            with self.subTest(response=response), self.assertRaises(gate.GateError):
+                self.classify(event, settings, api)
 
 
 class InspectionContracts(unittest.TestCase):
@@ -442,6 +696,158 @@ class DifferentialContracts(unittest.TestCase):
             "apple-family", "apple-ios",
         })
         self.assertTrue(all(differential.PROFILES[name] for name in differential.PROFILES if name != "documentation"))
+
+
+class DispatchContracts(unittest.TestCase):
+    def run_document(self, correlation="gate-700-attempt-2", *, run_id=902,
+                     status="completed", conclusion="success"):
+        return {"id": run_id, "display_title": f"Sync validation {correlation}",
+                "status": status, "conclusion": conclusion,
+                "html_url": f"https://github.com/{REPOSITORY}/actions/runs/{run_id}"}
+
+    def dispatch(self, snapshots, *, mode="reuse", attempt=2, arguments=None):
+        args = SimpleNamespace(
+            config=gate.DEFAULT_CONFIG, repository=REPOSITORY, pull_request=610,
+            mode=mode, profile="android-family", base_sha=BASE, head_sha=HEAD,
+            merge_sha=MERGE, gate_run_id=700, gate_run_attempt=attempt,
+            timeout=30, output=None,
+        )
+        self.api = mock.Mock()
+        self.api.json.side_effect = [{}, *({"workflow_runs": runs} for runs in snapshots)]
+        clock = [0]
+
+        def sleep(seconds):
+            clock[0] += seconds
+
+        with mock.patch.object(gate, "GitHubApi", return_value=self.api), \
+             mock.patch.object(gate.time, "monotonic", side_effect=lambda: clock[0]), \
+             mock.patch.object(gate.time, "sleep", side_effect=sleep) as self.sleep, \
+             mock.patch.object(gate, "write_outputs") as self.outputs:
+            if arguments is not None:
+                with mock.patch.object(sys, "argv", ["gate.py", *arguments]):
+                    return gate.main()
+            return gate.dispatch_and_wait(args)
+
+    def legacy_arguments(self, mode="reuse"):
+        return [
+            "dispatch-and-wait", "--repository", REPOSITORY, "--pull-request", "610",
+            "--mode", mode, "--profile", "android-family", "--base-sha", BASE,
+            "--head-sha", HEAD, "--merge-sha", MERGE, "--gate-run-id", "700",
+            "--timeout", "30",
+        ]
+
+    def assert_dispatch_binding(self, mode, attempt=2):
+        self.assertEqual(self.api.json.call_args_list[0], mock.call(
+            f"repos/{REPOSITORY}/actions/workflows/{config()['validation_workflow']}/dispatches",
+            method="POST", fields={
+                "ref": "main", "inputs[correlation]": f"gate-700-attempt-{attempt}",
+                "inputs[mode]": mode, "inputs[profile]": "android-family",
+                "inputs[pull_request]": "610", "inputs[expected_base_sha]": BASE,
+                "inputs[expected_head_sha]": HEAD, "inputs[expected_merge_sha]": MERGE,
+            },
+        ))
+
+    def test_retry_ignores_old_failures_until_current_run_becomes_visible(self):
+        old = [self.run_document("gate-700", run_id=900, conclusion="failure"),
+               self.run_document("gate-700-attempt-1", run_id=901, conclusion="failure"),
+               self.run_document("gate-701-attempt-2", run_id=903, conclusion="failure")]
+        current = self.run_document(status="in_progress", conclusion=None)
+        for mode in ("reuse", "fallback"):
+            with self.subTest(mode=mode):
+                self.assertEqual(self.dispatch([old, [*old, current],
+                                                [*old, self.run_document()]], mode=mode), 0)
+                self.assert_dispatch_binding(mode)
+                self.assertEqual(self.sleep.call_count, 2)
+                self.outputs.assert_called_once_with(None, {
+                    "validation_run_id": 902,
+                    "validation_url": f"https://github.com/{REPOSITORY}/actions/runs/902",
+                })
+
+    def test_first_attempt_and_retry_dispatch_distinct_correlations(self):
+        for attempt in (1, 2):
+            with self.subTest(attempt=attempt):
+                self.assertEqual(self.dispatch([[self.run_document(
+                    f"gate-700-attempt-{attempt}")]], attempt=attempt), 0)
+                self.assert_dispatch_binding("reuse", attempt)
+
+    def test_legacy_workflow_uses_environment_attempt_and_ignores_old_failure(self):
+        old = self.run_document("gate-700-attempt-1", run_id=901, conclusion="failure")
+        for mode in ("reuse", "fallback"):
+            with self.subTest(mode=mode), mock.patch.dict(
+                gate.os.environ, {"GITHUB_RUN_ATTEMPT": "2"}, clear=True
+            ):
+                self.assertEqual(self.dispatch([
+                    [old], [old, self.run_document(status="in_progress", conclusion=None)],
+                    [old, self.run_document()],
+                ], arguments=self.legacy_arguments(mode)), 0)
+                self.assert_dispatch_binding(mode)
+                self.assertEqual(self.sleep.call_count, 2)
+                self.outputs.assert_called_once_with(None, {
+                    "validation_run_id": 902,
+                    "validation_url": f"https://github.com/{REPOSITORY}/actions/runs/902",
+                })
+
+    def test_missing_invalid_or_nonpositive_environment_attempt_fails_before_api(self):
+        for value in (None, "", "invalid", "2.5", "0", "-1"):
+            environment = {} if value is None else {"GITHUB_RUN_ATTEMPT": value}
+            with self.subTest(value=value), mock.patch.dict(gate.os.environ, environment, clear=True), \
+                 mock.patch("sys.stderr", new_callable=io.StringIO):
+                self.assertEqual(self.dispatch([], arguments=self.legacy_arguments()), 2)
+                self.api.json.assert_not_called()
+                self.outputs.assert_not_called()
+
+    def test_explicit_attempt_takes_priority_over_environment(self):
+        for value in (None, "1", "invalid", "0", "-1"):
+            environment = {} if value is None else {"GITHUB_RUN_ATTEMPT": value}
+            with self.subTest(value=value), mock.patch.dict(gate.os.environ, environment, clear=True):
+                self.assertEqual(self.dispatch([[self.run_document()]], arguments=[
+                    *self.legacy_arguments(), "--gate-run-attempt", "2",
+                ]), 0)
+                self.assert_dispatch_binding("reuse", 2)
+
+    def test_invalid_explicit_attempt_never_falls_back_to_valid_environment(self):
+        for value in ("", "invalid", "2.5", "0", "-1"):
+            with self.subTest(value=value), mock.patch.dict(
+                gate.os.environ, {"GITHUB_RUN_ATTEMPT": "2"}, clear=True
+            ), mock.patch("sys.stderr", new_callable=io.StringIO):
+                if value in ("0", "-1"):
+                    self.assertEqual(self.dispatch([], arguments=[
+                        *self.legacy_arguments(), "--gate-run-attempt", value,
+                    ]), 2)
+                else:
+                    with self.assertRaises(SystemExit) as error:
+                        self.dispatch([], arguments=[
+                            *self.legacy_arguments(), "--gate-run-attempt", value,
+                        ])
+                    self.assertEqual(error.exception.code, 2)
+                self.api.json.assert_not_called()
+                self.outputs.assert_not_called()
+
+    def test_current_unsuccessful_run_cannot_be_hidden_by_old_success(self):
+        old = self.run_document("gate-700-attempt-1", run_id=901)
+        for mode in ("reuse", "fallback"):
+            for conclusion in ("failure", "cancelled", "timed_out", "skipped", None):
+                with self.subTest(mode=mode, conclusion=conclusion):
+                    with self.assertRaisesRegex(gate.GateError, f"{mode} validation did not succeed"):
+                        self.dispatch([[old, self.run_document(conclusion=conclusion)]], mode=mode)
+                    self.outputs.assert_not_called()
+
+    def test_duplicate_current_correlation_fails_before_accepting_success(self):
+        for mode in ("reuse", "fallback"):
+            with self.subTest(mode=mode), self.assertRaisesRegex(gate.GateError, "ambiguous"):
+                self.dispatch([[self.run_document(), self.run_document(run_id=903)]], mode=mode)
+            self.outputs.assert_not_called()
+
+    def test_missing_or_nonterminal_current_run_times_out(self):
+        for mode in ("reuse", "fallback"):
+            for runs in ([], [self.run_document("gate-700-attempt-1", run_id=901)],
+                         [self.run_document(status="queued", conclusion=None)],
+                         [self.run_document(status="in_progress", conclusion=None)]):
+                with self.subTest(mode=mode, runs=runs):
+                    with self.assertRaisesRegex(gate.GateError, "before timeout"):
+                        self.dispatch([runs] * 3, mode=mode)
+                    self.outputs.assert_not_called()
+                    self.assertEqual(self.sleep.call_count, 3)
 
 
 class DifferentialCandidateTests(unittest.TestCase):

@@ -67,7 +67,8 @@ jobs:
           --repository "$REPOSITORY" --pull-request "$PULL_REQUEST"
           --mode "$MODE" --profile "$PROFILE" --base-sha "$BASE_SHA"
           --head-sha "$HEAD_SHA" --merge-sha "$MERGE_SHA"
-          --gate-run-id "$GITHUB_RUN_ID" --output "$GITHUB_OUTPUT"
+          --gate-run-id "$GITHUB_RUN_ID" --gate-run-attempt "$GITHUB_RUN_ATTEMPT"
+          --output "$GITHUB_OUTPUT"
       - name: Stop only redundant common suites after accepted reuse
         if: github.event_name == 'pull_request_target' && steps.inspect.outputs.mode == 'reuse'
         env:

@@ -58,7 +58,7 @@ class ProjectSuiteCliTests(unittest.TestCase):
                     profile=profile, suite=[], platform_only=False))}
             quick, host, native = selected("quick"), selected("host"), selected("full")
         self.assertEqual(set(quick) - set(host), {"device-e2e-contracts", "native-smoke"})
-        self.assertEqual(set(host) - set(quick), {"device-control-plane-full"})
+        self.assertEqual(set(host) - set(quick), {"device-control-plane-full", "safe-landing-lifecycle"})
         self.assertEqual(set(native), set(quick) | {"native-ctest"})
         self.assertIn("fixture-platform", host)
         self.assertIn("--require-qml", host["device-control-plane-full"].command)

@@ -337,6 +337,8 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
         self.assertIn("ref: ${{ github.event.repository.default_branch }}", source)
         self.assertIn("persist-credentials: false", source)
         self.assertIn("dispatch-and-wait", source)
+        self.assertIn('--gate-run-id "$GITHUB_RUN_ID"', source)
+        self.assertIn('--gate-run-attempt "$GITHUB_RUN_ATTEMPT"', source)
         self.assertIn("steps.inspect.outputs.mode != 'ordinary'", source)
         self.assertNotIn("github.event.pull_request.head.sha }}\n          path:", source)
         self.assertNotIn("${{ secrets.", source)
