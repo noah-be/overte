@@ -13,6 +13,7 @@
 
 #include <QtCore/QCoreApplication>
 #include <QtCore/QDebug>
+#include <QtCore/QDir>
 #include <QtCore/QFile>
 #include <QtCore/QFileInfo>
 #include <QtCore/QMimeDatabase>
@@ -23,6 +24,28 @@
 
 const int SOCKET_ERROR_EXIT_CODE = 2;
 const int SOCKET_CHECK_INTERVAL_IN_MS = 30000;
+
+namespace {
+
+bool isWithinDocumentRoot(const QString& root, const QString& path) {
+    // Include the separator: a similarly named sibling is not a descendant.
+    const QString prefix = root.endsWith('/') ? root : root + '/';
+    return path == root || path.startsWith(prefix);
+}
+
+bool resolveDocumentPath(const QString& root, const QString& path, QString& canonicalPath) {
+    canonicalPath.clear();
+    if (path.contains(QChar(0x00)) ||
+        !isWithinDocumentRoot(root, QDir::cleanPath(QFileInfo(path).absoluteFilePath()))) {
+        return false;
+    }
+    canonicalPath = QFileInfo(path).canonicalFilePath();
+    // Missing targets stay unresolved (404/empty SSI). Symlinks are allowed only
+    // when their resolved target remains within the canonical document root.
+    return canonicalPath.isEmpty() || isWithinDocumentRoot(root, canonicalPath);
+}
+
+} // namespace
 
 HTTPManager::HTTPManager(const QHostAddress& listenAddress, quint16 port, const QString& documentRoot, HTTPRequestHandler* requestHandler) :
     _listenAddress(listenAddress),
@@ -61,7 +84,9 @@ bool HTTPManager::handleHTTPRequest(HTTPConnection* connection, const QUrl& url,
         return true;
     }
 
-    if (!_documentRoot.isEmpty()) {
+    const QFileInfo documentRootInfo(_documentRoot);
+    const QString documentRoot = documentRootInfo.canonicalFilePath();
+    if (!_documentRoot.isEmpty() && documentRootInfo.isDir() && !documentRoot.isEmpty()) {
         // check to see if there is a file to serve from the document root for this path
         QString subPath = url.path();
 
@@ -70,21 +95,19 @@ bool HTTPManager::handleHTTPRequest(HTTPConnection* connection, const QUrl& url,
             subPath.remove(0, 1);
         }
 
-        QString absoluteDocumentRoot { QFileInfo(_documentRoot).absolutePath() };
-        QString filePath;
-        QFileInfo pathFileInfo { _documentRoot + subPath };
-        QString absoluteFilePath { pathFileInfo.absoluteFilePath() };
-
-        // The absolute path for this file isn't under the document root
-        if (absoluteFilePath.indexOf(absoluteDocumentRoot) != 0) {
-            qCWarning(embeddedwebserver) << absoluteFilePath << "is outside the document root";
+        const QString requestedFilePath = QDir(documentRoot).filePath(subPath);
+        QString absoluteFilePath;
+        if (!resolveDocumentPath(documentRoot, requestedFilePath, absoluteFilePath)) {
             connection->respond(HTTPConnection::StatusCode400, "Requested path outside document root");
             return true;
         }
+        QString filePath;
+        QString servedFilename = requestedFilePath;
+        QFileInfo pathFileInfo(absoluteFilePath);
 
-        if (pathFileInfo.isFile()) {
+        if (!absoluteFilePath.isEmpty() && pathFileInfo.isFile() && !subPath.endsWith('/')) {
             filePath = absoluteFilePath;
-        } else if (subPath.size() > 0 && !subPath.endsWith('/') && pathFileInfo.isDir()) {
+        } else if (!absoluteFilePath.isEmpty() && subPath.size() > 0 && !subPath.endsWith('/') && pathFileInfo.isDir()) {
             // this could be a directory with a trailing slash
             // send a redirect to the path with a slash so we can
             QString redirectLocation = '/' + subPath + '/';
@@ -101,12 +124,18 @@ bool HTTPManager::handleHTTPRequest(HTTPConnection* connection, const QUrl& url,
         }
 
         // if the last thing is a trailing slash then we want to look for index file
-        if (subPath.endsWith('/') || subPath.size() == 0) {
+        if (!absoluteFilePath.isEmpty() && pathFileInfo.isDir() && (subPath.endsWith('/') || subPath.size() == 0)) {
             QStringList possibleIndexFiles = QStringList() << "index.html" << "index.shtml";
 
             foreach (const QString& possibleIndexFilename, possibleIndexFiles) {
-                if (QFileInfo(absoluteFilePath + possibleIndexFilename).exists()) {
-                    filePath = absoluteFilePath + possibleIndexFilename;
+                QString indexPath;
+                if (!resolveDocumentPath(documentRoot, QDir(absoluteFilePath).filePath(possibleIndexFilename), indexPath)) {
+                    connection->respond(HTTPConnection::StatusCode400, "Requested path outside document root");
+                    return true;
+                }
+                if (!indexPath.isEmpty() && QFileInfo(indexPath).isFile()) {
+                    filePath = indexPath;
+                    servedFilename = possibleIndexFilename;
                     break;
                 }
             }
@@ -117,10 +146,15 @@ bool HTTPManager::handleHTTPRequest(HTTPConnection* connection, const QUrl& url,
             static QMimeDatabase mimeDatabase;
 
             auto localFile = std::unique_ptr<QFile>(new QFile(filePath));
-            localFile->open(QIODevice::ReadOnly);
+            if (!localFile->open(QIODevice::ReadOnly)) {
+                connection->respond(HTTPConnection::StatusCode404, "Resource not found.");
+                return true;
+            }
             QByteArray localFileData;
 
-            QFileInfo localFileInfo(filePath);
+            // Preserve the requested/index filename's MIME and SSI semantics
+            // even when the file is a symlink with a differently named target.
+            QFileInfo localFileInfo(servedFilename);
 
             if (localFileInfo.completeSuffix() == "shtml") {
                 localFileData = localFile->readAll();
@@ -133,34 +167,36 @@ bool HTTPManager::handleHTTPRequest(HTTPConnection* connection, const QUrl& url,
 
                 int matchPosition = 0;
 
-                QString localFileString(localFileData);
+                QString localFileString = QString::fromUtf8(localFileData.constData(), localFileData.size());
 
                 while ((matchPosition = includeRegExp.indexIn(localFileString, matchPosition)) != -1) {
-                    // check if this is a file or vitual include
+                    // check if this is a file or virtual include
                     bool isFileInclude = includeRegExp.cap(1) == "file";
 
-                    // setup the correct file path for the included file
-                    QString includeFilePath = isFileInclude
-                    ? localFileInfo.canonicalPath() + "/" + includeRegExp.cap(2)
-                    : _documentRoot + includeRegExp.cap(2);
-
+                    // File includes are relative to the resolved served file;
+                    // virtual includes are relative to the document root.
+                    // Keep a leading slash root-relative as in the previous
+                    // concatenation-based include handling, not OS-absolute.
+                    const QString includeCandidate = (isFileInclude ? QFileInfo(filePath).path() : documentRoot)
+                        + "/" + includeRegExp.cap(2);
+                    QString includeFilePath;
                     QString replacementString;
-
-                    if (QFileInfo(includeFilePath).isFile()) {
-
+                    if (resolveDocumentPath(documentRoot, includeCandidate, includeFilePath) &&
+                        !includeFilePath.isEmpty() && QFileInfo(includeFilePath).isFile()) {
                         QFile includedFile(includeFilePath);
-                        includedFile.open(QIODevice::ReadOnly);
-
-                        replacementString = QString(includedFile.readAll());
+                        if (includedFile.open(QIODevice::ReadOnly)) {
+                            replacementString = QString(includedFile.readAll());
+                        }
                     } else {
-                        qCDebug(embeddedwebserver) << "SSI include directive referenced a missing file:" << includeFilePath;
+                        qCDebug(embeddedwebserver) << "SSI include directive referenced an unavailable file";
                     }
 
                     // replace the match with the contents of the file, or an empty string if the file was not found
                     localFileString.replace(matchPosition, includeRegExp.matchedLength(), replacementString);
 
-                    // push the match position forward so we can check the next match
-                    matchPosition += includeRegExp.matchedLength();
+                    // Do not recursively expand included content, and do not skip
+                    // adjacent directives after a shorter/empty replacement.
+                    matchPosition += replacementString.size();
                 }
 
                 localFileData = localFileString.toLocal8Bit();
@@ -171,7 +207,9 @@ bool HTTPManager::handleHTTPRequest(HTTPConnection* connection, const QUrl& url,
             auto suffix = localFileInfo.suffix();
             auto mimeType = (suffix == "shtml" || suffix == "html" || suffix == "htm")
                 ? QString { "text/html" }
-                : mimeDatabase.mimeTypeForFile(filePath).name();
+                // Inspect the already opened, boundary-checked file rather
+                // than letting MIME detection open the requested path again.
+                : mimeDatabase.mimeTypeForFileNameAndData(servedFilename, localFile.get()).name();
 
             if (localFileData.isNull()) {
                 connection->respond(HTTPConnection::StatusCode200, std::move(localFile), qPrintable(mimeType));
