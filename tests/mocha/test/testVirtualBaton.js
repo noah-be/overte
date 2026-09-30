@@ -1,294 +1,363 @@
 "use strict";
-/*jslint nomen: true, plusplus: true, vars: true */
-var assert = require('assert');
-var registeredTests = [], afterFunctions = [];
-function describe(name, suiteFunction) {
-    suiteFunction();
-}
-function it(name, testFunction) {
-    registeredTests.push({name: name, testFunction: testFunction});
-}
-function after(afterFunction) {
-    afterFunctions.push(afterFunction);
-}
-var virtualBaton = require('../../../scripts/developer/libraries/virtualBaton.js');
 
-describe('temp', function () {
-    var messageCount = 0, testStart = Date.now();
-    function makeMessager(nodes, me, mode) { // shim for High Fidelity Message system
-        function noopSend(channel, string, source) {
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const test = require('node:test');
+const vm = require('node:vm');
+
+const batonSources = Object.fromEntries(Object.entries({
+    developer: '../../../scripts/developer/libraries/virtualBaton.js',
+    home: '../../../unpublishedScripts/DomainContent/Home/virtualBaton.js'
+}).map(([name, relativePath]) => [name, new vm.Script(
+    fs.readFileSync(path.join(__dirname, relativePath), 'utf8'), {filename: relativePath})]));
+
+// The library reads Date.now() and Math.random() directly as well as using Script
+// timers. Isolate all three in a VM so elections are reproducible without changing
+// application code or replacing process-wide globals used by the test runner.
+function makeClock() {
+    let now = 1000000;
+    let nextId = 1;
+    const timers = new Map();
+    const messages = [];
+    function schedule(callback, delay, interval) {
+        const id = nextId++;
+        timers.set(id, {id, callback, at: now + delay, interval});
+        return id;
+    }
+    function drainMessages() {
+        let remaining = 100000;
+        while (messages.length) {
+            assert.ok(remaining-- > 0, 'message delivery must reach an idle state');
+            messages.shift()();
         }
-        function hasChannel(node, channel) {
-            return -1 !== node.subscribed.indexOf(channel);
+    }
+    return {
+        now: () => now,
+        enqueue: callback => messages.push(callback),
+        Script: {
+            setTimeout: (callback, delay) => schedule(callback, delay, 0),
+            clearTimeout: id => timers.delete(id),
+            setInterval: (callback, delay) => schedule(callback, delay, delay),
+            clearInterval: id => timers.delete(id)
+        },
+        advance(milliseconds) {
+            const end = now + milliseconds;
+            let remaining = 100000;
+            drainMessages();
+            while (true) {
+                const next = [...timers.values()]
+                    .filter(timer => timer.at <= end)
+                    .sort((a, b) => a.at - b.at || a.id - b.id)[0];
+                if (!next) {
+                    break;
+                }
+                assert.ok(remaining-- > 0, 'timers must make progress');
+                now = next.at;
+                if (next.interval) {
+                    next.at += next.interval;
+                } else {
+                    timers.delete(next.id);
+                }
+                next.callback();
+                drainMessages();
+            }
+            now = end;
+        },
+        assertIdle() {
+            drainMessages();
+            assert.equal(timers.size, 0, 'unload must clear every timer');
+            assert.equal(messages.length, 0, 'no queued messages may escape a test');
         }
-        function sendSync(channel, message, nodes, skip) {
-            nodes.forEach(function (node) {
-                if (!hasChannel(node, channel) || (node === skip)) {
+    };
+}
+
+function makeHarness(t, mode, optimize, {source, realTime = false, seed = 42}) {
+    const clock = realTime ? null : makeClock();
+    const nodes = [];
+    const batons = [];
+    const owners = new Set();
+    const trace = [];
+    let messageCount = 0;
+    const batonName = t.name;
+    const random = Object.create(Math);
+    random.random = () => {
+        seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+        return seed / 0x100000000;
+    };
+    const context = {
+        module: {exports: {}},
+        Date: clock ? {now: clock.now} : Date,
+        Math: random
+    };
+    batonSources[source].runInNewContext(context);
+    const virtualBaton = context.module.exports;
+    const activeTimers = new Set();
+    const activeIntervals = new Set();
+    const realScript = {
+        setTimeout(callback, delay) {
+            const handle = setTimeout(() => {
+                activeTimers.delete(handle);
+                callback();
+            }, delay);
+            activeTimers.add(handle);
+            return handle;
+        },
+        clearTimeout(handle) {
+            clearTimeout(handle);
+            activeTimers.delete(handle);
+        },
+        setInterval(callback, delay) {
+            const handle = setInterval(callback, delay);
+            activeIntervals.add(handle);
+            return handle;
+        },
+        clearInterval(handle) {
+            clearInterval(handle);
+            activeIntervals.delete(handle);
+        }
+    };
+
+    function makeMessages(me) {
+        function deliver(channel, message, skip) {
+            for (const node of nodes) {
+                if (node !== skip && node.channels.has(channel) && node.receiver) {
+                    node.receiver(channel, message, me.name);
+                }
+            }
+        }
+        return {
+            subscribe: channel => me.channels.add(channel),
+            unsubscribe: channel => me.channels.delete(channel),
+            sendMessage(channel, message) {
+                messageCount++;
+                if (mode === 'immediate') {
+                    deliver(channel, message);
                     return;
                 }
-                node.sender(channel, message, me.name);
-            });
-        }
-        nodes.forEach(function (node) {
-            node.sender = node.sender || noopSend;
-            node.subscribed = node.subscribed || [];
-        });
-        return {
-            subscriberCount: function () {
-                var c = 0;
-                nodes.forEach(function (n) {
-                    if (n.subscribed.length) {
-                        c++;
-                    }
-                });
-                return c;
-            },
-            subscribe: function (channel) {
-                me.subscribed.push(channel);
-            },
-            unsubscribe: function (channel) {
-                me.subscribed.splice(me.subscribed.indexOf(channel), 1);
-            },
-            sendMessage: function (channel, message) {
-                if ((mode === 'immediate2Me') && hasChannel(me, channel)) {
-                    me.sender(channel, message, me.name);
+                if (mode === 'immediate2Me' && me.channels.has(channel) && me.receiver) {
+                    me.receiver(channel, message, me.name);
                 }
-                if (mode === 'immediate') {
-                    sendSync(channel, message, nodes, null);
+                const delivery = () => deliver(channel, message, mode === 'immediate2Me' ? me : null);
+                if (clock) {
+                    clock.enqueue(delivery);
                 } else {
-                    process.nextTick(function () {
-                        sendSync(channel, message, nodes, (mode === 'immediate2Me') ? me : null);
-                    });
+                    process.nextTick(delivery);
                 }
             },
             messageReceived: {
-                connect: function (f) {
-                    me.sender = function (c, m, i) {
-                        messageCount++; f(c, m, i);
-                    };
-                },
-                disconnect: function () {
-                    me.sender = noopSend;
+                connect: receiver => { me.receiver = receiver; },
+                disconnect: receiver => {
+                    assert.equal(me.receiver, receiver);
+                    me.receiver = null;
                 }
             }
         };
     }
-    var debug = {}; //{flow: true, send: false, receive: false};
-    function makeBaton(testKey, nodes, node, debug, mode, optimize) {
-        debug = debug || {};
-        var baton = virtualBaton({
-            batonName: testKey,
-            debugSend: debug.send,
-            debugReceive: debug.receive,
-            debugFlow: debug.flow,
-            useOptimizations: optimize,
-            connectionTest: function (id) {
-                return baton.validId(id);
-            },
-            globals: {
-                Messages: makeMessager(nodes, node, mode),
-                MyAvatar: {sessionUUID: node.name},
-                Script: {
-                    setTimeout: setTimeout,
-                    clearTimeout: clearTimeout,
-                    setInterval: setInterval,
-                    clearInterval: clearInterval
-                },
-                AvatarList: {
-                    getAvatar: function (id) {
-                        return {sessionUUID: id};
-                    }
-                },
-                Entities: {getEntityProperties: function () {
-                }},
-                print: console.log
-            }
-        });
-        return baton;
-    }
-    function noRelease(batonName) {
-        assert.ok(!batonName, "should not release");
-    }
-    function defineABunch(mode, optimize) {
-        function makeKey(prefix) {
-            return prefix + mode + (optimize ? '-opt' : '');
-        }
-        var testKeys = makeKey('single-');
-        it(testKeys, function (done) {
-            var nodes = [{name: 'a'}];
-            var a = makeBaton(testKeys, nodes, nodes[0], debug, mode).claim(function (key) {
-                console.log('claimed a');
-                assert.equal(testKeys, key);
-                a.unload();
-                done();
-            }, noRelease);
-        });
-        var testKeydp = makeKey('dual-parallel-');
-        it(testKeydp, function (done) {
-            this.timeout(10000);
-            var nodes = [{name: 'ap'}, {name: 'bp'}];
-            var a = makeBaton(testKeydp, nodes, nodes[0], debug, mode, optimize),
-                b = makeBaton(testKeydp, nodes, nodes[1], debug, mode, optimize);
-            function accepted(key) { // Under some circumstances of network timing, either a or b can win.
-                console.log('claimed ap');
-                assert.equal(testKeydp, key);
-                done();
-            }
-            a.claim(accepted, noRelease);
-            b.claim(accepted, noRelease);
-        });
-        var testKeyds = makeKey('dual-serial-');
-        it(testKeyds, function (done) {
-            var nodes = [{name: 'as'}, {name: 'bs'}],
-                gotA = false,
-                gotB = false;
-            makeBaton(testKeyds, nodes, nodes[0], debug, mode, optimize).claim(function (key) {
-                console.log('claimed as', key);
-                assert.ok(!gotA, "should not get A after B");
-                gotA = true;
-                done();
-            }, noRelease);
-            setTimeout(function () {
-                makeBaton(testKeyds, nodes, nodes[1], debug, mode, optimize).claim(function (key) {
-                    console.log('claimed bs', key);
-                    assert.ok(!gotB, "should not get B after A");
-                    gotB = true;
-                    done();
-                }, noRelease);
-            }, 500);
-        });
-        var testKeydsl = makeKey('dual-serial-long-');
-        it(testKeydsl, function (done) {
-            this.timeout(5000);
-            var nodes = [{name: 'al'}, {name: 'bl'}],
-                gotA = false,
-                gotB = false,
-                releaseA = false;
-            makeBaton(testKeydsl, nodes, nodes[0], debug, mode, optimize).claim(function (key) {
-                console.log('claimed al', key);
-                assert.ok(!gotB, "should not get A after B");
-                gotA = true;
-                if (!gotB) {
-                    done();
-                }
-            }, function () {
-                assert.ok(gotA, "Should claim it first");
-                releaseA = true;
-                if (gotB) {
-                    done();
-                }
-            });
-            setTimeout(function () {
-                makeBaton(testKeydsl, nodes, nodes[1], debug, mode, optimize).claim(function (key) {
-                    console.log('claimed bl', key);
-                    gotB = true;
-                    if (releaseA) {
-                        done();
-                    }
-                }, noRelease);
-            }, 3000);
-        });
-        var testKeydsr = makeKey('dual-serial-with-release-');
-        it(testKeydsr, function (done) {
-            this.timeout(5000);
-            var nodes = [{name: 'asr'}, {name: 'bsr'}],
-                gotClaimA = false,
-                gotReleaseA = false,
-                a = makeBaton(testKeydsr, nodes, nodes[0], debug, mode, optimize),
-                b = makeBaton(testKeydsr, nodes, nodes[1], debug, mode, optimize);
-            a.claim(function (key) {
-                console.log('claimed asr');
-                assert.equal(testKeydsr, key);
-                gotClaimA = true;
-                b.claim(function (key) {
-                    console.log('claimed bsr');
-                    assert.equal(testKeydsr, key);
-                    assert.ok(gotReleaseA);
-                    done();
-                }, noRelease);
-                a.release();
-            }, function (key) {
-                console.log('released asr');
-                assert.equal(testKeydsr, key);
-                assert.ok(gotClaimA);
-                gotReleaseA = true;
-            });
-        });
-        var testKeydpr = makeKey('dual-parallel-with-release-');
-        it(testKeydpr, function (done) {
-            this.timeout(5000);
-            var nodes = [{name: 'ar'}, {name: 'br'}];
-            var a = makeBaton(testKeydpr, nodes, nodes[0], debug, mode, optimize),
-                b = makeBaton(testKeydpr, nodes, nodes[1], debug, mode, optimize),
-                gotClaimA = false,
-                gotReleaseA = false,
-                gotClaimB = false;
-            a.claim(function (key) {
-                console.log('claimed ar');
-                assert.equal(testKeydpr, key);
-                gotClaimA = true;
-                assert.ok(!gotClaimB, "if b claimed, should not get a");
-                a.release();
-            }, function (key) {
-                console.log('released ar');
-                assert.equal(testKeydpr, key);
-                assert.ok(gotClaimA);
-                gotReleaseA = true;
-            });
-            b.claim(function (key) {
-                console.log('claimed br', gotClaimA ? 'with' : 'without', 'ar first');
-                assert.equal(testKeydpr, key);
-                gotClaimB = true;
-                assert.ok(!gotClaimA || gotReleaseA);
-                done();
-            }, noRelease);
-        });
-    }
-    function defineAllModeTests(optimize) {
-        defineABunch('delayed', optimize);
-        defineABunch('immediate2Me', optimize);
-        defineABunch('immediate', optimize);
-    }
-    defineAllModeTests(true);
-    defineAllModeTests(false);
-    after(function () {
-        console.log(messageCount, 'messages sent over', (Date.now() - testStart), 'ms.');
-    });
-});
 
-async function runRegisteredTests() {
-    var passed = 0, failed = 0;
-    for (const testCase of registeredTests) {
-        try {
-            await new Promise(function (resolve, reject) {
-                var finished = false,
-                    timeout = setTimeout(function () {
-                        reject(new Error('timeout'));
-                    }, 15000);
-                function done(error) {
-                    if (finished) {
-                        return;
-                    }
-                    finished = true;
-                    clearTimeout(timeout);
-                    error ? reject(error) : resolve();
-                }
-                try {
-                    testCase.testFunction.call({timeout: function () {}}, done);
-                } catch (error) {
-                    done(error);
+    t.after(() => {
+        for (const baton of batons) {
+            baton.unload();
+        }
+        assert.ok(nodes.every(node => node.channels.size === 0 && node.receiver === null),
+            'unload must disconnect all message receivers and subscriptions');
+        if (clock) {
+            clock.assertIdle();
+        } else {
+            const leftoverTimers = activeTimers.size + activeIntervals.size;
+            // Clean up even when the assertion fails, so a regression cannot hang Node.
+            activeTimers.forEach(clearTimeout);
+            activeIntervals.forEach(clearInterval);
+            assert.equal(leftoverTimers, 0, 'unload must clear every timer');
+        }
+    });
+
+    return {
+        trace,
+        messageCount: () => messageCount,
+        advance: milliseconds => clock.advance(milliseconds),
+        add(name) {
+            const node = {name, channels: new Set(), receiver: null};
+            nodes.push(node);
+            const baton = virtualBaton({
+                batonName,
+                useOptimizations: optimize,
+                electionTimeout: realTime ? 20 : 100,
+                recheckInterval: realTime ? 20 : 100,
+                connectionTest: id => nodes.some(other => other.name === id && other.receiver),
+                globals: {
+                    Messages: makeMessages(node),
+                    MyAvatar: {sessionUUID: name},
+                    Script: clock ? clock.Script : realScript,
+                    AvatarList: {getAvatar: id => ({sessionUUID: id})},
+                    Entities: {getEntityProperties: () => undefined},
+                    print: () => {}
                 }
             });
-            passed++;
-            console.log('PASS', testCase.name);
-        } catch (error) {
-            failed++;
-            console.error('FAIL', testCase.name, error && error.stack || error);
+            batons.push(baton);
+            return {
+                claim(onClaim = () => {}, onRelease = () => {}) {
+                    let claimed = false;
+                    let released = false;
+                    baton.claim(key => {
+                        assert.equal(key, batonName);
+                        assert.equal(owners.size, 0, 'a claim must never overlap another owner');
+                        assert.equal(claimed, false, 'each claim callback must run once');
+                        claimed = true;
+                        owners.add(name);
+                        trace.push('claim ' + name);
+                        onClaim();
+                    }, key => {
+                        assert.equal(key, batonName);
+                        assert.equal(released, false, 'each release callback must run once');
+                        released = true;
+                        assert.ok(owners.delete(name), 'release must follow ownership');
+                        trace.push('release ' + name);
+                        onRelease();
+                    });
+                },
+                release: () => baton.release()
+            };
         }
-    }
-    afterFunctions.forEach(function (afterFunction) { afterFunction(); });
-    console.log('Totals:', passed, 'passed,', failed, 'failed');
-    process.exit(failed ? 1 : 0);
+    };
 }
 
-setImmediate(runRegisteredTests);
+for (const source of Object.keys(batonSources)) {
+    for (const optimize of [true, false]) {
+        for (const mode of ['delayed', 'immediate2Me', 'immediate']) {
+            const suffix = source + '-' + mode + (optimize ? '-opt' : '-unoptimized');
+
+            test('single-' + suffix, t => {
+                const harness = makeHarness(t, mode, optimize, {source});
+                const a = harness.add('a');
+                a.claim();
+                harness.advance(5000);
+                assert.deepEqual(harness.trace, ['claim a']);
+            });
+
+            test('dual-parallel-' + suffix, t => {
+                const harness = makeHarness(t, mode, optimize, {source});
+                const a = harness.add('a');
+                const b = harness.add('b');
+                a.claim();
+                b.claim();
+                harness.advance(5000);
+                assert.equal(harness.trace.length, 1, 'exactly one claimant must win and retain ownership');
+                assert.match(harness.trace[0], /^claim [ab]$/);
+            });
+
+            for (const delay of [500, 3000]) {
+                test('dual-serial-' + delay + 'ms-' + suffix, t => {
+                    const harness = makeHarness(t, mode, optimize, {source});
+                    harness.add('a').claim();
+                    harness.advance(delay);
+                    assert.deepEqual(harness.trace, ['claim a']);
+                    harness.add('b').claim();
+                    // Observe well past the second claimant's election and recheck timers.
+                    harness.advance(5000);
+                    assert.deepEqual(harness.trace, ['claim a'], 'a late claimant must not steal a held baton');
+                });
+            }
+
+            test('dual-serial-with-release-' + suffix, t => {
+                const harness = makeHarness(t, mode, optimize, {source});
+                const a = harness.add('a');
+                const b = harness.add('b');
+                a.claim(() => {
+                    b.claim();
+                    a.release();
+                });
+                harness.advance(5000);
+                assert.deepEqual(harness.trace, ['claim a', 'release a', 'claim b']);
+            });
+
+            test('settled-waiter-with-release-' + suffix, t => {
+                const harness = makeHarness(t, mode, optimize, {source});
+                const a = harness.add('a');
+                const b = harness.add('b');
+                a.claim();
+                harness.advance(1000);
+                assert.deepEqual(harness.trace, ['claim a']);
+                b.claim();
+                harness.advance(1000);
+                assert.deepEqual(harness.trace, ['claim a']);
+                a.release();
+                harness.advance(5000);
+                assert.deepEqual(harness.trace, ['claim a', 'release a', 'claim b']);
+                b.release();
+                harness.advance(1000);
+                assert.deepEqual(harness.trace, ['claim a', 'release a', 'claim b', 'release b']);
+                const settledMessages = harness.messageCount();
+                harness.advance(1000);
+                assert.equal(harness.messageCount(), settledMessages,
+                    'a free baton without waiting claimants must stop holding elections');
+                a.claim();
+                harness.advance(1000);
+                assert.deepEqual(harness.trace, ['claim a', 'release a', 'claim b', 'release b', 'claim a']);
+            });
+
+            test('settled-competing-waiters-with-release-' + suffix, t => {
+                const harness = makeHarness(t, mode, optimize, {source});
+                const a = harness.add('a');
+                const b = harness.add('b');
+                const c = harness.add('c');
+                a.claim();
+                harness.advance(1000);
+                b.claim();
+                c.claim();
+                harness.advance(1000);
+                assert.deepEqual(harness.trace, ['claim a']);
+                a.release();
+                harness.advance(5000);
+                assert.equal(harness.trace.length, 3, 'exactly one waiting claimant must take ownership');
+                assert.match(harness.trace[2], /^claim [bc]$/);
+                const winner = harness.trace[2] === 'claim b' ? b : c;
+                const first = winner === b ? 'b' : 'c';
+                const next = winner === b ? 'c' : 'b';
+                winner.release();
+                harness.advance(5000);
+                assert.deepEqual(harness.trace,
+                    ['claim a', 'release a', 'claim ' + first, 'release ' + first, 'claim ' + next]);
+            });
+
+            for (const seed of [42, 8]) {
+                test('dual-parallel-with-release-' + suffix + '-seed' + seed, t => {
+                    const harness = makeHarness(t, mode, optimize, {source, seed});
+                    const a = harness.add('a');
+                    const b = harness.add('b');
+                    a.claim(() => a.release());
+                    b.claim();
+                    harness.advance(5000);
+                    const aWonFirst = harness.trace[0] === 'claim a';
+                    assert.deepEqual(harness.trace, aWonFirst
+                        ? ['claim a', 'release a', 'claim b'] : ['claim b']);
+                    b.release();
+                    harness.advance(1000);
+                    assert.deepEqual(harness.trace, aWonFirst
+                        ? ['claim a', 'release a', 'claim b', 'release b']
+                        : ['claim b', 'release b', 'claim a', 'release a']);
+                });
+            }
+        }
+    }
+
+    // Keep an actual event-loop smoke test in addition to deterministic interleavings.
+    // The runner waits for B's ownership and release, with a bounded failure timeout.
+    test('real event-loop handoff-' + source, {timeout: 5000}, async t => {
+        const harness = makeHarness(t, 'delayed', true, {source, realTime: true});
+        const a = harness.add('a');
+        const b = harness.add('b');
+        await new Promise(resolve => {
+            a.claim(() => {
+                b.claim(() => {
+                    b.release();
+                    resolve();
+                });
+                a.release();
+            });
+        });
+        // Drain follow-up elections after release before checking for duplicate events.
+        await new Promise(resolve => setTimeout(resolve, 200));
+        assert.deepEqual(harness.trace, ['claim a', 'release a', 'claim b', 'release b']);
+    });
+}

@@ -164,3 +164,7 @@ $RECYCLE.BIN/
 # Flatpak
 /repo/
 /.flatpak-builder/
+
+# Native CI caches (contain generated binaries, never test-result evidence).
+/.native-conan/
+/.native-ccache/

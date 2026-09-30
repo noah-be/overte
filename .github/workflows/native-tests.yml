@@ -1,0 +1,162 @@
+name: Native C++ checks
+
+on:
+  workflow_call:
+    inputs:
+      mode:
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    # The measured cold full build takes 69 minutes; core stays tightly bounded.
+    timeout-minutes: ${{ inputs.mode == 'full' && 90 || 15 }}
+    container:
+      image: ghcr.io/noah-be/overte/native-dependencies@sha256:a692b477cd2efdfc1f3d0f059a8eebba4852d37509a2efa945937ef2fe073373
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    env:
+      CCACHE_MAXSIZE: 2G
+      # Checkout/output mtimes must not invalidate unchanged Qt resource objects.
+      QT_RCC_SOURCE_DATE_OVERRIDE: '1'
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out candidate without credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Check out trusted selection tools
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: trusted
+          persist-credentials: false
+          sparse-checkout: |
+            .github
+            tools/native-tests
+            tools/repository-checks
+
+      - name: Initialize the container workspace
+        run: |
+          # Checkout's temporary Git configuration does not persist to shell steps.
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          # github.workspace expressions refer to host paths; use container paths.
+          printf 'CONAN_HOME=%s/.native-conan\nCCACHE_DIR=%s/.native-ccache\n' \
+            "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
+
+      - name: Recheck exact candidate selection
+        env:
+          EXPECTED_MODE: ${{ inputs.mode }}
+        run: |
+          python3 trusted/tools/native-tests/check.py plan --candidate . \
+            --event "$GITHUB_EVENT_PATH" --sha "$GITHUB_SHA" --report build/native-plan.json
+          python3 -c 'import json, os; assert json.load(open("build/native-plan.json"))["mode"] == os.environ["EXPECTED_MODE"] in ("core", "full")'
+
+      - name: Verify reviewed prepared dependency inputs
+        if: inputs.mode == 'full'
+        run: python3 trusted/tools/native-tests/packages.py --source . > build/native-package-identity.json
+
+      - name: Restore compiler cache
+        id: compiler-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: .native-ccache
+          key: native-ccache-babe51f7c369-v1-${{ inputs.mode }}-${{ github.sha }}
+          restore-keys: native-ccache-babe51f7c369-v1-${{ inputs.mode }}-
+
+      - name: Measure compiler cache use for this run
+        run: ccache --zero-stats
+
+      - name: Resolve prebuilt dependencies without source rebuilds
+        if: inputs.mode == 'full'
+        timeout-minutes: 10
+        run: |
+          mkdir -p "$CONAN_HOME"
+          cp -an /root/.conan2/. "$CONAN_HOME/"
+          conan install . -pr tools/conan-profiles/linux -s compiler.cppstd=gnu20 \
+            -s build_type=Release -o 'Overte/*:qt_source=system' --lockfile=tools/native-tests/conan-linux.lock --build=never --no-remote \
+            -of build/native --format=json > build/native-dependency-graph.json
+          # Preserve the existing OpenSSL provider's second-resolution workaround.
+          conan install . -pr tools/conan-profiles/linux -s compiler.cppstd=gnu20 \
+            -s build_type=Release -o 'Overte/*:qt_source=system' --lockfile=tools/native-tests/conan-linux.lock --build=never --no-remote -of build/native
+
+      - name: Configure and select affected targets
+        env:
+          NATIVE_MODE: ${{ inputs.mode }}
+        run: |
+          bash tools/native-tests/configure.sh "$NATIVE_MODE"
+          python3 trusted/tools/native-tests/select.py --source . --build build/native \
+            --plan build/native-plan.json --output build/native-selection.json
+
+      - name: Identify reusable shader outputs
+        if: inputs.mode == 'full'
+        id: shader-key
+        run: |
+          python3 trusted/tools/native-tests/shader-cache.py key --build build/native \
+            --selection build/native-selection.json --output "$GITHUB_OUTPUT"
+
+      - name: Restore generated shaders for identical inputs
+        if: inputs.mode == 'full' && steps.shader-key.outputs.key != ''
+        id: shaders
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: |
+            build/native/libraries/shaders/shaders
+            build/native/libraries/shaders/shaderDeps.json
+          key: native-shaders-babe51f7c369-v1-${{ steps.shader-key.outputs.key }}
+
+      - name: Refresh only verified shader output timestamps
+        if: inputs.mode == 'full' && steps.shaders.outputs.cache-hit == 'true'
+        run: python3 trusted/tools/native-tests/shader-cache.py refresh --build build/native
+
+      - name: Build and run selected native tests
+        run: |
+          python3 trusted/tools/native-tests/run.py --build build/native \
+            --selection build/native-selection.json --jobs 2
+
+      - name: Report compiler cache use
+        if: always()
+        run: ccache --show-stats
+
+      - name: Save successful compiler cache
+        if: success() && steps.compiler-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: .native-ccache
+          key: ${{ steps.compiler-cache.outputs.cache-primary-key }}
+
+      - name: Save successful shader outputs
+        if: success() && inputs.mode == 'full' && steps.shader-key.outputs.key != '' && steps.shaders.outputs.cache-hit != 'true'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: |
+            build/native/libraries/shaders/shaders
+            build/native/libraries/shaders/shaderDeps.json
+          key: ${{ steps.shaders.outputs.cache-primary-key }}
+
+      - name: Upload native diagnostics
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: native-test-results
+          path: |
+            build/native-plan.json
+            build/native-selection.json
+            build/native-dependency-graph.json
+            build/native-package-identity.json
+            build/native/native-ctest.xml
+            build/native/native-result.json
+            build/native/native-results
+            build/native/Testing/Temporary/LastTest.log
+          if-no-files-found: warn
+          retention-days: 7

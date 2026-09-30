@@ -59,6 +59,15 @@ void AABoxTests::testContainsPoint() {
     const glm::vec3 scale(2.34f, 7.53f, 9.14f);
     AABox box(corner, scale);
 
+    // The box is closed: all eight boundary vertices belong to it.
+    const glm::vec3 maximum = box.getMaximumPoint();
+    for (int vertex = 0; vertex < 8; ++vertex) {
+        const glm::vec3 point((vertex & 1) ? maximum.x : corner.x,
+                              (vertex & 2) ? maximum.y : corner.y,
+                              (vertex & 4) ? maximum.z : corner.z);
+        QVERIFY(box.contains(point));
+    }
+
     float delta = 0.00001f;
     glm::vec3 center = box.calcCenter();
     QCOMPARE(box.contains(center), true);

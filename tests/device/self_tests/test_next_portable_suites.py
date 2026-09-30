@@ -223,7 +223,10 @@ class NextPortableSuitesTest(unittest.TestCase):
         MockDomainControl.failure = failure
         MockDomainControl.generation = 1
         server = ThreadingHTTPServer(("127.0.0.1", 0), MockDomainControl)
-        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        # Keep fixture shutdown responsive without changing product poll or
+        # timeout settings exercised by the real harness subprocess.
+        thread = threading.Thread(
+            target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
         thread.start()
         extra = {
             "OVERTE_MOCK_E2E_STATE": str(MockDomainControl.state_path),
