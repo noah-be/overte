@@ -9,16 +9,17 @@
 //
 
 import QtQuick 2.5
-import QtQuick.Dialogs 1.2
+import QtQuick.Controls 2.3 as StandardControls
 
 import controlsUit 1.0
 
 Button {
     property var dialog;
-    property int button: StandardButton.Ok;
+    property int button: StandardControls.DialogButtonBox.Ok;
 
     color: focus ? hifi.buttons.blue : hifi.buttons.white
-    onClicked: dialog.click(button)
+    androidClickAction: function() { dialog.click(button) }
+    onClicked: { if (!usesAndroidClickAction) { dialog.click(button) } }
     visible: dialog.buttons & button
     Keys.onPressed: {
         if (!focus) {

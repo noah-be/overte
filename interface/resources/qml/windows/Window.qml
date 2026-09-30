@@ -236,6 +236,14 @@ Fadable {
 
             var targetVisibility = getTargetVisibility();
             if (targetVisibility === visible) {
+                // Visibility changes only at the fade endpoints. Reassert the
+                // requested animation target so a quick close/reopen cannot
+                // finish an old fade-out with shown still true (or vice versa).
+                if (targetVisibility) {
+                    fadeIn();
+                } else {
+                    fadeOut();
+                }
                 if (force) {
                     window.raise();
                 }

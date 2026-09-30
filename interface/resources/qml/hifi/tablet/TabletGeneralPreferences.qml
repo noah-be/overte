@@ -17,12 +17,17 @@ StackView {
     id: profileRoot
     TabletGeneralPreferencesPolicy { id: preferencesPolicy }
     initialItem: root
-    objectName: "stack"
     readonly property string semanticScreenId: "settings.general"
+    objectName: "stack"
     property string title: "General Settings"
     property alias gotoPreviousApp: root.gotoPreviousApp;
     property alias gotoPreviousAppFromScript: root.gotoPreviousAppFromScript;
     signal sendToScript(var message);
+
+    function handleTabletBack() {
+        if (depth > 1) { pop(); return true; }
+        return root.handleTabletBack();
+    }
 
     function pushSource(path) {
         var item = Qt.createComponent(Qt.resolvedUrl(path));
@@ -39,7 +44,9 @@ StackView {
 
     TabletPreferencesDialog {
         id: root
-        objectName: "TabletGeneralPreferences"
+        objectName: profileRoot.semanticScreenId
+        Accessible.role: Accessible.Client
+        Accessible.name: qsTr("General settings")
         showCategories: preferencesPolicy.allowedCategories
         categorySemanticIds: preferencesPolicy.categorySemanticIds
     }
