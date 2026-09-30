@@ -2,6 +2,9 @@
 
 This is an explicitly authorized session project, independent of the product roadmap.
 Base: fork `main`, `e6ba29f4819fefdc3b212fd00abcf9dbbb6b4999`.
+During delivery, integrated the newer fork `main` commit
+`d569930678d2edb61330a96bcdcab17ee68a732f` after exact CI identity checks
+exposed a stale GitHub base snapshot. Browser runtime remains unchanged.
 Topic: `feature/main/browser-client`. Material implementation assistance: OpenAI Codex.
 
 ## Required outcome

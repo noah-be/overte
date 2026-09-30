@@ -46,7 +46,7 @@ Last updated: 2026-09-30. **Implementation and real functional verification pass
 - `npm run test:browser`: 30 passed in Chromium and Firefox, including actual
   WebGL texture pixels, avatar movement, attached materials, held controls,
   microphone denial/cancellation, clean leave and reconnect.
-- `build/repository-checks-env/bin/python tests/run-project-tests.py --profile quick --timeout 240 --junit build/test-results/browser-client-delivery-project-tests.xml`:
+- `build/repository-checks-env/bin/python tests/run-project-tests.py --profile quick --timeout 240 --junit build/test-results/browser-client-current-main-project-tests.xml`:
   34 passed, 0 failed. This is repository/host evidence, not native coexistence.
 - Actual Chromium 153.0.8010.12, stock Chromium 154.0.8037.57, bundled Firefox 155.0 and installed Firefox
   156.0 journeys passed with an independent native participant: actual world
@@ -118,3 +118,14 @@ findings prompted a trusted-configured-origin request boundary and no-input
 disabled; remote analysis confirmed these fixes on the published head. The final gateway security/lifecycle build
 passed the actual stock Chromium 154 journey and focused binary-asset/avatar
 checks. No endurance test is authorized or required.
+
+## Updated fork base
+
+Fork `main` advanced to `d569930678d2edb61330a96bcdcab17ee68a732f` during
+delivery, integrating existing SafeLanding lifecycle work. The first final-head
+repository event carried the old base while GitHub generated a candidate from
+the new base; the exact-identity guard correctly refused it before tests. The
+current fork base was fetched and merged into this topic without conflicts or
+changes to the browser/gateway runtime. All 34 prescribed local quick checks
+passed again on the integrated base. Native/build/host gates must confirm the
+fresh exact merge candidate; no policy, guard or test is weakened.
