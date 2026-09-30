@@ -35,8 +35,10 @@
     var APP_NAME = "PLACES";
     var APP_URL = ROOT + "places.html";
     var APP_QML_URL = ROOT + "PicoPlaces.qml";
-    var useQmlApp = !PlatformInfo.has3DHTML();
     var isAndroidPhone = typeof ANDROID_PHONE_INTERFACE !== "undefined" && ANDROID_PHONE_INTERFACE;
+    // The shared flat-touch startup is also used by iOS. Keep the same native
+    // directory there even when a host can additionally display web content.
+    var useQmlApp = isAndroidPhone || !PlatformInfo.has3DHTML();
     var APP_ICON_INACTIVE = ROOT + "icons/appicon_i.png";
     var APP_ICON_ACTIVE = ROOT + "icons/appicon_a.png";
     var appStatus = false;
@@ -129,11 +131,11 @@
             appStatus = false;
         } else {
             if (useQmlApp) {
-                tablet.loadQMLSource(APP_QML_URL);
                 connectQmlEvents();
+                tablet.loadQMLSource(APP_QML_URL);
             } else {
-                tablet.gotoWebScreen(APP_URL);
                 connectWebEvents();
+                tablet.gotoWebScreen(APP_URL);
             }
             appStatus = true;
         }

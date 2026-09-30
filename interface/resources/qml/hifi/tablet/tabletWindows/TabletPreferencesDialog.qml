@@ -93,11 +93,7 @@ Item {
     }
 
     function handleTabletBack() {
-        // Match Cancel's restoration before the host returns to the previous
-        // page; navigating back must not silently retain unsaved preferences.
-        for (var i = 0; i < sections.length; ++i) {
-            sections[i].restoreAll();
-        }
+        for (var i = 0; i < sections.length; ++i) { sections[i].restoreAll(); }
         keyboard.raised = false;
         return false;
     }
@@ -317,7 +313,10 @@ Item {
                 androidClickAction: function() {
                     dialog.saveAll();
                 }
-                onClicked: { if (!usesAndroidClickAction) { dialog.saveAll(); } }
+                onClicked: {
+                    // Follow the actual base dispatch, including Apple's variant.
+                    if (!usesAndroidClickAction) { dialog.saveAll(); }
+                }
             }
 
             HifiControls.Button {
@@ -335,9 +334,14 @@ Item {
                 fontSize: preferencesLayout.compactFooter
                     ? preferencesLayout.buttonFontSize : hifi.fontSizes.buttonLabel
                 androidClickAction: function() {
-                    dialog.cancelToTabletHome();
+                    dialog.handleTabletBack();
+                    dialog.parent.sendToScript({ type: "settings.back" });
                 }
-                onClicked: { if (!usesAndroidClickAction) { dialog.restoreAll(); } }
+                onClicked: {
+                    // Preserve each platform's existing intended back route,
+                    // without running a second restore/navigation via the base.
+                    if (!usesAndroidClickAction) { dialog.restoreAll(); }
+                }
             }
         }
     }

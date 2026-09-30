@@ -9,6 +9,7 @@
 //
 
 import QtQuick 2.5
+import "TabletMenuAdapter.js" as MenuAdapter
 import QtQuick.Controls 2.3
 
 import controlsUit 1.0
@@ -23,10 +24,10 @@ Item {
     property real touchTextScale: 1.0
     property int minimumControlHeight: 0
 
-    implicitHeight: source !== null && source.visible
+    implicitHeight: source !== null && MenuAdapter.isVisible(source)
         ? Math.max(2 * label.implicitHeight, minimumControlHeight) : 0
     implicitWidth: 2 * hifi.dimensions.menuPadding.x + check.width + label.width + tail.width
-    visible: source !== null ? source.visible : false
+    visible: source !== null ? MenuAdapter.isVisible(source) : false
     // A delegate is parented to ListView's content item. Binding to that
     // parent's width forms a loop with ListView.contentWidth while delegates
     // are being created and released.
@@ -49,12 +50,12 @@ Item {
 
             width: 20
             visible: source !== null ?
-                         source.visible && source.type === 1 && source.checkable && !source.exclusiveGroup :
+                         MenuAdapter.isVisible(source) && source.type === 1 && source.checkable && !MenuAdapter.isExclusive(source) :
                          false
 
             Binding on checked {
                 value: source.checked;
-                when: source && source.type === 1 && source.checkable && !source.exclusiveGroup;
+                when: source && source.type === 1 && source.checkable && !MenuAdapter.isExclusive(source);
             }
         }
 
@@ -63,12 +64,12 @@ Item {
 
             width: 20
             visible: source !== null ?
-                         source.visible && source.type === 1 && source.checkable && source.exclusiveGroup :
+                         MenuAdapter.isVisible(source) && source.type === 1 && source.checkable && MenuAdapter.isExclusive(source) :
                          false
 
             Binding on checked {
                 value: source.checked;
-                when: source && source.type === 1 && source.checkable && source.exclusiveGroup;
+                when: source && source.type === 1 && source.checkable && MenuAdapter.isExclusive(source);
             }
         }
     }
@@ -87,8 +88,8 @@ Item {
                                     hifi.colors.baseGrayShadow50 :
         "transparent"
 
-        enabled: source !== null ? source.visible && platformEnabled && (source.type !== 0 ? source.enabled : false) : false
-        visible: source !== null ? source.visible : false
+        enabled: source !== null ? MenuAdapter.isVisible(source) && platformEnabled && (source.type !== 0 ? source.enabled : false) : false
+        visible: source !== null ? MenuAdapter.isVisible(source) : false
         wrapMode: Text.WordWrap
     }
 
@@ -99,7 +100,7 @@ Item {
             leftMargin: hifi.dimensions.menuPadding.x + check.width
             rightMargin: hifi.dimensions.menuPadding.x + tail.width
         }
-        visible: source !== null ? source.type === MenuItemType.Separator : false
+        visible: source !== null ? source.type === MenuAdapter.Separator : false
 
         Rectangle {
             anchors {
@@ -123,13 +124,13 @@ Item {
 
         RalewayLight {
             id: shortcut
-            text: source !== null ? source.shortcut ? source.shortcut : "" : ""
+            text: MenuAdapter.shortcut(source)
             size: Math.round(hifi.fontSizes.shortcutText * root.touchTextScale)
             color: hifi.colors.baseGrayShadow
             anchors.verticalCenter: parent.verticalCenter
             anchors.right: parent.right
             anchors.rightMargin: 15
-            visible: source !== null ? source.visible && text != "" : false
+            visible: source !== null ? MenuAdapter.isVisible(source) && text != "" : false
         }
 
         HiFiGlyphs {
@@ -139,7 +140,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             anchors.right: parent.right
             horizontalAlignment: Text.AlignRight
-            visible: source !== null ? source.visible && (source.type === 2) : false
+            visible: source !== null ? MenuAdapter.isVisible(source) && (source.type === 2) : false
         }
     }
 }

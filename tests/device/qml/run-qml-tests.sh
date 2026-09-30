@@ -11,6 +11,7 @@ readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly repo_root="$(cd -- "$script_dir/../../.." && pwd)"
 export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-offscreen}"
 "$qml_runner" -input "$script_dir" \
+    -import "$script_dir/imports" \
     -import "$repo_root/interface/resources/qml" \
     -import "$repo_root/scripts/system/settings/qml" \
     -o -,txt
