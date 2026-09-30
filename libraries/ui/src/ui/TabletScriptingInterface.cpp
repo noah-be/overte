@@ -712,7 +712,12 @@ bool TabletProxy::handleAndroidTabletBack() {
         // replace its content; passing its reduced size back through
         // the presenter entry point would apply the safety inset a second time and
         // make the tablet drift toward the top-left after every Back gesture.
-        gotoHomeScreen();
+        QVariant handled;
+        if (!_desktopWindow || !_desktopWindow->asQuickItem() ||
+                !QMetaObject::invokeMethod(_desktopWindow->asQuickItem(), "returnToPreviousSemanticScreen",
+                    Q_RETURN_ARG(QVariant, handled)) || !handled.toBool()) {
+            gotoHomeScreen();
+        }
     } else {
         hideAndroidTablet();
     }
@@ -972,8 +977,10 @@ void TabletProxy::loadHomeScreen(bool forceOntoHomeScreen) {
             if (_androidScreenSpaceMode) {
                 auto root = _desktopWindow->asQuickItem();
                 if (root) {
+                    // Home is also loaded by app cleanup after tablet dismissal
+                    // (for example People). Preserve the window's shown state;
+                    // only an explicit open should reveal a closed tablet.
                     QMetaObject::invokeMethod(root, "loadSource", Q_ARG(const QVariant&, QVariant(TABLET_HOME_SOURCE_URL)));
-                    QMetaObject::invokeMethod(root, "setShown", Q_ARG(const QVariant&, QVariant(true)));
                 }
             } else
 #endif
@@ -1121,6 +1128,14 @@ OffscreenQmlSurface* TabletProxy::getTabletSurface() {
 
 
 void TabletProxy::desktopWindowClosed() {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    if (_androidScreenSpaceMode) {
+        // Home navigation keeps a screen-space tablet open. A window close
+        // must instead release the touch capture owned by tabletShown.
+        hideAndroidTablet();
+        return;
+    }
+#endif
     gotoHomeScreen();
 }
 

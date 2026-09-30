@@ -11,6 +11,17 @@ Rectangle {
     width: 480
     height: 706
 
+    function handleTabletBack() {
+        if (settings.visible) {
+            emitSendToScript({method: "revertScale", avatarScale: settings.avatarScaleBackup});
+            settings.close();
+            return true;
+        }
+        if (adjustWearables.visible) { adjustWearables.close(false); return true; }
+        if (isInManageState) { isInManageState = false; return true; }
+        return false;
+    }
+
     property bool keyboardEnabled: true
     property bool keyboardRaised: false
     property bool punctuationMode: false

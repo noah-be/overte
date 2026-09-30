@@ -554,7 +554,7 @@ void setupPreferences() {
         preferences->addPreference(preference);
     }
 
-#if defined(ANDROID_APP_PHONE_INTERFACE)
+#if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)
     static const QString AVATAR_CAMERA{ "Touch Camera Sensitivity" };
     static const QString PITCH_INPUT{ "Vertical swipe:" };
     static const QString YAW_INPUT{ "Horizontal swipe:" };

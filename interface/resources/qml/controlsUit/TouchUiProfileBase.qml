@@ -7,9 +7,11 @@ QtObject {
     property bool hoverSupported: !directTouch
     property bool hapticsSupported: false
     property bool hardwareKeyboardSupported: true
-    property bool stackedTabletHeader: false
+    property bool stackedTabletHeader: directTouch
     property bool systemImeAvailable: false
     property bool screenSpacePresentation: false
+    // UIKit may already position the render surface at the safe-content origin.
+    property bool screenSpaceOriginAtSafeArea: false
 
     property int safeInsetLeft: 0
     property int safeInsetTop: 0

@@ -9,6 +9,7 @@
 //
 
 import QtQuick 2.5
+import "TabletMenuAdapter.js" as MenuAdapter
 import TabletScriptingInterface 1.0
 
 import controlsUit 1.0 as HifiControls
@@ -34,7 +35,7 @@ FocusScope {
 
     function activateItem(menuItem, sourceItem, itemIndex) {
         if (!menuItem || !sourceItem || !menuItem.platformEnabled
-                || !sourceItem.enabled || menuItem.text === "") {
+                || !sourceItem.enabled || !MenuAdapter.isVisible(sourceItem) || menuItem.text === "") {
             return
         }
         listView.currentIndex = itemIndex
@@ -94,11 +95,11 @@ FocusScope {
             touchTextScale: touchMetrics.textScale
             minimumControlHeight: touchMetrics.adaptiveMinimumControlHeight
             activeFocusOnTab: name !== "" && item.enabled && phoneSupported
-            Accessible.role: item.type === MenuItemType.Menu
+            Accessible.role: item.type === MenuAdapter.Menu
                 ? Accessible.Button : Accessible.MenuItem
             Accessible.name: name
             Accessible.description: phoneSupported
-                ? (item.type === MenuItemType.Menu
+                ? (item.type === MenuAdapter.Menu
                     ? qsTr("Open submenu") : qsTr("Activate menu item"))
                 : qsTr("Unavailable on this device")
             Accessible.onPressAction: root.activateItem(menuItem, item, index)
@@ -174,6 +175,8 @@ FocusScope {
 
     function previousItem() { listView.currentIndex = (listView.currentIndex + listView.count - 1) % listView.count; }
     function nextItem() { listView.currentIndex = (listView.currentIndex + listView.count + 1) % listView.count; }
-    function selectCurrentItem() { if (listView.currentIndex != -1) root.selected(currentItem.source); }
+    function selectCurrentItem() {
+        if (currentItem) activateItem(currentItem, currentItem.source, listView.currentIndex);
+    }
     function previousPage() { root.parent.pop(); }
 }

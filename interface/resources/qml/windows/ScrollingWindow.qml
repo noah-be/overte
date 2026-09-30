@@ -37,6 +37,8 @@ Windows.Window {
     property bool keyboardRaised: false
     property bool punctuationMode: false
 
+    property bool contentFlickableInteractive: true
+
     readonly property real verticalScrollWidth: 10
     readonly property real verticalScrollShaft: 8
 
@@ -72,6 +74,7 @@ Windows.Window {
 
         Flickable {
             id: scrollView
+            interactive: window.contentFlickableInteractive
             contentItem.children: [ content ]
             contentHeight: content.height
             boundsBehavior: Flickable.StopAtBounds

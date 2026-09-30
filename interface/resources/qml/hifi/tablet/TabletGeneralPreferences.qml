@@ -24,6 +24,11 @@ StackView {
     property alias gotoPreviousAppFromScript: root.gotoPreviousAppFromScript;
     signal sendToScript(var message);
 
+    function handleTabletBack() {
+        if (depth > 1) { pop(); return true; }
+        return root.handleTabletBack();
+    }
+
     function pushSource(path) {
         var item = Qt.createComponent(Qt.resolvedUrl(path));
         profileRoot.push(item);
