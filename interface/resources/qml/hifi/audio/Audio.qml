@@ -23,6 +23,7 @@ import "./" as AudioControls
 
 Rectangle {
     id: root;
+    property bool tabletNavigationProvided: false
     objectName: "settings.audio"
     Accessible.role: Accessible.Client
     Accessible.name: qsTr("Audio settings")
@@ -51,7 +52,7 @@ Rectangle {
     HifiControlsUit.Button {
         id: semanticBackButton
         objectName: "nav.back"
-        visible: touchConfiguration.directTouch
+        visible: touchConfiguration.directTouch && !root.tabletNavigationProvided
         z: 1000
         text: qsTr("Back")
         width: Math.max(88, touchConfiguration.minimumControlHeight * 2)
@@ -838,7 +839,7 @@ Rectangle {
             RalewayRegular {
                 anchors.fill: parent
                 visible: touchConfiguration.systemManagedAudioInput
-                text: qsTr("Android uses the active microphone on your phone or connected headset.")
+                text: qsTr("Uses the active microphone on your device or connected headset.")
                 color: hifi.colors.white
                 size: Math.round(16 * touchConfiguration.textScale)
                 wrapMode: Text.WordWrap
@@ -938,7 +939,7 @@ Rectangle {
             RalewayRegular {
                 anchors.fill: parent
                 visible: touchConfiguration.systemManagedAudioOutput
-                text: qsTr("Android plays sound through your phone speaker or connected audio device.")
+                text: qsTr("Plays sound through your device speaker or connected audio device.")
                 color: hifi.colors.white
                 size: Math.round(16 * touchConfiguration.textScale)
                 wrapMode: Text.WordWrap

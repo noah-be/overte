@@ -21,6 +21,6 @@ HifiControls.TouchUiMetrics {
     property int maximumButtonExtent: directTouch ? 120 : 129
     property int buttonSpacing: directTouch ? 5 : 0
     property bool showCloseButton: directTouch && profile.screenSpacePresentation
-    property int closeButtonHeight: showCloseButton ? 32 : 0
+    property int closeButtonHeight: showCloseButton ? Math.max(32, adaptiveMinimumControlHeight) : 0
     property int closeButtonBottomMargin: showCloseButton ? 28 : 0
 }

@@ -19,7 +19,8 @@ Item {
 		anchors.verticalCenter: parent.verticalCenter;
 		height: Math.max(40, touchMetrics.adaptiveMinimumControlHeight);
 		width: height;
-		x: currentPage == "Settings" ? -40 : 10;
+		visible: currentPage !== "Settings"
+		x: 10;
 
 		Behavior on x {
 			NumberAnimation {
@@ -58,7 +59,7 @@ Item {
 	HifiControls.Button {
 		id: semanticHomeButton
 		objectName: "nav.home"
-		visible: touchMetrics.directTouch && currentPage === "Settings"
+		visible: touchMetrics.directTouch && currentPage === "Settings" && !tabletNavigationProvided
 		text: qsTr("Home")
 		width: Math.max(88, touchMetrics.adaptiveMinimumControlHeight * 2)
 		height: Math.max(44, touchMetrics.adaptiveMinimumControlHeight)
