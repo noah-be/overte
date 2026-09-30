@@ -28,8 +28,12 @@ assert.deepStrictEqual(sanitize(100, -100, -100),
 const settings = production("scripts/system/settings/Settings.qml");
 const baseConfiguration = production(
     "scripts/system/settings/qml/SettingsTouchConfiguration.qml");
-const phoneConfiguration = production(
+// During shared tablet propagation Phone can use its legacy selector or the
+// shared default. Both must keep Pico-only interaction settings unavailable.
+const phoneConfigurationPath = path.join(repository,
     "scripts/system/settings/qml/+android_phoneInterface/SettingsTouchConfiguration.qml");
+const phoneConfiguration = fs.existsSync(phoneConfigurationPath)
+    ? fs.readFileSync(phoneConfigurationPath, "utf8") : baseConfiguration;
 const picoConfiguration = production(
     "scripts/system/settings/qml/+android_picoInterface/SettingsTouchConfiguration.qml");
 const picoSettingNumber = production(

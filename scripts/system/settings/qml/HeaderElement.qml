@@ -19,7 +19,8 @@ Item {
 		anchors.verticalCenter: parent.verticalCenter;
 		height: Math.max(40, touchMetrics.adaptiveMinimumControlHeight);
 		width: height;
-		x: currentPage == "Settings" ? -40 : 10;
+		visible: currentPage !== "Settings"
+		x: 10;
 
 		Behavior on x {
 			NumberAnimation {
@@ -90,5 +91,23 @@ Item {
 		anchors.horizontalCenter: parent.horizontalCenter;
 		anchors.verticalCenter: parent.verticalCenter;
 		horizontalAlignment: Text.AlignHCenter;
+	}
+
+	HifiControls.Button {
+		id: semanticHomeButton
+		objectName: "nav.home"
+		visible: touchMetrics.directTouch && currentPage === "Settings" && !tabletNavigationProvided
+		text: qsTr("Home")
+		width: Math.max(88, touchMetrics.adaptiveMinimumControlHeight * 2)
+		height: Math.max(44, touchMetrics.adaptiveMinimumControlHeight)
+		anchors.right: parent.right
+		anchors.rightMargin: 10
+		anchors.verticalCenter: parent.verticalCenter
+		Accessible.role: Accessible.Button
+		Accessible.name: qsTr("Tablet home")
+		Accessible.description: qsTr("Return to the tablet application list")
+		androidClickAction: function() {
+			Tablet.getTablet("com.highfidelity.interface.tablet.system").gotoHomeScreen();
+		}
 	}
 }
