@@ -92,6 +92,12 @@ Item {
         tablet.gotoHomeScreen();
     }
 
+    function handleTabletBack() {
+        for (var i = 0; i < sections.length; ++i) { sections[i].restoreAll(); }
+        keyboard.raised = false;
+        return false;
+    }
+
     function closeDialog() {
         var tablet = Tablet.getTablet("com.highfidelity.interface.tablet.system");
 
@@ -328,7 +334,8 @@ Item {
                 fontSize: preferencesLayout.compactFooter
                     ? preferencesLayout.buttonFontSize : hifi.fontSizes.buttonLabel
                 androidClickAction: function() {
-                    dialog.cancelToTabletHome();
+                    dialog.handleTabletBack();
+                    dialog.parent.sendToScript({ type: "settings.back" });
                 }
                 onClicked: {
                     // Preserve each platform's existing intended back route,
