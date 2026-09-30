@@ -1,0 +1,277 @@
+name: Prepare native baseline
+
+# Deliberately manual: missing third-party binaries must never trigger a source
+# build in an ordinary PR. Run the default-branch workflow only for reviewed fork commits.
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_sha:
+        description: "Optional reviewed commit SHA from this fork (for dependency-update PRs)"
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-dependency-preparation
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    container:
+      image: docker.io/overte/overte-server-build:2026-02-09-ubuntu-24.04-amd64@sha256:babe51f7c369e303aac67f0a9e7620707319b1d017a3ac13c4376b0d9fed056e
+    env:
+      CCACHE_MAXSIZE: 2G
+      QT_RCC_SOURCE_DATE_OVERRIDE: '1'
+      BASELINE_SHA: ${{ inputs.candidate_sha || github.sha }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Require an immutable reviewed source identity
+        run: '[[ "$BASELINE_SHA" =~ ^[0-9a-f]{40}$ ]]'
+
+      - name: Check out reviewed dependency definitions
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: noah-be/overte
+          ref: ${{ inputs.candidate_sha || github.sha }}
+          persist-credentials: false
+
+      - name: Initialize the container workspace
+        run: |
+          # Checkout's temporary Git configuration does not persist to shell steps.
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          # github.workspace expressions refer to host paths; use container paths.
+          printf 'CONAN_HOME=%s/.native-conan\nCCACHE_DIR=%s/.native-ccache\n' \
+            "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE" >> "$GITHUB_ENV"
+
+      - name: Bind preparation to the reviewed source
+        run: |
+          python3 tools/native-tests/check.py plan --candidate . --event "$GITHUB_EVENT_PATH" \
+            --sha "$BASELINE_SHA" --report build/native-plan.json
+
+      - name: Restore prepared dependencies
+        id: dependencies
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: .native-conan
+          key: native-deps-babe51f7c369-v1-${{ hashFiles('conanfile.py', 'tools/conan-profiles/linux', 'tools/native-tests/conan-linux.lock') }}
+
+      - name: Install native system prerequisites before Conan validation
+        run: |
+          apt-get update -qq
+          apt-get install -y --no-install-recommends ccache libglm-dev nlohmann-json3-dev \
+            qtbase5-private-dev qtwebengine5-dev-tools libqt5multimedia5-plugins \
+            qt5-image-formats-plugins fcitx5-frontend-qt5 qtxmlpatterns5-dev-tools \
+            qttools5-dev libqt5x11extras5-dev libqt5svg5-dev qml-module-qtwebchannel \
+            qml-module-qtquick-controls qml-module-qtquick-controls2 qml-module-qt-labs-settings \
+            qml-module-qtquick-dialogs qml-module-qtwebengine
+
+      - name: Prepare missing binaries once
+        run: |
+          mkdir -p "$CONAN_HOME"
+          cp -an /root/.conan2/. "$CONAN_HOME/"
+          conan install . -pr tools/conan-profiles/linux -s compiler.cppstd=gnu20 \
+            -s build_type=Release -o 'Overte/*:qt_source=system' --lockfile=tools/native-tests/conan-linux.lock --build=missing \
+            -c tools.build:jobs=2 -of build/native
+
+      - name: Keep only reusable package data
+        run: conan cache clean '*' --source --build --download --temp
+
+      - name: Save prepared packages before qualifying the product
+        if: steps.dependencies.outputs.cache-hit != 'true'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: .native-conan
+          key: native-deps-babe51f7c369-v1-${{ hashFiles('conanfile.py', 'tools/conan-profiles/linux', 'tools/native-tests/conan-linux.lock') }}
+
+      - name: Export portable packages without credentials or build trees
+        run: |
+          mkdir -p build/native-package
+          conan cache save '*#*:*#*' --no-source --file build/native-package/conan-packages.tgz
+          python3 - <<'PYCODE'
+          import hashlib, json, os
+          from pathlib import Path
+          files = ('conanfile.py', 'tools/conan-profiles/linux', 'tools/native-tests/conan-linux.lock')
+          archive = Path('build/native-package/conan-packages.tgz')
+          metadata = {
+              'schema': 1,
+              'repository': 'noah-be/overte',
+              'source_sha': os.environ['BASELINE_SHA'],
+              'run_id': os.environ['GITHUB_RUN_ID'],
+              'inputs': {name: hashlib.sha256(Path(name).read_bytes()).hexdigest() for name in files},
+              'archive_sha256': hashlib.file_digest(archive.open('rb'), 'sha256').hexdigest(),
+          }
+          Path('build/native-package/native-package.json').write_text(json.dumps(metadata, indent=2) + '\n')
+          PYCODE
+
+      - name: Retain packages for the separately privileged image publisher
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: native-package-inputs
+          path: build/native-package/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
+
+      - name: Recreate the published package layout before qualification
+        run: |
+          # Portable restore canonicalizes packages that were built in p/b/.
+          # Seed compiler/shader caches from the same paths the PR image uses.
+          test "$CONAN_HOME" = "$GITHUB_WORKSPACE/.native-conan"
+          portable="$(mktemp -d "$GITHUB_WORKSPACE/.native-conan-portable.XXXXXX")"
+          trap 'rm -rf "$portable"' EXIT
+          # Match the publisher's pinned base cache, including its build profile.
+          cp -a /root/.conan2/. "$portable/"
+          CONAN_HOME="$portable" conan cache restore build/native-package/conan-packages.tgz
+          rm -rf "$CONAN_HOME"
+          mv "$portable" "$CONAN_HOME"
+
+      - name: Restore the default-branch compiler cache
+        id: compiler-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: .native-ccache
+          key: native-ccache-babe51f7c369-v1-full-${{ inputs.candidate_sha || github.sha }}
+          restore-keys: native-ccache-babe51f7c369-v1-full-
+
+      - name: Measure compiler cache use for this run
+        run: ccache --zero-stats
+
+      - name: Configure the baseline
+        run: |
+          conan install . -pr tools/conan-profiles/linux -s compiler.cppstd=gnu20 \
+            -s build_type=Release -o 'Overte/*:qt_source=system' --lockfile=tools/native-tests/conan-linux.lock --build=never \
+            -of build/native --format=json > build/native-dependency-graph.json
+          bash tools/native-tests/configure.sh full
+          python3 tools/native-tests/select.py --source . --build build/native \
+            --plan build/native-plan.json --output build/native-selection.json
+
+      - name: Identify reusable shader outputs
+        id: shader-key
+        run: |
+          python3 tools/native-tests/shader-cache.py key --build build/native \
+            --selection build/native-selection.json --output "$GITHUB_OUTPUT"
+
+      - name: Restore qualified shader outputs
+        id: shaders
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: |
+            build/native/libraries/shaders/shaders
+            build/native/libraries/shaders/shaderDeps.json
+          key: native-shaders-babe51f7c369-v1-${{ steps.shader-key.outputs.key }}
+
+      - name: Refresh only verified shader output timestamps
+        if: steps.shaders.outputs.cache-hit == 'true'
+        run: python3 tools/native-tests/shader-cache.py refresh --build build/native
+
+      - name: Qualify the baseline and seed reusable compiler objects
+        run: |
+          python3 tools/native-tests/run.py --build build/native --selection build/native-selection.json --jobs 2
+          ccache --show-stats
+
+      - name: Save successful compiler cache
+        if: success() && steps.compiler-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: .native-ccache
+          key: ${{ steps.compiler-cache.outputs.cache-primary-key }}
+
+      - name: Save successful shader outputs
+        if: success() && steps.shaders.outputs.cache-hit != 'true'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: |
+            build/native/libraries/shaders/shaders
+            build/native/libraries/shaders/shaderDeps.json
+          key: ${{ steps.shaders.outputs.cache-primary-key }}
+
+      - name: Upload baseline qualification results
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: native-baseline-results
+          path: |
+            build/native-plan.json
+            build/native-dependency-graph.json
+            build/native-selection.json
+            build/native/native-ctest.xml
+            build/native/native-result.json
+            build/native/native-results
+            build/native/Testing/Temporary/LastTest.log
+          if-no-files-found: warn
+          retention-days: 7
+
+  publish:
+    name: Publish qualified native package image
+    needs: prepare
+    if: github.repository == 'noah-be/overte' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/noah-be/overte/native-dependencies:baseline-${{ inputs.candidate_sha || github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+      BASELINE_SHA: ${{ inputs.candidate_sha || github.sha }}
+    steps:
+      - name: Check out trusted image definition
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: noah-be/overte
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          sparse-checkout: tools/native-tests
+
+      - name: Download this successful preparation's portable packages
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: native-package-inputs
+          path: build/native-package
+
+      - name: Verify package identity before publishing
+        run: |
+          python3 - <<'PYCODE'
+          import hashlib, json, os
+          from pathlib import Path
+          root = Path('build/native-package')
+          metadata = json.loads((root / 'native-package.json').read_text())
+          assert metadata['schema'] == 1 and metadata['repository'] == 'noah-be/overte'
+          assert metadata['source_sha'] == os.environ['BASELINE_SHA']
+          assert metadata['run_id'] == os.environ['GITHUB_RUN_ID']
+          with (root / 'conan-packages.tgz').open('rb') as archive:
+              assert hashlib.file_digest(archive, 'sha256').hexdigest() == metadata['archive_sha256']
+          PYCODE
+          docker build --file tools/native-tests/package-image.Dockerfile --tag "$IMAGE" build/native-package
+
+      - name: Publish only to the fork's linked package
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_ACTOR: ${{ github.actor }}
+        run: |
+          test "$(docker image inspect "$IMAGE" --format '{{index .Config.Labels "org.opencontainers.image.source"}}')" = https://github.com/noah-be/overte
+          echo "$GH_TOKEN" | docker login ghcr.io --username "$GH_ACTOR" --password-stdin
+          docker push "$IMAGE"
+          docker image inspect "$IMAGE" --format '{{index .RepoDigests 0}}' > build/native-package-image.txt
+          docker pull "$(cat build/native-package-image.txt)"
+          cat build/native-package-image.txt >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove registry credentials
+        if: always()
+        run: docker logout ghcr.io
+
+      - name: Record immutable package image for review
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: native-package-image
+          path: |
+            build/native-package-image.txt
+            build/native-package/native-package.json
+          if-no-files-found: error
+          retention-days: 30

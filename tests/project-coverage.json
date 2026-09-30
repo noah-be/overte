@@ -71,7 +71,8 @@
         "libraries/render-utils"
       ],
       "automated": [
-        "repository-health"
+        "repository-health",
+        "performance-contracts"
       ],
       "native": [
         "crash-recovery-policy",
@@ -153,7 +154,8 @@
         "cmake"
       ],
       "automated": [
-        "repository-health"
+        "repository-health",
+        "native-registration"
       ],
       "native": [],
       "hardware": []
@@ -167,7 +169,8 @@
         "tools"
       ],
       "automated": [
-        "repository-health"
+        "repository-health",
+        "server-console-behavior"
       ],
       "native": [],
       "hardware": [

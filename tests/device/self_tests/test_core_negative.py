@@ -35,6 +35,7 @@ class CoreNegativeTest(unittest.TestCase):
             environment = os.environ.copy()
             environment.update({
                 "OVERTE_MOCK_E2E_STATE": str(root / "state.json"),
+                "OVERTE_DEVICE_LOCK_ROOT": str(root / "locks"),
                 "OVERTE_MOCK_E2E_FAILURES": failure,
                 "OVERTE_DEVICE_LAUNCH_SETTLE_SECONDS": "0",
                 "OVERTE_E2E_SCENE_URL": "http://fixture.invalid/scene.json",

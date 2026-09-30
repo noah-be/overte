@@ -49,8 +49,8 @@ jobs:
           [[ "$(jq -r .base.sha <<< "$actual")" == "$BASE_SHA" ]]
           [[ "$(jq -r .head.sha <<< "$actual")" == "$HEAD_SHA" ]]
           [[ "$(jq -r .merge_commit_sha <<< "$actual")" == "$MERGE_SHA" ]]
-          gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PULL_REQUEST/files" \
-            --jq '.[].filename' > changed-paths.txt
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/pulls/$PULL_REQUEST/files" \
+            | jq '[.[][] | {filename, status, previous_filename}]' > changed-files.json
       - name: Check out the immutable candidate merge without credentials
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -64,7 +64,7 @@ jobs:
         run: >-
           python3 trusted/tools/sync-test-reuse/differential.py
           --candidate candidate --profile "$PROFILE"
-          --changed-paths changed-paths.txt
+          --changed-files changed-files.json
       - name: Set up candidate Python
         if: inputs.mode == 'fallback' || inputs.profile != 'documentation'
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
@@ -75,6 +75,12 @@ jobs:
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: "22"
+      - name: Install candidate host prerequisites
+        if: inputs.mode == 'fallback' || inputs.profile != 'documentation'
+        run: |
+          sudo apt-get -o Acquire::Retries=4 update
+          sudo apt-get -o Acquire::Retries=4 install --no-install-recommends -y \
+            qml-module-qttest qtdeclarative5-dev-tools qt6-base-dev qt6-base-dev-tools pkg-config
       - name: Run product suites not covered by shared parent qualification
         if: inputs.mode == 'reuse' && inputs.profile != 'documentation'
         working-directory: candidate
@@ -84,12 +90,6 @@ jobs:
         run: >-
           python3 tests/run-project-tests.py --platform-only --timeout 240
           --junit build/test-results/sync-platform-tests.xml
-      - name: Install full-fallback QML runtime
-        if: inputs.mode == 'fallback'
-        run: |
-          sudo apt-get -o Acquire::Retries=4 update
-          sudo apt-get -o Acquire::Retries=4 install --no-install-recommends -y \
-            qml-module-qttest qtdeclarative5-dev-tools qt6-base-dev qt6-base-dev-tools
       - name: Run the complete common fallback
         if: inputs.mode == 'fallback'
         working-directory: candidate
@@ -98,9 +98,22 @@ jobs:
           GITHUB_TOKEN: ""
         run: |
           set -euo pipefail
-          python3 -m pip install --disable-pip-version-check -r ../trusted/tests/requirements-repository.txt
-          python3 tests/run-project-tests.py --profile quick --timeout 240 \
+          # Match the other complete host jobs on disposable GitHub runners.
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          unshare --user --map-root-user --net true
+          python3 -m venv build/host-tests-env
+          build/host-tests-env/bin/python -m pip install --disable-pip-version-check -r ../trusted/tests/requirements-host.txt
+          build/host-tests-env/bin/python tests/run-project-tests.py \
+            --profile host --timeout 240 --host-timeout 900 \
             --junit build/test-results/sync-fallback-project.xml
-          python3 tests/device/run_control_plane_tests.py --profile full \
-            --require-qml --timeout-seconds 900 \
-            --junit build/test-results/sync-fallback-device.xml
+      - name: Upload validation test reports
+        if: always() && (inputs.mode == 'fallback' || inputs.profile != 'documentation')
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: sync-validation-reports-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            candidate/build/test-results/*.xml
+            candidate/build/test-results/device-self-tests.json
+          if-no-files-found: warn
+          retention-days: 7
