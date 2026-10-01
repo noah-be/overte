@@ -55,6 +55,9 @@ def main():
     for name in ('LD_LIBRARY_PATH','PULSE_SOURCE','PULSE_SINK','DISPLAY'):
         env.pop(name,None)
     tools = json.loads((root/'config/host-tools.json').read_text())
+    # Tests launch the network helper with a deliberately fixed supervisor PATH.
+    # Carry the absolute helper already verified during lab preparation.
+    env['OVERTE_GATEWAY_SLIRP'] = tools['slirp']
     env['PATH']=str(Path(tools['xvfb']).parent)+os.pathsep+env['PATH']
     policy = runtime_tmp/'null-audio.pa'
     policy.write_text(f'load-module module-native-protocol-unix socket={audio} auth-anonymous=1\n'

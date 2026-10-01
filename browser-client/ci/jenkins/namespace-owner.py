@@ -10,6 +10,34 @@ import sys
 import time
 
 
+def reap_adopted_children(excluded_pid):
+    """Reap already-dead adopted children without stealing Popen's gate status.
+
+    A private PID1 is also responsible for orphans created by nested workers.
+    Never signal children here, and never use waitpid(-1) while Popen owns its
+    direct gate. The kernel validates each candidate is still our own child.
+    """
+    with Path(f'/proc/{os.getpid()}/task/{os.getpid()}/children').open('rb') as children_file:
+        data = children_file.read(65537)
+    if len(data) > 65536:
+        raise RuntimeError('CI-adopted-child-inventory-limit')
+    words = data.split()
+    if len(words) > 4096 or any(not word.isdigit() or len(word) > 10 for word in words):
+        raise RuntimeError('CI-adopted-child-inventory-invalid')
+    count = 0
+    for word in words:
+        pid = int(word)
+        if pid <= 0 or pid == excluded_pid:
+            continue
+        try:
+            reaped, _status = os.waitpid(pid, os.WNOHANG)
+            count += bool(reaped)
+        except ChildProcessError:
+            # Another normal owner may already have waited during this scan.
+            continue
+    return count
+
+
 def main():
     if os.getpid() != 1 or os.getuid() == 0:
         raise RuntimeError('CI-owner-requires-private-PID-init-and-nonroot-UID')
@@ -64,12 +92,14 @@ def main():
             stdout=log, stderr=log, start_new_session=True)
         try:
             while process.poll() is None:
+                reap_adopted_children(process.pid)
                 if cancelled:
                     os.killpg(process.pid, signal.SIGTERM)
                     try:process.wait(timeout=5)
                     except subprocess.TimeoutExpired:os.killpg(process.pid,signal.SIGKILL)
                     return 1
                 time.sleep(.1)
+            reap_adopted_children(process.pid)
             return process.returncode
         finally:
             if process.poll() is None:

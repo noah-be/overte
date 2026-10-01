@@ -1,8 +1,85 @@
 # Browser client status
 
-Last updated: 2026-10-01. **Original baseline passed; additional mandatory Tablet and online-Hub implementation in progress.**
+Last updated: 2026-10-02. **Original baseline passed; additional mandatory Tablet and online-Hub implementation in progress.**
 
 ## Current implementation and next step
+
+Current continuation (2026-10-01,22:52UTC): the reviewed isolated CI fixes are
+integrated. All 1,040 registered component tests pass without skips (10.778s),
+the production build passes, and all 34 required repository suites pass
+(167.07s). The CI owner now reaps its own adopted dead children without stealing
+the direct gate's Popen status. The verified absolute network helper is passed
+to tests; original isolation, nineteen-stage acceptance and cleanup assertions
+remain mandatory. Fixed-enum helper/owner and strict guest-rights diagnostics
+capture failures without publishing raw stderr or settings. Next: publish this
+reviewed checkpoint and execute the complete exact-source isolated Jenkins job.
+[CI preparation evidence](evidence/ci-nested-preparation-followup-20261002.json).
+
+Both private hybrid full Create stock-browser cohorts pass with exact baseline
+restoration. The separate authored-editor fixture remains timing-sensitive:
+the original first Unicode case fails twice, stage diagnostics pass all twelve,
+and explicit native-window/document readiness passes seven then fails password
+maxlength. Those actual negatives are retained; no shipping activation or
+complete Tablet claim follows. A native-only password experiment is next.
+[Private hybrid comparisons](evidence/tablet-create-hybrid-private-confirmation-20261002.json).
+
+The current standalone bitmap test passes both engines with all twelve exact
+pixel comparisons and owned-resource cleanup. The four stock Hub static-matrix
+cohorts establish no speed benefit, so reuse remains default-off. Review of
+the pending World bitmap integration also found stale pixels could be reused
+after replacing an HTML image without changing its Three Source version.
+A real regression reproduces it; weak image identity and decoded-input stamps
+must be corrected before the World GPU comparison and any activation.
+[Current bitmap ownership proof](evidence/bitmap-upload-ownership-followup-20261002.json),
+[Stock Hub matrix comparison](evidence/hub-static-model-matrices-stock-20261002.json).
+
+Current continuation (2026-10-01,22:38UTC): the private password/native-IME hybrid
+passes the unchanged full stock Chromium Create workflow: actual native Shape
+creation, Name/RGB/XYZ edits, independent native/browser agreement, genuine List
+selection/deletion and exact seven-entity restoration. Shipping and private
+source hashes remain coherent. The corresponding stock Firefox cohort is next.
+This is a private qualification result; password cancellation and the authored
+twelve-editor fixture are not yet proven, and the route is not shipping.
+
+The local CI network failure is now reproduced: the fixed supervisor PATH
+cannot resolve bare `slirp4netns`; passing the already reviewed absolute helper
+runs the real nested worker under the same five zero outer capability sets.
+Fresh subordinate namespaces regain their own setup capabilities, ruling out
+outer Bounding0 alone as the local cause. A narrow helper-path propagation fix,
+fixed-enum preparation diagnostics and owned PID1 orphan reaping are reviewed
+for integration. Hosted AppArmor remains a separate unresolved boundary.
+
+The authored Qt editor resource failure is corrected with a private relocation
+configuration. The actual runtime verifies all mandatory package paths, then
+fails its first Unicode editor case before completing the twelve-case workflow.
+A fixture-only stage diagnostic will identify the existing refusal branch;
+the original negative reports, literal predicates and editing order are retained.
+
+Current continuation (2026-10-01,22:12UTC): reviewed checkpoint
+`bc46623554c716d462b78a61f08e91f68459a3a4` is pushed to the authorized fork,
+and draft PR1023 is updated. Four short source-frozen stock Hub comparisons
+complete: both Chromium cohorts pass all four original fluidness gates; both
+Firefox cohorts fail all four. Static reuse admits64roots/384nodes and refuses
+229roots in admission1. Firefox idle scene-matrix spans increase from4.453ms
+to5.750ms while total renderer spans remain25.811/25.938ms; no causal speed
+benefit is established and the candidate remains disabled.
+
+Exact-source local Jenkins build3 now passes dependency preparation and the
+production build. Its component gate passes1026/1030 and fails the three real
+nested-network tests plus the real isolated-worker descendant-removal assertion.
+The preceding host-file, environment and read-only Xauthority checks pass.
+Cleanup and curation pass; the remaining required native stages are not run.
+The hosted pull-request run also passes unchanged AppArmor preparation, then
+fails three nested-network tests and native guest-permission persistence.
+No protection or acceptance gate is weakened.
+
+The authored real QtWebEngine editor experiment fails before its twelve cases
+with missing relocated package resources and a renderer SIGSEGV. Its owned
+renderer/display groups are stopped. The private executable needs the packaged
+Qt relocation configuration; this is separate from the previously successful
+genuine native Create and owned Qt input-guard experiments. Next: correct that
+resource initialization and execute the unchanged editor cases, then qualify
+the password/native-IME hybrid in both full stock Create workflows.
 
 Current continuation (2026-10-01,21:45UTC): all1030 registered component
 contracts pass without skips(10.697seconds), the production build passes,

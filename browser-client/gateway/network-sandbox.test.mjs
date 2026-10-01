@@ -10,6 +10,13 @@ import { once } from 'node:events';
 import { scopedNativeRelay, launchNativeNetwork } from './network-sandbox.mjs';
 import { sandboxCommand } from './worker-sandbox.mjs';
 import { terminateProcess } from './process-lifecycle.mjs';
+import { safePreparationDiagnostic } from './preparation-diagnostics.mjs';
+
+function preparationFailure(error) {
+    const diagnostic = safePreparationDiagnostic(error?.networkPreparation);
+    if (diagnostic) error.message += ' [native-preparation: ' + JSON.stringify(diagnostic) + ']';
+    return error;
+}
 
 async function request(socketPath, header) {
     const client = net.connect(socketPath);
@@ -91,6 +98,8 @@ raise SystemExit(0 if all(result.values()) else 1)
         const result = JSON.parse(await readFile(path.join(directory, 'proof.json'), 'utf8'));
         assert.ok(Object.values(result).every(value => value === true), JSON.stringify(result));
         assert.equal(network.child.exitCode, 0);
+    } catch (error) {
+        throw preparationFailure(error);
     } finally {
         await network?.release(); await Promise.all(owned.map(child => terminateProcess(child, 100)));
         await new Promise(resolve => target.close(resolve)); await rm(directory, { recursive: true, force: true });
@@ -112,13 +121,14 @@ test('abrupt gateway death also removes the actual network owner, helper and nat
           import {readFile} from 'node:fs/promises';
           import {launchNativeNetwork} from ${JSON.stringify(new URL('./network-sandbox.mjs', import.meta.url).href)};
           import {sandboxCommand} from ${JSON.stringify(new URL('./worker-sandbox.mjs', import.meta.url).href)};
+          import {safePreparationDiagnostic} from ${JSON.stringify(new URL('./preparation-diagnostics.mjs', import.meta.url).href)};
           const worker=await sandboxCommand({directory:${JSON.stringify(directory)},executable:'/usr/bin/python3',env:{PATH:'/usr/bin:/bin'}});
           const owned=[];
           const network=await launchNativeNetwork({directory:${JSON.stringify(directory)},command:worker.command,
             args:[...worker.args,'-c',${JSON.stringify(`import signal,time,pathlib; signal.signal(signal.SIGTERM,signal.SIG_IGN); pathlib.Path(${JSON.stringify(path.join(directory,'native-ready'))}).write_text('TERM-resistant native process is running'); time.sleep(600)`)}],
             env:worker.env,hostPort:40999,nativePath:'/native',slirpExecutable:${JSON.stringify(slirpExecutable)},
             signal:new AbortController().signal,
-            spawnOwned(command,args,env){const child=spawn(command,args,{env,stdio:['pipe','pipe','pipe']});owned.push(child);child.stderr.on('data',()=>{});return child;}});
+            spawnOwned(command,args,env){const child=spawn(command,args,{env,stdio:['pipe','pipe','pipe']});owned.push(child);child.stderr.on('data',()=>{});return child;}}).catch(error=>{console.log(JSON.stringify({preparationFailure:safePreparationDiagnostic(error.networkPreparation)}));throw error;});
           let nativeReady=false;
           for(let attempt=0;attempt<1000;attempt++){
             try{nativeReady=(await readFile(${JSON.stringify(path.join(directory,'native-ready'))},'utf8'))==='TERM-resistant native process is running';}catch{}
@@ -137,7 +147,14 @@ test('abrupt gateway death also removes the actual network owner, helper and nat
             parent.stdout.on('data', chunk => {
                 output += chunk.toString();
                 const line = output.split('\n').find(line => line.startsWith('{'));
-                if (line) { clearTimeout(timer); resolve(JSON.parse(line)); }
+                if (line) {
+                    clearTimeout(timer);
+                    const record = JSON.parse(line);
+                    if ('preparationFailure' in record) {
+                        const diagnostic = safePreparationDiagnostic(record.preparationFailure);
+                        reject(Error('Actual gateway fixture network preparation failed' + (diagnostic ? ': ' + JSON.stringify(diagnostic) : ' (unclassified)')));
+                    } else resolve(record);
+                }
             });
         });
         descendants.add(value.owner); descendants.add(value.helper);
@@ -209,6 +226,8 @@ raise SystemExit(0 if all(result.values()) else 1)
         assert.ok(Object.values(proof).every(value => value === true), JSON.stringify(proof));
         assert.equal(network.child.exitCode, 0);
         assert.equal(forbiddenPackets, 0);
+    } catch (error) {
+        throw preparationFailure(error);
     } finally {
         await network?.release(); await Promise.all(owned.map(child => terminateProcess(child, 100)));
         domain.close(); forbidden.close(); await rm(directory, { recursive: true, force: true });

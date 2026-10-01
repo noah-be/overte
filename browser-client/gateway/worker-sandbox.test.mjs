@@ -10,6 +10,7 @@ import path from 'node:path';
 import { once } from 'node:events';
 import { workerEnvironment, prepareWorker, sandboxCommand } from './worker-sandbox.mjs';
 import { terminateProcess } from './process-lifecycle.mjs';
+import { workerSurvivorState } from './worker-process-diagnostics.mjs';
 
 const run = promisify(execFile);
 test('native worker environment excludes operator credentials, accounts and shared desktop', () => {
@@ -175,7 +176,8 @@ test('actual isolated worker cannot read host files, sibling profiles, host proc
             survivors = survivors.filter(pid => { try { process.kill(pid, 0); return true; } catch { return false; } });
             if (survivors.length) await new Promise(resolve => setTimeout(resolve, 10));
         }
-        assert.deepEqual(survivors, [], 'Ending the owned sandbox also removes TERM-resistant namespace descendants');
+        const survivorStates = await Promise.all(survivors.map(workerSurvivorState));
+        assert.deepEqual(survivors, [], 'Ending the owned sandbox also removes TERM-resistant namespace descendants: ' + JSON.stringify(survivorStates));
     } finally {
         await Promise.all(owned.map(child => terminateProcess(child, 100)));
         for (const child of owned) assert.throws(() => process.kill(child.pid, 0), { code: 'ESRCH' });

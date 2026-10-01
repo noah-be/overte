@@ -28,6 +28,9 @@ x=module('ci_xml','create-job-xml.py')
 owner=module('ci_namespace','namespace-owner.py')
 prepare=module('ci_prepare','prepare.py')
 from test_npm_config import NpmConfig  # Include the actual npm-loader regression in this existing entry point.
+# This existing Linux contract entry point runs the actual adopted-orphan/Popen
+# status tests; npm retains its explicit Linux guard for this namespace owner.
+from test_namespace_reaping import NamespaceReaping
 
 
 class Source(unittest.TestCase):

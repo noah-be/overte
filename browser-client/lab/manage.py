@@ -20,6 +20,7 @@ import time
 import urllib.request
 import webbrowser
 from native_admin import native_admin_credential
+from guest_permissions import guest_permission_diagnostics
 from host_tools import select_tools, load_tools, preflight, tool_identities
 
 REPO = Path(__file__).resolve().parents[2]
@@ -305,7 +306,10 @@ def start(gateway=False):
         if response.status != 200:
             raise RuntimeError("Failed to lower native author to anonymous guest baseline")
     saved = json.loads((ROOT / "config/domain.json").read_text())["security"]["standard_permissions"]
-    if any(group.get(key) != guest[key] for group in saved for key in PERMISSION_KEYS):
+    guest_readback = guest_permission_diagnostics(saved, guest)
+    if not guest_readback['passed']:
+        # Only fixed public group/flag enums and booleans; never settings content.
+        print(json.dumps(guest_readback, sort_keys=True), file=sys.stderr, flush=True)
         raise RuntimeError("Saved domain guest permissions did not match the intended baseline")
     policy = {"version":1,"mode":"anonymous-baseline","domains":[{"domain":"overte://127.0.0.2:45102",
                "settingsFile":str(ROOT/"config/domain.json")} ]}
