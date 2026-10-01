@@ -1,5 +1,8 @@
 dist/
 build/
+build-embedded/
+build-embedded-world/
+build-embedded-evidence/
 test-results/
 test-results-*/
 playwright-report/

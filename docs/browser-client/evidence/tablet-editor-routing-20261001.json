@@ -1,0 +1,210 @@
+{
+  "scope": "Actual native installed Create,Settings,More GUI discovery in the isolated domain, no entitymutation, settings effects or More install claimed.",
+  "nativeVersion": "2026.04.1.f91d15a",
+  "runs": [
+    {
+      "startedAt": "2026-10-01T09:50:59.638Z",
+      "step": "create actual native UI",
+      "completed": false,
+      "entityMutations": false,
+      "sourceHashes": {
+        "start": {
+          "gateway/native-tablet.js": "007282b560bb8f31c4143f577ab4a477c45578933c08ce600ac4af876d6bc277",
+          "gateway/tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+          "tests/integration/tablet-editor-routing.mjs": "00bc89d65fce2d63783b240ad4117a8855c5474910622c7323edda790decf12b"
+        },
+        "end": {
+          "gateway/native-tablet.js": "007282b560bb8f31c4143f577ab4a477c45578933c08ce600ac4af876d6bc277",
+          "gateway/tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+          "tests/integration/tablet-editor-routing.mjs": "00bc89d65fce2d63783b240ad4117a8855c5474910622c7323edda790decf12b"
+        }
+      },
+      "screens": [
+        {
+          "name": "home",
+          "screen": "Home",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "tabletRect": {
+            "x": 0,
+            "y": 0,
+            "width": 480,
+            "height": 706
+          },
+          "pngSha256": "ee3d757ddcdcd6e868a6b9d31d609b803fb6aacf809ada2defbd2ecb800ca40f"
+        }
+      ],
+      "assertions": [],
+      "functionalAcceptance": false,
+      "browserVersion": "153.0.8010.12",
+      "failure": "page.waitForFunction: Timeout 20000ms exceeded.",
+      "finishedAt": "2026-10-01T09:51:59.532Z"
+    },
+    {
+      "startedAt": "2026-10-01T09:52:36.081Z",
+      "step": "more actual native UI",
+      "completed": false,
+      "entityMutations": false,
+      "sourceHashes": {
+        "start": {
+          "gateway/native-tablet.js": "007282b560bb8f31c4143f577ab4a477c45578933c08ce600ac4af876d6bc277",
+          "gateway/tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+          "tests/integration/tablet-editor-routing.mjs": "67adfaa0da76dc8729ebb5bb2c99c864b15702d9d7e2900899edb47319b2fddf"
+        },
+        "end": {
+          "gateway/native-tablet.js": "007282b560bb8f31c4143f577ab4a477c45578933c08ce600ac4af876d6bc277",
+          "gateway/tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+          "tests/integration/tablet-editor-routing.mjs": "67adfaa0da76dc8729ebb5bb2c99c864b15702d9d7e2900899edb47319b2fddf"
+        }
+      },
+      "screens": [
+        {
+          "name": "home",
+          "screen": "Home",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "tabletRect": {
+            "x": 0,
+            "y": 0,
+            "width": 480,
+            "height": 706
+          },
+          "pngSha256": "bcfca91fc13afb5012473e6faf237386ec77504353c609a770cffd31009cfc86"
+        },
+        {
+          "name": "create",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "tabletRect": {
+            "x": 0,
+            "y": 0,
+            "width": 480,
+            "height": 706
+          },
+          "pngSha256": "2a53115ade0a924590e3fb67b0d32aeb40f32d3d8af3baae51efda84f02b8388"
+        },
+        {
+          "name": "settings",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "tabletRect": {
+            "x": 0,
+            "y": 0,
+            "width": 480,
+            "height": 706
+          },
+          "pngSha256": "64fbb2e8b8ba07cc8679632881ff636e4ca56d5f1a48b8c3077abe4cecf9d899"
+        },
+        {
+          "name": "more",
+          "screen": "Web",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "tabletRect": {
+            "x": 0,
+            "y": 0,
+            "width": 480,
+            "height": 706
+          },
+          "pngSha256": "02f64a75f7f0dbd8d279fd8f7e765bdc267fa65f932749d8749f1795c306914c"
+        }
+      ],
+      "assertions": [
+        "Actual native Create, Settings and More screens were captured; no entity mutation or settings effect is claimed"
+      ],
+      "functionalAcceptance": false,
+      "browserVersion": "153.0.8010.12",
+      "failure": "locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#leave')\u001b[22m\n\u001b[2m    - locator resolved to <button id=\"leave\" type=\"button\">Leave</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    2 \u00d7 waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <div>\u2026</div> from <section aria-label=\"Overte tablet\">\u2026</section> subtree intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    2 \u00d7 waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - <div>\u2026</div> from <section aria-label=\"Overte tablet\">\u2026</section> subtree intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 100ms\u001b[22m\n\u001b[2m    55 \u00d7 waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m       - element is visible, enabled and stable\u001b[22m\n\u001b[2m       - scrolling into view if needed\u001b[22m\n\u001b[2m       - done scrolling\u001b[22m\n\u001b[2m       - <div>\u2026</div> from <section aria-label=\"Overte tablet\">\u2026</section> subtree intercepts pointer events\u001b[22m\n\u001b[2m     - retrying click action\u001b[22m\n\u001b[2m       - waiting 500ms\u001b[22m\n",
+      "finishedAt": "2026-10-01T09:53:56.983Z"
+    },
+    {
+      "startedAt": "2026-10-01T09:54:36.245Z",
+      "step": "more actual native UI",
+      "completed": true,
+      "entityMutations": false,
+      "sourceHashes": {
+        "start": {
+          "gateway/native-tablet.js": "007282b560bb8f31c4143f577ab4a477c45578933c08ce600ac4af876d6bc277",
+          "gateway/tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+          "tests/integration/tablet-editor-routing.mjs": "d2d38120912e606a58130a8bdb89a5b353d225011b1d31717dc48456318b42ea"
+        },
+        "end": {
+          "gateway/native-tablet.js": "007282b560bb8f31c4143f577ab4a477c45578933c08ce600ac4af876d6bc277",
+          "gateway/tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+          "tests/integration/tablet-editor-routing.mjs": "d2d38120912e606a58130a8bdb89a5b353d225011b1d31717dc48456318b42ea"
+        }
+      },
+      "screens": [
+        {
+          "name": "home",
+          "screen": "Home",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "tabletRect": {
+            "x": 0,
+            "y": 0,
+            "width": 480,
+            "height": 706
+          },
+          "pngSha256": "889127022d620489e8328df83ea9f3375acba9a80837cd62f8245fc06b99b7e2"
+        },
+        {
+          "name": "create",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "tabletRect": {
+            "x": 0,
+            "y": 0,
+            "width": 480,
+            "height": 706
+          },
+          "pngSha256": "45448a312e19fa7e9b5fac916f433ded17e7e9d7e6a06546743a3982442b2963"
+        },
+        {
+          "name": "settings",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "tabletRect": {
+            "x": 0,
+            "y": 0,
+            "width": 480,
+            "height": 706
+          },
+          "pngSha256": "e98ef2f4a60e677fb61b860ecb4058f0e26607ff0d934bb4797c34efe2e20601"
+        },
+        {
+          "name": "more",
+          "screen": "Web",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "tabletRect": {
+            "x": 0,
+            "y": 0,
+            "width": 480,
+            "height": 706
+          },
+          "pngSha256": "54427909797876a7a555026397884779bf476282f8fe01f507f609924e61e67e"
+        }
+      ],
+      "assertions": [
+        "Actual native Create, Settings and More screens were captured; no entity mutation or settings effect is claimed"
+      ],
+      "functionalAcceptance": false,
+      "browserVersion": "153.0.8010.12",
+      "finishedAt": "2026-10-01T09:55:34.687Z"
+    }
+  ]
+}

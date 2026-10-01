@@ -44,7 +44,7 @@ jobs:
       - name: Install software graphics and isolated audio backends
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libgl1-mesa-dri libglx-mesa0 mesa-utils pulseaudio xvfb xauth bubblewrap slirp4netns iproute2 python3 g++ qtbase5-dev qtdeclarative5-dev qml-module-qtquick2 qml-module-qtquick-window2
+          sudo apt-get install -y --no-install-recommends libgl1-mesa-dri libglx-mesa0 mesa-utils pulseaudio xvfb xauth bubblewrap slirp4netns iproute2 python3 g++ qtbase5-dev qtdeclarative5-dev qml-module-qtquick2 qml-module-qtquick-window2 apparmor-profiles
           task_runtime_dir="$(mktemp -d "${RUNNER_TEMP}/overte-browser-runtime.XXXXXX")"
           chmod 700 "$task_runtime_dir"
           export XDG_RUNTIME_DIR="$task_runtime_dir"
@@ -53,6 +53,12 @@ jobs:
           pactl set-default-sink overte_ci
           echo "XDG_RUNTIME_DIR=$task_runtime_dir" >> "$GITHUB_ENV"
           echo "PULSE_SERVER=unix:$task_runtime_dir/pulse/native" >> "$GITHUB_ENV"
+      - name: Preserve existing AppArmor policy and prepare exact shipped namespace profiles
+        run: |
+          python3 tools/test_prepare_apparmor_userns.py
+          sudo python3 tools/apparmor-diagnostic.py
+          sudo python3 tools/prepare-apparmor-userns.py
+          sudo python3 tools/apparmor-diagnostic.py
       - name: Test protocol, collision, audio and worker isolation contracts
         run: npm test
       - name: Build and test actual Qt Tablet composition and clipboard input
@@ -68,6 +74,15 @@ jobs:
             OVERTE_FBX_POOL_EVIDENCE="$RUNNER_TEMP/overte-fbx-pool-$engine.json" \
               node tests/integration/model-fbx-pool-proof.mjs
           done
+      - name: Prove embedded FBX decoding, shared GPU upload and actual World cancellation
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 'true'
+          GALLIUM_DRIVER: llvmpipe
+        run: |
+          npx vite build --config vite.embedded.config.mjs --configLoader native
+          npx vite build --config vite.embedded-world.config.mjs --configLoader native
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
+            bash ../browser-client/lab/run-embedded-journey.sh
       - name: Test Chromium and Firefox user interface and renderer
         # Firefox needs a display/GLX context even with software Mesa on the Ubuntu runner.
         # The null audio sink exercises real Web Audio without requiring host hardware.
@@ -95,10 +110,16 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends python3 g++ binutils rpm2cpio cpio zstd \
-            ffmpeg pulseaudio pulseaudio-utils xvfb xauth bubblewrap slirp4netns iproute2 \
-            ca-certificates libstdc++6 libgl1 libglx-mesa0 libegl1 libopengl0 libgl1-mesa-dri \
+            ffmpeg pulseaudio pulseaudio-utils xvfb xauth bubblewrap slirp4netns iproute2 apparmor-profiles \
+            ca-certificates libstdc++6 libgl-dev libgl1 libglx-mesa0 libegl1 libopengl0 libgl1-mesa-dri \
             libnss3 libasound2t64 libxcomposite1 libxdamage1 libxrandr2 libxtst6 libxss1 \
             libxcb-xinerama0 libxcb-cursor0 libxkbcommon-x11-0
+      - name: Preserve existing AppArmor policy and prepare exact shipped namespace profiles
+        run: |
+          python3 browser-client/tools/test_prepare_apparmor_userns.py
+          sudo python3 browser-client/tools/apparmor-diagnostic.py
+          sudo python3 browser-client/tools/prepare-apparmor-userns.py
+          sudo python3 browser-client/tools/apparmor-diagnostic.py
       - name: Build the reproducible production browser client
         working-directory: browser-client
         run: |
@@ -123,7 +144,7 @@ jobs:
           GALLIUM_DRIVER: llvmpipe
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
-            bash -c 'OVERTE_LAB_BROWSER_DISPLAY="$DISPLAY" node browser-client/tests/integration/real-session.mjs' \
+            bash browser-client/lab/run-core-journey.sh \
             > build/browser-lab/logs/core-chromium.log 2>&1
       - name: Actual Firefox world, native movement, interaction, voice and reconnect
         if: ${{ !cancelled() && steps.start.outcome == 'success' }}
@@ -133,7 +154,7 @@ jobs:
           GALLIUM_DRIVER: llvmpipe
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
-            bash -c 'OVERTE_LAB_BROWSER_DISPLAY="$DISPLAY" node browser-client/tests/integration/real-session.mjs' \
+            bash browser-client/lab/run-core-journey.sh \
             > build/browser-lab/logs/core-firefox.log 2>&1
       - name: Stop only recorded owned laboratory process groups
         if: always()

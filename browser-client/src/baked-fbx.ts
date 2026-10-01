@@ -485,3 +485,32 @@ function asciiProperties(source:string):Uint8Array[] {
     const result=new Uint8Array(9);result[0]='D'.charCodeAt(0);new DataView(result.buffer).setFloat64(1,numeric,true);return result;
   });
 }
+
+/** Standalone embedded-source proposal. Descriptors stay bound to this approved prepared buffer. */
+export interface EmbeddedFbxImage {digest:string;mimeType:string;bytes:ArrayBuffer}
+export interface EmbeddedFbxPreparation {buffer:ArrayBuffer;images:EmbeddedFbxImage[];counts:{converted:number;rawBytes:number;skippedOversize:number;skippedUnsupported:number}}
+export async function extractEmbeddedFbxImages(input:ArrayBuffer):Promise<EmbeddedFbxPreparation>{
+ const parsed=parseBinaryFbx(input),images:EmbeddedFbxImage[]=[],counts={converted:0,rawBytes:0,skippedOversize:0,skippedUnsupported:0};
+ if(!parsed)return {buffer:input,images,counts};
+ const records=new Map<string,EmbeddedFbxImage>();
+ const types:Record<string,string>={png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',webp:'image/webp',bmp:'image/bmp'};
+ const objects=parsed.roots.find(root=>name(root)==='Objects')?.children||[];
+ for(const video of objects){
+  if(name(video)!=='Video')continue;
+  const content=video.children.find(child=>name(child)==='Content');if(!content||content.propertyCount!==1)continue;
+  const raw=values(content)[0];if(!(raw instanceof Uint8Array)||!raw.length)continue;
+  const filename=video.children.find(child=>name(child)==='RelativeFilename')||video.children.find(child=>name(child)==='Filename');
+  const path=filename?String(values(filename)[0]):'',mimeType=types[path.split('.').pop()?.toLowerCase()||''];
+  if(!mimeType){counts.skippedUnsupported++;continue;}
+  if(raw.length>8*1024*1024||counts.converted>=64){counts.skippedOversize++;continue;}
+  const bytes=raw.slice().buffer,hash=new Uint8Array(await crypto.subtle.digest('SHA-256',bytes));
+  const digest=Array.from(hash,value=>value.toString(16).padStart(2,'0')).join(''),key=mimeType+'|'+digest;
+  if(!records.has(key)&&counts.rawBytes+raw.length>16*1024*1024){counts.skippedOversize++;continue;}
+  if(!records.has(key)){const image={digest,mimeType,bytes};records.set(key,image);images.push(image);counts.rawBytes+=bytes.byteLength;}
+  content.properties=scalar('S','overte-embedded-'+digest);counts.converted++;
+ }
+ // No embedded bytes are changed; the registered loader recovers the exact descriptor bytes.
+ const buffer=counts.converted?serializeBinaryFbx(parsed):input;
+ if(buffer.byteLength>MAX_BYTES)return {buffer:input,images:[],counts:{converted:0,rawBytes:0,skippedOversize:counts.skippedOversize+counts.converted,skippedUnsupported:counts.skippedUnsupported}};
+ return {buffer,images,counts};
+}

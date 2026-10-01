@@ -4,8 +4,54 @@ Last updated: 2026-10-01. **Original baseline passed; additional mandatory Table
 
 ## Current expanded-scope checkpoint
 
+The current unpublished continuation integrates bounded embedded FBX images into
+actual BrowserWorld. **509/509 component tests** passed with the default-off reviewed World
+zero-light integration and the actual Create route correction; **108/108 browser cases** passed with the embedded
+runtime and standalone zero-light fixture. Both stock GPU browsers passed exact
+embedded image decoding, twenty rendered frames, one shared-source upload,
+independent samplers, real model cancellation and World cleanup. Earlier fixture
+failures remain in [the curated proof](evidence/embedded-world-gpu-20261001.json).
+
+The short strict Hub cohort records **44 unique embedded images and32 cache
+hits**, compared with74/2 in the prior runtime. Chromium passed all four unchanged
+fluid/rejoin gates at47.1FPS and23.554seconds to model-task readiness. Firefox
+rejoined and synchronized within0.54mm, but failed all four fluid gates at27.1FPS;
+its task-readiness observation was21.013seconds. These are different live
+snapshots, not a causal wall-time speed guarantee. An earlier Firefox diagnostic
+fell23.52m and failed the nativeY observation; that negative run is preserved.
+See [all four runs](evidence/hub-embedded-runtime-20261001.json).
+
+The b067 hosted browser CI actually failed: Ubuntu AppArmor denied user-namespace
+mapping, and the native input compile lacked GL headers. Repository workflow
+security also found two ShellCheck SC2016 blocks. The current changes add signed
+GL/package dependencies, normal shell wrappers, and preparation of unchanged
+packaged bwrap/unshare AppArmor profiles only when their main profile is absent.
+Twelve helper contracts and eight safe evidence-curator contracts pass; no profile or sandbox requirement is weakened.
+Actual hosted rerun remains required. Local actionlint and Zizmor pass, but local
+ShellCheck is unavailable. Ubuntu ELF/plugin closure passes; the isolated GUI
+probe failed X display connection. Correcting the diagnosed CLI display-override mistake produced actual native
+protocol,GUI-script and authenticated frame-capture passes. Normal container
+namespaces remain denied; these results do not establish Ubuntu hosted
+isolation or a shared-world journey. Owned audio-child completion/timeout cleanup now passes six
+real process tests; both fresh stock Chromium154 and Firefox156 native joint flows passed all18
+checkpoints, including both synthetic voice directions, interaction, collision
+and reconnection. [Fresh evidence](evidence/core-embedded-runtime-20261001.json).
+
+The exact-zero-light actual Hub experiment passed Chromium fluidity but still
+failed Firefox fluidity and showed no measured improvement. The browser entry
+point opt-in was removed; the reviewed option remains disabled by default.
+Actual Create,Settings and More GUI discovery passed; no functional editing,
+browser graphics effect or More installation claim follows from menu capture.
+All34 prescribed repository checks passed in199.70seconds.
+
+Next: profile actual GPU/CPU rendering, complete native Create and
+browser-effective Graphics Tablet flows, verify the matching Firefox core,
+publish the reviewed
+continuation, and inspect the real hosted results. Full Tablet/native feature
+parity and Firefox fluidity remain mandatory and incomplete.
+
 The published functional baseline is on `feature/main/browser-client` at
-`e8c7523a285b688af69955b4baef4ab95660499b`, in draft PR 1023. The expanded user
+`b067c3adec126c5273420017200753ff4498043d`, in draft PR 1023. The expanded user
 scope remains active; publication is not completion of the added requirements.
 
 The current loading runtime passed **468 component tests**, a production build
@@ -39,7 +85,7 @@ The actual color cache retained 97/95 compressed textures within 64 MiB, with ge
 GPU uploads. The two separately audited KTX examples are larger than PNG over
 the network; universal bandwidth savings are not claimed. Privacy-safe source
 counters reveal 74 unique embedded Blob image URLs with only 2 cache hits in each
-first session. Bounded embedded reuse remains a separate unintegrated proposal.
+first session. Bounded embedded reuse is now integrated and separately measured above; this paragraph describes the preceding compressed-runtime cohort.
 Linear native presentation and glTF RGB helpers passed 14 CPU and 4 actual GPU cases,
 but remain unintegrated, alongside native culling/winding and GPU-timer proposals.
 Their standalone evidence does not establish runtime parity or performance.
@@ -50,7 +96,7 @@ Fedora preflight passed ten ELF checks, kernel/bubblewrap namespaces and private
 Pulse modules. Ubuntu GUI, isolation and joint native journey remain pending.
 The actual-native CI job now requires normal fail-closed preflight and unchanged
 short Chromium/Firefox core assertions, uploads only curated aggregate evidence,
-and has six passing curator contracts. Its first hosted runner result is pending.
+and has six passing curator contracts. Its first hosted runner failed as documented above; the corrective runner result is pending.
 All **34 repository checks** passed again with the actual-native CI job
 (`browser-client-native-ci-project-tests.xml`, 164.00 seconds).
 

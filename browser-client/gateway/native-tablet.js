@@ -78,6 +78,12 @@ function createBrowserTablet(config) {
     // Load the actual version-matched installed defaults alongside the browser
     // bridge. This supplies every standard tablet app and its existing behavior.
     if(config.filesDirectory&&typeof Snapshot!=='undefined'&&typeof Snapshot.setSnapshotsLocation==='function')Snapshot.setSnapshotsLocation(config.filesDirectory);
+    // The installed Create app selects qml/Edit.qml from this preference, not
+    // Tablet.toolbarMode. This is the dedicated worker's isolated settings file.
+    // Set it before defaults start so Create never opens detached native windows
+    // outside the owned tablet capture surface. Preserve the prior worker value.
+    var desktopTabletBecomesToolbar=Settings.getValue('desktopTabletBecomesToolbar',true);
+    Settings.setValue('desktopTabletBecomesToolbar',false);
     Script.load(config.defaultScriptsURL);
     tablet.toolbarMode=true;
     interval=Script.setInterval(function(){
@@ -117,6 +123,7 @@ function createBrowserTablet(config) {
             helper.fromQml.disconnect(fromQml);tablet.screenChanged.disconnect(screenChanged);
             if(config.snapshotChannel){Messages.messageReceived.disconnect(snapshotMessage);Messages.unsubscribe(config.snapshotChannel);}
             if(Audio.mutedChanged)Audio.mutedChanged.disconnect(muteChanged);helper.close();
+            Settings.setValue('desktopTabletBecomesToolbar',desktopTabletBecomesToolbar);
             renderJobs.forEach(function(saved){saved.job.enabled=saved.enabled;});renderJobs=[];}
     };
 }

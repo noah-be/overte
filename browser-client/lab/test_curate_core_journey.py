@@ -44,6 +44,22 @@ class CurationTests(unittest.TestCase):
         self.assertEqual(module.checked_commit('a'*40),'a'*40)
         for value in ('/private/secret','a'*64,'A'*40,'a'*40+'\n'):
             with self.assertRaises(ValueError):module.checked_commit(value)
+    def test_owned_audio_helper_hash_is_retained_without_broadening_paths(self):
+        raw=self.fixture()
+        runtime='browser-client/tests/integration/owned-audio-process.mjs'
+        digest='0f4ed9d41c59e5af93a7bc5451ab09d10c15ce05dbd440f5551b3d79974867a8'
+        raw['sourceSHA256']={runtime:digest,
+            '/private/profile/owned-audio-process.mjs':'a'*64,
+            'browser-client/tests/integration/unapproved-audio-helper.mjs':'b'*64,
+            runtime+'/child':'c'*64,
+            'browser-client/tests/integration/../private/token':'d'*64}
+        self.assertEqual(module.curate(raw,'chromium')['sourceSHA256'],{runtime:digest})
+    def test_owned_audio_helper_still_requires_exact_digest(self):
+        raw=self.fixture()
+        runtime='browser-client/tests/integration/owned-audio-process.mjs'
+        for invalid in ('PRIVATE_SENTINEL','0'*63,'A'*64,'0'*64+'\n'):
+            raw['sourceSHA256']={runtime:invalid}
+            self.assertEqual(module.curate(raw,'firefox')['sourceSHA256'],{})
     def test_empty_report_is_not_run_and_invalid_engine_is_rejected(self):
         self.assertEqual(module.curate({},'chromium')['status'],'not-run')
         with self.assertRaises(ValueError):module.curate({},'unexpected')

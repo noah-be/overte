@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import {preparedFbxBytes} from './embedded-fbx-protocol';
 import type {PreparedBakedFbx} from './model-fbx-pool';
 export interface CachedPreparedFbx extends PreparedBakedFbx {cacheHit:boolean}
 export type PreparedFbxProducer=(signal:AbortSignal)=>Promise<PreparedBakedFbx>;
@@ -27,7 +28,7 @@ export class PreparedFbxCache {
     if(typeof key!=='string'||!key.length||key.length>MAX_KEY||typeof producer!=='function')return Promise.reject(Error('Prepared FBX requires an exact bounded authorized source key and producer'));
     if(this.readers.size>=MAX_READERS)return Promise.reject(Error('Prepared FBX cache exceeds its 256-reader limit'));
     let cached=this.ready.get(key);
-    if(cached&&cached.value.buffer.byteLength!==cached.bytes){this.evict(key);cached=undefined;}
+    if(cached){try{if(preparedFbxBytes(cached.value).bytes!==cached.bytes)throw Error('Detached prepared resource');}catch{this.evict(key);cached=undefined;}}
     let pending=this.pending.get(key);const hit=!!cached||!!pending;
     if(!cached&&!pending&&this.pending.size>=MAX_PENDING)return Promise.reject(Error('Prepared FBX cache exceeds its 16-pending-key limit'));
     if(hit)this.hits++;else this.misses++;
@@ -46,9 +47,11 @@ export class PreparedFbxCache {
   }
   get stats(){return{hits:this.hits,misses:this.misses,bytes:this.bytes,ready:this.ready.size,active:this.pending.size,readers:this.readers.size,evictions:this.evictions,disposed:this.disposed};}
   private finish(reader:Reader,error?:unknown,value?:PreparedBakedFbx):void{
-    if(reader.settled)return;reader.settled=true;this.readers.delete(reader);reader.entry?.readers.delete(reader);
+    if(reader.settled)return;
+    let embedded={};if(value){try{embedded=preparedFbxBytes(value).fields;}catch(error){this.finish(reader,error);return;}}
+    reader.settled=true;this.readers.delete(reader);reader.entry?.readers.delete(reader);
     if(reader.onAbort)reader.signal?.removeEventListener('abort',reader.onAbort);
-    if(value)reader.resolve({buffer:value.buffer,phases:{...value.phases},cacheHit:reader.hit});
+    if(value)reader.resolve({buffer:value.buffer,phases:{...value.phases},...embedded,cacheHit:reader.hit});
     else reader.reject(error??abortError());
   }
   private deliver(reader:Reader,value:PreparedBakedFbx):void{
@@ -68,11 +71,12 @@ export class PreparedFbxCache {
     }).then(value=>{
       if(this.disposed||entry.controller.signal.aborted||this.pending.get(entry.key)!==entry)return;
       if(!(value?.buffer instanceof ArrayBuffer)||!value.buffer.byteLength||value.buffer.byteLength>256*1024*1024||!value.phases||![value.phases.materialBindingsMs,value.phases.decodeMs].every(number=>Number.isFinite(number)&&number>=0&&number<=60000))throw Error('Prepared FBX producer returned invalid bytes or phases');
+      const accounted=preparedFbxBytes(value);
       this.pending.delete(entry.key);
-      const stored:PreparedBakedFbx={buffer:value.buffer,phases:Object.freeze({materialBindingsMs:value.phases.materialBindingsMs,decodeMs:value.phases.decodeMs})};
-      if(stored.buffer.byteLength<=MAX_READY_BYTES){
-        while(this.ready.size>=MAX_READY||this.bytes+stored.buffer.byteLength>MAX_READY_BYTES)this.evict(this.ready.keys().next().value!);
-        this.ready.set(entry.key,{value:stored,bytes:stored.buffer.byteLength});this.bytes+=stored.buffer.byteLength;
+      const stored:PreparedBakedFbx={buffer:value.buffer,phases:Object.freeze({materialBindingsMs:value.phases.materialBindingsMs,decodeMs:value.phases.decodeMs}),...accounted.fields};
+      if(accounted.bytes<=MAX_READY_BYTES){
+        while(this.ready.size>=MAX_READY||this.bytes+accounted.bytes>MAX_READY_BYTES)this.evict(this.ready.keys().next().value!);
+        this.ready.set(entry.key,{value:stored,bytes:accounted.bytes});this.bytes+=accounted.bytes;
       }
       for(const reader of [...entry.readers])queueMicrotask(()=>this.deliver(reader,stored));
     }).catch(error=>{

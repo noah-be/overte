@@ -161,3 +161,14 @@ sources and bounded independent map loads; lab owns off-main-thread bounded FBX
 preparation. Preserve geometry/material semantics, cancellation/resource limits
 and admission on every cache read. Compare actual load/frame metrics and visuals
 before claiming an improvement. All earlier requirements remain active.
+
+## Loading checkpoint and next concrete integration (2026-10-01)
+
+Bounded embedded-image reuse is now integrated and genuinelyGPU/native tested.
+The strictHub cohort establishes fewer decode/upload identities, not a causal
+whole-world speed guarantee. Firefoxfluidity remains failed. Exact-zero-light
+shader optimization was actually tried and returned to defaultoff after no
+demonstrated benefit. Next integrate bounded GPU/CPU frame observation, use its
+actual measurements to select the next rendering change, and implement genuine
+Create edit/delete plus browser-effective native Tablet Graphics controls.
+HostedUbuntu corrections preserve all sandbox and acceptance gates.

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Full binary/native-material preparation stays off the visitor's render thread.
-import { adaptBakedFbx, normalizeNativeFbxTransparency } from './baked-fbx';
+import { adaptBakedFbx, normalizeNativeFbxTransparency, extractEmbeddedFbxImages } from './baked-fbx';
 import { decodePreparedBakedDraco } from './model-fbx-decoder';
 
 interface Request { type: 'prepare' | 'cancel'; id: number; buffer?: ArrayBuffer }
@@ -24,11 +24,13 @@ scope.onmessage = async ({ data }) => {
     if (owned.cancelled) return;
     scope.postMessage({id:owned.id,type:'decodeStarted'},[]);
     const decodeStarted = performance.now();
-    const buffer = await adaptBakedFbx(normalized, decodePreparedBakedDraco);
+    const embedded=await extractEmbeddedFbxImages(normalized);
+    if(owned.cancelled||active!==owned)return;
+    const buffer = await adaptBakedFbx(embedded.buffer, decodePreparedBakedDraco);
     const decodeMs = performance.now() - decodeStarted;
     if (owned.cancelled || active !== owned) return;
-    if (buffer.byteLength > 256 * 1024 * 1024) throw Error('Prepared FBX exceeds the 256 MiB output limit');
-    scope.postMessage({ id: owned.id, buffer, phases: { materialBindingsMs, decodeMs } }, [buffer]);
+    if (buffer.byteLength+embedded.counts.rawBytes > 256 * 1024 * 1024) throw Error('Prepared FBX exceeds the 256 MiB output limit');
+    scope.postMessage({ id: owned.id, buffer, embeddedImages:embedded.images, embeddedCounts:embedded.counts, phases: { materialBindingsMs, decodeMs } }, [buffer,...embedded.images.map(image=>image.bytes)]);
   } catch (error) {
     if (!owned.cancelled && active === owned) scope.postMessage({ id: owned.id, error: error instanceof Error ? error.message.slice(0, 8192) : 'Native FBX preparation failed' }, []);
   } finally { if (active === owned) active = undefined; }

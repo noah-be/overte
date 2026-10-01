@@ -13,6 +13,7 @@ import { applyNativeModelRenderState, applyNativeRenderState, cloneNativeMateria
 import { parseTexturedModel } from './model-textures';
 import { ModelResources } from './model-resources';
 import { WorldImageCache } from './world-image-cache';
+import { EmbeddedFbxImages } from './embedded-fbx-images';
 import { BakedFbxPreparePool } from './model-fbx-pool';
 import { PreparedFbxCache } from './prepared-fbx-cache';
 import { ModelLoadScheduler } from './model-load-scheduler';
@@ -22,10 +23,13 @@ import { SimulationClock } from './simulation-clock';
 import { colorTextureCandidate,readColorTextureMetadata,type TextureRole } from './color-texture-metadata';
 import { UnsupportedNativeCompression, type NativeCompressedColorCache, type CompressionCapabilities } from './native-compressed-color';
 import { batchStaticModel, inspectStaticModel, type StaticModelBatch, type StaticModelBatchInspection } from './static-model-batch';
+import { hasNativeZeroLightShader, installNativeZeroLightShader, restoreNativeZeroLightShader } from './native-zero-lights';
 export type { Avatar, Entity, Pose, Vec3 } from './world-data';
 
 export interface WorldOptions {
   resolveAsset(url: string): string;
+  /** Reviewed performance experiment, fixed for this World; disabled by default. */
+  zeroLightGuard?: boolean;
   /** Optional approved-session factory; absent means the unchanged original-image path. */
   compressedColors?(capabilities:CompressionCapabilities,worldSignal:AbortSignal):NativeCompressedColorCache;
   onPose(pose: Pose): void;
@@ -62,12 +66,16 @@ export class BrowserWorld {
   private readonly abort = new AbortController();
   private compressedColorCache?: NativeCompressedColorCache;
   private readonly imageCache = new WorldImageCache({signal:this.abort.signal});
+  private readonly embeddedFbxImages = new EmbeddedFbxImages(this.abort.signal);
+  private readonly embeddedFbxCounts={preparations:0,convertedImages:0,extractedBytes:0,skippedOversize:0,skippedUnsupported:0};
   private readonly fbxPreparePool = new BakedFbxPreparePool({signal:this.abort.signal,limit:2});
   private readonly preparedFbx = new PreparedFbxCache({signal:this.abort.signal});
   private readonly modelScheduler = new ModelLoadScheduler({signal:this.abort.signal});
   private readonly modelReaders = new WeakMap<THREE.Group,AbortController>();
   private readonly modelGeometry = new WeakMap<THREE.Group,ModelGeometryStage>();
   private readonly loadManagers = new Set<THREE.LoadingManager>();
+  private readonly zeroLightWarnings = new WeakSet<THREE.Material>();
+  private readonly zeroLightGuard: boolean;
   private readonly localLights = new Set<THREE.PointLight | THREE.SpotLight>();
   private readonly pointSlots = Array.from({ length: 8 }, () => new THREE.PointLight(0xffffff, 0));
   private readonly spotSlots = Array.from({ length: 8 }, () => new THREE.SpotLight(0xffffff, 0));
@@ -104,6 +112,7 @@ export class BrowserWorld {
   private touchMode: 'move' | 'look' = 'move';
 
   constructor(private readonly container: HTMLElement, private readonly options: WorldOptions) {
+    this.zeroLightGuard = options.zeroLightGuard === true;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -236,7 +245,7 @@ export class BrowserWorld {
       loadingModels: this.modelScheduler.stats.active, queuedModels: this.modelScheduler.stats.queued,
       compilingGraphics: this.compilingGraphics, parallelShaderCompile: this.renderer.extensions.has('KHR_parallel_shader_compile'),
       meshColliders: this.meshCollisions.size, graphicsActive: this.presentationEnabled,
-      imageLoading: this.imageCache.stats(), fbxPreparation: this.fbxPreparePool.counters,
+      imageLoading: this.imageCache.stats(), embeddedImages: {...this.embeddedFbxImages.statistics,...this.embeddedFbxCounts}, fbxPreparation: this.fbxPreparePool.counters,
       preparedFbxCache: this.preparedFbx.stats, modelScheduling: this.modelScheduler.stats,
       compressedColorLoading: this.compressedColorCache?.statistics,
       initialSurfaceWait: this.initialSurfaceWait.state,
@@ -257,6 +266,7 @@ export class BrowserWorld {
     this.compilingGraphics++;
     const started = performance.now();
     try {
+      this.prepareZeroLightShaders(root);
       await this.renderer.compileAsync(root, this.camera, this.scene);
       if (!this.disposed && root.userData.shaderRevision === revision) root.userData.shadersReady = true;
     } finally { this.compilingGraphics--; this.recordLoadPhase('shaderPrepare', started); }
@@ -341,6 +351,7 @@ export class BrowserWorld {
   }
   private prepareModelBatch(id:string,root:THREE.Group):void {
     this.restoreModelBatch(root);
+    this.prepareZeroLightShaders(root);
     const options = {materialChildren:this.hasMaterialChildren(id)};
     const candidate = inspectStaticModel(root,options);
     if (!candidate.withinBudget || !candidate.savedDrawCalls) return;
@@ -673,8 +684,11 @@ export class BrowserWorld {
       }
     }
     const manager = new THREE.LoadingManager();
-    manager.onError = () => { if (!this.disposed) this.options.onStatus('A model dependency or texture could not be loaded. The model may appear incomplete.', 'warning'); };
+    manager.onError = () => { if (!this.disposed && !signal.aborted) this.options.onStatus('A model dependency or texture could not be loaded. The model may appear incomplete.', 'warning'); };
+    let embeddedScope: ReturnType<EmbeddedFbxImages['register']> | undefined;
     manager.setURLModifier(url => {
+      const embedded=embeddedScope?.resolveURL(url);
+      if (embedded!==undefined && embedded!==url) return embedded;
       if (/^(?:data:|blob:)/i.test(url)) return url;
       const resolved = /^(?:https?:|atp:)/i.test(url) ? url : assetDependency(source, url);
       return this.options.resolveAsset(resolved);
@@ -700,17 +714,20 @@ export class BrowserWorld {
         // Cache only prepared bytes at the exact authorized asset route. A
         // producer belongs to its pending readers, not the first model instance.
         const modelURL=this.options.resolveAsset(source),prepareStarted=performance.now();
-        const {buffer}=await this.preparedFbx.get(modelURL,async producerSignal=>{
+        const prepared=await this.preparedFbx.get(modelURL,async producerSignal=>{
           const response=await fetch(modelURL,{signal:producerSignal});
           await requireAssetResponse(response,'FBX');
           const bytes=await response.arrayBuffer();
           const prepared=await this.fbxPreparePool.prepare(bytes,producerSignal);
+          if(prepared.embeddedCounts){const counts=prepared.embeddedCounts;this.embeddedFbxCounts.preparations++;this.embeddedFbxCounts.convertedImages+=counts.converted;this.embeddedFbxCounts.extractedBytes+=counts.rawBytes;this.embeddedFbxCounts.skippedOversize+=counts.skippedOversize;this.embeddedFbxCounts.skippedUnsupported+=counts.skippedUnsupported;}
           this.recordLoadDuration('fbxMaterialBindings',prepared.phases.materialBindingsMs);
           this.recordLoadDuration('fbxDecode',prepared.phases.decodeMs);
           return prepared;
         },signal);
         this.recordLoadPhase('fbxPrepareWait',prepareStarted);
         signal.throwIfAborted();
+        const {buffer}=prepared;
+        if(prepared.embeddedImages?.length) embeddedScope=this.embeddedFbxImages.register(buffer,prepared.embeddedImages,signal);
           const model = await this.parseTexturedModel(manager, () => {
             const parseStarted = performance.now();
             try {
@@ -750,7 +767,7 @@ export class BrowserWorld {
         model.userData.avatarFormat = 'obj'; return model;
       }
       throw new Error('Unsupported model format (supported: glTF, GLB, FBX, OBJ and FST mappings)');
-    } finally { signal.removeEventListener('abort',abortDependencies);this.loadManagers.delete(manager); }
+    } finally { embeddedScope?.close();signal.removeEventListener('abort',abortDependencies);this.loadManagers.delete(manager); }
   }
 
   /** FBX.parse returns before its textures; classify only fully loaded images. */
@@ -764,6 +781,10 @@ export class BrowserWorld {
 
   private async configureAlpha(material: MappedMaterial, options: NativeAlphaOptions,signal=this.abort.signal): Promise<void> {
     const started = performance.now();
+    // Only the exact registered wrapper can expose its trusted alpha parent.
+    // A foreign/copy mutation retains the original refusal and warning path.
+    const guarded = this.zeroLightGuard && hasNativeZeroLightShader(material);
+    if (guarded) restoreNativeZeroLightShader(material);
     try { await applyNativeMaterialAlpha(material, options, signal); }
     catch (error) {
       if (this.disposed || this.abort.signal.aborted||signal.aborted) throw error;
@@ -775,8 +796,37 @@ export class BrowserWorld {
       if (!this.disposed && !this.abort.signal.aborted&&!signal.aborted) {
         try { applyNativeRenderState(material); }
         catch { this.options.onStatus('A custom material shader prevented native render-state conversion; it may appear incomplete.', 'warning'); }
+        if (guarded) this.prepareZeroLightMaterial(material);
       }
       this.recordLoadPhase('textureAlpha', started);
+    }
+  }
+
+  /** Terminal material setup: fresh native/FST templates remain unwrapped
+   * through alpha/cull conversion. Guard installation precedes batch proof and
+   * shader warmup, never occurs during an aborted owner's cleanup, and does
+   * not rewrite unlit or foreign material callbacks. */
+  private prepareZeroLightShaders(root: THREE.Object3D): void {
+    if (!this.zeroLightGuard) return;
+    this.abort.signal.throwIfAborted();
+    if (this.disposed) throw new DOMException('World presentation ended', 'AbortError');
+    const materials = new Set<THREE.Material>();
+    root.traverse(object => { if (object instanceof THREE.Mesh) for (const material of Array.isArray(object.material) ? object.material : [object.material]) materials.add(material); });
+    for (const material of materials) {
+      this.abort.signal.throwIfAborted();
+      if (this.disposed) throw new DOMException('World presentation ended', 'AbortError');
+      this.prepareZeroLightMaterial(material);
+    }
+  }
+
+  private prepareZeroLightMaterial(material: THREE.Material): void {
+    if (!(material instanceof THREE.MeshStandardMaterial || material instanceof THREE.MeshPhongMaterial || material instanceof THREE.MeshLambertMaterial)) return;
+    try { installNativeZeroLightShader(material); }
+    catch {
+      if (!this.zeroLightWarnings.has(material)) {
+        this.zeroLightWarnings.add(material);
+        this.options.onStatus('A custom or unaudited material shader prevented zero-light optimization; its original rendering is retained.', 'warning');
+      }
     }
   }
 

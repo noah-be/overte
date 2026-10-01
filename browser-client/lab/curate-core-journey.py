@@ -14,7 +14,8 @@ CHECKPOINTS=('actual-domain-joined','native-sees-browser','movement-measured',
 SOURCE_FILES={f'browser-client/{name}' for name in (
  'gateway/server.mjs','gateway/native-bridge.js','gateway/process-lifecycle.mjs',
  'gateway/validation.mjs','gateway/permission-policy.mjs','dist/index.html',
- 'tests/integration/real-session.mjs','tests/integration/system-firefox.mjs','package-lock.json')}
+ 'tests/integration/real-session.mjs','tests/integration/system-firefox.mjs',
+ 'tests/integration/owned-audio-process.mjs','package-lock.json')}
 TIMESTAMP=re.compile(r'^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,6})?Z$')
 VERSION=re.compile(r'^(?:firefox/)?\d[0-9A-Za-z._+-]{0,59}$')
 DIGEST=re.compile(r'^[0-9a-f]{64}$')

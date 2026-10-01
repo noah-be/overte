@@ -12,7 +12,7 @@
     "preview": "vite preview --host 127.0.0.1",
     "gateway": "node gateway/server.mjs",
     "start": "node gateway/server.mjs",
-    "test": "tsx --test src/*.test.ts tests/*.test.ts gateway/*.test.mjs",
+    "test": "tsx --test src/*.test.ts tests/*.test.ts tests/*.test.mjs gateway/*.test.mjs",
     "test:browser": "playwright test",
     "lab:prepare": "python3 lab/manage.py prepare",
     "lab:start": "python3 lab/manage.py start --gateway",

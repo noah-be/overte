@@ -6,6 +6,7 @@ import {
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { hasNativeAlphaShader } from './native-alpha-material';
+import { hasNativeZeroLightShader } from './native-zero-lights';
 
 interface Part { mesh: Mesh; material: Material; start: number; count: number; transform: Matrix4; key: string }
 export interface StaticModelBatch {
@@ -22,7 +23,7 @@ function supportedMaterial(material: Material): boolean {
         && !(material as MeshPhysicalMaterial).transmission
         && (material.onBeforeCompile === Material.prototype.onBeforeCompile
             && material.customProgramCacheKey === Material.prototype.customProgramCacheKey
-            || hasNativeAlphaShader(material));
+            || hasNativeAlphaShader(material) || hasNativeZeroLightShader(material));
 }
 function eligibleMaterial(material: Material): boolean {
     return supportedMaterial(material) && material.visible && !material.transparent && material.opacity === 1;

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-export interface PreparedBakedFbx { buffer: ArrayBuffer; phases: { materialBindingsMs: number; decodeMs: number } }
+import {preparedFbxBytes,type EmbeddedFbxFields} from './embedded-fbx-protocol';
+export interface PreparedBakedFbx extends EmbeddedFbxFields { buffer: ArrayBuffer; phases: { materialBindingsMs: number; decodeMs: number } }
 export interface FbxPreparationWorker {
   onmessage: ((event: MessageEvent<unknown>) => void) | null;
   onerror: ((event: ErrorEvent) => void) | null;
@@ -120,8 +121,9 @@ export class BakedFbxPreparePool {
           !data.phases || ![data.phases.materialBindingsMs, data.phases.decodeMs].every(value => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 60000)) {
         failed(Error('FBX preparation worker returned invalid geometry data')); return;
       }
+      let embedded:EmbeddedFbxFields;try{embedded=preparedFbxBytes(data as PreparedBakedFbx).fields;}catch(error){failed(error instanceof Error?error:Error('Invalid embedded image message'));return;}
       const job = slot.job; slot.job = undefined;
-      this.finish(job, undefined, data as PreparedBakedFbx); this.pump();
+      this.finish(job, undefined, {buffer:data.buffer,phases:data.phases,...embedded}); this.pump();
     };
     return slot;
   }

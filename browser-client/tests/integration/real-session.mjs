@@ -4,7 +4,8 @@ import { chromium, firefox } from '@playwright/test';
 import { launchSystemFirefox } from './system-firefox.mjs';
 import assert from 'node:assert/strict';
 import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises';
-import { execFile, spawn } from 'node:child_process';
+import { execFile } from 'node:child_process';
+import { ownedAudioProcess } from './owned-audio-process.mjs';
 import { promisify } from 'node:util';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -100,7 +101,7 @@ let browser;
 try {
     await mkdir(evidenceDirectory, {recursive:true});
     evidence.sourceSHA256 = {};
-    for (const file of ['browser-client/gateway/server.mjs', 'browser-client/gateway/native-bridge.js', 'browser-client/gateway/process-lifecycle.mjs', 'browser-client/gateway/validation.mjs', 'browser-client/gateway/permission-policy.mjs', 'browser-client/dist/index.html', 'browser-client/tests/integration/real-session.mjs', 'browser-client/tests/integration/system-firefox.mjs', 'browser-client/package-lock.json']) {
+    for (const file of ['browser-client/gateway/server.mjs', 'browser-client/gateway/native-bridge.js', 'browser-client/gateway/process-lifecycle.mjs', 'browser-client/gateway/validation.mjs', 'browser-client/gateway/permission-policy.mjs', 'browser-client/dist/index.html', 'browser-client/tests/integration/real-session.mjs', 'browser-client/tests/integration/owned-audio-process.mjs', 'browser-client/tests/integration/system-firefox.mjs', 'browser-client/package-lock.json']) {
         evidence.sourceSHA256[file] = createHash('sha256').update(await readFile(path.join(repo, file))).digest('hex');
     }
     for (const file of await readdir(path.join(repo, 'browser-client/dist/assets'))) {
@@ -213,11 +214,17 @@ try {
                 outgoingNonzero:window.__labAudio.outgoingNonzero,outgoingPeak:window.__labAudio.outgoingPeak }))});
         await command({muted:false});
         const incomingBefore=await page.evaluate(()=>window.__labAudio.incomingNonzero);
-        const inject=spawn('ffmpeg',['-hide_banner','-loglevel','error','-re','-f','lavfi','-i','sine=frequency=997:sample_rate=48000','-t','9','-ac','1','-f','pulse','-device','lab_input','Native synthetic microphone'],{env:{...process.env,PULSE_SERVER:nativePulse},stdio:'ignore'});
-        await delay(1000);
-        const browserReceived=await capture(browserPulse,'browser_output.monitor',path.join(evidenceDirectory,`native-to-browser-${browserKind}.pcm`));
-        await new Promise((resolve,reject)=>{inject.once('close',code=>code===0?resolve():reject(Error(`Tone injector exit ${code}`)));});
-        await command({muted:true});
+        const inject=ownedAudioProcess('ffmpeg',['-hide_banner','-loglevel','error','-re','-f','lavfi','-i','sine=frequency=997:sample_rate=48000','-t','9','-ac','1','-f','pulse','-device','lab_input','Native synthetic microphone'],{env:{...process.env,PULSE_SERVER:nativePulse},timeoutMs:12000,graceMs:1000});
+        let browserReceived;
+        try {
+            await delay(1000);
+            browserReceived=await capture(browserPulse,'browser_output.monitor',path.join(evidenceDirectory,`native-to-browser-${browserKind}.pcm`));
+            const completed=await inject.completion;
+            assert.equal(completed.kind,'exited','The owned native tone injector finishes within its deadline');
+            assert.equal(completed.exitCode,0,'The native tone injector succeeds');
+        } finally {
+            try { await inject.stop(); } finally { await command({muted:true}); }
+        }
         assert(await page.evaluate(()=>window.__labAudio.incomingNonzero)>incomingBefore+10,'Browser receives nonzero actual native mixed audio PCM');
         assert(browserReceived.rms>.001,'Browser actual playback audio output contains native synthetic microphone signal');
         assert(browserReceived.tone997Amplitude>.001,'Browser playback contains the actual known 997Hz native microphone tone');

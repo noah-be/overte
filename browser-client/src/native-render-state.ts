@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { BackSide, DoubleSide, FrontSide, Material, Mesh, type BufferGeometry, type Object3D } from 'three';
 import { cloneNativeMaterial, hasNativeAlphaShader } from './native-alpha-material';
+import { cloneNativeMaterialWithZeroLightGuard, hasNativeZeroLightShader } from './native-zero-lights';
 
 export type NativeCullFaceMode = 'CULL_NONE' | 'CULL_FRONT' | 'CULL_BACK';
 export function nativeCullFaceMode(value: unknown): NativeCullFaceMode | undefined {
@@ -40,7 +41,7 @@ export function applyNativeRenderState(material: Material, options: { cullFaceMo
  * of the material layer. Keep each geometry's vertex-color choice separate.
  */
 export function cloneNativeMaterialForGeometry<T extends Material>(material: T, geometry: BufferGeometry): T {
-  const clone = cloneNativeMaterial(material);
+  const clone = hasNativeZeroLightShader(material) ? cloneNativeMaterialWithZeroLightGuard(material) : cloneNativeMaterial(material);
   const vertexColors = Boolean(geometry.getAttribute('color'));
   if (clone.vertexColors !== vertexColors) { clone.vertexColors = vertexColors; clone.needsUpdate = true; }
   return clone;

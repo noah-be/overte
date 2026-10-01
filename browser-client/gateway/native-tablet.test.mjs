@@ -5,12 +5,13 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
 
+function nativeContext(globals){const settings=new Map();return vm.createContext({Settings:{getValue:(key,fallback)=>settings.has(key)?settings.get(key):fallback,setValue:(key,value)=>settings.set(key,value)},...globals});}
 function signal(){const handlers=new Set();return {connect:fn=>handlers.add(fn),disconnect:fn=>handlers.delete(fn),emit:value=>{for(const fn of handlers)fn(value);},get count(){return handlers.size;}};}
 test('actual native Tablet helper loads all installed standard apps and gates captures, inputs and teardown by authority',async()=>{
     const output=[],qml=[],loads=[],timers=[],screens=[];
     const fromQml=signal(),screenChanged=signal(),mutedChanged=signal();let windowClosed=0,cleared=0;
     const nativeTablet={screenChanged,loadQMLSource:source=>screens.push(source),returnToPreviousApp:()=>screens.push('back')};
-    const context=vm.createContext({Tablet:{getTablet:()=>nativeTablet},OverlayWindow:function(){this.fromQml=fromQml;this.sendToQml=item=>qml.push(item);this.close=()=>windowClosed++;},Audio:{muted:true,mutedChanged},Script:{load:url=>loads.push(url),setTimeout:(fn,delay)=>{if(delay===0)fn();},setInterval:fn=>{timers.push(fn);return 1;},clearInterval:()=>cleared++},Date});
+    const context=nativeContext({Tablet:{getTablet:()=>nativeTablet},OverlayWindow:function(){this.fromQml=fromQml;this.sendToQml=item=>qml.push(item);this.close=()=>windowClosed++;},Audio:{muted:true,mutedChanged},Script:{load:url=>loads.push(url),setTimeout:(fn,delay)=>{if(delay===0)fn();},setInterval:fn=>{timers.push(fn);return 1;},clearInterval:()=>cleared++},Date});
     vm.runInContext(await readFile(new URL('./native-tablet.js',import.meta.url),'utf8'),context);
     const helper=context.createBrowserTablet({qmlURL:'file:///private/capture.qml',framePath:'/private/tablet.png',defaultScriptsURL:'file:///installed/defaultScripts.js',send:item=>output.push(item)});
     assert.deepEqual(loads,['file:///installed/defaultScripts.js']);
@@ -30,7 +31,7 @@ test('native worker avoids duplicate world draw jobs, retains HUD, bounds stalle
     const output=[],qml=[],timers=[];let now=1000;
     const jobs={DrawOpaqueDeferred:{enabled:true},DrawTransparentDeferred:{enabled:true},RenderHUDLayer:{enabled:true}};
     const fromQml=signal(),screenChanged=signal();
-    const context=vm.createContext({Tablet:{getTablet:()=>({screenChanged,loadQMLSource:()=>{}})},
+    const context=nativeContext({Tablet:{getTablet:()=>({screenChanged,loadQMLSource:()=>{}})},
         OverlayWindow:function(){this.fromQml=fromQml;this.sendToQml=item=>qml.push(item);this.close=()=>{};},
         Audio:{muted:true},Render:{getConfig:path=>jobs[path.split('.').at(-1)]},
         Script:{load:()=>{},setTimeout:(fn,delay)=>{if(delay===0)fn();},setInterval:fn=>{timers.push(fn);return 1;},clearInterval:()=>{}},Date:{now:()=>now}});
@@ -50,7 +51,7 @@ test('native worker avoids duplicate world draw jobs, retains HUD, bounds stalle
 test('rapid Home/open/back/revocation retain one GPU grab and stale callbacks cannot save or forward prior screens',async()=>{
     const qml=[],output=[],timers=[];let now=1000;
     const fromQml=signal(),screenChanged=signal();
-    const context=vm.createContext({Tablet:{getTablet:()=>({screenChanged,loadQMLSource:()=>{},returnToPreviousApp:()=>{}})},OverlayWindow:function(){this.fromQml=fromQml;this.sendToQml=value=>qml.push(value);this.close=()=>{};},Audio:{muted:true},Script:{load:()=>{},setTimeout:(fn,delay)=>{if(delay===0)fn();},setInterval:fn=>timers.push(fn),clearInterval:()=>{}},Date:{now:()=>now}});
+    const context=nativeContext({Tablet:{getTablet:()=>({screenChanged,loadQMLSource:()=>{},returnToPreviousApp:()=>{}})},OverlayWindow:function(){this.fromQml=fromQml;this.sendToQml=value=>qml.push(value);this.close=()=>{};},Audio:{muted:true},Script:{load:()=>{},setTimeout:(fn,delay)=>{if(delay===0)fn();},setInterval:fn=>timers.push(fn),clearInterval:()=>{}},Date:{now:()=>now}});
     vm.runInContext(await readFile(new URL('./native-tablet.js',import.meta.url),'utf8'),context);
     const helper=context.createBrowserTablet({qmlURL:'file:///capture.qml',framePath:'/private/frame',defaultScriptsURL:'file:///defaultScripts.js',send:value=>output.push(value)});
     helper.setAuthority(1,true);helper.receive({action:'open',revision:1});timers[0]();const first=qml.find(value=>value.kind==='capture');
@@ -70,7 +71,7 @@ test('rapid Home/open/back/revocation retain one GPU grab and stale callbacks ca
 });
 test('Qt callback records reach the socket only on the script queue and are suppressed after authority change or close',async()=>{
     const queued=[],timers=[],qml=[],output=[];const fromQml=signal(),screenChanged=signal();
-    const context=vm.createContext({Tablet:{getTablet:()=>({screenChanged,loadQMLSource:()=>{}})},OverlayWindow:function(){this.fromQml=fromQml;this.sendToQml=value=>qml.push(value);this.close=()=>{};},Audio:{muted:true},Script:{load:()=>{},setTimeout:(fn,delay)=>{if(delay===0)queued.push(fn);},setInterval:fn=>timers.push(fn),clearInterval:()=>{}},Date});
+    const context=nativeContext({Tablet:{getTablet:()=>({screenChanged,loadQMLSource:()=>{}})},OverlayWindow:function(){this.fromQml=fromQml;this.sendToQml=value=>qml.push(value);this.close=()=>{};},Audio:{muted:true},Script:{load:()=>{},setTimeout:(fn,delay)=>{if(delay===0)queued.push(fn);},setInterval:fn=>timers.push(fn),clearInterval:()=>{}},Date});
     vm.runInContext(await readFile(new URL('./native-tablet.js',import.meta.url),'utf8'),context);
     const helper=context.createBrowserTablet({qmlURL:'file:///capture.qml',framePath:'/private/frame',defaultScriptsURL:'file:///defaultScripts.js',send:value=>output.push(JSON.parse(JSON.stringify(value)))});
     const flush=()=>timers[0]();
@@ -83,4 +84,21 @@ test('Qt callback records reach the socket only on the script queue and are supp
     fromQml.emit({kind:'frame',revision:1,sequence:next.sequence,saved:true,width:480,height:706,surface:'tablet'});helper.setAuthority(2,false);flush();
     assert.equal(output.filter(value=>value.kind==='frameReady').length,1,'Queued former-domain pixels cannot survive revocation');
     helper.setAuthority(3,true);helper.receive({action:'open',revision:3});helper.close();const count=output.length;flush();assert.equal(output.length,count,'Closed session cannot send queued UI messages');
+});
+
+// The pinned 2026.04.1 Create app uses this native preference to choose its
+// actual tablet qml/Edit.qml instead of detached Desktop.PresentationMode.NATIVE.
+test('Create tablet routing is configured before installed defaults and restored only in the owned worker',async()=>{
+    for(const prior of [true,false]){
+        let value=prior,loads=0,closes=0;const writes=[],fromQml=signal(),screenChanged=signal();
+        const tablet={screenChanged,loadQMLSource:()=>{}};
+        const context=nativeContext({Settings:{getValue:(key,fallback)=>{assert.equal(key,'desktopTabletBecomesToolbar');assert.equal(fallback,true);return value;},setValue:(key,next)=>{assert.equal(key,'desktopTabletBecomesToolbar');value=next;writes.push(next);}},
+            Tablet:{getTablet:()=>tablet},OverlayWindow:function(){this.fromQml=fromQml;this.sendToQml=()=>{};this.close=()=>closes++;},Audio:{muted:true},Date,
+            Script:{load:()=>{loads++;assert.equal(value,false,'Create reads the tablet route when defaults start');},setTimeout:()=>{},setInterval:()=>1,clearInterval:()=>{}}});
+        vm.runInContext(await readFile(new URL('./native-tablet.js',import.meta.url),'utf8'),context);
+        const helper=context.createBrowserTablet({qmlURL:'file:///private/capture.qml',framePath:'/private/frame',defaultScriptsURL:'file:///installed/defaultScripts.js',send:()=>{}});
+        assert.equal(loads,1);assert.equal(tablet.toolbarMode,true,'Offscreen native tablet capture layout is retained');
+        helper.setAuthority(1,true);helper.receive({action:'open',revision:1});assert.equal(value,false);
+        helper.close();helper.close();assert.equal(value,prior);assert.deepEqual(writes,[false,prior]);assert.equal(closes,1);
+    }
 });
