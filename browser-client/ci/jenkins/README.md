@@ -1,0 +1,123 @@
+# Proposed isolated Jenkins native/browser qualification
+
+This is a reviewed candidate, not an actual Jenkins CI pass. No existing Jenkins
+job, node, service, device configuration or GitHub resource was modified.
+
+The helper files belong at `browser-client/ci/jenkins/` in the exact attested
+fork commit. The final pipeline refuses modified/untracked policy helpers and
+any remote other than `https://github.com/noah-be/overte`. It holds the single
+non-root agent executor for preparation, all gates, cleanup and curation.
+
+Dependencies are prepared in the job's dedicated checkout, without fixture
+startup. The Fedora path downloads/extracts the existing reviewed artifacts and
+host tools without replacing the user's audio services. Existing Node must meet
+the repository engine requirement; its actual version is recorded. Browser
+engines, npm configuration and caches are confined to the job checkout. Runtime
+environments exclude Jenkins tokens, credential bindings, desktop display,
+audio and bus settings. The actual HOME is retained without substitution.
+Each preparation command uses an ordinary private PID namespace with normal
+download networking and drops namespace capabilities before the installer.
+Parent death destroys that owned tree, including independently grouped children.
+
+The job then enters ordinary util-linux user/network/IPC/mount/PID namespaces.
+Its UID stays non-root. Setup-only namespace capabilities are retained briefly
+for private mounts/loopback, then all bounding, inherited and ambient capabilities
+are dropped before any gate. Every gate verifies zero effective/permitted/
+inherited/bounding/ambient capabilities. Native workers still create their normal nested
+boundaries; no test is skipped and no kernel/AppArmor/browser policy is disabled.
+
+Private `/tmp` is mandatory: the managed lab's displays 94/95, X sockets and lock
+files would otherwise collide with existing visitor services even with separate
+network/IPC namespaces. A pre-opened FD binds only the dedicated checkout at its
+original pathname after the private tmpfs mount. This preserves prepared absolute
+paths without copying unrelated files. Private resolver configuration affects
+only the owned mount namespace. Slirp host-loopback access stays disabled.
+
+Cancellation or timeout terminates only recorded Popen groups. The util-linux
+parent has `--kill-child=KILL`, so destroying it kills private PID-namespace init
+and the kernel removes even descendants that started their own process groups.
+Both util-linux and slirp are executed with kernel `PR_SET_PDEATHSIG(SIGKILL)`
+ownership. A parent-identity check after registration closes the startup race;
+the commands replace their helper so their recorded process identities remain
+unchanged. No Jenkins credential or cleanup cookie is copied into runtime.
+Normal completion additionally runs the unchanged recorded lab cleanup. An early
+failure, omitted engine, cancellation, duplicate/missing stage or cleanup failure
+cannot produce a complete passing gate summary.
+
+## Review and actual qualification order
+
+The CPU-only contracts pass (23 cases), including real owned-child group exit,
+hard-parent-death termination/reaping and startup-race refusal. The prior parent
+namespace-only qualification passed in 0.645 seconds on the recorded source,
+with actual nested normal isolation, all fixed ports and four zero capability
+sets. The updated parent-host namespace qualification also passed in 0.503 seconds,
+checking all five zero sets, parent-death-owned helpers, nested normal isolation
+and the private ports/tmp. Both runs truthfully used a dirty local checkout and
+reported completeCI: not-run. Installer namespace qualification initially failed
+because setup capabilities were not retained until setpriv; the corrected path
+retains setup authority, drops every capability and verifies the actual five-zero
+result before any installer. The corrected installer qualification actually passed
+as a non-root process with all five capability sets zero. Complete
+Jenkins CI, GUI and voice gates remain **not run** for this candidate.
+
+First use the explicit namespace-only smoke from a dedicated checkout. The
+operator supplies the existing reviewed slirp binary path; no credentials or
+private node selector enter this command:
+
+```sh
+python3 browser-client/ci/jenkins/run.py \
+  --repo /absolute/dedicated/authorized-checkout \
+  --source-sha EXACT_40_HEX_COMMIT --probe-only \
+  --slirp /absolute/reviewed/slirp4netns --timeout-seconds 60
+```
+
+The smoke binds the actual fixed TCP/UDP ports *inside* the owned namespace,
+checks clean private X socket/lock paths, proves namespaces differ from its
+caller, and executes nested ordinary unshare and bubblewrap. It publishes only
+`build/jenkins-browser-ci/namespace-smoke.json`, explicitly labelled
+`completeCI: not-run`. Existing host service listeners must be verified unchanged
+by the parent. Passing the smoke does not prove GUI, voice or complete CI.
+
+After the policy files are included in an exact reviewed fork commit, privately
+resolve the existing unique agent label with the official Jenkins CLI. Store its
+value only in a canonical owned mode-0600 file under a mode-0700 directory. Create
+new-job XML without printing the selector:
+
+```sh
+python3 browser-client/ci/jenkins/create-job-xml.py \
+  --agent-label-file /private/label-file --output /private/new-job.xml
+```
+
+The generator performs no Jenkins mutation. Its initial XML already declares
+SOURCE_SHA and disabled concurrent builds, so the first CLI-triggered build can
+validate its explicit parameter before the pipeline properties() step runs. After checking that the new job name
+is unused, the parent may create **only that new job** through the official CLI:
+
+```sh
+overte-jenkins create-job overte-browser-native-ci < /private/new-job.xml
+overte-jenkins build overte-browser-native-ci -p SOURCE_SHA=EXACT_40_HEX_COMMIT -s -v > /private/build-console.log 2>&1
+```
+
+Inspect the completed official CLI result and only curated artifacts. Do not
+publish node labels, paths, raw console logs, private XML, profiles, operator
+credentials, device identifiers or audio. No blanket second full run is required;
+repeat only when a failure, meaningful change or unresolved concern justifies it.
+
+All nineteen required stages must pass, including the manager-state contracts,
+both engine worker/UI gates,
+normal kernel/network preflight, an actual domain plus independent native client,
+both unchanged native/browser movement/voice/interaction/reconnect journeys,
+source immutability and owned cleanup. The duration remains zero; endurance was
+cancelled by the user. No hardware speech or public-Hub GPU fluidness is inferred.
+`CI=true` prevents Playwright reusing another server. Mesa llvmpipe is the requested
+software graphics backend; actual WebGL and pixels must pass the unchanged
+embedded/renderer gates. It is not assumed available merely from environment
+variables. Per-engine curated reports are authoritative for synthetic browser
+audio: Chromium's file input and Firefox's generated input differ. The independent
+native test source is a synthetic 997 Hz tone, without hardware speech claims.
+
+Keep the actual Noble profile failures and corrected Ubuntu native-GUI diagnostic
+visible. This candidate does not remove or replace any existing required check.
+Any eventual automated fork check publication needs separately reviewed trusted
+orchestration and full exact-commit effective-gate evidence; no agent credentials
+or public Jenkins exposure are introduced here.

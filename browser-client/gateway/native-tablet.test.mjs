@@ -6,7 +6,7 @@ import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
 
 function nativeContext(globals){const settings=new Map();return vm.createContext({Settings:{getValue:(key,fallback)=>settings.has(key)?settings.get(key):fallback,setValue:(key,value)=>settings.set(key,value)},...globals});}
-function signal(){const handlers=new Set();return {connect:fn=>handlers.add(fn),disconnect:fn=>handlers.delete(fn),emit:value=>{for(const fn of handlers)fn(value);},get count(){return handlers.size;}};}
+function signal(){const handlers=new Set();return {connect:fn=>handlers.add(fn),disconnect:fn=>handlers.delete(fn),emit:(...values)=>{for(const fn of handlers)fn(...values);},get count(){return handlers.size;}};}
 test('actual native Tablet helper loads all installed standard apps and gates captures, inputs and teardown by authority',async()=>{
     const output=[],qml=[],loads=[],timers=[],screens=[];
     const fromQml=signal(),screenChanged=signal(),mutedChanged=signal();let windowClosed=0,cleared=0;
@@ -101,4 +101,36 @@ test('Create tablet routing is configured before installed defaults and restored
         helper.setAuthority(1,true);helper.receive({action:'open',revision:1});assert.equal(value,false);
         helper.close();helper.close();assert.equal(value,prior);assert.deepEqual(writes,[false,prior]);assert.equal(closes,1);
     }
+});
+
+test('real Graphics controller uses the Tablet engine queue and is revoked before any old effective response',async()=>{
+    const fromQml=signal(),screenChanged=signal(),messageReceived=signal(),timers=[],output=[],local=[],includes=[],loads=[];
+    const channel='overte.browser.graphics.'+'1'.repeat(32);let now=1000;
+    let context;
+    context=nativeContext({Tablet:{getTablet:()=>({screenChanged,loadQMLSource:()=>{}})},OverlayWindow:function(){this.fromQml=fromQml;this.sendToQml=()=>{};this.close=()=>{};},Audio:{muted:true},Date:{now:()=>now},
+        Messages:{subscribe:()=>{},unsubscribe:()=>{},messageReceived,sendLocalMessage:(topic,text)=>local.push({topic,...JSON.parse(text)})},
+        Script:{include:url=>includes.push(url),load:url=>{assert.equal(messageReceived.count,1,'Trusted controller is ready before native Settings app starts');loads.push(url);},setTimeout:()=>{},setInterval:fn=>{timers.push(fn);return 1;},clearInterval:()=>{}}});
+    vm.runInContext(await readFile(new URL('./native-browser-graphics.js',import.meta.url),'utf8'),context);
+    vm.runInContext(await readFile(new URL('./native-tablet.js',import.meta.url),'utf8'),context);
+    const helper=context.createBrowserTablet({qmlURL:'file:///private/capture.qml',framePath:'/private/frame',defaultScriptsURL:'file:///installed/defaultScripts.js',graphics:{scriptURL:'file:///private/native-browser-graphics.js',channel,schemaVersion:1},send:value=>output.push(JSON.parse(JSON.stringify(value)))});
+    assert.deepEqual(includes,['file:///private/native-browser-graphics.js']);assert.equal(loads.length,1);assert.equal(timers.length,1,'Graphics uses the existing engine interval');
+    const ready=()=>messageReceived.emit(channel,JSON.stringify({kind:'ready'}),'native',true);
+    ready();timers[0]();assert.equal(output.filter(value=>value.kind==='graphics').length,0,'Unapproved native Settings cannot request browser effects');
+    helper.setAuthority(1,true);
+    assert.equal(output.filter(value=>value.kind==='graphics').length,0,'Local Qt Messages do not write directly to the socket');
+    timers[0]();const first=output.find(value=>value.kind==='graphics');assert.equal(first.operation,'request');assert.equal(first.revision,1);
+    const settings={version:1,fieldOfView:90,resolutionPercent:80,localLights:false,cameraClipping:true};
+    helper.receive({action:'graphicsResult',revision:2,schemaVersion:1,requestId:first.requestId,accepted:true,settings});
+    assert.equal(local.at(-1).ready,false,'Wrong-revision acknowledgement cannot enable controls');
+    helper.receive({action:'graphicsResult',revision:1,schemaVersion:1,requestId:first.requestId,accepted:true,settings});
+    assert.equal(local.at(-1).ready,true);assert.deepEqual(local.at(-1).settings,settings);
+    messageReceived.emit(channel,JSON.stringify({kind:'change',field:'resolutionPercent',value:120}),'native',true);
+    const count=output.filter(value=>value.kind==='graphics').length;
+    helper.setAuthority(2,false);timers[0]();assert.equal(output.filter(value=>value.kind==='graphics').length,count,'Queued former-world graphics request is dropped');
+    helper.receive({action:'graphicsResult',revision:1,schemaVersion:1,requestId:first.requestId+1,accepted:true,settings});assert.equal(local.at(-1).ready,false);
+    helper.setAuthority(3,true);timers[0]();const current=output.findLast(value=>value.kind==='graphics');assert.equal(current.revision,3);
+    now+=8001;timers[0]();assert.match(local.at(-1).message,/8 seconds/);assert.equal(local.at(-1).ready,false);
+    helper.receive({action:'graphicsResult',revision:3,schemaVersion:1,requestId:current.requestId,accepted:true,settings});assert.equal(local.at(-1).ready,false,'Expired acknowledgement never enables controls');
+    helper.close();helper.close();assert.equal(messageReceived.count,0);
+    ready();timers[0]();assert.equal(output.findLast(value=>value.kind==='graphics').requestId,current.requestId,'Closed native Settings cannot enqueue effects');
 });

@@ -42,6 +42,29 @@ test('runtime aliases retain their guest paths but cannot expose broad or privat
     } finally {await rm(directory,{recursive:true,force:true});}
 });
 
+test('Graphics overrides bind only six exact installed targets from the owned worker profile',async()=>{
+    const directory=await mkdtemp(path.join(tmpdir(),'overte-graphics-bind-test-'));
+    try{
+        const profile=path.join(directory,'profile'),nativeRoot=path.join(directory,'installed');await mkdir(profile);
+        const names=['settings.js','Settings.qml','qml/pages/GraphicsSettings.qml','qml/SettingSlider.qml','qml/SettingBoolean.qml','qml/SettingComboBox.qml'];
+        const overrides=[];
+        for(const [index,name] of names.entries()){
+            const source=path.join(profile,`browser-graphics-override-${index+1}${name.endsWith('.qml')?'.qml':'.js'}`),target=path.join(nativeRoot,'scripts/system/settings',name);
+            await mkdir(path.dirname(target),{recursive:true});await writeFile(source,'owned prepared adapter');await writeFile(target,'installed original');overrides.push({source,target});
+        }
+        const config={directory:profile,executable:process.execPath,env:{},roots:[nativeRoot]};
+        const launch=await sandboxCommand({...config,readOnlyOverrides:overrides});
+        for(const {source,target} of overrides){const index=launch.args.indexOf(source);assert.equal(launch.args[index-1],'--ro-bind');assert.equal(launch.args[index+1],target);assert.equal(await readFile(target,'utf8'),'installed original');}
+        await assert.rejects(sandboxCommand({...config,readOnlyOverrides:[{...overrides[0],target:overrides[1].target}]}),/Only reviewed session/);
+        const sibling=path.join(directory,'sibling');await mkdir(sibling);const otherSource=path.join(sibling,path.basename(overrides[0].source));await writeFile(otherSource,'another visitor');
+        await assert.rejects(sandboxCommand({...config,readOnlyOverrides:[{...overrides[0],source:otherSource}]}),/Only reviewed session/);
+        const arbitrary=path.join(profile,'unreviewed.qml');await writeFile(arbitrary,'arbitrary');
+        await assert.rejects(sandboxCommand({...config,readOnlyOverrides:[{...overrides[2],source:arbitrary}]}),/Only reviewed session/);
+        await rm(overrides[0].source);await symlink(overrides[1].source,overrides[0].source);
+        await assert.rejects(sandboxCommand({...config,readOnlyOverrides:[overrides[0]]}),/regular trusted script/);
+    }finally{await rm(directory,{recursive:true,force:true});}
+});
+
 test('actual isolated worker cannot read host files, sibling profiles, host process environment or shared X credentials',
     { skip: process.platform !== 'linux' }, async () => {
     const directory = await mkdtemp(path.join(tmpdir(), 'overte-worker-test-'));
@@ -59,6 +82,11 @@ test('actual isolated worker cannot read host files, sibling profiles, host proc
         await writeFile(placesSource, 'trusted fresh-admission Places adapter');
         const snapshotSource = path.join(first, 'browser-snapshot.js');
         await writeFile(snapshotSource, 'trusted browser scene snapshot adapter');
+        const graphicsOverrides=[];
+        for(const [index,name] of ['settings.js','Settings.qml','qml/pages/GraphicsSettings.qml','qml/SettingSlider.qml','qml/SettingBoolean.qml','qml/SettingComboBox.qml'].entries()){
+            const source=path.join(first,`browser-graphics-override-${index+1}${name.endsWith('.qml')?'.qml':'.js'}`),target=path.join(nativeRoot,'scripts/system/settings',name);
+            await mkdir(path.dirname(target),{recursive:true});await writeFile(source,`trusted Graphics adapter ${index}`);await writeFile(target,`original installed Graphics ${index}`);graphicsOverrides.push({source,target});
+        }
         await writeFile(path.join(second, 'private-other-session'), 'synthetic-session-secret');
         await writeFile(path.join(directory, 'private-operator-file'), 'synthetic-operator-secret');
         let xvfb = process.env.OVERTE_GATEWAY_XVFB || 'Xvfb';
@@ -68,7 +96,7 @@ test('actual isolated worker cannot read host files, sibling profiles, host proc
         try {
             for (const profile of [first, second]) workers.push(await prepareWorker({ directory: profile,
                 executable: process.execPath, nativeRoot,
-                readOnlyOverrides: profile === first ? [{ source: snapshotSource, target: snapshotTarget }, {source:placesSource,target:placesTarget}] : [],
+                readOnlyOverrides: profile === first ? [{ source: snapshotSource, target: snapshotTarget }, {source:placesSource,target:placesTarget},...graphicsOverrides] : [],
                 sourceEnvironment: { GITHUB_TOKEN: 'synthetic-secret' }, signal: new AbortController().signal,
                 spawnOwned(command, args, env) { const child = spawn(command, args, { env, stdio: 'ignore' }); owned.push(child); return child; } }));
         } finally { if (previous === undefined) delete process.env.OVERTE_GATEWAY_XVFB; else process.env.OVERTE_GATEWAY_XVFB = previous; }
@@ -91,6 +119,7 @@ test('actual isolated worker cannot read host files, sibling profiles, host proc
                 console.log(JSON.stringify({readable,ownX,otherX,otherAbstractX,secret:process.env.GITHUB_TOKEN,
                     machine:fs.readFileSync('/etc/machine-id','utf8').trim(),uid:process.getuid(),
                     nssTrust:JSON.parse(process.argv[3]).map(p=>fs.readFileSync(p).length),
+                    graphics:JSON.parse(process.argv[6]).map(filename=>({bytes:fs.readFileSync(filename,'utf8'),readOnly:(()=>{try{fs.writeFileSync(filename,'changed');return false}catch{return true}})()})),
                     places:fs.readFileSync(process.argv[5],'utf8'),placesReadOnly:(()=>{try{fs.writeFileSync(process.argv[5],'changed');return false}catch{return true}})(),
                     snapshot:fs.readFileSync(process.argv[4],'utf8'),snapshotReadOnly:(()=>{try{fs.writeFileSync(process.argv[4],'changed');return false}catch{return true}})()}));
             });`;
@@ -100,7 +129,7 @@ test('actual isolated worker cannot read host files, sibling profiles, host proc
         for (const filename of ['/usr/lib64/libnssckbi.so', '/usr/lib/x86_64-linux-gnu/libnssckbi.so']) {
             try { await access(filename); trustLibraries.push(filename); } catch { /* Distribution-specific NSS library. */ }
         }
-        const output = await run(workers[0].command, [...workers[0].args, '-e', script, JSON.stringify(forbidden), String(workers[1].display), JSON.stringify(trustLibraries), snapshotTarget, placesTarget],
+        const output = await run(workers[0].command, [...workers[0].args, '-e', script, JSON.stringify(forbidden), String(workers[1].display), JSON.stringify(trustLibraries), snapshotTarget, placesTarget,JSON.stringify(graphicsOverrides.map(value=>value.target))],
             { env: { ...workers[0].env, GITHUB_TOKEN: 'synthetic-secret' }, timeout: 10000 });
         const result = JSON.parse(output.stdout);
         assert.deepEqual(result.readable, []); assert.equal(result.secret, undefined);
@@ -111,12 +140,14 @@ test('actual isolated worker cannot read host files, sibling profiles, host proc
         assert.notEqual(result.uid, 0, 'Qt WebEngine runs without disabling its Chromium root/sandbox checks');
         assert.deepEqual(result.nssTrust, await Promise.all(trustLibraries.map(async filename => (await readFile(filename)).length)),
             'System NSS certificate trust libraries remain readable through their installed alternatives links');
+        assert.deepEqual(result.graphics,graphicsOverrides.map((_,index)=>({bytes:`trusted Graphics adapter ${index}`,readOnly:true})));
+        for(const [index,value] of graphicsOverrides.entries())assert.equal(await readFile(value.target,'utf8'),`original installed Graphics ${index}`,'The actual worker never modifies the installed Qt Settings package');
         assert.equal(result.places, 'trusted fresh-admission Places adapter'); assert.equal(result.placesReadOnly, true);
         assert.equal(await readFile(placesTarget,'utf8'), 'original installed Places script');
         assert.equal(result.snapshot, 'trusted browser scene snapshot adapter'); assert.equal(result.snapshotReadOnly, true);
         assert.equal(await readFile(snapshotTarget, 'utf8'), 'original installed snapshot script', 'The host installed script is preserved');
         await assert.rejects(sandboxCommand({ directory:first, executable:process.execPath, env:{}, roots:[nativeRoot],
-            readOnlyOverrides:[{source:snapshotSource,target:'/etc/passwd'}] }), /reviewed session Snapshot and Places adapters/);
+            readOnlyOverrides:[{source:snapshotSource,target:'/etc/passwd'}] }), /Only reviewed session Snapshot, Places and browser Graphics adapters/);
         assert.equal(await readFile(path.join(first, 'own-file'), 'utf8'), 'allowed');
         const launcher = spawn(workers[0].command, [...workers[0].args, '-e', `
             const cp=require('child_process');

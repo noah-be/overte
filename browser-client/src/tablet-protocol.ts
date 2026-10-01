@@ -1,5 +1,6 @@
 // Copyright 2026 Overte contributors
 // SPDX-License-Identifier: Apache-2.0
+import {validateBrowserGraphicsRequest,type BrowserGraphicsRequest} from '../shared/browser-graphics.mjs';
 export const MAX_TABLET_FRAME_BYTES = 4 * 1024 * 1024;
 export type TabletMessage =
     | {type:'tablet'; kind:'state'; revision:number; visible:boolean; screen:string; loading:boolean; effects?:{muted?:boolean;shield?:boolean}}
@@ -8,7 +9,8 @@ export type TabletMessage =
     | {type:'tablet';kind:'chat';revision:number;sequence:number;channel:'local'|'domain';text:string;displayName:string;senderId:string}
     | {type:'tablet';kind:'clipboard';revision:number;requestId:number;text:string}
     | {type:'tablet'; kind:'snapshot';revision:number;requestId:number;animated:boolean;aspectRatio:number}
-    | {type:'tablet'; kind:'microphone'; revision:number; muted:boolean};
+    | {type:'tablet'; kind:'microphone'; revision:number; muted:boolean}
+    | ({type:'tablet';kind:'graphics';revision:number}&BrowserGraphicsRequest);
 
 export function parseTabletMessage(value:unknown):TabletMessage {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid tablet message');
@@ -38,6 +40,8 @@ export function parseTabletMessage(value:unknown):TabletMessage {
         case 'snapshot':
             if(!Number.isSafeInteger(item.requestId)||Number(item.requestId)<1||typeof item.animated!=='boolean'||typeof item.aspectRatio!=='number'||!Number.isFinite(item.aspectRatio)||item.aspectRatio<.1||item.aspectRatio>4)throw Error('Invalid tablet snapshot');
             break;
+        case 'graphics':
+            return {type:'tablet',kind:'graphics',revision:Number(item.revision),...validateBrowserGraphicsRequest(item)};
         default: throw new Error('Unsupported tablet message');
     }
     return item as TabletMessage;

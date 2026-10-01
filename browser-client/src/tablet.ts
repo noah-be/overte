@@ -4,12 +4,14 @@ import {parseTabletMessage, type TabletMessage} from './tablet-protocol';
 import {TabletFiles} from './tablet-files';
 import {TabletSnapshots} from './tablet-snapshots';
 import {TabletClipboard} from './tablet-clipboard';
+import {validateBrowserGraphicsResult,type BrowserGraphicsResult} from '../shared/browser-graphics.mjs';
 
 export interface TabletOptions {
     send:(message:unknown)=>void;
     onStatus:(message:string)=>void;
     onVisibility:(visible:boolean)=>void;
     onMicrophoneRequest?:(muted:boolean)=>void;
+    onGraphics?:(request:Extract<TabletMessage,{kind:'graphics'}>)=>BrowserGraphicsResult|undefined;
     fileURL?:(name?:string)=>string;
     captureScene?:()=>Promise<Blob>;
 }
@@ -155,6 +157,13 @@ export class BrowserTablet {
         else if (value.kind === 'clipboard') this.clipboard.receive(value.text);
         else if (value.kind === 'snapshot') {this.show(false);void this.snapshots.capture(value);}
         else if (value.kind === 'microphone') this.options.onMicrophoneRequest?.(value.muted);
+        else if (value.kind === 'graphics') {
+            try {
+                const result=this.options.onGraphics?.(value);
+                if(result && this.connected && !this.disposed && value.revision===this.revision)
+                    this.send({action:'graphicsResult',...validateBrowserGraphicsResult(result)});
+            } catch {this.options.onStatus('The browser could not apply that graphics setting.');}
+        }
         else if (value.kind === 'frame' && value.sequence > this.frameSequence) {
             this.frameSequence=value.sequence;const generation=this.generation;
             void this.draw(value,generation);

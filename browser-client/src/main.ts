@@ -8,6 +8,8 @@ import { BrowserTablet } from './tablet';
 import { NavigationHistory, type NavigationAttempt } from './navigation-history';
 import { VisitorPreferenceStore } from './visitor-preferences';
 import { VisitorPersonaStore } from './visitor-persona';
+import { BrowserGraphicsController } from './browser-graphics-controller';
+import {validateBrowserGraphics} from '../shared/browser-graphics.mjs';
 
 const element = <T extends HTMLElement>(id:string) => document.getElementById(id) as T;
 const form = element<HTMLFormElement>('join-form');
@@ -22,6 +24,7 @@ const notice = element('notice');
 let world: BrowserWorld | undefined;
 let audio: BrowserAudio | undefined;
 let tablet: BrowserTablet | undefined;
+let graphics: BrowserGraphicsController | undefined;
 let epoch = 0;
 let entityCount = 0;
 let avatarCount = 0;
@@ -75,6 +78,7 @@ function updateMicrophone(): void {
 function reset(): void {
     if (ready && world) navigationHistory.rememberDeparture(world.getPose());
     epoch++;
+    graphics?.close();graphics=undefined;
     session.leave();
     tablet?.dispose(); tablet = undefined; tabletButton.disabled = true;
     world?.dispose();
@@ -113,6 +117,8 @@ function onMessage(message:ServerMessage): void {
             if (message.message) log(message.message);
             if (message.state === 'connecting' && ready) {
                 ready = false;
+                world?.invalidateSourceTexts();
+                graphics?.setAuthority(permissionRevision,false);
                 worldLoaded = false;
                 world?.setEnabled(false);
                 tablet?.setConnected(false); tabletButton.disabled = true;
@@ -131,6 +137,7 @@ function onMessage(message:ServerMessage): void {
                 if (navigationAttempt) navigationHistory.commit(navigationAttempt);
                 navigationAttempt = undefined;
                 if (message.permissionRevision) permissionRevision = message.permissionRevision;
+                graphics?.setAuthority(permissionRevision,true);
                 sendNavigationHistory();
                 tablet?.setConnected(true); tabletButton.disabled = false;
                 joining = false;
@@ -202,7 +209,8 @@ function onMessage(message:ServerMessage): void {
         case 'warning': log(message.message, 'warning'); break;
         case 'interaction': log(message.message); break;
         case 'tablet':
-            if (message.revision !== permissionRevision) { permissionRevision = message.revision; sendNavigationHistory(); }
+            if (!ready || message.revision < permissionRevision) break;
+            if (message.revision !== permissionRevision) { permissionRevision = message.revision; graphics?.setAuthority(permissionRevision,true); sendNavigationHistory(); }
             tablet?.receive(message); break;
     }
 }
@@ -234,17 +242,28 @@ async function joinDomain(domain:string, direction?:'back'|'forward'):Promise<vo
     try {
         world = new BrowserWorld(element('world'), {
             resolveAsset: url => session.assetURL(url),
+            gpuTiming: new URLSearchParams(location.search).get('gpuTiming') === '1',
             compressedColors: (capabilities, signal) => session.compressedColors(capabilities, signal),
+            captureAssetAuthority: () => session.captureAssetAuthority(),
             onPose: pose => session.sendPose(pose),
             onInteract: entity => session.send({type:'interact', entityId:entity.id}),
             onStatus: log,
         });
+        const graphicsWorld=world;
+        try {
+            const saved=visitorStorage.getItem('overte.browser.graphics.v1');
+            if(saved!==null){if(saved.length>1024)throw Error('Invalid stored graphics settings');graphicsWorld.graphics.apply(validateBrowserGraphics(JSON.parse(saved)));}
+        } catch {log('Saved graphics settings could not be restored.','warning');}
+        graphics=new BrowserGraphicsController(graphicsWorld.graphics,
+            revision=>generation===epoch && world===graphicsWorld && ready && revision===permissionRevision,
+            settings=>visitorStorage.setItem('overte.browser.graphics.v1',JSON.stringify(settings)));
         audio = new BrowserAudio(data => session.sendAudio(data), log, muted => {
             session.send({type:'mute', muted});
             updateMicrophone();
         });
         tablet = new BrowserTablet(element('app'), {
             send: message => session.send(message), onStatus: message => log(message, 'warning'),
+            onGraphics:request=>graphics?.receive(request,request.revision),
             fileURL: name => {
                 if (!session.sessionId) throw new Error('Join a world before accessing visitor files');
                 return `/api/tablet-files/${encodeURIComponent(session.sessionId)}${name === undefined ? '' : `?name=${encodeURIComponent(name)}`}`;
@@ -339,6 +358,7 @@ Object.defineProperty(window, '__overte', {value:{
     get avatarCount() { return avatarCount; },
     get audio() { return audio?.stats; },
     get performance() { return world?.getPerformance(); },
+    get graphics() { return world?.graphics.snapshot(); },
     get tabletVisible() { return tablet?.visible ?? false; },
     get avatarRig() { return world?.getSelfAvatarRig(); },
     get avatarRender() { return world?.getSelfAvatarRenderState(); },

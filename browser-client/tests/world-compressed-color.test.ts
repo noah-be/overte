@@ -45,7 +45,7 @@ test('actual material factory uses private compressed alpha without canvas inspe
  await applyNativeMaterialAlpha(material,{useAlpha:false,mode:'OPACITY_MAP_MASK'});assert.equal(material.alphaTest,.5);
  material.map.dispose();material.dispose();w.cache.dispose();
 });
-test('scalar/normal and Image roles preserve PNG while albedo and emissive may use compressed bytes',async t=>{
+test('scalar/normal and unknown roles preserve PNG while albedo and emissive may use compressed bytes',async t=>{
  t.mock.method(globalThis,'fetch',async()=>new Response(JSON.stringify(metadata)));
  const w=worldFixture();const material=await w.context.makeMaterial({albedoMap:'a.texmeta.json',emissiveMap:'e.texmeta.json',normalMap:'n.texmeta.json',roughnessMap:'r.texmeta.json',metallicMap:'m.texmeta.json'},'https://assets.example/material.json');
  assert.ok(material.map instanceof THREE.CompressedTexture);assert.ok(material.emissiveMap instanceof THREE.CompressedTexture);
@@ -93,4 +93,74 @@ test('model signal cancels a genuinely pending metadata stream before its next b
  let cancelled=false;const controller=new AbortController();
  const pending=readColorTextureMetadata(new Response(new ReadableStream<Uint8Array>({cancel(){cancelled=true;}})),controller.signal);
  controller.abort();await assert.rejects(pending,{name:'AbortError'});assert.equal(cancelled,true);
+});
+
+function imageEntity(w:ReturnType<typeof worldFixture>,emissive?:boolean){
+ const root=new THREE.Group(),entity={id:'owned-image',type:'Image',imageURL:'https://assets.example/image.texmeta.json',dimensions:{x:2,y:1,z:.01},emissive};
+ w.context.objects=new Map([[entity.id,root]]);return {root,entity,pending:()=>w.context.populateEntity(entity,root),material:()=>{const mesh=root.children[0]?.children[0];assert.ok(mesh instanceof THREE.Mesh);assert.ok(mesh.material instanceof THREE.MeshBasicMaterial);return mesh.material;}};
+}
+
+test('actual Image entity admits audited compressed color without original pixels and retains existing alpha/UV state',async t=>{
+ t.mock.method(globalThis,'fetch',async()=>new Response(JSON.stringify(metadata)));
+ const w=worldFixture(),image=imageEntity(w);
+ try{await image.pending();const material=image.material();assert.ok(material.map instanceof THREE.CompressedTexture);assert.equal(nativeCompressedColorAlpha(material.map),'mask');assert.equal(material.map.colorSpace,THREE.SRGBColorSpace);assert.equal(material.map.flipY,false);assert.deepEqual(material.map.matrix.elements,[1,0,0,0,-1,0,0,1,1]);assert.equal(material.transparent,true);assert.equal(material.alphaTest,0,'Image SIMPLE path blends image alpha, not the model opacity-map cutoff');assert.equal(material.depthWrite,false);assert.equal(material.side,THREE.DoubleSide);assert.equal(material.forceSinglePass,true);assert.equal(w.images.length,0);assert.deepEqual(w.requests,['https://assets.example/mask.ktx']);assert.equal(w.factories,1);}
+ finally{image.root.traverse(object=>{if(object instanceof THREE.Mesh){(object.material as THREE.MeshBasicMaterial).map?.dispose();(object.material as THREE.MeshBasicMaterial).dispose();object.geometry.dispose();}});w.cache.dispose();}
+});
+
+test('Image entity keeps supported PNG fallback but refuses malformed KTX and expired authority',async t=>{
+ t.mock.method(globalThis,'fetch',async()=>new Response(JSON.stringify(metadata)));
+ for(const options of [{gpu:false},{enabled:false}]){const w=worldFixture(options),image=imageEntity(w);await image.pending();const material=image.material();assert.ok(!(material.map instanceof THREE.CompressedTexture));assert.deepEqual(w.images,['https://assets.example/original.png']);assert.equal(w.requests.length,0);material.map?.dispose();material.dispose();image.root.traverse(object=>{if(object instanceof THREE.Mesh)object.geometry.dispose();});w.cache.dispose();}
+ const bad=worldFixture({fetcher:(async()=>new Response(new Uint8Array(64))) as typeof fetch}),image=imageEntity(bad);await assert.rejects(image.pending(),/KTX1 signature/);assert.equal(bad.images.length,0);assert.equal(image.root.children[0].children.length,0);bad.cache.dispose();
+ const denied=worldFixture();denied.context.options.compressedColors=()=>{throw Error('Current approval refused');};await assert.rejects(imageEntity(denied).pending(),/approval refused/);assert.equal(denied.images.length,0);denied.cache.dispose();
+});
+
+test('explicit native unlit Image colors bypass Filmic while other Image states retain their current presentation',async t=>{
+ t.mock.method(globalThis,'fetch',async()=>new Response(JSON.stringify(metadata)));
+ for(const emissive of [true,false,undefined]){
+  const w=worldFixture(),image=imageEntity(w,emissive);
+  try{await image.pending();assert.equal(image.material().toneMapped,emissive!==true);}
+  finally{image.root.traverse(object=>{if(object instanceof THREE.Mesh){(object.material as THREE.MeshBasicMaterial).map?.dispose();(object.material as THREE.MeshBasicMaterial).dispose();object.geometry.dispose();}});w.cache.dispose();}
+ }
+});
+
+test('Image entity cancellation releases pending compressed work with no late mesh or texture fallback',async t=>{
+ t.mock.method(globalThis,'fetch',async()=>new Response(JSON.stringify(metadata)));
+ const ready=deferred<Response>(),w=worldFixture({fetcher:(async()=>ready.promise) as typeof fetch}),image=imageEntity(w),pending=image.pending();await tick();w.abort.abort();w.cache.dispose();await assert.rejects(pending,{name:'AbortError'});assert.equal(image.root.children[0].children.length,0);assert.equal(w.images.length,0);ready.resolve(new Response(fixtureBytes()));await tick();assert.equal(w.cache.statistics.retainedEntries,0);assert.equal(w.cache.statistics.active,0);
+});
+
+test('actual World metadata reuse still checks each color approval and preserves independent texture samplers',async t=>{
+ let requests=0;t.mock.method(globalThis,'fetch',async()=>{requests++;return new Response(JSON.stringify(metadata));});
+ const w=worldFixture();
+ try{
+  const [a,b]=await Promise.all([w.context.texture('https://assets.example/reused.texmeta.json',true,'albedo'),w.context.texture('https://assets.example/reused.texmeta.json',true,'emissive')]);
+  assert.equal(requests,1);assert.notEqual(a,b);assert.equal(a.source,b.source);assert.equal(w.factories,2);assert.equal(w.context.sourceTexts.stats.hits,1);a.dispose();b.dispose();
+  w.context.options.compressedColors=()=>{throw Error('Current approval refused');};await assert.rejects(w.context.texture('https://assets.example/reused.texmeta.json',true,'albedo'),/approval refused/);assert.equal(requests,1,'Rejected approval must not gain access through a metadata hit');assert.equal(w.images.length,0);
+ }finally{w.abort.abort();w.cache.dispose();}
+});
+
+test('one canceled actual World texture reader leaves the sibling metadata/color transfer intact',async t=>{
+ const response=deferred<Response>();let requests=0;t.mock.method(globalThis,'fetch',()=>{requests++;return response.promise;});
+ const w=worldFixture(),firstOwner=new AbortController();
+ try{
+  const first=w.context.texture('https://assets.example/shared.texmeta.json',true,'albedo',firstOwner.signal),second=w.context.texture('https://assets.example/shared.texmeta.json',true,'albedo');await tick();firstOwner.abort();await assert.rejects(first,{name:'AbortError'});response.resolve(new Response(JSON.stringify(metadata)));const texture=await second;assert.ok(texture instanceof THREE.CompressedTexture);assert.equal(requests,1);assert.equal(w.context.sourceTexts.stats.readers,0);assert.equal(w.requests.length,1);texture.dispose();
+ }finally{response.resolve(new Response(JSON.stringify(metadata)));w.abort.abort();w.cache.dispose();}
+});
+
+test('actual World raw metadata drops prior permission generations and refuses revoked ready or pending delivery',async t=>{
+ let requests=0,generation='one',approved=true;const delayed=deferred<Response>();t.mock.method(globalThis,'fetch',async()=>{requests++;return requests===3?delayed.promise:new Response(JSON.stringify({request:requests}));});
+ const w=worldFixture();w.context.options.captureAssetAuthority=()=>{if(!approved)throw Error('Current asset approval refused');const captured=generation;return {generation:captured,assertCurrent(){if(!approved||generation!==captured)throw Error('Asset authority was revoked');}};};
+ try{
+  assert.equal(JSON.parse(await w.context.sourceText('authorized-metadata','metadata',64)).request,1);assert.equal(JSON.parse(await w.context.sourceText('authorized-metadata','metadata',64)).request,1);assert.equal(requests,1);
+  const old=w.context.sourceTexts;generation='two';assert.equal(JSON.parse(await w.context.sourceText('authorized-metadata','metadata',64)).request,2);assert.equal(old.stats.disposed,true);assert.equal(old.stats.bytes,0);
+  approved=false;await assert.rejects(w.context.sourceText('authorized-metadata','metadata',64),/approval refused/);assert.equal(requests,2);approved=true;
+  const pending=w.context.sourceText('other-metadata','metadata',64);await tick();generation='three';delayed.resolve(new Response('{"stale":true}'));await assert.rejects(pending,/authority was revoked/);w.context.invalidateSourceTexts();assert.equal(w.context.sourceTexts,undefined);
+ }finally{delayed.resolve(new Response('{}'));w.abort.abort();w.cache.dispose();}
+});
+
+test('actual World HTTP material selectors share source text while queries and ATP fragments stay distinct',async t=>{
+ const requests:string[]=[];t.mock.method(globalThis,'fetch',async (input:RequestInfo|URL)=>{requests.push(String(input));return new Response('{"materials":[]}');});const w=worldFixture();
+ try{
+  await w.context.sourceText('https://assets.example/material.json?variant=1#first','material',1024);await w.context.sourceText('https://assets.example/material.json?variant=1#second','material',1024);await w.context.sourceText('https://assets.example/material.json?variant=2#first','material',1024);await w.context.sourceText('atp:/material.json#first','material',1024);await w.context.sourceText('atp:/material.json#second','material',1024);
+  assert.deepEqual(requests,['https://assets.example/material.json?variant=1','https://assets.example/material.json?variant=2','atp:/material.json#first','atp:/material.json#second']);assert.equal(w.context.sourceTexts.stats.hits,1);
+ }finally{w.abort.abort();w.cache.dispose();}
 });

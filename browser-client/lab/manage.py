@@ -161,7 +161,21 @@ def alive(pid):
 
 
 def load_state():
-    return json.loads(STATE.read_text()) if STATE.exists() else {}
+    if STATE.is_symlink():
+        raise RuntimeError("Managed lab state must not be a symbolic link")
+    try:
+        document = STATE.read_text()
+    except FileNotFoundError:
+        # An early preparation failure can leave the exact registry absent.
+        # Do not catch malformed metadata, permissions or unrelated failures.
+        return {}
+    state = json.loads(document)
+    if not isinstance(state, dict) or any(not isinstance(entry, dict)
+            or type(entry.get("pid")) is not int or entry["pid"] <= 0
+            or not isinstance(entry.get("startTicks"), str) or not entry["startTicks"].isdigit()
+            for entry in state.values()):
+        raise RuntimeError("Managed lab state must contain valid recorded process identities")
+    return state
 
 
 def start_ticks(pid):
@@ -338,6 +352,9 @@ def start_gateway(state):
 
 def stop(names=None):
     state=load_state()
+    if not state:
+        # No owned processes were recorded; never create state during cleanup.
+        return
     for name,entry in reversed(list(state.items())):
         if names is not None and name not in names:
             continue

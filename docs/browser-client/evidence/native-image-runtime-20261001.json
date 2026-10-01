@@ -1,0 +1,551 @@
+{
+  "scope": "Independent native Image parity remains pending; all real negative cohorts retained. Source oracle and explicit native unlit presentation corrections do not establish whole-Hub latency or complete native parity.",
+  "runs": [
+    {
+      "startedAt": "2026-10-01T12:02:15.339Z",
+      "finishedAt": "2026-10-01T12:04:01.412Z",
+      "completed": false,
+      "error": "Actual authenticated delivery of four native fixtures exceeded 90000 milliseconds",
+      "cleanupRequested": true,
+      "cleanupError": "Exact baseline and owned-fixture deletion were not verified",
+      "scope": "Only an isolated local domain; four owned expiring entities, actual normal native renderer and authenticated browser Image rendering. No public writes, audio, server permissions or native renderer resource patches.",
+      "microphoneRequested": false,
+      "publicWorldWrites": 0,
+      "inputs": [
+        {
+          "name": "opaque",
+          "pngSHA256": "0087b3a3a9c9347b3a592db7b7e4f88fe333aedb7c6bd6aae48ed664c3f98739",
+          "pngBytes": 372063,
+          "ktxSHA256": "665f2c22827bafda51eb0127b69cce6c5d33869a98ae7331b8aafa88985d89f6",
+          "ktxBytes": 393432,
+          "metadataSHA256": "d1c5fb8899b89f3e42788d04f63bec84331317707c00976b4369049ebc11d674"
+        },
+        {
+          "name": "mask",
+          "pngSHA256": "43d594a99f2b8d8412348a45b0556f4af8c1960ccbce0e2b3164c8fa61beba6c",
+          "pngBytes": 94618,
+          "ktxSHA256": "8271f00457196483ecf617df4f644885d35e52fad010ad31b9bd35afe2cc5355",
+          "ktxBytes": 349744,
+          "metadataSHA256": "5e29136bf95ad68a61f34ccafdbb660119e87bb6b01707798a12c1dbb883a8d9"
+        }
+      ],
+      "cases": [],
+      "ownedFixtureCount": 4,
+      "nativeVersion": "2026.04.1",
+      "browserVersion": "154.0.8037.57",
+      "nativeBinarySHA256": "91f3e10c42c1e35d5c8265e9b0007e925844d9bee61a26807118dde6e527887c",
+      "startSourceSHA256": {
+        "tests/integration/native-image-state.mjs": "be99fb0b9c8a44a699db24bf18c7ce8acd8842ed5c9a9cc95a428cfdc86acec1",
+        "tests/integration/native-image-fixture.js": "d76ebc1ded77160177227bcfd73efd26f866e67205b3e26c708b20ef55c8aba4",
+        "tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "src/world.ts": "233e601a0fa42d9b8660bbafd6e00da43b6eeeca59403bd0f4b56f3c767502f6",
+        "src/compressed-color-session.ts": "e18af74fe59593bf9f1aee0ce7a91f0e6910ed5e903868f646f1311d61c42fcf",
+        "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+        "src/native-compressed-color.ts": "5439b334331980b43f8d7a0d1ea4750d58eec20ae0542a7296288192714e0467",
+        "src/native-alpha-material.ts": "a3515894f69f078222c7e2b543c46ce22f7bd05b58e12f3eaa14aa0a638dcfbb",
+        "src/native-render-state.ts": "af31a1e01576c233c1f7e8a8231dd5c2cc5871cb58b5783bf01f788da70d01df",
+        "src/world-image-cache.ts": "ba45a6125087f8b275c939a5e9e36dadac6879a37cb0fbe50d8c19dd9f1c6af9",
+        "src/world-source-text-cache.ts": "57ccb98bed54e788ed0e2f263e8362ae505f4b3073648dc08c311925e21116b1",
+        "src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+        "shared/native-ktx.mjs": "5c06f05ab00aa0678e40e56b1bf5c1bc0f6f5578fdbff1a8d4030cf6d4840a97"
+      },
+      "sourceSHA256": {
+        "tests/integration/native-image-state.mjs": "be99fb0b9c8a44a699db24bf18c7ce8acd8842ed5c9a9cc95a428cfdc86acec1",
+        "tests/integration/native-image-fixture.js": "d76ebc1ded77160177227bcfd73efd26f866e67205b3e26c708b20ef55c8aba4",
+        "tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "src/world.ts": "233e601a0fa42d9b8660bbafd6e00da43b6eeeca59403bd0f4b56f3c767502f6",
+        "src/compressed-color-session.ts": "e18af74fe59593bf9f1aee0ce7a91f0e6910ed5e903868f646f1311d61c42fcf",
+        "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+        "src/native-compressed-color.ts": "5439b334331980b43f8d7a0d1ea4750d58eec20ae0542a7296288192714e0467",
+        "src/native-alpha-material.ts": "a3515894f69f078222c7e2b543c46ce22f7bd05b58e12f3eaa14aa0a638dcfbb",
+        "src/native-render-state.ts": "af31a1e01576c233c1f7e8a8231dd5c2cc5871cb58b5783bf01f788da70d01df",
+        "src/world-image-cache.ts": "ba45a6125087f8b275c939a5e9e36dadac6879a37cb0fbe50d8c19dd9f1c6af9",
+        "src/world-source-text-cache.ts": "57ccb98bed54e788ed0e2f263e8362ae505f4b3073648dc08c311925e21116b1",
+        "src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+        "shared/native-ktx.mjs": "5c06f05ab00aa0678e40e56b1bf5c1bc0f6f5578fdbff1a8d4030cf6d4840a97"
+      },
+      "sourceCoherent": true
+    },
+    {
+      "startedAt": "2026-10-01T12:13:39.837Z",
+      "finishedAt": "2026-10-01T12:14:40.978Z",
+      "completed": false,
+      "error": "Actual native screenshot must contain texture detail, not a flat missing-image/background frame",
+      "cleanupRequested": true,
+      "cleanupVerified": true,
+      "scope": "Only an isolated local domain; four owned expiring entities, actual normal native renderer and authenticated browser Image rendering. No public writes, audio, server permissions or native renderer resource patches.",
+      "microphoneRequested": false,
+      "publicWorldWrites": 0,
+      "inputs": [
+        {
+          "name": "opaque",
+          "pngSHA256": "0087b3a3a9c9347b3a592db7b7e4f88fe333aedb7c6bd6aae48ed664c3f98739",
+          "pngBytes": 372063,
+          "ktxSHA256": "665f2c22827bafda51eb0127b69cce6c5d33869a98ae7331b8aafa88985d89f6",
+          "ktxBytes": 393432,
+          "metadataSHA256": "d1c5fb8899b89f3e42788d04f63bec84331317707c00976b4369049ebc11d674"
+        },
+        {
+          "name": "mask",
+          "pngSHA256": "43d594a99f2b8d8412348a45b0556f4af8c1960ccbce0e2b3164c8fa61beba6c",
+          "pngBytes": 94618,
+          "ktxSHA256": "8271f00457196483ecf617df4f644885d35e52fad010ad31b9bd35afe2cc5355",
+          "ktxBytes": 349744,
+          "metadataSHA256": "5e29136bf95ad68a61f34ccafdbb660119e87bb6b01707798a12c1dbb883a8d9"
+        }
+      ],
+      "cases": [],
+      "ownedFixtureCount": 4,
+      "preservedBaselineCount": 7,
+      "nativeVersion": "2026.04.1",
+      "browserVersion": "154.0.8037.57",
+      "nativeBinarySHA256": "91f3e10c42c1e35d5c8265e9b0007e925844d9bee61a26807118dde6e527887c",
+      "startSourceSHA256": {
+        "tests/integration/native-image-state.mjs": "0fe37f4f9e3b7951600fa4fceec209a1e07ddfe176b12ee43a9982b1a0afff8f",
+        "tests/integration/native-image-fixture.js": "005992624f365dd8e6df5cab17f7c74c7bcca9eab6bbab91350c441ff62f0314",
+        "tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "src/world.ts": "233e601a0fa42d9b8660bbafd6e00da43b6eeeca59403bd0f4b56f3c767502f6",
+        "src/compressed-color-session.ts": "e18af74fe59593bf9f1aee0ce7a91f0e6910ed5e903868f646f1311d61c42fcf",
+        "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+        "src/native-compressed-color.ts": "5439b334331980b43f8d7a0d1ea4750d58eec20ae0542a7296288192714e0467",
+        "src/native-alpha-material.ts": "a3515894f69f078222c7e2b543c46ce22f7bd05b58e12f3eaa14aa0a638dcfbb",
+        "src/native-render-state.ts": "af31a1e01576c233c1f7e8a8231dd5c2cc5871cb58b5783bf01f788da70d01df",
+        "src/world-image-cache.ts": "ba45a6125087f8b275c939a5e9e36dadac6879a37cb0fbe50d8c19dd9f1c6af9",
+        "src/world-source-text-cache.ts": "57ccb98bed54e788ed0e2f263e8362ae505f4b3073648dc08c311925e21116b1",
+        "src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+        "shared/native-ktx.mjs": "5c06f05ab00aa0678e40e56b1bf5c1bc0f6f5578fdbff1a8d4030cf6d4840a97"
+      },
+      "sourceSHA256": {
+        "tests/integration/native-image-state.mjs": "0fe37f4f9e3b7951600fa4fceec209a1e07ddfe176b12ee43a9982b1a0afff8f",
+        "tests/integration/native-image-fixture.js": "005992624f365dd8e6df5cab17f7c74c7bcca9eab6bbab91350c441ff62f0314",
+        "tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "src/world.ts": "233e601a0fa42d9b8660bbafd6e00da43b6eeeca59403bd0f4b56f3c767502f6",
+        "src/compressed-color-session.ts": "e18af74fe59593bf9f1aee0ce7a91f0e6910ed5e903868f646f1311d61c42fcf",
+        "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+        "src/native-compressed-color.ts": "5439b334331980b43f8d7a0d1ea4750d58eec20ae0542a7296288192714e0467",
+        "src/native-alpha-material.ts": "a3515894f69f078222c7e2b543c46ce22f7bd05b58e12f3eaa14aa0a638dcfbb",
+        "src/native-render-state.ts": "af31a1e01576c233c1f7e8a8231dd5c2cc5871cb58b5783bf01f788da70d01df",
+        "src/world-image-cache.ts": "ba45a6125087f8b275c939a5e9e36dadac6879a37cb0fbe50d8c19dd9f1c6af9",
+        "src/world-source-text-cache.ts": "57ccb98bed54e788ed0e2f263e8362ae505f4b3073648dc08c311925e21116b1",
+        "src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+        "shared/native-ktx.mjs": "5c06f05ab00aa0678e40e56b1bf5c1bc0f6f5578fdbff1a8d4030cf6d4840a97"
+      },
+      "sourceCoherent": true
+    },
+    {
+      "startedAt": "2026-10-01T12:37:22.435Z",
+      "finishedAt": "2026-10-01T12:38:05.900Z",
+      "completed": false,
+      "error": "Actual Image detail or UV orientation does not match the audited source",
+      "cleanupRequested": true,
+      "cleanupVerified": true,
+      "scope": "Only an isolated local domain; four owned expiring entities, actual normal native renderer and authenticated browser Image rendering. No public writes, audio, server permissions or native renderer resource patches.",
+      "microphoneRequested": false,
+      "publicWorldWrites": 0,
+      "inputs": [
+        {
+          "name": "opaque",
+          "pngSHA256": "0087b3a3a9c9347b3a592db7b7e4f88fe333aedb7c6bd6aae48ed664c3f98739",
+          "pngBytes": 372063,
+          "ktxSHA256": "665f2c22827bafda51eb0127b69cce6c5d33869a98ae7331b8aafa88985d89f6",
+          "ktxBytes": 393432,
+          "metadataSHA256": "d1c5fb8899b89f3e42788d04f63bec84331317707c00976b4369049ebc11d674"
+        },
+        {
+          "name": "mask",
+          "pngSHA256": "43d594a99f2b8d8412348a45b0556f4af8c1960ccbce0e2b3164c8fa61beba6c",
+          "pngBytes": 94618,
+          "ktxSHA256": "8271f00457196483ecf617df4f644885d35e52fad010ad31b9bd35afe2cc5355",
+          "ktxBytes": 349744,
+          "metadataSHA256": "5e29136bf95ad68a61f34ccafdbb660119e87bb6b01707798a12c1dbb883a8d9"
+        }
+      ],
+      "cases": [
+        {
+          "name": "opaque",
+          "mode": "original",
+          "nativeDiagnostic": {
+            "connected": true,
+            "serversExist": true,
+            "canRez": true,
+            "current": "opaque-original",
+            "renderMethod": 0,
+            "renderStatsJob": "RenderMainView.DrawTransparentDeferred",
+            "resourceState": 3,
+            "renderFrames": 3,
+            "renderJobAvailable": true,
+            "renderJobEnabled": true,
+            "entitiesEnabled": true,
+            "camera": {
+              "mode": "independent",
+              "position": {
+                "x": 60,
+                "y": 10,
+                "z": 4
+              },
+              "orientation": {
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": -1
+              },
+              "fieldOfView": 54.9999885559082,
+              "aspectRatio": 1.374496579170227
+            }
+          },
+          "nativePixels": {
+            "width": 1024,
+            "height": 745,
+            "crop": {
+              "x": 334,
+              "y": 195,
+              "width": 355,
+              "height": 354
+            },
+            "backgroundCoverage": 0,
+            "variance": 150.12036681175232
+          },
+          "browserPixels": {
+            "width": 1024,
+            "height": 768,
+            "crop": {
+              "x": 328,
+              "y": 200,
+              "width": 367,
+              "height": 367
+            },
+            "backgroundCoverage": 0,
+            "variance": 606.3536843657494
+          },
+          "auditedSourceComparison": {
+            "native": {
+              "rgbMAE": 3.2685546875,
+              "correlation": 0.8409776969699656,
+              "maskMismatch": 0
+            },
+            "browser": {
+              "rgbMAE": 14.292643229166666,
+              "correlation": 0.8560060363652084,
+              "maskMismatch": 0
+            }
+          }
+        }
+      ],
+      "ownedFixtureCount": 4,
+      "preservedBaselineCount": 7,
+      "nativeVersion": "2026.04.1",
+      "browserVersion": "154.0.8037.57",
+      "nativeBinarySHA256": "91f3e10c42c1e35d5c8265e9b0007e925844d9bee61a26807118dde6e527887c",
+      "startSourceSHA256": {
+        "tests/integration/native-image-state.mjs": "94ad962f43c0a130b07b28598b06634a6caa7d41ac00cd51afa6be017ef35284",
+        "tests/integration/native-image-fixture.js": "005992624f365dd8e6df5cab17f7c74c7bcca9eab6bbab91350c441ff62f0314",
+        "tests/integration/native-image-pixels.mjs": "bacd254943fe1aa246f5a4ec23213a273df4251a79708ed286155f20fa33cc05",
+        "tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "src/world.ts": "233e601a0fa42d9b8660bbafd6e00da43b6eeeca59403bd0f4b56f3c767502f6",
+        "src/compressed-color-session.ts": "e18af74fe59593bf9f1aee0ce7a91f0e6910ed5e903868f646f1311d61c42fcf",
+        "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+        "src/native-compressed-color.ts": "5439b334331980b43f8d7a0d1ea4750d58eec20ae0542a7296288192714e0467",
+        "src/native-alpha-material.ts": "a3515894f69f078222c7e2b543c46ce22f7bd05b58e12f3eaa14aa0a638dcfbb",
+        "src/native-render-state.ts": "af31a1e01576c233c1f7e8a8231dd5c2cc5871cb58b5783bf01f788da70d01df",
+        "src/world-image-cache.ts": "ba45a6125087f8b275c939a5e9e36dadac6879a37cb0fbe50d8c19dd9f1c6af9",
+        "src/world-source-text-cache.ts": "57ccb98bed54e788ed0e2f263e8362ae505f4b3073648dc08c311925e21116b1",
+        "src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+        "shared/native-ktx.mjs": "5c06f05ab00aa0678e40e56b1bf5c1bc0f6f5578fdbff1a8d4030cf6d4840a97"
+      },
+      "sourceSHA256": {
+        "tests/integration/native-image-state.mjs": "94ad962f43c0a130b07b28598b06634a6caa7d41ac00cd51afa6be017ef35284",
+        "tests/integration/native-image-fixture.js": "005992624f365dd8e6df5cab17f7c74c7bcca9eab6bbab91350c441ff62f0314",
+        "tests/integration/native-image-pixels.mjs": "bacd254943fe1aa246f5a4ec23213a273df4251a79708ed286155f20fa33cc05",
+        "tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "src/world.ts": "233e601a0fa42d9b8660bbafd6e00da43b6eeeca59403bd0f4b56f3c767502f6",
+        "src/compressed-color-session.ts": "e18af74fe59593bf9f1aee0ce7a91f0e6910ed5e903868f646f1311d61c42fcf",
+        "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+        "src/native-compressed-color.ts": "5439b334331980b43f8d7a0d1ea4750d58eec20ae0542a7296288192714e0467",
+        "src/native-alpha-material.ts": "a3515894f69f078222c7e2b543c46ce22f7bd05b58e12f3eaa14aa0a638dcfbb",
+        "src/native-render-state.ts": "af31a1e01576c233c1f7e8a8231dd5c2cc5871cb58b5783bf01f788da70d01df",
+        "src/world-image-cache.ts": "ba45a6125087f8b275c939a5e9e36dadac6879a37cb0fbe50d8c19dd9f1c6af9",
+        "src/world-source-text-cache.ts": "57ccb98bed54e788ed0e2f263e8362ae505f4b3073648dc08c311925e21116b1",
+        "src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+        "shared/native-ktx.mjs": "5c06f05ab00aa0678e40e56b1bf5c1bc0f6f5578fdbff1a8d4030cf6d4840a97"
+      },
+      "sourceCoherent": true
+    },
+    {
+      "startedAt": "2026-10-01T12:46:23.343Z",
+      "finishedAt": "2026-10-01T12:47:02.111Z",
+      "completed": false,
+      "error": "Actual Image detail or UV orientation does not match the audited source",
+      "cleanupRequested": true,
+      "cleanupVerified": true,
+      "scope": "Only an isolated local domain; four owned expiring entities, actual normal native renderer and authenticated browser Image rendering. No public writes, audio, server permissions or native renderer resource patches.",
+      "microphoneRequested": false,
+      "publicWorldWrites": 0,
+      "inputs": [
+        {
+          "name": "opaque",
+          "pngSHA256": "0087b3a3a9c9347b3a592db7b7e4f88fe333aedb7c6bd6aae48ed664c3f98739",
+          "pngBytes": 372063,
+          "ktxSHA256": "665f2c22827bafda51eb0127b69cce6c5d33869a98ae7331b8aafa88985d89f6",
+          "ktxBytes": 393432,
+          "metadataSHA256": "d1c5fb8899b89f3e42788d04f63bec84331317707c00976b4369049ebc11d674"
+        },
+        {
+          "name": "mask",
+          "pngSHA256": "43d594a99f2b8d8412348a45b0556f4af8c1960ccbce0e2b3164c8fa61beba6c",
+          "pngBytes": 94618,
+          "ktxSHA256": "8271f00457196483ecf617df4f644885d35e52fad010ad31b9bd35afe2cc5355",
+          "ktxBytes": 349744,
+          "metadataSHA256": "5e29136bf95ad68a61f34ccafdbb660119e87bb6b01707798a12c1dbb883a8d9"
+        }
+      ],
+      "cases": [
+        {
+          "name": "opaque",
+          "mode": "original",
+          "nativeDiagnostic": {
+            "connected": true,
+            "serversExist": true,
+            "canRez": true,
+            "current": "opaque-original",
+            "renderMethod": 0,
+            "renderStatsJob": "RenderMainView.DrawTransparentDeferred",
+            "resourceState": 3,
+            "renderFrames": 3,
+            "renderJobAvailable": true,
+            "renderJobEnabled": true,
+            "entitiesEnabled": true,
+            "camera": {
+              "mode": "independent",
+              "position": {
+                "x": 60,
+                "y": 10,
+                "z": 4
+              },
+              "orientation": {
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": -1
+              },
+              "fieldOfView": 54.9999885559082,
+              "aspectRatio": 1.374496579170227
+            }
+          },
+          "nativePixels": {
+            "width": 1024,
+            "height": 745,
+            "crop": {
+              "x": 334,
+              "y": 195,
+              "width": 355,
+              "height": 354
+            },
+            "backgroundCoverage": 0,
+            "variance": 200.7643260359764
+          },
+          "browserPixels": {
+            "width": 1024,
+            "height": 768,
+            "crop": {
+              "x": 329,
+              "y": 201,
+              "width": 365,
+              "height": 365
+            },
+            "backgroundCoverage": 0,
+            "variance": 206.9852880835533
+          },
+          "auditedSourceComparison": {
+            "native": {
+              "rgbMAE": 2.2525227864583335,
+              "correlation": 0.846768936752013,
+              "maskMismatch": 0
+            },
+            "browser": {
+              "rgbMAE": 0.8807779947916666,
+              "correlation": 0.9861200054531488,
+              "maskMismatch": 0
+            }
+          }
+        }
+      ],
+      "ownedFixtureCount": 4,
+      "preservedBaselineCount": 7,
+      "nativeVersion": "2026.04.1",
+      "browserVersion": "154.0.8037.57",
+      "nativeBinarySHA256": "91f3e10c42c1e35d5c8265e9b0007e925844d9bee61a26807118dde6e527887c",
+      "startSourceSHA256": {
+        "tests/integration/native-image-state.mjs": "fe1f0f5714c1d7a1a856d0b366a982aee71a58a2e6b6869c6da7290bb22430d7",
+        "tests/integration/native-image-fixture.js": "005992624f365dd8e6df5cab17f7c74c7bcca9eab6bbab91350c441ff62f0314",
+        "tests/integration/native-image-pixels.mjs": "bacd254943fe1aa246f5a4ec23213a273df4251a79708ed286155f20fa33cc05",
+        "tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "src/world.ts": "f8eb4c7c781a9561546a9d3e787cd5d32b982a7a8b5f159c523c103c773458c0",
+        "src/compressed-color-session.ts": "e18af74fe59593bf9f1aee0ce7a91f0e6910ed5e903868f646f1311d61c42fcf",
+        "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+        "src/native-compressed-color.ts": "5439b334331980b43f8d7a0d1ea4750d58eec20ae0542a7296288192714e0467",
+        "src/native-alpha-material.ts": "a3515894f69f078222c7e2b543c46ce22f7bd05b58e12f3eaa14aa0a638dcfbb",
+        "src/native-render-state.ts": "af31a1e01576c233c1f7e8a8231dd5c2cc5871cb58b5783bf01f788da70d01df",
+        "src/world-image-cache.ts": "ba45a6125087f8b275c939a5e9e36dadac6879a37cb0fbe50d8c19dd9f1c6af9",
+        "src/world-source-text-cache.ts": "57ccb98bed54e788ed0e2f263e8362ae505f4b3073648dc08c311925e21116b1",
+        "src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+        "shared/native-ktx.mjs": "5c06f05ab00aa0678e40e56b1bf5c1bc0f6f5578fdbff1a8d4030cf6d4840a97"
+      },
+      "sourceSHA256": {
+        "tests/integration/native-image-state.mjs": "fe1f0f5714c1d7a1a856d0b366a982aee71a58a2e6b6869c6da7290bb22430d7",
+        "tests/integration/native-image-fixture.js": "005992624f365dd8e6df5cab17f7c74c7bcca9eab6bbab91350c441ff62f0314",
+        "tests/integration/native-image-pixels.mjs": "bacd254943fe1aa246f5a4ec23213a273df4251a79708ed286155f20fa33cc05",
+        "tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "src/world.ts": "f8eb4c7c781a9561546a9d3e787cd5d32b982a7a8b5f159c523c103c773458c0",
+        "src/compressed-color-session.ts": "e18af74fe59593bf9f1aee0ce7a91f0e6910ed5e903868f646f1311d61c42fcf",
+        "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+        "src/native-compressed-color.ts": "5439b334331980b43f8d7a0d1ea4750d58eec20ae0542a7296288192714e0467",
+        "src/native-alpha-material.ts": "a3515894f69f078222c7e2b543c46ce22f7bd05b58e12f3eaa14aa0a638dcfbb",
+        "src/native-render-state.ts": "af31a1e01576c233c1f7e8a8231dd5c2cc5871cb58b5783bf01f788da70d01df",
+        "src/world-image-cache.ts": "ba45a6125087f8b275c939a5e9e36dadac6879a37cb0fbe50d8c19dd9f1c6af9",
+        "src/world-source-text-cache.ts": "57ccb98bed54e788ed0e2f263e8362ae505f4b3073648dc08c311925e21116b1",
+        "src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+        "shared/native-ktx.mjs": "5c06f05ab00aa0678e40e56b1bf5c1bc0f6f5578fdbff1a8d4030cf6d4840a97"
+      },
+      "sourceCoherent": true
+    },
+    {
+      "startedAt": "2026-10-01T12:54:41.137Z",
+      "finishedAt": "2026-10-01T12:55:21.228Z",
+      "completed": false,
+      "error": "Actual Image detail or UV orientation does not match the audited source",
+      "cleanupRequested": true,
+      "cleanupVerified": true,
+      "scope": "Only an isolated local domain; four owned expiring entities, actual normal native renderer and authenticated browser Image rendering. No public writes, audio, server permissions or native renderer resource patches.",
+      "microphoneRequested": false,
+      "publicWorldWrites": 0,
+      "inputs": [
+        {
+          "name": "opaque",
+          "pngSHA256": "0087b3a3a9c9347b3a592db7b7e4f88fe333aedb7c6bd6aae48ed664c3f98739",
+          "pngBytes": 372063,
+          "ktxSHA256": "665f2c22827bafda51eb0127b69cce6c5d33869a98ae7331b8aafa88985d89f6",
+          "ktxBytes": 393432,
+          "metadataSHA256": "d1c5fb8899b89f3e42788d04f63bec84331317707c00976b4369049ebc11d674"
+        },
+        {
+          "name": "mask",
+          "pngSHA256": "43d594a99f2b8d8412348a45b0556f4af8c1960ccbce0e2b3164c8fa61beba6c",
+          "pngBytes": 94618,
+          "ktxSHA256": "8271f00457196483ecf617df4f644885d35e52fad010ad31b9bd35afe2cc5355",
+          "ktxBytes": 349744,
+          "metadataSHA256": "5e29136bf95ad68a61f34ccafdbb660119e87bb6b01707798a12c1dbb883a8d9"
+        }
+      ],
+      "cases": [
+        {
+          "name": "opaque",
+          "mode": "original",
+          "nativeDiagnostic": {
+            "connected": true,
+            "serversExist": true,
+            "canRez": true,
+            "current": "opaque-original",
+            "renderMethod": 0,
+            "renderStatsJob": "RenderMainView.DrawTransparentDeferred",
+            "resourceState": 3,
+            "renderFrames": 3,
+            "finishedFrameBaseline": 0,
+            "renderJobAvailable": true,
+            "renderJobEnabled": true,
+            "entitiesEnabled": true,
+            "camera": {
+              "mode": "independent",
+              "position": {
+                "x": 60,
+                "y": 10,
+                "z": 4
+              },
+              "orientation": {
+                "x": 0,
+                "y": 0,
+                "z": 0,
+                "w": -1
+              },
+              "fieldOfView": 54.9999885559082,
+              "aspectRatio": 1.374496579170227
+            }
+          },
+          "nativePixels": {
+            "width": 1024,
+            "height": 745,
+            "crop": {
+              "x": 334,
+              "y": 195,
+              "width": 355,
+              "height": 354
+            },
+            "backgroundCoverage": 0,
+            "variance": 200.7643260359764
+          },
+          "browserPixels": {
+            "width": 1024,
+            "height": 768,
+            "crop": {
+              "x": 329,
+              "y": 201,
+              "width": 365,
+              "height": 365
+            },
+            "backgroundCoverage": 0,
+            "variance": 206.9852880835533
+          },
+          "auditedSourceComparison": {
+            "native": {
+              "rgbMAE": 2.2525227864583335,
+              "correlation": 0.846768936752013,
+              "maskMismatch": 0
+            },
+            "browser": {
+              "rgbMAE": 0.8807779947916666,
+              "correlation": 0.9861200054531488,
+              "maskMismatch": 0
+            }
+          }
+        }
+      ],
+      "ownedFixtureCount": 4,
+      "preservedBaselineCount": 7,
+      "nativeVersion": "2026.04.1",
+      "browserVersion": "154.0.8037.57",
+      "nativeBinarySHA256": "91f3e10c42c1e35d5c8265e9b0007e925844d9bee61a26807118dde6e527887c",
+      "startSourceSHA256": {
+        "tests/integration/native-image-state.mjs": "3b5478bdd024a452706443c317e1aae2bd16bbebe2398e29b3db604fcdc3df4b",
+        "tests/integration/native-image-fixture.js": "211ab79ef25c3faa66708a6780307406ebbddc1d02010a30232347db57c59d80",
+        "tests/integration/native-image-pixels.mjs": "bacd254943fe1aa246f5a4ec23213a273df4251a79708ed286155f20fa33cc05",
+        "tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "src/world.ts": "f8eb4c7c781a9561546a9d3e787cd5d32b982a7a8b5f159c523c103c773458c0",
+        "src/compressed-color-session.ts": "e18af74fe59593bf9f1aee0ce7a91f0e6910ed5e903868f646f1311d61c42fcf",
+        "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+        "src/native-compressed-color.ts": "5439b334331980b43f8d7a0d1ea4750d58eec20ae0542a7296288192714e0467",
+        "src/native-alpha-material.ts": "a3515894f69f078222c7e2b543c46ce22f7bd05b58e12f3eaa14aa0a638dcfbb",
+        "src/native-render-state.ts": "af31a1e01576c233c1f7e8a8231dd5c2cc5871cb58b5783bf01f788da70d01df",
+        "src/world-image-cache.ts": "ba45a6125087f8b275c939a5e9e36dadac6879a37cb0fbe50d8c19dd9f1c6af9",
+        "src/world-source-text-cache.ts": "57ccb98bed54e788ed0e2f263e8362ae505f4b3073648dc08c311925e21116b1",
+        "src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+        "shared/native-ktx.mjs": "5c06f05ab00aa0678e40e56b1bf5c1bc0f6f5578fdbff1a8d4030cf6d4840a97"
+      },
+      "sourceSHA256": {
+        "tests/integration/native-image-state.mjs": "3b5478bdd024a452706443c317e1aae2bd16bbebe2398e29b3db604fcdc3df4b",
+        "tests/integration/native-image-fixture.js": "211ab79ef25c3faa66708a6780307406ebbddc1d02010a30232347db57c59d80",
+        "tests/integration/native-image-pixels.mjs": "bacd254943fe1aa246f5a4ec23213a273df4251a79708ed286155f20fa33cc05",
+        "tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "src/world.ts": "f8eb4c7c781a9561546a9d3e787cd5d32b982a7a8b5f159c523c103c773458c0",
+        "src/compressed-color-session.ts": "e18af74fe59593bf9f1aee0ce7a91f0e6910ed5e903868f646f1311d61c42fcf",
+        "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+        "src/native-compressed-color.ts": "5439b334331980b43f8d7a0d1ea4750d58eec20ae0542a7296288192714e0467",
+        "src/native-alpha-material.ts": "a3515894f69f078222c7e2b543c46ce22f7bd05b58e12f3eaa14aa0a638dcfbb",
+        "src/native-render-state.ts": "af31a1e01576c233c1f7e8a8231dd5c2cc5871cb58b5783bf01f788da70d01df",
+        "src/world-image-cache.ts": "ba45a6125087f8b275c939a5e9e36dadac6879a37cb0fbe50d8c19dd9f1c6af9",
+        "src/world-source-text-cache.ts": "57ccb98bed54e788ed0e2f263e8362ae505f4b3073648dc08c311925e21116b1",
+        "src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+        "shared/native-ktx.mjs": "5c06f05ab00aa0678e40e56b1bf5c1bc0f6f5578fdbff1a8d4030cf6d4840a97"
+      },
+      "sourceCoherent": true
+    }
+  ]
+}

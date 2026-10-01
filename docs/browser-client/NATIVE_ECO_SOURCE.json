@@ -1,0 +1,31 @@
+{
+  "status": "Prepared opt-in candidate; native execution and gateway acceptance pending",
+  "nativeRelease": "2026.04.1",
+  "nativeSourceCommit": "f91d15a08587dcd37c642234424b3215dd331724",
+  "primarySourceSHA256": {
+    "interface/src/scripting/PerformanceScriptingInterface.cpp": "497b1151d07594a0610a2d0726621f956b2fdefb1dc58884710530ab7ca54277",
+    "interface/src/scripting/PerformanceScriptingInterface.h": "510a5d27008948109592f5a4e309240774945a653b97c6b70659a2ee4b2b768a",
+    "interface/src/PerformanceManager.cpp": "140fdcb46d57af6be4688c7f08231ce93c457d553a6a3bbb8eef33777128fffa",
+    "interface/src/RefreshRateManager.cpp": "e4a2f8b9b169c06590cf51b812cc3098867c69c316f63eacf119ca3ac230ac2d",
+    "interface/src/LODManager.cpp": "d97225b072e42fd3cce75185b6fed3400c5638477a722913fdb171d38420ce7b",
+    "interface/src/LODManager.h": "aa72315a72551cad0e1288eed9b503127821c269e912a1e829533c59d9e357f1",
+    "interface/src/scripting/RenderScriptingInterface.h": "69a99e76074889c0f8a33895b7706f35a70519682e8587d64dec78f5d3e2b80b"
+  },
+  "cpuVerification": {
+    "nodeVersion": "24.21.0",
+    "probeContracts": {
+      "passed": 7,
+      "failed": 0
+    },
+    "runnerContracts": {
+      "passed": 7,
+      "failed": 0
+    },
+    "nativeProcessesStarted": 0
+  },
+  "productionDefaultEnabled": false,
+  "constructorCustomExperimentUnchanged": true,
+  "actualNativeRenderedQualityVerified": false,
+  "actualTabletAudioPoseAcceptanceVerified": false,
+  "effectiveLODTargetMustBeObservedSeparately": true
+}

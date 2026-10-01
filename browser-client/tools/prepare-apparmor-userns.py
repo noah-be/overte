@@ -14,10 +14,12 @@ import subprocess
 from pathlib import Path
 
 TARGETS = (
-    ('bwrap-userns-restrict', 'apparmor', 'bwrap', '/usr/bin/bwrap'),
+    ('bwrap-userns-restrict', 'apparmor-profiles', 'bwrap', '/usr/bin/bwrap'),
     ('unshare-userns-restrict', 'apparmor-profiles', 'unshare', '/usr/bin/unshare'),
 )
-ALLOWED_NAMES = {'bwrap', 'unshare', 'unpriv_bwrap', 'unpriv_unshare'}
+ALLOWED_NAMES = {'bwrap', 'unshare', 'unpriv_bwrap', 'unshare//unpriv'}
+PROFILE_DIRECTORY = Path('/usr/share/apparmor/extra-profiles')
+PACKAGE_MANIFEST = Path('/var/lib/dpkg/info/apparmor-profiles.md5sums')
 
 
 class PolicyError(RuntimeError):
@@ -50,7 +52,29 @@ def trusted_file(path):
         raise PolicyError('distro-file-is-not-canonical-regular-file')
     if info.st_uid != 0 or info.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
         raise PolicyError('distro-file-owner-or-write-permissions-invalid')
+    for parent in path.parents:
+        try:
+            parent_info = parent.stat()
+            parent_canonical = parent.resolve(strict=True)
+        except OSError as error:
+            raise PolicyError('required-distro-directory-unavailable') from error
+        if parent_canonical != parent or not stat.S_ISDIR(parent_info.st_mode) \
+                or parent_info.st_uid != 0 or parent_info.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
+            raise PolicyError('distro-parent-directory-owner-or-write-permissions-invalid')
     return info
+
+
+def package_file_digest(path):
+    """Use dpkg's exact package-file manifest after normal signed apt install."""
+    trusted_file(PACKAGE_MANIFEST)
+    document = PACKAGE_MANIFEST.read_text()
+    if len(document) > 1024 * 1024:
+        raise PolicyError('distro-package-manifest-size-limit')
+    relative = str(path).removeprefix('/')
+    matches = re.findall(r'^([a-f0-9]{32})  ' + re.escape(relative) + r'$', document, re.M)
+    if len(matches) != 1:
+        raise PolicyError('distro-profile-missing-or-ambiguous-in-package-manifest')
+    return matches[0]
 
 
 def loaded_profiles():
@@ -86,7 +110,7 @@ def package_owns_exact_executable(path, package):
 
 
 def inspect_target(filename, package, profile, executable):
-    path = Path('/etc/apparmor.d') / filename
+    path = PROFILE_DIRECTORY / filename
     trusted_file(path)
     executable_path = Path(executable)
     info = trusted_file(executable_path)
@@ -105,19 +129,19 @@ def inspect_target(filename, package, profile, executable):
     content = path.read_bytes()
     if len(content) > 256 * 1024:
         raise PolicyError('distro-profile-size-limit')
-    conffiles = command(['dpkg-query', '--show', '--showformat=${Conffiles}', package])
-    match = re.search(r'^[ \t]*' + re.escape(str(path)) + r'[ \t]+([a-f0-9]{32})[ \t]*$', conffiles, re.M)
-    # dpkg records conffile checksums with MD5. This checks unmodified package
-    # configuration after signed apt installation, not password authentication.
-    if not match or hashlib.md5(content, usedforsecurity=False).hexdigest() != match.group(1):
-        raise PolicyError('distro-profile-differs-from-recorded-package-conffile')
+    # Noble ships these disabled-by-default extra profiles as ordinary package
+    # files, not conffiles. MD5 is only the package compatibility checksum; root
+    # ownership and the signed apt installation remain the trust boundary.
+    if hashlib.md5(content, usedforsecurity=False).hexdigest() != package_file_digest(path):
+        raise PolicyError('distro-profile-differs-from-recorded-package-file')
     text = content.decode('utf-8')
     if not re.search(r'^\s*abi\s+<abi/4\.0>\s*,\s*$', text, re.M):
         raise PolicyError('distro-profile-abi-not-reviewed')
     if not re.search(r'^\s*profile\s+' + re.escape(profile) + r'\s', text, re.M):
         raise PolicyError('distro-main-profile-name-not-reviewed')
     return {'filename': filename, 'package': package, 'profile': profile,
-            'sha256': hashlib.sha256(content).hexdigest(), 'packageConffileUnmodified': True}
+            'sha256': hashlib.sha256(content).hexdigest(), 'packageFileUnmodified': True,
+            'path': str(path)}
 
 
 def prepare():
@@ -142,7 +166,10 @@ def prepare():
         if target['profile'] in before:
             target['action'] = 'preserved-existing-loaded-profile'
             continue
-        command([str(parser), '-a', str(Path('/etc/apparmor.d') / target['filename'])])
+        # Parse the checked source rather than an unrelated cached policy. Use
+        # the distro include base; do not replace any existing policy.
+        command([str(parser), '-a', '-K', '-b', '/etc/apparmor.d',
+                 str(PROFILE_DIRECTORY / target['filename'])])
         after_load = loaded_profiles()
         if target['profile'] not in after_load:
             raise PolicyError('shipped-main-profile-remained-unloaded')

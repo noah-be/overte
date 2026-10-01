@@ -63,16 +63,25 @@ export async function sandboxCommand({ directory, executable, env, roots = [], d
         args.push('--ro-bind', source, source); mounted.push(source);
     }
     args.push('--bind', directory, directory, '--ro-bind', path.join(directory, 'machine-id'), '/etc/machine-id');
+    const graphicsOverrides = new Map([
+        ['browser-graphics-override-1.js','/scripts/system/settings/settings.js'],
+        ['browser-graphics-override-2.qml','/scripts/system/settings/Settings.qml'],
+        ['browser-graphics-override-3.qml','/scripts/system/settings/qml/pages/GraphicsSettings.qml'],
+        ['browser-graphics-override-4.qml','/scripts/system/settings/qml/SettingSlider.qml'],
+        ['browser-graphics-override-5.qml','/scripts/system/settings/qml/SettingBoolean.qml'],
+        ['browser-graphics-override-6.qml','/scripts/system/settings/qml/SettingComboBox.qml'],
+    ]);
     for (const override of readOnlyOverrides) {
         const source = path.resolve(override.source), target = path.resolve(override.target);
         if (!inside(source, path.resolve(directory)) || !((path.basename(source) === 'browser-snapshot.js' && target.endsWith('/scripts/system/snapshot.js'))
                 || (path.basename(source) === 'browser-places.js' && target.endsWith('/scripts/system/places/places.js'))
-                || (path.basename(source) === 'browser-places-ui.js' && target.endsWith('/scripts/system/places/placesHtml.js'))) || !roots.some(root => inside(target, reviewedRoot(root)))) {
-            throw Error('Only reviewed session Snapshot and Places adapters may override installed native scripts.');
+                || (path.basename(source) === 'browser-places-ui.js' && target.endsWith('/scripts/system/places/placesHtml.js'))
+                || (graphicsOverrides.has(path.basename(source)) && target.endsWith(graphicsOverrides.get(path.basename(source))))) || !roots.some(root => inside(target, reviewedRoot(root)))) {
+            throw Error('Only reviewed session Snapshot, Places and browser Graphics adapters may override installed native scripts.');
         }
         const [sourceInfo, targetInfo] = await Promise.all([lstat(source), lstat(target)]);
         if (!sourceInfo.isFile() || sourceInfo.isSymbolicLink() || !targetInfo.isFile() || targetInfo.isSymbolicLink()) {
-            throw Error('Native snapshot adapters must bind regular trusted script files.');
+            throw Error('Native adapters must bind regular trusted script files.');
         }
         args.push('--ro-bind', source, target);
     }

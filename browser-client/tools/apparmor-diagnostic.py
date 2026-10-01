@@ -4,8 +4,8 @@
 import hashlib,json,os,re,shutil,subprocess
 from pathlib import Path
 
-PROFILES={'bwrap-userns-restrict':'apparmor','unshare-userns-restrict':'apparmor-profiles'}
-LOADED_NAMES={'bwrap','unshare','bwrap-userns-restrict','unshare-userns-restrict','unpriv_bwrap','unpriv_unshare'}
+PROFILES={'bwrap-userns-restrict':'apparmor-profiles','unshare-userns-restrict':'apparmor-profiles'}
+LOADED_NAMES={'bwrap','unshare','bwrap-userns-restrict','unshare-userns-restrict','unpriv_bwrap','unshare//unpriv'}
 
 def read_scalar(path):
     try:
@@ -37,7 +37,7 @@ def main():
     if loaded is not None:
         report['relevantLoadedProfiles']=[{'profile':name,'mode':mode} for name,mode in re.findall(r'^([^\n]+) \(([^\n]+)\)$',loaded,re.M) if name in LOADED_NAMES]
     for name,package in PROFILES.items():
-        path=Path('/etc/apparmor.d')/name
+        path=Path('/usr/share/apparmor/extra-profiles')/name
         item={'present':path.is_file(),'disabledMarkerPresent':os.path.lexists(Path('/etc/apparmor.d/disable')/name),'package':package}
         if path.is_file():
             content=path.read_bytes();item['sha256']=hashlib.sha256(content).hexdigest()
@@ -47,9 +47,10 @@ def main():
             item['expectedMainProfileDeclared']=bool(re.search(r'^\s*profile\s+'+re.escape(expected_profile)+r'\s',text,re.M))
             owner_code,owner=run(['dpkg-query','--search',str(path)])
             item['expectedPackageOwnsFile']=owner_code==0 and any(line.startswith(package+': ') for line in owner.splitlines())
-            config_code,configs=run(['dpkg-query','--show','--showformat=${Conffiles}\n',package])
-            found=re.search(r'^\s*'+re.escape(str(path))+r'\s+([a-f0-9]{32})(?:\s|$)',configs,re.M)
-            item['matchesRecordedPackageConffile']=bool(config_code==0 and found and hashlib.md5(content).hexdigest()==found.group(1))
+            try:manifest=Path('/var/lib/dpkg/info/apparmor-profiles.md5sums').read_text()
+            except OSError:manifest=''
+            matches=re.findall(r'^([a-f0-9]{32})  '+re.escape(str(path).removeprefix('/'))+r'$',manifest,re.M)
+            item['matchesRecordedPackageFile']=len(matches)==1 and hashlib.md5(content,usedforsecurity=False).hexdigest()==matches[0]
         report['profiles'][name]=item
     print(json.dumps(report,indent=2))
 

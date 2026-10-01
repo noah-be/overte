@@ -3,6 +3,7 @@
 // Connected-session approval and per-world ownership for compressed color assets.
 import {BrowserSession,type SessionCallbacks,type ServerMessage} from './session';
 import {NativeCompressedColorCache,type CompressionCapabilities,type CompressedColorOptions} from './native-compressed-color';
+import type {WorldSourceAuthority} from './world-source-text-cache';
 export type SessionCompressionLimits=Omit<CompressedColorOptions,'origin'|'sessionId'|'authority'|'resolveAsset'|'capabilities'>;
 interface Approval {sessionId: string; permissionRevision: number; epoch: number}
 interface OwnedCache {cache: NativeCompressedColorCache; signal: AbortSignal; stop(): void}
@@ -13,6 +14,13 @@ class AssetApproval {
  private owned?: OwnedCache;private retired?: NativeCompressedColorCache;
  constructor(private origin: string,private matchesSession:(id:string)=>boolean){}
  get snapshot(){return this.approval?{...this.approval}:undefined;}
+ capture():WorldSourceAuthority{
+  const approval=this.approval,connection=this.connectionEpoch;
+  if(!approval||!this.matchesSession(approval.sessionId))throw Error('World assets require the current connected session authority');
+  return {generation:JSON.stringify([connection,approval.epoch,approval.sessionId,approval.permissionRevision]),assertCurrent:()=>{
+   if(this.connectionEpoch!==connection||this.approval!==approval||!this.matchesSession(approval.sessionId))throw Error('World asset authority was revoked');
+  }};
+ }
  leave(){this.revoke();this.boundSessionId='';this.connectionEpoch++;}
  revoke(){this.approval=undefined;this.owned?.stop();}
  observe(message: Extract<ServerMessage,{type:'state'}>){
@@ -54,6 +62,7 @@ export class CompressedColorSession extends BrowserSession {
   this.assets=assets;matchesSession=id=>this.connected&&this.sessionId===id;
  }
  get compressedAssetApproval(){return this.assets.snapshot;}
+ captureAssetAuthority(){return this.assets.capture();}
  compressedColors(capabilities:CompressionCapabilities,worldSignal:AbortSignal,limits:SessionCompressionLimits={}){return this.assets.colors(capabilities,worldSignal,limits);}
  override leave(){this.assets.leave();super.leave();}
 }

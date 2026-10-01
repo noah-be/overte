@@ -8,6 +8,7 @@ import {randomUUID} from 'node:crypto';
 import {prepareSnapshotOverride} from './tablet-snapshots.mjs';
 import {visitorFilename} from './tablet-files.mjs';
 import {nativeChatMessage} from './tablet-chat.mjs';
+import {validateBrowserGraphicsRequest,validateBrowserGraphicsResult} from '../shared/browser-graphics.mjs';
 
 // Cache trusted helpers together with the gateway module at process startup.
 // Every worker uses these exact bytes even if a development checkout changes.
@@ -23,7 +24,8 @@ export function validateTabletInput(value) {
     if (!value||typeof value!=='object'||Array.isArray(value)||value.type!=='tablet'||!integer(value.sequence,1,Number.MAX_SAFE_INTEGER)) throw new Error('Invalid tablet command');
     const result={type:'tablet',action:value.action,sequence:value.sequence};
     if(value.revision!==undefined){if(!integer(value.revision,1,Number.MAX_SAFE_INTEGER))throw new Error('Invalid tablet revision');result.revision=value.revision;}
-    if(!['open','close','home','back','input','frameAck','snapshotResult'].includes(value.action))throw new Error('Unsupported tablet command');
+    if(!['open','close','home','back','input','frameAck','snapshotResult','graphicsResult'].includes(value.action))throw new Error('Unsupported tablet command');
+    if(value.action==='graphicsResult')Object.assign(result,validateBrowserGraphicsResult(value));
     if(value.action==='snapshotResult'){
         if(!integer(value.requestId,1,Number.MAX_SAFE_INTEGER))throw Error('Invalid snapshot request');result.requestId=value.requestId;
         if(value.error!==undefined){if(typeof value.error!=='string'||value.error.length>512)throw Error('Invalid snapshot error');result.error=value.error;}
@@ -79,10 +81,10 @@ export class TabletSession {
     constructor({framePath,filesDirectory,sendNative,sendBrowser,isActive,getRevision}){
         this.framePath=framePath;this.sendNative=sendNative;this.sendBrowser=sendBrowser;this.isActive=isActive;this.getRevision=getRevision;
         this.closed=false;this.sequence=0;this.frameSequence=0;this.pendingFrame=0;this.revision=0;this.pendingTimer=null;
-        this.filesDirectory=filesDirectory;this.snapshotRequest=0;this.clipboardRequest=0;this.chatSequence=0;
+        this.filesDirectory=filesDirectory;this.snapshotRequest=0;this.clipboardRequest=0;this.chatSequence=0;this.graphicsRequest=0;this.graphicsSequence=0;
     }
     current(revision){return !this.closed&&this.isActive()&&integer(revision,1,Number.MAX_SAFE_INTEGER)&&revision===this.getRevision();}
-    resetRevision(){const next=this.getRevision();if(next!==this.revision){this.revision=next;this.frameSequence=0;this.pendingFrame=0;this.snapshotRequest=0;this.clipboardRequest=0;this.chatSequence=0;clearTimeout(this.pendingTimer);}}
+    resetRevision(){const next=this.getRevision();if(next!==this.revision){this.revision=next;this.frameSequence=0;this.pendingFrame=0;this.snapshotRequest=0;this.clipboardRequest=0;this.chatSequence=0;this.graphicsRequest=0;this.graphicsSequence=0;clearTimeout(this.pendingTimer);}}
     receive(value){
         if(this.closed)throw new Error('Tablet session has ended');
         const message=validateTabletInput(value);this.resetRevision();
@@ -90,6 +92,7 @@ export class TabletSession {
         if(message.action!=='open'&&message.revision!==this.revision)throw new Error('Stale tablet command');
         if(message.revision!==undefined&&message.revision!==this.revision)throw new Error('Stale tablet command');
         if(message.sequence<=this.sequence)throw new Error('Repeated tablet command');this.sequence=message.sequence;message.revision=this.revision;
+        if(message.action==='graphicsResult'){if(message.requestId!==this.graphicsRequest)return;this.graphicsRequest=0;}
         if(message.action==='input'&&message.event==='clipboard')this.clipboardRequest=message.sequence;
         if(message.action==='frameAck'){
             if(message.frameSequence!==this.pendingFrame)return;
@@ -129,6 +132,11 @@ export class TabletSession {
             }catch{
                 if(this.current(revision)){this.sendBrowser({type:'tablet',kind:'error',revision,message:'The native tablet display could not be read. Try opening it again.'});this.releaseFrame(revision,message.sequence);}
             }finally{await unlink(frameFile).catch(()=>{});}
+        }else if(message.kind==='graphics'){
+            const request=validateBrowserGraphicsRequest(message);
+            if(request.requestId<=this.graphicsSequence)return;
+            this.graphicsSequence=request.requestId;this.graphicsRequest=request.requestId;
+            this.sendBrowser({type:'tablet',kind:'graphics',revision,...request});
         }else if(message.kind==='chat'){
             const chat=nativeChatMessage(message);if(chat.sequence<=this.chatSequence)return;this.chatSequence=chat.sequence;
             this.sendBrowser({type:'tablet',kind:'chat',revision,...chat});

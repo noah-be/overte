@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 import * as THREE from 'three';
+import { applyNativeDefaultCull } from './native-default-cull';
+import { prepareNativeStaticWinding, type NativeWindingScope } from './native-static-winding';
+import { WorldGpuTiming } from './world-gpu-timing';
+import { WorldGraphicsTarget } from './browser-graphics-target';
 import { assetDependency, colliderDistance, constrainCamera, entityCollider, entityTransform, materialRGB, parseMaterialData, poseRecord, quaternion, resolveCollision, unsupportedEntityEffects, vector } from './world-data';
 import type { Avatar, Collider, Entity, MaterialData, Pose, Quat, Vec3 } from './world-data';
 import { FrameMetrics } from './frame-metrics';
@@ -13,6 +17,7 @@ import { applyNativeModelRenderState, applyNativeRenderState, cloneNativeMateria
 import { parseTexturedModel } from './model-textures';
 import { ModelResources } from './model-resources';
 import { WorldImageCache } from './world-image-cache';
+import { WorldSourceTextCache, readWorldSourceText, type WorldSourceAuthority } from './world-source-text-cache';
 import { EmbeddedFbxImages } from './embedded-fbx-images';
 import { BakedFbxPreparePool } from './model-fbx-pool';
 import { PreparedFbxCache } from './prepared-fbx-cache';
@@ -20,14 +25,20 @@ import { ModelLoadScheduler } from './model-load-scheduler';
 import { ModelGeometryStage } from './model-geometry-stage';
 import { InitialSurfaceWait } from './initial-surface-wait';
 import { SimulationClock } from './simulation-clock';
-import { colorTextureCandidate,readColorTextureMetadata,type TextureRole } from './color-texture-metadata';
+import { colorTextureCandidate,type TextureRole } from './color-texture-metadata';
 import { UnsupportedNativeCompression, type NativeCompressedColorCache, type CompressionCapabilities } from './native-compressed-color';
 import { batchStaticModel, inspectStaticModel, type StaticModelBatch, type StaticModelBatchInspection } from './static-model-batch';
 import { hasNativeZeroLightShader, installNativeZeroLightShader, restoreNativeZeroLightShader } from './native-zero-lights';
 export type { Avatar, Entity, Pose, Vec3 } from './world-data';
 
 export interface WorldOptions {
+  /** Reviewed native defaults/fixed-CCW experiment; captured once, off by default. */
+  nativeCullDefaults?: boolean;
+  /** Optional bounded asynchronous frame diagnostics; absent means no timer queries. */
+  gpuTiming?: boolean;
   resolveAsset(url: string): string;
+  /** Exact connected-session/revision snapshot, required by the production entry point. */
+  captureAssetAuthority?():WorldSourceAuthority;
   /** Reviewed performance experiment, fixed for this World; disabled by default. */
   zeroLightGuard?: boolean;
   /** Optional approved-session factory; absent means the unchanged original-image path. */
@@ -56,6 +67,10 @@ export class BrowserWorld {
   readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(70, 1, 0.05, 10000);
   private readonly renderer: THREE.WebGLRenderer;
+  private readonly nativeCullDefaults: boolean;
+  private readonly nativeWinding = new WeakMap<THREE.Group, NativeWindingScope>();
+  private readonly gpuTiming?: WorldGpuTiming;
+  readonly graphics: WorldGraphicsTarget;
   private readonly entities = new Map<string, Entity>();
   private readonly objects = new Map<string, THREE.Group>();
   private readonly signatures = new Map<string, string>();
@@ -65,6 +80,8 @@ export class BrowserWorld {
   private readonly resizeObserver: ResizeObserver;
   private readonly abort = new AbortController();
   private compressedColorCache?: NativeCompressedColorCache;
+  private sourceTexts?: WorldSourceTextCache;
+  private sourceTextGeneration?: string;
   private readonly imageCache = new WorldImageCache({signal:this.abort.signal});
   private readonly embeddedFbxImages = new EmbeddedFbxImages(this.abort.signal);
   private readonly embeddedFbxCounts={preparations:0,convertedImages:0,extractedBytes:0,skippedOversize:0,skippedUnsupported:0};
@@ -77,6 +94,8 @@ export class BrowserWorld {
   private readonly zeroLightWarnings = new WeakSet<THREE.Material>();
   private readonly zeroLightGuard: boolean;
   private readonly localLights = new Set<THREE.PointLight | THREE.SpotLight>();
+  private localLightsEnabled = true;
+  private cameraClippingEnabled = true;
   private readonly pointSlots = Array.from({ length: 8 }, () => new THREE.PointLight(0xffffff, 0));
   private readonly spotSlots = Array.from({ length: 8 }, () => new THREE.SpotLight(0xffffff, 0));
   private compilingGraphics = 0;
@@ -113,8 +132,23 @@ export class BrowserWorld {
 
   constructor(private readonly container: HTMLElement, private readonly options: WorldOptions) {
     this.zeroLightGuard = options.zeroLightGuard === true;
+    this.nativeCullDefaults = options.nativeCullDefaults === true;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    if (options.gpuTiming === true) this.gpuTiming = new WorldGpuTiming(this.renderer.getContext(), {
+      onWarning: message => options.onStatus(message, 'warning'),
+    });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.graphics = new WorldGraphicsTarget({
+      camera:this.camera,renderer:this.renderer,resize:()=>this.resize(),
+      validatePixelRatio:ratio=>this.validatePixelRatio(ratio),
+      localLights:()=>this.localLightsEnabled,
+      setLocalLights:enabled=>{
+        this.localLightsEnabled=enabled;this.lastLightSelection=-Infinity;
+        if(!enabled)for(const light of [...this.pointSlots,...this.spotSlots])light.intensity=0;
+      },
+      cameraClipping:()=>this.cameraClippingEnabled,
+      setCameraClipping:enabled=>{this.cameraClippingEnabled=enabled;},
+    });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.canvas = this.renderer.domElement;
@@ -147,6 +181,16 @@ export class BrowserWorld {
     this.renderer.setSize(width, height, false);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
+  }
+
+  private validatePixelRatio(ratio:number):void {
+    if(this.disposed || !Number.isFinite(ratio) || ratio<=0)throw Error('Invalid browser resolution');
+    const gl=this.renderer.getContext();
+    const viewport=gl.getParameter(gl.MAX_VIEWPORT_DIMS) as Int32Array;
+    const maximum=Math.min(Number(gl.getParameter(gl.MAX_RENDERBUFFER_SIZE)),Number(gl.getParameter(gl.MAX_TEXTURE_SIZE)));
+    const width=Math.floor(Math.max(1,this.container.clientWidth)*ratio),height=Math.floor(Math.max(1,this.container.clientHeight)*ratio);
+    if(!Number.isFinite(maximum) || maximum<1 || !viewport || viewport.length!==2 || width>maximum || height>maximum || width>viewport[0] || height>viewport[1])
+      throw Error('This resolution exceeds the browser graphics limits');
   }
 
   setEnabled(enabled: boolean): void {
@@ -236,7 +280,7 @@ export class BrowserWorld {
     }).sort((a,b) => b.groups - a.groups);
   }
   getPerformance() {
-    return { ...this.metrics.snapshot(), drawingBufferWidth: this.renderer.getContext().drawingBufferWidth,
+    return { ...this.metrics.snapshot(), gpuTiming: this.gpuTiming?.getSnapshot() ?? { enabled: false }, drawingBufferWidth: this.renderer.getContext().drawingBufferWidth,
       drawingBufferHeight: this.renderer.getContext().drawingBufferHeight, drawCalls: this.renderer.info.render.calls,
       triangles: this.renderer.info.render.triangles, geometries: this.renderer.info.memory.geometries,
       textures: this.renderer.info.memory.textures, entities: this.entities.size,
@@ -246,6 +290,7 @@ export class BrowserWorld {
       compilingGraphics: this.compilingGraphics, parallelShaderCompile: this.renderer.extensions.has('KHR_parallel_shader_compile'),
       meshColliders: this.meshCollisions.size, graphicsActive: this.presentationEnabled,
       imageLoading: this.imageCache.stats(), embeddedImages: {...this.embeddedFbxImages.statistics,...this.embeddedFbxCounts}, fbxPreparation: this.fbxPreparePool.counters,
+      sourceTextLoading: this.sourceTexts?.stats,
       preparedFbxCache: this.preparedFbx.stats, modelScheduling: this.modelScheduler.stats,
       compressedColorLoading: this.compressedColorCache?.statistics,
       initialSurfaceWait: this.initialSurfaceWait.state,
@@ -297,7 +342,7 @@ export class BrowserWorld {
       const existing = this.objects.get(entity.id);
       if (existing) { existing.position.copy(transform.position); existing.quaternion.copy(transform.rotation); existing.visible = entity.visible !== false && existing.userData.shadersReady === true; }
       const signature = JSON.stringify([entity.type, entity.shape,
-        entity.parentID, entity.dimensions, entity.registrationPoint, entity.color, entity.alpha, entity.unlit,
+        entity.parentID, entity.dimensions, entity.registrationPoint, entity.color, entity.alpha, entity.unlit, entity.emissive,
         entity.intensity, entity.isSpotlight,
         entity.modelURL, entity.textures, entity.shapeType, entity.collisionless, entity.imageURL, entity.text, entity.textColor, entity.materialURL, entity.materialData, entity.parentMaterialName, unsupportedEffects]);
       if (this.signatures.get(entity.id) === signature) continue;
@@ -319,6 +364,8 @@ export class BrowserWorld {
       root.visible = false;
       void this.populateEntity(entity, root).then(async () => {
         if (this.disposed || this.objects.get(entity.id) !== root || entity.type === 'Material') return;
+        if (this.nativeCullDefaults && entity.type === 'Model') await this.prepareNativeModelFaces(entity, root);
+        if (this.disposed || this.objects.get(entity.id) !== root) return;
         this.updateMeshCollision(entity, root);
         for (const attachment of this.entities.values()) if (attachment.type === 'Material' && attachment.parentID === entity.id) await this.applyEntityMaterial(attachment);
         if (this.disposed || this.objects.get(entity.id) !== root) return;
@@ -351,6 +398,7 @@ export class BrowserWorld {
   }
   private prepareModelBatch(id:string,root:THREE.Group):void {
     this.restoreModelBatch(root);
+    this.nativeWinding.get(root)?.assertStatic();
     this.prepareZeroLightShaders(root);
     const options = {materialChildren:this.hasMaterialChildren(id)};
     const candidate = inspectStaticModel(root,options);
@@ -358,6 +406,32 @@ export class BrowserWorld {
     const started = performance.now(), value = batchStaticModel(root,options);
     this.recordLoadPhase('modelBatch',started);
     if (value.savedDrawCalls) this.modelBatches.set(root,{value,candidate});
+  }
+
+  /** Use the completed native entity hierarchy, including normalization and
+   * parents, before uploads/batching. Early collision publication stays intact;
+   * converted index order invalidates only this owner's copied triangle BVH. */
+  private async prepareNativeModelFaces(entity: Entity, root: THREE.Group): Promise<void> {
+    if (!this.nativeCullDefaults || entity.type !== 'Model') return;
+    const signal = AbortSignal.any([this.abort.signal, this.modelReaders.get(root)?.signal ?? this.abort.signal]);
+    signal.throwIfAborted();
+    if (this.disposed || this.objects.get(entity.id) !== root) throw new DOMException('The model face owner was removed', 'AbortError');
+    const resources = new ModelResources(); resources.capture(root);
+    const started = performance.now();
+    try {
+      const scope = await prepareNativeStaticWinding(root, { signal,
+        onUnsupported: message => this.options.onStatus(message, 'warning'),
+      });
+      signal.throwIfAborted();
+      if (this.disposed || this.objects.get(entity.id) !== root) throw new DOMException('The model face owner was removed', 'AbortError');
+      this.nativeWinding.set(root, scope);
+      if (scope.convertedMeshes) {
+        this.meshCollisions.get(entity.id)?.value.dispose(); this.meshCollisions.delete(entity.id);
+      }
+    } finally {
+      resources.capture(root); resources.releaseKeeping(root);
+      this.recordLoadPhase('nativeWinding', started);
+    }
   }
 
   private updateMeshCollision(entity: Entity, root: THREE.Group, geometryRoot: THREE.Object3D = root): void {
@@ -510,7 +584,12 @@ export class BrowserWorld {
   private baseMaterial(entity: Entity): THREE.Material {
     const color = entity.color ? new THREE.Color(entity.color.red / 255, entity.color.green / 255, entity.color.blue / 255) : new THREE.Color('#cccccc');
     const params = { color, opacity: entity.alpha ?? 1, transparent: (entity.alpha ?? 1) < 1, side: THREE.DoubleSide };
-    return entity.unlit ? new THREE.MeshBasicMaterial({ ...params, toneMapped: false }) : new THREE.MeshStandardMaterial({ ...params, roughness: 0.7 });
+    const material = entity.unlit ? new THREE.MeshBasicMaterial({ ...params, toneMapped: false }) : new THREE.MeshStandardMaterial({ ...params, roughness: 0.7 });
+    // Quad/Circle remain the existing one-plane approximation. Native closed
+    // flattened shapes need a separate geometry correction before BACK applies.
+    if (this.nativeCullDefaults) applyNativeDefaultCull(material,
+      entity.type === 'Shape' && ['quad', 'circle'].includes((entity.shape ?? '').toLowerCase()) ? 'unsupported-flat-shape' : 'solid-primitive');
+    return material;
   }
   private async texture(url: string, color = true, role:TextureRole='other', signal=this.abort.signal): Promise<THREE.Texture> {
     signal.throwIfAborted();
@@ -532,9 +611,7 @@ export class BrowserWorld {
       colors=this.options.compressedColors(caps,this.abort.signal);this.compressedColorCache=colors;
       assertApproval=colors.captureApproval();
     }
-    const response = await fetch(this.options.resolveAsset(url), { signal });
-    await requireAssetResponse(response,'Texture metadata');
-    const metadata = (colors?await readColorTextureMetadata(response,signal):await response.json()) as { original?: string; uncompressed?: string };
+    const metadata = JSON.parse(await this.sourceText(url,'Texture metadata',65536,signal)) as { original?: string; uncompressed?: string };
     signal.throwIfAborted();assertApproval?.();
     if(colors&&caps){
       const candidate=colorTextureCandidate(metadata,role,caps);
@@ -553,6 +630,28 @@ export class BrowserWorld {
     const texture=await this.texture(assetDependency(url, source), color,role,signal);
     try{signal.throwIfAborted();assertApproval?.();return texture;}catch(error){texture.dispose();throw error;}
   }
+
+  private async sourceText(url:string,label:string,maximumBytes:number,signal=this.abort.signal):Promise<string>{
+    signal.throwIfAborted();
+    const authority=this.options.captureAssetAuthority?.();authority?.assertCurrent();
+    if(this.sourceTextGeneration!==authority?.generation){this.invalidateSourceTexts();this.sourceTextGeneration=authority?.generation;}
+    // Resolve every reader under current visitor authority, including hits.
+    // The exact owned gateway route is the cache key, never a public/global URL.
+    // HTTP fragments select a material after parsing and never reach its HTTP
+    // origin. Keep queries/path and leave ATP's address semantics untouched.
+    let source=url;if(/^https?:/i.test(url)){const address=new URL(url);address.hash='';source=address.href;}
+    const key=this.options.resolveAsset(source),cache=this.sourceTexts??=new WorldSourceTextCache(this.abort.signal);
+    const text=await cache.get(key,maximumBytes,async producerSignal=>{
+      authority?.assertCurrent();
+      const response=await fetch(key,{signal:producerSignal});
+      await requireAssetResponse(response,label);
+      const text=await readWorldSourceText(response,producerSignal,maximumBytes);authority?.assertCurrent();return text;
+    },signal);
+    signal.throwIfAborted();this.abort.signal.throwIfAborted();authority?.assertCurrent();return text;
+  }
+
+  /** Revoke old metadata synchronously during transient transport loss. */
+  invalidateSourceTexts():void{this.sourceTexts?.dispose();this.sourceTexts=undefined;this.sourceTextGeneration=undefined;}
 
   private async populateEntity(entity: Entity, root: THREE.Group): Promise<void> {
     const size = vector(entity.dimensions, 1);
@@ -595,7 +694,9 @@ export class BrowserWorld {
       }
       case 'Image': {
         if (!entity.imageURL) throw new Error('Image has no asset URL');
-        const material = new THREE.MeshBasicMaterial({ map: await this.texture(entity.imageURL), side: THREE.DoubleSide, transparent: true });
+        // Native emissive Images are unlit; the default native SRGB presentation
+        // preserves their authored color rather than applying a Filmic curve.
+        const material = new THREE.MeshBasicMaterial({ map: await this.texture(entity.imageURL,true,'albedo'), side: THREE.DoubleSide, transparent: true, toneMapped: entity.emissive !== true });
         applyNativeRenderState(material, { cullFaceMode: 'CULL_NONE' });
         mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material); break;
       }
@@ -626,9 +727,7 @@ export class BrowserWorld {
     visited.add(source);
     const pathname = source.split(/[?#]/)[0].toLowerCase();
     if (pathname.endsWith('.fst')) {
-      const response = await fetch(this.options.resolveAsset(source), { signal });
-      await requireAssetResponse(response,'FST');
-      const mapping = await response.text();
+      const mapping = await this.sourceText(source,'FST',1024*1024,signal);
       const dependencies = fstDependencies(source, mapping);
       const value = (key:string) => Number(new RegExp(`^\\s*${key}\\s*=\\s*(.+)\\s*$`,'m').exec(mapping)?.[1] ?? (key === 'scale' ? 1 : 0));
       const scale = value('scale'), rotation = {x:value('rx'),y:value('ry'),z:value('rz')};
@@ -660,9 +759,7 @@ export class BrowserWorld {
           for (const assignment of assignments) for (const [selector, reference] of Object.entries(assignment)) {
             const url = assetDependency(source, reference);
             signal.throwIfAborted();
-            const response = await fetch(this.options.resolveAsset(url), { signal });
-            await requireAssetResponse(response,'Baked material');
-            const definitions = parseMaterialData(await response.text());
+            const definitions = parseMaterialData(await this.sourceText(url,'Baked material',1024*1024,signal));
             const name = decodeURIComponent(new URL(url).hash.slice(1));
             const definition = definitions.find(material => material.name === name) ?? definitions[0];
             const material = await this.makeMaterial(definition, url,signal);
@@ -855,9 +952,7 @@ export class BrowserWorld {
   private async applyEntityMaterial(entity: Entity): Promise<void> {
     let data = entity.materialData;
     if (entity.materialURL && entity.materialURL !== 'materialData') {
-      const response = await fetch(this.options.resolveAsset(entity.materialURL), { signal: this.abort.signal });
-      await requireAssetResponse(response,'Material');
-      data = await response.text();
+      data = await this.sourceText(entity.materialURL,'Material',1024*1024);
     }
     if (!data) throw new Error('Material entity has no material data');
     const materials = parseMaterialData(data);
@@ -927,7 +1022,8 @@ export class BrowserWorld {
       const resolve = (url: string) => source && source !== 'materialData' ? assetDependency(source, url) : url;
       await this.configureAlpha(material, { useAlpha: Boolean(data.albedoMap && data.opacityMap && resolve(data.albedoMap) === resolve(data.opacityMap)),
         mode: nativeOpacityMapMode(data.opacityMapMode), cutoff: data.opacityCutoff },signal);
-      applyNativeRenderState(material, { cullFaceMode: nativeCullFaceMode(data.cullFaceMode) });
+      if (this.nativeCullDefaults) applyNativeDefaultCull(material, 'native-material', data.cullFaceMode);
+      else applyNativeRenderState(material, { cullFaceMode: nativeCullFaceMode(data.cullFaceMode) });
       return material;
     } catch (error) {
       resources.releaseKeeping(); throw error;
@@ -1060,7 +1156,7 @@ export class BrowserWorld {
     if (this.thirdPerson) {
       const anchor = this.camera.position.clone();
       const desired = anchor.clone().add(new THREE.Vector3(0, 0.3, 3).applyQuaternion(rotation));
-      this.camera.position.copy(constrainCamera(anchor, desired, this.colliders));
+      this.camera.position.copy(this.cameraClippingEnabled ? constrainCamera(anchor, desired, this.colliders) : desired);
     }
     this.self.position.copy(this.position);
     this.self.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw);
@@ -1068,7 +1164,7 @@ export class BrowserWorld {
     if (time - this.lastLightSelection > 250) {
       this.lastLightSelection = time;
       const location = new THREE.Vector3();
-      const ranked = [...this.localLights].map(light => {
+      const ranked = (this.localLightsEnabled ? [...this.localLights] : []).map(light => {
         light.getWorldPosition(location);
         const distanceSquared = location.distanceToSquared(this.camera.position);
         return { light, strength: light.intensity / Math.max(1, distanceSquared), inRange: !light.distance || distanceSquared < light.distance * light.distance };
@@ -1088,10 +1184,18 @@ export class BrowserWorld {
       }
     }
     if (this.presentationEnabled) {
+      // Poll/begin/end stay outside the existing CPU submission interval. A
+      // token identifies only this World's owned sample, never a GL handle.
+      const sample = this.gpuTiming?.beginFrame();
       const started = performance.now();
-      this.renderer.render(this.scene, this.camera); this.renderedFrames++;
-      this.recordLoadPhase('graphicsSubmit', started);
-    }
+      let submittedMs: number | undefined, rendered = false;
+      try {
+        this.renderer.render(this.scene, this.camera); this.renderedFrames++;
+        if (sample) submittedMs = performance.now() - started;
+        this.recordLoadPhase('graphicsSubmit', started);
+        rendered = true;
+      } finally { this.gpuTiming?.endFrame(sample, submittedMs, rendered); }
+    } else this.gpuTiming?.pollFrame();
     this.frame = requestAnimationFrame(next => this.animate(next));
   }
 
@@ -1107,6 +1211,7 @@ export class BrowserWorld {
     this.avatarModels.clear();
     for (const { value } of this.meshCollisions.values()) value.dispose();
     this.meshCollisions.clear();
+    this.gpuTiming?.dispose();
     this.renderer.dispose(); this.canvas.remove();
   }
 }

@@ -15,6 +15,7 @@ import { terminateProcess, SharedTeardown } from './process-lifecycle.mjs';
 import { publicPlaceNames, publicPlaceSelection, resolvePublicPlace, validatePublicPermissions, viewpointPath } from './public-places.mjs';
 import { inspectNativeProtocol } from './native-protocol.mjs';
 import { prepareTablet, TabletSession } from './tablet.mjs';
+import { loadBrowserGraphicsPackage } from './browser-graphics-overrides.mjs';
 import { prepareWorker } from './worker-sandbox.mjs';
 import { launchNativeNetwork } from './network-sandbox.mjs';
 import { createVisitorFiles } from './tablet-files.mjs';
@@ -35,7 +36,10 @@ const directory = path.dirname(fileURLToPath(import.meta.url));
 const nativeBridgeSource = (await readFile(path.join(directory, 'native-visitor-persona.js'), 'utf8')) + '\n'
     + (await readFile(path.join(directory, 'native-visitor-preferences.js'), 'utf8')) + '\n'
     + (await readFile(path.join(directory, 'native-world.js'), 'utf8')) + '\n'
-    + await readFile(path.join(directory, 'native-bridge.js'), 'utf8');
+    + await readFile(path.join(directory, 'native-bridge.js'), 'utf8')
+    + (process.env.OVERTE_GATEWAY_REFRESH_DIAGNOSTICS === '1' ? '\n'
+        + await readFile(path.join(directory, 'native-worker-refresh-readback.js'), 'utf8') + '\n'
+        + await readFile(path.join(directory, 'native-worker-refresh-probe.js'), 'utf8') : '');
 const port = Number(process.env.OVERTE_GATEWAY_PORT || 8090);
 const host = process.env.OVERTE_GATEWAY_HOST || '127.0.0.1';
 const domains = (process.env.OVERTE_GATEWAY_DOMAINS || 'overte://127.0.0.2:40102').split(',').map(domainAddress);
@@ -45,6 +49,16 @@ const publicAssetOrigins = new Set((process.env.OVERTE_GATEWAY_PUBLIC_ASSET_ORIG
 const origins = new Set((process.env.OVERTE_GATEWAY_ORIGINS || `http://127.0.0.1:${port},http://localhost:${port},http://127.0.0.1:5173,http://localhost:5173`).split(','));
 const maximumSessions = Number(process.env.OVERTE_GATEWAY_MAX_SESSIONS || 4);
 if (!Number.isSafeInteger(maximumSessions) || maximumSessions < 1) throw Error('OVERTE_GATEWAY_MAX_SESSIONS must be a positive safe integer.');
+// Pin the operator-selected native Settings packages at gateway startup.
+// Visitors cannot select paths, override targets or unsupported source versions.
+const browserGraphicsPackages = new Map();
+for (const defaults of new Set([process.env.OVERTE_GATEWAY_DEFAULT_SCRIPTS, process.env.OVERTE_GATEWAY_PUBLIC_DEFAULT_SCRIPTS].filter(Boolean))) {
+    if (!defaults.startsWith('file:') && !path.isAbsolute(defaults)) throw Error('Default tablet scripts must be an absolute installed file path.');
+    const url = defaults.startsWith('file:') ? new URL(defaults).href : pathToFileURL(defaults).href;
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'file:' || parsed.host) throw Error('Default tablet scripts must be an installed local file.');
+    browserGraphicsPackages.set(url, await loadBrowserGraphicsPackage(url));
+}
 const sessions = new Map();
 const sockets = new Set();
 let shuttingDown = false;
@@ -119,6 +133,14 @@ class Session extends SharedTeardown {
         await writeFile(path.join(settingsDirectory, 'Interface.json'), JSON.stringify({
             'Audio/Desktop/INPUT': `${this.input}.monitor`, 'Audio/Desktop/OUTPUT': this.output,
             'Audio/mutedDesktop': true, firstRun: false, viewportResolutionScale: 0.1,
+            // Diagnostic experiment only: actual Tablet cold starts failed in
+            // this profile. Normal workers retain their native startup defaults.
+            ...(process.env.OVERTE_GATEWAY_NATIVE_REFRESH_QOS === '1' ? {
+                performancePreset: 5, refreshRateProfile: 3,
+                customRefreshRateFocusActive: 10, customRefreshRateFocusInactive: 10,
+                customRefreshRateUnfocus: 10, customRefreshRateMinimized: 2,
+                customRefreshRateStartup: 10, customRefreshRateShutdown: 30,
+            } : {}),
         }), { mode: 0o600 });
         if (this.closed) return;
         const bridge = nativeBridgeSource;
@@ -139,6 +161,10 @@ class Session extends SharedTeardown {
             this.files = await createVisitorFiles(this.directory);
             configuration.tablet = await prepareTablet(this.directory, { defaultScriptsURL: defaultScripts.startsWith('file:') ? defaultScripts : pathToFileURL(defaultScripts).href,
                 filesDirectory: this.files.directory });
+            const graphicsPackage = browserGraphicsPackages.get(configuration.tablet.defaultScriptsURL);
+            if (!graphicsPackage) throw Error('The installed browser Graphics Settings package was not validated at startup.');
+            this.graphicsOverrides = await graphicsPackage.prepare(this.directory);
+            configuration.tablet.graphics = { scriptURL: this.graphicsOverrides.scriptURL, channel: this.graphicsOverrides.channel, schemaVersion: 1 };
             configuration.navigation = { channel: 'browser-places-' + randomUUID() };
             this.placesOverrides = await preparePlacesOverride(this.directory, {
                 defaultScriptsURL: configuration.tablet.defaultScriptsURL, channel: configuration.navigation.channel, homeDomain: domain });
@@ -168,7 +194,7 @@ class Session extends SharedTeardown {
             const nativeRoot = this.publicPlace ? process.env.OVERTE_GATEWAY_PUBLIC_NATIVE_ROOT || process.env.OVERTE_PUBLIC_NATIVE_ROOT || process.env.OVERTE_GATEWAY_NATIVE_ROOT : process.env.OVERTE_GATEWAY_NATIVE_ROOT;
             this.worker = await prepareWorker({ directory: this.directory, executable: this.interfaceExecutable,
                 sourceEnvironment: env, nativeRoot, signal: this.workerAbort.signal,
-                readOnlyOverrides: [...(configuration.tablet?.snapshotOverride ? [configuration.tablet.snapshotOverride] : []), ...(this.placesOverrides || [])],
+                readOnlyOverrides: [...(configuration.tablet?.snapshotOverride ? [configuration.tablet.snapshotOverride] : []), ...(this.placesOverrides || []), ...(this.graphicsOverrides?.readOnlyOverrides || [])],
                 spawnOwned: (command, args, processEnv, label) => this.process(command, args, processEnv, label) });
             launchCommand = this.worker.command; launchPrefix = this.worker.args; launchEnv = this.worker.env;
             if (this.closed) throw Error('Session cancelled.');

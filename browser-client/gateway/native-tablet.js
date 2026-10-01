@@ -18,7 +18,7 @@ function createBrowserTablet(config) {
             }catch(error){/* A release exposes either the deferred or forward jobs. */}
         });
     }
-    var snapshotRequest=0,snapshotSequence=0,outbox=[],chatObserver;
+    var snapshotRequest=0,snapshotSequence=0,outbox=[],chatObserver,graphics;
     function effects(){var result={muted:!!Audio.muted};if(typeof Users!=='undefined'&&typeof Users.getIgnoreRadiusEnabled==='function')result.shield=!!Users.getIgnoreRadiusEnabled();return result;}
     function send(value){
         if(closed||!approved||!revision)return;value.type='tablet';value.revision=revision;
@@ -73,6 +73,7 @@ function createBrowserTablet(config) {
     }
     if(config.snapshotChannel){Messages.subscribe(config.snapshotChannel);Messages.messageReceived.connect(snapshotMessage);}
     if(config.chatURL){Script.include(config.chatURL);chatObserver=createBrowserTabletChat({isActive:function(){return !closed&&approved&&visible;},send:send});}
+    if(config.graphics){Script.include(config.graphics.scriptURL);graphics=createBrowserGraphics({channel:config.graphics.channel,now:Date.now,send:send});}
     helper.fromQml.connect(fromQml);tablet.screenChanged.connect(screenChanged);
     if(Audio.mutedChanged)Audio.mutedChanged.connect(muteChanged);
     // Load the actual version-matched installed defaults alongside the browser
@@ -87,6 +88,7 @@ function createBrowserTablet(config) {
     Script.load(config.defaultScriptsURL);
     tablet.toolbarMode=true;
     interval=Script.setInterval(function(){
+        if(graphics)graphics.poll();
         flush();
         if(closed||!visible||!approved||captureFailed)return;
         if(grabbing||pending){
@@ -102,10 +104,12 @@ function createBrowserTablet(config) {
     return {
         setAuthority:function(nextRevision,allowed){
             if(revision!==nextRevision||approved!==!!allowed){cancelCapture();outbox=[];revision=nextRevision;approved=!!allowed;lastError='';snapshotRequest=0;firstFrame=true;
+                if(graphics)graphics.setAuthority(revision,approved);
                 if(!approved){visible=false;helper.sendToQml({kind:'hide'});}else state();}
         },
         receive:function(message){
             if(closed||!approved||message.revision!==revision)return;
+            if(message.action==='graphicsResult'&&graphics){graphics.receive(message);return;}
             if(message.action==='open'){visible=true;loading=true;cancelCapture();tablet.toolbarMode=true;home();state();}
             else if(message.action==='close'){visible=false;cancelCapture();helper.sendToQml({kind:'hide'});state();}
             else if(message.action==='home'&&visible){cancelCapture();home();state();}
@@ -119,6 +123,7 @@ function createBrowserTablet(config) {
             else if(message.action==='input'&&visible){message.kind='input';helper.sendToQml(message);}
         },
         close:function(){if(closed)return;closed=true;visible=false;outbox=[];Script.clearInterval(interval);
+            if(graphics)graphics.close();
             if(chatObserver)chatObserver.close();
             helper.fromQml.disconnect(fromQml);tablet.screenChanged.disconnect(screenChanged);
             if(config.snapshotChannel){Messages.messageReceived.disconnect(snapshotMessage);Messages.unsubscribe(config.snapshotChannel);}

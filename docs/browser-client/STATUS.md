@@ -2,9 +2,115 @@
 
 Last updated: 2026-10-01. **Original baseline passed; additional mandatory Tablet and online-Hub implementation in progress.**
 
-## Current expanded-scope checkpoint
+## Current implementation and next step
 
-The current unpublished continuation integrates bounded embedded FBX images into
+Published branch: `feature/main/browser-client`, commit
+`cee2402852b77be38d35882e41c89bde80c64a90`, draft PR1023. The goal remains active;
+no endurance run is required or scheduled.
+
+The newest loading change coalesces session-owned FST/material/texture-metadata
+source text with exact permission-generation checks and bounded byte storage.
+**627/627 component tests**, **114/114 browser cases**, all **34/34** required
+repository checks, Actionlint and Zizmor pass. The production build also passes.
+A fresh stockFirefox
+Hub run reduced two-session FST/texmeta/materialJSON request counts from
+492/524/686 in the preceding Image cohort to190/266/182. Its final World
+retained319small texts in0.39MiB with532hits and zeroevictions. Source keys
+never cross visitors or approval generations. Firefox functional movement and
+rejoin passed within0.74mm of native, but all four fluid gates still failed
+(last walking25.9FPS). Chromium's matched fresh cohort passed allfourfluid gates at43.1FPS and
+34ms p95; both native position errors are below0.61mm.
+These are individual live snapshots, not an isolated causal latency guarantee.
+[Runtime design and exact limits](WORLD_SOURCE_TEXT_LOADING.md),
+[all five actual cohorts](evidence/hub-source-text-runtime-20261001.json).
+
+The subsequent working tree integrates bounded opt-in CPU/GPU timer diagnostics,
+the browser-owned native Tablet Graphics adapter, and default-off native culling
+and static winding experiments. **584/584 component tests** and **19/19 actual
+backend kernel tests** passed before the Image-role correction. All12 Image
+contracts and both stock-GPU fixtures subsequently passed: opaque/alpha-mask
+sRGB colors, orientation, shared sampler uploads and cancellation remain correct.
+[The actual Image proof](evidence/image-compressed-world-20261001.json) establishes
+safe compressed-color admission for real BrowserWorld Image entities, not a
+whole-Hub latency gain. Both fresh production Hub cohorts are recorded above.
+
+Both actual native Qt Graphics pointer journeys passed twelve changes plus
+leave/rejoin in Chromium153 and stock Firefox156. Actual framebuffer dimensions
+change1280x900→640x450 at50%, and2560x1800 at200%. Separate BrowserWorld GPU
+fixtures in both bundled engines prove projection, local-light pixel effects and
+camera collision constraints. [The preserved evidence](evidence/tablet-graphics-runtime-20261001.json)
+includes earlier failures; full graphics/native Tablet parity remains open.
+
+The actual culling World GPU fixture passed both browser engines after its first
+relative-asset-address failure was corrected. It checks six authored positive/
+mirrored face and normal cases, unchanged draws and stable programs. CPU cases
+passed21/21. The experiment stays off pending independent native pixels and
+strict Hub measurement; no loading or FPS benefit is claimed.
+
+[Short actual timer cohorts](evidence/hub-gpu-timing-runtime-20261001.json) preserve
+unchanged density and all four fluid/reconnect gates. Chromium passed; Firefox
+still failed fluidity and correctly reports unavailable GPU timing. Chromium's
+matched elapsed/CPU samples are diagnostics, not a fragment-only cost or causal
+speedup. A separate three-second process observation found the owned idle local
+native observer using7.016 CPU cores; an unrelated native process used2.740 and
+was preserved. The private CUSTOM refresh experiment remains **OFF** after three genuine
+Tablet failure cohorts. Fresh standalone native readback confirmed its settings
+and connected state, but this does not establish sandboxed-worker Tablet/audio
+acceptance or isolated CPU savings. The normal default passed both Graphics
+journeys. No existing observer or unrelated process was restarted.
+
+The actual cee240 GitHub repository-check run36846664719 passed every required
+job, including native build, documentation, workflow security and project tests.
+Browser CI36846526712 failed before tests because the signed Noble package keeps
+its namespace profiles in `/usr/share/apparmor/extra-profiles`, rather than the
+assumed `/etc/apparmor.d` location. Its early cleanup also failed on a missing
+process registry. The reviewed corrections pass19 package/profile contracts and
+11 actual cleanup contracts; signed-package hashes are retained in
+[the package audit](evidence/ubuntu-apparmor-package-audit-20261001.json).
+Strong capability-denial profiles remain intact. The existing local Fedora
+Jenkins agent is a candidate for complete repeatable isolated native/browser CI;
+the root-owned namespace smoke actually passed private ports, tmp/X isolation
+and nested normal unshare/bwrap. The corrected preparation installer namespace
+also passed with all five capability sets zero. Complete Jenkins execution is
+still unproven; the exact-source isolated runner is implemented and under review.
+
+An additional independent native Image comparison connected successfully and
+verified deletion of all four owned fixtures while preserving the seven baseline
+entities. Its pixel test failed because a universal variance threshold rejected
+the valid dark original texture: the source itself has lower variance than the
+threshold. Native/source correlation was0.959 with1.50RGB mean absolute error.
+The content-derived oracle is being corrected; no native Image parity pass is
+claimed from this failed run, and its source-frozen failure remains preserved.
+
+Further actual cohorts corrected Canvas sampling and explicit emissive Image
+presentation: the browser now matches its audited source at0.88RGB error and
+0.986detail correlation. The live native64-grid Canvas oracle still fails0.9;
+independent native Image parity remains open. Bounded CPU/Pillow analysis of the
+same screenshot passes0.959correlation, exposing a remaining Canvas reduction
+sampling issue. A deterministic area reducer is being prepared. The author counts three
+frames strictly after FINISHED and invalidates stale render-branch signals.
+[All five actual negative cohorts](evidence/native-image-runtime-20261001.json)
+remain retained; no pixel threshold was lowered. The added preset selector has
+eleven CPU/native-source contracts and six exact read-only kernel mounts;
+its real native Qt click journey is running.
+
+The final repository rerun exposed a pre-existing cancellation-fixture race:
+`exists()` could observe an empty identity marker during `write_text()`. The
+fixture now publishes its complete PID JSON with an atomic same-directory rename;
+all original cancellation/deadline/process-reaping assertions are retained.
+The thirteen real self-tests and all thirty-four quick suites passed afterward
+(200.67seconds). The original failure log remains private and is not called a pass.
+
+Next: finish the content-derived native Image proof and publish the reviewed
+loading/Graphics/CI checkpoint, run complete isolated CI, and complete
+safe Create/edit/delete through the actual Tablet, then measure the resource
+and rendering changes in stock Firefox/Chromium `overte_hub`. Continue faster
+world/texture admission work alongside those checks. Full native feature parity,
+all supported graphics controls/profiles/scan and Firefox fluidity remain open.
+
+## Published embedded-loading checkpoint
+
+The published cee240 continuation integrates bounded embedded FBX images into
 actual BrowserWorld. **509/509 component tests** passed with the default-off reviewed World
 zero-light integration and the actual Create route correction; **108/108 browser cases** passed with the embedded
 runtime and standalone zero-light fixture. Both stock GPU browsers passed exact
@@ -51,7 +157,7 @@ continuation, and inspect the real hosted results. Full Tablet/native feature
 parity and Firefox fluidity remain mandatory and incomplete.
 
 The published functional baseline is on `feature/main/browser-client` at
-`b067c3adec126c5273420017200753ff4498043d`, in draft PR 1023. The expanded user
+`cee2402852b77be38d35882e41c89bde80c64a90`, in draft PR 1023. The expanded user
 scope remains active; publication is not completion of the added requirements.
 
 The current loading runtime passed **468 component tests**, a production build

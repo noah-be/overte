@@ -129,6 +129,7 @@ jobs:
       - name: Verify host tool and safe evidence contracts
         run: |
           python3 browser-client/lab/test_host_tools.py
+          python3 browser-client/lab/test_manage_state.py
           python3 browser-client/lab/test_curate_core_journey.py
       - name: Prepare pinned native artifacts and require real isolation/audio preflight
         run: |

@@ -266,6 +266,7 @@
                     filesDirectory: BROWSER_GATEWAY.tablet.filesDirectory,
                     snapshotChannel: BROWSER_GATEWAY.tablet.snapshotChannel,
                     chatURL: BROWSER_GATEWAY.tablet.chatURL,
+                    graphics: BROWSER_GATEWAY.tablet.graphics,
                     defaultScriptsURL: BROWSER_GATEWAY.tablet.defaultScriptsURL, send: send });
                 tablet.setAuthority(permissionRevision, false);
             } catch (error) { send({ type: 'warning', message: 'The installed native tablet helper could not start.' }); }

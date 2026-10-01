@@ -30,6 +30,13 @@ async function environment(run:(create:(extra?:Partial<SessionCallbacks>)=>Compr
 }
 function joined(session:CompressedColorSession,id='session-one',revision=1){session.join('overte://allowed.example','Visitor');const socket=Socket.instances.at(-1)!;socket.open();socket.deliver({type:'state',state:'connecting',sessionId:id});socket.deliver({type:'state',state:'connected',sessionId:id,permissionRevision:revision});return socket;}
 
+test('raw asset snapshots revoke before callbacks and every reapproval receives a fresh source generation',async()=>environment(async create=>{
+ const session=create();assert.throws(()=>session.captureAssetAuthority(),/connected session authority/);const socket=joined(session),first=session.captureAssetAuthority();first.assertCurrent();
+ socket.deliver({type:'state',state:'connecting',sessionId:'session-one'});assert.throws(first.assertCurrent,/revoked/);assert.throws(()=>session.captureAssetAuthority(),/connected session authority/);
+ socket.deliver({type:'state',state:'connected',sessionId:'session-one',permissionRevision:1});const second=session.captureAssetAuthority();assert.notEqual(first.generation,second.generation);assert.throws(first.assertCurrent,/revoked/);second.assertCurrent();
+ socket.deliver({type:'state',state:'connected',sessionId:'session-one',permissionRevision:2});const third=session.captureAssetAuthority();assert.notEqual(second.generation,third.generation);assert.throws(second.assertCurrent,/revoked/);third.assertCurrent();session.leave();assert.throws(third.assertCurrent,/revoked/);
+}));
+
 test('actual BrowserSession lifecycle grants only connected metadata; Tablet revisions and pending sessions cannot grant a cache',async()=>environment(async create=>{
  const session=create(),world=new AbortController(),revision=()=>session.compressedAssetApproval?.permissionRevision;session.join('overte://allowed.example','Visitor');const socket=Socket.instances.at(-1)!;socket.open();
  socket.deliver({type:'state',state:'connecting',sessionId:'session-one'});assert.throws(()=>session.compressedColors(caps,world.signal),/connected session authority/);
