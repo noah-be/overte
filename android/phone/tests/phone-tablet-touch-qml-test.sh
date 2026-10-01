@@ -65,7 +65,7 @@ require "$shared_config" 'TabletTouchConfigurationBase[[:space:]]*\{' \
     'desktop and VR do not gain Android-specific tablet chrome'
 require "$shared_config_base" 'profile[.]screenSpacePresentation' \
     'the phone selector enables the touchscreen close control'
-require "$shared_config_base" 'property int closeButtonHeight:[[:space:]]*showCloseButton[[:space:]]*\?[[:space:]]*32[[:space:]]*:[[:space:]]*0' \
+require "$shared_config_base" 'property int closeButtonHeight:[[:space:]]*showCloseButton[[:space:]]*\?[[:space:]]*Math[.]max\(32,[[:space:]]*adaptiveMinimumControlHeight\)[[:space:]]*:[[:space:]]*0' \
     'the close control uses the shared host scale'
 require "$shared_config_base" 'property int closeButtonBottomMargin:[[:space:]]*showCloseButton[[:space:]]*\?[[:space:]]*28[[:space:]]*:[[:space:]]*0' \
     'the close control remains fully visible above the Android display edge'

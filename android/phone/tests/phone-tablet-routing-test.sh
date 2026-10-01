@@ -9,10 +9,13 @@ readonly tablet_source="$repo_root/libraries/ui/src/ui/TabletScriptingInterface.
 readonly dialogs="$repo_root/interface/src/ui/DialogsManager.cpp"
 readonly action_bar="$repo_root/scripts/system/+android_phoneInterface/mobileActionBar.js"
 readonly phone_defaults="$repo_root/scripts/+android_phoneInterface/defaultScripts.js"
-readonly tablet_apps="$repo_root/scripts/system/+android_phoneInterface/mobileTabletApps.js"
+readonly tablet_wrapper="$repo_root/scripts/system/+android_phoneInterface/mobileTabletApps.js"
+readonly tablet_apps="$repo_root/scripts/system/tablet-ui/mobileTabletApps.js"
 readonly activity="$repo_root/android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneInterfaceActivity.java"
 readonly native_handler="$repo_root/android/phone/apps/phoneInterface/src/PhoneUrlHandler.cpp"
 readonly phone_router="$repo_root/interface/src/ui/PhoneDialogRouter.h"
+readonly page_loader="$repo_root/interface/resources/qml/hifi/tablet/TabletPageLoader.qml"
+readonly surface_geometry="$repo_root/interface/resources/qml/hifi/tablet/TabletSurfaceGeometry.qml"
 readonly window_root="$repo_root/interface/resources/qml/hifi/tablet/WindowRoot.qml"
 readonly phone_ui_profile="$repo_root/interface/resources/qml/controlsUit/+android_phoneInterface/TouchUiProfile.qml"
 
@@ -82,14 +85,22 @@ require "$window_root" 'function alignScreenSpaceWindow\(\)' \
     'the screen-space host exposes a deterministic display-origin alignment step'
 require "$window_root" 'screenSpaceSafeInsetLeft:[[:space:]]*touchUiProfile[.]safeInsetLeft' \
     'the QML host consumes the selected profile safe area'
-require "$window_root" 'x[[:space:]]*=[[:space:]]*screenSpaceSafeInsetLeft' \
+require "$window_root" 'x[[:space:]]*=[[:space:]]*surfaceGeometry[.]x' \
     'the screen-space tablet preserves its left display margin'
-require "$window_root" 'y[[:space:]]*=[[:space:]]*screenSpaceSafeInsetTop' \
+require "$window_root" 'y[[:space:]]*=[[:space:]]*surfaceGeometry[.]y' \
     'the screen-space tablet preserves its top display margin'
 require "$phone_ui_profile" 'screenSpaceContentScale:[[:space:]]*runtimeMetricsAvailable' \
     'Android tablet applications consume the density- and surface-bounded runtime scale'
 require "$phone_ui_profile" 'runtimeMetrics[.]contentScale[[:space:]]*:[[:space:]]*2[.]5' \
     'Android tablet applications retain a conservative startup scale before native delivery'
+require "$window_root" 'TabletSurfaceGeometry[[:space:]]*\{.*profile:[[:space:]]*touchUiProfile' \
+    'the shared geometry calculator receives the selected touch profile'
+require "$surface_geometry" 'x:[[:space:]]*profile[.]screenSpaceOriginAtSafeArea[[:space:]]*[?][[:space:]]*0[[:space:]]*:[[:space:]]*profile[.]safeInsetLeft' \
+    'left safety margins are applied once at the render-surface origin'
+require "$surface_geometry" 'y:[[:space:]]*profile[.]screenSpaceOriginAtSafeArea[[:space:]]*[?][[:space:]]*0[[:space:]]*:[[:space:]]*profile[.]safeInsetTop' \
+    'top safety margins are applied once at the render-surface origin'
+require "$tablet_wrapper" 'Script[.]include\(Script[.]resolvePath\("[.][.]/tablet-ui/mobileTabletApps[.]js"\)\)' \
+    'the Phone entrypoint executes the production app registrar'
 require "$window_root" 'screenSpaceContentScale:[[:space:]]*touchUiProfile[.]screenSpaceContentScale' \
     'the screen-space host obtains content scale from the device profile'
 require "$window_root" 'readonly property real contentScale:[[:space:]]*tabletRoot\.screenSpaceMode' \
@@ -100,9 +111,17 @@ require "$window_root" 'width:[[:space:]]*pane\.contentWidth[[:space:]]*/[[:spac
     'the loader compensates logical width before anchored apps are laid out'
 require "$window_root" 'height:[[:space:]]*pane\.scrollHeight[[:space:]]*/[[:space:]]*contentScale' \
     'the loader compensates logical height before anchored apps are laid out'
-require "$window_root" 'loader\.item\.width[[:space:]]*=[[:space:]]*loader\.width' \
+require "$window_root" 'TabletPageLoader[[:space:]]*\{' \
+    'the scaled window uses the shared page loader'
+require "$page_loader" 'onWidthChanged:[[:space:]]*resizeLoadedItem\(\)' \
+    'loaded application width follows every compensated host resize'
+require "$page_loader" 'onHeightChanged:[[:space:]]*resizeLoadedItem\(\)' \
+    'loaded application height follows every compensated host resize'
+require "$page_loader" 'loader[.]resizeLoadedItem\(\)' \
+    'newly loaded applications receive the compensated host dimensions'
+require "$page_loader" 'item[.]width[[:space:]]*=[[:space:]]*width' \
     'loaded apps inherit the already compensated parent width'
-require "$window_root" 'loader\.item\.height[[:space:]]*=[[:space:]]*loader\.height' \
+require "$page_loader" 'item[.]height[[:space:]]*=[[:space:]]*height' \
     'loaded apps inherit the already compensated parent height'
 require "$tablet_source" 'QVariant\(TABLET_HOME_SOURCE_URL\)' \
     'opening the tablet deterministically presents its home screen'

@@ -86,6 +86,13 @@ TestCase {
         compare(configuration.showControllerSettings, false)
         compare(configuration.showPicoResolutionSettings, false)
         compare(configuration.showPicoInteractionSettings, false)
+        fixture.profile.graphicsSettingsAvailable = true
+        fixture.profile.controllerSettingsAvailable = true
+        fixture.profile.picoResolutionSettingsAvailable = true
+        compare(configuration.showGraphicsSettings, true)
+        compare(configuration.showControllerSettings, true)
+        compare(configuration.showPicoResolutionSettings, true)
+        compare(configuration.showPicoInteractionSettings, false)
         destroyFixture(fixture)
     }
 }

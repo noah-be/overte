@@ -18,7 +18,7 @@ require() {
     printf 'PASS: %s\n' "$description"
 }
 
-require "$places" 'useQmlApp[[:space:]]*=[[:space:]]*!PlatformInfo[.]has3DHTML\(\)' \
+require "$places" 'useQmlApp[[:space:]]*=[[:space:]]*isAndroidPhone[[:space:]]*\|\|[[:space:]]*!PlatformInfo[.]has3DHTML\(\)' \
     'Phone Places selects its local QML application'
 require "$places" 'qmlEventsConnected[[:space:]]*=[[:space:]]*false' \
     'Places tracks its QML bridge lifecycle'

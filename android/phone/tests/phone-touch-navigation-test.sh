@@ -8,7 +8,8 @@ device_header="$repo_root/libraries/input-plugins/src/input-plugins/TouchscreenV
 phone_mapping="$repo_root/interface/resources/controllers/touchscreenvirtualpad-phone.json"
 phone_action_bar="$repo_root/scripts/system/+android_phoneInterface/mobileActionBar.js"
 phone_defaults="$repo_root/scripts/+android_phoneInterface/defaultScripts.js"
-phone_tablet_apps="$repo_root/scripts/system/+android_phoneInterface/mobileTabletApps.js"
+phone_tablet_wrapper="$repo_root/scripts/system/+android_phoneInterface/mobileTabletApps.js"
+phone_tablet_apps="$repo_root/scripts/system/tablet-ui/mobileTabletApps.js"
 preferences_policy="$repo_root/interface/resources/qml/hifi/tablet/TabletGeneralPreferencesPolicy.qml"
 phone_ui_profile="$repo_root/interface/resources/qml/controlsUit/+android_phoneInterface/TouchUiProfile.qml"
 preferences_cpp="$repo_root/interface/src/ui/PreferencesDialog.cpp"
@@ -74,6 +75,8 @@ require "$phone_ui_profile" 'navigationPreferencesAvailable:[[:space:]]*true' \
     'phone tablet settings do not expose Navigation'
 require "$phone_defaults" 'system/\+android_phoneInterface/mobileTabletApps[.]js' \
     'phone defaults do not load the phone tablet app registrar'
+require "$phone_tablet_wrapper" 'Script[.]include\(Script[.]resolvePath\("[.][.]/tablet-ui/mobileTabletApps[.]js"\)\)' \
+    'phone startup is disconnected from the shared tablet implementation'
 require "$phone_tablet_apps" 'SETTINGS_SOURCE.*settings/Settings[.]qml' \
     'phone tablet app registrar does not expose Settings'
 reject "$phone_defaults" 'system/settings/settings[.]js' \
