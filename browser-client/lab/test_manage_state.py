@@ -12,6 +12,7 @@ from unittest.mock import patch
 # Execute the strict readback suite in the existing owned-lab state gate.
 # These cases validate real helper output, without another gate or mirror tests.
 from test_guest_permissions import GuestReadback
+from test_provisioning_diagnostics import ProvisioningDiagnostics
 
 SOURCE = Path(__file__).resolve().parent
 sys.path.insert(0, str(SOURCE))

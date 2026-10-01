@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import vm from 'node:vm';
 import path from 'node:path';
 import net from 'node:net';
@@ -122,4 +122,77 @@ test('actual production launch diagnoses UDP spawn failure before owner allocati
  assert.equal(error.networkPreparation.phase,'udp-relay-ready');
  assert.equal(error.networkPreparation.category,'helper-spawn-failed');
  assert.deepEqual(error.networkPreparation.helperEvents,[{role:'managed-udp',kind:'spawn-error',beforeOwnerReady:true,errno:'ENOENT'}]);
+});
+
+
+// Import the actual Python owner without launching its namespace/native main.
+// Only the existing route-command call is controlled; its exception identity,
+// fixed stderr marker and unchanged route arguments are exercised directly.
+function actualRouteOwner(program) {
+ const result = spawnSync('python3', ['-c', `
+import contextlib, importlib.util, io, json, pathlib, subprocess, sys
+root=pathlib.Path(sys.argv[1]);sys.path.insert(0,str(root))
+spec=importlib.util.spec_from_file_location('tested_network_owner',root/'network-owner.py')
+owner=importlib.util.module_from_spec(spec);spec.loader.exec_module(owner)
+${program}
+`, path.dirname(new URL(import.meta.url).pathname)], {encoding:'utf8',timeout:3000,maxBuffer:65536});
+ assert.equal(result.error, undefined);assert.equal(result.status,0,'Controlled route-owner test must complete');
+ return JSON.parse(result.stdout);
+}
+
+test('actual route installation preserves all denied routes and original failure while forwarding fixed errno',()=>{
+ const outputs=actualRouteOwner(`
+records=[]
+for stderr in [b'RTNETLINK answers: Operation not permitted\\nprivate-token /private/path',
+               b'private-token: Operation not permitted',
+               b'x'*4096+b'\\nRTNETLINK answers: File exists',
+               b'RTNETLINK answers: No buffer space available\\n']:
+ error=subprocess.CalledProcessError(2,['ip','route','add','prohibit','private-route'],stderr=stderr)
+ calls=[]
+ def fail(args,**kwargs):
+  calls.append([args,kwargs]);raise error
+ owner.subprocess.run=fail
+ stream=io.StringIO()
+ with contextlib.redirect_stderr(stream):
+  try: owner.install_denied_routes()
+  except subprocess.CalledProcessError as observed: same=observed is error
+ records.append({'same':same,'calls':calls,'marker':stream.getvalue()})
+success=[]
+owner.subprocess.run=lambda args,**kwargs:success.append([args,kwargs])
+owner.install_denied_routes()
+print(json.dumps({'records':records,'success':success}))
+`);
+ assert.equal(outputs.success.length,12);
+ assert.deepEqual(outputs.success.map(call=>call[0]),[
+  '10.0.0.0/8','172.16.0.0/12','192.168.0.0/16','169.254.0.0/16','100.64.0.0/10','192.0.0.0/24',
+  '192.0.2.0/24','198.18.0.0/15','198.51.100.0/24','203.0.113.0/24','224.0.0.0/4','240.0.0.0/4'
+ ].map(route=>['ip','route','add','prohibit',route]));
+ for(const call of outputs.success)assert.deepEqual(call[1],{check:true,capture_output:true});
+ const expected=['permission-denied','unclassified-route-error','unclassified-route-error','kernel-resource-unavailable'];
+ for(let i=0;i<outputs.records.length;i++){
+  const value=outputs.records[i];assert.equal(value.same,true);assert.equal(value.calls.length,1);
+  assert.equal(value.marker.includes('private'),false);
+  const d=preparationDiagnostics('OVERTE_NET_NATIVE_STARTED');
+  // Split the actual Python-produced marker to exercise pipe fragmentation.
+  const bytes=Buffer.from(value.marker);d.observe(bytes.subarray(0,17));d.observe(bytes.subarray(17));
+  d.observe(Buffer.from("Private native network failed: Command '['ip', 'route', 'add', 'prohibit', 'fixed-route']' returned non-zero exit status 2.\n"));
+  const out=d.snapshot(1,null);assert.equal(out.category,'deny-route-command-failed');
+  assert.equal(out.routeFailure.category,expected[i]);assert.equal(out.routeFailure.exitCode,2);
+  assert.equal(out.routeFailure.truncated,i===2);assert.ok(Object.isFrozen(out.routeFailure));
+  assert.deepEqual(safePreparationDiagnostic(out),out);
+ }
+});
+
+test('route diagnostic forwarding rejects forged enum/counters and strips arbitrary fields',()=>{
+ const base=preparationDiagnostics('OVERTE_NET_NATIVE_STARTED').snapshot(1,null);
+ const route={category:'permission-denied',stderrBytes:42,truncated:false,exitCode:2};
+ assert.deepEqual(safePreparationDiagnostic({...base,routeFailure:{...route,raw:'private-secret'}}).routeFailure,route);
+ for(const patch of [{category:'private-secret'},{stderrBytes:-1},{stderrBytes:1.5},{stderrBytes:Number.MAX_SAFE_INTEGER+1},
+  {truncated:1},{exitCode:256},{exitCode:'2'}]){
+  assert.equal(safePreparationDiagnostic({...base,routeFailure:{...route,...patch}}),null);
+  const d=preparationDiagnostics('OVERTE_NET_NATIVE_STARTED');d.observe(Buffer.from('OVERTE_NET_ROUTE_FAILURE='+JSON.stringify({...route,...patch})+'\n'));
+  assert.equal(d.snapshot(1,null).routeFailure,undefined);
+ }
+ const d=preparationDiagnostics('OVERTE_NET_NATIVE_STARTED');d.observe(Buffer.from('OVERTE_NET_ROUTE_FAILURE={"private":"secret"}\n'));
+ assert.equal(d.snapshot(1,null).routeFailure,undefined);
 });

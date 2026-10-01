@@ -61,5 +61,33 @@
   "shippingIntegrated": false,
   "literalOraclesRelaxed": false,
   "interpretation": "Seven original editor oracles pass, including password Unicode, undo and redo. Password maxlength fails, so fourteen-case and password cancellation acceptance are not established.",
-  "nextStep": "Identify native edit/selection/maxlength failure without changing the original acceptance predicate."
+  "nextStep": "Identify native edit/selection/maxlength failure without changing the original acceptance predicate.",
+  "separateFixedStageDiagnostic": {
+    "actual": {
+      "startedAt": "2026-10-01T23:32:45.725195+00:00",
+      "finishedAt": "2026-10-01T23:32:49.049549+00:00",
+      "completed": false,
+      "qtLibraryPathsMatched": true,
+      "cases": [
+        {
+          "afterLength": -1,
+          "afterSelectionLength": -1,
+          "beforeLength": 3,
+          "beforeSelectionLength": 0,
+          "errorCategory": "focused-field-refused",
+          "kind": "unicode-text",
+          "nativeCommitAccepted": false,
+          "nativeCommitObserved": false,
+          "passed": false,
+          "stage": "await-text-completion"
+        }
+      ],
+      "ownedRendererGroupStopped": true,
+      "ownedDisplayStopped": true
+    },
+    "rawCaptureSHA256": "c1761793e9ee10de460d7b1fb9db957f17a059b500b6b244282db84677b503d1",
+    "frozenManifestSHA256": "14a37e65cd1a980e47d26644762d9e43ecd5dfcac35355b051feb7a25131019b",
+    "productionMethodsUnchanged": true,
+    "interpretation": "The separate diagnostic instead refuses first Unicode before any native dispatch. It identifies a pre-native target/DOM callback boundary; it does not diagnose the earlier maxlength failure or prove a production correction."
+  }
 }

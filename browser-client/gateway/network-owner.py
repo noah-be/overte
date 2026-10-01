@@ -11,6 +11,7 @@ import sys
 import threading
 import time
 from network_udp import DatagramRelay, scope as udp_scope
+from network_route_diagnostics import route_failure_diagnostic
 
 DENIED_ROUTES = (
     "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16",
@@ -76,6 +77,16 @@ def reap_owned_descendants():
     raise RuntimeError("Owned native namespace descendants did not exit")
 
 
+def install_denied_routes():
+    for route in DENIED_ROUTES:
+        try:
+            subprocess.run(["ip", "route", "add", "prohibit", route], check=True, capture_output=True)
+        except subprocess.CalledProcessError as error:
+            print("OVERTE_NET_ROUTE_FAILURE=" + json.dumps(route_failure_diagnostic(error), separators=(',', ':')),
+                  file=sys.stderr, flush=True)
+            raise
+
+
 def main():
     config = json.loads(Path(sys.argv[1]).read_text())
     child = None
@@ -111,8 +122,7 @@ def main():
         time.sleep(0.05)
     else:
         raise RuntimeError("Private native network initialization timed out")
-    for route in DENIED_ROUTES:
-        subprocess.run(["ip", "route", "add", "prohibit", route], check=True, capture_output=True)
+    install_denied_routes()
 
     listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)

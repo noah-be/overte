@@ -21,6 +21,7 @@ import urllib.request
 import webbrowser
 from native_admin import native_admin_credential
 from guest_permissions import guest_permission_diagnostics
+from provisioning_diagnostics import post_guest_settings, ProvisioningDiagnosticError
 from host_tools import select_tools, load_tools, preflight, tool_identities
 
 REPO = Path(__file__).resolve().parents[2]
@@ -298,19 +299,23 @@ def start(gateway=False):
         raise RuntimeError("Actual native ATP scene provisioning did not finish")
     guest = {key:key in ["id_can_connect","id_can_rez","id_can_rez_avatar_entities","id_can_view_asset_urls"] for key in PERMISSION_KEYS}
     groups = [{"permissions_id":name,**guest} for name in ["anonymous","localhost","logged-in","friends"]]
-    request = urllib.request.Request("http://127.0.0.1:45100/settings.json",
-        json.dumps({"security":{"standard_permissions":groups,"ip_permissions":[],"machine_fingerprint_permissions":[]},
-                    "authentication":{"enable_oauth2":False}}).encode(),
-        {"Content-Type":"application/json","Authorization":admin_authorization},method="POST")
-    with urllib.request.urlopen(request) as response:
-        if response.status != 200:
-            raise RuntimeError("Failed to lower native author to anonymous guest baseline")
+    payload = {"security":{"standard_permissions":groups,"ip_permissions":[],"machine_fingerprint_permissions":[]},
+               "authentication":{"enable_oauth2":False}}
+    try:
+        provisioning = post_guest_settings(payload, admin_authorization, server/"resources/describe-settings.json",
+                                           ROOT/"config/domain.json", ROOT/"logs/domain.log")
+    except ProvisioningDiagnosticError as error:
+        print(json.dumps(error.diagnostic, sort_keys=True), file=sys.stderr, flush=True)
+        raise
+    print(json.dumps(provisioning, sort_keys=True), file=sys.stderr, flush=True)
     saved = json.loads((ROOT / "config/domain.json").read_text())["security"]["standard_permissions"]
     guest_readback = guest_permission_diagnostics(saved, guest)
     if not guest_readback['passed']:
         # Only fixed public group/flag enums and booleans; never settings content.
         print(json.dumps(guest_readback, sort_keys=True), file=sys.stderr, flush=True)
         raise RuntimeError("Saved domain guest permissions did not match the intended baseline")
+    if provisioning['persistence']['outcome'] in ('parent-create-failed', 'open-failed', 'write-failed', 'commit-failed'):
+        raise RuntimeError("Native settings provisioning reported a persistence failure")
     policy = {"version":1,"mode":"anonymous-baseline","domains":[{"domain":"overte://127.0.0.2:45102",
                "settingsFile":str(ROOT/"config/domain.json")} ]}
     (ROOT / "config/guest-policy.json").write_text(json.dumps(policy,indent=2)+"\n")

@@ -4,6 +4,13 @@ Last updated: 2026-10-02. **Original baseline passed; additional mandatory Table
 
 ## Current implementation and next step
 
+Current continuation (2026-10-01,23:44UTC): strict settings-schema/endpoint/body validation
+and fixed persistence/RTNETLINK observations are integrated without changing
+any guest flag, route, capability, profile or original readiness deadline.
+All1,141 component tests,24 owned-state tests,11 preparation tests and34 required
+repository suites pass. The exact-source native CI retry is next after publishing.
+[Strict preparation evidence](evidence/hosted-strict-preparation-diagnostics-20261002.json).
+
 Current continuation (2026-10-01,23:17UTC): published checkpoint
 `ec62d79c7b93aa252df94f258e77f94a071ff553` passes all1,040 components,
 actual Qt input and owned cleanup in local Jenkins build4. The FBX worker gate

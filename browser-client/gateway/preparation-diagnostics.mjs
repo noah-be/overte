@@ -21,7 +21,10 @@ export function preparationDiagnostics(expected) {
             else if (/Private native network failed: Private native network initialization timed out/.test(tail)) category = 'interface-initialization-timeout';
             else if (/Private native network failed:.*Cannot (?:bind network supervisor lifetime|own native namespace descendants)/.test(tail)) category = 'supervisor-lifetime-refused';
             else if (/slirp4netns:.*(?:Operation not permitted|Permission denied)|setns.*(?:Operation not permitted|Permission denied)/.test(tail)) category = 'network-helper-refused';
-            return Object.freeze({ phase, category, observedBytes, truncated,
+            let routeFailure;
+            const marker = /(?:^|\n)OVERTE_NET_ROUTE_FAILURE=(\{[^\n]{1,512}\})(?:\n|$)/.exec(tail);
+            if (marker) { try { routeFailure = safeRouteFailure(JSON.parse(marker[1])); } catch {} }
+            return Object.freeze({ phase, category, observedBytes, truncated, ...(routeFailure ? { routeFailure } : {}),
                 exitCode: Number.isInteger(exitCode) && exitCode >= 0 && exitCode <= 255 ? exitCode : null,
                 signal: SIGNALS.has(signal) ? signal : signal ? 'other-signal' : null });
         }
@@ -38,6 +41,11 @@ export function safePreparationDiagnostic(value) {
         || !(value.signal === null || value.signal === 'other-signal' || SIGNALS.has(value.signal))) return null;
     const out = { phase: value.phase, category: value.category, observedBytes: value.observedBytes,
         truncated: value.truncated, exitCode: value.exitCode, signal: value.signal };
+    if (value.routeFailure !== undefined) {
+        const route = safeRouteFailure(value.routeFailure);
+        if (!route) return null;
+        out.routeFailure = route;
+    }
     if (value.helperEvents !== undefined) {
         if (!Array.isArray(value.helperEvents) || value.helperEvents.length > 4) return null;
         out.helperEvents = [];
@@ -101,4 +109,13 @@ export function helperPreparationDiagnostics() {
             listeners.length = 0;
         }
     };
+}
+
+function safeRouteFailure(value) {
+    const categories = ['permission-denied', 'route-exists', 'network-unreachable', 'invalid-request',
+        'missing-route', 'kernel-resource-unavailable', 'unclassified-route-error'];
+    if (!value || typeof value !== 'object' || !categories.includes(value.category)
+        || !Number.isSafeInteger(value.stderrBytes) || value.stderrBytes < 0 || typeof value.truncated !== 'boolean'
+        || !(value.exitCode === null || Number.isInteger(value.exitCode) && value.exitCode >= 0 && value.exitCode <= 255)) return null;
+    return Object.freeze({ category: value.category, stderrBytes: value.stderrBytes, truncated: value.truncated, exitCode: value.exitCode });
 }
