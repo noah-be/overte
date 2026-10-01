@@ -16,7 +16,7 @@ import sys
 import time
 
 REMOTE = 'https://github.com/noah-be/overte'
-SOURCE_FILES = ('run.py', 'namespace-owner.py', 'gates.py', 'prepare.py', 'probe.py', 'owned-exec.py')
+SOURCE_FILES = ('run.py', 'namespace-owner.py', 'gates.py', 'prepare.py', 'probe.py', 'owned-exec.py', 'owned-xvfb.py')
 
 
 def safe_environment():

@@ -31,12 +31,13 @@ export function validateTabletInput(value) {
         if(value.error!==undefined){if(typeof value.error!=='string'||value.error.length>512)throw Error('Invalid snapshot error');result.error=value.error;}
         else{result.stillName=visitorFilename(value.stillName);if(!result.stillName.endsWith('.png'))throw Error('Invalid still snapshot');if(value.gifName!==undefined){result.gifName=visitorFilename(value.gifName);if(!result.gifName.endsWith('.gif'))throw Error('Invalid animated snapshot');}}
     }
-    if(value.action==='frameAck'){if(!integer(value.frameSequence,1,Number.MAX_SAFE_INTEGER))throw new Error('Invalid tablet acknowledgement');result.frameSequence=value.frameSequence;}
+    if(value.action==='frameAck'){if(!integer(value.frameSequence,1,Number.MAX_SAFE_INTEGER))throw new Error('Invalid tablet acknowledgement');result.frameSequence=value.frameSequence;if(typeof value.displayed!=='boolean')throw new Error('Invalid tablet display acknowledgement');result.displayed=value.displayed;}
     if(value.action==='input'){
-        if(!['press','release','move','wheel','key','text','clipboard'].includes(value.event))throw new Error('Invalid tablet input');
+        if(!['press','release','cancel','move','wheel','key','text','clipboard'].includes(value.event))throw new Error('Invalid tablet input');
         result.event=value.event;
-        if(['press','release','move','wheel'].includes(value.event)){
+        if(['press','release','cancel','move','wheel'].includes(value.event)){
             if(!['x','y'].every(key=>typeof value[key]==='number'&&Number.isFinite(value[key])&&value[key]>=0&&value[key]<=1))throw new Error('Invalid tablet coordinates');
+            if(!integer(value.frameSequence,1,Number.MAX_SAFE_INTEGER))throw new Error('Invalid tablet input frame');result.frameSequence=value.frameSequence;
             result.x=value.x;result.y=value.y;
             if(value.event==='wheel'){
                 if(!['deltaX','deltaY'].every(key=>typeof value[key]==='number'&&Number.isFinite(value[key])&&Math.abs(value[key])<=1200))throw new Error('Invalid tablet wheel');
@@ -80,11 +81,11 @@ export function validateTabletPNG(bytes,width,height){
 export class TabletSession {
     constructor({framePath,filesDirectory,sendNative,sendBrowser,isActive,getRevision}){
         this.framePath=framePath;this.sendNative=sendNative;this.sendBrowser=sendBrowser;this.isActive=isActive;this.getRevision=getRevision;
-        this.closed=false;this.sequence=0;this.frameSequence=0;this.pendingFrame=0;this.revision=0;this.pendingTimer=null;
+        this.closed=false;this.navigationSequence=0;this.pointerFrame=null;this.displayedFrame=0;this.sequence=0;this.frameSequence=0;this.pendingFrame=0;this.revision=0;this.pendingTimer=null;
         this.filesDirectory=filesDirectory;this.snapshotRequest=0;this.clipboardRequest=0;this.chatSequence=0;this.graphicsRequest=0;this.graphicsSequence=0;
     }
     current(revision){return !this.closed&&this.isActive()&&integer(revision,1,Number.MAX_SAFE_INTEGER)&&revision===this.getRevision();}
-    resetRevision(){const next=this.getRevision();if(next!==this.revision){this.revision=next;this.frameSequence=0;this.pendingFrame=0;this.snapshotRequest=0;this.clipboardRequest=0;this.chatSequence=0;this.graphicsRequest=0;this.graphicsSequence=0;clearTimeout(this.pendingTimer);}}
+    resetRevision(){const next=this.getRevision();if(next!==this.revision){this.revision=next;this.navigationSequence=0;this.pointerFrame=null;this.displayedFrame=0;this.frameSequence=0;this.pendingFrame=0;this.snapshotRequest=0;this.clipboardRequest=0;this.chatSequence=0;this.graphicsRequest=0;this.graphicsSequence=0;clearTimeout(this.pendingTimer);}}
     receive(value){
         if(this.closed)throw new Error('Tablet session has ended');
         const message=validateTabletInput(value);this.resetRevision();
@@ -93,9 +94,23 @@ export class TabletSession {
         if(message.revision!==undefined&&message.revision!==this.revision)throw new Error('Stale tablet command');
         if(message.sequence<=this.sequence)throw new Error('Repeated tablet command');this.sequence=message.sequence;message.revision=this.revision;
         if(message.action==='graphicsResult'){if(message.requestId!==this.graphicsRequest)return;this.graphicsRequest=0;}
+        if(['open','home','back','close'].includes(message.action)){
+            this.navigationSequence=message.sequence;this.displayedFrame=0;this.pointerFrame=null;this.pendingFrame=0;this.clipboardRequest=0;clearTimeout(this.pendingTimer);
+        }
+        message.navigationSequence=this.navigationSequence;
+        if(message.action==='input'&&['press','release','cancel','move','wheel'].includes(message.event)){
+            const gesture=this.pointerFrame;
+            if(message.event==='press'){
+                if(gesture||message.frameSequence!==this.displayedFrame)return;
+                this.pointerFrame={sequence:message.frameSequence,button:message.button};
+            }else if(message.event==='release'||message.event==='cancel'){
+                if(!gesture||message.frameSequence!==gesture.sequence||message.button!==gesture.button)return;this.pointerFrame=null;
+            }else if(message.frameSequence!==(gesture?gesture.sequence:this.displayedFrame))return;
+        }
         if(message.action==='input'&&message.event==='clipboard')this.clipboardRequest=message.sequence;
         if(message.action==='frameAck'){
             if(message.frameSequence!==this.pendingFrame)return;
+            if(message.displayed)this.displayedFrame=message.frameSequence;
             this.pendingFrame=0;clearTimeout(this.pendingTimer);
         }
         if(message.action==='snapshotResult'){
@@ -109,7 +124,7 @@ export class TabletSession {
         this.resetRevision();if(!this.current(message.revision)||message.type!=='tablet')return;
         const revision=message.revision;
         if(message.kind==='frameReady'){
-            if(this.pendingFrame||!integer(message.sequence,1,Number.MAX_SAFE_INTEGER)||message.sequence<=this.frameSequence||!['tablet','dialogs'].includes(message.surface))return;
+            if(message.navigationSequence!==this.navigationSequence||!integer(this.navigationSequence,1,Number.MAX_SAFE_INTEGER)||this.pendingFrame||!integer(message.sequence,1,Number.MAX_SAFE_INTEGER)||message.sequence<=this.frameSequence||!['tablet','dialogs'].includes(message.surface))return;
             this.pendingFrame=message.sequence;this.frameSequence=message.sequence;
             const frameFile=`${this.framePath}.${revision}.${message.sequence}.png`;
             try{
@@ -127,7 +142,7 @@ export class TabletSession {
                 if(!this.current(revision)||this.pendingFrame!==message.sequence)return;
                 const rect=message.tabletRect;
                 const tabletRect=rect&&['x','y','width','height'].every(key=>typeof rect[key]==='number'&&Number.isFinite(rect[key])&&Math.abs(rect[key])<=4096)&&rect.width>0&&rect.height>0?{x:rect.x,y:rect.y,width:rect.width,height:rect.height}:undefined;
-                this.sendBrowser({type:'tablet',kind:'frame',revision,sequence:message.sequence,width:message.width,height:message.height,surface:message.surface,mime:'image/png',data:bytes.toString('base64'),...(tabletRect?{tabletRect}:{}),...nativeEffects(message.effects)});
+                this.sendBrowser({type:'tablet',kind:'frame',revision,navigationSequence:this.navigationSequence,sequence:message.sequence,width:message.width,height:message.height,surface:message.surface,mime:'image/png',data:bytes.toString('base64'),...(tabletRect?{tabletRect}:{}),...nativeEffects(message.effects)});
                 this.pendingTimer=setTimeout(()=>this.releaseFrame(revision,message.sequence),5000);this.pendingTimer.unref?.();
             }catch{
                 if(this.current(revision)){this.sendBrowser({type:'tablet',kind:'error',revision,message:'The native tablet display could not be read. Try opening it again.'});this.releaseFrame(revision,message.sequence);}
@@ -153,6 +168,6 @@ export class TabletSession {
             this.sendBrowser({type:'tablet',kind:'snapshot',revision,requestId:message.requestId,animated:message.animated,aspectRatio:message.aspectRatio});
         }
     }
-    releaseFrame(revision,sequence){if(!this.current(revision)||this.pendingFrame!==sequence)return;this.pendingFrame=0;clearTimeout(this.pendingTimer);this.sendNative({type:'tablet',action:'frameAck',revision,frameSequence:sequence});}
+    releaseFrame(revision,sequence){if(!this.current(revision)||this.pendingFrame!==sequence)return;this.pendingFrame=0;clearTimeout(this.pendingTimer);this.sendNative({type:'tablet',action:'frameAck',revision,navigationSequence:this.navigationSequence,frameSequence:sequence,displayed:false});}
     close(){if(this.closed)return;this.closed=true;clearTimeout(this.pendingTimer);this.pendingFrame=0;void unlink(this.framePath).catch(()=>{});}
 }

@@ -82,6 +82,9 @@ test('actual isolated worker cannot read host files, sibling profiles, host proc
         await writeFile(placesSource, 'trusted fresh-admission Places adapter');
         const snapshotSource = path.join(first, 'browser-snapshot.js');
         await writeFile(snapshotSource, 'trusted browser scene snapshot adapter');
+        const createSource=path.join(first,'browser-create-properties.html'),createTarget=path.join(nativeRoot,'scripts/system/create/entityProperties/html/entityProperties.html');
+        await mkdir(path.dirname(createTarget),{recursive:true});await writeFile(createTarget,'installed original Create Properties');
+        await writeFile(createSource,'trusted responsive Create Properties',{mode:0o600});
         const graphicsOverrides=[];
         for(const [index,name] of ['settings.js','Settings.qml','qml/pages/GraphicsSettings.qml','qml/SettingSlider.qml','qml/SettingBoolean.qml','qml/SettingComboBox.qml'].entries()){
             const source=path.join(first,`browser-graphics-override-${index+1}${name.endsWith('.qml')?'.qml':'.js'}`),target=path.join(nativeRoot,'scripts/system/settings',name);
@@ -96,7 +99,7 @@ test('actual isolated worker cannot read host files, sibling profiles, host proc
         try {
             for (const profile of [first, second]) workers.push(await prepareWorker({ directory: profile,
                 executable: process.execPath, nativeRoot,
-                readOnlyOverrides: profile === first ? [{ source: snapshotSource, target: snapshotTarget }, {source:placesSource,target:placesTarget},...graphicsOverrides] : [],
+                readOnlyOverrides: profile === first ? [{ source: snapshotSource, target: snapshotTarget }, {source:placesSource,target:placesTarget},{source:createSource,target:createTarget},...graphicsOverrides] : [],
                 sourceEnvironment: { GITHUB_TOKEN: 'synthetic-secret' }, signal: new AbortController().signal,
                 spawnOwned(command, args, env) { const child = spawn(command, args, { env, stdio: 'ignore' }); owned.push(child); return child; } }));
         } finally { if (previous === undefined) delete process.env.OVERTE_GATEWAY_XVFB; else process.env.OVERTE_GATEWAY_XVFB = previous; }
@@ -121,6 +124,7 @@ test('actual isolated worker cannot read host files, sibling profiles, host proc
                     nssTrust:JSON.parse(process.argv[3]).map(p=>fs.readFileSync(p).length),
                     graphics:JSON.parse(process.argv[6]).map(filename=>({bytes:fs.readFileSync(filename,'utf8'),readOnly:(()=>{try{fs.writeFileSync(filename,'changed');return false}catch{return true}})()})),
                     places:fs.readFileSync(process.argv[5],'utf8'),placesReadOnly:(()=>{try{fs.writeFileSync(process.argv[5],'changed');return false}catch{return true}})(),
+                    create:fs.readFileSync(process.argv[7],'utf8'),createReadOnly:(()=>{try{fs.writeFileSync(process.argv[7],'changed');return false}catch{return true}})(),
                     snapshot:fs.readFileSync(process.argv[4],'utf8'),snapshotReadOnly:(()=>{try{fs.writeFileSync(process.argv[4],'changed');return false}catch{return true}})()}));
             });`;
         const forbidden = [path.join(directory, 'private-operator-file'), path.join(second, 'private-other-session'),
@@ -129,7 +133,7 @@ test('actual isolated worker cannot read host files, sibling profiles, host proc
         for (const filename of ['/usr/lib64/libnssckbi.so', '/usr/lib/x86_64-linux-gnu/libnssckbi.so']) {
             try { await access(filename); trustLibraries.push(filename); } catch { /* Distribution-specific NSS library. */ }
         }
-        const output = await run(workers[0].command, [...workers[0].args, '-e', script, JSON.stringify(forbidden), String(workers[1].display), JSON.stringify(trustLibraries), snapshotTarget, placesTarget,JSON.stringify(graphicsOverrides.map(value=>value.target))],
+        const output = await run(workers[0].command, [...workers[0].args, '-e', script, JSON.stringify(forbidden), String(workers[1].display), JSON.stringify(trustLibraries), snapshotTarget, placesTarget,JSON.stringify(graphicsOverrides.map(value=>value.target)),createTarget],
             { env: { ...workers[0].env, GITHUB_TOKEN: 'synthetic-secret' }, timeout: 10000 });
         const result = JSON.parse(output.stdout);
         assert.deepEqual(result.readable, []); assert.equal(result.secret, undefined);
@@ -142,12 +146,14 @@ test('actual isolated worker cannot read host files, sibling profiles, host proc
             'System NSS certificate trust libraries remain readable through their installed alternatives links');
         assert.deepEqual(result.graphics,graphicsOverrides.map((_,index)=>({bytes:`trusted Graphics adapter ${index}`,readOnly:true})));
         for(const [index,value] of graphicsOverrides.entries())assert.equal(await readFile(value.target,'utf8'),`original installed Graphics ${index}`,'The actual worker never modifies the installed Qt Settings package');
+        assert.equal(result.create,'trusted responsive Create Properties');assert.equal(result.createReadOnly,true);
+        assert.equal(await readFile(createTarget,'utf8'),'installed original Create Properties');
         assert.equal(result.places, 'trusted fresh-admission Places adapter'); assert.equal(result.placesReadOnly, true);
         assert.equal(await readFile(placesTarget,'utf8'), 'original installed Places script');
         assert.equal(result.snapshot, 'trusted browser scene snapshot adapter'); assert.equal(result.snapshotReadOnly, true);
         assert.equal(await readFile(snapshotTarget, 'utf8'), 'original installed snapshot script', 'The host installed script is preserved');
         await assert.rejects(sandboxCommand({ directory:first, executable:process.execPath, env:{}, roots:[nativeRoot],
-            readOnlyOverrides:[{source:snapshotSource,target:'/etc/passwd'}] }), /Only reviewed session Snapshot, Places and browser Graphics adapters/);
+            readOnlyOverrides:[{source:snapshotSource,target:'/etc/passwd'}] }), /Only reviewed session Snapshot, Places, browser Graphics and Create Properties adapters/);
         assert.equal(await readFile(path.join(first, 'own-file'), 'utf8'), 'allowed');
         const launcher = spawn(workers[0].command, [...workers[0].args, '-e', `
             const cp=require('child_process');

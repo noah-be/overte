@@ -5,6 +5,7 @@
 import {chromium} from '@playwright/test';
 import {launchSystemFirefox} from './system-firefox.mjs';
 import {measureNativeGraphicsRows,locateNativeGraphicsControls,resolutionSliderX} from './tablet-graphics-geometry.mjs';
+import {measureNativeGraphicsPopup,locateNativeGraphicsPopup,stableNativePopup} from './tablet-graphics-popup.mjs';
 import {GRAPHICS_SOURCE_SHA256} from '../../gateway/browser-graphics-overrides.mjs';
 import assert from 'node:assert/strict';
 import {mkdir,readFile,writeFile} from 'node:fs/promises';
@@ -30,7 +31,7 @@ async function installedHashes(){
 }
 const report={startedAt:new Date().toISOString(),step:'launch',completed:false,entityMutations:false,sourceHashes:{},screens:[],assertions:[],functionalAcceptance:false,performanceAcceptance:false,nativePackageSources:{start:null,end:null},controlEffects:[]};
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
-const sources=['gateway/native-tablet.js','gateway/tablet-capture.qml','gateway/native-browser-graphics.js','gateway/browser-graphics-overrides.mjs','gateway/tablet.mjs','gateway/server.mjs','gateway/native-bridge.js','gateway/worker-sandbox.mjs','gateway/native-worker-refresh-readback.js','gateway/native-worker-refresh-probe.js','dist/index.html','src/main.ts','src/world.ts','src/browser-graphics-controller.ts','src/browser-graphics-target.ts','shared/browser-graphics.mjs','tests/integration/tablet-graphics.mjs','tests/integration/tablet-graphics-geometry.mjs'];
+const sources=['gateway/native-tablet.js','gateway/tablet-capture.qml','gateway/native-browser-graphics.js','gateway/browser-graphics-overrides.mjs','gateway/tablet.mjs','gateway/server.mjs','gateway/native-bridge.js','gateway/worker-sandbox.mjs','gateway/native-worker-refresh-readback.js','gateway/native-worker-refresh-probe.js','dist/index.html','src/main.ts','src/world.ts','src/browser-graphics-controller.ts','src/browser-graphics-target.ts','shared/browser-graphics.mjs','tests/integration/tablet-graphics.mjs','tests/integration/tablet-graphics-geometry.mjs','tests/integration/tablet-graphics-popup.mjs'];
 async function hashes(){const result={};for(const name of sources)result[name]=createHash('sha256').update(await readFile(path.join(client,name))).digest('hex');return result;}
 let browser,page;
 try{
@@ -52,7 +53,7 @@ try{
                 if(value.type==='tablet'&&value.kind==='frame'){audit.frames.push(value);if(audit.frames.length>8)audit.frames.shift();}
                 if(value.type==='tablet'&&value.kind==='state'){audit.states.push({screen:value.screen,visible:value.visible});if(audit.states.length>20)audit.states.shift();}
             }catch{}});}
-            send(data){if(typeof data==='string'){try{const value=JSON.parse(data);if(value.type==='tablet'&&value.action==='graphicsResult'){window.__editorAudit.graphicsResults.push(value);if(window.__editorAudit.graphicsResults.length>64)window.__editorAudit.graphicsResults.shift();}if(value.type==='tablet'&&value.action==='frameAck'){const audit=window.__editorAudit;const frame=audit.frames.find(item=>item.sequence===value.frameSequence&&item.revision===value.revision);if(frame)audit.frame=frame;}}catch{}}super.send(data);}
+            send(data){if(typeof data==='string'){try{const value=JSON.parse(data);if(value.type==='tablet'&&value.action==='graphicsResult'){window.__editorAudit.graphicsResults.push(value);if(window.__editorAudit.graphicsResults.length>64)window.__editorAudit.graphicsResults.shift();}if(value.type==='tablet'&&value.action==='frameAck'&&value.displayed===true){const audit=window.__editorAudit;const frame=audit.frames.find(item=>item.sequence===value.frameSequence&&item.revision===value.revision);if(frame)audit.frame=frame;}}catch{}}super.send(data);}
         };
     });
     await page.goto(base);await page.locator('#domain').fill(domain);await page.locator('#name').fill('Browser Graphics Audit');await page.locator('#join').click();report.step='join';
@@ -97,10 +98,48 @@ try{
         if(field==='resolutionPercent')assertBuffer(current,value);
         report.controlEffects.push({...current,via:name});await capture(name);return current;
     }
+    async function paintedPopup(expectedIndex,afterSequence,label){
+        const deadline=Date.now()+15000;let stable=null,last=null;
+        while(Date.now()<deadline){
+            assert(await page.evaluate(()=>window.__overte.connected),'Native popup test requires the same live domain session');
+            const frame=await page.evaluate(()=>window.__editorAudit.frame);
+            if(frame&&frame.sequence>afterSequence){
+                const rows=await canvas.evaluate(measureNativeGraphicsPopup,frame.tabletRect);
+                const popup=locateNativeGraphicsPopup(rows);
+                const current=await page.evaluate(()=>window.__editorAudit.frame);
+                // Pixel measurements must belong to the exact displayed frame.
+                if(current.sequence===frame.sequence&&current.revision===frame.revision){
+                    last={sequence:frame.sequence,revision:frame.revision,popup};
+                    if(expectedIndex===null){
+                        if(!popup&&stable&&!stable.popup&&frame.sequence>stable.sequence&&frame.revision===stable.revision)return last;
+                        stable=!popup?last:null;
+                    }else if(popup&&popup.highlightedIndex===expectedIndex){
+                        if(stableNativePopup(stable,last)){report.popupReadiness||=[];report.popupReadiness.push({label,...last});return last;}
+                        stable=last;
+                    }else stable=null;
+                }
+            }
+            await delay(100);
+        }
+        report.popupFailure={label,expectedIndex,last};throw Error('The genuine native resolution popup did not paint stable row '+expectedIndex+' within 15000 milliseconds');
+    }
+    async function openPopup(previous,label){
+        await page.keyboard.press('Escape');await paintedPopup(null,previous.sequence,label+'-closed');
+        const closed=await page.evaluate(()=>window.__editorAudit.frame);
+        // Hit the actual native indicator, not selectable caption text. Move
+        // inside the native header afterwards so hover cannot select a row.
+        await tapHome(447,geometry.profile.y);
+        const bounds=await canvas.boundingBox(),frame=await page.evaluate(()=>window.__editorAudit.frame),r=frame.tabletRect;
+        assert(bounds);await page.mouse.move(bounds.x+(r.x+450*r.width/480)/frame.width*bounds.width,bounds.y+(r.y+30*r.height/706)/frame.height*bounds.height);
+        const value=await page.evaluate(()=>window.__overte.graphics.resolutionPercent),index=[100,80,60].indexOf(value);
+        return paintedPopup(index<0?3:index,closed.sequence,label+'-open');
+    }
     async function preset(index,value){
         report.step='genuine native combo '+value;const previous=await beforeInput();
-        await tapHome(geometry.profile.x,geometry.profile.y);await newFrame({sequence:previous.sequence,data:previous.data});await delay(350);
-        await page.keyboard.press('Home');for(let step=0;step<index;step++){await delay(100);await page.keyboard.press('ArrowDown');}await page.keyboard.press('Enter');
+        let popup=await openPopup(previous,'preset-'+value);
+        await page.keyboard.press('Home');popup=await paintedPopup(0,popup.sequence,'preset-'+value+'-home');
+        for(let step=1;step<=index;step++){await page.keyboard.press('ArrowDown');popup=await paintedPopup(step,popup.sequence,'preset-'+value+'-row-'+step);}
+        await capture('preset-'+value+'-painted-popup');await page.keyboard.press('Enter');
         return settled('resolutionPercent',value,previous,'preset-'+value);
     }
 
@@ -120,7 +159,7 @@ try{
     // Opening from Custom70 and moving up once must choose60. This proves
     // actual native readback selected row3, not merely a changed screenshot.
     report.step='native Custom readback';previous=await beforeInput();
-    await tapHome(geometry.profile.x,geometry.profile.y);await newFrame({sequence:previous.sequence,data:previous.data});await capture('custom-70-popup');await delay(350);await page.keyboard.press('ArrowUp');await page.keyboard.press('Enter');
+    const customPopup=await openPopup(previous,'custom-70');assert.equal(customPopup.popup.highlightedIndex,3);await capture('custom-70-popup');await page.keyboard.press('ArrowUp');await paintedPopup(2,customPopup.sequence,'custom-arrow-up-row-2');await capture('custom-up-to-60-popup');await page.keyboard.press('Enter');
     await settled('resolutionPercent',60,previous,'custom-readback-up-to-60');
     await control('resolutionPercent',70,resolutionSliderX(70),geometry.resolutionPercent.y);
     await page.getByRole('button',{name:'Close tablet',exact:true}).click();await page.locator('#leave').click();await page.waitForFunction(()=>!window.__overte.connected);

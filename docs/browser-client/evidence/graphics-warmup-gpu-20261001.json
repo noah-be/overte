@@ -1,0 +1,1422 @@
+{
+  "schemaVersion": 1,
+  "scope": "Actual authored WebGL shader scheduling fidelity, cancellation and complete resource release; combined genuine Tablet canvas/navigation component run. No native-world or Hub speed claim.",
+  "command": "PLAYWRIGHT_JSON_OUTPUT_NAME=build/warmup-idempotence-browser-report.json npx playwright test tests/graphics-warmup.browser.spec.ts tests/tablet.browser.spec.ts --workers=1 --reporter=list,json",
+  "run": {
+    "startTime": "2026-10-01T16:48:34.184Z",
+    "duration": 51246.695999999996,
+    "expected": 30,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "rawReportSHA256": "de010bb370d586a61dde852ee9e781a20b5483605a92714f537670b2e09cd66d",
+  "sourceSHA256": {
+    "src/graphics-warmup.ts": "e5b8dec4e448da880603e6594cf2b71888e1db16b9ddc4370a3ee2c93d899f2f",
+    "src/graphics-warmup-owner.ts": "e09c8bfbfb71dadbe838413551cce82a6b689967237e355cd4a787a9da0050d4",
+    "tests/graphics-warmup-fixture.ts": "f4a0811c075446f6c0e0942dee60f4a7bdb6d42a35fcf6a45abea37e64c5519b",
+    "tests/graphics-warmup.browser.spec.ts": "069b17cdf79acbc9df71d6fec2e81dd0d3e6b58816e1220186308a9b2e8e778a",
+    "tests/graphics-warmup-native-alpha.ts": "03803e3b8586db72663723acfb54447aa9dceac426012f8753ecb1beffec26cf",
+    "tests/graphics-warmup-fixture-lifecycle.test.ts": "8f89cac4316a1724072a137add1247571856fadc256d4f4c37ab53492108077a",
+    "src/tablet.ts": "17dd1e5ca3c0a0beb0f8c0e5f2b6a93c6f1aed9465bd88b62f02ce39cd8778a2",
+    "src/tablet-protocol.ts": "7860c38eed1a298a922a7782d244757daf809ebef8d816d60354f9a133d9e2d7",
+    "gateway/tablet.mjs": "e93b26ee0c10982a0c4902f3edc1c6336bf2709f41c2207b6dc2fdf373d08ebb",
+    "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+    "tests/tablet.browser.spec.ts": "691478f66d7aa8f3f38159571843b4e38ad0e7b877de594ac345ee3f5272fda5"
+  },
+  "runtimeDefaultEnabled": false,
+  "graphicsReports": [
+    {
+      "test": "graphics-warmup-fidelity",
+      "schemaVersion": 1,
+      "browser": "153.0.8010.12",
+      "project": "chromium",
+      "report": {
+        "webgl2": true,
+        "sharedRendererDFG": true,
+        "cleanup": [
+          {
+            "closed": true,
+            "geometryDisposals": 5,
+            "expectedGeometryDisposals": 5,
+            "materialDisposals": 3,
+            "expectedMaterialDisposals": 3,
+            "targetDisposals": 1,
+            "geometriesAfterClose": 0,
+            "texturesAfterClose": 0,
+            "textureReleaseSteps": [
+              {
+                "stage": "before",
+                "textures": 7,
+                "remaining": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7
+                ]
+              },
+              {
+                "stage": "target",
+                "textures": 6,
+                "remaining": [
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7
+                ]
+              },
+              {
+                "stage": "materials",
+                "textures": 6,
+                "remaining": [
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7
+                ]
+              },
+              {
+                "stage": "geometry-and-morph",
+                "textures": 5,
+                "remaining": [
+                  2,
+                  3,
+                  4,
+                  5,
+                  7
+                ]
+              },
+              {
+                "stage": "skeleton",
+                "textures": 4,
+                "remaining": [
+                  2,
+                  3,
+                  4,
+                  5
+                ]
+              },
+              {
+                "stage": "instances",
+                "textures": 4,
+                "remaining": [
+                  2,
+                  3,
+                  4,
+                  5
+                ]
+              },
+              {
+                "stage": "alpha",
+                "textures": 3,
+                "remaining": [
+                  2,
+                  3,
+                  5
+                ]
+              },
+              {
+                "stage": "shadow",
+                "textures": 1,
+                "remaining": [
+                  5
+                ]
+              },
+              {
+                "stage": "shared-dfg",
+                "textures": 0,
+                "remaining": []
+              },
+              {
+                "stage": "renderer",
+                "textures": 0,
+                "remaining": []
+              }
+            ],
+            "textureIdentity": {
+              "created": 7,
+              "deleted": 7,
+              "bindings": [
+                {
+                  "name": "target",
+                  "id": 1
+                },
+                {
+                  "name": "alpha",
+                  "id": 4
+                },
+                {
+                  "name": "bone",
+                  "id": 7
+                },
+                {
+                  "name": "shadow-color",
+                  "id": 2
+                },
+                {
+                  "name": "shadow-depth",
+                  "id": 3
+                },
+                {
+                  "name": "pbr-dfg",
+                  "id": 5
+                }
+              ],
+              "dfg": {
+                "name": "DFG_LUT",
+                "width": 16,
+                "height": 16,
+                "isDataTexture": true
+              }
+            }
+          },
+          {
+            "closed": true,
+            "geometryDisposals": 5,
+            "expectedGeometryDisposals": 5,
+            "materialDisposals": 3,
+            "expectedMaterialDisposals": 3,
+            "targetDisposals": 1,
+            "geometriesAfterClose": 0,
+            "texturesAfterClose": 0,
+            "textureReleaseSteps": [
+              {
+                "stage": "before",
+                "textures": 7,
+                "remaining": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7
+                ]
+              },
+              {
+                "stage": "target",
+                "textures": 6,
+                "remaining": [
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7
+                ]
+              },
+              {
+                "stage": "materials",
+                "textures": 6,
+                "remaining": [
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7
+                ]
+              },
+              {
+                "stage": "geometry-and-morph",
+                "textures": 5,
+                "remaining": [
+                  2,
+                  3,
+                  4,
+                  5,
+                  7
+                ]
+              },
+              {
+                "stage": "skeleton",
+                "textures": 4,
+                "remaining": [
+                  2,
+                  3,
+                  4,
+                  5
+                ]
+              },
+              {
+                "stage": "instances",
+                "textures": 4,
+                "remaining": [
+                  2,
+                  3,
+                  4,
+                  5
+                ]
+              },
+              {
+                "stage": "alpha",
+                "textures": 3,
+                "remaining": [
+                  2,
+                  3,
+                  5
+                ]
+              },
+              {
+                "stage": "shadow",
+                "textures": 1,
+                "remaining": [
+                  5
+                ]
+              },
+              {
+                "stage": "shared-dfg",
+                "textures": 0,
+                "remaining": []
+              },
+              {
+                "stage": "renderer",
+                "textures": 0,
+                "remaining": []
+              }
+            ],
+            "textureIdentity": {
+              "created": 7,
+              "deleted": 7,
+              "bindings": [
+                {
+                  "name": "target",
+                  "id": 1
+                },
+                {
+                  "name": "alpha",
+                  "id": 4
+                },
+                {
+                  "name": "bone",
+                  "id": 7
+                },
+                {
+                  "name": "shadow-color",
+                  "id": 2
+                },
+                {
+                  "name": "shadow-depth",
+                  "id": 3
+                },
+                {
+                  "name": "pbr-dfg",
+                  "id": 5
+                }
+              ],
+              "dfg": {
+                "name": "DFG_LUT",
+                "width": 16,
+                "height": 16,
+                "isDataTexture": true
+              }
+            }
+          }
+        ],
+        "statistics": {
+          "bindings": 14,
+          "batches": 4,
+          "yielded": 4,
+          "planningMs": 0.20000000298023224,
+          "submitMs": 30.099999994039536,
+          "maxSubmitMs": 18.5,
+          "finalSubmitMs": 5.700000002980232,
+          "readinessWaitMs": 10.600000008940697,
+          "fallback": null
+        },
+        "maximum": 0,
+        "changed": 0,
+        "components": 36864,
+        "frames": [
+          {
+            "frame": 0,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 1,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 2,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 3,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 4,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 5,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 6,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 7,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 8,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 9,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 10,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 11,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 12,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 13,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 14,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 15,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 16,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 17,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 18,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 19,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 20,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          }
+        ],
+        "changedAnimationComponents": 1462,
+        "nonBackground": 991,
+        "finalRootExact": true,
+        "finalCameraExact": true,
+        "finalSceneExact": true,
+        "warmInputs": true,
+        "callsEqual": true,
+        "trianglesEqual": true,
+        "stableCalls": true,
+        "stablePrograms": true,
+        "coldProgramCountsEqual": true,
+        "stableVersions": true,
+        "retainedHooks": true,
+        "nativeAlphaInitiallyCorrect": true,
+        "nativeAlphaHooksBefore": {
+          "mask": true,
+          "blend": false
+        },
+        "nativeAlphaHooksAfter": {
+          "mask": true,
+          "blend": false
+        },
+        "nativeAlphaRetained": true,
+        "actualShadowMap": true,
+        "retainedInputs": true
+      },
+      "errors": []
+    },
+    {
+      "test": "graphics-warmup-cancellation",
+      "schemaVersion": 1,
+      "browser": "153.0.8010.12",
+      "project": "chromium",
+      "report": {
+        "webgl2": true,
+        "cleanup": {
+          "closed": true,
+          "geometryDisposals": 5,
+          "expectedGeometryDisposals": 5,
+          "materialDisposals": 3,
+          "expectedMaterialDisposals": 3,
+          "targetDisposals": 1,
+          "geometriesAfterClose": 0,
+          "texturesAfterClose": 0,
+          "textureReleaseSteps": [
+            {
+              "stage": "before",
+              "textures": 1,
+              "remaining": [
+                1
+              ]
+            },
+            {
+              "stage": "target",
+              "textures": 0,
+              "remaining": []
+            },
+            {
+              "stage": "materials",
+              "textures": 0,
+              "remaining": []
+            },
+            {
+              "stage": "geometry-and-morph",
+              "textures": 0,
+              "remaining": []
+            },
+            {
+              "stage": "skeleton",
+              "textures": 0,
+              "remaining": []
+            },
+            {
+              "stage": "instances",
+              "textures": 0,
+              "remaining": []
+            },
+            {
+              "stage": "alpha",
+              "textures": 0,
+              "remaining": []
+            },
+            {
+              "stage": "shadow",
+              "textures": 0,
+              "remaining": []
+            },
+            {
+              "stage": "shared-dfg",
+              "textures": 0,
+              "remaining": []
+            },
+            {
+              "stage": "renderer",
+              "textures": 0,
+              "remaining": []
+            }
+          ],
+          "textureIdentity": {
+            "created": 1,
+            "deleted": 1,
+            "bindings": [
+              {
+                "name": "target",
+                "id": 1
+              },
+              {
+                "name": "alpha",
+                "id": null
+              },
+              {
+                "name": "bone",
+                "id": null
+              },
+              {
+                "name": "shadow-color",
+                "id": null
+              },
+              {
+                "name": "shadow-depth",
+                "id": null
+              },
+              {
+                "name": "pbr-dfg",
+                "id": null
+              }
+            ],
+            "dfg": null
+          }
+        },
+        "failureName": "AbortError",
+        "submitted": 1,
+        "settledSubmitted": 1,
+        "finalCalls": 0,
+        "yields": 1,
+        "closed": 1,
+        "publishedReady": 0,
+        "warmInputs": true,
+        "shadersReady": false
+      },
+      "errors": []
+    },
+    {
+      "test": "graphics-warmup-fidelity",
+      "schemaVersion": 1,
+      "browser": "155.0",
+      "project": "firefox",
+      "report": {
+        "webgl2": true,
+        "sharedRendererDFG": true,
+        "cleanup": [
+          {
+            "closed": true,
+            "geometryDisposals": 5,
+            "expectedGeometryDisposals": 5,
+            "materialDisposals": 3,
+            "expectedMaterialDisposals": 3,
+            "targetDisposals": 1,
+            "geometriesAfterClose": 0,
+            "texturesAfterClose": 0,
+            "textureReleaseSteps": [
+              {
+                "stage": "before",
+                "textures": 7,
+                "remaining": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7
+                ]
+              },
+              {
+                "stage": "target",
+                "textures": 6,
+                "remaining": [
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7
+                ]
+              },
+              {
+                "stage": "materials",
+                "textures": 6,
+                "remaining": [
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7
+                ]
+              },
+              {
+                "stage": "geometry-and-morph",
+                "textures": 5,
+                "remaining": [
+                  2,
+                  3,
+                  4,
+                  5,
+                  7
+                ]
+              },
+              {
+                "stage": "skeleton",
+                "textures": 4,
+                "remaining": [
+                  2,
+                  3,
+                  4,
+                  5
+                ]
+              },
+              {
+                "stage": "instances",
+                "textures": 4,
+                "remaining": [
+                  2,
+                  3,
+                  4,
+                  5
+                ]
+              },
+              {
+                "stage": "alpha",
+                "textures": 3,
+                "remaining": [
+                  2,
+                  3,
+                  5
+                ]
+              },
+              {
+                "stage": "shadow",
+                "textures": 1,
+                "remaining": [
+                  5
+                ]
+              },
+              {
+                "stage": "shared-dfg",
+                "textures": 0,
+                "remaining": []
+              },
+              {
+                "stage": "renderer",
+                "textures": 0,
+                "remaining": []
+              }
+            ],
+            "textureIdentity": {
+              "created": 7,
+              "deleted": 7,
+              "bindings": [
+                {
+                  "name": "target",
+                  "id": 1
+                },
+                {
+                  "name": "alpha",
+                  "id": 4
+                },
+                {
+                  "name": "bone",
+                  "id": 7
+                },
+                {
+                  "name": "shadow-color",
+                  "id": 2
+                },
+                {
+                  "name": "shadow-depth",
+                  "id": 3
+                },
+                {
+                  "name": "pbr-dfg",
+                  "id": 5
+                }
+              ],
+              "dfg": {
+                "name": "DFG_LUT",
+                "width": 16,
+                "height": 16,
+                "isDataTexture": true
+              }
+            }
+          },
+          {
+            "closed": true,
+            "geometryDisposals": 5,
+            "expectedGeometryDisposals": 5,
+            "materialDisposals": 3,
+            "expectedMaterialDisposals": 3,
+            "targetDisposals": 1,
+            "geometriesAfterClose": 0,
+            "texturesAfterClose": 0,
+            "textureReleaseSteps": [
+              {
+                "stage": "before",
+                "textures": 7,
+                "remaining": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7
+                ]
+              },
+              {
+                "stage": "target",
+                "textures": 6,
+                "remaining": [
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7
+                ]
+              },
+              {
+                "stage": "materials",
+                "textures": 6,
+                "remaining": [
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7
+                ]
+              },
+              {
+                "stage": "geometry-and-morph",
+                "textures": 5,
+                "remaining": [
+                  2,
+                  3,
+                  4,
+                  5,
+                  7
+                ]
+              },
+              {
+                "stage": "skeleton",
+                "textures": 4,
+                "remaining": [
+                  2,
+                  3,
+                  4,
+                  5
+                ]
+              },
+              {
+                "stage": "instances",
+                "textures": 4,
+                "remaining": [
+                  2,
+                  3,
+                  4,
+                  5
+                ]
+              },
+              {
+                "stage": "alpha",
+                "textures": 3,
+                "remaining": [
+                  2,
+                  3,
+                  5
+                ]
+              },
+              {
+                "stage": "shadow",
+                "textures": 1,
+                "remaining": [
+                  5
+                ]
+              },
+              {
+                "stage": "shared-dfg",
+                "textures": 0,
+                "remaining": []
+              },
+              {
+                "stage": "renderer",
+                "textures": 0,
+                "remaining": []
+              }
+            ],
+            "textureIdentity": {
+              "created": 7,
+              "deleted": 7,
+              "bindings": [
+                {
+                  "name": "target",
+                  "id": 1
+                },
+                {
+                  "name": "alpha",
+                  "id": 4
+                },
+                {
+                  "name": "bone",
+                  "id": 7
+                },
+                {
+                  "name": "shadow-color",
+                  "id": 2
+                },
+                {
+                  "name": "shadow-depth",
+                  "id": 3
+                },
+                {
+                  "name": "pbr-dfg",
+                  "id": 5
+                }
+              ],
+              "dfg": {
+                "name": "DFG_LUT",
+                "width": 16,
+                "height": 16,
+                "isDataTexture": true
+              }
+            }
+          }
+        ],
+        "statistics": {
+          "bindings": 14,
+          "batches": 4,
+          "yielded": 4,
+          "planningMs": 0,
+          "submitMs": 25,
+          "maxSubmitMs": 14,
+          "finalSubmitMs": 2,
+          "readinessWaitMs": 12,
+          "fallback": null
+        },
+        "maximum": 0,
+        "changed": 0,
+        "components": 36864,
+        "frames": [
+          {
+            "frame": 0,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 1,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 2,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 3,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 4,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 5,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 6,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 7,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 8,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 9,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 10,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 11,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 12,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 13,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 14,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 15,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 16,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 17,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 18,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 19,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 20,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          }
+        ],
+        "changedAnimationComponents": 1354,
+        "nonBackground": 996,
+        "finalRootExact": true,
+        "finalCameraExact": true,
+        "finalSceneExact": true,
+        "warmInputs": true,
+        "callsEqual": true,
+        "trianglesEqual": true,
+        "stableCalls": true,
+        "stablePrograms": true,
+        "coldProgramCountsEqual": true,
+        "stableVersions": true,
+        "retainedHooks": true,
+        "nativeAlphaInitiallyCorrect": true,
+        "nativeAlphaHooksBefore": {
+          "mask": true,
+          "blend": false
+        },
+        "nativeAlphaHooksAfter": {
+          "mask": true,
+          "blend": false
+        },
+        "nativeAlphaRetained": true,
+        "actualShadowMap": true,
+        "retainedInputs": true
+      },
+      "errors": []
+    },
+    {
+      "test": "graphics-warmup-cancellation",
+      "schemaVersion": 1,
+      "browser": "155.0",
+      "project": "firefox",
+      "report": {
+        "webgl2": true,
+        "cleanup": {
+          "closed": true,
+          "geometryDisposals": 5,
+          "expectedGeometryDisposals": 5,
+          "materialDisposals": 3,
+          "expectedMaterialDisposals": 3,
+          "targetDisposals": 1,
+          "geometriesAfterClose": 0,
+          "texturesAfterClose": 0,
+          "textureReleaseSteps": [
+            {
+              "stage": "before",
+              "textures": 1,
+              "remaining": [
+                1
+              ]
+            },
+            {
+              "stage": "target",
+              "textures": 0,
+              "remaining": []
+            },
+            {
+              "stage": "materials",
+              "textures": 0,
+              "remaining": []
+            },
+            {
+              "stage": "geometry-and-morph",
+              "textures": 0,
+              "remaining": []
+            },
+            {
+              "stage": "skeleton",
+              "textures": 0,
+              "remaining": []
+            },
+            {
+              "stage": "instances",
+              "textures": 0,
+              "remaining": []
+            },
+            {
+              "stage": "alpha",
+              "textures": 0,
+              "remaining": []
+            },
+            {
+              "stage": "shadow",
+              "textures": 0,
+              "remaining": []
+            },
+            {
+              "stage": "shared-dfg",
+              "textures": 0,
+              "remaining": []
+            },
+            {
+              "stage": "renderer",
+              "textures": 0,
+              "remaining": []
+            }
+          ],
+          "textureIdentity": {
+            "created": 1,
+            "deleted": 1,
+            "bindings": [
+              {
+                "name": "target",
+                "id": 1
+              },
+              {
+                "name": "alpha",
+                "id": null
+              },
+              {
+                "name": "bone",
+                "id": null
+              },
+              {
+                "name": "shadow-color",
+                "id": null
+              },
+              {
+                "name": "shadow-depth",
+                "id": null
+              },
+              {
+                "name": "pbr-dfg",
+                "id": null
+              }
+            ],
+            "dfg": null
+          }
+        },
+        "failureName": "AbortError",
+        "submitted": 1,
+        "settledSubmitted": 1,
+        "finalCalls": 0,
+        "yields": 1,
+        "closed": 1,
+        "publishedReady": 0,
+        "warmInputs": true,
+        "shadersReady": false
+      },
+      "errors": []
+    }
+  ],
+  "retainedEarlierFailures": [
+    {
+      "log": "graphics-warmup-gpu.log",
+      "cause": "Fixture incorrectly required a custom native BLEND hook; native BLEND deliberately uses ordinary Three callbacks."
+    },
+    {
+      "log": "graphics-warmup-alpha-correct-gpu.log",
+      "cause": "Complete fixture teardown initially omitted the module-global shared DFG_LUT."
+    },
+    {
+      "log": "graphics-warmup-cleanup-gpu.log",
+      "cause": "Stage-by-stage actual GPU release diagnosis retained the same strict zero check."
+    },
+    {
+      "log": "tablet-gesture-navigation-browser.log",
+      "passed": 26,
+      "failed": 2,
+      "cause": "Test released pending pointer capture before a genuine pointer event established it; corrected test verifies trusted got/lost events and exactly one cancellation."
+    }
+  ],
+  "limitations": [
+    "Authored exact-RGBA proof is not a public-Hub performance measurement.",
+    "Test-only shared DFG cleanup owns all renderers in a blank fixture page; production never disposes borrowed global lookup textures.",
+    "GPU submission completion is not claimed from CPU timing.",
+    "Snapshot component cases passed in the preceding run and are separate from these 30 cases."
+  ]
+}

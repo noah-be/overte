@@ -4,6 +4,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {Box3,Group,Mesh,MeshStandardMaterial,Scene,Texture,TextureLoader,Vector3,type LoadingManager} from 'three';
 import {BrowserWorld} from '../src/world';
+import {FstGraphCache} from '../src/fst-graph-cache';
 import {PreparedFbxCache} from '../src/prepared-fbx-cache';
 import {ModelLoadScheduler} from '../src/model-load-scheduler';
 import {ModelGeometryStage} from '../src/model-geometry-stage';
@@ -60,6 +61,7 @@ function fixture(){
   loadManagers:new Set(),imageCache:{loader:(manager:LoadingManager)=>new DelayedImages(manager)},fbxPreparePool:{prepare:async(buffer:ArrayBuffer)=>({buffer,phases:{materialBindingsMs:0,decodeMs:0}})},
   recordLoadPhase(){},recordLoadDuration(){},configureAlpha:async()=>{},localLights:new Set(),signatures:new Map(),scene:new Scene(),colliders:[],pendingModelColliders:[],restoreModelBatch(){},
  });
+ context.fstGraphCache=new FstGraphCache(abort.signal);
  const pending=()=>typeof finish==='function';return{context,abort,root,entity,pending,finish:()=>finish(),fail:()=>fail()};
 }
 const wait=async(condition:()=>boolean)=>{for(let i=0;i<2000;i++){if(condition())return;await new Promise(resolve=>setImmediate(resolve));}assert.fail('Expected genuine geometry/image stage did not start');};
@@ -78,16 +80,24 @@ test('actual root removal during FST texture wait withdraws BVH without disposin
  const rejected=assert.rejects(loading,{name:'AbortError'});f.context.removeEntities([f.entity.id]);await rejected;
  assert.equal(stage.state.revoked,true);assert.equal(f.context.meshCollisions.size,0);assert.equal(f.root.children[0].children.length,0);f.finish();f.abort.abort();
 });
-test('actual rejected FST material after image completion withdraws pending triangles and releases parsed resources exactly once',async t=>{
+test('actual rejected nested FST material after image completion withdraws pending triangles and releases parsed resources exactly once',async t=>{
  const f=fixture();let geometry=0,material=0,texture=0;const original=ModelGeometryStage.prototype.prepare;
  t.mock.method(ModelGeometryStage.prototype,'prepare',function(this:ModelGeometryStage,model:Group){
   model.traverse(object=>{if(object instanceof Mesh){object.geometry.addEventListener('dispose',()=>geometry++);for(const value of Array.isArray(object.material)?object.material:[object.material]){
    value.addEventListener('dispose',()=>material++);const map=(value as MeshStandardMaterial).map;map?.addEventListener('dispose',()=>texture++);
   }}});original.call(this,model);
  });
- t.mock.method(globalThis,'fetch',async(input:unknown)=>String(input).endsWith('.json')?new Response('Denied',{status:403}):new Response(String(input).endsWith('.fst')?'filename = floor.fbx\nmaterialMap = [{"all":"material.json"}]':fbx));
+ t.mock.method(globalThis,'fetch',async(input:unknown)=>String(input).endsWith('.json')?new Response('Denied',{status:403}):new Response(String(input).endsWith('/inner.fst')?'filename = floor.fbx':String(input).endsWith('.fst')?'filename = inner.fst\nmaterialMap = [{"all":"material.json"}]':fbx));
  const loading=methods.populateEntity.call(f.context,f.entity,f.root);await wait(f.pending);assert.equal(f.root.userData.modelGeometryReady,true);
  const rejected=assert.rejects(loading,/403/);f.finish();await rejected;assert.equal(f.context.meshCollisions.size,0);assert.equal(f.root.userData.modelGeometryReady,false);assert.deepEqual([geometry,material,texture],[1,1,1]);assert.equal(f.root.children[0].children.length,0);f.abort.abort();
+});
+
+test('actual unknown direct-FBX metadata retains original image/geometry admission and cleans after material denial',async t=>{
+ const f=fixture();let originalRequests=0;
+ t.mock.method(globalThis,'fetch',async(input:unknown)=>{const url=String(input);if(url.endsWith('.json'))return new Response('Denied',{status:403});if(url.endsWith('.fbx'))originalRequests++;return new Response(url.endsWith('.fst')?'filename = floor.fbx\nmaterialMap = [{"all":"material.json"}]':fbx);});
+ const loading=methods.populateEntity.call(f.context,f.entity,f.root),rejected=assert.rejects(loading,/403/);await wait(f.pending);
+ assert.equal(originalRequests,1);assert.equal(f.pending(),true);assert.equal(f.root.userData.modelGeometryReady,true);f.finish();await rejected;assert.equal(f.context.meshCollisions.size,0);
+ assert.notEqual(f.root.userData.modelGeometryReady,true);assert.equal(f.root.children[0].children.length,0);f.abort.abort();
 });
 
 // FST mapping transforms are avatar metadata in the current loader. Model

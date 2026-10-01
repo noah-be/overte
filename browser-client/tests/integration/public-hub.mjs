@@ -8,12 +8,14 @@ import {assessFluidPerformance} from '../../shared/fluid-performance.mjs';
 import { mkdir, readFile, writeFile, readdir, readlink } from 'node:fs/promises';
 import { assetCategory, assetCategoryTotals, assetSessionTotals, requireWorldLoadingReady } from './public-hub-metrics.mjs';
 import { createHash } from 'node:crypto';
+import {installHubUploadProfile} from './hub-upload-profile.mjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const repo=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../../..');
 const firefox=process.env.OVERTE_LAB_BROWSER==='system-firefox';
 const output=path.join(repo,'build/browser-hub-lab/browser',...(firefox?['system-firefox']:[]));
-const sourceFiles=['browser-client/gateway/server.mjs','browser-client/gateway/native-bridge.js','browser-client/gateway/native-world.js','browser-client/gateway/socket-heartbeat.mjs','browser-client/gateway/public-places.mjs','browser-client/gateway/validation.mjs','browser-client/gateway/worker-sandbox.mjs','browser-client/gateway/network-sandbox.mjs','browser-client/gateway/network_udp.py','browser-client/gateway/native-tablet.js','browser-client/gateway/tablet-capture.qml','browser-client/gateway/process-lifecycle.mjs','browser-client/shared/fluid-performance.mjs','browser-client/gateway/session-assets.mjs','browser-client/gateway/asset-download.mjs','browser-client/src/main.ts', 'browser-client/src/session.ts', 'browser-client/src/compressed-color-session.ts', 'browser-client/src/native-compressed-color.ts', 'browser-client/src/color-texture-metadata.ts', 'browser-client/src/initial-surface-wait.ts', 'browser-client/src/mesh-collision.ts', 'browser-client/src/simulation-clock.ts','browser-client/src/world.ts','browser-client/src/gpu-time-observer.ts','browser-client/src/world-gpu-timing.ts','browser-client/src/world-image-cache.ts','browser-client/src/world-source-text-cache.ts','browser-client/src/embedded-fbx-images.ts','browser-client/src/embedded-content-counts.ts','browser-client/src/embedded-fbx-protocol.ts','browser-client/src/native-zero-lights.ts','browser-client/src/static-model-batch.ts','browser-client/src/native-render-state.ts','browser-client/src/native-alpha-material.ts','browser-client/src/model-resources.ts','browser-client/src/world-data.ts','browser-client/src/worker-task-yield.ts','browser-client/src/prepared-fbx-cache.ts','browser-client/src/model-load-scheduler.ts','browser-client/src/model-geometry-stage.ts','browser-client/src/model-fbx-pool.ts','browser-client/src/model-fbx-decoder.ts','browser-client/src/model-fbx-decoder-memory.ts','browser-client/src/model-fbx-worker.ts','browser-client/src/model-textures.ts','browser-client/src/texture-alpha.ts','browser-client/src/texture-alpha-worker.ts','browser-client/src/baked-fbx.ts','browser-client/src/baked-draco.ts','browser-client/src/baked-draco-legacy.ts','browser-client/dist/index.html','browser-client/tests/integration/system-firefox.mjs','browser-client/tests/integration/public-hub-metrics.mjs','browser-client/tests/integration/public-hub.mjs'];
+const sourceFiles=['browser-client/gateway/server.mjs','browser-client/gateway/native-bridge.js','browser-client/gateway/native-world.js','browser-client/gateway/socket-heartbeat.mjs','browser-client/gateway/public-places.mjs','browser-client/gateway/validation.mjs','browser-client/gateway/worker-sandbox.mjs','browser-client/gateway/network-sandbox.mjs','browser-client/gateway/network_udp.py','browser-client/gateway/native-tablet.js','browser-client/gateway/tablet-capture.qml','browser-client/gateway/process-lifecycle.mjs','browser-client/shared/fluid-performance.mjs','browser-client/gateway/session-assets.mjs','browser-client/gateway/asset-download.mjs','browser-client/src/main.ts', 'browser-client/src/session.ts', 'browser-client/src/compressed-color-session.ts', 'browser-client/src/native-compressed-color.ts', 'browser-client/src/color-texture-metadata.ts', 'browser-client/src/initial-surface-wait.ts', 'browser-client/src/mesh-collision.ts', 'browser-client/src/simulation-clock.ts','browser-client/src/world.ts','browser-client/src/fst-graph-cache.ts','browser-client/src/fst-texture-admission.ts','browser-client/src/compressed-color-capabilities.ts','browser-client/src/graphics-warmup.ts','browser-client/src/graphics-warmup-owner.ts','browser-client/src/gpu-time-observer.ts','browser-client/src/world-gpu-timing.ts','browser-client/src/world-image-cache.ts','browser-client/src/world-source-text-cache.ts','browser-client/src/embedded-fbx-images.ts','browser-client/src/embedded-content-counts.ts','browser-client/src/embedded-fbx-protocol.ts','browser-client/src/native-zero-lights.ts','browser-client/src/static-model-batch.ts','browser-client/src/native-render-state.ts','browser-client/src/native-alpha-material.ts','browser-client/src/model-resources.ts','browser-client/src/world-data.ts','browser-client/src/worker-task-yield.ts','browser-client/src/prepared-fbx-cache.ts','browser-client/src/model-load-scheduler.ts','browser-client/src/model-geometry-stage.ts','browser-client/src/model-fbx-pool.ts','browser-client/src/model-fbx-decoder.ts','browser-client/src/model-fbx-decoder-memory.ts','browser-client/src/model-fbx-worker.ts','browser-client/src/model-textures.ts','browser-client/src/texture-alpha.ts','browser-client/src/texture-alpha-worker.ts','browser-client/src/baked-fbx.ts','browser-client/src/baked-draco.ts','browser-client/src/baked-draco-legacy.ts','browser-client/dist/index.html','browser-client/tests/integration/system-firefox.mjs','browser-client/tests/integration/public-hub-metrics.mjs','browser-client/tests/integration/public-hub.mjs'];
+sourceFiles.push('browser-client/src/world-texture-preparation.ts','browser-client/src/foreground-texture-plan.ts','browser-client/src/world-cpu-frame-timing.ts','browser-client/tests/integration/hub-upload-profile.mjs');
 const report={startedAt:new Date().toISOString(),completed:false,place:'overte_hub',microphoneRequested:false,worldInteractionsSent:0};
 const assetRequests = new Map(), assetStarts = new WeakMap();
 // Native session IDs are private lookup keys only; reports contain ordinal1/2.
@@ -89,6 +91,8 @@ try {
   page=firefox?await(await browser.newContext({viewport:{width:1280,height:800}})).newPage():await browser.newPage({viewport:{width:1280,height:800}});
   if(firefox)page.waitForTimeout=milliseconds=>new Promise(resolve=>setTimeout(resolve,milliseconds));
   const errors=[];page.on('pageerror',error=>errors.push(error.message));report.failedResources=[];page.on('response',response=>{if(response.status()>=400)report.failedResources.push({status:response.status(),url:response.url()});});page.on('requestfailed',request=>report.failedResources.push({url:request.url(),failure:request.failure()?.errorText}));
+  report.uploadProfileRequested=process.env.OVERTE_LAB_UPLOAD_PROFILE==='1';
+  if(report.uploadProfileRequested)await page.addInitScript(installHubUploadProfile);
   await page.addInitScript(()=>{
     window.__hubGLCalls={totals:{},slow:[],programs:{},shaders:{},shaderDetails:{},readiness:{}};
     const ids=new WeakMap();let nextID=0;
@@ -103,6 +107,11 @@ try {
           const key=name+(typeof args[1]==='number'?':'+args[1]:'');
           const stat=window.__hubGLCalls.totals[key]||={calls:0,totalMs:0,maxMs:0};
           stat.calls++;stat.totalMs+=elapsed;stat.maxMs=Math.max(stat.maxMs,elapsed);
+          // Observe only arguments already submitted by the application. Never
+          // query driver state or let optional diagnostics change its result.
+          if(name==='texImage2D'||name==='texSubImage2D'||name==='compressedTexImage2D'||name==='compressedTexSubImage2D'){
+            try{window.__hubUploadProfile?.record(name,args,elapsed);}catch{}
+          }
           if(name==='compressedTexImage2D'||name==='compressedTexSubImage2D'){
             const bytes=args.find(value=>ArrayBuffer.isView(value)||value instanceof ArrayBuffer);
             if(bytes)stat.uploadBytes=(stat.uploadBytes||0)+bytes.byteLength;
@@ -130,6 +139,12 @@ try {
   const entryURL = new URL(process.env.OVERTE_LAB_URL||'http://127.0.0.1:8092');
   if (process.env.OVERTE_LAB_GPU_TIMING === '1') entryURL.searchParams.set('gpuTiming','1');
   report.gpuTimingRequested = process.env.OVERTE_LAB_GPU_TIMING === '1';
+  report.cpuFrameTimingRequested=process.env.OVERTE_LAB_CPU_FRAME_TIMING==='1';
+  if(report.cpuFrameTimingRequested)entryURL.searchParams.set('cpuFrameTiming','1');
+  if (process.env.OVERTE_LAB_SHADER_WARMUP === '1') entryURL.searchParams.set('shaderWarmup','1');
+  report.shaderWarmupRequested = process.env.OVERTE_LAB_SHADER_WARMUP === '1';
+  if (process.env.OVERTE_LAB_TEXTURE_PREPARATION === '1') entryURL.searchParams.set('texturePreparation','1');
+  report.texturePreparationRequested = process.env.OVERTE_LAB_TEXTURE_PREPARATION === '1';
   await page.goto(entryURL.href);
   report.viewport=await page.evaluate(()=>({width:innerWidth,height:innerHeight,devicePixelRatio,visibility:document.visibilityState}));
   await page.locator('#domain').fill('overte://overte_hub');
@@ -153,7 +168,8 @@ try {
     assetRequests.set(key,previous);sessionAssetRequests.set(sessionKey,sessionPrevious);
   });
   await page.locator('#name').fill('Browser compatibility observer');
-  if(!firefox&&process.env.OVERTE_LAB_PROFILE==='1'){profiler=await page.context().newCDPSession(page);await profiler.send('Profiler.enable');await profiler.send('Profiler.setSamplingInterval',{interval:1000});await profiler.send('Profiler.start');}
+  if(!firefox&&process.env.OVERTE_LAB_PROFILE==='1'){profiler=await page.context().newCDPSession(page);await profiler.send('Profiler.enable');await profiler.send('Profiler.setSamplingInterval',{interval:1000});report.cpuProfileStartedAt=new Date().toISOString();await profiler.send('Profiler.start');}
+  if(report.uploadProfileRequested)await page.evaluate(()=>window.__hubUploadProfile?.setPhase('loading'));
   await page.locator('#join').click();
   await page.waitForFunction(()=>window.__overte?.connected||document.querySelector('#notice[data-kind="error"]'),null,{timeout:60000});
   const state=await page.evaluate(()=>({connected:window.__overte?.connected,notice:document.querySelector('#notice')?.textContent}));
@@ -165,6 +181,7 @@ try {
   const loadingDeadline=Date.now()+Number(process.env.OVERTE_LAB_LOADING_TIMEOUT||90)*1000;
   while(Date.now()<loadingDeadline){await page.waitForTimeout(3000);const sample=await page.evaluate(()=>({at:Date.now(),...window.__overte.performance,entityCount:window.__overte.entityCount,position:window.__overte.pose?.position}));report.performance.push(sample);await writeFile(path.join(output,'public-hub-progress.json'),JSON.stringify({startedAt:report.startedAt,sample})+'\n');if(!sample.position)throw Error(await page.locator('#notice').textContent());if(!report.earlyMovement&&sample.loadedModels>=10&&sample.meshColliders>0){const before=await page.evaluate(()=>window.__overte.pose);await page.locator('#world canvas').evaluate(element=>element.focus());await page.keyboard.down('KeyW');await page.waitForTimeout(250);await page.keyboard.up('KeyW');await page.waitForTimeout(300);report.earlyMovement=await page.evaluate(before=>({before,after:window.__overte.pose,nativePose:window.__hubNativePose}),before);await screenshot('public-hub-loading.png');}if(sample.queuedModels===0&&sample.loadingModels===0&&sample.compilingGraphics===0)break;}
   requireWorldLoadingReady(report.performance.at(-1));
+  if(report.uploadProfileRequested)await page.evaluate(()=>window.__hubUploadProfile?.setPhase('steady'));
   for(let i=0;i<4;i++){
     await page.waitForTimeout(3000);
     report.performance.push(await page.evaluate(()=>({at:Date.now(),...window.__overte.performance,entityCount:window.__overte.entityCount,position:window.__overte.pose?.position})));
@@ -184,12 +201,14 @@ try {
   report.webGL=await page.evaluate(()=>{const gl=document.querySelector('#world canvas').getContext('webgl2');const ext=gl?.getExtension('WEBGL_debug_renderer_info');return gl?{vendor:gl.getParameter(ext?.UNMASKED_VENDOR_WEBGL||gl.VENDOR),renderer:gl.getParameter(ext?.UNMASKED_RENDERER_WEBGL||gl.RENDERER)}:null;});
   await screenshot('public-hub.png');
   report.pageErrors=errors;
+  if(report.uploadProfileRequested)await page.evaluate(()=>window.__hubUploadProfile?.setPhase('leaving'));
   await page.locator('#leave').click();
   if(process.env.OVERTE_LAB_RECONNECT==='1'){
-    await page.waitForTimeout(3500);await page.locator('#join').click();
+    await page.waitForTimeout(3500);if(report.uploadProfileRequested)await page.evaluate(()=>window.__hubUploadProfile?.setPhase('reloading'));await page.locator('#join').click();
     await page.waitForFunction(()=>window.__overte?.connected||document.querySelector('#notice[data-kind="error"]'),null,{timeout:60000});
     if(!await page.evaluate(()=>window.__overte.connected))throw Error(await page.locator('#notice').textContent());
     await page.waitForFunction(()=>window.__overte.entityCount>20&&window.__overte.performance.meshColliders>0&&window.__overte.performance.loadingModels===0&&window.__overte.performance.queuedModels===0&&window.__overte.performance.compilingGraphics===0,null,{timeout:90000});
+    if(report.uploadProfileRequested)await page.evaluate(()=>window.__hubUploadProfile?.setPhase('rejoined-ready'));
     report.reconnectedSteadySamples=[];for(let index=0;index<4;index++){await page.waitForTimeout(3000);report.reconnectedSteadySamples.push(await page.evaluate(()=>window.__overte.performance));}
     report.reconnectedSteadyFluidPerformance=assessFluidPerformance(report.reconnectedSteadySamples.slice(-2));
     report.reconnectedRuntimeHelperSHA256=await ownedRuntimeHelpers();report.reconnected=await page.evaluate(()=>({at:Date.now(),pose:window.__overte.pose,performance:window.__overte.performance,entityCount:window.__overte.entityCount,nativePose:window.__hubNativePose}));
@@ -203,8 +222,8 @@ try {
   report.completed=true;
 } catch(error){report.error=error.message;process.exitCode=1;}
 finally{
-  if(profiler){try{const {profile}=await profiler.send('Profiler.stop');await writeFile(path.join(output,'public-hub-cpu-profile.json'),JSON.stringify(profile));await profiler.detach();}catch(error){report.profileError=error.message;}}
-  if(page){try{report.glCalls=await page.evaluate(()=>window.__hubGLCalls);report.longTasks=await page.evaluate(()=>window.__hubLongTasks);report.resources=await page.evaluate(()=>performance.getEntriesByType('resource').map(r=>({url:r.name,start:r.startTime,duration:r.duration,transferSize:r.transferSize,decodedBodySize:r.decodedBodySize})));report.finalDiagnostics=await page.evaluate(()=>({state:window.__overte,entityHosts:[...window.__hubEntitySummary.values()].reduce((result,entity)=>{result[entity.hostType]=(result[entity.hostType]||0)+1;return result;},{}),localOnlyEntities:[...window.__hubEntitySummary.values()].filter(e=>e.clientOnly).length,nativePose:window.__hubNativePose,traffic:window.__hubTraffic,messages:window.__hubMessages, notice:document.querySelector('#notice')?.textContent,events:document.querySelector('#events')?.textContent}));}catch{}}
+  if(profiler){try{const {profile}=await profiler.send('Profiler.stop');const stoppedAt=new Date().toISOString(),bytes=JSON.stringify(profile),filename='public-hub-cpu-profile-'+report.startedAt.replace(/[:.]/g,'-')+'.json';await writeFile(path.join(output,filename),bytes,{flag:'wx'});await writeFile(path.join(output,'public-hub-cpu-profile.json'),bytes);report.cpuProfile={filename,sha256:createHash('sha256').update(bytes).digest('hex'),startedAt:report.cpuProfileStartedAt,stoppedAt,sampleCount:profile.samples?.length||0,durationMs:(profile.endTime-profile.startTime)/1000,startWorldSHA256:report.startSourceSHA256['browser-client/src/world.ts'],startMainSHA256:report.startSourceSHA256['browser-client/src/main.ts'],startDistributionManifestSHA256:createHash('sha256').update(JSON.stringify(report.startDistributionManifest)).digest('hex')};await profiler.detach();}catch(error){report.profileError=error.message;}}
+  if(page){try{report.glCalls=await page.evaluate(()=>window.__hubGLCalls);report.uploadProfile=report.uploadProfileRequested?await page.evaluate(()=>window.__hubUploadProfile?.snapshot()||{enabled:false}):{enabled:false};report.longTasks=await page.evaluate(()=>window.__hubLongTasks);report.resources=await page.evaluate(()=>performance.getEntriesByType('resource').map(r=>({url:r.name,start:r.startTime,duration:r.duration,transferSize:r.transferSize,decodedBodySize:r.decodedBodySize})));report.finalDiagnostics=await page.evaluate(()=>({state:window.__overte,entityHosts:[...window.__hubEntitySummary.values()].reduce((result,entity)=>{result[entity.hostType]=(result[entity.hostType]||0)+1;return result;},{}),localOnlyEntities:[...window.__hubEntitySummary.values()].filter(e=>e.clientOnly).length,nativePose:window.__hubNativePose,traffic:window.__hubTraffic,messages:window.__hubMessages, notice:document.querySelector('#notice')?.textContent,events:document.querySelector('#events')?.textContent}));}catch{}}
   await browser?.close();report.finishedAt=new Date().toISOString();
   for(const file of sourceFiles){
     try{report.sourceSHA256??={};report.sourceSHA256[file]=createHash('sha256').update(await readFile(path.join(repo,file))).digest('hex');}catch{}

@@ -12,11 +12,16 @@ test('actual QML committed Unicode replaces the focused native selection without
     const context=vm.createContext({topRoot:()=>({Window:{window:{activeFocusItem:focused}}}),events:{keyClickChar:()=>{throw Error('Unicode must not enter QtTest Latin1');}},nativeInput:{commitText:(item,text)=>{operations.push(['commit',item,text]);return true;}},Qt:{NoModifier:0}});
     vm.runInContext(focusFunction+textFunction,context);assert.equal(context.text('Überte 世界 👋'),true);assert.deepEqual(operations,[['commit',focused,'Überte 世界 👋']]);
 });
-test('native WebEngine insertion JSON-quotes visitor text and never evaluates it as source',()=>{
-    const scripts=[],focused={parent:{runJavaScript:script=>scripts.push(script)}};
-    const context=vm.createContext({topRoot:()=>({Window:{window:{activeFocusItem:focused}}}),events:{keyClickChar:()=>{throw Error('not a Latin1 key');}},Qt:{NoModifier:0}});
-    vm.runInContext(focusFunction+textFunction,context);const value='👋 "); window.stolen=true; //';assert.equal(context.text(value),true);
-    const execution={document:{execCommand:(command,unused,text)=>{assert.equal(command,'insertText');assert.equal(text,value);}}};vm.runInNewContext(scripts[0],execution);assert.equal(execution.stolen,undefined);
+test('native WebEngine insertion JSON-quotes visitor text and only accepts an actual editable focused document',()=>{
+    const scripts=[],surface={},web={parent:surface,url:'https://native-fixture.invalid/',runJavaScript:(script,callback)=>scripts.push({script,callback})},focused={parent:web};
+    const context=vm.createContext({helper:null,pendingText:null,textInputQueue:[],textInputQueueUnits:0,pointerSurface:null,inputSurface:{item:surface,revision:1,navigationSequence:1},
+        offscreenWindow:{activeFocusItem:focused},textCommitTimer:{restart(){},stop(){}},events:{keyClickChar:()=>{throw Error('not a Latin1 key');}},Qt:{NoModifier:0}});
+    context.helper=context;
+    const helpers=['cancelTextInput','currentTextTarget','failTextInput','queueTextInput','finishTextInput','startWebText'].map(name=>{
+        const start=source.indexOf('    function '+name+'('),end=source.indexOf('\n    }',start);assert(start>=0&&end>start);return source.slice(start,end+6);
+    }).join('\n');
+    vm.runInContext(focusFunction+helpers+textFunction,context);const value='👋 "); window.stolen=true; //';assert.equal(context.text(value),true);
+    const execution={location:{href:web.url},document:{activeElement:{nodeName:'INPUT'},execCommand:(command,unused,text)=>{assert.equal(command,'insertText');assert.equal(text,value);return true;}}};assert.equal(vm.runInNewContext(scripts[0].script,execution),true);assert.equal(execution.stolen,undefined);
 });
 test('unfocused composed Unicode returns a recoverable error instead of invoking unsafe native character overloads',()=>{
     const context=vm.createContext({topRoot:()=>({Window:{window:{activeFocusItem:null}}}),events:{keyClickChar:()=>{throw Error('unsafe character call');}},Qt:{NoModifier:0}});

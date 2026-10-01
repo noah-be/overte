@@ -101,7 +101,8 @@ def main():
             'exitCode':process.returncode,'failureCategory':failure})
         publish()
         return passed
-    xvfb=['xvfb-run','--auto-servernum','--server-args=-screen 0 1280x900x24']
+    xvfb=[sys.executable,str(Path(__file__).resolve().parent/'owned-xvfb.py'),
+        '--lab-root',str(root),'--runtime',str(runtime_tmp),'--']
     pulse=None
     startup=False
     try:

@@ -5,6 +5,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {BoxGeometry,Group,Mesh,MeshStandardMaterial,Scene,TextureLoader,Vector3,type LoadingManager} from 'three';
 import {BrowserWorld} from '../src/world';
+import {FstGraphCache} from '../src/fst-graph-cache';
 import {PreparedFbxCache} from '../src/prepared-fbx-cache';
 import {ModelLoadScheduler} from '../src/model-load-scheduler';
 import {normalizeNativeFbxTransparency} from '../src/baked-fbx';
@@ -48,6 +49,7 @@ function fixture(){
    fbxPreparePool:{prepare:async(bytes:ArrayBuffer,signal:AbortSignal)=>{signal.throwIfAborted();prepares++;return{buffer:normalizeNativeFbxTransparency(bytes),phases:{materialBindingsMs:1,decodeMs:2}};}},
    recordLoadPhase(){},recordLoadDuration:(phase:string)=>durations.push(phase),configureAlpha:async()=>{},
  });
+ context.fstGraphCache=new FstGraphCache(abort.signal);
  return{context,abort,durations,prepares:()=>prepares};
 }
 test('actual World FBX path shares one authorized preparation while keeping distinct Three objects and phases counted once',async t=>{

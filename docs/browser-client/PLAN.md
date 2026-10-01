@@ -67,19 +67,40 @@ native/browser journeys passed in both stock engines, including synthetic voice
 in both directions; no physical-microphone conversation is claimed. The expanded
 Tablet/native-parity and Firefox fluidness requirements remain incomplete.
 
-The current source-text loading checkpoint reduces actual two-session Hub
-FST/metadata/material requests, with exact approval-generation ownership. Both
-stock engines synchronize and rejoin; Chromium passes all four fluid gates,
-Firefox100% still fails. Four effective native Graphics controls have actual
-Qt and BrowserWorld GPU proof. Explicit100/80/60 resolution profiles are now
-implemented; their genuine Qt click/persistence journey is in progress.
+The current source-text and graph-memo checkpoints reduce actual repeated Hub
+metadata requests/inspections while retaining exact approval ownership. Prior
+stock engines synchronize and rejoin, but the latest measured Firefox fluidness
+and Chromium reconnect stall remain unresolved. Default-off shader and foreground
+texture preparation now pass actual exact-pixel/resource tests in both bundled
+engines. Neither candidate has established a whole-Hub speed benefit.
 
-Next: publish the reviewed loading/Graphics/isolated-CI checkpoint, run all
-nineteen real native/browser Jenkins gates at its exact published SHA, complete
-profile and Create/edit/delete GUI journeys, integrate only proven FST texture
-request elimination, and repeat the strict Hub measurement after meaningful
-runtime changes. Finish the deterministic native Image pixel sampler before
-claiming independent Image parity; its prior negative cohorts remain preserved.
+The genuine native Graphics popup/profile journey now passes in stock Chromium
+and Firefox: seventeen setting effects, thirteen painted-popup checks, Custom
+70%, framebuffer dimensions and leave/rejoin persistence. This is controls
+acceptance, not all graphics/native rendering parity. The native engine-free
+root capture also passes genuine Qt pixel and ownership/lifetime checks.
+
+The six current production cohorts are recorded in
+[evidence/hub-current-loading-comparison-20261001.json](evidence/hub-current-loading-comparison-20261001.json).
+All three Chromium variants pass their four fluid gates. All three Firefox
+variants fail fluidness while actual native movement/reconnection succeeds.
+Observed model-job readiness upper bounds are20.916/20.457/20.139seconds in
+Chromium and21.745/25.529/33.011seconds in Firefox for baseline/shader/texture
+respectively. These are live snapshots with three-second observation intervals,
+not isolated speed gains. Keep both experiments disabled.
+
+Next: prove the integrated bounded WebEngine text-completion queue through the
+unchanged genuine native Create journey in both stock engines, then measure
+Firefox frame CPU phases with explicit bounded diagnostics before changing
+rendering. Preserve the earlier bootstrap failure; its cause remains unproven. The responsive Create row-group correction
+now passes all four real browser cases, including genuine XYZ editing and the
+unadapted negative/unchanged desktop controls. Prepare a fresh private audited
+native gateway and prove Name/RGB/XYZ/List deletion with all seven baseline
+entities preserved. Finish the full source-frozen component/build/browser/repository
+reruns, publish reviewed source and run all nineteen isolated Jenkins gates.
+Diagnose the actual hosted ancestor-permission failure without relaxing sandbox
+rules. Continue supported native Image lighting and remaining complete
+Tablet/native features, then actual environment/profile recommendations.
 
 ## Ownership and verification
 

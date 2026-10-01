@@ -20,7 +20,7 @@ function worldFixture(options:{enabled?:boolean;gpu?:boolean;fetcher?:typeof fet
   resolveAsset:url=>`https://client.example/api/assets/owned?url=${encodeURIComponent(url)}`,capabilities:caps,
   fetch:options.fetcher??(async(input)=>{requests.push(new URL(String(input)).searchParams.get('url')!);return new Response(fixtureBytes());}) as typeof fetch});
  let factories=0;
- Object.assign(context,{abort,disposed:false,loadManagers:new Set(),loadPhases:new Map(),renderer:{getContext:()=>({MAX_TEXTURE_SIZE:3379,getExtension:()=>options.gpu===false?null:{},getParameter:()=>32768})},
+ Object.assign(context,{abort,disposed:false,loadManagers:new Set(),loadPhases:new Map(),renderer:{capabilities:{maxTextureSize:32768},extensions:{has:()=>options.gpu!==false},getContext:()=>{throw Error('Compressed capability lookup must use current renderer caches');}},
   options:{resolveAsset:(url:string)=>url,onStatus(){},...(options.enabled===false?{}:{compressedColors:()=>{factories++;return cache;}})},
   imageCache:{loader:()=>({loadAsync:async(url:string)=>{images.push(url);const texture=new THREE.Texture({width:4,height:4} as TexImageSource);imageTextures.push(texture);return texture;}})}});
  return {context,cache,abort,requests,images,imageTextures,get factories(){return factories;}};

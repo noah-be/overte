@@ -33,7 +33,7 @@ try{
                     else if(value.kind==='chat'){audit.chat.push(value);if(audit.chat.length>32)audit.chat.shift();}
                     else if(value.kind==='error')audit.errors.push(value.message);
                 }catch{}});}
-                send(data){if(typeof data==='string')try{const value=JSON.parse(data),audit=window.__chatAudit;if(value.type==='tablet'){audit.commands.push(value);if(audit.commands.length>100)audit.commands.shift();if(value.action==='frameAck')audit.frame=audit.frames.find(frame=>frame.sequence===value.frameSequence&&frame.revision===value.revision)||audit.frame;}}catch{}super.send(data);}
+                send(data){if(typeof data==='string')try{const value=JSON.parse(data),audit=window.__chatAudit;if(value.type==='tablet'){audit.commands.push(value);if(audit.commands.length>100)audit.commands.shift();if(value.action==='frameAck'&&value.displayed===true)audit.frame=audit.frames.find(frame=>frame.sequence===value.frameSequence&&frame.revision===value.revision)||audit.frame;}}catch{}super.send(data);}
             };
         });
         report.step=`${name}: load application`;await page.goto(process.env.OVERTE_LAB_URL||'http://127.0.0.1:8092');report.step=`${name}: submit actual join`;await page.locator('#domain').fill(report.domain);await page.locator('#name').fill(name);await page.locator('#join').click();

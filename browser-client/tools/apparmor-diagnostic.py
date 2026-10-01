@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 """Observe only exact distro namespace profiles; never alter or bypass policy."""
-import hashlib,json,os,re,shutil,subprocess
+import hashlib,json,os,re,shutil,stat,subprocess
 from pathlib import Path
 
 PROFILES={'bwrap-userns-restrict':'apparmor-profiles','unshare-userns-restrict':'apparmor-profiles'}
@@ -19,15 +19,28 @@ def run(arguments):
         return result.returncode,result.stdout[:1024*1024]
     except (OSError,subprocess.TimeoutExpired):return None,''
 
+def path_authority(path):
+    # Fixed distro paths only; no user directory, credential or process data.
+    result=[]
+    for candidate in [path,*path.parents]:
+        try:
+            info=candidate.stat()
+            result.append({'path':str(candidate),'canonical':candidate.resolve(strict=True)==candidate,
+                'ownerIsRoot':info.st_uid==0,'mode':format(stat.S_IMODE(info.st_mode),'04o'),
+                'writableByGroupOrOther':bool(info.st_mode&(stat.S_IWGRP|stat.S_IWOTH))})
+        except OSError:result.append({'path':str(candidate),'present':False})
+    return result
+
 def main():
     report={'scope':'Read-only runner AppArmor package/profile diagnostic; normal native/sandbox preflight remains mandatory',
         'policyChanges':'none','apparmorEnabled':read_scalar('/sys/module/apparmor/parameters/enabled'),
         'restrictUnprivilegedUserns':read_scalar('/proc/sys/kernel/apparmor_restrict_unprivileged_userns'),
         'restrictUnprivilegedUnconfined':read_scalar('/proc/sys/kernel/apparmor_restrict_unprivileged_unconfined'),
-        'processProfileIsUnconfined':read_scalar('/proc/self/attr/current')=='unconfined','tools':{},'profiles':{}}
+        'processProfileIsUnconfined':read_scalar('/proc/self/attr/current')=='unconfined','tools':{},'profiles':{},
+        'distroPathAuthority':{name:path_authority(Path(name)) for name in ['/usr/sbin/apparmor_parser','/var/lib/dpkg/info/apparmor-profiles.md5sums']}}
     for tool in ('bwrap','unshare'):
         path=shutil.which(tool);canonical=str(Path(path).resolve()) if path else None
-        report['tools'][tool]={'present':bool(path),'distroExecutable':canonical==f'/usr/bin/{tool}'}
+        report['tools'][tool]={'present':bool(path),'distroExecutable':canonical==f'/usr/bin/{tool}','pathAuthority':path_authority(Path(f'/usr/bin/{tool}'))}
     code,versions=run(['dpkg-query','--show','--showformat=${Package}\t${Version}\n','apparmor','apparmor-profiles','bubblewrap','util-linux'])
     report['packageQuerySucceeded']=code==0
     report['packageVersions']={line.split('\t',1)[0]:line.split('\t',1)[1] for line in versions.splitlines() if re.fullmatch(r'[a-z0-9-]+\t[A-Za-z0-9.+:~_-]+',line)}
@@ -38,7 +51,7 @@ def main():
         report['relevantLoadedProfiles']=[{'profile':name,'mode':mode} for name,mode in re.findall(r'^([^\n]+) \(([^\n]+)\)$',loaded,re.M) if name in LOADED_NAMES]
     for name,package in PROFILES.items():
         path=Path('/usr/share/apparmor/extra-profiles')/name
-        item={'present':path.is_file(),'disabledMarkerPresent':os.path.lexists(Path('/etc/apparmor.d/disable')/name),'package':package}
+        item={'present':path.is_file(),'disabledMarkerPresent':os.path.lexists(Path('/etc/apparmor.d/disable')/name),'package':package,'pathAuthority':path_authority(path)}
         if path.is_file():
             content=path.read_bytes();item['sha256']=hashlib.sha256(content).hexdigest()
             text=content.decode('utf-8',errors='replace')

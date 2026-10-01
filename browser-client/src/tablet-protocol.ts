@@ -4,7 +4,7 @@ import {validateBrowserGraphicsRequest,type BrowserGraphicsRequest} from '../sha
 export const MAX_TABLET_FRAME_BYTES = 4 * 1024 * 1024;
 export type TabletMessage =
     | {type:'tablet'; kind:'state'; revision:number; visible:boolean; screen:string; loading:boolean; effects?:{muted?:boolean;shield?:boolean}}
-    | {type:'tablet'; kind:'frame'; revision:number; sequence:number; width:number; height:number; mime:'image/png'; data:string; surface:'tablet'|'dialogs'; tabletRect?:{x:number;y:number;width:number;height:number};effects?:{muted?:boolean;shield?:boolean}}
+    | {type:'tablet'; kind:'frame'; revision:number; navigationSequence:number; sequence:number; width:number; height:number; mime:'image/png'; data:string; surface:'tablet'|'dialogs'; tabletRect?:{x:number;y:number;width:number;height:number};effects?:{muted?:boolean;shield?:boolean}}
     | {type:'tablet'; kind:'error'; revision:number; message:string}
     | {type:'tablet';kind:'chat';revision:number;sequence:number;channel:'local'|'domain';text:string;displayName:string;senderId:string}
     | {type:'tablet';kind:'clipboard';revision:number;requestId:number;text:string}
@@ -22,7 +22,7 @@ export function parseTabletMessage(value:unknown):TabletMessage {
             if (typeof item.visible !== 'boolean' || typeof item.loading !== 'boolean' || typeof item.screen !== 'string' || item.screen.length > 256) throw new Error('Invalid tablet state');
             break;
         case 'frame':
-            if (!Number.isSafeInteger(item.sequence) || Number(item.sequence) < 1 || !['width','height'].every(key => Number.isSafeInteger(item[key]) && Number(item[key]) > 0 && Number(item[key]) <= 2048) || item.mime !== 'image/png' || !['tablet','dialogs'].includes(String(item.surface)) || typeof item.data !== 'string' || item.data.length > Math.ceil(MAX_TABLET_FRAME_BYTES / 3) * 4 || !/^[A-Za-z0-9+/]+={0,2}$/.test(item.data)) throw new Error('Invalid tablet frame');
+            if (!Number.isSafeInteger(item.navigationSequence) || Number(item.navigationSequence)<1 || !Number.isSafeInteger(item.sequence) || Number(item.sequence) < 1 || !['width','height'].every(key => Number.isSafeInteger(item[key]) && Number(item[key]) > 0 && Number(item[key]) <= 2048) || item.mime !== 'image/png' || !['tablet','dialogs'].includes(String(item.surface)) || typeof item.data !== 'string' || item.data.length > Math.ceil(MAX_TABLET_FRAME_BYTES / 3) * 4 || !/^[A-Za-z0-9+/]+={0,2}$/.test(item.data)) throw new Error('Invalid tablet frame');
             if(item.tabletRect!==undefined){const rect=item.tabletRect as Record<string,unknown>;if(!rect||typeof rect!=='object'||!['x','y','width','height'].every(key=>typeof rect[key]==='number'&&Number.isFinite(rect[key])&&Math.abs(Number(rect[key]))<=4096)||Number(rect.width)<=0||Number(rect.height)<=0)throw new Error('Invalid tablet window rectangle');}
             break;
         case 'error':

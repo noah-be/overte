@@ -33,7 +33,7 @@ try{
                     else if(value.kind==='state')audit.states.push(value);
                 }catch{}
             });}
-            send(data){if(typeof data==='string'){try{const value=JSON.parse(data);if(value.type==='tablet'){const audit=window.__tabletAudit;audit.commands.push(value);if(value.action==='frameAck')audit.frame=audit.frames.find(frame=>frame.sequence===value.frameSequence&&frame.revision===value.revision)||audit.frame;}}catch{}}super.send(data);}
+            send(data){if(typeof data==='string'){try{const value=JSON.parse(data);if(value.type==='tablet'){const audit=window.__tabletAudit;audit.commands.push(value);if(value.action==='frameAck'&&value.displayed===true)audit.frame=audit.frames.find(frame=>frame.sequence===value.frameSequence&&frame.revision===value.revision)||audit.frame;}}catch{}}super.send(data);}
         };
     });
     await page.goto(process.env.OVERTE_LAB_URL||'http://127.0.0.1:8092');

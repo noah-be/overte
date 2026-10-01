@@ -1,0 +1,122 @@
+{
+  "startedAt": "2026-10-01T19:48:43.343Z",
+  "finishedAt": "2026-10-01T19:50:27.636Z",
+  "completed": false,
+  "functionalAcceptance": false,
+  "copiedSourceProbe": true,
+  "readinessOnlyInstrumentation": true,
+  "sourceCoherent": true,
+  "shippingSourceCoherent": true,
+  "nativeBinarySHA256": "91f3e10c42c1e35d5c8265e9b0007e925844d9bee61a26807118dde6e527887c",
+  "nativeCreateScriptsSHA256": {
+    "system/create/qml/EditTabView.qml": "4895d0f72d438829b4e15626b0dbb719c734e4486a74d175ac3de1a8d15d2621",
+    "system/create/entityProperties/html/js/entityProperties.js": "5e31fbdc3e577dd13663c0d9ee429f7c816bf1c7c91f45ea62438a6b575e08d5",
+    "system/create/entityList/html/js/entityList.js": "1a398a1ab644af6714c16c8a3e00191dd1b861f8fbdd75e78ceb71de6494ecf1",
+    "system/create/edit.js": "c7e20e8a23b7657608da533c35850668558a356d96b515e6eee477858a905a3d"
+  },
+  "observerScriptSHA256": "b87f1bab01198ea4cc36960587ac062831b3ca2d0d9589339347e9d25411c5a7",
+  "nativeVersion": "2026.04.1",
+  "browserVersion": "firefox/156.0",
+  "runtimeAuditCaptureSHA256": "05507eef88fc4c13f611e060f6ced98e14a73c89c93d7f133292af730ac5d338",
+  "baselineIdentitySHA256": "8f52882ae70f9e6ec2759e217807b9167e379d8c5b3a1400cea093b1c7936661",
+  "ownedEntitySHA256": "84727e1c2dd894f3ab4a7ec73c754fa501d6a100b22afde799953f0f2f454721",
+  "ownedFixtureCount": 1,
+  "cleanupVerified": true,
+  "emergencyCleanup": true,
+  "warningCount": 0,
+  "assertions": [
+    "Native Shape button created exactly one domain Cube and its actual domain properties reached the browser"
+  ],
+  "error": "Actual native Name/Color/Dimensions exceeded 20000 milliseconds",
+  "tabletErrorMessages": [],
+  "schemaVersion": 1,
+  "materialAssistance": "OpenAI Codex",
+  "scope": "Actual stock Firefox genuine full native Create after exact viewport sizing correction; original field/List/cleanup oracles",
+  "rawReportSHA256": "8569b1f06e93749d3902e6a1ea6b66147b1d8cc6a39cd739daa21c92fe891185",
+  "sourceHashes": {
+    "start": {
+      "tests/integration/tablet-create.mjs": "b99559469fabe7e4d57f3e3be1dc86783532c233645af8e3e7678ca35944e878",
+      "tests/integration/tablet-create-readiness.mjs": "ca5dbc144ed49153a11baed470f0ffa4aebe6db730ca36a5114bf5b41f8ae649",
+      "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+      "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+      "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+      "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+      "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+      "gateway/tablet-capture.qml": "05507eef88fc4c13f611e060f6ced98e14a73c89c93d7f133292af730ac5d338",
+      "gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+      "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+      "src/world.ts": "57b74bc694a55b32a400cfbbb66ca5d70fd7d81ad83731161d807c8ff2e0a249",
+      "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+      "gateway/server.mjs": "f8399c1015cb85ada0da613b9278b8a90dca0660d2478b8810d43161b1ed237c"
+    },
+    "end": {
+      "tests/integration/tablet-create.mjs": "b99559469fabe7e4d57f3e3be1dc86783532c233645af8e3e7678ca35944e878",
+      "tests/integration/tablet-create-readiness.mjs": "ca5dbc144ed49153a11baed470f0ffa4aebe6db730ca36a5114bf5b41f8ae649",
+      "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+      "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+      "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+      "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+      "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+      "gateway/tablet-capture.qml": "05507eef88fc4c13f611e060f6ced98e14a73c89c93d7f133292af730ac5d338",
+      "gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+      "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+      "src/world.ts": "57b74bc694a55b32a400cfbbb66ca5d70fd7d81ad83731161d807c8ff2e0a249",
+      "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+      "gateway/server.mjs": "f8399c1015cb85ada0da613b9278b8a90dca0660d2478b8810d43161b1ed237c"
+    }
+  },
+  "shippingSourceHashes": {
+    "start": {
+      "tests/integration/tablet-create.mjs": "022c05b9f446b08b604c72bc1222f8ad5db92f550475a5ee419703284042185c",
+      "tests/integration/tablet-create-readiness.mjs": "ca5dbc144ed49153a11baed470f0ffa4aebe6db730ca36a5114bf5b41f8ae649",
+      "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+      "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+      "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+      "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+      "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+      "gateway/tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+      "gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+      "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+      "src/world.ts": "57b74bc694a55b32a400cfbbb66ca5d70fd7d81ad83731161d807c8ff2e0a249",
+      "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+      "src/main.ts": "76b2ad8eb449abc7621275b7bd78f234fa1241811ffd7d1065e4eb73c6d708c6",
+      "gateway/server.mjs": "f8399c1015cb85ada0da613b9278b8a90dca0660d2478b8810d43161b1ed237c",
+      "gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60"
+    },
+    "end": {
+      "tests/integration/tablet-create.mjs": "022c05b9f446b08b604c72bc1222f8ad5db92f550475a5ee419703284042185c",
+      "tests/integration/tablet-create-readiness.mjs": "ca5dbc144ed49153a11baed470f0ffa4aebe6db730ca36a5114bf5b41f8ae649",
+      "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+      "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+      "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+      "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+      "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+      "gateway/tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+      "gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+      "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+      "src/world.ts": "57b74bc694a55b32a400cfbbb66ca5d70fd7d81ad83731161d807c8ff2e0a249",
+      "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+      "src/main.ts": "76b2ad8eb449abc7621275b7bd78f234fa1241811ffd7d1065e4eb73c6d708c6",
+      "gateway/server.mjs": "f8399c1015cb85ada0da613b9278b8a90dca0660d2478b8810d43161b1ed237c",
+      "gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60"
+    }
+  },
+  "lastOwnNativeProperties": {
+    "color": {
+      "red": 30,
+      "green": 170,
+      "blue": 220
+    },
+    "dimensions": {
+      "x": 0.699999988079071,
+      "y": 0.8999999761581421,
+      "z": 0.20000000298023224
+    }
+  },
+  "limits": [
+    "Firefox successfully reached actual native Create UI at unchanged native density; no complete functionality claim.",
+    "Native Name and all three RGB values passed, but Z remained.2 rather than1.1; the final native predicate failed without a Tablet error.",
+    "Native inputs use the unmodified shipping bridge and ordinary readonly readiness only; no atomic input queries or direct property setters.",
+    "The exact own fixture was finally removed and all seven original entities restored."
+  ]
+}

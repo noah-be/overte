@@ -54,7 +54,7 @@ test('Snap exports still and genuinely animated local WebGL while the native tab
         }});proof.tablet=tablet;
         tablet.setConnected(true);tablet.open();tablet.receive({type:'tablet',kind:'state',revision:1,visible:true,screen:'Snap',loading:false});
         const qt=document.createElement('canvas');qt.width=480;qt.height=706;qt.getContext('2d')!.fillStyle='#0000ff';qt.getContext('2d')!.fillRect(0,0,480,706);
-        tablet.receive({type:'tablet',kind:'frame',revision:1,sequence:1,width:480,height:706,mime:'image/png',surface:'tablet',data:qt.toDataURL().split(',')[1]});(window as any).__snapshotProof=proof;
+        tablet.receive({type:'tablet',kind:'frame',navigationSequence:1,revision:1,sequence:1,width:480,height:706,mime:'image/png',surface:'tablet',data:qt.toDataURL().split(',')[1]});(window as any).__snapshotProof=proof;
         const deadline=performance.now()+10000;while(world.getPerformance().compilingGraphics){if(performance.now()>deadline)throw Error('Actual scene shaders did not finish compiling');await new Promise<void>(resolve=>requestAnimationFrame(()=>resolve()));}
         await new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve())));
         const blob=await world.captureScene(),image=await createImageBitmap(blob),canvas=document.createElement('canvas');canvas.width=image.width;canvas.height=image.height;canvas.getContext('2d')!.drawImage(image,0,0);

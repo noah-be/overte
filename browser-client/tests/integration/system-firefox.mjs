@@ -5,19 +5,88 @@
 // Fake-media preferences: https://searchfox.org/firefox-main/source/modules/libpref/init/all.js
 import puppeteer from 'puppeteer-core';
 
-/** Size the actual headed window, keeping the desktop's native pixel density.
- * Firefox BiDi viewport emulation can time out on fractional-DPI desktops.
- * The public window API plus an exact inner-size assertion avoids emulation.
+/** Prefer a public WM resize at native density. Fractional-DPI WM quantization
+ * can make an exact inner dimension unreachable; a public viewport fallback
+ * is admitted by independently observed effect, never by RPC ACK alone.
  */
 export async function sizeSystemFirefoxWindow(browser, page, viewport) {
-    if (![viewport.width, viewport.height].every(value => Number.isSafeInteger(value) && value > 0)) throw Error('Invalid actual Firefox window dimensions.');
-    const windowID = await page.windowId();
-    await browser.setWindowBounds(windowID, {windowState:'normal'});
-    const bounds = await browser.getWindowBounds(windowID);
-    const inner = await page.evaluate(() => ({width:innerWidth,height:innerHeight}));
-    await browser.setWindowBounds(windowID, {windowState:'normal',
-        width:viewport.width+bounds.width-inner.width, height:viewport.height+bounds.height-inner.height});
-    await page.waitForFunction(size => innerWidth === size.width && innerHeight === size.height, {timeout:10000}, viewport);
+    if (![viewport?.width, viewport?.height].every(value => Number.isSafeInteger(value) && value > 0)) throw Error('Invalid actual Firefox window dimensions.');
+    const started = Date.now(), deadline = started + 10000;
+    const expiry = () => Error('The actual Firefox viewport did not reach its exact dimensions within ten seconds.');
+    const bounded = async operation => {
+        const remaining = deadline - Date.now();
+        if (remaining <= 0) throw expiry();
+        let timer;
+        try {
+            return await Promise.race([Promise.resolve().then(() => {if (deadline-Date.now() <= 0) throw expiry();return operation();}),new Promise((_,reject) => {timer=setTimeout(() => reject(expiry()),remaining);})]);
+        } finally {clearTimeout(timer);}
+    };
+    const read = () => bounded(() => page.evaluate(() => ({width:innerWidth,height:innerHeight,density:devicePixelRatio})));
+    const initial = await read();
+    if (!Number.isFinite(initial.density) || initial.density <= 0) throw Error('Invalid actual Firefox native pixel density.');
+    const expected = {width:viewport.width,height:viewport.height,density:initial.density};
+    const exact = value => value.width === expected.width && value.height === expected.height && value.density === expected.density;
+    const windowID = await bounded(() => page.windowId());
+    let attempts = 0;
+    const admit = async (method,acknowledgement) => {
+        const actual = await read();
+        if (!exact(actual) || await bounded(() => page.windowId()) !== windowID) throw Error('The owned Firefox viewport or native density changed before admission.');
+        return {method,boundsAttempts:attempts,viewportAcknowledgementAtReturn:acknowledgement,
+            requested:{width:viewport.width,height:viewport.height},actual,durationMs:Date.now()-started};
+    };
+    if (exact(initial)) return await admit('public-window','not-requested');
+    await bounded(() => browser.setWindowBounds(windowID,{windowState:'normal'}));
+    let requestedBounds;
+    for (; attempts < 3;) {
+        const bounds = await bounded(() => browser.getWindowBounds(windowID)), inner = await read();
+        if (exact(inner)) return await admit('public-window','not-requested');
+        requestedBounds = {windowState:'normal',width:viewport.width+(requestedBounds?.width??bounds.width)-inner.width,
+            height:viewport.height+(requestedBounds?.height??bounds.height)-inner.height};
+        attempts++;
+        await bounded(() => browser.setWindowBounds(windowID,requestedBounds));
+        try {
+            const result = await bounded(() => page.waitForFunction(size => innerWidth === size.width && innerHeight === size.height && devicePixelRatio === size.density,
+                {timeout:Math.min(500,deadline-Date.now())},expected));
+            try { return await admit('public-window','not-requested'); } finally { await result?.dispose(); }
+        } catch (error) { if (error?.name !== 'TimeoutError') throw error; }
+    }
+    if (deadline-Date.now() <= 0) throw expiry();
+    let acknowledgement = 'pending', observedFailure, rejectFailure;
+    const failure = new Promise((_,reject) => {rejectFailure=reject;});
+    void failure.catch(() => {});
+    // An applied viewport can have no BiDi acknowledgement. Consume that RPC
+    // immediately, including late errors during the owner's normal browser.close.
+    // Preserve the native density by leaving public DPR emulation unset.
+    // Explicitly repeating5/3 becomes1.6666666269302368 in stock Firefox;
+    // independent exact native-density readback remains mandatory.
+    void Promise.resolve().then(() => {if (deadline-Date.now() <= 0) throw expiry();return page.setViewport({width:expected.width,height:expected.height});}).then(
+        () => {acknowledgement='fulfilled';},
+        error => {
+            const timeout = error?.name === 'TimeoutError' || (error?.name === 'ProtocolError'
+                && typeof error.message === 'string' && error.message.startsWith('browsingContext.setViewport timed out.'));
+            acknowledgement=timeout?'timed-out':'rejected';
+            if (!timeout) {observedFailure=error;rejectFailure(error);}
+        });
+    let finished = false, effectHandle;
+    try {
+        await bounded(() => {
+            const effect = Promise.resolve().then(() => {if (deadline-Date.now() <= 0) throw expiry();return page.waitForFunction(size => innerWidth === size.width && innerHeight === size.height && devicePixelRatio === size.density,
+                {timeout:deadline-Date.now()},expected);}).then(handle => {
+                    if (finished) {void Promise.resolve().then(() => handle?.dispose()).catch(() => {});return;}
+                    effectHandle=handle;return handle;
+                });
+            return Promise.race([effect,failure]);
+        });
+        if (observedFailure) throw observedFailure;
+        const accepted = await admit('public-viewport-effect',acknowledgement);
+        if (observedFailure) throw observedFailure;
+        accepted.viewportAcknowledgementAtReturn=acknowledgement;
+        return accepted;
+    } finally {
+        finished=true;
+        if (effectHandle) await Promise.resolve().then(() => effectHandle.dispose()).catch(() => {});
+        effectHandle=undefined;
+    }
 }
 
 function pageAdapter(page) {

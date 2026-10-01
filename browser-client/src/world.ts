@@ -3,6 +3,11 @@ import * as THREE from 'three';
 import { applyNativeDefaultCull } from './native-default-cull';
 import { prepareNativeStaticWinding, type NativeWindingScope } from './native-static-winding';
 import { WorldGpuTiming } from './world-gpu-timing';
+import {prepareGraphicsYielding,waitGraphicsReadiness} from './graphics-warmup';
+import {GraphicsWarmupOwner} from './graphics-warmup-owner';
+import {WorldCpuFrameTiming} from './world-cpu-frame-timing';
+import {ForegroundTexturePlan,ForegroundTextureCapacityError} from './foreground-texture-plan';
+import {WorldTexturePreparation,TexturePreparationCapacityError} from './world-texture-preparation';
 import { WorldGraphicsTarget } from './browser-graphics-target';
 import { assetDependency, colliderDistance, constrainCamera, entityCollider, entityTransform, materialRGB, parseMaterialData, poseRecord, quaternion, resolveCollision, unsupportedEntityEffects, vector } from './world-data';
 import type { Avatar, Collider, Entity, MaterialData, Pose, Quat, Vec3 } from './world-data';
@@ -10,6 +15,8 @@ import { FrameMetrics } from './frame-metrics';
 import { MeshCollision } from './mesh-collision';
 import { AvatarRig, type AvatarMapping } from './avatar-rig';
 import { fstDependencies } from './fst-dependencies';
+import { FstGraphCache } from './fst-graph-cache';
+import { canFstDefinitionsReplaceOriginalTextures, prepareFstTextureAdmission, type ResolvedFstReplacement } from './fst-texture-admission';
 import { requireAssetResponse } from './asset-errors';
 import { applyNativeFbxOpacity } from './fbx-materials';
 import { applyNativeMaterialAlpha, getNativeAlphaOptions, nativeOpacityMapMode, type MappedMaterial, type NativeAlphaOptions } from './native-alpha-material';
@@ -20,12 +27,14 @@ import { WorldImageCache } from './world-image-cache';
 import { WorldSourceTextCache, readWorldSourceText, type WorldSourceAuthority } from './world-source-text-cache';
 import { EmbeddedFbxImages } from './embedded-fbx-images';
 import { BakedFbxPreparePool } from './model-fbx-pool';
-import { PreparedFbxCache } from './prepared-fbx-cache';
+import { PreparedFbxCache, type CachedPreparedFbx } from './prepared-fbx-cache';
+import { inspectFbxOriginalTextures } from './baked-fbx';
 import { ModelLoadScheduler } from './model-load-scheduler';
 import { ModelGeometryStage } from './model-geometry-stage';
 import { InitialSurfaceWait } from './initial-surface-wait';
 import { SimulationClock } from './simulation-clock';
 import { colorTextureCandidate,type TextureRole } from './color-texture-metadata';
+import { currentCompressedColorCapabilities } from './compressed-color-capabilities';
 import { UnsupportedNativeCompression, type NativeCompressedColorCache, type CompressionCapabilities } from './native-compressed-color';
 import { batchStaticModel, inspectStaticModel, type StaticModelBatch, type StaticModelBatchInspection } from './static-model-batch';
 import { hasNativeZeroLightShader, installNativeZeroLightShader, restoreNativeZeroLightShader } from './native-zero-lights';
@@ -34,8 +43,14 @@ export type { Avatar, Entity, Pose, Vec3 } from './world-data';
 export interface WorldOptions {
   /** Reviewed native defaults/fixed-CCW experiment; captured once, off by default. */
   nativeCullDefaults?: boolean;
+  /** Reviewed compile-scheduling experiment, captured once and disabled by default. */
+  shaderWarmup?: boolean;
+  /** Main-view texture upload scheduling experiment; captured once, off by default. */
+  texturePreparation?: boolean;
   /** Optional bounded asynchronous frame diagnostics; absent means no timer queries. */
   gpuTiming?: boolean;
+  /** Optional exclusive CPU-frame diagnostics; captured once, disabled by default. */
+  cpuFrameTiming?: boolean;
   resolveAsset(url: string): string;
   /** Exact connected-session/revision snapshot, required by the production entry point. */
   captureAssetAuthority?():WorldSourceAuthority;
@@ -70,15 +85,21 @@ export class BrowserWorld {
   private readonly nativeCullDefaults: boolean;
   private readonly nativeWinding = new WeakMap<THREE.Group, NativeWindingScope>();
   private readonly gpuTiming?: WorldGpuTiming;
+  private readonly cpuFrameTiming?: WorldCpuFrameTiming;
   readonly graphics: WorldGraphicsTarget;
   private readonly entities = new Map<string, Entity>();
   private readonly objects = new Map<string, THREE.Group>();
   private readonly signatures = new Map<string, string>();
   private readonly modelBatches = new Map<THREE.Group,{value:StaticModelBatch;candidate:StaticModelBatchInspection}>();
   private readonly avatars = new Map<string, THREE.Group>();
-  private readonly avatarModels = new Map<THREE.Group,{source:string; snapshot:Avatar; rig?:AvatarRig}>();
+  private readonly avatarModels = new Map<THREE.Group,{source:string; snapshot:Avatar; rig?:AvatarRig; preparing?:THREE.Object3D}>();
   private readonly resizeObserver: ResizeObserver;
   private readonly abort = new AbortController();
+  private readonly graphicsWarmups=new GraphicsWarmupOwner(this.abort.signal);
+  private readonly shaderWarmup:boolean;
+  private readonly texturePreparations?:WorldTexturePreparation;
+  private readonly foregroundTextureCounts={roots:0,bindings:0,unsupported:0,activeBindings:0,peakBindings:0,capacityFallbacks:0};
+  private readonly shaderWarmupCounters={roots:0,bindings:0,batches:0,yielded:0,smallRoots:0,conservativeFallbacks:0};
   private compressedColorCache?: NativeCompressedColorCache;
   private sourceTexts?: WorldSourceTextCache;
   private sourceTextGeneration?: string;
@@ -87,6 +108,7 @@ export class BrowserWorld {
   private readonly embeddedFbxCounts={preparations:0,convertedImages:0,extractedBytes:0,skippedOversize:0,skippedUnsupported:0};
   private readonly fbxPreparePool = new BakedFbxPreparePool({signal:this.abort.signal,limit:2});
   private readonly preparedFbx = new PreparedFbxCache({signal:this.abort.signal});
+  private readonly fstGraphCache = new FstGraphCache(this.abort.signal);
   private readonly modelScheduler = new ModelLoadScheduler({signal:this.abort.signal});
   private readonly modelReaders = new WeakMap<THREE.Group,AbortController>();
   private readonly modelGeometry = new WeakMap<THREE.Group,ModelGeometryStage>();
@@ -131,12 +153,15 @@ export class BrowserWorld {
   private touchMode: 'move' | 'look' = 'move';
 
   constructor(private readonly container: HTMLElement, private readonly options: WorldOptions) {
+    this.shaderWarmup=options.shaderWarmup===true;
+    if(options.texturePreparation===true&&typeof options.captureAssetAuthority!=='function')throw Error('Texture preparation requires captured connected-session authority');
     this.zeroLightGuard = options.zeroLightGuard === true;
     this.nativeCullDefaults = options.nativeCullDefaults === true;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     if (options.gpuTiming === true) this.gpuTiming = new WorldGpuTiming(this.renderer.getContext(), {
       onWarning: message => options.onStatus(message, 'warning'),
     });
+    if(options.cpuFrameTiming===true)this.cpuFrameTiming=new WorldCpuFrameTiming(this.abort.signal);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.graphics = new WorldGraphicsTarget({
       camera:this.camera,renderer:this.renderer,resize:()=>this.resize(),
@@ -149,6 +174,7 @@ export class BrowserWorld {
       cameraClipping:()=>this.cameraClippingEnabled,
       setCameraClipping:enabled=>{this.cameraClippingEnabled=enabled;},
     });
+    if(options.texturePreparation===true)this.texturePreparations=new WorldTexturePreparation(this.renderer,{signal:this.abort.signal});
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.canvas = this.renderer.domElement;
@@ -168,7 +194,7 @@ export class BrowserWorld {
     this.self = this.makeAvatar('You', 0x64c5ff);
     this.self.visible = false;
     this.scene.add(this.self);
-    void this.prepareGraphics(this.self).then(() => { if (!this.disposed) this.self.visible = this.enabled && this.thirdPerson; });
+    void this.prepareGraphics(this.self,()=>!this.disposed).then(() => { if (!this.disposed) this.self.visible = this.enabled && this.thirdPerson && this.self.userData.shadersReady===true; }).catch(error=>{if(!this.disposed&&error?.name!=='AbortError')this.options.onStatus('Default avatar shader preparation failed.','warning');});
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(container);
     this.resize();
@@ -232,10 +258,18 @@ export class BrowserWorld {
     this.yaw = angles.y;
     this.pitch = THREE.MathUtils.clamp(angles.x, -Math.PI / 2 + 0.05, Math.PI / 2 - 0.05);
   }
+  private cancelGraphics(root:THREE.Object3D):void {
+    // Default-off methods retain their original lifecycle and need no owner
+    // allocation/access. Opted-in instances always initialize this private owner.
+    if(this.shaderWarmup||this.texturePreparations)this.graphicsWarmups.cancel(root);
+  }
+  private cancelAvatarGraphics(root:THREE.Object3D):void {
+    this.cancelGraphics(root);const pending=this.avatarModels.get(root as THREE.Group)?.preparing;if(pending)this.cancelGraphics(pending);
+  }
   setLocalAvatar(id: string): void {
     this.localAvatarID = id;
     const own = this.avatars.get(id);
-    if (own) { this.avatarModels.delete(own); this.scene.remove(own); disposeObject(own); this.avatars.delete(id); }
+    if (own) { this.cancelAvatarGraphics(own);this.avatarModels.delete(own); this.scene.remove(own); disposeObject(own); this.avatars.delete(id); }
   }
   getPose(): Pose {
     return poseRecord(this.position, new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw), this.velocity);
@@ -280,7 +314,7 @@ export class BrowserWorld {
     }).sort((a,b) => b.groups - a.groups);
   }
   getPerformance() {
-    return { ...this.metrics.snapshot(), gpuTiming: this.gpuTiming?.getSnapshot() ?? { enabled: false }, drawingBufferWidth: this.renderer.getContext().drawingBufferWidth,
+    return { ...this.metrics.snapshot(), texturePreparation:{enabled:!!this.texturePreparations,...this.foregroundTextureCounts,...this.texturePreparations?.stats}, shaderWarmup:{enabled:this.shaderWarmup,...this.shaderWarmupCounters}, gpuTiming: this.gpuTiming?.getSnapshot() ?? { enabled: false }, cpuFrameTiming:this.cpuFrameTiming?.getSnapshot() ?? {enabled:false}, drawingBufferWidth: this.renderer.getContext().drawingBufferWidth,
       drawingBufferHeight: this.renderer.getContext().drawingBufferHeight, drawCalls: this.renderer.info.render.calls,
       triangles: this.renderer.info.render.triangles, geometries: this.renderer.info.memory.geometries,
       textures: this.renderer.info.memory.textures, entities: this.entities.size,
@@ -291,7 +325,7 @@ export class BrowserWorld {
       meshColliders: this.meshCollisions.size, graphicsActive: this.presentationEnabled,
       imageLoading: this.imageCache.stats(), embeddedImages: {...this.embeddedFbxImages.statistics,...this.embeddedFbxCounts}, fbxPreparation: this.fbxPreparePool.counters,
       sourceTextLoading: this.sourceTexts?.stats,
-      preparedFbxCache: this.preparedFbx.stats, modelScheduling: this.modelScheduler.stats,
+      preparedFbxCache: this.preparedFbx.stats, fstGraphCache:this.fstGraphCache.stats, modelScheduling: this.modelScheduler.stats,
       compressedColorLoading: this.compressedColorCache?.statistics,
       initialSurfaceWait: this.initialSurfaceWait.state,
       loadPhases: Object.fromEntries([...this.loadPhases].map(([name, value]) => [name, { ...value }])),
@@ -304,7 +338,7 @@ export class BrowserWorld {
     const previous = this.loadPhases.get(name) ?? { count: 0, totalMs: 0, maxMs: 0 };
     this.loadPhases.set(name, { count: previous.count + 1, totalMs: previous.totalMs + elapsed, maxMs: Math.max(previous.maxMs, elapsed) });
   }
-  private async prepareGraphics(root: THREE.Object3D): Promise<void> {
+  private async prepareGraphics(root: THREE.Object3D,isCurrent:()=>boolean=()=>true): Promise<void> {
     const revision = (root.userData.shaderRevision ?? 0) + 1;
     root.userData.shaderRevision = revision;
     root.userData.shadersReady = false; root.visible = false;
@@ -312,9 +346,69 @@ export class BrowserWorld {
     const started = performance.now();
     try {
       this.prepareZeroLightShaders(root);
-      await this.renderer.compileAsync(root, this.camera, this.scene);
-      if (!this.disposed && root.userData.shaderRevision === revision) root.userData.shadersReady = true;
+      // Restrict this experiment to existing World entity publishers. Avatar
+      // fallbacks/labels keep their established shaderWarmup-only lifetimes.
+      const texturePreparations=this.texturePreparations&&[...this.objects.values()].includes(root as THREE.Group)?this.texturePreparations:undefined;
+      const compile=async(signal?:AbortSignal,current:()=>boolean=()=>true)=>{
+        if(this.shaderWarmup){
+          const statistics=await prepareGraphicsYielding(this.renderer,this.camera,this.scene,root,{signal,isCurrent:current});
+          this.shaderWarmupCounters.roots++;this.shaderWarmupCounters.bindings+=statistics.bindings;
+          this.shaderWarmupCounters.batches+=statistics.batches;this.shaderWarmupCounters.yielded+=statistics.yielded;
+          if(statistics.fallback==='small-root')this.shaderWarmupCounters.smallRoots++;else if(statistics.fallback)this.shaderWarmupCounters.conservativeFallbacks++;
+          this.recordLoadDuration('shaderWarmupPlanning',statistics.planningMs);
+          this.recordLoadDuration('shaderWarmupSlices',statistics.submitMs);
+          this.recordLoadDuration('shaderWarmupLargestSlice',statistics.maxSubmitMs);
+          this.recordLoadDuration('shaderWarmupFinalSubmit',statistics.finalSubmitMs);
+          this.recordLoadDuration('shaderWarmupReadiness',statistics.readinessWaitMs);
+        }else{
+          const readiness=this.renderer.compileAsync(root,this.camera,this.scene);
+          if(signal)await waitGraphicsReadiness(readiness,signal,30000);else await readiness;
+        }
+      };
+      if(this.shaderWarmup||texturePreparations){
+        // One private owner guards compile, foreground planning and uploads. The
+        // exact approval is captured before any await, never inferred from URLs.
+        const authority=texturePreparations?this.options.captureAssetAuthority?.():undefined;
+        if(texturePreparations&&!authority)throw Error('Missing texture preparation authority');
+        authority?.assertCurrent();
+        const reader=texturePreparations?this.modelReaders.get(root as THREE.Group)?.signal:undefined;
+        const onReaderAbort=()=>this.graphicsWarmups.cancel(root);
+        reader?.addEventListener('abort',onReaderAbort,{once:true});
+        try{await this.graphicsWarmups.run(root,()=>!this.disposed&&isCurrent()&&!reader?.aborted,async(signal,current)=>{
+          const assertCurrent=()=>{signal.throwIfAborted();authority?.assertCurrent();if(!current())throw new DOMException('Graphics preparation owner ended','AbortError');};
+          assertCurrent();await compile(signal,current);assertCurrent();
+          if(texturePreparations&&this.willPublishPreparedRoot(root)){
+            let plan:ForegroundTexturePlan|undefined,borrowedBindings=0;
+            try{
+              plan=new ForegroundTexturePlan(root,this.scene,this.camera,()=>this.willPublishPreparedRoot(root),65536-this.foregroundTextureCounts.activeBindings);
+              borrowedBindings=plan.stats.bindings;this.foregroundTextureCounts.activeBindings+=borrowedBindings;this.foregroundTextureCounts.peakBindings=Math.max(this.foregroundTextureCounts.peakBindings,this.foregroundTextureCounts.activeBindings);
+              const stats=plan.stats;this.foregroundTextureCounts.roots++;this.foregroundTextureCounts.bindings+=stats.bindings;this.foregroundTextureCounts.unsupported+=stats.unsupported;
+              const uploadStarted=performance.now();
+              try{await texturePreparations.prepare(root,assertCurrent,signal,texture=>plan!.isEligible(texture));}
+              finally{this.recordLoadPhase('foregroundTexturePreparation',uploadStarted);}
+              assertCurrent();
+            }catch(error){
+              // Optional capacity is never a reason to lose otherwise valid
+              // geometry. Approval/owner/driver errors cannot grant this fallback.
+              assertCurrent();
+              if(!(error instanceof ForegroundTextureCapacityError||error instanceof TexturePreparationCapacityError))throw error;
+              this.foregroundTextureCounts.capacityFallbacks++;
+              this.options.onStatus('Foreground texture preparation reached its optional budget. Textures will initialize during normal rendering.','info');
+            }finally{plan?.dispose();this.foregroundTextureCounts.activeBindings-=borrowedBindings;}
+            assertCurrent();
+          }
+        });}finally{reader?.removeEventListener('abort',onReaderAbort);}
+      }else await compile();
+      if (!this.disposed && isCurrent() && root.userData.shaderRevision === revision) root.userData.shadersReady = true;
     } finally { this.compilingGraphics--; this.recordLoadPhase('shaderPrepare', started); }
+  }
+
+  private willPublishPreparedRoot(root:THREE.Object3D):boolean {
+    if(this.disposed||!this.enabled||!this.presentationEnabled)return false;
+    // Private World maps authorize publisher identities; imported userData does
+    // not. Unattached future avatar rigs conservatively remain normal first-use.
+    for(const [id,value]of this.objects)if(value===root)return this.entities.get(id)?.visible!==false;
+    return false;
   }
 
   /** Replace the domain snapshot, including deletion of entities absent from it. */
@@ -349,7 +443,7 @@ export class BrowserWorld {
       if (unsupportedEffects.length) this.options.onStatus(`${entity.name || entity.type}: ${unsupportedEffects.join(' and ')} effects are not supported. Basic world rendering remains available.`, 'warning');
       this.signatures.set(entity.id, signature);
       const previous = this.objects.get(entity.id);
-      if (previous) { this.modelGeometry.get(previous)?.revoke();this.modelReaders.get(previous)?.abort(); }
+      if (previous) { this.cancelGraphics(previous);this.modelGeometry.get(previous)?.revoke();this.modelReaders.get(previous)?.abort(); }
       this.meshCollisions.get(entity.id)?.value.dispose(); this.meshCollisions.delete(entity.id);
       if (previous) {
         previous.traverse(object => { if (object instanceof THREE.PointLight || object instanceof THREE.SpotLight) this.localLights.delete(object); });
@@ -370,7 +464,7 @@ export class BrowserWorld {
         for (const attachment of this.entities.values()) if (attachment.type === 'Material' && attachment.parentID === entity.id) await this.applyEntityMaterial(attachment);
         if (this.disposed || this.objects.get(entity.id) !== root) return;
         if (entity.type === 'Model') this.prepareModelBatch(entity.id,root);
-        await this.prepareGraphics(root);
+        await this.prepareGraphics(root,()=>this.objects.get(entity.id)===root);
         if (!this.disposed && this.objects.get(entity.id) === root) root.visible = this.entities.get(entity.id)?.visible !== false && root.userData.shadersReady === true;
       }).catch(error => {
         if (!this.disposed && this.objects.get(entity.id) === root) {
@@ -482,7 +576,7 @@ export class BrowserWorld {
       this.meshCollisions.get(id)?.value.dispose(); this.meshCollisions.delete(id);
       const root = this.objects.get(id);
       if (root) {
-        this.modelGeometry.get(root)?.revoke();this.modelReaders.get(root)?.abort();
+        this.cancelGraphics(root);this.modelGeometry.get(root)?.revoke();this.modelReaders.get(root)?.abort();
         root.traverse(object => { if (object instanceof THREE.PointLight || object instanceof THREE.SpotLight) this.localLights.delete(object); });
         this.restoreModelBatch(root); this.scene.remove(root); disposeObject(root); this.objects.delete(id);
       }
@@ -494,7 +588,7 @@ export class BrowserWorld {
 
   setAvatars(values: Avatar[]): void {
     const present = new Set(values.map(avatar => avatar.id));
-    for (const [id, object] of this.avatars) if (!present.has(id)) { this.avatarModels.delete(object); this.scene.remove(object); disposeObject(object); this.avatars.delete(id); }
+    for (const [id, object] of this.avatars) if (!present.has(id)) { this.cancelAvatarGraphics(object);this.avatarModels.delete(object); this.scene.remove(object); disposeObject(object); this.avatars.delete(id); }
     for (const avatar of values) {
       if (!avatar.position) continue;
       if (avatar.id === this.localAvatarID) { this.self.scale.setScalar(Math.min(1000,Math.max(.005,avatar.scale || 1))); this.updateAvatarModel(this.self,avatar); continue; }
@@ -503,7 +597,7 @@ export class BrowserWorld {
         object = this.makeAvatar(avatar.displayName || 'Participant', 0xf3b96a);
         this.avatars.set(avatar.id, object); this.scene.add(object);
         const current = object;
-        void this.prepareGraphics(current).then(() => { if (!this.disposed && this.avatars.get(avatar.id) === current) current.visible = true; });
+        void this.prepareGraphics(current,()=>this.avatars.get(avatar.id)===current).then(() => { if (!this.disposed && this.avatars.get(avatar.id) === current) current.visible = current.userData.shadersReady===true; }).catch(error=>{if(!this.disposed&&this.avatars.get(avatar.id)===current&&error?.name!=='AbortError')this.options.onStatus('Participant avatar shader preparation failed.','warning');});
       }
       object.position.copy(vector(avatar.position));
       object.quaternion.copy(quaternion(avatar.orientation));
@@ -514,16 +608,21 @@ export class BrowserWorld {
 
   private updateAvatarModel(root:THREE.Group, avatar:Avatar):void {
     const name = avatar.displayName || (root === this.self ? 'You' : 'Participant');
+    const labelChanged=root.userData.avatarLabelName!==name;
+    const refreshFallback=()=>{if(!this.shaderWarmup)return;const current=()=>root===this.self||[...this.avatars.values()].includes(root);
+      void this.prepareGraphics(root,current).then(()=>{if(!this.disposed&&current())root.visible=root.userData.shadersReady===true&&(root===this.self?this.enabled&&this.thirdPerson:true);})
+        .catch(error=>{if(!this.disposed&&current()&&error?.name!=='AbortError')this.options.onStatus('Avatar shader preparation failed.','warning');});};
     if (root.userData.avatarLabelName !== name) {
       const old = root.userData.avatarLabel as THREE.Object3D;
-      root.remove(old); disposeObject(old);
+      this.cancelGraphics(root);root.remove(old); disposeObject(old);
       const label = this.textPlane(name,'#ffffff','rgba(20,30,45,0.8)');
       label.position.y = 1.1; label.scale.set(1.5,.25,1); root.add(label);
       root.userData.avatarLabel = label; root.userData.avatarLabelName = name;
     }
     const previous = this.avatarModels.get(root);
     const source = avatar.skeletonModelURL || '';
-    if (previous?.source === source) { previous.snapshot = avatar; previous.rig?.apply(avatar); return; }
+    if (previous?.source === source) { previous.snapshot = avatar; previous.rig?.apply(avatar);if(labelChanged)refreshFallback(); return; }
+    this.cancelAvatarGraphics(root);
     if (previous?.rig) {
       root.remove(previous.rig.root); disposeObject(previous.rig.root);
       const fallback = this.makeAvatar(avatar.displayName || 'Participant',root === this.self ? 0x64c5ff : 0xf3b96a);
@@ -531,22 +630,34 @@ export class BrowserWorld {
       disposeObject(fallback);
     }
     this.avatarModels.delete(root);
-    if (!source) return;
-    const state = {source, snapshot:avatar, rig:undefined as AvatarRig|undefined};
-    this.avatarModels.set(root,state);
+    if (!source) {
+      // An ordinary default-avatar snapshot is not a new source generation.
+      // Retain this terminal state so it cannot repeatedly cancel its warmup.
+      if(this.shaderWarmup)this.avatarModels.set(root,{source,snapshot:avatar});
+      refreshFallback();return;
+    }
+    const state = {source, snapshot:avatar, rig:undefined as AvatarRig|undefined,preparing:undefined as THREE.Object3D|undefined};
+    this.avatarModels.set(root,state);refreshFallback();
     void this.loadModel(source).then(async model => {
       if (this.disposed || this.avatarModels.get(root) !== state) { disposeObject(model); return; }
       let rig:AvatarRig;
       try { rig = new AvatarRig(model, model.userData.avatarFormat || 'fbx', model.userData.avatarMapping as AvatarMapping|undefined); }
       catch (error) { disposeObject(model); throw error; }
       rig.apply(state.snapshot);
-      try { await this.prepareGraphics(rig.root); }
+      state.preparing=rig.root;
+      try { await this.prepareGraphics(rig.root,()=>this.avatarModels.get(root)===state); }
       catch (error) { disposeObject(rig.root); throw error; }
+      finally {if(state.preparing===rig.root)state.preparing=undefined;}
       if (this.disposed || this.avatarModels.get(root) !== state) { disposeObject(rig.root); return; }
       // Keep the usable fallback until actual avatar geometry and shaders exist.
+      if(this.shaderWarmup)this.cancelGraphics(root);
       for (const child of [...root.children]) if (child !== root.userData.avatarLabel) { root.remove(child); disposeObject(child); }
       state.rig = rig; root.add(rig.root); rig.root.visible = true;
       rig.apply(state.snapshot);
+      if(this.shaderWarmup){
+        await this.prepareGraphics(root,()=>this.avatarModels.get(root)===state);
+        if(!this.disposed&&this.avatarModels.get(root)===state)root.visible=root.userData.shadersReady===true&&(root===this.self?this.enabled&&this.thirdPerson:true);
+      }
     }).catch(error => {
       if (!this.disposed && this.avatarModels.get(root) === state) this.options.onStatus(`Avatar ${avatar.displayName || 'Participant'} could not load: ${error instanceof Error ? error.message : String(error)}`, 'warning');
     });
@@ -606,7 +717,7 @@ export class BrowserWorld {
     signal.throwIfAborted();
     let colors:NativeCompressedColorCache|undefined,caps:CompressionCapabilities|undefined,assertApproval:(()=>void)|undefined;
     if(color&&(role==='albedo'||role==='emissive')&&this.options.compressedColors){
-      const gl=this.renderer.getContext();caps={s3tc:!!gl.getExtension('WEBGL_compressed_texture_s3tc'),s3tcSRGB:!!gl.getExtension('WEBGL_compressed_texture_s3tc_srgb'),maximumTextureSize:gl.getParameter(gl.MAX_TEXTURE_SIZE)};
+      caps=currentCompressedColorCapabilities(this.renderer);
       // Obtain current approval before even requesting metadata; denial is never a PNG fallback.
       colors=this.options.compressedColors(caps,this.abort.signal);this.compressedColorCache=colors;
       assertApproval=colors.captureApproval();
@@ -721,12 +832,35 @@ export class BrowserWorld {
     if (this.disposed || this.objects.get(entity.id) !== root) disposeObject(content);
   }
 
-  private async loadModel(source: string, visited = new Set<string>(), textureBase?: string, signal = this.abort.signal, onGeometryReady?: (model:THREE.Object3D)=>void): Promise<THREE.Object3D> {
+  private async loadPreparedFbx(source:string,signal:AbortSignal):Promise<CachedPreparedFbx> {
+        const modelURL=this.options.resolveAsset(source),prepareStarted=performance.now();
+        const prepared=await this.preparedFbx.get(modelURL,async producerSignal=>{
+          const response=await fetch(modelURL,{signal:producerSignal});
+          await requireAssetResponse(response,'FBX');
+          const bytes=await response.arrayBuffer();
+          const prepared=await this.fbxPreparePool.prepare(bytes,producerSignal);
+          if(prepared.embeddedCounts){const counts=prepared.embeddedCounts;this.embeddedFbxCounts.preparations++;this.embeddedFbxCounts.convertedImages+=counts.converted;this.embeddedFbxCounts.extractedBytes+=counts.rawBytes;this.embeddedFbxCounts.skippedOversize+=counts.skippedOversize;this.embeddedFbxCounts.skippedUnsupported+=counts.skippedUnsupported;}
+          this.recordLoadDuration('fbxMaterialBindings',prepared.phases.materialBindingsMs);
+          this.recordLoadDuration('fbxDecode',prepared.phases.decodeMs);
+          return prepared;
+        },signal);
+        this.recordLoadPhase('fbxPrepareWait',prepareStarted);
+        signal.throwIfAborted(); return prepared;
+  }
+
+  private async loadModel(source: string, visited = new Set<string>(), textureBase?: string, signal = this.abort.signal, onGeometryReady?: (model:THREE.Object3D)=>void, fstAdmission?: { replacements?:readonly ResolvedFstReplacement[]; prepared:CachedPreparedFbx; assertCurrent():void }): Promise<THREE.Object3D> {
     signal.throwIfAborted();
     if (visited.has(source) || visited.size >= 8) throw new Error('Model mapping contains a cycle or too many nested mappings');
     visited.add(source);
     const pathname = source.split(/[?#]/)[0].toLowerCase();
     if (pathname.endsWith('.fst')) {
+      const authority = this.options.captureAssetAuthority?.();
+      const assertCurrent = (): void => {
+        signal.throwIfAborted();
+        if (this.disposed) throw new DOMException('World ended during material mapping', 'AbortError');
+        authority?.assertCurrent();
+      };
+      assertCurrent();
       const mapping = await this.sourceText(source,'FST',1024*1024,signal);
       const dependencies = fstDependencies(source, mapping);
       const value = (key:string) => Number(new RegExp(`^\\s*${key}\\s*=\\s*(.+)\\s*$`,'m').exec(mapping)?.[1] ?? (key === 'scale' ? 1 : 0));
@@ -746,38 +880,79 @@ export class BrowserWorld {
       const publishGeometry = onGeometryReady ? (model: THREE.Object3D): void => {
         applyMapping(model); onGeometryReady(model);
       } : undefined;
-      const model = await this.loadModel(dependencies.model, visited, dependencies.textures ?? textureBase, signal, publishGeometry);
-      const resources = new ModelResources(); resources.capture(model);
-      let completed = false;
+      const materialMap = /^\s*materialMap\s*=\s*(.+)\s*$/m.exec(mapping)?.[1]?.trim();
+      const resources = new ModelResources();
+      let model: THREE.Object3D | undefined, completed = false;
       try {
-        signal.throwIfAborted();
-        applyMapping(model);
-        const materialMap = /^\s*materialMap\s*=\s*(.+)\s*$/m.exec(mapping)?.[1]?.trim();
-        if (materialMap) {
-          const assignments = JSON.parse(materialMap) as Record<string, string>[];
-          if (!Array.isArray(assignments) || assignments.length > 256) throw new Error('Invalid baked material map');
-          for (const assignment of assignments) for (const [selector, reference] of Object.entries(assignment)) {
-            const url = assetDependency(source, reference);
-            signal.throwIfAborted();
-            const definitions = parseMaterialData(await this.sourceText(url,'Baked material',1024*1024,signal));
-            const name = decodeURIComponent(new URL(url).hash.slice(1));
-            const definition = definitions.find(material => material.name === name) ?? definitions[0];
-            const material = await this.makeMaterial(definition, url,signal);
-            resources.captureMaterial(material);signal.throwIfAborted();
-            model.traverse(object => {
-              if (!(object instanceof THREE.Mesh)) return;
-              const old = Array.isArray(object.material) ? object.material : [object.material];
-              const next = old.map(value => {
-                if (selector !== 'all' && selector !== `mat::${value.name}`) return value;
-                const clone = cloneNativeMaterialForGeometry(material, object.geometry); resources.captureMaterial(clone); return clone;
-              });
-              object.material = Array.isArray(object.material) ? next : next[0];
-            });
+        // Only this direct FBX child has a complete, ordered mapping plan.
+        // Nested FST mappings keep their existing child-to-parent material path.
+        const directFbx = dependencies.model.split(/[?#]/)[0].toLowerCase().endsWith('.fbx');
+        const assignments = directFbx && materialMap ? JSON.parse(materialMap) : undefined;
+        if (assignments !== undefined && (!Array.isArray(assignments) || assignments.length > 256)) throw new Error('Invalid baked material map');
+        const entries: [string, string][] | undefined = assignments?.flatMap((assignment:Record<string,string>) => Object.entries(assignment));
+        let preloaded: ResolvedFstReplacement[] | undefined;
+        let definitions: {selector:string;url:string;definition:MaterialData}[] | undefined;
+        const resolveDefinition = async (selector:string, reference:string) => {
+          assertCurrent();
+          const url = assetDependency(source, reference);
+          const data = parseMaterialData(await this.sourceText(url,'Baked material',1024*1024,signal));
+          const name = decodeURIComponent(new URL(url).hash.slice(1));
+          const definition = data.find(material => material.name === name) ?? data[0];
+          assertCurrent(); return {selector,url,definition};
+        };
+        const resolveReplacement = async ({selector,url,definition}: {selector:string;url:string;definition:MaterialData}): Promise<ResolvedFstReplacement> => {
+          assertCurrent(); const template = await this.makeMaterial(definition, url,signal);
+          resources.captureMaterial(template); assertCurrent(); return {selector,definition,template};
+        };
+        // Preparing immutable FBX bytes starts no loader images. Reuse that same
+        // cached producer/output for the child: no second transfer or decode.
+        const prepared = entries?.length && entries.length <= 256 ? await this.loadPreparedFbx(dependencies.model,signal) : undefined;
+        assertCurrent();
+        let inspection:ReturnType<typeof inspectFbxOriginalTextures>;
+        if(prepared){
+          const inspectionStarted=performance.now();
+          try{inspection=this.fstGraphCache.inspect(prepared.buffer);}catch{inspection=undefined;}
+          finally{this.recordLoadPhase('fstGraphPreflight',inspectionStarted);}
+          assertCurrent();
+        }
+        // Zero-texture/unknown graphs preserve ordinary geometry-first loading.
+        // Only an exact supported ordered plan can reorder template images.
+        if(inspection?.hasRemovableTextures(new Set(inspection.materials.map(material=>material.id)))){
+          definitions=[];for(const [selector,reference]of entries!)definitions.push(await resolveDefinition(selector,reference));
+          if(canFstDefinitionsReplaceOriginalTextures(inspection,definitions)){
+            preloaded=[];for(const definition of definitions)preloaded.push(await resolveReplacement(definition));
           }
         }
-        signal.throwIfAborted();completed = true; return model;
+        assertCurrent();
+        model = await this.loadModel(dependencies.model, visited, dependencies.textures ?? textureBase, signal, publishGeometry,
+          prepared ? {prepared,replacements:preloaded,assertCurrent} : undefined);
+        resources.capture(model); assertCurrent(); applyMapping(model);
+        const applyReplacement = ({selector,template}:ResolvedFstReplacement): void => {
+          assertCurrent();
+          model!.traverse(object => {
+            if (!(object instanceof THREE.Mesh)) return;
+            const old = Array.isArray(object.material) ? object.material : [object.material];
+            const next = old.map(value => {
+              if (selector !== 'all' && selector !== `mat::${value.name}`) return value;
+              const clone = cloneNativeMaterialForGeometry(template, object.geometry); resources.captureMaterial(clone); return clone;
+            });
+            object.material = Array.isArray(object.material) ? next : next[0];
+          });
+        };
+        if (preloaded) for (const replacement of preloaded) applyReplacement(replacement);
+        else if (materialMap) {
+          const assignments = JSON.parse(materialMap) as Record<string, string>[];
+          if (!Array.isArray(assignments) || assignments.length > 256) throw new Error('Invalid baked material map');
+          let index=0;
+          for (const assignment of assignments) for (const [selector,reference] of Object.entries(assignment)) {
+            const definition=definitions?.[index++] ?? await resolveDefinition(selector,reference);
+            applyReplacement(await resolveReplacement(definition));
+          }
+        }
+        assertCurrent(); completed = true; return model;
       } finally {
-        resources.capture(model); resources.releaseKeeping(completed ? model : undefined);
+        if (model) resources.capture(model);
+        resources.releaseKeeping(completed ? model : undefined);
       }
     }
     const manager = new THREE.LoadingManager();
@@ -810,21 +985,18 @@ export class BrowserWorld {
         if (this.disposed) throw new Error('Session ended while loading a model');
         // Cache only prepared bytes at the exact authorized asset route. A
         // producer belongs to its pending readers, not the first model instance.
-        const modelURL=this.options.resolveAsset(source),prepareStarted=performance.now();
-        const prepared=await this.preparedFbx.get(modelURL,async producerSignal=>{
-          const response=await fetch(modelURL,{signal:producerSignal});
-          await requireAssetResponse(response,'FBX');
-          const bytes=await response.arrayBuffer();
-          const prepared=await this.fbxPreparePool.prepare(bytes,producerSignal);
-          if(prepared.embeddedCounts){const counts=prepared.embeddedCounts;this.embeddedFbxCounts.preparations++;this.embeddedFbxCounts.convertedImages+=counts.converted;this.embeddedFbxCounts.extractedBytes+=counts.rawBytes;this.embeddedFbxCounts.skippedOversize+=counts.skippedOversize;this.embeddedFbxCounts.skippedUnsupported+=counts.skippedUnsupported;}
-          this.recordLoadDuration('fbxMaterialBindings',prepared.phases.materialBindingsMs);
-          this.recordLoadDuration('fbxDecode',prepared.phases.decodeMs);
-          return prepared;
-        },signal);
-        this.recordLoadPhase('fbxPrepareWait',prepareStarted);
-        signal.throwIfAborted();
-        const {buffer}=prepared;
-        if(prepared.embeddedImages?.length) embeddedScope=this.embeddedFbxImages.register(buffer,prepared.embeddedImages,signal);
+        fstAdmission?.assertCurrent();
+        const prepared=fstAdmission?.prepared ?? await this.loadPreparedFbx(source,signal);
+        signal.throwIfAborted();fstAdmission?.assertCurrent();
+        const admissionStarted=performance.now();
+        const admission = fstAdmission?.replacements ? prepareFstTextureAdmission(prepared.buffer, fstAdmission.replacements,
+          prepared.embeddedImages ?? [], signal, fstAdmission.assertCurrent,this.fstGraphCache) : undefined;
+        if(fstAdmission?.replacements)this.recordLoadPhase('fstTextureAdmission',admissionStarted);
+        const buffer = admission?.buffer ?? prepared.buffer;
+        const images = admission?.embeddedImages ?? prepared.embeddedImages;
+        // Shared embedded source leases belong to original cached prepared bytes,
+        // not to the per-mapping derived parse buffer or an asset-provided key.
+        if(images?.length) embeddedScope=this.embeddedFbxImages.register(prepared.buffer,images,signal);
           const model = await this.parseTexturedModel(manager, () => {
             const parseStarted = performance.now();
             try {
@@ -958,7 +1130,7 @@ export class BrowserWorld {
     const materials = parseMaterialData(data);
     const target = this.objects.get(entity.parentID || '');
     if (!target) return;
-    this.restoreModelBatch(target);
+    this.cancelGraphics(target);this.restoreModelBatch(target);
     const material = await this.makeMaterial(materials[0], entity.materialURL);
     const resources = new ModelResources(); resources.captureMaterial(material);
     if (this.disposed || this.objects.get(entity.parentID || '') !== target) {
@@ -983,7 +1155,7 @@ export class BrowserWorld {
       // referenced by unmatched slots and retaining every installed clone.
       resources.capture(target); resources.releaseKeeping(target);
     }
-    await this.prepareGraphics(target);
+    await this.prepareGraphics(target,()=>this.objects.get(entity.parentID||'')===target);
     if (!this.disposed && this.objects.get(entity.parentID || '') === target) target.visible = this.entities.get(entity.parentID || '')?.visible !== false && target.userData.shadersReady === true;
   }
 
@@ -1075,7 +1247,7 @@ export class BrowserWorld {
     const releaseTouch = () => { this.touchOrigin = undefined; this.touchLast = undefined; this.touchMove.set(0, 0); };
     this.canvas.addEventListener('pointerup', releaseTouch, eventOptions);
     this.canvas.addEventListener('pointercancel', releaseTouch, eventOptions);
-    this.canvas.addEventListener('webglcontextlost', event => { event.preventDefault(); this.options.onStatus('Graphics context lost. Reload the page to reconnect.', 'error'); }, eventOptions);
+    this.canvas.addEventListener('webglcontextlost', event => { this.cpuFrameTiming?.loseContext();event.preventDefault(); this.options.onStatus('Graphics context lost. Reload the page to reconnect.', 'error'); }, eventOptions);
   }
 
   private look(x: number, y: number): void {
@@ -1131,8 +1303,13 @@ export class BrowserWorld {
 
   private animate(time: number): void {
     if (this.disposed) return;
+    const cpuLoadState=this.cpuFrameTiming?this.modelScheduler.stats:undefined;
+    const readiness=this.cpuFrameTiming?(this.presentationEnabled?(cpuLoadState!.active||cpuLoadState!.queued||this.compilingGraphics?'loading':this.entities.size?'modelJobsIdle':'emptyScene'):'paused'):undefined;
+    const cpuSample=readiness?this.cpuFrameTiming?.beginFrame(readiness):undefined;
+    let cpuCompleted=false;try {
     this.metrics.sample(time);
     const ticks = this.simulationClock.advance(time);
+    this.cpuFrameTiming?.segment(cpuSample,'setup');
     if (this.enabled) {
       const needsSupport = this.initialSurfaceWait.needsSupport;
       const pendingSurface = needsSupport && this.pendingModelColliders.some(collider => !this.meshCollisions.has(collider.id)
@@ -1150,6 +1327,7 @@ export class BrowserWorld {
       if (this.position.y < this.spawn.y - 100) { this.setSpawn(this.spawn); this.options.onStatus('Returned to spawn after falling outside the world.', 'warning'); }
       if (time - this.lastPose > 50) { this.options.onPose(this.getPose()); this.lastPose = time; }
     }
+    this.cpuFrameTiming?.segment(cpuSample,'physicsPose');
     const rotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(this.pitch, this.yaw, 0, 'YXZ'));
     this.camera.quaternion.copy(rotation);
     this.camera.position.copy(this.position).add(new THREE.Vector3(0, 0.65, 0));
@@ -1161,6 +1339,7 @@ export class BrowserWorld {
     this.self.position.copy(this.position);
     this.self.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw);
     for (const avatar of [this.self, ...this.avatars.values()]) (avatar.userData.avatarLabel as THREE.Object3D|undefined)?.quaternion.copy(this.camera.quaternion).premultiply(avatar.quaternion.clone().invert());
+    this.cpuFrameTiming?.segment(cpuSample,'avatarCamera');
     if (time - this.lastLightSelection > 250) {
       this.lastLightSelection = time;
       const location = new THREE.Vector3();
@@ -1183,20 +1362,25 @@ export class BrowserWorld {
         }
       }
     }
+    this.cpuFrameTiming?.segment(cpuSample,'localLights');
     if (this.presentationEnabled) {
       // Poll/begin/end stay outside the existing CPU submission interval. A
       // token identifies only this World's owned sample, never a GL handle.
       const sample = this.gpuTiming?.beginFrame();
+      this.cpuFrameTiming?.segment(cpuSample,'diagnostics');
       const started = performance.now();
       let submittedMs: number | undefined, rendered = false;
       try {
         this.renderer.render(this.scene, this.camera); this.renderedFrames++;
         if (sample) submittedMs = performance.now() - started;
         this.recordLoadPhase('graphicsSubmit', started);
+        this.cpuFrameTiming?.segment(cpuSample,'renderSubmission');
         rendered = true;
       } finally { this.gpuTiming?.endFrame(sample, submittedMs, rendered); }
     } else this.gpuTiming?.pollFrame();
     this.frame = requestAnimationFrame(next => this.animate(next));
+    cpuCompleted=true;
+    } finally {this.cpuFrameTiming?.endFrame(cpuSample,cpuCompleted);}
   }
 
   dispose(): void {

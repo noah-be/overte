@@ -243,6 +243,9 @@ async function joinDomain(domain:string, direction?:'back'|'forward'):Promise<vo
         world = new BrowserWorld(element('world'), {
             resolveAsset: url => session.assetURL(url),
             gpuTiming: new URLSearchParams(location.search).get('gpuTiming') === '1',
+            cpuFrameTiming: new URLSearchParams(location.search).get('cpuFrameTiming') === '1',
+            shaderWarmup: new URLSearchParams(location.search).get('shaderWarmup') === '1',
+            texturePreparation: new URLSearchParams(location.search).get('texturePreparation') === '1',
             compressedColors: (capabilities, signal) => session.compressedColors(capabilities, signal),
             captureAssetAuthority: () => session.captureAssetAuthority(),
             onPose: pose => session.sendPose(pose),

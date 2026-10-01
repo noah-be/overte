@@ -16,6 +16,7 @@ import { publicPlaceNames, publicPlaceSelection, resolvePublicPlace, validatePub
 import { inspectNativeProtocol } from './native-protocol.mjs';
 import { prepareTablet, TabletSession } from './tablet.mjs';
 import { loadBrowserGraphicsPackage } from './browser-graphics-overrides.mjs';
+import { loadBrowserCreatePackage } from './create-responsive-overrides.mjs';
 import { prepareWorker } from './worker-sandbox.mjs';
 import { launchNativeNetwork } from './network-sandbox.mjs';
 import { createVisitorFiles } from './tablet-files.mjs';
@@ -52,12 +53,14 @@ if (!Number.isSafeInteger(maximumSessions) || maximumSessions < 1) throw Error('
 // Pin the operator-selected native Settings packages at gateway startup.
 // Visitors cannot select paths, override targets or unsupported source versions.
 const browserGraphicsPackages = new Map();
+const browserCreatePackages = new Map();
 for (const defaults of new Set([process.env.OVERTE_GATEWAY_DEFAULT_SCRIPTS, process.env.OVERTE_GATEWAY_PUBLIC_DEFAULT_SCRIPTS].filter(Boolean))) {
     if (!defaults.startsWith('file:') && !path.isAbsolute(defaults)) throw Error('Default tablet scripts must be an absolute installed file path.');
     const url = defaults.startsWith('file:') ? new URL(defaults).href : pathToFileURL(defaults).href;
     const parsed = new URL(url);
     if (parsed.protocol !== 'file:' || parsed.host) throw Error('Default tablet scripts must be an installed local file.');
     browserGraphicsPackages.set(url, await loadBrowserGraphicsPackage(url));
+    browserCreatePackages.set(url, await loadBrowserCreatePackage(url));
 }
 const sessions = new Map();
 const sockets = new Set();
@@ -164,6 +167,9 @@ class Session extends SharedTeardown {
             const graphicsPackage = browserGraphicsPackages.get(configuration.tablet.defaultScriptsURL);
             if (!graphicsPackage) throw Error('The installed browser Graphics Settings package was not validated at startup.');
             this.graphicsOverrides = await graphicsPackage.prepare(this.directory);
+            const createPackage = browserCreatePackages.get(configuration.tablet.defaultScriptsURL);
+            if (!createPackage) throw Error('The installed Create Properties package was not validated at startup.');
+            this.createOverrides = await createPackage.prepare(this.directory);
             configuration.tablet.graphics = { scriptURL: this.graphicsOverrides.scriptURL, channel: this.graphicsOverrides.channel, schemaVersion: 1 };
             configuration.navigation = { channel: 'browser-places-' + randomUUID() };
             this.placesOverrides = await preparePlacesOverride(this.directory, {
@@ -194,7 +200,7 @@ class Session extends SharedTeardown {
             const nativeRoot = this.publicPlace ? process.env.OVERTE_GATEWAY_PUBLIC_NATIVE_ROOT || process.env.OVERTE_PUBLIC_NATIVE_ROOT || process.env.OVERTE_GATEWAY_NATIVE_ROOT : process.env.OVERTE_GATEWAY_NATIVE_ROOT;
             this.worker = await prepareWorker({ directory: this.directory, executable: this.interfaceExecutable,
                 sourceEnvironment: env, nativeRoot, signal: this.workerAbort.signal,
-                readOnlyOverrides: [...(configuration.tablet?.snapshotOverride ? [configuration.tablet.snapshotOverride] : []), ...(this.placesOverrides || []), ...(this.graphicsOverrides?.readOnlyOverrides || [])],
+                readOnlyOverrides: [...(configuration.tablet?.snapshotOverride ? [configuration.tablet.snapshotOverride] : []), ...(this.placesOverrides || []), ...(this.graphicsOverrides?.readOnlyOverrides || []), ...(this.createOverrides?.readOnlyOverrides || [])],
                 spawnOwned: (command, args, processEnv, label) => this.process(command, args, processEnv, label) });
             launchCommand = this.worker.command; launchPrefix = this.worker.args; launchEnv = this.worker.env;
             if (this.closed) throw Error('Session cancelled.');

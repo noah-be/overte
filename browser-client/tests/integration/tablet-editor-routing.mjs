@@ -39,7 +39,7 @@ try{
                 if(value.type==='tablet'&&value.kind==='frame'){audit.frames.push(value);if(audit.frames.length>8)audit.frames.shift();}
                 if(value.type==='tablet'&&value.kind==='state'){audit.states.push({screen:value.screen,visible:value.visible});if(audit.states.length>20)audit.states.shift();}
             }catch{}});}
-            send(data){if(typeof data==='string'){try{const value=JSON.parse(data);if(value.type==='tablet'&&value.action==='frameAck'){const audit=window.__editorAudit;const frame=audit.frames.find(item=>item.sequence===value.frameSequence&&item.revision===value.revision);if(frame)audit.frame=frame;}}catch{}}super.send(data);}
+            send(data){if(typeof data==='string'){try{const value=JSON.parse(data);if(value.type==='tablet'&&value.action==='frameAck'&&value.displayed===true){const audit=window.__editorAudit;const frame=audit.frames.find(item=>item.sequence===value.frameSequence&&item.revision===value.revision);if(frame)audit.frame=frame;}}catch{}}super.send(data);}
         };
     });
     await page.goto(base);await page.locator('#domain').fill(domain);await page.locator('#name').fill('Browser Editor Routing Audit');await page.locator('#join').click();report.step='join';

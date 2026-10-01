@@ -73,15 +73,23 @@ export async function sandboxCommand({ directory, executable, env, roots = [], d
     ]);
     for (const override of readOnlyOverrides) {
         const source = path.resolve(override.source), target = path.resolve(override.target);
+        const createProperties = source === path.join(path.resolve(directory), 'browser-create-properties.html')
+            && target.endsWith('/scripts/system/create/entityProperties/html/entityProperties.html');
         if (!inside(source, path.resolve(directory)) || !((path.basename(source) === 'browser-snapshot.js' && target.endsWith('/scripts/system/snapshot.js'))
                 || (path.basename(source) === 'browser-places.js' && target.endsWith('/scripts/system/places/places.js'))
                 || (path.basename(source) === 'browser-places-ui.js' && target.endsWith('/scripts/system/places/placesHtml.js'))
+                || createProperties
                 || (graphicsOverrides.has(path.basename(source)) && target.endsWith(graphicsOverrides.get(path.basename(source))))) || !roots.some(root => inside(target, reviewedRoot(root)))) {
-            throw Error('Only reviewed session Snapshot, Places and browser Graphics adapters may override installed native scripts.');
+            throw Error('Only reviewed session Snapshot, Places, browser Graphics and Create Properties adapters may override installed native scripts.');
         }
         const [sourceInfo, targetInfo] = await Promise.all([lstat(source), lstat(target)]);
         if (!sourceInfo.isFile() || sourceInfo.isSymbolicLink() || !targetInfo.isFile() || targetInfo.isSymbolicLink()) {
             throw Error('Native adapters must bind regular trusted script files.');
+        }
+        // This generated HTML has one exact owned source and one installed target.
+        // Refuse aliases through either parent directory as well as final-file symlinks.
+        if (createProperties && (realpathSync(source) !== source || realpathSync(target) !== target)) {
+            throw Error('Native Create Properties adapters must use canonical owned and installed script paths.');
         }
         args.push('--ro-bind', source, target);
     }

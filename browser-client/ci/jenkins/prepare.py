@@ -9,6 +9,7 @@ import subprocess
 import sys
 import signal
 import time
+import re
 from run import checked_source, checked_executable, safe_environment, stop_owned, checkout_clean
 
 
@@ -36,19 +37,43 @@ def main():
     parser.add_argument('--source-sha', required=True)
     args = parser.parse_args()
     repo = args.repo.resolve(strict=True)
+    if repo in (Path('/'),Path.home(),Path('/tmp')) or not (repo/'browser-client/package.json').is_file():
+        raise RuntimeError('preparation-requires-a-dedicated-complete-checkout')
+    runtime = repo/'build/jenkins-browser-ci'
+    runtime.mkdir(parents=True,exist_ok=True,mode=0o700)
+    if runtime.is_symlink():raise RuntimeError('preparation-runtime-must-not-be-a-symlink')
+    runtime.chmod(0o700)
+    source_sha=args.source_sha if re.fullmatch(r'[0-9a-f]{40}',args.source_sha) else None
+    publish_preparation(runtime,{'sourceSHA':source_sha,'passed':False,'stages':[],
+        'failureCategory':'preflight-not-completed'})
+    try:
+        return prepare_dependencies(repo,args.source_sha,runtime)
+    except (RuntimeError,OSError,ValueError,subprocess.SubprocessError) as error:
+        category=str(error) if isinstance(error,RuntimeError) and re.fullmatch(r'[A-Za-z0-9_.:-]{1,160}',str(error)) else type(error).__name__
+        publish_preparation(runtime,{'sourceSHA':source_sha,'passed':False,'stages':[],
+            'failureCategory':category})
+        raise
+
+
+def publish_preparation(runtime,document):
+    payload=json.dumps(document,separators=(',',':'))+'\n'
+    if len(payload.encode())>65536:raise RuntimeError('preparation-summary-exceeds-bound')
+    filename=runtime/'prepare-summary.json'
+    descriptor=os.open(filename,os.O_WRONLY|os.O_CREAT|os.O_TRUNC|os.O_NOFOLLOW,0o600)
+    with os.fdopen(descriptor,'w') as output:output.write(payload)
+
+
+def prepare_dependencies(repo,source_sha,runtime):
     if os.getuid() == 0 or not Path('/etc/fedora-release').is_file():
         raise RuntimeError('qualification-requires-reviewed-nonroot-Fedora-agent')
-    checked_source(repo, args.source_sha)
+    checked_source(repo,source_sha)
     if not checkout_clean(repo):
         raise RuntimeError('dependency-preparation-requires-clean-exact-source')
     if (repo/'build/browser-lab').exists():
         raise RuntimeError('qualification-must-not-reuse-or-replace-an-existing-laboratory')
     for name in ('node','npm','git','python3','g++','ar','tar','rpm2cpio','cpio','dnf',
-                 'ffmpeg','pactl','bwrap','unshare','mount','setpriv','ip','xauth','xvfb-run'):
+                 'ffmpeg','pactl','bwrap','unshare','mount','setpriv','ip','xauth'):
         checked_executable(name)
-    runtime = repo / 'build/jenkins-browser-ci'
-    runtime.mkdir(parents=True, exist_ok=True, mode=0o700)
-    runtime.chmod(0o700)
     npm_config = runtime/'empty-npmrc'
     npm_config.write_text('')
     env = {**safe_environment(), 'PLAYWRIGHT_BROWSERS_PATH': str(runtime/'browsers'),
@@ -86,13 +111,13 @@ def main():
                 stop_owned(result)
         stages.append({'stage':['npm-ci','browser-downloads','pinned-native-artifacts'][number],
                        'passed':result.returncode==0 and failure is None,'failureCategory':failure})
-        (runtime/'prepare-summary.json').write_text(json.dumps({'sourceSHA':args.source_sha,
-            'nodeVersion':version,'passed':all(row['passed'] for row in stages),'stages':stages})+'\n')
+        publish_preparation(runtime,{'sourceSHA':source_sha,'nodeVersion':version,
+            'passed':all(row['passed'] for row in stages),'stages':stages})
         if result.returncode or failure:
             return 1
     marker=runtime/'preparation-complete'
     descriptor=os.open(marker,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
-    with os.fdopen(descriptor,'w') as output:output.write(args.source_sha+'\n')
+    with os.fdopen(descriptor,'w') as output:output.write(source_sha+'\n')
     return 0
 
 

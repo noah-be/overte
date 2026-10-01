@@ -29,22 +29,35 @@ export function locateNativeGraphicsControls(rows) {
     if(!Array.isArray(rows)||rows.length!==580||rows.some((row,index)=>row.y!==70+index||
         !Number.isInteger(row.slider)||!Number.isInteger(row.combo)||row.slider<0||row.slider>187||row.combo<0||row.combo>187))
         throw Error('Invalid native Graphics row measurements');
-    function runs(field,min,max){
-        const found=[];let start=null;
-        for(let index=0;index<=rows.length;index++){
-            if(index<rows.length&&rows[index][field]>=110){if(start===null)start=index;}
-            else if(start!==null){const length=index-start;if(length>=min&&length<=max)found.push((rows[start].y+rows[index-1].y)/2);start=null;}
+    function runs(field,min,max,glyphGap=0){
+        const found=[];let start=null,lastPainted=-1,paintedRows=0;
+        function finish(){
+            if(start!==null){const length=lastPainted-start+1;
+                // Caption glyphs can interrupt the combo's painted background.
+                // Require its bounded native height and mostly painted rows;
+                // separated controls or a handful of text pixels cannot match.
+                if(length>=min&&length<=max&&paintedRows/length>=0.8)
+                    found.push((rows[start].y+rows[lastPainted].y)/2);
+            }
+            start=null;lastPainted=-1;paintedRows=0;
         }
-        return found;
+        for(let index=0;index<rows.length;index++){
+            if(rows[index][field]>=110){
+                if(start!==null&&index-lastPainted-1>glyphGap)finish();
+                if(start===null)start=index;
+                lastPainted=index;paintedRows++;
+            }else if(start!==null&&index-lastPainted>glyphGap)finish();
+        }
+        finish();return found;
     }
     const sliders=runs('slider',8,25);
     if(sliders.length!==2||Math.abs(sliders[1]-sliders[0]-60)>2)throw Error('Expected exactly two actual native slider tracks');
-    const combos=runs('combo',25,45).filter(y=>y<sliders[0]-40);
+    const combos=runs('combo',25,45,4).filter(y=>y<sliders[0]-40);
     if(combos.length!==1)throw Error('Expected exactly one actual native resolution combo');
     return {profile:{x:360,y:combos[0]},fieldOfView:{y:sliders[0]},resolutionPercent:{y:sliders[1]},localLights:{x:410,y:sliders[1]+60},cameraClipping:{x:410,y:sliders[1]+120}};
 }
 /** Native track endpoints/20px thumb and pinned resolution10..200 mapping. */
 export function resolutionSliderX(percent){
     if(!Number.isInteger(percent)||percent<10||percent>200||percent%10!==0)throw Error('Invalid native slider percentage');
-    return 281+(459-281)*(percent-10)/(200-10);
+    return 281+(449-281)*(percent-10)/(200-10);
 }

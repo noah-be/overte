@@ -57,7 +57,7 @@ try{
                 }catch{}});
             }
             send(data){if(typeof data==='string'){try{const m=JSON.parse(data),a=window.__placesAudit;
-                if(m.type==='tablet'&&m.action==='frameAck')a.frame=a.frames.find(f=>f.sequence===m.frameSequence&&f.revision===m.revision)||a.frame;
+                if(m.type==='tablet'&&m.action==='frameAck'&&m.displayed===true)a.frame=a.frames.find(f=>f.sequence===m.frameSequence&&f.revision===m.revision)||a.frame;
             }catch{}}super.send(data);}
         };
     });

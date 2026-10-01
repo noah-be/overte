@@ -10,8 +10,8 @@ import {TabletSession,validateTabletInput,validateTabletPNG} from './tablet.mjs'
 
 const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=','base64');
 test('tablet command whitelists prevent browser-controlled paths, sources and malformed native events',()=>{
-    const input=validateTabletInput({type:'tablet',action:'input',event:'press',sequence:1,revision:3,x:.2,y:.8,button:0,buttons:1,modifiers:2,path:'/private',qml:'unsafe'});
-    assert.deepEqual(input,{type:'tablet',action:'input',sequence:1,revision:3,event:'press',x:.2,y:.8,button:0,buttons:1,modifiers:2});
+    const input=validateTabletInput({type:'tablet',action:'input',event:'press',sequence:1,revision:3,frameSequence:1,x:.2,y:.8,button:0,buttons:1,modifiers:2,path:'/private',qml:'unsafe'});
+    assert.deepEqual(input,{type:'tablet',action:'input',sequence:1,revision:3,event:'press',frameSequence:1,x:.2,y:.8,button:0,buttons:1,modifiers:2});
     for(const patch of [{x:Infinity},{y:-.1},{button:8},{buttons:42},{modifiers:16},{event:'evaluate'},{sequence:0}])assert.throws(()=>validateTabletInput({...input,...patch}));
     assert.throws(()=>validateTabletInput({type:'tablet',action:'input',event:'key',key:'file:///x',sequence:1,modifiers:0}));
     assert.equal(validateTabletInput({type:'tablet',action:'input',event:'text',text:'Überte 世界',sequence:1}).text,'Überte 世界');
@@ -31,9 +31,9 @@ test('authority revision, ordered input, frame acknowledgement and native PNG br
         assert.throws(()=>session.receive({type:'tablet',action:'home',sequence:2,revision:2}),/Stale/);
         assert.throws(()=>session.receive({type:'tablet',action:'home',sequence:1,revision:3}),/Repeated/);
         await writeFile(`${framePath}.3.1.png`,png);
-        await session.receiveNative({type:'tablet',kind:'frameReady',revision:3,sequence:1,width:1,height:1,surface:'tablet'});
+        await session.receiveNative({type:'tablet',kind:'frameReady',navigationSequence:1,revision:3,sequence:1,width:1,height:1,surface:'tablet'});
         assert.equal(browser[0].mime,'image/png');assert.deepEqual(Buffer.from(browser[0].data,'base64'),png);
-        session.receive({type:'tablet',action:'frameAck',sequence:2,revision:3,frameSequence:1});assert.equal(native.at(-1).action,'frameAck');
+        session.receive({type:'tablet',action:'frameAck',sequence:2,revision:3,frameSequence:1,displayed:true});assert.equal(native.at(-1).action,'frameAck');
         revision=4;await session.receiveNative({type:'tablet',kind:'state',revision:3,visible:true,loading:false,screen:'Home'});assert.equal(browser.length,1);
         active=false;assert.throws(()=>session.receive({type:'tablet',action:'open',sequence:3}),/permissions/);
         session.close();assert.throws(()=>session.receive({type:'tablet',action:'open',sequence:4}),/ended/);
@@ -42,8 +42,8 @@ test('authority revision, ordered input, frame acknowledgement and native PNG br
 test('native frame path symlinks are refused before any host bytes reach the browser',async()=>{
     const directory=await mkdtemp(join(tmpdir(),'tablet-test-'));const secret=join(directory,'host.txt'),framePath=join(directory,'frame.png');
     const browser=[],native=[];const session=new TabletSession({framePath,sendNative:item=>native.push(item),sendBrowser:item=>browser.push(item),getRevision:()=>1,isActive:()=>true});
-    try{await writeFile(secret,'private host data');await symlink(secret,`${framePath}.1.1.png`);
-        await session.receiveNative({type:'tablet',kind:'frameReady',revision:1,sequence:1,width:1,height:1,surface:'tablet'});
+    try{session.receive({type:'tablet',action:'open',sequence:1});await writeFile(secret,'private host data');await symlink(secret,`${framePath}.1.1.png`);
+        await session.receiveNative({type:'tablet',kind:'frameReady',navigationSequence:1,revision:1,sequence:1,width:1,height:1,surface:'tablet'});
         assert.deepEqual(browser.map(item=>item.kind),['error']);assert.equal(native.at(-1).action,'frameAck');assert.ok(!JSON.stringify(browser).includes('private host data'));
     }finally{session.close();await rm(directory,{recursive:true,force:true});}
 });
@@ -99,7 +99,7 @@ test('Graphics results retain only validated fields and current pending requests
         assert.deepEqual(browser,[{type:'tablet',kind:'graphics',revision:1,schemaVersion:1,requestId:1,operation:'request'}]);
         session.receive(ack(2,1));assert.equal(native.length,0,'Unsolicited result cannot update native controls');
         session.receive(ack(1,2,{token:'not forwarded',path:'/operator'}));
-        assert.deepEqual(native,[ack(1,2)]);
+        assert.deepEqual(native,[{...ack(1,2),navigationSequence:0}]);
         session.receive(ack(1,3));assert.equal(native.length,1,'Pending result is consumed once');
         await session.receiveNative(request(1));assert.equal(browser.length,1,'Replayed native request is not reapplied');
         await session.receiveNative(request(2));await session.receiveNative(request(3));

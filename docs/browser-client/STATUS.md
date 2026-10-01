@@ -4,8 +4,203 @@ Last updated: 2026-10-01. **Original baseline passed; additional mandatory Table
 
 ## Current implementation and next step
 
+Current publication checkpoint (2026-10-01,19:57UTC): all914registered
+component contracts pass with zero skips(11.458seconds), the production build
+passes(3.83seconds), and all34required repository suites pass(165.99seconds).
+The exact native-density Firefox helper is included. Genuine full Create in
+both engines and Firefox Hub fluidness remain failing, with retained evidence.
+The reviewed select-all and stale-frame fixes are separate pending proposals.
+No completion, optimization gain, physical microphone or endurance pass is claimed.
+
+Historical continuation checkpoint (2026-10-01,19:52UTC): the actual stock
+Firefox156 helper now admits exact1280x900 at the original5/3density in1.866s.
+The former explicit DPR emulation produced a Float32-rounded density and was
+correctly refused. Eleven portable contracts preserve exact dimensions,
+native density, window ownership and the original ten-second bound.
+[Positive and negative actual geometry evidence](evidence/firefox-native-density-sizing-20261001.json).
+
+The native Create failure is intermittent across fields in both stock engines,
+not specific to Red. The ordinary source-coherent Chromium attempt committed
+Red/Green but retained Blue239 and dimensionY.2; Firefox now reaches real UI
+and fails the same unchanged final-property gate becauseZ remains.2 instead
+of1.1, with no Tablet refusal. Both
+restore the exact seven original entities. A private additional-read diagnostic
+commits all fields, but may change event timing and does not prove a shipping
+fix. A bounded native WebEngine select-all completion correction is under
+review; no property setter, synthetic native change or relaxed oracle is used.
+[Ordinary retained failure](evidence/tablet-create-ordinary-input-loss-20261001.json),
+[separate diagnostic](evidence/tablet-create-atomic-focus-20261001.json).
+
+The new actual short Firefox Hub CPU/upload diagnostic is source/distribution
+coherent. Initial model-job readiness is observed by21.280s; walking/rejoined
+walking remains26.63/24.88FPS and all four unchanged fluid gates fail. Render
+submission accounts for97.6/98.3percent of sampled idle synchronous task time.
+No static image uploads were recorded in either idle phase; cold image uploads
+still reach280/286ms. Recorded upload sums are lower bounds because bucket and
+source caps were reached. Renderer-internal timing is the next performance
+step, with both old experiments off. This establishes a measured location,
+not an optimization gain.
+[Actual source-bound numeric evidence](evidence/hub-frame-cpu-upload-diagnostic-firefox-20261001.json).
+
+Historical continuation checkpoint (2026-10-01,19:14UTC): the default-off frame
+CPU diagnostic and exact WebGL2 upload-overload followup are integrated at
+World57b74/main76b2a. All35focused diagnostic/rig cases pass in1.05seconds,
+including a genuine-empty-rig guard that preserves the100ms retry. The production
+build passes in2.69seconds. The registered full component suite passes903/903
+without skips(11.58seconds), including all11upload-profile contracts. The
+required repository suite passes34/34(217.57seconds). Genuine Qt5.15.3
+input/root tests also pass.
+This adds measurements, not a claimed rendering or loading improvement.
+
+The first Firefox Create attempt failed before UI admission because the actual
+fractional-DPI window was899CSS pixels high for a900request. Read-only probes
+show899/901nearest WM heights and a viewport API that produces900at unchanged
+DPR while its acknowledgement times out. Two attempted parent WM-only repairs
+failed and were fully removed; no actual900fix is claimed. A bounded public-API
+fallback is being reviewed, with exact size/density verification retained.
+The source-attested private atomic Red-focus query is prepared separately;
+its normal insertion/blur and all property/cleanup gates remain unchanged.
+
+Historical continuation checkpoint (2026-10-01,18:45UTC): the six source-frozen
+production Hub cohorts now cover baseline, shader scheduling and foreground
+texture preparation in stock Chromium154 and Firefox156. Chromium passes all
+four fluid gates in every cohort. Firefox loads, moves with native error below
+0.7mm and rejoins, but fails all four fluid gates; walking ranges15–25FPS.
+The three-second model-job readiness upper bounds are20.916/20.457/20.139s
+for Chromium and21.745/25.529/33.011s for Firefox. Single2048/4096 image uploads
+still block; foreground initialization in Firefox reaches399ms. These individual
+live snapshots establish no causal loading gain. Both experiments stay disabled.
+[Actual samples, source/distribution hashes and per-session transfer totals](evidence/hub-current-loading-comparison-20261001.json).
+
+The source-reviewed native WebEngine text-completion queue and exact VM
+fixture dependencies are now integrated. It preserves real insert/blur behavior,
+orders later input behind the asynchronous callback, bounds64commands/262144
+JSON UTF16 units/five seconds and cancels immediately on navigation/revocation.
+The native rig cache now timestamps valid complete samples from delivery,
+retaining the100ms cadence; no actual speed or bootstrap correction is inferred.
+All57focused contracts, the full872/872 component suite(11.02seconds) and the genuine Qt5.15.3
+input/root tests pass. A fresh owned8095 copy has the exact reviewed QML and
+bridge plus bounded diagnostic/readiness instrumentation. The source-coherent Chromium Create run now proves the genuine Name blur
+change, Green170/Blue220 and dimensions0.7/0.9/1.1 through independent native
+domain observation. Its first Red input remains0 after one explicit native
+text-target refusal, so whole editing/deletion acceptance fails. All seven
+original entities are verified unchanged after finally cleanup; no retries or
+property setters substitute for UI input.
+[Retained result](evidence/tablet-create-ordered-text-red-failure-20261001.json).
+The Firefox equivalent and a narrow readonly Red focus diagnosis are next.
+
+
+The tmux checkpoint was resumed by the user. Managed baseline services were
+verified alive; the owned gateway8090 was then restarted after the reviewed
+capture-readiness integration. The unchanged baseline observer and unrelated
+services were preserved. Three agents continue independent TMP proposals.
+The goal is active; no endurance run is scheduled.
+Intentional uncommitted changes remain on this branch. The original tracked
+patch, untracked backup, frozen proposals and exact handoff remain in
+`build/resume-checkpoint/2026-10-01-tmux/HANDOFF.txt`.
+
+The most recent full component run, before the later gesture, root-capture and
+foreground amendments below, passed **770/770 component tests** without skips
+(11.61seconds) and the production build. This includes the unchanged actual localhost HTTP
+source-cache contract and new ordinary-CI Tablet/Create/popup and nineteen-gate
+Jenkins helper contracts. The required repository rerun passes **34/34** suites
+(173.14 seconds). Exact-buffer FST graph memoization now avoids repeated parsed
+metadata inspection for zero/unknown graphs; positive trees are weakly retained,
+and every consumer retains current authority and independently owned geometry
+and materials. All **8/8 actual FST WebGL2 cases** pass in both bundled engines
+(22.4 seconds). Fresh source-coherent stock-browser Hub runs confirm 97 graph
+inspections and 144 memo hits, without image omission. First observed complete
+model readiness remains 22.7–23.8 seconds. Firefox still fails all four fluid
+gates; Chromium fails one reconnect stall gate. These live snapshots do not
+establish an isolated loading-speed improvement.
+
+Displayed Tablet frames now own the native input surface: failed/superseded
+decodes and automatic backpressure releases cannot redirect input. All20 actual
+Chromium/Firefox canvas cases pass, including real delayed PNG decodes, exact
+pixels and bitmap disposal. The bounded held-gesture/navigation-generation
+correction is integrated: 55 focused CPU cases pass. The real combined browser
+run passed 26/28; both failures were a new test releasing pending pointer capture
+before any event established it. Genuine trusted pointer movement now proves
+both capture events, one native cancellation and a usable subsequent gesture;
+the corrected pair passes in Chromium and Firefox. The consolidated run now
+passes all 30 shader-warmup and Tablet canvas/navigation cases in 51.2 seconds.
+The fixed passive Qt observer proves that the native profile popup
+does open. Its C++-created GUI root lacks a QML engine, so the QML callback grab
+overload refuses that root. The bounded public C++ root-grab correction now
+passes a genuine isolated Qt pixel/lifetime test, including ownership refusal,
+reparent revocation, receiver destruction and actual result release. Full
+native/browser profile selection and persistence now pass in both stock engines:
+each genuine run records seventeen setting effects and thirteen painted-popup
+checks, including 100/80/60/Custom70% and leave/rejoin persistence. This proves
+controls and framebuffer dimensions, not complete native rendering parity or
+Hub performance. [Exact source-coherent reports](GRAPHICS_OWN_ROOT_VERIFICATION.md).
+Create section/color-picker calibration passes with source-coherent native
+captures and all seven baseline entities preserved, but Spatial axes are clipped
+by native CSS. Calibration is not editing/deletion acceptance.
+
+The default-off shader scheduling candidate passes all four actual GPU cases
+in 9.9 seconds: exact RGBA across 21 animated frames, native MASK/BLEND behavior,
+authority cancellation and strict zero resource cleanup. Earlier fixture failures
+are retained: BLEND intentionally uses ordinary Three callbacks, and Three's
+shared DFG lookup texture requires complete authored-renderer ownership at
+test teardown. Actual tracked GL deletions now match allocations; no counters
+or checks were weakened. A subsequent idempotent-close fixture amendment passes
+six lifecycle units and the consolidated GPU rerun. [Exact GPU reports and retained
+failures](evidence/graphics-warmup-gpu-20261001.json). No Hub speed benefit
+or default activation is claimed. Separate static texture preparation passes all
+12 actual WebGL cases in both engines (24.2 seconds), with identical pixels,
+correct Source/sampler reuse and strict zero teardown. The reviewed foreground
+World integration and abort-aware lifetime followup now pass63 focused CPU cases
+and all twelve actual GPU cases. These cover real HTMLImage/ImageBitmap and
+approved native KTX, independently projected visible pixels, actual one/two
+sampler allocations, lazy offscreen reveal and zero GPU/reference teardown.
+All four current shader cases also pass. The combined run retains two positive
+Create editing failures caused by overlapping authentic arrow hit targets; the
+narrow table-row-group fix subsequently passes all four actual browser cases
+in15.21seconds; the native editing/deletion journey remains pending.
+[Current GPU reports and retained failures](evidence/foreground-textures-gpu-20261001.json).
+Both experiments remain off by default until coherent public-world comparison.
+
+The trusted loaded QML capture Item must now acknowledge a revision-bound probe
+before any GPU grab. Probe plus first draw retain the original total30-second
+deadline; warm draws retain8 seconds. Twenty-three source/VM contracts pass;
+genuine source-coherent profile/Custom acceptance passes in both stock engines and Create
+section/picker/edit/delete remains pending. The hosted GPU crash-cleanup
+correction now passes33 contracts, including real owned process lifecycles.
+An unreadable /proc record remains a refusal; only positively confirmed exit
+permits cleanup, with bounded settling for the actual Linux executable-to-zombie
+transition. Hosted and full isolated nineteen-gate Jenkins reruns remain pending.
+The latest current-source stock Chromium Hub baseline did connect, then received
+an empty entity snapshot and lost its native bridge. No loading-speed or fluid
+result is inferred from this failure; source and distribution hashes remained
+stable. The copied bounded private diagnostic run subsequently loads293models, moves
+4.254m and agrees with native position within0.741mm; its fresh application
+heartbeat succeeds. One joint-rotation read takes268ms, but this does not identify
+the first disconnect cause. A subsequent ordinary production Chromium run passes
+loading, movement and all four unchanged steady/walk/reconnect fluid gates.
+The first bootstrap failure remains retained. Default-off candidate comparisons
+and current Firefox proof are next; no isolated speed benefit is claimed.
+The subsequent current full component run passes846/846 cases in10.68seconds,
+without skips; after the six new lit-oracle cases,852/852 pass in10.43seconds.
+Six stale readiness fixtures initially omitted the production
+`grabOwned` dependency; the test now executes the exact current QML helper and
+retains all existing deadlines, cancellation and queued-frame assertions.
+Fourteen focused readiness/root cases pass. Production build and whitespace checks
+pass; the full actual browser rerun passes168/168 cases without skips or flaky
+results in412.03seconds, and the prescribed repository rerun passes34/34 in
+178.44seconds. Actionlint and the repository-prescribed Zizmor medium-severity
+gate pass; a separate full-severity scan retains six existing low-severity
+self-repository syntax findings. The genuine native Create run reaches one own Cube rez and browser delivery,
+then fails Name commit. Exact finally cleanup verifies all seven baseline
+entities unchanged. A bounded asynchronous WebEngine text/Tab ordering correction
+is under review; full Name/RGB/XYZ/List editing acceptance remains pending.
+The new
+opt-in strict lit Image oracle passes21 CPU contracts but has no native lit
+acceptance; environment parity and the actual unlit-material defect remain open.
+The latest published commit is unchanged; expanded scope remains unfinished.
+
 Published branch: `feature/main/browser-client`, commit
-`cee2402852b77be38d35882e41c89bde80c64a90`, draft PR1023. The goal remains active;
+`79c5a82e638ec9db6554a60b26a5cf7997935e63`, draft PR1023. The goal remains active;
 no endurance run is required or scheduled.
 
 The newest loading change coalesces session-owned FST/material/texture-metadata
@@ -72,27 +267,48 @@ Jenkins agent is a candidate for complete repeatable isolated native/browser CI;
 the root-owned namespace smoke actually passed private ports, tmp/X isolation
 and nested normal unshare/bwrap. The corrected preparation installer namespace
 also passed with all five capability sets zero. Complete Jenkins execution is
-still unproven; the exact-source isolated runner is implemented and under review.
+still unproven. The new isolated `overte-browser-native-ci` job was created through
+the official Jenkins CLI, its sandboxed definition read back, and its first run
+failed against exact79c5 because Fedora lacks xvfb-run. The reviewed replacement
+owns the already verified Xvfb directly, authenticates its exact PID/UID/cookie,
+and preserves all nineteen gates. Thirty-one CPU contracts and an actual
+authenticated owned X11 qualification pass; complete Jenkins rerun remains open.
+Existing jobs remain intact. Hosted79c5 browser CI also fails the strict signed
+profile parent-permission check; a fixed read-only diagnostic is added before
+any permission correction. No sandbox/profile checks were bypassed.
 
-An additional independent native Image comparison connected successfully and
-verified deletion of all four owned fixtures while preserving the seven baseline
-entities. Its pixel test failed because a universal variance threshold rejected
-the valid dark original texture: the source itself has lower variance than the
-threshold. Native/source correlation was0.959 with1.50RGB mean absolute error.
-The content-derived oracle is being corrected; no native Image parity pass is
-claimed from this failed run, and its source-frozen failure remains preserved.
+Fresh source-coherent normal native/Chromium154/Firefox156 Image comparisons now
+pass four unlit original/compressed opaque/mask cases and both pair comparisons.
+The deterministic area reducer retained all source/color/mask thresholds. A first
+Firefox run exposed native TAA mask instability; the corrected readiness now
+requires actual normal antialiasing readback, 16 new TAA frames and three bounded
+pairwise-stable captures. All earlier failures remain in
+[the actual evidence](evidence/native-image-runtime-20261001.json). Both latest
+runs deleted their four owned fixtures and preserved all seven baseline entities.
+No physical microphone, full Image feature parity or Hub latency claim follows.
 
-Further actual cohorts corrected Canvas sampling and explicit emissive Image
-presentation: the browser now matches its audited source at0.88RGB error and
-0.986detail correlation. The live native64-grid Canvas oracle still fails0.9;
-independent native Image parity remains open. Bounded CPU/Pillow analysis of the
-same screenshot passes0.959correlation, exposing a remaining Canvas reduction
-sampling issue. A deterministic area reducer is being prepared. The author counts three
-frames strictly after FINISHED and invalidates stale render-branch signals.
-[All five actual negative cohorts](evidence/native-image-runtime-20261001.json)
-remain retained; no pixel threshold was lowered. The added preset selector has
-eleven CPU/native-source contracts and six exact read-only kernel mounts;
-its real native Qt click journey is running.
+The native Graphics profile journey genuinely applied thirteen effects, including
+80/60/100% presets and Custom70%. Its subsequent keyboard return failed because
+the saved supposed popup was closed. Full profile journeys in both engines remain
+pending; the control/effect assertions were preserved. Genuine Create discovery
+also showed that canonical native Cube entities are delivered as Box/Cube; the
+strict single-owned cleanup now supports that exact alias. An initial failed
+alias cohort required independent exact-ID/timestamp/zero-child cleanup and
+fresh verification of all seven baseline identities. Subsequent discovery runs
+cleaned up correctly but showed skeleton HTML and stale tab captures, so they
+are not functional acceptance. A separate test gateway now observes fixed native
+route, controls, fonts and glyph painting without changing the app. Its first
+actual attempt timed out before the first Tablet frame and removed all owned
+processes/fixtures. Actual Properties/List edit/delete remains required.
+
+Current FST admission fixtures pass actual original-image omission and exact
+rendering in both engines, including shared sources and skinned geometry. The
+owned Hub cache census proves zero original Texture nodes in all 92 supported
+native FBX graphs: template-first loading saves no image requests there. The next
+revision preserves early geometry for zero/unknown graphs, reuses the same
+prepared-buffer producer and loads replacement maps early only with a proven
+omission. Native empty end records now have nine actual Three/native-writer
+contracts without accepting unnamed payloads or ambiguous IDs.
 
 The final repository rerun exposed a pre-existing cancellation-fixture race:
 `exists()` could observe an empty identity marker during `write_text()`. The
@@ -101,7 +317,7 @@ all original cancellation/deadline/process-reaping assertions are retained.
 The thirteen real self-tests and all thirty-four quick suites passed afterward
 (200.67seconds). The original failure log remains private and is not called a pass.
 
-Next: finish the content-derived native Image proof and publish the reviewed
+Next: finish the zero-benefit FST ordering correction and publish the reviewed
 loading/Graphics/CI checkpoint, run complete isolated CI, and complete
 safe Create/edit/delete through the actual Tablet, then measure the resource
 and rendering changes in stock Firefox/Chromium `overte_hub`. Continue faster

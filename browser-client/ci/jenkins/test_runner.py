@@ -255,4 +255,7 @@ class PrivateConfiguration(unittest.TestCase):
                 self.assertFalse(result.exists())
 
 
+# The standard CI contract entry point also exercises the owned display helper.
+from test_owned_xvfb import DisplayReadiness, X11Authentication, OwnedGate, EarlySummary
+
 if __name__=='__main__':unittest.main()

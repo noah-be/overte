@@ -13,7 +13,7 @@ test.beforeEach(async({page})=>{
         proof.tablet.setConnected(true);proof.tablet.open();
         proof.tablet.receive({type:'tablet',kind:'state',revision:1,visible:true,loading:false,screen:'Home'});
         const image=document.createElement('canvas');image.width=480;image.height=706;const context=image.getContext('2d')!;context.fillStyle='#285064';context.fillRect(0,0,480,706);
-        proof.tablet.receive({type:'tablet',kind:'frame',revision:1,sequence:1,width:480,height:706,mime:'image/png',surface:'tablet',data:image.toDataURL().split(',')[1]});
+        proof.tablet.receive({type:'tablet',kind:'frame',navigationSequence:1,revision:1,sequence:1,width:480,height:706,mime:'image/png',surface:'tablet',data:image.toDataURL().split(',')[1]});
         (window as any).__tabletProof=proof;
     });
     await expect.poll(()=>page.evaluate(()=>(window as any).__tabletProof.sent.some((item:any)=>item.action==='frameAck'))).toBe(true);
@@ -26,7 +26,7 @@ test('genuine PNG display forwards normalized native pointer, keyboard and navig
     await page.keyboard.press('Control+a');await page.keyboard.type('Overte');await page.keyboard.press('Escape');
     const input=await page.evaluate(()=>(window as any).__tabletProof.sent.filter((item:any)=>item.action==='input'));
     const press=input.find((item:any)=>item.event==='press');
-    expect(press).toMatchObject({button:0,buttons:1,revision:1});
+    expect(press).toMatchObject({button:0,buttons:1,revision:1,frameSequence:1});
     // Native pointer coordinates retain the browser's actual device-pixel rounding.
     expect(Math.abs(press.x-.5)*bounds!.width).toBeLessThanOrEqual(1);
     expect(Math.abs(press.y-.5)*bounds!.height).toBeLessThanOrEqual(1);
@@ -51,6 +51,45 @@ test('responsive tablet pixels and input retain their aspect ratio and obsolete 
     await expect(canvas).toBeHidden();
     expect(await page.evaluate(()=>(window as any).__tabletProof.visible)).toBe(false);
 });
+test('pending or failed dialog PNG decode retains input coordinates from the successfully displayed tablet surface',async({page})=>{
+    await expect.poll(()=>page.evaluate(()=>(window as any).__tabletProof.sent.findLast((item:any)=>item.action==='frameAck'))).toMatchObject({frameSequence:1,displayed:true});
+    await page.evaluate(()=>{
+        const proof=(window as any).__tabletProof,original=window.createImageBitmap.bind(window);let release!:()=>void;
+        const gate=new Promise<void>(resolve=>release=resolve);proof.obsoleteBitmap=undefined;proof.releaseBitmap=()=>{window.createImageBitmap=original;release();};
+        window.createImageBitmap=(async(...args:Parameters<typeof createImageBitmap>)=>{const image=await (original as any)(...args);await gate;return image;}) as typeof createImageBitmap;
+        const image=document.createElement('canvas');image.width=640;image.height=360;const context=image.getContext('2d')!;context.fillStyle='#14aa55';context.fillRect(0,0,640,360);
+        proof.tablet.receive({type:'tablet',kind:'frame',navigationSequence:1,revision:1,sequence:2,width:640,height:360,mime:'image/png',surface:'dialogs',data:image.toDataURL().split(',')[1]});
+    });
+    const canvas=page.getByLabel('Native tablet apps and dialogs');await canvas.click();await page.mouse.wheel(12,24);
+    const pending=await page.evaluate(()=>(window as any).__tabletProof.sent.filter((item:any)=>item.action==='input'&&['press','wheel'].includes(item.event)));
+    expect(pending.at(-1)).toMatchObject({event:'wheel',frameSequence:1});expect(pending.findLast((item:any)=>item.event==='press')).toMatchObject({frameSequence:1});
+    expect(await canvas.evaluate((el:HTMLCanvasElement)=>({width:el.width,height:el.height}))).toEqual({width:480,height:706});
+    await page.evaluate(()=>(window as any).__tabletProof.releaseBitmap());
+    await expect.poll(()=>page.evaluate(()=>(window as any).__tabletProof.sent.findLast((item:any)=>item.action==='frameAck'))).toMatchObject({frameSequence:2,displayed:true});
+    expect(await canvas.evaluate((el:HTMLCanvasElement)=>({width:el.width,height:el.height,pixel:Array.from(el.getContext('2d')!.getImageData(10,10,1,1).data)}))).toEqual({width:640,height:360,pixel:[20,170,85,255]});
+    await page.evaluate(()=>(window as any).__tabletProof.tablet.receive({type:'tablet',kind:'frame',navigationSequence:1,revision:1,sequence:3,width:640,height:360,mime:'image/png',surface:'dialogs',data:'AQID'}));
+    await expect.poll(()=>page.evaluate(()=>(window as any).__tabletProof.sent.findLast((item:any)=>item.action==='frameAck'))).toMatchObject({frameSequence:3,displayed:false});
+    await canvas.click();expect(await page.evaluate(()=>(window as any).__tabletProof.sent.findLast((item:any)=>item.event==='press'))).toMatchObject({frameSequence:2});
+    await page.evaluate(()=>(window as any).__tabletProof.tablet.receive({type:'tablet',kind:'state',revision:2,visible:true,loading:true,screen:'Home'}));
+    const before=await page.evaluate(()=>(window as any).__tabletProof.sent.filter((item:any)=>item.action==='input').length);
+    await canvas.click();await page.keyboard.press('a');await page.mouse.wheel(1,2);
+    expect(await page.evaluate(()=>(window as any).__tabletProof.sent.filter((item:any)=>item.action==='input').length)).toBe(before);
+});
+test('superseded real bitmap decode acknowledges unseen pixels without replacing the latest canvas or leaking its bitmap',async({page})=>{
+    await page.evaluate(()=>{
+        const proof=(window as any).__tabletProof,original=window.createImageBitmap.bind(window);let release!:()=>void;
+        const gate=new Promise<void>(resolve=>release=resolve);proof.bitmaps=[];proof.releaseBitmap=release;
+        let call=0;window.createImageBitmap=(async(...args:Parameters<typeof createImageBitmap>)=>{const index=call++,image=await (original as any)(...args);proof.bitmaps.push(image);if(index===0)await gate;return image;}) as typeof createImageBitmap;
+        function frame(sequence:number,color:string){const image=document.createElement('canvas');image.width=640;image.height=360;const context=image.getContext('2d')!;context.fillStyle=color;context.fillRect(0,0,640,360);return{type:'tablet',kind:'frame',navigationSequence:1,revision:1,sequence,width:640,height:360,mime:'image/png',surface:'dialogs',data:image.toDataURL().split(',')[1]};}
+        proof.tablet.receive(frame(2,'#ff0000'));proof.tablet.receive(frame(3,'#14aa55'));
+    });
+    await expect.poll(()=>page.evaluate(()=>(window as any).__tabletProof.sent.find((item:any)=>item.action==='frameAck'&&item.frameSequence===3))).toMatchObject({displayed:true});
+    await page.evaluate(()=>(window as any).__tabletProof.releaseBitmap());
+    await expect.poll(()=>page.evaluate(()=>(window as any).__tabletProof.sent.find((item:any)=>item.action==='frameAck'&&item.frameSequence===2))).toMatchObject({displayed:false});
+    const canvas=page.getByLabel('Native tablet apps and dialogs');expect(await canvas.evaluate((el:HTMLCanvasElement)=>Array.from(el.getContext('2d')!.getImageData(10,10,1,1).data))).toEqual([20,170,85,255]);
+    expect(await page.evaluate(()=>(window as any).__tabletProof.bitmaps.map((image:ImageBitmap)=>image.width))).toEqual([0,0]);
+    await canvas.click();expect(await page.evaluate(()=>(window as any).__tabletProof.sent.findLast((item:any)=>item.event==='press'))).toMatchObject({frameSequence:3});
+});
 test.describe('touch navigation',()=>{
     test.use({hasTouch:true});
     test('small viewport wraps all visitor controls and touch input keeps native coordinate mapping',async({page})=>{
@@ -60,7 +99,10 @@ test.describe('touch navigation',()=>{
         const modulePath='/src/tablet.ts';const {BrowserTablet}=await import(modulePath);const holder=document.createElement('div');Object.assign(holder.style,{position:'fixed',inset:'0',zIndex:'100'});document.body.append(holder);
         proof.tablet=new BrowserTablet(holder,{send:(value:unknown)=>proof.sent.push(value),onStatus:()=>{},onVisibility:()=>{},fileURL:(name?:string)=>`/visitor-files${name?'?name='+encodeURIComponent(name):''}`});proof.tablet.setConnected(true);proof.tablet.open();proof.tablet.receive({type:'tablet',kind:'state',revision:1,visible:true,loading:false,screen:'A long application state that must wrap in a small viewport'});
         const snapshots=proof.tablet.snapshots;const blob=new Blob(['layout fixture'],{type:'application/octet-stream'});snapshots.link('scene.png',blob);snapshots.link('scene.gif',blob);
+        const image=document.createElement('canvas');image.width=480;image.height=706;const context=image.getContext('2d')!;context.fillStyle='#285064';context.fillRect(0,0,480,706);
+        proof.tablet.receive({type:'tablet',kind:'frame',navigationSequence:1,revision:1,sequence:2,width:480,height:706,mime:'image/png',surface:'tablet',data:image.toDataURL().split(',')[1]});
     });
+    await expect.poll(()=>page.evaluate(()=>(window as any).__tabletProof.sent.findLast((item:any)=>item.action==='frameAck'&&item.frameSequence===2))).toMatchObject({displayed:true});
     for(const label of ['Back','Home','Close tablet','Upload files','Visitor files']){
         const button=page.getByRole('button',{name:label,exact:true});await expect(button).toBeVisible();const box=await button.boundingBox();expect(box!.x).toBeGreaterThanOrEqual(0);expect(box!.x+box!.width).toBeLessThanOrEqual(360);expect(box!.y+box!.height).toBeLessThan(560);
     }
@@ -141,4 +183,51 @@ test('visitor file UI consumes the exact HTTP inventory wrapper and transfers ac
     const download=page.waitForEvent('download');await page.getByRole('link',{name:'Visitor 世界.bin (1 KiB)',exact:true}).click();expect((await download).suggestedFilename()).toBe('Visitor 世界.bin');
     await page.getByRole('button',{name:'Delete Visitor 世界.bin',exact:true}).click();await expect(page.getByText('No visitor files yet.')).toBeVisible();expect(files.size).toBe(0);
     await page.evaluate(()=>(window as any).__visitorFiles.dispose());
+});
+test('held pointer keeps its down-frame coordinates through a genuine dialog draw and releases before another gesture',async({page})=>{
+ const canvas=page.getByLabel('Native tablet apps and dialogs'),down=await canvas.boundingBox();expect(down).not.toBeNull();
+ await page.mouse.move(down!.x+down!.width*.25,down!.y+down!.height*.25);await page.mouse.down();
+ await page.evaluate(()=>{const proof=(window as any).__tabletProof,image=document.createElement('canvas');image.width=640;image.height=360;image.getContext('2d')!.fillRect(0,0,640,360);proof.tablet.receive({type:'tablet',kind:'frame',revision:1,navigationSequence:1,sequence:2,width:640,height:360,mime:'image/png',surface:'dialogs',data:image.toDataURL().split(',')[1]});});
+ await expect.poll(()=>page.evaluate(()=>(window as any).__tabletProof.sent.findLast((item:any)=>item.action==='frameAck'&&item.frameSequence===2))).toMatchObject({displayed:true});
+ await page.mouse.move(down!.x+down!.width*.6,down!.y+down!.height*.5);await page.mouse.up();
+ const inputs=await page.evaluate(()=>(window as any).__tabletProof.sent.filter((item:any)=>['press','move','release'].includes(item.event)));
+ expect(inputs.at(-1)).toMatchObject({event:'release',frameSequence:1});const move=inputs.findLast((item:any)=>item.event==='move');expect(move.frameSequence).toBe(1);expect(Math.abs(move.x-.6)*down!.width).toBeLessThanOrEqual(1);expect(Math.abs(move.y-.5)*down!.height).toBeLessThanOrEqual(1);
+ await canvas.click();expect(await page.evaluate(()=>(window as any).__tabletProof.sent.findLast((item:any)=>item.event==='press'))).toMatchObject({frameSequence:2});
+});
+test('lost browser pointer capture cancels exactly the owned native gesture',async({page})=>{
+ const canvas=page.getByLabel('Native tablet apps and dialogs'),box=await canvas.boundingBox();
+ await canvas.evaluate(element=>{
+  const proof=(window as any).__tabletProof;proof.captureEvents=[];
+  for(const type of ['gotpointercapture','lostpointercapture'])element.addEventListener(type,event=>proof.captureEvents.push({type:event.type,trusted:event.isTrusted}));
+ });
+ await page.mouse.move(box!.x+box!.width/2,box!.y+box!.height/2);await page.mouse.down();
+ // Pointer Events processes pending capture before the next genuine pointer
+ // event. Establish actual capture before asking the browser to release it.
+ await page.mouse.move(box!.x+box!.width/2+4,box!.y+box!.height/2);
+ await expect.poll(()=>page.evaluate(()=>(window as any).__tabletProof.captureEvents)).toEqual([{type:'gotpointercapture',trusted:true}]);
+ await canvas.evaluate((element:HTMLCanvasElement)=>element.releasePointerCapture((window as any).__tabletProof.tablet.activePointer.id));
+ await page.mouse.move(box!.x+box!.width/2+8,box!.y+box!.height/2);
+ await expect.poll(()=>page.evaluate(()=>(window as any).__tabletProof.captureEvents)).toEqual([{type:'gotpointercapture',trusted:true},{type:'lostpointercapture',trusted:true}]);
+ await expect.poll(()=>page.evaluate(()=>(window as any).__tabletProof.sent.findLast((item:any)=>item.event==='cancel'))).toMatchObject({frameSequence:1,button:0,buttons:0});
+ expect(await page.evaluate(()=>(window as any).__tabletProof.sent.filter((item:any)=>item.event==='cancel').length)).toBe(1);
+ const count=await page.evaluate(()=>(window as any).__tabletProof.sent.filter((item:any)=>item.event==='release').length);await page.mouse.up();expect(await page.evaluate(()=>(window as any).__tabletProof.sent.filter((item:any)=>item.event==='release').length)).toBe(count);
+ await canvas.click();expect(await page.evaluate(()=>(window as any).__tabletProof.sent.findLast((item:any)=>item.event==='release'))).toMatchObject({frameSequence:1});
+});
+test('Home back and open require fresh navigation-bound pixels and discard pending or late old frames',async({page})=>{
+ for(const action of ['home','back','open']){
+  await page.evaluate((action:string)=>{
+   const proof=(window as any).__tabletProof,original=window.createImageBitmap.bind(window);let release!:()=>void;const gate=new Promise<void>(resolve=>release=resolve);proof.obsoleteBitmap=undefined;proof.releaseBitmap=()=>{window.createImageBitmap=original;release();};
+   window.createImageBitmap=(async(...args:Parameters<typeof createImageBitmap>)=>{const image=await (original as any)(...args);proof.obsoleteBitmap=image;await gate;return image;}) as typeof createImageBitmap;
+   const canvas=document.createElement('canvas');canvas.width=480;canvas.height=706;canvas.getContext('2d')!.fillRect(0,0,480,706);proof.data=canvas.toDataURL().split(',')[1];proof.beforeView=proof.tablet.navigationSequence;
+   proof.tablet.receive({type:'tablet',kind:'frame',revision:1,navigationSequence:proof.beforeView,sequence:proof.tablet.frameSequence+1,width:480,height:706,mime:'image/png',surface:'tablet',data:proof.data});
+  },action);
+  await expect.poll(()=>page.evaluate(()=>(window as any).__tabletProof.obsoleteBitmap?.width)).toBe(480);
+  if(action==='open')await page.evaluate(()=>(window as any).__tabletProof.tablet.open());else await page.getByRole('button',{name:action==='home'?'Home':'Back',exact:true}).click();
+  await page.evaluate(()=>{const proof=(window as any).__tabletProof;proof.tablet.receive({type:'tablet',kind:'frame',revision:1,navigationSequence:proof.beforeView,sequence:proof.tablet.frameSequence+10,width:480,height:706,mime:'image/png',surface:'tablet',data:proof.data});proof.releaseBitmap();});
+  await expect.poll(()=>page.evaluate(()=>(window as any).__tabletProof.obsoleteBitmap?.width)).toBe(0);
+  const canvas=page.getByLabel('Native tablet apps and dialogs'),before=await page.evaluate(()=>(window as any).__tabletProof.sent.filter((item:any)=>item.action==='input').length);await canvas.click();await page.keyboard.press('Enter');expect(await page.evaluate(()=>(window as any).__tabletProof.sent.filter((item:any)=>item.action==='input').length)).toBe(before);
+  const next=await page.evaluate(()=>{const proof=(window as any).__tabletProof,sequence=proof.tablet.frameSequence+20;proof.tablet.receive({type:'tablet',kind:'frame',revision:1,navigationSequence:proof.tablet.navigationSequence,sequence,width:480,height:706,mime:'image/png',surface:'tablet',data:proof.data});return sequence;});
+  await expect.poll(()=>page.evaluate((next:number)=>(window as any).__tabletProof.sent.findLast((item:any)=>item.action==='frameAck'&&item.frameSequence===next),next)).toMatchObject({displayed:true});
+  await canvas.click();expect(await page.evaluate(()=>(window as any).__tabletProof.sent.findLast((item:any)=>item.event==='press'))).toMatchObject({frameSequence:next});
+ }
 });

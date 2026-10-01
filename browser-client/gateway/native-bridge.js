@@ -158,7 +158,10 @@
             // The new URL can arrive before its asynchronously loaded rig. Sample names
             // with every bulk update so equal-size replacement rigs never retain old mappings.
             var names = avatar.getJointNames();
-            var rotations = avatar.getJointRotations(), translations = avatar.getJointTranslations();
+            // An unloaded native skeleton reports a genuine empty array. No
+            // transform sample can be paired with it; retain the normal retry.
+            var emptyRig = Array.isArray(names) && names.length === 0;
+            var rotations = emptyRig ? [] : avatar.getJointRotations(), translations = emptyRig ? [] : avatar.getJointTranslations();
             var valid = names && rotations && translations && names.length > 0 && names.length <= 1000
                 && rotations.length === names.length && translations.length === names.length;
             var copiedNames = [], copiedRotations = [], copiedTranslations = [];
@@ -170,7 +173,9 @@
                 }) && norm >= 0.99 && norm <= 1.01;
                 if (valid) { copiedNames.push(name); copiedRotations.push({x:q.x,y:q.y,z:q.z,w:q.w}); copiedTranslations.push({x:t.x,y:t.y,z:t.z}); }
             }
-            cached = { model: model, time: now, names: valid ? copiedNames : [], rotations: valid ? copiedRotations : [], translations: valid ? copiedTranslations : [] };
+            // Native bulk reads may wait on the avatar thread. Age the completed
+            // sample from delivery, so a fresh result is not immediately re-read.
+            cached = { model: model, time: valid ? Date.now() : now, names: valid ? copiedNames : [], rotations: valid ? copiedRotations : [], translations: valid ? copiedTranslations : [] };
             rigCache[key] = cached;
         }
         result.jointNames = cached.names; result.jointRotations = cached.rotations; result.jointTranslations = cached.translations;

@@ -5,6 +5,7 @@ import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { Group, PerspectiveCamera, Vector3 } from 'three';
 import { BrowserWorld } from './world';
+import { FstGraphCache } from './fst-graph-cache';
 import { SimulationClock } from './simulation-clock';
 
 function fixture(t: TestContext) {
@@ -28,6 +29,7 @@ function fixture(t: TestContext) {
     modelBatches: new Map(), modelGeometry: new WeakMap(), canvas: { remove() { events.push('canvas-remove'); },
       toBlob(callback: (blob: Blob) => void) { callback(new Blob(['owned visitor capture'], { type: 'image/png' })); } },
   });
+  context.fstGraphCache = new FstGraphCache(context.abort.signal);
   const previousRaf = globalThis.requestAnimationFrame, previousCancel = globalThis.cancelAnimationFrame, previousDocument = globalThis.document;
   globalThis.requestAnimationFrame = () => { events.push('raf'); return 1; };
   globalThis.cancelAnimationFrame = () => {};

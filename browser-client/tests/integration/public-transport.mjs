@@ -71,7 +71,7 @@ try {
         }
         if (message.type === 'tablet' && message.kind === 'frame') {
             frame = message;
-            browser.send(JSON.stringify({ type: 'tablet', action: 'frameAck', sequence: ++tabletSequence, revision: message.revision, frameSequence: message.sequence }));
+            browser.send(JSON.stringify({ type: 'tablet', action: 'frameAck', sequence: ++tabletSequence, revision: message.revision, frameSequence: message.sequence, displayed: false }));
         }
         if (message.type === 'tablet' && message.kind !== 'frame') tabletNotices.push({ kind: message.kind,
             screen: message.screen, loading: message.loading, visible: message.visible, message: message.message });

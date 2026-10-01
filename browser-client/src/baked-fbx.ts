@@ -184,6 +184,93 @@ function groupOpaqueFaces(indices: Int32Array, faceMaterials: Int32Array): void 
   indices.set(groupedIndices); faceMaterials.set(groupedMaterials);
 }
 interface BinaryFbx { bytes:Uint8Array; wide:boolean; header:number; roots:Node[]; tail:number }
+
+export interface FbxTextureAdmissionResult {
+  buffer:ArrayBuffer; removedTextures:number; removedVideos:number; retainedTextures:number;
+  usedEmbeddedMarkers:ReadonlySet<string>;
+}
+/** Conservative, per-parse metadata proof. The cached prepared buffer is never
+ * edited. Unknown/ambiguous formats retain their ordinary loading path. */
+export function inspectFbxOriginalTextures(input:ArrayBuffer):{
+  materials:readonly {id:number;name:string}[];
+  hasRemovableTextures(replacedMaterials:ReadonlySet<number>):boolean;
+  derive(replacedMaterials:ReadonlySet<number>):FbxTextureAdmissionResult;
+}|undefined {
+  if(!(input instanceof ArrayBuffer)||input.byteLength>MAX_BYTES)return undefined;
+  const parsed=parseBinaryFbx(input);if(!parsed)return undefined;
+  const objectRoots=parsed.roots.filter(root=>name(root)==='Objects'),connectionRoots=parsed.roots.filter(root=>name(root)==='Connections');
+  if(objectRoots.length!==1||connectionRoots.length!==1)return undefined;
+  // Native FBXWriter writes empty end records with a nonzero absolute end.
+  // Three treats these as unnamed zero-property nodes; they are not consumers.
+  // Preserve them in serialization, ignoring only the exact empty signature.
+  const emptyEndRecord=(node:Node)=>node.name.length===0&&node.propertyCount===0&&node.properties.length===0&&node.children.length===0;
+  const objects=objectRoots[0].children.filter(node=>!emptyEndRecord(node)),connectionNodes=connectionRoots[0].children.filter(node=>!emptyEndRecord(node));
+  const ids=new Set<number>(),byID=new Map<number,Node>();
+  for(const object of objects){
+    const id=values(object)[0];
+    // Object IDs are the Three/native connection authority. Ambiguous IDs
+    // cannot establish that all consumers of an original texture are replaced.
+    if(typeof id!=='number'||!Number.isSafeInteger(id)||id<1||ids.has(id))return undefined;
+    ids.add(id);byID.set(id,object);
+  }
+  const materials=objects.filter(object=>name(object)==='Material').map(object=>{
+    const data=values(object);return {id:data[0] as number,name:typeof data[1]==='string'?data[1].split('\0')[0]:''};
+  });
+  const textures=objects.filter(object=>name(object)==='Texture'),videos=objects.filter(object=>name(object)==='Video');
+  if(!materials.length||materials.length>4096||textures.length>4096||videos.length>4096)return undefined;
+  const incoming=new Map<number,unknown[][]>(),outgoing=new Map<number,unknown[][]>();
+  for(const connection of connectionNodes){
+    if(name(connection)!=='C')return undefined;
+    const data=values(connection);if(data.length<3||!['OO','OP'].includes(String(data[0]))||!Number.isSafeInteger(data[1])||!Number.isSafeInteger(data[2]))return undefined;
+    const child=data[1] as number,parent=data[2] as number;
+    if(!outgoing.has(child))outgoing.set(child,[]);outgoing.get(child)!.push(data);
+    if(!incoming.has(parent))incoming.set(parent,[]);incoming.get(parent)!.push(data);
+  }
+  const materialIDs=new Set(materials.map(material=>material.id));
+  const filename=(video:Node)=>{
+    const relative=video.children.find(child=>name(child)==='RelativeFilename'),absolute=video.children.find(child=>name(child)==='Filename');
+    const value=relative?values(relative)[0]:undefined,other=absolute?values(absolute)[0]:undefined;
+    return String(value||other||'').split('\0')[0];
+  };
+  const filenameCounts=new Map<string,number>();for(const video of videos){const key=filename(video);filenameCounts.set(key,(filenameCounts.get(key)||0)+1);}
+  const requireCovered=(covered:ReadonlySet<number>)=>{
+    if(!(covered instanceof Set)||covered.size>4096||[...covered].some(id=>!materialIDs.has(id)))throw Error('Invalid complete FBX material replacement proof');
+  };
+  const removable=(texture:Node,covered:ReadonlySet<number>)=>{
+    const id=values(texture)[0] as number,parents=outgoing.get(id)||[],children=incoming.get(id)||[];
+    if(!parents.length||parents.some(data=>data[0]!=='OP'||!materialIDs.has(data[2] as number)||!covered.has(data[2] as number)))return false;
+    return !children.some(data=>data[0]!=='OO'||(!byID.has(data[1] as number)||name(byID.get(data[1] as number)!)!=='Video'));
+  };
+  return {materials:Object.freeze(materials.map(material=>Object.freeze(material))),hasRemovableTextures(covered){
+    requireCovered(covered);return textures.some(texture=>removable(texture,covered));
+  },derive(replacedMaterials){
+    requireCovered(replacedMaterials);
+    const removed=new Set<number>(),removedTextures=new Set<number>();
+    for(const texture of textures){
+      if(!removable(texture,replacedMaterials))continue;
+      const id=values(texture)[0] as number;removed.add(id);removedTextures.add(id);
+    }
+    let removedVideos=0;
+    for(const video of videos){
+      const id=values(video)[0] as number,parents=outgoing.get(id)||[];
+      // FBXLoader aliases embedded bytes by filename across all Video nodes.
+      // Duplicate names can affect a surviving texture even without a direct
+      // connection, so retain their exact original alias/order semantics.
+      if((filenameCounts.get(filename(video))||0)>1||!parents.length)continue;
+      if(parents.every(data=>data[0]==='OO'&&removedTextures.has(data[2] as number))&&!(incoming.get(id)||[]).length){removed.add(id);removedVideos++;}
+    }
+    const usedEmbeddedMarkers=new Set<string>();
+    for(const video of videos){if(removed.has(values(video)[0] as number))continue;const content=video.children.find(child=>name(child)==='Content');
+      if(content)for(const value of values(content))if(typeof value==='string'&&/^overte-embedded-[a-f0-9]{64}$/.test(value)){
+        const mime=({png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',bmp:'image/bmp',webp:'image/webp'} as Record<string,string>)[filename(video).split('.').pop()?.toLowerCase()||''];
+        if(mime)usedEmbeddedMarkers.add(`data:${mime};base64,${value}`);
+      }
+    }
+    if(!removed.size)return {buffer:input,removedTextures:0,removedVideos:0,retainedTextures:textures.length,usedEmbeddedMarkers};
+    const roots=parsed.roots.map(root=>root===objectRoots[0]?{...root,children:root.children.filter(object=>!removed.has(values(object)[0] as number))}:root===connectionRoots[0]?{...root,children:root.children.filter(connection=>{const data=values(connection);return !removed.has(data[1] as number)&&!removed.has(data[2] as number);})}:root);
+    return {buffer:serializeBinaryFbx({...parsed,roots}),removedTextures:removedTextures.size,removedVideos,retainedTextures:textures.length-removedTextures.size,usedEmbeddedMarkers};
+  }};
+}
 function parseBinaryFbx(input:ArrayBuffer):BinaryFbx|null {
   const bytes = new Uint8Array(input); if (bytes.length < 27 || text.decode(bytes.subarray(0, 23)) !== magic) return null;
   safe(bytes.length, MAX_BYTES, 'input length');

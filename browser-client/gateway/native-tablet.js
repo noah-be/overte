@@ -7,6 +7,8 @@ function createBrowserTablet(config) {
     var helper=new OverlayWindow({title:'Browser tablet capture helper',source:config.qmlURL,width:120,height:80,visible:false});
     var approved=false,revision=0,visible=false,closed=false,pending=0,sequence=0,lastScreen='Home',loading=false;
     var deadline=0,lastError='',interval,captureFailed=false,grabbing=null,firstFrame=true,retryCapture=false;
+    var navigationSequence=0;
+    var helperReady=false,helperProbe=0,helperProbeSequence=0,firstDeadline=0;
     var renderJobs=[];
     // This worker supplies protocol, audio and Qt apps. The visitor renders all
     // world geometry locally; avoid rendering a second heavy 3D world here.
@@ -30,9 +32,20 @@ function createBrowserTablet(config) {
     }
     function flush(){var ready=outbox;outbox=[];ready.forEach(function(value){if(!closed&&approved&&revision===value.revision)config.send(value);});}
     function state(){send({kind:'state',visible:visible,screen:lastScreen,loading:loading,effects:effects()});}
+    function captureTimeout(){
+        cancelCapture();helperProbe=0;retryCapture=false;captureFailed=true;loading=false;
+        send({kind:'error',message:'The native tablet did not finish drawing within '+(firstFrame?'30':'8')+' seconds. Use Home after loading completes, or reconnect to retry.'});
+        state();
+    }
     function cancelCapture(){
+        if(captureFailed)firstDeadline=0;
         if(grabbing){grabbing.cancelled=true;helper.sendToQml({kind:'cancelCapture'});}
         pending=0;retryCapture=true;if(!grabbing)captureFailed=false;
+    }
+    function changeView(message){
+        if(typeof message.navigationSequence!=='number'||message.navigationSequence%1!==0||message.navigationSequence<=navigationSequence||message.navigationSequence>9007199254740991)return false;
+        navigationSequence=message.navigationSequence;helper.sendToQml({kind:'resetInput'});cancelCapture();
+        outbox=outbox.filter(function(value){return value.kind!=='frameReady'&&value.kind!=='clipboard';});return true;
     }
     function home(){tablet.loadQMLSource('hifi/tablet/TabletHome.qml');lastScreen='Home';
         Script.setTimeout(function(){if(!closed&&visible&&approved)helper.sendToQml({kind:'focusTablet'});},150);}
@@ -45,17 +58,22 @@ function createBrowserTablet(config) {
     }
     function fromQml(message){
         if(closed)return;
-        if(message.kind==='frame'&&grabbing&&message.sequence===grabbing.sequence&&message.revision===grabbing.revision){
+        if(message.kind==='helperReady'){
+            if(approved&&visible&&!captureFailed&&message.revision===revision&&helperProbe&&message.probe===helperProbe&&firstDeadline&&Date.now()<firstDeadline){helperReady=true;helperProbe=0;}
+            return;
+        }
+        if(message.kind==='frame'&&grabbing&&message.sequence===grabbing.sequence&&message.revision===grabbing.revision&&message.navigationSequence===grabbing.navigationSequence){
             var capture=grabbing;grabbing=null;
-            if(capture.cancelled||!approved||message.revision!==revision||message.cancelled){
+            if(firstFrame&&firstDeadline&&Date.now()>=firstDeadline&&!capture.cancelled){captureTimeout();return;}
+            if(capture.cancelled||!approved||message.revision!==revision||message.navigationSequence!==navigationSequence||message.cancelled){
                 if(retryCapture){retryCapture=false;captureFailed=false;}return;
             }
-            if(message.saved){firstFrame=false;loading=false;var rect=message.tabletRect;
+            if(message.saved){firstFrame=false;firstDeadline=0;loading=false;var rect=message.tabletRect;
                 // Qt QVariant/QJSValue wrappers must not cross JSON serialization.
                 var bounds=rect?{x:Number(rect.x),y:Number(rect.y),width:Number(rect.width),height:Number(rect.height)}:undefined;
-                send({kind:'frameReady',sequence:Number(message.sequence),width:Number(message.width),height:Number(message.height),surface:String(message.surface),tabletRect:bounds,effects:effects()});lastError='';}
+                send({kind:'frameReady',sequence:Number(message.sequence),navigationSequence:navigationSequence,width:Number(message.width),height:Number(message.height),surface:String(message.surface),tabletRect:bounds,effects:effects()});lastError='';}
             else {pending=0;send({kind:'error',message:'The native tablet frame could not be saved.'});}
-        }else if(message.kind==='clipboard'&&approved&&message.revision===revision){
+        }else if(message.kind==='clipboard'&&approved&&message.revision===revision&&message.navigationSequence===navigationSequence){
             send({kind:'clipboard',requestId:Number(message.requestId),text:String(message.text||'')});
         }else if(message.kind==='error'&&approved&&message.revision===revision){
             // The synchronous QML capture rejection has no outstanding GPU grab.
@@ -91,36 +109,48 @@ function createBrowserTablet(config) {
         if(graphics)graphics.poll();
         flush();
         if(closed||!visible||!approved||captureFailed)return;
+        if(firstFrame&&!firstDeadline)firstDeadline=Date.now()+30000;
+        if(!helperReady){
+            if(Date.now()>=firstDeadline){captureTimeout();return;}
+            // QmlWindow silently drops fromScript while its asynchronous source
+            // has no dynamicContent. Reuse one bounded revision-bound probe until
+            // that exact loaded helper acknowledges it; no GPU grab exists yet.
+            if(!helperProbe)helperProbe=++helperProbeSequence;
+            helper.sendToQml({kind:'readyProbe',revision:revision,probe:helperProbe});
+            if(!helperReady)return;
+        }
         if(grabbing||pending){
             if(Date.now()<deadline)return;
-            cancelCapture();retryCapture=false;captureFailed=true;loading=false;
-            send({kind:'error',message:'The native tablet did not finish drawing within '+(firstFrame?'30':'8')+' seconds. Use Home after loading completes, or reconnect to retry.'});
-            state();return;
+            captureTimeout();return;
         }
-        pending=++sequence;deadline=Date.now()+(firstFrame?30000:8000);
-        grabbing={revision:revision,sequence:pending,cancelled:false};
-        helper.sendToQml({kind:'capture',path:config.framePath+'.'+revision+'.'+pending+'.png',revision:revision,sequence:pending});
+        if(firstFrame&&Date.now()>=firstDeadline){captureTimeout();return;}
+        pending=++sequence;deadline=firstFrame?firstDeadline:Date.now()+8000;
+        grabbing={revision:revision,sequence:pending,navigationSequence:navigationSequence,cancelled:false};
+        helper.sendToQml({kind:'capture',path:config.framePath+'.'+revision+'.'+pending+'.png',revision:revision,sequence:pending,navigationSequence:navigationSequence});
     },150);
     return {
         setAuthority:function(nextRevision,allowed){
-            if(revision!==nextRevision||approved!==!!allowed){cancelCapture();outbox=[];revision=nextRevision;approved=!!allowed;lastError='';snapshotRequest=0;firstFrame=true;
+            if(revision!==nextRevision||approved!==!!allowed){helper.sendToQml({kind:'resetInput'});cancelCapture();outbox=[];revision=nextRevision;navigationSequence=0;approved=!!allowed;lastError='';snapshotRequest=0;firstFrame=true;firstDeadline=0;helperReady=false;helperProbe=0;
                 if(graphics)graphics.setAuthority(revision,approved);
-                if(!approved){visible=false;helper.sendToQml({kind:'hide'});}else state();}
+                if(!approved||visible){visible=false;helper.sendToQml({kind:'hide'});}if(approved)state();}
         },
         receive:function(message){
             if(closed||!approved||message.revision!==revision)return;
             if(message.action==='graphicsResult'&&graphics){graphics.receive(message);return;}
-            if(message.action==='open'){visible=true;loading=true;cancelCapture();tablet.toolbarMode=true;home();state();}
-            else if(message.action==='close'){visible=false;cancelCapture();helper.sendToQml({kind:'hide'});state();}
-            else if(message.action==='home'&&visible){cancelCapture();home();state();}
-            else if(message.action==='back'&&visible){cancelCapture();tablet.returnToPreviousApp();state();}
-            else if(message.action==='frameAck'&&message.frameSequence===pending)pending=0;
+            if(message.action==='open'){if(!changeView(message))return;visible=true;loading=true;cancelCapture();tablet.toolbarMode=true;home();state();}
+            else if(message.action==='close'){if(!changeView(message))return;visible=false;cancelCapture();firstDeadline=0;helperProbe=0;helper.sendToQml({kind:'hide'});state();}
+            else if(message.action==='home'&&visible){if(!changeView(message))return;home();state();}
+            else if(message.action==='back'&&visible){if(!changeView(message))return;tablet.returnToPreviousApp();state();}
+            else if(message.action==='frameAck'&&message.frameSequence===pending&&message.navigationSequence===navigationSequence){
+                if(message.displayed===true)helper.sendToQml({kind:'displayFrame',revision:revision,sequence:pending,navigationSequence:navigationSequence});
+                pending=0;
+            }
             else if(message.action==='snapshotResult'&&message.requestId===snapshotRequest){
                 snapshotRequest=0;visible=true;state();
                 Messages.sendLocalMessage(config.snapshotChannel,JSON.stringify({kind:'result',stillPath:message.stillPath,gifPath:message.gifPath,error:message.error}));
                 Script.setTimeout(function(){if(!closed&&approved)helper.sendToQml({kind:'focusTablet'});},750);
             }
-            else if(message.action==='input'&&visible){message.kind='input';helper.sendToQml(message);}
+            else if(message.action==='input'&&visible&&message.navigationSequence===navigationSequence){message.kind='input';helper.sendToQml(message);}
         },
         close:function(){if(closed)return;closed=true;visible=false;outbox=[];Script.clearInterval(interval);
             if(graphics)graphics.close();

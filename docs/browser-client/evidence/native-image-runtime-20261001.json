@@ -1,5 +1,5 @@
 {
-  "scope": "Independent native Image parity remains pending; all real negative cohorts retained. Source oracle and explicit native unlit presentation corrections do not establish whole-Hub latency or complete native parity.",
+  "scope": "Actual normal native Image and both stock browser comparisons pass four unlit original/compressed opaque/mask cases after deterministic area sampling and passive TAA convergence. All earlier failures remain retained. No physical microphone, complete Image/native parity or whole-Hub speed claim.",
   "runs": [
     {
       "startedAt": "2026-10-01T12:02:15.339Z",
@@ -546,6 +546,1963 @@
         "shared/native-ktx.mjs": "5c06f05ab00aa0678e40e56b1bf5c1bc0f6f5578fdbff1a8d4030cf6d4840a97"
       },
       "sourceCoherent": true
+    },
+    {
+      "startedAt": "2026-10-01T13:19:19.966Z",
+      "finishedAt": "2026-10-01T13:20:15.509Z",
+      "completed": true,
+      "scope": "Only an isolated local domain; four owned expiring entities, actual normal native renderer and authenticated browser Image rendering. No public writes, audio, server permissions or native renderer resource patches.",
+      "microphoneRequested": false,
+      "publicWorldWrites": 0,
+      "inputs": [
+        {
+          "name": "opaque",
+          "pngSHA256": "0087b3a3a9c9347b3a592db7b7e4f88fe333aedb7c6bd6aae48ed664c3f98739",
+          "pngBytes": 372063,
+          "ktxSHA256": "665f2c22827bafda51eb0127b69cce6c5d33869a98ae7331b8aafa88985d89f6",
+          "ktxBytes": 393432,
+          "metadataSHA256": "d1c5fb8899b89f3e42788d04f63bec84331317707c00976b4369049ebc11d674"
+        },
+        {
+          "name": "mask",
+          "pngSHA256": "43d594a99f2b8d8412348a45b0556f4af8c1960ccbce0e2b3164c8fa61beba6c",
+          "pngBytes": 94618,
+          "ktxSHA256": "8271f00457196483ecf617df4f644885d35e52fad010ad31b9bd35afe2cc5355",
+          "ktxBytes": 349744,
+          "metadataSHA256": "5e29136bf95ad68a61f34ccafdbb660119e87bb6b01707798a12c1dbb883a8d9"
+        }
+      ],
+      "ownedFixtureCount": 4,
+      "preservedBaselineCount": 7,
+      "cleanupRequested": true,
+      "cleanupVerified": true,
+      "nativeVersion": "2026.04.1",
+      "browserVersion": "154.0.8037.57",
+      "nativeBinarySHA256": "91f3e10c42c1e35d5c8265e9b0007e925844d9bee61a26807118dde6e527887c",
+      "nativeScriptSHA256": "c39d2ee2b8d01a0fcb7f333888b2efba9cbd92738b05884e89b97aa5ee809601",
+      "startSourceSHA256": {
+        "tests/integration/native-image-state.mjs": "9860db230ec828a457a3482b97c490c5acfd7874b71a06a8067f47d16b24e265",
+        "tests/integration/native-image-fixture.js": "211ab79ef25c3faa66708a6780307406ebbddc1d02010a30232347db57c59d80",
+        "tests/integration/native-image-pixels.mjs": "2aa0deb8528ceee4140af8a704c584f6dbb61d28e85eda8f4fd1a3352dd5f5fc",
+        "tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "src/world.ts": "f8eb4c7c781a9561546a9d3e787cd5d32b982a7a8b5f159c523c103c773458c0",
+        "src/compressed-color-session.ts": "e18af74fe59593bf9f1aee0ce7a91f0e6910ed5e903868f646f1311d61c42fcf",
+        "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+        "src/native-compressed-color.ts": "5439b334331980b43f8d7a0d1ea4750d58eec20ae0542a7296288192714e0467",
+        "src/native-alpha-material.ts": "a3515894f69f078222c7e2b543c46ce22f7bd05b58e12f3eaa14aa0a638dcfbb",
+        "src/native-render-state.ts": "af31a1e01576c233c1f7e8a8231dd5c2cc5871cb58b5783bf01f788da70d01df",
+        "src/world-image-cache.ts": "ba45a6125087f8b275c939a5e9e36dadac6879a37cb0fbe50d8c19dd9f1c6af9",
+        "src/world-source-text-cache.ts": "57ccb98bed54e788ed0e2f263e8362ae505f4b3073648dc08c311925e21116b1",
+        "src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+        "shared/native-ktx.mjs": "5c06f05ab00aa0678e40e56b1bf5c1bc0f6f5578fdbff1a8d4030cf6d4840a97"
+      },
+      "sourceSHA256": {
+        "tests/integration/native-image-state.mjs": "9860db230ec828a457a3482b97c490c5acfd7874b71a06a8067f47d16b24e265",
+        "tests/integration/native-image-fixture.js": "211ab79ef25c3faa66708a6780307406ebbddc1d02010a30232347db57c59d80",
+        "tests/integration/native-image-pixels.mjs": "2aa0deb8528ceee4140af8a704c584f6dbb61d28e85eda8f4fd1a3352dd5f5fc",
+        "tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "src/world.ts": "f8eb4c7c781a9561546a9d3e787cd5d32b982a7a8b5f159c523c103c773458c0",
+        "src/compressed-color-session.ts": "e18af74fe59593bf9f1aee0ce7a91f0e6910ed5e903868f646f1311d61c42fcf",
+        "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+        "src/native-compressed-color.ts": "5439b334331980b43f8d7a0d1ea4750d58eec20ae0542a7296288192714e0467",
+        "src/native-alpha-material.ts": "a3515894f69f078222c7e2b543c46ce22f7bd05b58e12f3eaa14aa0a638dcfbb",
+        "src/native-render-state.ts": "af31a1e01576c233c1f7e8a8231dd5c2cc5871cb58b5783bf01f788da70d01df",
+        "src/world-image-cache.ts": "ba45a6125087f8b275c939a5e9e36dadac6879a37cb0fbe50d8c19dd9f1c6af9",
+        "src/world-source-text-cache.ts": "57ccb98bed54e788ed0e2f263e8362ae505f4b3073648dc08c311925e21116b1",
+        "src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+        "shared/native-ktx.mjs": "5c06f05ab00aa0678e40e56b1bf5c1bc0f6f5578fdbff1a8d4030cf6d4840a97"
+      },
+      "sourceCoherent": true,
+      "rawReportSHA256": "2e66cc910b76b8223282e7ef5c5ac0bd0ed96346502f6b0b32ae89e689743a37",
+      "cases": [
+        {
+          "name": "opaque",
+          "mode": "original",
+          "nativePixels": {
+            "width": 1024,
+            "height": 745,
+            "crop": {
+              "x": 334,
+              "y": 195,
+              "width": 355,
+              "height": 354
+            },
+            "backgroundCoverage": 0,
+            "variance": 142.1220596928688
+          },
+          "browserPixels": {
+            "width": 1024,
+            "height": 768,
+            "crop": {
+              "x": 329,
+              "y": 201,
+              "width": 365,
+              "height": 365
+            },
+            "backgroundCoverage": 0,
+            "variance": 223.2396229604201
+          },
+          "auditedSourceComparison": {
+            "native": {
+              "rgbMAE": 1.8242452090277756,
+              "correlation": 0.9389902913492263,
+              "maskMismatch": 0
+            },
+            "browser": {
+              "rgbMAE": 0.7050312774347152,
+              "correlation": 0.9926050803334365,
+              "maskMismatch": 0
+            }
+          },
+          "crossEngine": {
+            "rgbMAE": 1.989080396527075,
+            "correlation": 0.9456113853013194,
+            "maskMismatch": 0
+          },
+          "browserMaterialStates": [
+            {
+              "isCompressedTexture": false,
+              "colorSpace": "srgb",
+              "transparent": true,
+              "depthWrite": false,
+              "side": 2,
+              "forceSinglePass": true
+            }
+          ],
+          "compressedCache": {
+            "retainedBytes": 393432,
+            "retainedEntries": 1,
+            "active": 0,
+            "queued": 0,
+            "readers": 0
+          },
+          "nativePNG_SHA256": "67320d3b8fa0bada1b47ad92fad5b5bcae179316c12f5a51f7ec980f50c61674",
+          "browserPNG_SHA256": "90daf06dbc56d8f4894ce97c668bd9938f9c59e19440914a36cf23ed240a0bf6",
+          "nativeReadiness": {
+            "resourceState": 3,
+            "renderFrames": 3,
+            "finishedFrameBaseline": 0,
+            "renderJobAvailable": true,
+            "renderJobEnabled": true,
+            "entitiesEnabled": true
+          }
+        },
+        {
+          "name": "opaque",
+          "mode": "compressed",
+          "nativePixels": {
+            "width": 1024,
+            "height": 745,
+            "crop": {
+              "x": 334,
+              "y": 195,
+              "width": 355,
+              "height": 354
+            },
+            "backgroundCoverage": 0,
+            "variance": 182.1970060826916
+          },
+          "browserPixels": {
+            "width": 1024,
+            "height": 768,
+            "crop": {
+              "x": 329,
+              "y": 201,
+              "width": 365,
+              "height": 365
+            },
+            "backgroundCoverage": 0,
+            "variance": 207.07234161334964
+          },
+          "auditedSourceComparison": {
+            "native": {
+              "rgbMAE": 1.5353182254080833,
+              "correlation": 0.9707762825826386,
+              "maskMismatch": 0
+            },
+            "browser": {
+              "rgbMAE": 0.6651569847354731,
+              "correlation": 0.9922821533300841,
+              "maskMismatch": 0
+            }
+          },
+          "crossEngine": {
+            "rgbMAE": 1.4953103498911906,
+            "correlation": 0.9753908805301362,
+            "maskMismatch": 0
+          },
+          "browserMaterialStates": [
+            {
+              "isCompressedTexture": true,
+              "colorSpace": "srgb",
+              "transparent": true,
+              "depthWrite": false,
+              "side": 2,
+              "forceSinglePass": true
+            }
+          ],
+          "compressedCache": {
+            "retainedBytes": 393432,
+            "retainedEntries": 1,
+            "active": 0,
+            "queued": 0,
+            "readers": 0
+          },
+          "nativePNG_SHA256": "51b4f3a65f75331a2ddad84443e185aefc3c36b88107940b4e47f83e7a0a396d",
+          "browserPNG_SHA256": "d166290c4c4cd14799ec3571c95e0af69a6788ad4429f9ee63cd4bf042108fca",
+          "nativeReadiness": {
+            "resourceState": 3,
+            "renderFrames": 16,
+            "finishedFrameBaseline": 12,
+            "renderJobAvailable": true,
+            "renderJobEnabled": true,
+            "entitiesEnabled": true
+          }
+        },
+        {
+          "name": "opaque",
+          "originalVsCompressed": {
+            "native": {
+              "rgbMAE": 1.6205389839626267,
+              "correlation": 0.9645682454432397,
+              "maskMismatch": 0
+            },
+            "browser": {
+              "rgbMAE": 0.482826660675471,
+              "correlation": 0.9979341011722955,
+              "maskMismatch": 0
+            }
+          }
+        },
+        {
+          "name": "mask",
+          "mode": "original",
+          "nativePixels": {
+            "width": 1024,
+            "height": 745,
+            "crop": {
+              "x": 334,
+              "y": 195,
+              "width": 355,
+              "height": 354
+            },
+            "backgroundCoverage": 0.327392578125,
+            "variance": 20431.182391704846
+          },
+          "browserPixels": {
+            "width": 1024,
+            "height": 768,
+            "crop": {
+              "x": 329,
+              "y": 201,
+              "width": 365,
+              "height": 365
+            },
+            "backgroundCoverage": 0.319091796875,
+            "variance": 20714.742471833568
+          },
+          "auditedSourceComparison": {
+            "native": {
+              "rgbMAE": 3.91429032404945,
+              "correlation": 0.9937836214284235,
+              "maskMismatch": 0.009765625
+            },
+            "browser": {
+              "rgbMAE": 2.4277776609499697,
+              "correlation": 0.9982191629776701,
+              "maskMismatch": 0.005126953125
+            }
+          },
+          "crossEngine": {
+            "rgbMAE": 3.161884746794979,
+            "correlation": 0.9959249409446322,
+            "maskMismatch": 0.00830078125
+          },
+          "browserMaterialStates": [
+            {
+              "isCompressedTexture": false,
+              "colorSpace": "srgb",
+              "transparent": true,
+              "depthWrite": false,
+              "side": 2,
+              "forceSinglePass": true
+            }
+          ],
+          "compressedCache": {
+            "retainedBytes": 743176,
+            "retainedEntries": 2,
+            "active": 0,
+            "queued": 0,
+            "readers": 0
+          },
+          "nativePNG_SHA256": "8b7af3b184b466d2f501004b305e0c39d05db9cbf581e9ab29f32295043569b2",
+          "browserPNG_SHA256": "75bd9f90ec474d7230c45dd0f0679cf319111d639fadef038934d667419258f0",
+          "nativeReadiness": {
+            "resourceState": 3,
+            "renderFrames": 29,
+            "finishedFrameBaseline": 25,
+            "renderJobAvailable": true,
+            "renderJobEnabled": true,
+            "entitiesEnabled": true
+          }
+        },
+        {
+          "name": "mask",
+          "mode": "compressed",
+          "nativePixels": {
+            "width": 1024,
+            "height": 745,
+            "crop": {
+              "x": 334,
+              "y": 195,
+              "width": 355,
+              "height": 354
+            },
+            "backgroundCoverage": 0.328369140625,
+            "variance": 20466.14379193583
+          },
+          "browserPixels": {
+            "width": 1024,
+            "height": 768,
+            "crop": {
+              "x": 329,
+              "y": 201,
+              "width": 365,
+              "height": 365
+            },
+            "backgroundCoverage": 0.319091796875,
+            "variance": 21062.62642107249
+          },
+          "auditedSourceComparison": {
+            "native": {
+              "rgbMAE": 4.553806601114306,
+              "correlation": 0.9930102851013441,
+              "maskMismatch": 0.0107421875
+            },
+            "browser": {
+              "rgbMAE": 2.3815391124196617,
+              "correlation": 0.9982287589627227,
+              "maskMismatch": 0.005126953125
+            }
+          },
+          "crossEngine": {
+            "rgbMAE": 3.813204806889308,
+            "correlation": 0.9951530722794959,
+            "maskMismatch": 0.00927734375
+          },
+          "browserMaterialStates": [
+            {
+              "isCompressedTexture": true,
+              "colorSpace": "srgb",
+              "transparent": true,
+              "depthWrite": false,
+              "side": 2,
+              "forceSinglePass": true
+            }
+          ],
+          "compressedCache": {
+            "retainedBytes": 743176,
+            "retainedEntries": 2,
+            "active": 0,
+            "queued": 0,
+            "readers": 0
+          },
+          "nativePNG_SHA256": "b3740957d9397e72e7e64bd1dfb3e5d6c0af7d492ec2ba9f39a9df040c17f20a",
+          "browserPNG_SHA256": "9ab39e4571f845d4a1d19251b54b09f6fb7e8c7d9dee37fb9eded6840213cc81",
+          "nativeReadiness": {
+            "resourceState": 3,
+            "renderFrames": 42,
+            "finishedFrameBaseline": 37,
+            "renderJobAvailable": true,
+            "renderJobEnabled": true,
+            "entitiesEnabled": true
+          }
+        },
+        {
+          "name": "mask",
+          "originalVsCompressed": {
+            "native": {
+              "rgbMAE": 1.296761550796072,
+              "correlation": 0.9996581500990979,
+              "maskMismatch": 0.00244140625
+            },
+            "browser": {
+              "rgbMAE": 0.7178869904551329,
+              "correlation": 0.999959238808412,
+              "maskMismatch": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "startedAt": "2026-10-01T13:21:30.203Z",
+      "finishedAt": "2026-10-01T13:22:19.965Z",
+      "completed": false,
+      "scope": "Only an isolated local domain; four owned expiring entities, actual normal native renderer and authenticated browser Image rendering. No public writes, audio, server permissions or native renderer resource patches.",
+      "microphoneRequested": false,
+      "publicWorldWrites": 0,
+      "inputs": [
+        {
+          "name": "opaque",
+          "pngSHA256": "0087b3a3a9c9347b3a592db7b7e4f88fe333aedb7c6bd6aae48ed664c3f98739",
+          "pngBytes": 372063,
+          "ktxSHA256": "665f2c22827bafda51eb0127b69cce6c5d33869a98ae7331b8aafa88985d89f6",
+          "ktxBytes": 393432,
+          "metadataSHA256": "d1c5fb8899b89f3e42788d04f63bec84331317707c00976b4369049ebc11d674"
+        },
+        {
+          "name": "mask",
+          "pngSHA256": "43d594a99f2b8d8412348a45b0556f4af8c1960ccbce0e2b3164c8fa61beba6c",
+          "pngBytes": 94618,
+          "ktxSHA256": "8271f00457196483ecf617df4f644885d35e52fad010ad31b9bd35afe2cc5355",
+          "ktxBytes": 349744,
+          "metadataSHA256": "5e29136bf95ad68a61f34ccafdbb660119e87bb6b01707798a12c1dbb883a8d9"
+        }
+      ],
+      "ownedFixtureCount": 4,
+      "preservedBaselineCount": 7,
+      "cleanupRequested": true,
+      "cleanupVerified": true,
+      "nativeVersion": "2026.04.1",
+      "browserVersion": "firefox/156.0",
+      "nativeBinarySHA256": "91f3e10c42c1e35d5c8265e9b0007e925844d9bee61a26807118dde6e527887c",
+      "nativeScriptSHA256": "93d1b78a01f8ecd94dfa93366ad7358309385c4be0139e295830345105fbbe6d",
+      "startSourceSHA256": {
+        "tests/integration/native-image-state.mjs": "9860db230ec828a457a3482b97c490c5acfd7874b71a06a8067f47d16b24e265",
+        "tests/integration/native-image-fixture.js": "211ab79ef25c3faa66708a6780307406ebbddc1d02010a30232347db57c59d80",
+        "tests/integration/native-image-pixels.mjs": "2aa0deb8528ceee4140af8a704c584f6dbb61d28e85eda8f4fd1a3352dd5f5fc",
+        "tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "src/world.ts": "f8eb4c7c781a9561546a9d3e787cd5d32b982a7a8b5f159c523c103c773458c0",
+        "src/compressed-color-session.ts": "e18af74fe59593bf9f1aee0ce7a91f0e6910ed5e903868f646f1311d61c42fcf",
+        "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+        "src/native-compressed-color.ts": "5439b334331980b43f8d7a0d1ea4750d58eec20ae0542a7296288192714e0467",
+        "src/native-alpha-material.ts": "a3515894f69f078222c7e2b543c46ce22f7bd05b58e12f3eaa14aa0a638dcfbb",
+        "src/native-render-state.ts": "af31a1e01576c233c1f7e8a8231dd5c2cc5871cb58b5783bf01f788da70d01df",
+        "src/world-image-cache.ts": "ba45a6125087f8b275c939a5e9e36dadac6879a37cb0fbe50d8c19dd9f1c6af9",
+        "src/world-source-text-cache.ts": "57ccb98bed54e788ed0e2f263e8362ae505f4b3073648dc08c311925e21116b1",
+        "src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+        "shared/native-ktx.mjs": "5c06f05ab00aa0678e40e56b1bf5c1bc0f6f5578fdbff1a8d4030cf6d4840a97"
+      },
+      "sourceSHA256": {
+        "tests/integration/native-image-state.mjs": "9860db230ec828a457a3482b97c490c5acfd7874b71a06a8067f47d16b24e265",
+        "tests/integration/native-image-fixture.js": "211ab79ef25c3faa66708a6780307406ebbddc1d02010a30232347db57c59d80",
+        "tests/integration/native-image-pixels.mjs": "2aa0deb8528ceee4140af8a704c584f6dbb61d28e85eda8f4fd1a3352dd5f5fc",
+        "tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "src/world.ts": "f8eb4c7c781a9561546a9d3e787cd5d32b982a7a8b5f159c523c103c773458c0",
+        "src/compressed-color-session.ts": "e18af74fe59593bf9f1aee0ce7a91f0e6910ed5e903868f646f1311d61c42fcf",
+        "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+        "src/native-compressed-color.ts": "5439b334331980b43f8d7a0d1ea4750d58eec20ae0542a7296288192714e0467",
+        "src/native-alpha-material.ts": "a3515894f69f078222c7e2b543c46ce22f7bd05b58e12f3eaa14aa0a638dcfbb",
+        "src/native-render-state.ts": "af31a1e01576c233c1f7e8a8231dd5c2cc5871cb58b5783bf01f788da70d01df",
+        "src/world-image-cache.ts": "ba45a6125087f8b275c939a5e9e36dadac6879a37cb0fbe50d8c19dd9f1c6af9",
+        "src/world-source-text-cache.ts": "57ccb98bed54e788ed0e2f263e8362ae505f4b3073648dc08c311925e21116b1",
+        "src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+        "shared/native-ktx.mjs": "5c06f05ab00aa0678e40e56b1bf5c1bc0f6f5578fdbff1a8d4030cf6d4840a97"
+      },
+      "sourceCoherent": true,
+      "error": "Original/native compressed mask must retain the fixed one-percent threshold",
+      "rawReportSHA256": "073d244f8d67b0ea63df2123a6b9e0f5f58ef5d15fe12396ca15a2b34b78e66c",
+      "cases": [
+        {
+          "name": "opaque",
+          "mode": "original",
+          "nativePixels": {
+            "width": 1024,
+            "height": 745,
+            "crop": {
+              "x": 334,
+              "y": 195,
+              "width": 355,
+              "height": 354
+            },
+            "backgroundCoverage": 0,
+            "variance": 142.1220596928688
+          },
+          "browserPixels": {
+            "width": 1024,
+            "height": 768,
+            "crop": {
+              "x": 329,
+              "y": 201,
+              "width": 365,
+              "height": 365
+            },
+            "backgroundCoverage": 0,
+            "variance": 223.2396229604201
+          },
+          "auditedSourceComparison": {
+            "native": {
+              "rgbMAE": 1.8242452090277756,
+              "correlation": 0.9389902913492263,
+              "maskMismatch": 0
+            },
+            "browser": {
+              "rgbMAE": 0.7050312774347152,
+              "correlation": 0.9926050803334365,
+              "maskMismatch": 0
+            }
+          },
+          "crossEngine": {
+            "rgbMAE": 1.989080396527075,
+            "correlation": 0.9456113853013194,
+            "maskMismatch": 0
+          },
+          "browserMaterialStates": [
+            {
+              "isCompressedTexture": false,
+              "colorSpace": "srgb",
+              "transparent": true,
+              "depthWrite": false,
+              "side": 2,
+              "forceSinglePass": true
+            }
+          ],
+          "compressedCache": {
+            "retainedBytes": 393432,
+            "retainedEntries": 1,
+            "active": 0,
+            "queued": 0,
+            "readers": 0
+          },
+          "nativePNG_SHA256": "67320d3b8fa0bada1b47ad92fad5b5bcae179316c12f5a51f7ec980f50c61674",
+          "browserPNG_SHA256": "3dc3d41838df095bb48153067bdaaa029043f468142a6ce313d7beaf5196a48a",
+          "nativeReadiness": {
+            "resourceState": 3,
+            "renderFrames": 3,
+            "finishedFrameBaseline": 0,
+            "renderJobAvailable": true,
+            "renderJobEnabled": true,
+            "entitiesEnabled": true
+          }
+        },
+        {
+          "name": "opaque",
+          "mode": "compressed",
+          "nativePixels": {
+            "width": 1024,
+            "height": 745,
+            "crop": {
+              "x": 334,
+              "y": 195,
+              "width": 355,
+              "height": 354
+            },
+            "backgroundCoverage": 0,
+            "variance": 135.22659922386993
+          },
+          "browserPixels": {
+            "width": 1024,
+            "height": 768,
+            "crop": {
+              "x": 329,
+              "y": 201,
+              "width": 365,
+              "height": 365
+            },
+            "backgroundCoverage": 0,
+            "variance": 207.07234161334964
+          },
+          "auditedSourceComparison": {
+            "native": {
+              "rgbMAE": 2.5587805260703003,
+              "correlation": 0.9103397724466775,
+              "maskMismatch": 0
+            },
+            "browser": {
+              "rgbMAE": 0.6651569847354731,
+              "correlation": 0.9922821533300841,
+              "maskMismatch": 0
+            }
+          },
+          "crossEngine": {
+            "rgbMAE": 2.5864982550349405,
+            "correlation": 0.9142769401678811,
+            "maskMismatch": 0
+          },
+          "browserMaterialStates": [
+            {
+              "isCompressedTexture": true,
+              "colorSpace": "srgb",
+              "transparent": true,
+              "depthWrite": false,
+              "side": 2,
+              "forceSinglePass": true
+            }
+          ],
+          "compressedCache": {
+            "retainedBytes": 393432,
+            "retainedEntries": 1,
+            "active": 0,
+            "queued": 0,
+            "readers": 0
+          },
+          "nativePNG_SHA256": "5211247211e1c4479dfd30a12510da4d0e89c458ccd6ed7ff830d9ba433a6ffe",
+          "browserPNG_SHA256": "73c84e8f63148ad46fceefa7aa5ed637133b5c58b473cce5c192388e1e4c1f9d",
+          "nativeReadiness": {
+            "resourceState": 3,
+            "renderFrames": 15,
+            "finishedFrameBaseline": 12,
+            "renderJobAvailable": true,
+            "renderJobEnabled": true,
+            "entitiesEnabled": true
+          }
+        },
+        {
+          "name": "opaque",
+          "originalVsCompressed": {
+            "native": {
+              "rgbMAE": 1.3959444694147713,
+              "correlation": 0.9731527309170737,
+              "maskMismatch": 0
+            },
+            "browser": {
+              "rgbMAE": 0.482826660675471,
+              "correlation": 0.9979341011722955,
+              "maskMismatch": 0
+            }
+          }
+        },
+        {
+          "name": "mask",
+          "mode": "original",
+          "nativePixels": {
+            "width": 1024,
+            "height": 745,
+            "crop": {
+              "x": 334,
+              "y": 195,
+              "width": 355,
+              "height": 354
+            },
+            "backgroundCoverage": 0.340087890625,
+            "variance": 19053.373877903883
+          },
+          "browserPixels": {
+            "width": 1024,
+            "height": 768,
+            "crop": {
+              "x": 329,
+              "y": 201,
+              "width": 365,
+              "height": 365
+            },
+            "backgroundCoverage": 0.319091796875,
+            "variance": 20714.742471833568
+          },
+          "auditedSourceComparison": {
+            "native": {
+              "rgbMAE": 7.425436403572992,
+              "correlation": 0.9819248842397424,
+              "maskMismatch": 0.02294921875
+            },
+            "browser": {
+              "rgbMAE": 2.4277776609499697,
+              "correlation": 0.9982191629776701,
+              "maskMismatch": 0.005126953125
+            }
+          },
+          "crossEngine": {
+            "rgbMAE": 6.9415522242865135,
+            "correlation": 0.9842198082331411,
+            "maskMismatch": 0.02099609375
+          },
+          "browserMaterialStates": [
+            {
+              "isCompressedTexture": false,
+              "colorSpace": "srgb",
+              "transparent": true,
+              "depthWrite": false,
+              "side": 2,
+              "forceSinglePass": true
+            }
+          ],
+          "compressedCache": {
+            "retainedBytes": 743176,
+            "retainedEntries": 2,
+            "active": 0,
+            "queued": 0,
+            "readers": 0
+          },
+          "nativePNG_SHA256": "2b81ac141c68f8629719274044b6e98caa6e66af9654576780419d315a3346e9",
+          "browserPNG_SHA256": "7c28443255410cbef686ed2c57670b6a49edafec0c9c08a565ed50ff4a24660e",
+          "nativeReadiness": {
+            "resourceState": 3,
+            "renderFrames": 27,
+            "finishedFrameBaseline": 24,
+            "renderJobAvailable": true,
+            "renderJobEnabled": true,
+            "entitiesEnabled": true
+          }
+        },
+        {
+          "name": "mask",
+          "mode": "compressed",
+          "nativePixels": {
+            "width": 1024,
+            "height": 745,
+            "crop": {
+              "x": 334,
+              "y": 195,
+              "width": 355,
+              "height": 354
+            },
+            "backgroundCoverage": 0.3232421875,
+            "variance": 21135.497878627953
+          },
+          "browserPixels": {
+            "width": 1024,
+            "height": 768,
+            "crop": {
+              "x": 329,
+              "y": 201,
+              "width": 365,
+              "height": 365
+            },
+            "backgroundCoverage": 0.319091796875,
+            "variance": 21062.62642107249
+          },
+          "auditedSourceComparison": {
+            "native": {
+              "rgbMAE": 3.017481348778347,
+              "correlation": 0.9966968677560364,
+              "maskMismatch": 0.007080078125
+            },
+            "browser": {
+              "rgbMAE": 2.3815391124196617,
+              "correlation": 0.9982287589627227,
+              "maskMismatch": 0.005126953125
+            }
+          },
+          "crossEngine": {
+            "rgbMAE": 1.8117961689973205,
+            "correlation": 0.9985597190500535,
+            "maskMismatch": 0.004150390625
+          },
+          "browserMaterialStates": [
+            {
+              "isCompressedTexture": true,
+              "colorSpace": "srgb",
+              "transparent": true,
+              "depthWrite": false,
+              "side": 2,
+              "forceSinglePass": true
+            }
+          ],
+          "compressedCache": {
+            "retainedBytes": 743176,
+            "retainedEntries": 2,
+            "active": 0,
+            "queued": 0,
+            "readers": 0
+          },
+          "nativePNG_SHA256": "38a7cf7309ae9ee86e59b2508dc03ce1df5fb8869e8d5b00afadaa40d420fa28",
+          "browserPNG_SHA256": "1a69b3b3cec95e33f788bcac18747e892302acdfe57c1fc1fe325be8a25ffb92",
+          "nativeReadiness": {
+            "resourceState": 3,
+            "renderFrames": 42,
+            "finishedFrameBaseline": 37,
+            "renderJobAvailable": true,
+            "renderJobEnabled": true,
+            "entitiesEnabled": true
+          }
+        },
+        {
+          "name": "mask",
+          "originalVsCompressed": {
+            "native": {
+              "rgbMAE": 5.966673880604129,
+              "correlation": 0.9895089564876542,
+              "maskMismatch": 0.018798828125
+            },
+            "browser": {
+              "rgbMAE": 0.7178869904551329,
+              "correlation": 0.999959238808412,
+              "maskMismatch": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "startedAt": "2026-10-01T13:57:14.747Z",
+      "finishedAt": "2026-10-01T13:59:12.663Z",
+      "completed": true,
+      "scope": "Only an isolated local domain; four owned expiring entities, actual normal native renderer and authenticated browser Image rendering. No public writes, audio, server permissions or native renderer resource patches.",
+      "microphoneRequested": false,
+      "publicWorldWrites": 0,
+      "inputs": [
+        {
+          "name": "opaque",
+          "pngSHA256": "0087b3a3a9c9347b3a592db7b7e4f88fe333aedb7c6bd6aae48ed664c3f98739",
+          "pngBytes": 372063,
+          "ktxSHA256": "665f2c22827bafda51eb0127b69cce6c5d33869a98ae7331b8aafa88985d89f6",
+          "ktxBytes": 393432,
+          "metadataSHA256": "d1c5fb8899b89f3e42788d04f63bec84331317707c00976b4369049ebc11d674"
+        },
+        {
+          "name": "mask",
+          "pngSHA256": "43d594a99f2b8d8412348a45b0556f4af8c1960ccbce0e2b3164c8fa61beba6c",
+          "pngBytes": 94618,
+          "ktxSHA256": "8271f00457196483ecf617df4f644885d35e52fad010ad31b9bd35afe2cc5355",
+          "ktxBytes": 349744,
+          "metadataSHA256": "5e29136bf95ad68a61f34ccafdbb660119e87bb6b01707798a12c1dbb883a8d9"
+        }
+      ],
+      "ownedFixtureCount": 4,
+      "preservedBaselineCount": 7,
+      "cleanupRequested": true,
+      "cleanupVerified": true,
+      "nativeVersion": "2026.04.1",
+      "browserVersion": "154.0.8037.57",
+      "nativeBinarySHA256": "91f3e10c42c1e35d5c8265e9b0007e925844d9bee61a26807118dde6e527887c",
+      "nativeScriptSHA256": "d5ea6a4c2ab3c72be39615e13997a6c9efe8abd338329d963d701b344e696ba3",
+      "startSourceSHA256": {
+        "tests/integration/native-image-state.mjs": "498aa6c38cf7db7ebec0520fd193f687d8a7e9ad5eb7803005611e7da602979e",
+        "tests/integration/native-image-fixture.js": "49afa3826a24d4ddaece5bf7a11074058030f306c4cc391e81dc2cb917308d0e",
+        "tests/integration/native-image-pixels.mjs": "2aa0deb8528ceee4140af8a704c584f6dbb61d28e85eda8f4fd1a3352dd5f5fc",
+        "tests/integration/native-image-convergence.mjs": "c474b058359ab10d4c81e76748bba7f589eb05f08ed9e3df3783875edbea9d00",
+        "tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "src/world.ts": "d99aa2cf9dd7140d13b4a2bb3af7b53b81cf2860d5276f638350e1d6c6b53c1a",
+        "src/compressed-color-session.ts": "e18af74fe59593bf9f1aee0ce7a91f0e6910ed5e903868f646f1311d61c42fcf",
+        "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+        "src/native-compressed-color.ts": "5439b334331980b43f8d7a0d1ea4750d58eec20ae0542a7296288192714e0467",
+        "src/native-alpha-material.ts": "a3515894f69f078222c7e2b543c46ce22f7bd05b58e12f3eaa14aa0a638dcfbb",
+        "src/native-render-state.ts": "af31a1e01576c233c1f7e8a8231dd5c2cc5871cb58b5783bf01f788da70d01df",
+        "src/world-image-cache.ts": "ba45a6125087f8b275c939a5e9e36dadac6879a37cb0fbe50d8c19dd9f1c6af9",
+        "src/world-source-text-cache.ts": "57ccb98bed54e788ed0e2f263e8362ae505f4b3073648dc08c311925e21116b1",
+        "src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+        "shared/native-ktx.mjs": "5c06f05ab00aa0678e40e56b1bf5c1bc0f6f5578fdbff1a8d4030cf6d4840a97"
+      },
+      "sourceSHA256": {
+        "tests/integration/native-image-state.mjs": "498aa6c38cf7db7ebec0520fd193f687d8a7e9ad5eb7803005611e7da602979e",
+        "tests/integration/native-image-fixture.js": "49afa3826a24d4ddaece5bf7a11074058030f306c4cc391e81dc2cb917308d0e",
+        "tests/integration/native-image-pixels.mjs": "2aa0deb8528ceee4140af8a704c584f6dbb61d28e85eda8f4fd1a3352dd5f5fc",
+        "tests/integration/native-image-convergence.mjs": "c474b058359ab10d4c81e76748bba7f589eb05f08ed9e3df3783875edbea9d00",
+        "tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "src/world.ts": "d99aa2cf9dd7140d13b4a2bb3af7b53b81cf2860d5276f638350e1d6c6b53c1a",
+        "src/compressed-color-session.ts": "e18af74fe59593bf9f1aee0ce7a91f0e6910ed5e903868f646f1311d61c42fcf",
+        "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+        "src/native-compressed-color.ts": "5439b334331980b43f8d7a0d1ea4750d58eec20ae0542a7296288192714e0467",
+        "src/native-alpha-material.ts": "a3515894f69f078222c7e2b543c46ce22f7bd05b58e12f3eaa14aa0a638dcfbb",
+        "src/native-render-state.ts": "af31a1e01576c233c1f7e8a8231dd5c2cc5871cb58b5783bf01f788da70d01df",
+        "src/world-image-cache.ts": "ba45a6125087f8b275c939a5e9e36dadac6879a37cb0fbe50d8c19dd9f1c6af9",
+        "src/world-source-text-cache.ts": "57ccb98bed54e788ed0e2f263e8362ae505f4b3073648dc08c311925e21116b1",
+        "src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+        "shared/native-ktx.mjs": "5c06f05ab00aa0678e40e56b1bf5c1bc0f6f5578fdbff1a8d4030cf6d4840a97"
+      },
+      "sourceCoherent": true,
+      "rawReportSHA256": "e9d0bdc926054d1d24da673e8aa155197819c31143b17c3d2968a544894d8253",
+      "cases": [
+        {
+          "name": "opaque",
+          "mode": "original",
+          "nativePixels": {
+            "width": 1024,
+            "height": 745,
+            "crop": {
+              "x": 334,
+              "y": 195,
+              "width": 355,
+              "height": 354
+            },
+            "backgroundCoverage": 0,
+            "variance": 211.8279561429972
+          },
+          "browserPixels": {
+            "width": 1024,
+            "height": 768,
+            "crop": {
+              "x": 329,
+              "y": 201,
+              "width": 365,
+              "height": 365
+            },
+            "backgroundCoverage": 0,
+            "variance": 223.2396229604201
+          },
+          "auditedSourceComparison": {
+            "native": {
+              "rgbMAE": 0.653000276761269,
+              "correlation": 0.9928572921172043,
+              "maskMismatch": 0
+            },
+            "browser": {
+              "rgbMAE": 0.7050312774347152,
+              "correlation": 0.9926050803334365,
+              "maskMismatch": 0
+            }
+          },
+          "crossEngine": {
+            "rgbMAE": 0.6033180339676212,
+            "correlation": 0.9976369295940023,
+            "maskMismatch": 0
+          },
+          "browserMaterialStates": [
+            {
+              "isCompressedTexture": false,
+              "colorSpace": "srgb",
+              "transparent": true,
+              "depthWrite": false,
+              "side": 2,
+              "forceSinglePass": true
+            }
+          ],
+          "compressedCache": {
+            "retainedBytes": 393432,
+            "retainedEntries": 1,
+            "active": 0,
+            "queued": 0,
+            "readers": 0
+          },
+          "nativePNG_SHA256": "281a6d0a7e90f6e68e37233dde084060c9a460029e834b377fed771f519ded44",
+          "browserPNG_SHA256": "90daf06dbc56d8f4894ce97c668bd9938f9c59e19440914a36cf23ed240a0bf6",
+          "nativeConvergence": [
+            {
+              "ready": false,
+              "captures": 1,
+              "stableCaptures": 1,
+              "renderFrames": 16,
+              "finishedFrameBaseline": 0,
+              "minimumSnapshotFrames": 16,
+              "pairwiseDeltas": []
+            },
+            {
+              "ready": false,
+              "captures": 2,
+              "stableCaptures": 2,
+              "renderFrames": 37,
+              "finishedFrameBaseline": 0,
+              "minimumSnapshotFrames": 16,
+              "pairwiseDeltas": [
+                {
+                  "rgbMAE": 0,
+                  "maskMismatch": 0
+                }
+              ]
+            },
+            {
+              "ready": true,
+              "captures": 3,
+              "stableCaptures": 3,
+              "renderFrames": 57,
+              "finishedFrameBaseline": 0,
+              "minimumSnapshotFrames": 16,
+              "pairwiseDeltas": [
+                {
+                  "rgbMAE": 0,
+                  "maskMismatch": 0
+                },
+                {
+                  "rgbMAE": 0,
+                  "maskMismatch": 0
+                }
+              ]
+            }
+          ],
+          "nativeReadiness": {
+            "resourceState": 3,
+            "antialiasing": {
+              "kind": "taa",
+              "mode": 1,
+              "stopped": true,
+              "frozen": false,
+              "minimumSnapshotFrames": 16
+            },
+            "renderFrames": 57,
+            "finishedFrameBaseline": 0,
+            "renderJobAvailable": true,
+            "renderJobEnabled": true,
+            "entitiesEnabled": true
+          }
+        },
+        {
+          "name": "opaque",
+          "mode": "compressed",
+          "nativePixels": {
+            "width": 1024,
+            "height": 745,
+            "crop": {
+              "x": 334,
+              "y": 195,
+              "width": 355,
+              "height": 354
+            },
+            "backgroundCoverage": 0,
+            "variance": 221.0645155304428
+          },
+          "browserPixels": {
+            "width": 1024,
+            "height": 768,
+            "crop": {
+              "x": 329,
+              "y": 201,
+              "width": 365,
+              "height": 365
+            },
+            "backgroundCoverage": 0,
+            "variance": 207.07234161334964
+          },
+          "auditedSourceComparison": {
+            "native": {
+              "rgbMAE": 0.9609855955156777,
+              "correlation": 0.991081766460514,
+              "maskMismatch": 0
+            },
+            "browser": {
+              "rgbMAE": 0.6651569847354731,
+              "correlation": 0.9922821533300841,
+              "maskMismatch": 0
+            }
+          },
+          "crossEngine": {
+            "rgbMAE": 0.5799115639190549,
+            "correlation": 0.9981279650382214,
+            "maskMismatch": 0
+          },
+          "browserMaterialStates": [
+            {
+              "isCompressedTexture": true,
+              "colorSpace": "srgb",
+              "transparent": true,
+              "depthWrite": false,
+              "side": 2,
+              "forceSinglePass": true
+            }
+          ],
+          "compressedCache": {
+            "retainedBytes": 393432,
+            "retainedEntries": 1,
+            "active": 0,
+            "queued": 0,
+            "readers": 0
+          },
+          "nativePNG_SHA256": "c0f8e310a7b04eeaaf33578f71d775f556edc236e21c43ded462885b7e86df7f",
+          "browserPNG_SHA256": "d166290c4c4cd14799ec3571c95e0af69a6788ad4429f9ee63cd4bf042108fca",
+          "nativeConvergence": [
+            {
+              "ready": false,
+              "captures": 1,
+              "stableCaptures": 1,
+              "renderFrames": 83,
+              "finishedFrameBaseline": 66,
+              "minimumSnapshotFrames": 16,
+              "pairwiseDeltas": []
+            },
+            {
+              "ready": false,
+              "captures": 2,
+              "stableCaptures": 2,
+              "renderFrames": 103,
+              "finishedFrameBaseline": 66,
+              "minimumSnapshotFrames": 16,
+              "pairwiseDeltas": [
+                {
+                  "rgbMAE": 0,
+                  "maskMismatch": 0
+                }
+              ]
+            },
+            {
+              "ready": true,
+              "captures": 3,
+              "stableCaptures": 3,
+              "renderFrames": 123,
+              "finishedFrameBaseline": 66,
+              "minimumSnapshotFrames": 16,
+              "pairwiseDeltas": [
+                {
+                  "rgbMAE": 0,
+                  "maskMismatch": 0
+                },
+                {
+                  "rgbMAE": 0,
+                  "maskMismatch": 0
+                }
+              ]
+            }
+          ],
+          "nativeReadiness": {
+            "resourceState": 3,
+            "antialiasing": {
+              "kind": "taa",
+              "mode": 1,
+              "stopped": true,
+              "frozen": false,
+              "minimumSnapshotFrames": 16
+            },
+            "renderFrames": 123,
+            "finishedFrameBaseline": 66,
+            "renderJobAvailable": true,
+            "renderJobEnabled": true,
+            "entitiesEnabled": true
+          }
+        },
+        {
+          "name": "opaque",
+          "originalVsCompressed": {
+            "native": {
+              "rgbMAE": 0.517921666430434,
+              "correlation": 0.9974472798600477,
+              "maskMismatch": 0
+            },
+            "browser": {
+              "rgbMAE": 0.482826660675471,
+              "correlation": 0.9979341011722955,
+              "maskMismatch": 0
+            }
+          }
+        },
+        {
+          "name": "mask",
+          "mode": "original",
+          "nativePixels": {
+            "width": 1024,
+            "height": 745,
+            "crop": {
+              "x": 334,
+              "y": 195,
+              "width": 355,
+              "height": 354
+            },
+            "backgroundCoverage": 0.32177734375,
+            "variance": 20805.006468036532
+          },
+          "browserPixels": {
+            "width": 1024,
+            "height": 768,
+            "crop": {
+              "x": 329,
+              "y": 201,
+              "width": 365,
+              "height": 365
+            },
+            "backgroundCoverage": 0.319091796875,
+            "variance": 20714.742471833568
+          },
+          "auditedSourceComparison": {
+            "native": {
+              "rgbMAE": 2.677080191259656,
+              "correlation": 0.9972219944810746,
+              "maskMismatch": 0.007080078125
+            },
+            "browser": {
+              "rgbMAE": 2.4277776609499697,
+              "correlation": 0.9982191629776701,
+              "maskMismatch": 0.005126953125
+            }
+          },
+          "crossEngine": {
+            "rgbMAE": 1.4250592572588265,
+            "correlation": 0.999050926438934,
+            "maskMismatch": 0.002685546875
+          },
+          "browserMaterialStates": [
+            {
+              "isCompressedTexture": false,
+              "colorSpace": "srgb",
+              "transparent": true,
+              "depthWrite": false,
+              "side": 2,
+              "forceSinglePass": true
+            }
+          ],
+          "compressedCache": {
+            "retainedBytes": 743176,
+            "retainedEntries": 2,
+            "active": 0,
+            "queued": 0,
+            "readers": 0
+          },
+          "nativePNG_SHA256": "ab87551be92efa2319fe8b7b2f0ea5b71b2647994325253b266894ac43ab6ee4",
+          "browserPNG_SHA256": "75bd9f90ec474d7230c45dd0f0679cf319111d639fadef038934d667419258f0",
+          "nativeConvergence": [
+            {
+              "ready": false,
+              "captures": 1,
+              "stableCaptures": 1,
+              "renderFrames": 147,
+              "finishedFrameBaseline": 130,
+              "minimumSnapshotFrames": 16,
+              "pairwiseDeltas": []
+            },
+            {
+              "ready": false,
+              "captures": 2,
+              "stableCaptures": 2,
+              "renderFrames": 166,
+              "finishedFrameBaseline": 130,
+              "minimumSnapshotFrames": 16,
+              "pairwiseDeltas": [
+                {
+                  "rgbMAE": 0,
+                  "maskMismatch": 0
+                }
+              ]
+            },
+            {
+              "ready": true,
+              "captures": 3,
+              "stableCaptures": 3,
+              "renderFrames": 186,
+              "finishedFrameBaseline": 130,
+              "minimumSnapshotFrames": 16,
+              "pairwiseDeltas": [
+                {
+                  "rgbMAE": 0,
+                  "maskMismatch": 0
+                },
+                {
+                  "rgbMAE": 0,
+                  "maskMismatch": 0
+                }
+              ]
+            }
+          ],
+          "nativeReadiness": {
+            "resourceState": 3,
+            "antialiasing": {
+              "kind": "taa",
+              "mode": 1,
+              "stopped": true,
+              "frozen": false,
+              "minimumSnapshotFrames": 16
+            },
+            "renderFrames": 186,
+            "finishedFrameBaseline": 130,
+            "renderJobAvailable": true,
+            "renderJobEnabled": true,
+            "entitiesEnabled": true
+          }
+        },
+        {
+          "name": "mask",
+          "mode": "compressed",
+          "nativePixels": {
+            "width": 1024,
+            "height": 745,
+            "crop": {
+              "x": 334,
+              "y": 195,
+              "width": 355,
+              "height": 354
+            },
+            "backgroundCoverage": 0.322509765625,
+            "variance": 21017.368693977405
+          },
+          "browserPixels": {
+            "width": 1024,
+            "height": 768,
+            "crop": {
+              "x": 329,
+              "y": 201,
+              "width": 365,
+              "height": 365
+            },
+            "backgroundCoverage": 0.319091796875,
+            "variance": 21062.62642107249
+          },
+          "auditedSourceComparison": {
+            "native": {
+              "rgbMAE": 2.7969672800979324,
+              "correlation": 0.9970861301698808,
+              "maskMismatch": 0.0068359375
+            },
+            "browser": {
+              "rgbMAE": 2.3815391124196617,
+              "correlation": 0.9982287589627227,
+              "maskMismatch": 0.005126953125
+            }
+          },
+          "crossEngine": {
+            "rgbMAE": 1.4651425198257286,
+            "correlation": 0.9989069122990469,
+            "maskMismatch": 0.00341796875
+          },
+          "browserMaterialStates": [
+            {
+              "isCompressedTexture": true,
+              "colorSpace": "srgb",
+              "transparent": true,
+              "depthWrite": false,
+              "side": 2,
+              "forceSinglePass": true
+            }
+          ],
+          "compressedCache": {
+            "retainedBytes": 743176,
+            "retainedEntries": 2,
+            "active": 0,
+            "queued": 0,
+            "readers": 0
+          },
+          "nativePNG_SHA256": "a9de6e5b33ec1982fbae1593be7d329074c874eb5e1f80876b96b1b6388b85c9",
+          "browserPNG_SHA256": "9ab39e4571f845d4a1d19251b54b09f6fb7e8c7d9dee37fb9eded6840213cc81",
+          "nativeConvergence": [
+            {
+              "ready": false,
+              "captures": 1,
+              "stableCaptures": 1,
+              "renderFrames": 211,
+              "finishedFrameBaseline": 194,
+              "minimumSnapshotFrames": 16,
+              "pairwiseDeltas": []
+            },
+            {
+              "ready": false,
+              "captures": 2,
+              "stableCaptures": 2,
+              "renderFrames": 231,
+              "finishedFrameBaseline": 194,
+              "minimumSnapshotFrames": 16,
+              "pairwiseDeltas": [
+                {
+                  "rgbMAE": 0,
+                  "maskMismatch": 0
+                }
+              ]
+            },
+            {
+              "ready": true,
+              "captures": 3,
+              "stableCaptures": 3,
+              "renderFrames": 251,
+              "finishedFrameBaseline": 194,
+              "minimumSnapshotFrames": 16,
+              "pairwiseDeltas": [
+                {
+                  "rgbMAE": 0,
+                  "maskMismatch": 0
+                },
+                {
+                  "rgbMAE": 0,
+                  "maskMismatch": 0
+                }
+              ]
+            }
+          ],
+          "nativeReadiness": {
+            "resourceState": 3,
+            "antialiasing": {
+              "kind": "taa",
+              "mode": 1,
+              "stopped": true,
+              "frozen": false,
+              "minimumSnapshotFrames": 16
+            },
+            "renderFrames": 251,
+            "finishedFrameBaseline": 194,
+            "renderJobAvailable": true,
+            "renderJobEnabled": true,
+            "entitiesEnabled": true
+          }
+        },
+        {
+          "name": "mask",
+          "originalVsCompressed": {
+            "native": {
+              "rgbMAE": 0.5164794617516758,
+              "correlation": 0.9999667057735263,
+              "maskMismatch": 0.000732421875
+            },
+            "browser": {
+              "rgbMAE": 0.7178869904551329,
+              "correlation": 0.999959238808412,
+              "maskMismatch": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "startedAt": "2026-10-01T14:02:04.195Z",
+      "finishedAt": "2026-10-01T14:04:00.651Z",
+      "completed": true,
+      "scope": "Only an isolated local domain; four owned expiring entities, actual normal native renderer and authenticated browser Image rendering. No public writes, audio, server permissions or native renderer resource patches.",
+      "microphoneRequested": false,
+      "publicWorldWrites": 0,
+      "inputs": [
+        {
+          "name": "opaque",
+          "pngSHA256": "0087b3a3a9c9347b3a592db7b7e4f88fe333aedb7c6bd6aae48ed664c3f98739",
+          "pngBytes": 372063,
+          "ktxSHA256": "665f2c22827bafda51eb0127b69cce6c5d33869a98ae7331b8aafa88985d89f6",
+          "ktxBytes": 393432,
+          "metadataSHA256": "d1c5fb8899b89f3e42788d04f63bec84331317707c00976b4369049ebc11d674"
+        },
+        {
+          "name": "mask",
+          "pngSHA256": "43d594a99f2b8d8412348a45b0556f4af8c1960ccbce0e2b3164c8fa61beba6c",
+          "pngBytes": 94618,
+          "ktxSHA256": "8271f00457196483ecf617df4f644885d35e52fad010ad31b9bd35afe2cc5355",
+          "ktxBytes": 349744,
+          "metadataSHA256": "5e29136bf95ad68a61f34ccafdbb660119e87bb6b01707798a12c1dbb883a8d9"
+        }
+      ],
+      "ownedFixtureCount": 4,
+      "preservedBaselineCount": 7,
+      "cleanupRequested": true,
+      "cleanupVerified": true,
+      "nativeVersion": "2026.04.1",
+      "browserVersion": "firefox/156.0",
+      "nativeBinarySHA256": "91f3e10c42c1e35d5c8265e9b0007e925844d9bee61a26807118dde6e527887c",
+      "nativeScriptSHA256": "e0fc97542c52d64af4da866cc90d8fb628f04cf84d5a86a6d87b295aeeec04a1",
+      "startSourceSHA256": {
+        "tests/integration/native-image-state.mjs": "498aa6c38cf7db7ebec0520fd193f687d8a7e9ad5eb7803005611e7da602979e",
+        "tests/integration/native-image-fixture.js": "49afa3826a24d4ddaece5bf7a11074058030f306c4cc391e81dc2cb917308d0e",
+        "tests/integration/native-image-pixels.mjs": "2aa0deb8528ceee4140af8a704c584f6dbb61d28e85eda8f4fd1a3352dd5f5fc",
+        "tests/integration/native-image-convergence.mjs": "c474b058359ab10d4c81e76748bba7f589eb05f08ed9e3df3783875edbea9d00",
+        "tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "src/world.ts": "d99aa2cf9dd7140d13b4a2bb3af7b53b81cf2860d5276f638350e1d6c6b53c1a",
+        "src/compressed-color-session.ts": "e18af74fe59593bf9f1aee0ce7a91f0e6910ed5e903868f646f1311d61c42fcf",
+        "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+        "src/native-compressed-color.ts": "5439b334331980b43f8d7a0d1ea4750d58eec20ae0542a7296288192714e0467",
+        "src/native-alpha-material.ts": "a3515894f69f078222c7e2b543c46ce22f7bd05b58e12f3eaa14aa0a638dcfbb",
+        "src/native-render-state.ts": "af31a1e01576c233c1f7e8a8231dd5c2cc5871cb58b5783bf01f788da70d01df",
+        "src/world-image-cache.ts": "ba45a6125087f8b275c939a5e9e36dadac6879a37cb0fbe50d8c19dd9f1c6af9",
+        "src/world-source-text-cache.ts": "57ccb98bed54e788ed0e2f263e8362ae505f4b3073648dc08c311925e21116b1",
+        "src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+        "shared/native-ktx.mjs": "5c06f05ab00aa0678e40e56b1bf5c1bc0f6f5578fdbff1a8d4030cf6d4840a97"
+      },
+      "sourceSHA256": {
+        "tests/integration/native-image-state.mjs": "498aa6c38cf7db7ebec0520fd193f687d8a7e9ad5eb7803005611e7da602979e",
+        "tests/integration/native-image-fixture.js": "49afa3826a24d4ddaece5bf7a11074058030f306c4cc391e81dc2cb917308d0e",
+        "tests/integration/native-image-pixels.mjs": "2aa0deb8528ceee4140af8a704c584f6dbb61d28e85eda8f4fd1a3352dd5f5fc",
+        "tests/integration/native-image-convergence.mjs": "c474b058359ab10d4c81e76748bba7f589eb05f08ed9e3df3783875edbea9d00",
+        "tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "src/world.ts": "d99aa2cf9dd7140d13b4a2bb3af7b53b81cf2860d5276f638350e1d6c6b53c1a",
+        "src/compressed-color-session.ts": "e18af74fe59593bf9f1aee0ce7a91f0e6910ed5e903868f646f1311d61c42fcf",
+        "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+        "src/native-compressed-color.ts": "5439b334331980b43f8d7a0d1ea4750d58eec20ae0542a7296288192714e0467",
+        "src/native-alpha-material.ts": "a3515894f69f078222c7e2b543c46ce22f7bd05b58e12f3eaa14aa0a638dcfbb",
+        "src/native-render-state.ts": "af31a1e01576c233c1f7e8a8231dd5c2cc5871cb58b5783bf01f788da70d01df",
+        "src/world-image-cache.ts": "ba45a6125087f8b275c939a5e9e36dadac6879a37cb0fbe50d8c19dd9f1c6af9",
+        "src/world-source-text-cache.ts": "57ccb98bed54e788ed0e2f263e8362ae505f4b3073648dc08c311925e21116b1",
+        "src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+        "shared/native-ktx.mjs": "5c06f05ab00aa0678e40e56b1bf5c1bc0f6f5578fdbff1a8d4030cf6d4840a97"
+      },
+      "sourceCoherent": true,
+      "rawReportSHA256": "01d99ef7c26ba54473c7233e0097d73ad32a61331b032c2210d62127ab39fcfe",
+      "cases": [
+        {
+          "name": "opaque",
+          "mode": "original",
+          "nativePixels": {
+            "width": 1024,
+            "height": 745,
+            "crop": {
+              "x": 334,
+              "y": 195,
+              "width": 355,
+              "height": 354
+            },
+            "backgroundCoverage": 0,
+            "variance": 211.8279561429972
+          },
+          "browserPixels": {
+            "width": 1024,
+            "height": 768,
+            "crop": {
+              "x": 329,
+              "y": 201,
+              "width": 365,
+              "height": 365
+            },
+            "backgroundCoverage": 0,
+            "variance": 223.2396229604201
+          },
+          "auditedSourceComparison": {
+            "native": {
+              "rgbMAE": 0.653000276761269,
+              "correlation": 0.9928572921172043,
+              "maskMismatch": 0
+            },
+            "browser": {
+              "rgbMAE": 0.7050312774347152,
+              "correlation": 0.9926050803334365,
+              "maskMismatch": 0
+            }
+          },
+          "crossEngine": {
+            "rgbMAE": 0.6033180339676212,
+            "correlation": 0.9976369295940023,
+            "maskMismatch": 0
+          },
+          "browserMaterialStates": [
+            {
+              "isCompressedTexture": false,
+              "colorSpace": "srgb",
+              "transparent": true,
+              "depthWrite": false,
+              "side": 2,
+              "forceSinglePass": true
+            }
+          ],
+          "compressedCache": {
+            "retainedBytes": 393432,
+            "retainedEntries": 1,
+            "active": 0,
+            "queued": 0,
+            "readers": 0
+          },
+          "nativePNG_SHA256": "281a6d0a7e90f6e68e37233dde084060c9a460029e834b377fed771f519ded44",
+          "browserPNG_SHA256": "15a4c9830d5e3d364f9efa98870d9909907b33eec324e793c14010c426aa6a20",
+          "nativeConvergence": [
+            {
+              "ready": false,
+              "captures": 1,
+              "stableCaptures": 1,
+              "renderFrames": 16,
+              "finishedFrameBaseline": 0,
+              "minimumSnapshotFrames": 16,
+              "pairwiseDeltas": []
+            },
+            {
+              "ready": false,
+              "captures": 2,
+              "stableCaptures": 2,
+              "renderFrames": 37,
+              "finishedFrameBaseline": 0,
+              "minimumSnapshotFrames": 16,
+              "pairwiseDeltas": [
+                {
+                  "rgbMAE": 0,
+                  "maskMismatch": 0
+                }
+              ]
+            },
+            {
+              "ready": true,
+              "captures": 3,
+              "stableCaptures": 3,
+              "renderFrames": 59,
+              "finishedFrameBaseline": 0,
+              "minimumSnapshotFrames": 16,
+              "pairwiseDeltas": [
+                {
+                  "rgbMAE": 0,
+                  "maskMismatch": 0
+                },
+                {
+                  "rgbMAE": 0,
+                  "maskMismatch": 0
+                }
+              ]
+            }
+          ],
+          "nativeReadiness": {
+            "resourceState": 3,
+            "antialiasing": {
+              "kind": "taa",
+              "mode": 1,
+              "stopped": true,
+              "frozen": false,
+              "minimumSnapshotFrames": 16
+            },
+            "renderFrames": 59,
+            "finishedFrameBaseline": 0,
+            "renderJobAvailable": true,
+            "renderJobEnabled": true,
+            "entitiesEnabled": true
+          }
+        },
+        {
+          "name": "opaque",
+          "mode": "compressed",
+          "nativePixels": {
+            "width": 1024,
+            "height": 745,
+            "crop": {
+              "x": 334,
+              "y": 195,
+              "width": 355,
+              "height": 354
+            },
+            "backgroundCoverage": 0,
+            "variance": 221.0645155304428
+          },
+          "browserPixels": {
+            "width": 1024,
+            "height": 768,
+            "crop": {
+              "x": 329,
+              "y": 201,
+              "width": 365,
+              "height": 365
+            },
+            "backgroundCoverage": 0,
+            "variance": 207.07234161334964
+          },
+          "auditedSourceComparison": {
+            "native": {
+              "rgbMAE": 0.9609855955156777,
+              "correlation": 0.991081766460514,
+              "maskMismatch": 0
+            },
+            "browser": {
+              "rgbMAE": 0.6651569847354731,
+              "correlation": 0.9922821533300841,
+              "maskMismatch": 0
+            }
+          },
+          "crossEngine": {
+            "rgbMAE": 0.5799115639190549,
+            "correlation": 0.9981279650382214,
+            "maskMismatch": 0
+          },
+          "browserMaterialStates": [
+            {
+              "isCompressedTexture": true,
+              "colorSpace": "srgb",
+              "transparent": true,
+              "depthWrite": false,
+              "side": 2,
+              "forceSinglePass": true
+            }
+          ],
+          "compressedCache": {
+            "retainedBytes": 393432,
+            "retainedEntries": 1,
+            "active": 0,
+            "queued": 0,
+            "readers": 0
+          },
+          "nativePNG_SHA256": "c0f8e310a7b04eeaaf33578f71d775f556edc236e21c43ded462885b7e86df7f",
+          "browserPNG_SHA256": "79b4fb959c3fdc56c9bda6daebf6d86c68cb18246d3de11e8a9c229c29c4de26",
+          "nativeConvergence": [
+            {
+              "ready": false,
+              "captures": 1,
+              "stableCaptures": 1,
+              "renderFrames": 84,
+              "finishedFrameBaseline": 68,
+              "minimumSnapshotFrames": 16,
+              "pairwiseDeltas": []
+            },
+            {
+              "ready": false,
+              "captures": 2,
+              "stableCaptures": 2,
+              "renderFrames": 104,
+              "finishedFrameBaseline": 68,
+              "minimumSnapshotFrames": 16,
+              "pairwiseDeltas": [
+                {
+                  "rgbMAE": 0,
+                  "maskMismatch": 0
+                }
+              ]
+            },
+            {
+              "ready": true,
+              "captures": 3,
+              "stableCaptures": 3,
+              "renderFrames": 125,
+              "finishedFrameBaseline": 68,
+              "minimumSnapshotFrames": 16,
+              "pairwiseDeltas": [
+                {
+                  "rgbMAE": 0,
+                  "maskMismatch": 0
+                },
+                {
+                  "rgbMAE": 0,
+                  "maskMismatch": 0
+                }
+              ]
+            }
+          ],
+          "nativeReadiness": {
+            "resourceState": 3,
+            "antialiasing": {
+              "kind": "taa",
+              "mode": 1,
+              "stopped": true,
+              "frozen": false,
+              "minimumSnapshotFrames": 16
+            },
+            "renderFrames": 125,
+            "finishedFrameBaseline": 68,
+            "renderJobAvailable": true,
+            "renderJobEnabled": true,
+            "entitiesEnabled": true
+          }
+        },
+        {
+          "name": "opaque",
+          "originalVsCompressed": {
+            "native": {
+              "rgbMAE": 0.517921666430434,
+              "correlation": 0.9974472798600477,
+              "maskMismatch": 0
+            },
+            "browser": {
+              "rgbMAE": 0.482826660675471,
+              "correlation": 0.9979341011722955,
+              "maskMismatch": 0
+            }
+          }
+        },
+        {
+          "name": "mask",
+          "mode": "original",
+          "nativePixels": {
+            "width": 1024,
+            "height": 745,
+            "crop": {
+              "x": 334,
+              "y": 195,
+              "width": 355,
+              "height": 354
+            },
+            "backgroundCoverage": 0.32177734375,
+            "variance": 20805.006468036532
+          },
+          "browserPixels": {
+            "width": 1024,
+            "height": 768,
+            "crop": {
+              "x": 329,
+              "y": 201,
+              "width": 365,
+              "height": 365
+            },
+            "backgroundCoverage": 0.319091796875,
+            "variance": 20714.742471833568
+          },
+          "auditedSourceComparison": {
+            "native": {
+              "rgbMAE": 2.677080191259656,
+              "correlation": 0.9972219944810746,
+              "maskMismatch": 0.007080078125
+            },
+            "browser": {
+              "rgbMAE": 2.4277776609499697,
+              "correlation": 0.9982191629776701,
+              "maskMismatch": 0.005126953125
+            }
+          },
+          "crossEngine": {
+            "rgbMAE": 1.4250592572588265,
+            "correlation": 0.999050926438934,
+            "maskMismatch": 0.002685546875
+          },
+          "browserMaterialStates": [
+            {
+              "isCompressedTexture": false,
+              "colorSpace": "srgb",
+              "transparent": true,
+              "depthWrite": false,
+              "side": 2,
+              "forceSinglePass": true
+            }
+          ],
+          "compressedCache": {
+            "retainedBytes": 743176,
+            "retainedEntries": 2,
+            "active": 0,
+            "queued": 0,
+            "readers": 0
+          },
+          "nativePNG_SHA256": "ab87551be92efa2319fe8b7b2f0ea5b71b2647994325253b266894ac43ab6ee4",
+          "browserPNG_SHA256": "9e39d00a109fc8afa6f764f3abff513551fb0aa55f2f9fa68c3fc34b9ba50546",
+          "nativeConvergence": [
+            {
+              "ready": false,
+              "captures": 1,
+              "stableCaptures": 1,
+              "renderFrames": 149,
+              "finishedFrameBaseline": 133,
+              "minimumSnapshotFrames": 16,
+              "pairwiseDeltas": []
+            },
+            {
+              "ready": false,
+              "captures": 2,
+              "stableCaptures": 2,
+              "renderFrames": 170,
+              "finishedFrameBaseline": 133,
+              "minimumSnapshotFrames": 16,
+              "pairwiseDeltas": [
+                {
+                  "rgbMAE": 0,
+                  "maskMismatch": 0
+                }
+              ]
+            },
+            {
+              "ready": true,
+              "captures": 3,
+              "stableCaptures": 3,
+              "renderFrames": 190,
+              "finishedFrameBaseline": 133,
+              "minimumSnapshotFrames": 16,
+              "pairwiseDeltas": [
+                {
+                  "rgbMAE": 0,
+                  "maskMismatch": 0
+                },
+                {
+                  "rgbMAE": 0,
+                  "maskMismatch": 0
+                }
+              ]
+            }
+          ],
+          "nativeReadiness": {
+            "resourceState": 3,
+            "antialiasing": {
+              "kind": "taa",
+              "mode": 1,
+              "stopped": true,
+              "frozen": false,
+              "minimumSnapshotFrames": 16
+            },
+            "renderFrames": 190,
+            "finishedFrameBaseline": 133,
+            "renderJobAvailable": true,
+            "renderJobEnabled": true,
+            "entitiesEnabled": true
+          }
+        },
+        {
+          "name": "mask",
+          "mode": "compressed",
+          "nativePixels": {
+            "width": 1024,
+            "height": 745,
+            "crop": {
+              "x": 334,
+              "y": 195,
+              "width": 355,
+              "height": 354
+            },
+            "backgroundCoverage": 0.322509765625,
+            "variance": 21017.368693977405
+          },
+          "browserPixels": {
+            "width": 1024,
+            "height": 768,
+            "crop": {
+              "x": 329,
+              "y": 201,
+              "width": 365,
+              "height": 365
+            },
+            "backgroundCoverage": 0.319091796875,
+            "variance": 21062.62642107249
+          },
+          "auditedSourceComparison": {
+            "native": {
+              "rgbMAE": 2.7969672800979324,
+              "correlation": 0.9970861301698808,
+              "maskMismatch": 0.0068359375
+            },
+            "browser": {
+              "rgbMAE": 2.3815391124196617,
+              "correlation": 0.9982287589627227,
+              "maskMismatch": 0.005126953125
+            }
+          },
+          "crossEngine": {
+            "rgbMAE": 1.4651425198257286,
+            "correlation": 0.9989069122990469,
+            "maskMismatch": 0.00341796875
+          },
+          "browserMaterialStates": [
+            {
+              "isCompressedTexture": true,
+              "colorSpace": "srgb",
+              "transparent": true,
+              "depthWrite": false,
+              "side": 2,
+              "forceSinglePass": true
+            }
+          ],
+          "compressedCache": {
+            "retainedBytes": 743176,
+            "retainedEntries": 2,
+            "active": 0,
+            "queued": 0,
+            "readers": 0
+          },
+          "nativePNG_SHA256": "a9de6e5b33ec1982fbae1593be7d329074c874eb5e1f80876b96b1b6388b85c9",
+          "browserPNG_SHA256": "51b3cfc86a784713a9a2d8185307137036edeb88a6b698ae5857ed5a773c9a64",
+          "nativeConvergence": [
+            {
+              "ready": false,
+              "captures": 1,
+              "stableCaptures": 1,
+              "renderFrames": 215,
+              "finishedFrameBaseline": 198,
+              "minimumSnapshotFrames": 16,
+              "pairwiseDeltas": []
+            },
+            {
+              "ready": false,
+              "captures": 2,
+              "stableCaptures": 2,
+              "renderFrames": 236,
+              "finishedFrameBaseline": 198,
+              "minimumSnapshotFrames": 16,
+              "pairwiseDeltas": [
+                {
+                  "rgbMAE": 0,
+                  "maskMismatch": 0
+                }
+              ]
+            },
+            {
+              "ready": true,
+              "captures": 3,
+              "stableCaptures": 3,
+              "renderFrames": 256,
+              "finishedFrameBaseline": 198,
+              "minimumSnapshotFrames": 16,
+              "pairwiseDeltas": [
+                {
+                  "rgbMAE": 0,
+                  "maskMismatch": 0
+                },
+                {
+                  "rgbMAE": 0,
+                  "maskMismatch": 0
+                }
+              ]
+            }
+          ],
+          "nativeReadiness": {
+            "resourceState": 3,
+            "antialiasing": {
+              "kind": "taa",
+              "mode": 1,
+              "stopped": true,
+              "frozen": false,
+              "minimumSnapshotFrames": 16
+            },
+            "renderFrames": 256,
+            "finishedFrameBaseline": 198,
+            "renderJobAvailable": true,
+            "renderJobEnabled": true,
+            "entitiesEnabled": true
+          }
+        },
+        {
+          "name": "mask",
+          "originalVsCompressed": {
+            "native": {
+              "rgbMAE": 0.5164794617516758,
+              "correlation": 0.9999667057735263,
+              "maskMismatch": 0.000732421875
+            },
+            "browser": {
+              "rgbMAE": 0.7178869904551329,
+              "correlation": 0.999959238808412,
+              "maskMismatch": 0
+            }
+          }
+        }
+      ]
     }
   ]
 }

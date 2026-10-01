@@ -37,7 +37,7 @@ try{
                 if(value.kind==='frame'){audit.frames.push(value);if(audit.frames.length>10)audit.frames.shift();}
                 else if(value.kind==='state')audit.state=value;else if(value.kind==='error')audit.errors.push(value.message);
             }catch{}});}
-            send(data){if(typeof data==='string')try{const value=JSON.parse(data),audit=window.__avatarAudit;if(value.type==='tablet'&&value.action==='frameAck')audit.frame=audit.frames.find(frame=>frame.sequence===value.frameSequence&&frame.revision===value.revision)||audit.frame;}catch{}super.send(data);}
+            send(data){if(typeof data==='string')try{const value=JSON.parse(data),audit=window.__avatarAudit;if(value.type==='tablet'&&value.action==='frameAck'&&value.displayed===true)audit.frame=audit.frames.find(frame=>frame.sequence===value.frameSequence&&frame.revision===value.revision)||audit.frame;}catch{}super.send(data);}
         };
     });
     report.step='Join actual isolated world and load original native avatar';await page.goto(process.env.OVERTE_LAB_URL||'http://127.0.0.1:8092');await page.locator('#domain').fill(report.domain);await page.locator('#name').fill('Browser Avatar Audit');await page.locator('#join').click();

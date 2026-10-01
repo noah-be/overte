@@ -5,6 +5,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {Group,Mesh,BufferGeometry,MeshStandardMaterial,Texture} from 'three';
 import {BrowserWorld} from '../src/world';
+import {FstGraphCache} from '../src/fst-graph-cache';
 
 const methods=BrowserWorld.prototype as unknown as {
   loadModel(source:string,visited?:Set<string>,textureBase?:string):Promise<Group>;
@@ -18,20 +19,33 @@ function fixture(){
   const mesh=new Mesh(geometry,material);model.add(mesh);
   const counts=[geometry,texture,material].map(watched);
   const context=Object.create(BrowserWorld.prototype);
-  Object.assign(context,{options:{resolveAsset:(url:string)=>url,onStatus(){}},abort:new AbortController(),disposed:false});
+  Object.assign(context,{recordLoadPhase(){},loadPreparedFbx:async()=>({buffer:new TextEncoder().encode('; FBX unknown metadata').buffer,phases:{materialBindingsMs:0,decodeMs:0},cacheHit:false}),options:{resolveAsset:(url:string)=>url,onStatus(){}},abort:new AbortController(),disposed:false});
+  context.fstGraphCache=new FstGraphCache(context.abort.signal);
+  let modelLoads=0;
   context.loadModel=(source:string,visited?:Set<string>,textureBase?:string)=>source.endsWith('.fst')
-    ?methods.loadModel.call(context,source,visited,textureBase):Promise.resolve(model);
-  return {context,model,mesh,counts};
+    ?methods.loadModel.call(context,source,visited,textureBase):(modelLoads++,Promise.resolve(model));
+  return {context,model,mesh,counts,modelLoads:()=>modelLoads};
 }
 
-test('actual FST renderer path releases its parsed model on invalid mapping or denied material HTTP response',async t=>{
+test('actual direct-FBX FST invalid map starts no resources; unknown graph denial preserves parsed cleanup',async t=>{
   for(const mapping of ['filename = body.fbx\nmaterialMap = {invalid}',
       'filename = body.fbx\nmaterialMap = [{"all":"material.json"}]']){
-    const {context,counts}=fixture();
+    const {context,counts,modelLoads}=fixture();
     t.mock.method(globalThis,'fetch',async(input:unknown)=>String(input).endsWith('.fst')
       ?new Response(mapping):new Response('Access denied',{status:403}));
     await assert.rejects(context.loadModel('https://assets.invalid/avatar.fst'));
-    assert.deepEqual(counts.map(count=>count()),[1,1,1]);t.mock.restoreAll();
+    const allocated=mapping.includes('{invalid}')?0:1;assert.equal(modelLoads(),allocated);assert.deepEqual(counts.map(count=>count()),[allocated,allocated,allocated]);t.mock.restoreAll();
+  }
+});
+
+test('actual nested FST renderer still releases its parsed model on invalid mapping or denied material HTTP response',async t=>{
+  for(const mapping of ['filename = inner.fst\nmaterialMap = {invalid}',
+      'filename = inner.fst\nmaterialMap = [{"all":"material.json"}]']){
+    const {context,counts,modelLoads}=fixture();
+    t.mock.method(globalThis,'fetch',async(input:unknown)=>String(input).endsWith('/inner.fst')?new Response('filename = body.fbx'):
+      String(input).endsWith('.fst')?new Response(mapping):new Response('Access denied',{status:403}));
+    await assert.rejects(context.loadModel('https://assets.invalid/avatar.fst'));
+    assert.equal(modelLoads(),1);assert.deepEqual(counts.map(count=>count()),[1,1,1]);t.mock.restoreAll();
   }
 });
 

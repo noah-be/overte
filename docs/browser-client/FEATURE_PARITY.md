@@ -39,7 +39,7 @@ additions require fresh evidence on the integrated version. “In progress” an
 | --- | --- | --- |
 | Join, leave, reconnect, session isolation | Baseline verified | Real native coexistence and cleanup |
 | Managed anonymous-domain rights | Baseline verified | Native/configured permission agreement and refusal cases |
-| Actual public online places and Hub | Current Chrome passes four strict Hub gates; Firefox fails four at ~27 FPS. Both actual native pose/rejoin flows complete. Source-specific historical passes retained | Guest admission, real assets, native pose agreement, reconnect |
+| Actual public online places and Hub | Current Chrome passes all four strict gates in baseline/shader/texture cohorts; Firefox fails all four at15–25FPS, at unchanged full density. Both actual native pose/rejoin flows complete. Source-specific historical passes retained | Guest admission, real assets, native pose agreement, reconnect |
 | Directory browsing, bookmarks, history, paths and portals | Genuine Places seven-handoff journey verified; departure viewpoints and portals follow-up open | Actual destination changes and saved visitor preferences |
 | Account login, domain login and logout | Pending | Normal identity/admission preserved without operator credentials |
 | Domain capacity, bans, source-IP and fingerprint policies | Pending | Actual supported identity transport and refusal behavior |
@@ -82,8 +82,8 @@ additions require fresh evidence on the integrated version. “In progress” an
 | VR/WebXR, tracked hands, HMD and controller interaction | Pending | Browser implementation and actual compatible-device proof |
 | Mobile/phone/Pico-specific journeys | Pending | Relevant actual-device validation with version-bound results |
 | Production distribution, self-hosting and meaningful CI | Baseline verified | Fresh production build and exact-head gates after additions |
-| Tablet browser graphics profiles and all effective options | Pending; required after preceding goals | Every control changes the actual visitor renderer and persists appropriately |
-| Render resolution expressed as a percentage | Pending | Actual framebuffer dimensions and image/performance effects |
+| Tablet browser graphics profiles and all effective options | Seventeen genuine native control/profile effects and thirteen painted-popup checks verified in both stock engines; additional native rendering effects remain pending | Every control changes the actual visitor renderer and persists appropriately |
+| Render resolution expressed as a percentage | Actual100/80/60/Custom70% framebuffers and leave/rejoin persistence verified in both stock engines | Actual framebuffer dimensions and image/performance effects |
 | Automatic environment scan and graphics recommendations | Pending; after graphics controls | Actual browser capabilities/performance, explained recommendation and explicit apply |
 | Final actual online-Hub browser stability and autonomous repairs | Pending; after preceding goals | Reproducible short stability journeys, measured stalls/errors and verified fixes |
 | Texture/asset loading and rendering optimization | Immediate priority after joining, explicitly advanced by the user; measured cohorts in progress | Measured load/frame-time improvements with unchanged functional and visual checks |

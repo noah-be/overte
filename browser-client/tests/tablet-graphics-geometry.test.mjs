@@ -16,8 +16,8 @@ test('missing/duplicate/ambiguous actual widgets fail, rather than a guessed inp
     const malformed=rows();malformed[0].y=1;assert.throws(()=>locateNativeGraphicsControls(malformed));
 });
 test('resolution slider has pinned physical endpoints and exact valid native steps',()=>{
-    assert.equal(resolutionSliderX(10),281);assert.equal(resolutionSliderX(200),459);
-    assert.equal(resolutionSliderX(70),337.2105263157895);
+    assert.equal(resolutionSliderX(10),281);assert.equal(resolutionSliderX(200),449);
+    assert.equal(resolutionSliderX(70),334.0526315789474);
     for(const value of [NaN,0,70.1,75,210])assert.throws(()=>resolutionSliderX(value));
 });
 test('canvas measurement rejects oversized/out-of-bounds access before any pixel allocation',()=>{
@@ -38,4 +38,25 @@ test('measurement decodes actual native palette at scaled Desktop tablet coordin
     const canvas={width,height,getContext(){return {getImageData(){return {data:pixels};}};}};
     const result=locateNativeGraphicsControls(measureNativeGraphicsRows(canvas,{x:0,y:0,width,height}));
     assert.deepEqual(result,{profile:{x:360,y:125},fieldOfView:{y:284.5},resolutionPercent:{y:344.5},localLights:{x:410,y:404.5},cameraClipping:{x:410,y:464.5}});
+});
+test('actual Qt caption-gap histogram finds the genuine combo without any guessed Y',async()=>{
+    const {readFile}=await import('node:fs/promises');
+    const fixture=JSON.parse(await readFile(new URL('./fixtures/native-graphics-profile-rows.json',import.meta.url),'utf8'));
+    assert.equal(fixture.width,480);assert.equal(fixture.height,706);
+    assert.match(fixture.sourcePngSha256,/^[0-9a-f]{64}$/);
+    const actual=locateNativeGraphicsControls(fixture.rows);
+    assert.deepEqual(actual,{profile:{x:360,y:123},fieldOfView:{y:285.5},resolutionPercent:{y:345.5},localLights:{x:410,y:405.5},cameraClipping:{x:410,y:465.5}});
+    const shifted=fixture.rows.map((row,index,array)=>({...row,slider:index>=24?array[index-24].slider:0,combo:index>=24?array[index-24].combo:0}));
+    assert.equal(locateNativeGraphicsControls(shifted).profile.y,147);
+    assert.equal(locateNativeGraphicsControls(shifted).resolutionPercent.y,369.5);
+});
+test('glyph-gap bridging still rejects disconnected rectangles, sparse text and multiple native combos',()=>{
+    const fragmented=rows();for(let y=118;y<130;y++)fragmented[y-70].combo=0;
+    assert.throws(()=>locateNativeGraphicsControls(fragmented),/exactly one/);
+    const sparse=rows();for(let y=108;y<143;y++)sparse[y-70].combo=(y%3===0?145:0);
+    assert.throws(()=>locateNativeGraphicsControls(sparse),/exactly one/);
+    const duplicate=rows();for(let y=180;y<215;y++)duplicate[y-70].combo=145;
+    assert.throws(()=>locateNativeGraphicsControls(duplicate),/exactly one/);
+    const tooTall=rows();for(let y=143;y<160;y++)tooTall[y-70].combo=145;
+    assert.throws(()=>locateNativeGraphicsControls(tooTall),/exactly one/);
 });

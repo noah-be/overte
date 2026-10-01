@@ -28,6 +28,9 @@ export class BrowserTablet {
     private revision = 0;
     private sequence = 0;
     private frameSequence = 0;
+    private displayedFrameSequence = 0;
+    private navigationSequence = 0;
+    private activePointer?:{id:number;sequence:number;button:number;bounds:{left:number;top:number;width:number;height:number}};
     private connected = false;
     private generation = 0;
     private disposed = false;
@@ -73,7 +76,7 @@ export class BrowserTablet {
             this.element.addEventListener(name,event=>event.stopPropagation(),{signal});
         }
         this.canvas.addEventListener('pointerdown',event=>{
-            if (!this.revision) return;
+            if (!this.revision || !this.displayedFrameSequence || this.activePointer) return;
             event.preventDefault(); this.keyboard.focus({preventScroll:true}); this.canvas.setPointerCapture(event.pointerId);
             this.pointer('press',event);
         },{signal});
@@ -82,12 +85,13 @@ export class BrowserTablet {
             if (this.canvas.hasPointerCapture(event.pointerId)) this.canvas.releasePointerCapture(event.pointerId);
         },{signal});
         this.canvas.addEventListener('pointermove',event=>this.pointer('move',event),{signal});
-        this.canvas.addEventListener('pointercancel',event=>this.pointer('release',event),{signal});
+        this.canvas.addEventListener('pointercancel',event=>this.pointer('cancel',event),{signal});
+        this.canvas.addEventListener('lostpointercapture',event=>this.pointer('cancel',event),{signal});
         this.canvas.addEventListener('contextmenu',event=>event.preventDefault(),{signal});
         this.canvas.addEventListener('wheel',event=>{
             event.preventDefault(); const coordinates = this.coordinates(event);
             const multiplier = event.deltaMode === 1 ? 40 : event.deltaMode === 2 ? 400 : 1;
-            this.send({action:'input',event:'wheel',...coordinates,deltaX:Math.max(-1200,Math.min(1200,-event.deltaX*multiplier)),deltaY:Math.max(-1200,Math.min(1200,-event.deltaY*multiplier)),modifiers:this.modifiers(event)});
+            this.send({action:'input',event:'wheel',frameSequence:this.activePointer?.sequence??this.displayedFrameSequence,...coordinates,deltaX:Math.max(-1200,Math.min(1200,-event.deltaX*multiplier)),deltaY:Math.max(-1200,Math.min(1200,-event.deltaY*multiplier)),modifiers:this.modifiers(event)});
         },{signal,passive:false});
         const keydown=(event:KeyboardEvent)=>{
             if(event.isComposing)return;
@@ -125,33 +129,60 @@ export class BrowserTablet {
         this.canvas.style.width=`${this.canvas.width*scale}px`;this.canvas.style.height=`${this.canvas.height*scale}px`;
     }
     private coordinates(event:MouseEvent):{x:number;y:number} {
-        const bounds = this.canvas.getBoundingClientRect();
+        const bounds = this.activePointer?.bounds ?? this.canvas.getBoundingClientRect();
         return {x:Math.max(0,Math.min(1,(event.clientX-bounds.left)/Math.max(1,bounds.width))),y:Math.max(0,Math.min(1,(event.clientY-bounds.top)/Math.max(1,bounds.height)))};
     }
-    private pointer(event:'press'|'release'|'move',pointer:PointerEvent):void {
-        this.send({action:'input',event,...this.coordinates(pointer),button:Math.min(2,Math.max(0,pointer.button)),buttons:pointer.buttons&7,modifiers:this.modifiers(pointer)});
+    private clearPointer():void {
+        const held=this.activePointer;this.activePointer=undefined;
+        if(held&&this.canvas.hasPointerCapture(held.id))this.canvas.releasePointerCapture(held.id);
+    }
+    private pointer(event:'press'|'release'|'cancel'|'move',pointer:PointerEvent):void {
+        if(event==='press'){
+            if(this.activePointer||!this.displayedFrameSequence)return;
+            const rect=this.canvas.getBoundingClientRect();
+            this.activePointer={id:pointer.pointerId,sequence:this.displayedFrameSequence,button:Math.min(2,Math.max(0,pointer.button)),bounds:{left:rect.left,top:rect.top,width:rect.width,height:rect.height}};
+        }
+        const held=this.activePointer;
+        if(held&&held.id!==pointer.pointerId)return;
+        if((event==='release'||event==='cancel')&&!held)return;
+        this.send({action:'input',event,frameSequence:held?.sequence??this.displayedFrameSequence,...this.coordinates(pointer),button:held?.button??Math.min(2,Math.max(0,pointer.button)),buttons:event==='cancel'?0:pointer.buttons&7,modifiers:this.modifiers(pointer)});
+        if(event==='release'||event==='cancel')this.clearPointer();
     }
     private send(value:Record<string,unknown>):void {
         if (!this.connected || this.disposed || (value.action !== 'open' && !this.revision)) return;
-        this.options.send({type:'tablet',...value,...(this.revision ? {revision:this.revision} : {}),sequence:++this.sequence});
+        if(value.action==='input'&&(!this.visible||!this.displayedFrameSequence))return;
+        const sequence=++this.sequence;
+        if(['open','home','back','close'].includes(String(value.action))){
+            this.clearPointer();this.displayedFrameSequence=0;this.navigationSequence=sequence;this.generation++;
+        }
+        this.options.send({type:'tablet',...value,...(this.revision ? {revision:this.revision} : {}),sequence});
     }
     private show(visible:boolean):void {
         if (this.visible === visible) return;
+        if(!visible){
+            const held=this.activePointer;
+            if(held)this.send({action:'input',event:'cancel',frameSequence:held.sequence,x:0,y:0,button:held.button,buttons:0,modifiers:0});
+            this.clearPointer();this.displayedFrameSequence=0;this.generation++;
+        }
         this.visible = visible; this.element.hidden = !visible; this.element.style.display = visible ? 'flex' : 'none';
         this.options.onVisibility(visible);
         if (visible) {this.fit();if (document.pointerLockElement) void document.exitPointerLock();this.canvas.focus();}
         else if (document.activeElement instanceof HTMLElement && this.element.contains(document.activeElement)) document.activeElement.blur();
     }
-    open():void {if (this.connected) {this.show(true);this.status.textContent='Opening the native tablet…';this.send({action:'open'});}}
-    close():void {this.snapshots.cancel(true);this.send({action:'close'});this.show(false);this.generation++;}
+    open():void {if (this.connected) {this.displayedFrameSequence=0;this.show(true);this.status.textContent='Opening the native tablet…';this.send({action:'open'});}}
+    close():void {this.snapshots.cancel(true);this.send({action:'close'});this.show(false);this.displayedFrameSequence=0;this.generation++;}
     setConnected(connected:boolean):void {
         this.connected=connected; this.buttons.forEach(button=>button.disabled=!connected);
-        if (!connected) {this.revision=0;this.sequence=0;this.frameSequence=0;this.generation++;this.snapshots.cancel();this.show(false);}
+        if (!connected) {this.revision=0;this.sequence=0;this.frameSequence=0;this.displayedFrameSequence=0;this.navigationSequence=0;this.clearPointer();this.generation++;this.snapshots.cancel();this.show(false);}
     }
     receive(message:TabletMessage):void {
         const value = parseTabletMessage(message);
         if (!this.connected || value.revision < this.revision) return;
-        if (value.revision !== this.revision) {this.revision=value.revision;this.frameSequence=0;this.generation++;this.snapshots.cancel();}
+        if (value.revision !== this.revision) {
+            this.clearPointer();
+            if(this.revision){this.navigationSequence=0;this.show(false);}
+            this.revision=value.revision;this.frameSequence=0;this.displayedFrameSequence=0;this.generation++;this.snapshots.cancel();
+        }
         if (value.kind === 'state') {this.show(value.visible);this.status.textContent=value.loading?'Loading native tablet…':value.screen || 'Tablet';}
         else if (value.kind === 'error') {this.status.textContent=value.message;this.options.onStatus(value.message);}
         else if (value.kind === 'clipboard') this.clipboard.receive(value.text);
@@ -164,27 +195,29 @@ export class BrowserTablet {
                     this.send({action:'graphicsResult',...validateBrowserGraphicsResult(result)});
             } catch {this.options.onStatus('The browser could not apply that graphics setting.');}
         }
-        else if (value.kind === 'frame' && value.sequence > this.frameSequence) {
+        else if (value.kind === 'frame' && value.navigationSequence===this.navigationSequence && value.sequence > this.frameSequence) {
             this.frameSequence=value.sequence;const generation=this.generation;
             void this.draw(value,generation);
         }
     }
     private async draw(frame:Extract<TabletMessage,{kind:'frame'}>,generation:number):Promise<void> {
+        let displayed=false;
         try {
             const raw=atob(frame.data);const bytes=new Uint8Array(raw.length);
             for(let i=0;i<raw.length;i++) bytes[i]=raw.charCodeAt(i);
             const image=await createImageBitmap(new Blob([bytes],{type:'image/png'}));
             try {
-                if (this.disposed || generation!==this.generation || frame.sequence!==this.frameSequence) return;
+                if (this.disposed || generation!==this.generation || frame.sequence!==this.frameSequence || frame.navigationSequence!==this.navigationSequence) return;
                 if (image.width!==frame.width || image.height!==frame.height) throw new Error('Tablet frame dimensions do not match');
                 this.canvas.width=frame.width;this.canvas.height=frame.height;
                 const context=this.canvas.getContext('2d');if(!context) throw new Error('Tablet display is unavailable');
                 context.drawImage(image,0,0);this.canvas.style.aspectRatio=`${frame.width} / ${frame.height}`;
                 this.fit();
+                this.displayedFrameSequence=frame.sequence;displayed=true;
                 this.status.textContent=frame.surface==='dialogs'?'Native tablet dialog':'Tablet';
             } finally {image.close();}
         } catch(error) {if(generation===this.generation)this.options.onStatus(`Tablet display error: ${error instanceof Error ? error.message : String(error)}`);}
-        finally {if(!this.disposed && generation===this.generation)this.send({action:'frameAck',frameSequence:frame.sequence});}
+        finally {if(!this.disposed && generation===this.generation)this.send({action:'frameAck',frameSequence:frame.sequence,displayed});}
     }
     dispose():void {if(this.disposed)return;this.close();this.disposed=true;this.abort.abort();this.resize.disconnect();this.files?.dispose();this.snapshots.dispose();this.clipboard.dispose();this.element.remove();}
 }

@@ -96,6 +96,8 @@ def build(output, runtime):
         Path(temporary_qmldir).unlink(missing_ok=True)
     shutil.copyfile(SOURCE / 'input-test.qml', output / 'input-test.qml')
     run(['g++', *flags, SOURCE / 'input-test.cpp', '-o', output / 'input-test', *libraries])
+    run([moc, *flags[6:], SOURCE / 'grab-test.cpp', '-o', output / 'grab-test.moc'], env=environment)
+    run(['g++', *flags, '-I', output, SOURCE / 'grab-test.cpp', '-o', output / 'grab-test', *libraries])
     (output / 'artifacts.json').write_text(json.dumps({'qtSDKVersion': '5.15.3', 'qtRuntimeVersion': runtime_version, 'packages': artifacts,
         'sourceSha256': hashlib.sha256((SOURCE / 'native-input.cpp').read_bytes()).hexdigest()}, indent=2) + '\n')
     print(f'Built native input QML module: {modules}')
@@ -139,6 +141,7 @@ if __name__ == '__main__':
                     raise RuntimeError('The isolated native input display returned an invalid number')
                 environment.update(DISPLAY=':' + number, XAUTHORITY=str(authority))
                 run([test, output / 'qml', output / 'input-test.qml'], env=environment)
+                run([output / 'grab-test', output / 'qml'], env=environment)
             finally:
                 display_process.terminate()
                 try:
