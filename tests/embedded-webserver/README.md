@@ -70,8 +70,11 @@ The complete declared body is reserved before allocating memory or resizing a
 temporary file. Reservations remain charged while a completed request is held
 by an asynchronous handler, and are returned once on failure/disconnect/destruction.
 Failed requests return their body storage immediately; their admission allowance
-lasts until closure. An exhausted budget returns 503 before allocating body
-storage. Accounting uses overflow-safe subtraction. These are logical wire/body
+lasts until closure. A body reservation exceeding the remaining budget returns
+503 before allocating body storage. If no admission allowance is available,
+the manager closes the socket immediately before constructing a parser, timers,
+or starting TLS; rejected parser objects cannot accumulate awaiting deferred
+deletion. Accounting uses overflow-safe subtraction. These are logical wire/body
 reservations, not a measurement of process RSS: Qt object/container overhead,
 TLS buffers, kernel buffers, transient 64 KiB reads, and application-created
 copies are separate. The connection cap, header cap, and fixed-size reads bound

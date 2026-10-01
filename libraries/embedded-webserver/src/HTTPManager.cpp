@@ -83,11 +83,17 @@ bool HTTPManager::setRequestLimits(const HTTPRequestLimits& limits) {
     return true;
 }
 
-bool HTTPManager::acquireRequest() {
+bool HTTPManager::hasRequestCapacity() const {
     const auto bytes = _requestLimits.maxHeaderBytes + HTTPRequestLimits::SOCKET_BUFFER_BYTES;
-    if (_liveRequestCount >= _requestLimits.maxConnections || !reserveRequestBody(bytes)) {
+    return _liveRequestCount < _requestLimits.maxConnections &&
+        bytes <= _requestLimits.maxReservedBytes - _reservedRequestBytes;
+}
+
+bool HTTPManager::acquireRequest() {
+    if (!hasRequestCapacity()) {
         return false;
     }
+    _reservedRequestBytes += _requestLimits.maxHeaderBytes + HTTPRequestLimits::SOCKET_BUFFER_BYTES;
     ++_liveRequestCount;
     return true;
 }
@@ -122,9 +128,11 @@ uchar* HTTPManager::mapRequestFile(QTemporaryFile& file, qint64 size) { return f
 void HTTPManager::incomingConnection(qintptr socketDescriptor) {
     QTcpSocket* socket = new QTcpSocket(this);
 
-    if (socket->setSocketDescriptor(socketDescriptor)) {
+    if (socket->setSocketDescriptor(socketDescriptor) && hasRequestCapacity()) {
         new HTTPConnection(socket, this);
     } else {
+        // Rejections must not accumulate parser/timer/socket children waiting
+        // for deferred deletion. Close immediately, including before TLS setup.
         delete socket;
     }
 }

@@ -48,9 +48,16 @@ private:
         StorageManager(HTTPRequestHandler* handler) : HTTPManager(QHostAddress::LocalHost, 0, QString(), handler) {}
         Fault fault { None };
         int allocations { 0 }, opens { 0 }, resizes { 0 }, maps { 0 };
+        int maxParserChildren { 0 }, maxSocketChildren { 0 };
         QString filePath;
         QPointer<QTemporaryFile> file;
         QTemporaryDir fixture;
+        void incomingConnection(qintptr descriptor) override {
+            HTTPManager::incomingConnection(descriptor);
+            // Observe immediately, before deleteLater/event-loop cleanup can hide an excess child.
+            maxParserChildren = std::max(maxParserChildren, findChildren<HTTPConnection*>().size());
+            maxSocketChildren = std::max(maxSocketChildren, findChildren<QTcpSocket*>().size());
+        }
         QByteArray allocateRequestMemory(int size) override {
             ++allocations;
             if (fault == MemoryThrow) { throw std::bad_alloc(); }
@@ -366,7 +373,10 @@ private slots:
         complete.write("POST / HTTP/1.1\r\nContent-Length: 128\r\n\r\n" + QByteArray(128, 'a'));
         QVERIFY(until([&] { return handler.requests == 1; }));
         QCOMPARE(manager.reservedRequestBytes(), limits.maxReservedBytes);
-        QVERIFY(exchange(manager, "GET / HTTP/1.1\r\n\r\n").startsWith("HTTP/1.1 503 "));
+        QTcpSocket refused;
+        QVERIFY(openClient(manager, refused));
+        QVERIFY(until([&] { return refused.state() == QAbstractSocket::UnconnectedState; }));
+        QCOMPARE(manager.findChildren<HTTPConnection*>().size(), 1);
         QCOMPARE(handler.requests, 1);
         handler.connection->respond(HTTPConnection::StatusCode200);
         QVERIFY(closedResponse(complete).startsWith("HTTP/1.1 200 "));
@@ -383,7 +393,18 @@ private slots:
         QVERIFY(openClient(*manager, first));
         QVERIFY(until([&] { return manager->liveRequestCount() == 1; }));
         QVERIFY(!manager->setRequestLimits(limits));
-        QVERIFY(exchange(*manager, "GET / HTTP/1.1\r\n\r\n").startsWith("HTTP/1.1 503 "));
+        // The callback observations must never see excess parser/socket children,
+        // even transiently before the event loop processes deferred deletions.
+        for (int i = 0; i < 8; ++i) {
+            QTcpSocket refused;
+            QVERIFY(openClient(*manager, refused));
+            QVERIFY(until([&] { return refused.state() == QAbstractSocket::UnconnectedState; }));
+            QCOMPARE(manager->findChildren<HTTPConnection*>().size(), 1);
+            QCOMPARE(manager->findChildren<QTcpSocket*>().size(), 1);
+            QCOMPARE(manager->liveRequestCount(), 1);
+            QCOMPARE(manager->maxParserChildren, 1);
+            QCOMPARE(manager->maxSocketChildren, 1);
+        }
         first.write("POST / HTTP/1.1\r\nContent-Length: 32\r\n\r\na");
         QVERIFY(until([&] { return manager->resizes == 1; }));
         const auto path = manager->filePath;

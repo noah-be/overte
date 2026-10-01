@@ -65,6 +65,7 @@ private:
     bool bindSocket();
     
 protected:
+    bool hasRequestCapacity() const;
     // Narrow storage operations used by production; overridable for deterministic fault tests.
     virtual QByteArray allocateRequestMemory(int size);
     virtual bool openRequestFile(QTemporaryFile& file);
