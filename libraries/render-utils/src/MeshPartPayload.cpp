@@ -17,6 +17,7 @@
 #include <PerfStat.h>
 #include <DualQuaternion.h>
 #include <graphics/ShaderConstants.h>
+#include <graphics/SkinningPalette.h>
 
 #include "render-utils/ShaderConstants.h"
 #include <procedural/Procedural.h>
@@ -38,6 +39,7 @@ ModelMeshPartPayload::ModelMeshPartPayload(ModelPointer model, int meshIndex, in
     const Model::MeshState& state = model->getMeshState(_meshIndex);
 
     updateMeshPart(modelMesh, partIndex);
+    initCache(model, shapeIndex);
 
     bool useDualQuaternionSkinning = model->getUseDualQuaternionSkinning();
     if (useDualQuaternionSkinning) {
@@ -48,7 +50,11 @@ ModelMeshPartPayload::ModelMeshPartPayload(ModelPointer model, int meshIndex, in
 
     updateTransformForSkinnedMesh(transform, state, useDualQuaternionSkinning);
 
-    initCache(model, shapeIndex);
+    if (useDualQuaternionSkinning) {
+        updateClusterBuffer(state.clusterDualQuaternions);
+    } else {
+        updateClusterBuffer(state.clusterMatrices);
+    }
 
 #if defined(Q_OS_MAC) || defined(Q_OS_ANDROID) || !defined(USE_GL)
     // On mac AMD, we specifically need to have a _meshBlendshapeBuffer bound when using a deformed mesh pipeline
@@ -72,6 +78,7 @@ void ModelMeshPartPayload::initCache(const ModelPointer& model, int shapeID) {
 
         const HFMModel& hfmModel = model->getHFMModel();
         const HFMMesh& mesh = hfmModel.meshes.at(_meshIndex);
+        _expectedClusterCount = mesh.clusters.size();
 
         _isBlendShaped = !mesh.blendshapes.isEmpty();
         _hasTangents = !mesh.tangents.isEmpty();
@@ -93,41 +100,17 @@ void ModelMeshPartPayload::updateMeshPart(const std::shared_ptr<const graphics::
 }
 
 void ModelMeshPartPayload::updateClusterBuffer(const std::vector<glm::mat4>& clusterMatrices) {
-    // reset cluster buffer if we change the cluster buffer type
-    if (_clusterBufferType != ClusterBufferType::Matrices) {
-        _clusterBuffer.reset();
-    }
+    _clusterPaletteValid = graphics::updateSkinningPalette(_clusterBuffer, clusterMatrices, _expectedClusterCount);
     _clusterBufferType = ClusterBufferType::Matrices;
-
-    // Once computed the cluster matrices, update the buffer(s)
-    if (clusterMatrices.size() > 1) {
-        if (!_clusterBuffer) {
-            _clusterBuffer = std::make_shared<gpu::Buffer>(gpu::Buffer::UniformBuffer, clusterMatrices.size() * sizeof(glm::mat4),
-                (const gpu::Byte*) clusterMatrices.data());
-        } else {
-            _clusterBuffer->setSubData(0, clusterMatrices.size() * sizeof(glm::mat4),
-                (const gpu::Byte*) clusterMatrices.data());
-        }
-    }
+    if (!_clusterPaletteValid && !_reportedPaletteError) { qWarning() << "Rejecting mismatched or oversized matrix skinning upload"; }
+    _reportedPaletteError = !_clusterPaletteValid;
 }
 
 void ModelMeshPartPayload::updateClusterBuffer(const std::vector<Model::TransformDualQuaternion>& clusterDualQuaternions) {
-    // reset cluster buffer if we change the cluster buffer type
-    if (_clusterBufferType != ClusterBufferType::DualQuaternions) {
-        _clusterBuffer.reset();
-    }
+    _clusterPaletteValid = graphics::updateSkinningPalette(_clusterBuffer, clusterDualQuaternions, _expectedClusterCount);
     _clusterBufferType = ClusterBufferType::DualQuaternions;
-
-    // Once computed the cluster matrices, update the buffer(s)
-    if (clusterDualQuaternions.size() > 1) {
-        if (!_clusterBuffer) {
-            _clusterBuffer = std::make_shared<gpu::Buffer>(gpu::Buffer::UniformBuffer, clusterDualQuaternions.size() * sizeof(Model::TransformDualQuaternion),
-                (const gpu::Byte*) clusterDualQuaternions.data());
-        } else {
-            _clusterBuffer->setSubData(0, clusterDualQuaternions.size() * sizeof(Model::TransformDualQuaternion),
-                (const gpu::Byte*) clusterDualQuaternions.data());
-        }
-    }
+    if (!_clusterPaletteValid && !_reportedPaletteError) { qWarning() << "Rejecting mismatched or oversized DQ skinning upload"; }
+    _reportedPaletteError = !_clusterPaletteValid;
 }
 
 void ModelMeshPartPayload::computeAdjustedLocalBound(const std::vector<glm::mat4>& clusterMatrices) {
@@ -165,14 +148,14 @@ void ModelMeshPartPayload::computeAdjustedLocalBound(const std::vector<Model::Tr
 void ModelMeshPartPayload::updateTransformForSkinnedMesh(const Transform& modelTransform, const Model::MeshState& meshState, bool useDualQuaternionSkinning) {
     _localTransform = Transform();
     if (useDualQuaternionSkinning) {
-        if (meshState.clusterDualQuaternions.size() == 1 || meshState.clusterDualQuaternions.size() == 2) {
+        if (!_isSkinned && !meshState.clusterDualQuaternions.empty()) {
             const auto& dq = meshState.clusterDualQuaternions[0];
             _localTransform = Transform(dq.getRotation(),
                                        dq.getScale(),
                                        dq.getTranslation());
         }
     } else {
-        if (meshState.clusterMatrices.size() == 1 || meshState.clusterMatrices.size() == 2) {
+        if (!_isSkinned && !meshState.clusterMatrices.empty()) {
             _localTransform = Transform(meshState.clusterMatrices[0]);
         }
     }
@@ -201,6 +184,7 @@ void ModelMeshPartPayload::bindTransform(gpu::Batch& batch, const Transform& tra
 }
 
 void ModelMeshPartPayload::drawCall(gpu::Batch& batch) const {
+    if (!_clusterPaletteValid) { return; }
     batch.drawIndexed(gpu::TRIANGLES, _drawPart._numIndices, _drawPart._startIndex);
 }
 
