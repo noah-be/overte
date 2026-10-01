@@ -25,6 +25,10 @@
 #include <QPair>
 #include <QTemporaryFile>
 #include <QUrl>
+#include <QTimer>
+#include <QElapsedTimer>
+
+#include "HTTPRequestLimits.h"
 
 #include <memory>
 
@@ -66,7 +70,8 @@ public:
         virtual const QByteArray& content() const = 0;
 
         virtual qint64 bytesLeftToWrite() const = 0;
-        virtual void write(const QByteArray& data) = 0;
+        virtual bool write(const QByteArray& data) = 0;
+        virtual bool finish() { return true; }
     };
 
     /// Initializes the connection.
@@ -91,7 +96,10 @@ public:
     QByteArray requestHeader(const QString& key) const { return _requestHeaders.value(key.toLower().toLocal8Bit()); }
 
     /// Returns a reference to the request content.
-    const QByteArray& requestContent() const { return _requestContent->content(); }
+    const QByteArray& requestContent() const {
+        static const QByteArray empty;
+        return _requestContent ? _requestContent->content() : empty;
+    }
 
     /// Parses the request content as form data, returning a list of header/content pairs.
     QList<FormData> parseFormData() const;
@@ -120,6 +128,13 @@ protected slots:
     void readContent();
 
 protected:
+    bool readHeaderLine(QByteArray& line);
+    bool withinDeadline();
+    void finishRequest();
+    void failRequest(const char* status);
+    void releaseStorage();
+    void releaseResources();
+    bool prepareStorage(qint64 size);
     void respondWithStatusAndHeaders(const char* code, const char* contentType, const Headers& headers, qint64 size);
 
     /// The parent HTTP manager
@@ -140,8 +155,17 @@ protected:
     /// The request headers.
     Headers _requestHeaders;
 
-    /// The last request header processed (used for continuations).
-    QByteArray _lastRequestHeader;
+    HTTPRequestLimits _limits;
+    QTimer* _requestTimer;
+    QTimer* _headerTimer;
+    QTimer* _idleTimer;
+    QElapsedTimer _elapsed;
+    qint64 _headerBytes { 0 };
+    qint64 _lastProgressMs { 0 };
+    qint64 _reservedBodyBytes { 0 };
+    bool _admitted { false };
+    bool _headersComplete { false };
+    bool _finished { false };
 
     /// The content of the request.
     std::unique_ptr<Storage> _requestContent;
