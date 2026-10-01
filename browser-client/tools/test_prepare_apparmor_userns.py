@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 import hashlib
 import importlib.util
+import os
+import tempfile
 import stat
 import unittest
 from pathlib import Path
@@ -75,6 +77,7 @@ class PreparationOwnership(unittest.TestCase):
         with patch.object(m.os, 'geteuid', return_value=0), \
              patch.object(Path, 'resolve', return_value=Path('/usr/sbin/apparmor_parser')), \
              patch.object(m, 'trusted_file'), \
+             patch.object(m, 'harden_profile_parent', return_value={'action': 'preserved-secure-mode'}), \
              patch.object(m, 'package_owns_exact_executable', return_value=True), \
              patch.object(m, 'loaded_profiles', side_effect=loaded), \
              patch.object(m, 'inspect_target', side_effect=inspect), \
@@ -111,6 +114,18 @@ class PreparationOwnership(unittest.TestCase):
         with self.assertRaisesRegex(m.PolicyError, 'remained-unloaded'):
             self.prepare([{}, {}])
 
+    def test_hardening_refusal_prevents_target_inspection_and_policy_load(self):
+        with patch.object(m.os, 'geteuid', return_value=0), \
+             patch.object(Path, 'resolve', return_value=Path('/usr/sbin/apparmor_parser')), \
+             patch.object(m, 'trusted_file'), \
+             patch.object(m, 'package_owns_exact_executable', return_value=True), \
+             patch.object(m, 'harden_profile_parent', side_effect=m.PolicyError('distro-directory-identity-changed')), \
+             patch.object(m, 'inspect_target') as inspect, patch.object(m, 'command') as command:
+            with self.assertRaisesRegex(m.PolicyError, 'identity-changed'):
+                m.prepare()
+            inspect.assert_not_called()
+            command.assert_not_called()
+
     def test_nonroot_actor_never_attempts_policy_mutation(self):
         with patch.object(m.os, 'geteuid', return_value=1000), patch.object(m, 'command') as command:
             with self.assertRaisesRegex(m.PolicyError, 'root-required'):
@@ -141,6 +156,136 @@ class PreparationOwnership(unittest.TestCase):
              patch.object(Path, 'stat', return_value=SimpleNamespace(st_uid=0, st_mode=stat.S_IFREG | 0o644)):
             with self.assertRaisesRegex(m.PolicyError, 'not-canonical'):
                 m.trusted_file(path)
+
+
+class DirectoryHardening(unittest.TestCase):
+    """Real owned temporary descriptors/chmod; only root ownership is simulated."""
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.parent = Path(self.temporary.name) / 'share'
+        self.parent.mkdir()
+        self.parent.chmod(0o777)
+        self.original_stat = Path.stat
+        self.original_fstat = os.fstat
+        self.ancestors = set(self.parent.parents)
+
+    def root_info(self, info, *, ancestor=False, uid=0):
+        return SimpleNamespace(st_mode=(stat.S_IFDIR | 0o755) if ancestor else info.st_mode,
+                               st_uid=uid, st_dev=info.st_dev, st_ino=info.st_ino)
+
+    def contexts(self, *, target_uid=0, unsafe_ancestor=None):
+        from contextlib import ExitStack
+        stack = ExitStack()
+        stack.enter_context(patch.object(m, 'PROFILE_PARENT', self.parent))
+        stack.enter_context(patch.object(m.os, 'geteuid', return_value=0))
+        def path_stat(candidate, **kwargs):
+            info = self.original_stat(candidate, **kwargs)
+            result = self.root_info(info, ancestor=candidate in self.ancestors,
+                                    uid=target_uid if candidate == self.parent else 0)
+            if candidate == unsafe_ancestor:
+                result.st_mode |= stat.S_IWGRP
+            return result
+        stack.enter_context(patch.object(Path, 'stat', autospec=True, side_effect=path_stat))
+        stack.enter_context(patch.object(m.os, 'fstat', side_effect=lambda fd:
+                                        self.root_info(self.original_fstat(fd), uid=target_uid)))
+        return stack
+
+    def test_real_writable_directory_tightens_without_changing_profile_bytes(self):
+        file = self.parent / 'packaged-profile'
+        content = b'abi <abi/4.0>,\nprofile bwrap /usr/bin/bwrap {}\n'
+        file.write_bytes(content)
+        file.chmod(0o644)
+        with self.contexts():
+            # Counterfactual: the unchanged trust guard refuses the old image.
+            with self.assertRaisesRegex(m.PolicyError, 'parent-directory-owner-or-write'):
+                m.trusted_file(file)
+            report = m.harden_profile_parent()
+            self.assertEqual(report['beforeMode'], '0777')
+            self.assertEqual(report['afterMode'], '0755')
+            m.trusted_file(file)
+        self.assertEqual(stat.S_IMODE(self.parent.stat().st_mode), 0o755)
+        self.assertEqual(file.read_bytes(), content)
+
+    def test_secure_directory_is_idempotent_and_special_bits_preserved(self):
+        self.parent.chmod(0o3755)
+        with self.contexts(), patch.object(m.os, 'fchmod', wraps=os.fchmod) as chmod:
+            report = m.harden_profile_parent()
+            self.assertEqual(report['action'], 'preserved-secure-mode')
+            self.assertEqual(report['afterMode'], '3755')
+            chmod.assert_not_called()
+
+    def test_only_group_other_write_bits_removed(self):
+        self.parent.chmod(0o3771)
+        with self.contexts():
+            report = m.harden_profile_parent()
+        self.assertEqual(report['afterMode'], '3751')
+        self.assertEqual(stat.S_IMODE(self.parent.stat().st_mode), 0o3751)
+
+    def test_nonroot_owner_refused_before_chmod(self):
+        with self.contexts(target_uid=1000), patch.object(m.os, 'fchmod') as chmod:
+            with self.assertRaisesRegex(m.PolicyError, 'not-root-owned'):
+                m.harden_profile_parent()
+            chmod.assert_not_called()
+
+    def test_writable_ancestor_refused_before_open(self):
+        with self.contexts(unsafe_ancestor=self.parent.parent), patch.object(m.os, 'open') as opened:
+            with self.assertRaisesRegex(m.PolicyError, 'ancestor-is-not-trusted'):
+                m.harden_profile_parent()
+            opened.assert_not_called()
+
+    def test_symlink_and_nondirectory_refused_without_touching_target(self):
+        original = self.parent.with_name('original')
+        self.parent.rename(original)
+        self.parent.symlink_to(original, target_is_directory=True)
+        with self.contexts(), patch.object(m.os, 'fchmod') as chmod:
+            with self.assertRaisesRegex(m.PolicyError, 'not-canonical'):
+                m.harden_profile_parent()
+            chmod.assert_not_called()
+        self.parent.unlink()
+        self.parent.write_text('not a directory')
+        with self.contexts(), self.assertRaises(OSError):
+            m.harden_profile_parent()
+        self.assertEqual(self.parent.read_text(), 'not a directory')
+
+    def test_path_replacement_after_open_refused_and_descriptor_closed(self):
+        original_open = os.open
+        opened = []
+        held = self.parent.with_name('held')
+        def replace(*args, **kwargs):
+            descriptor = original_open(*args, **kwargs)
+            opened.append(descriptor)
+            self.parent.rename(held)
+            self.parent.mkdir(mode=0o777)
+            return descriptor
+        with self.contexts(), patch.object(m.os, 'open', side_effect=replace), \
+                patch.object(m.os, 'fchmod') as chmod:
+            with self.assertRaisesRegex(m.PolicyError, 'identity-changed'):
+                m.harden_profile_parent()
+            chmod.assert_not_called()
+        with self.assertRaises(OSError):
+            self.original_fstat(opened[0])
+        self.assertEqual(stat.S_IMODE(held.stat().st_mode), 0o777)
+
+    def test_post_chmod_replacement_refused_without_touching_replacement(self):
+        original_chmod = os.fchmod
+        held = self.parent.with_name('held')
+        def replace(descriptor, mode):
+            original_chmod(descriptor, mode)
+            self.parent.rename(held)
+            self.parent.mkdir()
+            self.parent.chmod(0o777)
+        with self.contexts(), patch.object(m.os, 'fchmod', side_effect=replace):
+            with self.assertRaisesRegex(m.PolicyError, 'hardening-not-verified'):
+                m.harden_profile_parent()
+        self.assertEqual(stat.S_IMODE(held.stat().st_mode), 0o755)
+        self.assertEqual(stat.S_IMODE(self.parent.stat().st_mode), 0o777)
+
+    def test_nonroot_actor_has_no_filesystem_mutation(self):
+        with patch.object(m.os, 'geteuid', return_value=1000), patch.object(m.os, 'open') as opened:
+            with self.assertRaisesRegex(m.PolicyError, 'root-required'):
+                m.harden_profile_parent()
+            opened.assert_not_called()
 
 
 class PackageManifest(unittest.TestCase):

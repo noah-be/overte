@@ -8,7 +8,7 @@ import signal
 import subprocess
 import sys
 import time
-from run import safe_environment
+from run import safe_environment, empty_npm_environment
 
 REQUIRED_STAGES = frozenset(('production-build','unit-isolation-contracts','actual-qt-input',
     'fbx-worker-chromium','fbx-worker-firefox','vite-embedded-config-mjs',
@@ -45,7 +45,7 @@ def main():
     runtime_tmp.mkdir(mode=0o700)
     audio = runtime_tmp/'pulse.sock'
     env = dict(safe_environment(),OVERTE_LAB_ROOT=str(root),OVERTE_LAB_DURATION_SECONDS='0',
-        NPM_CONFIG_USERCONFIG=str(runtime/'empty-npmrc'),NPM_CONFIG_GLOBALCONFIG=str(runtime/'empty-npmrc'),
+        **empty_npm_environment(runtime),
         XDG_RUNTIME_DIR=str(runtime_tmp),XDG_CACHE_HOME=str(runtime/'cache'),
         XDG_CONFIG_HOME=str(runtime_tmp/'config'),XDG_DATA_HOME=str(runtime_tmp/'data'),
         PLAYWRIGHT_BROWSERS_PATH=str(runtime/'browsers'),PULSE_SERVER='unix:'+str(audio),

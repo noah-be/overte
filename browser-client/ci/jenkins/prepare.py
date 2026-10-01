@@ -10,7 +10,7 @@ import sys
 import signal
 import time
 import re
-from run import checked_source, checked_executable, safe_environment, stop_owned, checkout_clean
+from run import checked_source, checked_executable, safe_environment, stop_owned, checkout_clean, empty_npm_environment
 
 
 def installer_command(command):
@@ -74,10 +74,8 @@ def prepare_dependencies(repo,source_sha,runtime):
     for name in ('node','npm','git','python3','g++','ar','tar','rpm2cpio','cpio','dnf',
                  'ffmpeg','pactl','bwrap','unshare','mount','setpriv','ip','xauth'):
         checked_executable(name)
-    npm_config = runtime/'empty-npmrc'
-    npm_config.write_text('')
     env = {**safe_environment(), 'PLAYWRIGHT_BROWSERS_PATH': str(runtime/'browsers'),
-           'NPM_CONFIG_USERCONFIG':str(npm_config),'NPM_CONFIG_GLOBALCONFIG':str(npm_config),
+           **empty_npm_environment(runtime, create=True),
            'XDG_CACHE_HOME':str(runtime/'cache'), 'OVERTE_LAB_ROOT':str(repo/'build/browser-lab')}
     version = subprocess.check_output(['node','-p','process.versions.node'],text=True,timeout=10,env=env).strip()
     major,minor,_patch = map(int,version.split('.'))

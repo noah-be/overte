@@ -30,6 +30,30 @@ def safe_environment():
     return result
 
 
+def empty_npm_environment(runtime, *, create=False):
+    """Keep npm's user/global scopes distinct without reading operator config."""
+    files = (runtime/'empty-user-npmrc', runtime/'empty-global-npmrc')
+    identities = []
+    for path in files:
+        flags = os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK | (os.O_RDWR | os.O_CREAT if create else os.O_RDONLY)
+        descriptor = os.open(path, flags, 0o600)
+        try:
+            info = os.fstat(descriptor)
+            if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_nlink != 1:
+                raise RuntimeError('CI-npm-config-is-not-owned-private-regular-file')
+            if create:
+                os.fchmod(descriptor, 0o600)
+                os.ftruncate(descriptor, 0)
+            elif info.st_size != 0 or stat.S_IMODE(info.st_mode) != 0o600:
+                raise RuntimeError('CI-npm-config-is-not-empty-private-file')
+            identities.append((info.st_dev, info.st_ino))
+        finally:
+            os.close(descriptor)
+    if identities[0] == identities[1]:
+        raise RuntimeError('CI-npm-config-scopes-share-file-identity')
+    return {'NPM_CONFIG_USERCONFIG': str(files[0]), 'NPM_CONFIG_GLOBALCONFIG': str(files[1])}
+
+
 def checked_executable(name):
     candidate = shutil.which(name)
     if not candidate:

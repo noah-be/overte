@@ -1,7 +1,14 @@
 # Proposed isolated Jenkins native/browser qualification
 
-This is a reviewed candidate, not an actual Jenkins CI pass. No existing Jenkins
-job, node, service, device configuration or GitHub resource was modified.
+This is a reviewed candidate, not an actual Jenkins CI pass. The dedicated
+`overte-browser-native-ci` job has been created through the official Jenkins CLI;
+unrelated jobs, nodes, services and device configuration are preserved.
+Its exact `9f8dc66e8751bb7c17f4c5f7a2123d10efba1938` build verifies the source
+and fails dependency preparation because npm user/global configuration resolve
+to the same empty file. None of the nineteen native gates ran in that build.
+The distinct private-config correction and FIFO guard pass39 host-runner
+contracts; exact-source Jenkins acceptance of the next published commit is
+still required.
 
 The helper files belong at `browser-client/ci/jenkins/` in the exact attested
 fork commit. The final pipeline refuses modified/untracked policy helpers and
@@ -121,3 +128,9 @@ visible. This candidate does not remove or replace any existing required check.
 Any eventual automated fork check publication needs separately reviewed trusted
 orchestration and full exact-commit effective-gate evidence; no agent credentials
 or public Jenkins exposure are introduced here.
+
+The private npm user/global configuration files are opened with `O_NOFOLLOW`
+and `O_NONBLOCK`, then checked through their held descriptors. This keeps a
+substituted FIFO from blocking the gate before its regular-file check. Both
+files must remain distinct, owned, empty and mode 0600. The isolated actual-FIFO
+regression retains a negative control for the former blocking-open expression.

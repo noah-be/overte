@@ -3,7 +3,9 @@
 """Reload only absent, unmodified distro namespace profiles on an ephemeral runner.
 
 Install apparmor-profiles through the runner's normal signed apt repositories
-before invoking this helper as root. No replacement policy is generated here.
+before invoking this helper as root. The exact root-owned /usr/share directory
+is tightened if the ephemeral image made it group/other writable. No replacement
+policy is generated here.
 """
 import hashlib
 import json
@@ -18,6 +20,7 @@ TARGETS = (
     ('unshare-userns-restrict', 'apparmor-profiles', 'unshare', '/usr/bin/unshare'),
 )
 ALLOWED_NAMES = {'bwrap', 'unshare', 'unpriv_bwrap', 'unshare//unpriv'}
+PROFILE_PARENT = Path('/usr/share')
 PROFILE_DIRECTORY = Path('/usr/share/apparmor/extra-profiles')
 PACKAGE_MANIFEST = Path('/var/lib/dpkg/info/apparmor-profiles.md5sums')
 
@@ -62,6 +65,48 @@ def trusted_file(path):
                 or parent_info.st_uid != 0 or parent_info.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
             raise PolicyError('distro-parent-directory-owner-or-write-permissions-invalid')
     return info
+
+
+def harden_profile_parent():
+    """Remove only unsafe write bits on the fixed ephemeral distro directory.
+
+    No caller-supplied path, package/profile substitution, or policy relaxation
+    is accepted. Hold a no-follow directory descriptor through chmod and verify
+    its pathname identity before and after. The existing file/package checks
+    still run afterward; a later refusal does not restore unsafe write access.
+    """
+    if os.geteuid() != 0:
+        raise PolicyError('root-required-for-distro-directory-hardening')
+    path = PROFILE_PARENT
+    for ancestor in path.parents:
+        info = ancestor.stat()
+        if ancestor.resolve(strict=True) != ancestor or not stat.S_ISDIR(info.st_mode) \
+                or info.st_uid != 0 or info.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
+            raise PolicyError('distro-directory-ancestor-is-not-trusted')
+    if path.resolve(strict=True) != path:
+        raise PolicyError('distro-directory-is-not-canonical')
+    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        info = os.fstat(descriptor)
+        current = path.stat(follow_symlinks=False)
+        identity = (info.st_dev, info.st_ino)
+        if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0:
+            raise PolicyError('distro-directory-is-not-root-owned-directory')
+        if identity != (current.st_dev, current.st_ino) or path.resolve(strict=True) != path:
+            raise PolicyError('distro-directory-identity-changed')
+        before = stat.S_IMODE(info.st_mode)
+        after = before & ~(stat.S_IWGRP | stat.S_IWOTH)
+        if after != before:
+            os.fchmod(descriptor, after)
+        verified = os.fstat(descriptor)
+        current = path.stat(follow_symlinks=False)
+        if identity != (current.st_dev, current.st_ino) or path.resolve(strict=True) != path \
+                or verified.st_uid != 0 or stat.S_IMODE(verified.st_mode) != after:
+            raise PolicyError('distro-directory-hardening-not-verified')
+        return {'path': str(path), 'beforeMode': f'{before:04o}', 'afterMode': f'{after:04o}',
+                'action': 'removed-group-other-write' if before != after else 'preserved-secure-mode'}
+    finally:
+        os.close(descriptor)
 
 
 def package_file_digest(path):
@@ -158,6 +203,7 @@ def prepare():
         raise PolicyError('distro-parser-is-not-executable')
     if not package_owns_exact_executable(parser, 'apparmor'):
         raise PolicyError('parser-is-not-owned-by-apparmor-package')
+    directory_hardening = harden_profile_parent()
     before = loaded_profiles()
     # Validate *all* targets before mutating either. Never replace a loaded
     # profile: it might intentionally enforce stronger runtime policy.
@@ -176,7 +222,7 @@ def prepare():
         target['action'] = 'loaded-unchanged-package-profile'
     return {'passed': True, 'scope': 'Ephemeral runner exact signed-package namespace profile preparation',
             'policyReplacement': 'none', 'before': before, 'after': loaded_profiles(),
-            'targets': targets, 'normalSandboxAndNativePreflight': 'still-required'}
+            'targets': targets, 'directoryHardening': directory_hardening, 'normalSandboxAndNativePreflight': 'still-required'}
 
 
 def main():

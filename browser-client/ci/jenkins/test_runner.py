@@ -27,6 +27,7 @@ g=module('ci_gates','gates.py')
 x=module('ci_xml','create-job-xml.py')
 owner=module('ci_namespace','namespace-owner.py')
 prepare=module('ci_prepare','prepare.py')
+from test_npm_config import NpmConfig  # Include the actual npm-loader regression in this existing entry point.
 
 
 class Source(unittest.TestCase):
