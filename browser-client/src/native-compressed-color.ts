@@ -21,13 +21,18 @@ export interface CompressedColorSampler {
 interface Entry {parsed: NativeKtx; bytes: number; source: THREE.CompressedTexture['source']}
 interface Reader {finish(error?: unknown, entry?: Entry): void}
 interface Job {key: string; address: string; authority: string; readers: Set<Reader>; controller: AbortController; timer: ReturnType<typeof setTimeout>; started: boolean; expired: boolean}
-const owned = new WeakMap<THREE.Texture,{source: THREE.Texture['source']; mipmaps: THREE.CompressedTexture['mipmaps']; classification: NativeTextureAlpha}>();
+const owned = new WeakMap<THREE.Texture,{source: THREE.Texture['source']; mipmaps: THREE.CompressedTexture['mipmaps']; classification: NativeTextureAlpha;originalSize?:{width:number;height:number}}>();
 function cancelled() {return new DOMException('Compressed color load cancelled','AbortError');}
 function requireInteger(value: number, maximum: number) {if (!Number.isSafeInteger(value)||value<1||value>maximum) throw Error('Invalid compressed color resource limit');return value;}
 /** No userData flag or caller-supplied metadata can establish this ownership. */
 export function nativeCompressedColorAlpha(texture: THREE.Texture): NativeTextureAlpha|undefined {
  const entry=owned.get(texture);
  return entry&&texture.source===entry.source&&(texture as THREE.CompressedTexture).mipmaps===entry.mipmaps?entry.classification:undefined;
+}
+/** Native GPUKTX v2 original dimensions; only exact privately owned Sources qualify. */
+export function nativeCompressedImageOriginalSize(texture:THREE.Texture):{width:number;height:number}|undefined {
+ const entry=owned.get(texture),size=entry?.originalSize;
+ return entry&&texture.source===entry.source&&(texture as THREE.CompressedTexture).mipmaps===entry.mipmaps&&size&&Number.isSafeInteger(size.width)&&Number.isSafeInteger(size.height)&&size.width>0&&size.height>0?{...size}:undefined;
 }
 /** Prototype material eligibility: authored modes win, then approved albedo usage. Unowned textures still require the original-image path. */
 export function nativeCompressedColorMaterialAlpha(texture: THREE.Texture, options: {useAlpha: boolean; mode?: 'OPACITY_MAP_OPAQUE'|'OPACITY_MAP_MASK'|'OPACITY_MAP_BLEND'}): NativeTextureAlpha|undefined {
@@ -117,7 +122,7 @@ export class NativeCompressedColorCache {
   if(sampler.minFilter!==undefined)texture.minFilter=sampler.minFilter;
   // Mark only this new Texture's initial source; a ready shared source must not force another GPU upload.
   texture.needsUpdate=true;texture.source=entry.source;
-  owned.set(texture,{source:texture.source,mipmaps:texture.mipmaps,classification:parsed.nativeUsage.classification});
+  owned.set(texture,{source:texture.source,mipmaps:texture.mipmaps,classification:parsed.nativeUsage.classification,originalSize:parsed.nativeUsage.originalSize});
   // Native source packets omit orientation and retain original Qt image row order. Explicit T=u reverses it.
   setCompressedColorFlipY(texture,(sampler.flipY??true)!==(parsed.orientation==='S=r,T=u'));
   texture.addEventListener('dispose',()=>owned.delete(texture));return texture;

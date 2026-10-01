@@ -4,7 +4,93 @@ Last updated: 2026-10-01. **Original baseline passed; additional mandatory Table
 
 ## Current implementation and next step
 
-Current publication checkpoint (2026-10-01,19:57UTC): all914registered
+Current continuation (2026-10-01,21:45UTC): all1030 registered component
+contracts pass without skips(10.697seconds), the production build passes,
+and all34required repository suites pass(164.21seconds). The actual bundled
+Chromium/Firefox native Image material/effect tests pass12/12(21.3seconds).
+Their initial10/12result exposed retained World graph references and incomplete
+individual-reader cancellation; production disposal now cancels those readers,
+clears owned graph/entity references and is idempotent. The original assertions
+remain unchanged. Borrowed Three.js DFG residency is explicitly outside owned
+Image cleanup; zero total GPU residency is not claimed.
+[Image material/effect evidence](evidence/native-image-material-effects-20261001.json).
+
+The standalone decoded-image bitmap candidate passes both actual engines with
+all twelve pixel comparisons exactly equal(8.427seconds). Six ordinary variants
+use owned bitmap clones; the six premultiplied variants retain the original
+HTML-image upload because real Firefox conversion changed channels by1–3levels.
+The exact zero-error gate remains mandatory, and all owned leases, pixels and
+GPU resources are released. This candidate is not yet active in BrowserWorld
+and has no measured loading-speed benefit.
+[Retained negative experiment](evidence/bitmap-upload-premultiply-negative-20261001.json),
+[exact fallback and ownership proof](evidence/bitmap-upload-fidelity-20261001.json).
+
+The actual stock Firefox Hub renderer diagnostic identifies about5.2ms/frame
+in scene matrices and15.9ms/frame in draw dispatch, at about665draws; all four
+fluidness gates still fail. Initial model-job readiness lies in(14.706,17.766]
+seconds after connection. Entity delivery is still progressing through8.501s;
+model parsing and synchronous rendering then compete with cold loading.
+Asynchronous asset/shader duration sums are not exclusive wall-clock costs.
+[Renderer measurements](evidence/hub-render-cpu-breakdown-firefox-20261001.json),
+[independent cold-loading audit](evidence/hub-cold-loading-audit-20261001.json).
+
+The original same-call native Create diagnostics retain a Chromium final-Z failure despite
+seven accepted editing-command callbacks. Firefox completes the entire genuine
+Name/RGB/XYZ/List selection/deletion workflow in the diagnostic copy, but its
+worker log is unavailable because successful runs did not capture it. This is
+not a shipping reliability fix. The richer fixed-scalar diagnostic completes
+the unchanged full workflow in both engines. The private owned Qt WebEngine
+IME alternative also completes it in both engines and passes an actual Qt5.15.3
+Unicode/focus/window/root/query-reentrancy guard runner. Password editing and
+genuine editor/navigation cancellation still require a separate hybrid route
+before shipping; no numerical property setter or relaxed predicate is used.
+[Both actual diagnostic outcomes](evidence/tablet-create-same-call-diagnostic-20261001.json).
+
+The exact-source local Jenkins and hosted preparation failures below have narrow
+reviewed fixes integrated: distinct private npm config files with nonblocking
+FIFO rejection(39host-runner tests), and removal of only unsafe write bits on the
+fixed root-owned ephemeral distro directory(29AppArmor contracts). Every existing
+file/package/provenance and sandbox check remains required. Actual nineteen-stage
+native CI acceptance on the next published source is still pending.
+Both stock/native unlit Image comparisons now pass the unchanged absolute
+PNG/KTX pixel and exact seven-entity cleanup gates. The private owned Qt IME
+route also passes the full genuine Create workflow in stock Chromium and Firefox.
+Password editing and broader native editor/navigation coverage remain required
+before shipping activation. The static-transform candidate is integrated but
+default-off. Its actual two-engine test now passes2/2 in13.227seconds, with
+all six framebuffer, matrix, material, drawing and picking records exactly
+equal, genuine Model readiness, positive pose/dimension upserts and at least
+117skipped traversals. Real same-source Hub performance measurements are next.
+No loading gain, complete Tablet or endurance pass is claimed.
+[Stock/native Image proof](evidence/native-image-expanded-stock-20261001.json),
+[private native IME Create proof](evidence/tablet-create-native-web-ime-20261001.json),
+[static Model preservation proof](evidence/static-model-matrices-fidelity-20261001.json).
+
+Historical continuation (2026-10-01,20:21UTC): the default-off renderer-call CPU
+breakdown is integrated. All936 registered component tests pass without skips
+(10.688seconds), the production build passes, and both actual BrowserWorld
+Chromium/Firefox framebuffer, transform and method-restoration comparisons pass
+(9.2seconds). A short source-frozen stock Firefox Hub measurement is running;
+no performance improvement is claimed by instrumentation.
+
+The select-all callback experiment failed the unchanged genuine Name predicate
+in both stock browsers before numeric editing. Both runs restored the seven
+original entities and have stable shipping/runtime source hashes. Its four
+experimental source/test files were restored exactly to published9f8dc66e;
+the independent stale-frame read-error ownership correction remains integrated.
+[Retained actual negative evidence](evidence/tablet-create-selection-order-negative-20261001.json).
+Next: distinguish native focus cancellation from actual DOM command rejection,
+then implement and verify the cause-based correction in both browsers.
+
+Hosted9f8dc66e CI refuses a root-owned but world-writable `/usr/share` ancestor;
+both shipped profiles still match their distro package. Local Jenkins build2
+verifies the exact source, then fails dependency preparation because npm user
+and global config resolve to the same empty file. Neither run executes the
+required native gates. Separate narrow fixes are being prepared; existing
+permission/provenance and exact-source checks remain mandatory.
+[Hosted fixed-path evidence](evidence/hosted-apparmor-9f8dc66e-20261001.json).
+
+Last published checkpoint (2026-10-01,19:57UTC): all914registered
 component contracts pass with zero skips(11.458seconds), the production build
 passes(3.83seconds), and all34required repository suites pass(165.99seconds).
 The exact native-density Firefox helper is included. Genuine full Create in

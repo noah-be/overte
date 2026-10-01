@@ -1,6 +1,7 @@
 // Copyright 2026 Overte contributors
 // SPDX-License-Identifier: Apache-2.0
 import { BufferGeometry, Line, Material, Mesh, Texture, type Object3D } from 'three';
+import {isOwnedUploadBitmap} from './world-bitmap-upload';
 
 interface Resources {
   geometries: Set<BufferGeometry>;
@@ -29,7 +30,7 @@ function bitmaps(textures: Iterable<Texture>): Set<ImageBitmap> {
   for (const texture of textures) {
     // Cube textures may own several image bitmaps; texture clones may share them.
     const image: unknown = texture.image;
-    for (const item of Array.isArray(image) ? image : [image]) if (item instanceof ImageBitmap) result.add(item);
+    for (const item of Array.isArray(image) ? image : [image]) if (item instanceof ImageBitmap && !isOwnedUploadBitmap(item)) result.add(item);
   }
   return result;
 }

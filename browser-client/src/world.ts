@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 import * as THREE from 'three';
+import {inspectNativeImageAlpha,makeNativeImageMaterial} from './native-image-material';
+import {planNativeImageEffects,applyNativeImageEffects,updateNativeImagePulse,type ImagePulse} from './native-image-effects';
 import { applyNativeDefaultCull } from './native-default-cull';
 import { prepareNativeStaticWinding, type NativeWindingScope } from './native-static-winding';
 import { WorldGpuTiming } from './world-gpu-timing';
 import {prepareGraphicsYielding,waitGraphicsReadiness} from './graphics-warmup';
 import {GraphicsWarmupOwner} from './graphics-warmup-owner';
 import {WorldCpuFrameTiming} from './world-cpu-frame-timing';
+import {RenderCpuBreakdown} from './render-cpu-breakdown';
+import {StaticModelMatrices} from './static-model-matrices';
 import {ForegroundTexturePlan,ForegroundTextureCapacityError} from './foreground-texture-plan';
 import {WorldTexturePreparation,TexturePreparationCapacityError} from './world-texture-preparation';
 import { WorldGraphicsTarget } from './browser-graphics-target';
@@ -51,6 +55,10 @@ export interface WorldOptions {
   gpuTiming?: boolean;
   /** Optional exclusive CPU-frame diagnostics; captured once, disabled by default. */
   cpuFrameTiming?: boolean;
+  /** Optional sampled public renderer-call CPU diagnostics, off by default. */
+  renderCpuTiming?: boolean;
+  /** Exact unchanged static Model matrix memoization, captured once; off by default. */
+  staticModelMatrices?: boolean;
   resolveAsset(url: string): string;
   /** Exact connected-session/revision snapshot, required by the production entry point. */
   captureAssetAuthority?():WorldSourceAuthority;
@@ -86,6 +94,8 @@ export class BrowserWorld {
   private readonly nativeWinding = new WeakMap<THREE.Group, NativeWindingScope>();
   private readonly gpuTiming?: WorldGpuTiming;
   private readonly cpuFrameTiming?: WorldCpuFrameTiming;
+  private readonly renderCpuTiming?: RenderCpuBreakdown;
+  private readonly staticMatrices?: StaticModelMatrices;
   readonly graphics: WorldGraphicsTarget;
   private readonly entities = new Map<string, Entity>();
   private readonly objects = new Map<string, THREE.Group>();
@@ -110,6 +120,7 @@ export class BrowserWorld {
   private readonly preparedFbx = new PreparedFbxCache({signal:this.abort.signal});
   private readonly fstGraphCache = new FstGraphCache(this.abort.signal);
   private readonly modelScheduler = new ModelLoadScheduler({signal:this.abort.signal});
+  private readonly imagePulseOwners=new Map<THREE.Group,{pulse:ImagePulse;entity:Entity;mesh:THREE.Mesh;material:ReturnType<typeof makeNativeImageMaterial>;assertCurrent():void;stop():void}>();
   private readonly modelReaders = new WeakMap<THREE.Group,AbortController>();
   private readonly modelGeometry = new WeakMap<THREE.Group,ModelGeometryStage>();
   private readonly loadManagers = new Set<THREE.LoadingManager>();
@@ -162,6 +173,8 @@ export class BrowserWorld {
       onWarning: message => options.onStatus(message, 'warning'),
     });
     if(options.cpuFrameTiming===true)this.cpuFrameTiming=new WorldCpuFrameTiming(this.abort.signal);
+    if(options.renderCpuTiming===true)this.renderCpuTiming=new RenderCpuBreakdown(this.abort.signal);
+    if(options.staticModelMatrices===true)this.staticMatrices=new StaticModelMatrices(this.abort.signal);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.graphics = new WorldGraphicsTarget({
       camera:this.camera,renderer:this.renderer,resize:()=>this.resize(),
@@ -259,6 +272,7 @@ export class BrowserWorld {
     this.pitch = THREE.MathUtils.clamp(angles.x, -Math.PI / 2 + 0.05, Math.PI / 2 - 0.05);
   }
   private cancelGraphics(root:THREE.Object3D):void {
+    this.staticMatrices?.release(root);
     // Default-off methods retain their original lifecycle and need no owner
     // allocation/access. Opted-in instances always initialize this private owner.
     if(this.shaderWarmup||this.texturePreparations)this.graphicsWarmups.cancel(root);
@@ -314,7 +328,7 @@ export class BrowserWorld {
     }).sort((a,b) => b.groups - a.groups);
   }
   getPerformance() {
-    return { ...this.metrics.snapshot(), texturePreparation:{enabled:!!this.texturePreparations,...this.foregroundTextureCounts,...this.texturePreparations?.stats}, shaderWarmup:{enabled:this.shaderWarmup,...this.shaderWarmupCounters}, gpuTiming: this.gpuTiming?.getSnapshot() ?? { enabled: false }, cpuFrameTiming:this.cpuFrameTiming?.getSnapshot() ?? {enabled:false}, drawingBufferWidth: this.renderer.getContext().drawingBufferWidth,
+    return { ...this.metrics.snapshot(), staticModelMatrices:this.staticMatrices?{enabled:true,...this.staticMatrices.statistics}:{enabled:false}, texturePreparation:{enabled:!!this.texturePreparations,...this.foregroundTextureCounts,...this.texturePreparations?.stats}, shaderWarmup:{enabled:this.shaderWarmup,...this.shaderWarmupCounters}, gpuTiming: this.gpuTiming?.getSnapshot() ?? { enabled: false }, cpuFrameTiming:this.cpuFrameTiming?.getSnapshot() ?? {enabled:false}, renderCpuTiming:this.renderCpuTiming?.snapshot() ?? {enabled:false}, drawingBufferWidth: this.renderer.getContext().drawingBufferWidth,
       drawingBufferHeight: this.renderer.getContext().drawingBufferHeight, drawCalls: this.renderer.info.render.calls,
       triangles: this.renderer.info.render.triangles, geometries: this.renderer.info.memory.geometries,
       textures: this.renderer.info.memory.textures, entities: this.entities.size,
@@ -399,7 +413,17 @@ export class BrowserWorld {
           }
         });}finally{reader?.removeEventListener('abort',onReaderAbort);}
       }else await compile();
-      if (!this.disposed && isCurrent() && root.userData.shaderRevision === revision) root.userData.shadersReady = true;
+      if (!this.disposed && isCurrent() && root.userData.shaderRevision === revision) {
+        root.userData.shadersReady = true;
+        if(this.staticMatrices)for(const [id,value]of this.objects)if(value===root&&this.entities.get(id)?.type==='Model'&&root.userData.modelLoaded){
+          const reader=this.modelReaders.get(value)?.signal,authority=this.options.captureAssetAuthority?.();
+          this.staticMatrices.attach(value,()=>{
+            if(this.disposed||this.abort.signal.aborted||reader?.aborted||this.objects.get(id)!==value||value.userData.shaderRevision!==revision||!value.userData.shadersReady)return false;
+            try{authority?.assertCurrent();return true;}catch{return false;}
+          });
+          break;
+        }
+      }
     } finally { this.compilingGraphics--; this.recordLoadPhase('shaderPrepare', started); }
   }
 
@@ -437,6 +461,7 @@ export class BrowserWorld {
       if (existing) { existing.position.copy(transform.position); existing.quaternion.copy(transform.rotation); existing.visible = entity.visible !== false && existing.userData.shadersReady === true; }
       const signature = JSON.stringify([entity.type, entity.shape,
         entity.parentID, entity.dimensions, entity.registrationPoint, entity.color, entity.alpha, entity.unlit, entity.emissive,
+        entity.type==='Image'?[entity.keepAspectRatio,entity.subImage,entity.sampler,entity.pulse,entity.created]:undefined,
         entity.intensity, entity.isSpotlight,
         entity.modelURL, entity.textures, entity.shapeType, entity.collisionless, entity.imageURL, entity.text, entity.textColor, entity.materialURL, entity.materialData, entity.parentMaterialName, unsupportedEffects]);
       if (this.signatures.get(entity.id) === signature) continue;
@@ -488,6 +513,7 @@ export class BrowserWorld {
     return [...this.entities.values()].some(entity => entity.type === 'Material' && entity.parentID === id);
   }
   private restoreModelBatch(root:THREE.Group):void {
+    this.staticMatrices?.release(root);
     this.modelBatches.get(root)?.value.restore(); this.modelBatches.delete(root);
   }
   private prepareModelBatch(id:string,root:THREE.Group):void {
@@ -805,11 +831,33 @@ export class BrowserWorld {
       }
       case 'Image': {
         if (!entity.imageURL) throw new Error('Image has no asset URL');
-        // Native emissive Images are unlit; the default native SRGB presentation
-        // preserves their authored color rather than applying a Filmic curve.
-        const material = new THREE.MeshBasicMaterial({ map: await this.texture(entity.imageURL,true,'albedo'), side: THREE.DoubleSide, transparent: true, toneMapped: entity.emissive !== true });
-        applyNativeRenderState(material, { cullFaceMode: 'CULL_NONE' });
-        mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material); break;
+        const reader=new AbortController();this.modelReaders.set(root,reader);
+        const signal=AbortSignal.any([this.abort.signal,reader.signal]);
+        const authority=this.options.captureAssetAuthority?.();
+        const assertCurrent=()=>{
+          signal.throwIfAborted();authority?.assertCurrent();
+          if(this.disposed||this.objects.get(entity.id)!==root)throw new DOMException('The Image owner was removed','AbortError');
+        };
+        let map:THREE.Texture|undefined;
+        try{
+          assertCurrent();map=await this.texture(entity.imageURL,true,'albedo',signal);assertCurrent();
+          const alpha=await inspectNativeImageAlpha(map,signal);assertCurrent();
+          const plan=planNativeImageEffects(entity,map,this.renderer.capabilities.getMaxAnisotropy());
+          for(const warning of plan.warnings)this.options.onStatus(warning,'warning');
+          const pulseCapacity=!!plan.pulse&&this.imagePulseOwners.size>=512;
+          if(pulseCapacity)this.options.onStatus('Image pulse capacity reached; this image remains static.','warning');
+          assertCurrent();
+          const material=makeNativeImageMaterial(entity,map,alpha),geometry=new THREE.PlaneGeometry(1,1);
+          applyNativeImageEffects(plan,map,geometry,material);size.set(plan.size.x,plan.size.y,plan.size.z);
+          mesh=new THREE.Mesh(geometry,material);
+          if(plan.pulse&&!pulseCapacity){
+              const stop=()=>{this.imagePulseOwners.delete(root);signal.removeEventListener('abort',stop);};
+              this.imagePulseOwners.set(root,{pulse:plan.pulse,entity,mesh,material,assertCurrent,stop});
+              signal.addEventListener('abort',stop,{once:true});
+          }
+          map=undefined;
+        }finally{map?.dispose();}
+        break;
       }
       case 'Text': {
         const color = entity.textColor ? `rgb(${entity.textColor.red},${entity.textColor.green},${entity.textColor.blue})` : '#ffffff';
@@ -1247,7 +1295,7 @@ export class BrowserWorld {
     const releaseTouch = () => { this.touchOrigin = undefined; this.touchLast = undefined; this.touchMove.set(0, 0); };
     this.canvas.addEventListener('pointerup', releaseTouch, eventOptions);
     this.canvas.addEventListener('pointercancel', releaseTouch, eventOptions);
-    this.canvas.addEventListener('webglcontextlost', event => { this.cpuFrameTiming?.loseContext();event.preventDefault(); this.options.onStatus('Graphics context lost. Reload the page to reconnect.', 'error'); }, eventOptions);
+    this.canvas.addEventListener('webglcontextlost', event => { this.cpuFrameTiming?.loseContext();this.renderCpuTiming?.loseContext();event.preventDefault(); this.options.onStatus('Graphics context lost. Reload the page to reconnect.', 'error'); }, eventOptions);
   }
 
   private look(x: number, y: number): void {
@@ -1303,8 +1351,8 @@ export class BrowserWorld {
 
   private animate(time: number): void {
     if (this.disposed) return;
-    const cpuLoadState=this.cpuFrameTiming?this.modelScheduler.stats:undefined;
-    const readiness=this.cpuFrameTiming?(this.presentationEnabled?(cpuLoadState!.active||cpuLoadState!.queued||this.compilingGraphics?'loading':this.entities.size?'modelJobsIdle':'emptyScene'):'paused'):undefined;
+    const cpuLoadState=this.cpuFrameTiming||this.renderCpuTiming?this.modelScheduler.stats:undefined;
+    const readiness=this.cpuFrameTiming||this.renderCpuTiming?(this.presentationEnabled?(cpuLoadState!.active||cpuLoadState!.queued||this.compilingGraphics?'loading':this.entities.size?'modelJobsIdle':'emptyScene'):'paused'):undefined;
     const cpuSample=readiness?this.cpuFrameTiming?.beginFrame(readiness):undefined;
     let cpuCompleted=false;try {
     this.metrics.sample(time);
@@ -1339,6 +1387,14 @@ export class BrowserWorld {
     this.self.position.copy(this.position);
     this.self.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw);
     for (const avatar of [this.self, ...this.avatars.values()]) (avatar.userData.avatarLabel as THREE.Object3D|undefined)?.quaternion.copy(this.camera.quaternion).premultiply(avatar.quaternion.clone().invert());
+    // This visual-property segment also covers bounded native Image pulses.
+    if(this.presentationEnabled)for(const [root,owner]of this.imagePulseOwners){
+      try{
+        owner.assertCurrent();
+        if(owner.mesh.material!==owner.material){owner.stop();this.options.onStatus('Image pulse on an overriding Material layer is unsupported.','warning');continue;}
+        if(root.visible)updateNativeImagePulse(owner.pulse,owner.entity,owner.material,Date.now()*1000);
+      }catch(error){owner.stop();if(!(error instanceof DOMException&&error.name==='AbortError'))this.options.onStatus('Image pulse could not use the native creation clock.','warning');}
+    }
     this.cpuFrameTiming?.segment(cpuSample,'avatarCamera');
     if (time - this.lastLightSelection > 250) {
       this.lastLightSelection = time;
@@ -1371,7 +1427,9 @@ export class BrowserWorld {
       const started = performance.now();
       let submittedMs: number | undefined, rendered = false;
       try {
-        this.renderer.render(this.scene, this.camera); this.renderedFrames++;
+        if(this.renderCpuTiming)this.renderCpuTiming.measure(this.renderer,this.scene,this.camera,readiness==='loading'?'loading':readiness==='emptyScene'?'emptyScene':'modelJobsIdle',()=>this.renderer.render(this.scene,this.camera));
+        else this.renderer.render(this.scene, this.camera);
+        this.renderedFrames++;
         if (sample) submittedMs = performance.now() - started;
         this.recordLoadPhase('graphicsSubmit', started);
         this.cpuFrameTiming?.segment(cpuSample,'renderSubmission');
@@ -1384,14 +1442,19 @@ export class BrowserWorld {
   }
 
   dispose(): void {
+    if (this.disposed) return;
     this.disposed = true; this.enabled = false;
     cancelAnimationFrame(this.frame); this.abort.abort(); this.resizeObserver.disconnect();
+    for (const root of this.objects.values()) this.modelReaders.get(root)?.abort();
     for (const manager of this.loadManagers) manager.abort();
     this.loadManagers.clear();
     if (document.pointerLockElement === this.canvas) document.exitPointerLock();
     for (const root of this.modelBatches.keys()) this.restoreModelBatch(root);
     for (const root of this.objects.values()) this.modelGeometry.get(root)?.revoke();
     for (const object of [...this.objects.values(), ...this.avatars.values(), this.self]) disposeObject(object);
+    this.scene.clear(); this.objects.clear(); this.avatars.clear();
+    this.entities.clear(); this.signatures.clear(); this.localLights.clear();
+    this.colliders = []; this.pendingModelColliders = [];
     this.avatarModels.clear();
     for (const { value } of this.meshCollisions.values()) value.dispose();
     this.meshCollisions.clear();

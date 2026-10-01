@@ -89,10 +89,17 @@ Chromium and21.745/25.529/33.011seconds in Firefox for baseline/shader/texture
 respectively. These are live snapshots with three-second observation intervals,
 not isolated speed gains. Keep both experiments disabled.
 
-Next: prove the integrated bounded WebEngine text-completion queue through the
-unchanged genuine native Create journey in both stock engines, then measure
-Firefox frame CPU phases with explicit bounded diagnostics before changing
-rendering. Preserve the earlier bootstrap failure; its cause remains unproven. The responsive Create row-group correction
+Next: distinguish actual WebEngine command rejection from native focus ownership
+loss through fixed scalar metadata in the existing insertion call, then prove a
+cause-based correction through the unchanged genuine Create journey in both
+stock engines. The additional select-all callback experiment failed Name in
+both browsers and was restored exactly; preserve those failures. Actual Firefox
+Hub sampled renderer spans now identify approximately16ms draw dispatch and5ms
+scene matrices, so prepare measured transform/draw optimizations with exact
+graphics/ownership comparisons. Cold decoded-image upload remains a separate
+loading priority; owned bitmap preparation requires genuine pixel and lifetime
+proof before activation. Preserve the earlier bootstrap failure; its cause
+remains unproven. The responsive Create row-group correction
 now passes all four real browser cases, including genuine XYZ editing and the
 unadapted negative/unchanged desktop controls. Prepare a fresh private audited
 native gateway and prove Name/RGB/XYZ/List deletion with all seven baseline

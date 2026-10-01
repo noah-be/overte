@@ -20,7 +20,7 @@ function worldFixture(options:{enabled?:boolean;gpu?:boolean;fetcher?:typeof fet
   resolveAsset:url=>`https://client.example/api/assets/owned?url=${encodeURIComponent(url)}`,capabilities:caps,
   fetch:options.fetcher??(async(input)=>{requests.push(new URL(String(input)).searchParams.get('url')!);return new Response(fixtureBytes());}) as typeof fetch});
  let factories=0;
- Object.assign(context,{abort,disposed:false,loadManagers:new Set(),loadPhases:new Map(),renderer:{capabilities:{maxTextureSize:32768},extensions:{has:()=>options.gpu!==false},getContext:()=>{throw Error('Compressed capability lookup must use current renderer caches');}},
+ Object.assign(context,{abort,disposed:false,modelReaders:new WeakMap(),loadManagers:new Set(),loadPhases:new Map(),renderer:{capabilities:{maxTextureSize:32768,getMaxAnisotropy:()=>16},extensions:{has:()=>options.gpu!==false},getContext:()=>{throw Error('Compressed capability lookup must use current renderer caches');}},
   options:{resolveAsset:(url:string)=>url,onStatus(){},...(options.enabled===false?{}:{compressedColors:()=>{factories++;return cache;}})},
   imageCache:{loader:()=>({loadAsync:async(url:string)=>{images.push(url);const texture=new THREE.Texture({width:4,height:4} as TexImageSource);imageTextures.push(texture);return texture;}})}});
  return {context,cache,abort,requests,images,imageTextures,get factories(){return factories;}};
@@ -97,7 +97,7 @@ test('model signal cancels a genuinely pending metadata stream before its next b
 
 function imageEntity(w:ReturnType<typeof worldFixture>,emissive?:boolean){
  const root=new THREE.Group(),entity={id:'owned-image',type:'Image',imageURL:'https://assets.example/image.texmeta.json',dimensions:{x:2,y:1,z:.01},emissive};
- w.context.objects=new Map([[entity.id,root]]);return {root,entity,pending:()=>w.context.populateEntity(entity,root),material:()=>{const mesh=root.children[0]?.children[0];assert.ok(mesh instanceof THREE.Mesh);assert.ok(mesh.material instanceof THREE.MeshBasicMaterial);return mesh.material;}};
+ w.context.objects=new Map([[entity.id,root]]);return {root,entity,pending:()=>w.context.populateEntity(entity,root),material:()=>{const mesh=root.children[0]?.children[0];assert.ok(mesh instanceof THREE.Mesh);assert.ok(mesh.material instanceof THREE.MeshBasicMaterial || mesh.material instanceof THREE.MeshStandardMaterial);return mesh.material;}};
 }
 
 test('actual Image entity admits audited compressed color without original pixels and retains existing alpha/UV state',async t=>{
@@ -108,17 +108,29 @@ test('actual Image entity admits audited compressed color without original pixel
 });
 
 test('Image entity keeps supported PNG fallback but refuses malformed KTX and expired authority',async t=>{
+ // Controlled browser platform bridge, not an actual GPU/pixel proof. All sixteen
+ // fixture pixels are opaque; the production inspector still validates counts.
+ const originals=['createImageBitmap','Worker'].map(name=>[name,Object.getOwnPropertyDescriptor(globalThis,name)] as const);
+ t.after(()=>{for(const [name,descriptor] of originals){if(descriptor)Object.defineProperty(globalThis,name,descriptor);else Reflect.deleteProperty(globalThis,name);}});
+ Object.defineProperty(globalThis,'createImageBitmap',{configurable:true,writable:true,value:async()=>({width:4,height:4,close(){}}) as ImageBitmap});
+ class ImageAlphaWorker {
+  onmessage?: (event:{data:unknown})=>void;
+  postMessage(data:{id:number}){queueMicrotask(()=>this.onmessage?.({data:{id:data.id,total:16,opaque:16,intermediate:0}}));}
+  terminate(){}
+ }
+ Object.defineProperty(globalThis,'Worker',{configurable:true,writable:true,value:ImageAlphaWorker});
+
  t.mock.method(globalThis,'fetch',async()=>new Response(JSON.stringify(metadata)));
  for(const options of [{gpu:false},{enabled:false}]){const w=worldFixture(options),image=imageEntity(w);await image.pending();const material=image.material();assert.ok(!(material.map instanceof THREE.CompressedTexture));assert.deepEqual(w.images,['https://assets.example/original.png']);assert.equal(w.requests.length,0);material.map?.dispose();material.dispose();image.root.traverse(object=>{if(object instanceof THREE.Mesh)object.geometry.dispose();});w.cache.dispose();}
  const bad=worldFixture({fetcher:(async()=>new Response(new Uint8Array(64))) as typeof fetch}),image=imageEntity(bad);await assert.rejects(image.pending(),/KTX1 signature/);assert.equal(bad.images.length,0);assert.equal(image.root.children[0].children.length,0);bad.cache.dispose();
  const denied=worldFixture();denied.context.options.compressedColors=()=>{throw Error('Current approval refused');};await assert.rejects(imageEntity(denied).pending(),/approval refused/);assert.equal(denied.images.length,0);denied.cache.dispose();
 });
 
-test('explicit native unlit Image colors bypass Filmic while other Image states retain their current presentation',async t=>{
+test('native Image defaultfalse is lit and explicit true retains unlit presentation',async t=>{
  t.mock.method(globalThis,'fetch',async()=>new Response(JSON.stringify(metadata)));
  for(const emissive of [true,false,undefined]){
   const w=worldFixture(),image=imageEntity(w,emissive);
-  try{await image.pending();assert.equal(image.material().toneMapped,emissive!==true);}
+  try{await image.pending();const material=image.material();assert.equal(material.toneMapped,emissive!==true);assert.equal(material instanceof THREE.MeshBasicMaterial,emissive===true);assert.equal(material instanceof THREE.MeshStandardMaterial,emissive!==true);}
   finally{image.root.traverse(object=>{if(object instanceof THREE.Mesh){(object.material as THREE.MeshBasicMaterial).map?.dispose();(object.material as THREE.MeshBasicMaterial).dispose();object.geometry.dispose();}});w.cache.dispose();}
  }
 });
@@ -163,4 +175,27 @@ test('actual World HTTP material selectors share source text while queries and A
   await w.context.sourceText('https://assets.example/material.json?variant=1#first','material',1024);await w.context.sourceText('https://assets.example/material.json?variant=1#second','material',1024);await w.context.sourceText('https://assets.example/material.json?variant=2#first','material',1024);await w.context.sourceText('atp:/material.json#first','material',1024);await w.context.sourceText('atp:/material.json#second','material',1024);
   assert.deepEqual(requests,['https://assets.example/material.json?variant=1','https://assets.example/material.json?variant=2','atp:/material.json#first','atp:/material.json#second']);assert.equal(w.context.sourceTexts.stats.hits,1);
  }finally{w.abort.abort();w.cache.dispose();}
+});
+
+ test('actual Image removal aborts its reader while compressed bytes are pending',async t=>{
+  t.mock.method(globalThis,'fetch',async()=>new Response(JSON.stringify(metadata)));
+  const ready=deferred<Response>(),w=worldFixture({fetcher:(async()=>ready.promise) as typeof fetch}),image=imageEntity(w);
+  Object.assign(w.context,{entities:new Map([[image.entity.id,image.entity]]),signatures:new Map(),meshCollisions:new Map(),modelGeometry:new WeakMap(),localLights:new Set(),modelBatches:new Map(),scene:new THREE.Scene(),colliders:[],pendingModelColliders:[]});
+  const pending=image.pending();await tick();w.context.removeEntities([image.entity.id]);
+  await assert.rejects(pending,{name:'AbortError'});assert.equal(w.context.modelReaders.get(image.root).signal.aborted,true);assert.equal(w.context.objects.size,0);assert.equal(image.root.children[0].children.length,0);
+  ready.resolve(new Response(fixtureBytes()));await tick();assert.equal(w.cache.statistics.active,0);assert.equal(w.cache.statistics.retainedEntries,0);w.cache.dispose();
+ });
+
+test('actual Image late original delivery rejects its captured permission revision and disposes the reader clone',async()=>{
+ const w=worldFixture(),image=imageEntity(w);image.entity.imageURL='https://assets.example/original.png';
+ const ready=deferred<THREE.Texture>();let approved=true,captures=0,checks=0,disposed=0;
+ w.context.options.captureAssetAuthority=()=>{captures++;return {generation:'old-permission',assertCurrent(){checks++;if(!approved)throw new DOMException('Image approval revoked','AbortError');}};};
+ w.context.imageCache.loader=()=>({loadAsync:()=>ready.promise});
+ const pending=image.pending();approved=false;const texture=new THREE.Texture({width:4,height:4} as TexImageSource);texture.addEventListener('dispose',()=>disposed++);ready.resolve(texture);
+ await assert.rejects(pending,{name:'AbortError'});assert.equal(captures,1);assert.ok(checks>=2);assert.equal(disposed,1);assert.equal(image.root.children[0].children.length,0);w.cache.dispose();
+});
+test('malformed native Image color releases its successful compressed clone before publication',async t=>{
+ t.mock.method(globalThis,'fetch',async()=>new Response(JSON.stringify(metadata)));
+ const w=worldFixture(),image=imageEntity(w);Object.assign(image.entity,{color:{red:-1,green:0,blue:0}});
+ await assert.rejects(image.pending(),/byte channels/);assert.equal(image.root.children[0].children.length,0);assert.equal(w.cache.statistics.active,0);w.cache.dispose();
 });

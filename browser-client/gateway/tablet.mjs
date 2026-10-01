@@ -145,7 +145,7 @@ export class TabletSession {
                 this.sendBrowser({type:'tablet',kind:'frame',revision,navigationSequence:this.navigationSequence,sequence:message.sequence,width:message.width,height:message.height,surface:message.surface,mime:'image/png',data:bytes.toString('base64'),...(tabletRect?{tabletRect}:{}),...nativeEffects(message.effects)});
                 this.pendingTimer=setTimeout(()=>this.releaseFrame(revision,message.sequence),5000);this.pendingTimer.unref?.();
             }catch{
-                if(this.current(revision)){this.sendBrowser({type:'tablet',kind:'error',revision,message:'The native tablet display could not be read. Try opening it again.'});this.releaseFrame(revision,message.sequence);}
+                if(this.current(revision)&&this.pendingFrame===message.sequence&&this.navigationSequence===message.navigationSequence){this.sendBrowser({type:'tablet',kind:'error',revision,message:'The native tablet display could not be read. Try opening it again.'});this.releaseFrame(revision,message.sequence);}
             }finally{await unlink(frameFile).catch(()=>{});}
         }else if(message.kind==='graphics'){
             const request=validateBrowserGraphicsRequest(message);

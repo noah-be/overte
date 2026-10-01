@@ -40,7 +40,8 @@ export function inspectNativeKtx(input){
    require((payload[0]===1&&payload.length===36)||(payload[0]===2&&payload.length===44),'Native GPU payload version/size');
    const data=new DataView(payload.buffer,payload.byteOffset,payload.byteLength),flags=data.getUint32(29,true);
    require(flags<=15&&(!(flags&8)||(flags&4)),'Native GPU usage flags');require(!(flags&4)||format.alpha,'Native alpha usage requires alpha-capable format');
-   gpu={version:payload[0],flags,color:Boolean(flags&1),normal:Boolean(flags&2),classification:flags&4?(flags&8?'mask':'blend'):'opaque'};
+   const originalSize=payload[0]===2?{width:data.getInt32(34,true),height:data.getInt32(38,true)}:undefined;
+   gpu={...(originalSize?{originalSize}:{}),version:payload[0],flags,color:Boolean(flags&1),normal:Boolean(flags&2),classification:flags&4?(flags&8?'mask':'blend'):'opaque'};
   }
   if(name==='KTXorientation'){
    orientation=new TextDecoder('utf-8',{fatal:true}).decode(payload).replace(/\0$/,'');require(orientation==='S=r,T=u'||orientation==='S=r,T=d','Unsupported KTX orientation');
