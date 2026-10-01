@@ -73,11 +73,11 @@ if grep -Fq 'Qt.platform.os' "$menu_stack"; then
     exit 1
 fi
 printf 'PASS: Menu filtering does not use the shared Android platform identity\n'
-require "$menu_stack" 'Unavailable on Android' \
+require "$menu_stack" 'Unavailable on this device' \
     'Menu labels unsupported actions honestly'
 require "$menu_stack" 'supportedRootMenus = \["File", "View", "Navigate", "Settings"\]' \
     'Menu uses an explicit reviewed root-menu allowlist'
-require "$menu_stack" 'topMenu === null.*item[.]type === MenuItemType[.]Menu' \
+require "$menu_stack" 'topMenu === null.*item[.]type === MenuAdapter[.]Menu' \
     'Menu applies its fail-closed policy at the root'
 require "$menu_stack" '"General[.][.][.]"' \
     'Menu blocks the legacy General Settings dialog on phone screen-space'

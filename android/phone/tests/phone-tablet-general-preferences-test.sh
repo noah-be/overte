@@ -32,7 +32,7 @@ reject() {
 
 require "$shared_policy" 'profile[.]navigationPreferencesAvailable' \
     'General Settings admit Navigation only through an explicit capability'
-require "$shared_policy" 'categories[.]push\("Mouse Sensitivity"\)' \
+require "$shared_policy" '[?][[:space:]]*"Touch Camera Sensitivity"[[:space:]]*:[[:space:]]*"Mouse Sensitivity"' \
     'General Settings retain the shared look-sensitivity category'
 require "$shared_preferences" 'showCategories:[[:space:]]*preferencesPolicy[.]allowedCategories' \
     'phone General Settings consume the tested fail-closed category policy'
