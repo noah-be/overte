@@ -43,6 +43,12 @@ TestCase {
         verify(!policy.admits("Snapshots"))
         verify(!policy.admits("HMD"))
         verify(!policy.admits(null))
+        phoneProfile.touchCameraPreferencesAvailable = false
+        verify(policy.admits("Mouse Sensitivity"))
+        verify(!policy.admits("Touch Camera Sensitivity"))
+        phoneProfile.touchCameraPreferencesAvailable = true
+        verify(policy.admits("Touch Camera Sensitivity"))
+        verify(!policy.admits("Mouse Sensitivity"))
         policy.destroy()
         layout.destroy()
         phoneProfile.destroy()

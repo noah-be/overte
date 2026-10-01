@@ -74,6 +74,13 @@ TestCase {
         compare(configuration.minimumTouchTarget, 48)
         compare(configuration.maximumButtonExtent, 120)
         compare(configuration.closeButtonBottomMargin, 28)
+        compare(configuration.closeButtonHeight, 32)
+        phoneProfile.screenSpaceContentScale = 1
+        compare(configuration.closeButtonHeight, 48)
+        phoneProfile.screenSpaceContentScale = 2.5
+        compare(configuration.closeButtonHeight, 32)
+        configuration.availableWidth = 800
+        compare(configuration.horizontalMargin, 16)
 
         // The stacked header reserves separate title and touch-control rows.
         phoneProfile.fontScale = 1.5

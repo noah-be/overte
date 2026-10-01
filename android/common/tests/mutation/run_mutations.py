@@ -9,6 +9,7 @@ import fcntl
 import json
 import math
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -64,7 +65,7 @@ NATIVE_TESTS = {
     "touch": [ROOT / "common/tests/native/phone_touch_ui_metrics_test.cpp"],
 }
 JAVASCRIPT_TESTS = {
-    SCRIPTS / "+android_phoneInterface/mobileTabletApps.js": ROOT / "common/tests/javascript/test/mobile-tablet-apps.production.test.js",
+    SCRIPTS / "tablet-ui/mobileTabletApps.js": ROOT / "common/tests/javascript/test/mobile-tablet-apps.production.test.js",
     SCRIPTS / "+android_phoneInterface/mobileActionBar.js": ROOT / "common/tests/javascript/test/mobile-action-bar.production.test.js",
     SCRIPTS / "quickGoto.js": ROOT / "common/tests/javascript/test/quick-goto.production.test.js",
     SCRIPTS / "places/places.js": ROOT / "common/tests/javascript/test/places.production.test.js",
@@ -132,7 +133,7 @@ MUTANTS = [
     Mutant("handoff-never-pending", "handoff", HANDOFF, "_pending = true;", "_pending = false;"),
     Mutant("handoff-ignore-readiness", "handoff", HANDOFF, "if (!ready || !_pending)", "if (false)", True),
     Mutant("handoff-invalid-keeps-stale", "handoff", HANDOFF, "clear();\n            return;", "return;", True),
-    Mutant("js-tablet-leak-menu-button", "javascript", SCRIPTS / "+android_phoneInterface/mobileTabletApps.js", "tablet.removeButton(menuButton);", "void 0;"),
+    Mutant("js-tablet-leak-menu-button", "javascript", SCRIPTS / "tablet-ui/mobileTabletApps.js", "tablet.removeButton(menuButton);", "void 0;"),
     Mutant("js-actionbar-leak-goto-handler", "javascript", SCRIPTS / "+android_phoneInterface/mobileActionBar.js", 'disconnectSignal(gotoButton, "clicked", showAddressBar);', "void 0;"),
     Mutant("js-quick-goto-disable-home", "javascript", SCRIPTS / "quickGoto.js", "if (home) {", "if (false) {"),
     Mutant("js-places-keep-message-subscription", "javascript", SCRIPTS / "places/places.js", "Messages.unsubscribe(portalChannelName);", "void 0;"),
@@ -217,16 +218,25 @@ def native_run(work: Path, family: str, mutant: Mutant | None) -> tuple[str, str
 def javascript_run(work: Path, mutant: Mutant | None) -> tuple[str, str]:
     tests = list(JAVASCRIPT_TESTS.values()) if mutant is None else [JAVASCRIPT_TESTS[mutant.source]]
     environment = dict(os.environ)
+    environment.pop("OVERTE_MUTATION_TARGET", None)
+    environment.pop("OVERTE_MUTATION_SOURCE", None)
     if mutant:
         mutated_source = work / mutant.source.name
         replace_once(mutant.source, mutated_source, mutant.old, mutant.new)
         environment["OVERTE_MUTATION_TARGET"] = str(mutant.source)
         environment["OVERTE_MUTATION_SOURCE"] = str(mutated_source)
+    # Each file starts node:test itself in a fresh process. Explicit TAP preserves
+    # assertion diagnostics independently of Node's default reporter/isolation.
     for test in tests:
-        result = command(["node", "--test", str(test)], ROOT / "common/tests/javascript", env=environment)
+        result = command(["node", "--test-reporter=tap", str(test)], ROOT / "common/tests/javascript", env=environment)
         if result.returncode:
             output = result.stdout + result.stderr
-            return ("killed", output) if result.returncode == 1 and "AssertionError" in output else ("error", f"JavaScript harness crashed ({test.name}):\n{output}")
+            failures = re.search(r"(?m)^# fail ([0-9]+)$", output)
+            assertions = len(re.findall(r"(?m)^  code: ['\"]ERR_ASSERTION['\"]$", output))
+            if (result.returncode == 1 and failures and assertions > 0
+                    and assertions == int(failures.group(1))):
+                return "killed", output
+            return "error", f"JavaScript harness crashed ({test.name}):\n{output}"
     return "survived", ""
 
 

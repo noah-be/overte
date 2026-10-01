@@ -10,6 +10,7 @@ readonly tablet_root="$repo_root/interface/resources/qml/hifi/tablet/TabletRoot.
 readonly tablet_home="$repo_root/interface/resources/qml/hifi/tablet/TabletHome.qml"
 readonly settings_qml="$repo_root/scripts/system/settings/Settings.qml"
 readonly settings_header="$repo_root/scripts/system/settings/qml/HeaderElement.qml"
+readonly settings_implementation="$repo_root/scripts/system/tablet-ui/mobileTabletApps.js"
 readonly settings_script="$repo_root/scripts/system/+android_phoneInterface/mobileTabletApps.js"
 readonly tablet_policy="$repo_root/tests/device/policies/android-phone-flat-touch.json"
 readonly application="$repo_root/interface/src/Application.cpp"
@@ -62,7 +63,9 @@ require "$tablet_home" 'SwipeView[[:space:]]*\{' \
     'TabletHome retains touch-page navigation support'
 require "$tablet_home" 'objectName:[[:space:]]*tablet[.]semanticScreenId' \
     'TabletHome publishes its contract screen ID through a native Accessibility marker'
-require "$settings_script" 'semanticId:[[:space:]]*"app[.]settings"' \
+require "$settings_script" 'Script[.]include\(Script[.]resolvePath\("[.][.]/tablet-ui/mobileTabletApps[.]js"\)\)' \
+    'Phone startup executes the common Settings implementation'
+require "$settings_implementation" 'semanticId:[[:space:]]*"app[.]settings"' \
     'the visible Settings application exposes its common semantic ID'
 require "$settings_qml" 'semanticScreenId:[[:space:]]*currentPage' \
     'Settings publishes its actual semantic screen state'
@@ -107,4 +110,5 @@ fi
 require "$phone_gradle" "include '[*][*]/android/phone/apps/phoneInterface/libraries/interface/resources[.]rcc'" \
     'the phone package includes the native Interface resource collection'
 
+node "$script_dir/phone-tablet-app-router-mock.js"
 printf 'Android tablet core contract checks passed.\n'

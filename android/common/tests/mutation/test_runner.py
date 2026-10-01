@@ -53,6 +53,52 @@ class MutationClassificationTest(unittest.TestCase):
         self.assertEqual("error", status)
         self.assertIn("JavaScript harness crashed", output)
 
+    def test_included_tablet_implementation_mutant_is_killed_by_behavior(self):
+        source = runner.SCRIPTS / "tablet-ui/mobileTabletApps.js"
+        self.assertIn(source, runner.JAVASCRIPT_TESTS)
+        mutant = runner.Mutant("included-menu-leak", "javascript", source,
+                               "tablet.removeButton(menuButton);", "void 0;")
+        with tempfile.TemporaryDirectory() as temporary:
+            status, output = runner.execute(Path(temporary), mutant, "javascript")
+        self.assertEqual("killed", status, output)
+        self.assertIn("AssertionError", output)
+
+    def test_included_implementation_runtime_error_is_not_a_kill(self):
+        mutant = runner.Mutant("included-runtime-error", "javascript",
+                               runner.SCRIPTS / "tablet-ui/mobileTabletApps.js",
+                               "tablet.removeButton(menuButton);", 'throw new Error("included harness crash");')
+        with tempfile.TemporaryDirectory() as temporary:
+            status, output = runner.execute(Path(temporary), mutant, "javascript")
+        self.assertEqual("error", status, output)
+        self.assertIn("JavaScript harness crashed", output)
+
+    def test_javascript_baseline_ignores_external_mutation_override(self):
+        with mock.patch.dict(os.environ, {"OVERTE_MUTATION_TARGET": "/missing/target.js",
+                                          "OVERTE_MUTATION_SOURCE": "/missing/mutant.js"}):
+            with tempfile.TemporaryDirectory() as temporary:
+                status, output = runner.execute(Path(temporary), None, "javascript")
+        self.assertEqual("survived", status, output)
+
+    def test_runtime_error_named_assertion_is_not_a_kill(self):
+        mutant = runner.Mutant("misleading-runtime-error", "javascript",
+                               runner.SCRIPTS / "tablet-ui/mobileTabletApps.js",
+                               "tablet.removeButton(menuButton);", 'throw new Error("AssertionError");')
+        with tempfile.TemporaryDirectory() as temporary:
+            status, output = runner.execute(Path(temporary), mutant, "javascript")
+        self.assertEqual("error", status, output)
+
+    def test_mixed_assertion_and_runtime_failures_are_harness_errors(self):
+        source = runner.SCRIPTS / "tablet-ui/mobileTabletApps.js"
+        original = source.read_text(encoding="utf-8")
+        replacement = original.replace('semanticId: "app.settings"', 'semanticId: "wrong"').replace(
+            "tablet.removeButton(menuButton);", 'throw new Error("mixed harness crash");')
+        mutant = runner.Mutant("mixed-js-failures", "javascript", source, original, replacement)
+        with tempfile.TemporaryDirectory() as temporary:
+            status, output = runner.execute(Path(temporary), mutant, "javascript")
+        self.assertEqual("error", status, output)
+        self.assertIn("ERR_ASSERTION", output)
+        self.assertIn("mixed harness crash", output)
+
     def test_pattern_collision_is_infrastructure_error(self):
         mutant = runner.Mutant(
             "collision", "java", runner.JAVA_PRODUCTION["permission"],

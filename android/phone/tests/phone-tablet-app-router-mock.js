@@ -2,6 +2,7 @@
 
 const assert = require("assert");
 const path = require("path");
+const { createScriptApi, runProductionScript } = require("../../common/tests/javascript/support");
 
 function signal() {
     let handler = null;
@@ -33,16 +34,17 @@ const tablet = {
     gotoHomeScreen() {}
 };
 
-global.Tablet = { getTablet() { return tablet; } };
-global.Script = {
-    resolvePath(relativePath) { return "resolved:" + relativePath; },
-    scriptEnding
-};
-
-require(path.resolve(__dirname,
-    "../../../scripts/system/+android_phoneInterface/mobileTabletApps.js"));
-
-const settingsSource = "resolved:../settings/Settings.qml";
+const Tablet = { getTablet() { return tablet; } };
+const Script = createScriptApi();
+Script.scriptEnding = scriptEnding;
+const wrapper = path.resolve(__dirname,
+    "../../../scripts/system/+android_phoneInterface/mobileTabletApps.js");
+const implementation = path.resolve(__dirname,
+    "../../../scripts/system/tablet-ui/mobileTabletApps.js");
+const execution = runProductionScript(wrapper, { Script, Tablet });
+assert.deepStrictEqual(execution.loadedFiles, [wrapper, implementation],
+    "Phone startup must execute the real shared router in its own VM");
+const settingsSource = path.resolve(path.dirname(implementation), "../settings/Settings.qml");
 
 const acceptedRoutes = [
     ["hifi/tablet/TabletGeneralPreferences.qml", "hifi/tablet/TabletGeneralPreferences.qml"],
