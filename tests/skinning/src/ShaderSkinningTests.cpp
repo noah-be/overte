@@ -9,6 +9,9 @@
 #include <GLTFSerializer.h>
 #include <ResourceManager.h>
 #include <model-baker/Baker.h>
+#include <MeshPartPayload.h>
+#include <CauterizedMeshPartPayload.h>
+#include <RenderableModelEntityItem.h>
 #include "SkinningFixtures.h"
 #include <glm/gtc/type_ptr.hpp>
 #include <cmath>
@@ -18,6 +21,41 @@
 #include <EGL/eglext.h>
 #include <glad/glad.h>
 #endif
+
+namespace {
+// Populate the same mesh slots as ModelCache, without downloads or materials.
+class OfflineGeometry : public Geometry {
+public:
+    explicit OfflineGeometry(const HFMModel::Pointer& hfm) {
+        _hfmModel = hfm;
+        auto meshes = std::make_shared<GeometryMeshes>();
+        for (const auto& mesh : hfm->meshes) { meshes->push_back(mesh._mesh); }
+        _meshes = meshes;
+        _meshParts = std::make_shared<GeometryMeshParts>();
+    }
+};
+class RuntimeModel : public Model {
+public:
+    explicit RuntimeModel(const HFMModel::Pointer& hfm) {
+        _offset = glm::vec3(0);
+        _renderGeometry = std::make_shared<OfflineGeometry>(hfm);
+        updateGeometry(); // Real Rig initialization and per-mesh state allocation.
+    }
+    void refresh(bool dq) {
+        setUseDualQuaternionSkinning(dq);
+        _needsUpdateClusterMatrices = true;
+        updateClusterMatrices(); // Real skeleton bind lookup and palette update.
+    }
+};
+class OfflineCollisionEntity : public RenderableModelEntityItem {
+public:
+    explicit OfflineCollisionEntity(const ModelPointer& model) : RenderableModelEntityItem(QUuid::createUuid(), true) {
+        setModel(model);
+        // No URL/network request: the supplied model already has loaded geometry
+        // and initialized joint states, so updateModelBounds need not simulate it.
+    }
+};
+}
 
 class ShaderSkinningTests : public QObject {
     Q_OBJECT
@@ -65,6 +103,8 @@ class ShaderSkinningTests : public QObject {
 #endif
 private slots:
     void initTestCase() {
+        DependencyManager::set<ResourceManager>(false);
+        DependencyManager::set<ModelBlender>();
 #ifdef Q_OS_LINUX
         // Native CI uses a software surfaceless context; no display/device service.
         qputenv("LIBGL_ALWAYS_SOFTWARE", "1");
@@ -124,7 +164,6 @@ private slots:
         glGenBuffers(1, &uniformBuffer);
         glGenBuffers(1, &feedbackBuffer);
         glGenBuffers(1, &vertexBuffer);
-        DependencyManager::set<ResourceManager>(false);
 #else
         QSKIP("The deterministic software EGL native lane is Linux-only");
 #endif
@@ -251,6 +290,139 @@ private slots:
         }
         glDisableVertexAttribArray(0); glDisableVertexAttribArray(1);
 #endif
+    }
+    void mixedFallbackBounds_data() {
+        QTest::addColumn<bool>("dq");
+        QTest::newRow("matrix") << false;
+        QTest::newRow("dual-quaternion") << true;
+    }
+    void mixedFallbackBounds() {
+        QFETCH(bool, dq);
+        auto doc = QJsonDocument::fromJson(skinning_test::smallSkinInLargeScene()).object();
+        auto buffers = doc["buffers"].toArray();
+        auto buffer = buffers[0].toObject();
+        const auto uri = buffer["uri"].toString().toLatin1();
+        auto binary = QByteArray::fromBase64(uri.mid(uri.indexOf(',') + 1));
+        const auto weights = doc["accessors"].toArray()[4].toObject();
+        const auto view = doc["bufferViews"].toArray()[weights["bufferView"].toInt()].toObject();
+        std::memset(binary.data() + view["byteOffset"].toInt(), 0, 4 * sizeof(float));
+        buffer["uri"] = "data:application/octet-stream;base64," + QString::fromLatin1(binary.toBase64());
+        buffers[0] = buffer;
+        doc["buffers"] = buffers;
+        GLTFSerializer serializer;
+        auto hfm = serializer.read(QJsonDocument(doc).toJson(QJsonDocument::Compact), {}, QUrl("file:///mixed-fallback.gltf"));
+        QVERIFY(hfm);
+        QCOMPARE(hfm->loadErrorCount, 0);
+        baker::Baker bake(hfm, {}, QUrl()); bake.run();
+        const auto& mesh = bake.getHFMModel()->meshes[0];
+        QVERIFY(mesh._mesh);
+        QCOMPARE(mesh.clusters.size(), 2);
+        auto model = std::make_shared<RuntimeModel>(bake.getHFMModel());
+        for (float displacement : {100.0f, -100.0f}) {
+            for (const auto& cluster : mesh.clusters) {
+                model->getRig().setJointTranslation(cluster.jointIndex, true,
+                    hfm->joints[cluster.jointIndex].translation + glm::vec3(displacement, 0, 0), 1.0f);
+            }
+            model->getRig().updateAnimations(0, glm::mat4(1), glm::mat4(1));
+            model->refresh(dq);
+            const auto& state = model->getMeshState(0);
+            for (int cluster = 0; cluster < mesh.clusters.size(); ++cluster) {
+                const auto matrix = dq ? state.clusterDualQuaternions[cluster].getMatrix() : state.clusterMatrices[cluster];
+                QVERIFY(std::abs(matrix[3].x - displacement) < 0.0002f);
+            }
+            Transform parent;
+            parent.setTranslation(glm::vec3(0, 10, 0));
+            ModelMeshPartPayload payload(model, 0, 0, 0, parent, 0);
+            CauterizedMeshPartPayload cauterized(model, 0, 0, 0, parent, 0);
+            const auto bound = payload.getBound(nullptr);
+            const auto cautionBound = cauterized.getBound(nullptr);
+            const auto fallback = mesh.vertices[0] + parent.getTranslation();
+            qInfo() << "Mixed fallback bound:" << (dq ? "DQ" : "matrix") << "joint shift" << displacement
+                    << "minimum x" << bound.getCorner().x << "contains fallback" << bound.contains(fallback);
+            QVERIFY2(bound.contains(fallback), "Animated render bounds must contain the bind-space fallback vertex");
+            QVERIFY(cautionBound.contains(fallback));
+            for (int vertex : {1, 2}) {
+                const auto animated = mesh.vertices[vertex] + glm::vec3(displacement, 10, 0);
+                QVERIFY(bound.contains(animated));
+                QVERIFY(cautionBound.contains(animated));
+            }
+#ifdef Q_OS_LINUX
+            gpu::BufferPointer palette;
+            if (dq) { QVERIFY(graphics::updateSkinningPalette(palette, state.clusterDualQuaternions, 2)); }
+            else { QVERIFY(graphics::updateSkinningPalette(palette, state.clusterMatrices, 2)); }
+            for (int vertex = 0; vertex < mesh.vertices.size(); ++vertex) {
+                glm::uvec4 indices;
+                glm::vec4 influences;
+                for (int lane = 0; lane < 4; ++lane) {
+                    indices[lane] = mesh.clusterIndices[vertex * 4 + lane];
+                    influences[lane] = float(mesh.clusterWeights[vertex * 4 + lane]) / 65535.0f;
+                }
+                evaluate(dq, palette, indices, influences, glm::vec4(mesh.vertices[vertex], 1), mesh.normals[vertex]);
+                const glm::vec3 rendered(output[0], output[1], output[2]);
+                QVERIFY(bound.contains(rendered + parent.getTranslation()));
+                QVERIFY(cautionBound.contains(rendered + parent.getTranslation()));
+            }
+#endif
+        }
+    }
+    void collisionPreservesMeshSlots_data() {
+        QTest::addColumn<int>("paletteCount");
+        QTest::addColumn<int>("shapeType");
+        QTest::newRow("valid-static-mesh") << 128 << int(SHAPE_TYPE_STATIC_MESH);
+        QTest::newRow("rejected-first-static-mesh") << 129 << int(SHAPE_TYPE_STATIC_MESH);
+        QTest::newRow("valid-simple-hull") << 128 << int(SHAPE_TYPE_SIMPLE_HULL);
+        QTest::newRow("rejected-first-simple-hull") << 129 << int(SHAPE_TYPE_SIMPLE_HULL);
+    }
+    void collisionPreservesMeshSlots() {
+        QFETCH(int, paletteCount);
+        QFETCH(int, shapeType);
+        auto doc = QJsonDocument::fromJson(skinning_test::manyUsedJoints(paletteCount)).object();
+        auto nodes = doc["nodes"].toArray();
+        auto rigid = nodes[199].toObject();
+        rigid["mesh"] = 0; // A second mesh, translated +5, survives oversized skin rejection.
+        nodes[199] = rigid;
+        doc["nodes"] = nodes;
+        GLTFSerializer serializer;
+        auto hfm = serializer.read(QJsonDocument(doc).toJson(QJsonDocument::Compact), {}, QUrl("file:///collision-slots.gltf"));
+        QVERIFY(hfm);
+        QCOMPARE(hfm->meshes.size(), 2);
+        baker::Baker bake(hfm, {}, QUrl()); bake.run();
+        auto model = std::make_shared<RuntimeModel>(bake.getHFMModel());
+        model->refresh(false);
+        const bool rejected = paletteCount > 128;
+        QCOMPARE(bool(hfm->meshes[0]._mesh), !rejected);
+        QVERIFY(hfm->meshes[1]._mesh);
+        QCOMPARE(hfm->meshes[1].clusters.size(), 1);
+        QCOMPARE(model->getMeshState(1).clusterMatrices[0][3].x, 5.0f);
+        OfflineCollisionEntity entity(model);
+        entity.setShapeType(ShapeType(shapeType));
+        QVERIFY(entity.isReadyToComputeShape());
+        ShapeInfo shape;
+        entity.computeShapeInfo(shape); // Actual production point and triangle extraction.
+        QCOMPARE(int(shape.getType()), shapeType);
+        QCOMPARE(shape.getPointCollection().size(), 1);
+        const auto& points = shape.getPointCollection()[0];
+        const int survivingVertices = hfm->meshes[1].vertices.size();
+        QCOMPARE(points.size(), survivingVertices * (rejected ? 1 : 2));
+        const int survivorOffset = rejected ? 0 : survivingVertices;
+        qInfo() << "Collision survivor first x:" << points[survivorOffset].x << "expected 5, rejected first slot" << rejected;
+        for (int vertex = 0; vertex < survivingVertices; ++vertex) {
+            const auto expected = hfm->meshes[1].vertices[vertex] + glm::vec3(5, 0, 0);
+            QVERIFY2(glm::length(points[survivorOffset + vertex] - expected) < 0.0002f,
+                     "Surviving collision vertices must use their original mesh slot's transform");
+            if (!rejected) { QVERIFY(glm::length(points[vertex] - hfm->meshes[0].vertices[vertex]) < 0.0002f); }
+        }
+        if (shapeType == SHAPE_TYPE_STATIC_MESH) {
+            QCOMPARE(shape.getTriangleIndices().size(), points.size());
+            for (int index : shape.getTriangleIndices()) { QVERIFY(index >= 0 && index < points.size()); }
+        }
+        for (bool dq : {false, true}) {
+            model->refresh(dq);
+            ModelMeshPartPayload rigidPayload(model, 1, 0, 0, Transform(), 0);
+            const auto bound = rigidPayload.getBound(nullptr);
+            QVERIFY(!bound.contains(hfm->meshes[1].vertices[0]));
+            for (const auto& vertex : hfm->meshes[1].vertices) { QVERIFY(bound.contains(vertex + glm::vec3(5, 0, 0))); }
+        }
     }
     void cleanupTestCase() {
 #ifdef Q_OS_LINUX

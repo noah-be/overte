@@ -12,6 +12,9 @@
 #include "FBXSerializer.h"
 
 #include <iostream>
+#include <cmath>
+#include <limits>
+#include <utility>
 #include <QtCore/QBuffer>
 #include <QtCore/QDataStream>
 #include <QtCore/QIODevice>
@@ -485,6 +488,52 @@ QVector<int> FBXSerializer::getIntVector(const FBXNode& node) {
     return vector;
 }
 
+bool FBXSerializer::getClusterIndexVector(const FBXNode& node, QVector<int>& indices) {
+    indices.clear();
+    for (const auto& child : node.children) {
+        if (child.name == "a") { return getClusterIndexVector(child, indices); }
+    }
+    QVector<int> checked;
+    // Every integer in the supported int domain is exactly representable as a
+    // double. Wider integers remain outside that domain even after conversion.
+    auto appendNumber = [&](double value) {
+        if (!std::isfinite(value) || value < 0.0 || value > double(std::numeric_limits<int>::max()) ||
+            std::trunc(value) != value) { return false; }
+        checked.append(static_cast<int>(value));
+        return true;
+    };
+    auto appendArray = [&](const auto& values) {
+        for (auto value : values) {
+            if (!appendNumber(double(value))) { return false; }
+        }
+        return true;
+    };
+    for (const auto& property : node.properties) {
+        const int type = property.userType();
+        bool valid;
+        // Preserve binary array element types until their range is validated.
+        if (type == qMetaTypeId<QVector<int>>()) {
+            valid = appendArray(property.value<QVector<int>>());
+        } else if (type == qMetaTypeId<QVector<qint64>>()) {
+            valid = appendArray(property.value<QVector<qint64>>());
+        } else if (type == qMetaTypeId<QVector<float>>()) {
+            valid = appendArray(property.value<QVector<float>>());
+        } else if (type == qMetaTypeId<QVector<double>>()) {
+            valid = appendArray(property.value<QVector<double>>());
+        } else if (type == QMetaType::Float || type == QMetaType::Double) {
+            valid = appendNumber(property.toDouble());
+        } else {
+            // In ASCII FBX these are decimal tokens, not already narrowed ints.
+            bool converted = false;
+            const qint64 value = property.toLongLong(&converted);
+            valid = converted && appendNumber(double(value));
+        }
+        if (!valid) { return false; }
+    }
+    indices = std::move(checked);
+    return true;
+}
+
 QVector<float> FBXSerializer::getFloatVector(const FBXNode& node) {
     foreach (const FBXNode& child, node.children) {
         if (child.name == "a") {
@@ -522,4 +571,3 @@ QVector<double> FBXSerializer::getDoubleVector(const FBXNode& node) {
     }
     return vector;
 }
-

@@ -528,9 +528,10 @@ void RenderableModelEntityItem::computeShapeInfo(ShapeInfo& shapeInfo) {
         triangleIndices.clear();
 
         Extents extents;
-        int32_t meshCount = 0;
         int32_t pointListIndex = 0;
-        for (auto& mesh : meshes) {
+        // Rejected meshes retain null slots; transforms use the original slots.
+        for (int32_t meshIndex = 0; meshIndex < numMeshes; ++meshIndex) {
+            const auto& mesh = meshes[meshIndex];
             if (!mesh) {
                 continue;
             }
@@ -553,7 +554,7 @@ void RenderableModelEntityItem::computeShapeInfo(ShapeInfo& shapeInfo) {
 
             // copy points
             uint32_t meshIndexOffset = (uint32_t)points.size();
-            const glm::mat4& localTransform = localTransforms[meshCount];
+            const glm::mat4& localTransform = localTransforms[meshIndex];
             gpu::BufferView::Iterator<const glm::vec3> vertexItr = vertices.cbegin<const glm::vec3>();
             while (vertexItr != vertices.cend<const glm::vec3>()) {
                 glm::vec3 point = extractTranslation(localTransform * glm::translate(*vertexItr));
@@ -681,7 +682,6 @@ void RenderableModelEntityItem::computeShapeInfo(ShapeInfo& shapeInfo) {
                 // flag end of mesh
                 triangleIndices.push_back(END_OF_MESH);
             }
-            ++meshCount;
         }
 
         // scale and shift

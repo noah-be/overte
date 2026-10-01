@@ -444,7 +444,8 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
 #if defined(DEBUG_FBXSERIALIZER)
     int unknown = 0;
 #endif
-    HFMModel* hfmModelPtr = new HFMModel;
+    // Release ownership only after validation; rejection must free the partial model.
+    auto hfmModelPtr = std::make_unique<HFMModel>();
     HFMModel& hfmModel = *hfmModelPtr;
 
     hfmModel.originalURL = url;
@@ -1082,7 +1083,10 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
                         Cluster cluster;
                         foreach (const FBXNode& subobject, object.children) {
                             if (subobject.name == "Indexes") {
-                                cluster.indices = getIntVector(subobject);
+                                if (!getClusterIndexVector(subobject, cluster.indices)) {
+                                    qCWarning(modelformat) << "Rejecting FBX: invalid or unrepresentable cluster source vertex index";
+                                    return nullptr;
+                                }
 
                             } else if (subobject.name == "Weights") {
                                 cluster.weights = getDoubleVector(subobject);
@@ -1723,7 +1727,7 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
             mesh.meshExtents.transform(glm::mat4_cast(upAxisZRotation));
         }
     }
-    return hfmModelPtr;
+    return hfmModelPtr.release();
 }
 
 MediaType FBXSerializer::getMediaType() const {

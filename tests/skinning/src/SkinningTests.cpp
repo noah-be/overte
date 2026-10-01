@@ -11,6 +11,8 @@
 #include <model-baker/Baker.h>
 #include <AnimSkeleton.h>
 #include <FBXSerializer.h>
+#include <FBXWriter.h>
+#include <QBuffer>
 #include <graphics/SkinningPalette.h>
 #include <functional>
 #include <cstring>
@@ -377,6 +379,93 @@ private slots:
         QVERIFY(!extra.read(asciiFBX(6,false,false,true),{},QUrl("file:///extra-influences.fbx")));
         FBXSerializer invalid;
         QVERIFY(!invalid.read(asciiFBX(2,false,true),{},QUrl("file:///invalid-vertex.fbx")));
+    }
+    void fbxRawSourceVertex_data() {
+        QTest::addColumn<QByteArray>("rawIndex");
+        QTest::addColumn<bool>("reject");
+        QTest::newRow("zero-control") << QByteArray("0") << false;
+        QTest::newRow("one-control") << QByteArray("1") << false;
+        for (const auto& value : {"-1", "65535", "2147483648", "4294967296", "9223372036854775808",
+                                  "18446744073709551616", "1.5", "nan", "inf", "invalid"}) {
+            QTest::newRow(value) << QByteArray(value) << true;
+        }
+    }
+    void fbxRawSourceVertex() {
+        QFETCH(QByteArray, rawIndex);
+        QFETCH(bool, reject);
+        auto fixture = asciiFBX(1);
+        fixture.replace("Indexes: *1 { a: 0 }", "Indexes: *1 { a: " + rawIndex + " }");
+        FBXSerializer serializer;
+        auto model = serializer.read(fixture, {}, QUrl("file:///raw-fbx-vertex.fbx"));
+        qInfo() << "Raw FBX source vertex" << rawIndex << "accepted" << bool(model);
+        if (reject) { QVERIFY2(!model, "Invalid raw FBX source vertex indices must be rejected before conversion"); }
+        else {
+            QVERIFY(model);
+            QCOMPARE(model->loadErrorCount, 0);
+            baker::Baker bake(model, {}, QUrl()); bake.run();
+            const auto& mesh = bake.getHFMModel()->meshes[0];
+            checkPacking(mesh);
+            const int sourceVertex = rawIndex == "0" ? 0 : 1;
+            QCOMPARE(mesh.clusterIndices[sourceVertex * 4], uint16_t(0));
+            QVERIFY(mesh.clusterIndices[(sourceVertex == 0 ? 1 : 0) * 4] != 0);
+        }
+    }
+    void fbxBinarySourceVertex_data() {
+        QTest::addColumn<QVariant>("rawIndex");
+        QTest::addColumn<bool>("reject");
+        QTest::newRow("int-control") << QVariant(1) << false;
+        QTest::newRow("int64-control") << QVariant::fromValue(qint64(1)) << false;
+        QTest::newRow("int64-too-wide") << QVariant::fromValue(qint64(4294967296LL)) << true;
+        QTest::newRow("float-control") << QVariant::fromValue(1.0f) << false;
+        QTest::newRow("float-fraction") << QVariant::fromValue(1.5f) << true;
+        QTest::newRow("double-fraction") << QVariant(1.5) << true;
+        QTest::newRow("double-nan") << QVariant(std::numeric_limits<double>::quiet_NaN()) << true;
+        QTest::newRow("double-infinity") << QVariant(std::numeric_limits<double>::infinity()) << true;
+        QTest::newRow("int-array-control") << QVariant::fromValue(QVector<int>{1}) << false;
+        QTest::newRow("int64-array-control") << QVariant::fromValue(QVector<qint64>{1}) << false;
+        QTest::newRow("int64-array-too-wide") << QVariant::fromValue(QVector<qint64>{4294967296LL}) << true;
+        QTest::newRow("float-array-control") << QVariant::fromValue(QVector<float>{1}) << false;
+        QTest::newRow("float-array-fraction") << QVariant::fromValue(QVector<float>{1.5f}) << true;
+        QTest::newRow("double-array-control") << QVariant::fromValue(QVector<double>{1}) << false;
+        QTest::newRow("double-array-too-wide") << QVariant::fromValue(QVector<double>{4294967296.0}) << true;
+        QTest::newRow("double-array-fraction") << QVariant::fromValue(QVector<double>{1.5}) << true;
+    }
+    void fbxBinarySourceVertex() {
+        QFETCH(QVariant, rawIndex);
+        QFETCH(bool, reject);
+        auto text = asciiFBX(1);
+        QBuffer input(&text);
+        QVERIFY(input.open(QIODevice::ReadOnly));
+        auto root = FBXSerializer::parseFBX(&input);
+        bool edited = false;
+        for (auto& objects : root.children) {
+            if (objects.name != "Objects") { continue; }
+            for (auto& deformer : objects.children) {
+                if (deformer.name != "Deformer" || deformer.properties.last() != "Cluster") { continue; }
+                for (auto& indices : deformer.children) {
+                    if (indices.name != "Indexes") { continue; }
+                    indices.children.clear();
+                    indices.properties = {rawIndex};
+                    edited = true;
+                }
+            }
+        }
+        QVERIFY(edited);
+        // Real production writer and binary parser exercise scalar and array types.
+        const auto fixture = FBXWriter::encodeFBX(root);
+        FBXSerializer serializer;
+        auto model = serializer.read(fixture, {}, QUrl("file:///binary-fbx-vertex.fbx"));
+        if (reject) { QVERIFY2(!model, "Invalid binary FBX source vertex indices must be rejected before conversion"); }
+        else {
+            QVERIFY(model);
+            QCOMPARE(model->loadErrorCount, 0);
+            baker::Baker bake(model, {}, QUrl()); bake.run();
+            const auto& mesh = bake.getHFMModel()->meshes[0];
+            checkPacking(mesh);
+            QCOMPARE(mesh.clusterIndices[4], uint16_t(0)); // Every binary control paints vertex 1.
+            QVERIFY(mesh.clusterIndices[0] != 0);
+            QVERIFY(mesh.clusterIndices[8] != 0);
+        }
     }
 
 };

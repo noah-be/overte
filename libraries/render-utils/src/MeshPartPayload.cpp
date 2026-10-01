@@ -123,6 +123,9 @@ void ModelMeshPartPayload::computeAdjustedLocalBound(const std::vector<glm::mat4
             clusterBound.transform(clusterMatrices[i]);
             _adjustedLocalBound += clusterBound;
         }
+        // Skinning can return the input vertex when no influence is usable.
+        // Keep its bind-space position inside the animated culling bound.
+        if (_isSkinned) { _adjustedLocalBound += _localBound; }
     }
 }
 
@@ -142,6 +145,8 @@ void ModelMeshPartPayload::computeAdjustedLocalBound(const std::vector<Model::Tr
             clusterBound.transform(transform);
             _adjustedLocalBound += clusterBound;
         }
+        // Zero influences and degenerate DQ blending use the bind-space fallback.
+        if (_isSkinned) { _adjustedLocalBound += _localBound; }
     }
 }
 
