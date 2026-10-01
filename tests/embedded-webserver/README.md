@@ -96,7 +96,11 @@ idle timer, so a peer cannot retain an incomplete request forever by trickling
 bytes. Deadline comparisons also run before parsing/dispatch, covering delayed
 timer delivery. All timers are QObject children of the connection and follow
 its thread/lifetime. Parsing deadlines stop on completed dispatch, preserving
-asynchronous handlers. Timeouts return 408; rejected responses have a bounded
+asynchronous handlers. If synchronous application dispatch throws an allocation
+exception, the connection sends 500 and cleans up; if a response has already
+started, it aborts instead of appending another response. Normal asynchronous
+handlers retain their body reservation and stopped parsing timers. Timeouts return
+408; rejected responses have a bounded
 forced-close fallback. Existing behavior is one request per connection with
 `Connection: close`, including when the client asks for keepalive or pipelines
 another request; this change does not add persistent connections.

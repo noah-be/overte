@@ -166,6 +166,7 @@ protected:
     bool _admitted { false };
     bool _headersComplete { false };
     bool _finished { false };
+    bool _responseStarted { false };
 
     /// The content of the request.
     std::unique_ptr<Storage> _requestContent;

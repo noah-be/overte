@@ -200,6 +200,15 @@ void HTTPConnection::failRequest(const char* status) {
     disconnect(_socket, &QTcpSocket::readyRead, this, nullptr);
     releaseStorage();
     _requestHeaders.clear();
+    if (_responseStarted || _socket->state() != QAbstractSocket::ConnectedState) {
+        // A dispatch failure after response headers must not append a second
+        // response or keep a streaming response alive with its request budget.
+        disconnect(_socket, &QTcpSocket::bytesWritten, this, nullptr);
+        _socket->abort();
+        releaseResources();
+        deleteLater();
+        return;
+    }
     try {
         respond(status);
     } catch (const std::bad_alloc&) {
@@ -291,7 +300,15 @@ void HTTPConnection::finishRequest() {
     _headerTimer->stop();
     _idleTimer->stop();
     disconnect(_socket, &QTcpSocket::readyRead, this, nullptr);
-    _parentManager->handleHTTPRequest(this, _requestUrl);
+    try {
+        _parentManager->handleHTTPRequest(this, _requestUrl);
+    } catch (const std::bad_alloc&) {
+        // Parsing has finished, but failed synchronous dispatch still needs
+        // terminal cleanup. Successful asynchronous handlers keep the normal
+        // finished state, stopped parsing timers, and live body reservation.
+        _finished = false;
+        failRequest(StatusCode500);
+    }
 }
 
 QHash<QString, QString> HTTPConnection::parseUrlEncodedForm() {
@@ -420,6 +437,7 @@ void HTTPConnection::respond(const char* code, std::unique_ptr<QIODevice> device
 }
 
 void HTTPConnection::respondWithStatusAndHeaders(const char* code, const char* contentType, const Headers& headers, qint64 contentLength) {
+    _responseStarted = true; // Even a partial/throwing first write forbids another response.
     _socket->write("HTTP/1.1 ");
 
     _socket->write(code);

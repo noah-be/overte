@@ -6,6 +6,7 @@
 #include <QEventLoop>
 #include <QFile>
 #include <QFileInfo>
+#include <QBuffer>
 #include <QTcpSocket>
 #include <QTemporaryDir>
 #include <QTimer>
@@ -22,7 +23,9 @@ class HTTPManagerTests : public QObject {
     Q_OBJECT
 private:
     struct RecordingHandler : HTTPRequestHandler {
+        enum DispatchFailure { None, BeforeResponse, AfterResponse, AfterDeviceResponse, AfterDisconnect };
         int requests { 0 };
+        DispatchFailure dispatchFailure { None };
         bool hold { false };
         bool requireAuthentication { false };
         QByteArray content;
@@ -31,14 +34,27 @@ private:
         bool handleHTTPRequest(HTTPConnection* c, const QUrl&, bool = false) override {
             ++requests;
             connection = c;
+            if (dispatchFailure == BeforeResponse) { throw std::bad_alloc(); }
             // File-backed content is a borrowed mapped view, valid only during
             // the connection lifetime. Retained fixture evidence must own its bytes.
             content = QByteArray(c->requestContent().constData(), c->requestContent().size());
             form = c->parseFormData();
+            if (dispatchFailure == AfterDisconnect) {
+                c->socket()->abort();
+                throw std::bad_alloc();
+            }
+            if (dispatchFailure == AfterDeviceResponse) {
+                auto device = std::make_unique<QBuffer>();
+                device->setData("streamed fixture response");
+                device->open(QIODevice::ReadOnly);
+                c->respond(HTTPConnection::StatusCode200, std::move(device));
+                throw std::bad_alloc();
+            }
             if (!hold) {
                 const bool authorized = !requireAuthentication || c->requestHeader("Authorization") == "Fixture permitted";
                 c->respond(authorized ? HTTPConnection::StatusCode200 : HTTPConnection::StatusCode401, "handled");
             }
+            if (dispatchFailure == AfterResponse) { throw std::bad_alloc(); }
             return true;
         }
     };
@@ -437,6 +453,58 @@ private slots:
         QVERIFY(manager.file.isNull());
         QVERIFY(!QFileInfo::exists(manager.filePath));
         QCOMPARE(handler.content, data); // Only the explicit owning fixture copy survives.
+    }
+
+    void dispatchAllocationFailure_data() {
+        QTest::addColumn<int>("size");
+        QTest::addColumn<int>("failure");
+        QTest::newRow("get-before-response") << 0 << int(RecordingHandler::BeforeResponse);
+        QTest::newRow("memory-before-response") << 1 << int(RecordingHandler::BeforeResponse);
+        QTest::newRow("mapped-file-before-response") << 16 << int(RecordingHandler::BeforeResponse);
+        QTest::newRow("after-buffered-response") << 1 << int(RecordingHandler::AfterResponse);
+        QTest::newRow("after-streaming-response") << 16 << int(RecordingHandler::AfterDeviceResponse);
+        QTest::newRow("after-disconnect") << 16 << int(RecordingHandler::AfterDisconnect);
+    }
+
+    void dispatchAllocationFailure() {
+        QFETCH(int, size);
+        QFETCH(int, failure);
+        RecordingHandler handler;
+        handler.dispatchFailure = RecordingHandler::DispatchFailure(failure);
+        StorageManager manager(&handler);
+        auto limits = smallLimits();
+        limits.maxConnections = 1;
+        limits.headerDeadlineMs = 100;
+        limits.idleDeadlineMs = 100;
+        limits.requestDeadlineMs = 150;
+        QVERIFY(manager.setRequestLimits(limits));
+        QTcpSocket socket;
+        QVERIFY(openClient(manager, socket));
+        const QByteArray request = (size ? QByteArray("POST") : QByteArray("GET")) +
+            " / HTTP/1.1\r\nContent-Length: " + QByteArray::number(size) + "\r\n\r\n" + QByteArray(size, 'a');
+        socket.write(request);
+        const auto response = closedResponse(socket);
+        QCOMPARE(socket.state(), QAbstractSocket::UnconnectedState);
+        QCOMPARE(handler.requests, 1);
+        if (failure == RecordingHandler::BeforeResponse) {
+            QVERIFY2(response.startsWith("HTTP/1.1 500 "), response.constData());
+        } else {
+            QVERIFY(!response.contains("500 ")); // Do not append 500 to an already started response.
+            QVERIFY(response.count("HTTP/1.1 ") <= 1);
+        }
+        QVERIFY(until([&] { return manager.liveRequestCount() == 0; }));
+        QCOMPARE(manager.reservedRequestBytes(), qint64(0));
+        QCOMPARE(manager.maps, size >= 16 ? 1 : 0);
+        QVERIFY(manager.file.isNull());
+        QVERIFY(manager.filePath.isEmpty() || !QFileInfo::exists(manager.filePath));
+        QTest::qWait(200); // No stale timer/queued cleanup may retain or return the budget again.
+        QCOMPARE(manager.liveRequestCount(), 0);
+        QCOMPARE(manager.reservedRequestBytes(), qint64(0));
+        handler.dispatchFailure = RecordingHandler::None;
+        QVERIFY(exchange(manager, "POST / HTTP/1.1\r\nContent-Length: 1\r\n\r\nb").startsWith("HTTP/1.1 200 "));
+        QCOMPARE(handler.requests, 2);
+        QCOMPARE(handler.content, QByteArray("b"));
+        QVERIFY(until([&] { return manager.reservedRequestBytes() == 0; }));
     }
 
     void incompleteDeadlines_data() {
