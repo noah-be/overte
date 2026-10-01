@@ -61,6 +61,13 @@ pixels, functional acceptance and a meaningful Hub measurement before activation
 
 ## Current evidence and next concrete work
 
+Current next steps: measure the default-off integrated bitmap path and passive
+draw census in short stock-browser `overte_hub` journeys; preserve exact quality
+and original fluidness gates. Complete the actual native password maxlength and
+cancellation correction. Rerun the complete exact-source local CI after the
+proof-only full FBX protocol comparison correction; resolve hosted deny-route
+and guest-persistence failures through bounded cause diagnostics.
+
 See [STATUS.md](STATUS.md) for exact published commits, actual source-frozen
 cohorts, preserved failures, tests and remaining limitations. Original real
 native/browser journeys passed in both stock engines, including synthetic voice

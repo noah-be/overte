@@ -4,6 +4,34 @@ Last updated: 2026-10-02. **Original baseline passed; additional mandatory Table
 
 ## Current implementation and next step
 
+Current continuation (2026-10-01,23:17UTC): published checkpoint
+`ec62d79c7b93aa252df94f258e77f94a071ff553` passes all1,040 components,
+actual Qt input and owned cleanup in local Jenkins build4. The FBX worker gate
+then identifies a stale proof baseline that omitted already-production embedded
+image extraction. The corrected complete baseline retains exact buffer/geometry
+predicates and additionally verifies all image-sidecar bytes. Both actual bundled
+browser engines now pass all three native/codec fixtures and hard worker cleanup.
+Hosted runs remain blocked at deny-route installation and guest-setting persistence;
+the precise kernel errno and persistence outcome need bounded diagnostics.
+[Actual CI checkpoint](evidence/ci-actual-ec62-checkpoint-20261002.json),
+[complete FBX proof](evidence/fbx-complete-preparation-proof-20261002.json).
+
+The integrated World bitmap candidate now corrects both stale decoded-image
+regressions and passes exact4096px Image pixel/sampler/resource comparisons in
+both bundled engines. The retained reporter records different upload behavior
+by engine; a general loading gain is unproved and the candidate remains off.
+All1,139 current registered component tests pass without skips, and production
+build passes. All34 required repository suites pass(163.94s). Passive bounded draw census is available only on explicit request.
+Next: source-frozen stock Hub baseline/bitmap loading comparisons and census,
+then publish this reviewed checkpoint and execute complete new-source native CI.
+[World bitmap evidence](evidence/world-bitmap-integration-20261002.json).
+
+The fresh actual native-only IME editor experiment passes seven original cases,
+including password Unicode/undo/redo, then fails password maxlength. Its original
+negative remains evidence; no complete Tablet or password-cancellation acceptance
+is claimed. The next correction must preserve the literal editor predicates.
+[All-native IME negative](evidence/tablet-all-native-ime-negative-20261002.json).
+
 Current continuation (2026-10-01,22:52UTC): the reviewed isolated CI fixes are
 integrated. All 1,040 registered component tests pass without skips (10.778s),
 the production build passes, and all 34 required repository suites pass

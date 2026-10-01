@@ -52,7 +52,8 @@ try{
     const elapsed=performance.now()-started,ownWorkers=workersCreated,counters={...pool.counters};pool.dispose();
     const poolCleanup=workersTerminated===ownWorkers;
     const records=[];for(let i=0;i<count;i++){
-      const actual=await api.inspect(prepared[i].buffer),expected=await api.inspect(await api.baseline(baselineInputs[i]));
+      const reference=await api.baseline(baselineInputs[i]);
+      const actual=await api.inspect(prepared[i].buffer,prepared[i]),expected=await api.inspect(reference.buffer,reference);
       records.push({index:i,actual,expected,phases:prepared[i].phases});
     }
     // A genuine worker that cannot process cooperative messages proves hard
@@ -65,7 +66,7 @@ try{
     return{records,initial,counters,ownWorkers,poolCleanup,activeDetached,elapsed,ticks,maxGap,deadlineError,deadlineElapsed,deadlineCounters};
   },bytes.length);
   for(let i=0;i<report.actual.records.length;i++){
-    const record=report.actual.records[i];assert.deepEqual(record.actual,record.expected,'Worker preparation must preserve exact baseline FBX bytes, geometry/material groups and native skin bones');assert(record.actual.meshes>0);
+    const record=report.actual.records[i];assert.deepEqual(record.actual,record.expected,'Worker preparation must preserve exact current baseline FBX bytes, embedded image bytes/metadata, geometry/material groups and native skin bones');assert(record.actual.meshes>0);
     report.fixtures.push({index:i,fixtureKind:kinds[i],inputBytes:bytes[i].length,inputSHA256:createHash('sha256').update(bytes[i]).digest('hex'),...record});
   }
   assert.equal(report.actual.ownWorkers,Math.min(2,bytes.length),'No nested decoder workers are created by full preparation');

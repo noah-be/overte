@@ -1,0 +1,415 @@
+{
+  "date": "2026-10-02",
+  "materialAssistance": "OpenAI Codex",
+  "scope": "Actual exact-source local Jenkins build4 plus separately attributed hosted push and merge-candidate failures. No complete CI pass.",
+  "sourceCommit": "ec62d79c7b93aa252df94f258e77f94a071ff553",
+  "localJenkins": {
+    "build": 4,
+    "summarySHA256": "55217b5b436833b280e508380767be07144bb19a019c5dd1d2d794e6f10b568e",
+    "passed": false,
+    "stages": [
+      {
+        "stage": "production-build",
+        "passed": true,
+        "durationSeconds": 3.513,
+        "exitCode": 0,
+        "failureCategory": null
+      },
+      {
+        "stage": "unit-isolation-contracts",
+        "passed": true,
+        "durationSeconds": 10.928,
+        "exitCode": 0,
+        "failureCategory": null
+      },
+      {
+        "stage": "actual-qt-input",
+        "passed": true,
+        "durationSeconds": 7.743,
+        "exitCode": 0,
+        "failureCategory": null
+      },
+      {
+        "stage": "fbx-worker-chromium",
+        "passed": false,
+        "durationSeconds": 3.813,
+        "exitCode": 1,
+        "failureCategory": null
+      },
+      {
+        "stage": "owned-lab-cleanup",
+        "passed": true,
+        "durationSeconds": 0.102,
+        "exitCode": 0,
+        "failureCategory": null
+      },
+      {
+        "stage": "curate-native-core",
+        "passed": true,
+        "durationSeconds": 0.101,
+        "exitCode": 0,
+        "failureCategory": null
+      }
+    ],
+    "components": {
+      "passed": 1040,
+      "failed": 0,
+      "skipped": 0
+    },
+    "actualQtInputPassed": true,
+    "nativeJourneys": "not-run",
+    "failureCause": "Stale FBX proof baseline omitted already-production embedded-image extraction; fixed and genuinely retested separately."
+  },
+  "hostedReviewSHA256": "0d8d011d1ec8e587197c8476957c34c464a81dce685e9a746a86c8af86b06f91",
+  "hosted": [
+    {
+      "runID": 36937685877,
+      "event": "push",
+      "workflowHeadSHA": "ec62d79c7b93aa252df94f258e77f94a071ff553",
+      "checkoutCommitSHA": "ec62d79c7b93aa252df94f258e77f94a071ff553",
+      "status": "completed",
+      "conclusion": "failure",
+      "failedLogSHA256": "ec12c53bbcae7e9b52facbd901a8aa2ca6657b0f35f50828149980ae41e6c6fa",
+      "componentTests": {
+        "tests": 1040,
+        "passed": 1037,
+        "failed": 3,
+        "failedCases": [
+          "nested-native-network-routes-and-scoped-bridge",
+          "abrupt-gateway-network-descendants",
+          "managed-udp-fixed-endpoints"
+        ],
+        "ownedWorkerFilesystemIsolationCasePassed": true
+      },
+      "networkFailures": {
+        "count": 3,
+        "identicalFixedDiagnostic": {
+          "phase": "native-started",
+          "category": "deny-route-command-failed",
+          "observedBytes": 123,
+          "truncated": false,
+          "exitCode": 1,
+          "signal": null,
+          "helperEvents": []
+        }
+      },
+      "nativeGuestReadback": {
+        "differences": [
+          {
+            "actual": false,
+            "expected": true,
+            "flag": "id_can_connect",
+            "group": "anonymous"
+          },
+          {
+            "actual": "missing-or-non-boolean",
+            "expected": true,
+            "flag": "id_can_rez_avatar_entities",
+            "group": "anonymous"
+          },
+          {
+            "actual": "missing-or-non-boolean",
+            "expected": false,
+            "flag": "id_can_adjust_locks",
+            "group": "anonymous"
+          },
+          {
+            "actual": "missing-or-non-boolean",
+            "expected": true,
+            "flag": "id_can_rez",
+            "group": "anonymous"
+          },
+          {
+            "actual": "missing-or-non-boolean",
+            "expected": false,
+            "flag": "id_can_rez_tmp",
+            "group": "anonymous"
+          },
+          {
+            "actual": "missing-or-non-boolean",
+            "expected": false,
+            "flag": "id_can_write_to_asset_server",
+            "group": "anonymous"
+          },
+          {
+            "actual": "missing-or-non-boolean",
+            "expected": false,
+            "flag": "id_can_connect_past_max_capacity",
+            "group": "anonymous"
+          },
+          {
+            "actual": "missing-or-non-boolean",
+            "expected": false,
+            "flag": "id_can_kick",
+            "group": "anonymous"
+          },
+          {
+            "actual": "missing-or-non-boolean",
+            "expected": false,
+            "flag": "id_can_replace_content",
+            "group": "anonymous"
+          },
+          {
+            "actual": "missing-or-non-boolean",
+            "expected": false,
+            "flag": "id_can_get_and_set_private_user_data",
+            "group": "anonymous"
+          },
+          {
+            "actual": "missing-or-non-boolean",
+            "expected": true,
+            "flag": "id_can_view_asset_urls",
+            "group": "anonymous"
+          },
+          {
+            "actual": true,
+            "expected": false,
+            "flag": "id_can_adjust_locks",
+            "group": "localhost"
+          },
+          {
+            "actual": true,
+            "expected": false,
+            "flag": "id_can_rez_tmp",
+            "group": "localhost"
+          },
+          {
+            "actual": true,
+            "expected": false,
+            "flag": "id_can_write_to_asset_server",
+            "group": "localhost"
+          },
+          {
+            "actual": true,
+            "expected": false,
+            "flag": "id_can_connect_past_max_capacity",
+            "group": "localhost"
+          },
+          {
+            "actual": true,
+            "expected": false,
+            "flag": "id_can_kick",
+            "group": "localhost"
+          },
+          {
+            "actual": true,
+            "expected": false,
+            "flag": "id_can_replace_content",
+            "group": "localhost"
+          },
+          {
+            "actual": true,
+            "expected": false,
+            "flag": "id_can_get_and_set_private_user_data",
+            "group": "localhost"
+          }
+        ],
+        "duplicateRows": 0,
+        "kind": "guest-permission-readback",
+        "missingRows": [
+          "logged-in",
+          "friends"
+        ],
+        "passed": false,
+        "shape": "valid",
+        "unknownRows": 0
+      },
+      "artifacts": [
+        {
+          "file": "core-journey-chromium.json",
+          "rawCaptureSHA256": "36071de288ccc164cd58b9557c6c461e38879ade403e68f17d319bfd45741792",
+          "testedCommitSHA": "ec62d79c7b93aa252df94f258e77f94a071ff553",
+          "completed": false,
+          "status": "not-run"
+        },
+        {
+          "file": "core-journey-firefox.json",
+          "rawCaptureSHA256": "7d0334536f4516b676eca5cebe656ccf96504918594a10a103cc4896f82bd0bf",
+          "testedCommitSHA": "ec62d79c7b93aa252df94f258e77f94a071ff553",
+          "completed": false,
+          "status": "not-run"
+        }
+      ]
+    },
+    {
+      "runID": 36937686978,
+      "event": "pull_request",
+      "workflowHeadSHA": "ec62d79c7b93aa252df94f258e77f94a071ff553",
+      "checkoutCommitSHA": "ae436f62932c56bf7160123e953e6628236fec0a",
+      "status": "completed",
+      "conclusion": "failure",
+      "failedLogSHA256": "5f720cbc3b392ff90b430ca6ae8131835469425e10df09783909ce20b72bc455",
+      "componentTests": {
+        "tests": 1040,
+        "passed": 1037,
+        "failed": 3,
+        "failedCases": [
+          "nested-native-network-routes-and-scoped-bridge",
+          "abrupt-gateway-network-descendants",
+          "managed-udp-fixed-endpoints"
+        ],
+        "ownedWorkerFilesystemIsolationCasePassed": true
+      },
+      "networkFailures": {
+        "count": 3,
+        "identicalFixedDiagnostic": {
+          "phase": "native-started",
+          "category": "deny-route-command-failed",
+          "observedBytes": 123,
+          "truncated": false,
+          "exitCode": 1,
+          "signal": null,
+          "helperEvents": []
+        }
+      },
+      "nativeGuestReadback": {
+        "differences": [
+          {
+            "actual": false,
+            "expected": true,
+            "flag": "id_can_connect",
+            "group": "anonymous"
+          },
+          {
+            "actual": "missing-or-non-boolean",
+            "expected": true,
+            "flag": "id_can_rez_avatar_entities",
+            "group": "anonymous"
+          },
+          {
+            "actual": "missing-or-non-boolean",
+            "expected": false,
+            "flag": "id_can_adjust_locks",
+            "group": "anonymous"
+          },
+          {
+            "actual": "missing-or-non-boolean",
+            "expected": true,
+            "flag": "id_can_rez",
+            "group": "anonymous"
+          },
+          {
+            "actual": "missing-or-non-boolean",
+            "expected": false,
+            "flag": "id_can_rez_tmp",
+            "group": "anonymous"
+          },
+          {
+            "actual": "missing-or-non-boolean",
+            "expected": false,
+            "flag": "id_can_write_to_asset_server",
+            "group": "anonymous"
+          },
+          {
+            "actual": "missing-or-non-boolean",
+            "expected": false,
+            "flag": "id_can_connect_past_max_capacity",
+            "group": "anonymous"
+          },
+          {
+            "actual": "missing-or-non-boolean",
+            "expected": false,
+            "flag": "id_can_kick",
+            "group": "anonymous"
+          },
+          {
+            "actual": "missing-or-non-boolean",
+            "expected": false,
+            "flag": "id_can_replace_content",
+            "group": "anonymous"
+          },
+          {
+            "actual": "missing-or-non-boolean",
+            "expected": false,
+            "flag": "id_can_get_and_set_private_user_data",
+            "group": "anonymous"
+          },
+          {
+            "actual": "missing-or-non-boolean",
+            "expected": true,
+            "flag": "id_can_view_asset_urls",
+            "group": "anonymous"
+          },
+          {
+            "actual": true,
+            "expected": false,
+            "flag": "id_can_adjust_locks",
+            "group": "localhost"
+          },
+          {
+            "actual": true,
+            "expected": false,
+            "flag": "id_can_rez_tmp",
+            "group": "localhost"
+          },
+          {
+            "actual": true,
+            "expected": false,
+            "flag": "id_can_write_to_asset_server",
+            "group": "localhost"
+          },
+          {
+            "actual": true,
+            "expected": false,
+            "flag": "id_can_connect_past_max_capacity",
+            "group": "localhost"
+          },
+          {
+            "actual": true,
+            "expected": false,
+            "flag": "id_can_kick",
+            "group": "localhost"
+          },
+          {
+            "actual": true,
+            "expected": false,
+            "flag": "id_can_replace_content",
+            "group": "localhost"
+          },
+          {
+            "actual": true,
+            "expected": false,
+            "flag": "id_can_get_and_set_private_user_data",
+            "group": "localhost"
+          }
+        ],
+        "duplicateRows": 0,
+        "kind": "guest-permission-readback",
+        "missingRows": [
+          "logged-in",
+          "friends"
+        ],
+        "passed": false,
+        "shape": "valid",
+        "unknownRows": 0
+      },
+      "artifacts": [
+        {
+          "file": "core-journey-chromium.json",
+          "rawCaptureSHA256": "d6e3ff6b41da8a6c2b7186e288e75799b6cdcd8763b82abefcc2c5547fd38fb5",
+          "testedCommitSHA": "ae436f62932c56bf7160123e953e6628236fec0a",
+          "completed": false,
+          "status": "not-run"
+        },
+        {
+          "file": "core-journey-firefox.json",
+          "rawCaptureSHA256": "5f993841e48549f5ac74cfafde126f23f2fbf1b8690368ba151807439af09a41",
+          "testedCommitSHA": "ae436f62932c56bf7160123e953e6628236fec0a",
+          "completed": false,
+          "status": "not-run"
+        }
+      ]
+    }
+  ],
+  "unchangedAcceptance": {
+    "nativeStagesRequired": 19,
+    "endurance": "cancelled by user",
+    "routesOrCapabilitiesRelaxed": false,
+    "AppArmorProfilesChanged": false
+  },
+  "limitations": [
+    "Hosted deny-route failure kernel errno remains unrecorded.",
+    "Hosted guest configuration stays at initial defaults; exact persistence failure remains unrecorded.",
+    "Owned worker filesystem/isolation now passes, but native journeys remain not-run."
+  ]
+}

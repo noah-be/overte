@@ -10,6 +10,8 @@ import {GraphicsWarmupOwner} from './graphics-warmup-owner';
 import {WorldCpuFrameTiming} from './world-cpu-frame-timing';
 import {RenderCpuBreakdown} from './render-cpu-breakdown';
 import {StaticModelMatrices} from './static-model-matrices';
+import {WorldBitmapUpload,isOwnedUploadBitmap} from './world-bitmap-upload';
+import {prepareWorldBitmapBindings,BitmapBindingsCapacityError} from './world-bitmap-bindings';
 import {ForegroundTexturePlan,ForegroundTextureCapacityError} from './foreground-texture-plan';
 import {WorldTexturePreparation,TexturePreparationCapacityError} from './world-texture-preparation';
 import { WorldGraphicsTarget } from './browser-graphics-target';
@@ -41,6 +43,7 @@ import { colorTextureCandidate,type TextureRole } from './color-texture-metadata
 import { currentCompressedColorCapabilities } from './compressed-color-capabilities';
 import { UnsupportedNativeCompression, type NativeCompressedColorCache, type CompressionCapabilities } from './native-compressed-color';
 import { batchStaticModel, inspectStaticModel, type StaticModelBatch, type StaticModelBatchInspection } from './static-model-batch';
+import { censusWorldDraws, type DrawCensusOptions } from './world-draw-census';
 import { hasNativeZeroLightShader, installNativeZeroLightShader, restoreNativeZeroLightShader } from './native-zero-lights';
 export type { Avatar, Entity, Pose, Vec3 } from './world-data';
 
@@ -51,6 +54,8 @@ export interface WorldOptions {
   shaderWarmup?: boolean;
   /** Main-view texture upload scheduling experiment; captured once, off by default. */
   texturePreparation?: boolean;
+  /** Already-decoded HTML-image bitmap preparation; captured once, off by default. */
+  bitmapUpload?: boolean;
   /** Optional bounded asynchronous frame diagnostics; absent means no timer queries. */
   gpuTiming?: boolean;
   /** Optional exclusive CPU-frame diagnostics; captured once, disabled by default. */
@@ -78,7 +83,7 @@ function disposeObject(root: THREE.Object3D): void {
     for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
       for (const value of Object.values(material)) if (value instanceof THREE.Texture) {
         value.dispose();
-        if (typeof ImageBitmap !== 'undefined' && value.image instanceof ImageBitmap) value.image.close();
+        if (typeof ImageBitmap !== 'undefined' && value.image instanceof ImageBitmap && !isOwnedUploadBitmap(value.image)) value.image.close();
       }
       material.dispose();
     }
@@ -108,6 +113,9 @@ export class BrowserWorld {
   private readonly graphicsWarmups=new GraphicsWarmupOwner(this.abort.signal);
   private readonly shaderWarmup:boolean;
   private readonly texturePreparations?:WorldTexturePreparation;
+  private readonly bitmapUploads?:WorldBitmapUpload;
+  private bitmapGeneration?:string;
+  private readonly bitmapBindingCounters={roots:0,converted:0,fallbacks:0,unsupported:0,capacityFallbacks:0,activeRoots:0,peakRoots:0};
   private readonly foregroundTextureCounts={roots:0,bindings:0,unsupported:0,activeBindings:0,peakBindings:0,capacityFallbacks:0};
   private readonly shaderWarmupCounters={roots:0,bindings:0,batches:0,yielded:0,smallRoots:0,conservativeFallbacks:0};
   private compressedColorCache?: NativeCompressedColorCache;
@@ -165,7 +173,7 @@ export class BrowserWorld {
 
   constructor(private readonly container: HTMLElement, private readonly options: WorldOptions) {
     this.shaderWarmup=options.shaderWarmup===true;
-    if(options.texturePreparation===true&&typeof options.captureAssetAuthority!=='function')throw Error('Texture preparation requires captured connected-session authority');
+    if((options.texturePreparation===true||options.bitmapUpload===true)&&typeof options.captureAssetAuthority!=='function')throw Error('Texture preparation requires captured connected-session authority');
     this.zeroLightGuard = options.zeroLightGuard === true;
     this.nativeCullDefaults = options.nativeCullDefaults === true;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -188,6 +196,7 @@ export class BrowserWorld {
       setCameraClipping:enabled=>{this.cameraClippingEnabled=enabled;},
     });
     if(options.texturePreparation===true)this.texturePreparations=new WorldTexturePreparation(this.renderer,{signal:this.abort.signal});
+    if(options.bitmapUpload===true)this.bitmapUploads=new WorldBitmapUpload({signal:this.abort.signal});
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.canvas = this.renderer.domElement;
@@ -275,7 +284,7 @@ export class BrowserWorld {
     this.staticMatrices?.release(root);
     // Default-off methods retain their original lifecycle and need no owner
     // allocation/access. Opted-in instances always initialize this private owner.
-    if(this.shaderWarmup||this.texturePreparations)this.graphicsWarmups.cancel(root);
+    if(this.shaderWarmup||this.texturePreparations||this.bitmapUploads)this.graphicsWarmups.cancel(root);
   }
   private cancelAvatarGraphics(root:THREE.Object3D):void {
     this.cancelGraphics(root);const pending=this.avatarModels.get(root as THREE.Group)?.preparing;if(pending)this.cancelGraphics(pending);
@@ -301,6 +310,33 @@ export class BrowserWorld {
       cameraPosition:{x:this.camera.position.x,y:this.camera.position.y,z:this.camera.position.z},
       ...(bounds && !bounds.isEmpty() ? {bounds:{min:{x:bounds.min.x,y:bounds.min.y,z:bounds.min.z},max:{x:bounds.max.x,y:bounds.max.y,z:bounds.max.z}}} : {})};
   }
+  /** Explicit one-shot audit; never call from a render/performance loop. */
+  getDrawCensus(limits: Omit<DrawCensusOptions,'signal'|'isCurrent'> = {}) {
+    let authority: WorldSourceAuthority | undefined;
+    try { authority=this.options.captureAssetAuthority?.(); } catch { /* Refusal is reported as censored. */ }
+    const nonzero=(value:unknown)=>Boolean(value&&typeof value==='object'&&['x','y','z'].some(key=>{
+      const component=(value as Record<string,unknown>)[key];
+      return typeof component!=='number'||!Number.isFinite(component)||component!==0;
+    }));
+    const self=this;
+    function* owners() {
+      for(const [id,root] of self.objects) {
+        const entity=self.entities.get(id),animation=entity?.animation;
+        yield {root,loaded:root.userData.modelLoaded===true,
+          dynamic:!entity||entity.dynamic===true||nonzero(entity.velocity)||nonzero(entity.angularVelocity),
+          scripted:Boolean(entity?.script||entity?.serverScripts),
+          parented:Boolean(entity?.parentID&&!/^\{?00000000-0000-0000-0000-000000000000\}?$/.test(entity.parentID)),
+          materialChildren:self.hasMaterialChildren(id),
+          animated:Boolean(animation&&typeof animation==='object'&&((animation as Record<string,unknown>).url||(animation as Record<string,unknown>).running===true)),
+        };
+      }
+    }
+    return censusWorldDraws(owners(),{...limits,signal:this.abort.signal,isCurrent:()=>{
+      if(this.disposed||!this.enabled||!authority)return false;
+      try{authority.assertCurrent();return true;}catch{return false;}
+    }});
+  }
+
   getRenderInventory() {
     return [...this.objects].filter(([,root]) => root.userData.modelLoaded).map(([id,root]) => {
       let meshes = 0, groups = 0, triangles = 0, skins = 0, morphs = 0;
@@ -328,7 +364,7 @@ export class BrowserWorld {
     }).sort((a,b) => b.groups - a.groups);
   }
   getPerformance() {
-    return { ...this.metrics.snapshot(), staticModelMatrices:this.staticMatrices?{enabled:true,...this.staticMatrices.statistics}:{enabled:false}, texturePreparation:{enabled:!!this.texturePreparations,...this.foregroundTextureCounts,...this.texturePreparations?.stats}, shaderWarmup:{enabled:this.shaderWarmup,...this.shaderWarmupCounters}, gpuTiming: this.gpuTiming?.getSnapshot() ?? { enabled: false }, cpuFrameTiming:this.cpuFrameTiming?.getSnapshot() ?? {enabled:false}, renderCpuTiming:this.renderCpuTiming?.snapshot() ?? {enabled:false}, drawingBufferWidth: this.renderer.getContext().drawingBufferWidth,
+    return { ...this.metrics.snapshot(), bitmapUpload:{enabled:!!this.bitmapUploads,...this.bitmapBindingCounters,...this.bitmapUploads?.stats()}, staticModelMatrices:this.staticMatrices?{enabled:true,...this.staticMatrices.statistics}:{enabled:false}, texturePreparation:{enabled:!!this.texturePreparations,...this.foregroundTextureCounts,...this.texturePreparations?.stats}, shaderWarmup:{enabled:this.shaderWarmup,...this.shaderWarmupCounters}, gpuTiming: this.gpuTiming?.getSnapshot() ?? { enabled: false }, cpuFrameTiming:this.cpuFrameTiming?.getSnapshot() ?? {enabled:false}, renderCpuTiming:this.renderCpuTiming?.snapshot() ?? {enabled:false}, drawingBufferWidth: this.renderer.getContext().drawingBufferWidth,
       drawingBufferHeight: this.renderer.getContext().drawingBufferHeight, drawCalls: this.renderer.info.render.calls,
       triangles: this.renderer.info.render.triangles, geometries: this.renderer.info.memory.geometries,
       textures: this.renderer.info.memory.textures, entities: this.entities.size,
@@ -363,6 +399,7 @@ export class BrowserWorld {
       // Restrict this experiment to existing World entity publishers. Avatar
       // fallbacks/labels keep their established shaderWarmup-only lifetimes.
       const texturePreparations=this.texturePreparations&&[...this.objects.values()].includes(root as THREE.Group)?this.texturePreparations:undefined;
+      const bitmapUploads=this.bitmapUploads&&[...this.objects.values()].includes(root as THREE.Group)?this.bitmapUploads:undefined;
       const compile=async(signal?:AbortSignal,current:()=>boolean=()=>true)=>{
         if(this.shaderWarmup){
           const statistics=await prepareGraphicsYielding(this.renderer,this.camera,this.scene,root,{signal,isCurrent:current});
@@ -379,18 +416,31 @@ export class BrowserWorld {
           if(signal)await waitGraphicsReadiness(readiness,signal,30000);else await readiness;
         }
       };
-      if(this.shaderWarmup||texturePreparations){
+      if(this.shaderWarmup||texturePreparations||bitmapUploads){
         // One private owner guards compile, foreground planning and uploads. The
         // exact approval is captured before any await, never inferred from URLs.
-        const authority=texturePreparations?this.options.captureAssetAuthority?.():undefined;
-        if(texturePreparations&&!authority)throw Error('Missing texture preparation authority');
+        const authority=texturePreparations||bitmapUploads?this.options.captureAssetAuthority?.():undefined;
+        if((texturePreparations||bitmapUploads)&&!authority)throw Error('Missing texture preparation authority');
         authority?.assertCurrent();
-        const reader=texturePreparations?this.modelReaders.get(root as THREE.Group)?.signal:undefined;
+        const reader=texturePreparations||bitmapUploads?this.modelReaders.get(root as THREE.Group)?.signal:undefined;
         const onReaderAbort=()=>this.graphicsWarmups.cancel(root);
         reader?.addEventListener('abort',onReaderAbort,{once:true});
         try{await this.graphicsWarmups.run(root,()=>!this.disposed&&isCurrent()&&!reader?.aborted,async(signal,current)=>{
           const assertCurrent=()=>{signal.throwIfAborted();authority?.assertCurrent();if(!current())throw new DOMException('Graphics preparation owner ended','AbortError');};
           assertCurrent();await compile(signal,current);assertCurrent();
+          if(bitmapUploads){
+            const generation=authority!.generation;
+            if(this.bitmapGeneration!==generation){if(this.bitmapGeneration!==undefined)bitmapUploads.invalidate();this.bitmapGeneration=generation;}
+            const bitmapStarted=performance.now();
+            try{
+              if(this.bitmapBindingCounters.activeRoots>=16)throw new BitmapBindingsCapacityError('Aggregate bitmap preparation root budget reached');
+              this.bitmapBindingCounters.activeRoots++;this.bitmapBindingCounters.peakRoots=Math.max(this.bitmapBindingCounters.peakRoots,this.bitmapBindingCounters.activeRoots);
+              let stats;try{stats=await prepareWorldBitmapBindings(root,bitmapUploads,signal,assertCurrent);}finally{this.bitmapBindingCounters.activeRoots--;}
+              this.bitmapBindingCounters.roots++;this.bitmapBindingCounters.converted+=stats.converted;this.bitmapBindingCounters.fallbacks+=stats.fallbacks;this.bitmapBindingCounters.unsupported+=stats.unsupported;
+            }catch(error){assertCurrent();if(!(error instanceof BitmapBindingsCapacityError))throw error;this.bitmapBindingCounters.capacityFallbacks++;this.options.onStatus('Optional bitmap preparation reached its budget. Original decoded-image uploads remain active.','info');}
+            finally{this.recordLoadPhase('bitmapPreparation',bitmapStarted);}
+          }
+          assertCurrent();
           if(texturePreparations&&this.willPublishPreparedRoot(root)){
             let plan:ForegroundTexturePlan|undefined,borrowedBindings=0;
             try{
@@ -788,7 +838,7 @@ export class BrowserWorld {
   }
 
   /** Revoke old metadata synchronously during transient transport loss. */
-  invalidateSourceTexts():void{this.sourceTexts?.dispose();this.sourceTexts=undefined;this.sourceTextGeneration=undefined;}
+  invalidateSourceTexts():void{this.sourceTexts?.dispose();this.sourceTexts=undefined;this.sourceTextGeneration=undefined;this.bitmapUploads?.invalidate();this.bitmapGeneration=undefined;}
 
   private async populateEntity(entity: Entity, root: THREE.Group): Promise<void> {
     const size = vector(entity.dimensions, 1);

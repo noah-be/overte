@@ -248,6 +248,7 @@ async function joinDomain(domain:string, direction?:'back'|'forward'):Promise<vo
             staticModelMatrices: new URLSearchParams(location.search).get('staticModelMatrices') === '1',
             shaderWarmup: new URLSearchParams(location.search).get('shaderWarmup') === '1',
             texturePreparation: new URLSearchParams(location.search).get('texturePreparation') === '1',
+            bitmapUpload: new URLSearchParams(location.search).get('bitmapUpload') === '1',
             compressedColors: (capabilities, signal) => session.compressedColors(capabilities, signal),
             captureAssetAuthority: () => session.captureAssetAuthority(),
             onPose: pose => session.sendPose(pose),
@@ -368,4 +369,5 @@ Object.defineProperty(window, '__overte', {value:{
     get avatarRig() { return world?.getSelfAvatarRig(); },
     get avatarRender() { return world?.getSelfAvatarRenderState(); },
     get renderInventory() { return world?.getRenderInventory(); },
+    drawCensus() { return world?.getDrawCensus(); },
 }, configurable:true});

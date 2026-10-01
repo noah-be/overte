@@ -1,0 +1,65 @@
+{
+  "date": "2026-10-02",
+  "materialAssistance": "OpenAI Codex",
+  "scope": "Actual privately authored Qt5.15.3 editor negative; guarded native IME for all editable fields. No shipping activation.",
+  "actual": {
+    "startedAt": "2026-10-01T23:14:13.604782+00:00",
+    "finishedAt": "2026-10-01T23:14:17.022879+00:00",
+    "completed": false,
+    "failureCategory": "actual-qt-guard-or-runtime-refused",
+    "cases": [
+      {
+        "kind": "unicode-text",
+        "passed": true
+      },
+      {
+        "kind": "native-number",
+        "passed": true
+      },
+      {
+        "kind": "textarea",
+        "passed": true
+      },
+      {
+        "kind": "literal-contenteditable",
+        "passed": true
+      },
+      {
+        "kind": "password-unicode",
+        "passed": true
+      },
+      {
+        "kind": "password-native-undo",
+        "passed": true
+      },
+      {
+        "kind": "password-native-redo",
+        "passed": true
+      },
+      {
+        "kind": "password-native-maxlength",
+        "passed": false
+      }
+    ],
+    "qtLibraryPathsMatched": true,
+    "passwordCancellationVerified": false,
+    "nativeExitCode": 1,
+    "ownedRendererGroupStopped": true,
+    "ownedDisplayStopped": true,
+    "qtSDKVersion": "5.15.3",
+    "qtRuntimeVersion": "5.15.3",
+    "compileWerror": true,
+    "sourceSHA256": "9a6e0d2ce46b7f245fa9e439fa7076c3fb50428845ebc59266ce377aa59c855c",
+    "candidateQmlSHA256": "d5f17c552322bf0b1ef3d8f972e14838e0fe3f5da7e648b862a4f442059992ff",
+    "pluginLibrarySHA256": "f3202346aeaf948806e2ea5b89f8a4428ca0601834ce979e91b26617927bfd53",
+    "pluginArtifactsSHA256": "05f1beef6fcfb9573ae2f68f68d3fdb1ad32bad9763ee39d423977afeed7354c",
+    "pluginInputAttestationSHA256": "9d67523a5ca4b6b1e979e0f08d8c0f42c6281302bbf42c906707f78b5e5ec5d1"
+  },
+  "rawCaptureSHA256": "4c882d3ea1291ddcb3e2adbfa03bc84572c4066a489a5376ba02f79a28ad3ad9",
+  "frozenManifestSHA256": "20005349afc21ddff7ff2b8f901e0c64d55f4c1b0208c1be1b17284a78b00f1e",
+  "actualPluginAttestationSHA256": "9d67523a5ca4b6b1e979e0f08d8c0f42c6281302bbf42c906707f78b5e5ec5d1",
+  "shippingIntegrated": false,
+  "literalOraclesRelaxed": false,
+  "interpretation": "Seven original editor oracles pass, including password Unicode, undo and redo. Password maxlength fails, so fourteen-case and password cancellation acceptance are not established.",
+  "nextStep": "Identify native edit/selection/maxlength failure without changing the original acceptance predicate."
+}
