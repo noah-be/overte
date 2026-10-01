@@ -10,5 +10,6 @@ export default defineConfig({
             '/api': { target: 'http://127.0.0.1:8090' },
         },
     },
+    worker: { format: 'es' },
     build: { target: 'es2022', sourcemap: true },
 });

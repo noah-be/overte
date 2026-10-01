@@ -4,7 +4,11 @@ import { Quaternion, Vector3 } from 'three';
 export interface Vec3 { x: number; y: number; z: number }
 export interface Quat extends Vec3 { w: number }
 export interface Pose { position: Vec3; orientation: Quat; velocity: Vec3 }
-export interface Avatar { id: string; displayName?: string; position: Vec3; orientation?: Quat; scale?: number; }
+export interface Avatar {
+  id:string; displayName?:string; position:Vec3; orientation?:Quat; scale?:number;
+  skeletonModelURL?:string; skeletonOffset?:Vec3;
+  jointNames?:string[]; jointRotations?:Quat[]; jointTranslations?:Vec3[];
+}
 export interface Entity {
   id: string; type: string; name?: string; position?: Vec3; rotation?: Quat;
   localPosition?: Vec3; localRotation?: Quat; parentID?: string;
@@ -61,6 +65,12 @@ export function entityCollider(entity: Entity, entities: ReadonlyMap<string, Ent
   return { id: entity.id, center: position, rotation, half: dimensions.multiplyScalar(0.5) };
 }
 
+/** Distance to actual oriented bounds, including large floors whose centers are far away. */
+export function colliderDistance(position: Vec3, collider: Collider): number {
+  const local = vector(position).sub(vector(collider.center)).applyQuaternion(quaternion(collider.rotation).invert());
+  return Math.hypot(Math.max(0, Math.abs(local.x) - collider.half.x), Math.max(0, Math.abs(local.y) - collider.half.y), Math.max(0, Math.abs(local.z) - collider.half.z));
+}
+
 /** Resolve a vertical character capsule against oriented entity bounds. Models use conservative bounds. */
 export function resolveCollision(position: Vec3, collider: Collider): { position: Vec3; normal: Vec3 } | undefined {
   const inverse = quaternion(collider.rotation).invert();
@@ -114,7 +124,15 @@ export function assetDependency(source: string, dependency: string): string {
   return new URL(dependency, source).href;
 }
 
-export interface MaterialData { albedo?: number[]; albedoMap?: string; normalMap?: string; roughness?: number; roughnessMap?: string; metallic?: number; metallicMap?: string; opacity?: number; emissive?: number[]; emissiveMap?: string; unlit?: boolean; name?: string; model?: string; procedural?: unknown; }
+export type MaterialColor = number[] | { red: number; green: number; blue: number };
+export interface MaterialData { cullFaceMode?: string; albedo?: MaterialColor; albedoMap?: string; normalMap?: string; roughness?: number; roughnessMap?: string; metallic?: number; metallicMap?: string; opacity?: number; opacityMap?: string; opacityMapMode?: string; opacityCutoff?: number; emissive?: MaterialColor; emissiveMap?: string; unlit?: boolean; name?: string; model?: string; procedural?: unknown; }
+
+/** Native baked materials encode normalized RGB records; authored materials also use arrays. */
+export function materialRGB(value: MaterialColor): [number, number, number] {
+  const values = Array.isArray(value) ? value.slice(0, 3) : value && [value.red, value.green, value.blue];
+  if (!values || values.length !== 3 || !values.every(channel => typeof channel === 'number' && Number.isFinite(channel) && channel >= 0)) throw new Error('Invalid native material color');
+  return values as [number, number, number];
+}
 
 export function unsupportedEntityEffects(entity: Entity): string[] {
   const effects: string[] = [];

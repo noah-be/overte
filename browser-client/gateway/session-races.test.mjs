@@ -7,6 +7,11 @@ import vm from 'node:vm';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { SharedTeardown } from './process-lifecycle.mjs';
+import { managedUDPDomain } from './validation.mjs';
+import { managedNavigationSelection } from './navigation.mjs';
+import { validateVisitorPreferences } from '../shared/visitor-preferences.mjs';
+import { validateVisitorPersona, WEARABLE_FIELDS } from '../shared/visitor-persona.mjs';
+import {acceptedNativePersona} from './visitor-persona.mjs';
 
 // Execute the production Session teardown and message handler, replacing only
 // external native launch with a deferred operation. No domain or service is used.
@@ -18,7 +23,7 @@ async function connectionHarness() {
     const handlerEnd = source.indexOf("nativeServer.on('connection'", handlerStart);
     assert.ok(classStart >= 0 && classEnd > classStart && handlerStart > classEnd && handlerEnd > handlerStart);
     const sessions = new Map(), sockets = new Set(), messages = [], launches = [], created = [];
-    const browser = {on(name, listener) { this[name] = listener; }};
+    const browser = {readyState:1,on(name, listener) { this[name] = listener; }};
     const send = (socket, message) => { if (socket === browser) messages.push(message); };
     const classContext = {SharedTeardown, randomBytes, randomUUID, clearTimeout, sessions, send,
         WebSocket:{OPEN:1}};
@@ -32,7 +37,7 @@ async function connectionHarness() {
     }
     vm.runInNewContext(source.slice(handlerStart, handlerEnd), {
         Session:DeferredSession, sessions, sockets, maximumSessions:4, shuttingDown:false,
-        cookie:() => 'owned-session-cookie', send, pose:() => {},
+        cookie:() => 'owned-session-cookie', send, pose:() => {}, WebSocket:{OPEN:1}, equal:(a,b)=>a===b,
         browserServer:{on(event, listener) { assert.equal(event, 'connection'); listener(browser, {headers:{}}); }},
     });
     return {messages, launches, created, sessions,
@@ -92,7 +97,7 @@ test('leaving during the final bridge file write cannot spawn a late native conn
     const start = source.indexOf('class Session extends SharedTeardown {');
     const end = source.indexOf('\nconst server = http.createServer', start);
     assert.ok(start >= 0 && end > start);
-    const domain = 'overte://managed.example';
+    const domain = 'overte://127.0.0.2:45102';
     let reachedWrite, finishWrite;
     const reached = new Promise(resolve => { reachedWrite = resolve; });
     const write = new Promise(resolve => { finishWrite = resolve; });
@@ -100,11 +105,13 @@ test('leaving during the final bridge file write cannot spawn a late native conn
     const Session = vm.runInNewContext(source.slice(start, end) + '\nSession;', {
         SharedTeardown, randomBytes, randomUUID, path, clearTimeout, setTimeout,
         sessions:new Map(), WebSocket:{OPEN:1},
-        process:{env:{OVERTE_INTERFACE:'/fixture/interface', OVERTE_GATEWAY_GUEST_POLICY:'/fixture/policy'}},
+        process:{env:{OVERTE_INTERFACE:'/fixture/interface', OVERTE_GATEWAY_GUEST_POLICY:'/fixture/policy',
+            OVERTE_GATEWAY_MANAGED_UDP_PORTS:'45102,45200'}}, managedUDPDomain, managedNavigationSelection, validateVisitorPreferences, validateVisitorPersona, WEARABLE_FIELDS, acceptedNativePersona,
+        assetOrigins:new Set(),publicAssetOrigins:new Set(),prepareVisitorPersona:async()=>({}),
         domainAddress:value => value, domains:[domain],
         readPolicyFile:async () => new Map([[domain, {}]]), nativeDomainAddress:async value => value,
         tmpdir:() => '/tmp', mkdtemp:async () => '/tmp/fixture-session', mkdir:async () => {},
-        directory:'/fixture/gateway', port:8090, run:async () => {}, readFile:async () => '// fixture bridge',
+        directory:'/fixture/gateway', port:8090, nativeBridgeSource:'// fixture bridge', run:async () => {},
         writeFile:async file => { if (path.basename(file) === 'bridge.js') { reachedWrite(); await write; } },
         send:(socket, message) => messages.push(message),
         terminateProcess:async child => { terminated.push(child.label); },
@@ -129,4 +136,25 @@ test('leaving during the final bridge file write cannot spawn a late native conn
     assert.deepEqual(removed, ['/tmp/fixture-session']);
     assert.equal(messages.some(message => message.state === 'connecting'), false,
         'A cancelled session must not publish a late connecting state');
+});
+
+test('native teardown keeps the private display and PulseAudio alive until native exit, and stops PulseAudio last', async () => {
+    const source=await readFile(new URL('./server.mjs',import.meta.url),'utf8');
+    const start=source.indexOf('class Session extends SharedTeardown {'),end=source.indexOf('\nconst server = http.createServer',start);
+    const events=[],terminations=new Map();
+    const Session=vm.runInNewContext(source.slice(start,end)+'\nSession;',{
+        SharedTeardown,randomBytes,randomUUID,clearTimeout,sessions:new Map(),WebSocket:{OPEN:1},send:()=>{},
+        terminateProcess:child=>{events.push(child.label);return new Promise(resolve=>terminations.set(child.label,resolve));},
+        rm:async()=>{}
+    });
+    const session=new Session({},'owner');
+    session.nativeProcess={label:'native'};session.audioServer={label:'pulse'};
+    session.processes=[session.audioServer,{label:'display'},{label:'capture'},session.nativeProcess];
+    const closing=session.close(false);await new Promise(resolve=>setImmediate(resolve));
+    assert.deepEqual(events,['native'],'Native termination cannot destroy its live media dependencies');
+    terminations.get('native')();await new Promise(resolve=>setImmediate(resolve));
+    assert.deepEqual(events,['native','display','capture'],'PulseAudio remains available while other media children stop');
+    terminations.get('display')();await new Promise(resolve=>setImmediate(resolve));assert.equal(terminations.has('pulse'),false);
+    terminations.get('capture')();await new Promise(resolve=>setImmediate(resolve));assert.equal(events.at(-1),'pulse');
+    terminations.get('pulse')();await closing;
 });

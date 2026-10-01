@@ -39,14 +39,12 @@ jobs:
         run: npm ci
       - name: Build browser distribution
         run: npm run build
-      - name: Test protocol, collision and audio contracts
-        run: npm test
       - name: Install browser engines
         run: npx playwright install --with-deps chromium firefox
       - name: Install software graphics and isolated audio backends
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libgl1-mesa-dri libglx-mesa0 mesa-utils pulseaudio xvfb
+          sudo apt-get install -y --no-install-recommends libgl1-mesa-dri libglx-mesa0 mesa-utils pulseaudio xvfb xauth bubblewrap slirp4netns iproute2 python3 g++ qtbase5-dev qtdeclarative5-dev qml-module-qtquick2 qml-module-qtquick-window2
           task_runtime_dir="$(mktemp -d "${RUNNER_TEMP}/overte-browser-runtime.XXXXXX")"
           chmod 700 "$task_runtime_dir"
           export XDG_RUNTIME_DIR="$task_runtime_dir"
@@ -55,6 +53,21 @@ jobs:
           pactl set-default-sink overte_ci
           echo "XDG_RUNTIME_DIR=$task_runtime_dir" >> "$GITHUB_ENV"
           echo "PULSE_SERVER=unix:$task_runtime_dir/pulse/native" >> "$GITHUB_ENV"
+      - name: Test protocol, collision, audio and worker isolation contracts
+        run: npm test
+      - name: Build and test actual Qt Tablet composition and clipboard input
+        run: |
+          python3 tools/build-native-input.py --test --output "$RUNNER_TEMP/overte-native-input" \
+            --qt-libraries /usr/lib/x86_64-linux-gnu \
+            --qt-plugins /usr/lib/x86_64-linux-gnu/qt5/plugins \
+            --qt-qml /usr/lib/x86_64-linux-gnu/qt5/qml
+      - name: Prove production FBX workers with actual native and authored Draco assets
+        run: |
+          for engine in chromium firefox; do
+            OVERTE_FBX_POOL_BROWSER="$engine" \
+            OVERTE_FBX_POOL_EVIDENCE="$RUNNER_TEMP/overte-fbx-pool-$engine.json" \
+              node tests/integration/model-fbx-pool-proof.mjs
+          done
       - name: Test Chromium and Firefox user interface and renderer
         # Firefox needs a display/GLX context even with software Mesa on the Ubuntu runner.
         # The null audio sink exercises real Web Audio without requiring host hardware.
@@ -62,3 +75,80 @@ jobs:
           LIBGL_ALWAYS_SOFTWARE: 'true'
           GALLIUM_DRIVER: llvmpipe
         run: xvfb-run --auto-servernum --server-args='-screen 0 1280x720x24' npm run test:browser -- --headed
+
+  native-journey:
+    name: Actual native and browser core journeys
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      OVERTE_LAB_DURATION_SECONDS: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: browser-client/package-lock.json
+      - name: Install signed host dependencies for the native laboratory
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends python3 g++ binutils rpm2cpio cpio zstd \
+            ffmpeg pulseaudio pulseaudio-utils xvfb xauth bubblewrap slirp4netns iproute2 \
+            ca-certificates libstdc++6 libgl1 libglx-mesa0 libegl1 libopengl0 libgl1-mesa-dri \
+            libnss3 libasound2t64 libxcomposite1 libxdamage1 libxrandr2 libxtst6 libxss1 \
+            libxcb-xinerama0 libxcb-cursor0 libxkbcommon-x11-0
+      - name: Build the reproducible production browser client
+        working-directory: browser-client
+        run: |
+          npm ci
+          npm run build
+          npx playwright install --with-deps chromium firefox
+      - name: Verify host tool and safe evidence contracts
+        run: |
+          python3 browser-client/lab/test_host_tools.py
+          python3 browser-client/lab/test_curate_core_journey.py
+      - name: Prepare pinned native artifacts and require real isolation/audio preflight
+        run: |
+          python3 browser-client/lab/manage.py prepare --host-tools system
+          python3 browser-client/lab/manage.py preflight
+      - name: Start actual domain, assignment servers, independent native and gateway
+        id: start
+        run: python3 browser-client/lab/manage.py start --gateway
+      - name: Actual Chromium world, native movement, interaction, voice and reconnect
+        if: ${{ !cancelled() && steps.start.outcome == 'success' }}
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 'true'
+          GALLIUM_DRIVER: llvmpipe
+        run: |
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
+            bash -c 'OVERTE_LAB_BROWSER_DISPLAY="$DISPLAY" node browser-client/tests/integration/real-session.mjs' \
+            > build/browser-lab/logs/core-chromium.log 2>&1
+      - name: Actual Firefox world, native movement, interaction, voice and reconnect
+        if: ${{ !cancelled() && steps.start.outcome == 'success' }}
+        env:
+          OVERTE_LAB_BROWSER: firefox
+          LIBGL_ALWAYS_SOFTWARE: 'true'
+          GALLIUM_DRIVER: llvmpipe
+        run: |
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
+            bash -c 'OVERTE_LAB_BROWSER_DISPLAY="$DISPLAY" node browser-client/tests/integration/real-session.mjs' \
+            > build/browser-lab/logs/core-firefox.log 2>&1
+      - name: Stop only recorded owned laboratory process groups
+        if: always()
+        run: python3 browser-client/lab/manage.py stop
+      - name: Curate aggregate evidence without profiles, credentials, logs or audio
+        if: always()
+        run: |
+          python3 browser-client/lab/curate-core-journey.py \
+            --input build/browser-lab/evidence --output "$RUNNER_TEMP/overte-native-core-evidence" \
+            --commit-sha "$GITHUB_SHA"
+      - name: Preserve only curated native core evidence
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: native-core-journey-evidence
+          path: ${{ runner.temp }}/overte-native-core-evidence/*.json
+          if-no-files-found: error
+          retention-days: 7

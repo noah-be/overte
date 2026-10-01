@@ -1,0 +1,907 @@
+{
+  "schemaVersion": 1,
+  "scope": "Read-only overte_hub, same stock Firefox and natural DPR; one descriptive before/after pair, not statistical or complete acceptance.",
+  "comparison": {
+    "readyReductionSeconds": 9.224,
+    "readyReductionPercent": 21.71,
+    "requestedTargetHashesIdentical": true,
+    "requestedDistinctTargetHashCount": 670,
+    "failedTargetAndStatusMultiplicitiesIdentical": true,
+    "distinctFailedTargetHashCount": 16,
+    "viewportAndDPRIdentical": true,
+    "commonProductionSourceChanges": {
+      "browser-client/src/texture-alpha-worker.ts": {
+        "before": "19f26164f38e33946aa57e1fd0d3ce06da02b9ca2d24f3ca25f77f621aafd3a0",
+        "after": "68cc81f419ed2373cfe18e9efd950222452479a7a742c5e10b8d965264d91761"
+      }
+    }
+  },
+  "limitations": [
+    "All four unchanged fluidness gates failed in both runs.",
+    "Alpha phase totals include overlapping waits and are not wall-clock readiness or pure CPU duration.",
+    "The observed loaded-model count is 297 before and 298 after despite identical requested-target hash sets; online-world content is streamed, not an immutable benchmark.",
+    "Initial model readiness does not prove every remote texture loaded. Both flows retain 35 failed HTTP resources.",
+    "New session ordinal metrics exist only after; whole two-session totals must not be compared directly to earlier single-session gateway measurements.",
+    "The observer and stock Firefox driver were additionally hashed after; this is a production alpha-worker-only source change with updated diagnostic instrumentation.",
+    "No public interactions or microphone input. User cancelled 30-minute endurance testing."
+  ],
+  "runs": [
+    {
+      "label": "Before alpha worker yielding",
+      "rawReportSHA256": "3118b6c2a11b2702f965be235604e048c2bf57395360f80e85ed3e8aa971e703",
+      "startedAt": "2026-10-01T05:21:19.249Z",
+      "finishedAt": "2026-10-01T05:23:57.814Z",
+      "browserVersion": "firefox/156.0",
+      "completed": false,
+      "error": "Actual loaded-world, walking and reconnect measurements must meet30FPS, p95<=66.7ms and no steady stall>250ms",
+      "fluidMovementAcceptancePassed": false,
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "devicePixelRatio": 1.6666666666666667,
+        "visibility": "visible"
+      },
+      "firstSampledModelReadySeconds": 42.485,
+      "firstReadyCounts": {
+        "fps": 20.132539216508683,
+        "medianFrameMs": 41,
+        "p95FrameMs": 88,
+        "maximumFrameMs": 893.1399999999994,
+        "loadedModels": 297,
+        "loadingModels": 0,
+        "queuedModels": 0,
+        "compilingGraphics": 0,
+        "drawCalls": 781,
+        "entityCount": 517
+      },
+      "alphaPhase": {
+        "count": 843,
+        "totalMs": 69502,
+        "maxMs": 6743
+      },
+      "movementMeters": 3.8239759296818074,
+      "nativePoseDifferenceMeters": 0.0009595561670369086,
+      "reconnectedMovementMeters": 2.7505159888412067,
+      "reconnectedNativeDifferenceMeters": 0.0011301589063956383,
+      "fluidGates": {
+        "steadyFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "walkFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedSteadyFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedWalkFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        }
+      },
+      "assessedSamples": {
+        "steady": [
+          {
+            "fps": 26.055802844425124,
+            "medianFrameMs": 34,
+            "p95FrameMs": 67,
+            "maximumFrameMs": 91,
+            "loadedModels": 297,
+            "loadingModels": 0,
+            "queuedModels": 0,
+            "compilingGraphics": 0,
+            "drawCalls": 779,
+            "entityCount": 517
+          },
+          {
+            "fps": 26.341784655910416,
+            "medianFrameMs": 34,
+            "p95FrameMs": 68,
+            "maximumFrameMs": 100,
+            "loadedModels": 297,
+            "loadingModels": 0,
+            "queuedModels": 0,
+            "compilingGraphics": 0,
+            "drawCalls": 778,
+            "entityCount": 517
+          }
+        ],
+        "walking": [
+          {
+            "fps": 26.275454346398053,
+            "medianFrameMs": 34,
+            "p95FrameMs": 71,
+            "maximumFrameMs": 113,
+            "loadedModels": 297,
+            "loadingModels": 0,
+            "queuedModels": 0,
+            "compilingGraphics": 0,
+            "drawCalls": 741
+          }
+        ],
+        "reconnectedSteady": [
+          {
+            "fps": 22.815857020629338,
+            "medianFrameMs": 37,
+            "p95FrameMs": 81,
+            "maximumFrameMs": 717,
+            "loadedModels": 298,
+            "loadingModels": 0,
+            "queuedModels": 0,
+            "compilingGraphics": 0,
+            "drawCalls": 782
+          },
+          {
+            "fps": 25.271138254185534,
+            "medianFrameMs": 35,
+            "p95FrameMs": 72,
+            "maximumFrameMs": 117,
+            "loadedModels": 298,
+            "loadingModels": 0,
+            "queuedModels": 0,
+            "compilingGraphics": 0,
+            "drawCalls": 781
+          }
+        ],
+        "reconnectedWalking": [
+          {
+            "fps": 25.15195975686439,
+            "medianFrameMs": 35,
+            "p95FrameMs": 72,
+            "maximumFrameMs": 117,
+            "loadedModels": 298,
+            "loadingModels": 0,
+            "queuedModels": 0,
+            "compilingGraphics": 0,
+            "drawCalls": 758
+          }
+        ]
+      },
+      "assetTransfersWholeTwoSessionFlow": {
+        "categories": {
+          "FBX": {
+            "uniqueURLs": 122,
+            "requests": 591,
+            "duplicateRequests": 469,
+            "knownBytes": 60840850,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 281,
+              "shared": 0,
+              "memory": 310,
+              "unknown": 0
+            }
+          },
+          "FST": {
+            "uniqueURLs": 95,
+            "requests": 493,
+            "duplicateRequests": 398,
+            "knownBytes": 93849,
+            "unknownByteResponses": 2,
+            "sources": {
+              "download": 221,
+              "shared": 0,
+              "memory": 270,
+              "unknown": 2
+            }
+          },
+          "texmeta": {
+            "uniqueURLs": 133,
+            "requests": 526,
+            "duplicateRequests": 393,
+            "knownBytes": 164485,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 292,
+              "shared": 0,
+              "memory": 234,
+              "unknown": 0
+            }
+          },
+          "JSON": {
+            "uniqueURLs": 160,
+            "requests": 685,
+            "duplicateRequests": 525,
+            "knownBytes": 1161977,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 213,
+              "shared": 0,
+              "memory": 472,
+              "unknown": 0
+            }
+          },
+          "image": {
+            "uniqueURLs": 148,
+            "requests": 304,
+            "duplicateRequests": 156,
+            "knownBytes": 137392576,
+            "unknownByteResponses": 22,
+            "sources": {
+              "download": 278,
+              "shared": 0,
+              "memory": 4,
+              "unknown": 22
+            }
+          },
+          "other": {
+            "uniqueURLs": 12,
+            "requests": 28,
+            "duplicateRequests": 16,
+            "knownBytes": 12251512,
+            "unknownByteResponses": 10,
+            "sources": {
+              "download": 16,
+              "shared": 0,
+              "memory": 2,
+              "unknown": 10
+            }
+          }
+        },
+        "uniqueURLs": 670,
+        "requests": 2627,
+        "duplicateRequests": 1957,
+        "sources": {
+          "download": 1301,
+          "shared": 0,
+          "memory": 1292,
+          "unknown": 34
+        },
+        "knownBytes": 211905249,
+        "unknownByteResponses": 34
+      },
+      "sourceSHA256": {
+        "browser-client/gateway/server.mjs": "e268d609756eb19d95034058db9d7c0ce13a4a7d9db8a7afc8ecaa6cbff69175",
+        "browser-client/gateway/native-bridge.js": "f76bedb62cd3ad7e29b383bf16fb0f6d80cf7263de34c467bdba9c001b7354dd",
+        "browser-client/gateway/native-world.js": "bec2f02313446afde7a0be20899358a082b41c6c6c5d745ec67a24809e2b7ddb",
+        "browser-client/gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60",
+        "browser-client/gateway/public-places.mjs": "cbac3df2ecf7071da6e77df8d58b09be194afa184cfb0c37f6015f9f1f570471",
+        "browser-client/gateway/validation.mjs": "65eba4a66c76d4bfc0dbd18e172def64f43b37cca0db2301da5bf4d18645de79",
+        "browser-client/gateway/worker-sandbox.mjs": "d4748e8d64f2ad5c633854b7ff9e07758a574086205470b32570fd485b9f4c5d",
+        "browser-client/gateway/network-sandbox.mjs": "3fd278b91a6ea383ddf816753d9eee870736b295ecd945714e827d794c8016d9",
+        "browser-client/gateway/network_udp.py": "378f7159b1456ab5a0e25d2f933f35106344106625cef0ce0d589de3d1e45eca",
+        "browser-client/gateway/native-tablet.js": "527e106866462d1dea2834978250ecb6fa3ee6b8e99b5b2129b21e521e4995a2",
+        "browser-client/gateway/tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+        "browser-client/gateway/process-lifecycle.mjs": "e8d7e021a8b934b271910883e27c2a1109aedd22e12044b763d4bf8acc274eaf",
+        "browser-client/shared/fluid-performance.mjs": "44e5262f62785e3a9ba4a96c275f5f0bf3a93c27e1d44fdad3bdbec739deebe2",
+        "browser-client/gateway/session-assets.mjs": "68542cb352ccad1bdc23a65ae34ab19d4abc2b02e1f81dec3f529d525ab84bf4",
+        "browser-client/gateway/asset-download.mjs": "4718cfe223afa884ab4f5890b6dc093303a70b864917fe5d85dc5cc2b8568357",
+        "browser-client/src/main.ts": "1a2159c0a082a7c77575802e930947d25c21c8a88d947bc673d9205862a23c09",
+        "browser-client/src/world.ts": "2a93eacfed1dacec73d1b53362fe0ecfd4846ceddeaae6fc5dfd7f0d9a9c53d2",
+        "browser-client/src/world-image-cache.ts": "da776c919bf4e666270dd2251c6dd63e98ad52ea8c4e713ce4ff3087bf87cb3f",
+        "browser-client/src/model-fbx-pool.ts": "8394ecc9fba692c900e85cd8b4a6ed3511661065e8d4f4f46727a8e4d331f98c",
+        "browser-client/src/model-fbx-decoder.ts": "5b80bced09705301a14574c8082a946dd3fd32f2ef1a9d1ce08ca7f30dd19ead",
+        "browser-client/src/model-fbx-decoder-memory.ts": "0f209e406a3571af97e78bf12471d7ea6a788cec26adbef733dc353b864cdc68",
+        "browser-client/src/model-fbx-worker.ts": "75881e694db86f070e85ea44a41c04e572347c9a09944f42b4a879cb1a0e40ea",
+        "browser-client/src/model-textures.ts": "6de3ec3be2ce235642209ffab87295e52198e4fbebc12559c712ba6283e889bb",
+        "browser-client/src/texture-alpha.ts": "af9b46d9c56a156febaff92db76fe06b38dd4fa2ba7943ddfd4bbeaa47024ebe",
+        "browser-client/src/texture-alpha-worker.ts": "19f26164f38e33946aa57e1fd0d3ce06da02b9ca2d24f3ca25f77f621aafd3a0",
+        "browser-client/src/baked-fbx.ts": "a4b9d77136c5beed3dc24bc84f684fb41fdae704ad996ff0dce60b8c265712a3",
+        "browser-client/src/baked-draco.ts": "7e4426363fd8809df02d4f6c79d2b2fb899ae56ed663f839ffeb297e2a7d7844",
+        "browser-client/src/baked-draco-legacy.ts": "ba30ca915fcb85f5915fd5ef08f01745c13d3c9c7412c8dcefecb504c89a0a71",
+        "browser-client/dist/index.html": "6c7ad566659459977093204c792f21a8de071f393f999451570861befb420250"
+      },
+      "sourceCoherent": true,
+      "distributionManifest": {
+        "assets/baked-draco-legacy-CMhlgON6.js": {
+          "sha256": "eb84ebc5eff49c7b0593382b07b23010897080f46b779ececdd515efcfb482d4",
+          "bytes": 816324
+        },
+        "assets/baked-draco-nPAk-sFt.js": {
+          "sha256": "e4f957ed3009c746afacf8a77ee91626feb6dde4b45a0a1cc17743e6b2f379ff",
+          "bytes": 125046
+        },
+        "assets/draco_decoder-C32yEggz.wasm": {
+          "sha256": "c55a594e8ffd18426d36b27fea9618af3df5e173640a3e56d46f09d76f0574f2",
+          "bytes": 285747
+        },
+        "assets/draco_decoder-fzg4nYZr.js": {
+          "sha256": "30e4d486fa020737af10e3c56197693e5b904bdc05b8bfa5d7b06751dec6da04",
+          "bytes": 719410
+        },
+        "assets/draco_decoder-Z1_iN-Ht.wasm": {
+          "sha256": "a680d927bed9cb864ddbd63521868891af2bfbe755092761b4837487618df8ac",
+          "bytes": 192420
+        },
+        "assets/draco_wasm_wrapper-DxJM36Ib.js": {
+          "sha256": "e8049906ef3f8f75d3456c22a3f31bfdfe5b5b5bd09ccdec613b9e9a49d554d8",
+          "bytes": 58763
+        },
+        "assets/draco_wasm_wrapper-fZCQGLGb.js": {
+          "sha256": "8bb2952d2ba7d67e1414f8df819410cb0434a666be53f671fff75f68843d76f6",
+          "bytes": 58456
+        },
+        "assets/FBXLoader-CRP45lu0.js": {
+          "sha256": "da0ad0b9279fadf1e050f223de6cb1f81c0f576033d0ed0b9d1e98af01b447c6",
+          "bytes": 49922
+        },
+        "assets/GLTFLoader-CcB43lZM.js": {
+          "sha256": "e2009c4b4d19352be542ff5fe9fff01aa8ee40d7bbb8f47c70dd8736c284a885",
+          "bytes": 44308
+        },
+        "assets/index-AsQJDvrj.js": {
+          "sha256": "c4e16ede2e0cc94b4d62cec1bd69c4818707bc86fd058479aece7cc4557596b7",
+          "bytes": 762681
+        },
+        "assets/index-B2mAMfm4.css": {
+          "sha256": "cbf321b921d05ff91c3020a6ccffc91385eeebf223ea6ec0577c6354df12a521",
+          "bytes": 5451
+        },
+        "assets/model-fbx-worker-mCScXMXp.js": {
+          "sha256": "54cc66200e506deb7e541a5baf66a3dcf952c866527977b7d964f528670b2c39",
+          "bytes": 823946
+        },
+        "assets/OBJLoader-D-vP9uNy.js": {
+          "sha256": "8a566f88b352413ed2a36d25dacf37ace3f4d8a5f92bfede5fde906fb55a0e09",
+          "bytes": 8633
+        },
+        "assets/tablet-gif.worker-DACjp6Cn.js": {
+          "sha256": "78ebb1c3db4d062dd4119c2cd86d201b7df2757fedf22a8993dd460fbb1057c8",
+          "bytes": 10409
+        },
+        "assets/texture-alpha-worker-BMOlWaXl.js": {
+          "sha256": "dc8c8dfe2670361773e805863872997bf7b716d02cdb8a1b0d153fae52fb2193",
+          "bytes": 1005
+        }
+      },
+      "distributionCoherent": true,
+      "failedResourceStatuses": {
+        "404": 1,
+        "502": 34
+      },
+      "microphoneRequested": false,
+      "worldInteractionsSent": 0
+    },
+    {
+      "label": "Alpha worker yielding",
+      "rawReportSHA256": "963e88ddb24ffaf36f7e635f2fc606bb2d8619b6cb75b1ee0baf997fe4e9ffb4",
+      "startedAt": "2026-10-01T05:40:43.478Z",
+      "finishedAt": "2026-10-01T05:42:55.226Z",
+      "browserVersion": "firefox/156.0",
+      "completed": false,
+      "error": "Actual loaded-world, walking and reconnect measurements must meet30FPS, p95<=66.7ms and no steady stall>250ms",
+      "fluidMovementAcceptancePassed": false,
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "devicePixelRatio": 1.6666666666666667,
+        "visibility": "visible"
+      },
+      "firstSampledModelReadySeconds": 33.261,
+      "firstReadyCounts": {
+        "fps": 18.72220922068804,
+        "medianFrameMs": 48,
+        "p95FrameMs": 100,
+        "maximumFrameMs": 827,
+        "loadedModels": 298,
+        "loadingModels": 0,
+        "queuedModels": 0,
+        "compilingGraphics": 0,
+        "drawCalls": 783,
+        "entityCount": 518
+      },
+      "alphaPhase": {
+        "count": 845,
+        "totalMs": 30291,
+        "maxMs": 2394
+      },
+      "movementMeters": 4.104213195569649,
+      "nativePoseDifferenceMeters": 0.0036314650770429436,
+      "reconnectedMovementMeters": 2.831330462161837,
+      "reconnectedNativeDifferenceMeters": 0.00017569511357018138,
+      "fluidGates": {
+        "steadyFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "walkFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedSteadyFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedWalkFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        }
+      },
+      "assessedSamples": {
+        "steady": [
+          {
+            "fps": 26.08695652173913,
+            "medianFrameMs": 35,
+            "p95FrameMs": 68,
+            "maximumFrameMs": 106,
+            "loadedModels": 298,
+            "loadingModels": 0,
+            "queuedModels": 0,
+            "compilingGraphics": 0,
+            "drawCalls": 782,
+            "entityCount": 518
+          },
+          {
+            "fps": 26.033192320208265,
+            "medianFrameMs": 36,
+            "p95FrameMs": 68,
+            "maximumFrameMs": 106,
+            "loadedModels": 298,
+            "loadingModels": 0,
+            "queuedModels": 0,
+            "compilingGraphics": 0,
+            "drawCalls": 782,
+            "entityCount": 518
+          }
+        ],
+        "walking": [
+          {
+            "fps": 25.823111684958036,
+            "medianFrameMs": 37,
+            "p95FrameMs": 68,
+            "maximumFrameMs": 106,
+            "loadedModels": 298,
+            "loadingModels": 0,
+            "queuedModels": 0,
+            "compilingGraphics": 0,
+            "drawCalls": 753
+          }
+        ],
+        "reconnectedSteady": [
+          {
+            "fps": 22.242817423540316,
+            "medianFrameMs": 38,
+            "p95FrameMs": 82,
+            "maximumFrameMs": 894,
+            "loadedModels": 298,
+            "loadingModels": 0,
+            "queuedModels": 0,
+            "compilingGraphics": 0,
+            "drawCalls": 779
+          },
+          {
+            "fps": 25.42103590721322,
+            "medianFrameMs": 37,
+            "p95FrameMs": 66,
+            "maximumFrameMs": 250,
+            "loadedModels": 298,
+            "loadingModels": 0,
+            "queuedModels": 0,
+            "compilingGraphics": 0,
+            "drawCalls": 779
+          }
+        ],
+        "reconnectedWalking": [
+          {
+            "fps": 26.396832380114386,
+            "medianFrameMs": 36,
+            "p95FrameMs": 65,
+            "maximumFrameMs": 116,
+            "loadedModels": 298,
+            "loadingModels": 0,
+            "queuedModels": 0,
+            "compilingGraphics": 0,
+            "drawCalls": 757
+          }
+        ]
+      },
+      "assetTransfersWholeTwoSessionFlow": {
+        "categories": {
+          "FBX": {
+            "uniqueURLs": 122,
+            "requests": 592,
+            "duplicateRequests": 470,
+            "knownBytes": 60870952,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 283,
+              "shared": 0,
+              "memory": 309,
+              "unknown": 0
+            }
+          },
+          "FST": {
+            "uniqueURLs": 95,
+            "requests": 494,
+            "duplicateRequests": 399,
+            "knownBytes": 93998,
+            "unknownByteResponses": 2,
+            "sources": {
+              "download": 221,
+              "shared": 0,
+              "memory": 271,
+              "unknown": 2
+            }
+          },
+          "texmeta": {
+            "uniqueURLs": 133,
+            "requests": 528,
+            "duplicateRequests": 395,
+            "knownBytes": 165086,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 294,
+              "shared": 0,
+              "memory": 234,
+              "unknown": 0
+            }
+          },
+          "JSON": {
+            "uniqueURLs": 160,
+            "requests": 686,
+            "duplicateRequests": 526,
+            "knownBytes": 1162562,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 216,
+              "shared": 0,
+              "memory": 470,
+              "unknown": 0
+            }
+          },
+          "image": {
+            "uniqueURLs": 148,
+            "requests": 304,
+            "duplicateRequests": 156,
+            "knownBytes": 137392576,
+            "unknownByteResponses": 22,
+            "sources": {
+              "download": 278,
+              "shared": 0,
+              "memory": 4,
+              "unknown": 22
+            }
+          },
+          "other": {
+            "uniqueURLs": 12,
+            "requests": 26,
+            "duplicateRequests": 14,
+            "knownBytes": 11571616,
+            "unknownByteResponses": 10,
+            "sources": {
+              "download": 16,
+              "shared": 0,
+              "memory": 0,
+              "unknown": 10
+            }
+          }
+        },
+        "uniqueURLs": 670,
+        "requests": 2630,
+        "duplicateRequests": 1960,
+        "sources": {
+          "download": 1308,
+          "shared": 0,
+          "memory": 1288,
+          "unknown": 34
+        },
+        "knownBytes": 211256790,
+        "unknownByteResponses": 34
+      },
+      "sourceSHA256": {
+        "browser-client/gateway/server.mjs": "e268d609756eb19d95034058db9d7c0ce13a4a7d9db8a7afc8ecaa6cbff69175",
+        "browser-client/gateway/native-bridge.js": "f76bedb62cd3ad7e29b383bf16fb0f6d80cf7263de34c467bdba9c001b7354dd",
+        "browser-client/gateway/native-world.js": "bec2f02313446afde7a0be20899358a082b41c6c6c5d745ec67a24809e2b7ddb",
+        "browser-client/gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60",
+        "browser-client/gateway/public-places.mjs": "cbac3df2ecf7071da6e77df8d58b09be194afa184cfb0c37f6015f9f1f570471",
+        "browser-client/gateway/validation.mjs": "65eba4a66c76d4bfc0dbd18e172def64f43b37cca0db2301da5bf4d18645de79",
+        "browser-client/gateway/worker-sandbox.mjs": "d4748e8d64f2ad5c633854b7ff9e07758a574086205470b32570fd485b9f4c5d",
+        "browser-client/gateway/network-sandbox.mjs": "3fd278b91a6ea383ddf816753d9eee870736b295ecd945714e827d794c8016d9",
+        "browser-client/gateway/network_udp.py": "378f7159b1456ab5a0e25d2f933f35106344106625cef0ce0d589de3d1e45eca",
+        "browser-client/gateway/native-tablet.js": "527e106866462d1dea2834978250ecb6fa3ee6b8e99b5b2129b21e521e4995a2",
+        "browser-client/gateway/tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+        "browser-client/gateway/process-lifecycle.mjs": "e8d7e021a8b934b271910883e27c2a1109aedd22e12044b763d4bf8acc274eaf",
+        "browser-client/shared/fluid-performance.mjs": "44e5262f62785e3a9ba4a96c275f5f0bf3a93c27e1d44fdad3bdbec739deebe2",
+        "browser-client/gateway/session-assets.mjs": "68542cb352ccad1bdc23a65ae34ab19d4abc2b02e1f81dec3f529d525ab84bf4",
+        "browser-client/gateway/asset-download.mjs": "4718cfe223afa884ab4f5890b6dc093303a70b864917fe5d85dc5cc2b8568357",
+        "browser-client/src/main.ts": "1a2159c0a082a7c77575802e930947d25c21c8a88d947bc673d9205862a23c09",
+        "browser-client/src/world.ts": "2a93eacfed1dacec73d1b53362fe0ecfd4846ceddeaae6fc5dfd7f0d9a9c53d2",
+        "browser-client/src/world-image-cache.ts": "da776c919bf4e666270dd2251c6dd63e98ad52ea8c4e713ce4ff3087bf87cb3f",
+        "browser-client/src/model-fbx-pool.ts": "8394ecc9fba692c900e85cd8b4a6ed3511661065e8d4f4f46727a8e4d331f98c",
+        "browser-client/src/model-fbx-decoder.ts": "5b80bced09705301a14574c8082a946dd3fd32f2ef1a9d1ce08ca7f30dd19ead",
+        "browser-client/src/model-fbx-decoder-memory.ts": "0f209e406a3571af97e78bf12471d7ea6a788cec26adbef733dc353b864cdc68",
+        "browser-client/src/model-fbx-worker.ts": "75881e694db86f070e85ea44a41c04e572347c9a09944f42b4a879cb1a0e40ea",
+        "browser-client/src/model-textures.ts": "6de3ec3be2ce235642209ffab87295e52198e4fbebc12559c712ba6283e889bb",
+        "browser-client/src/texture-alpha.ts": "af9b46d9c56a156febaff92db76fe06b38dd4fa2ba7943ddfd4bbeaa47024ebe",
+        "browser-client/src/texture-alpha-worker.ts": "68cc81f419ed2373cfe18e9efd950222452479a7a742c5e10b8d965264d91761",
+        "browser-client/src/baked-fbx.ts": "a4b9d77136c5beed3dc24bc84f684fb41fdae704ad996ff0dce60b8c265712a3",
+        "browser-client/src/baked-draco.ts": "7e4426363fd8809df02d4f6c79d2b2fb899ae56ed663f839ffeb297e2a7d7844",
+        "browser-client/src/baked-draco-legacy.ts": "ba30ca915fcb85f5915fd5ef08f01745c13d3c9c7412c8dcefecb504c89a0a71",
+        "browser-client/dist/index.html": "359217a48b7e544a6221a2233a3218215bf31b88c08be106e5871ec70aaaa6e1",
+        "browser-client/tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "browser-client/tests/integration/public-hub-metrics.mjs": "18c9ed36feb60ddadbc5b3a73dcc73e2caa8561ab26cd672d8882de2bd25c789",
+        "browser-client/tests/integration/public-hub.mjs": "1ed06dc9b731048bbb6234c601072b440cc7cdd85769e33c6cee848f26156e10"
+      },
+      "sourceCoherent": true,
+      "distributionManifest": {
+        "assets/baked-draco-legacy-CMhlgON6.js": {
+          "sha256": "eb84ebc5eff49c7b0593382b07b23010897080f46b779ececdd515efcfb482d4",
+          "bytes": 816324
+        },
+        "assets/baked-draco-nPAk-sFt.js": {
+          "sha256": "e4f957ed3009c746afacf8a77ee91626feb6dde4b45a0a1cc17743e6b2f379ff",
+          "bytes": 125046
+        },
+        "assets/draco_decoder-C32yEggz.wasm": {
+          "sha256": "c55a594e8ffd18426d36b27fea9618af3df5e173640a3e56d46f09d76f0574f2",
+          "bytes": 285747
+        },
+        "assets/draco_decoder-fzg4nYZr.js": {
+          "sha256": "30e4d486fa020737af10e3c56197693e5b904bdc05b8bfa5d7b06751dec6da04",
+          "bytes": 719410
+        },
+        "assets/draco_decoder-Z1_iN-Ht.wasm": {
+          "sha256": "a680d927bed9cb864ddbd63521868891af2bfbe755092761b4837487618df8ac",
+          "bytes": 192420
+        },
+        "assets/draco_wasm_wrapper-DxJM36Ib.js": {
+          "sha256": "e8049906ef3f8f75d3456c22a3f31bfdfe5b5b5bd09ccdec613b9e9a49d554d8",
+          "bytes": 58763
+        },
+        "assets/draco_wasm_wrapper-fZCQGLGb.js": {
+          "sha256": "8bb2952d2ba7d67e1414f8df819410cb0434a666be53f671fff75f68843d76f6",
+          "bytes": 58456
+        },
+        "assets/FBXLoader-D4FvJhYN.js": {
+          "sha256": "f984d71b3ca7f687ef9f7986c7fb9c8e0d8d3910e8339bdf7f3ba5a647fc4590",
+          "bytes": 49922
+        },
+        "assets/GLTFLoader-D_sRMWJ5.js": {
+          "sha256": "37b1ffa08bf525e363cdef090358e0e566e5fbf4926ab0747077c67ea383c1f0",
+          "bytes": 44308
+        },
+        "assets/index-B2mAMfm4.css": {
+          "sha256": "cbf321b921d05ff91c3020a6ccffc91385eeebf223ea6ec0577c6354df12a521",
+          "bytes": 5451
+        },
+        "assets/index-CUWSAQAC.js": {
+          "sha256": "d3476577aac85034d56246e764663249b99cd824d7ed6dab4f3b217a29caa491",
+          "bytes": 762681
+        },
+        "assets/model-fbx-worker-mCScXMXp.js": {
+          "sha256": "54cc66200e506deb7e541a5baf66a3dcf952c866527977b7d964f528670b2c39",
+          "bytes": 823946
+        },
+        "assets/OBJLoader-BXK6NYiu.js": {
+          "sha256": "dbe620d7622c9552ca119a35dfa3277a92a3d4dbfc554bcc275c1cb74a1dcddd",
+          "bytes": 8633
+        },
+        "assets/tablet-gif.worker-DACjp6Cn.js": {
+          "sha256": "78ebb1c3db4d062dd4119c2cd86d201b7df2757fedf22a8993dd460fbb1057c8",
+          "bytes": 10409
+        },
+        "assets/texture-alpha-worker-CBG2kYQR.js": {
+          "sha256": "f04f415ff39370ae4ab0268903ffaf6c86b9a7addeb0aed95d4a7948ee803485",
+          "bytes": 2417
+        }
+      },
+      "distributionCoherent": true,
+      "failedResourceStatuses": {
+        "404": 1,
+        "502": 34
+      },
+      "microphoneRequested": false,
+      "worldInteractionsSent": 0,
+      "assetTransfersBySessionOrdinal": [
+        {
+          "ordinal": 1,
+          "uniqueURLs": 670,
+          "requests": 1315,
+          "duplicateRequests": 645,
+          "knownBytes": 105628395,
+          "unknownByteResponses": 17,
+          "totalRequestMs": 50785.390357999975,
+          "maximumRequestMs": 1721.5795450000005,
+          "sources": {
+            "download": 655,
+            "shared": 0,
+            "memory": 643,
+            "unknown": 17
+          },
+          "categories": {
+            "FBX": {
+              "uniqueURLs": 122,
+              "requests": 296,
+              "duplicateRequests": 174,
+              "knownBytes": 30435476,
+              "unknownByteResponses": 0,
+              "sources": {
+                "download": 142,
+                "shared": 0,
+                "memory": 154,
+                "unknown": 0
+              }
+            },
+            "FST": {
+              "uniqueURLs": 95,
+              "requests": 247,
+              "duplicateRequests": 152,
+              "knownBytes": 46999,
+              "unknownByteResponses": 1,
+              "sources": {
+                "download": 111,
+                "shared": 0,
+                "memory": 135,
+                "unknown": 1
+              }
+            },
+            "texmeta": {
+              "uniqueURLs": 133,
+              "requests": 264,
+              "duplicateRequests": 131,
+              "knownBytes": 82543,
+              "unknownByteResponses": 0,
+              "sources": {
+                "download": 147,
+                "shared": 0,
+                "memory": 117,
+                "unknown": 0
+              }
+            },
+            "JSON": {
+              "uniqueURLs": 160,
+              "requests": 343,
+              "duplicateRequests": 183,
+              "knownBytes": 581281,
+              "unknownByteResponses": 0,
+              "sources": {
+                "download": 108,
+                "shared": 0,
+                "memory": 235,
+                "unknown": 0
+              }
+            },
+            "image": {
+              "uniqueURLs": 148,
+              "requests": 152,
+              "duplicateRequests": 4,
+              "knownBytes": 68696288,
+              "unknownByteResponses": 11,
+              "sources": {
+                "download": 139,
+                "shared": 0,
+                "memory": 2,
+                "unknown": 11
+              }
+            },
+            "other": {
+              "uniqueURLs": 12,
+              "requests": 13,
+              "duplicateRequests": 1,
+              "knownBytes": 5785808,
+              "unknownByteResponses": 5,
+              "sources": {
+                "download": 8,
+                "shared": 0,
+                "memory": 0,
+                "unknown": 5
+              }
+            }
+          }
+        },
+        {
+          "ordinal": 2,
+          "uniqueURLs": 670,
+          "requests": 1315,
+          "duplicateRequests": 645,
+          "knownBytes": 105628395,
+          "unknownByteResponses": 17,
+          "totalRequestMs": 44520.870482999744,
+          "maximumRequestMs": 1734.149636000002,
+          "sources": {
+            "download": 653,
+            "shared": 0,
+            "memory": 645,
+            "unknown": 17
+          },
+          "categories": {
+            "FBX": {
+              "uniqueURLs": 122,
+              "requests": 296,
+              "duplicateRequests": 174,
+              "knownBytes": 30435476,
+              "unknownByteResponses": 0,
+              "sources": {
+                "download": 141,
+                "shared": 0,
+                "memory": 155,
+                "unknown": 0
+              }
+            },
+            "FST": {
+              "uniqueURLs": 95,
+              "requests": 247,
+              "duplicateRequests": 152,
+              "knownBytes": 46999,
+              "unknownByteResponses": 1,
+              "sources": {
+                "download": 110,
+                "shared": 0,
+                "memory": 136,
+                "unknown": 1
+              }
+            },
+            "texmeta": {
+              "uniqueURLs": 133,
+              "requests": 264,
+              "duplicateRequests": 131,
+              "knownBytes": 82543,
+              "unknownByteResponses": 0,
+              "sources": {
+                "download": 147,
+                "shared": 0,
+                "memory": 117,
+                "unknown": 0
+              }
+            },
+            "JSON": {
+              "uniqueURLs": 160,
+              "requests": 343,
+              "duplicateRequests": 183,
+              "knownBytes": 581281,
+              "unknownByteResponses": 0,
+              "sources": {
+                "download": 108,
+                "shared": 0,
+                "memory": 235,
+                "unknown": 0
+              }
+            },
+            "image": {
+              "uniqueURLs": 148,
+              "requests": 152,
+              "duplicateRequests": 4,
+              "knownBytes": 68696288,
+              "unknownByteResponses": 11,
+              "sources": {
+                "download": 139,
+                "shared": 0,
+                "memory": 2,
+                "unknown": 11
+              }
+            },
+            "other": {
+              "uniqueURLs": 12,
+              "requests": 13,
+              "duplicateRequests": 1,
+              "knownBytes": 5785808,
+              "unknownByteResponses": 5,
+              "sources": {
+                "download": 8,
+                "shared": 0,
+                "memory": 0,
+                "unknown": 5
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

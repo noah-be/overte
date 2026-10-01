@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Quaternion, Vector3 } from 'three';
-import { assetDependency, constrainCamera, entityCollider, entityTransform, parseMaterialData, poseRecord, quaternion, resolveCollision, unsupportedEntityEffects, vector } from './world-data';
+import { assetDependency, colliderDistance, constrainCamera, entityCollider, entityTransform, materialRGB, parseMaterialData, poseRecord, quaternion, resolveCollision, unsupportedEntityEffects, vector } from './world-data';
 import type { Entity } from './world-data';
 
 test('world API positions are not transformed twice by entity parents', () => {
@@ -59,6 +59,21 @@ test('material definition accepts native single and multi-material JSON', () => 
   assert.deepEqual(parseMaterialData('{"materials":{"albedo":[1,0,0],"roughness":0.3}}')[0].albedo, [1, 0, 0]);
   assert.equal(parseMaterialData('{"materials":[{"name":"wall"}]}')[0].name, 'wall');
   assert.throws(() => parseMaterialData('{}'));
+});
+
+test('actual native baked RGB records and authored arrays retain normalized and HDR channels', () => {
+  assert.deepEqual(materialRGB({ red: 1, green: 0.5, blue: 0 }), [1, 0.5, 0]);
+  assert.deepEqual(materialRGB([0.2, 0.4, 0.6]), [0.2, 0.4, 0.6]);
+  assert.deepEqual(materialRGB({ red: 3, green: 2, blue: 1 }), [3, 2, 1]);
+  for (const value of [[], [1, 2], [1, NaN, 3], { red: 1, green: '1', blue: 0 }, { x: 1, y: 1, z: 1 }]) assert.throws(() => materialRGB(value as any));
+});
+
+test('large walkable models load by bounds proximity even when their centers are distant', () => {
+  const floor = { id: 'island', center: { x: 500, y: -1, z: 0 }, half: { x: 600, y: 1, z: 600 }, rotation: { x: 0, y: 0, z: 0, w: 1 } };
+  assert.equal(colliderDistance({ x: 0, y: 1, z: 0 }, floor), 1);
+  assert.equal(colliderDistance({ x: 0, y: 0, z: 0 }, floor), 0);
+  const rotated = { ...floor, half: { x: 2, y: 1, z: 4 }, center: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: Math.SQRT1_2, z: 0, w: Math.SQRT1_2 } };
+  assert.ok(Math.abs(colliderDistance({ x: 5, y: 0, z: 0 }, rotated) - 1) < 1e-10);
 });
 test('malformed orientation cannot poison render or collision transforms', () => {
   assert.equal(quaternion({ x: 0, y: 0, z: 0, w: 0 }).w, 1);

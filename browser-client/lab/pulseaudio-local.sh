@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
-# Use the uninstalled laboratory RPMs without changing the desktop audio server.
+# Select the prepared lab's verified audio tools, never the desktop audio daemon.
 set -euo pipefail
 lab_repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
-lab_tools="$lab_repo_root/build/browser-lab/host-tools"
-export LD_LIBRARY_PATH="$lab_tools/usr/lib64:$lab_tools/usr/lib64/pulseaudio:$lab_tools/usr/lib64/pulseaudio/modules${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-exec "$lab_tools/usr/bin/pulseaudio" --dl-search-path="$lab_tools/usr/lib64/pulseaudio/modules" "$@"
+lab_runtime_root="${OVERTE_LAB_ROOT:-$lab_repo_root/build/browser-lab}"
+exec python3 "$lab_repo_root/browser-client/lab/host_tools.py" exec-pulse --root "$lab_runtime_root" -- "$@"

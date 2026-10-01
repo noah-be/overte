@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""Reproducible, isolated Fedora x86_64 real Overte browser acceptance laboratory.
+"""Reproducible, isolated x86_64 real Overte browser acceptance laboratory.
 
 No system packages are installed, no existing domain settings are changed, and
 all mutable state is kept under the repository's ignored build/browser-lab.
@@ -20,10 +20,14 @@ import time
 import urllib.request
 import webbrowser
 from native_admin import native_admin_credential
+from host_tools import select_tools, load_tools, preflight, tool_identities
 
 REPO = Path(__file__).resolve().parents[2]
 SOURCE = Path(__file__).resolve().parent
-ROOT = REPO / "build/browser-lab"
+ROOT = Path(os.environ.get("OVERTE_LAB_ROOT", str(REPO / "build/browser-lab")))
+if not ROOT.is_absolute() or ROOT.resolve() in (Path('/'), Path.home(), REPO, Path('/tmp')):
+    raise RuntimeError("OVERTE_LAB_ROOT must select a dedicated absolute laboratory directory")
+ROOT = ROOT.resolve()
 CLIENT_NAME = "Overte-2026.04.1-x86_64.AppImage"
 SERVER_NAME = "overte-server-2026.04.1.f91d15a-1.fc42.x86_64.rpm"
 BASE_URL = "https://public.overte.org/build/overte/release/2026.04.1/"
@@ -31,6 +35,11 @@ ARTIFACTS = {
     CLIENT_NAME: "dc39f5b4694a1c48cfb1454a8922f6a25fa4db5820bf937113ebf4086aa99145",
     SERVER_NAME: "ecdabd358454b88dc669047fd1866b63114792280b331e48850a3c063464b2ae",
 }
+TABLET_ARTIFACTS = {
+    'qml-module-qttest_5.15.3+dfsg-1_amd64.deb': 'b8f76e5d72bf4cf90501dceb0b00f2a5b474d314f85b1f1325514425860706c3',
+    'libqt5quicktest5_5.15.3+dfsg-1_amd64.deb': 'a6437492130d09a9700503fb2b1aeb7b2be44e06cd25a358c74d6c5994163cea',
+}
+TABLET_BASE_URL = 'https://archive.ubuntu.com/ubuntu/pool/universe/q/qtdeclarative-opensource-src/'
 PERMISSION_KEYS = ["id_can_connect", "id_can_rez_avatar_entities", "id_can_adjust_locks", "id_can_rez", "id_can_rez_tmp",
                    "id_can_write_to_asset_server", "id_can_connect_past_max_capacity", "id_can_kick", "id_can_replace_content",
                    "id_can_get_and_set_private_user_data", "id_can_view_asset_urls"]
@@ -51,7 +60,9 @@ def extract_rpm(source):
         raise RuntimeError(f"Failed to extract {source.name}")
 
 
-def prepare(client_artifact=None):
+def prepare(client_artifact=None, host_mode="fedora", **tool_options):
+    if any(alive(entry["pid"]) for entry in load_state().values()):
+        raise RuntimeError("The managed lab is running; preparation must not replace its tools or fixture files")
     for name in ["downloads", "server", "host-tools", "rpms", "logs", "runtime", "http", "config", "data", "evidence"]:
         (ROOT / name).mkdir(parents=True, exist_ok=True)
     for name, expected in ARTIFACTS.items():
@@ -74,13 +85,23 @@ def prepare(client_artifact=None):
             run([appimage, "--appimage-extract"], cwd=ROOT / "appimage", stdout=log)
     # Only official Fedora repositories; this downloads packages into the lab,
     # without installing services or replacing the desktop's PipeWire stack.
-    if not (ROOT / "host-tools/usr/bin/Xvfb").exists() or not (ROOT / "host-tools/usr/bin/pulseaudio").exists():
+    if host_mode == "fedora" and (not (ROOT / "host-tools/usr/bin/Xvfb").exists() or not (ROOT / "host-tools/usr/bin/pulseaudio").exists()):
         if not Path("/etc/fedora-release").exists():
-            raise RuntimeError("This acceptance bootstrap is for Fedora x86_64. Provide Xvfb/PulseAudio on other hosts as documented.")
+            raise RuntimeError("Fedora tool extraction is unavailable on this host; use prepare --host-tools system with the documented host paths")
         run(["dnf", "download", "--repo=fedora", "--repo=updates", "--destdir", ROOT / "rpms",
              "xorg-x11-server-Xvfb.x86_64", "pulseaudio.x86_64", "pulseaudio-libs.x86_64", "speexdsp.x86_64"])
-    for rpm in (ROOT / "rpms").glob("*.x86_64.rpm"):
-        extract_rpm(rpm)
+    if host_mode == "fedora":
+        for rpm in (ROOT / "rpms").glob("*.x86_64.rpm"):
+            extract_rpm(rpm)
+    prepare_tablet(host_mode, tool_options.get("slirp"))
+    tools = select_tools(ROOT, host_mode, **tool_options)
+    if host_mode == "system":
+        # No success/skip fallback: a new host must prove actual ABI, private
+        # audio modules and kernel isolation before it is allowed to start.
+        result = preflight(ROOT, tools)
+        (ROOT / "evidence/host-preflight.json").write_text(json.dumps(result, indent=2) + "\n")
+    (ROOT / "config/host-tools.json").write_text(json.dumps(tools, indent=2) + "\n")
+    (ROOT / "evidence/host-tools.json").write_text(json.dumps(tool_identities(tools), indent=2) + "\n")
     run([sys.executable, SOURCE / "create-assets.py"])
     for filename in ["native-participant.js", "textured-cube.gltf", "checker.png"]:
         shutil.copyfile(SOURCE / filename, ROOT / "http" / filename)
@@ -88,10 +109,47 @@ def prepare(client_artifact=None):
     artifacts = [{"filename":name,"url":BASE_URL+name,"sha256":digest} for name,digest in ARTIFACTS.items()]
     artifacts.extend({"filename":rpm.name,"sha256":hashlib.sha256(rpm.read_bytes()).hexdigest()}
                      for rpm in (ROOT / "rpms").glob("*.x86_64.rpm"))
+    artifacts.extend({"filename":name,"url":TABLET_BASE_URL+name,"sha256":digest}
+                     for name,digest in TABLET_ARTIFACTS.items())
     (ROOT / "evidence/artifacts.json").write_text(json.dumps(artifacts, indent=2) + "\n")
     run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i",
          "sine=frequency=440:sample_rate=48000", "-t", "5", "-ac", "1", ROOT / "evidence/browser-microphone.wav"])
     print("Prepared pinned release binaries and original real-world assets.")
+
+
+def prepare_tablet(host_mode="fedora", slirp=None):
+    """Add matching Qt input modules and a user-space network helper only."""
+    (ROOT / 'qt-tablet').mkdir(exist_ok=True)
+    for name, expected in TABLET_ARTIFACTS.items():
+        package = ROOT / 'downloads' / name
+        if not package.exists():
+            print(f'Downloading official matching Qt Tablet module {name}', flush=True)
+            urllib.request.urlretrieve(TABLET_BASE_URL + name, package)
+        if hashlib.sha256(package.read_bytes()).hexdigest() != expected:
+            raise RuntimeError(f'Tablet module differs from reviewed Qt 5.15.3 package: {name}')
+        members = subprocess.check_output(['ar', 't', str(package)], text=True).splitlines()
+        data = [member for member in members if member in ['data.tar.zst', 'data.tar.xz', 'data.tar.gz']]
+        if len(data) != 1:
+            raise RuntimeError('The pinned Tablet package lacks exactly one data archive')
+        archive = ROOT / 'qt-tablet' / data[0]
+        with archive.open('wb') as output:
+            run(['ar', 'p', package, data[0]], stdout=output)
+        run(['tar', '--extract', '--no-same-owner', '--file', archive, '--directory', ROOT / 'qt-tablet'])
+        archive.unlink()
+    if not slirp and not shutil.which('slirp4netns') and not (ROOT / 'host-tools/usr/bin/slirp4netns').exists():
+        if host_mode != 'fedora' or not Path('/etc/fedora-release').exists():
+            raise RuntimeError('Supply or install the documented slirp4netns host tool; no automatic platform fallback is permitted')
+        run(['dnf', 'download', '--repo=fedora', '--repo=updates', '--destdir', ROOT / 'rpms', 'slirp4netns.x86_64'])
+        packages = list((ROOT / 'rpms').glob('slirp4netns-*.x86_64.rpm'))
+        if len(packages) != 1:
+            raise RuntimeError('Expected exactly one official native network helper package')
+        run(['rpm', '--checksig', packages[0]])
+        extract_rpm(packages[0])
+    for command in ['bwrap', 'xauth', 'ip', 'unshare', 'g++']:
+        if not shutil.which(command):
+            raise RuntimeError(f'The Tablet boundary requires the documented host tool: {command}')
+    run([sys.executable, REPO / 'browser-client/tools/build-native-input.py',
+         '--output', ROOT / 'native-input', '--qt-libraries', ROOT / 'appimage/squashfs-root/usr/lib'])
 
 
 def alive(pid):
@@ -137,7 +195,10 @@ def start(gateway=False):
     if any(alive(entry["pid"]) for entry in state.values()):
         raise RuntimeError("The managed lab is already running. Use status or stop first.")
     if not (ROOT / "appimage/squashfs-root/AppRun").exists():
+        if (ROOT / "config/host-tools.json").exists():
+            raise RuntimeError("The selected laboratory runtime is missing; run prepare for its configured platform before start")
         prepare()
+    tools = load_tools(ROOT)
     for port in [45100,45110] + ([8090] if gateway else []):
         probe = socket.socket()
         probe.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
@@ -147,7 +208,7 @@ def start(gateway=False):
             raise RuntimeError(f"Port {port} is occupied; the lab will not replace another service") from error
         finally:
             probe.close()
-    env = {**os.environ, "QT_QPA_PLATFORM":"xcb", "QT_SCALE_FACTOR":"1", "QT_AUTO_SCREEN_SCALE_FACTOR":"0"}
+    env = {**os.environ, "OVERTE_LAB_ROOT":str(ROOT), "QT_QPA_PLATFORM":"xcb", "QT_SCALE_FACTOR":"1", "QT_AUTO_SCREEN_SCALE_FACTOR":"0"}
     app = ROOT / "appimage/squashfs-root"
     server = ROOT / "server/opt/overte"
     server_env = {**env, "LD_LIBRARY_PATH":f"{server}/lib:{app}/usr/lib",
@@ -180,7 +241,7 @@ def start(gateway=False):
     for number,name in [(94,"xvfb"),(95,"native-xvfb")]:
         if Path(f"/tmp/.X{number}-lock").exists():
             raise RuntimeError(f"Display :{number} is already in use; refusing to take it over")
-        launch(name,[ROOT/"host-tools/usr/bin/Xvfb",f":{number}","-screen","0","1024x768x24","-nolisten","tcp"],env,state)
+        launch(name,[tools["xvfb"],f":{number}","-screen","0","1024x768x24","-nolisten","tcp"],env,state)
     for label in ["native","browser"]:
         script = ROOT / "runtime" / f"{label}.pa"
         script.write_text(f"load-module module-native-protocol-unix socket={ROOT}/runtime/{label}-pulse.sock auth-anonymous=1\n"
@@ -188,7 +249,14 @@ def start(gateway=False):
                           f"load-module module-null-sink sink_name={('lab' if label=='native' else 'browser')}_output rate=48000 channels=2\n"
                           f"set-default-source {('lab' if label=='native' else 'browser')}_input.monitor\n"
                           f"set-default-sink {('lab' if label=='native' else 'browser')}_output\n")
-        pulse_env = {**env,"DBUS_SESSION_BUS_ADDRESS":"unix:path=/dev/null"}
+        pulse_profile = ROOT / "runtime" / f"{label}-pulse-profile"
+        pulse_profile.mkdir(mode=0o700, exist_ok=True)
+        pulse_profile.chmod(0o700)
+        pulse_env = {**env,"DBUS_SESSION_BUS_ADDRESS":"unix:path=/dev/null",
+                     "XDG_RUNTIME_DIR":str(pulse_profile), "XDG_CONFIG_HOME":str(pulse_profile/"config"),
+                     "XDG_DATA_HOME":str(pulse_profile/"data"), "XDG_CACHE_HOME":str(pulse_profile/"cache"),
+                     "PULSE_RUNTIME_PATH":str(pulse_profile), "PULSE_STATE_PATH":str(pulse_profile/"state"),
+                     "PULSE_COOKIE":str(pulse_profile/"cookie")}
         launch(f"{label}-pulse",[SOURCE/"pulseaudio-local.sh","-n","--daemonize=no","--use-pid-file=no","--exit-idle-time=-1","-F",script],pulse_env,state)
     profile = ROOT / "client-script-profile"
     native_env = {**env,"DISPLAY":":95","PULSE_SERVER":f"unix:{ROOT}/runtime/native-pulse.sock",
@@ -235,13 +303,35 @@ def start(gateway=False):
 
 
 def start_gateway(state):
-    gateway_env = {**os.environ,"DISPLAY":":94","QT_QPA_PLATFORM":"xcb","QT_SCALE_FACTOR":"1","QT_AUTO_SCREEN_SCALE_FACTOR":"0",
+    tools = load_tools(ROOT)
+    prepare_tablet(tools["mode"], tools["slirp"])
+    native_root = ROOT / 'appimage/squashfs-root'
+    qt_root = ROOT / 'qt-tablet/usr/lib/x86_64-linux-gnu'
+    slirp = tools['slirp']
+    gateway_env = {**os.environ,"OVERTE_LAB_ROOT":str(ROOT),"LD_LIBRARY_PATH":"","DISPLAY":":94","QT_QPA_PLATFORM":"xcb","QT_SCALE_FACTOR":"1","QT_AUTO_SCREEN_SCALE_FACTOR":"0",
                    "OVERTE_INTERFACE":str(ROOT/"appimage/squashfs-root/AppRun"),
+                   "OVERTE_INTERFACE_LIBRARY_PATH":f'{native_root}/usr/lib:{qt_root}',
+                   "QML2_IMPORT_PATH":f'{qt_root / "qt5/qml"}:{ROOT / "native-input/qml"}',
+                   "OVERTE_GATEWAY_DEFAULT_SCRIPTS":str(native_root / 'usr/bin/scripts/defaultScripts.js'),
+                   "OVERTE_GATEWAY_XVFB":tools["xvfb"],
+                   "OVERTE_GATEWAY_SLIRP":slirp,
+                   "OVERTE_GATEWAY_MANAGED_UDP_PORTS":"45102,45200,45201,45202,45203,45204,45205",
+                   "OVERTE_GATEWAY_PUBLIC_PLACES":"overte_hub",
+                   "OVERTE_GATEWAY_PUBLIC_INTERFACE":str(native_root / 'AppRun'),
+                   "OVERTE_GATEWAY_PUBLIC_DEFAULT_SCRIPTS":str(native_root / 'usr/bin/scripts/defaultScripts.js'),
+                   "OVERTE_GATEWAY_PUBLIC_INTERFACE_LIBRARY_PATH":f'{native_root}/usr/lib:{qt_root}',
+                   "OVERTE_GATEWAY_PUBLIC_ASSET_ORIGINS":','.join([
+                       'https://content.overte.org', 'https://content.zedwork.co.uk', 'https://files.thingvellir.net',
+                       'https://raw.githubusercontent.com', 'https://overte.org', 'http://content.zedwork.co.uk',
+                       'https://bas-skyspace.ams3.digitaloceanspaces.com', 'https://more.overte.org', 'https://github.com',
+                       'https://upload.wikimedia.org', 'https://silverfish-freestuff.s3.eu-north-1.amazonaws.com']),
                    "OVERTE_GATEWAY_DOMAINS":"overte://127.0.0.2:45102",
                    "OVERTE_GATEWAY_NATIVE_SCHEME":"hifi",
-                   "OVERTE_GATEWAY_PULSEAUDIO":str(SOURCE/"pulseaudio-local.sh"),
+                   "OVERTE_GATEWAY_PULSEAUDIO":tools["pulseaudio"],
+                   "OVERTE_GATEWAY_PULSEAUDIO_MODULES":tools["pulseModules"],
+                   "OVERTE_GATEWAY_PULSEAUDIO_LIBRARY_PATH":":".join(tools["pulseLibraries"]),
                    "OVERTE_GATEWAY_GUEST_POLICY":str(ROOT/"config/guest-policy.json"),
-                   "OVERTE_GATEWAY_ASSET_ORIGINS":"https://raw.githubusercontent.com,http://127.0.0.1:45110"}
+                   "OVERTE_GATEWAY_ASSET_ORIGINS":"https://content.overte.org,https://raw.githubusercontent.com,http://127.0.0.1:45110"}
     launch("gateway",["node",REPO/"browser-client/gateway/server.mjs"],gateway_env,state)
     wait_port(8090)
 
@@ -278,12 +368,25 @@ def stop(names=None):
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action",choices=["prepare","start","stop","status","restart-gateway"])
+    parser.add_argument("action",choices=["prepare","start","stop","status","restart-gateway","preflight"])
     parser.add_argument("--client-artifact",type=Path)
+    parser.add_argument("--host-tools", choices=["fedora", "system"], help="prepare: Fedora extraction (default) or verified system host tools")
+    parser.add_argument("--xvfb", type=Path)
+    parser.add_argument("--pulseaudio", type=Path)
+    parser.add_argument("--pulse-modules", type=Path)
+    parser.add_argument("--pulse-library-path", type=Path, action="append", default=[])
+    parser.add_argument("--slirp", type=Path)
     parser.add_argument("--gateway",action="store_true")
     parser.add_argument("--open-browser",action="store_true",help="Open the local browser interface after a successful managed start")
     args=parser.parse_args()
-    if args.action=="prepare":prepare(args.client_artifact)
+    if args.action == "prepare" and args.host_tools != "system" and any([args.xvfb,args.pulseaudio,args.pulse_modules,args.pulse_library_path,args.slirp]):
+        parser.error("Explicit host paths require --host-tools system")
+    if args.action != "prepare" and any([args.host_tools,args.xvfb,args.pulseaudio,args.pulse_modules,args.pulse_library_path,args.slirp]):
+        parser.error("Host tool selection belongs to prepare; subsequent commands use the verified saved configuration")
+    if args.action=="prepare":prepare(args.client_artifact, args.host_tools or "fedora", xvfb=args.xvfb, pulseaudio=args.pulseaudio,
+        pulse_modules=args.pulse_modules, pulse_libraries=args.pulse_library_path, slirp=args.slirp)
+    elif args.action=="preflight":
+        print(json.dumps(preflight(ROOT,load_tools(ROOT)),indent=2))
     elif args.action=="start":
         if args.open_browser and not args.gateway:parser.error("--open-browser requires --gateway")
         start(args.gateway)

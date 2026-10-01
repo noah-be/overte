@@ -7,25 +7,184 @@
     print('Browser gateway bridge starting.');
     var active = false;
     var lastConnected = false;
-    var lastEntities = '';
     var permissionsApproved = false;
     var lastPermissions = '';
     var approvedAuthority = '';
     var permissionRevision = 0;
+    var tablet = null;
     var interval;
     var poseInterval;
-    function send(value) { if (socket.readyState === 1) { socket.send(JSON.stringify(value)); } }
+    var appliedPose = null;
+    var pendingPose = null;
+    var outbound = [], outboundBytes = 0, outputFailed = false;
+    function currentPose() {
+        var p = MyAvatar.position, q = MyAvatar.orientation;
+        return { position: { x: p.x, y: p.y, z: p.z }, orientation: { x: q.x, y: q.y, z: q.z, w: q.w } };
+    }
+    function poseChanged(first, second) {
+        var p = first.position, r = second.position, q = first.orientation, s = second.orientation;
+        var distance = Math.pow(p.x-r.x, 2) + Math.pow(p.y-r.y, 2) + Math.pow(p.z-r.z, 2);
+        var direct = Math.pow(q.x-s.x, 2) + Math.pow(q.y-s.y, 2) + Math.pow(q.z-s.z, 2) + Math.pow(q.w-s.w, 2);
+        var inverse = Math.pow(q.x+s.x, 2) + Math.pow(q.y+s.y, 2) + Math.pow(q.z+s.z, 2) + Math.pow(q.w+s.w, 2);
+        return distance > 0.000625 || Math.min(direct, inverse) > 0.0001;
+    }
+    function externalPose() {
+        if (!permissionsApproved || !location.isConnected || !appliedPose) { return false; }
+        var current = currentPose();
+        if (poseChanged(current, pendingPose || appliedPose)) {
+            pendingPose = { position: current.position, orientation: current.orientation,
+                nonce: String(Uuid.generate()).replace(/[{}]/g, '').toLowerCase(), permissionRevision: permissionRevision };
+            send({ type: 'poseRequest', nonce: pendingPose.nonce, permissionRevision: permissionRevision,
+                position: pendingPose.position, orientation: pendingPose.orientation });
+        }
+        return !!pendingPose;
+    }
+    function outputAuthority() {
+        var match = String(location.href).match(/^(?:overte|hifi):\/\/([^/]+)/i);
+        return (match ? match[1].toLowerCase() : '') + '|' + String(location.domainID || '');
+    }
+    function utf8Size(text) {
+        if (/^[\x00-\x7f]*$/.test(text)) { return text.length; }
+        var bytes = 0;
+        for (var index = 0; index < text.length; index++) {
+            var code = text.charCodeAt(index);
+            if (code < 128) { bytes++; }
+            else if (code < 2048) { bytes += 2; }
+            else if (code >= 55296 && code <= 56319 && index + 1 < text.length
+                && text.charCodeAt(index + 1) >= 56320 && text.charCodeAt(index + 1) <= 57343) { bytes += 4; index++; }
+            else { bytes += 3; }
+        }
+        return bytes;
+    }
+    function send(value) {
+        if (socket.readyState !== 1 || outputFailed) { return; }
+        var text = JSON.stringify(value), size = utf8Size(text);
+        // Qt socket/UI callbacks cannot write the engine-owned QWebSocket safely.
+        // The existing Script timers drain all post-handshake output instead.
+        if (value.type === 'avatars' || value.type === 'heartbeat') {
+            outbound = outbound.filter(function (item) {
+                if (item.type !== value.type) { return true; }
+                outboundBytes -= item.size; return false;
+            });
+        }
+        if (outbound.length >= 128 || outboundBytes + size > 64 * 1024 * 1024) {
+            outbound = []; outboundBytes = 0; outputFailed = true; return;
+        }
+        var item = { type: value.type, text: text, size: size, revision: permissionRevision, authority: outputAuthority(),
+            restricted: ['entities', 'entityUpdates', 'avatars', 'asset', 'pose', 'poseRequest', 'tablet', 'interaction', 'navigationRequest', 'navigationHistoryRequest', 'visitorPreferences', 'visitorPersona'].indexOf(value.type) !== -1
+                || (value.type === 'state' && value.state === 'connected'),
+            deadline: value.type === 'nativePong' ? value.deadline : 0 };
+        if (value.type === 'nativePong') { outbound.unshift(item); } else { outbound.push(item); }
+        outboundBytes += size;
+    }
+    function flush() {
+        if (socket.readyState !== 1) { outbound = []; outboundBytes = 0; return; }
+        if (outputFailed) {
+            socket.send(JSON.stringify({ type: 'state', state: 'error', message: 'Native gateway output exceeded its bounded queue. Leave and reconnect.' }));
+            outputFailed = false; active = false; permissionsApproved = false; Audio.muted = true;
+            worldStream.stop(); return;
+        }
+        var ready = outbound; outbound = []; outboundBytes = 0;
+        ready.forEach(function (item) {
+            if (item.type === 'nativePong') { if (Date.now() < item.deadline) { socket.send(item.text); } return; }
+            if (item.type !== 'heartbeat' && (item.revision !== permissionRevision || item.authority !== outputAuthority())) { return; }
+            if (item.restricted && (!active || !permissionsApproved || !location.isConnected || !lastConnected)) { return; }
+            socket.send(item.text);
+        });
+    }
+    function clearOutput() {
+        // A liveness nonce has no domain data or permission. Preserve its response
+        // while discarding obsolete world/UI output during authority changes.
+        outbound = outbound.filter(function (item) { return item.type === 'nativePong'; });
+        outboundBytes = outbound.reduce(function (total, item) { return total + item.size; }, 0);
+    }
+
+    var visitorPreferences = null;
+    if (BROWSER_GATEWAY.visitorPreferences && typeof LocationBookmarks !== 'undefined') {
+        visitorPreferences = createBrowserVisitorPreferences({ initial: BROWSER_GATEWAY.visitorPreferences,
+            api: LocationBookmarks, send: send, revision: function () { return permissionRevision; },
+            authority: function () { return active && permissionsApproved && location.isConnected ? permissionRevision + '|' + outputAuthority() : null; } });
+    }
+    var visitorPersona = null;
+    if (BROWSER_GATEWAY.visitorPersona && typeof AvatarBookmarks !== 'undefined') {
+        visitorPersona = createBrowserVisitorPersona({initial:BROWSER_GATEWAY.visitorPersona,displayName:BROWSER_GATEWAY.visitorDisplayName,preserveFields:BROWSER_GATEWAY.personaPreserveFields,avatar:MyAvatar,bookmarks:AvatarBookmarks,
+            wearableFields:BROWSER_GATEWAY.wearableFields,runtimeFields:BROWSER_GATEWAY.personaRuntimeFields,inertFields:BROWSER_GATEWAY.personaInertFields,
+            send:send,revision:function(){return permissionRevision;},
+            authority:function(){return active && permissionsApproved && location.isConnected ? permissionRevision+'|'+outputAuthority():null;}});
+    }
+    var rigCache = {};
+    var navigationHistory = { canGoBack: false, canGoForward: false };
+    function navigationMessage(channel, text, sender, localOnly) {
+        if (!BROWSER_GATEWAY.navigation || channel !== BROWSER_GATEWAY.navigation.channel || !localOnly) { return; }
+        var request; try { request = JSON.parse(text); } catch (error) { return; }
+        if (request.kind === 'historyRequest') { publishNavigationHistory(); return; }
+        if (request.kind === 'preferencesChanged') { if (visitorPreferences) { visitorPreferences.poll(true); } return; }
+        state();
+        if (!active || !permissionsApproved || !lastConnected || !location.isConnected) { return; }
+        // Save a just-created bookmark before revoking this worker for navigation.
+        if (visitorPreferences) { visitorPreferences.poll(true); }
+        if (visitorPersona) { visitorPersona.poll(true); }
+        var nonce = String(Uuid.generate()).replace(/[{}]/g, '').toLowerCase();
+        if (request.kind === 'target' && typeof request.address === 'string' && request.address.length <= 1024) {
+            send({ type: 'navigationRequest', nonce: nonce, permissionRevision: permissionRevision, address: request.address });
+        } else if (request.kind === 'history' && (request.direction === 'back' || request.direction === 'forward')) {
+            send({ type: 'navigationHistoryRequest', nonce: nonce, permissionRevision: permissionRevision, direction: request.direction });
+        }
+    }
+    function publishNavigationHistory() {
+        if (BROWSER_GATEWAY.navigation) {
+            Messages.sendLocalMessage(BROWSER_GATEWAY.navigation.channel, JSON.stringify({ kind: 'historyState',
+                canGoBack: navigationHistory.canGoBack, canGoForward: navigationHistory.canGoForward }));
+        }
+    }
+    function closeNavigation() {
+        if (BROWSER_GATEWAY.navigation) {
+            Messages.messageReceived.disconnect(navigationMessage);
+            Messages.unsubscribe(BROWSER_GATEWAY.navigation.channel);
+        }
+    }
     function avatarData(id, avatar) {
-        return { id: String(id), displayName: avatar.displayName || 'Visitor', position: avatar.position,
-            orientation: avatar.orientation, scale: avatar.scale || 1, skeletonModelURL: avatar.skeletonModelURL };
+        var key = String(id), model = String(avatar.skeletonModelURL || ''), cached = rigCache[key], now = Date.now();
+        var position = avatar.position, orientation = avatar.orientation;
+        var result = { id: key, displayName: String(avatar.displayName || 'Visitor').slice(0, 256), position: {x:position.x,y:position.y,z:position.z},
+            orientation: {x:orientation.x,y:orientation.y,z:orientation.z,w:orientation.w}, scale: avatar.scale || 1, skeletonModelURL: model };
+        var offset = avatar.skeletonOffset;
+        if (offset && [offset.x, offset.y, offset.z].every(function (v) { return typeof v === 'number' && isFinite(v) && Math.abs(v) <= 100; })) {
+            result.skeletonOffset = { x: offset.x, y: offset.y, z: offset.z };
+        }
+        if (typeof avatar.getJointNames !== 'function' || typeof avatar.getJointRotations !== 'function'
+            || typeof avatar.getJointTranslations !== 'function') { return result; }
+        if (!cached || cached.model !== model || now - cached.time >= 100) {
+            // The new URL can arrive before its asynchronously loaded rig. Sample names
+            // with every bulk update so equal-size replacement rigs never retain old mappings.
+            var names = avatar.getJointNames();
+            var rotations = avatar.getJointRotations(), translations = avatar.getJointTranslations();
+            var valid = names && rotations && translations && names.length > 0 && names.length <= 1000
+                && rotations.length === names.length && translations.length === names.length;
+            var copiedNames = [], copiedRotations = [], copiedTranslations = [];
+            for (var index = 0; valid && index < names.length; index++) {
+                var q = rotations[index], t = translations[index], name = String(names[index]);
+                var norm = q && q.x*q.x + q.y*q.y + q.z*q.z + q.w*q.w;
+                valid = name.length > 0 && name.length <= 128 && q && t && [q.x,q.y,q.z,q.w,t.x,t.y,t.z].every(function (v) {
+                    return typeof v === 'number' && isFinite(v) && Math.abs(v) < 1000000;
+                }) && norm >= 0.99 && norm <= 1.01;
+                if (valid) { copiedNames.push(name); copiedRotations.push({x:q.x,y:q.y,z:q.z,w:q.w}); copiedTranslations.push({x:t.x,y:t.y,z:t.z}); }
+            }
+            cached = { model: model, time: now, names: valid ? copiedNames : [], rotations: valid ? copiedRotations : [], translations: valid ? copiedTranslations : [] };
+            rigCache[key] = cached;
+        }
+        result.jointNames = cached.names; result.jointRotations = cached.rotations; result.jointTranslations = cached.translations;
+        return result;
     }
     function state() {
         var connected = !!location.isConnected;
         if (!connected) {
-            permissionsApproved = false;
+            appliedPose = null; pendingPose = null;
+            permissionsApproved = false; clearOutput();
+            if (tablet) { tablet.setAuthority(permissionRevision, false); }
             Audio.muted = true;
             lastPermissions = '';
-            lastEntities = '';
+            worldStream.reset();
             if (lastConnected) { lastConnected = false; send({ type: 'state', state: 'connecting' }); }
             return;
         }
@@ -43,35 +202,46 @@
         };
         var match = String(location.href).match(/^(?:overte|hifi):\/\/([^/]+)/i);
         var authority = match ? match[1].toLowerCase() : '';
-        var serialized = JSON.stringify({ authority: authority, permissions: permissions });
+        var domainId = String(location.domainID || '').replace(/[{}]/g, '').toLowerCase();
+        var serialized = JSON.stringify({ authority: authority, domainId: domainId, permissions: permissions });
         if (serialized !== lastPermissions) {
-            lastPermissions = serialized; permissionsApproved = false;
+            appliedPose = null; pendingPose = null;
+            lastPermissions = serialized; permissionsApproved = false; clearOutput();
             Audio.muted = true;
-            lastEntities = '';
+            worldStream.reset();
             approvedAuthority = authority;
             if (lastConnected) { lastConnected = false; send({ type: 'state', state: 'connecting' }); }
             permissionRevision++;
-            send({ type: 'permissions', permissionRevision: permissionRevision, permissions: permissions, domain: String(location.href) });
+            if (tablet) { tablet.setAuthority(permissionRevision, false); }
+            send({ type: 'permissions', permissionRevision: permissionRevision, permissions: permissions, domain: String(location.href), domainId: domainId });
         }
         if (permissionsApproved && !lastConnected) {
             lastConnected = true;
             send({ type: 'state', state: 'connected', domain: String(location.href),
-                selfId: String(MyAvatar.sessionUUID) });
+                selfId: String(MyAvatar.sessionUUID), permissionRevision: permissionRevision });
+            if (tablet) { tablet.setAuthority(permissionRevision, true); }
+            appliedPose = currentPose(); pendingPose = null;
             send({ type: 'pose', position: MyAvatar.position, orientation: MyAvatar.orientation });
         }
     }
-    function world() {
-        state();
-        if (!active || !location.isConnected || !permissionsApproved) { return; }
-        var entities = Entities.findEntities(MyAvatar.position, BROWSER_GATEWAY.radius || 512).map(function (id) {
-            return Entities.getEntityProperties(id);
-        });
-        var serialized = JSON.stringify(entities);
-        if (serialized !== lastEntities) { lastEntities = serialized; send({ type: 'entities', entities: entities }); }
-    }
+    var worldStream = createBrowserWorldStream({
+        readIDs: function () { return Entities.findEntities(MyAvatar.position, BROWSER_GATEWAY.radius || 512); },
+        readEntity: function (id) { return Entities.getEntityProperties(id); },
+        authority: function () {
+            var match = String(location.href).match(/^(?:overte|hifi):\/\/([^/]+)/i);
+            return active && location.isConnected && permissionsApproved && match && match[1].toLowerCase() === approvedAuthority
+                ? permissionRevision + '|' + approvedAuthority + '|' + String(location.domainID || '') : null;
+        },
+        send: send,
+        schedule: function (callback, delay) { return Script.setTimeout(callback, delay); },
+        cancel: function (timer) { Script.clearTimeout(timer); },
+        onError: function (message) { send({ type: 'state', state: 'error', message: message }); },
+        budgetMs: 8
+    });
+    function world() { state(); worldStream.poll(); }
     socket.onopen = function () {
         print('Browser gateway local transport connected.');
-        send({ type: 'nativeHello', token: BROWSER_GATEWAY.token });
+        socket.send(JSON.stringify({ type: 'nativeHello', token: BROWSER_GATEWAY.token }));
         active = true;
         // Browser collision/gravity integration owns the pose; the native bridge only replicates it.
         if (typeof MyAvatar.setGravity !== 'function') {
@@ -84,10 +254,27 @@
         MyAvatar.motorVelocity = { x: 0, y: 0, z: 0 };
         Audio.muted = true;
         Audio.noiseReduction = false;
-        interval = Script.setInterval(function () { send({ type: 'heartbeat' }); state(); world(); }, 500);
+        if (BROWSER_GATEWAY.navigation) {
+            Messages.subscribe(BROWSER_GATEWAY.navigation.channel);
+            Messages.messageReceived.connect(navigationMessage);
+        }
+        if (BROWSER_GATEWAY.tablet) {
+            try {
+                Script.include(BROWSER_GATEWAY.tablet.scriptURL);
+                tablet = createBrowserTablet({ qmlURL: BROWSER_GATEWAY.tablet.qmlURL,
+                    framePath: BROWSER_GATEWAY.tablet.framePath,
+                    filesDirectory: BROWSER_GATEWAY.tablet.filesDirectory,
+                    snapshotChannel: BROWSER_GATEWAY.tablet.snapshotChannel,
+                    chatURL: BROWSER_GATEWAY.tablet.chatURL,
+                    defaultScriptsURL: BROWSER_GATEWAY.tablet.defaultScriptsURL, send: send });
+                tablet.setAuthority(permissionRevision, false);
+            } catch (error) { send({ type: 'warning', message: 'The installed native tablet helper could not start.' }); }
+        }
+        interval = Script.setInterval(function () { send({ type: 'heartbeat' }); state(); world(); if (visitorPreferences) { visitorPreferences.poll(); } if (visitorPersona) { visitorPersona.poll(); } flush(); }, 500);
         poseInterval = Script.setInterval(function () {
-            state();
+            state(); flush();
             if (!location.isConnected || !permissionsApproved) { return; }
+            externalPose();
             var selfId = String(MyAvatar.sessionUUID).replace(/[{}]/g, '').toLowerCase();
             var avatars = AvatarList.getAvatarIdentifiers().filter(function (id) {
                 // Native AvatarManager stores MyAvatar under a null UUID key.
@@ -98,32 +285,62 @@
                 return avatarData(id, AvatarList.getAvatar(id));
             });
             avatars.push(avatarData(MyAvatar.sessionUUID, MyAvatar));
-            send({ type: 'avatars', avatars: avatars, selfId: String(MyAvatar.sessionUUID) });
+            var currentIds = {}; avatars.forEach(function (avatar) { currentIds[avatar.id] = true; });
+            Object.keys(rigCache).forEach(function (id) { if (!currentIds[id]) { delete rigCache[id]; } });
+            send({ type: 'avatars', avatars: avatars, selfId: String(MyAvatar.sessionUUID) }); flush();
         }, 50);
     };
     socket.onmessage = function (event) {
         try {
             var message = JSON.parse(event.data);
             if (message.type === 'shutdown') {
-                active = false; permissionsApproved = false; Audio.muted = true;
+                closeNavigation(); if (visitorPreferences) { visitorPreferences.stop(); } if (visitorPersona) { visitorPersona.stop(); }
+                active = false; permissionsApproved = false; Audio.muted = true; worldStream.stop();
+                if (tablet) { tablet.close(); }
                 // The normal File > Quit action runs native avatar/domain disconnect cleanup.
                 Menu.triggerOption('Quit');
+                return;
+            }
+            if (message.type === 'nativePing') {
+                if (typeof message.nonce === 'string' && /^[a-f0-9]{32}$/.test(message.nonce)
+                    && typeof message.deadline === 'number' && isFinite(message.deadline)
+                    && message.deadline > Date.now() && message.deadline <= Date.now() + 30000) {
+                    send({ type: 'nativePong', nonce: message.nonce, deadline: message.deadline });
+                }
                 return;
             }
             if (message.type === 'permissionsAccepted') {
                 state();
                 if (message.permissionRevision === permissionRevision && location.isConnected && lastPermissions) {
-                    permissionsApproved = true; state();
+                    permissionsApproved = true;
+                    if (visitorPreferences) { visitorPreferences.restore(); }
+                    if (visitorPersona) { visitorPersona.restore(); }
+                    state();
+                    if (visitorPreferences) { visitorPreferences.poll(true); }
+                    if (visitorPersona) { visitorPersona.poll(true); }
                 }
                 Audio.muted = permissionsApproved ? message.muted !== false : true;
                 return;
             }
             state();
             if (!permissionsApproved && message.type !== 'mute') { return; }
-            if (message.type === 'pose') {
+            if (message.type === 'navigationHistoryState') {
+                if (message.permissionRevision === permissionRevision && typeof message.canGoBack === 'boolean' && typeof message.canGoForward === 'boolean') {
+                    navigationHistory = {canGoBack:message.canGoBack,canGoForward:message.canGoForward}; publishNavigationHistory();
+                }
+            } else if (message.type === 'tablet') {
+                if (tablet) { tablet.setAuthority(permissionRevision, true); tablet.receive(message); }
+            } else if (message.type === 'pose') {
+                if (externalPose()) { return; }
                 MyAvatar.position = message.position;
                 MyAvatar.orientation = message.orientation;
                 MyAvatar.velocity = { x: 0, y: 0, z: 0 };
+                appliedPose = currentPose();
+            } else if (message.type === 'poseAccepted') {
+                externalPose();
+                if (pendingPose && message.nonce === pendingPose.nonce && message.permissionRevision === permissionRevision) {
+                    appliedPose = { position: pendingPose.position, orientation: pendingPose.orientation }; pendingPose = null;
+                }
             } else if (message.type === 'mute') {
                 Audio.muted = permissionsApproved ? message.muted : true;
             } else if (message.type === 'asset') {
@@ -169,11 +386,15 @@
     socket.onerror = function () { print('Browser gateway local transport error.'); };
     if (location.hostChanged && typeof location.hostChanged.connect === 'function') {
         location.hostChanged.connect(function () { permissionsApproved = false; lastPermissions = ''; lastConnected = false;
+            appliedPose = null; pendingPose = null; worldStream.reset(); clearOutput();
+            if (tablet) { tablet.setAuthority(permissionRevision, false); }
             Audio.muted = true;
             send({ type: 'state', state: 'connecting' }); });
     }
     Window.domainConnectionRefused.connect(function (reason) { send({ type: 'state', state: 'error', message: String(reason) }); });
     Script.scriptEnding.connect(function () {
+        worldStream.stop(); clearOutput(); closeNavigation(); if (visitorPreferences) { visitorPreferences.stop(); } if (visitorPersona) { visitorPersona.stop(); }
+        if (tablet) { tablet.close(); }
         if (interval) { Script.clearInterval(interval); }
         if (poseInterval) { Script.clearInterval(poseInterval); }
         socket.close();

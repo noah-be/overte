@@ -12,7 +12,7 @@ guest settings. It needs no proprietary account or service.
 ## Components
 
 - Browser: Vite/TypeScript/Three.js, WebGL model and material rendering, walking
-  controls and conservative entity-bound collisions, standard avatar visuals,
+  controls, actual model-mesh collisions and native avatar rigs,
   and Web Audio capture/playback.
 - Gateway: Node.js HTTP/WebSocket service and native bridge script, one isolated
   profile/native process/audio environment per browser connection. The browser
@@ -20,9 +20,11 @@ guest settings. It needs no proprietary account or service.
   its pose, interaction and mono microphone audio.
 - Domain: a managed Overte domain and assignment services with a matching native
   protocol and explicit anonymous guest baseline. The actual settings must pass
-  the gateway validator before world, avatars or audio are exposed. Public,
-  authenticated, IP-restricted and fingerprint-restricted domains are not assumed
-  compatible. They require a future identity-preserving server transport.
+  the gateway validator before world, avatars or audio are exposed. Explicitly
+  configured public places additionally require freshly inspected directory
+  settings, compatible protocol and ordinary anonymous guest permissions.
+  Authenticated, IP-restricted and fingerprint-restricted domains need a future
+  identity-preserving transport; arbitrary public compatibility is not assumed.
 
 This approach consumes native-client resources per concurrent visitor. It is a
 first-version deployment architecture, not a high-density server design.
@@ -55,7 +57,12 @@ python3 browser-client/lab/manage.py start --gateway --open-browser
 Open **http://127.0.0.1:8090** and join the offered laboratory domain. The launcher
 downloads checksum-pinned native release 2026.04.1 artifacts, creates a separate
 real domain and native participant, uploads actual ATP assets and saves verified
-guest permissions. It preserves normal user profiles and existing services.
+guest permissions. It also prepares version-matched Tablet input modules, a
+private native display/network boundary and the explicitly enabled public
+`overte_hub` destination. Its actual Chromium rendering/movement/rejoin proof is
+linked in [VERIFICATION.md](VERIFICATION.md). Full Tablet behavior and expanded
+native feature parity remain under active acceptance testing.
+It preserves normal user profiles and existing services.
 Prerequisites, stop/status commands and asset attribution are in the
 [laboratory guide](../../browser-client/lab/README.md).
 
@@ -101,6 +108,15 @@ from `browser-client`; development dependencies are unnecessary on that host.
 The independently installed production deployment and concurrent shutdown were
 [verified against the actual domain](VERIFICATION.md#independently-installed-production-deployment-and-concurrent-shutdown).
 
+To produce an auditable self-hosting archive from a reviewed checkout, build the
+assets and run `python3 tools/package.py` from `browser-client`. Stage any new
+reviewed source modules first; the packager refuses to silently omit untracked
+files. It includes runtime sources, compiled assets, documentation, licenses and
+`BUILD_INFO.json` with per-file SHA-256 hashes. Candidate archives explicitly
+record uncommitted changes. Files changed during packaging and symlinks outside
+the regular repository inputs are refused. Output and its checksum are written
+under `build/browser-client-distribution` at the repository root.
+
 ## Controls
 
 Choose a domain or enter an enabled address, enter your display name and join.
@@ -109,6 +125,10 @@ move faster, E to inspect/interact and V for the visible standard avatar view.
 Escape releases the mouse. On touch screens the left side controls movement and
 the right side controls looking. Enable the microphone explicitly; muting stops
 its capture track. Leaving closes the native session and audio resources.
+The Tablet button or T opens the genuine installed native Tablet. Its GUI is
+relayed from the isolated session; world graphics still render on the visitor's
+device. Tablet keyboard/pointer/touch input pauses world input while gravity and
+replication continue. Full app-flow acceptance is tracked in the status report.
 
 ## Verification and supported content
 
@@ -121,13 +141,25 @@ including native coexistence and voice, belongs in the laboratory report.
 
 Supported core content includes native primitives, model GLB/glTF/FBX/OBJ/FST
 assets, basic material data, textures, text, images and basic lights. FST support
-resolves its model filename; FST texture-directory and material mappings and
-native `qrc:` resources are not supported. Model
-collisions use conservative entity bounds. Advanced particles, procedural
-shaders, complete client scripting, tablet tools, VR and full desktop parity are
-outside first-version scope; unsupported content is reported to the visitor.
+resolves its model filename and baked material maps; texture metadata resolves
+to original browser-supported images. Native baked static FBX/Draco geometry
+retains materials and UVs. Six fixed, verified native default-avatar `qrc:`
+resources are bundled publicly; other native resource paths are unsupported.
+The actual default FBX skins use native named joint poses, model units, hips
+registration and native orientation. Skinned baked-model index compatibility
+remains under implementation. Loaded models use actual triangle/capsule
+collisions; pending geometry has bounded loading protection. Imported model
+authoring lights remain metadata, matching native Model behavior, while actual
+domain Light entities contribute to scene illumination.
+
+Advanced particles, procedural shaders, full client scripting, remaining Tablet
+app behaviors, VR and other native features are mandatory subsequent work under
+the user's expanded scope. They are tracked in [FEATURE_PARITY.md](FEATURE_PARITY.md),
+with honest implemented and tested states. Unsupported content is reported to
+the visitor; the expanded client is not declared complete.
 
 Three.js is MIT licensed; Overte code is Apache-2.0. The production build includes
-`THIRD_PARTY_NOTICES.txt` for bundled Three.js and fflate code. Gateway dependencies
+`THIRD_PARTY_NOTICES.txt` for bundled Three.js, fflate, mesh BVH, GIF and both
+official Draco decoder versions. Gateway dependencies
 retain their licenses in installed packages. The repository's [license guide](../LICENSING.md)
 remains authoritative. Do not submit this AI-assisted fork work upstream.

@@ -65,18 +65,28 @@ try {
         report.sourceSHA256[`browser-client/${file}`] = sha(await readFile(path.join(distribution, 'browser-client', file)));
     for (const file of await readdir(path.join(distribution, 'browser-client/dist/assets')))
         report.sourceSHA256[`browser-client/dist/assets/${file}`] = sha(await readFile(path.join(distribution, 'browser-client/dist/assets', file)));
-    // The extracted deployment needs its two production dependencies only.
+    // The extracted deployment includes the declared production dependencies,
+    // and must not silently require the development toolchain to run.
     const installed = JSON.parse(await readFile(path.join(distribution, 'browser-client/node_modules/.package-lock.json'), 'utf8'));
     report.productionDependencies = Object.keys(installed.packages).filter(name => name && !name.includes('/node_modules/'));
-    assert.deepEqual(report.productionDependencies.sort(), ['node_modules/three', 'node_modules/ws']);
+    const manifest = JSON.parse(await readFile(path.join(distribution, 'browser-client/package.json'), 'utf8'));
+    assert.deepEqual(report.productionDependencies.sort(), Object.keys(manifest.dependencies).map(name => `node_modules/${name}`).sort());
     gateway = spawn(process.execPath, ['gateway/server.mjs'], {
         cwd: path.join(distribution, 'browser-client'), detached: true, stdio: ['ignore', 'pipe', 'pipe'],
         env: { ...process.env, DISPLAY: ':94', QT_QPA_PLATFORM: 'xcb', QT_SCALE_FACTOR: '1', QT_AUTO_SCREEN_SCALE_FACTOR: '0',
             OVERTE_INTERFACE: path.join(repo, 'build/browser-lab/appimage/squashfs-root/AppRun'),
+            OVERTE_INTERFACE_LIBRARY_PATH: [path.join(repo,'build/browser-lab/appimage/squashfs-root/usr/lib'),
+                path.join(repo,'build/browser-lab/qt-tablet/usr/lib/x86_64-linux-gnu')].join(':'),
+            QML2_IMPORT_PATH: [path.join(repo,'build/browser-lab/qt-tablet/usr/lib/x86_64-linux-gnu/qt5/qml'),
+                path.join(distribution,'build/browser-lab/native-input/qml')].join(':'),
+            OVERTE_GATEWAY_DEFAULT_SCRIPTS: path.join(repo,'build/browser-lab/appimage/squashfs-root/usr/bin/scripts/defaultScripts.js'),
             OVERTE_GATEWAY_DOMAINS: report.domain, OVERTE_GATEWAY_NATIVE_SCHEME: 'hifi',
+            OVERTE_GATEWAY_MANAGED_UDP_PORTS: '45102,45200,45201,45202,45203,45204,45205',
+            OVERTE_GATEWAY_XVFB: path.join(repo, 'build/browser-lab/host-tools/usr/bin/Xvfb'),
+            OVERTE_GATEWAY_SLIRP: path.join(repo, 'build/browser-lab/host-tools/usr/bin/slirp4netns'),
             OVERTE_GATEWAY_PULSEAUDIO: path.join(repo, 'browser-client/lab/pulseaudio-local.sh'),
             OVERTE_GATEWAY_GUEST_POLICY: path.join(repo, 'build/browser-lab/config/guest-policy.json'),
-            OVERTE_GATEWAY_ASSET_ORIGINS: 'https://raw.githubusercontent.com,http://127.0.0.1:45110',
+            OVERTE_GATEWAY_ASSET_ORIGINS: 'https://content.overte.org,https://raw.githubusercontent.com,http://127.0.0.1:45110',
             OVERTE_GATEWAY_HOST: '127.0.0.1', OVERTE_GATEWAY_PORT: String(port),
             OVERTE_GATEWAY_ORIGINS: baseURL, OVERTE_GATEWAY_MAX_SESSIONS: '1' },
     });
@@ -98,12 +108,13 @@ try {
     const errors = []; page.on('pageerror', error => errors.push(error.message));
     await page.addInitScript(() => {
         const Original = window.WebSocket;
-        window.__productionProof = { sessionId: null, leaving: false };
+        window.__productionProof = { sessionId: null, leaving: false, tabletFrames:0 };
         window.WebSocket = class extends Original {
             constructor(...args) {
                 super(...args); this.addEventListener('message', event => {
                     if (typeof event.data !== 'string') return;
-                    try { const message = JSON.parse(event.data); if (message.sessionId) window.__productionProof.sessionId = message.sessionId; } catch {}
+                    try { const message = JSON.parse(event.data); if (message.sessionId) window.__productionProof.sessionId = message.sessionId;
+                        if(message.type==='tablet' && message.kind==='frame')window.__productionProof.tabletFrames++; } catch {}
                 });
             }
             send(data) {
@@ -129,6 +140,20 @@ try {
     report.binaryTexture = { bytes: bytes.length, sha256: sha(bytes) };
     report.world = await page.evaluate(() => ({ connected: window.__overte.connected, entities: window.__overte.entityCount, participants: window.__overte.avatarCount }));
     report.checks.push('Production-only install, real entities/native participant, WebGL2, real binary ATP fidelity and asset isolation');
+    await page.waitForFunction(() => window.__overte.avatarRig?.boneCount===67, null, {timeout:45000});
+    await page.locator('#tablet').click();
+    await page.waitForFunction(() => window.__productionProof.tabletFrames>0, null, {timeout:45000});
+    await page.getByRole('button',{name:'Close tablet',exact:true}).click();
+    await page.waitForFunction(() => !window.__overte.tabletVisible);
+    const beforeWalk=await page.evaluate(()=>window.__overte.pose.position.x);
+    await page.keyboard.down('KeyD');
+    try {
+        await page.waitForFunction(start=>window.__overte.pose.position.x-start>.6,beforeWalk,{timeout:10000});
+    } finally {await page.keyboard.up('KeyD');}
+    report.tablet={nativeFrames:await page.evaluate(()=>window.__productionProof.tabletFrames),
+        defaultAvatarBones:await page.evaluate(()=>window.__overte.avatarRig.boneCount),
+        walkAfterClose:await page.evaluate(()=>window.__overte.pose.position.x)-beforeWalk};
+    report.checks.push('Packaged native Tablet and Qt input extension render real application frames; bundled 67-bone default avatar and world movement after close work');
     owned = await descendants(gateway.pid);
     assert(owned.length >= 4, 'Actual gateway owns native Interface, PulseAudio, capture and playback children');
     for (const child of owned) {

@@ -6,6 +6,7 @@ import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
 import { once } from 'node:events';
 import { WebSocket } from 'ws';
+import { validateTabletInput } from './tablet.mjs';
 import { domainAddress, pose, validateNativePermissions, EXPOSED_PERMISSION_KEYS, nativeDomainAddress, ASSET_SANDBOX_POLICY, approvedAssetAddress } from './validation.mjs';
 
 test('asset destinations use only the configured authority and preserve resource paths', () => {
@@ -117,6 +118,19 @@ test('WebSocket rejects untrusted Origin and missing session cookie', async () =
 test('assets cannot be read without an owned active session', async () => {
     const response = await fetch(`${endpoint}/api/assets/other-session?url=atp:/private.glb`, { headers: { Cookie: await authentication() } });
     assert.equal(response.status, 403);
+});
+test('bounded browser framing carries a 64 KiB escaped clipboard and rejects oversized input', async () => {
+    const ws = await browser(await authentication());
+    const input = { type:'tablet', action:'input', event:'text', sequence:1, revision:1, text:'\t'.repeat(65536) };
+    assert.equal(validateTabletInput(input).text.length,65536);
+    assert.ok(Buffer.byteLength(JSON.stringify(input))>128*1024);
+    assert.throws(()=>validateTabletInput({...input,text:'\0'}),/text/);
+    assert.throws(()=>validateTabletInput({...input,text:'x'.repeat(65537)}),/text/);
+    ws.send(JSON.stringify(input));
+    const rejected = await message(ws, { type:'join', domain:'overte://not-enabled.example' });
+    assert.equal(rejected.state,'error','A valid clipboard-size frame does not close the socket before ordinary validation');
+    ws.send(JSON.stringify({ type:'tablet', text:'x'.repeat(192*1024) }));
+    const [code] = await once(ws,'close'); assert.equal(code,1009,'The explicit transport bound still rejects larger frames');
 });
 test('gateway denies unauthorized domains and recovers after a failed launch', async () => {
     const ws = await browser(await authentication());

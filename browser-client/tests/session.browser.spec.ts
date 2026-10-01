@@ -18,7 +18,7 @@ async function fixture(page:any, options:{denyMicrophone?:boolean; failure?:bool
                 socket.send(JSON.stringify({type:'state',state:'error',message:'Domain denied this visitor connection.'}));
                 return;
             }
-            socket.send(JSON.stringify({type:'state',state:'connected',sessionId:'test-session'}));
+            socket.send(JSON.stringify({type:'state',state:'connected',sessionId:'test-session',permissionRevision:1}));
             socket.send(JSON.stringify({type:'pose',position:{x:0,y:1,z:0}}));
             socket.send(JSON.stringify({type:'entities',entities:[{id:'floor',type:'Box',position:{x:0,y:-0.25,z:0},dimensions:{x:20,y:0.5,z:20},color:{red:110,green:140,blue:160}}]}));
             socket.send(JSON.stringify({type:'avatars',selfId:'self',avatars:[{id:'native',displayName:'Native visitor',position:{x:2,y:1,z:-3}}]}));
@@ -26,7 +26,7 @@ async function fixture(page:any, options:{denyMicrophone?:boolean; failure?:bool
             let count = 0;
             const heartbeat = setInterval(() => {
                 if (++count > 10) { clearInterval(heartbeat); return; }
-                socket.send(JSON.stringify({type:'state',state:'connected',sessionId:'test-session'}));
+                socket.send(JSON.stringify({type:'state',state:'connected',sessionId:'test-session',permissionRevision:1}));
             },100);
             socket.onClose(() => clearInterval(heartbeat));
         });
@@ -96,7 +96,7 @@ test('transient domain reconnect clears stale content and loads a fresh snapshot
         send = message => socket.send(JSON.stringify(message));
         socket.onMessage(raw => {
             if (JSON.parse(String(raw)).type !== 'join') return;
-            send({type:'state',state:'connected',sessionId:'test-session'});
+            send({type:'state',state:'connected',sessionId:'test-session',permissionRevision:1});
             send({type:'entities',entities});
             send({type:'avatars',avatars:[{id:'native',position:{x:2,y:1,z:-3}}]});
         });
@@ -108,7 +108,7 @@ test('transient domain reconnect clears stale content and loads a fresh snapshot
     send({type:'state',state:'connecting',sessionId:'test-session'});
     await expect(page.locator('#stats')).toHaveText('0 entities · 0 other participants');
     await expect(page.locator('#loading')).toBeVisible();
-    send({type:'state',state:'connected',sessionId:'test-session'});
+    send({type:'state',state:'connected',sessionId:'test-session',permissionRevision:1});
     send({type:'entities',entities});
     await expect(page.locator('#stats')).toHaveText('1 entities · 0 other participants');
     await expect(page.locator('#loading')).toBeHidden();

@@ -8,9 +8,14 @@ or built-in browser demo scene.
 ## Reproduce on Fedora x86_64
 
 Prerequisites: Fedora with `dnf download`, Python 3.11+, Node.js 22.12+, npm,
-`rpm2cpio`, `cpio`, `unshare` with unprivileged user/IPC namespaces, FFmpeg with PulseAudio and X11 support, and `pactl`.
-The bootstrap downloads and extracts Xvfb and PulseAudio packages locally. It
-does not install system services or change the desktop's PipeWire setup.
+`rpm2cpio`, `cpio`, `ar`, `tar` with zstd support, `bubblewrap` (`bwrap`),
+`xauth`, `g++`, `iproute` (`ip`), `unshare` with unprivileged user/network/IPC
+namespaces, FFmpeg with PulseAudio and X11 support, and `pactl`.
+The bootstrap downloads and extracts Xvfb, PulseAudio, matching pinned Qt 5.15.3
+Tablet input modules and the official Fedora `slirp4netns` package locally. It
+does not install system services or change the desktop's PipeWire setup. A small
+QML input extension is compiled against pinned official Qt 5.15.3 headers and
+the existing native runtime, preserving native composition, validators and undo.
 
 Run from the repository root:
 
@@ -30,7 +35,12 @@ which would otherwise mix independent test domains. The domain server additional
 runs in its own unprivileged user and IPC namespace, so its Qt shared-memory
 port announcement cannot overwrite another local domain's discovery slot. The domain administration port is 45100; the fixture
 HTTP server listens only on loopback at 45110. Xvfb displays :94 and :95 are
-reserved for the gateway and independent native participant respectively.
+reserved for laboratory infrastructure and the independent native participant
+respectively. Each browser visitor receives a separate authenticated Xvfb
+display, private process/filesystem namespaces and its own restricted network
+namespace. Public worker networking cannot reach host loopback or private
+networks; managed UDP forwarding admits only the explicitly configured lab
+domain/mixer endpoints.
 
 The exact release artifacts and SHA-256 checksums are pinned in `manage.py`;
 prepared artifact identities, including downloaded Fedora packages, are recorded
@@ -87,6 +97,27 @@ OVERTE_LAB_BROWSER=system-chromium OVERTE_LAB_CHROMIUM=/path/to/chromium \
   node browser-client/tests/integration/real-session.mjs
 node browser-client/tests/integration/assets-and-avatars.mjs
 ```
+
+The standard gateway also offers `overte://overte_hub`. Public admission resolves
+the configured place freshly, checks actual anonymous rights and uses a separate
+native worker. Arbitrary public domains and authenticated worlds are not implied
+by this test. For the short actual Hub movement/native-pose/reconnect journey:
+
+```bash
+OVERTE_LAB_URL=http://127.0.0.1:8090 OVERTE_LAB_RECONNECT=1 OVERTE_LAB_REQUIRE_FLUID=1 \
+  node browser-client/tests/integration/public-hub.mjs
+OVERTE_LAB_URL=http://127.0.0.1:8090 OVERTE_LAB_RECONNECT=1 OVERTE_LAB_REQUIRE_FLUID=1 \
+  OVERTE_LAB_BROWSER=system-firefox \
+  node browser-client/tests/integration/public-hub.mjs
+```
+
+These journeys require a usable actual graphics context and report measured
+frame times. A successful world connection alone does not establish fluid
+rendering. Public probes keep the microphone muted and do not edit the Hub.
+Genuine native Tablet application proofs live under `tests/integration/tablet-*.mjs`;
+the Places harness starts its own port-8093 gateway and refuses an occupied port.
+Their ignored evidence preserves source identities and actual application results;
+unfinished flows remain listed in the [feature inventory](../../docs/browser-client/FEATURE_PARITY.md).
 
 The `system-firefox` variant drives the installed `/usr/bin/firefox` through
 Puppeteer WebDriver BiDi, retaining the same real journey assertions. Override

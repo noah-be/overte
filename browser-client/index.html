@@ -23,7 +23,7 @@
         <select id="places" aria-label="Available domains"><option value="">Enter an address</option></select>
         <input id="domain" name="domain" placeholder="overte://domain.example" autocomplete="off" required maxlength="255">
         <label for="name">Your name</label>
-        <input id="name" name="name" value="Browser visitor" autocomplete="nickname" required maxlength="64">
+        <input id="name" name="name" value="Browser visitor" autocomplete="nickname" required maxlength="256">
         <button id="join" class="primary" type="submit">Join world <span aria-hidden="true">→</span></button>
       </form>
       <p class="hint">Your microphone starts off. You choose when to enable it.</p>
@@ -35,12 +35,13 @@
       <div class="session-buttons">
         <button id="microphone" type="button" aria-pressed="false">Enable microphone</button>
         <button id="sound" type="button" aria-pressed="true">Sound on</button>
+        <button id="tablet" type="button" aria-pressed="false" disabled>Tablet</button>
         <button id="leave" type="button">Leave</button>
       </div>
     </aside>
     <div id="notice" class="notice" role="status" hidden></div>
     <details id="diagnostics" class="diagnostics"><summary>Session details</summary><ul id="events"></ul></details>
-    <div id="help" class="help" hidden><strong>Click the world to look around</strong><span>W A S D · move &nbsp; Mouse · look &nbsp; Space · jump &nbsp; E · interact &nbsp; V · avatar view &nbsp; Esc · release mouse</span></div>
+    <div id="help" class="help" hidden><strong>Click the world to look around</strong><span>W A S D · move &nbsp; Mouse · look &nbsp; Space · jump &nbsp; E · interact &nbsp; V · avatar view &nbsp; T · tablet &nbsp; Esc · release mouse</span></div>
     <div id="loading" class="loading" hidden><span class="spinner"></span><strong id="loading-text">Connecting to domain…</strong></div>
   </main>
   <script type="module" src="/src/main.ts"></script>

@@ -1,6 +1,24 @@
 // Copyright 2026 Overte contributors
 // SPDX-License-Identifier: Apache-2.0
 import { lookup } from 'node:dns/promises';
+import { isIP } from 'node:net';
+
+export function managedUDPDomain(domain, configuredPorts) {
+    const url = new URL(domain);
+    const address = url.hostname;
+    if (isIP(address) !== 4 || !address.startsWith('127.') || address === '127.0.0.1') {
+        throw Error('Managed isolated domains require a dedicated loopback IPv4 address.');
+    }
+    const parts = typeof configuredPorts === 'string' ? configuredPorts.split(',') : [];
+    if (!parts.length || parts.length > 32 || parts.some(value => !/^\d{1,5}$/.test(value))) {
+        throw Error('Configure OVERTE_GATEWAY_MANAGED_UDP_PORTS with the exact domain and assignment UDP ports.');
+    }
+    const ports = parts.map(Number);
+    if (ports.some(value => value < 1 || value > 65535) || new Set(ports).size !== ports.length || !ports.includes(Number(url.port || 40102))) {
+        throw Error('Managed UDP ports must be distinct valid ports including this domain server port.');
+    }
+    return { address, ports };
+}
 
 // Asset bodies can be HTML/SVG; a direct navigation must never inherit the gateway origin.
 export const ASSET_SANDBOX_POLICY = "sandbox; script-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'";
@@ -52,6 +70,15 @@ export function pose(value) {
     if (Math.abs(q.x*q.x + q.y*q.y + q.z*q.z + q.w*q.w - 1) > 0.02) throw Error('Invalid avatar orientation.');
     if (value.velocity && !finite(value.velocity, ['x', 'y', 'z'], 100)) throw Error('Invalid avatar velocity.');
     return { type: 'pose', position: value.position, orientation: value.orientation, velocity: value.velocity };
+}
+export function nativePoseRequest(value, revision) {
+    if (value.permissionRevision !== revision || !Number.isSafeInteger(revision) || revision < 1 ||
+        typeof value.nonce !== 'string' || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(value.nonce)) {
+        throw Error('Invalid native navigation request.');
+    }
+    const validated = pose(value);
+    return { type: 'poseRequest', nonce: value.nonce, permissionRevision: revision,
+        position: validated.position, orientation: validated.orientation };
 }
 export const EXPOSED_PERMISSION_KEYS = ['id_can_connect', 'id_can_rez', 'id_can_rez_tmp', 'id_can_rez_avatar_entities',
     'id_can_view_asset_urls', 'id_can_adjust_locks', 'id_can_write_to_asset_server', 'id_can_replace_content',

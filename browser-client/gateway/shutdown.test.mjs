@@ -45,6 +45,9 @@ test('gateway shutdown refuses new work and waits for an already-closing owned s
             OVERTE_GATEWAY_PORT: String(port), OVERTE_GATEWAY_HOST: '127.0.0.1',
             OVERTE_GATEWAY_DOMAINS: domain, OVERTE_GATEWAY_ORIGINS: endpoint, OVERTE_GATEWAY_GUEST_POLICY: policyFile,
             OVERTE_INTERFACE: path.join(binaries, 'interface'), OVERTE_GATEWAY_PULSEAUDIO: path.join(binaries, 'pulseaudio'),
+            // These executable substitutes exercise the gateway's real shared
+            // teardown, not native isolation (tested separately with actual bwrap/Xvfb).
+            OVERTE_GATEWAY_WORKER_ISOLATION: 'off',
         }, stdio: ['ignore', 'pipe', 'pipe'] });
         await once(gateway.stdout, 'data');
         const authenticated = await fetch(`${endpoint}/api/session`);

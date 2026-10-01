@@ -1,0 +1,187 @@
+{
+  "scope": "Short actual local-domain BrowserWorld/gateway/native participant journey after cache, geometry and SimulationClock runtime integration. No endurance requirement. Audio input synthetic; no human microphone claim.",
+  "runs": [
+    {
+      "startedAt": "2026-10-01T07:59:30.552Z",
+      "finishedAt": "2026-10-01T08:00:48.322Z",
+      "browserVersion": "154.0.8037.57",
+      "nativeVersion": "2026.04.1",
+      "syntheticMicrophone": true,
+      "completed": true,
+      "sourceSHA256": {
+        "browser-client/gateway/server.mjs": "e268d609756eb19d95034058db9d7c0ce13a4a7d9db8a7afc8ecaa6cbff69175",
+        "browser-client/gateway/native-bridge.js": "f76bedb62cd3ad7e29b383bf16fb0f6d80cf7263de34c467bdba9c001b7354dd",
+        "browser-client/gateway/process-lifecycle.mjs": "e8d7e021a8b934b271910883e27c2a1109aedd22e12044b763d4bf8acc274eaf",
+        "browser-client/gateway/validation.mjs": "65eba4a66c76d4bfc0dbd18e172def64f43b37cca0db2301da5bf4d18645de79",
+        "browser-client/gateway/permission-policy.mjs": "1547f4106e4b4fb72701a434a4afb57907f3af9797e4daf4c8793e034587d591",
+        "browser-client/dist/index.html": "98a35100bdd676fd5f4823c3b3f547d19dd063d88cdf5f165f0345756be68890",
+        "browser-client/tests/integration/real-session.mjs": "d5148fb48ddb79b26d6d166d54e97c666cc7523a50636fac6390d8976d93f980",
+        "browser-client/tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "browser-client/package-lock.json": "76330fced87d7da3b6e550f9656bcb45da07fed560cc46d50a546b589d2dc695",
+        "browser-client/dist/assets/FBXLoader-DuvUZGFT.js": "e234f0fce0e7e7d3d04e3bed318aac6cb7ba70ac91cbc14f2d8e8b3edabfeb8f",
+        "browser-client/dist/assets/FBXLoader-DuvUZGFT.js.map": "7c7fb95bf916c3f26a39376d8d25d6f1557cadb462528517d80aa2630f1fdf99",
+        "browser-client/dist/assets/GLTFLoader-BnRCTbtQ.js": "3ba5ad40ba967afd9b7aac27392c6ee5f2548d2e04b0075007064ec3686b648a",
+        "browser-client/dist/assets/GLTFLoader-BnRCTbtQ.js.map": "b9ed191d203ac677cba0684a72e9f206761bb72b5883bd45359b71b4a6811b11",
+        "browser-client/dist/assets/OBJLoader-B7GRZYMD.js": "5f65d9fd78788be1faf076aca318aaef75af6340c2d474bba8fc6f3b70d0484b",
+        "browser-client/dist/assets/OBJLoader-B7GRZYMD.js.map": "505d3edd9da2e9facf4be734df25fbd0a4fd21a53ff8c0bb0e768cea46eb51b5",
+        "browser-client/dist/assets/baked-draco-legacy-CMhlgON6.js": "eb84ebc5eff49c7b0593382b07b23010897080f46b779ececdd515efcfb482d4",
+        "browser-client/dist/assets/baked-draco-legacy-CMhlgON6.js.map": "463d7b6f8dd5f569f2c0f68934aba0d1fba6c59745cf939732702f0e905afddb",
+        "browser-client/dist/assets/baked-draco-nPAk-sFt.js": "e4f957ed3009c746afacf8a77ee91626feb6dde4b45a0a1cc17743e6b2f379ff",
+        "browser-client/dist/assets/baked-draco-nPAk-sFt.js.map": "329bb9851384a2925c34f934267909474ae0e3283f86f67434304b2de34d8ce9",
+        "browser-client/dist/assets/draco_decoder-C32yEggz.wasm": "c55a594e8ffd18426d36b27fea9618af3df5e173640a3e56d46f09d76f0574f2",
+        "browser-client/dist/assets/draco_decoder-Z1_iN-Ht.wasm": "a680d927bed9cb864ddbd63521868891af2bfbe755092761b4837487618df8ac",
+        "browser-client/dist/assets/draco_decoder-fzg4nYZr.js": "30e4d486fa020737af10e3c56197693e5b904bdc05b8bfa5d7b06751dec6da04",
+        "browser-client/dist/assets/draco_wasm_wrapper-DxJM36Ib.js": "e8049906ef3f8f75d3456c22a3f31bfdfe5b5b5bd09ccdec613b9e9a49d554d8",
+        "browser-client/dist/assets/draco_wasm_wrapper-fZCQGLGb.js": "8bb2952d2ba7d67e1414f8df819410cb0434a666be53f671fff75f68843d76f6",
+        "browser-client/dist/assets/index-B2mAMfm4.css": "cbf321b921d05ff91c3020a6ccffc91385eeebf223ea6ec0577c6354df12a521",
+        "browser-client/dist/assets/index-IoDBzl1i.js": "42351bc80006098882bfd5bd8a7c069183553e0d810bcfd9e294d7e34fcab844",
+        "browser-client/dist/assets/index-IoDBzl1i.js.map": "f0e5b7ed8b0b7db02d31ced2bb6952014ee357f5c71489fb97de5b977963f0dc",
+        "browser-client/dist/assets/model-fbx-worker-mCScXMXp.js": "54cc66200e506deb7e541a5baf66a3dcf952c866527977b7d964f528670b2c39",
+        "browser-client/dist/assets/model-fbx-worker-mCScXMXp.js.map": "c5ef3eb22a158f5193b7c49b8d1299ee15e9588e25c171f9bd2a94ea0d235771",
+        "browser-client/dist/assets/tablet-gif.worker-DACjp6Cn.js": "78ebb1c3db4d062dd4119c2cd86d201b7df2757fedf22a8993dd460fbb1057c8",
+        "browser-client/dist/assets/tablet-gif.worker-DACjp6Cn.js.map": "0d3741b166327d49c79829e03bc313c6ac33ad62ed758a1e59877e19a40c5264",
+        "browser-client/dist/assets/texture-alpha-worker-CBG2kYQR.js": "f04f415ff39370ae4ab0268903ffaf6c86b9a7addeb0aed95d4a7948ee803485",
+        "browser-client/dist/assets/texture-alpha-worker-CBG2kYQR.js.map": "f48e806d67a554aba1960a23ab434a093c5ac7f00540615cf23ed1fff0586aeb"
+      },
+      "checkpointNames": [
+        "actual-domain-joined",
+        "native-sees-browser",
+        "movement-measured",
+        "browser-movement-synchronized",
+        "native-movement-synchronized",
+        "actual-world-collision",
+        "interaction-measured",
+        "interaction-observed-by-native",
+        "browser-to-native-audio",
+        "native-to-browser-audio",
+        "stable-real-connection",
+        "native-observed-clean-leave",
+        "reconnected-to-actual-domain",
+        "reconnection-movement-observed",
+        "reconnection-movement",
+        "mouse-look",
+        "final-view",
+        "all-real-session-assertions-passed"
+      ],
+      "movementMeters": 2.219955588551029,
+      "browser-to-native-audio": {
+        "input": "Synthetic 440Hz fake microphone WAV",
+        "nativeOutput": {
+          "rms": 0.009031917728872373,
+          "peak": 0.02398681640625,
+          "bytes": 953952,
+          "tone440Amplitude": 0.00384996733923036,
+          "tone997Amplitude": 2.8665045854934424e-06
+        },
+        "browser": {
+          "incomingNonzero": 0,
+          "incomingPeak": 6.103515625e-05,
+          "outgoingNonzero": 370,
+          "outgoingPeak": 0.124969482421875
+        }
+      },
+      "native-to-browser-audio": {
+        "input": "Synthetic 997Hz injected private native microphone",
+        "browserOutput": {
+          "rms": 0.011064189581616785,
+          "peak": 0.02557373046875,
+          "bytes": 959904,
+          "tone440Amplitude": 5.447772788390863e-07,
+          "tone997Amplitude": 0.009493169189868061
+        }
+      },
+      "buildHashesStillMatchAtCuration": true
+    },
+    {
+      "startedAt": "2026-10-01T08:01:52.279Z",
+      "finishedAt": "2026-10-01T08:02:59.847Z",
+      "browserVersion": "firefox/156.0",
+      "nativeVersion": "2026.04.1",
+      "syntheticMicrophone": true,
+      "completed": true,
+      "sourceSHA256": {
+        "browser-client/gateway/server.mjs": "e268d609756eb19d95034058db9d7c0ce13a4a7d9db8a7afc8ecaa6cbff69175",
+        "browser-client/gateway/native-bridge.js": "f76bedb62cd3ad7e29b383bf16fb0f6d80cf7263de34c467bdba9c001b7354dd",
+        "browser-client/gateway/process-lifecycle.mjs": "e8d7e021a8b934b271910883e27c2a1109aedd22e12044b763d4bf8acc274eaf",
+        "browser-client/gateway/validation.mjs": "65eba4a66c76d4bfc0dbd18e172def64f43b37cca0db2301da5bf4d18645de79",
+        "browser-client/gateway/permission-policy.mjs": "1547f4106e4b4fb72701a434a4afb57907f3af9797e4daf4c8793e034587d591",
+        "browser-client/dist/index.html": "98a35100bdd676fd5f4823c3b3f547d19dd063d88cdf5f165f0345756be68890",
+        "browser-client/tests/integration/real-session.mjs": "d5148fb48ddb79b26d6d166d54e97c666cc7523a50636fac6390d8976d93f980",
+        "browser-client/tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "browser-client/package-lock.json": "76330fced87d7da3b6e550f9656bcb45da07fed560cc46d50a546b589d2dc695",
+        "browser-client/dist/assets/FBXLoader-DuvUZGFT.js": "e234f0fce0e7e7d3d04e3bed318aac6cb7ba70ac91cbc14f2d8e8b3edabfeb8f",
+        "browser-client/dist/assets/FBXLoader-DuvUZGFT.js.map": "7c7fb95bf916c3f26a39376d8d25d6f1557cadb462528517d80aa2630f1fdf99",
+        "browser-client/dist/assets/GLTFLoader-BnRCTbtQ.js": "3ba5ad40ba967afd9b7aac27392c6ee5f2548d2e04b0075007064ec3686b648a",
+        "browser-client/dist/assets/GLTFLoader-BnRCTbtQ.js.map": "b9ed191d203ac677cba0684a72e9f206761bb72b5883bd45359b71b4a6811b11",
+        "browser-client/dist/assets/OBJLoader-B7GRZYMD.js": "5f65d9fd78788be1faf076aca318aaef75af6340c2d474bba8fc6f3b70d0484b",
+        "browser-client/dist/assets/OBJLoader-B7GRZYMD.js.map": "505d3edd9da2e9facf4be734df25fbd0a4fd21a53ff8c0bb0e768cea46eb51b5",
+        "browser-client/dist/assets/baked-draco-legacy-CMhlgON6.js": "eb84ebc5eff49c7b0593382b07b23010897080f46b779ececdd515efcfb482d4",
+        "browser-client/dist/assets/baked-draco-legacy-CMhlgON6.js.map": "463d7b6f8dd5f569f2c0f68934aba0d1fba6c59745cf939732702f0e905afddb",
+        "browser-client/dist/assets/baked-draco-nPAk-sFt.js": "e4f957ed3009c746afacf8a77ee91626feb6dde4b45a0a1cc17743e6b2f379ff",
+        "browser-client/dist/assets/baked-draco-nPAk-sFt.js.map": "329bb9851384a2925c34f934267909474ae0e3283f86f67434304b2de34d8ce9",
+        "browser-client/dist/assets/draco_decoder-C32yEggz.wasm": "c55a594e8ffd18426d36b27fea9618af3df5e173640a3e56d46f09d76f0574f2",
+        "browser-client/dist/assets/draco_decoder-Z1_iN-Ht.wasm": "a680d927bed9cb864ddbd63521868891af2bfbe755092761b4837487618df8ac",
+        "browser-client/dist/assets/draco_decoder-fzg4nYZr.js": "30e4d486fa020737af10e3c56197693e5b904bdc05b8bfa5d7b06751dec6da04",
+        "browser-client/dist/assets/draco_wasm_wrapper-DxJM36Ib.js": "e8049906ef3f8f75d3456c22a3f31bfdfe5b5b5bd09ccdec613b9e9a49d554d8",
+        "browser-client/dist/assets/draco_wasm_wrapper-fZCQGLGb.js": "8bb2952d2ba7d67e1414f8df819410cb0434a666be53f671fff75f68843d76f6",
+        "browser-client/dist/assets/index-B2mAMfm4.css": "cbf321b921d05ff91c3020a6ccffc91385eeebf223ea6ec0577c6354df12a521",
+        "browser-client/dist/assets/index-IoDBzl1i.js": "42351bc80006098882bfd5bd8a7c069183553e0d810bcfd9e294d7e34fcab844",
+        "browser-client/dist/assets/index-IoDBzl1i.js.map": "f0e5b7ed8b0b7db02d31ced2bb6952014ee357f5c71489fb97de5b977963f0dc",
+        "browser-client/dist/assets/model-fbx-worker-mCScXMXp.js": "54cc66200e506deb7e541a5baf66a3dcf952c866527977b7d964f528670b2c39",
+        "browser-client/dist/assets/model-fbx-worker-mCScXMXp.js.map": "c5ef3eb22a158f5193b7c49b8d1299ee15e9588e25c171f9bd2a94ea0d235771",
+        "browser-client/dist/assets/tablet-gif.worker-DACjp6Cn.js": "78ebb1c3db4d062dd4119c2cd86d201b7df2757fedf22a8993dd460fbb1057c8",
+        "browser-client/dist/assets/tablet-gif.worker-DACjp6Cn.js.map": "0d3741b166327d49c79829e03bc313c6ac33ad62ed758a1e59877e19a40c5264",
+        "browser-client/dist/assets/texture-alpha-worker-CBG2kYQR.js": "f04f415ff39370ae4ab0268903ffaf6c86b9a7addeb0aed95d4a7948ee803485",
+        "browser-client/dist/assets/texture-alpha-worker-CBG2kYQR.js.map": "f48e806d67a554aba1960a23ab434a093c5ac7f00540615cf23ed1fff0586aeb"
+      },
+      "checkpointNames": [
+        "actual-domain-joined",
+        "native-sees-browser",
+        "movement-measured",
+        "browser-movement-synchronized",
+        "native-movement-synchronized",
+        "actual-world-collision",
+        "interaction-measured",
+        "interaction-observed-by-native",
+        "browser-to-native-audio",
+        "native-to-browser-audio",
+        "stable-real-connection",
+        "native-observed-clean-leave",
+        "reconnected-to-actual-domain",
+        "reconnection-movement-observed",
+        "reconnection-movement",
+        "mouse-look",
+        "final-view",
+        "all-real-session-assertions-passed"
+      ],
+      "movementMeters": 2.219955090418323,
+      "browser-to-native-audio": {
+        "input": "Firefox generated fake microphone signal",
+        "nativeOutput": {
+          "rms": 0.007879388269242414,
+          "peak": 0.02081298828125,
+          "bytes": 956144,
+          "tone440Amplitude": 2.334435183960895e-06,
+          "tone997Amplitude": 0.0004220632664665803
+        },
+        "browser": {
+          "incomingNonzero": 0,
+          "incomingPeak": 6.103515625e-05,
+          "outgoingNonzero": 288,
+          "outgoingPeak": 0.0999755859375
+        }
+      },
+      "native-to-browser-audio": {
+        "input": "Synthetic 997Hz injected private native microphone",
+        "browserOutput": {
+          "rms": 0.011330921736124357,
+          "peak": 0.025482177734375,
+          "bytes": 958548,
+          "tone440Amplitude": 2.704102984877126e-07,
+          "tone997Amplitude": 0.009460362612365674
+        }
+      },
+      "buildHashesStillMatchAtCuration": true
+    }
+  ]
+}

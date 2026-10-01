@@ -22,7 +22,11 @@ const evidence = { startedAt: new Date().toISOString(), browser: browserKind, du
     domain: 'hifi://127.0.0.2:45102', nativeVersion: '2026.04.1', syntheticMicrophone: true,
     checkpoints: [], assertions: [], completed: false, endurance: 'Omitted at the user’s explicit instruction; default is a short functional journey.' };
 const delay = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
-const save = async () => writeFile(path.join(evidenceDirectory, `real-session-${browserKind}.json`), JSON.stringify(evidence, null, 2) + '\n');
+const save = async () => {
+    const contents=JSON.stringify(evidence,null,2)+'\n';
+    await writeFile(path.join(evidenceDirectory,`real-session-${browserKind}-${evidence.startedAt.replace(/[:.]/g,'-')}.json`),contents);
+    await writeFile(path.join(evidenceDirectory,`real-session-${browserKind}.json`),contents);
+};
 const checkpoint = async (name, data = {}) => {
     evidence.checkpoints.push({ name, at: new Date().toISOString(), ...data });
     await save(); console.log(JSON.stringify(evidence.checkpoints.at(-1)));
@@ -64,10 +68,12 @@ async function capture(pulseServer, source, filename, seconds = 5) {
     return rms(await readFile(filename));
 }
 async function startBrowser() {
+    const display = process.env.OVERTE_LAB_BROWSER_DISPLAY;
+    const browserEnvironment = {...process.env,PULSE_SERVER:browserPulse,...(display ? {DISPLAY:display} : {})};
     if(browserKind==='system-firefox')return launchSystemFirefox({executablePath:process.env.OVERTE_LAB_FIREFOX||'/usr/bin/firefox',
-        env:{...process.env,PULSE_SERVER:browserPulse}});
-    const options = {headless:true,ignoreDefaultArgs:['--mute-audio'],env:{...process.env,PULSE_SERVER:browserPulse}, args:isChromium
-        ? ['--use-angle=swiftshader','--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream',
+        headless:!display,env:browserEnvironment});
+    const options = {headless:!display,ignoreDefaultArgs:['--mute-audio'],env:browserEnvironment, args:isChromium
+        ? [...(!display ? ['--use-angle=swiftshader'] : []),'--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream',
             `--use-file-for-fake-audio-capture=${evidenceDirectory}/browser-microphone.wav`]
         : [], firefoxUserPrefs:browserKind==='firefox' ? {'media.navigator.streams.fake':true,'media.navigator.permission.disabled':true} : undefined};
     if(isChromium && process.env.OVERTE_LAB_CHROMIUM)options.executablePath=path.resolve(repo,process.env.OVERTE_LAB_CHROMIUM);
@@ -163,7 +169,8 @@ try {
     const before = await page.evaluate(() => window.__overte.pose.position);
     await page.keyboard.down('KeyW'); await delay(1200); await page.keyboard.up('KeyW'); await delay(3000);
     const after = await page.evaluate(() => window.__overte.pose.position);
-    await checkpoint('movement-measured',{before,after});
+    await checkpoint('movement-measured',{before,after,performance:await page.evaluate(()=>window.__overte.performance),
+        browserPresentation:await page.evaluate(()=>({visibility:document.visibilityState,focused:document.hasFocus()}))});
     assert(Math.hypot(after.x-before.x, after.z-before.z) > .5, 'Browser WASD moves actual avatar');
     native = await nativeObservation();
     const visibleBrowser = native.data.avatars.find(avatar=>avatar.displayName===`Browser-Lab-Audit-${browserKind}`);
@@ -238,6 +245,10 @@ try {
     const rejoinBefore=rejoinPose.position;
     await page.keyboard.down('KeyD'); await delay(700); await page.keyboard.up('KeyD'); await delay(500);
     const rejoinAfter=await page.evaluate(()=>window.__overte.pose.position);
+    await checkpoint('reconnection-movement-observed',{before:rejoinBefore,after:rejoinAfter,
+        controls:await page.evaluate(()=>({tabletVisible:window.__overte.tabletVisible,focusedTag:document.activeElement?.tagName,
+            focusedLabel:document.activeElement?.getAttribute('aria-label'),connected:window.__overte.connected,
+            performance:window.__overte.performance})),nativePosition:(await nativeObservation()).data.position});
     assert(Math.hypot(rejoinAfter.x-rejoinBefore.x,rejoinAfter.z-rejoinBefore.z)>.4,'Reconnected browser can move through the actual world');
     await checkpoint('reconnection-movement',{before:rejoinBefore,after:rejoinAfter});
     const lookBefore=await page.evaluate(()=>window.__overte.pose.orientation);

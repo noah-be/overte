@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 import './style.css';
 import { BrowserAudio } from './audio';
-import { BrowserSession } from './session';
+import { CompressedColorSession } from './compressed-color-session';
 import type { ServerMessage } from './session';
 import { BrowserWorld } from './world';
+import { BrowserTablet } from './tablet';
+import { NavigationHistory, type NavigationAttempt } from './navigation-history';
+import { VisitorPreferenceStore } from './visitor-preferences';
+import { VisitorPersonaStore } from './visitor-persona';
 
 const element = <T extends HTMLElement>(id:string) => document.getElementById(id) as T;
 const form = element<HTMLFormElement>('join-form');
@@ -13,9 +17,11 @@ const joinButton = element<HTMLButtonElement>('join');
 const places = element<HTMLSelectElement>('places');
 const micButton = element<HTMLButtonElement>('microphone');
 const soundButton = element<HTMLButtonElement>('sound');
+const tabletButton = element<HTMLButtonElement>('tablet');
 const notice = element('notice');
 let world: BrowserWorld | undefined;
 let audio: BrowserAudio | undefined;
+let tablet: BrowserTablet | undefined;
 let epoch = 0;
 let entityCount = 0;
 let avatarCount = 0;
@@ -24,6 +30,21 @@ let ready = false;
 let worldLoaded = false;
 let errorNotice = false;
 let microphonePending = false;
+const navigationHistory = new NavigationHistory();
+let navigationAttempt:NavigationAttempt | undefined;
+let permissionRevision = 0;
+const navigationNonces = new Set<string>();
+// Access itself can be refused by browser privacy/storage settings.
+let visitorStorage:Pick<Storage,'getItem'|'setItem'>;
+try { visitorStorage = window.localStorage; }
+catch { visitorStorage = {getItem:()=>{throw Error('Storage unavailable');},setItem:()=>{throw Error('Storage unavailable');}}; }
+const visitorPreferences = new VisitorPreferenceStore(visitorStorage,message=>log(message,'warning'));
+const visitorPersona = new VisitorPersonaStore(visitorStorage,message=>log(message,'warning'));
+if (visitorPersona.snapshot().displayName!==undefined) nameInput.value=visitorPersona.snapshot().displayName!;
+
+function sendNavigationHistory():void {
+    if (ready && permissionRevision > 0) session.send({type:'navigationHistoryState', permissionRevision, ...navigationHistory.state});
+}
 
 function log(message:string, kind='info'): void {
     const item = document.createElement('li');
@@ -52,8 +73,10 @@ function updateMicrophone(): void {
 }
 
 function reset(): void {
+    if (ready && world) navigationHistory.rememberDeparture(world.getPose());
     epoch++;
     session.leave();
+    tablet?.dispose(); tablet = undefined; tabletButton.disabled = true;
     world?.dispose();
     world = undefined;
     void audio?.dispose();
@@ -62,6 +85,10 @@ function reset(): void {
     ready = false;
     worldLoaded = false;
     microphonePending = false;
+    navigationAttempt = undefined;
+    navigationHistory.cancel();
+    permissionRevision = 0;
+    navigationNonces.clear();
     entityCount = avatarCount = 0;
     joinButton.disabled = false;
     element('welcome').hidden = false;
@@ -88,6 +115,7 @@ function onMessage(message:ServerMessage): void {
                 ready = false;
                 worldLoaded = false;
                 world?.setEnabled(false);
+                tablet?.setConnected(false); tabletButton.disabled = true;
                 element('aim').hidden = true;
                 world?.setEntities([]);
                 world?.setAvatars([]);
@@ -100,6 +128,11 @@ function onMessage(message:ServerMessage): void {
             }
             if (message.state === 'connected' && !ready) {
                 ready = true;
+                if (navigationAttempt) navigationHistory.commit(navigationAttempt);
+                navigationAttempt = undefined;
+                if (message.permissionRevision) permissionRevision = message.permissionRevision;
+                sendNavigationHistory();
+                tablet?.setConnected(true); tabletButton.disabled = false;
                 joining = false;
                 world?.setEnabled(worldLoaded);
                 element('aim').hidden = !worldLoaded;
@@ -112,8 +145,10 @@ function onMessage(message:ServerMessage): void {
             }
             break;
         case 'entities':
-            world?.setEntities(message.entities);
-            entityCount = message.entities.length;
+        case 'entityUpdates':
+            if (message.type === 'entities') world?.setEntities(message.entities);
+            else { world?.removeEntities(message.removed); world?.upsertEntities(message.entities); }
+            entityCount = world?.entityCount ?? 0;
             if (entityCount || worldLoaded) {
                 worldLoaded = true;
                 world?.setEnabled(ready);
@@ -133,22 +168,57 @@ function onMessage(message:ServerMessage): void {
         case 'pose':
             world?.setSpawn(message.position, message.orientation);
             break;
+        case 'poseRequest':
+            if (!world || !ready || (permissionRevision && message.permissionRevision !== permissionRevision)) break;
+            world.setSpawn(message.position, message.orientation);
+            session.send({type:'poseAccepted', nonce:message.nonce, permissionRevision:message.permissionRevision});
+            break;
+        case 'navigation':
+        case 'navigationHistory': {
+            if (!ready || navigationNonces.has(message.nonce) || (permissionRevision && message.permissionRevision !== permissionRevision)) break;
+            if (navigationNonces.size >= 64) navigationNonces.delete(navigationNonces.values().next().value!);
+            navigationNonces.add(message.nonce);
+            const target = message.type === 'navigation' ? {domain:message.domain} : navigationHistory.traverse(message.direction);
+            if (!target) { sendNavigationHistory(); log('No previous world is available in this direction.', 'warning'); break; }
+            const domain = target.domain;
+            // Revoke and dispose the entire old worker, world, microphone and
+            // Tablet before the ordinary gateway admission for the new world.
+            const direction = message.type === 'navigationHistory' ? message.direction : undefined;
+            void joinDomain(domain, direction);
+            break;
+        }
+        case 'visitorPreferences':
+            if (ready && message.permissionRevision === permissionRevision) visitorPreferences.update({bookmarks:message.bookmarks,...(message.home === undefined ? {} : {home:message.home})});
+            break;
+        case 'visitorPersona':
+            if (ready && message.permissionRevision===permissionRevision) {
+                const fields=Object.fromEntries(['displayName','avatarURL','avatarScale','avatarFavorites']
+                    .filter(key=>Object.hasOwn(message,key)).map(key=>[key,message[key as keyof typeof message]]));
+                visitorPersona.update(fields);
+                if (message.displayName!==undefined) nameInput.value=message.displayName;
+            }
+            break;
         case 'error': log(message.message, 'error'); break;
         case 'warning': log(message.message, 'warning'); break;
         case 'interaction': log(message.message); break;
+        case 'tablet':
+            if (message.revision !== permissionRevision) { permissionRevision = message.revision; sendNavigationHistory(); }
+            tablet?.receive(message); break;
     }
 }
-const session = new BrowserSession({
+const session = new CompressedColorSession({
     message: onMessage,
     audio: data => audio?.receive(data),
     closed: reason => { reset(); if (!errorNotice) log(reason, 'warning'); },
     error: reason => log(reason, 'error'),
 });
 
-form.addEventListener('submit', async event => {
-    event.preventDefault();
+async function joinDomain(domain:string, direction?:'back'|'forward'):Promise<void> {
     if (joining) return;
     reset();
+    navigationAttempt = direction ? navigationHistory.traverse(direction) : navigationHistory.begin(domain);
+    if (!navigationAttempt) return;
+    domainInput.value = domain;
     const generation = epoch;
     joining = true;
     errorNotice = false;
@@ -164,6 +234,7 @@ form.addEventListener('submit', async event => {
     try {
         world = new BrowserWorld(element('world'), {
             resolveAsset: url => session.assetURL(url),
+            compressedColors: (capabilities, signal) => session.compressedColors(capabilities, signal),
             onPose: pose => session.sendPose(pose),
             onInteract: entity => session.send({type:'interact', entityId:entity.id}),
             onStatus: log,
@@ -172,19 +243,47 @@ form.addEventListener('submit', async event => {
             session.send({type:'mute', muted});
             updateMicrophone();
         });
+        tablet = new BrowserTablet(element('app'), {
+            send: message => session.send(message), onStatus: message => log(message, 'warning'),
+            fileURL: name => {
+                if (!session.sessionId) throw new Error('Join a world before accessing visitor files');
+                return `/api/tablet-files/${encodeURIComponent(session.sessionId)}${name === undefined ? '' : `?name=${encodeURIComponent(name)}`}`;
+            },
+            captureScene: () => world ? world.captureScene() : Promise.reject(new Error('Join a world before taking a snapshot')),
+            onVisibility: visible => {
+                world?.setInputEnabled(!visible); world?.setPresentationEnabled(!visible);
+                tabletButton.setAttribute('aria-pressed', String(visible));
+            },
+            onMicrophoneRequest: muted => {
+                if (!ready || !audio || audio.muted === muted) return;
+                if (muted) { audio.stopMicrophone(); session.send({type:'mute', muted:true}); updateMicrophone(); }
+                else micButton.click();
+            },
+        });
         // Create/resume the audio context within the join gesture for browser autoplay policy.
         await audio.start().catch(error => log(`Audio unavailable: ${error.message}`, 'warning'));
         const response = await fetch('/api/session', {credentials:'same-origin', cache:'no-store'});
         if (!response.ok) throw new Error(`Gateway returned HTTP ${response.status}`);
         if (generation !== epoch) return;
-        session.join(domainInput.value.trim(), nameInput.value.trim());
+        visitorPersona.update({displayName:nameInput.value.trim()});
+        session.join(domain, nameInput.value.trim(),visitorPreferences.snapshot(),visitorPersona.snapshot());
     } catch (error) {
         if (generation !== epoch) return;
         reset();
         log(`Unable to join: ${error instanceof Error ? error.message : String(error)}`, 'error');
     }
+}
+form.addEventListener('submit', event => {
+    event.preventDefault();
+    void joinDomain(domainInput.value.trim());
 });
 element('leave').addEventListener('click', () => { reset(); log('You left the domain. Microphone and session stopped.'); });
+tabletButton.addEventListener('click', () => { if (tablet?.visible) tablet.close(); else tablet?.open(); });
+window.addEventListener('keydown', event => {
+    if (event.code !== 'KeyT' || event.repeat || event.ctrlKey || event.metaKey || event.altKey
+        || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement) return;
+    if (ready) { event.preventDefault(); if (tablet?.visible) tablet.close(); else tablet?.open(); }
+});
 micButton.addEventListener('click', async () => {
     if (!ready || !audio || microphonePending) return;
     if (!audio.muted) {
@@ -239,4 +338,9 @@ Object.defineProperty(window, '__overte', {value:{
     get entityCount() { return entityCount; },
     get avatarCount() { return avatarCount; },
     get audio() { return audio?.stats; },
+    get performance() { return world?.getPerformance(); },
+    get tabletVisible() { return tablet?.visible ?? false; },
+    get avatarRig() { return world?.getSelfAvatarRig(); },
+    get avatarRender() { return world?.getSelfAvatarRenderState(); },
+    get renderInventory() { return world?.getRenderInventory(); },
 }, configurable:true});

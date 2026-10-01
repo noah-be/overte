@@ -1,5 +1,8 @@
 dist/
+build/
 test-results/
+test-results-*/
 playwright-report/
 .lab/
 *.local.json
+public/default-avatar/

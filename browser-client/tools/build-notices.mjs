@@ -8,6 +8,17 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const threeRoot = path.join(root, 'node_modules/three');
 const threePackage = JSON.parse(await readFile(path.join(threeRoot, 'package.json'), 'utf8'));
 const threeLicense = await readFile(path.join(threeRoot, 'LICENSE'), 'utf8');
+const bvhRoot = path.join(root, 'node_modules/three-mesh-bvh');
+const bvhPackage = JSON.parse(await readFile(path.join(bvhRoot, 'package.json'), 'utf8'));
+const bvhLicense = await readFile(path.join(bvhRoot, 'LICENSE'), 'utf8');
+const gifRoot=path.join(root,'node_modules/gifenc');
+const gifPackage=JSON.parse(await readFile(path.join(gifRoot,'package.json'),'utf8'));
+const gifLicense=await readFile(path.join(gifRoot,'LICENSE.md'),'utf8');
+const legacyDraco=JSON.parse(await readFile(path.join(root,'node_modules/draco3d/package.json'),'utf8'));
+const dracoLicense = await readFile(path.join(root, 'tools/DRACO_LICENSE.txt'), 'utf8');
+if (!dracoLicense.includes('Apache License') || !dracoLicense.includes('END OF TERMS AND CONDITIONS')) throw Error('The bundled Draco license is incomplete.');
+const nativeToneLicense = await readFile(path.join(root, 'tools/NATIVE_TONE_LICENSE.txt'), 'utf8');
+if (!nativeToneLicense.includes('Copyright (c) 2016 MJP') || !nativeToneLicense.includes('Copyright (c) 2022 @64') || !nativeToneLicense.includes('THE SOFTWARE IS PROVIDED')) throw Error('Native filmic tone curve license is incomplete.');
 const fflateSource = await readFile(path.join(threeRoot, 'examples/jsm/libs/fflate.module.js'), 'utf8');
 
 // Three.js vendors fflate without its separate LICENSE file. Preserve the complete notice from
@@ -58,6 +69,41 @@ fflate ${fflateVersion}, vendored in Three.js FBXLoader dependencies
 https://github.com/101arrowz/fflate/tree/v${fflateVersion}
 Complete license from the corresponding upstream release:
 
-${fflateLicense}`;
+${fflateLicense}
+--------------------------------------------------------------------------------
+
+three-mesh-bvh ${bvhPackage.version}
+https://github.com/gkjohnson/three-mesh-bvh
+Complete license copied from the installed package:
+
+${bvhLicense.trimEnd()}
+
+--------------------------------------------------------------------------------
+
+gifenc ${gifPackage.version}
+https://github.com/mattdesl/gifenc
+Complete license copied from the installed package:
+
+${gifLicense.trimEnd()}
+
+--------------------------------------------------------------------------------
+
+Google Draco decoder, WebAssembly and wrapper bundled in Three.js ${threePackage.version}
+Google legacy Draco decoder ${legacyDraco.version} for native Overte custom semantic attributes
+https://github.com/google/draco
+https://github.com/google/draco/blob/main/LICENSE
+Complete upstream license reviewed on 2026-09-30 (including source-specific additional notices):
+
+${dracoLicense.trimEnd()}
+
+--------------------------------------------------------------------------------
+
+Native filmic tone curve, derived from the native Overte toneMapping.slf sources:
+https://github.com/TheRealMJP/BakingLab/blob/master/BakingLab/ACES.hlsl
+https://github.com/64/64.github.io/blob/src/code/tonemapping/tonemap.cpp
+Complete MIT notice retained with the corresponding browser shader source:
+
+${nativeToneLicense.trimEnd()}
+`;
 await writeFile(path.join(root, 'dist/THIRD_PARTY_NOTICES.txt'), notices);
-console.log('Wrote dist/THIRD_PARTY_NOTICES.txt (complete Three.js and fflate MIT notices).');
+console.log('Wrote dist/THIRD_PARTY_NOTICES.txt (complete Three.js, fflate, three-mesh-bvh gifenc, and both Draco decoder and native filmic tone curve notices).');
