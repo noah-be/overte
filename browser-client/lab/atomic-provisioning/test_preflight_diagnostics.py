@@ -261,5 +261,67 @@ class ActualGeneratedPreflightTests(unittest.TestCase):
         self.assertEqual(result['projection']['innerObservation']['captureStatus'], 'read-refused')
         self.assertFalse(result['projection']['innerObservation']['innerStarted'])
 
+
+
+class PrivateFailureCaptureTests(unittest.TestCase):
+    def test_original_failed_bytes_remain_private_bounded_and_no_raw_output(self):
+        import tempfile
+        import stat
+        with tempfile.TemporaryDirectory() as directory:
+            stdout = b'private-account' * 1000
+            stderr = b'private-executable: opaque' * 1000
+            result = D.retain_failed_preflight(directory, stdout, stderr)
+            self.assertEqual(result['status'], 'retained-private')
+            self.assertEqual(result['stdoutRetainedBytes'], D.MAX_BYTES)
+            self.assertEqual(result['stderrRetainedBytes'], D.MAX_BYTES)
+            self.assertTrue(result['stdoutTruncated']); self.assertTrue(result['stderrTruncated'])
+            children = list(Path(directory).iterdir()); self.assertEqual(len(children), 1)
+            self.assertEqual(stat.S_IMODE(children[0].stat().st_mode), 0o700)
+            for label, expected in [('stdout', stdout), ('stderr', stderr)]:
+                file = children[0] / (label + '-prefix.private.log')
+                self.assertEqual(stat.S_IMODE(file.stat().st_mode), 0o600)
+                self.assertEqual(file.read_bytes(), expected[:D.MAX_BYTES])
+            self.assertNotIn('private-account', json.dumps(result)); self.assertNotIn(directory, json.dumps(result))
+    def test_unsafe_parent_and_symlink_refuse_without_write_and_missing_optional_input(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); writable = root / 'wrong'; writable.mkdir(mode=0o755); writable.chmod(0o755)
+            self.assertEqual(D.retain_failed_preflight(str(writable), b'x', b'y')['status'], 'retention-refused')
+            link = root / 'link'; link.symlink_to(root, target_is_directory=True)
+            self.assertEqual(D.retain_failed_preflight(str(link), b'x', b'y')['status'], 'retention-refused')
+            self.assertEqual(list(writable.iterdir()), [])
+            self.assertEqual(D.retain_failed_preflight(None, b'x', b'y')['status'], 'not-configured')
+    def test_unsafe_parent_control_remains_unsafe_under_restrictive_umask(self):
+        original = os.umask(0o077)
+        try:
+            self.test_unsafe_parent_and_symlink_refuse_without_write_and_missing_optional_input()
+        finally:
+            os.umask(original)
+
+    def test_capture_write_failure_cannot_replace_original_failure_and_fds_close(self):
+        import tempfile
+        opened = []; original_open = os.open
+        def tracked_open(*args, **kwargs):
+            descriptor = original_open(*args, **kwargs); opened.append(descriptor); return descriptor
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(D.os, 'open', side_effect=tracked_open), patch.object(D.os, 'write', side_effect=OSError('private failure')):
+                result = D.retain_failed_preflight(directory, b'x', b'y')
+            self.assertEqual(result['status'], 'retention-refused'); self.assertNotIn('private failure', json.dumps(result))
+            self.assertEqual(len(opened), 3)
+            for descriptor in opened:
+                with self.assertRaises(OSError): os.fstat(descriptor)
+    def test_installed_setpriv_literal_variants_project_fixed_no_path_and_unknown_stays_unknown(self):
+        for line, category in [(b'setpriv: apply bounding set: Operation not permitted', 'capability-action-refused'), (b'setpriv: setresuid failed: Permission denied', 'identity-action-refused'), (b'setpriv: setgroups failed: Operation not permitted', 'identity-action-refused')]:
+            self.assertEqual(D.stderr_failure(line), category)
+        self.assertEqual(D.stderr_failure(b'private-tool: apply bounding set: Operation not permitted'), 'unobserved-or-unclassified')
+        self.assertEqual(D.stderr_failure(b'opaque private stderr'), 'unobserved-or-unclassified')
+    def test_original_preflight_argv_timeout_asserts_and_one_run_are_unchanged(self):
+        source = (HERE / 'test_observer.py').read_text()
+        self.assertIn('stderr=subprocess.PIPE, timeout=8)', source)
+        self.assertIn("'--bounding-set=-all', '--inh-caps=-all'", source)
+        self.assertIn("assert r[\"exitCode\"]==0 and r[\"projection\"][\"calls\"][\"fsync\"][\"success\"]>=1", source)
+        self.assertIn("self.assertEqual(result.returncode, 0, 'unchanged-own-child-confinement-preflight-refused:'", source)
+
+
 if __name__ == '__main__':
     unittest.main()

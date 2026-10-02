@@ -169,6 +169,9 @@ class ObserverTests(unittest.TestCase):
                 '--ipc', '--', '/usr/bin/setpriv', '--bounding-set=-all', '--inh-caps=-all',
                 '--ambient-caps=-all', '--', sys.executable, str(entry)], stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE, timeout=8)
+            if result.returncode != 0:
+                retained = preflight_diagnostics.retain_failed_preflight(os.environ.get('ATOMIC_DIAGNOSTIC_CACHE'), result.stdout, result.stderr)
+                print('ATOMIC_PREFLIGHT_PRIVATE_CAPTURE:' + json.dumps(retained, sort_keys=True, separators=(',', ':')), flush=True)
             self.assertEqual(result.returncode, 0, 'unchanged-own-child-confinement-preflight-refused:' +
                 json.dumps(preflight_diagnostics.project_preflight(result.returncode, result.stdout, result.stderr),
                            sort_keys=True, separators=(',', ':')))

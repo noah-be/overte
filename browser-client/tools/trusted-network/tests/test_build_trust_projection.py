@@ -67,4 +67,50 @@ class Projection(unittest.TestCase):
   source=(BASE/'workflow/build.py').read_text()
   for guard in ('info.st_uid!=0 or info.st_mode&0o022','not stat.S_ISREG(before.st_mode) or before.st_uid or before.st_mode&0o022 or not 0<=before.st_size<=MAX_ALIAS_BYTES','info.st_mode&0o022 or (not stat.S_ISREG(info.st_mode) if last else not stat.S_ISDIR(info.st_mode))'):
    self.assertIn(guard,source)
+ def test_original_exception_identity_args_and_traceback_show_only_fixed_metadata_note(self):
+  import traceback
+  with build.trust_location('import-alias',3):error=build.TrustRefusal('python-import-alias-target-untrusted',info(size=build.MAX_ALIAS_BYTES+1))
+  self.assertEqual(error.args,('python-import-alias-target-untrusted',));self.assertEqual(str(error),'python-import-alias-target-untrusted')
+  try:raise error
+  except build.TrustRefusal as caught:
+   self.assertIs(caught,error);formatted=''.join(traceback.format_exception(caught));self.assertEqual('TRUSTED_NETWORK_FAILURE:'in formatted,build._exception_add_note is not None)
+  notes=vars(error).get('__notes__',[]);self.assertEqual(len(notes),1 if build._exception_add_note is not None else 0)
+  if notes:self.assertEqual(json.loads(notes[0].split(':',1)[1]),build.staging_failure(error));self.assertLess(len(notes[0]),1024)
+ def test_native_note_method_cannot_be_replaced_by_exception_subclass_override(self):
+  class Derived(build.TrustRefusal):
+   def add_note(self,_note):raise AssertionError('Do not invoke subclass methods')
+  error=Derived('runtime-package-path-not-root-trusted',info())
+  self.assertEqual(len(vars(error).get('__notes__',[])),1 if build._exception_add_note is not None else 0);self.assertEqual(error.args,('runtime-package-path-not-root-trusted',))
+ def test_absent_python_note_api_preserves_existing_refusal_and_fixed_projection(self):
+  with patch.object(build,'_exception_add_note',None):error=build.TrustRefusal('python-import-tree-untrusted',info())
+  self.assertNotIn('__notes__',vars(error));self.assertEqual(str(error),'python-import-tree-untrusted');self.assertEqual(build.staging_failure(error)['category'],'python-import-tree-untrusted')
+ def test_notes_never_evaluate_hostile_stat_or_project_raw_private_object(self):
+  class Hostile:
+   @property
+   def st_mode(self):raise AssertionError('Do not inspect unknown stats')
+  error=build.TrustRefusal('runtime-package-path-not-root-trusted',Hostile(),ancestor=9999)
+  projection=build.staging_failure(error);self.assertIsNone(projection['metadata']);self.assertEqual(projection['ancestorOrdinal'],4096)
+  notes=vars(error).get('__notes__',[]);self.assertEqual(len(notes),1 if build._exception_add_note is not None else 0)
+  if notes:self.assertEqual(json.loads(notes[0].split(':',1)[1]),projection)
+ def test_name_diagnostics_are_fixed_unknown_and_not_file_format_or_package_proof(self):
+  cases=[('/usr/lib/x86_64-linux-gnu/libpython3.12.a','python312-static-library-name','usr-library-directory'),('/usr/lib/python3.12/config-3.12-x86_64-linux-gnu/libpython3.12.so.1.0','python312-shared-library-name','python312-config-directory'),('/etc/private-credential.data','unknown-name','other-reviewed-directory'),('/usr/lib/libpython3.13.a','unknown-name','usr-library-directory')]
+  for path,name,directory in cases:
+   record=build.alias_target_class(path);self.assertEqual(record,{'nameClass':name,'directoryClass':directory,'evidence':'canonical-name-only-no-byte-read'});self.assertNotIn(path,json.dumps(record));self.assertNotIn('private-credential',json.dumps(record))
+ def test_actual_oversize_gate_reports_name_without_read_and_closes_original_fd(self):
+  with tempfile.TemporaryDirectory()as directory:
+   file=Path(directory)/'fixture';file.write_bytes(b'not a library');original_open=os.open;opened=[]
+   def acquire(*_args,**_kwargs):
+    fd=original_open(file,os.O_RDONLY|os.O_NOFOLLOW);opened.append(fd);return fd
+   with patch.object(build,'rooted',return_value='/usr/lib/x86_64-linux-gnu/libpython3.12.a'),patch.object(build.os,'open',side_effect=acquire),patch.object(build.os,'fstat',return_value=info(size=build.MAX_ALIAS_BYTES+1)),patch.object(build.os,'read')as read:
+    with build.trust_location('import-alias',3),self.assertRaises(build.TrustRefusal)as raised:build.alias_record('/usr/lib/x86_64-linux-gnu/libpython3.12.a')
+   read.assert_not_called();self.assertEqual(raised.exception.args,('python-import-alias-target-untrusted',));self.assertEqual(build.staging_failure(raised.exception)['aliasTargetClass']['nameClass'],'python312-static-library-name')
+   for fd in opened:
+    with self.assertRaises(OSError):os.fstat(fd)
+ def test_alias_name_schema_rejects_private_extra_values_and_hostile_getters(self):
+  for changed in ({'nameClass':'private-path'},dict(build.alias_target_class('/usr/lib/unknown'),rawPath='/private/credential'),dict(build.alias_target_class('/usr/lib/unknown'),nameClass=[])):
+   error=build.TrustRefusal('python-import-alias-target-untrusted',info());error.projection['aliasTargetClass']=changed
+   self.assertEqual(build.staging_failure(error)['category'],'trusted-network-build-refused');self.assertNotIn('private',json.dumps(build.staging_failure(error)))
+ def test_absent_note_api_retains_original_refusal_with_new_fixed_name_class(self):
+  with patch.object(build,'_exception_add_note',None):error=build.TrustRefusal('python-import-alias-target-untrusted',info(),alias_target=build.alias_target_class('/usr/lib/libpython3.12.a'))
+  self.assertNotIn('__notes__',vars(error));self.assertEqual(error.args,('python-import-alias-target-untrusted',));self.assertEqual(build.staging_failure(error)['aliasTargetClass']['nameClass'],'python312-static-library-name')
 if __name__=='__main__':unittest.main()

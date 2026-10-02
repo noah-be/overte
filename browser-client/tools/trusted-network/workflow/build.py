@@ -22,11 +22,12 @@ MAX_ALIAS_TOTAL_BYTES=16*1024*1024
 MAX_ALIAS_READ_BYTES=32*1024*1024
 MAX_ALIAS_PATH_BYTES=16*1024
 
+_exception_add_note=getattr(BaseException,'add_note',None)
 _trust_location=ContextVar('reviewed-trust-location',default=('runtime-package',0))
 _TRUST_CATEGORIES=frozenset(('runtime-package-path-not-root-trusted','python-import-alias-chain-untrusted','python-import-alias-target-untrusted','python-import-tree-untrusted'))
 _TRUST_KINDS=frozenset(('runtime-package','python-executable','import-root','import-alias','import-tree'))
 class TrustRefusal(ValueError):
- def __init__(self,category,info=None,ancestor=0):
+ def __init__(self,category,info=None,ancestor=0,alias_target=None):
   if type(category)is not str or category not in _TRUST_CATEGORIES:raise ValueError('invalid-trust-diagnostic-category')
   super().__init__(category);kind,ordinal=_trust_location.get()
   if type(kind)is not str or kind not in _TRUST_KINDS or type(ordinal) is not int or not 0<=ordinal<=16384:kind,ordinal='runtime-package',0
@@ -39,6 +40,23 @@ class TrustRefusal(ValueError):
     'boundedBytes':max(0,min(info.st_size,MAX_ALIAS_BYTES+1)),'sizeTruncated':info.st_size<0 or info.st_size>MAX_ALIAS_BYTES+1}
   self.projection={'version':1,'category':category,'entryKind':kind,'entryOrdinal':ordinal,'ancestorOrdinal':max(0,min(ancestor,4096))if type(ancestor)is int else 0,'metadata':metadata,
    'metadataSHA256':hashlib.sha256(json.dumps(metadata,sort_keys=True,separators=(',',':')).encode()).hexdigest()if metadata is not None else None}
+  # Preserve category/args/exception identity while unittest prints only the
+  # already validated fixed projection after its original traceback. No paths.
+  if alias_target is not None:
+   if not valid_alias_target_class(alias_target):raise ValueError('invalid-alias-target-diagnostic')
+   self.projection['aliasTargetClass']=dict(alias_target)
+  if _exception_add_note is not None:_exception_add_note(self,'TRUSTED_NETWORK_FAILURE:'+json.dumps(self.projection,sort_keys=True,separators=(',',':')))
+# Diagnostic names only: no byte probe, package-authentication claim or grant.
+# CPython v3.12.3 configure.ac names LIBRARY and Linux INSTSONAME this way.
+_ALIAS_NAMES={'libpython3.12.a':'python312-static-library-name','libpython3.12.so.1.0':'python312-shared-library-name'}
+_ALIAS_DIRECTORY_CLASSES=frozenset(('python312-config-directory','usr-library-directory','other-reviewed-directory'))
+def alias_target_class(value):
+ name=Path(value).name
+ parent=Path(value).parent
+ directory='python312-config-directory'if re.fullmatch(r'/usr/lib/python3\.12/config-3\.12-[a-z0-9_-]{1,64}',str(parent))else'usr-library-directory'if re.fullmatch(r'/usr/lib(?:64)?(?:/[a-z0-9_-]{1,64})?',str(parent))else'other-reviewed-directory'
+ return {'nameClass':_ALIAS_NAMES.get(name,'unknown-name'),'directoryClass':directory,'evidence':'canonical-name-only-no-byte-read'}
+def valid_alias_target_class(value):
+ return type(value)is dict and set(value)=={'nameClass','directoryClass','evidence'} and type(value['nameClass'])is str and value['nameClass']in ('unknown-name',*_ALIAS_NAMES.values()) and type(value['directoryClass'])is str and value['directoryClass']in _ALIAS_DIRECTORY_CLASSES and type(value['evidence'])is str and value['evidence']=='canonical-name-only-no-byte-read'
 @contextmanager
 def trust_location(kind,ordinal):
  if type(kind)is not str or kind not in _TRUST_KINDS or type(ordinal)is not int or not 0<=ordinal<=16384:raise ValueError('invalid-trust-diagnostic-location')
@@ -49,7 +67,7 @@ def staging_failure(error):
  if type(error)is TrustRefusal:
   fields=vars(error).get('projection')
   required={'version','category','entryKind','entryOrdinal','ancestorOrdinal','metadata','metadataSHA256'}
-  if type(fields)is dict and set(fields)==required and type(fields['version'])is int and fields['version']==1 and type(fields['category'])is str and fields['category']in _TRUST_CATEGORIES and type(fields['entryKind'])is str and fields['entryKind']in _TRUST_KINDS \
+  if type(fields)is dict and (set(fields)==required or set(fields)==required|{'aliasTargetClass'}) and ('aliasTargetClass'not in fields or valid_alias_target_class(fields['aliasTargetClass'])) and type(fields['version'])is int and fields['version']==1 and type(fields['category'])is str and fields['category']in _TRUST_CATEGORIES and type(fields['entryKind'])is str and fields['entryKind']in _TRUST_KINDS \
     and type(fields['entryOrdinal'])is int and 0<=fields['entryOrdinal']<=16384 and type(fields['ancestorOrdinal'])is int and 0<=fields['ancestorOrdinal']<=4096:
    metadata=fields['metadata'];valid=metadata is None
    if type(metadata)is dict and set(metadata)=={'fileType','rootOwned','groupOrOtherWritable','permissions','aliasSizeWithinBound','boundedBytes','sizeTruncated'}:
@@ -58,6 +76,7 @@ def staging_failure(error):
    if valid:
     projected={key:fields[key]for key in ('version','category','entryKind','entryOrdinal','ancestorOrdinal')};projected['metadata']=dict(metadata)if metadata is not None else None
     projected['metadataSHA256']=hashlib.sha256(json.dumps(metadata,sort_keys=True,separators=(',',':')).encode()).hexdigest()if metadata is not None else None
+    if 'aliasTargetClass'in fields:projected['aliasTargetClass']=dict(fields['aliasTargetClass'])
     return projected
  # No arbitrary exception text, URL/path, argument, username or environment is
  # reflected. errno is read only from a genuine built-in OS exception class.
@@ -106,7 +125,7 @@ def alias_record(path):
  value=alias_path_shape(rooted(path));fd=os.open(value,os.O_RDONLY|os.O_NOFOLLOW|os.O_CLOEXEC|os.O_NONBLOCK)
  try:
   before=os.fstat(fd)
-  if not stat.S_ISREG(before.st_mode) or before.st_uid or before.st_mode&0o022 or not 0<=before.st_size<=MAX_ALIAS_BYTES:raise TrustRefusal('python-import-alias-target-untrusted',before)
+  if not stat.S_ISREG(before.st_mode) or before.st_uid or before.st_mode&0o022 or not 0<=before.st_size<=MAX_ALIAS_BYTES:raise TrustRefusal('python-import-alias-target-untrusted',before,alias_target=alias_target_class(value))
   digest=hashlib.sha256();total=0
   while True:
    chunk=os.read(fd,min(65536,MAX_ALIAS_BYTES+1-total))

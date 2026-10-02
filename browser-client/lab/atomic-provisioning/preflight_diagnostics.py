@@ -3,6 +3,9 @@
 """Fixed observational enums from the original owned preflight's captured output."""
 import json
 import re
+import os
+import stat
+import secrets
 
 MAX_BYTES = 8192
 MAX_COUNT = 2**31 - 1
@@ -16,7 +19,7 @@ TERMINALS = ('native-terminal', 'cancelled', 'original-observer-deadline')
 FAILURES = ('unobserved-or-unclassified', 'command-exec-not-found', 'command-exec-refused',
             'dynamic-loader-library-not-found', 'dynamic-loader-symbol-unavailable',
             'unshare-operation-not-permitted', 'unshare-permission-denied',
-            'capability-action-refused', 'tracer-ptrace-operation-not-permitted',
+            'capability-action-refused', 'identity-action-refused', 'tracer-ptrace-operation-not-permitted',
             'tracer-ptrace-permission-denied', 'tracer-ptrace-unclassified-error',
             'tracer-exec-not-found', 'python-import-error', 'python-syntax-error',
             'python-assertion-error', 'python-runtime-error')
@@ -64,8 +67,10 @@ def stderr_failure(data):
             return 'unshare-operation-not-permitted'
         if line == 'unshare: unshare failed: Permission denied':
             return 'unshare-permission-denied'
-        if re.fullmatch(r'setpriv: (?:apply capabilities|set capabilities|cap_set_proc|set process securebits)(?:: | failed: )(?:Operation not permitted|Permission denied)', line):
+        if re.fullmatch(r'setpriv: (?:apply bounding set|apply capabilities|set capabilities|cap_set_proc|set process securebits)(?:: | failed: )(?:Operation not permitted|Permission denied)', line):
             return 'capability-action-refused'
+        if re.fullmatch(r'setpriv: (?:setresuid|setresgid|setgroups|setting no_new_privs) failed: (?:Operation not permitted|Permission denied)', line):
+            return 'identity-action-refused'
         if line.startswith('strace: ') and 'ptrace(' in line:
             if line.endswith('Operation not permitted'):
                 return 'tracer-ptrace-operation-not-permitted'
@@ -160,3 +165,49 @@ def project_preflight(returncode, stdout, stderr):
             'outerStderrFailure': stderr_failure(err), 'stdoutPrefixTruncated': out_truncated,
             'stderrPrefixTruncated': err_truncated, 'malformedFixedRecords': malformed,
             'cause': 'not-established'}
+
+
+def retain_failed_preflight(directory, stdout, stderr):
+    """Private prefixes from the ORIGINAL completed invocation, never another run.
+
+    Optional reviewed staging directory; no stderr/path/environment is reflected.
+    Parent/root tooling alone may inspect files; ordinary curated upload unchanged.
+    """
+    result = {'status': 'not-configured', 'stdoutRetainedBytes': 0,
+              'stderrRetainedBytes': 0, 'stdoutTruncated': False, 'stderrTruncated': False}
+    if directory is None:
+        return result
+    parent = owned = None
+    try:
+        if type(directory) is not str or type(stdout) is not bytes or type(stderr) is not bytes:
+            raise ValueError('private-preflight-input-refused')
+        parent = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        info = os.fstat(parent)
+        if info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o700 or not stat.S_ISDIR(info.st_mode):
+            raise ValueError('private-preflight-directory-refused')
+        name = 'preflight-failure-' + secrets.token_hex(8)
+        os.mkdir(name, 0o700, dir_fd=parent)
+        owned = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=parent)
+        for label, data in (('stdout', stdout), ('stderr', stderr)):
+            prefix, truncated = _bounded(data)
+            fd = os.open(label + '-prefix.private.log', os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600, dir_fd=owned)
+            try:
+                remaining = memoryview(prefix)
+                while remaining:
+                    written = os.write(fd, remaining)
+                    if written <= 0:
+                        raise OSError('private-preflight-write-refused')
+                    remaining = remaining[written:]
+            finally:
+                os.close(fd)
+            result[label + 'RetainedBytes'] = len(prefix)
+            result[label + 'Truncated'] = truncated
+        result['status'] = 'retained-private'
+    except (OSError, ValueError, TypeError):
+        result['status'] = 'retention-refused'
+    finally:
+        if owned is not None:
+            os.close(owned)
+        if parent is not None:
+            os.close(parent)
+    return result
