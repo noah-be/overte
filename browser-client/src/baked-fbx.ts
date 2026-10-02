@@ -283,6 +283,79 @@ export function inspectFbxOriginalTextures(input:ArrayBuffer):{
     return {buffer:serializeBinaryFbx({...parsed,roots}),removedTextures:removedTextures.size,removedVideos,retainedTextures:textures.length-removedTextures.size,usedEmbeddedMarkers};
   }};
 }
+/** The pinned native FBXSerializer ignores these exact Maya auxiliary slots.
+ * Three loads every Texture before deciding which material slots it supports.
+ * Remove only Texture/Video objects whose complete connection ownership proves
+ * no native or Three-rendered material can consume them. ASCII stays unchanged.
+ * No image replacement, extension retry, native codec or material edit occurs.
+ */
+export function pruneNativeIgnoredFbxTextures(input:ArrayBuffer):{
+ buffer:ArrayBuffer;removedTextures:number;removedVideos:number;retainedTextures:number;
+} {
+ const parsed=parseBinaryFbx(input);
+ const counts=parsed?pruneIgnoredBinaryFbx(parsed):{removedTextures:0,removedVideos:0,retainedTextures:0};
+ return {buffer:counts.removedTextures?serializeBinaryFbx(parsed!):input,...counts};
+}
+function pruneIgnoredBinaryFbx(parsed:BinaryFbx):{removedTextures:number;removedVideos:number;retainedTextures:number}{
+ const unchanged=(retainedTextures=0)=>({removedTextures:0,removedVideos:0,retainedTextures});
+ const objectRoots=parsed.roots.filter(root=>name(root)==='Objects'),connectionRoots=parsed.roots.filter(root=>name(root)==='Connections');
+ if(objectRoots.length!==1||connectionRoots.length!==1)return unchanged();
+ const empty=(entry:Node)=>entry.name.length===0&&entry.propertyCount===0&&entry.properties.length===0&&!entry.children.length;
+ const objects=objectRoots[0].children.filter(entry=>!empty(entry)),connections=connectionRoots[0].children.filter(entry=>!empty(entry));
+ if(objects.length>65536||connections.length>65536)return unchanged();
+ const byID=new Map<number,Node>(),ids=new Map<Node,number>();
+ for(const object of objects){const id=values(object)[0];
+  if(typeof id!=='number'||!Number.isSafeInteger(id)||id<1||byID.has(id))return unchanged();
+  byID.set(id,object);ids.set(object,id);
+ }
+ const textures=objects.filter(object=>name(object)==='Texture'),videos=objects.filter(object=>name(object)==='Video');
+ if(textures.length>4096||videos.length>4096)return unchanged(textures.length);
+ const outgoing=new Map<number,(number|string|Uint8Array)[][]>(),incoming=new Map<number,(number|string|Uint8Array)[][]>();
+ const dataByNode=new Map<Node,(number|string|Uint8Array)[]>();
+ for(const connection of connections){
+  if(name(connection)!=='C'||connection.children.length)return unchanged(textures.length);
+  const data=values(connection);
+  if((data[0]!=='OO'&&data[0]!=='OP')||data.length!==(data[0]==='OO'?3:4)||
+   typeof data[1]!=='number'||!Number.isSafeInteger(data[1])||data[1]<1||
+   typeof data[2]!=='number'||!Number.isSafeInteger(data[2])||data[2]<0||
+   (data[0]==='OP'&&(typeof data[3]!=='string'||data[3].length>4096)))return unchanged(textures.length);
+  dataByNode.set(connection,data);
+  const child=data[1],parent=data[2];
+  const parents=outgoing.get(child)||[];parents.push(data);outgoing.set(child,parents);
+  const children=incoming.get(parent)||[];children.push(data);incoming.set(parent,children);
+ }
+ const kind=(id:number)=>{const object=byID.get(id);return object?name(object):undefined;};
+ const ignored=new Set(['maya|tex_global_specular_cube','maya|tex_global_diffuse_cube','maya|tex_brdf_lut']);
+ const removedTextures=new Set<number>();
+ for(const texture of textures){
+  const id=ids.get(texture)!,parents=outgoing.get(id)||[],children=incoming.get(id)||[];
+  if(!parents.length||children.length!==1||children[0][0]!=='OO'||kind(children[0][1] as number)!=='Video')continue;
+  if(parents.some(data=>data[0]!=='OP'||kind(data[2] as number)!=='Material'||!ignored.has(String(data[3]).toLowerCase())))continue;
+  removedTextures.add(id);
+ }
+ if(!removedTextures.size)return unchanged(textures.length);
+ // Three aliases Video Content by exact filename; native lookup also uses a
+ // basename. Preserve duplicate full/basename aliases and unknown filenames.
+ const videoKey=new Map<Node,string>(),counts=new Map<string,number>();
+ for(const video of videos){
+  const relative=video.children.filter(child=>name(child)==='RelativeFilename'),absolute=video.children.filter(child=>name(child)==='Filename');
+  if(relative.length>1||absolute.length>1)continue;
+  const rel=relative.length?values(relative[0]):[],abs=absolute.length?values(absolute[0]):[];
+  if((rel.length&& (rel.length!==1||typeof rel[0]!=='string'))||(abs.length&&(abs.length!==1||typeof abs[0]!=='string')))continue;
+  const filename=String(rel[0]||abs[0]||'');if(!filename||filename.length>4096)continue;
+  const key=filename.replace(/\\/g,'/').split('/').pop()!.toLowerCase();if(!key)continue;
+  videoKey.set(video,key);counts.set(key,(counts.get(key)||0)+1);
+ }
+ const removed=new Set(removedTextures);let removedVideos=0;
+ for(const video of videos){
+  const id=ids.get(video)!,key=videoKey.get(video),parents=outgoing.get(id)||[];
+  if(videoKey.size!==videos.length||!key||counts.get(key)!==1||!parents.length||(incoming.get(id)||[]).length)continue;
+  if(parents.every(data=>data[0]==='OO'&&removedTextures.has(data[2] as number))){removed.add(id);removedVideos++;}
+ }
+ const roots=parsed.roots.map(root=>root===objectRoots[0]?{...root,children:root.children.filter(object=>!removed.has(ids.get(object)!))}:
+  root===connectionRoots[0]?{...root,children:root.children.filter(connection=>{const data=dataByNode.get(connection);return !data||!removed.has(data[1] as number)&&!removed.has(data[2] as number);})}:root);
+ parsed.roots=roots;return {removedTextures:removedTextures.size,removedVideos,retainedTextures:textures.length-removedTextures.size};
+}
 function parseBinaryFbx(input:ArrayBuffer):BinaryFbx|null {
   const bytes = new Uint8Array(input); if (bytes.length < 27 || text.decode(bytes.subarray(0, 23)) !== magic) return null;
   safe(bytes.length, MAX_BYTES, 'input length');
@@ -473,11 +546,14 @@ function alphaConnections(connections:Node[]):Map<unknown,Node[]> {
  * in-line ASCII blocks fail explicitly, including compact geometry blocks;
  * this adapter does not claim support for every legal ASCII layout.
  */
-export function normalizeNativeFbxTransparency(input:ArrayBuffer):ArrayBuffer {
+export function normalizeNativeFbxTransparency(input:ArrayBuffer,options:{pruneIgnoredTextures?:boolean}={}):ArrayBuffer {
   const parsed=parseBinaryFbx(input);
   if(!parsed)return normalizeAsciiFbxTransparency(input);
+  // The worker may combine the ownership proof with this existing strict
+  // parse, avoiding an additional full input pass for ordinary FBX models.
+  const pruned=options.pruneIgnoredTextures?pruneIgnoredBinaryFbx(parsed):undefined;
   const connections=parsed.roots.find(root=>name(root)==='Connections');if(!connections)return input;
-  let changed=false;const removedTextures=new Set<number|string>(),removed=new Set<Node>(),additions:Node[]=[];
+  let changed=!!pruned?.removedTextures;const removedTextures=new Set<number|string>(),removed=new Set<Node>(),additions:Node[]=[];
   const alphaByMaterial=alphaConnections(connections.children);
   for(const binding of nativeAlphaBindings(parsed.roots)){
     const id=values(binding.material)[0],existing=alphaByMaterial.get(id)||[];

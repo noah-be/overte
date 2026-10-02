@@ -61,35 +61,35 @@ pixels, functional acceptance and a meaningful Hub measurement before activation
 
 ## Current evidence and next concrete work
 
-Current next steps: finish genuine People Ignore/Unignore using exact current
-painted native checkbox geometry, then publish the reviewed fixed-phase hosted
-setup/atomic diagnostics and passive avatar sampling checkpoint. Local Jenkins8
-executes all19 gates:18 pass; the original Chromium2800ms peer-movement gate
-still fails despite current independent native readback. Preserve that failure
-and distinguish gateway pose sampling from actual native transmission/receipt.
+Current next steps: publish the reviewed unused-FBX dependency/cache and fixed
+hosted subphase checkpoint, then execute genuine Desktop PTT and reciprocal
+People audio. Observer-A actual native Ignore/Unignore and ordinary foreground
+leave now pass in both stock engines with original control/frame/depth/count/
+rights/deadline gates intact. Preserve all preceding failed cohorts.
 
-The current production build,1,417 registered components and57 trusted-C CPU
-contracts pass. A separately reviewed single-pass People audit adds four
-contracts and removes duplicate traversal within the unchanged4096-node bound.
-The previous missing-ACK-navigation/transient-null/duplicate-traversal failures
-remain recorded. Genuine native retry is running; no People acceptance is
-inherited from the eighteen focused CPU contracts.
+The current production TypeScript/distribution build,1,448 registered components
+(zero skips),62 complete trusted-C/Python and52 complete atomic-provisioning
+contracts pass. Source-bound actual d71 hosted diagnostics identify python-image
+errno13 and keyring-read validation refusal. More precise fixed subphases retain
+every original security gate; runtime cause/readback remains pending.
 
-The rendered-light-prefix candidate is rejected by the unchanged exact-pixel
-oracle in both stock engines. The original renderer is restored exactly, and
-candidate runtime plus its acceptance fixture are preserved outside production.
-Baseline/baseline controls are pixel-identical. Next inspect bounded actual
-material/program dispatch with unchanged shaders and qualify any later
-optimization through actual pixels and same-quality Hub measurements.
+Native-ignored FBX pruning removes three proven unused Maya cube/LUT dependencies
+while strict actual production-worker images match twenty frames in both stocks.
+Its actual Hub pair retains82 pins and zero DDS image errors; Chrome passes all
+four fluidness gates and Firefox's rejoined pair fails. No whole speed/FPS gain
+is claimed. Prepared-cache128 ready entries with unchanged128MiB payload and
+explicit8MiB key budget has a real123-key counterfactual avoiding eight repeated
+preparations and19 passing CPU contracts; actual Hub comparison remains next.
 
-Later anonymous reads of exact recorded failed Hub resources return six
-HTTP404 markup responses, five network errors and three unchanged local-origin
-refusals. Those refused sources were not requested. This is later observation,
-not the proven cause of the original run or a decoder failure. Continue the
-user-prioritized native asset mapping and progressive-loading investigation.
-PTT/native audio-hold implementation is frozen with73 passing source-only
-contracts; integrate only after current genuine People source coherence ends,
-then require actual native/browser hold/release and audio-output acceptance.
+The rendered-light-prefix shader candidate stays rejected outside production.
+A separate bounded default-off dispatch observer has independent descriptor/
+censor corrections; require exact real GPU images before any Hub attribution.
+PTT plus the reviewed stale-held-ACK mute fix are frozen and independently built
+in an owned source copy. Real GUI mode, key/blur/visibility/Tablet/mute release,
+actual two-way synthetic outputs and fresh-session authority remain required.
+Physical microphone acceptance is separate. Preserve the historical native
+Chromium2800ms peer failure and distinguish JavaScript sampling from native
+transmission/receipt using the default-off passive cohort.
 
 See [STATUS.md](STATUS.md) for exact published commits, actual source-frozen
 cohorts, preserved failures, tests and remaining limitations. Original real

@@ -6,7 +6,7 @@ export type PreparedFbxProducer=(signal:AbortSignal)=>Promise<PreparedBakedFbx>;
 interface Reader {signal?:AbortSignal;onAbort?:()=>void;entry?:Pending;hit:boolean;settled:boolean;resolve(value:CachedPreparedFbx):void;reject(error:unknown):void}
 interface Pending {key:string;controller:AbortController;readers:Set<Reader>}
 interface Ready {value:PreparedBakedFbx;bytes:number}
-const MAX_READY=64,MAX_READY_BYTES=128*1024*1024,MAX_PENDING=16,MAX_READERS=256,MAX_KEY=65536;
+const MAX_READY=128,MAX_READY_BYTES=128*1024*1024,MAX_READY_KEY_BYTES=8*1024*1024,MAX_PENDING=16,MAX_READERS=256,MAX_KEY=65536;
 const abortError=()=>new DOMException('Prepared FBX request cancelled','AbortError');
 /** Per-world byte cache only. The caller must authorize the exact source first.
  * Buffers are borrowed read-only by parsers; never transfer cached output again. */
@@ -17,7 +17,7 @@ export class PreparedFbxCache {
   private readonly signal?:AbortSignal;
   private readonly onAbort=()=>this.dispose();
   private disposed=false;
-  private bytes=0;private hits=0;private misses=0;private evictions=0;
+  private bytes=0;private keyBytes=0;private hits=0;private misses=0;private evictions=0;
   constructor(options:{signal?:AbortSignal}={}){
     this.signal=options.signal;
     if(this.signal?.aborted)this.disposed=true;
@@ -45,7 +45,7 @@ export class PreparedFbxCache {
       if(created)queueMicrotask(()=>this.start(owned!,producer));
     });
   }
-  get stats(){return{hits:this.hits,misses:this.misses,bytes:this.bytes,ready:this.ready.size,active:this.pending.size,readers:this.readers.size,evictions:this.evictions,disposed:this.disposed};}
+  get stats(){return{hits:this.hits,misses:this.misses,bytes:this.bytes,keyBytes:this.keyBytes,ready:this.ready.size,active:this.pending.size,readers:this.readers.size,evictions:this.evictions,disposed:this.disposed};}
   private finish(reader:Reader,error?:unknown,value?:PreparedBakedFbx):void{
     if(reader.settled)return;
     let embedded={};if(value){try{embedded=preparedFbxBytes(value).fields;}catch(error){this.finish(reader,error);return;}}
@@ -74,9 +74,10 @@ export class PreparedFbxCache {
       const accounted=preparedFbxBytes(value);
       this.pending.delete(entry.key);
       const stored:PreparedBakedFbx={buffer:value.buffer,phases:Object.freeze({materialBindingsMs:value.phases.materialBindingsMs,decodeMs:value.phases.decodeMs}),...accounted.fields};
-      if(accounted.bytes<=MAX_READY_BYTES){
-        while(this.ready.size>=MAX_READY||this.bytes+accounted.bytes>MAX_READY_BYTES)this.evict(this.ready.keys().next().value!);
-        this.ready.set(entry.key,{value:stored,bytes:accounted.bytes});this.bytes+=accounted.bytes;
+      const keyBytes=entry.key.length*2;
+      if(accounted.bytes<=MAX_READY_BYTES&&keyBytes<=MAX_READY_KEY_BYTES){
+        while(this.ready.size>=MAX_READY||this.bytes+accounted.bytes>MAX_READY_BYTES||this.keyBytes+keyBytes>MAX_READY_KEY_BYTES)this.evict(this.ready.keys().next().value!);
+        this.ready.set(entry.key,{value:stored,bytes:accounted.bytes});this.bytes+=accounted.bytes;this.keyBytes+=keyBytes;
       }
       for(const reader of [...entry.readers])queueMicrotask(()=>this.deliver(reader,stored));
     }).catch(error=>{
@@ -84,10 +85,10 @@ export class PreparedFbxCache {
       this.pending.delete(entry.key);for(const reader of [...entry.readers])this.finish(reader,error);
     });
   }
-  private evict(key:string):void{const value=this.ready.get(key);if(!value)return;this.ready.delete(key);this.bytes-=value.bytes;this.evictions++;}
+  private evict(key:string):void{const value=this.ready.get(key);if(!value)return;this.ready.delete(key);this.bytes-=value.bytes;this.keyBytes-=key.length*2;this.evictions++;}
   dispose():void{
     if(this.disposed)return;this.disposed=true;this.signal?.removeEventListener('abort',this.onAbort);
-    const pending=[...this.pending.values()];this.pending.clear();this.ready.clear();this.bytes=0;
+    const pending=[...this.pending.values()];this.pending.clear();this.ready.clear();this.bytes=0;this.keyBytes=0;
     for(const entry of pending)entry.controller.abort();for(const reader of [...this.readers])this.finish(reader,abortError());
   }
 }

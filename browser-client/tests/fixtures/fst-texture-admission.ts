@@ -9,9 +9,9 @@ function property(value:string|number|Uint8Array){
 function n(name:string,values:(string|number|Uint8Array)[]=[],children:Node[]=[]):Node{return {name,properties:values.map(property),children};}
 function array(name:string,values:number[],integer=false):Node{const width=integer?4:8,out=new Uint8Array(13+width*values.length),view=new DataView(out.buffer);out[0]=integer?105:100;view.setUint32(1,values.length,true);view.setUint32(9,values.length*width,true);values.forEach((v,i)=>integer?view.setInt32(13+width*i,v,true):view.setFloat64(13+width*i,v,true));return {name,properties:[out],children:[]};}
 export const admissionPNG=Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg=='),c=>c.charCodeAt(0));
-export function fstTextureAdmissionFbx(options:{wide?:boolean;embedded?:boolean;duplicateVideoName?:boolean;unknownTextureConsumer?:boolean;skin?:boolean;nativeEndRecords?:boolean;invalidUnnamedNode?:'object'|'connection'|'objectChildren';ambiguousID?:'duplicate'|'nonnumeric'|'unsafe'|'negative';withoutOriginalTextures?:boolean}={}){
+export function fstTextureAdmissionFbx(options:{ignoredSlot?:string;ignoredDDS?:boolean; mixedConsumer?:boolean; videoShared?:boolean; unknownIncoming?:boolean; noVideo?:boolean;wide?:boolean;embedded?:boolean;duplicateVideoName?:boolean;unknownTextureConsumer?:boolean;skin?:boolean;nativeEndRecords?:boolean;invalidUnnamedNode?:'object'|'connection'|'objectChildren';ambiguousID?:'duplicate'|'nonnumeric'|'unsafe'|'negative';withoutOriginalTextures?:boolean}={}){
  const wide=options.wide??false;
- const videos=[['Shared','shared.png'],['OnlyA',options.duplicateVideoName?'shared.png':'unused-a.png'],['OnlyB','only-b.png']];
+ const videos=[['Shared','shared.png'],['OnlyA',options.duplicateVideoName?'shared.png':options.ignoredDDS?'unused-a.dds':'unused-a.png'],['OnlyB','only-b.png']];
  const roots=[n('FBXHeaderExtension',[],[n('FBXVersion',[wide?7500:7400])]),n('Objects',[],[
   ...(options.invalidUnnamedNode==='object'?[n('',['NotAnObjectID'])]:options.invalidUnnamedNode==='objectChildren'?[n('',[],[n('Unknown')])]:[]),
   ...(options.ambiguousID?[n('Unknown',[options.ambiguousID==='duplicate'?101:options.ambiguousID==='nonnumeric'?'NotAnObjectID':options.ambiguousID==='unsafe'?2**53:-10])]:[]),
@@ -28,9 +28,12 @@ export function fstTextureAdmissionFbx(options:{wide?:boolean;embedded?:boolean;
  ]),n('Connections',[],[
   ...(options.invalidUnnamedNode==='connection'?[n('',['OO',1,10])]:[]),
   n('C',['OO',1,10]),n('C',['OO',101,10]),n('C',['OO',102,10]),n('C',['OO',10,0]),
-  n('C',['OO',401,301]),n('C',['OO',402,302]),n('C',['OO',403,303]),
-  n('C',['OP',301,101,'DiffuseColor']),n('C',['OP',301,102,'DiffuseColor']),n('C',['OP',302,101,'NormalMap']),n('C',['OP',303,102,'NormalMap']),
+  n('C',['OO',401,301]),...(options.noVideo?[]:[n('C',['OO',402,302])]),n('C',['OO',403,303]),
+  n('C',['OP',301,101,'DiffuseColor']),n('C',['OP',301,102,'DiffuseColor']),n('C',['OP',302,101,options.ignoredSlot||'NormalMap']),n('C',['OP',303,102,'NormalMap']),
   ...(options.skin?[n('C',['OO',500,1]),n('C',['OO',501,500]),n('C',['OO',11,501]),n('C',['OO',11,0])]:[]),
+  ...(options.mixedConsumer?[n('C',['OP',302,102,'DiffuseColor'])]:[]),
+  ...(options.videoShared?[n('C',['OO',402,303])]:[]),
+  ...(options.unknownIncoming?[n('C',['OO',10,302])]:[]),
   ...(options.unknownTextureConsumer?[n('C',['OP',302,999,'UnknownConsumer'])]:[]),
  ])];
  if(options.withoutOriginalTextures){roots[1].children=roots[1].children.filter(child=>!['Texture','Video'].includes(child.name));roots[2].children=roots[2].children.filter(child=>{const childID=new DataView(child.properties[1].buffer).getFloat64(1,true),parentID=new DataView(child.properties[2].buffer).getFloat64(1,true);return ![301,302,303,401,402,403].includes(childID)&&![301,302,303,401,402,403].includes(parentID);});}

@@ -2,6 +2,53 @@
 // SPDX-License-Identifier: Apache-2.0
 import test from 'node:test';import assert from 'node:assert/strict';import vm from 'node:vm';import {readFileSync} from 'node:fs';
 import {PEOPLE_AUDIT_PREFIX,PEOPLE_AUDIT_QML,parsePeopleAudit,peopleIgnoreControl,instrumentPeopleAudit} from './tablet-people-audit.mjs';
+// Exact pre-pruning source is retained as a counterfactual, not a runtime input.
+const PRE_PRUNING_AUDIT_QML=String.raw`    property int peopleAuditCount: 0
+    property int peopleAuditBytes: 0
+    function peopleAudit(item,message) {
+        if(peopleAuditCount>=512||peopleAuditBytes>=524288)return;
+        var budget={nodes:0,truncated:false},refusals={nullNode:false,depthExceeded:false,nodeLimit:false,repeatedNode:false,childLimit:false,palLimit:false,rowLimit:false},depthVisibility={depthInvisible:false,depthVisible:false,depthUnknown:false},depthVisibilityReads=0,pals=[],rows=[],cells=[],seen=new Set();
+        function visit(node,depth,owner){
+            if(!node){budget.truncated=true;refusals.nullNode=true;return;}
+            if(depth>24){
+                budget.truncated=true;refusals.depthExceeded=true;
+                if(depthVisibilityReads>=32)depthVisibility.depthUnknown=true;
+                else {depthVisibilityReads++;try{var painted=visible(node);if(painted===true)depthVisibility.depthVisible=true;else if(painted===false)depthVisibility.depthInvisible=true;else depthVisibility.depthUnknown=true;}catch(error){depthVisibility.depthUnknown=true;}}
+                return;
+            }
+            if(budget.nodes>=4096){budget.truncated=true;refusals.nodeLimit=true;return;}
+            if(seen.has(node)){budget.truncated=true;refusals.repeatedNode=true;return;}
+            seen.add(node);budget.nodes++;
+            if(Array.isArray(node.nearbyUserModelData)&&typeof node.currentlyEditingDisplayName==='boolean'&&typeof node.iAmAdmin==='boolean'&&visible(node)){
+                if(pals.length<2)pals.push(node);else {budget.truncated=true;refusals.palLimit=true;}owner=node;
+            }
+            // Collect only cells below the actual discovered Pal ancestry.
+            // The captured tree is visited once, never a second Pal subtree walk.
+            if(owner&&node.isCheckBox===true&&visible(node)&&node.children&&node.children.length<=256)cells.push({owner:owner,cell:node});
+            if(node.children){if(node.children.length>256){budget.truncated=true;refusals.childLimit=true;}for(var i=0;i<node.children.length&&i<256;i++)visit(node.children[i],depth+1,owner);}
+        }
+        function visible(node){var n=node;for(var d=0;n&&d<32;d++,n=n.parent){if(n.visible===false||n.opacity===0)return false;if(n===item)return true;}return false;}
+        function uuid(value){return typeof value==='string'&&/^\{?[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\}?$/i.test(value)?value:null;}
+        function rect(node){var p=node.mapToItem(item,0,0),r={x:Number(p.x),y:Number(p.y),width:Number(node.width),height:Number(node.height)};if(![r.x,r.y,r.width,r.height].every(function(n){return isFinite(n)&&Math.abs(n)<=65536;})||r.width<=0||r.height<=0)return null;return r;}
+        visit(item,0,null);
+        var pal=pals.length===1?pals[0]:null;
+        if(pal&&pal.activeTab==='nearbyTab'&&pal.nearbyUserModelData.length<=32){
+            cells.forEach(function(entry){
+                if(entry.owner!==pal)return;var cell=entry.cell;
+                var names=[],checks=[];
+                for(var i=0;i<cell.children.length;i++){var child=cell.children[i];if(uuid(child.uuid))names.push(child.uuid);if(typeof child.checked==='boolean'&&child.boxSize===24&&child.isRedCheck===true&&visible(child))checks.push(child);}
+                if(names.length!==1||checks.length!==1)return;
+                var model=pal.nearbyUserModelData.filter(function(row){return row&&row.sessionId===names[0];});
+                if(model.length!==1)return;var checkbox=checks[0],r=rect(checkbox);if(!r)return;
+                if(rows.length>=32){budget.truncated=true;refusals.rowLimit=true;return;}
+                rows.push({sessionId:names[0],ignore:model[0].ignore===true,nativeIgnore:Users.getIgnoreStatus(names[0])===true,checked:checkbox.checked===true,enabled:checkbox.enabled===true,visible:model[0].isPresent===true,rect:r});
+            });
+        }
+        var body=JSON.stringify({version:1,sequence:message.sequence,revision:message.revision,navigationSequence:message.navigationSequence,scope:'native-people-nearby',palCount:pals.length,activeTab:pal&&pal.activeTab==='nearbyTab'?'nearby':'other',admin:pal?pal.iAmAdmin:null,nodes:budget.nodes,truncated:budget.truncated,refusals:refusals,depthVisibility:depthVisibility,rows:rows});
+        if(body.length>16384||peopleAuditBytes+body.length>524288)return;peopleAuditCount++;peopleAuditBytes+=body.length;
+        console.log("BROWSER_TABLET_PEOPLE_AUDIT "+body);
+    }
+`;
 const peer='{22222222-2222-2222-2222-222222222222}';
 function fixture(qml=PEOPLE_AUDIT_QML){const output=[],reads=[];let ignore=false;
  const item={visible:true,opacity:1,width:480,height:706,parent:null,children:[]},pal={visible:true,opacity:1,parent:item,currentlyEditingDisplayName:false,iAmAdmin:false,activeTab:'nearbyTab',nearbyUserModelData:[{sessionId:peer,ignore:false,isPresent:true}],children:[]};item.children=[pal];
@@ -100,7 +147,7 @@ test('strict optional fixed diagnostic schema preserves old records and never ac
 
 test('existing depth refusal classifies only the original painted ancestry predicate and never admits a click',()=>{
  for(const kind of ['visible','hidden','transparent','throw']){
-  const f=fixture();let parent=f.pal;for(let i=0;i<24;i++){const child={parent,children:[]};parent.children.push(child);parent=child;}
+  const f=fixture(PRE_PRUNING_AUDIT_QML);let parent=f.pal;for(let i=0;i<24;i++){const child={parent,children:[]};parent.children.push(child);parent=child;}
   if(kind==='visible')parent.visible=true;
   if(kind==='hidden')parent.visible=false;
   if(kind==='transparent')parent.opacity=0;
@@ -112,7 +159,7 @@ test('existing depth refusal classifies only the original painted ancestry predi
 });
 
 test('extra visibility inspection is capped at32 original rejected-depth branches with unknown on remaining branches',()=>{
- const f=fixture();let parent=f.pal;for(let i=0;i<23;i++){const child={parent,children:[]};parent.children.push(child);parent=child;}
+ const f=fixture(PRE_PRUNING_AUDIT_QML);let parent=f.pal;for(let i=0;i<23;i++){const child={parent,children:[]};parent.children.push(child);parent=child;}
  let reads=0;for(let i=0;i<33;i++){const leaf={parent,children:[]};Object.defineProperty(leaf,'visible',{get(){reads++;return false;}});parent.children.push(leaf);}
  f.audit();const r=parsePeopleAudit(f.output[0])[0];assert.equal(reads,32);assert.deepEqual(r.depthVisibility,{depthInvisible:true,depthVisible:false,depthUnknown:true});assert.equal(r.truncated,true);assert.equal(peopleIgnoreControl([r],frame,peer,false),null);
 });
@@ -122,4 +169,32 @@ test('optional visibility diagnostics reject unknown text and missing/contradict
  const legacy=structuredClone(r);delete legacy.depthVisibility;delete legacy.refusals;assert.deepEqual(parsePeopleAudit(PEOPLE_AUDIT_PREFIX+JSON.stringify(legacy)),[legacy]);
  for(const depthVisibility of [{},{...r.depthVisibility,privateText:'not-retained'},{...r.depthVisibility,depthInvisible:1},{...r.depthVisibility,depthVisible:true}])assert.throws(()=>parsePeopleAudit(PEOPLE_AUDIT_PREFIX+JSON.stringify({...r,depthVisibility})));
  const truncated={...r,truncated:true,depthVisibility:{...r.depthVisibility,depthUnknown:true}};assert.throws(()=>parsePeopleAudit(PEOPLE_AUDIT_PREFIX+JSON.stringify(truncated)));
+});
+
+
+test('proven invisible ancestry avoids irrelevant depth truncation while preserving hidden direct NameCard UUID',()=>{
+ function addHidden(f){const hidden={visible:false,opacity:1,parent:f.item,children:[]};f.item.children.push(hidden);let parent=hidden;for(let i=0;i<26;i++){const next={visible:false,parent,children:[]};parent.children.push(next);parent=next;}}
+ const old=fixture(PRE_PRUNING_AUDIT_QML);addHidden(old);old.audit();const negative=parsePeopleAudit(old.output[0])[0];assert.equal(negative.truncated,true);assert.equal(negative.refusals.depthExceeded,true);assert.equal(negative.depthVisibility.depthInvisible,true);assert.equal(peopleIgnoreControl([negative],frame,peer,false),null);
+ const f=fixture();addHidden(f);Object.defineProperty(f.cell.children[0],'children',{get(){throw Error('Hidden metadata subtree must not be traversed');}});f.audit();const r=parsePeopleAudit(f.output[0])[0];assert.equal(r.truncated,false);assert.equal(r.paintedTraversal.prunedInvisible,2);assert.deepEqual(f.reads,[peer]);assert(peopleIgnoreControl([r],frame,peer,false));assert(!f.output[0].includes('Hidden metadata subtree'));
+});
+
+test('the same depth path made genuinely visible still fails at24 without a raised node/child limit',()=>{
+ const f=fixture();let parent=f.pal;for(let i=0;i<26;i++){const child={visible:true,opacity:1,parent,children:[]};parent.children.push(child);parent=child;}f.audit();const r=parsePeopleAudit(f.output[0])[0];assert.equal(r.truncated,true);assert.equal(r.refusals.depthExceeded,true);assert.deepEqual(r.depthVisibility,{depthInvisible:false,depthVisible:true,depthUnknown:false});assert.equal(peopleIgnoreControl([r],frame,peer,false),null);
+});
+
+test('unknown visibility, unexpected visual ownership and cyclic false-visibility ancestry stay fail closed',()=>{
+ const unknown=fixture(),node={parent:unknown.item,children:[]};Object.defineProperty(node,'visible',{get(){throw Error('Private getter text must not escape');}});unknown.item.children.push(node);unknown.audit();const u=parsePeopleAudit(unknown.output[0])[0];assert.equal(u.paintedTraversal.visibilityUnknown,true);assert.equal(u.truncated,true);assert.equal(peopleIgnoreControl([u],frame,peer,false),null);assert(!unknown.output[0].includes('Private getter text'));
+ const unowned=fixture();unowned.item.children.push({visible:false,parent:{},children:[]});unowned.audit();const o=parsePeopleAudit(unowned.output[0])[0];assert.equal(o.paintedTraversal.ownerRefused,true);assert.equal(o.truncated,true);assert.equal(peopleIgnoreControl([o],frame,peer,false),null);
+ const cyclic=fixture();let reads=0;const hidden={visible:false,children:[]};Object.defineProperty(hidden,'parent',{get(){return ++reads===1?cyclic.item:hidden;}});cyclic.item.children.push(hidden);cyclic.audit();const c=parsePeopleAudit(cyclic.output[0])[0];assert.equal(c.paintedTraversal.visibilityUnknown,true);assert.equal(c.truncated,true);assert.equal(peopleIgnoreControl([c],frame,peer,false),null);
+});
+
+test('strict scoped metadata accepts exact pre-pruning records and rejects unknown/malformed/refusal contradictions',()=>{
+ const f=fixture();f.audit();const r=parsePeopleAudit(f.output[0])[0];const old=fixture(PRE_PRUNING_AUDIT_QML);old.audit();assert.equal(parsePeopleAudit(old.output[0]).length,1);
+ for(const paintedTraversal of [{},{...r.paintedTraversal,unknown:'not-retained'},{...r.paintedTraversal,prunedInvisible:4097},{...r.paintedTraversal,visibilityUnknown:true},{...r.paintedTraversal,ownerRefused:true}])assert.throws(()=>parsePeopleAudit(PEOPLE_AUDIT_PREFIX+JSON.stringify({...r,paintedTraversal})));
+});
+
+
+test('an invisible witness never authorizes pruning when its ownership chain cannot end within32 ancestors',()=>{
+ const f=fixture();let chain={visible:true,parent:f.item};for(let i=0;i<33;i++)chain={visible:true,parent:chain};let reads=0;
+ const hidden={visible:false,children:[]};Object.defineProperty(hidden,'parent',{get(){return ++reads===1?f.item:chain;}});f.item.children.push(hidden);f.audit();const r=parsePeopleAudit(f.output[0])[0];assert.equal(r.paintedTraversal.visibilityUnknown,true);assert.equal(r.truncated,true);assert.equal(peopleIgnoreControl([r],frame,peer,false),null);
 });

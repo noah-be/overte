@@ -79,3 +79,21 @@ test('rig status is explicit and self/label geometry never inflates remote parti
  assert(proof.ready([{id:'self'},{id:'peer'}],'self',state,1));
  body.geometry.dispose();label.geometry.dispose();(body.material as THREE.Material).dispose();(label.material as THREE.Material).dispose();
 });
+test('reciprocal B geometry cannot inherit A acceptance and each actual World must retire its opposite owned peer',async t=>{
+ const a=fixture(t),b=fixture(t);a.world.localAvatarID='a';b.world.localAvatarID='b';
+ const all=[{id:'a',displayName:'A',position:{x:0,y:1,z:0}},
+  {id:'b',displayName:'B',position:{x:0,y:1,z:-3}},
+  {id:'author',displayName:'Author',position:{x:3,y:1,z:3}}];
+ a.world.setAvatars(all);b.world.setAvatars(all);await Promise.resolve();
+ const beforeA={count:2,ids:all.map(v=>v.id),geometry:a.inspect()},beforeB={count:2,ids:all.map(v=>v.id),geometry:b.inspect()};
+ const noB=all.filter(v=>v.id!=='b'),noA=all.filter(v=>v.id!=='a');
+ const state=(snapshot:typeof all,self:string,render:any,before:any,peer:string)=>({snapshot,self,render,before,peer,count:1,batches:Array.from({length:3},()=>({ids:snapshot.map(v=>v.id)}))});
+ a.world.setAvatars(noB);assert(proof.ignored(state(noB,'a',a.inspect(),beforeA,'b')));
+ assert.equal(proof.ignored(state(noA,'b',b.inspect(),beforeB,'a')),false,'B still renders A despite A accepting Ignore');
+ b.world.setAvatars(noA);assert(proof.ignored(state(noA,'b',b.inspect(),beforeB,'a')));
+ assert.equal(proof.ignored(state(noB,'b',b.inspect(),beforeB,'a')),false,'Wrong opposite peer does not qualify reciprocal removal');
+ a.world.setAvatars(all);b.world.setAvatars(all);await Promise.resolve();
+ assert(proof.restored({snapshot:all,self:'a',count:2,render:a.inspect(),before:beforeA,peer:'b'}));
+ assert(proof.restored({snapshot:all,self:'b',count:2,render:b.inspect(),before:beforeB,peer:'a'}));
+ a.world.setAvatars([]);b.world.setAvatars([]);
+});

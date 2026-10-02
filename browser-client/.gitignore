@@ -3,6 +3,8 @@ build/
 build-embedded/
 build-embedded-world/
 build-embedded-evidence/
+build-native-ignored-fbx/
+build-native-ignored-fbx-evidence/
 test-results/
 test-results-*/
 playwright-report/

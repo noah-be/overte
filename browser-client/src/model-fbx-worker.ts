@@ -19,7 +19,7 @@ scope.onmessage = async ({ data }) => {
   const owned = { id: data.id, cancelled: false }; active = owned;
   try {
     const normalizeStarted = performance.now();
-    const normalized = normalizeNativeFbxTransparency(data.buffer);
+    const normalized = normalizeNativeFbxTransparency(data.buffer,{pruneIgnoredTextures:true});
     const materialBindingsMs = performance.now() - normalizeStarted;
     if (owned.cancelled) return;
     scope.postMessage({id:owned.id,type:'decodeStarted'},[]);

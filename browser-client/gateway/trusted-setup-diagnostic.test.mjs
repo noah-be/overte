@@ -22,3 +22,10 @@ test('bounded tail truncation remains explicit; known marker does not reflect an
 test('plain nested diagnostic is reconstructed and frozen without retaining its mutable source',()=>{
  const d=preparationDiagnostics('OVERTE_NET_NATIVE_STARTED');const base=d.snapshot(78,null),input={...fixed};const out=safePreparationDiagnostic({...base,trustedSetupFailure:input,ignoredRaw:'private-path/token'});input.errnoObserved=13;assert.equal(out.trustedSetupFailure.errnoObserved,1);assert(Object.isFrozen(out.trustedSetupFailure));assert.equal(JSON.stringify(out).includes('private-path/token'),false);
 });
+
+test('fixed interpreter/import/alias subphases preserve legacy Python label and original failure without reflecting aliases',()=>{
+ for(const phase of ['python-image', 'python-image-open','python-image-hash','python-import-roots','python-import-root-open','python-import-root-stat','python-import-scan','python-import-alias-resolve','python-import-alias-target']){
+  const value={version:1,phase,errnoObserved:13},d=preparationDiagnostics('OVERTE_NET_NATIVE_STARTED');d.observe(Buffer.from(marker(value)));const out=d.snapshot(78,null);assert.deepEqual(out.trustedSetupFailure,value);assert.equal(out.exitCode,78);assert.equal(out.category,'unclassified-child-exit');assert.deepEqual(safePreparationDiagnostic(out),out);
+ }
+ for(const phase of ['python-import-/private/alias','python-image-open:fd=3','python-import-alias-target-secret'])assert.equal(safeTrustedSetupFailure({...fixed,phase}),null);
+});

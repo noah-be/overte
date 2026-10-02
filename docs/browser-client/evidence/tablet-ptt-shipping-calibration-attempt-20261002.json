@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "scope": "Preserved failed actual copied-PTT GUI calibration; shipping PTT not activated",
+  "cohorts": [
+    {
+      "engine": "chromium",
+      "exitCode": 1,
+      "completed": false,
+      "cleanupVerified": false,
+      "sourceCoherent": true,
+      "failurePhase": "joined-muted",
+      "browserVersion": "154.0.8037.57",
+      "durationSeconds": 98.734,
+      "rawReportSHA256": "0cc09a5652e238b2e538612664d1139ebb562d43a2a4fa5a60317e9f2174554d",
+      "syntheticMicrophone": true,
+      "hardwareMicrophone": false,
+      "leaveFailed": true,
+      "scope": "Genuine native Home captured; Audio app click calibration refused before PTT activation; incomplete journey does not qualify two-profile cleanup or voice"
+    },
+    {
+      "engine": "firefox",
+      "exitCode": 1,
+      "completed": false,
+      "cleanupVerified": false,
+      "sourceCoherent": true,
+      "failurePhase": "joined-muted",
+      "browserVersion": "firefox/156.0",
+      "durationSeconds": 85.332,
+      "rawReportSHA256": "04ee898b1dc3bb2d765483ba4e04f459fb988a0dc68973b7304c1297545b7bab",
+      "syntheticMicrophone": true,
+      "hardwareMicrophone": false,
+      "leaveFailed": true,
+      "scope": "Genuine native Home captured; Audio app click calibration refused before PTT activation; incomplete journey does not qualify two-profile cleanup or voice"
+    }
+  ],
+  "ownedGatewayStopped": true,
+  "nativeHomeAudit": "Unique genuine AUDIO button recorded, native PTT false/held false/muted true; no truncation in qualified Home records",
+  "nextStep": "Bounded displayed-pixel/frame calibration diagnostics and genuine modal close before ordinary Leave; original native/frame/paint oracles retained"
+}

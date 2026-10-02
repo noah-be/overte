@@ -7,7 +7,8 @@ const TRUSTED_SETUP_PHASES = new Set(['admission', 'initial-capabilities', 'inst
     'handoff-relocate', 'user-namespace', 'groups-deny', 'uid-map', 'gid-map', 'network-namespace',
     'lifetime', 'tap-ready', 'route-socket', 'route-bind', 'route-ack-option', 'route-install-ack',
     'route-readback', 'attestation', 'attestation-relocate', 'retire-capabilities',
-    'post-retirement-lifetime', 'handoff-descriptors', 'close-inherited', 'exec-python']);
+    'post-retirement-lifetime', 'handoff-descriptors', 'close-inherited', 'exec-python',
+    'python-image-open', 'python-image-hash', 'python-import-roots', 'python-import-root-open', 'python-import-root-stat', 'python-import-scan', 'python-import-alias-resolve', 'python-import-alias-target']);
 
 /** Fixed C operation only; errnoObserved is an observation, not cause/admission. */
 export function safeTrustedSetupFailure(value) {

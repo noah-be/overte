@@ -4,6 +4,73 @@ Last updated: 2026-10-02. **Original baseline passed; additional mandatory Table
 
 ## Current implementation and next step
 
+Current continuation (2026-10-02): the complete registered suite now passes
+1,469 tests, zero skips, in10.734seconds. This includes all15 shipping-signature
+PTT calibration contracts in ordinary CI discovery and the reciprocal People
+geometry/audio CPU controls. All34 required repository suites pass again after the additional calibration
+wrapper and production-worker pixel CI step.
+The actual preceding A and B reciprocal geometry gates pass in both engines,
+but their additional synthetic-audio cohorts fail: Chromium's ordinary
+microphone click is intercepted by the still-open modal Tablet; Firefox's
+cleanup error masks the primary failure. Neither cohort proves voice.
+[Preserved failed cohorts](evidence/tablet-people-reciprocal-attempt-20261002.json).
+The genuine copied PTT journeys refuse Audio-button click calibration in both
+engines before PTT activation. Actual Home records are nontruncated and contain
+the unique original AUDIO button. Bounded displayed-pixel/frame diagnostics are
+now running; production PTT remains unintegrated.
+[Preserved PTT failures](evidence/tablet-ptt-shipping-calibration-attempt-20261002.json). Next: publish the
+reviewed cache/pruning/diagnostic checkpoint, fix the genuine modal test ordering,
+then obtain actual hosted subphases and measured Hub loading results.
+
+Current continuation (2026-10-02,06:03UTC): published checkpoint
+`d71c0652d24028d01426a55003e43bca86f7da4c` and draftPR1023 are verified on
+the authorized fork. The current source passes1,448 registered components,
+zero skips (11.026seconds),62 complete trusted-C/Python contracts (3.922seconds),
+52 complete atomic-provisioning contracts (4.213seconds), and the production
+TypeScript/distribution build. Initial PTT audit calibration separately passes10
+CPU contracts; its first copied production build preserves the full typecheck
+and correctly refuses missing native-admin declarations, then passes after
+copying those two exact original module/type files. No PTT GUI/audio success
+is inferred from those builds.
+
+Actual native People Ignore/Unignore, attached remote geometry removal and
+restoration, unchanged seven-entity baseline and ordinary foreground leave now
+pass in both stocks: Chromium42.719seconds and Firefox47.908seconds. Exact owned
+profiles disappear and source coherence passes. A prior background-tab leave
+failure and original stale-frame5→6 refusal remain recorded; fresh original
+control read and foreground leave address their harness causes without changing
+click/frame, rights, node/depth limits or deadlines. Reciprocal/audio acceptance
+remains pending. [Actual People evidence](evidence/tablet-people-painted-ancestry-20261002.json).
+
+Conservative native-ignored FBX ownership pruning now passes strict production
+worker/actual FBXLoader images in both engines, twenty frames byte-identical,
+with a real unused HTTP404 request removed and actual cancellation/replacement/
+cleanup intact. The source-frozen Hub pair has82 pins per engine and zero DDS
+original-image failures, while retaining all origin restrictions. Chromium
+passes all four fluidness gates; Firefox's initial pair passes but its rejoined
+pair fails. No whole loading-speed/FPS gain is attributed to pruning.
+[Actual Hub pair](evidence/hub-native-ignored-fbx-stock-20261002.json).
+
+Exact d71 hosted failures are now scoped: both browser runs' three actual
+network children fail at python-image/errno13 before user/network namespace
+setup; the failing open/hash/import operation is still unknown. Atomic staging
+fails keyring-read/validation-refused before any native probe. Fixed interpreter/
+import/alias and keyring ownership/write/bounded-file subphases preserve original
+gates and are integrated for the next actual hosted capture.
+[Actual hosted diagnostics](evidence/hosted-d71c0652-checkpoint-20261002.json).
+
+The measured prepared-FBX count-cap candidate raises64→128 retained owners,
+keeps the original128MiB payload budget and adds an explicit8MiB UTF16 key budget.
+Its19 complete original/new CPU contracts preserve cancellation, authority, LRU,
+byte/reader limits and resource release. The exact123-key counterfactual avoids
+eight repeated preparations; actual Hub speed/duplicate-count benefit remains
+pending. Next: publish this reviewed checkpoint, obtain exact hosted subphases,
+execute genuine Desktop PTT and reciprocal People audio, then qualify the actual
+cache/dispatch loading improvements and fresh passive native movement. Full
+Tablet/native parity, Firefox fluidness and physical-microphone evidence remain
+open. Goal active; endurance tests remain canceled.
+
+
 Current continuation (2026-10-02,05:23UTC): all1,427 registered components
 pass with zero skips (10.756s), complete TypeScript passes, and all34 required
 repository suites pass (188.81s); documentation suites also pass after the

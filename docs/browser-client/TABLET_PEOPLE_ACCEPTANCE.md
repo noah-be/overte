@@ -1,5 +1,20 @@
 # Owned native People Ignore/Unignore acceptance
 
+Current actual checkpoint (2026-10-02): observer A genuine native Ignore/Unignore,
+actual attached remote geometry removal/restoration and ordinary leave pass in
+stock Chromium154 (42.719seconds) and Firefox156 (47.908seconds). Both exact
+owned native profiles disappear, all seven baseline entities remain and source
+coherence passes. The bounded painted-ancestry audit preserves depth24/count4096
+and direct hidden UUID extraction; no bound is raised. Prior Firefox captures
+preserve a background-page leave failure and a stale5→6 displayed-frame refusal.
+Explicit foregrounding for ordinary leave and an immediate fresh original
+control read before clicking address these harness causes while retaining the
+original exact frame/click authorization and all deadlines. Earlier failed
+cohorts remain recorded. [Actual observer-A evidence](evidence/tablet-people-painted-ancestry-20261002.json).
+Reciprocal participant effects, Ignore audio and physical microphone qualification
+remain independent required work; this checkpoint does not qualify them.
+
+
 The reviewed harness has16 portable control/diagnostic contracts, three
 contracts executing the actual BrowserTablet send method, and five actual
 World scene-geometry contracts. Genuine Ignore/Unignore execution remains

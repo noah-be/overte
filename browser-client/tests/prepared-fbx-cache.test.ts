@@ -15,7 +15,7 @@ test('pending readers deduplicate preparation; ready hits borrow bytes while iso
     const [first,second]=await Promise.all([a,b]);assert.equal(first.buffer,second.buffer);assert.equal(first.cacheHit,false);assert.equal(second.cacheHit,true);first.phases.decodeMs=999;
     const ready=await cache.get('https://assets.test/a.fbx',()=>assert.fail('Ready bytes cannot re-run decoding'));
     assert.equal(ready.buffer,first.buffer);assert.equal(ready.phases.decodeMs,5);assert.equal(ready.cacheHit,true);
-    assert.deepEqual(cache.stats,{hits:2,misses:1,bytes:8,ready:1,active:0,readers:0,evictions:0,disposed:false});
+    assert.deepEqual(cache.stats,{hits:2,misses:1,bytes:8,keyBytes:50,ready:1,active:0,readers:0,evictions:0,disposed:false});
   }finally{cache.dispose();}
 });
 
@@ -70,10 +70,10 @@ test('deduplicated reader metadata cannot grow without a bound',async()=>{
   await assert.rejects(cache.get('https://assets.test/a.fbx',producer),/256-reader/);await flush();assert.equal(calls,1);assert.equal(cache.stats.readers,256);cache.dispose();await Promise.all(requests);
 });
 
-test('64 ready entries evict least-recently-used bytes while hits retain the current entry',async()=>{
-  const cache=new PreparedFbxCache();for(let i=0;i<64;i++)await cache.get('https://assets.test/'+i,async()=>prepared());
-  await cache.get('https://assets.test/0',()=>assert.fail());await cache.get('https://assets.test/64',async()=>prepared());assert.equal(cache.stats.ready,64);assert.equal(cache.stats.evictions,1);
-  await cache.get('https://assets.test/0',()=>assert.fail());let reloaded=false;await cache.get('https://assets.test/1',async()=>{reloaded=true;return prepared();});assert(reloaded);assert.equal(cache.stats.ready,64);cache.dispose();
+test('128 ready entries evict least-recently-used bytes while hits retain the current entry',async()=>{
+  const cache=new PreparedFbxCache();for(let i=0;i<128;i++)await cache.get('https://assets.test/'+i,async()=>prepared());
+  await cache.get('https://assets.test/0',()=>assert.fail());await cache.get('https://assets.test/128',async()=>prepared());assert.equal(cache.stats.ready,128);assert.equal(cache.stats.evictions,1);
+  await cache.get('https://assets.test/0',()=>assert.fail());let reloaded=false;await cache.get('https://assets.test/1',async()=>{reloaded=true;return prepared();});assert(reloaded);assert.equal(cache.stats.ready,128);cache.dispose();
 });
 
 test('128 MiB ready budget evicts by bytes; larger valid output is delivered without caching',async()=>{

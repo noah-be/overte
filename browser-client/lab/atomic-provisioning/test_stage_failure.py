@@ -6,6 +6,8 @@ import contextlib,io,json,lzma,os,subprocess,tarfile,tempfile,unittest,urllib.er
 from pathlib import Path
 from unittest.mock import patch
 import stage
+from types import SimpleNamespace
+import stat
 
 SECRET='private-token/path?credential=secret-target'
 class NoString(Exception):
@@ -126,5 +128,52 @@ class ActualStage(unittest.TestCase):
     def check(command,**kwargs):return sha+'\n'if command[0]=='git'else real(command,**kwargs)
     output.side_effect=check;stage.main(progress=phases.append)
    self.assertEqual(phases[-1],'workflow-env-write');entries=dict(line.split('=',1)for line in env.read_text().splitlines());self.assertEqual(set(entries),{'ATOMIC_PROBE_DIRECTORY','OVERTE_LAB_ROOT','ATOMIC_PROBE_OUTPUT'});self.assertTrue((Path(entries['ATOMIC_PROBE_DIRECTORY'])/'strace').is_file());self.assertEqual((Path(entries['ATOMIC_PROBE_DIRECTORY']).parent/'dependency-proof.private.json').stat().st_mode&0o777,0o600)
+
+class KeyringSubphases(unittest.TestCase):
+ setUp=ActualStage.setUp
+ fetch=ActualStage.fetch
+ # Reuse reviewed cache setup/fetch; do not inherit or rerun its existing tests.
+ def run_keyring_refusal(self,keyring,phase,exception,metadata=None):
+  phases=[]
+  with tempfile.TemporaryDirectory()as temp,patch.object(stage.subprocess,'run')as run,patch.object(stage.subprocess,'check_output')as output:
+   context=patch.object(Path,'stat',return_value=metadata)if metadata is not None else contextlib.nullcontext()
+   with context:
+    with self.assertRaises(exception)as caught:stage.signed_dependency(Path(temp),keyring,self.fetch,progress=phases.append)
+   self.assertEqual(phases[-1],phase);run.assert_not_called();output.assert_not_called();self.assertFalse((Path(temp)/'strace').exists());safe=stage.staging_failure(caught.exception,phase);self.assertNotIn(SECRET,json.dumps(safe));return caught.exception,safe
+ def test_untrusted_owner_refuses_at_exact_ownership_phase_without_reading_mode(self):
+  class Metadata:
+   st_uid=os.getuid()+1
+   @property
+   def st_mode(self):raise AssertionError('Original OR condition must short circuit on owner refusal')
+  error,safe=self.run_keyring_refusal(self.keyring,'keyring-ownership',ValueError,Metadata());self.assertEqual(str(error),'trusted-keyring-permissions-refused');self.assertEqual(safe['failureCategory'],'validation-refused')
+ def test_original_group_or_world_write_refusals_have_exact_fixed_phase(self):
+  for mode in [0o620,0o602,0o622]:
+   with self.subTest(mode=mode):
+    error,safe=self.run_keyring_refusal(self.keyring,'keyring-write-permissions',ValueError,SimpleNamespace(st_uid=os.getuid(),st_mode=stat.S_IFREG|mode));self.assertEqual(str(error),'trusted-keyring-permissions-refused');self.assertEqual(safe['failureCategory'],'validation-refused')
+ def test_original_root_and_current_owner_both_keep_actual_signed_chain(self):
+  for owner in set([0,os.getuid()]):
+   phases=[]
+   with self.subTest(owner=owner),tempfile.TemporaryDirectory()as temp,patch.object(Path,'stat',return_value=SimpleNamespace(st_uid=owner,st_mode=stat.S_IFREG|0o644)):
+    result=stage.signed_dependency(Path(temp),self.keyring,self.fetch,progress=phases.append)
+    self.assertEqual(result['signature'],'verified-trusted-archive-key');at=phases.index('keyring-read');self.assertEqual(phases[at:at+5],['keyring-read','keyring-ownership','keyring-write-permissions','keyring-bounded-regular','signature-run'])
+ def test_actual_oversize_keyring_still_refuses_before_signature(self):
+  with tempfile.TemporaryDirectory()as temp:
+   key=Path(temp)/'key';key.write_bytes(b'x'*(1024*1024+1));key.chmod(0o600)
+   error,safe=self.run_keyring_refusal(key,'keyring-bounded-regular',ValueError);self.assertEqual(str(error),'bounded-regular-input-required');self.assertEqual(safe['failureCategory'],'validation-refused')
+ def test_actual_nonregular_keyring_still_refuses_without_blocking(self):
+  with tempfile.TemporaryDirectory()as temp:
+   key=Path(temp)/'fifo';os.mkfifo(key,0o600);error,safe=self.run_keyring_refusal(key,'keyring-bounded-regular',ValueError);self.assertEqual(str(error),'bounded-regular-input-required');self.assertEqual(safe['failureCategory'],'validation-refused')
+ def test_missing_after_original_stat_preserves_trusted_keyring_classification(self):
+  real=stage.regular;phases=[]
+  def regular(path,*args,**kwargs):
+   if Path(path)==self.keyring.resolve(strict=True):raise FileNotFoundError(SECRET)
+   return real(path,*args,**kwargs)
+  with tempfile.TemporaryDirectory()as temp,patch.object(stage,'regular',side_effect=regular),patch.object(stage.subprocess,'run')as run:
+   with self.assertRaises(FileNotFoundError)as caught:stage.signed_dependency(Path(temp),self.keyring,self.fetch,progress=phases.append)
+   self.assertEqual(phases[-1],'keyring-bounded-regular');self.assertEqual(stage.staging_failure(caught.exception,phases[-1])['failureCategory'],'trusted-keyring-unavailable');run.assert_not_called()
+ def test_missing_keyring_subphases_and_validation_never_reflect_private_metadata(self):
+  for phase in stage.KEYRING_PHASES:
+   for error,category in [(FileNotFoundError(SECRET),'trusted-keyring-unavailable'),(ValueError(SECRET),'validation-refused'),(PermissionError(SECRET),'filesystem-access-refused')]:
+    safe=stage.staging_failure(error,phase);self.assertEqual(safe['failureCategory'],category);self.assertEqual(set(safe),{'schemaVersion','scope','completed','phase','failureCategory'});self.assertNotIn(SECRET,json.dumps(safe))
 
 if __name__=='__main__':unittest.main()

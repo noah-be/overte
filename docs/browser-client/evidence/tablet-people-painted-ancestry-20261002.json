@@ -1,0 +1,282 @@
+{
+  "scope": "Actual native GUI Ignore/Unignore with bounded painted-ancestry calibration; observer A only; no reciprocal/audio or native GPU-visibility proof",
+  "hardBoundsIncreased": false,
+  "cohorts": [
+    {
+      "engine": "chromium",
+      "browserVersion": "154.0.8037.57",
+      "startedAt": "2026-10-02T05:42:07.767Z",
+      "finishedAt": "2026-10-02T05:42:50.317Z",
+      "durationSeconds": 42.55,
+      "completed": true,
+      "nativeIgnoreAndUnignoreEffectsProved": true,
+      "failureCategory": "none",
+      "leaveFailed": false,
+      "bothExactOwnedProfilesRemoved": true,
+      "sourceCoherent": true,
+      "sourceSHA256": {
+        "tests/integration/tablet-people-session.mjs": "9aca487d67406adf921ddad512ca07ebe30ad7e4271a82da864908b0f269ad6d",
+        "tests/integration/tablet-people-geometry.mjs": "796fcaef38c27fe66213462748b943aa96e64279f11b10afb7a63a79ccaa1a8b",
+        "src/participant-geometry.ts": "40b7d1e6bee4d0d7cea73a69e55c816ccdb7acecaf86f458917e11a5b08b14b9",
+        "tests/integration/tablet-people-audit.mjs": "9c61e2d8e3b5efe1e9be3d10bf75b1a47500ff2016d7e0aa3b7adbf242113fbd",
+        "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+        "gateway/native-bridge.js": "91a5a26f22b41edd44e3a4b20e0c59840c661d270d5fda025b9ec9d86ebf27bf",
+        "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+        "gateway/tablet-capture.qml": "f990c2ed3f5b0d68e50b959774214f4b7637e332b1c9613567c8ea9252f5f1bc",
+        "src/world.ts": "020abb8487ed81469c64f6abd5cc9455f4a84386f7a19a3c28a1eb9018b329b2",
+        "src/main.ts": "1d3681bca6dec2b651dad3d438b7600733721b16a9773445d2a49cf1d1997772",
+        "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+        "dist/index.html": "dd188f8f1dce3b52a39ea88995b0f83d0268fab10a47584eea305e4fee69164d"
+      },
+      "runtimeBridgeSHA256": [
+        "3e0d3ddd78cc4a2cffd0194b06bb5c9e010cfdb662ea6461d912621679242998",
+        "0ddf802631ab8d8ab0e1b85e10b2a442cbbbbaa43f020515e7162e9e1c7747ad"
+      ],
+      "runtimeCaptureSHA256": [
+        "d8d87fc45b6e60bee9c82222c9ac9d1d686d16145d28cbc69a653e70877085db",
+        "d8d87fc45b6e60bee9c82222c9ac9d1d686d16145d28cbc69a653e70877085db"
+      ],
+      "microphoneEnabled": false,
+      "baselinePreserved": true,
+      "geometryScope": "Actual remote renderer-owned geometry; rig and fallback counts remain distinct; no native visual/pixel claim",
+      "geometryBefore": {
+        "remoteRoots": 2,
+        "rigRoots": 0,
+        "fallbackRoots": 2
+      },
+      "capturedControlStates": [
+        "home",
+        "people-unignored",
+        "people-ignored",
+        "people-restored"
+      ],
+      "rawReportSHA256": "f69ed8dd32f993538985ec47865f7e0dba402063214d0c7796c08f2d9f53f647"
+    },
+    {
+      "engine": "firefox",
+      "browserVersion": "firefox/156.0",
+      "startedAt": "2026-10-02T05:44:55.580Z",
+      "finishedAt": "2026-10-02T05:46:13.497Z",
+      "durationSeconds": 77.917,
+      "completed": false,
+      "nativeIgnoreAndUnignoreEffectsProved": true,
+      "failureCategory": "ordinary-leave-cleanup",
+      "leaveFailed": true,
+      "bothExactOwnedProfilesRemoved": true,
+      "sourceCoherent": true,
+      "sourceSHA256": {
+        "tests/integration/tablet-people-session.mjs": "9aca487d67406adf921ddad512ca07ebe30ad7e4271a82da864908b0f269ad6d",
+        "tests/integration/tablet-people-geometry.mjs": "796fcaef38c27fe66213462748b943aa96e64279f11b10afb7a63a79ccaa1a8b",
+        "src/participant-geometry.ts": "40b7d1e6bee4d0d7cea73a69e55c816ccdb7acecaf86f458917e11a5b08b14b9",
+        "tests/integration/tablet-people-audit.mjs": "9c61e2d8e3b5efe1e9be3d10bf75b1a47500ff2016d7e0aa3b7adbf242113fbd",
+        "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+        "gateway/native-bridge.js": "91a5a26f22b41edd44e3a4b20e0c59840c661d270d5fda025b9ec9d86ebf27bf",
+        "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+        "gateway/tablet-capture.qml": "f990c2ed3f5b0d68e50b959774214f4b7637e332b1c9613567c8ea9252f5f1bc",
+        "src/world.ts": "020abb8487ed81469c64f6abd5cc9455f4a84386f7a19a3c28a1eb9018b329b2",
+        "src/main.ts": "1d3681bca6dec2b651dad3d438b7600733721b16a9773445d2a49cf1d1997772",
+        "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+        "dist/index.html": "dd188f8f1dce3b52a39ea88995b0f83d0268fab10a47584eea305e4fee69164d"
+      },
+      "runtimeBridgeSHA256": [
+        "a8af22b7a1b9adb8b1070f48d77bb93ec3fe258af0bf6b6826c24e6bb87a0a57",
+        "d6c54a6d7fff9c648d3ae641ce62b80b19d944a73868451519db3fb6273970d5"
+      ],
+      "runtimeCaptureSHA256": [
+        "d8d87fc45b6e60bee9c82222c9ac9d1d686d16145d28cbc69a653e70877085db",
+        "d8d87fc45b6e60bee9c82222c9ac9d1d686d16145d28cbc69a653e70877085db"
+      ],
+      "microphoneEnabled": false,
+      "baselinePreserved": true,
+      "geometryScope": "Actual remote renderer-owned geometry; rig and fallback counts remain distinct; no native visual/pixel claim",
+      "geometryBefore": {
+        "remoteRoots": 2,
+        "rigRoots": 0,
+        "fallbackRoots": 2
+      },
+      "capturedControlStates": [
+        "home",
+        "people-unignored",
+        "people-ignored",
+        "people-restored"
+      ],
+      "rawReportSHA256": "092f3b2a02e79abea8a6c165c9b89d34c9d5c3465e6e6971e0918eee0e5b928d"
+    },
+    {
+      "engine": "chromium",
+      "browserVersion": "154.0.8037.57",
+      "startedAt": "2026-10-02T05:55:05.110Z",
+      "finishedAt": "2026-10-02T05:55:47.262Z",
+      "durationSeconds": 42.152,
+      "completed": true,
+      "nativeIgnoreAndUnignoreEffectsProved": true,
+      "failureCategory": "none",
+      "ordinaryLeaveProved": true,
+      "bothExactOwnedProfilesRemoved": true,
+      "sourceCoherent": true,
+      "sourceSHA256": {
+        "tests/integration/tablet-people-session.mjs": "7c164cbe5723412af4a4a4362faa9867e80a2c681fd197e129ade03980b94399",
+        "tests/integration/tablet-people-geometry.mjs": "796fcaef38c27fe66213462748b943aa96e64279f11b10afb7a63a79ccaa1a8b",
+        "src/participant-geometry.ts": "40b7d1e6bee4d0d7cea73a69e55c816ccdb7acecaf86f458917e11a5b08b14b9",
+        "tests/integration/tablet-people-audit.mjs": "9c61e2d8e3b5efe1e9be3d10bf75b1a47500ff2016d7e0aa3b7adbf242113fbd",
+        "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+        "gateway/native-bridge.js": "91a5a26f22b41edd44e3a4b20e0c59840c661d270d5fda025b9ec9d86ebf27bf",
+        "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+        "gateway/tablet-capture.qml": "f990c2ed3f5b0d68e50b959774214f4b7637e332b1c9613567c8ea9252f5f1bc",
+        "src/world.ts": "020abb8487ed81469c64f6abd5cc9455f4a84386f7a19a3c28a1eb9018b329b2",
+        "src/main.ts": "1d3681bca6dec2b651dad3d438b7600733721b16a9773445d2a49cf1d1997772",
+        "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+        "dist/index.html": "dd188f8f1dce3b52a39ea88995b0f83d0268fab10a47584eea305e4fee69164d"
+      },
+      "runtimeBridgeSHA256": [
+        "3ff0be4478e0a4f57261e685fa8cca8f21d71afc4168b974a6b677d0caa3034f",
+        "cee74c4deaa8033345537fe32a11ea175fe4655b65b6a332dd2945fef40c527a"
+      ],
+      "runtimeCaptureSHA256": [
+        "d8d87fc45b6e60bee9c82222c9ac9d1d686d16145d28cbc69a653e70877085db",
+        "d8d87fc45b6e60bee9c82222c9ac9d1d686d16145d28cbc69a653e70877085db"
+      ],
+      "microphoneEnabled": false,
+      "baselinePreserved": true,
+      "geometryScope": "Actual remote renderer-owned geometry; rig and fallback counts remain distinct; no native visual/pixel claim",
+      "geometryBefore": {
+        "remoteRoots": 2,
+        "rigRoots": 0,
+        "fallbackRoots": 2
+      },
+      "capturedControlStates": [
+        "home",
+        "people-unignored",
+        "people-ignored",
+        "people-restored"
+      ],
+      "leaveDiagnostics": [
+        {
+          "visitorOrdinal": 1,
+          "phase": "disconnected",
+          "completed": true,
+          "initiallyHidden": false
+        },
+        {
+          "visitorOrdinal": 2,
+          "phase": "disconnected",
+          "completed": true,
+          "initiallyHidden": false
+        }
+      ],
+      "rawReportSHA256": "47d91115f83fba731f17c258263072591cb9719dbd3c51eed9901d286df7b0c4"
+    },
+    {
+      "engine": "firefox",
+      "browserVersion": "firefox/156.0",
+      "startedAt": "2026-10-02T05:55:47.821Z",
+      "finishedAt": "2026-10-02T05:56:35.173Z",
+      "durationSeconds": 47.352,
+      "completed": true,
+      "nativeIgnoreAndUnignoreEffectsProved": true,
+      "failureCategory": "none",
+      "ordinaryLeaveProved": true,
+      "bothExactOwnedProfilesRemoved": true,
+      "sourceCoherent": true,
+      "sourceSHA256": {
+        "tests/integration/tablet-people-session.mjs": "7c164cbe5723412af4a4a4362faa9867e80a2c681fd197e129ade03980b94399",
+        "tests/integration/tablet-people-geometry.mjs": "796fcaef38c27fe66213462748b943aa96e64279f11b10afb7a63a79ccaa1a8b",
+        "src/participant-geometry.ts": "40b7d1e6bee4d0d7cea73a69e55c816ccdb7acecaf86f458917e11a5b08b14b9",
+        "tests/integration/tablet-people-audit.mjs": "9c61e2d8e3b5efe1e9be3d10bf75b1a47500ff2016d7e0aa3b7adbf242113fbd",
+        "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+        "gateway/native-bridge.js": "91a5a26f22b41edd44e3a4b20e0c59840c661d270d5fda025b9ec9d86ebf27bf",
+        "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+        "gateway/tablet-capture.qml": "f990c2ed3f5b0d68e50b959774214f4b7637e332b1c9613567c8ea9252f5f1bc",
+        "src/world.ts": "020abb8487ed81469c64f6abd5cc9455f4a84386f7a19a3c28a1eb9018b329b2",
+        "src/main.ts": "1d3681bca6dec2b651dad3d438b7600733721b16a9773445d2a49cf1d1997772",
+        "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+        "dist/index.html": "dd188f8f1dce3b52a39ea88995b0f83d0268fab10a47584eea305e4fee69164d"
+      },
+      "runtimeBridgeSHA256": [
+        "1b52a24b869cb3354c38d7a10ccb7f38c5896d22cea3d3d1f1c054a422bcc145",
+        "41175ed3cc7531578a9e8ebace5b1ae3866e61ccddb6d9c78668a4e38146b2b3"
+      ],
+      "runtimeCaptureSHA256": [
+        "d8d87fc45b6e60bee9c82222c9ac9d1d686d16145d28cbc69a653e70877085db",
+        "d8d87fc45b6e60bee9c82222c9ac9d1d686d16145d28cbc69a653e70877085db"
+      ],
+      "microphoneEnabled": false,
+      "baselinePreserved": true,
+      "geometryScope": "Actual remote renderer-owned geometry; rig and fallback counts remain distinct; no native visual/pixel claim",
+      "geometryBefore": {
+        "remoteRoots": 2,
+        "rigRoots": 0,
+        "fallbackRoots": 2
+      },
+      "capturedControlStates": [
+        "home",
+        "people-unignored",
+        "people-ignored",
+        "people-restored"
+      ],
+      "leaveDiagnostics": [
+        {
+          "visitorOrdinal": 1,
+          "phase": "disconnected",
+          "completed": true,
+          "initiallyHidden": false
+        },
+        {
+          "visitorOrdinal": 2,
+          "phase": "disconnected",
+          "completed": true,
+          "initiallyHidden": true
+        }
+      ],
+      "rawReportSHA256": "60981c119a6c2c10badef79fa60a021fb3e4c8a1575fd1b9cceeefb3ba273347"
+    },
+    {
+      "engine": "firefox",
+      "browserVersion": "firefox/156.0",
+      "startedAt": "2026-10-02T05:49:18.012Z",
+      "finishedAt": "2026-10-02T05:50:02.920Z",
+      "completed": false,
+      "failureCategory": "original-displayed-frame-sequence-mismatch",
+      "numericActualExpected": [
+        6,
+        5
+      ],
+      "exactOriginalClickGateRefused": true,
+      "ordinaryLeaveProved": true,
+      "bothExactOwnedProfilesRemoved": true,
+      "sourceCoherent": true,
+      "sourceSHA256": {
+        "tests/integration/tablet-people-session.mjs": "1e6ec34ee770b96920f717f3a3f1342842eaae27155b6116f73dd555865afc62",
+        "tests/integration/tablet-people-geometry.mjs": "796fcaef38c27fe66213462748b943aa96e64279f11b10afb7a63a79ccaa1a8b",
+        "src/participant-geometry.ts": "40b7d1e6bee4d0d7cea73a69e55c816ccdb7acecaf86f458917e11a5b08b14b9",
+        "tests/integration/tablet-people-audit.mjs": "9c61e2d8e3b5efe1e9be3d10bf75b1a47500ff2016d7e0aa3b7adbf242113fbd",
+        "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+        "gateway/native-bridge.js": "91a5a26f22b41edd44e3a4b20e0c59840c661d270d5fda025b9ec9d86ebf27bf",
+        "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+        "gateway/tablet-capture.qml": "f990c2ed3f5b0d68e50b959774214f4b7637e332b1c9613567c8ea9252f5f1bc",
+        "src/world.ts": "020abb8487ed81469c64f6abd5cc9455f4a84386f7a19a3c28a1eb9018b329b2",
+        "src/main.ts": "1d3681bca6dec2b651dad3d438b7600733721b16a9773445d2a49cf1d1997772",
+        "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+        "dist/index.html": "dd188f8f1dce3b52a39ea88995b0f83d0268fab10a47584eea305e4fee69164d"
+      },
+      "microphoneEnabled": false,
+      "baselinePreserved": true,
+      "leaveDiagnostics": [
+        {
+          "visitorOrdinal": 1,
+          "phase": "disconnected",
+          "completed": true,
+          "initiallyHidden": false
+        },
+        {
+          "visitorOrdinal": 2,
+          "phase": "disconnected",
+          "completed": true,
+          "initiallyHidden": true
+        }
+      ],
+      "rawReportSHA256": "295a8ae3f482f1fd0f88ac5f93560b07587d659df4dd9eb809274ade67ddc317"
+    }
+  ],
+  "qualification": "Observer A actual native Ignore/Unignore and ordinary foreground leave pass in both stock engines; reciprocal native/voice remains pending."
+}

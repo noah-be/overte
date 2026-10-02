@@ -25,25 +25,44 @@ export const PEOPLE_AUDIT_QML=String.raw`    property int peopleAuditCount: 0
     property int peopleAuditBytes: 0
     function peopleAudit(item,message) {
         if(peopleAuditCount>=512||peopleAuditBytes>=524288)return;
-        var budget={nodes:0,truncated:false},refusals={nullNode:false,depthExceeded:false,nodeLimit:false,repeatedNode:false,childLimit:false,palLimit:false,rowLimit:false},depthVisibility={depthInvisible:false,depthVisible:false,depthUnknown:false},depthVisibilityReads=0,pals=[],rows=[],cells=[],seen=new Set();
-        function visit(node,depth,owner){
-            if(!node){budget.truncated=true;refusals.nullNode=true;return;}
-            if(depth>24){
-                budget.truncated=true;refusals.depthExceeded=true;
-                if(depthVisibilityReads>=32)depthVisibility.depthUnknown=true;
-                else {depthVisibilityReads++;try{var painted=visible(node);if(painted===true)depthVisibility.depthVisible=true;else if(painted===false)depthVisibility.depthInvisible=true;else depthVisibility.depthUnknown=true;}catch(error){depthVisibility.depthUnknown=true;}}
-                return;
+        var budget={nodes:0,truncated:false},refusals={nullNode:false,depthExceeded:false,nodeLimit:false,repeatedNode:false,childLimit:false,palLimit:false,rowLimit:false},paintedTraversal={prunedInvisible:0,visibilityUnknown:false,ownerRefused:false},depthVisibility={depthInvisible:false,depthVisible:false,depthUnknown:false},depthVisibilityReads=0,pals=[],rows=[],cells=[],seen=new Set();
+        function excludedPaintedAncestry(node){
+            var n=node,path=new Set(),witness=false;
+            for(var d=0;n&&d<32;d++,n=n.parent){
+                if(path.has(n))return false;path.add(n);
+                if(n.visible===false||n.opacity===0)witness=true;
+                if(n===item)return witness;
             }
+            return false;
+        }
+        function visit(node,depth,owner,expectedParent){
+            if(!node){budget.truncated=true;refusals.nullNode=true;return;}
             if(budget.nodes>=4096){budget.truncated=true;refusals.nodeLimit=true;return;}
             if(seen.has(node)){budget.truncated=true;refusals.repeatedNode=true;return;}
             seen.add(node);budget.nodes++;
+            var painted;
+            try{
+                if(node!==item&&node.parent!==expectedParent){budget.truncated=true;paintedTraversal.ownerRefused=true;return;}
+                painted=visible(node);
+                if(painted===false){
+                    if(excludedPaintedAncestry(node)){paintedTraversal.prunedInvisible++;return;}
+                    budget.truncated=true;paintedTraversal.visibilityUnknown=true;return;
+                }
+                if(painted!==true){budget.truncated=true;paintedTraversal.visibilityUnknown=true;return;}
+            }catch(error){budget.truncated=true;paintedTraversal.visibilityUnknown=true;return;}
+            if(depth>24){
+                budget.truncated=true;refusals.depthExceeded=true;
+                if(depthVisibilityReads>=32)depthVisibility.depthUnknown=true;
+                else {depthVisibilityReads++;depthVisibility.depthVisible=true;}
+                return;
+            }
             if(Array.isArray(node.nearbyUserModelData)&&typeof node.currentlyEditingDisplayName==='boolean'&&typeof node.iAmAdmin==='boolean'&&visible(node)){
                 if(pals.length<2)pals.push(node);else {budget.truncated=true;refusals.palLimit=true;}owner=node;
             }
-            // Collect only cells below the actual discovered Pal ancestry.
-            // The captured tree is visited once, never a second Pal subtree walk.
+            // Hidden branches cannot contain an original painted control. The
+            // direct hidden NameCard UUID read below remains unchanged.
             if(owner&&node.isCheckBox===true&&visible(node)&&node.children&&node.children.length<=256)cells.push({owner:owner,cell:node});
-            if(node.children){if(node.children.length>256){budget.truncated=true;refusals.childLimit=true;}for(var i=0;i<node.children.length&&i<256;i++)visit(node.children[i],depth+1,owner);}
+            if(node.children){if(node.children.length>256){budget.truncated=true;refusals.childLimit=true;}for(var i=0;i<node.children.length&&i<256;i++)visit(node.children[i],depth+1,owner,node);}
         }
         function visible(node){var n=node;for(var d=0;n&&d<32;d++,n=n.parent){if(n.visible===false||n.opacity===0)return false;if(n===item)return true;}return false;}
         function uuid(value){return typeof value==='string'&&/^\{?[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\}?$/i.test(value)?value:null;}
@@ -62,7 +81,7 @@ export const PEOPLE_AUDIT_QML=String.raw`    property int peopleAuditCount: 0
                 rows.push({sessionId:names[0],ignore:model[0].ignore===true,nativeIgnore:Users.getIgnoreStatus(names[0])===true,checked:checkbox.checked===true,enabled:checkbox.enabled===true,visible:model[0].isPresent===true,rect:r});
             });
         }
-        var body=JSON.stringify({version:1,sequence:message.sequence,revision:message.revision,navigationSequence:message.navigationSequence,scope:'native-people-nearby',palCount:pals.length,activeTab:pal&&pal.activeTab==='nearbyTab'?'nearby':'other',admin:pal?pal.iAmAdmin:null,nodes:budget.nodes,truncated:budget.truncated,refusals:refusals,depthVisibility:depthVisibility,rows:rows});
+        var body=JSON.stringify({version:1,sequence:message.sequence,revision:message.revision,navigationSequence:message.navigationSequence,scope:'native-people-nearby',palCount:pals.length,activeTab:pal&&pal.activeTab==='nearbyTab'?'nearby':'other',admin:pal?pal.iAmAdmin:null,nodes:budget.nodes,truncated:budget.truncated,refusals:refusals,depthVisibility:depthVisibility,paintedTraversal:paintedTraversal,rows:rows});
         if(body.length>16384||peopleAuditBytes+body.length>524288)return;peopleAuditCount++;peopleAuditBytes+=body.length;
         console.log("BROWSER_TABLET_PEOPLE_AUDIT "+body);
     }
@@ -79,10 +98,11 @@ const number=(v,max=Number.MAX_SAFE_INTEGER)=>Number.isSafeInteger(v)&&v>=0&&v<=
 export const canonicalPeopleID=value=>{assert(uuid(value));return value.replace(/[{}]/g,'').toLowerCase();};
 export function parsePeopleAudit(text){
  assert(typeof text==='string'&&Buffer.byteLength(text)<=4*1024*1024);const entries=[];
- for(const line of text.split('\n')){const at=line.indexOf(PEOPLE_AUDIT_PREFIX);if(at<0)continue;const body=line.slice(at+PEOPLE_AUDIT_PREFIX.length);assert(Buffer.byteLength(body)<=16384);const r=JSON.parse(body);keys(r,['version','sequence','revision','navigationSequence','scope','palCount','activeTab','admin','nodes','truncated','refusals','depthVisibility','rows']);
+ for(const line of text.split('\n')){const at=line.indexOf(PEOPLE_AUDIT_PREFIX);if(at<0)continue;const body=line.slice(at+PEOPLE_AUDIT_PREFIX.length);assert(Buffer.byteLength(body)<=16384);const r=JSON.parse(body);keys(r,['version','sequence','revision','navigationSequence','scope','palCount','activeTab','admin','nodes','truncated','refusals','depthVisibility','paintedTraversal','rows']);
   assert(r.version===1&&number(r.sequence)&&r.sequence>0&&number(r.revision)&&r.revision>0&&number(r.navigationSequence));assert(r.scope==='native-people-nearby'&&number(r.palCount,2)&&number(r.nodes,4096)&&typeof r.truncated==='boolean'&&['nearby','other'].includes(r.activeTab)&&[true,false,null].includes(r.admin));assert(Array.isArray(r.rows)&&r.rows.length<=32);
   if(r.refusals!==undefined){const fields=['nullNode','depthExceeded','nodeLimit','repeatedNode','childLimit','palLimit','rowLimit'];keys(r.refusals,fields);assert(Object.keys(r.refusals).length===fields.length&&fields.every(key=>typeof r.refusals[key]==='boolean'));assert(!fields.some(key=>r.refusals[key])||r.truncated===true);}
   if(r.depthVisibility!==undefined){const fields=['depthInvisible','depthVisible','depthUnknown'];keys(r.depthVisibility,fields);assert(Object.keys(r.depthVisibility).length===fields.length&&fields.every(key=>typeof r.depthVisibility[key]==='boolean'));assert(!fields.some(key=>r.depthVisibility[key])||(r.truncated===true&&r.refusals?.depthExceeded===true));}
+  if(r.paintedTraversal!==undefined){keys(r.paintedTraversal,['prunedInvisible','visibilityUnknown','ownerRefused']);assert(Object.keys(r.paintedTraversal).length===3&&number(r.paintedTraversal.prunedInvisible,4096)&&typeof r.paintedTraversal.visibilityUnknown==='boolean'&&typeof r.paintedTraversal.ownerRefused==='boolean');assert(!(r.paintedTraversal.visibilityUnknown||r.paintedTraversal.ownerRefused)||r.truncated===true);}
   for(const row of r.rows){keys(row,['sessionId','ignore','nativeIgnore','checked','enabled','visible','rect']);keys(row.rect,['x','y','width','height']);assert(uuid(row.sessionId)&&['ignore','nativeIgnore','checked','enabled','visible'].every(k=>typeof row[k]==='boolean'));assert(row.rect&&['x','y','width','height'].every(k=>typeof row.rect[k]==='number'&&Number.isFinite(row.rect[k])&&Math.abs(row.rect[k])<=65536));assert(row.rect.width>0&&row.rect.height>0);}
   entries.push(r);if(entries.length>32)entries.shift();
  }return entries;

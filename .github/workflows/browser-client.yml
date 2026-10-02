@@ -94,6 +94,14 @@ jobs:
           npx vite build --config vite.embedded-world.config.mjs --configLoader native
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             bash ../browser-client/lab/run-embedded-journey.sh
+      - name: Prove native-ignored FBX pruning preserves actual production-worker pixels
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 'true'
+          OVERTE_IGNORED_FBX_EVIDENCE: '${{ runner.temp }}/overte-native-ignored-fbx-evidence'
+        run: |
+          npx vite build --config vite.native-ignored-fbx.config.mjs
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
+            bash lab/run-native-ignored-fbx-journey.sh
       - name: Test Chromium and Firefox user interface and renderer
         # Firefox needs a display/GLX context even with software Mesa on the Ubuntu runner.
         # The null audio sink exercises real Web Audio without requiring host hardware.

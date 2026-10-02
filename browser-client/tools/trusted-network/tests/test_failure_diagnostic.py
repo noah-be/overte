@@ -2,7 +2,7 @@
 """Compile/run pure formatter only: no profile, namespace, socket, caps or host signals."""
 import ctypes,json,pathlib,subprocess,tempfile,unittest
 HERE=pathlib.Path(__file__).parent
-PHASES=('admission','initial-capabilities','installed-profile','initial-nnp','environment','signal-handlers','configuration','owner-modules','policy','python-image','handoff-relocate','user-namespace','groups-deny','uid-map','gid-map','network-namespace','lifetime','tap-ready','route-socket','route-bind','route-ack-option','route-install-ack','route-readback','attestation','attestation-relocate','retire-capabilities','post-retirement-lifetime','handoff-descriptors','close-inherited','exec-python')
+PHASES=('admission','initial-capabilities','installed-profile','initial-nnp','environment','signal-handlers','configuration','owner-modules','policy','python-image','handoff-relocate','user-namespace','groups-deny','uid-map','gid-map','network-namespace','lifetime','tap-ready','route-socket','route-bind','route-ack-option','route-install-ack','route-readback','attestation','attestation-relocate','retire-capabilities','post-retirement-lifetime','handoff-descriptors','close-inherited','exec-python','python-image-open','python-image-hash','python-import-roots','python-import-root-open','python-import-root-stat','python-import-scan','python-import-alias-resolve','python-import-alias-target')
 class FixedFailure(unittest.TestCase):
  @classmethod
  def setUpClass(cls):

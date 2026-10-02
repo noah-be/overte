@@ -37,10 +37,7 @@ enum setup_phase {
  SETUP_UID_MAP,SETUP_GID_MAP,SETUP_NETWORK_NAMESPACE,SETUP_LIFETIME,SETUP_TAP_READY,
  SETUP_ROUTE_SOCKET,SETUP_ROUTE_BIND,SETUP_ROUTE_ACK_OPTION,SETUP_ROUTE_INSTALL,
  SETUP_ROUTE_READBACK,SETUP_ATTESTATION,SETUP_ATTESTATION_RELOCATE,SETUP_RETIRE_CAPS,
- SETUP_POST_RETIRE_LIFETIME,SETUP_HANDOFF_DESCRIPTORS,SETUP_CLOSE_INHERITED,SETUP_EXEC_PYTHON,
- SETUP_PYTHON_OPEN,SETUP_PYTHON_HASH,SETUP_PYTHON_IMPORT_ROOTS,
- SETUP_PYTHON_IMPORT_OPEN,SETUP_PYTHON_IMPORT_STAT,SETUP_PYTHON_IMPORT_SCAN,
- SETUP_PYTHON_ALIAS_RESOLVE,SETUP_PYTHON_ALIAS_TARGET
+ SETUP_POST_RETIRE_LIFETIME,SETUP_HANDOFF_DESCRIPTORS,SETUP_CLOSE_INHERITED,SETUP_EXEC_PYTHON
 };
 static const char *const setup_phase_labels[]={
  "admission","initial-capabilities","installed-profile","initial-nnp",
@@ -49,10 +46,7 @@ static const char *const setup_phase_labels[]={
  "uid-map","gid-map","network-namespace","lifetime","tap-ready",
  "route-socket","route-bind","route-ack-option","route-install-ack",
  "route-readback","attestation","attestation-relocate","retire-capabilities",
- "post-retirement-lifetime","handoff-descriptors","close-inherited","exec-python",
- "python-image-open","python-image-hash","python-import-roots",
- "python-import-root-open","python-import-root-stat","python-import-scan",
- "python-import-alias-resolve","python-import-alias-target"
+ "post-retirement-lifetime","handoff-descriptors","close-inherited","exec-python"
 };
 // errnoObserved is the value captured at refusal before cleanup. It is not a
 // claimed causal syscall for semantic/identity validation helpers. Each fixed
@@ -88,49 +82,43 @@ static int rootnode(const char *path,int directory){
 // every possible import root recursively, not only the top directory. No user
 // writable/symlink descendant can become a Python import after capability drop.
 static int rootfile(const char *path){return rootnode(path,0);}
-// Fixed diagnostic progress only; no path, alias, descriptor or runtime label.
-static void inspection_phase(enum setup_phase *phase,enum setup_phase next) {
- *phase=next;errno=0;
-}
-static int import_tree(int fd,unsigned *entries,unsigned depth,enum setup_phase *phase) {
- inspection_phase(phase,SETUP_PYTHON_IMPORT_SCAN);
+static int import_tree(int fd,unsigned *entries,unsigned depth) {
  if(depth>32)return -1;
  struct stat info;if(fstat(fd,&info)||info.st_uid||(info.st_mode&022)||!S_ISDIR(info.st_mode))return -1;
  int copy=dup(fd);if(copy<0)return -1;DIR *directory=fdopendir(copy);if(!directory){close(copy);return -1;}
  int result=-1;struct dirent *entry;
- while((inspection_phase(phase,SETUP_PYTHON_IMPORT_SCAN),errno=0,(entry=readdir(directory)))) {
+ while((errno=0,(entry=readdir(directory)))) {
   if(!strcmp(entry->d_name,".")||!strcmp(entry->d_name,".."))continue;
   if(++*entries>16384)goto done;
   struct stat child;if(fstatat(fd,entry->d_name,&child,AT_SYMLINK_NOFOLLOW)||child.st_uid)goto done;
   if(S_ISLNK(child.st_mode)) {
    char name[8192],resolved[4097];int length=snprintf(name,sizeof(name),"/proc/self/fd/%d/%s",fd,entry->d_name);
-   if(length<1||length>=(int)sizeof(name))goto done;
-   inspection_phase(phase,SETUP_PYTHON_ALIAS_RESOLVE);if(!realpath(name,resolved))goto done;
-   inspection_phase(phase,SETUP_PYTHON_ALIAS_TARGET);int target=rootfile(resolved);if(target<0)goto done;close(target);continue;
+   if(length<1||length>=(int)sizeof(name)||!realpath(name,resolved))goto done;
+   int target=rootfile(resolved);if(target<0)goto done;close(target);continue;
   }
   if(child.st_mode&022)goto done;
   if(S_ISDIR(child.st_mode)) {
    int next=openat(fd,entry->d_name,O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC);if(next<0)goto done;
-   int checked=import_tree(next,entries,depth+1,phase);close(next);if(checked)goto done;
+   int checked=import_tree(next,entries,depth+1);close(next);if(checked)goto done;
   } else if(!S_ISREG(child.st_mode))goto done;
  }
  if(errno)goto done;
  result=0;
  done:closedir(directory);return result;
 }
-static int verify_import_roots(enum setup_phase *phase) {
+static int verify_import_roots(void) {
  unsigned entries=0;
  for(unsigned i=0;i<PYTHON_IMPORT_COUNT;i++) {
-  const char *path=PYTHON_IMPORT_PATHS[i];inspection_phase(phase,SETUP_PYTHON_IMPORT_OPEN);int fd=rootnode(path,strstr(path,".zip")==NULL);
+  const char *path=PYTHON_IMPORT_PATHS[i];int fd=rootnode(path,strstr(path,".zip")==NULL);
   if(fd<0) {
    if(errno!=ENOENT||!strstr(path,".zip"))return -1;
    char parent[4097];if(strlen(path)>4096)return -1;strcpy(parent,path);char *tail=strrchr(parent,'/');if(!tail||tail==parent)return -1;*tail=0;
-   inspection_phase(phase,SETUP_PYTHON_IMPORT_OPEN);fd=rootnode(parent,1);if(fd<0)return -1;
-   inspection_phase(phase,SETUP_PYTHON_IMPORT_STAT);struct stat st;int invalid=fstat(fd,&st)||st.st_uid||(st.st_mode&022);close(fd);if(invalid)return -1;
+   fd=rootnode(parent,1);if(fd<0)return -1;
+   struct stat st;int invalid=fstat(fd,&st)||st.st_uid||(st.st_mode&022);close(fd);if(invalid)return -1;
    continue;
   }
-  inspection_phase(phase,SETUP_PYTHON_IMPORT_STAT);struct stat info;if(fstat(fd,&info)||info.st_uid||(info.st_mode&022)){close(fd);return -1;}
-  int invalid=S_ISDIR(info.st_mode)?import_tree(fd,&entries,0,phase):!S_ISREG(info.st_mode);close(fd);if(invalid)return -1;
+  struct stat info;if(fstat(fd,&info)||info.st_uid||(info.st_mode&022)){close(fd);return -1;}
+  int invalid=S_ISDIR(info.st_mode)?import_tree(fd,&entries,0):!S_ISREG(info.st_mode);close(fd);if(invalid)return -1;
  }
  return 0;
 }
@@ -249,9 +237,7 @@ int main(int argc,char **argv){
  PHASE(SETUP_CONFIGURATION);int configuration=config_sealed();FAIL_IF(configuration<0);
  int modules[4]={-1,-1,-1,-1};for(int i=0;i<4;i++){PHASE(SETUP_OWNER_MODULES);modules[i]=verified_sealed(OWNER_PATHS[i],OWNER_HASHES[i],SOURCE_LIMIT);FAIL_IF(modules[i]<0);}
  PHASE(SETUP_POLICY);int policy=verified_sealed(POLICY_PATH,POLICY_HASH,LIMIT);FAIL_IF(policy<0);
- PHASE(SETUP_PYTHON_OPEN);int python=rootfile(PYTHON_PATH);FAIL_IF(python<0);
- PHASE(SETUP_PYTHON_HASH);FAIL_IF(binary_hash(python,PYTHON_HASH));
- PHASE(SETUP_PYTHON_IMPORT_ROOTS);FAIL_IF(verify_import_roots(&failure_phase));
+ PHASE(SETUP_PYTHON_IMAGE);int python=rootfile(PYTHON_PATH);FAIL_IF(python<0||binary_hash(python,PYTHON_HASH)||verify_import_roots());
  // Relocate above all prescribed fd slots before closing inherited fds.
  int selected[6]={configuration,modules[0],modules[1],modules[2],modules[3],policy};
  for(int i=0;i<6;i++){PHASE(SETUP_HANDOFF_RELOCATE);int copy=fcntl(selected[i],F_DUPFD_CLOEXEC,32);int saved=errno;close(selected[i]);if(copy<0){failure_errno=saved;goto fail;}selected[i]=copy;}

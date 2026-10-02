@@ -12,12 +12,13 @@ FILES=('observer.py','probe.py','target_projection.py','source-pins.json','nativ
 # No exception text, argv, tool output, pathname, URL or environment is projected.
 STAGING_PHASES=frozenset(('preparation','source-check','fork-check','temporary-root',
  'private-directories','helper-copy','dependency-record','download-release','download-index',
- 'download-package','download-digests','package-size','dependency-write','keyring-read',
+ 'download-package','download-digests','package-size','dependency-write','keyring-read','keyring-ownership','keyring-write-permissions','keyring-bounded-regular',
  'signature-run','signature-output','signature-validation','signature-log','signed-index-record',
  'index-decode','package-record','archive-list','archive-layout','archive-member-write','archive-member-extract','archive-decode',
  'binary-record','executable-write','dependency-proof','workflow-env-open','workflow-env-write','complete'))
 TOOL_PHASES=frozenset(('source-check','signature-run','archive-list','archive-member-extract','archive-decode'))
 ENV_PHASES=frozenset(('temporary-root','workflow-env-open'))
+KEYRING_PHASES=frozenset(('keyring-read','keyring-ownership','keyring-write-permissions','keyring-bounded-regular'))
 
 def staging_phase(progress,phase):
  if type(phase)is not str or phase not in STAGING_PHASES:raise ValueError('fixed-staging-phase-required')
@@ -32,7 +33,7 @@ def staging_failure(error,phase):
  elif isinstance(error,urllib.error.URLError):category='download-transport-error'
  elif isinstance(error,(TimeoutError,subprocess.TimeoutExpired)):category='operation-timeout'
  elif isinstance(error,FileNotFoundError):
-  category='required-tool-unavailable'if phase in TOOL_PHASES else'trusted-keyring-unavailable'if phase=='keyring-read'else'required-input-unavailable'
+  category='required-tool-unavailable'if phase in TOOL_PHASES else'trusted-keyring-unavailable'if phase in KEYRING_PHASES else'required-input-unavailable'
  elif isinstance(error,PermissionError):category='filesystem-access-refused'
  elif isinstance(error,subprocess.CalledProcessError):category='external-tool-failed'
  elif isinstance(error,json.JSONDecodeError):category='record-parse-refused'
@@ -87,7 +88,11 @@ def signed_dependency(directory,keyring,fetch=download,*,progress=None):
  for name,data in(('InRelease',release),('Packages.xz',index),('strace.deb',package)):write(directory/name,data)
  staging_phase(progress,'keyring-read')
  keyring=Path(keyring).resolve(strict=True);st=keyring.stat()
- if st.st_uid not in(0,os.getuid())or st.st_mode&0o022:raise ValueError('trusted-keyring-permissions-refused')
+ staging_phase(progress,'keyring-ownership')
+ if st.st_uid not in(0,os.getuid()):raise ValueError('trusted-keyring-permissions-refused')
+ staging_phase(progress,'keyring-write-permissions')
+ if st.st_mode&0o022:raise ValueError('trusted-keyring-permissions-refused')
+ staging_phase(progress,'keyring-bounded-regular')
  regular(keyring,1024*1024)
  staging_phase(progress,'signature-run')
  result=subprocess.run(['gpgv','--homedir',str(directory),'--status-fd','1','--keyring',str(keyring),str(directory/'InRelease')],capture_output=True,timeout=10)
