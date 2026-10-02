@@ -185,7 +185,22 @@ def trusted_import_paths(python,*,aliases=None):
       # ancestry and target remain root-owned and non-writable. No directory
       # links/cycles or user-owned import targets are accepted.
       if info.st_uid or not child.resolve(strict=True).is_file():raise ValueError('python-import-tree-untrusted')
-      with trust_location('import-alias',alias_links+1):canonical=rooted_alias(child);record=alias_record(canonical)
+      canonical=None
+      try:
+       with trust_location('import-alias',alias_links+1):canonical=rooted_alias(child);record=alias_record(canonical)
+      except TrustRefusal as error:
+       if os.environ.get('OVERTE_TRUSTED_ALIAS_DIAGNOSTICS')=='1' and type(canonical)is str:
+        # Failure-only observations after the ORIGINAL admission refused.
+        # No exception replacement, retry, generic alias bound or read grant.
+        try:
+         import importlib.util,sys
+         specification=importlib.util.spec_from_file_location('reviewed_alias_diagnostics',Path(__file__).with_name('alias_diagnostics.py'))
+         observer=importlib.util.module_from_spec(specification);specification.loader.exec_module(observer)
+         projection=observer.observe_alias(python,str(child),canonical)
+         print('TRUSTED_ALIAS_PROVENANCE:'+json.dumps(projection,sort_keys=True,separators=(',',':')),file=sys.stderr)
+        except Exception:
+         print('TRUSTED_ALIAS_PROVENANCE:{"schema":1,"scope":"failure-only-installed-alias-provenance","status":"observation-refused"}',file=sys.stderr)
+       raise
       alias_links+=1;alias_read_bytes+=record['bytes']
       if alias_links>MAX_ALIAS_LINKS or alias_read_bytes>MAX_ALIAS_READ_BYTES:raise ValueError('python-import-alias-read-budget')
       previous=targets.get(canonical)

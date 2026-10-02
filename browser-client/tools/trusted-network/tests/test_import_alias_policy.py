@@ -25,7 +25,10 @@ def module(name):
 
 build = module('build')
 install = module('install')
-UTC = Path('/usr/share/zoneinfo/Etc/UTC')
+# Public packaged descriptor; /usr/share is intentionally writable on the hosted image.
+# Keep original immutable canonical ancestry/FD/hash/budget assertions.
+PUBLIC_FIXTURE = Path('/usr/lib/systemd/system/basic.target')
+IMAGE_UTC = Path('/usr/share/zoneinfo/Etc/UTC')
 
 
 def row(value='/usr/share/doc/python3.12/EXTERNALLY-MANAGED', size=32):
@@ -160,9 +163,58 @@ class AliasPolicy(unittest.TestCase):
                 build.build(stage, policy)
             self.assertEqual(list(stage.iterdir()), [])
 
+    def test_measured_writable_utc_refuses_original_ancestry_before_descriptor_open(self):
+        original = Path.stat
+
+        def measured_mode(value, *args, **kwargs):
+            actual = original(value, *args, **kwargs)
+            if value != IMAGE_UTC:
+                return actual
+            fields = list(actual)
+            fields[0], fields[4], fields[6] = stat.S_IFREG | 0o777, 0, 114
+            return os.stat_result(fields)
+
+        with patch.object(Path, 'stat', measured_mode), patch.object(build.os, 'open') as opened:
+            with self.assertRaises(build.TrustRefusal) as raised:
+                build.alias_record(IMAGE_UTC)
+        opened.assert_not_called()
+        refusal = build.staging_failure(raised.exception)
+        self.assertEqual(refusal['category'], 'runtime-package-path-not-root-trusted')
+        self.assertTrue(refusal['metadata']['rootOwned'])
+        self.assertTrue(refusal['metadata']['groupOrOtherWritable'])
+        self.assertEqual(refusal['metadata']['permissions'], 0o777)
+        self.assertEqual(refusal['metadata']['boundedBytes'], 114)
+
+    def test_writable_matching_bytes_refuse_original_alias_fd_gate_without_hash_reads(self):
+        with tempfile.TemporaryDirectory(prefix='overte-writable-public-fixture-') as directory:
+            target = Path(directory)/'fixture'
+            target.write_bytes(PUBLIC_FIXTURE.read_bytes())
+            target.chmod(0o777)
+            real_open, real_stat = os.open, os.fstat
+            opened = []
+
+            def acquire(*_args, **_kwargs):
+                fd = real_open(target, os.O_RDONLY | os.O_NOFOLLOW)
+                opened.append(fd)
+                return fd
+
+            def reviewed_owner(fd):
+                actual = real_stat(fd)
+                return SimpleNamespace(st_uid=0, st_mode=actual.st_mode, st_size=actual.st_size)
+
+            with patch.object(build, 'rooted', return_value=str(PUBLIC_FIXTURE)), \
+                    patch.object(build.os, 'open', acquire), patch.object(build.os, 'fstat', reviewed_owner), \
+                    patch.object(build.os, 'read') as read:
+                with self.assertRaises(build.TrustRefusal):
+                    build.alias_record(PUBLIC_FIXTURE)
+            read.assert_not_called()
+            for fd in opened:
+                with self.assertRaises(OSError):
+                    real_stat(fd)
+
     def test_actual_root_owned_public_descriptor_hash_and_size_match_independent_digest(self):
-        self.assertEqual(build.alias_record(UTC), {'path': str(UTC), 'bytes': UTC.stat().st_size,
-                                                 'sha256': hashlib.sha256(UTC.read_bytes()).hexdigest()})
+        self.assertEqual(build.alias_record(PUBLIC_FIXTURE), {'path': str(PUBLIC_FIXTURE), 'bytes': PUBLIC_FIXTURE.stat().st_size,
+                                                 'sha256': hashlib.sha256(PUBLIC_FIXTURE.read_bytes()).hexdigest()})
 
     def test_actual_user_owned_temporary_target_refuses(self):
         with tempfile.TemporaryDirectory() as owned:
@@ -194,7 +246,7 @@ class AliasPolicy(unittest.TestCase):
 
         with patch.object(build.os, 'open', tracking), patch.object(build.os, 'fstat', changed), \
                 self.assertRaisesRegex(ValueError, 'target-changed'):
-            build.alias_record(UTC)
+            build.alias_record(PUBLIC_FIXTURE)
         with self.assertRaises(OSError):
             os.fstat(opened[-1])
 
@@ -224,7 +276,7 @@ class AliasPolicy(unittest.TestCase):
             install.verify_python_imports(manifest)
 
     def test_real_build_nonzero_inventory_binds_exact_profile_manifest_header_and_static_binary(self):
-        record = build.alias_record(UTC)
+        record = build.alias_record(PUBLIC_FIXTURE)
 
         def inventory(_python, *, aliases):
             aliases.append(record)
@@ -240,14 +292,14 @@ class AliasPolicy(unittest.TestCase):
             self.assertEqual(manifest['pythonImportAliases'], [record])
             profile = (root/'overte-browser-network').read_text()
             setup, owner = profile.split('profile overte-browser-network-owner flags=', 1)
-            self.assertIn('"/usr/share/zoneinfo/Etc/UTC" r,', setup)
-            self.assertIn('"/usr/share/zoneinfo/Etc/" r,', setup)
+            self.assertIn('"/usr/lib/systemd/system/basic.target" r,', setup)
+            self.assertIn('"/usr/lib/systemd/system/" r,', setup)
             self.assertNotIn('/usr/share/**', setup)
             self.assertNotIn('/etc/**', setup)
             self.assertIn('audit deny capability,', owner)
             header = (root/'image.h').read_text()
             self.assertIn('#define PYTHON_IMPORT_ALIAS_COUNT 1', header)
-            self.assertIn(json.dumps(str(UTC)), header)
+            self.assertIn(json.dumps(str(PUBLIC_FIXTURE)), header)
             self.assertIn('PYTHON_IMPORT_ALIAS_HASHES', header)
             digest = hashlib.sha256((root/'manifest.json').read_bytes()).hexdigest()
             checked, _ = install.verified_bundle(root, digest)
@@ -270,7 +322,7 @@ class RuntimeAliasHash(unittest.TestCase):
     def setUpClass(cls):
         cls.work = tempfile.TemporaryDirectory(prefix='overte-alias-runtime-cpu-')
         cls.root = Path(cls.work.name)
-        content = UTC.read_bytes()
+        content = PUBLIC_FIXTURE.read_bytes()
         digest = hashlib.sha256(content).digest()
         source = (BASE / 'src/launcher.c').read_text()
         cls.source = source
@@ -294,12 +346,17 @@ static const char *PYTHON_IMPORT_ALIAS_PATHS[4]={"/usr/share/approved", "/usr/sh
         code += '''static int test_reviewed_owner_fd=-1;
 static int test_fstat(int fd,struct stat *output){int result=fstat(fd,output);if(!result&&fd==test_reviewed_owner_fd)output->st_uid=0;return result;}
 #define fstat test_fstat
+static unsigned test_preads;
+static ssize_t test_pread(int fd,void *buffer,size_t count,off_t offset){test_preads++;return pread(fd,buffer,count,offset);}
+#define pread test_pread
 '''
         code += '''static int digest_bytes(const void *data,size_t size,unsigned char output[32]){return SHA256(data,size,output)!=NULL;}
 ''' + function + '''
 int check(const char *path,int fd){import_alias_reads=0;import_alias_read_bytes=0;return verify_import_alias_target(fd,path);}
 int check_repeat(const char *path,int fd){import_alias_reads=0;import_alias_read_bytes=0;for(int i=0;i<129;i++)if(verify_import_alias_target(fd,path))return i;return 129;}
 int check_byte_budget(const char *path,int fd){import_alias_reads=0;import_alias_read_bytes=33554432;return verify_import_alias_target(fd,path);}
+int check_reviewed_owner(int fd){test_preads=0;test_reviewed_owner_fd=fd;int result=check("/usr/share/approved",fd);test_reviewed_owner_fd=-1;return result;}
+unsigned count_read_calls(void){return test_preads;}
 int check_empty(int fd){test_reviewed_owner_fd=fd;int result=check("/usr/share/approved-empty",fd);test_reviewed_owner_fd=-1;return result;}
 '''
         (cls.root/'api.c').write_text(code)
@@ -312,15 +369,28 @@ int check_empty(int fd){test_reviewed_owner_fd=fd;int result=check("/usr/share/a
         cls.api.check_repeat.argtypes = cls.api.check.argtypes
         cls.api.check_byte_budget.argtypes = cls.api.check.argtypes
         cls.api.check_empty.argtypes = [ctypes.c_int]
+        cls.api.check_reviewed_owner.argtypes = [ctypes.c_int]
+        cls.api.check_reviewed_owner.restype = ctypes.c_int
+        cls.api.count_read_calls.argtypes = []
+        cls.api.count_read_calls.restype = ctypes.c_uint
 
     @classmethod
     def tearDownClass(cls):
         cls.work.cleanup()
 
     def fd(self):
-        fd = os.open(UTC, os.O_RDONLY | os.O_NOFOLLOW)
+        fd = os.open(PUBLIC_FIXTURE, os.O_RDONLY | os.O_NOFOLLOW)
         self.addCleanup(os.close, fd)
         return fd
+
+    def test_actual_c_writable_matching_bytes_refuse_before_read_with_reviewed_owner_boundary(self):
+        target = self.root/'writable'
+        target.write_bytes(PUBLIC_FIXTURE.read_bytes())
+        target.chmod(0o777)
+        fd = os.open(target, os.O_RDONLY | os.O_NOFOLLOW)
+        self.addCleanup(os.close, fd)
+        self.assertEqual(self.api.check_reviewed_owner(fd), -1)
+        self.assertEqual(self.api.count_read_calls(), 0)
 
     def test_actual_c_descriptor_hash_accepts_matching_reviewed_bytes(self):
         self.assertEqual(self.api.check(b'/usr/share/approved', self.fd()), 0)
@@ -335,7 +405,7 @@ int check_empty(int fd){test_reviewed_owner_fd=fd;int result=check("/usr/share/a
 
     def test_actual_c_refuses_user_owned_identical_bytes(self):
         target = self.root/'owned'
-        target.write_bytes(UTC.read_bytes())
+        target.write_bytes(PUBLIC_FIXTURE.read_bytes())
         fd = os.open(target, os.O_RDONLY)
         self.addCleanup(os.close, fd)
         self.assertEqual(self.api.check(b'/usr/share/approved', fd), -1)

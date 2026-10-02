@@ -60,6 +60,8 @@ jobs:
           sudo python3 tools/prepare-apparmor-userns.py
           sudo python3 tools/apparmor-diagnostic.py
       - name: Qualify reviewed dedicated network setup entrypoint
+        env:
+          OVERTE_TRUSTED_ALIAS_DIAGNOSTICS: '1'
         run: |
           python3 -m unittest discover -s tools/trusted-network/tests -p 'test_*.py'
           node --test tools/trusted-network/tests/trusted-entry.test.mjs
