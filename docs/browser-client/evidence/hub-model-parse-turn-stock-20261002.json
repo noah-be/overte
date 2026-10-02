@@ -1,0 +1,476 @@
+{
+  "date": "2026-10-02",
+  "materialAssistance": "OpenAI Codex",
+  "scope": "Four short source-frozen stock overte_hub model parse task comparisons; no endurance test.",
+  "baseCommit": "a5864e5cb1b47698bf79679cf3107a2b47ace229",
+  "testedDirtySourceSHA256": {
+    "browser-client/gateway/server.mjs": "f8399c1015cb85ada0da613b9278b8a90dca0660d2478b8810d43161b1ed237c",
+    "browser-client/gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+    "browser-client/gateway/native-world.js": "bec2f02313446afde7a0be20899358a082b41c6c6c5d745ec67a24809e2b7ddb",
+    "browser-client/gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60",
+    "browser-client/gateway/public-places.mjs": "cbac3df2ecf7071da6e77df8d58b09be194afa184cfb0c37f6015f9f1f570471",
+    "browser-client/gateway/validation.mjs": "65eba4a66c76d4bfc0dbd18e172def64f43b37cca0db2301da5bf4d18645de79",
+    "browser-client/gateway/worker-sandbox.mjs": "0f676af4e006de48a0aeb32185ea37eb9500d1a7c65d064a5a16a27024c268a1",
+    "browser-client/gateway/network-sandbox.mjs": "b63bd39424077a476424b3b1ac59232f366bb4f72375a29bd33edb6451b7d113",
+    "browser-client/gateway/network_udp.py": "378f7159b1456ab5a0e25d2f933f35106344106625cef0ce0d589de3d1e45eca",
+    "browser-client/gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+    "browser-client/gateway/tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+    "browser-client/gateway/process-lifecycle.mjs": "e8d7e021a8b934b271910883e27c2a1109aedd22e12044b763d4bf8acc274eaf",
+    "browser-client/shared/fluid-performance.mjs": "44e5262f62785e3a9ba4a96c275f5f0bf3a93c27e1d44fdad3bdbec739deebe2",
+    "browser-client/gateway/session-assets.mjs": "68542cb352ccad1bdc23a65ae34ab19d4abc2b02e1f81dec3f529d525ab84bf4",
+    "browser-client/gateway/asset-download.mjs": "4718cfe223afa884ab4f5890b6dc093303a70b864917fe5d85dc5cc2b8568357",
+    "browser-client/src/main.ts": "5bd4a0548d425ed0a1cc4518ee600bac523e559eb5e6d4a8b95b006ce80d98e3",
+    "browser-client/src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+    "browser-client/src/compressed-color-session.ts": "e18af74fe59593bf9f1aee0ce7a91f0e6910ed5e903868f646f1311d61c42fcf",
+    "browser-client/src/native-compressed-color.ts": "312e6beac3a95b16f0ad3675d9789270eec69a6cdf808b66ce23da007c22aa56",
+    "browser-client/src/color-texture-metadata.ts": "1a4053acae0e7fd47076c0472598cf09b4da6ae178bd0563fa81857477c3d785",
+    "browser-client/src/initial-surface-wait.ts": "70c5a8c833eb2d7f71f21be0602e8e8a93aaa9e6452e9a942b02cfead61f4e47",
+    "browser-client/src/mesh-collision.ts": "2fa7aded6c11e1defb9dd87d2963abd0212ab9a4243eb3089aa01073d5b3e4a6",
+    "browser-client/src/simulation-clock.ts": "263fffd2b448c01fd25dc6f2adeceacf5cc28c2550d3dc249c07d915737bc7f5",
+    "browser-client/src/world.ts": "0e1af68f676a1f50b0833d244216ed198db9388dd8fc9ce43cad7e72f2a8c9c8",
+    "browser-client/src/world-draw-census.ts": "dd46aff4c5de0e58d1f8184d27eb18dc8f34a31de44ffd6bd503bde8583a4150",
+    "browser-client/src/world-bitmap-upload.ts": "18fefcf4fafdcc14403b8ee8b4140cf7ec33455a0ec642459c0255e91d356b09",
+    "browser-client/src/world-bitmap-bindings.ts": "31cba7d754d160054d83881da5f6ba9d8c98c5198b520addcc80b47529881f54",
+    "browser-client/src/fst-graph-cache.ts": "3a97e6dfcff1afaf1919b766ba38370befcb740e36f54662d8c9a4769c157230",
+    "browser-client/src/fst-texture-admission.ts": "385f257d5f60ea60ab26af0df1d1f77186e836ba64e33640012349786244a5d5",
+    "browser-client/src/compressed-color-capabilities.ts": "9e0536d5b2c82dee198b4e952b8b4f92bce8c49011ec5972b53608e94583d9fe",
+    "browser-client/src/graphics-warmup.ts": "878c32f9d7503cd334f66e348e10670f73c8c077373906c979523d75884a93e6",
+    "browser-client/src/graphics-warmup-owner.ts": "e09c8bfbfb71dadbe838413551cce82a6b689967237e355cd4a787a9da0050d4",
+    "browser-client/src/gpu-time-observer.ts": "6431fd2ee12ed93a19c98abba26e895b82598da94f2c12f227c2b0a649d0fed3",
+    "browser-client/src/world-gpu-timing.ts": "f20d8edec0b0666e88fb7a60cc2b5dae35ae02d5c6e6b44bc2ae86810beccd46",
+    "browser-client/src/world-image-cache.ts": "ba45a6125087f8b275c939a5e9e36dadac6879a37cb0fbe50d8c19dd9f1c6af9",
+    "browser-client/src/world-source-text-cache.ts": "57ccb98bed54e788ed0e2f263e8362ae505f4b3073648dc08c311925e21116b1",
+    "browser-client/src/embedded-fbx-images.ts": "790210b1205de5a26798e59c428da4bfff94ace0357374b6c370d53a42009e66",
+    "browser-client/src/embedded-content-counts.ts": "99fdefbe880cc81f8871565875fd95620211cbbc7a64ff3cfb6a5ee601d33864",
+    "browser-client/src/embedded-fbx-protocol.ts": "381179c36c71ab04bd0214fde9d2da4afa2a04f7f52dcbadc526b9eb2dd0c1db",
+    "browser-client/src/native-zero-lights.ts": "db505e6dbbfa856f3f5a5cb7d2c38768ab47f68e545a44d2281589613e151659",
+    "browser-client/src/static-model-batch.ts": "e14251976cfbc726dc8758759d13b0318b5bd08bec47499f64083b7e9ff44b8a",
+    "browser-client/src/native-render-state.ts": "af31a1e01576c233c1f7e8a8231dd5c2cc5871cb58b5783bf01f788da70d01df",
+    "browser-client/src/native-alpha-material.ts": "a3515894f69f078222c7e2b543c46ce22f7bd05b58e12f3eaa14aa0a638dcfbb",
+    "browser-client/src/model-resources.ts": "23e551d60f53e02e2a9d28573df47e0bc7710fc499d1f05aeca88daa89703949",
+    "browser-client/src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+    "browser-client/src/worker-task-yield.ts": "6fdfa71526163386c9e041b74a533b2ff50c52f533145bfc2facb213d4333cc8",
+    "browser-client/src/prepared-fbx-cache.ts": "d4fe5ef8699e329094f4c4e99b0a8baa9da29739ee5b3dd6f28ff756b6466579",
+    "browser-client/src/model-load-scheduler.ts": "5b0f79beda5b11ba85dff0c34fbd4e091e5f21a0130efa78022d7eef9f453290",
+    "browser-client/src/model-geometry-stage.ts": "d940a9180cbb26f50a2fe8a712e6f8d9d30a2d31ec2b6dd5551b6ee6b83d34a3",
+    "browser-client/src/model-fbx-pool.ts": "76234b181e0cdded5d4e65350386bc62bf393802266e5614d825b57308e5b902",
+    "browser-client/src/model-fbx-decoder.ts": "5b80bced09705301a14574c8082a946dd3fd32f2ef1a9d1ce08ca7f30dd19ead",
+    "browser-client/src/model-fbx-decoder-memory.ts": "0f209e406a3571af97e78bf12471d7ea6a788cec26adbef733dc353b864cdc68",
+    "browser-client/src/model-fbx-worker.ts": "e418b09a7a3771bcb2cd52c130cc9ee01fcbfbca2ad5828df9c307adec9502f5",
+    "browser-client/src/model-textures.ts": "99fadece5a55786eee4401ec0866203d6d50e5af816ab113f132619273c6f77b",
+    "browser-client/src/texture-alpha.ts": "af9b46d9c56a156febaff92db76fe06b38dd4fa2ba7943ddfd4bbeaa47024ebe",
+    "browser-client/src/texture-alpha-worker.ts": "68cc81f419ed2373cfe18e9efd950222452479a7a742c5e10b8d965264d91761",
+    "browser-client/src/baked-fbx.ts": "c62387724472564c82c8ba89eb28db708147902613429062a27014c55bc53d20",
+    "browser-client/src/baked-draco.ts": "7e4426363fd8809df02d4f6c79d2b2fb899ae56ed663f839ffeb297e2a7d7844",
+    "browser-client/src/baked-draco-legacy.ts": "ba30ca915fcb85f5915fd5ef08f01745c13d3c9c7412c8dcefecb504c89a0a71",
+    "browser-client/dist/index.html": "274aad606533db6e461d899d63260f6504785c4bc1999cb5737a0f8a020b7319",
+    "browser-client/tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+    "browser-client/tests/integration/public-hub-metrics.mjs": "18c9ed36feb60ddadbc5b3a73dcc73e2caa8561ab26cd672d8882de2bd25c789",
+    "browser-client/tests/integration/public-hub.mjs": "46b85346e331e884e6785335d462c824e4d930ac8b1146432532120af96efe20",
+    "browser-client/src/world-texture-preparation.ts": "9bbe55c2b77a6df70b393cc139a35a34eb0d72b2f1f71d2b3f459dcb90a81be6",
+    "browser-client/src/foreground-texture-plan.ts": "9e986216767c9d65070e337e672c1f5bede40d5fd222d0191f715abba8c899c2",
+    "browser-client/src/world-cpu-frame-timing.ts": "579a99969dd17e1ec9d3cd93701817597aa2741ee6d531d0f99aa8df84490b36",
+    "browser-client/src/render-cpu-breakdown.ts": "19a7c3b5add363fbffbfb5b5dbb863054447ac50a5ac5312c722a984a715eeb3",
+    "browser-client/tests/integration/hub-upload-profile.mjs": "d16dfd152f78b6b6294d9f0791b44670562c9eee41014ede5c82e2a14f99e8ea",
+    "browser-client/src/static-model-matrices.ts": "f1d25bf43d7f0d8d3bfdad21e28aab1960b0638071fdd7c3c33d1c0b8c93b585",
+    "browser-client/src/native-image-material.ts": "53b2f6c9785611b3be7e50441feb317a854753dd9422f1152e88c19ca5818784",
+    "browser-client/src/native-image-effects.ts": "71146573d8ea9ee836119302b09c4af48a0c9e987ee5196fd32b59fceeab8d97",
+    "browser-client/src/model-parse-turn.ts": "cfbb72af99a0b3913fc062ecc6bf669e118e8c44e5c458436fbed7f8e5263858"
+  },
+  "rootCapturePinsSHA256": "e30199d7410a795f693140378de82e5f12f7849e5a25b8bf0a85520ac1535d42",
+  "distributionSHA256": {
+    "assets/FBXLoader-ozS2vMK8.js": "cb424609d47084e940ad2ed1f465aa76f62dad27badd704c8abdeefffd61d9a2",
+    "assets/GLTFLoader-BB44mItS.js": "38d479312656d7b9bf82054e9e4fff09346d7cdc09773b8e8abd932c5787cb93",
+    "assets/OBJLoader-AnIAanf0.js": "119acd379785666ac6149a16ed2a9ff3f3e056274e35be20295a3784490fbb35",
+    "assets/baked-draco-C2cWfkC-.js": "ed0221d1c121e2e4166afbdcc721be7c46246fedf72aa85116c61e3e6fc0a698",
+    "assets/baked-draco-legacy-CMhlgON6.js": "eb84ebc5eff49c7b0593382b07b23010897080f46b779ececdd515efcfb482d4",
+    "assets/draco_decoder-C32yEggz.wasm": "c55a594e8ffd18426d36b27fea9618af3df5e173640a3e56d46f09d76f0574f2",
+    "assets/draco_decoder-Z1_iN-Ht.wasm": "a680d927bed9cb864ddbd63521868891af2bfbe755092761b4837487618df8ac",
+    "assets/draco_decoder-fzg4nYZr.js": "30e4d486fa020737af10e3c56197693e5b904bdc05b8bfa5d7b06751dec6da04",
+    "assets/draco_wasm_wrapper-DxJM36Ib.js": "e8049906ef3f8f75d3456c22a3f31bfdfe5b5b5bd09ccdec613b9e9a49d554d8",
+    "assets/draco_wasm_wrapper-fZCQGLGb.js": "8bb2952d2ba7d67e1414f8df819410cb0434a666be53f671fff75f68843d76f6",
+    "assets/index-B2mAMfm4.css": "cbf321b921d05ff91c3020a6ccffc91385eeebf223ea6ec0577c6354df12a521",
+    "assets/index-BOoKDEf5.js": "bf3f3d52fa282c0315a5fc055a6377294e9657853567c82e8cef4138aff8c4a1",
+    "assets/model-fbx-worker-IRDjibFR.js": "0f8e47ffa43d75c813c4c46122239587c22580214653735d9f4ebffdf94bc485",
+    "assets/tablet-gif.worker-DACjp6Cn.js": "78ebb1c3db4d062dd4119c2cd86d201b7df2757fedf22a8993dd460fbb1057c8",
+    "assets/texture-alpha-worker-CBG2kYQR.js": "f04f415ff39370ae4ab0268903ffaf6c86b9a7addeb0aed95d4a7948ee803485",
+    "index.html": "274aad606533db6e461d899d63260f6504785c4bc1999cb5737a0f8a020b7319"
+  },
+  "runtimeDefaultEnabled": false,
+  "cohorts": [
+    {
+      "engine": "firefox",
+      "mode": "baseline",
+      "browserVersion": "firefox/156.0",
+      "startedAt": "2026-10-02T00:35:32.959Z",
+      "finishedAt": "2026-10-02T00:37:16.953Z",
+      "rawCaptureSHA256": "1dea30964d0b9eb2dcb29b4ebbe23f4ec130e1d39cb7a8b1a6493d0e06a6cb6f",
+      "sourceAndDistributionUnchanged": true,
+      "sourcePinCount": 72,
+      "distributionAssetCount": 15,
+      "completeJourneyPassed": false,
+      "loadedModels": 295,
+      "entities": 517,
+      "sampledModelJobsIdleUpperBoundSeconds": 21.148,
+      "peerAvatarCount": 1,
+      "movementMeters": 4.338763130308688,
+      "nativePoseDifferenceMeters": 0.0007621614069439248,
+      "reconnectedMovementMeters": 2.956783439047444,
+      "reconnectedNativeDifferenceMeters": 0.0003672492583793245,
+      "walk": {
+        "fps": 28.759736369083285,
+        "p95FrameMs": 66,
+        "maximumFrameMs": 113,
+        "drawCalls": 633,
+        "triangles": 510975
+      },
+      "fluidGates": {
+        "steadyFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "walkFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedSteadyFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedWalkFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        }
+      },
+      "modelParseScheduling": {
+        "enabled": false,
+        "capacityFallbacks": 0
+      },
+      "loadPhases": {
+        "fbxParse": {
+          "count": 294,
+          "totalMs": 4602,
+          "maxMs": 225
+        },
+        "fbxParseQueueWait": null,
+        "fbxTextures": {
+          "count": 294,
+          "totalMs": 3765,
+          "maxMs": 641
+        }
+      },
+      "imageLoading": {
+        "requests": 115,
+        "uniqueImages": 73,
+        "cacheHits": 42,
+        "completed": 65,
+        "failed": 8,
+        "active": 0,
+        "queued": 0,
+        "pending": 0
+      },
+      "pageErrors": 0,
+      "microphoneRequested": false,
+      "publicWorldInteractionsSent": 0
+    },
+    {
+      "engine": "firefox",
+      "mode": "enabled",
+      "browserVersion": "firefox/156.0",
+      "startedAt": "2026-10-02T00:37:17.746Z",
+      "finishedAt": "2026-10-02T00:38:59.241Z",
+      "rawCaptureSHA256": "fabcb7a8dbb926de6381a8e9918a7670301bf6a781ee4aed5e198c40d4cfe59f",
+      "sourceAndDistributionUnchanged": true,
+      "sourcePinCount": 72,
+      "distributionAssetCount": 15,
+      "completeJourneyPassed": false,
+      "loadedModels": 296,
+      "entities": 518,
+      "sampledModelJobsIdleUpperBoundSeconds": 17.786,
+      "peerAvatarCount": 1,
+      "movementMeters": 4.343280379853996,
+      "nativePoseDifferenceMeters": 0.0005261068617324134,
+      "reconnectedMovementMeters": 3.093944195755477,
+      "reconnectedNativeDifferenceMeters": 0.0004884130126558621,
+      "walk": {
+        "fps": 28.331956085468068,
+        "p95FrameMs": 66,
+        "maximumFrameMs": 114,
+        "drawCalls": 636,
+        "triangles": 511951
+      },
+      "fluidGates": {
+        "steadyFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "walkFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedSteadyFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedWalkFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        }
+      },
+      "modelParseScheduling": {
+        "enabled": true,
+        "queued": 0,
+        "queuedBytes": 0,
+        "parsed": 295,
+        "closed": false,
+        "taskChannelOpen": false,
+        "capacityFallbacks": 0
+      },
+      "loadPhases": {
+        "fbxParse": {
+          "count": 295,
+          "totalMs": 4506,
+          "maxMs": 209
+        },
+        "fbxParseQueueWait": {
+          "count": 295,
+          "totalMs": 2587,
+          "maxMs": 162
+        },
+        "fbxTextures": {
+          "count": 295,
+          "totalMs": 2359,
+          "maxMs": 372
+        }
+      },
+      "imageLoading": {
+        "requests": 116,
+        "uniqueImages": 73,
+        "cacheHits": 43,
+        "completed": 65,
+        "failed": 8,
+        "active": 0,
+        "queued": 0,
+        "pending": 0
+      },
+      "pageErrors": 0,
+      "microphoneRequested": false,
+      "publicWorldInteractionsSent": 0
+    },
+    {
+      "engine": "chromium",
+      "mode": "baseline",
+      "browserVersion": "154.0.8037.57",
+      "startedAt": "2026-10-02T00:39:00.060Z",
+      "finishedAt": "2026-10-02T00:40:39.579Z",
+      "rawCaptureSHA256": "43db85180769d80489a581337031cb5c1d26f65429d0cb552ebe0986800edd78",
+      "sourceAndDistributionUnchanged": true,
+      "sourcePinCount": 72,
+      "distributionAssetCount": 15,
+      "completeJourneyPassed": true,
+      "loadedModels": 295,
+      "entities": 517,
+      "sampledModelJobsIdleUpperBoundSeconds": 21.135,
+      "peerAvatarCount": 1,
+      "movementMeters": 4.155143729536626,
+      "nativePoseDifferenceMeters": 0.0007365123396378293,
+      "reconnectedMovementMeters": 2.8613937279656314,
+      "reconnectedNativeDifferenceMeters": 0.0007198197301549183,
+      "walk": {
+        "fps": 46.44771728822745,
+        "p95FrameMs": 33.400000000001455,
+        "maximumFrameMs": 66.69999999999709,
+        "drawCalls": 638,
+        "triangles": 513756
+      },
+      "fluidGates": {
+        "steadyFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "walkFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedSteadyFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedWalkFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        }
+      },
+      "modelParseScheduling": {
+        "enabled": false,
+        "capacityFallbacks": 0
+      },
+      "loadPhases": {
+        "fbxParse": {
+          "count": 295,
+          "totalMs": 3999.100000053644,
+          "maxMs": 291
+        },
+        "fbxParseQueueWait": null,
+        "fbxTextures": {
+          "count": 295,
+          "totalMs": 4005.299999833107,
+          "maxMs": 675.1999999880791
+        }
+      },
+      "imageLoading": {
+        "requests": 116,
+        "uniqueImages": 73,
+        "cacheHits": 43,
+        "completed": 65,
+        "failed": 8,
+        "active": 0,
+        "queued": 0,
+        "pending": 0
+      },
+      "pageErrors": 0,
+      "microphoneRequested": false,
+      "publicWorldInteractionsSent": 0
+    },
+    {
+      "engine": "chromium",
+      "mode": "enabled",
+      "browserVersion": "154.0.8037.57",
+      "startedAt": "2026-10-02T00:40:40.391Z",
+      "finishedAt": "2026-10-02T00:42:21.640Z",
+      "rawCaptureSHA256": "b105360f3c1fa21cb6d132784892045fe1b5bf123bc1a65d7a474d1b7120e1a9",
+      "sourceAndDistributionUnchanged": true,
+      "sourcePinCount": 72,
+      "distributionAssetCount": 15,
+      "completeJourneyPassed": true,
+      "loadedModels": 296,
+      "entities": 518,
+      "sampledModelJobsIdleUpperBoundSeconds": 20.536,
+      "peerAvatarCount": 1,
+      "movementMeters": 4.250345836700837,
+      "nativePoseDifferenceMeters": 0.0005370937171089677,
+      "reconnectedMovementMeters": 2.8613580063961193,
+      "reconnectedNativeDifferenceMeters": 0.000740441328527304,
+      "walk": {
+        "fps": 49.14206150948029,
+        "p95FrameMs": 33.400000000001455,
+        "maximumFrameMs": 51,
+        "drawCalls": 638,
+        "triangles": 513573
+      },
+      "fluidGates": {
+        "steadyFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "walkFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedSteadyFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedWalkFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        }
+      },
+      "modelParseScheduling": {
+        "enabled": true,
+        "queued": 0,
+        "queuedBytes": 0,
+        "parsed": 295,
+        "closed": false,
+        "taskChannelOpen": false,
+        "capacityFallbacks": 0
+      },
+      "loadPhases": {
+        "fbxParse": {
+          "count": 295,
+          "totalMs": 4103.799999922514,
+          "maxMs": 288.2000000178814
+        },
+        "fbxParseQueueWait": {
+          "count": 295,
+          "totalMs": 9231.2999997437,
+          "maxMs": 542.9000000059605
+        },
+        "fbxTextures": {
+          "count": 295,
+          "totalMs": 2946.800000190735,
+          "maxMs": 341.69999998807907
+        }
+      },
+      "imageLoading": {
+        "requests": 116,
+        "uniqueImages": 73,
+        "cacheHits": 43,
+        "completed": 65,
+        "failed": 8,
+        "active": 0,
+        "queued": 0,
+        "pending": 0
+      },
+      "pageErrors": 0,
+      "microphoneRequested": false,
+      "publicWorldInteractionsSent": 0
+    }
+  ],
+  "limitations": [
+    "One ordered baseline/enabled pair per engine; live domain models vary295/296. No general loading gain or causal fairness/Firefox speed improvement is established.",
+    "Model-jobs-idle is a sampled three-second-window upper bound, not the exact critical-path completion time. Summed queue/image phases overlap and are not wall-clock latency.",
+    "Chromium passes all four unchanged fluidness gates in both modes. Firefox satisfies native movement/rejoin but fails all four fluidness gates in both modes.",
+    "Eight independent HTTP image failures remain visible in every cohort; no full texture compatibility claim follows.",
+    "The earlier Chromium native-avatar stale-observation failure remains unexplained; subsequent healthy short cohorts do not establish its cause or general stability.",
+    "The queue yields between whole synchronous parsers and cannot preempt a long individual parse. Runtime remains default-off."
+  ]
+}

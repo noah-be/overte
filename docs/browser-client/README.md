@@ -3,6 +3,10 @@
 The [status](STATUS.md) records implementation and verification progress.
 Material implementation assistance: OpenAI Codex.
 
+Measured optimization work is documented in [model parse tasks](MODEL_PARSE_TASKS.md)
+and [passive draw census](ASYNC_DRAW_CENSUS.md). Experimental scheduling remains
+disabled by default where the actual Hub comparisons establish no general gain.
+
 The browser renders actual Overte entity data locally with Three.js. An open
 source, self-hosted gateway runs a separate native Overte Interface connection
 for each visitor. Native clients connect to the domain normally. This gateway

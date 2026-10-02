@@ -11,6 +11,7 @@ import { once } from 'node:events';
 import { workerEnvironment, prepareWorker, sandboxCommand } from './worker-sandbox.mjs';
 import { terminateProcess } from './process-lifecycle.mjs';
 import { workerSurvivorState } from './worker-process-diagnostics.mjs';
+import { x11ProbeDiagnostic } from './x11-probe-diagnostics.mjs';
 
 const run = promisify(execFile);
 test('native worker environment excludes operator credentials, accounts and shared desktop', () => {
@@ -110,17 +111,19 @@ test('actual isolated worker cannot read host files, sibling profiles, host proc
             const readable=forbidden.filter(p=>{try{fs.readFileSync(p);return true}catch{return false}});
             const auth=fs.readFileSync(process.env.XAUTHORITY);
             const cookie=auth.subarray(auth.length-16);
+            const x11ProbeDiagnostic=${x11ProbeDiagnostic.toString()};
             function probe(number,useCookie,abstract){return new Promise(resolve=>{
                 const client=net.createConnection((abstract?String.fromCharCode(0):'')+'/tmp/.X11-unix/X'+number);
-                client.on('error',()=>resolve(false));client.on('data',data=>{client.destroy();resolve(data[0]===1)});
+                client.on('error',error=>resolve({accepted:false,diagnostic:x11ProbeDiagnostic('socket-error',error)}));client.on('data',data=>{client.destroy();resolve({accepted:data[0]===1,diagnostic:x11ProbeDiagnostic('setup',data)})});
                 client.on('connect',()=>{const head=Buffer.alloc(12);head[0]=108;head.writeUInt16LE(11,2);
                     if(useCookie){head.writeUInt16LE(18,6);head.writeUInt16LE(16,8);const name=Buffer.alloc(20);name.write('MIT-MAGIC-COOKIE-1');client.write(Buffer.concat([head,name,cookie]));}
                     else client.write(head)});
-                client.setTimeout(3000,()=>{client.destroy();resolve(false)});
+                client.setTimeout(3000,()=>{client.destroy();resolve({accepted:false,diagnostic:x11ProbeDiagnostic('timeout')})});
             })}
-            Promise.all([probe(process.env.DISPLAY.slice(1),true),probe(process.argv[2],false),probe(process.argv[2],false,true)]).then(([ownX,otherX,otherAbstractX])=>{
+            Promise.all([probe(process.env.DISPLAY.slice(1),true),probe(process.argv[2],false),probe(process.argv[2],false,true)]).then(([own,other,otherAbstract])=>{
+                const ownX=own.accepted,otherX=other.accepted,otherAbstractX=otherAbstract.accepted;
                 fs.writeFileSync(process.env.HOME+'/own-file','allowed');
-                console.log(JSON.stringify({readable,ownX,otherX,otherAbstractX,secret:process.env.GITHUB_TOKEN,
+                console.log(JSON.stringify({readable,ownX,otherX,otherAbstractX,x11:{own:own.diagnostic,other:other.diagnostic,otherAbstract:otherAbstract.diagnostic},secret:process.env.GITHUB_TOKEN,
                     machine:fs.readFileSync('/etc/machine-id','utf8').trim(),uid:process.getuid(),
                     nssTrust:JSON.parse(process.argv[3]).map(p=>fs.readFileSync(p).length),
                     graphics:JSON.parse(process.argv[6]).map(filename=>({bytes:fs.readFileSync(filename,'utf8'),readOnly:(()=>{try{fs.writeFileSync(filename,'changed');return false}catch{return true}})()})),
@@ -138,7 +141,7 @@ test('actual isolated worker cannot read host files, sibling profiles, host proc
             { env: { ...workers[0].env, GITHUB_TOKEN: 'synthetic-secret' }, timeout: 10000 });
         const result = JSON.parse(output.stdout);
         assert.deepEqual(result.readable, []); assert.equal(result.secret, undefined);
-        assert.equal(result.ownX, true, 'The worker can authenticate only to its own real Xvfb');
+        assert.equal(result.ownX, true, 'The worker can authenticate only to its own real Xvfb: '+JSON.stringify(result.x11.own));
         assert.equal(result.otherX, false, 'Another session display and Xauthority remain inaccessible');
         assert.equal(result.otherAbstractX, false, 'Shared-network abstract X sockets also require the private cookie');
         assert.match(result.machine, /^[0-9a-f]{32}$/);

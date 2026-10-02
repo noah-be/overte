@@ -299,8 +299,10 @@ def start(gateway=False):
         raise RuntimeError("Actual native ATP scene provisioning did not finish")
     guest = {key:key in ["id_can_connect","id_can_rez","id_can_rez_avatar_entities","id_can_view_asset_urls"] for key in PERMISSION_KEYS}
     groups = [{"permissions_id":name,**guest} for name in ["anonymous","localhost","logged-in","friends"]]
-    payload = {"security":{"standard_permissions":groups,"ip_permissions":[],"machine_fingerprint_permissions":[]},
-               "authentication":{"enable_oauth2":False}}
+    # OAuth is already explicitly disabled in the actual stored managed config.
+    # Posting its unchanged auth group restarts the native Domain/EntityServer.
+    # The bounded helper verifies disabled OAuth both before and after this POST.
+    payload = {"security":{"standard_permissions":groups,"ip_permissions":[],"machine_fingerprint_permissions":[]}}
     try:
         provisioning = post_guest_settings(payload, admin_authorization, server/"resources/describe-settings.json",
                                            ROOT/"config/domain.json", ROOT/"logs/domain.log")

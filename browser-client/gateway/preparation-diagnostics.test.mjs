@@ -196,3 +196,24 @@ test('route diagnostic forwarding rejects forged enum/counters and strips arbitr
  const d=preparationDiagnostics('OVERTE_NET_NATIVE_STARTED');d.observe(Buffer.from('OVERTE_NET_ROUTE_FAILURE={"private":"secret"}\n'));
  assert.equal(d.snapshot(1,null).routeFailure,undefined);
 });
+
+test('route refusal preserves a bounded fixed owner-context projection without raw profiles or namespace IDs',()=>{
+ const ownerContext={profile:'unshare-unpriv',capabilitySets:{inheritable:'zero',permitted:'nonzero',effective:'nonzero',bounding:'nonzero',ambient:'zero'},netAdmin:{permitted:'present',effective:'present',bounding:'present'},namespaceRelations:{user:'different-from-visible-pid1',net:'different-from-visible-pid1'},raw:'private-secret'};
+ const route={category:'permission-denied',stderrBytes:43,truncated:false,exitCode:2,ownerContext};
+ const d=preparationDiagnostics('OVERTE_NET_NATIVE_STARTED');d.observe(Buffer.from('OVERTE_NET_ROUTE_FAILURE='+JSON.stringify(route)+'\n'));
+ const out=d.snapshot(1,null);assert.equal(out.routeFailure.ownerContext.profile,'unshare-unpriv');assert.ok(!JSON.stringify(out).includes('private-secret'));
+ assert.deepEqual(safePreparationDiagnostic(out).routeFailure.ownerContext,out.routeFailure.ownerContext);
+ assert.ok(Object.isFrozen(out.routeFailure.ownerContext.capabilitySets));
+ for(const change of [{profile:'private-secret'},{netAdmin:{...ownerContext.netAdmin,effective:true}},{capabilitySets:{...ownerContext.capabilitySets,effective:'1000'}},{namespaceRelations:{...ownerContext.namespaceRelations,net:'net:[100]'}}]){
+  const broken={...route,ownerContext:{...ownerContext,...change}};assert.equal(safePreparationDiagnostic({...out,routeFailure:broken}),null);
+  const observation=preparationDiagnostics('OVERTE_NET_NATIVE_STARTED');observation.observe(Buffer.from('OVERTE_NET_ROUTE_FAILURE='+JSON.stringify(broken)+'\n'));
+  assert.equal(observation.snapshot(1,null).routeFailure,undefined);
+ }
+});
+
+test('pre-route proc observations and actual unchanged route function pass portable Python contracts',()=>{
+ const result=spawnSync('python3',['-m','unittest','-q','test_network_owner_context'],{
+  cwd:new URL('.',import.meta.url),encoding:'utf8',timeout:2000,env:{...process.env,PYTHONDONTWRITEBYTECODE:'1'}});
+ assert.equal(result.status,0, result.error?.code || 'Bounded fixed owner-context contracts failed');
+ assert.match(result.stderr,/Ran 4 tests/);
+});

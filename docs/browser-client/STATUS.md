@@ -4,6 +4,54 @@ Last updated: 2026-10-02. **Original baseline passed; additional mandatory Table
 
 ## Current implementation and next step
 
+Current continuation (2026-10-02,01:06UTC): the integrated checkpoint passes all
+1,233 registered components without skips (10.839s), the production build, and all
+34 required repository suites (162.19s). Optional bounded parse scheduling remains
+default-off: six actual bundled-browser predicates pass across two retained runs,
+and four short stock Hub comparisons load 295–296 genuine models. Both Chromium
+modes pass all four unchanged fluidness gates; both Firefox modes fail them while
+native movement/rejoin remain correct. General loading gains are not established.
+[Actual parser/World proof](evidence/model-parse-turn-actual-browser-20261002.json),
+[stock Hub comparisons](evidence/hub-model-parse-turn-stock-20261002.json).
+
+Local exact-source Jenkins5 completed seventeen of nineteen gates successfully;
+only both native-core joins fail their original ninety-second entity/peer predicate.
+The native observer sees the seven-entity scene, then zero entities after the
+settings-triggered assignment restart. Pinned native source confirms any recognized
+authentication-group POST field schedules a restart, even when unchanged. The
+lab now validates strictly stored OAuth=false before and after a security-only
+guest-permission POST; original saved-permission/persistence checks remain intact.
+All 28 owned-state tests pass. This correction needs fresh complete native CI proof.
+[Jenkins checkpoint](evidence/jenkins-ci-0d094-checkpoint-20261002.json).
+[Strict no-restart correction](evidence/managed-provisioning-no-restart-20261002.json).
+
+Hosted Ubuntu remains separately blocked at deny-route setup, own-X acceptance
+and atomic settings commit. Bounded fixed-enum owner/probe observations now preserve
+all original isolation/acceptance predicates; no capability, profile, route or
+direct-write fallback changes are made. Their exact hosted cause remains unknown.
+[Hosted checkpoint](evidence/hosted-ci-0d094-checkpoint-20261002.json).
+
+The actual private Tablet diagnostic now passes the first four unchanged editor
+cases, then proves the password delegate refuses the native input-method flag
+after current-target and DOM approval. The authored fixture waits for genuine
+focus/selection inside the original five-second deadline. All fourteen literal
+oracles remain unchanged. The shipping editor is unchanged; password undo/redo,
+maxlength and cancellation remain open. A guarded ordinary native-key candidate
+passes native compilation/module tests and all guards accept, but the actual
+password literal still fails its original five-second deadline (UTF16 length 4,
+expected 5). This private negative is preserved; event conversion is being measured
+before a correction. [Native guard proof](evidence/tablet-password-native-guard-20261002.json),
+[scalar-key negative](evidence/tablet-password-scalar-negative-20261002.json).
+
+An explicit task-sliced diagnostic census is integrated with the original sync
+API unchanged. It aborts pending task ports immediately on World disable and
+releases private snapshots before a fresh connected request. Actual full-Hub
+coverage and instancing admission remain unproved. Next: publish the reviewed
+checkpoint and run all nineteen exact-source native CI gates, measure the actual
+Hub census, and test the native password-key route against all original cases.
+Expanded native parity/graphics/scanner work remains active. No endurance run is
+required or performed; the user canceled the thirty-minute requirement.
+
 Current continuation (2026-10-02,00:08UTC): the narrow actual-Hub raw-zero FBX
 correction passes all1,144 registered components without skips, the production
 build, all34 required repository suites(181.04s), and both genuine browser workers

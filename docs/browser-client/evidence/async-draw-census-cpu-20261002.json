@@ -1,0 +1,48 @@
+{
+  "generatedAt": "2026-10-02T00:48:34.235560+00:00",
+  "scope": "CPU ownership and consistency contracts only; no actual Hub/GPU performance experiment",
+  "beforeWorldSha256": "0e1af68f676a1f50b0833d244216ed198db9388dd8fc9ce43cad7e72f2a8c9c8",
+  "beforeMainSha256": "5bd4a0548d425ed0a1cc4518ee600bac523e559eb5e6d4a8b95b006ce80d98e3",
+  "testedSourceSha256": {
+    "src/world-draw-census-async.ts": "3c4a3c99ffe5d3e648995bd38bc2c13730582edc7e8ac2201ec9943f1697107f",
+    "src/world.ts": "e8295bf1d6f4087aad9e1334a1fec0f6465f70a490a4400bf9ba6c35c3377319",
+    "src/main.ts": "d15eacf709ba41faacf10be3d959ed32c6ef9f87f45c9f8e410ed214b0df672b",
+    "tests/world-draw-census-async.test.ts": "754477be70ac4981d80e67603ebd14418c014e61af48bd0601a25e468172fe9b",
+    "tests/world-draw-census-async-owner.test.ts": "157404b86d90c6a742876c79ae4e2812da70fe60e52fb5cc2be37a8ebb3855ac"
+  },
+  "cpuTests": {
+    "total": 118,
+    "passed": 118,
+    "failed": 0,
+    "skipped": 0,
+    "reportedDurationMs": 1270.104802,
+    "command": "node_modules/.bin/tsx --test tests/world-draw-census-async.test.ts tests/world-draw-census-async-owner.test.ts tests/world-draw-census.test.ts tests/world-draw-census-owner.test.ts src/worker-task-yield.test.ts"
+  },
+  "fullProjectTypecheck": {
+    "passed": true,
+    "command": "node_modules/.bin/tsc --noEmit"
+  },
+  "actualBrowserHubCoverage": "Not run",
+  "renderingOrBatchingActivation": false,
+  "budgets": {
+    "unchangedSynchronousAggregateCpuMs": 75,
+    "distinctDefaultAsyncAggregateCpuMs": 1500,
+    "maximumAsyncAggregateCpuMs": 2000,
+    "defaultTargetedSliceMs": 4,
+    "defaultWallMs": 5000,
+    "unchangedGeometryReadBytes": 67108864,
+    "unchangedMetadataBytes": 2097152,
+    "unchangedOwners": 1024,
+    "unchangedNodes": 16384,
+    "unchangedParts": 8192
+  },
+  "originalGraphGarbageCollection": {
+    "actualExposedGcChildPassed": true,
+    "references": [
+      "root",
+      "geometry",
+      "material",
+      "raw geometry buffer"
+    ]
+  }
+}

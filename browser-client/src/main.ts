@@ -118,6 +118,7 @@ function onMessage(message:ServerMessage): void {
             if (message.state === 'connecting' && ready) {
                 ready = false;
                 world?.invalidateSourceTexts();
+                world?.invalidateModelParses();
                 graphics?.setAuthority(permissionRevision,false);
                 worldLoaded = false;
                 world?.setEnabled(false);
@@ -249,6 +250,7 @@ async function joinDomain(domain:string, direction?:'back'|'forward'):Promise<vo
             shaderWarmup: new URLSearchParams(location.search).get('shaderWarmup') === '1',
             texturePreparation: new URLSearchParams(location.search).get('texturePreparation') === '1',
             bitmapUpload: new URLSearchParams(location.search).get('bitmapUpload') === '1',
+            modelParseTurn: new URLSearchParams(location.search).get('modelParseTurn') === '1',
             compressedColors: (capabilities, signal) => session.compressedColors(capabilities, signal),
             captureAssetAuthority: () => session.captureAssetAuthority(),
             onPose: pose => session.sendPose(pose),
@@ -370,4 +372,5 @@ Object.defineProperty(window, '__overte', {value:{
     get avatarRender() { return world?.getSelfAvatarRenderState(); },
     get renderInventory() { return world?.getRenderInventory(); },
     drawCensus() { return world?.getDrawCensus(); },
+    drawCensusAsync() { return world?.getDrawCensusAsync(); },
 }, configurable:true});

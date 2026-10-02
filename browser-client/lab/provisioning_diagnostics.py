@@ -7,7 +7,7 @@ from pathlib import Path
 import stat
 import urllib.error
 import urllib.request
-from guest_permissions import FLAGS
+from guest_permissions import FLAGS, guest_permission_diagnostics
 
 ENDPOINT = 'http://127.0.0.1:45100/settings.json'
 MAX_SCHEMA_BYTES = 1024 * 1024
@@ -165,15 +165,45 @@ def response_diagnostic(response):
     return out
 
 
+def require_disabled_stored_oauth(config_file):
+    """Read the actual bounded regular config; never infer disabled from absence."""
+    document = strict_json(read_regular(config_file, MAX_SCHEMA_BYTES))
+    if not isinstance(document, dict) or not isinstance(document.get('authentication'), dict) \
+            or document['authentication'].get('enable_oauth2') is not False:
+        raise ValueError('Managed settings require explicitly disabled stored OAuth')
+
+
+def security_only_guest_payload(payload):
+    """The native auth-group POST restarts even if its boolean is unchanged."""
+    if not isinstance(payload, dict) or set(payload) != {'security'}:
+        return False
+    security = payload['security']
+    if not isinstance(security, dict) or set(security) != {'standard_permissions', 'ip_permissions', 'machine_fingerprint_permissions'} \
+            or security['ip_permissions'] != [] or security['machine_fingerprint_permissions'] != []:
+        return False
+    rows = security['standard_permissions']
+    if not isinstance(rows, list) or len(rows) != 4 or any(not isinstance(row, dict) \
+            or set(row) != {'permissions_id', *FLAGS} for row in rows):
+        return False
+    expected = {key: key in ('id_can_connect', 'id_can_rez', 'id_can_rez_avatar_entities', 'id_can_view_asset_urls') for key in FLAGS}
+    return guest_permission_diagnostics(rows, expected)['passed']
+
+
 def post_guest_settings(payload, authorization, schema_file, config_file, log_file, opener=None):
     try:
         schema = schema_diagnostic(read_regular(schema_file, MAX_SCHEMA_BYTES))
     except (OSError, ValueError):
         schema = {'version': 'unavailable', 'postingKeys': 'unrecognized'}
     out = {'kind': 'settings-provisioning', 'schema': schema, 'response': {'status': 'not-requested'},
-           'configurationChanged': None, 'persistence': {'outcome': 'not-observed'}}
-    if schema['postingKeys'] != 'recognized-domain-settings':
+           'configurationChanged': None, 'persistence': {'outcome': 'not-observed'},
+           'oauthBefore': 'unvalidated', 'oauthAfter': 'not-observed'}
+    if schema['postingKeys'] != 'recognized-domain-settings' or not security_only_guest_payload(payload):
         raise ProvisioningDiagnosticError(out)
+    try:
+        require_disabled_stored_oauth(config_file)
+        out['oauthBefore'] = 'disabled'
+    except (OSError, ValueError, TypeError, UnicodeError, RecursionError):
+        raise ProvisioningDiagnosticError(out) from None
     before = configuration_digest(config_file)
     if before is None:
         raise ProvisioningDiagnosticError(out)
@@ -200,4 +230,10 @@ def post_guest_settings(payload, authorization, schema_file, config_file, log_fi
         observation.close()
         after = configuration_digest(config_file)
         out['configurationChanged'] = None if after is None else after != before
+    try:
+        require_disabled_stored_oauth(config_file)
+        out['oauthAfter'] = 'disabled'
+    except (OSError, ValueError, TypeError, UnicodeError, RecursionError):
+        out['oauthAfter'] = 'unvalidated'
+        raise ProvisioningDiagnosticError(out) from None
     return out

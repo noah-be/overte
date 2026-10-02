@@ -11,7 +11,7 @@ import sys
 import threading
 import time
 from network_udp import DatagramRelay, scope as udp_scope
-from network_route_diagnostics import route_failure_diagnostic
+from network_route_diagnostics import route_failure_diagnostic, owner_confinement_diagnostic
 
 DENIED_ROUTES = (
     "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16",
@@ -78,11 +78,12 @@ def reap_owned_descendants():
 
 
 def install_denied_routes():
+    confinement = owner_confinement_diagnostic()
     for route in DENIED_ROUTES:
         try:
             subprocess.run(["ip", "route", "add", "prohibit", route], check=True, capture_output=True)
         except subprocess.CalledProcessError as error:
-            print("OVERTE_NET_ROUTE_FAILURE=" + json.dumps(route_failure_diagnostic(error), separators=(',', ':')),
+            print("OVERTE_NET_ROUTE_FAILURE=" + json.dumps({**route_failure_diagnostic(error), 'ownerContext': confinement}, separators=(',', ':')),
                   file=sys.stderr, flush=True)
             raise
 

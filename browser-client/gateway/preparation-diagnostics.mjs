@@ -22,7 +22,7 @@ export function preparationDiagnostics(expected) {
             else if (/Private native network failed:.*Cannot (?:bind network supervisor lifetime|own native namespace descendants)/.test(tail)) category = 'supervisor-lifetime-refused';
             else if (/slirp4netns:.*(?:Operation not permitted|Permission denied)|setns.*(?:Operation not permitted|Permission denied)/.test(tail)) category = 'network-helper-refused';
             let routeFailure;
-            const marker = /(?:^|\n)OVERTE_NET_ROUTE_FAILURE=(\{[^\n]{1,512}\})(?:\n|$)/.exec(tail);
+            const marker = /(?:^|\n)OVERTE_NET_ROUTE_FAILURE=(\{[^\n]{1,1536}\})(?:\n|$)/.exec(tail);
             if (marker) { try { routeFailure = safeRouteFailure(JSON.parse(marker[1])); } catch {} }
             return Object.freeze({ phase, category, observedBytes, truncated, ...(routeFailure ? { routeFailure } : {}),
                 exitCode: Number.isInteger(exitCode) && exitCode >= 0 && exitCode <= 255 ? exitCode : null,
@@ -117,5 +117,32 @@ function safeRouteFailure(value) {
     if (!value || typeof value !== 'object' || !categories.includes(value.category)
         || !Number.isSafeInteger(value.stderrBytes) || value.stderrBytes < 0 || typeof value.truncated !== 'boolean'
         || !(value.exitCode === null || Number.isInteger(value.exitCode) && value.exitCode >= 0 && value.exitCode <= 255)) return null;
-    return Object.freeze({ category: value.category, stderrBytes: value.stderrBytes, truncated: value.truncated, exitCode: value.exitCode });
+    const out = { category: value.category, stderrBytes: value.stderrBytes, truncated: value.truncated, exitCode: value.exitCode };
+    if (value.ownerContext !== undefined) {
+        const context = safeOwnerContext(value.ownerContext);
+        if (!context) return null;
+        out.ownerContext = context;
+    }
+    return Object.freeze(out);
+}
+
+function safeOwnerContext(value) {
+    if (!value || !['unavailable', 'unrecognized', 'unconfined', 'unshare', 'unshare-unpriv', 'bwrap', 'unpriv-bwrap', 'bwrap-unpriv-stacked'].includes(value.profile)) return null;
+    const out = { profile: value.profile, capabilitySets: {}, netAdmin: {}, namespaceRelations: {} };
+    for (const key of ['inheritable', 'permitted', 'effective', 'bounding', 'ambient']) {
+        const item = value.capabilitySets?.[key];
+        if (!['zero', 'nonzero', 'unavailable', 'invalid'].includes(item)) return null;
+        out.capabilitySets[key] = item;
+    }
+    for (const key of ['permitted', 'effective', 'bounding']) {
+        const item = value.netAdmin?.[key];
+        if (!['present', 'absent', 'unavailable', 'invalid'].includes(item)) return null;
+        out.netAdmin[key] = item;
+    }
+    for (const key of ['user', 'net']) {
+        const item = value.namespaceRelations?.[key];
+        if (!['same-as-visible-pid1', 'different-from-visible-pid1', 'unavailable', 'invalid'].includes(item)) return null;
+        out.namespaceRelations[key] = item;
+    }
+    return Object.freeze({ ...out, capabilitySets: Object.freeze(out.capabilitySets), netAdmin: Object.freeze(out.netAdmin), namespaceRelations: Object.freeze(out.namespaceRelations) });
 }
