@@ -253,13 +253,17 @@ class AliasPolicy(unittest.TestCase):
     def test_installer_recomputes_inventory_and_hashes_before_mutation(self):
         aliases = []
         python = str(Path('/usr/bin/python3').resolve())
-        paths = build.trusted_import_paths(python, aliases=aliases)
+        libraries=[];cache=os.environ.get('OVERTE_SIGNED_LIBRARY_CACHE');keyring=os.environ.get('OVERTE_SIGNED_LIBRARY_KEYRING')
+        library=build.signed_library_context(python,cache,keyring)
+        if library is None:paths=build.trusted_import_paths(python,aliases=aliases)
+        else:paths=build.trusted_import_paths(python,aliases=aliases,signed_library=library,signed_libraries=libraries)
         manifest = {'python': python, 'pythonImportPaths': paths, 'pythonImportAliases': aliases}
-        install.verify_python_imports(manifest)
+        if library is not None:manifest['pythonSignedLibraries']=libraries
+        install.verify_python_imports(manifest,cache,keyring)
         changed = copy.deepcopy(manifest)
         changed['pythonImportAliases'] = [row()]
         with self.assertRaisesRegex(install.Refusal, 'runtime-mismatch'):
-            install.verify_python_imports(changed)
+            install.verify_python_imports(changed,cache,keyring)
 
     def test_install_refuses_hash_only_mutation_after_review(self):
         reviewed = [row()]
@@ -313,8 +317,15 @@ class AliasPolicy(unittest.TestCase):
                 install.verified_bundle(root, digest)
         changed = copy.deepcopy(manifest)
         changed['pythonImportPaths'] = ['/usr/lib/python3.99']
+        cache=os.environ.get('OVERTE_SIGNED_LIBRARY_CACHE');keyring=os.environ.get('OVERTE_SIGNED_LIBRARY_KEYRING')
+        if cache is not None:
+            # The positive above deliberately exercises DEFAULT v2 with an
+            # authored inventory. This final negative uses the ACTUAL selected
+            # interpreter, so explicitly authenticate its typed Noble context.
+            changed['version']=3
+            changed['pythonSignedLibraries']=[build.signed_library_context(changed['python'],cache,keyring)]
         with self.assertRaisesRegex(install.Refusal, 'runtime-mismatch'):
-            install.verify_python_imports(changed)
+            install.verify_python_imports(changed,cache,keyring)
 
 
 class RuntimeAliasHash(unittest.TestCase):

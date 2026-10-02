@@ -160,12 +160,24 @@ def alias_read_rules(records):
  # execution, writable rules or capability grants. Directory reads are exact.
  return ''.join('  '+json.dumps(value)+' r,\n' for value in sorted(directories))+''.join('  '+json.dumps(record['path'])+' r,\n' for record in records)
 
-def trusted_import_paths(python,*,aliases=None):
+def signed_library_module():
+ import importlib.util
+ spec=importlib.util.spec_from_file_location('reviewed_signed_library',Path(__file__).with_name('signed_library.py'))
+ module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module
+
+
+def signed_library_context(python,cache,keyring):
+ if(cache is None)!=(keyring is None):raise ValueError('signed-library-input-pair-required')
+ return None if cache is None else signed_library_module().context(cache,keyring,python)
+
+
+def trusted_import_paths(python,*,aliases=None,signed_library=None,signed_libraries=None):
  output=subprocess.run([python,'-I','-S','-c','import sys,json;print(json.dumps(sys.path))'],capture_output=True,check=True,timeout=5).stdout
  if len(output)>16384:raise ValueError('python-import-path-bound')
  paths=json.loads(output)
  if type(paths) is not list or not 1<=len(paths)<=8:raise ValueError('python-import-path-count')
- entries=0;alias_links=0;alias_read_bytes=0;targets={}
+ entries=0;alias_links=0;alias_read_bytes=0;targets={};library_seen=False
+ if signed_library is not None:signed_library_module().validate_library(signed_library)
  for root_ordinal,value in enumerate(paths,1):
   if type(value) is not str or not re.fullmatch(r'/usr/lib(?:64)?/python[0-9./a-z-]+(?:\.zip)?',value):raise ValueError('python-import-path-scope')
   path=Path(value)
@@ -187,7 +199,15 @@ def trusted_import_paths(python,*,aliases=None):
       if info.st_uid or not child.resolve(strict=True).is_file():raise ValueError('python-import-tree-untrusted')
       canonical=None
       try:
-       with trust_location('import-alias',alias_links+1):canonical=rooted_alias(child);record=alias_record(canonical)
+       with trust_location('import-alias',alias_links+1):
+        canonical=rooted_alias(child)
+        if signed_library is not None and canonical==signed_library['canonicalPath']:
+         budget={'reads':alias_links,'bytes':alias_read_bytes}
+         signed_library_module().installed_member(canonical,budget=budget)
+         alias_links=budget['reads'];alias_read_bytes=budget['bytes'];library_seen=True
+         signed_library_module().validate_mixed_budget([targets[key]for key in sorted(targets)],signed_library)
+         continue
+        record=alias_record(canonical)
       except TrustRefusal as error:
        if os.environ.get('OVERTE_TRUSTED_ALIAS_DIAGNOSTICS')=='1' and type(canonical)is str:
         # Failure-only observations after the ORIGINAL admission refused.
@@ -207,14 +227,19 @@ def trusted_import_paths(python,*,aliases=None):
       if previous is not None and previous!=record:raise ValueError('python-import-alias-target-changed')
       targets[canonical]=record
       if len(targets)>MAX_ALIAS_TARGETS or sum(item['bytes'] for item in targets.values())>MAX_ALIAS_TOTAL_BYTES:raise ValueError('python-import-alias-total-bound')
+      if signed_library is not None:signed_library_module().validate_mixed_budget([targets[key]for key in sorted(targets)],signed_library)
      elif info.st_uid or info.st_mode&0o022 or not (stat.S_ISDIR(info.st_mode) or stat.S_ISREG(info.st_mode)):
       with trust_location('import-tree',entries):raise TrustRefusal('python-import-tree-untrusted',info)
   elif not path.is_file():raise ValueError('python-import-root-type')
  records=validate_alias_records([targets[key] for key in sorted(targets)])
+ if signed_library is not None:
+  if not library_seen:raise ValueError('signed-library-not-discovered')
+  signed_library_module().validate_mixed_budget(records,signed_library)
+  if signed_libraries is not None:signed_libraries.append(dict(signed_library))
  if aliases is not None:aliases.extend(records)
  return paths
 
-def build(destination,policy,python=None,static_libraries=None):
+def build(destination,policy,python=None,static_libraries=None,signed_library_cache=None,signed_library_keyring=None):
  destination=Path(destination);destination.mkdir(parents=True,exist_ok=True)
  if any(destination.iterdir()):raise ValueError('stage-must-be-empty')
  # Policy is operator input, never browser input. Admission validates every use.
@@ -231,7 +256,10 @@ def build(destination,policy,python=None,static_libraries=None):
    if type(value) is not str or len(value.encode())>4096 or not value.startswith('/') or value in ('/','/tmp','/home','/root','/etc','/run','/proc','/dev') \
       or '//' in value or any(part in ('.','..') for part in value.split('/')) or any(ord(c)<32 or ord(c)==127 for c in value) \
       or re.search(r'/(?:\.ssh|\.gnupg|\.config|\.cache|\.local)(?:/|$)',value):raise ValueError('policy-runtime-path')
- import_aliases=[];import_paths=trusted_import_paths(python,aliases=import_aliases)
+ import_aliases=[];signed_libraries=[]
+ library=signed_library_context(python,signed_library_cache,signed_library_keyring)
+ if library is None:import_paths=trusted_import_paths(python,aliases=import_aliases)
+ else:import_paths=trusted_import_paths(python,aliases=import_aliases,signed_library=library,signed_libraries=signed_libraries)
  policy_bytes=(json.dumps(policy,sort_keys=True,separators=(',',':'))+'\n').encode()
  (destination/'policy.json').write_bytes(policy_bytes)
  records=[]
@@ -247,10 +275,11 @@ def build(destination,policy,python=None,static_libraries=None):
  header+='static const unsigned PYTHON_IMPORT_ALIAS_BYTES['+str(max(1,len(import_aliases)))+']={'+','.join(str(record['bytes']) for record in import_aliases or [{'bytes':0}])+'};\n'
  header+='static const unsigned char PYTHON_IMPORT_ALIAS_HASHES['+str(max(1,len(import_aliases)))+'][32]={'+','.join('{'+','.join(str(value) for value in bytes.fromhex(record['sha256']))+'}' for record in import_aliases or [{'sha256':'0'*64}])+'};\n'
 
+ header+=signed_library_module().header(library)
  header+='#define POLICY_PATH '+json.dumps(str(PREFIX/'policy.json'))+'\n'
  header+='static const char *OWNER_PATHS[4]='+json.dumps(paths).replace('[','{').replace(']','}')+';\n'
  header+='static const unsigned char OWNER_HASHES[4][32]={'+','.join(header_array(data) for data in records)+'};\n'
- header+='static const unsigned char PYTHON_HASH[32]='+header_array(Path(python).read_bytes())+';\n'
+ header+='static const unsigned char PYTHON_HASH[32]='+('{' + ','.join(str(v)for v in bytes.fromhex(library['interpreterMemberSHA256'])) + '}' if library is not None else header_array(Path(python).read_bytes()))+';\n'
  header+='static const unsigned char POLICY_HASH[32]='+header_array(policy_bytes)+';\n'
  header+='#else\n'
  header+='static const char *NATIVE_EXECUTABLES['+str(len(policy['nativeExecutables']))+']=' + json.dumps(policy['nativeExecutables']).replace('[','{').replace(']','}')+';\n'
@@ -319,15 +348,16 @@ profile overte-browser-network-owner flags=(attach_disconnected) {
  # Ubuntu ABI source is pinned; parser/runtime semantics still require live proof.
  (destination/'overte-browser-network').write_text(profile)
  files={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in destination.iterdir() if p.is_file()}
- manifest={'version':2,'prefix':str(PREFIX),'python':python,'files':files,
+ manifest={'version':3 if library is not None else 2,'prefix':str(PREFIX),'python':python,'files':files,
   'pythonImportPaths':import_paths,'pythonImportAliases':import_aliases,'rootSource':{str(p.relative_to(BASE)):hashlib.sha256(p.read_bytes()).hexdigest() for p in (BASE/'src').iterdir() if p.is_file()},
   'activated':False,'actualNamespaceCapabilityRoutingProof':False}
+ if library is not None:manifest['pythonSignedLibraries']=signed_libraries
  (destination/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
  return manifest
 
 if __name__=='__main__':
- parser=argparse.ArgumentParser();parser.add_argument('--stage',required=True);parser.add_argument('--policy',required=True);parser.add_argument('--static-libraries')
+ parser=argparse.ArgumentParser();parser.add_argument('--stage',required=True);parser.add_argument('--policy',required=True);parser.add_argument('--static-libraries');parser.add_argument('--signed-library-cache');parser.add_argument('--signed-library-keyring')
  args=parser.parse_args()
- try:build(args.stage,json.loads(Path(args.policy).read_text()),static_libraries=args.static_libraries)
+ try:build(args.stage,json.loads(Path(args.policy).read_text()),static_libraries=args.static_libraries,signed_library_cache=args.signed_library_cache,signed_library_keyring=args.signed_library_keyring)
  except Exception as error:
   print(json.dumps(staging_failure(error),sort_keys=True));raise SystemExit(1)

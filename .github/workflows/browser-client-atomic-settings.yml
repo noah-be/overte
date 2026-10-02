@@ -54,6 +54,10 @@ jobs:
         run: |
           python3 browser-client/lab/atomic-provisioning/stage.py
       - name: Require signed-dependency and fixed-summary contracts before native startup
+        env:
+          # Explicit read-only, noninteractive diagnostic authority. The original
+          # command, policy setup and every capability assertion remain unchanged.
+          ATOMIC_DIAGNOSTIC_KERNEL_AUDIT: sudo-noninteractive
         run: |
           ATOMIC_DIAGNOSTIC_CACHE="$ATOMIC_PROBE_DIRECTORY" \
           ATOMIC_DIAGNOSTIC_STRACE="$ATOMIC_PROBE_DIRECTORY/strace" \

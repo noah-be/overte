@@ -68,6 +68,9 @@ static volatile sig_atomic_t stopped;
 static unsigned import_alias_reads;
 static uint64_t import_alias_read_bytes;
 static int verify_import_alias_target(int fd,const char *resolved);
+#if PYTHON_SIGNED_LIBRARY_COUNT == 1
+static int verify_signed_library_target(int fd,const char *resolved);
+#endif
 static void stop(int ignored){(void)ignored;stopped=1;}
 static long long milliseconds(void){struct timespec t;if(clock_gettime(CLOCK_MONOTONIC,&t))return -1;return t.tv_sec*1000LL+t.tv_nsec/1000000;}
 static int fullwrite(int fd,const void *data,size_t length){const unsigned char *p=data;while(length){ssize_t n=write(fd,p,length);if(n<0&&errno==EINTR)continue;if(n<=0)return -1;p+=n;length-=n;}return 0;}
@@ -237,10 +240,50 @@ static const char bootstrap[]=
  " exec(compile(sources.pop(name),module.__file__,'exec'),module.__dict__)\n"
  "sys.exit(sys.modules['trusted_owner'].main())\n";
 
+// The sole typed member is generated only after exact signed package and
+// installed-byte authentication. Both branches debit the SAME original count
+// and read-byte budgets. This does not expand the general 4MiB verifier.
+#if PYTHON_SIGNED_LIBRARY_COUNT == 1
+// Match the existing bounded primitive: no EVP/provider/configuration loading.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+static int verify_signed_library_target(int fd,const char *resolved) {
+ if(strcmp(PYTHON_PATH,SIGNED_LIBRARY_PYTHON_PATH)||memcmp(PYTHON_HASH,SIGNED_LIBRARY_PYTHON_HASH,32)||strcmp(resolved,SIGNED_LIBRARY_PATH)){errno=EINVAL;return -1;}
+ if(++import_alias_reads>128){errno=EINVAL;return -1;}
+ struct stat before,after;
+ if(fstat(fd,&before))return -1;
+ if(!S_ISREG(before.st_mode)||before.st_uid||(before.st_mode&022)||before.st_size!=SIGNED_LIBRARY_BYTES||SIGNED_LIBRARY_BYTES>16777216){errno=EPERM;return -1;}
+ if(import_alias_read_bytes+(uint64_t)before.st_size>33554432){errno=EFBIG;return -1;}
+ import_alias_read_bytes+=(uint64_t)before.st_size;
+ unsigned char bytes[65536],digest[32],tail;size_t offset=0;int result=-1;
+ SHA256_CTX hash;if(!SHA256_Init(&hash))return -1;
+ while(offset<(size_t)before.st_size){
+  size_t length=(size_t)before.st_size-offset;if(length>sizeof(bytes))length=sizeof(bytes);
+  ssize_t count=pread(fd,bytes,length,(off_t)offset);
+  if(count<0&&errno==EINTR)continue;
+  if(count<=0){if(!count)errno=EIO;goto done;}
+  if(!SHA256_Update(&hash,bytes,(size_t)count))goto done;
+  offset+=(size_t)count;
+ }
+ if(pread(fd,&tail,1,(off_t)offset)!=0||fstat(fd,&after))goto done;
+ if(before.st_dev!=after.st_dev||before.st_ino!=after.st_ino||before.st_size!=after.st_size||
+    before.st_mtim.tv_sec!=after.st_mtim.tv_sec||before.st_mtim.tv_nsec!=after.st_mtim.tv_nsec||
+    before.st_ctim.tv_sec!=after.st_ctim.tv_sec||before.st_ctim.tv_nsec!=after.st_ctim.tv_nsec||
+    before.st_uid!=after.st_uid||before.st_mode!=after.st_mode){errno=ESTALE;goto done;}
+ if(!SHA256_Final(digest,&hash)||memcmp(digest,SIGNED_LIBRARY_HASH,32)){errno=ESTALE;goto done;}
+ result=0;
+ done:return result;
+}
+#pragma GCC diagnostic pop
+#endif
+
 // Hash only exact build-discovered, manifest-reviewed canonical aliases. No
 // browser argument/profile wildcard can add a target. Original rootfile gates
 // already bind this descriptor to immutable root-owned canonical ancestry.
 static int verify_import_alias_target(int fd,const char *resolved) {
+#if PYTHON_SIGNED_LIBRARY_COUNT == 1
+ if(!strcmp(resolved,SIGNED_LIBRARY_PATH))return verify_signed_library_target(fd,resolved);
+#endif
  int index=-1;
  for(int i=0;i<PYTHON_IMPORT_ALIAS_COUNT;i++)if(!strcmp(resolved,PYTHON_IMPORT_ALIAS_PATHS[i])){index=i;break;}
  if(index<0||++import_alias_reads>128){errno=EINVAL;return -1;}

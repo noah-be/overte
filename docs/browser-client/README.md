@@ -7,6 +7,10 @@ Measured optimization work is documented in [model parse tasks](MODEL_PARSE_TASK
 and [passive draw census](ASYNC_DRAW_CENSUS.md). Experimental scheduling remains
 disabled by default where the actual Hub comparisons establish no general gain.
 
+The [signed Python runtime guide](SIGNED_PYTHON_RUNTIME.md) explains default
+version-2 admission and explicit version-3 package-member authentication for
+hosted qualification. Installed-byte and actual isolation gates remain mandatory.
+
 The browser renders actual Overte entity data locally with Three.js. An open
 source, self-hosted gateway runs a separate native Overte Interface connection
 for each visitor. Native clients connect to the domain normally. This gateway
@@ -142,6 +146,12 @@ The component suite verifies PCM formats, audio buffering, collision/mapping,
 protocol validation and renderer/session behavior in Chromium and Firefox.
 Its isolated fixtures are explicitly synthetic. Real-domain acceptance evidence,
 including native coexistence and voice, belongs in the laboratory report.
+
+The Browser client workflow runs its complete checks on matching pull-request
+updates. Its former topic-branch push trigger duplicated the same revision's
+checks and has been removed. Deduplication preserves every job and check, its
+PR path filters, deadlines and permissions. The workflow also defines manual
+dispatch.
 
 Supported core content includes native primitives, model GLB/glTF/FBX/OBJ/FST
 assets, basic material data, textures, text, images and basic lights. FST support

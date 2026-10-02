@@ -62,3 +62,63 @@ Ptrace can affect timing and Ubuntu LSM/Yama may refuse it. No bypass is permitt
 An isolated successful probe is not repair or causality proof for the historical
 hosted world-lifecycle failure. Real Ubuntu execution/actionlint/security checks
 remain parent-owned acceptance steps.
+
+## Current cross-version test qualification
+
+The complete current diagnostic suite passes 121 cases locally with its reviewed
+signed dependency inputs. Run from the repository root with the three explicit
+private, authenticated paths already prepared by the dependency workflow:
+
+```sh
+ATOMIC_DIAGNOSTIC_CACHE=/absolute/private/verified-cache \
+ATOMIC_DIAGNOSTIC_STRACE=/absolute/private/verified-cache/strace \
+ATOMIC_DIAGNOSTIC_TEST_KEYRING=/absolute/private/verified-archive-keyring.gpg \
+python3 -B -m unittest discover -s browser-client/lab/atomic-provisioning -p 'test_*.py'
+```
+
+The test-source oracle compares the exact frozen original function source bytes,
+then removes only the reviewed literal diagnostic field. Changed original bodies
+and missing or altered diagnostic fields are refused. This replaces an AST-dump
+hash whose representation differs between Python 3.12 and 3.14. The 24 focused
+preflight controls pass with actual Python 3.12.3 and 3.14.7. The owned-child test
+also accepts the original disappeared-process outcome (`ENOENT` or `ESRCH`)
+when its process exits between the `/proc` existence check and read; unrelated
+exceptions still fail.
+Neither correction changes the probe, capability policy, input command or
+deadlines.
+
+Hosted commit `3c53f396d95cd006c4df8ae45523db9001b906af` remains failed: the
+capability projection reports `apply-bounding-set`, outer exit 127, before any
+milestone. That observation does not establish the missing capability or kernel
+policy responsible. Local unit success does not qualify that hosted execution.
+
+
+## Optional passive kernel cause projection
+
+`ATOMIC_DIAGNOSTIC_KERNEL_AUDIT` is off when absent. `readonly` observes only the
+single existing eight-second preflight invocation and, after a failed result,
+tries an unprivileged bounded journal read. `sudo-noninteractive` adds explicit
+read-only hosted authority: ordinary access is still tried first, and only an
+access/command refusal or empty ordinary view permits exact `sudo -n` plus
+root-owned timeout/journalctl. An empty view remains unknown, not a diagnosis of
+missing access or proof that the kernel emitted no denial.
+The unit-step environment opts into that mode under the same signed
+host workflow's existing sudo authority. It changes no profile, namespace argv,
+capability assertion, original stderr projection, failure retention or outcome.
+
+Only a source-minted in-process receipt for that exact original child/time window
+is admitted. The fixed JSON output excludes PID, paths, boot/audit identities and
+raw logs. At most 64 KiB combined journal streams, 128 rows and four seconds per
+read are admitted. An explicitly authorized fallback may add a second bounded
+read; each privileged read has its own two-second timeout plus one-second kill
+bound. This diagnostic happens AFTER the original result and is not part of its
+eight-second deadline or a performance measurement.
+
+Kernel/audit transport, boot, owned child PID, precise attempt time and exact
+unshare//unpriv/setpriv/CAP_SETPCAP denial fields must all match. Missing ownership,
+access refusal, unavailable/nonmatching/censored records stay unknown; they never
+make the preflight pass or prove absence of a policy denial. No interactive
+hosted password request or raw kernel artifact is produced. The original gate
+still fails and publishes its existing safe failure projection. Actual hosted
+journal admission and the cause of `apply-bounding-set` remain unqualified until
+a genuine reviewed run supplies a matching source-owned record.

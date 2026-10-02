@@ -59,12 +59,17 @@ def verified_bundle(directory,digest):
  manifest_bytes=bounded_file(directory/'manifest.json',65536)
  if hashlib.sha256(manifest_bytes).hexdigest()!=digest:raise Refusal('review-manifest-mismatch')
  manifest=json.loads(manifest_bytes,object_pairs_hook=unique_object)
- if type(manifest) is not dict or set(manifest)!={'version','prefix','python','files','pythonImportPaths','pythonImportAliases','rootSource','activated','actualNamespaceCapabilityRoutingProof'} \
-    or type(manifest['version']) is not int or manifest['version']!=2 or manifest['prefix']!=str(PREFIX) \
+ if type(manifest) is not dict or set(manifest)-( {'pythonSignedLibraries'} if manifest.get('version')==3 else set())!={'version','prefix','python','files','pythonImportPaths','pythonImportAliases','rootSource','activated','actualNamespaceCapabilityRoutingProof'} \
+    or type(manifest['version']) is not int or manifest['version']not in (2,3) or manifest['prefix']!=str(PREFIX) \
     or type(manifest['python']) is not str or not re.fullmatch(r'/usr/bin/python3\.[0-9]{1,2}',manifest['python']) \
     or type(manifest['files']) is not dict or set(manifest['files'])!=REQUIRED \
     or manifest['activated'] is not False or manifest['actualNamespaceCapabilityRoutingProof'] is not False:raise Refusal('bundle-manifest-schema')
  validate_reviewed_aliases(manifest['pythonImportAliases'])
+ if manifest['version']==3:
+  libraries=manifest.get('pythonSignedLibraries')
+  if type(libraries)is not list or len(libraries)!=1:raise Refusal('bundle-signed-library-count')
+  helper=signed_library_module();helper.validate_library(libraries[0]);helper.validate_mixed_budget(manifest['pythonImportAliases'],libraries[0])
+  if manifest['python']!=libraries[0]['interpreterCanonicalPath']:raise Refusal('bundle-signed-interpreter-mismatch')
  if {p.name for p in directory.iterdir()}!=REQUIRED|{'manifest.json'}:raise Refusal('bundle-extra-file')
  result={}
  for name,digest in manifest['files'].items():
@@ -72,6 +77,11 @@ def verified_bundle(directory,digest):
   value=bounded_file(directory/name)
   if hashlib.sha256(value).hexdigest()!=digest:raise Refusal('bundle-hash-mismatch')
   result[name]=value
+ if manifest['version']==3:
+  block=signed_library_module().header(manifest['pythonSignedLibraries'][0])
+  header=result['image.h'].decode('ascii')
+  lines=[line for line in header.splitlines()if 'SIGNED_LIBRARY_'in line]
+  if lines!=block.splitlines():raise Refusal('bundle-signed-header-mismatch')
  # Snapshot all authenticated bytes before any installation mutation.
  return manifest,result
 
@@ -113,16 +123,28 @@ def preserve_owned_policy_markers():
         if os.path.lexists(directory):
             trusted_directory(directory)
 
-def verify_python_imports(manifest):
+def signed_library_module():
+ import importlib.util
+ spec=importlib.util.spec_from_file_location('reviewed_signed_library_install',Path(__file__).with_name('signed_library.py'))
+ module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module
+
+
+def verify_python_imports(manifest,signed_library_cache=None,signed_library_keyring=None):
  # Load the reviewed build module locally only in the explicit administrator
  # installer, never under the capability-enabled runtime profile.
  import importlib.util
  spec=importlib.util.spec_from_file_location('trusted_build',Path(__file__).with_name('build.py'))
  module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
- aliases=[];paths=module.trusted_import_paths(manifest['python'],aliases=aliases)
+ aliases=[];libraries=[]
+ if manifest.get('pythonSignedLibraries'):
+  library=module.signed_library_context(manifest['python'],signed_library_cache,signed_library_keyring)
+  if library is None:raise Refusal('signed-library-reauthentication-required')
+  paths=module.trusted_import_paths(manifest['python'],aliases=aliases,signed_library=library,signed_libraries=libraries)
+  if libraries!=manifest['pythonSignedLibraries']:raise Refusal('signed-library-runtime-mismatch')
+ else:paths=module.trusted_import_paths(manifest['python'],aliases=aliases)
  if paths!=manifest['pythonImportPaths'] or aliases!=manifest['pythonImportAliases']:raise Refusal('python-import-runtime-mismatch')
 
-def install(directory,digest):
+def install(directory,digest,signed_library_cache=None,signed_library_keyring=None):
  if os.geteuid()!=0:raise Refusal('root-required-for-explicit-install')
  manifest,data=verified_bundle(directory,digest)
  trusted_directory('/usr');trusted_directory('/etc/apparmor.d')
@@ -133,7 +155,7 @@ def install(directory,digest):
   trusted_directory(path.parent)
   info=path.lstat()
   if not stat.S_ISREG(info.st_mode) or info.st_uid or info.st_mode&0o6022 or not info.st_mode&stat.S_IXUSR:raise Refusal('installed-executable-not-trusted')
- verify_python_imports(manifest)
+ verify_python_imports(manifest,signed_library_cache,signed_library_keyring)
  before=loaded_profiles()
  if any(name.startswith('overte-browser-network-') for name in before) or PREFIX.exists() or PREFIX.is_symlink() or PROFILE.exists() or PROFILE.is_symlink():raise Refusal('existing-install-or-profile-preserved')
  if before.get('bwrap')!='enforce' or before.get('unpriv_bwrap')!='enforce':raise Refusal('reviewed-distro-bwrap-profile-required')
@@ -171,8 +193,8 @@ def install(directory,digest):
   raise
 
 if __name__=='__main__':
- parser=argparse.ArgumentParser();parser.add_argument('--bundle',required=True);parser.add_argument('--manifest-sha256',required=True)
+ parser=argparse.ArgumentParser();parser.add_argument('--bundle',required=True);parser.add_argument('--manifest-sha256',required=True);parser.add_argument('--signed-library-cache');parser.add_argument('--signed-library-keyring')
  args=parser.parse_args()
- try:print(json.dumps(install(args.bundle,args.manifest_sha256)))
+ try:print(json.dumps(install(args.bundle,args.manifest_sha256,args.signed_library_cache,args.signed_library_keyring)))
  except (Refusal,OSError,ValueError,TypeError,KeyError,subprocess.SubprocessError):
   print(json.dumps({'installed':False,'category':'trusted-network-install-refused','existingProfileReplacement':False}));raise SystemExit(1)

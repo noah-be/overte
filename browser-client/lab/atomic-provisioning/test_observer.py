@@ -23,6 +23,10 @@ ENV = dict(os.environ)
 diagnostic_spec = importlib.util.spec_from_file_location('preflight_diagnostics', HERE / 'preflight_diagnostics.py')
 preflight_diagnostics = importlib.util.module_from_spec(diagnostic_spec)
 diagnostic_spec.loader.exec_module(preflight_diagnostics)
+from contextlib import nullcontext
+kernel_spec = importlib.util.spec_from_file_location('atomic_kernel_audit', HERE / 'kernel_audit.py')
+kernel_audit = importlib.util.module_from_spec(kernel_spec)
+kernel_spec.loader.exec_module(kernel_audit)
 
 
 class ObserverTests(unittest.TestCase):
@@ -165,11 +169,18 @@ class ObserverTests(unittest.TestCase):
                 'print("ATOMIC_PREFLIGHT_OBSERVER:"+json.dumps(q.inner_observation(r,raw,capture_status),sort_keys=True),flush=True)\n'
                 'assert r["exitCode"]==0 and r["projection"]["calls"]["fsync"]["success"]>=1\n'
                 'print("ATOMIC_PREFLIGHT:strict-inner-asserted",flush=True)\n')
-            result = subprocess.run(['/usr/bin/unshare', '--user', '--map-current-user', '--keep-caps',
-                '--ipc', '--', '/usr/bin/setpriv', '--bounding-set=-all', '--inh-caps=-all',
-                '--ambient-caps=-all', '--', sys.executable, str(entry)], stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE, timeout=8)
+            audit_mode = os.environ.get('ATOMIC_DIAGNOSTIC_KERNEL_AUDIT')
+            audit_context = (kernel_audit.observe_original_run() if audit_mode in ('readonly', 'sudo-noninteractive')
+                             else nullcontext(None))
+            with audit_context as audit_receipt:
+                result = subprocess.run(['/usr/bin/unshare', '--user', '--map-current-user', '--keep-caps',
+                    '--ipc', '--', '/usr/bin/setpriv', '--bounding-set=-all', '--inh-caps=-all',
+                    '--ambient-caps=-all', '--', sys.executable, str(entry)], stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE, timeout=8)
             if result.returncode != 0:
+                if audit_receipt is not None:
+                    cause = kernel_audit.collect(audit_receipt, allow_sudo=audit_mode == 'sudo-noninteractive')
+                    print('ATOMIC_PREFLIGHT_KERNEL_AUDIT:' + json.dumps(cause, sort_keys=True, separators=(',', ':')), flush=True)
                 retained = preflight_diagnostics.retain_failed_preflight(os.environ.get('ATOMIC_DIAGNOSTIC_CACHE'), result.stdout, result.stderr)
                 print('ATOMIC_PREFLIGHT_PRIVATE_CAPTURE:' + json.dumps(retained, sort_keys=True, separators=(',', ':')), flush=True)
             self.assertEqual(result.returncode, 0, 'unchanged-own-child-confinement-preflight-refused:' +
@@ -229,11 +240,19 @@ class ObserverTests(unittest.TestCase):
                 deadline = time.monotonic() + 2
                 while time.monotonic() < deadline:
                     path = Path(f'/proc/{pid}/stat')
-                    if not path.exists() or path.read_text().split(') ', 1)[1].split()[0] == 'Z':
+                    try:
+                        state = path.read_text().split(') ', 1)[1].split()[0]
+                    except (FileNotFoundError, ProcessLookupError):
+                        break  # The exact owned child is gone, as before.
+                    if state == 'Z':
                         break
                     time.sleep(.01)
-                if path.exists():
-                    self.assertEqual(path.read_text().split(') ', 1)[1].split()[0], 'Z')
+                try:
+                    state = path.read_text().split(') ', 1)[1].split()[0]
+                except (FileNotFoundError, ProcessLookupError):
+                    pass
+                else:
+                    self.assertEqual(state, 'Z')
             finally:
                 if wrapper.poll() is None:
                     wrapper.kill()
@@ -242,8 +261,11 @@ class ObserverTests(unittest.TestCase):
                 # kill only the still-matching exact owned child if necessary.
                 if pid and identity:
                     path = Path(f'/proc/{pid}/stat')
-                    if path.exists():
+                    try:
                         info = path.read_text().split(') ', 1)[1].split()
+                    except (FileNotFoundError, ProcessLookupError):
+                        pass
+                    else:
                         if info[19] == identity and info[0] != 'Z':
                             os.kill(pid, signal.SIGKILL)
 

@@ -23,7 +23,7 @@ class Workflow(unittest.TestCase):
  def setUpClass(cls):
   cls.work=tempfile.TemporaryDirectory(prefix='overte-trusted-stage-cpu-')
   cls.stage=Path(cls.work.name)/'stage'
-  cls.manifest=build.build(cls.stage,POLICY,static_libraries=os.environ.get('OVERTE_SETUP_STATIC_LIBRARIES'))
+  cls.manifest=build.build(cls.stage,POLICY,static_libraries=os.environ.get('OVERTE_SETUP_STATIC_LIBRARIES'),signed_library_cache=os.environ.get('OVERTE_SIGNED_LIBRARY_CACHE'),signed_library_keyring=os.environ.get('OVERTE_SIGNED_LIBRARY_KEYRING'))
   cls.digest=hashlib.sha256((cls.stage/'manifest.json').read_bytes()).hexdigest()
  @classmethod
  def tearDownClass(cls):cls.work.cleanup()

@@ -5,11 +5,6 @@ on:
     paths:
       - 'browser-client/**'
       - '.github/workflows/browser-client.yml'
-  push:
-    branches: ['feature/main/browser-client']
-    paths:
-      - 'browser-client/**'
-      - '.github/workflows/browser-client.yml'
   workflow_dispatch:
 
 permissions:
@@ -44,7 +39,7 @@ jobs:
       - name: Install software graphics and isolated audio backends
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libgl1-mesa-dri libglx-mesa0 mesa-utils pulseaudio xvfb xauth bubblewrap slirp4netns iproute2 python3 gcc libc6-dev libssl-dev g++ qtbase5-dev qtdeclarative5-dev qml-module-qtquick2 qml-module-qtquick-window2 apparmor-profiles
+          sudo apt-get install -y --no-install-recommends libgl1-mesa-dri libglx-mesa0 mesa-utils pulseaudio xvfb xauth bubblewrap slirp4netns iproute2 python3 gcc libc6-dev libssl-dev g++ gpgv zstd qtbase5-dev qtdeclarative5-dev qml-module-qtquick2 qml-module-qtquick-window2 apparmor-profiles
           task_runtime_dir="$(mktemp -d "${RUNNER_TEMP}/overte-browser-runtime.XXXXXX")"
           chmod 700 "$task_runtime_dir"
           export XDG_RUNTIME_DIR="$task_runtime_dir"
@@ -63,14 +58,21 @@ jobs:
         env:
           OVERTE_TRUSTED_ALIAS_DIAGNOSTICS: '1'
         run: |
-          python3 -m unittest discover -s tools/trusted-network/tests -p 'test_*.py'
-          node --test tools/trusted-network/tests/trusted-entry.test.mjs
           task_network_dir="$(mktemp -d "${RUNNER_TEMP}/overte-trusted-network.XXXXXX")"
           chmod 700 "$task_network_dir"
+          python3 tools/trusted-network/workflow/prepare_signed_library.py --output "$task_network_dir/signed-cache"
+          export OVERTE_SIGNED_LIBRARY_CACHE="$task_network_dir/signed-cache"
+          export OVERTE_SIGNED_LIBRARY_KEYRING="$task_network_dir/signed-cache/archive-keyring.gpg"
+          python3 -m unittest discover -s tools/trusted-network/tests -p 'test_*.py'
+          node --test tools/trusted-network/tests/trusted-entry.test.mjs
           python3 tools/trusted-network/workflow/policy.py --output "$task_network_dir/policy.json"
-          python3 tools/trusted-network/workflow/build.py --policy "$task_network_dir/policy.json" --stage "$task_network_dir/stage"
+          python3 tools/trusted-network/workflow/build.py --policy "$task_network_dir/policy.json" --stage "$task_network_dir/stage" \
+            --signed-library-cache "$OVERTE_SIGNED_LIBRARY_CACHE" --signed-library-keyring "$OVERTE_SIGNED_LIBRARY_KEYRING"
           task_network_hash="$(sha256sum "$task_network_dir/stage/manifest.json" | cut -d ' ' -f1)"
-          sudo python3 tools/trusted-network/workflow/install.py --bundle "$task_network_dir/stage" --manifest-sha256 "$task_network_hash"
+          sudo python3 tools/trusted-network/workflow/prepare_signed_library.py \
+            --source-cache "$OVERTE_SIGNED_LIBRARY_CACHE" --keyring "$OVERTE_SIGNED_LIBRARY_KEYRING" --output "$task_network_dir/root-signed-cache"
+          sudo python3 tools/trusted-network/workflow/install.py --bundle "$task_network_dir/stage" --manifest-sha256 "$task_network_hash" \
+            --signed-library-cache "$task_network_dir/root-signed-cache" --signed-library-keyring "$task_network_dir/root-signed-cache/archive-keyring.gpg"
           echo "OVERTE_GATEWAY_TRUSTED_NETWORK_SETUP=1" >> "$GITHUB_ENV"
       - name: Test protocol, collision, audio and worker isolation contracts
         run: npm test
@@ -130,7 +132,7 @@ jobs:
       - name: Install signed host dependencies for the native laboratory
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends python3 gcc libc6-dev libssl-dev g++ binutils rpm2cpio cpio zstd \
+          sudo apt-get install -y --no-install-recommends python3 gcc libc6-dev libssl-dev g++ gpgv binutils rpm2cpio cpio zstd \
             ffmpeg pulseaudio pulseaudio-utils xvfb xauth bubblewrap slirp4netns iproute2 apparmor-profiles \
             ca-certificates libstdc++6 libgl-dev libgl1 libglx-mesa0 libegl1 libopengl0 libgl1-mesa-dri \
             libnss3 libasound2t64 libxcomposite1 libxdamage1 libxrandr2 libxtst6 libxss1 \
@@ -159,13 +161,18 @@ jobs:
         run: |
           task_network_dir="$(mktemp -d "${RUNNER_TEMP}/overte-native-network.XXXXXX")"
           chmod 700 "$task_network_dir"
+          python3 browser-client/tools/trusted-network/workflow/prepare_signed_library.py --output "$task_network_dir/signed-cache"
           python3 browser-client/tools/trusted-network/workflow/policy.py --output "$task_network_dir/policy.json" \
             --native-root "$(realpath build/browser-lab/appimage/squashfs-root)" \
             --qt-root "$(realpath build/browser-lab/qt-tablet/usr/lib/x86_64-linux-gnu)" \
             --input-root "$(realpath build/browser-lab/native-input/qml)"
-          python3 browser-client/tools/trusted-network/workflow/build.py --policy "$task_network_dir/policy.json" --stage "$task_network_dir/stage"
+          python3 browser-client/tools/trusted-network/workflow/build.py --policy "$task_network_dir/policy.json" --stage "$task_network_dir/stage" \
+            --signed-library-cache "$task_network_dir/signed-cache" --signed-library-keyring "$task_network_dir/signed-cache/archive-keyring.gpg"
           task_network_hash="$(sha256sum "$task_network_dir/stage/manifest.json" | cut -d ' ' -f1)"
-          sudo python3 browser-client/tools/trusted-network/workflow/install.py --bundle "$task_network_dir/stage" --manifest-sha256 "$task_network_hash"
+          sudo python3 browser-client/tools/trusted-network/workflow/prepare_signed_library.py \
+            --source-cache "$task_network_dir/signed-cache" --keyring "$task_network_dir/signed-cache/archive-keyring.gpg" --output "$task_network_dir/root-signed-cache"
+          sudo python3 browser-client/tools/trusted-network/workflow/install.py --bundle "$task_network_dir/stage" --manifest-sha256 "$task_network_hash" \
+            --signed-library-cache "$task_network_dir/root-signed-cache" --signed-library-keyring "$task_network_dir/root-signed-cache/archive-keyring.gpg"
           echo "OVERTE_GATEWAY_TRUSTED_NETWORK_SETUP=1" >> "$GITHUB_ENV"
       - name: Require unchanged actual isolation and audio preflight
         env:

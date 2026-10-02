@@ -28,6 +28,25 @@ D = load('preflight_diagnostics_contract', HERE / 'preflight_diagnostics.py')
 T = load('actual_observer_contract', HERE / 'test_observer.py')
 ZERO = '\n'.join(key + ':\t0000000000000000' for key in D.CAPABILITIES)
 
+ORIGINAL_FUNCTIONS_SHA256 = '2d2912688d4e595f02011ee24dbc3bc3a955bdfc622bd6e8662a8a3114d59ca8'
+ADDED_OPERATION_FIELD = "\n            'outerCapabilityOperation': stderr_capability_operation(stderr),"
+
+
+def original_function_sources(source, remove_operation_field=False):
+    names=('stderr_failure','project_preflight')
+    result={}
+    for node in ast.parse(source).body:
+        if isinstance(node,ast.FunctionDef) and node.name in names:
+            if node.name in result:raise AssertionError('duplicate-original-function')
+            result[node.name]=ast.get_source_segment(source,node)
+    if set(result)!=set(names):raise AssertionError('original-function-missing')
+    if remove_operation_field:
+        text=result['project_preflight']
+        if text.count(ADDED_OPERATION_FIELD)!=1:raise AssertionError('exact-added-field-refused')
+        result['project_preflight']=text.replace(ADDED_OPERATION_FIELD,'',1)
+    return result
+
+
 class ProjectionTests(unittest.TestCase):
     def test_exact_existing_five_operations_are_projected_without_error_text(self):
         operations = [('apply bounding set','apply-bounding-set'),('apply capabilities','apply-capabilities'),('set capabilities','set-capabilities'),('cap_set_proc','cap-set-proc'),('set process securebits','set-process-securebits')]
@@ -55,18 +74,23 @@ class ProjectionTests(unittest.TestCase):
             self.assertEqual(result['outerCapabilityOperation'],'unobserved-or-unclassified')
         self.assertEqual(D.project_preflight(127,b'',b'x'*D.MAX_BYTES+b'\n'+one)['outerCapabilityOperation'],'unobserved-or-unclassified')
 
-    def test_original_classifier_and_projection_ast_stay_exact_except_one_new_field(self):
+    def test_original_classifier_and_projection_source_stay_exact_except_one_new_field(self):
         import hashlib
-        tree=ast.parse((HERE/'preflight_diagnostics.py').read_text())
-        expected={'stderr_failure': '312c744f2d616c4330150959e9817e6232f88c56466a7756e461889a46e88ca0', 'project_preflight': '9ece4bfb63914548e664585e86b53500a7f6d357d2b3089275b1e52071941ad4'}
-        found={node.name:node for node in tree.body if isinstance(node,ast.FunctionDef)and node.name in expected}
-        node=found['project_preflight']
-        dictionaries=[item for item in ast.walk(node)if isinstance(item,ast.Dict)and any(isinstance(key,ast.Constant)and key.value=='outerCapabilityOperation' for key in item.keys)]
-        self.assertEqual(len(dictionaries),1)
-        entry=dictionaries[0];index=next(i for i,key in enumerate(entry.keys)if isinstance(key,ast.Constant)and key.value=='outerCapabilityOperation')
-        del entry.keys[index];del entry.values[index]
-        for name,expected_hash in expected.items():
-            self.assertEqual(hashlib.sha256(ast.dump(found[name],include_attributes=False).encode()).hexdigest(),expected_hash)
+        frozen=(HERE/'fixtures/preflight-original-functions.py.txt').read_text()
+        self.assertEqual(hashlib.sha256(frozen.encode()).hexdigest(), ORIGINAL_FUNCTIONS_SHA256)
+        self.assertEqual(original_function_sources((HERE/'preflight_diagnostics.py').read_text(), True),
+                         original_function_sources(frozen))
+
+    def test_literal_source_oracle_refuses_original_body_and_new_field_mutations(self):
+        frozen=original_function_sources((HERE/'fixtures/preflight-original-functions.py.txt').read_text())
+        source=(HERE/'preflight_diagnostics.py').read_text()
+        for before,after in [('return \'capability-action-refused\'', 'return \'command-exec-refused\''),
+                             ("'cause': 'not-established'", "'cause': 'established'")]:
+            self.assertIn(before,source)
+            self.assertNotEqual(original_function_sources(source.replace(before,after,1),True),frozen)
+        for changed in (source.replace(ADDED_OPERATION_FIELD, '', 1),
+                        source.replace('stderr_capability_operation(stderr),', 'stderr_capability_operation(err),',1)):
+            with self.assertRaises(AssertionError):original_function_sources(changed,True)
 
     def test_known_exec_and_loader_classes_never_export_private_text(self):
         cases = [
