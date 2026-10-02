@@ -115,7 +115,7 @@
     var rigCache = {};
     var avatarSampleDiagnostics = null;
     if (BROWSER_GATEWAY.avatarSampleDiagnostics && typeof createNativeAvatarSampleDiagnostics === 'function') {
-        avatarSampleDiagnostics = createNativeAvatarSampleDiagnostics({print:print,window:Window,
+        avatarSampleDiagnostics = createNativeAvatarSampleDiagnostics({print:print,window:Window,avatarList:AvatarList,mode:BROWSER_GATEWAY.avatarSampleDiagnosticsMode,
             current:function(){return active && permissionsApproved && lastConnected && location.isConnected;},
             authority:function(){return permissionRevision+'|'+outputAuthority();}});
     }

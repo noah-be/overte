@@ -61,27 +61,35 @@ pixels, functional acceptance and a meaningful Hub measurement before activation
 
 ## Current evidence and next concrete work
 
-Current next steps: publish the reviewed shipping native-IME/capability-retirement
-checkpoint and qualify its exact source on Ubuntu and local native CI. Complete
-stock Chromium154 and Firefox156 Create workflows and the fourteen genuine
-Qt editor cases pass. The new78-pin short Hub pair passes Chromium fluidness,
-while Firefox remains26–28fps with successful actual native motion and rejoin.
-All four bounded loaded-Model censuses remain partial; zero censored groups
-establish no instancing opportunity. Original image failures are classified as
-network/HTTP/origin-stage results, not inferred decoder faults.
+Current next steps: finish genuine People Ignore/Unignore using exact current
+painted native checkbox geometry, then publish the reviewed fixed-phase hosted
+setup/atomic diagnostics and passive avatar sampling checkpoint. Local Jenkins8
+executes all19 gates:18 pass; the original Chromium2800ms peer-movement gate
+still fails despite current independent native readback. Preserve that failure
+and distinguish gateway pose sampling from actual native transmission/receipt.
 
-A fresh stock Chromium core journey passes all18 checkpoints after explicit
-native capability retirement, including synthetic bidirectional voice. Optional
-numeric diagnostics capture up to381ms native peer joint reads but do not
-establish the historical CI pose-delay cause, native transmission or mixer
-receipt; preserve the original2,800ms predicate. The complete default-off trusted
-immutable setup and separate owned atomic-settings diagnostic are integrated
-with52/26 passing local CPU contracts respectively. Actual Ubuntu AppArmor/Px/
-sealed-FD/native and QSaveFile cause qualification remain required. Execute the
-prepared genuine People Ignore/Unignore flow with only its current painted
-native checkbox and exact owned visitors, then qualify a default-off monotonic
-rendered-light-prefix optimization through pixels, movement and short Hub
-measurements without reducing quality or changing fluidness thresholds.
+The current production build,1,417 registered components and57 trusted-C CPU
+contracts pass. A separately reviewed single-pass People audit adds four
+contracts and removes duplicate traversal within the unchanged4096-node bound.
+The previous missing-ACK-navigation/transient-null/duplicate-traversal failures
+remain recorded. Genuine native retry is running; no People acceptance is
+inherited from the eighteen focused CPU contracts.
+
+The rendered-light-prefix candidate is rejected by the unchanged exact-pixel
+oracle in both stock engines. The original renderer is restored exactly, and
+candidate runtime plus its acceptance fixture are preserved outside production.
+Baseline/baseline controls are pixel-identical. Next inspect bounded actual
+material/program dispatch with unchanged shaders and qualify any later
+optimization through actual pixels and same-quality Hub measurements.
+
+Later anonymous reads of exact recorded failed Hub resources return six
+HTTP404 markup responses, five network errors and three unchanged local-origin
+refusals. Those refused sources were not requested. This is later observation,
+not the proven cause of the original run or a decoder failure. Continue the
+user-prioritized native asset mapping and progressive-loading investigation.
+PTT/native audio-hold implementation is frozen with73 passing source-only
+contracts; integrate only after current genuine People source coherence ends,
+then require actual native/browser hold/release and audio-output acceptance.
 
 See [STATUS.md](STATUS.md) for exact published commits, actual source-frozen
 cohorts, preserved failures, tests and remaining limitations. Original real

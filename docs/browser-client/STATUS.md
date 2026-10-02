@@ -4,6 +4,104 @@ Last updated: 2026-10-02. **Original baseline passed; additional mandatory Table
 
 ## Current implementation and next step
 
+Current continuation (2026-10-02,05:23UTC): all1,427 registered components
+pass with zero skips (10.756s), complete TypeScript passes, and all34 required
+repository suites pass (188.81s); documentation suites also pass after the
+latest guides (2.19s). The genuine fixed People refusal capture establishes
+only the original depth24 branch, then37 bounded native records establish
+that those paths are excluded by the existing painted-ancestry predicate.
+No hard bound is increased. Nine exact-source, cleanly terminated failed
+calibration cohorts remain preserved. The next candidate skips only provably
+nonpainted branches and retains hidden NameCard extraction and all visible
+control/admission limits. Genuine Ignore remains pending.
+
+Actual FBX payload/source investigation refines the earlier DDS hypothesis:
+three embedded DDS records belong exclusively to native-ignored Maya cube/LUT
+slots. The native renderer does not load those bindings; Three eagerly loads
+texture records before ignoring their material slots. A conservative exact
+exclusive-owner pruning candidate removes those needless dependencies in
+actual current FBXLoader CPU controls, while preserving geometry/material
+bindings. This is not a DDS-as-albedo codec, a changed visual feature or an
+established Hub gain. The genuine WebGL/Hub comparison remains required.
+A separate PTT review finds and fixes a source-only stale gateway held-ACK
+reuse across mute/re-arm; its actual-handler negative control reproduces the
+bug. Integrate only the reviewed followup with PTT, then qualify real GUI
+mode selection, key hold/release and native/browser audio.
+
+
+Current continuation (2026-10-02,04:57UTC): the original renderer is restored
+exactly after the rendered-prefix candidate fails the unchanged zero-byte image
+oracle in both stock engines. Baseline/baseline controls match all five images;
+bounded localization reproduces the positive RGB differences. Source coherence,
+World disposal and the exact owned development-server cleanup pass. The rejected
+runtime and its acceptance fixture are preserved together outside production.
+No tolerance, quality reduction or gain is claimed.
+[Actual rejection](evidence/rendered-light-prefix-gpu-20261002.json).
+
+Exact published4fafa Jenkins8 now finishes all19 gates:18 pass, none skip;
+original Chromium second-participant movement still fails. Independent native
+readback is already at the target; the captured browser pose remains old despite
+a1.3ms snapshot age. The later Firefox18-checkpoint synthetic-voice journey
+passes but repeats the prior fixed target, so it cannot replace fresh motion
+qualification. Owned registry cleanup and source immutability pass.
+[Actual Jenkins8](evidence/jenkins-ci-4fafa698-checkpoint-20261002.json).
+
+Fixed trusted-C operation/errno observation, atomic dependency-phase observation
+and default-off passive managed-avatar sampling are integrated. The current
+production build,1,417 registered components (zero skips,11.523s),57 C contracts
+(4.307s) and41 focused stdout/collector contracts (175.369ms) pass. These
+observations preserve admission/profile/route/capability/timeout behavior and
+do not establish the failed Ubuntu setup operation or historical peer cause.
+[Trusted phases](TRUSTED_FAILURE_DIAGNOSTICS.md),
+[passive native sampling](NATIVE_AVATAR_PASSIVE_DIAGNOSTICS.md).
+
+The genuine People test first exposes a nonexistent ACK navigation field,
+then a transient-null Home wait and repeated bounded QML traversal. Actual
+native People discovery finds one Nearby Pal with both owned participant rows,
+but the original duplicate traversal exhausts4096 nodes. A reviewed single-pass
+fix preserves that hard bound; eighteen focused control/actual-World/real-send
+contracts pass. The new source-frozen stock pair is running. All prior failed
+cohorts preserve exact source and both owned-profile cleanup; baseline/mute
+remain intact. No Ignore/Unignore acceptance is claimed yet.
+
+Later read-only replay of14 exact failed asset addresses sends11 anonymous GETs:
+six actual404 markup responses and five later network failures. Three local
+origin refusals are preserved and never requested. The64 recorded occurrences
+include failures outside the earlier original-image observer; no decoder fault
+is inferred. [Safe response evidence](evidence/hub-original-asset-response-diagnostics-20261002.json).
+Next: finish People, publish diagnostics and obtain actual Ubuntu failure phase,
+qualify passive fresh peer motion, integrate genuine PTT/native hold behavior,
+then measure same-quality dispatch/loading improvements. The goal stays active;
+complete Tablet parity, Firefox Hub fluidness and physical microphone evidence
+remain open. All endurance testing stays canceled.
+
+
+Current continuation (2026-10-02,04:07UTC): reviewed checkpoint
+`4fafa698a10f479dd357151ac43a49829eaf3b72` is committed and published to the
+verified fork topic and draftPR1023. Its1,387 registered components, production
+build,34 required suites and documentation refresh pass. Exact-source local
+Jenkins8 is running. Both hosted runs build/install the reviewed dedicated
+trusted entrypoint successfully, but all three actual network children reach
+owner-ready then fail with the preserved fixed C refusal/exit78. Install/parser
+success is not namespace/native acceptance. Actual native startup still fails
+before the core journeys. The separate atomic-settings workflow passes exact
+source and host preparation, then fails during dependency staging before any
+native/strace probe. Its generic refusal does not establish a cause. Current
+live official signed downloads pass locally with the reviewed test keyring.
+[Actual hosted checkpoint](evidence/hosted-4fafa698-checkpoint-20261002.json).
+
+Root integrates a separately reviewed default-off rendered-light-prefix
+candidate;14 CPU contracts preserve the original strongest-eight assignment,
+finite/HDR/negative light contribution, unknown-hook fallback and ownership.
+Its actual full-image/dynamic-light GPU fixture and same-quality Hub comparison
+remain next, after Jenkins releases the sole local GPU/native cohort. No
+performance gain or default activation is claimed. The opt-in avatar-rate
+probe is also corrected to the source-proven existing AvatarList manager API;
+the earlier nulls are unavailable-wrapper evidence, never paused-transmission
+measurements. People acceptance is receiving a cause-based scope correction:
+actual loaded rigs do not count valid default fallback participants. It must
+prove exact owned scene-body removal/restoration without conflating those counts.
+
 Current continuation (2026-10-02,03:42UTC): the new short source-frozen stock
 Hub pair qualifies Chromium154 loading, native movement, rejoin and all four
 unchanged fluidness gates (47.68/49.14/45.28/45.28fps). Firefox156 loads296

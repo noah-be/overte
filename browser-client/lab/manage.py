@@ -251,8 +251,9 @@ def start(gateway=False):
     launch("assignments",[server/"assignment-client","-a","127.0.0.1","--server-port","45102",
                            "--disable-domain-port-auto-discovery","--min-listen-port","45200","--monitor-port","45290","-n","6",
                            "--logOptions","nocolor,nojournald"],server_env,state)
-    if os.environ.get("OVERTE_LAB_AVATAR_SAMPLE_DIAGNOSTICS") == "1":
+    if os.environ.get("OVERTE_LAB_AVATAR_SAMPLE_DIAGNOSTICS") in ("1", "passive"):
         (ROOT/"http/native-participant.js").write_text("var BROWSER_LAB_AVATAR_SAMPLE_DIAGNOSTICS = true;\n" +
+            "var BROWSER_LAB_AVATAR_SAMPLE_DIAGNOSTICS_MODE = " + json.dumps("passive" if os.environ.get("OVERTE_LAB_AVATAR_SAMPLE_DIAGNOSTICS") == "passive" else "full") + ";\n" +
             (SOURCE.parent/"gateway/native-avatar-sample-diagnostics.js").read_text() + "\n" +
             (SOURCE/"native-participant.js").read_text())
     else:

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import * as THREE from 'three';
+import { inspectParticipantGeometry } from './participant-geometry';
 import {inspectNativeImageAlpha,makeNativeImageMaterial} from './native-image-material';
 import {planNativeImageEffects,applyNativeImageEffects,updateNativeImagePulse,type ImagePulse} from './native-image-effects';
 import { applyNativeDefaultCull } from './native-default-cull';
@@ -319,6 +320,7 @@ export class BrowserWorld {
   }
   get entityCount(): number { return this.entities.size; }
   getSelfAvatarRig() { return this.avatarModels.get(this.self)?.rig?.inspect(); }
+  getParticipantGeometry() { return inspectParticipantGeometry(this.scene,this.self,this.avatars,this.avatarModels); }
   getSelfAvatarRenderState() {
     const rig=this.avatarModels.get(this.self)?.rig;
     this.self.updateWorldMatrix(true,true);

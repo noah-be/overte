@@ -29,6 +29,35 @@
 #define LIMIT 131072
 #define SOURCE_LIMIT 262144
 #define SEALS (F_SEAL_SEAL|F_SEAL_SHRINK|F_SEAL_GROW|F_SEAL_WRITE)
+// Fixed public projection only; no runtime value can become a label or string.
+enum setup_phase {
+ SETUP_ADMISSION,SETUP_INITIAL_CAPABILITIES,SETUP_INSTALLED_PROFILE,SETUP_INITIAL_NNP,
+ SETUP_ENVIRONMENT,SETUP_SIGNALS,SETUP_CONFIGURATION,SETUP_OWNER_MODULES,SETUP_POLICY,
+ SETUP_PYTHON_IMAGE,SETUP_HANDOFF_RELOCATE,SETUP_USER_NAMESPACE,SETUP_GROUPS_DENY,
+ SETUP_UID_MAP,SETUP_GID_MAP,SETUP_NETWORK_NAMESPACE,SETUP_LIFETIME,SETUP_TAP_READY,
+ SETUP_ROUTE_SOCKET,SETUP_ROUTE_BIND,SETUP_ROUTE_ACK_OPTION,SETUP_ROUTE_INSTALL,
+ SETUP_ROUTE_READBACK,SETUP_ATTESTATION,SETUP_ATTESTATION_RELOCATE,SETUP_RETIRE_CAPS,
+ SETUP_POST_RETIRE_LIFETIME,SETUP_HANDOFF_DESCRIPTORS,SETUP_CLOSE_INHERITED,SETUP_EXEC_PYTHON
+};
+static const char *const setup_phase_labels[]={
+ "admission","initial-capabilities","installed-profile","initial-nnp",
+ "environment","signal-handlers","configuration","owner-modules","policy",
+ "python-image","handoff-relocate","user-namespace","groups-deny",
+ "uid-map","gid-map","network-namespace","lifetime","tap-ready",
+ "route-socket","route-bind","route-ack-option","route-install-ack",
+ "route-readback","attestation","attestation-relocate","retire-capabilities",
+ "post-retirement-lifetime","handoff-descriptors","close-inherited","exec-python"
+};
+// errnoObserved is the value captured at refusal before cleanup. It is not a
+// claimed causal syscall for semantic/identity validation helpers. Each fixed
+// operation clears older errno first; no strerror/label/path/FD/argument output.
+static size_t setup_failure_json(enum setup_phase phase,int observed,char *output,size_t capacity) {
+ if((unsigned)phase>=sizeof(setup_phase_labels)/sizeof(setup_phase_labels[0])||!output)return 0;
+ char data[192];int error=observed>=0&&observed<=4095?observed:0;
+ int length=snprintf(data,sizeof(data),"{\"version\":1,\"phase\":\"%s\",\"errnoObserved\":%d}",setup_phase_labels[phase],error);
+ if(length<1||length>=(int)sizeof(data)||(size_t)length+1>capacity)return 0;
+ memcpy(output,data,(size_t)length+1);return (size_t)length;
+}
 static volatile sig_atomic_t stopped;
 static void stop(int ignored){(void)ignored;stopped=1;}
 static long long milliseconds(void){struct timespec t;if(clock_gettime(CLOCK_MONOTONIC,&t))return -1;return t.tv_sec*1000LL+t.tv_nsec/1000000;}
@@ -193,34 +222,57 @@ static const char bootstrap[]=
 
 int main(int argc,char **argv){
  (void)argv;uid_t uid=getuid();gid_t gid=getgid();pid_t parent=getppid();int code=78;
+ enum setup_phase failure_phase=SETUP_ADMISSION;int failure_errno=0;
+ #define PHASE(value) do{failure_phase=(value);errno=0;}while(0)
+ #define FAIL_IF(value) do{if(value){failure_errno=errno;goto fail;}}while(0)
+ #define ROUTE_FAIL_IF(value) do{if(value){failure_errno=errno;close(route);goto fail;}}while(0)
  // No arbitrary arguments/command/environment are accepted. Profile selected
  // at exec, before namespace creation; ordinary/unrecognized labels refuse.
- if(argc!=1||uid==0||gid==0||uid!=geteuid()||gid!=getegid()||initially_unprivileged()||profile()||prctl(PR_GET_NO_NEW_PRIVS,0,0,0,0)!=0)goto fail;
- if(clearenv()||setenv("PATH","/usr/bin:/bin:/usr/sbin:/sbin",1)||setenv("LANG","C.UTF-8",1))goto fail;
- struct sigaction action={.sa_handler=stop};sigemptyset(&action.sa_mask);if(sigaction(SIGTERM,&action,NULL)||sigaction(SIGINT,&action,NULL))goto fail;
- int configuration=config_sealed();if(configuration<0)goto fail;
- int modules[4]={-1,-1,-1,-1};for(int i=0;i<4;i++){modules[i]=verified_sealed(OWNER_PATHS[i],OWNER_HASHES[i],SOURCE_LIMIT);if(modules[i]<0)goto fail;}
- int policy=verified_sealed(POLICY_PATH,POLICY_HASH,LIMIT);if(policy<0)goto fail;
- int python=rootfile(PYTHON_PATH);if(python<0||binary_hash(python,PYTHON_HASH)||verify_import_roots())goto fail;
+ PHASE(SETUP_ADMISSION);FAIL_IF(argc!=1||uid==0||gid==0||uid!=geteuid()||gid!=getegid());
+ PHASE(SETUP_INITIAL_CAPABILITIES);FAIL_IF(initially_unprivileged());
+ PHASE(SETUP_INSTALLED_PROFILE);FAIL_IF(profile());
+ PHASE(SETUP_INITIAL_NNP);FAIL_IF(prctl(PR_GET_NO_NEW_PRIVS,0,0,0,0)!=0);
+ PHASE(SETUP_ENVIRONMENT);FAIL_IF(clearenv()||setenv("PATH","/usr/bin:/bin:/usr/sbin:/sbin",1)||setenv("LANG","C.UTF-8",1));
+ PHASE(SETUP_SIGNALS);struct sigaction action={.sa_handler=stop};sigemptyset(&action.sa_mask);FAIL_IF(sigaction(SIGTERM,&action,NULL)||sigaction(SIGINT,&action,NULL));
+ PHASE(SETUP_CONFIGURATION);int configuration=config_sealed();FAIL_IF(configuration<0);
+ int modules[4]={-1,-1,-1,-1};for(int i=0;i<4;i++){PHASE(SETUP_OWNER_MODULES);modules[i]=verified_sealed(OWNER_PATHS[i],OWNER_HASHES[i],SOURCE_LIMIT);FAIL_IF(modules[i]<0);}
+ PHASE(SETUP_POLICY);int policy=verified_sealed(POLICY_PATH,POLICY_HASH,LIMIT);FAIL_IF(policy<0);
+ PHASE(SETUP_PYTHON_IMAGE);int python=rootfile(PYTHON_PATH);FAIL_IF(python<0||binary_hash(python,PYTHON_HASH)||verify_import_roots());
  // Relocate above all prescribed fd slots before closing inherited fds.
  int selected[6]={configuration,modules[0],modules[1],modules[2],modules[3],policy};
- for(int i=0;i<6;i++){int copy=fcntl(selected[i],F_DUPFD_CLOEXEC,32);close(selected[i]);if(copy<0)goto fail;selected[i]=copy;}
- int python_copy=fcntl(python,F_DUPFD_CLOEXEC,32);close(python);python=python_copy;if(python<0)goto fail;
+ for(int i=0;i<6;i++){PHASE(SETUP_HANDOFF_RELOCATE);int copy=fcntl(selected[i],F_DUPFD_CLOEXEC,32);int saved=errno;close(selected[i]);if(copy<0){failure_errno=saved;goto fail;}selected[i]=copy;}
+ PHASE(SETUP_HANDOFF_RELOCATE);int python_copy=fcntl(python,F_DUPFD_CLOEXEC,32);int saved=errno;close(python);python=python_copy;if(python<0){failure_errno=saved;goto fail;}
  for(int fd=3;fd<32;fd++)close(fd);
- if(unshare(CLONE_NEWUSER)||groups_deny()||mapfile("/proc/self/uid_map",uid)||mapfile("/proc/self/gid_map",gid)||overte_new_network_namespace())goto fail;
- if(prctl(PR_SET_PDEATHSIG,SIGTERM,0,0,0)||prctl(PR_SET_CHILD_SUBREAPER,1,0,0,0)||getppid()!=parent||stopped)goto fail;
+ PHASE(SETUP_USER_NAMESPACE);FAIL_IF(unshare(CLONE_NEWUSER));
+ PHASE(SETUP_GROUPS_DENY);FAIL_IF(groups_deny());
+ PHASE(SETUP_UID_MAP);FAIL_IF(mapfile("/proc/self/uid_map",uid));
+ PHASE(SETUP_GID_MAP);FAIL_IF(mapfile("/proc/self/gid_map",gid));
+ PHASE(SETUP_NETWORK_NAMESPACE);FAIL_IF(overte_new_network_namespace());
+ PHASE(SETUP_LIFETIME);FAIL_IF(prctl(PR_SET_PDEATHSIG,SIGTERM,0,0,0)||prctl(PR_SET_CHILD_SUBREAPER,1,0,0,0)||getppid()!=parent||stopped);
  puts("OVERTE_NET_OWNER_READY");fflush(stdout);long long deadline=milliseconds()+10000;
- if(await_tap(deadline))goto fail;
- int route=socket(AF_NETLINK,SOCK_RAW|SOCK_CLOEXEC,NETLINK_ROUTE);if(route<0)goto fail;
+ PHASE(SETUP_TAP_READY);FAIL_IF(await_tap(deadline));
+ PHASE(SETUP_ROUTE_SOCKET);int route=socket(AF_NETLINK,SOCK_RAW|SOCK_CLOEXEC,NETLINK_ROUTE);FAIL_IF(route<0);
  struct sockaddr_nl local={.nl_family=AF_NETLINK};int one=1;
- if(bind(route,(struct sockaddr*)&local,sizeof(local))||setsockopt(route,SOL_NETLINK,NETLINK_CAP_ACK,&one,sizeof(one))||install_routes(route,deadline)||routes_readback(route,deadline)){close(route);goto fail;}close(route);
- int proof=attestation(uid,gid,parent);if(proof<0)goto fail;int proof_copy=fcntl(proof,F_DUPFD_CLOEXEC,32);close(proof);proof=proof_copy;if(proof<0||overte_retire_setup_capabilities()||getppid()!=parent||stopped)goto fail;
- if(putfd(selected[0],3)<0||putfd(selected[1],4)<0||putfd(selected[2],5)<0||putfd(selected[3],6)<0||putfd(selected[4],7)<0||putfd(selected[5],8)<0||putfd(proof,9)<0)goto fail;
+ PHASE(SETUP_ROUTE_BIND);ROUTE_FAIL_IF(bind(route,(struct sockaddr*)&local,sizeof(local)));
+ PHASE(SETUP_ROUTE_ACK_OPTION);ROUTE_FAIL_IF(setsockopt(route,SOL_NETLINK,NETLINK_CAP_ACK,&one,sizeof(one)));
+ PHASE(SETUP_ROUTE_INSTALL);ROUTE_FAIL_IF(install_routes(route,deadline));
+ PHASE(SETUP_ROUTE_READBACK);ROUTE_FAIL_IF(routes_readback(route,deadline));close(route);
+ PHASE(SETUP_ATTESTATION);int proof=attestation(uid,gid,parent);FAIL_IF(proof<0);
+ PHASE(SETUP_ATTESTATION_RELOCATE);int proof_copy=fcntl(proof,F_DUPFD_CLOEXEC,32);saved=errno;close(proof);proof=proof_copy;if(proof<0){failure_errno=saved;goto fail;}
+ PHASE(SETUP_RETIRE_CAPS);FAIL_IF(overte_retire_setup_capabilities());
+ PHASE(SETUP_POST_RETIRE_LIFETIME);FAIL_IF(getppid()!=parent||stopped);
+ PHASE(SETUP_HANDOFF_DESCRIPTORS);FAIL_IF(putfd(selected[0],3)<0||putfd(selected[1],4)<0||putfd(selected[2],5)<0||putfd(selected[3],6)<0||putfd(selected[4],7)<0||putfd(selected[5],8)<0||putfd(proof,9)<0);
  // Close every inherited descriptor except stdio and exact sealed handoff.
  // close_range is mandatory on the reviewed Ubuntu kernel; no guessed max-FD.
- if(putfd(python,10)<0||fcntl(10,F_SETFD,FD_CLOEXEC)||syscall(SYS_close_range,11u,~0u,0u))goto fail;
+ PHASE(SETUP_CLOSE_INHERITED);FAIL_IF(putfd(python,10)<0||fcntl(10,F_SETFD,FD_CLOEXEC)||syscall(SYS_close_range,11u,~0u,0u));
  char *arguments[]={PYTHON_PATH,"-I","-S","-c",(char*)bootstrap,NULL};
  char *environment[]={"PATH=/usr/bin:/bin:/usr/sbin:/sbin","LANG=C.UTF-8",NULL};
- fexecve(10,arguments,environment);
- fail: fputs("Trusted network setup refused.\n",stderr);return code;
+ PHASE(SETUP_EXEC_PYTHON);fexecve(10,arguments,environment);failure_errno=errno;
+ fail: {
+  char summary[192];if(setup_failure_json(failure_phase,failure_errno,summary,sizeof(summary)))fprintf(stderr,"OVERTE_NET_TRUSTED_FAILURE=%s\n",summary);
+  fputs("Trusted network setup refused.\n",stderr);return code;
+ }
+ #undef ROUTE_FAIL_IF
+ #undef FAIL_IF
+ #undef PHASE
 }

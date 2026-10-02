@@ -23,6 +23,7 @@ sourceFiles.push('browser-client/src/static-model-matrices.ts','browser-client/s
 sourceFiles.push('browser-client/src/model-parse-turn.ts');
 sourceFiles.push('browser-client/src/world-draw-census-async.ts','browser-client/src/world-draw-census-refusal.ts','browser-client/tests/integration/hub-async-draw-census.mjs');
 sourceFiles.push('browser-client/src/loaded-model-cohort.ts','browser-client/tests/integration/hub-loaded-model-cohort-census.mjs');
+sourceFiles.push('browser-client/gateway/native-avatar-sample-diagnostics.js','browser-client/gateway/native-avatar-stdout-projection.mjs','browser-client/gateway/trusted-network-entry.mjs','browser-client/gateway/network-owner.py');
 const report={startedAt:new Date().toISOString(),completed:false,place:'overte_hub',microphoneRequested:false,worldInteractionsSent:0};
 const assetRequests = new Map(), assetStarts = new WeakMap();
 // Native session IDs are private lookup keys only; reports contain ordinal1/2.

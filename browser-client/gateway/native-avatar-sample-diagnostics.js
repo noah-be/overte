@@ -4,6 +4,7 @@
 function createNativeAvatarSampleDiagnostics(config) {
     'use strict';
     var now = config.now || function () { return Date.now(); };
+    var passive = config.mode === 'passive';
     var stopped = false, emitted = 0, sequence = 0, rows = [], batchStarted = 0, lastBatch = null, tracking = false, batchAuthority;
     var mode = 'unknown', signalAt = null, connected = false;
     function current() { try { return !stopped && config.current() && (typeof config.authority !== 'function' || !!batchAuthority && config.authority() === batchAuthority); } catch (error) { return false; } }
@@ -20,8 +21,15 @@ function createNativeAvatarSampleDiagnostics(config) {
         if (!current() || emitted >= 512) return;
         try { config.print('BROWSER_AVATAR_SAMPLE ' + JSON.stringify(value)); emitted++; } catch (error) { /* Never reflect private exceptions. */ }
     }
-    function rate(avatar, name) {
-        try { return current() && typeof avatar.getUpdateRate === 'function' ? number(avatar.getUpdateRate(name)) : null; }
+    function rate(id, name) {
+        // ScriptAvatar is a QObject wrapper, not AvatarData. Its native update
+        // counters are exposed on AvatarList (AvatarManager), not the wrapper.
+        if (typeof id !== 'string') return null;
+        var uuid = id.length === 38 && id.charAt(0) === '{' && id.charAt(37) === '}' ? id.slice(1,-1) : id;
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid)
+            || uuid === '00000000-0000-0000-0000-000000000000') return null;
+        try { return current() && config.avatarList && typeof config.avatarList.getAvatarUpdateRate === 'function'
+            ? number(config.avatarList.getAvatarUpdateRate(id, name)) : null; }
         catch (error) { return null; }
     }
     function stats(name) {
@@ -55,29 +63,30 @@ function createNativeAvatarSampleDiagnostics(config) {
         completed: function (row, result, self, avatar) {
             if (!row) return;
             row.role = self ? 'self' : result.displayName === 'Native-Lab-Participant' ? 'fixture-peer' : 'other';
-            if (row.role !== 'other') { row.result = result; row.avatar = avatar; row.completedAt = now(); }
+            if (row.role !== 'other') { row.result = result; row.avatar = passive ? null : avatar; row.completedAt = now(); }
         },
         published: function () {
             var batch = rows; rows = []; tracking = false;
             if (!current() || emitted >= 512) return;
             var publicationAt = now(), batchMs = elapsed(batchStarted);
-            // Extra native reads occur ONLY after original send/flush, never replace
-            // the already-published pose. Their timing effects remain diagnostic.
+            // Full mode probes only after original send/flush. Passive mode performs
+            // no extra avatar/manager/Stats reads and leaves those fields unknown.
+            // Neither mode replaces the already-published pose.
             batch.forEach(function (row) {
                 if (!current() || emitted >= 512 || !row.result) return;
-                var distance = null, packetRate = null, positionRate = null, probeStarted = now();
-                try {
+                var distance = null, packetRate = null, positionRate = null, probeStarted = passive ? null : now();
+                if (!passive) try {
                     var fresh = row.avatar.position, old = row.result.position;
                     if (fresh && old && [fresh.x,fresh.y,fresh.z,old.x,old.y,old.z].every(function (n) { return typeof n === 'number' && isFinite(n); })) {
                         distance = number(Math.sqrt(Math.pow(fresh.x-old.x,2)+Math.pow(fresh.y-old.y,2)+Math.pow(fresh.z-old.z,2)));
                     }
-                    if (row.role === 'fixture-peer') { packetRate = rate(row.avatar,''); positionRate = rate(row.avatar,'globalPosition'); }
+                    if (row.role === 'fixture-peer') { packetRate = rate(row.result.id,''); positionRate = rate(row.result.id,'globalPosition'); }
                 } catch (error) { /* Native read failure is unknown, never raw error text. */ }
                 var state = signalState();
                 print({ version:1, kind:'sample', at:now(), sequence:sequence, role:row.role,
                     batchMs:batchMs, publishedPoseAgeMs:number(publicationAt-row.poseAt), avatarBuildMs:number(row.completedAt-row.started),
                     jointNamesMs:row.names, jointRotationsMs:row.rotations, jointTranslationsMs:row.translations,
-                    postPublicationPoseDeltaMeters:distance, postPublicationProbeMs:elapsed(probeStarted),
+                    postPublicationPoseDeltaMeters:distance, postPublicationProbeMs:passive?null:elapsed(probeStarted),
                     peerPacketRateHz:packetRate, peerGlobalPositionUpdateRateHz:positionRate,
                     interstitialState:state.interstitialState, interstitialSignalAgeMs:state.interstitialSignalAgeMs });
             });
@@ -86,7 +95,7 @@ function createNativeAvatarSampleDiagnostics(config) {
             var state = signalState();
             print({version:1,kind:'author-transmission',at:now(),interstitialState:state.interstitialState,
                 interstitialSignalAgeMs:state.interstitialSignalAgeMs,
-                cachedMyAvatarSendRateHz:stats('myAvatarSendRate'),cachedAvatarMixerOutPps:stats('avatarMixerOutPps'),
+                cachedMyAvatarSendRateHz:passive?null:stats('myAvatarSendRate'),cachedAvatarMixerOutPps:passive?null:stats('avatarMixerOutPps'),
                 statsFreshness:'not-forced-or-established'});
         },
         stop: stop

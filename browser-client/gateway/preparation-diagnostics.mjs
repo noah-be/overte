@@ -2,6 +2,29 @@
 // No retained stderr or caller-supplied strings are returned to callers.
 const PHASES = Object.freeze({ OVERTE_NET_OWNER_READY: 'network-owner-ready', OVERTE_NET_NATIVE_STARTED: 'native-started', OVERTE_UDP_RELAY_READY: 'udp-relay-ready' });
 const SIGNALS = new Set(['SIGTERM', 'SIGKILL', 'SIGINT', 'SIGABRT', 'SIGSEGV', 'SIGPIPE']);
+const TRUSTED_SETUP_PHASES = new Set(['admission', 'initial-capabilities', 'installed-profile', 'initial-nnp',
+    'environment', 'signal-handlers', 'configuration', 'owner-modules', 'policy', 'python-image',
+    'handoff-relocate', 'user-namespace', 'groups-deny', 'uid-map', 'gid-map', 'network-namespace',
+    'lifetime', 'tap-ready', 'route-socket', 'route-bind', 'route-ack-option', 'route-install-ack',
+    'route-readback', 'attestation', 'attestation-relocate', 'retire-capabilities',
+    'post-retirement-lifetime', 'handoff-descriptors', 'close-inherited', 'exec-python']);
+
+/** Fixed C operation only; errnoObserved is an observation, not cause/admission. */
+export function safeTrustedSetupFailure(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)
+        || Object.keys(value).sort().join(',') !== 'errnoObserved,phase,version'
+        || value.version !== 1 || !TRUSTED_SETUP_PHASES.has(value.phase)
+        || !Number.isInteger(value.errnoObserved) || value.errnoObserved < 0 || value.errnoObserved > 4095) return null;
+    return Object.freeze({ version: 1, phase: value.phase, errnoObserved: value.errnoObserved });
+}
+function trustedSetupFromTail(tail) {
+    // Exact canonical C shape: duplicate keys, unknown fields, aliases,
+    // escaping, whitespace/reordered lookalikes and multiple markers refuse.
+    const lines = tail.split('\n').filter(line => line.startsWith('OVERTE_NET_TRUSTED_FAILURE='));
+    if (lines.length !== 1) return null;
+    const match = /^OVERTE_NET_TRUSTED_FAILURE=\{"version":1,"phase":"([a-z-]{1,40})","errnoObserved":(0|[1-9][0-9]{0,3})\}$/.exec(lines[0]);
+    return match ? safeTrustedSetupFailure({ version: 1, phase: match[1], errnoObserved: Number(match[2]) }) : null;
+}
 export function preparationDiagnostics(expected) {
     const phase = PHASES[expected];
     if (!phase) throw Error('Unknown native preparation phase');
@@ -24,7 +47,8 @@ export function preparationDiagnostics(expected) {
             let routeFailure;
             const marker = /(?:^|\n)OVERTE_NET_ROUTE_FAILURE=(\{[^\n]{1,1536}\})(?:\n|$)/.exec(tail);
             if (marker) { try { routeFailure = safeRouteFailure(JSON.parse(marker[1])); } catch {} }
-            return Object.freeze({ phase, category, observedBytes, truncated, ...(routeFailure ? { routeFailure } : {}),
+            const trustedSetupFailure = trustedSetupFromTail(tail);
+            return Object.freeze({ phase, category, observedBytes, truncated, ...(routeFailure ? { routeFailure } : {}), ...(trustedSetupFailure ? { trustedSetupFailure } : {}),
                 exitCode: Number.isInteger(exitCode) && exitCode >= 0 && exitCode <= 255 ? exitCode : null,
                 signal: SIGNALS.has(signal) ? signal : signal ? 'other-signal' : null });
         }
@@ -45,6 +69,11 @@ export function safePreparationDiagnostic(value) {
         const route = safeRouteFailure(value.routeFailure);
         if (!route) return null;
         out.routeFailure = route;
+    }
+    if (value.trustedSetupFailure !== undefined) {
+        const trusted = safeTrustedSetupFailure(value.trustedSetupFailure);
+        if (!trusted) return null;
+        out.trustedSetupFailure = trusted;
     }
     if (value.helperEvents !== undefined) {
         if (!Array.isArray(value.helperEvents) || value.helperEvents.length > 4) return null;

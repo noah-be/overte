@@ -95,7 +95,8 @@ test('actual source-extracted process method preserves native spawn/stdio and ex
     const end = source.indexOf('\n    async asset(', begin);
     assert.ok(begin >= 0 && end > begin);
     for (const [enabled, publicPlace, label, expected] of [
-        ['1', false, 'Native Overte client', true], ['1', false, 'Private native network', true],
+        ['1', false, 'Native Overte client', true], ['1', false, 'Private native network', true], ['passive', false, 'Private native network', true],
+        ['passive', true, 'Private native network', false], ['PASSIVE', false, 'Native Overte client', false],
         ['0', false, 'Native Overte client', false], ['1', true, 'Native Overte client', false],
         ['1', false, 'Native audio', false]]) {
         const child = new EventEmitter(); child.stdout = new EventEmitter(); child.stderr = new EventEmitter();
@@ -127,4 +128,20 @@ test('actual unchanged native diagnostic emitter produces sample and author rows
     assert.equal(f.rows.length, 2);
     assert.equal(decoded(f.rows)[0].role, 'self');
     assert.equal(decoded(f.rows)[1].cachedMyAvatarSendRateHz, 20);
+});
+test('passive emitter projects the unchanged strict schema without native diagnostic probes', () => {
+    const f = fixture();
+    const source = readFileSync(new URL('./native-avatar-sample-diagnostics.js', import.meta.url), 'utf8');
+    const create = vm.runInNewContext(source + '\ncreateNativeAvatarSampleDiagnostics;');
+    const forbidden = new Proxy({}, { get() { throw Error('private extra native read'); } });
+    const diagnostics = create({ mode: 'passive', current: () => true, now: () => 1790899200123,
+        print: message => f.feed('[INFO][script] ' + message + '\n'), stats: forbidden, avatarList: forbidden });
+    diagnostics.beginBatch(); const row = diagnostics.beginAvatar(); diagnostics.poseSampled(row);
+    const position = { x: 0, y: 1, z: 0 };
+    diagnostics.completed(row, { position, displayName: 'Native-Lab-Participant' }, false, forbidden);
+    diagnostics.published(); diagnostics.authorObservation(); diagnostics.stop();
+    assert.equal(f.rows.length, 2);
+    const rows = decoded(f.rows); assert.equal(rows[0].role, 'fixture-peer');
+    assert.equal(rows[0].postPublicationProbeMs, null); assert.equal(rows[0].peerPacketRateHz, null);
+    assert.equal(rows[1].cachedMyAvatarSendRateHz, null);
 });

@@ -57,7 +57,14 @@ class Workflow(unittest.TestCase):
    result=subprocess.run([self.stage/'launcher',*args],capture_output=True,timeout=2,
      env={'PATH':'/usr/bin:/bin','OVERTE_SYNTHETIC_SECRET':'never-output'})
    self.assertEqual(result.returncode,78);self.assertEqual(result.stdout,b'')
-   self.assertEqual(result.stderr,b'Trusted network setup refused.\n')
+   lines=result.stderr.splitlines();self.assertEqual(len(lines),2);self.assertEqual(lines[-1],b'Trusted network setup refused.')
+   self.assertTrue(lines[0].startswith(b'OVERTE_NET_TRUSTED_FAILURE='))
+   diagnostic=json.loads(lines[0].removeprefix(b'OVERTE_NET_TRUSTED_FAILURE='))
+   self.assertEqual(set(diagnostic),{'version','phase','errnoObserved'});self.assertEqual(diagnostic['version'],1)
+   self.assertIn(diagnostic['phase'],('admission','initial-capabilities','installed-profile','initial-nnp'))
+   self.assertIs(type(diagnostic['errnoObserved']),int);self.assertGreaterEqual(diagnostic['errnoObserved'],0);self.assertLessEqual(diagnostic['errnoObserved'],4095)
+   if args:self.assertEqual(diagnostic,{'version':1,'phase':'admission','errnoObserved':0})
+   self.assertNotIn(b'never-output',result.stderr)
   self.assertEqual(before,[os.stat('/proc/self/ns/'+kind).st_ino for kind in ('user','net')])
  def test_real_untrusted_preload_constructor_cannot_run_before_fixed_entry(self):
   with tempfile.TemporaryDirectory(prefix='overte-preload-cpu-') as d:

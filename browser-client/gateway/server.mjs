@@ -38,7 +38,7 @@ const directory = path.dirname(fileURLToPath(import.meta.url));
 const nativeBridgeSource = (await readFile(path.join(directory, 'native-visitor-persona.js'), 'utf8')) + '\n'
     + (await readFile(path.join(directory, 'native-visitor-preferences.js'), 'utf8')) + '\n'
     + (await readFile(path.join(directory, 'native-world.js'), 'utf8')) + '\n'
-    + (process.env.OVERTE_GATEWAY_AVATAR_SAMPLE_DIAGNOSTICS === '1' ? '\n' + await readFile(path.join(directory, 'native-avatar-sample-diagnostics.js'), 'utf8') : '')
+    + (['1', 'passive'].includes(process.env.OVERTE_GATEWAY_AVATAR_SAMPLE_DIAGNOSTICS) ? '\n' + await readFile(path.join(directory, 'native-avatar-sample-diagnostics.js'), 'utf8') : '')
     + await readFile(path.join(directory, 'native-bridge.js'), 'utf8')
     + (process.env.OVERTE_GATEWAY_REFRESH_DIAGNOSTICS === '1' ? '\n'
         + await readFile(path.join(directory, 'native-worker-refresh-readback.js'), 'utf8') + '\n'
@@ -157,7 +157,7 @@ class Session extends SharedTeardown {
         const visitorPersona = await prepareVisitorPersona(this.directory, initialPersona.persona, this.personaOrigins,
             (this.publicPlace ? process.env.OVERTE_GATEWAY_PUBLIC_NATIVE_ORGANIZATION : process.env.OVERTE_GATEWAY_NATIVE_ORGANIZATION) || 'Overte');
         if (this.closed) throw Error('Session cancelled.');
-        const configuration = { avatarSampleDiagnostics: !this.publicPlace && process.env.OVERTE_GATEWAY_AVATAR_SAMPLE_DIAGNOSTICS === '1', url: `ws://127.0.0.1:${port}/native`, token: this.token, domain: nativeDomain, radius: Number(process.env.OVERTE_GATEWAY_RADIUS || 512), visitorPreferences: preferences, visitorPersona: visitorPersona, visitorDisplayName, personaPreserveFields: preservedPersonaFields, wearableFields: WEARABLE_FIELDS,
+        const configuration = { avatarSampleDiagnostics: !this.publicPlace && ['1', 'passive'].includes(process.env.OVERTE_GATEWAY_AVATAR_SAMPLE_DIAGNOSTICS), avatarSampleDiagnosticsMode: process.env.OVERTE_GATEWAY_AVATAR_SAMPLE_DIAGNOSTICS === 'passive' ? 'passive' : 'full', url: `ws://127.0.0.1:${port}/native`, token: this.token, domain: nativeDomain, radius: Number(process.env.OVERTE_GATEWAY_RADIUS || 512), visitorPreferences: preferences, visitorPersona: visitorPersona, visitorDisplayName, personaPreserveFields: preservedPersonaFields, wearableFields: WEARABLE_FIELDS,
             personaRuntimeFields: ['id','created','age','ageAsText','lastEdited','lastEditedBy','lastUpdated','lastSimulated','queryAACube','simulationOwner','entityHostType','owningAvatarID','renderInfo','boundingBox','position','rotation','parentID','localRotationAngles','jointRotations','jointTranslations'],
             personaInertFields: {script:'',serverScripts:'',scriptTimestamp:0,href:'',description:'',actionData:'',certificateID:'',itemName:'',itemDescription:'',itemCategories:'',itemArtist:'',itemLicense:'',marketplaceID:'',limitedRun:0,editionNumber:0,cloneable:false,cloneLifetime:300,cloneLimit:0,cloneDynamic:false,cloneAvatarEntity:false} };
         const defaultScripts = this.publicPlace ? process.env.OVERTE_GATEWAY_PUBLIC_DEFAULT_SCRIPTS || process.env.OVERTE_GATEWAY_DEFAULT_SCRIPTS : process.env.OVERTE_GATEWAY_DEFAULT_SCRIPTS;
@@ -269,7 +269,7 @@ class Session extends SharedTeardown {
             child.stderr.on('data', data => { diagnostics = (diagnostics + data).slice(-128 * 1024); });
             this.diagnostics = () => diagnostics;
             attachNativeAvatarProjection(child, {
-                enabled: process.env.OVERTE_GATEWAY_AVATAR_SAMPLE_DIAGNOSTICS === '1',
+                enabled: ['1', 'passive'].includes(process.env.OVERTE_GATEWAY_AVATAR_SAMPLE_DIAGNOSTICS),
                 publicPlace: !!this.publicPlace, emit: line => process.stdout.write(line)
             });
         } else {

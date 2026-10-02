@@ -370,6 +370,7 @@ Object.defineProperty(window, '__overte', {value:{
     get graphics() { return world?.graphics.snapshot(); },
     get tabletVisible() { return tablet?.visible ?? false; },
     get avatarRig() { return world?.getSelfAvatarRig(); },
+    get participantGeometry() { return world?.getParticipantGeometry(); },
     get avatarRender() { return world?.getSelfAvatarRenderState(); },
     get renderInventory() { return world?.getRenderInventory(); },
     drawCensus() { return world?.getDrawCensus(); },
