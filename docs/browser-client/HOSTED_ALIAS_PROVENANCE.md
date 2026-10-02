@@ -30,14 +30,23 @@ python3 browser-client/lab/atomic-provisioning/read_private_preflight.py \
 
 Checkpoint `6f7a35d` already reports `capability-action-refused`, outer exit127,
 no milestones and untruncated prefixes. The exact failing suboperation remains
-unknown. The reader does not rerun the command or infer a message from its
+unknown. A new failure-only `outerCapabilityOperation` field recognizes one of
+five fixed, already-supported setpriv operation names from the original captured
+stderr. Ambiguous, censored and unknown bytes stay unclassified. All97 Atomic
+contracts pass locally (2.800s); actual hosted operation observation is pending. The reader does not rerun the command or infer a message from its
 53-byte length. All original command, timeout, capability and filesystem checks
 remain unchanged.
 
 Local validation passes all110 trusted-network Python/C contracts in3.367s and
 all93 Atomic contracts in2.934s. The new cases include exact exception identity,
 default-off behavior, stale alias prevention and retained-prefix refusal
-controls. Hosted validation remains pending.
+controls. Hosted checkpoint `e3b2c841` now confirms three matching installed-metadata
+observations: the config-directory link and canonical library both belong to
+`libpython3.12t64` version `3.12.3-1ubuntu0.17`. Its five UTC fixture failures are
+absent; the trusted suite attempts93 tests and records three oversized-alias
+errors. This matches the separately authenticated package version, while full
+installed signed-member equality and hosted native qualification remain pending.
+See [the exact safe evidence](evidence/hosted-e3b2-installed-alias-20261002.json).
 
 A separate inactive prototype authenticates signed Ubuntu interpreter and
 library package members. Those package bytes do not prove equality with the

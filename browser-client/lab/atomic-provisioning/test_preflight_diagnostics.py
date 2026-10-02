@@ -29,6 +29,45 @@ T = load('actual_observer_contract', HERE / 'test_observer.py')
 ZERO = '\n'.join(key + ':\t0000000000000000' for key in D.CAPABILITIES)
 
 class ProjectionTests(unittest.TestCase):
+    def test_exact_existing_five_operations_are_projected_without_error_text(self):
+        operations = [('apply bounding set','apply-bounding-set'),('apply capabilities','apply-capabilities'),('set capabilities','set-capabilities'),('cap_set_proc','cap-set-proc'),('set process securebits','set-process-securebits')]
+        for original, fixed in operations:
+            for separator in (': ', ' failed: '):
+                for errno in ('Operation not permitted','Permission denied'):
+                    with self.subTest(operation=fixed,separator=separator,errno=errno):
+                        raw=('setpriv: '+original+separator+errno+'\n').encode()
+                        result=D.project_preflight(127,b'',raw)
+                        self.assertEqual(result['outerStderrFailure'],'capability-action-refused')
+                        self.assertEqual(result['outerCapabilityOperation'],fixed)
+                        self.assertEqual(result['cause'],'not-established')
+
+    def test_operation_never_claims_same_length_unknown_or_private_text(self):
+        for raw in (b'x'*53,b'setpriv: apply bounding set ARG_PRIVATE: Operation not permitted',b'/private/setpriv: apply bounding set: Operation not permitted',b'setpriv: apply bounding set: Operation not permitted/private',b'private: apply bounding set: Operation not permitted',b'setpriv: unknown: Permission denied',b'\xffsetpriv: apply bounding set: Operation not permitted'):
+            result=D.project_preflight(127,b'',raw)
+            self.assertEqual(result['outerCapabilityOperation'],'unobserved-or-unclassified')
+            self.assertNotIn('private',json.dumps(result));self.assertNotIn('ARG_PRIVATE',json.dumps(result))
+
+    def test_ambiguous_or_censored_operations_refuse_preserving_original_category(self):
+        one=b'setpriv: apply bounding set: Operation not permitted\n';another=b'setpriv: cap_set_proc failed: Permission denied\n'
+        for raw in (one+one,one+another,one+b'x'*D.MAX_BYTES):
+            result=D.project_preflight(127,b'',raw)
+            self.assertEqual(result['outerStderrFailure'],'capability-action-refused')
+            self.assertEqual(result['outerCapabilityOperation'],'unobserved-or-unclassified')
+        self.assertEqual(D.project_preflight(127,b'',b'x'*D.MAX_BYTES+b'\n'+one)['outerCapabilityOperation'],'unobserved-or-unclassified')
+
+    def test_original_classifier_and_projection_ast_stay_exact_except_one_new_field(self):
+        import hashlib
+        tree=ast.parse((HERE/'preflight_diagnostics.py').read_text())
+        expected={'stderr_failure': '312c744f2d616c4330150959e9817e6232f88c56466a7756e461889a46e88ca0', 'project_preflight': '9ece4bfb63914548e664585e86b53500a7f6d357d2b3089275b1e52071941ad4'}
+        found={node.name:node for node in tree.body if isinstance(node,ast.FunctionDef)and node.name in expected}
+        node=found['project_preflight']
+        dictionaries=[item for item in ast.walk(node)if isinstance(item,ast.Dict)and any(isinstance(key,ast.Constant)and key.value=='outerCapabilityOperation' for key in item.keys)]
+        self.assertEqual(len(dictionaries),1)
+        entry=dictionaries[0];index=next(i for i,key in enumerate(entry.keys)if isinstance(key,ast.Constant)and key.value=='outerCapabilityOperation')
+        del entry.keys[index];del entry.values[index]
+        for name,expected_hash in expected.items():
+            self.assertEqual(hashlib.sha256(ast.dump(found[name],include_attributes=False).encode()).hexdigest(),expected_hash)
+
     def test_known_exec_and_loader_classes_never_export_private_text(self):
         cases = [
             (b'unshare: failed to execute /private/credential: No such file or directory', 'command-exec-not-found'),

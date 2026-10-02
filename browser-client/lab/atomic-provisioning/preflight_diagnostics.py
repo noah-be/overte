@@ -90,6 +90,27 @@ def stderr_failure(data):
     return 'unobserved-or-unclassified'
 
 
+def stderr_capability_operation(data):
+    """Exact five existing setpriv labels, from original captured bytes only."""
+    bounded, truncated = _bounded(data)
+    if truncated or stderr_failure(bounded) != 'capability-action-refused':
+        return 'unobserved-or-unclassified'
+    operations = {
+        'apply bounding set': 'apply-bounding-set',
+        'apply capabilities': 'apply-capabilities',
+        'set capabilities': 'set-capabilities',
+        'cap_set_proc': 'cap-set-proc',
+        'set process securebits': 'set-process-securebits',
+    }
+    observed = []
+    for raw in bounded.splitlines():
+        line = raw.decode('ascii', 'replace')
+        match = re.fullmatch(r'setpriv: (apply bounding set|apply capabilities|set capabilities|cap_set_proc|set process securebits)(?:: | failed: )(?:Operation not permitted|Permission denied)', line)
+        if match:
+            observed.append(operations[match.group(1)])
+    return observed[0] if len(observed) == 1 else 'unobserved-or-unclassified'
+
+
 def inner_observation(report, captured_native_output, capture_status='read'):
     data, truncated = _bounded(captured_native_output)
     lines = data.splitlines()
@@ -162,7 +183,8 @@ def project_preflight(returncode, stdout, stderr):
             'outerExitCode': returncode if type(returncode) is int and -128 <= returncode <= 255 else None,
             'lastMilestone': seen[-1] if seen else 'none-observed',
             'milestones': seen, 'capabilityStates': caps, 'innerObservation': inner,
-            'outerStderrFailure': stderr_failure(err), 'stdoutPrefixTruncated': out_truncated,
+            'outerStderrFailure': stderr_failure(err),
+            'outerCapabilityOperation': stderr_capability_operation(stderr), 'stdoutPrefixTruncated': out_truncated,
             'stderrPrefixTruncated': err_truncated, 'malformedFixedRecords': malformed,
             'cause': 'not-established'}
 
