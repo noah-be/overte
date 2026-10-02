@@ -11,6 +11,7 @@ import { createHash } from 'node:crypto';
 import {installHubUploadProfile} from './hub-upload-profile.mjs';
 import {collectHubAsyncDrawCensus} from './hub-async-draw-census.mjs';
 import {collectHubLoadedModelCohortCensus} from './hub-loaded-model-cohort-census.mjs';
+import {configureHubDispatchAttribution,collectHubDispatchAttribution,hubDispatchSourceCoherence} from './hub-render-dispatch-attribution.mjs';
 import {OriginalImageErrorCollector} from './hub-original-image-errors.mjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -24,6 +25,7 @@ sourceFiles.push('browser-client/src/model-parse-turn.ts');
 sourceFiles.push('browser-client/src/world-draw-census-async.ts','browser-client/src/world-draw-census-refusal.ts','browser-client/tests/integration/hub-async-draw-census.mjs');
 sourceFiles.push('browser-client/src/loaded-model-cohort.ts','browser-client/tests/integration/hub-loaded-model-cohort-census.mjs');
 sourceFiles.push('browser-client/gateway/native-avatar-sample-diagnostics.js','browser-client/gateway/native-avatar-stdout-projection.mjs','browser-client/gateway/trusted-network-entry.mjs','browser-client/gateway/network-owner.py');
+sourceFiles.push('browser-client/src/render-dispatch-attribution.ts','browser-client/tests/integration/hub-render-dispatch-attribution.mjs','browser-client/tests/integration/render-dispatch-pixels.mjs','browser-client/tests/render-dispatch-attribution.browser.spec.ts','browser-client/tests/render-cpu-breakdown-fixture.ts','browser-client/package-lock.json');
 const report={startedAt:new Date().toISOString(),completed:false,place:'overte_hub',microphoneRequested:false,worldInteractionsSent:0};
 const assetRequests = new Map(), assetStarts = new WeakMap();
 // Native session IDs are private lookup keys only; reports contain ordinal1/2.
@@ -89,6 +91,8 @@ try {
   await mkdir(output,{recursive:true});
   report.startSourceSHA256={};for(const file of sourceFiles){try{report.startSourceSHA256[file]=createHash('sha256').update(await readFile(path.join(repo,file))).digest('hex');}catch{}}
   report.startDistributionManifest=await distributionManifest();
+  report.renderDispatchAttributionRequested=process.env.OVERTE_LAB_RENDER_DISPATCH_ATTRIBUTION==='1';
+  if(report.renderDispatchAttributionRequested){assert(sourceFiles.every(file=>report.startSourceSHA256[file]),'Every dispatch journey source must be hashed before admission');assert(process.env.OVERTE_LAB_BROWSER_DISPLAY&&(firefox||process.env.OVERTE_LAB_CHROMIUM),'Opt-in dispatch attribution requires the explicit stock-browser headed laboratory path');}
   report.asyncDrawCensusRequested=process.env.OVERTE_LAB_ASYNC_DRAW_CENSUS==='1';
   report.loadedModelCohortCensusRequested=process.env.OVERTE_LAB_LOADED_MODEL_COHORT_CENSUS==='1';
   if(report.loadedModelCohortCensusRequested)assert(report.startSourceSHA256['browser-client/src/loaded-model-cohort.ts']&&report.startSourceSHA256['browser-client/tests/integration/hub-loaded-model-cohort-census.mjs'],'Loaded Model cohort source hashes must be available before the diagnostic journey');
@@ -154,7 +158,8 @@ try {
   report.gpuTimingRequested = process.env.OVERTE_LAB_GPU_TIMING === '1';
   report.cpuFrameTimingRequested=process.env.OVERTE_LAB_CPU_FRAME_TIMING==='1';
   if(report.cpuFrameTimingRequested)entryURL.searchParams.set('cpuFrameTiming','1');
-  report.renderCpuTimingRequested=process.env.OVERTE_LAB_RENDER_CPU_TIMING==='1';
+  report.renderDispatchAttributionRequested=configureHubDispatchAttribution(entryURL,process.env.OVERTE_LAB_RENDER_DISPATCH_ATTRIBUTION);
+  report.renderCpuTimingRequested=process.env.OVERTE_LAB_RENDER_CPU_TIMING==='1'||report.renderDispatchAttributionRequested;
   if(report.renderCpuTimingRequested)entryURL.searchParams.set('renderCpuTiming','1');
   report.staticModelMatricesRequested=process.env.OVERTE_LAB_STATIC_MODEL_MATRICES==='1';
   if(report.staticModelMatricesRequested)entryURL.searchParams.set('staticModelMatrices','1');
@@ -224,6 +229,7 @@ try {
   report.pageErrors=errors;
   // One-shot diagnostic only after initial steady/walking samples and screenshot.
   // Leave immediately afterward; rejoin creates a fresh World/performance ring.
+  if(report.renderDispatchAttributionRequested)report.renderDispatchAttribution=[await page.evaluate(collectHubDispatchAttribution,1)];
   if(process.env.OVERTE_LAB_DRAW_CENSUS==='1')report.drawCensus=await page.evaluate(()=>{
     if(!window.__overte?.connected||typeof window.__overte.drawCensus!=='function')throw Error('Draw census is unavailable in this connected browser bundle');
     const startedAt=Date.now(),data=window.__overte.drawCensus();return{admissionOrdinal:1,startedAt,finishedAt:Date.now(),data};
@@ -249,6 +255,7 @@ try {
     report.reconnectedWalkFluidPerformance=assessFluidPerformance([report.reconnected.performance,report.reconnectedAfterMovement.performance]);
     const before=report.reconnected.pose.position,after=report.reconnectedAfterMovement.pose.position;report.reconnectedMovementMeters=Math.hypot(after.x-before.x,after.z-before.z);assert(report.reconnectedMovementMeters>0.5,'Fully reloaded public-world session must move after rejoin');assert(Math.abs(after.y-before.y)<3,'Rejoined avatar stays on the actual nearby world');const native=report.reconnectedAfterMovement.nativePose;assert(native&&Date.now()-native.at<2500,'Rejoined native avatar observation must be current');report.reconnectedNativeDifferenceMeters=Math.hypot(...['x','y','z'].map(axis=>after[axis]-native.position[axis]));assert(report.reconnectedNativeDifferenceMeters<0.5,'Rejoined actual native avatar must follow browser movement');
     // Snapshot collection follows all rejoined movement/native/frame checks.
+    if(report.renderDispatchAttributionRequested)report.renderDispatchAttribution.push(await page.evaluate(collectHubDispatchAttribution,2));
     if(report.asyncDrawCensusRequested)report.asyncDrawCensus.push(await page.evaluate(collectHubAsyncDrawCensus,2));
     if(report.loadedModelCohortCensusRequested)report.loadedModelCohortCensus.push(await page.evaluate(collectHubLoadedModelCohortCensus,2));
     await page.locator('#leave').click();
@@ -266,9 +273,10 @@ finally{
     try{report.sourceSHA256??={};report.sourceSHA256[file]=createHash('sha256').update(await readFile(path.join(repo,file))).digest('hex');}catch{}
   }
   report.distributionManifest=await distributionManifest();
+  if(report.renderDispatchAttributionRequested){report.renderDispatchAttestation=hubDispatchSourceCoherence(sourceFiles,report.startSourceSHA256,report.sourceSHA256,report.startDistributionManifest,report.distributionManifest);if(!report.renderDispatchAttestation.sourceCoherent||!report.renderDispatchAttestation.distributionCoherent){report.completed=false;report.renderDispatchAttestationFailed=true;process.exitCode=1;}}
   report.assetTransfers={categories:assetCategoryTotals([...assetRequests.values()]),uniqueURLs:assetRequests.size,requests:[...assetRequests.values()].reduce((sum,value)=>sum+value.requests,0),knownBytes:[...assetRequests.values()].reduce((sum,value)=>sum+value.knownBytes,0),unknownByteResponses:[...assetRequests.values()].reduce((sum,value)=>sum+value.unknownByteResponses,0),duplicateRequests:[...assetRequests.values()].reduce((sum,value)=>sum+Math.max(0,value.requests-1),0),sources:Object.fromEntries(['download','shared','memory','unknown'].map(source=>[source,[...assetRequests.values()].reduce((sum,value)=>sum+value.sources[source],0)])),entries:[...assetRequests].map(([urlSHA256,value])=>({urlSHA256,...value}))};
   report.assetTransfers.sessions=assetSessionTotals([...sessionAssetRequests.values()]);
   await writeFile(path.join(output,'public-hub.json'),JSON.stringify(report,null,2)+'\n');
   await writeFile(path.join(output,'public-hub-'+report.startedAt.replace(/[:.]/g,'-')+'.json'),JSON.stringify(report,null,2)+'\n');
-  console.log(JSON.stringify({startedAt:report.startedAt,finishedAt:report.finishedAt,completed:report.completed,error:report.error,browserVersion:report.browserVersion,webGL:report.webGL,performanceSamples:report.performance?.length,lastPerformance:report.performance?.at(-1),asyncDrawCensus:report.asyncDrawCensus,loadedModelCohortCensus:report.loadedModelCohortCensus,assetTransfers:{...report.assetTransfers,entries:undefined,sessions:report.assetTransfers.sessions.map(({entries,...session})=>session)},report:path.relative(repo,path.join(output,'public-hub.json'))}));
+  console.log(JSON.stringify({startedAt:report.startedAt,finishedAt:report.finishedAt,completed:report.completed,error:report.error,browserVersion:report.browserVersion,webGL:report.webGL,performanceSamples:report.performance?.length,lastPerformance:report.performance?.at(-1),renderDispatchAttribution:report.renderDispatchAttribution,renderDispatchAttestation:report.renderDispatchAttestation,asyncDrawCensus:report.asyncDrawCensus,loadedModelCohortCensus:report.loadedModelCohortCensus,assetTransfers:{...report.assetTransfers,entries:undefined,sessions:report.assetTransfers.sessions.map(({entries,...session})=>session)},report:path.relative(repo,path.join(output,'public-hub.json'))}));
 }

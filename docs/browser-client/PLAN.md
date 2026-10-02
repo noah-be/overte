@@ -61,35 +61,40 @@ pixels, functional acceptance and a meaningful Hub measurement before activation
 
 ## Current evidence and next concrete work
 
-Current next steps: publish the reviewed unused-FBX dependency/cache and fixed
-hosted subphase checkpoint, then execute genuine Desktop PTT and reciprocal
-People audio. Observer-A actual native Ignore/Unignore and ordinary foreground
-leave now pass in both stock engines with original control/frame/depth/count/
-rights/deadline gates intact. Preserve all preceding failed cohorts.
+Current next steps: qualify genuine Desktop PTT/People/Sit and the exact hosted
+bootstrap fixes, then measure the default-off dispatch observer in the actual
+Hub and fix measured rendering/texture bottlenecks. Published checkpoint
+`6389ab139436e78e73ce616c3ffe0a104f2b69d9` and draft PR1023 are verified.
+The subsequent production build and1,551 registered components pass with zero
+skips. Exact diagnostic-on/off WebGL2 pixels and all original registered
+assertions pass in stock Chromium154 and Firefox156; this is an authored
+fixture, not Hub performance evidence.
 
-The current production TypeScript/distribution build,1,448 registered components
-(zero skips),62 complete trusted-C/Python and52 complete atomic-provisioning
-contracts pass. Source-bound actual d71 hosted diagnostics identify python-image
-errno13 and keyring-read validation refusal. More precise fixed subphases retain
-every original security gate; runtime cause/readback remains pending.
+The measured prepared-cache128 Hub comparison reduces repeated preparations
+and eliminates count evictions at unchanged128MiB payload/8MiB key bounds.
+Image transfers are unchanged; Chromium passes all four fluidness gates while
+Firefox still fails three. Native-ignored FBX pruning remains qualified by
+zero-tolerance original production-worker images in both engines. The earlier
+rendered-light-prefix candidate remains rejected outside production.
 
-Native-ignored FBX pruning removes three proven unused Maya cube/LUT dependencies
-while strict actual production-worker images match twenty frames in both stocks.
-Its actual Hub pair retains82 pins and zero DDS image errors; Chrome passes all
-four fluidness gates and Firefox's rejoined pair fails. No whole speed/FPS gain
-is claimed. Prepared-cache128 ready entries with unchanged128MiB payload and
-explicit8MiB key budget has a real123-key counterfactual avoiding eight repeated
-preparations and19 passing CPU contracts; actual Hub comparison remains next.
+Actual reciprocal native People geometry and synthetic audio pass in Chromium;
+Firefox's portable driver correction remains unqualified after a later genuine
+stale-frame refusal. The bounded browser-owned PTT witness queue passes41 CPU
+contracts, and actual held/released key/native-output gates pass in both stocks.
+Their next reverse-audio stage fails because the copied harness omits the
+independent native peer's explicit unmute, unlike the original core journey.
+A source-bound owned peer-command/readback/restoration followup is required;
+no runtime receive bug or complete PTT result is claimed. Exact Emote Sit
+adaptation passes10 CPU contracts; genuine native Sit/key Stop remains pending.
 
-The rendered-light-prefix shader candidate stays rejected outside production.
-A separate bounded default-off dispatch observer has independent descriptor/
-censor corrections; require exact real GPU images before any Hub attribution.
-PTT plus the reviewed stale-held-ACK mute fix are frozen and independently built
-in an owned source copy. Real GUI mode, key/blur/visibility/Tablet/mute release,
-actual two-way synthetic outputs and fresh-session authority remain required.
-Physical microphone acceptance is separate. Preserve the historical native
-Chromium2800ms peer failure and distinguish JavaScript sampling from native
-transmission/receipt using the default-off passive cohort.
+Exact hosted6389 failures identify python-import-alias-target/errno13 and
+keyring-write-permissions. Narrow canonical-alias hashes/literal read policy
+pass all82 Root C/Python contracts, retaining original boundaries. The pinned
+Ubuntu-package/private-keyring bootstrap passes all67 Root CPU contracts and
+the genuine cached archive signature chain. Both await actual hosted proof.
+Preserve the original2800ms native peer movement deadline, reset the actual
+owned author pose freshly before its next passive original journey, and keep
+physical microphone acceptance distinct from authored synthetic input.
 
 See [STATUS.md](STATUS.md) for exact published commits, actual source-frozen
 cohorts, preserved failures, tests and remaining limitations. Original real

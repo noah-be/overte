@@ -5,6 +5,7 @@
 import {createServer} from 'vite';
 import {chromium,firefox} from '@playwright/test';
 import {launchSystemFirefox} from './system-firefox.mjs';
+import {finalizeNativeIgnoredFbxEvidence} from './native-ignored-fbx-cleanup.mjs';
 import {fstTextureAdmissionFbx} from '../fixtures/fst-texture-admission.ts';
 import {readFile,writeFile,mkdir,readdir} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
@@ -14,7 +15,7 @@ import assert from 'node:assert/strict';
 const client=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..'),engine=process.env.OVERTE_LAB_BROWSER||'system-chromium',display=process.env.OVERTE_LAB_BROWSER_DISPLAY;
 assert(['chromium','firefox','system-chromium','system-firefox'].includes(engine));
 const digest=bytes=>createHash('sha256').update(bytes).digest('hex');
-const sourceFiles=['src/baked-fbx.ts','src/model-fbx-worker.ts','src/model-fbx-pool.ts','src/embedded-fbx-images.ts','src/embedded-fbx-protocol.ts','tests/fixtures/fst-texture-admission.ts','tests/fixtures/native-ignored-fbx-pixels.ts','tests/integration/native-ignored-fbx-pixels.mjs','tests/integration/system-firefox.mjs','vite.native-ignored-fbx.config.mjs','package-lock.json'];
+const sourceFiles=['src/baked-fbx.ts','src/model-fbx-worker.ts','src/model-fbx-pool.ts','src/embedded-fbx-images.ts','src/embedded-fbx-protocol.ts','tests/fixtures/fst-texture-admission.ts','tests/fixtures/native-ignored-fbx-pixels.ts','tests/integration/native-ignored-fbx-pixels.mjs','tests/integration/native-ignored-fbx-cleanup.mjs','tests/integration/system-firefox.mjs','vite.native-ignored-fbx.config.mjs','package-lock.json'];
 async function hashes(){const result={};for(const file of sourceFiles)result[file]=digest(await readFile(path.join(client,file)));return result;}
 const report={startedAt:new Date().toISOString(),completed:false,engine,scope:'Actual production preparation worker + FBXLoader pixel control on authored source; no native/public Hub or loading-gain claim',domainConnected:false,microphoneRequested:false,worldInteractionsSent:0,modelRequests:0,unusedDDSRequests:0,sourceStart:await hashes()};
 let server,browser,timer;
@@ -39,7 +40,12 @@ try{
  assert.equal(report.pixels.completed,true);assert.equal(report.modelRequests,1);assert.equal(report.unusedDDSRequests,1,'Only the original unpruned control may request its unused DDS');assert.deepEqual(errors,[]);report.completed=true;
 }catch(error){report.error=String(error.message).slice(0,1024);process.exitCode=1;}
 finally{
- clearTimeout(timer);await browser?.close();await server?.close();report.finishedAt=new Date().toISOString();report.sourceEnd=await hashes();report.sourceCoherent=JSON.stringify(report.sourceStart)===JSON.stringify(report.sourceEnd);if(!report.sourceCoherent){report.completed=false;process.exitCode=1;}
- report.bundleSHA256={};for(const name of await readdir(path.join(client,'build-native-ignored-fbx'),{recursive:true})){if(/\.js$/.test(name))report.bundleSHA256[name]=digest(await readFile(path.join(client,'build-native-ignored-fbx',name)));}
- const output=process.env.OVERTE_IGNORED_FBX_EVIDENCE||path.join(client,'build-native-ignored-fbx-evidence');await mkdir(output,{recursive:true,mode:0o700});await writeFile(path.join(output,`native-ignored-fbx-pixels-${engine}.json`),JSON.stringify(report,null,2)+'\n',{mode:0o600});console.log(JSON.stringify(report));
+ clearTimeout(timer);
+ const result=await finalizeNativeIgnoredFbxEvidence({report,
+  closeBrowser:browser?()=>browser.close():undefined,closeServer:server?()=>server.close():undefined,
+  hashSources:hashes,
+  hashBundles:async()=>{const result={};for(const name of await readdir(path.join(client,'build-native-ignored-fbx'),{recursive:true})){if(/\.js$/.test(name))result[name]=digest(await readFile(path.join(client,'build-native-ignored-fbx',name)));}return result;},
+  publish:async value=>{const output=process.env.OVERTE_IGNORED_FBX_EVIDENCE||path.join(client,'build-native-ignored-fbx-evidence');await mkdir(output,{recursive:true,mode:0o700});await writeFile(path.join(output,`native-ignored-fbx-pixels-${engine}.json`),JSON.stringify(value,null,2)+'\n',{mode:0o600});console.log(JSON.stringify(value));}
+ });
+ if(result.failed)process.exitCode=1;
 }

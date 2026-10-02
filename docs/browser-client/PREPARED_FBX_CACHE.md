@@ -55,3 +55,16 @@ candidate.
 node --import tsx --test --test-isolation=none tests/prepared-fbx-cache.test.ts tests/prepared-fbx-count-cap.test.ts
 npx tsc --noEmit
 ```
+
+## Actual stock-Hub cache128 qualification
+
+[Measured comparison](PREPARED_FBX_CACHE128_MEASURED.md) and its
+[aggregate evidence](evidence/prepared-fbx-cache128-measured-20261002.json)
+record both actual joins per engine with82 exact pins. Firefox same-session
+FBX duplicate responses fall10/9 to0/0 and successful worker preparations
+131/130 to122/122. Chromium duplicates fall8/10 to1/1 and preparations
+130/131 to122/122. All ready endpoints have122 entries,40,449,509 charged bytes,
+46,940 key bytes and zero evictions, within128MiB and8MiB limits.
+Chromium retains all four fluid passes; Firefox still fails required gates.
+This establishes reduced repeated FBX work, not a causal texture/network/
+end-to-end speed gain or general browser fluidness.

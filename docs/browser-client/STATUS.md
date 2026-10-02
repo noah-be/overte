@@ -4,6 +4,53 @@ Last updated: 2026-10-02. **Original baseline passed; additional mandatory Table
 
 ## Current implementation and next step
 
+Current continuation (2026-10-02,07:40UTC): published checkpoint
+`6389ab139436e78e73ce616c3ffe0a104f2b69d9` and draft PR1023 are verified on
+the authorized fork. The subsequent production build and complete component
+suite pass:1,551 tests, zero skips. All34 required repository
+suites also pass (150.67seconds). All43 focused rendering
+diagnostic contracts pass. The original registered actual-WebGL2 fixture now
+passes in stock Chromium154 and Firefox156: exact full-frame pixels, matrices,
+draw counts and method identities match with attribution disabled/enabled;
+source coherence and owned browser/development-server cleanup pass.
+[Actual pixel evidence](evidence/render-dispatch-stock-pixels-20261002.json).
+The observer remains default-off; Hub overhead/attribution is still pending.
+Its new one-shot source-bound Hub adapter passes10 CPU contracts with the actual
+ESM Three constructors. An earlier CJS/ESM mixed fixture correctly censors foreign
+instances; its unchanged complete-count assertion failed and that output is
+preserved. Runtime behavior and the original assertions are retained.
+
+The actual same-quality Hub cache128 comparison establishes fewer repeated
+preparations and zero count-limit evictions. Firefox preparations fall131/130
+to122/122 and Chromium130/131 to122/122; payload/key budgets are preserved.
+Image transfers do not improve. Chromium passes all four fluidness gates;
+Firefox still fails three. This is a measured preparation-reuse benefit, not
+an end-to-end texture/FPS success.
+[Actual cache comparison](PREPARED_FBX_CACHE128_MEASURED.md).
+
+Reciprocal native People geometry and synthetic-audio baseline/Ignore/restore
+now pass in Chromium, with the original gates and owned cleanup intact.
+Firefox's first additional cohort refuses an unsupported test-driver method;
+the portable fix passes CPU controls, but its next genuine journey refuses
+a fresh5-to6 frame sequence before reaching voice. Physical microphones are
+not tested. The bounded browser-owned PTT pixel-proof queue passes41 CPU
+controls; [genuine hold and release now pass in both stocks](evidence/tablet-ptt-browser-proof-attempt-20261002.json), while the next
+native-to-browser audio stage fails. Earlier stale-frame cohorts are retained.
+Production PTT remains unintegrated. Exact shipping Emote Sit adaptation passes
+10 CPU controls and the production build; actual native Sit/key Stop is pending.
+
+Hosted6389 browser runs refuse at python-import-alias-target/errno13; exact
+target/enforcement cause remains unknown. Atomic staging refuses writable
+keyring metadata. The reviewed exact-package/private-keyring bootstrap passes
+all67 Root CPU contracts (3.620seconds). Exact canonical-alias hash/read policy
+passes all82 Root C/Python contracts (3.252seconds), including original gates;
+an earlier invocation without the required static-library input fails linking
+and remains recorded. Neither result proves hosted enforcement.
+Next: finish genuine PTT/People/Sit, publish the qualified hosted fixes, obtain
+default-quality Hub dispatch evidence, and fix measured rendering/loading
+bottlenecks. Full Tablet/native parity and Firefox fluidness remain open.
+The unbudgeted Goal stays active. All endurance tests remain canceled.
+
 Current continuation (2026-10-02): the complete registered suite now passes
 1,469 tests, zero skips, in10.734seconds. This includes all15 shipping-signature
 PTT calibration contracts in ordinary CI discovery and the reciprocal People

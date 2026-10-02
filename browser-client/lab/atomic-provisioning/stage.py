@@ -154,7 +154,17 @@ def main(*,progress=None):
  for name in('probe','lab','output'):(base/name).mkdir(mode=0o700)
  staging_phase(progress,'helper-copy')
  for name in FILES:write(base/'probe'/name,regular(HERE/name))
- proof=signed_dependency(base/'probe','/usr/share/keyrings/ubuntu-archive-keyring.gpg',progress=progress)
+ keyring='/usr/share/keyrings/ubuntu-archive-keyring.gpg'
+ reviewed=os.environ.get('ATOMIC_REVIEWED_KEYRING')
+ if reviewed:
+  staging_phase(progress,'keyring-bounded-regular')
+  # Never repair/copy the writable host input: accept only exact reviewed bytes
+  # in a newly owned0600 single-link file, then snapshot them in our own root.
+  data=regular(Path(reviewed),1024*1024,private=True)
+  record=json.loads(regular(HERE/'dependency.json'))
+  if len(data)!=3607 or digest(data)!=record['keyringSHA256']:raise ValueError('reviewed-keyring-input-refused')
+  keyring=base/'probe'/'archive-keyring.gpg';write(keyring,data)
+ proof=signed_dependency(base/'probe',keyring,progress=progress)
  staging_phase(progress,'dependency-proof')
  write(base/'dependency-proof.private.json',(json.dumps(proof)+'\n').encode())
  staging_phase(progress,'workflow-env-open')

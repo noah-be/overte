@@ -13,6 +13,12 @@ import stat
 BASE=Path(__file__).resolve().parents[1]
 PREFIX=Path('/usr/libexec/overte-browser-network')
 NAMES=('trusted_owner','network_udp','network_route_diagnostics','owner_admission')
+MAX_ALIAS_TARGETS=64
+MAX_ALIAS_LINKS=128
+MAX_ALIAS_BYTES=4*1024*1024
+MAX_ALIAS_TOTAL_BYTES=16*1024*1024
+MAX_ALIAS_READ_BYTES=32*1024*1024
+MAX_ALIAS_PATH_BYTES=16*1024
 
 def header_array(data):return '{'+','.join(str(v) for v in hashlib.sha256(data).digest())+'}'
 def rooted(path):
@@ -22,12 +28,81 @@ def rooted(path):
   if info.st_uid!=0 or info.st_mode&0o022:raise ValueError('runtime-package-path-not-root-trusted')
  return str(path)
 
-def trusted_import_paths(python):
+def alias_path_shape(value):
+ # Exact literal policy only. A reviewed distro alias is discovered from the
+ # fixed isolated interpreter import tree, never operator/browser argv input.
+ if type(value) is not str or not 1<len(value)<=4096 or not re.fullmatch(r'/(?:usr|etc)/[A-Za-z0-9._+@= /-]+',value) \
+   or '//' in value or value.endswith('/') or any(part in ('.','..') for part in value.split('/')) or len(Path(value).parts)>33:raise ValueError('python-import-alias-path')
+ return value
+
+def rooted_alias(path):
+ # Validate every lexical symlink hop/ancestor, not just the final canonical
+ # regular file. Link modes are conventionally0777; their owner and immutable
+ # parent directory are what prevents an unprivileged link replacement.
+ path=os.path.normpath(str(path));hops=0
+ while True:
+  parts=Path(path).parts;current=Path(parts[0]);restart=False
+  info=current.lstat()
+  if info.st_uid or info.st_mode&0o022 or not stat.S_ISDIR(info.st_mode):raise ValueError('python-import-alias-chain-untrusted')
+  for index,part in enumerate(parts[1:]):
+   current=current/part;info=current.lstat();last=index==len(parts)-2
+   if info.st_uid:raise ValueError('python-import-alias-chain-untrusted')
+   if stat.S_ISLNK(info.st_mode):
+    hops+=1
+    if hops>40:raise ValueError('python-import-alias-chain-bound')
+    target=os.readlink(current)
+    if not target or len(os.fsencode(target))>4096:raise ValueError('python-import-alias-chain-bound')
+    next_path=Path(target) if os.path.isabs(target) else current.parent/target
+    path=os.path.normpath(str(next_path.joinpath(*parts[index+2:])))
+    restart=True;break
+   if info.st_mode&0o022 or (not stat.S_ISREG(info.st_mode) if last else not stat.S_ISDIR(info.st_mode)):raise ValueError('python-import-alias-chain-untrusted')
+  if not restart:return alias_path_shape(str(current))
+
+def alias_record(path):
+ value=alias_path_shape(rooted(path));fd=os.open(value,os.O_RDONLY|os.O_NOFOLLOW|os.O_CLOEXEC|os.O_NONBLOCK)
+ try:
+  before=os.fstat(fd)
+  if not stat.S_ISREG(before.st_mode) or before.st_uid or before.st_mode&0o022 or not 0<=before.st_size<=MAX_ALIAS_BYTES:raise ValueError('python-import-alias-target-untrusted')
+  digest=hashlib.sha256();total=0
+  while True:
+   chunk=os.read(fd,min(65536,MAX_ALIAS_BYTES+1-total))
+   if not chunk:break
+   total+=len(chunk)
+   if total>MAX_ALIAS_BYTES:raise ValueError('python-import-alias-target-bound')
+   digest.update(chunk)
+  after=os.fstat(fd)
+  identity=lambda info:(info.st_dev,info.st_ino,info.st_size,info.st_mtime_ns,info.st_ctime_ns)
+  if total!=before.st_size or identity(before)!=identity(after):raise ValueError('python-import-alias-target-changed')
+  return {'path':value,'bytes':total,'sha256':digest.hexdigest()}
+ finally:os.close(fd)
+
+def validate_alias_records(records):
+ if type(records) is not list or len(records)>MAX_ALIAS_TARGETS:raise ValueError('python-import-alias-target-count')
+ previous='';total=0;path_bytes=0
+ for record in records:
+  if type(record) is not dict or set(record)!={'path','bytes','sha256'}:raise ValueError('python-import-alias-record')
+  path=alias_path_shape(record['path'])
+  if path<=previous or type(record['bytes']) is not int or not 0<=record['bytes']<=MAX_ALIAS_BYTES or type(record['sha256']) is not str or not re.fullmatch('[a-f0-9]{64}',record['sha256']):raise ValueError('python-import-alias-record')
+  previous=path;total+=record['bytes'];path_bytes+=len(path.encode('ascii'))
+  if total>MAX_ALIAS_TOTAL_BYTES:raise ValueError('python-import-alias-total-bound')
+  if path_bytes>MAX_ALIAS_PATH_BYTES:raise ValueError('python-import-alias-path-bound')
+ return records
+
+def alias_read_rules(records):
+ validate_alias_records(records);directories=set()
+ for record in records:
+  for ancestor in Path(record['path']).parents:
+   if str(ancestor) not in ('/','/usr','/usr/lib','/usr/lib64'):directories.add(str(ancestor)+'/')
+ # Quoted ASCII literals cannot introduce AppArmor globs, variables, escapes,
+ # execution, writable rules or capability grants. Directory reads are exact.
+ return ''.join('  '+json.dumps(value)+' r,\n' for value in sorted(directories))+''.join('  '+json.dumps(record['path'])+' r,\n' for record in records)
+
+def trusted_import_paths(python,*,aliases=None):
  output=subprocess.run([python,'-I','-S','-c','import sys,json;print(json.dumps(sys.path))'],capture_output=True,check=True,timeout=5).stdout
  if len(output)>16384:raise ValueError('python-import-path-bound')
  paths=json.loads(output)
  if type(paths) is not list or not 1<=len(paths)<=8:raise ValueError('python-import-path-count')
- entries=0
+ entries=0;alias_links=0;alias_read_bytes=0;targets={}
  for value in paths:
   if type(value) is not str or not re.fullmatch(r'/usr/lib(?:64)?/python[0-9./a-z-]+(?:\.zip)?',value):raise ValueError('python-import-path-scope')
   path=Path(value)
@@ -46,9 +121,17 @@ def trusted_import_paths(python):
       # ancestry and target remain root-owned and non-writable. No directory
       # links/cycles or user-owned import targets are accepted.
       if info.st_uid or not child.resolve(strict=True).is_file():raise ValueError('python-import-tree-untrusted')
-      rooted(child)
+      canonical=rooted_alias(child);record=alias_record(canonical)
+      alias_links+=1;alias_read_bytes+=record['bytes']
+      if alias_links>MAX_ALIAS_LINKS or alias_read_bytes>MAX_ALIAS_READ_BYTES:raise ValueError('python-import-alias-read-budget')
+      previous=targets.get(canonical)
+      if previous is not None and previous!=record:raise ValueError('python-import-alias-target-changed')
+      targets[canonical]=record
+      if len(targets)>MAX_ALIAS_TARGETS or sum(item['bytes'] for item in targets.values())>MAX_ALIAS_TOTAL_BYTES:raise ValueError('python-import-alias-total-bound')
      elif info.st_uid or info.st_mode&0o022 or not (stat.S_ISDIR(info.st_mode) or stat.S_ISREG(info.st_mode)):raise ValueError('python-import-tree-untrusted')
   elif not path.is_file():raise ValueError('python-import-root-type')
+ records=validate_alias_records([targets[key] for key in sorted(targets)])
+ if aliases is not None:aliases.extend(records)
  return paths
 
 def build(destination,policy,python=None,static_libraries=None):
@@ -68,7 +151,7 @@ def build(destination,policy,python=None,static_libraries=None):
    if type(value) is not str or len(value.encode())>4096 or not value.startswith('/') or value in ('/','/tmp','/home','/root','/etc','/run','/proc','/dev') \
       or '//' in value or any(part in ('.','..') for part in value.split('/')) or any(ord(c)<32 or ord(c)==127 for c in value) \
       or re.search(r'/(?:\.ssh|\.gnupg|\.config|\.cache|\.local)(?:/|$)',value):raise ValueError('policy-runtime-path')
- import_paths=trusted_import_paths(python)
+ import_aliases=[];import_paths=trusted_import_paths(python,aliases=import_aliases)
  policy_bytes=(json.dumps(policy,sort_keys=True,separators=(',',':'))+'\n').encode()
  (destination/'policy.json').write_bytes(policy_bytes)
  records=[]
@@ -79,6 +162,11 @@ def build(destination,policy,python=None,static_libraries=None):
  header='#ifndef OVERTE_NATIVE_BOUNDARY\n#define PYTHON_PATH '+json.dumps(python)+'\n'
  header+='static const char *PYTHON_IMPORT_PATHS['+str(len(import_paths))+']='+json.dumps(import_paths).replace('[','{').replace(']','}')+';\n'
  header+='#define PYTHON_IMPORT_COUNT '+str(len(import_paths))+'\n'
+ header+='#define PYTHON_IMPORT_ALIAS_COUNT '+str(len(import_aliases))+'\n'
+ header+='static const char *PYTHON_IMPORT_ALIAS_PATHS['+str(max(1,len(import_aliases)))+']='+json.dumps([record['path'] for record in import_aliases] or [None]).replace('[','{').replace(']','}').replace('null','NULL')+';\n'
+ header+='static const unsigned PYTHON_IMPORT_ALIAS_BYTES['+str(max(1,len(import_aliases)))+']={'+','.join(str(record['bytes']) for record in import_aliases or [{'bytes':0}])+'};\n'
+ header+='static const unsigned char PYTHON_IMPORT_ALIAS_HASHES['+str(max(1,len(import_aliases)))+'][32]={'+','.join('{'+','.join(str(value) for value in bytes.fromhex(record['sha256']))+'}' for record in import_aliases or [{'sha256':'0'*64}])+'};\n'
+
  header+='#define POLICY_PATH '+json.dumps(str(PREFIX/'policy.json'))+'\n'
  header+='static const char *OWNER_PATHS[4]='+json.dumps(paths).replace('[','{').replace(']','}')+';\n'
  header+='static const unsigned char OWNER_HASHES[4][32]={'+','.join(header_array(data) for data in records)+'};\n'
@@ -133,7 +221,7 @@ profile overte-browser-network-setup /usr/libexec/overte-browser-network/launche
   /proc/@{pid}/** rw,
   /proc/sys/kernel/cap_last_cap r,
   '''+policy['sessionParent']+'''/overte-browser-*/native-network.json r,
-  '''+python+''' r,
+  '''+alias_read_rules(import_aliases)+python+''' r,
   '''+python+''' Px -> overte-browser-network-owner,
 }
 profile overte-browser-network-owner flags=(attach_disconnected) {
@@ -151,8 +239,8 @@ profile overte-browser-network-owner flags=(attach_disconnected) {
  # Ubuntu ABI source is pinned; parser/runtime semantics still require live proof.
  (destination/'overte-browser-network').write_text(profile)
  files={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in destination.iterdir() if p.is_file()}
- manifest={'version':1,'prefix':str(PREFIX),'python':python,'files':files,
-  'pythonImportPaths':import_paths,'rootSource':{str(p.relative_to(BASE)):hashlib.sha256(p.read_bytes()).hexdigest() for p in (BASE/'src').iterdir() if p.is_file()},
+ manifest={'version':2,'prefix':str(PREFIX),'python':python,'files':files,
+  'pythonImportPaths':import_paths,'pythonImportAliases':import_aliases,'rootSource':{str(p.relative_to(BASE)):hashlib.sha256(p.read_bytes()).hexdigest() for p in (BASE/'src').iterdir() if p.is_file()},
   'activated':False,'actualNamespaceCapabilityRoutingProof':False}
  (destination/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
  return manifest

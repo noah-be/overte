@@ -69,6 +69,7 @@ export interface WorldOptions {
   cpuFrameTiming?: boolean;
   /** Optional sampled public renderer-call CPU diagnostics, off by default. */
   renderCpuTiming?: boolean;
+  renderDispatchAttribution?: boolean;
   /** Exact unchanged static Model matrix memoization, captured once; off by default. */
   staticModelMatrices?: boolean;
   resolveAsset(url: string): string;
@@ -199,7 +200,7 @@ export class BrowserWorld {
       onWarning: message => options.onStatus(message, 'warning'),
     });
     if(options.cpuFrameTiming===true)this.cpuFrameTiming=new WorldCpuFrameTiming(this.abort.signal);
-    if(options.renderCpuTiming===true)this.renderCpuTiming=new RenderCpuBreakdown(this.abort.signal);
+    if(options.renderCpuTiming===true)this.renderCpuTiming=new RenderCpuBreakdown(this.abort.signal,{dispatchAttribution:options.renderDispatchAttribution===true});
     if(options.staticModelMatrices===true)this.staticMatrices=new StaticModelMatrices(this.abort.signal);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.graphics = new WorldGraphicsTarget({

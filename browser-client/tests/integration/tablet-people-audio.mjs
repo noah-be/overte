@@ -47,31 +47,85 @@ export function peopleAudioWindow(row,{phase,generation,frequency,baseline=null,
  if(suppressed)return typeof baseline==='number'&&Number.isFinite(baseline)&&baseline>.001&&value<.0001&&value<baseline*.01;
  return value>.001;
 }
+/** Use only genuine controls: a modal native Tablet must not cover microphone. */
+export async function setPeopleSyntheticMicrophone(page,enabled){
+ await page.bringToFront();
+ if(await page.evaluate(()=>window.__overte?.tabletVisible))await page.getByRole('button',{name:'Close tablet',exact:true}).click();
+ await page.waitForFunction(()=>!window.__overte?.tabletVisible,undefined,{timeout:10000});
+ const button=page.locator('#microphone'),old=await button.evaluate(element=>element.getAttribute('aria-pressed'));
+ if(old!==String(enabled))await button.click();
+ await page.waitForFunction(value=>document.querySelector('#microphone').getAttribute('aria-pressed')===String(value),enabled,{timeout:10000});
+}
+/** Native open returns Home: the caller must re-enter genuine People via its painted frame. */
+export async function reopenPeopleSyntheticTablet(page,enterPeople){
+ await page.bringToFront();
+ const opened=!await page.evaluate(()=>window.__overte?.tabletVisible);
+ if(opened){if(typeof enterPeople!=='function')throw Error('A genuine People navigation callback is required');await page.locator('#tablet').click();}
+ await page.waitForFunction(()=>window.__overte?.tabletVisible&&window.__peopleAudit.frame?.tabletRect,undefined,{timeout:30000});
+ if(opened)await enterPeople();
+}
+/** Fixed scalar projection, with no field names, errors, participant IDs or PCM. */
+export function projectPeopleAudioCheckpoint(phase,event,visitorOrdinal,row=null,category='none'){
+ if(!['enable','baseline','ignore','ignored','unignore','restored','cleanup'].includes(phase)||
+    !['start','sample','accepted','failed','complete'].includes(event)||
+    !Number.isInteger(visitorOrdinal)||visitorOrdinal<0||visitorOrdinal>2||
+    !['none','timeout','operation-refused','probe-cleanup-failed'].includes(category))throw Error('Invalid owned audio checkpoint');
+ const numeric=(key,max)=>typeof row?.[key]==='number'&&Number.isFinite(row[key])&&row[key]>=0&&row[key]<=max?row[key]:null;
+ const boolean=key=>typeof row?.[key]==='boolean'?row[key]:null;
+ return{phase,event,visitorOrdinal,category,generation:numeric('generation',2147483647),samples:numeric('samples',48000),
+  rate:numeric('rate',192000),tone440:numeric('tone440',2),tone659:numeric('tone659',2),
+  phaseOutgoingNonzeroFrames:numeric('phaseOutgoingNonzeroFrames',2147483647),activeTracks:numeric('activeTracks',1),
+  openContexts:numeric('openContexts',2),connected:boolean('connected'),microphoneEnabled:boolean('microphoneEnabled'),cleanupFailed:boolean('cleanupFailed')};
+}
 /** Extra named cycle after all original muted geometry gates; never a substitute. */
-export async function runPeopleSyntheticAudioSuppression({pages,waitFor,ignore,unignore}){
- if(pages.length!==2)throw Error('Two owned synthetic peers required');
- const windows=[];let ignoreAttempted=false;
- const setMicrophone=async(page,enabled)=>{await page.bringToFront();const button=page.locator('#microphone');const old=await button.getAttribute('aria-pressed');if(old!==String(enabled))await button.click();await page.waitForFunction(value=>document.querySelector('#microphone').getAttribute('aria-pressed')===String(value),enabled,{timeout:10000});};
+export async function runPeopleSyntheticAudioSuppression({pages,waitFor,ignore,unignore,onCheckpoint=()=>{}}){
+ if(pages.length!==2||typeof onCheckpoint!=='function')throw Error('Two owned synthetic peers and one checkpoint receiver required');
+ const windows=[],cleanupFailures=[];let ignoreAttempted=false,primary=null,result=null,checkpointFailed=false,emitted=0,currentPhase='enable',currentVisitor=0;
+ const category=error=>error?.name==='TimeoutError'||String(error?.message||'').endsWith(' deadline')?'timeout':'operation-refused';
+ const checkpoint=(phase,event,index,row=null,errorCategory='none')=>{
+  if(emitted>=128)return;
+  emitted++;try{onCheckpoint(projectPeopleAudioCheckpoint(phase,event,index,row,errorCategory));}catch{checkpointFailed=true;}
+ };
  const read=page=>page.evaluate(()=>({...window.__peopleSyntheticAudio.read(),connected:window.__overte?.connected===true,microphoneEnabled:document.querySelector('#microphone').getAttribute('aria-pressed')==='true'}));
  const phase=async(name,baseline=null)=>{
+  currentPhase=name;currentVisitor=0;checkpoint(name,'start',0);
   const generations=await Promise.all(pages.map(page=>page.evaluate(value=>window.__peopleSyntheticAudio.begin(value),name)));
   const results=[];
   for(let index=0;index<2;index++){
-   const frequency=PEOPLE_AUDIO_FREQUENCIES[1-index];
-   const row=await waitFor(async()=>{const value=await read(pages[index]);return value.connected&&value.microphoneEnabled&&peopleAudioWindow(value,{phase:name,generation:generations[index],frequency,baseline:baseline?.[index],suppressed:name==='ignored'})?value:null;},'Actual reciprocal native mixed PCM '+name,15000);
-   results.push(row);
+   const frequency=PEOPLE_AUDIO_FREQUENCIES[1-index];currentVisitor=index+1;let latest=null,samples=0;
+   try{
+    const row=await waitFor(async()=>{const value=await read(pages[index]);latest=value;if(samples++<12)checkpoint(name,'sample',index+1,value);return value.connected&&value.microphoneEnabled&&peopleAudioWindow(value,{phase:name,generation:generations[index],frequency,baseline:baseline?.[index],suppressed:name==='ignored'})?value:null;},'Actual reciprocal native mixed PCM '+name,15000);
+    results.push(row);checkpoint(name,'accepted',index+1,row);
+   }catch(error){checkpoint(name,'failed',index+1,latest,category(error));throw error;}
   }
-  windows.push({phase:name,rows:results});return results.map((row,index)=>index===0?row.tone659:row.tone440);
+  windows.push({phase:name,rows:results});checkpoint(name,'complete',0);return results.map((row,index)=>index===0?row.tone659:row.tone440);
  };
  try{
-  for(const page of pages){const pressed=await page.locator('#microphone').getAttribute('aria-pressed');if(pressed!=='false')throw Error('Original muted People gates must precede synthetic cycle');await setMicrophone(page,true);}
-  const baseline=await phase('baseline');await pages[0].bringToFront();ignoreAttempted=true;await ignore();await phase('ignored',baseline);
-  await unignore();ignoreAttempted=false;await phase('restored');
-  return{completed:true,scope:'Synthetic owned-peer input through actual native mixer; no hardware permission/speech/playback-device claim',frequenciesHz:[...PEOPLE_AUDIO_FREQUENCIES],windows};
- }finally{
-  if(ignoreAttempted)try{await pages[0].bringToFront();await unignore();}catch{}
-  let clean=true;
-  for(let index=0;index<pages.length;index++)try{await setMicrophone(pages[index],false);await pages[index].evaluate(()=>window.__peopleSyntheticAudio.close());await waitFor(async()=>{const row=await read(pages[index]);if(row.cleanupFailed)throw Error('Owned synthetic audio context cleanup failed');return row.activeTracks===0&&row.openContexts===0;},'Owned synthetic audio resources released',10000);}catch{clean=false;}
-  if(!clean)throw Error('Owned synthetic microphone cleanup failed');
+  for(let index=0;index<pages.length;index++){
+   currentVisitor=index+1;checkpoint('enable','start',index+1);
+   const pressed=await pages[index].locator('#microphone').evaluate(element=>element.getAttribute('aria-pressed'));
+   if(pressed!=='false')throw Error('Original muted People gates must precede synthetic cycle');
+   await setPeopleSyntheticMicrophone(pages[index],true);checkpoint('enable','accepted',index+1,await read(pages[index]));
+  }
+  const baseline=await phase('baseline');currentPhase='ignore';currentVisitor=1;checkpoint('ignore','start',1);ignoreAttempted=true;await ignore();checkpoint('ignore','accepted',1);await phase('ignored',baseline);
+  currentPhase='unignore';currentVisitor=1;checkpoint('unignore','start',1);await unignore();ignoreAttempted=false;checkpoint('unignore','accepted',1);await phase('restored');
+  result={completed:true,scope:'Synthetic owned-peer input through actual native mixer; no hardware permission/speech/playback-device claim',frequenciesHz:[...PEOPLE_AUDIO_FREQUENCIES],windows};
+ }catch(error){primary=error;checkpoint(currentPhase,'failed',currentVisitor,null,category(error));}
+ // Keep the original primary exception; cleanup is a separate fixed failure row.
+ checkpoint('cleanup','start',0);
+ if(ignoreAttempted)try{await unignore();}catch(error){cleanupFailures.push({visitorOrdinal:1,operation:'restore-ignore',category:category(error)});checkpoint('cleanup','failed',1,null,category(error));}
+ for(let index=0;index<pages.length;index++){
+  try{await setPeopleSyntheticMicrophone(pages[index],false);}catch(error){cleanupFailures.push({visitorOrdinal:index+1,operation:'microphone-mute',category:category(error)});checkpoint('cleanup','failed',index+1,null,category(error));}
+  // Release owned fixture resources even if a genuine control operation failed.
+  try{
+   await pages[index].evaluate(()=>window.__peopleSyntheticAudio.close());let latest=null,samples=0;
+   try{await waitFor(async()=>{const row=await read(pages[index]);latest=row;if(samples++<12)checkpoint('cleanup','sample',index+1,row);if(row.cleanupFailed)throw Error('Owned synthetic audio context cleanup failed');return row.activeTracks===0&&row.openContexts===0;},'Owned synthetic audio resources released',10000);}
+   catch(error){checkpoint('cleanup','failed',index+1,latest,'probe-cleanup-failed');throw error;}
+  }catch(error){cleanupFailures.push({visitorOrdinal:index+1,operation:'fixture-release',category:'probe-cleanup-failed'});}
  }
+ checkpoint('cleanup',cleanupFailures.length?'failed':'complete',0,null,cleanupFailures.length?'probe-cleanup-failed':'none');
+ if(primary)throw primary;
+ if(cleanupFailures.length)throw Error('Owned synthetic microphone cleanup failed');
+ if(checkpointFailed)throw Error('Owned synthetic audio checkpoint failed');
+ return{...result,cleanup:{completed:true,failures:[]}};
 }

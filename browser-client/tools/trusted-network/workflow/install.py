@@ -37,6 +37,21 @@ def unique_object(pairs):
   result[key]=value
  return result
 
+def validate_reviewed_aliases(records):
+ # Independent schema gate before installer/profile parsing. Only exact sorted
+ # hashed regular-file targets can enter the reviewed version2 manifest.
+ if type(records) is not list or len(records)>64:raise Refusal('bundle-import-alias-count')
+ previous='';total=0;path_bytes=0
+ for record in records:
+  if type(record) is not dict or set(record)!={'path','bytes','sha256'}:raise Refusal('bundle-import-alias-record')
+  value=record['path']
+  if type(value) is not str or not 1<len(value)<=4096 or not re.fullmatch(r'/(?:usr|etc)/[A-Za-z0-9._+@= /-]+',value) or '//' in value or value.endswith('/') or any(part in ('.','..') for part in value.split('/')) or len(Path(value).parts)>33 or value<=previous \
+   or type(record['bytes']) is not int or not 0<=record['bytes']<=4*1024*1024 or type(record['sha256']) is not str or not re.fullmatch('[a-f0-9]{64}',record['sha256']):raise Refusal('bundle-import-alias-record')
+  previous=value;total+=record['bytes'];path_bytes+=len(value.encode('ascii'))
+  if total>16*1024*1024:raise Refusal('bundle-import-alias-byte-bound')
+  if path_bytes>16*1024:raise Refusal('bundle-import-alias-path-bound')
+ return records
+
 def verified_bundle(directory,digest):
  directory=Path(directory)
  if directory.resolve(strict=True)!=directory or not directory.is_dir():raise Refusal('bundle-alias')
@@ -44,11 +59,12 @@ def verified_bundle(directory,digest):
  manifest_bytes=bounded_file(directory/'manifest.json',65536)
  if hashlib.sha256(manifest_bytes).hexdigest()!=digest:raise Refusal('review-manifest-mismatch')
  manifest=json.loads(manifest_bytes,object_pairs_hook=unique_object)
- if type(manifest) is not dict or set(manifest)!={'version','prefix','python','files','pythonImportPaths','rootSource','activated','actualNamespaceCapabilityRoutingProof'} \
-    or type(manifest['version']) is not int or manifest['version']!=1 or manifest['prefix']!=str(PREFIX) \
+ if type(manifest) is not dict or set(manifest)!={'version','prefix','python','files','pythonImportPaths','pythonImportAliases','rootSource','activated','actualNamespaceCapabilityRoutingProof'} \
+    or type(manifest['version']) is not int or manifest['version']!=2 or manifest['prefix']!=str(PREFIX) \
     or type(manifest['python']) is not str or not re.fullmatch(r'/usr/bin/python3\.[0-9]{1,2}',manifest['python']) \
     or type(manifest['files']) is not dict or set(manifest['files'])!=REQUIRED \
     or manifest['activated'] is not False or manifest['actualNamespaceCapabilityRoutingProof'] is not False:raise Refusal('bundle-manifest-schema')
+ validate_reviewed_aliases(manifest['pythonImportAliases'])
  if {p.name for p in directory.iterdir()}!=REQUIRED|{'manifest.json'}:raise Refusal('bundle-extra-file')
  result={}
  for name,digest in manifest['files'].items():
@@ -103,7 +119,8 @@ def verify_python_imports(manifest):
  import importlib.util
  spec=importlib.util.spec_from_file_location('trusted_build',Path(__file__).with_name('build.py'))
  module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
- if module.trusted_import_paths(manifest['python'])!=manifest['pythonImportPaths']:raise Refusal('python-import-runtime-mismatch')
+ aliases=[];paths=module.trusted_import_paths(manifest['python'],aliases=aliases)
+ if paths!=manifest['pythonImportPaths'] or aliases!=manifest['pythonImportAliases']:raise Refusal('python-import-runtime-mismatch')
 
 def install(directory,digest):
  if os.geteuid()!=0:raise Refusal('root-required-for-explicit-install')

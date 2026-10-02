@@ -65,9 +65,6 @@ static size_t setup_failure_json(enum setup_phase phase,int observed,char *outpu
  memcpy(output,data,(size_t)length+1);return (size_t)length;
 }
 static volatile sig_atomic_t stopped;
-static unsigned import_alias_reads;
-static uint64_t import_alias_read_bytes;
-static int verify_import_alias_target(int fd,const char *resolved);
 static void stop(int ignored){(void)ignored;stopped=1;}
 static long long milliseconds(void){struct timespec t;if(clock_gettime(CLOCK_MONOTONIC,&t))return -1;return t.tv_sec*1000LL+t.tv_nsec/1000000;}
 static int fullwrite(int fd,const void *data,size_t length){const unsigned char *p=data;while(length){ssize_t n=write(fd,p,length);if(n<0&&errno==EINTR)continue;if(n<=0)return -1;p+=n;length-=n;}return 0;}
@@ -109,8 +106,7 @@ static int import_tree(int fd,unsigned *entries,unsigned depth,enum setup_phase 
    char name[8192],resolved[4097];int length=snprintf(name,sizeof(name),"/proc/self/fd/%d/%s",fd,entry->d_name);
    if(length<1||length>=(int)sizeof(name))goto done;
    inspection_phase(phase,SETUP_PYTHON_ALIAS_RESOLVE);if(!realpath(name,resolved))goto done;
-   inspection_phase(phase,SETUP_PYTHON_ALIAS_TARGET);int target=rootfile(resolved);if(target<0)goto done;
-   int checked=verify_import_alias_target(target,resolved);int saved=errno;close(target);errno=saved;if(checked)goto done;continue;
+   inspection_phase(phase,SETUP_PYTHON_ALIAS_TARGET);int target=rootfile(resolved);if(target<0)goto done;close(target);continue;
   }
   if(child.st_mode&022)goto done;
   if(S_ISDIR(child.st_mode)) {
@@ -123,7 +119,6 @@ static int import_tree(int fd,unsigned *entries,unsigned depth,enum setup_phase 
  done:closedir(directory);return result;
 }
 static int verify_import_roots(enum setup_phase *phase) {
- import_alias_reads=0;import_alias_read_bytes=0;
  unsigned entries=0;
  for(unsigned i=0;i<PYTHON_IMPORT_COUNT;i++) {
   const char *path=PYTHON_IMPORT_PATHS[i];inspection_phase(phase,SETUP_PYTHON_IMPORT_OPEN);int fd=rootnode(path,strstr(path,".zip")==NULL);
@@ -236,35 +231,6 @@ static const char bootstrap[]=
  " sys.modules[name]=module\n"
  " exec(compile(sources.pop(name),module.__file__,'exec'),module.__dict__)\n"
  "sys.exit(sys.modules['trusted_owner'].main())\n";
-
-// Hash only exact build-discovered, manifest-reviewed canonical aliases. No
-// browser argument/profile wildcard can add a target. Original rootfile gates
-// already bind this descriptor to immutable root-owned canonical ancestry.
-static int verify_import_alias_target(int fd,const char *resolved) {
- int index=-1;
- for(int i=0;i<PYTHON_IMPORT_ALIAS_COUNT;i++)if(!strcmp(resolved,PYTHON_IMPORT_ALIAS_PATHS[i])){index=i;break;}
- if(index<0||++import_alias_reads>128){errno=EINVAL;return -1;}
- struct stat before;
- if(fstat(fd,&before))return -1;
- if(!S_ISREG(before.st_mode)||before.st_uid||(before.st_mode&022)||before.st_size<0||before.st_size>4194304||before.st_size!=(off_t)PYTHON_IMPORT_ALIAS_BYTES[index]){errno=EPERM;return -1;}
- if(import_alias_read_bytes+(uint64_t)before.st_size>33554432){errno=EFBIG;return -1;}
- import_alias_read_bytes+=(uint64_t)before.st_size;
- unsigned char *bytes=malloc(before.st_size?(size_t)before.st_size:1);if(!bytes)return -1;
- size_t offset=0;int result=-1;
- while(offset<(size_t)before.st_size){
-  ssize_t n=pread(fd,bytes+offset,(size_t)before.st_size-offset,(off_t)offset);
-  if(n<0&&errno==EINTR)continue;
-  if(n<=0){if(!n)errno=EIO;goto done;}
-  offset+=(size_t)n;
- }
- unsigned char tail,digest[32];ssize_t extra=pread(fd,&tail,1,(off_t)offset);
- if(extra<0)goto done;
- if(extra||!digest_bytes(bytes,offset,digest)||memcmp(digest,PYTHON_IMPORT_ALIAS_HASHES[index],32)){errno=ESTALE;goto done;}
- struct stat after;if(fstat(fd,&after))goto done;
- if(before.st_dev!=after.st_dev||before.st_ino!=after.st_ino||before.st_size!=after.st_size||before.st_mtim.tv_sec!=after.st_mtim.tv_sec||before.st_mtim.tv_nsec!=after.st_mtim.tv_nsec||before.st_ctim.tv_sec!=after.st_ctim.tv_sec||before.st_ctim.tv_nsec!=after.st_ctim.tv_nsec){errno=ESTALE;goto done;}
- result=0;
- done:free(bytes);return result;
-}
 
 int main(int argc,char **argv){
  (void)argv;uid_t uid=getuid();gid_t gid=getgid();pid_t parent=getppid();int code=78;

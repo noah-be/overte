@@ -46,6 +46,11 @@ int dispatch(int failure,char *output,size_t capacity){
   candidate=re.sub(r'\s*inspection_phase\(phase,SETUP_PYTHON_[A-Z_]+\);','',candidate)
   candidate=candidate.replace('inspection_phase(phase,SETUP_PYTHON_IMPORT_SCAN),','')
   candidate=candidate.replace(',enum setup_phase *phase','').replace('verify_import_roots(enum setup_phase *phase)','verify_import_roots(void)')
+  # Version2 adds only these strengthening alias hash/budget gates. Strip
+  # their exact reviewed spelling while comparing EVERY original syscall gate.
+  candidate=candidate.replace('import_alias_reads=0;import_alias_read_bytes=0;','')
+  candidate=candidate.replace('int checked=verify_import_alias_target(target,resolved);int saved=errno;close(target);errno=saved;if(checked)goto done;continue;','close(target);continue;')
+  self.assertIn('int checked=verify_import_alias_target(target,resolved);int saved=errno;close(target);errno=saved;if(checked)goto done;continue;',self.source)
   candidate=candidate.replace('import_tree(next,entries,depth+1,phase)','import_tree(next,entries,depth+1)').replace('import_tree(fd,&entries,0,phase)','import_tree(fd,&entries,0)')
   candidate=candidate.replace('if(length<1||length>=(int)sizeof(name))goto done;if(!realpath(name,resolved))goto done;','if(length<1||length>=(int)sizeof(name)||!realpath(name,resolved))goto done;')
   self.assertEqual(re.sub(r'\s+','',candidate),re.sub(r'\s+','',original))

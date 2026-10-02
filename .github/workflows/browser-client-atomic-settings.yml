@@ -48,6 +48,8 @@ jobs:
           sudo python3 browser-client/tools/apparmor-diagnostic.py
           sudo python3 browser-client/tools/prepare-apparmor-userns.py
           sudo python3 browser-client/tools/apparmor-diagnostic.py
+      - name: Bootstrap the exact reviewed official Ubuntu archive keyring privately
+        run: python3 browser-client/lab/atomic-provisioning/trusted_keyring.py
       - name: Stage the reviewed private diagnostic and verify signed Noble dependency
         run: |
           python3 browser-client/lab/atomic-provisioning/stage.py
@@ -55,6 +57,7 @@ jobs:
         run: |
           ATOMIC_DIAGNOSTIC_CACHE="$ATOMIC_PROBE_DIRECTORY" \
           ATOMIC_DIAGNOSTIC_STRACE="$ATOMIC_PROBE_DIRECTORY/strace" \
+          ATOMIC_DIAGNOSTIC_TEST_KEYRING="$ATOMIC_REVIEWED_KEYRING" \
             python3 -B -m unittest discover \
               -s browser-client/lab/atomic-provisioning -p 'test_*.py'
       - name: Prepare a fresh original laboratory without starting services

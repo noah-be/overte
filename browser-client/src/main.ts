@@ -246,6 +246,7 @@ async function joinDomain(domain:string, direction?:'back'|'forward'):Promise<vo
             gpuTiming: new URLSearchParams(location.search).get('gpuTiming') === '1',
             cpuFrameTiming: new URLSearchParams(location.search).get('cpuFrameTiming') === '1',
             renderCpuTiming: new URLSearchParams(location.search).get('renderCpuTiming') === '1',
+            renderDispatchAttribution: new URLSearchParams(location.search).get('renderDispatchAttribution') === '1',
             staticModelMatrices: new URLSearchParams(location.search).get('staticModelMatrices') === '1',
             shaderWarmup: new URLSearchParams(location.search).get('shaderWarmup') === '1',
             texturePreparation: new URLSearchParams(location.search).get('texturePreparation') === '1',
