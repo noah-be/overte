@@ -12,11 +12,12 @@ CHECKPOINTS=('actual-domain-joined','native-sees-browser','movement-measured',
  'reconnected-to-actual-domain','reconnection-movement-observed','reconnection-movement',
  'mouse-look','final-view','all-real-session-assertions-passed')
 SOURCE_FILES={f'browser-client/{name}' for name in (
- 'gateway/server.mjs','gateway/native-bridge.js','gateway/process-lifecycle.mjs',
+ 'gateway/server.mjs','gateway/native-bridge.js','gateway/native-avatar-sample-diagnostics.js',
+ 'gateway/native-avatar-stdout-projection.mjs','gateway/process-lifecycle.mjs',
  'gateway/validation.mjs','gateway/permission-policy.mjs','dist/index.html',
  'tests/integration/real-session.mjs','tests/integration/system-firefox.mjs',
  'tests/integration/owned-audio-process.mjs','tests/integration/native-peer-diagnostic.mjs',
- 'lab/native-participant.js','package-lock.json')}
+ 'lab/native-participant.js','lab/manage.py','package-lock.json')}
 TIMESTAMP=re.compile(r'^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,6})?Z$')
 VERSION=re.compile(r'^(?:firefox/)?\d[0-9A-Za-z._+-]{0,59}$')
 DIGEST=re.compile(r'^[0-9a-f]{64}$')

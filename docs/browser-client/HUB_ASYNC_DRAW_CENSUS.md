@@ -88,3 +88,54 @@ unchanged2MiB metadata ceiling. Unsupported node refusals remain unclassified
 beyond their existing enum. Full coverage, eligible instancing count, speed gain
 and Firefox fluidity improvement remain unproved. See the
 [source-bound actual outcome](evidence/hub-async-draw-census-stock-20261002.json).
+
+## Captured loaded-Model subset
+
+The separate optional `OVERTE_LAB_LOADED_MODEL_COHORT_CENSUS=1` flag invokes
+`window.__overte.drawModelCohortAsync()` once after each admission's unchanged
+stored movement/native/fluidness gates. Use the same command and owned gateway
+environment above, substituting that flag for the whole-world flag. No hook is
+called automatically. Its report selects at most64 static loaded Model owners
+and always states `wholeWorldCoverage:false`; `selectionPartial` reports a larger
+eligible source population. Never combine different captures into whole-world
+coverage or an instancing admission claim.
+
+The request captures selected root/status/shader revision, bounded plain native
+entity semantics, signatures, dependencies and scene/local/world transforms.
+Semantically equal native record clones are allowed; selected revisions/removals,
+material dependencies, authority revocation and changes to the selected prefix
+censor every group. Unrelated nonselected dynamic/non-Model updates remain outside
+this explicit scope. The scanner still verifies watched graph/resource
+descriptors, geometry bytes, materials, samplers and supported prototypes. It
+captures a resource when first read, rather than atomically snapshotting all
+graphs at request entry; the result remains a passive diagnostic.
+
+Original ceilings remain1024 roots,16384 source entities/nodes,8192 parts,64MiB
+geometry,2MiB aggregate metadata,2000ms active CPU and five seconds wall time.
+Bounded synchronous source preparation is reported and deducted from the same
+continuation CPU/wall budgets; an overrun immediately revokes scanning. The
+single request slot cancels/releases its previous owner before capture. All
+terminal paths release timers, listeners and source references. Fixed refusal
+details distinguish native record revisions and unsupported Light/Camera/Sprite
+prototypes without admitting those classes or retaining names/IDs/URLs.
+
+The source/collector hashes are included in the existing start/end manifests.
+Portable contracts cover explicit subset scope, selected revisions, unrelated
+updates, resource mutations, replacement/abort cleanup, unchanged original Hub
+gates and private-field projection. The new actual stock Chromium154/Firefox156
+pair captures this diagnostic twice per engine with78 unchanged source pins and
+unchanged distributions. Every capture selects64 of241 eligible owners and
+remains partial: the recorded prefix covers one owner,27 nodes and24 draw parts
+before the original wall/CPU ceilings censor continuation. All groups remain
+censored; zero groups cannot establish absent repetition or a speed gain.
+Chromium passes all four unchanged fluidness gates, while Firefox remains
+26–28fps and fails them, despite correct native motion and rejoin.
+
+Readonly light counts find17 point and19 spot sources; rendered contribution is
+only one point slot initially and zero after rejoin. The existing eight-slot
+capacity per type remains unchanged. The original image-error collector records
+16 completed classifications per engine without dropped/unsettled requests:
+per admission, one PNG network failure, three DDS and three TGA upstream HTTP
+failures and one JPG origin refusal. Those suffixes are observations, not decoded
+format or decoder-cause evidence. No admission widening, retries or substitute
+assets are enabled. See the [actual source-bound cohort](evidence/hub-loaded-model-cohort-stock-20261002.json).

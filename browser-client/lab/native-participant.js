@@ -9,6 +9,10 @@
     var initialized = false;
     var sceneIDs = [];
     var commandSequence = 0;
+    var avatarSampleDiagnostics = typeof BROWSER_LAB_AVATAR_SAMPLE_DIAGNOSTICS !== 'undefined' && BROWSER_LAB_AVATAR_SAMPLE_DIAGNOSTICS === true
+        && typeof createNativeAvatarSampleDiagnostics === 'function'
+        ? createNativeAvatarSampleDiagnostics({print:print,window:Window,stats:typeof Stats !== 'undefined'?Stats:null,
+            current:function(){return !!location.isConnected;}}) : null;
     function report(kind, data) {
         print("BROWSER_LAB " + JSON.stringify({ kind: kind, at: Date.now(), data: data }));
     }
@@ -85,6 +89,7 @@
         });
         report("observation", { selfId: MyAvatar.sessionUUID, position: MyAvatar.position, muted: Audio.muted, inputLevel: Audio.inputLevel,
             avatars: avatars, entities: entities });
+        if (avatarSampleDiagnostics) avatarSampleDiagnostics.authorObservation();
     }, 2000);
     Script.setInterval(function () {
         var request = new XMLHttpRequest();
@@ -104,8 +109,10 @@
             }
             if (typeof command.muted === "boolean") { Audio.muted = command.muted; }
             report("command-applied", command);
+            if (avatarSampleDiagnostics) avatarSampleDiagnostics.authorObservation();
         };
         request.send();
     }, 500);
+    if (avatarSampleDiagnostics) Script.scriptEnding.connect(function(){avatarSampleDiagnostics.stop();});
     report("started", { version: About.version });
 }());

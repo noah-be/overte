@@ -251,7 +251,12 @@ def start(gateway=False):
     launch("assignments",[server/"assignment-client","-a","127.0.0.1","--server-port","45102",
                            "--disable-domain-port-auto-discovery","--min-listen-port","45200","--monitor-port","45290","-n","6",
                            "--logOptions","nocolor,nojournald"],server_env,state)
-    shutil.copyfile(SOURCE/"native-participant.js",ROOT/"http/native-participant.js")
+    if os.environ.get("OVERTE_LAB_AVATAR_SAMPLE_DIAGNOSTICS") == "1":
+        (ROOT/"http/native-participant.js").write_text("var BROWSER_LAB_AVATAR_SAMPLE_DIAGNOSTICS = true;\n" +
+            (SOURCE.parent/"gateway/native-avatar-sample-diagnostics.js").read_text() + "\n" +
+            (SOURCE/"native-participant.js").read_text())
+    else:
+        shutil.copyfile(SOURCE/"native-participant.js",ROOT/"http/native-participant.js")
     (ROOT/"http/command.json").write_text('{"sequence":0}\n')
     launch("assets-http",[sys.executable,"-m","http.server","45110","--bind","127.0.0.1","--directory",ROOT/"http"],env,state)
     for number,name in [(94,"xvfb"),(95,"native-xvfb")]:
@@ -337,6 +342,7 @@ def start_gateway(state):
                    "OVERTE_INTERFACE":str(ROOT/"appimage/squashfs-root/AppRun"),
                    "OVERTE_INTERFACE_LIBRARY_PATH":f'{native_root}/usr/lib:{qt_root}',
                    "QML2_IMPORT_PATH":f'{qt_root / "qt5/qml"}:{ROOT / "native-input/qml"}',
+                   "OVERTE_GATEWAY_AVATAR_SAMPLE_DIAGNOSTICS":os.environ.get("OVERTE_LAB_AVATAR_SAMPLE_DIAGNOSTICS", ""),
                    "OVERTE_GATEWAY_DEFAULT_SCRIPTS":str(native_root / 'usr/bin/scripts/defaultScripts.js'),
                    "OVERTE_GATEWAY_XVFB":tools["xvfb"],
                    "OVERTE_GATEWAY_SLIRP":slirp,

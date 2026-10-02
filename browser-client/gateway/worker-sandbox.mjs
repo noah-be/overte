@@ -42,7 +42,7 @@ export async function sandboxCommand({ directory, executable, env, roots = [], d
     const command = process.env.OVERTE_GATEWAY_BWRAP || 'bwrap';
     const args = ['--unshare-user', '--uid', String(process.getuid?.() || 1000),
         '--gid', String(process.getgid?.() || 1000), '--unshare-pid', '--unshare-ipc', '--unshare-uts', '--die-with-parent',
-        '--new-session', '--clearenv', '--ro-bind', '/usr', '/usr'];
+        '--new-session', '--cap-drop', 'ALL', '--clearenv', '--ro-bind', '/usr', '/usr'];
     for (const [source, target] of [['/lib', '/lib'], ['/lib64', '/lib64'], ['/bin', '/bin']]) {
         try { await access(source); args.push('--ro-bind', source, target); } catch { /* Distribution-dependent paths. */ }
     }

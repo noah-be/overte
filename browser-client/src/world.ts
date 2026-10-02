@@ -46,6 +46,8 @@ import { UnsupportedNativeCompression, type NativeCompressedColorCache, type Com
 import { batchStaticModel, inspectStaticModel, type StaticModelBatch, type StaticModelBatchInspection } from './static-model-batch';
 import { censusWorldDraws, type DrawCensusOptions } from './world-draw-census';
 import { censusWorldDrawsAsync, type AsyncDrawCensusOptions } from './world-draw-census-async';
+import { type DrawRevisionRefusal } from './world-draw-census-refusal';
+import {LoadedModelCohort} from './loaded-model-cohort';
 import { hasNativeZeroLightShader, installNativeZeroLightShader, restoreNativeZeroLightShader } from './native-zero-lights';
 export type { Avatar, Entity, Pose, Vec3 } from './world-data';
 
@@ -394,13 +396,25 @@ export class BrowserWorld {
         Boolean(entity.script||entity.serverScripts)||Boolean(entity.parentID&&!/^\{?00000000-0000-0000-0000-000000000000\}?$/.test(entity.parentID))||
         materialParents.has(id)||Boolean(entity.animation&&typeof entity.animation==='object'&&((entity.animation as Record<string,unknown>).url||(entity.animation as Record<string,unknown>).running===true));
       const rejectedModels=new Set(roots.filter(({id,loaded})=>loaded&&this.entities.get(id)?.type==='Model'&&rejected(id,this.entities.get(id))).map(({id})=>id));
-      const revision=()=>capture&&current()&&settled()&&this.scene===scene&&scene.parent===sceneParent&&
-        this.objects.size===roots.length&&this.entities.size===entities.length&&
-        roots.every(({id,root,loaded,ready,failed,signature})=>this.objects.get(id)===root&&
-          (root.userData.modelLoaded===true)===loaded&&(root.userData.shadersReady===true)===ready&&
-          (root.userData.modelFailed===true)===failed&&this.signatures.get(id)===signature)&&
-        entities.every(([id,entity])=>this.entities.get(id)===entity||(rejectedModels.has(id)&&this.entities.get(id)?.type==='Model'&&rejected(id,this.entities.get(id))))&&
-        scenePose().every((value,index)=>Object.is(value,sceneValues[index]));
+      let revisionRefusal:DrawRevisionRefusal|undefined;
+      const refused=(reason:DrawRevisionRefusal)=>{revisionRefusal=reason;return false;};
+      const revision=()=>{
+        revisionRefusal=undefined;
+        if(!capture||!current()||!settled())return refused('revision-admission-or-unsettled');
+        if(this.scene!==scene||scene.parent!==sceneParent)return refused('revision-scene-identity');
+        if(this.objects.size!==roots.length)return refused('revision-owner-map-size');
+        if(this.entities.size!==entities.length)return refused('revision-entity-map-size');
+        if(!roots.every(({id,root,loaded,ready,failed,signature})=>{
+          if(this.objects.get(id)!==root)return refused('revision-root-identity');
+          if((root.userData.modelLoaded===true)!==loaded||(root.userData.shadersReady===true)!==ready||
+            (root.userData.modelFailed===true)!==failed)return refused('revision-root-status');
+          if(this.signatures.get(id)!==signature)return refused('revision-root-signature');
+          return true;
+        }))return false;
+        if(!entities.every(([id,entity])=>this.entities.get(id)===entity||(rejectedModels.has(id)&&this.entities.get(id)?.type==='Model'&&rejected(id,this.entities.get(id)))))return refused('revision-entity-record');
+        if(!scenePose().every((value,index)=>Object.is(value,sceneValues[index])))return refused('revision-scene-transform');
+        return true;
+      };
       const self=this;
       function* owners(){
         for(const {id,root,loaded}of roots){
@@ -413,7 +427,54 @@ export class BrowserWorld {
         }
       }
       return await censusWorldDrawsAsync(owners(),{...limits,signal:controller.signal,isCurrent:()=>capture&&current(),
-        isRevisionCurrent:revision,sourceSnapshotMetadataBytes:capture?roots.length*192+entities.length*64+512:0});
+        isRevisionCurrent:revision,revisionRefusalReason:()=>revisionRefusal,sourceSnapshotMetadataBytes:capture?roots.length*192+entities.length*64+512:0});
+    });
+    this.drawCensusAbort=controller;this.drawCensusRun=work;
+    try{return await work;}finally{
+      this.abort.signal.removeEventListener('abort',stop);
+      if(this.drawCensusRun===work){this.drawCensusRun=undefined;this.drawCensusAbort=undefined;}
+    }
+  }
+
+  /** Explicit captured loaded-Model cohort diagnostics. At most64 owners;
+   * never whole-scene coverage or instance admission. Off unless requested. */
+  async getLoadedModelCohortCensusAsync(limits: Omit<AsyncDrawCensusOptions,'signal'|'isCurrent'|'isRevisionCurrent'|'revisionRefusalReason'|'sourceSnapshotMetadataBytes'> = {}) {
+    const emptyScope={scope:'captured-static-loaded-Model-cohort' as const,maximumSelectedOwners:64,
+      selectedOwners:0,eligibleAtCapture:0,modelOwnersAtCapture:0,selectionPartial:false,wholeWorldCoverage:false as const,sourcePreparationMs:0};
+    const request=++this.drawCensusRequest;
+    this.drawCensusAbort?.abort();
+    const previous=this.drawCensusRun;if(previous)await previous.then(()=>{},()=>{});
+    if(request!==this.drawCensusRequest)return{...await censusWorldDrawsAsync([],{...limits,signal:this.abort.signal,isCurrent:()=>false,isRevisionCurrent:()=>false}),modelCohort:emptyScope};
+    const controller=new AbortController(),stop=()=>controller.abort();
+    if(this.abort.signal.aborted)stop();else this.abort.signal.addEventListener('abort',stop,{once:true});
+    const work=Promise.resolve().then(async()=>{
+      const preparationStarted=performance.now(),wallBudget=limits.maximumWallMs??5000,cpuBudget=limits.maximumTotalCpuMs??1500;
+      if(!Number.isSafeInteger(wallBudget)||wallBudget<1||wallBudget>5000)throw Error('Invalid Model cohort wall bound');
+      if(!Number.isSafeInteger(cpuBudget)||cpuBudget<1||cpuBudget>2000)throw Error('Invalid Model cohort CPU bound');
+      const deadline=setTimeout(stop,wallBudget);
+      const objects=this.objects,entities=this.entities,signatures=this.signatures,scene=this.scene;
+      let authority:WorldSourceAuthority|undefined,cohort:LoadedModelCohort|undefined;
+      try{authority=this.options.captureAssetAuthority?.();}catch{/* Fixed refusal only. */}
+      const current=()=>{
+        if(this.disposed||!this.enabled||this.abort.signal.aborted||controller.signal.aborted||!authority||
+          this.objects!==objects||this.entities!==entities||this.signatures!==signatures||this.scene!==scene)return false;
+        try{authority.assertCurrent();return true;}catch{return false;}
+      };
+      try{
+        if(current()&&!this.modelScheduler.stats.active&&!this.modelScheduler.stats.queued&&!this.compilingGraphics){
+          try{cohort=new LoadedModelCohort({objects,entities,signatures,scene},limits.maximumMetadataBytes);}
+          catch{/* Refused source metadata cannot publish a complete report. */}
+        }
+        const preparationMs=performance.now()-preparationStarted;
+        if(preparationMs>=wallBudget||preparationMs>=cpuBudget)stop();
+        const scope={...cohort?.reportScope??emptyScope,sourcePreparationMs:preparationMs};
+        const report=await censusWorldDrawsAsync(cohort?.owners()??[],{...limits,signal:controller.signal,
+          maximumWallMs:Math.max(1,Math.floor(wallBudget-preparationMs)),
+          maximumTotalCpuMs:Math.max(1,Math.floor(cpuBudget-preparationMs)),
+          isCurrent:()=>!!cohort&&current(),isRevisionCurrent:()=>!!cohort&&current()&&cohort.current(),
+          sourceSnapshotMetadataBytes:cohort?.metadataBytes??0});
+        return{...report,modelCohort:scope};
+      }finally{clearTimeout(deadline);cohort?.release();cohort=undefined;}
     });
     this.drawCensusAbort=controller;this.drawCensusRun=work;
     try{return await work;}finally{
@@ -447,6 +508,23 @@ export class BrowserWorld {
         batchCandidate:this.modelBatches.get(root)?.candidate ?? inspectStaticModel(root,{materialChildren:this.hasMaterialChildren(id)}),
         batchedDrawCallsSaved:this.modelBatches.get(root)?.value.savedDrawCalls ?? 0};
     }).sort((a,b) => b.groups - a.groups);
+  }
+  /** Aggregate-only light diagnostics. The private source collection includes
+   * instantiated domain lights, even though their original nodes stay hidden.
+   * Slots are the actual renderer-facing lights; reading counts never changes
+   * their visibility, intensities, transforms or compiled shader capacities. */
+  getLocalLightStatistics() {
+    let sourcePointLights=0,sourceSpotLights=0;
+    for(const light of this.localLights) {
+      if(light instanceof THREE.SpotLight)sourceSpotLights++;
+      else sourcePointLights++;
+    }
+    const visible=(slots:readonly THREE.Light[])=>slots.filter(light=>light.visible).length;
+    const contributing=(slots:readonly THREE.Light[])=>slots.filter(light=>light.visible&&Number.isFinite(light.intensity)&&light.intensity>0).length;
+    return {enabled:this.localLightsEnabled,sourcePointLights,sourceSpotLights,
+      pointSlotCapacity:this.pointSlots.length,spotSlotCapacity:this.spotSlots.length,
+      visiblePointSlots:visible(this.pointSlots),visibleSpotSlots:visible(this.spotSlots),
+      contributingPointSlots:contributing(this.pointSlots),contributingSpotSlots:contributing(this.spotSlots)};
   }
   getPerformance() {
     return { ...this.metrics.snapshot(), bitmapUpload:{enabled:!!this.bitmapUploads,...this.bitmapBindingCounters,...this.bitmapUploads?.stats()}, staticModelMatrices:this.staticMatrices?{enabled:true,...this.staticMatrices.statistics}:{enabled:false}, texturePreparation:{enabled:!!this.texturePreparations,...this.foregroundTextureCounts,...this.texturePreparations?.stats}, shaderWarmup:{enabled:this.shaderWarmup,...this.shaderWarmupCounters}, gpuTiming: this.gpuTiming?.getSnapshot() ?? { enabled: false }, cpuFrameTiming:this.cpuFrameTiming?.getSnapshot() ?? {enabled:false}, renderCpuTiming:this.renderCpuTiming?.snapshot() ?? {enabled:false}, drawingBufferWidth: this.renderer.getContext().drawingBufferWidth,

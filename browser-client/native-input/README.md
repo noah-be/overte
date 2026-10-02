@@ -57,3 +57,63 @@ describes commit strings, selection replacement and undo behavior. The actual
 editor implementations are
 [QQuickTextInput](https://github.com/qt/qtdeclarative/blob/5.15/src/quick/items/qquicktextinput.cpp)
 and [QQuickTextEdit](https://github.com/qt/qtdeclarative/blob/5.15/src/quick/items/qquicktextedit.cpp).
+
+The private WebEngine route now delivers ordinary text with the genuine Qt input
+method event to the current WebEngine Quick delegate. A dedicated password
+method requires that exact delegate class, the original root/window/thread/
+focus/ancestry, and the hidden-text input hint. Password text is one complete
+well-formed UTF-16 commit, at most 64 KiB UTF-8 and 65,536 UTF-16 units, with no
+C0 or DEL characters. It emits no keyboard events and has no alternative after
+delivery. This keeps a supplementary character and its neighbors in one undo
+transaction. A failed native send is a refusal, not a reason to run a DOM setter.
+
+The QML route performs one read-only DOM admission query, then checks current
+focus, WebView URL, displayed surface, permission revision and navigation before
+native delivery. The existing queue limit (64 operations), serialized request
+limit (262,144 units), and five-second timeout remain unchanged. Cancellation
+clears queued text and retained GUI references. It can prevent a future dispatch;
+it cannot retract an input event already delivered. Multiple password elements
+in the same page can share a Quick delegate, so these checks are **not** a lock
+on a distinct password DOM element.
+
+`build-native-input.py --test --test-web-editors` runs the existing `actual-qt-input` CI gate's
+fourteen genuine WebEngine editor cases; no CI stage is added. It generates a
+private fixture from the current production QML functions and verifies every
+invoked native method is registered in both the fixture and compiled C++.
+The ordinary text, number, textarea, literal contenteditable, password Unicode,
+one Undo, Redo, maxlength, readonly, disabled, immediate cancellation and
+navigation cancellation oracles keep their original values and five-second
+case deadlines. The test refuses a stale plugin source, altered packaged
+WebEngine resources, or a mismatched Qt 5.15.3 runtime. Prepare the lab first so
+the matching QtTest module is present alongside the reviewed native libraries.
+
+The equivalent standalone command after a successful plugin build is:
+
+```sh
+python3 browser-client/native-input/web-editor/run.py \
+  --input-build build/browser-lab/native-input \
+  --qt-libraries build/browser-lab/appimage/squashfs-root/usr/lib \
+  --qt-test-libraries build/browser-lab/qt-tablet/usr/lib/x86_64-linux-gnu \
+  --xvfb build/browser-lab/host-tools/usr/bin/Xvfb \
+  --report build/browser-lab/evidence/native-web-editor.json
+```
+
+Use a new report filename for each run. Reports contain only fixed case enums,
+lengths, boolean outcomes and source/resource hashes. The runner owns an
+authenticated display and renderer process group, preserves the inherited
+`HOME`, and confines configuration/cache/data to its temporary profile. Both
+output streams are drained with 64 KiB retention caps; failure stderr is saved
+privately beside the report. The editor's original 60-second outer deadline and
+65-second runner deadline are retained. This fixture does not prove complete
+Tablet app functionality or shipping browser reliability.
+
+Portable control and registration tests run under the existing `npm test` glob;
+`native-input/test-native-web-route.py` compiles the exact whole-password method
+against controlled event contracts. These CPU checks cannot prove Blink's actual
+editing semantics. The genuine fixture remains necessary.
+
+The explicit `--test-web-editors` flag requires `--test`. Jenkins enables it only
+with the reviewed packaged native runtime. Ordinary `--test` still runs the
+existing native input/root-grab tests against supported system Qt; it does not
+claim the packaged WebEngine editor proof. A system Qt distribution cannot
+substitute for the exact reviewed editor resources.

@@ -26,7 +26,7 @@ test('native AvatarManager null self key never becomes a phantom peer', async ()
             canViewAssetURLs: () => true, canAdjustLocks: () => false, canWriteAssets: () => false,
             canReplaceContent: () => false, canGetAndSetPrivateUserData: () => false },
         Menu: { triggerOption(option) { context.quitOption = option; } },
-        Users: { canKick: false }, Window: { domainConnectionRefused: { connect() {} } },
+        Users: { canKick: false, getIgnoreStatus: () => false }, Window: { domainConnectionRefused: { connect() {} } },
         Script: { setInterval(callback, delay) { timers.set(delay, callback); return delay; }, scriptEnding: { connect() {} } },
     };
     const nativeLocation = { isConnected: true, href: 'overte://test', domainID: '{33333333-3333-3333-3333-333333333333}' };

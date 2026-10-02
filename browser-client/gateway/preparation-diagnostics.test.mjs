@@ -92,7 +92,9 @@ async function preparationLaunchFailure(mode) {
   children.push(child);return child;
  };
  const launch=vm.runInNewContext(launchSource+';launchNativeNetwork',{
-  path,net,process,JSON,Error,Promise,writeFile:async()=>{},owner:'fixed-owner',udpOwner:'fixed-udp',
+  // This scoped namespace-replacement fixture tests the original default branch.
+  // Actual trusted-entry routing is covered by the unchanged real network probes.
+  path,net,process:{...process,env:{...process.env,OVERTE_GATEWAY_TRUSTED_NETWORK_SETUP:'0'}},JSON,Error,Promise,writeFile:async()=>{},owner:'fixed-owner',udpOwner:'fixed-udp',
   supervisorEnvironment:{PATH:'/usr/bin:/bin:/usr/sbin:/sbin'},
   scopedNativeRelay:async()=>({close:async()=>{relayClosed++;}}),
   lineFrom,helperPreparationDiagnostics,stopChild

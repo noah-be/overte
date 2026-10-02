@@ -43,6 +43,13 @@ Window {
         verify(!nativeInput.commitText(plain,new Array(65538).join("a")),"Oversized native commits must be refused");
         verify(nativeInput.commitText(plain,new Array(65533).join("a")+"👋")&&plain.text.length===65534,"Exactly 64 KiB of UTF-8 text must be accepted");
         plain.text="unchanged";rich.forceActiveFocus();verify(!nativeInput.commitText(plain,"changed")&&plain.text==="unchanged","Unfocused items must be refused");
+        plain.forceActiveFocus();plain.text="unchanged";
+        verify(!nativeInput.commitWebPasswordText(plain,plain,"A")&&plain.text==="unchanged","Ordinary Qt editors must not use the delegated password route");
+        verify(!nativeInput.commitWebPasswordText(plain,plain,"\ud800"),"Lone high surrogate must be refused");
+        verify(!nativeInput.commitWebPasswordText(plain,plain,"\udc00"),"Lone low surrogate must be refused");
+        verify(!nativeInput.commitWebPasswordText(plain,plain,"ab"),"Ordinary editors cannot use the delegated whole-password route");
+        verify(!nativeInput.commitWebPasswordText(plain,plain,"\u0000"),"Password text policy must refuse NUL");
+        verify(!nativeInput.commitWebPasswordText(plain,null,"👋"),"Missing owned root must be refused");
         return true;
     }
 }

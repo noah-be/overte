@@ -6,6 +6,7 @@ import { censusWorldDraws, type DrawCensusOwner, type DrawCensusOptions } from '
 import { getNativeAlphaOptions, hasNativeAlphaShader } from './native-alpha-material';
 import { SessionUploadTexture } from './world-bitmap-upload';
 import { hasNativeZeroLightShader } from './native-zero-lights';
+import { checkedDrawRevisionRefusal, unsupportedDrawNodeReason, type DrawRevisionRefusal } from './world-draw-census-refusal';
 
 interface GeometryRecord { id:number; shape:string; hash:number; arrays:Uint8Array[] }
 interface Part { owner:number; geometry:GeometryRecord; material:number; equivalentMaterial:number; geometryIdentity:number; renderState:string }
@@ -23,13 +24,15 @@ interface GroupReport {groups:number;members:number;sourceOnlyDrawReductionUpper
 export interface AsyncDrawCensusOptions extends Omit<DrawCensusOptions,'maximumCpuMs'> {
   /** Fixed trusted World map/entity/signature revision, checked between turns. */
   isRevisionCurrent:()=>boolean;
+  /** Fixed enum cached by the same revision check; no additional World scan. */
+  revisionRefusalReason?:()=>DrawRevisionRefusal|undefined;
   maximumSliceMs?:number;maximumTotalCpuMs?:number;maximumWallMs?:number;
   /** Trusted adapter bookkeeping, charged to the same metadata cap. */
   sourceSnapshotMetadataBytes?:number;
 }
 const mutableRenderCache=new Set(['id','uuid','name','userData','_listeners','matrixWorldNeedsUpdate']);
 class CensusTurns {
-  reserve:(bytes:number)=>void=()=>{};censored=false;failureReason?:string;
+  reserve:(bytes:number)=>void=()=>{};censored=false;failureReason?:string;revisionRefusal?:DrawRevisionRefusal;
   private readonly records=new Map<object,{prototype:object|null;keys:PropertyKey[];values:unknown[]}>();
   private readonly arrays=new Map<unknown[],unknown[]>();
   private readonly bytes:Array<{snapshot:Uint8Array;borrowed:Uint8Array}>=[];
@@ -43,6 +46,7 @@ class CensusTurns {
   resume():void {
     this.sliceStarted=this.now();
     try{if(!this.options.isRevisionCurrent())this.failureReason='owner-revision-changed';}catch{this.failureReason='owner-revision-changed';}
+    if(this.failureReason==='owner-revision-changed')try{this.revisionRefusal=checkedDrawRevisionRefusal(this.options.revisionRefusalReason?.());}catch{/* Private failure strings are never retained. */}
     if(this.slices>=1024)this.failureReason='slice-count-budget';
   }
   finishSlice():void{const elapsed=this.now()-this.sliceStarted;this.cpu+=elapsed;this.maximumSlice=Math.max(this.maximumSlice,elapsed);this.slices++;}
@@ -97,7 +101,7 @@ function* scanWorldDraws(owners:Iterable<DrawCensusOwner>,options:DrawCensusOpti
  const bounds={...defaults,...options},now=options.now??(()=>performance.now()),start=now();
  for(const key of Object.keys(defaults) as (keyof typeof defaults)[])if(!Number.isSafeInteger(bounds[key])||bounds[key]<=0||bounds[key]>defaults[key])throw Error('Invalid draw census bound');
  const reasons:Record<string,number>={},counts={owners:0,nodes:0,meshes:0,drawParts:0,triangles:0,candidateParts:0,geometryBytesRead:0,metadataBytes:0,textureBindings:0};
- const inc=(reason:string)=>{reasons[reason]=(reasons[reason]??0)+1;};
+ const inc=(reason:string)=>{reasons[reason]=(reasons[reason]??0)+1;if(reason==='owner-revision-changed'&&turns.revisionRefusal){const detail=turns.revisionRefusal;reasons[detail]=(reasons[detail]??0)+1;}};
  turns.reserve=metadataBytes=>{if(counts.metadataBytes+metadataBytes>bounds.maximumMetadataBytes)throw new Censored('metadata-byte-budget');counts.metadataBytes+=metadataBytes;};
  const check=()=>{if(options.signal.aborted||!options.isCurrent())throw new Censored('owner-revoked');turns.check();};
  const checkpoint=function*(){check();if(turns.shouldYield())yield;check();};
@@ -179,10 +183,10 @@ function* scanWorldDraws(owners:Iterable<DrawCensusOwner>,options:DrawCensusOpti
    const firstOwnerPart=parts.length;let ownerReason=owner.dynamic?'dynamic':owner.scripted?'scripted':owner.parented?'native-parent':owner.materialChildren?'material-child':owner.animated?'animation':undefined;
    const stack:Array<{node:T.Object3D;visible:boolean}>=[{node:owner.root,visible:true}];
    while(stack.length){yield* checkpoint();if(counts.nodes>=bounds.maximumNodes)throw new Censored('node-count-budget');const {node,visible}=stack.pop()!;counts.nodes++;
-    try{safeRecord(node,nodePrototypes,64,!ownerReason);}catch(error){if(!(error instanceof Unsupported))throw error;inc('unsupported-node-accessor-or-class');partial=true;continue;}
+    try{safeRecord(node,nodePrototypes,64,!ownerReason);}catch(error){if(!(error instanceof Unsupported))throw error;inc('unsupported-node-accessor-or-class');inc(unsupportedDrawNodeReason(node,'node',error.message));partial=true;continue;}
     const drawn=visible&&node.visible,animations=array(node.animations,32,!ownerReason),children=array(node.children,bounds.maximumNodes-counts.nodes-stack.length,!ownerReason) as T.Object3D[];
     if(animations.length&&!ownerReason){ownerReason='animation';const removed=parts.length-firstOwnerPart;parts.splice(firstOwnerPart);counts.candidateParts-=removed;if(removed)inc('animation-owner-prior-parts');}
-    if(!ownerReason)try{safeRecord(node.position,[T.Vector3.prototype],4);safeRecord(node.scale,[T.Vector3.prototype],4);safeRecord(node.quaternion,[T.Quaternion.prototype],8);}catch(error){if(!(error instanceof Unsupported))throw error;inc('unsupported-node-accessor-or-class');partial=true;continue;}
+    if(!ownerReason)try{safeRecord(node.position,[T.Vector3.prototype],4);safeRecord(node.scale,[T.Vector3.prototype],4);safeRecord(node.quaternion,[T.Quaternion.prototype],8);}catch(error){if(!(error instanceof Unsupported))throw error;inc('unsupported-node-accessor-or-class');inc(unsupportedDrawNodeReason(node,'transform',error.message));partial=true;continue;}
     if(children.length>bounds.maximumNodes-counts.nodes-stack.length)throw new Censored('node-count-budget');preallocate((stack.length+children.length)*32);for(let i=children.length-1;i>=0;i--)stack.push({node:children[i],visible:drawn});
     if(!ownerReason){safeRecord(node.matrix,[T.Matrix4.prototype],2);array(node.matrix.elements,16);}
     if(!(node instanceof T.Mesh)||!drawn)continue;counts.meshes++;const g=node.geometry;try{geometryShape(g);}catch(error){if(!(error instanceof Unsupported))throw error;inc('unsupported-geometry-accessor-or-class');partial=true;continue;}const available=g.index?.count??g.attributes.position?.count??0,first=Math.max(0,g.drawRange.start),end=Math.min(available,first+g.drawRange.count);
@@ -223,7 +227,10 @@ export async function censusWorldDrawsAsync(owners:Iterable<DrawCensusOwner>,opt
       if(next.done){
         let current=false;try{current=!options.signal.aborted&&options.isCurrent()&&options.isRevisionCurrent();}catch{/* No private failure detail escapes. */}
         const report=next.value;
-        if(!current){report.partial=true;report.reasons['owner-revision-changed']=(report.reasons['owner-revision-changed']??0)+1;}
+        if(!current){report.partial=true;report.reasons['owner-revision-changed']=(report.reasons['owner-revision-changed']??0)+1;
+          let detail:DrawRevisionRefusal|undefined;try{detail=checkedDrawRevisionRefusal(options.revisionRefusalReason?.());}catch{/* Fixed categories only. */}
+          if(detail)report.reasons[detail]=(report.reasons[detail]??0)+1;
+        }
         if(!current||turns.censored)for(const key of ['exactGeometryAndMaterialIdentity','exactGeometryAndAuditedMaterialValues']as const)report[key]={groups:0,members:0,sourceOnlyDrawReductionUpperBound:0,independentlyLoadedGeometryGroups:0,independentMaterialGroups:0};
         const {maximumCpuMs:oldCpuBound,...resourceBounds}=report.bounds;void oldCpuBound;
         return{...report,version:2,bounds:resourceBounds,scheduling:turns.snapshot()};

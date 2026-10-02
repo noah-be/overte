@@ -44,7 +44,7 @@ jobs:
       - name: Install software graphics and isolated audio backends
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libgl1-mesa-dri libglx-mesa0 mesa-utils pulseaudio xvfb xauth bubblewrap slirp4netns iproute2 python3 g++ qtbase5-dev qtdeclarative5-dev qml-module-qtquick2 qml-module-qtquick-window2 apparmor-profiles
+          sudo apt-get install -y --no-install-recommends libgl1-mesa-dri libglx-mesa0 mesa-utils pulseaudio xvfb xauth bubblewrap slirp4netns iproute2 python3 gcc libc6-dev libssl-dev g++ qtbase5-dev qtdeclarative5-dev qml-module-qtquick2 qml-module-qtquick-window2 apparmor-profiles
           task_runtime_dir="$(mktemp -d "${RUNNER_TEMP}/overte-browser-runtime.XXXXXX")"
           chmod 700 "$task_runtime_dir"
           export XDG_RUNTIME_DIR="$task_runtime_dir"
@@ -59,6 +59,17 @@ jobs:
           sudo python3 tools/apparmor-diagnostic.py
           sudo python3 tools/prepare-apparmor-userns.py
           sudo python3 tools/apparmor-diagnostic.py
+      - name: Qualify reviewed dedicated network setup entrypoint
+        run: |
+          python3 -m unittest discover -s tools/trusted-network/tests -p 'test_*.py'
+          node --test tools/trusted-network/tests/trusted-entry.test.mjs
+          task_network_dir="$(mktemp -d "${RUNNER_TEMP}/overte-trusted-network.XXXXXX")"
+          chmod 700 "$task_network_dir"
+          python3 tools/trusted-network/workflow/policy.py --output "$task_network_dir/policy.json"
+          python3 tools/trusted-network/workflow/build.py --policy "$task_network_dir/policy.json" --stage "$task_network_dir/stage"
+          task_network_hash="$(sha256sum "$task_network_dir/stage/manifest.json" | cut -d ' ' -f1)"
+          sudo python3 tools/trusted-network/workflow/install.py --bundle "$task_network_dir/stage" --manifest-sha256 "$task_network_hash"
+          echo "OVERTE_GATEWAY_TRUSTED_NETWORK_SETUP=1" >> "$GITHUB_ENV"
       - name: Test protocol, collision, audio and worker isolation contracts
         run: npm test
       - name: Build and test actual Qt Tablet composition and clipboard input
@@ -109,7 +120,7 @@ jobs:
       - name: Install signed host dependencies for the native laboratory
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends python3 g++ binutils rpm2cpio cpio zstd \
+          sudo apt-get install -y --no-install-recommends python3 gcc libc6-dev libssl-dev g++ binutils rpm2cpio cpio zstd \
             ffmpeg pulseaudio pulseaudio-utils xvfb xauth bubblewrap slirp4netns iproute2 apparmor-profiles \
             ca-certificates libstdc++6 libgl-dev libgl1 libglx-mesa0 libegl1 libopengl0 libgl1-mesa-dri \
             libnss3 libasound2t64 libxcomposite1 libxdamage1 libxrandr2 libxtst6 libxss1 \
@@ -134,7 +145,22 @@ jobs:
       - name: Prepare pinned native artifacts and require real isolation/audio preflight
         run: |
           python3 browser-client/lab/manage.py prepare --host-tools system
-          python3 browser-client/lab/manage.py preflight
+      - name: Qualify reviewed entrypoint with exact prepared native packages
+        run: |
+          task_network_dir="$(mktemp -d "${RUNNER_TEMP}/overte-native-network.XXXXXX")"
+          chmod 700 "$task_network_dir"
+          python3 browser-client/tools/trusted-network/workflow/policy.py --output "$task_network_dir/policy.json" \
+            --native-root "$(realpath build/browser-lab/appimage/squashfs-root)" \
+            --qt-root "$(realpath build/browser-lab/qt-tablet/usr/lib/x86_64-linux-gnu)" \
+            --input-root "$(realpath build/browser-lab/native-input/qml)"
+          python3 browser-client/tools/trusted-network/workflow/build.py --policy "$task_network_dir/policy.json" --stage "$task_network_dir/stage"
+          task_network_hash="$(sha256sum "$task_network_dir/stage/manifest.json" | cut -d ' ' -f1)"
+          sudo python3 browser-client/tools/trusted-network/workflow/install.py --bundle "$task_network_dir/stage" --manifest-sha256 "$task_network_hash"
+          echo "OVERTE_GATEWAY_TRUSTED_NETWORK_SETUP=1" >> "$GITHUB_ENV"
+      - name: Require unchanged actual isolation and audio preflight
+        env:
+          OVERTE_GATEWAY_TRUSTED_NETWORK_SETUP: '1'
+        run: python3 browser-client/lab/manage.py preflight
       - name: Start actual domain, assignment servers, independent native and gateway
         id: start
         run: python3 browser-client/lab/manage.py start --gateway

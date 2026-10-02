@@ -1,6 +1,7 @@
 // Copyright 2026 Overte contributors
 // SPDX-License-Identifier: Apache-2.0
 import http from 'node:http';
+import { attachNativeAvatarProjection } from './native-avatar-stdout-projection.mjs';
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { mkdtemp, mkdir, readFile, writeFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -37,6 +38,7 @@ const directory = path.dirname(fileURLToPath(import.meta.url));
 const nativeBridgeSource = (await readFile(path.join(directory, 'native-visitor-persona.js'), 'utf8')) + '\n'
     + (await readFile(path.join(directory, 'native-visitor-preferences.js'), 'utf8')) + '\n'
     + (await readFile(path.join(directory, 'native-world.js'), 'utf8')) + '\n'
+    + (process.env.OVERTE_GATEWAY_AVATAR_SAMPLE_DIAGNOSTICS === '1' ? '\n' + await readFile(path.join(directory, 'native-avatar-sample-diagnostics.js'), 'utf8') : '')
     + await readFile(path.join(directory, 'native-bridge.js'), 'utf8')
     + (process.env.OVERTE_GATEWAY_REFRESH_DIAGNOSTICS === '1' ? '\n'
         + await readFile(path.join(directory, 'native-worker-refresh-readback.js'), 'utf8') + '\n'
@@ -68,7 +70,7 @@ let shuttingDown = false;
 let shutdownPromise;
 const send = (socket, value) => { if (socket?.readyState === WebSocket.OPEN && socket.bufferedAmount < 4 * 1024 * 1024) socket.send(JSON.stringify(value)); };
 const cookie = request => /(?:^|;\s*)overte_browser=([a-f0-9]{64})(?:;|$)/.exec(request.headers.cookie || '')?.[1];
-const json = (response, code, value) => { response.writeHead(code, { 'content-type': 'application/json', 'cache-control': 'no-store' }); response.end(JSON.stringify(value)); };
+const json = (response, code, value) => { const body = JSON.stringify(value); response.writeHead(code, { 'content-type': 'application/json', 'cache-control': 'no-store', 'content-length': Buffer.byteLength(body) }); response.end(body); };
 const equal = (a, b) => typeof a === 'string' && Buffer.byteLength(a) === Buffer.byteLength(b) && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 
 class Session extends SharedTeardown {
@@ -155,7 +157,7 @@ class Session extends SharedTeardown {
         const visitorPersona = await prepareVisitorPersona(this.directory, initialPersona.persona, this.personaOrigins,
             (this.publicPlace ? process.env.OVERTE_GATEWAY_PUBLIC_NATIVE_ORGANIZATION : process.env.OVERTE_GATEWAY_NATIVE_ORGANIZATION) || 'Overte');
         if (this.closed) throw Error('Session cancelled.');
-        const configuration = { url: `ws://127.0.0.1:${port}/native`, token: this.token, domain: nativeDomain, radius: Number(process.env.OVERTE_GATEWAY_RADIUS || 512), visitorPreferences: preferences, visitorPersona: visitorPersona, visitorDisplayName, personaPreserveFields: preservedPersonaFields, wearableFields: WEARABLE_FIELDS,
+        const configuration = { avatarSampleDiagnostics: !this.publicPlace && process.env.OVERTE_GATEWAY_AVATAR_SAMPLE_DIAGNOSTICS === '1', url: `ws://127.0.0.1:${port}/native`, token: this.token, domain: nativeDomain, radius: Number(process.env.OVERTE_GATEWAY_RADIUS || 512), visitorPreferences: preferences, visitorPersona: visitorPersona, visitorDisplayName, personaPreserveFields: preservedPersonaFields, wearableFields: WEARABLE_FIELDS,
             personaRuntimeFields: ['id','created','age','ageAsText','lastEdited','lastEditedBy','lastUpdated','lastSimulated','queryAACube','simulationOwner','entityHostType','owningAvatarID','renderInfo','boundingBox','position','rotation','parentID','localRotationAngles','jointRotations','jointTranslations'],
             personaInertFields: {script:'',serverScripts:'',scriptTimestamp:0,href:'',description:'',actionData:'',certificateID:'',itemName:'',itemDescription:'',itemCategories:'',itemArtist:'',itemLicense:'',marketplaceID:'',limitedRun:0,editionNumber:0,cloneable:false,cloneLifetime:300,cloneLimit:0,cloneDynamic:false,cloneAvatarEntity:false} };
         const defaultScripts = this.publicPlace ? process.env.OVERTE_GATEWAY_PUBLIC_DEFAULT_SCRIPTS || process.env.OVERTE_GATEWAY_DEFAULT_SCRIPTS : process.env.OVERTE_GATEWAY_DEFAULT_SCRIPTS;
@@ -222,7 +224,7 @@ class Session extends SharedTeardown {
         if (this.worker) {
             this.network = await launchNativeNetwork({ directory: this.directory, command: launchCommand,
                 args: [...launchPrefix, ...args], env: launchEnv, hostPort: port, nativePath: '/native',
-                spawnOwned: (command, arguments_, processEnv, label) => this.process(command, arguments_, processEnv, label),
+                spawnOwned: (command, arguments_, processEnv, label, options) => this.process(command, arguments_, processEnv, label, options),
                 signal: this.workerAbort.signal, slirpExecutable: process.env.OVERTE_GATEWAY_SLIRP || 'slirp4netns',
                 ...(this.managedUDP ? { managedUDP: this.managedUDP } : {}) });
             this.nativeProcess = this.network.child;
@@ -249,8 +251,15 @@ class Session extends SharedTeardown {
         this.timeout = setTimeout(() => { if (!this.native) { send(this.browser, { type: 'state', state: 'error', message: 'The native gateway did not start its bridge within 90 seconds.' }); this.close(false); } }, 90000);
         send(this.browser, { type: 'state', state: 'connecting', sessionId: this.id, message: 'Starting your isolated native connection…' });
     }
-    process(command, args, env, label) {
-        const child = spawn(command, args, { env, stdio: ['pipe', 'pipe', 'pipe'] });
+    process(command, args, env, label, options) {
+        const stdio = ['pipe', 'pipe', 'pipe'];
+        if (options !== undefined) {
+            if (label !== 'Private native network' || command !== '/usr/libexec/overte-browser-network/launcher'
+                || args.length !== 0 || !options || Object.keys(options).join() !== 'configurationFD'
+                || !Number.isSafeInteger(options.configurationFD) || options.configurationFD < 3) throw Error('Invalid trusted native setup descriptor.');
+            stdio.push(options.configurationFD);
+        }
+        const child = spawn(command, args, { env, stdio });
         this.processes.push(child);
         child.on('error', () => { if (!this.closed) send(this.browser, { type: 'state', state: 'error', message: `${label} could not be started.` }); this.close(false); });
         // Native logs may contain domain/account data; keep them private to this temporary session.
@@ -259,6 +268,10 @@ class Session extends SharedTeardown {
             child.stdout.on('data', data => { diagnostics = (diagnostics + data).slice(-128 * 1024); });
             child.stderr.on('data', data => { diagnostics = (diagnostics + data).slice(-128 * 1024); });
             this.diagnostics = () => diagnostics;
+            attachNativeAvatarProjection(child, {
+                enabled: process.env.OVERTE_GATEWAY_AVATAR_SAMPLE_DIAGNOSTICS === '1',
+                publicPlace: !!this.publicPlace, emit: line => process.stdout.write(line)
+            });
         } else {
             child.stderr.on('data', () => {});
             child.once('exit', code => {

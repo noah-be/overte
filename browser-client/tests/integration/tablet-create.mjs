@@ -12,6 +12,7 @@ import path from 'node:path';import {fileURLToPath} from 'node:url';
 import {readCreateWorkerLog,readCreateReadiness,readyCreateView,controlPaintBox,headingPaintBox,controlTabletPoint,readyFilteredOwnList,assertRuntimeCreateAudit} from './tablet-create-readiness.mjs';
 import {workerProfiles,freshWorkerProfile,readNativeSelection,assertOwnNativeSelection} from './tablet-create-selection.mjs';
 import {assertIsolatedCreateTarget,baselineIdentity,assertBaseline,discoverOwnedShape,assertExpectedShape} from './tablet-create-contract.mjs';
+import {writeAtomicFixtureCommand} from './atomic-fixture-command.mjs';
 const repo=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../../..'),client=path.join(repo,'browser-client'),lab=path.join(repo,'build/browser-lab');
 const runID=randomUUID(),name='Native Create Fixture '+runID,base=process.env.OVERTE_LAB_URL||'http://127.0.0.1:8090',domain='overte://127.0.0.2:45102';assertIsolatedCreateTarget(base,domain);
 const discovery=process.env.OVERTE_CREATE_DISCOVERY==='1';
@@ -19,14 +20,14 @@ const discovery=process.env.OVERTE_CREATE_DISCOVERY==='1';
 // actually drawn native capture, including responsive layouts. No guessed map.
 const directory=path.join(lab,'evidence/tablet-create',runID),profile=path.join(directory,'profile'),httpDirectory=path.join(lab,'http/create-fixtures',runID),assetBase=`http://127.0.0.1:45110/create-fixtures/${runID}/`;
 const sha=data=>createHash('sha256').update(data).digest('hex'),delay=ms=>new Promise(r=>setTimeout(r,ms));
-const sources=['tests/integration/tablet-create.mjs','tests/integration/tablet-create-readiness.mjs','tests/integration/tablet-create-contract.mjs','tests/integration/tablet-create-selection.mjs','tests/integration/native-create-observer.js','tests/integration/system-firefox.mjs','gateway/native-tablet.js','gateway/tablet-capture.qml','gateway/native-bridge.js','gateway/create-responsive-overrides.mjs','src/world.ts','src/session.ts'];
+const sources=['tests/integration/tablet-create.mjs','tests/integration/atomic-fixture-command.mjs','tests/integration/tablet-create-readiness.mjs','tests/integration/tablet-create-contract.mjs','tests/integration/tablet-create-selection.mjs','tests/integration/native-create-observer.js','tests/integration/system-firefox.mjs','gateway/native-tablet.js','gateway/tablet-capture.qml','gateway/native-bridge.js','gateway/create-responsive-overrides.mjs','src/world.ts','src/session.ts'];
 async function hashes(){return Object.fromEntries(await Promise.all(sources.map(async file=>[file,sha(await readFile(path.join(client,file)))])));}
 const report={startedAt:new Date().toISOString(),completed:false,functionalAcceptance:false,discovery,scope:'Genuine native Qt Create on the isolated seven-entity local domain. No public writes, audio, direct property edits or scene provisioning.',screens:[],assertions:[],cleanupVerified:false};
 let browser,page,native,log='',sequence=1,baseline,owned,guiDeleted=false,workerProfile;
 function records(){return log.split('\n').filter(line=>line.includes('NATIVE_CREATE_OBSERVER ')).map(line=>{try{return JSON.parse(line.split('NATIVE_CREATE_OBSERVER ')[1]);}catch{return null;}}).filter(Boolean);}
 function latestSnapshot(){return records().filter(r=>r.kind==='snapshot').at(-1)?.data;}
 async function waitFor(fn,label,timeout=30000){const end=Date.now()+timeout;while(Date.now()<end){if(native&&(native.exitCode!==null||native.signalCode!==null))throw Error('The independent native observer exited');const refused=records().find(r=>r.kind==='refused');if(refused)throw Error(refused.data.message);const value=await fn();if(value)return value;await delay(100);}throw Error(`${label} exceeded ${timeout} milliseconds`);}
-async function command(action){const current=sequence++;await writeFile(path.join(httpDirectory,'command.json'),JSON.stringify({sequence:current,action})+'\n');return current;}
+async function command(action){const current=sequence++;await writeAtomicFixtureCommand(path.join(httpDirectory,'command.json'),{sequence:current,action});return current;}
 async function stop(child){if(!child||child.exitCode!==null||child.signalCode!==null)return;child.kill('SIGTERM');await Promise.race([new Promise(r=>child.once('exit',r)),delay(2500)]);if(child.exitCode===null&&child.signalCode===null){child.kill('SIGKILL');await Promise.race([new Promise(r=>child.once('exit',r)),delay(2500)]);}}
 try{
  await mkdir(httpDirectory,{recursive:true});await mkdir(path.join(profile,'config/Overte'),{recursive:true});report.sourceHashes={start:await hashes()};

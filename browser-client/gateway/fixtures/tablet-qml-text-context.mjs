@@ -4,7 +4,7 @@
 // These controlled Timer methods are not a genuine Qt/runtime completion proof.
 import vm from 'node:vm';
 import assert from 'node:assert/strict';
-const methods=['focusedItem','cancelTextInput','currentTextTarget','failTextInput','queueTextInput','finishTextInput','startWebText','text'];
+const methods=['focusedItem','observeTextTarget','cancelTextInput','currentTextTarget','failTextInput','queueTextInput','finishTextInput','startWebText','passwordTextValid','continuePasswordText','text'];
 export function installQmlTextInputFixture(source,context){
  const functions=methods.map(name=>{
   const match=source.match(new RegExp('    function '+name+'\\([^\\n]*\\) \\{[\\s\\S]*?\\n    \\}'));

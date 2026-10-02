@@ -61,16 +61,27 @@ pixels, functional acceptance and a meaningful Hub measurement before activation
 
 ## Current evidence and next concrete work
 
-Current next steps: finish source-frozen, short stock-browser `overte_hub`
-task-sliced draw censuses, preserving exact quality and original fluidness gates.
-The first Chromium cohort passes; its partial owner-revision census is not an
-instancing result. Review the bounded native-peer pre-assert diagnostic and rerun
-all nineteen exact-source CI gates; the latest run passes eighteen, with the
-Chromium second-participant movement assertion still failing. Prove supplementary
-password insertion, undo/redo, maxlength and pending cancellation against all
-fourteen original genuine editor cases before shipping. Resolve the observed
-Ubuntu unshare-unpriv capability-denial through a narrowly trusted immutable
-setup entrypoint, and measure the independent native atomic-commit failure.
+Current next steps: publish the reviewed shipping native-IME/capability-retirement
+checkpoint and qualify its exact source on Ubuntu and local native CI. Complete
+stock Chromium154 and Firefox156 Create workflows and the fourteen genuine
+Qt editor cases pass. The new78-pin short Hub pair passes Chromium fluidness,
+while Firefox remains26–28fps with successful actual native motion and rejoin.
+All four bounded loaded-Model censuses remain partial; zero censored groups
+establish no instancing opportunity. Original image failures are classified as
+network/HTTP/origin-stage results, not inferred decoder faults.
+
+A fresh stock Chromium core journey passes all18 checkpoints after explicit
+native capability retirement, including synthetic bidirectional voice. Optional
+numeric diagnostics capture up to381ms native peer joint reads but do not
+establish the historical CI pose-delay cause, native transmission or mixer
+receipt; preserve the original2,800ms predicate. The complete default-off trusted
+immutable setup and separate owned atomic-settings diagnostic are integrated
+with52/26 passing local CPU contracts respectively. Actual Ubuntu AppArmor/Px/
+sealed-FD/native and QSaveFile cause qualification remain required. Execute the
+prepared genuine People Ignore/Unignore flow with only its current painted
+native checkbox and exact owned visitors, then qualify a default-off monotonic
+rendered-light-prefix optimization through pixels, movement and short Hub
+measurements without reducing quality or changing fluidness thresholds.
 
 See [STATUS.md](STATUS.md) for exact published commits, actual source-frozen
 cohorts, preserved failures, tests and remaining limitations. Original real

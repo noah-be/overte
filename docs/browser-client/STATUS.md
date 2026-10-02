@@ -4,6 +4,129 @@ Last updated: 2026-10-02. **Original baseline passed; additional mandatory Table
 
 ## Current implementation and next step
 
+Current continuation (2026-10-02,03:42UTC): the new short source-frozen stock
+Hub pair qualifies Chromium154 loading, native movement, rejoin and all four
+unchanged fluidness gates (47.68/49.14/45.28/45.28fps). Firefox156 loads296
+actual Models and synchronizes/rejoins but fails those same gates
+(26.70/28.12/26.14/26.12fps). All78 source pins and distribution manifests remain
+unchanged. The explicit64-owner subset census is partial in all four captures;
+resource/time censorship still establishes no instancing result. Readonly counts
+find17 point and19 spot sources, but only one point slot contributes initially;
+capacity and source counts alone do not justify a change. The16 original image
+failures per engine are classified at their existing HTTP/network admission
+stage; file suffixes do not establish a decoder failure or justify wider origins.
+[Actual bounded Hub cohort](evidence/hub-loaded-model-cohort-stock-20261002.json).
+
+A fresh actual stock Chromium154 core journey now passes all eighteen original
+checkpoints after native capability retirement, with fresh native motion and
+synthetic voice at both real outputs. It records152 bounded diagnostic samples:
+peer rig reads can take381ms and pose age at the JavaScript flush reaches388ms.
+Post-publication pose deltas are zero here; interstitial state and update rates
+remain unknown. The optional extra reads may affect later timing. This success
+does not resolve the historical CI2,800ms peer failure or prove mixer receipt.
+[Actual current core projection](evidence/core-stock-chromium-avatar-projection-20261002.json).
+
+The strengthened original network contract first exposed nonzero capability
+bounding/inheritable state in the native payload. Explicit `--cap-drop ALL` at
+the original bwrap boundary fixes that cause; all21 actual default-path
+network/worker/preparation contracts pass with all twelve prohibited routes,
+all five native capability sets zero, NNP, original managed UDP, host-boundary
+and abrupt-parent-death checks. [Source-bound contract evidence](evidence/native-capability-and-setup-contracts-20261002.json). The corresponding sealed owner admission is
+updated without widening any mount, endpoint or permission.
+
+Complete default-off trusted static network setup is integrated for the
+Ubuntu AppArmor-specific failure. All52 C/Python contracts and three Node
+adapter contracts pass locally; the52-run uses documented mixed host archives
+and is CPU evidence only. A separate source-pinned Ubuntu atomic-settings
+workflow has26 passing contracts, including signed dependency/owned strace
+checks. Explicit stage chmod fixes a genuine restrictive-umask executable-mode
+failure. Both workflows pass actionlint1.7.12. Actual hosted AppArmor/Px/FD/native
+qualification and the independent QSaveFile commit cause remain pending.
+The original profiles, all admission gates and failed evidence are preserved.
+
+All1,387 registered components pass without skips (10.660s), including eleven
+bounded stdout and six People calibration contracts. All34 required repository
+suites pass (161.42s); both documentation suites pass again after these guides
+and source-bound evidence (1.02s). Genuine People Ignore/Unignore
+acceptance is prepared with passive current painted-control calibration and
+exact two-visitor/baseline cleanup, and remains unproved until it runs. Next:
+publish the reviewed checkpoint, qualify Ubuntu and genuine People, then
+measure a pixel-preserving rendered-light-prefix candidate against the Firefox
+Hub bottleneck. Complete Tablet/native parity and physical microphone evidence
+remain open. No endurance run is requested or performed.
+
+Current continuation (2026-10-02,03:11UTC): complete stock Chromium154 and
+Firefox156 Create journeys now pass the shipping native input route. Actual
+GUI Shape creation, Name/RGB/XYZ edits and native List selection/deletion agree
+with independent native and browser observations; all seven baseline entities
+are restored. Source coherence and owned test-service cleanup pass in both.
+The first audited run exposed a partial command-file publication race before
+fixture creation. Command publication now uses an exclusive same-directory
+temporary file and atomic rename; the original observer, predicates and
+deadlines remain unchanged. Its failed cleanup flag and independently intact
+baseline remain recorded, alongside both pre-mutation audit-admission failures.
+[Actual shipping Create proof](evidence/tablet-create-production-native-ime-20261002.json).
+This qualifies Create, not the whole native Tablet or a physical microphone.
+
+The production build,1,337 registered components and34 required repository
+suites passed before the subsequent small harness diagnostics. Four genuine
+World light-count contracts now pass; the rebuilt production bundle also passes.
+Next: source-frozen short stock Hub journeys with the explicitly scoped loaded
+Model census, exact existing fluidness thresholds, readonly light counts and
+bounded classification of the eight original failed image responses. Firefox
+fluidness and the image causes remain unresolved.
+
+Current continuation (2026-10-02,02:36UTC): the proven guarded whole-password
+IME and ordinary native WebEngine route are now integrated into production.
+The C++ source is byte-identical to the fourteen-case successful private proof;
+the eight QML lifecycle bodies match it. Production supplies only their missing
+fixed diagnostic adapter and enum property. The existing actual-qt-input gate
+now includes a portable genuine WebEngine fixture, with unchanged original
+fourteen oracles and five-second case deadlines. Running the current production
+builder with `--test --test-web-editors` passes all fourteen cases, cancellation, source coherence
+and owned renderer/display cleanup.
+[Production Qt input proof](evidence/tablet-production-native-ime-20261002.json).
+Complete stock Create workflows were subsequently proved above; distinct
+same-page DOM identity remains open.
+
+The reviewed diagnostic-only scoped loaded-Model census is integrated behind an
+explicit opt-in hook. It selects at most64 source-eligible owners, retains the
+original resource/CPU/wall ceilings and publishes `wholeWorldCoverage:false`.
+It admits no instancing or automatic rendering change. Actual stock Hub
+qualification and final component/build/repository refresh are next.
+
+Current continuation (2026-10-02,02:22UTC): reviewed harness/evidence checkpoint
+`232a7093ab522b1812ca8eef60287af12c593559` is published to the authorized fork
+and draftPR1023. All1,250 components,34 required suites and the subsequent
+documentation check pass; runtime sources are unchanged from09c062.
+Exact-source Jenkins7 again executes all nineteen gates with eighteen passing.
+The unchanged Chromium peer predicate fails: its original captured snapshot is
+one millisecond old, contains both avatars and matches the exact fixture name,
+but still contains the old peer position. The exact native command was applied
+2,893ms earlier and the independent later observation matches its target.
+Identity/arrival-age and browser/World-cache explanations do not fit this record.
+Internally aged sampling around blocking native rig reads versus native
+transmission/receipt still need distinguishing. The complete Firefox synthetic
+voice journey passes, but its fixed command repeats that prior target and cannot
+prove a second fresh peer motion. All owned services stop.
+[CI7 actual diagnostic](evidence/jenkins-ci-232a709-checkpoint-20261002.json).
+
+The private one-event guarded password IME correction now passes all fourteen
+actual Qt5.15.3 editor oracles, including exact Unicode, one native Undo/Redo,
+maxlength, readonly/disabled and ordinary/password immediate/navigation cancel.
+An earlier missing test-wrapper binding failed before native password dispatch;
+only those two registrations were corrected, with all production CPP/QML,
+literal values, readiness and original five-second deadlines unchanged.
+The measured plugin and all source/runtime hashes match; renderer and display
+cleanup pass. Shipping integration and full genuine Create/People/Chat refresh
+remain pending; same-page distinct password focus identity is not locked.
+[Actual fourteen-editor proof](evidence/tablet-password-whole-ime-actual-20261002.json).
+
+Next: integrate only the reviewed proven native input route and run genuine
+stock Create workflows, implement the explicitly scoped bounded loaded-Model
+census, and distinguish the actual native peer delay without extending its
+deadline. Complete hosted trusted setup and atomic settings cause proof.
+
 Current continuation (2026-10-02,01:48UTC): published runtime checkpoint
 `09c062bf5a371df78b01014dccfdbc4c37febcb9` passes the production build,
 1,233 components and all34 required repository suites. The new opt-in Hub

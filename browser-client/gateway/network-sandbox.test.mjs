@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import net from 'node:net';
 import { spawn } from 'node:child_process';
-import { mkdtemp, writeFile, readFile, rm, access } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, rm, access, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { once } from 'node:events';
@@ -60,7 +60,7 @@ test('private Unix ingress exposes only the fixed native upgrade, never browser/
 
 test('actual nested native network denies host/LAN routes and route tampering while its scoped bridge works',
     { skip: process.platform !== 'linux' }, async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), 'overte-net-worker-'));
+    const directory = await mkdtemp(path.join(tmpdir(), process.env.OVERTE_GATEWAY_TRUSTED_NETWORK_SETUP==='1'?'overte-browser-':'overte-net-worker-'));
     const owned = [];
     const target = net.createServer(client => client.once('data', () => client.end('HTTP/1.1 101 Switching Protocols\r\n\r\nowned-native-bridge')));
     target.listen(0, '127.0.0.1'); await once(target, 'listening');
@@ -74,6 +74,13 @@ result={}
 for address in ['192.168.1.1','172.20.1.1','169.254.169.254','100.64.0.1']:
     result[address]=subprocess.run(['ip','route','get',address],capture_output=True).returncode!=0
 result['cannotChangeRoutes']=subprocess.run(['ip','route','delete','prohibit','192.168.0.0/16'],capture_output=True).returncode!=0
+routes=subprocess.run(['ip','-j','route','show','type','prohibit'],capture_output=True)
+requiredRoutes={'10.0.0.0/8','172.16.0.0/12','192.168.0.0/16','169.254.0.0/16','100.64.0.0/10','192.0.0.0/24','192.0.2.0/24','198.18.0.0/15','198.51.100.0/24','203.0.113.0/24','224.0.0.0/4','240.0.0.0/4'}
+result['allTwelveProhibitRoutesPresent']=routes.returncode==0 and requiredRoutes<={row.get('dst') for row in json.loads(routes.stdout)}
+status=pathlib.Path('/proc/self/status').read_text().splitlines()
+result['allFiveNativeCapabilitySetsZero']=all(sum(line.startswith(field+':') and int(line.split(':')[1].strip(),16)==0 for line in status)==1 for field in ['CapInh','CapPrm','CapEff','CapBnd','CapAmb'])
+result['nativeNoNewPrivileges']=any(line.startswith('NoNewPrivs:') and line.split(':')[1].strip()=='1' for line in status)
+
 try:
     client=socket.create_connection(('10.0.2.2',${port}),timeout=1);client.close();result['hostLoopbackDenied']=False
 except OSError:result['hostLoopbackDenied']=True
@@ -84,14 +91,14 @@ result['noSupervisorCredentials']=not os.environ.get('OVERTE_SYNTHETIC_SECRET')
 pathlib.Path(${JSON.stringify(path.join(directory, 'proof.json'))}).write_text(json.dumps(result))
 raise SystemExit(0 if all(result.values()) else 1)
 `;
-        const worker = await sandboxCommand({ directory, executable: '/usr/bin/python3', env: { PATH: '/usr/bin:/bin', LANG: 'C.UTF-8' } });
+        const worker = await sandboxCommand({ directory, executable: await realpath('/usr/bin/python3'), env: { PATH: '/usr/bin:/bin', LANG: 'C.UTF-8' } });
         let slirpExecutable = process.env.OVERTE_GATEWAY_SLIRP || 'slirp4netns';
         const local = new URL('../../build/browser-native-net/root/usr/bin/slirp4netns', import.meta.url);
         try { await access(local); slirpExecutable = local.pathname; } catch { /* CI installs the official package. */ }
         network = await launchNativeNetwork({ directory, command: worker.command, args: [...worker.args, '-c', probe], env: worker.env,
             hostPort: port, nativePath: '/native', slirpExecutable, signal: new AbortController().signal,
-            spawnOwned(command, args, env) {
-                const child = spawn(command, args, { env: { ...env, OVERTE_SYNTHETIC_SECRET: 'must-not-inherit' }, stdio: ['pipe', 'pipe', 'pipe'] });
+            spawnOwned(command, args, env, label, options) {
+                const child = spawn(command, args, { env: { ...env, OVERTE_SYNTHETIC_SECRET: 'must-not-inherit' }, stdio: ['pipe', 'pipe', 'pipe', ...(options ? [options.configurationFD] : [])] });
                 owned.push(child); child.stderr.on('data', () => {}); return child;
             } });
         if (network.child.exitCode === null) await once(network.child, 'exit');
@@ -108,7 +115,7 @@ raise SystemExit(0 if all(result.values()) else 1)
 
 test('abrupt gateway death also removes the actual network owner, helper and native PID namespace',
     { skip: process.platform !== 'linux' }, async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), 'overte-net-parent-death-'));
+    const directory = await mkdtemp(path.join(tmpdir(), process.env.OVERTE_GATEWAY_TRUSTED_NETWORK_SETUP==='1'?'overte-browser-':'overte-net-parent-death-'));
     let parent;
     const descendants = new Set();
     try {
@@ -118,17 +125,17 @@ test('abrupt gateway death also removes the actual network owner, helper and nat
         try { await access(local); slirpExecutable = local.pathname; } catch { /* CI uses its reviewed system helper. */ }
         const fixture = `
           import {spawn} from 'node:child_process';
-          import {readFile} from 'node:fs/promises';
+          import {readFile,realpath} from 'node:fs/promises';
           import {launchNativeNetwork} from ${JSON.stringify(new URL('./network-sandbox.mjs', import.meta.url).href)};
           import {sandboxCommand} from ${JSON.stringify(new URL('./worker-sandbox.mjs', import.meta.url).href)};
           import {safePreparationDiagnostic} from ${JSON.stringify(new URL('./preparation-diagnostics.mjs', import.meta.url).href)};
-          const worker=await sandboxCommand({directory:${JSON.stringify(directory)},executable:'/usr/bin/python3',env:{PATH:'/usr/bin:/bin'}});
+          const worker=await sandboxCommand({directory:${JSON.stringify(directory)},executable:await realpath('/usr/bin/python3'),env:{PATH:'/usr/bin:/bin'}});
           const owned=[];
           const network=await launchNativeNetwork({directory:${JSON.stringify(directory)},command:worker.command,
             args:[...worker.args,'-c',${JSON.stringify(`import signal,time,pathlib; signal.signal(signal.SIGTERM,signal.SIG_IGN); pathlib.Path(${JSON.stringify(path.join(directory,'native-ready'))}).write_text('TERM-resistant native process is running'); time.sleep(600)`)}],
             env:worker.env,hostPort:40999,nativePath:'/native',slirpExecutable:${JSON.stringify(slirpExecutable)},
             signal:new AbortController().signal,
-            spawnOwned(command,args,env){const child=spawn(command,args,{env,stdio:['pipe','pipe','pipe']});owned.push(child);child.stderr.on('data',()=>{});return child;}}).catch(error=>{console.log(JSON.stringify({preparationFailure:safePreparationDiagnostic(error.networkPreparation)}));throw error;});
+            spawnOwned(command,args,env,label,options){const child=spawn(command,args,{env,stdio:['pipe','pipe','pipe',...(options?[options.configurationFD]:[])]});owned.push(child);child.stderr.on('data',()=>{});return child;}}).catch(error=>{console.log(JSON.stringify({preparationFailure:safePreparationDiagnostic(error.networkPreparation)}));throw error;});
           let nativeReady=false;
           for(let attempt=0;attempt<1000;attempt++){
             try{nativeReady=(await readFile(${JSON.stringify(path.join(directory,'native-ready'))},'utf8'))==='TERM-resistant native process is running';}catch{}
@@ -187,7 +194,7 @@ test('abrupt gateway death also removes the actual network owner, helper and nat
 test('real managed UDP route forwards only fixed domain/mixer ports from the isolated native network',
     { skip: process.platform !== 'linux' }, async () => {
     const { createSocket } = await import('node:dgram');
-    const directory = await mkdtemp(path.join(tmpdir(), 'overte-net-managed-'));
+    const directory = await mkdtemp(path.join(tmpdir(), process.env.OVERTE_GATEWAY_TRUSTED_NETWORK_SETUP==='1'?'overte-browser-':'overte-net-managed-'));
     const owned = [];
     const domain = createSocket('udp4');
     const forbidden = createSocket('udp4');
@@ -211,14 +218,14 @@ except socket.timeout:result['forbiddenPortDenied']=True
 pathlib.Path(${JSON.stringify(path.join(directory, 'proof.json'))}).write_text(json.dumps(result))
 raise SystemExit(0 if all(result.values()) else 1)
 `;
-        const worker = await sandboxCommand({ directory, executable: '/usr/bin/python3', env: { PATH: '/usr/bin:/bin' } });
+        const worker = await sandboxCommand({ directory, executable: await realpath('/usr/bin/python3'), env: { PATH: '/usr/bin:/bin' } });
         let slirpExecutable = process.env.OVERTE_GATEWAY_SLIRP || 'slirp4netns';
         const local = new URL('../../build/browser-native-net/root/usr/bin/slirp4netns', import.meta.url);
         try { await access(local); slirpExecutable = local.pathname; } catch { /* Installed CI package. */ }
         network = await launchNativeNetwork({ directory, command: worker.command, args: [...worker.args, '-c', probe], env: worker.env,
             hostPort: 40998, nativePath: '/native', slirpExecutable, managedUDP: { address: '127.0.0.2', ports: [domain.address().port] },
-            signal: new AbortController().signal, spawnOwned(command, args, env) {
-                const child = spawn(command, args, { env, stdio: ['pipe', 'pipe', 'pipe'] });
+            signal: new AbortController().signal, spawnOwned(command, args, env, label, options) {
+                const child = spawn(command, args, { env, stdio: ['pipe', 'pipe', 'pipe', ...(options ? [options.configurationFD] : [])] });
                 owned.push(child); child.stderr.on('data', () => {}); return child;
             } });
         if (network.child.exitCode === null) await once(network.child, 'exit');

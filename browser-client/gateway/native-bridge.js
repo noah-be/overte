@@ -113,6 +113,12 @@
             authority:function(){return active && permissionsApproved && location.isConnected ? permissionRevision+'|'+outputAuthority():null;}});
     }
     var rigCache = {};
+    var avatarSampleDiagnostics = null;
+    if (BROWSER_GATEWAY.avatarSampleDiagnostics && typeof createNativeAvatarSampleDiagnostics === 'function') {
+        avatarSampleDiagnostics = createNativeAvatarSampleDiagnostics({print:print,window:Window,
+            current:function(){return active && permissionsApproved && lastConnected && location.isConnected;},
+            authority:function(){return permissionRevision+'|'+outputAuthority();}});
+    }
     var navigationHistory = { canGoBack: false, canGoForward: false };
     function navigationMessage(channel, text, sender, localOnly) {
         if (!BROWSER_GATEWAY.navigation || channel !== BROWSER_GATEWAY.navigation.channel || !localOnly) { return; }
@@ -144,8 +150,12 @@
         }
     }
     function avatarData(id, avatar) {
+        var diagnostics = typeof avatarSampleDiagnostics === 'undefined' ? null : avatarSampleDiagnostics;
+        var sample = diagnostics && diagnostics.beginAvatar();
         var key = String(id), model = String(avatar.skeletonModelURL || ''), cached = rigCache[key], now = Date.now();
-        var position = avatar.position, orientation = avatar.orientation;
+        var position = avatar.position;
+        if (diagnostics) diagnostics.poseSampled(sample);
+        var orientation = avatar.orientation;
         var result = { id: key, displayName: String(avatar.displayName || 'Visitor').slice(0, 256), position: {x:position.x,y:position.y,z:position.z},
             orientation: {x:orientation.x,y:orientation.y,z:orientation.z,w:orientation.w}, scale: avatar.scale || 1, skeletonModelURL: model };
         var offset = avatar.skeletonOffset;
@@ -153,15 +163,25 @@
             result.skeletonOffset = { x: offset.x, y: offset.y, z: offset.z };
         }
         if (typeof avatar.getJointNames !== 'function' || typeof avatar.getJointRotations !== 'function'
-            || typeof avatar.getJointTranslations !== 'function') { return result; }
+            || typeof avatar.getJointTranslations !== 'function') {
+            if (diagnostics) diagnostics.completed(sample,result,avatar===MyAvatar,avatar);
+            return result;
+        }
         if (!cached || cached.model !== model || now - cached.time >= 100) {
             // The new URL can arrive before its asynchronously loaded rig. Sample names
             // with every bulk update so equal-size replacement rigs never retain old mappings.
+            if (diagnostics) diagnostics.beginPhase(sample);
             var names = avatar.getJointNames();
+            if (diagnostics) diagnostics.endPhase(sample,'names');
             // An unloaded native skeleton reports a genuine empty array. No
             // transform sample can be paired with it; retain the normal retry.
             var emptyRig = Array.isArray(names) && names.length === 0;
-            var rotations = emptyRig ? [] : avatar.getJointRotations(), translations = emptyRig ? [] : avatar.getJointTranslations();
+            if (diagnostics && !emptyRig) diagnostics.beginPhase(sample);
+            var rotations = emptyRig ? [] : avatar.getJointRotations();
+            if (diagnostics && !emptyRig) diagnostics.endPhase(sample,'rotations');
+            if (diagnostics && !emptyRig) diagnostics.beginPhase(sample);
+            var translations = emptyRig ? [] : avatar.getJointTranslations();
+            if (diagnostics && !emptyRig) diagnostics.endPhase(sample,'translations');
             var valid = names && rotations && translations && names.length > 0 && names.length <= 1000
                 && rotations.length === names.length && translations.length === names.length;
             var copiedNames = [], copiedRotations = [], copiedTranslations = [];
@@ -179,6 +199,7 @@
             rigCache[key] = cached;
         }
         result.jointNames = cached.names; result.jointRotations = cached.rotations; result.jointTranslations = cached.translations;
+        if (diagnostics) diagnostics.completed(sample,result,avatar===MyAvatar,avatar);
         return result;
     }
     function state() {
@@ -281,12 +302,14 @@
             state(); flush();
             if (!location.isConnected || !permissionsApproved) { return; }
             externalPose();
+            if (avatarSampleDiagnostics) avatarSampleDiagnostics.beginBatch();
             var selfId = String(MyAvatar.sessionUUID).replace(/[{}]/g, '').toLowerCase();
             var avatars = AvatarList.getAvatarIdentifiers().filter(function (id) {
                 // Native AvatarManager stores MyAvatar under a null UUID key.
                 if (!id) { return false; }
                 var canonical = String(id).replace(/[{}]/g, '').toLowerCase();
-                return canonical !== 'null' && canonical !== 'undefined' && canonical !== '00000000-0000-0000-0000-000000000000' && canonical !== selfId;
+                // People retains ignored peers for its list; native rendering still hides them.
+                return canonical !== 'null' && canonical !== 'undefined' && canonical !== '00000000-0000-0000-0000-000000000000' && canonical !== selfId && !Users.getIgnoreStatus(id);
             }).map(function (id) {
                 return avatarData(id, AvatarList.getAvatar(id));
             });
@@ -294,6 +317,7 @@
             var currentIds = {}; avatars.forEach(function (avatar) { currentIds[avatar.id] = true; });
             Object.keys(rigCache).forEach(function (id) { if (!currentIds[id]) { delete rigCache[id]; } });
             send({ type: 'avatars', avatars: avatars, selfId: String(MyAvatar.sessionUUID) }); flush();
+            if (avatarSampleDiagnostics) avatarSampleDiagnostics.published();
         }, 50);
     };
     socket.onmessage = function (event) {
@@ -399,6 +423,7 @@
     }
     Window.domainConnectionRefused.connect(function (reason) { send({ type: 'state', state: 'error', message: String(reason) }); });
     Script.scriptEnding.connect(function () {
+        if (avatarSampleDiagnostics) avatarSampleDiagnostics.stop();
         worldStream.stop(); clearOutput(); closeNavigation(); if (visitorPreferences) { visitorPreferences.stop(); } if (visitorPersona) { visitorPersona.stop(); }
         if (tablet) { tablet.close(); }
         if (interval) { Script.clearInterval(interval); }

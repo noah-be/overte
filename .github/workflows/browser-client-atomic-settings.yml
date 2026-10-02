@@ -1,0 +1,78 @@
+name: Owned atomic settings diagnostic
+on:
+  push:
+    branches: ['feature/main/browser-client']
+    paths:
+      - '.github/workflows/browser-client-atomic-settings.yml'
+      - 'browser-client/lab/atomic-provisioning/**'
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact reviewed fork commit (40 lowercase hexadecimal characters)
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  atomic-settings:
+    if: github.repository == 'noah-be/overte'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      PROBE_SOURCE_SHA: ${{ inputs.source_sha || github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: noah-be/overte
+          ref: ${{ inputs.source_sha || github.sha }}
+          persist-credentials: false
+      - name: Require exact reviewed source
+        env:
+          PROBE_SOURCE_SHA: ${{ inputs.source_sha || github.sha }}
+        run: |
+          python3 - <<'PY'
+          import os,re,subprocess
+          sha=os.environ['PROBE_SOURCE_SHA']
+          assert re.fullmatch('[0-9a-f]{40}',sha)
+          assert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()==sha
+          PY
+      - name: Prepare the original signed host dependencies and shipped policy
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends python3 g++ binutils rpm2cpio cpio zstd \
+            ffmpeg pulseaudio pulseaudio-utils xvfb xauth bubblewrap slirp4netns iproute2 apparmor-profiles \
+            gpgv ca-certificates libstdc++6 libgl-dev libgl1 libglx-mesa0 libegl1 libopengl0 libgl1-mesa-dri \
+            libnss3 libasound2t64 libxcomposite1 libxdamage1 libxrandr2 libxtst6 libxss1 \
+            libxcb-xinerama0 libxcb-cursor0 libxkbcommon-x11-0
+          python3 browser-client/tools/test_prepare_apparmor_userns.py
+          sudo python3 browser-client/tools/apparmor-diagnostic.py
+          sudo python3 browser-client/tools/prepare-apparmor-userns.py
+          sudo python3 browser-client/tools/apparmor-diagnostic.py
+      - name: Stage the reviewed private diagnostic and verify signed Noble dependency
+        run: |
+          python3 browser-client/lab/atomic-provisioning/stage.py
+      - name: Require signed-dependency and fixed-summary contracts before native startup
+        run: |
+          ATOMIC_DIAGNOSTIC_CACHE="$ATOMIC_PROBE_DIRECTORY" \
+          ATOMIC_DIAGNOSTIC_STRACE="$ATOMIC_PROBE_DIRECTORY/strace" \
+            python3 -B -m unittest discover \
+              -s browser-client/lab/atomic-provisioning -p 'test_*.py'
+      - name: Prepare a fresh original laboratory without starting services
+        run: |
+          python3 browser-client/lab/manage.py prepare --host-tools system
+      - name: Observe only the separate newly owned domain and strict provisioning
+        run: |
+          python3 "$ATOMIC_PROBE_DIRECTORY/probe.py" \
+            --repo-root "$GITHUB_WORKSPACE" --lab-root "$OVERTE_LAB_ROOT" \
+            --private-output "$ATOMIC_PROBE_OUTPUT"
+      - name: Validate fixed enum summary for artifact publication
+        if: always()
+        run: python3 browser-client/lab/atomic-provisioning/curate.py
+      - name: Retain only the validated fixed summary
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: owned-atomic-settings-diagnostic
+          path: ${{ runner.temp }}/atomic-settings-safe-summary.json
+          if-no-files-found: error
+          retention-days: 7

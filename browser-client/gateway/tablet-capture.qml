@@ -19,6 +19,7 @@ Item {
     property var activeCapture: null
     property var privateGrab: null
     property string captureSurface: "tablet"
+    property string domRefusal: "unobserved"
     property var pendingText: null
     property var textInputQueue: []
     property int textInputQueueUnits: 0
@@ -97,18 +98,32 @@ Item {
         var window=typeof offscreenWindow!=="undefined" ? offscreenWindow : topRoot().Window.window;
         return window ? window.activeFocusItem : null;
     }
+    // Fixed diagnostic adapter; no GUI/text references or history are retained.
+    function observeTextTarget(reason,accepted) {
+        return accepted===true;
+    }
     function cancelTextInput() {
         var pending=pendingText;pendingText=null;textInputQueue=[];textInputQueueUnits=0;
         if(textCommitTimer)textCommitTimer.stop();
-        if(pending){pending.cancelled=true;pending.web=null;pending.focus=null;pending.surface=null;}
+        if(pending){pending.cancelled=true;pending.web=null;pending.focus=null;pending.surface=null;pending.passwordValue="";pending.passwordOffset=0;}
     }
     function currentTextTarget(pending) {
         var input=pointerSurface||inputSurface;
-        if(!pending || pending.cancelled || !pending.web || !pending.focus || !input ||
-           input.item!==pending.surface || input.revision!==pending.revision || input.navigationSequence!==pending.navigationSequence || String(pending.web.url)!==pending.url || focusedItem()!==pending.focus)return false;
+        // Diagnostic only: preserve each original short-circuit/read order.
+        if(!pending)return helper.observeTextTarget("pending-missing",false);
+        if(pending.cancelled)return helper.observeTextTarget("pending-cancelled",false);
+        if(!pending.web)return helper.observeTextTarget("web-missing",false);
+        if(!pending.focus)return helper.observeTextTarget("focus-missing",false);
+        if(!input)return helper.observeTextTarget("input-missing",false);
+        if(input.item!==pending.surface)return helper.observeTextTarget("surface-changed",false);
+        if(input.revision!==pending.revision)return helper.observeTextTarget("revision-changed",false);
+        if(input.navigationSequence!==pending.navigationSequence)return helper.observeTextTarget("navigation-changed",false);
+        if(String(pending.web.url)!==pending.url)return helper.observeTextTarget("url-changed",false);
+        if(focusedItem()!==pending.focus)return helper.observeTextTarget("focused-item-changed",false);
         var item=pending.web,depth=0;
         while(item && item!==pending.surface && depth++<24)item=item.parent;
-        return item===pending.surface;
+        if(item!==pending.surface)return helper.observeTextTarget("ancestry-mismatch",false);
+        return helper.observeTextTarget("current",true);
     }
     function failTextInput(pending,reason) {
         if(!pending || pendingText!==pending || pending.cancelled)return;
@@ -138,12 +153,56 @@ Item {
         var pending={web:web,focus:focused,surface:input.item,url:url,revision:input.revision,navigationSequence:input.navigationSequence,cancelled:false};
         if(!currentTextTarget(pending))return false;
         pendingText=pending;textCommitTimer.restart();
-        // Only a native editable activeElement receives a normal insertion.
+        // The existing single callback checks the actual editable document before IME.
         // No direct value/property assignment, synthetic change event or field ID.
-        var source='(function(){if(String(location.href)!=='+JSON.stringify(url)+')return false;var e=document.activeElement;if(!e||e.readOnly||e.disabled||!(e.isContentEditable||e.nodeName==="INPUT"||e.nodeName==="TEXTAREA"))return false;return document.execCommand("insertText",false,'+JSON.stringify(value)+');})()';
-        try{web.runJavaScript(source,function(accepted){if(!pending.cancelled)helper.finishTextInput(pending,accepted===true);});}
+        var source='(function(){if(String(location.href)!=='+JSON.stringify(url)+')return {route:"refused",reason:"document-url"};var e=document.activeElement;if(!e)return {route:"refused",reason:"active-element-missing"};if(e.readOnly)return {route:"refused",reason:"readonly"};if(e.disabled)return {route:"refused",reason:"disabled"};if(!(e.isContentEditable||e.nodeName==="INPUT"||e.nodeName==="TEXTAREA"))return {route:"refused",reason:"noneditable"};return {route:e.nodeName==="INPUT"&&e.type==="password"?"password-ime":"ime"};})()';
+        try{web.runJavaScript(source,function(result){
+            if(pending.cancelled || helper.pendingText!==pending)return;
+            if(!helper.currentTextTarget(pending)){
+                helper.finishTextInput(pending,false);return;
+            }
+            if(!result){helper.domRefusal="result-missing";helper.finishTextInput(pending,false);return;}
+            if(result.route!=="ime"&&result.route!=="password-ime"){
+                var reason=result.reason;
+                helper.domRefusal=reason==="document-url"||reason==="active-element-missing"||reason==="readonly"||reason==="disabled"||reason==="noneditable"?reason:"invalid-route";
+                helper.finishTextInput(pending,false);return;
+            }
+            helper.domRefusal="accepted";
+            if(result.route==="password-ime"){
+                if(!passwordTextValid(value)){helper.finishTextInput(pending,false);return;}
+                pending.passwordValue=value;pending.passwordOffset=0;
+                // Yield before the first physical event so cancellation can revoke.
+                Qt.callLater(function(){helper.continuePasswordText(pending);});return;
+            }
+            var accepted=nativeInput.commitWebText(pending.focus,pending.web,value);
+            if(!pending.cancelled)helper.finishTextInput(pending,accepted===true);
+        });}
         catch(error){failTextInput(pending,"The native text commit could not be started.");return false;}
         return true;
+    }
+    function passwordTextValid(value) {
+        if(typeof value!=="string"||value.length===0||value.length>65536)return false;
+        var bytes=0;
+        for(var i=0;i<value.length;i++){
+            var code=value.charCodeAt(i);
+            if(code<32||code===127)return false;
+            if(code>=0xd800&&code<=0xdbff){
+                if(i+1>=value.length)return false;
+                var low=value.charCodeAt(++i);if(low<0xdc00||low>0xdfff)return false;bytes+=4;
+            }else if(code>=0xdc00&&code<=0xdfff)return false;
+            else bytes+=code<128?1:(code<2048?2:3);
+            if(bytes>65536)return false;
+        }
+        return true;
+    }
+    function continuePasswordText(pending) {
+        if(!pending||pending.cancelled||pendingText!==pending)return;
+        if(!currentTextTarget(pending)){finishTextInput(pending,false);return;}
+        // One native commit preserves the complete selected-text undo operation.
+        // No fallback or second event follows a refused/reentrant delivery.
+        var accepted=nativeInput.commitWebPasswordText(pending.focus,pending.web,pending.passwordValue);
+        if(pending.cancelled||pendingText!==pending)return;
+        finishTextInput(pending,accepted===true);
     }
     function text(value) {
         // A genuine input-method event preserves native plaintext, selection,

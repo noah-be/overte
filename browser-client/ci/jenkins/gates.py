@@ -121,7 +121,7 @@ def main():
             commands=[
                 ('production-build',['npm','run','build'],package),
                 ('unit-isolation-contracts',['npm','test'],package),
-                ('actual-qt-input',[sys.executable,str(package/'tools/build-native-input.py'),'--test',
+                ('actual-qt-input',[sys.executable,str(package/'tools/build-native-input.py'),'--test','--test-web-editors',
                     '--output',str(root/'native-input'),'--qt-libraries',str(root/'appimage/squashfs-root/usr/lib')],repo),
             ]
             for name,command,cwd in commands:

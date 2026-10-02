@@ -33,6 +33,8 @@ for(const change of ['entity','root','signature','root-ready','root-loaded','roo
   if(change==='active')f.world.modelScheduler.stats.active=1;if(change==='compile')f.world.compilingGraphics=1;if(change==='authority')f.revoke();
  });
  const r=await pending;assert(mutated);assert(r.partial);assert.equal(r.exactGeometryAndMaterialIdentity.groups,0);assert(r.reasons['owner-revision-changed']||r.reasons['owner-revoked']);
+ const specific:Record<string,string>={'entity':'revision-entity-record','root':'revision-root-identity','signature':'revision-root-signature','root-ready':'revision-root-status','root-loaded':'revision-root-status','root-failed':'revision-root-status','entity-added':'revision-entity-map-size','root-added':'revision-owner-map-size','scene-pose':'revision-scene-transform','scene-parent':'revision-scene-identity','active':'revision-admission-or-unsettled','compile':'revision-admission-or-unsettled'};
+ if(specific[change])assert(r.reasons[specific[change]],'The original rejected predicate identifies its exact fixed branch');
 });
 test('actual World material-child and animation facts retain the existing exclusions',async()=>{
  const f=fixture();f.entities.set('child',{type:'Material',parentID:'private-owner-0'});f.entities.set('private-owner-1',{id:'private-owner-1',type:'Model',animation:{url:'private-animation'}});

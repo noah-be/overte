@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { chmod, writeFile, rm } from 'node:fs/promises';
 import { once } from 'node:events';
 import { terminateProcess } from './process-lifecycle.mjs';
+import {trustedNetworkEntry} from './trusted-network-entry.mjs';
 import { preparationDiagnostics, helperPreparationDiagnostics } from './preparation-diagnostics.mjs';
 
 const owner = fileURLToPath(new URL('./network-owner.py', import.meta.url));
@@ -123,7 +124,15 @@ export async function launchNativeNetwork({ directory, command, args, env, hostP
             await lineFrom(udpHelper, 'OVERTE_UDP_RELAY_READY', signal);
         }
         preparationPhase = 'OVERTE_NET_OWNER_READY';
-        child = spawnOwned('unshare', ['--user', '--map-root-user', '--net', '/usr/bin/python3', owner, configPath], supervisorEnvironment, 'Private native network');
+        if (process.env.OVERTE_GATEWAY_TRUSTED_NETWORK_SETUP === '1') {
+            const trusted = await trustedNetworkEntry(configPath);
+            try {
+                if (signal?.aborted) throw Error('Native network preparation cancelled');
+                child = spawnOwned(trusted.command, trusted.args, supervisorEnvironment, 'Private native network', trusted.options);
+            } finally { await trusted.close(); }
+        } else {
+            child = spawnOwned('unshare', ['--user', '--map-root-user', '--net', '/usr/bin/python3', owner, configPath], supervisorEnvironment, 'Private native network');
+        }
         await lineFrom(child, 'OVERTE_NET_OWNER_READY', signal);
         helperDiagnostics.ownerReady();
         preparationPhase = 'OVERTE_NET_NATIVE_STARTED';

@@ -1,15 +1,21 @@
 # Genuine native Tablet Create acceptance
 
-Actual stock Chromium now proves genuine native Name, Green/Blue and
-Dimensions edits through independent domain observation. Subsequent ordinary Chromium and Firefox runs show intermittent lost Blue
-and numeric input without a reported refusal; full edit/List-delete acceptance
-remains open. All seven original entities survive exact cleanup.
+Current production native input now passes the complete genuine Create journey
+in stock Chromium154 and Firefox156, including Shape creation, Name/RGB/XYZ
+editing, exact native List selection and deletion. Independent native and browser
+entity observations agree; all seven baseline entities are restored. Source
+coherence and owned test-service cleanup pass. The read-only audit adapter is
+generated from the shipping QML; no extra native focus reads or property setters
+are used. [Current actual proof](evidence/tablet-create-production-native-ime-20261002.json).
+
+Earlier runs preserved intermittent Blue/numeric failures and an atomic-focus
+diagnostic whose added reads could change timing; those were not shipping proof.
+All seven original entities survived their exact cleanup.
 [Retained source-coherent result](evidence/tablet-create-ordered-text-red-failure-20261001.json).
 The first Firefox attempt failed during exact window sizing before any Tablet
 UI. Its corrected exact native-density helper now reaches genuine Create UI;
-the final native property gate still fails. The private atomic focus diagnostic
-commits all intended properties, but its extra reads can change event timing
-and are not evidence of a shipping correction. CPU contracts and menu screenshots remain separate from acceptance.
+the final native property gate failed in that older run. CPU contracts and menu
+screenshots remain separate from the current full acceptance proof.
 
 The native source routes the Shape card (`EditTabView.qml`) to
 `newEntityButtonClicked/newShapeButton`. `create/edit.js` creates one domain
@@ -65,6 +71,13 @@ Geometry counts are diagnostic only because asynchronous avatars and native UI
 helpers can allocate other geometries; no numeric counter is claimed to prove
 visual Shape pixels. A true pixel/visual assertion remains separate from the
 native/browser property-delivery proof.
+
+Fixture arm/cleanup commands are published as complete JSON by an exclusive
+same-directory temporary file and atomic rename. This fixes the observed
+truncate/read race without changing the native observer's parsing, original
+deadlines, readiness or ownership predicates. The retained negative reports
+include a failed cleanup flag and independently verified unchanged baseline;
+neither is rewritten as a pass.
 
 CPU validation:
 

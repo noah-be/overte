@@ -111,7 +111,10 @@ if __name__ == '__main__':
     parser.add_argument('--qt-plugins', type=Path, help='Matching Qt5 plugin directory when testing a system Qt runtime')
     parser.add_argument('--qt-qml', type=Path, help='Matching Qt5 QML directory when testing a system Qt runtime')
     parser.add_argument('--test', action='store_true', help='Run real native QML assertions using the matching worker Qt runtime')
+    parser.add_argument('--test-web-editors', action='store_true', help='Also require the fourteen genuine editor oracles with pinned packaged Qt 5.15.3 resources')
     options = parser.parse_args()
+    if options.test_web_editors and not options.test:
+        parser.error('--test-web-editors requires --test')
     output = options.output.resolve()
     runtime = options.qt_libraries.resolve()
     test = build(output, runtime)
@@ -149,3 +152,14 @@ if __name__ == '__main__':
                 except subprocess.TimeoutExpired:
                     display_process.kill()
                     display_process.wait()
+
+    if options.test_web_editors:
+        # The existing actual-qt-input gate also proves the current production
+        # WebEngine text methods, with the original fourteen editor oracles.
+        # This runner owns a separate authenticated display/profile and refuses
+        # mismatched plugin source or mandatory packaged runtime resources.
+        editor_report = output / ('web-editor-' + str(__import__('time').time_ns()) + '.json')
+        subprocess.run([sys.executable, str(SOURCE / 'web-editor/run.py'),
+            '--input-build', str(output), '--qt-libraries', str(runtime),
+            '--qt-test-libraries', str(runtime.parents[3] / 'qt-tablet/usr/lib/x86_64-linux-gnu'),
+            '--xvfb', str(xvfb), '--report', str(editor_report)], check=True, timeout=150)

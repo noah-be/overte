@@ -366,6 +366,7 @@ Object.defineProperty(window, '__overte', {value:{
     get avatarCount() { return avatarCount; },
     get audio() { return audio?.stats; },
     get performance() { return world?.getPerformance(); },
+    get localLightSlots() { return world?.getLocalLightStatistics(); },
     get graphics() { return world?.graphics.snapshot(); },
     get tabletVisible() { return tablet?.visible ?? false; },
     get avatarRig() { return world?.getSelfAvatarRig(); },
@@ -373,4 +374,5 @@ Object.defineProperty(window, '__overte', {value:{
     get renderInventory() { return world?.getRenderInventory(); },
     drawCensus() { return world?.getDrawCensus(); },
     drawCensusAsync() { return world?.getDrawCensusAsync(); },
+    drawModelCohortAsync() { return world?.getLoadedModelCohortCensusAsync(); },
 }, configurable:true});
