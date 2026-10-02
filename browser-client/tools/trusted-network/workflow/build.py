@@ -9,6 +9,8 @@ from pathlib import Path
 import re
 import subprocess
 import stat
+from contextlib import contextmanager
+from contextvars import ContextVar
 
 BASE=Path(__file__).resolve().parents[1]
 PREFIX=Path('/usr/libexec/overte-browser-network')
@@ -20,12 +22,54 @@ MAX_ALIAS_TOTAL_BYTES=16*1024*1024
 MAX_ALIAS_READ_BYTES=32*1024*1024
 MAX_ALIAS_PATH_BYTES=16*1024
 
+_trust_location=ContextVar('reviewed-trust-location',default=('runtime-package',0))
+_TRUST_CATEGORIES=frozenset(('runtime-package-path-not-root-trusted','python-import-alias-chain-untrusted','python-import-alias-target-untrusted','python-import-tree-untrusted'))
+_TRUST_KINDS=frozenset(('runtime-package','python-executable','import-root','import-alias','import-tree'))
+class TrustRefusal(ValueError):
+ def __init__(self,category,info=None,ancestor=0):
+  if type(category)is not str or category not in _TRUST_CATEGORIES:raise ValueError('invalid-trust-diagnostic-category')
+  super().__init__(category);kind,ordinal=_trust_location.get()
+  if type(kind)is not str or kind not in _TRUST_KINDS or type(ordinal) is not int or not 0<=ordinal<=16384:kind,ordinal='runtime-package',0
+  metadata=None
+  # Only a genuine immutable OS stat result is projected. Do not evaluate a
+  # hostile property/getter to improve a failure diagnostic.
+  if type(info) is os.stat_result:
+   mode=info.st_mode;kind_value='regular'if stat.S_ISREG(mode)else'directory'if stat.S_ISDIR(mode)else'symlink'if stat.S_ISLNK(mode)else'other'
+   metadata={'fileType':kind_value,'rootOwned':info.st_uid==0,'groupOrOtherWritable':bool(mode&0o022),'permissions':mode&0o7777,'aliasSizeWithinBound':0<=info.st_size<=MAX_ALIAS_BYTES,
+    'boundedBytes':max(0,min(info.st_size,MAX_ALIAS_BYTES+1)),'sizeTruncated':info.st_size<0 or info.st_size>MAX_ALIAS_BYTES+1}
+  self.projection={'version':1,'category':category,'entryKind':kind,'entryOrdinal':ordinal,'ancestorOrdinal':max(0,min(ancestor,4096))if type(ancestor)is int else 0,'metadata':metadata,
+   'metadataSHA256':hashlib.sha256(json.dumps(metadata,sort_keys=True,separators=(',',':')).encode()).hexdigest()if metadata is not None else None}
+@contextmanager
+def trust_location(kind,ordinal):
+ if type(kind)is not str or kind not in _TRUST_KINDS or type(ordinal)is not int or not 0<=ordinal<=16384:raise ValueError('invalid-trust-diagnostic-location')
+ token=_trust_location.set((kind,ordinal))
+ try:yield
+ finally:_trust_location.reset(token)
+def staging_failure(error):
+ if type(error)is TrustRefusal:
+  fields=vars(error).get('projection')
+  required={'version','category','entryKind','entryOrdinal','ancestorOrdinal','metadata','metadataSHA256'}
+  if type(fields)is dict and set(fields)==required and type(fields['version'])is int and fields['version']==1 and type(fields['category'])is str and fields['category']in _TRUST_CATEGORIES and type(fields['entryKind'])is str and fields['entryKind']in _TRUST_KINDS \
+    and type(fields['entryOrdinal'])is int and 0<=fields['entryOrdinal']<=16384 and type(fields['ancestorOrdinal'])is int and 0<=fields['ancestorOrdinal']<=4096:
+   metadata=fields['metadata'];valid=metadata is None
+   if type(metadata)is dict and set(metadata)=={'fileType','rootOwned','groupOrOtherWritable','permissions','aliasSizeWithinBound','boundedBytes','sizeTruncated'}:
+    valid=type(metadata['fileType'])is str and metadata['fileType']in ('regular','directory','symlink','other') and all(type(metadata[key])is bool for key in ('rootOwned','groupOrOtherWritable','aliasSizeWithinBound','sizeTruncated')) \
+      and type(metadata['permissions'])is int and 0<=metadata['permissions']<=0o7777 and type(metadata['boundedBytes'])is int and 0<=metadata['boundedBytes']<=MAX_ALIAS_BYTES+1
+   if valid:
+    projected={key:fields[key]for key in ('version','category','entryKind','entryOrdinal','ancestorOrdinal')};projected['metadata']=dict(metadata)if metadata is not None else None
+    projected['metadataSHA256']=hashlib.sha256(json.dumps(metadata,sort_keys=True,separators=(',',':')).encode()).hexdigest()if metadata is not None else None
+    return projected
+ # No arbitrary exception text, URL/path, argument, username or environment is
+ # reflected. errno is read only from a genuine built-in OS exception class.
+ number=error.errno if type(error)in (OSError,PermissionError,FileNotFoundError,NotADirectoryError,IsADirectoryError,BlockingIOError,TimeoutError,ConnectionError,ConnectionRefusedError,BrokenPipeError)else None
+ return {'version':1,'category':'trusted-network-build-refused','errnoObserved':number if type(number)is int and 0<=number<=4095 else None}
+
 def header_array(data):return '{'+','.join(str(v) for v in hashlib.sha256(data).digest())+'}'
 def rooted(path):
  path=Path(path).resolve(strict=True)
- for part in (path,*path.parents):
+ for ancestor,part in enumerate((path,*path.parents)):
   info=part.stat()
-  if info.st_uid!=0 or info.st_mode&0o022:raise ValueError('runtime-package-path-not-root-trusted')
+  if info.st_uid!=0 or info.st_mode&0o022:raise TrustRefusal('runtime-package-path-not-root-trusted',info,ancestor)
  return str(path)
 
 def alias_path_shape(value):
@@ -43,10 +87,10 @@ def rooted_alias(path):
  while True:
   parts=Path(path).parts;current=Path(parts[0]);restart=False
   info=current.lstat()
-  if info.st_uid or info.st_mode&0o022 or not stat.S_ISDIR(info.st_mode):raise ValueError('python-import-alias-chain-untrusted')
+  if info.st_uid or info.st_mode&0o022 or not stat.S_ISDIR(info.st_mode):raise TrustRefusal('python-import-alias-chain-untrusted',info,0)
   for index,part in enumerate(parts[1:]):
    current=current/part;info=current.lstat();last=index==len(parts)-2
-   if info.st_uid:raise ValueError('python-import-alias-chain-untrusted')
+   if info.st_uid:raise TrustRefusal('python-import-alias-chain-untrusted',info,index+1)
    if stat.S_ISLNK(info.st_mode):
     hops+=1
     if hops>40:raise ValueError('python-import-alias-chain-bound')
@@ -55,14 +99,14 @@ def rooted_alias(path):
     next_path=Path(target) if os.path.isabs(target) else current.parent/target
     path=os.path.normpath(str(next_path.joinpath(*parts[index+2:])))
     restart=True;break
-   if info.st_mode&0o022 or (not stat.S_ISREG(info.st_mode) if last else not stat.S_ISDIR(info.st_mode)):raise ValueError('python-import-alias-chain-untrusted')
+   if info.st_mode&0o022 or (not stat.S_ISREG(info.st_mode) if last else not stat.S_ISDIR(info.st_mode)):raise TrustRefusal('python-import-alias-chain-untrusted',info,index+1)
   if not restart:return alias_path_shape(str(current))
 
 def alias_record(path):
  value=alias_path_shape(rooted(path));fd=os.open(value,os.O_RDONLY|os.O_NOFOLLOW|os.O_CLOEXEC|os.O_NONBLOCK)
  try:
   before=os.fstat(fd)
-  if not stat.S_ISREG(before.st_mode) or before.st_uid or before.st_mode&0o022 or not 0<=before.st_size<=MAX_ALIAS_BYTES:raise ValueError('python-import-alias-target-untrusted')
+  if not stat.S_ISREG(before.st_mode) or before.st_uid or before.st_mode&0o022 or not 0<=before.st_size<=MAX_ALIAS_BYTES:raise TrustRefusal('python-import-alias-target-untrusted',before)
   digest=hashlib.sha256();total=0
   while True:
    chunk=os.read(fd,min(65536,MAX_ALIAS_BYTES+1-total))
@@ -103,13 +147,14 @@ def trusted_import_paths(python,*,aliases=None):
  paths=json.loads(output)
  if type(paths) is not list or not 1<=len(paths)<=8:raise ValueError('python-import-path-count')
  entries=0;alias_links=0;alias_read_bytes=0;targets={}
- for value in paths:
+ for root_ordinal,value in enumerate(paths,1):
   if type(value) is not str or not re.fullmatch(r'/usr/lib(?:64)?/python[0-9./a-z-]+(?:\.zip)?',value):raise ValueError('python-import-path-scope')
   path=Path(value)
   if not path.exists():
    if not value.endswith('.zip'):raise ValueError('python-import-path-missing')
-   rooted(path.parent);continue
-  rooted(path)
+   with trust_location('import-root',root_ordinal):rooted(path.parent)
+   continue
+  with trust_location('import-root',root_ordinal):rooted(path)
   if path.is_dir():
    for parent,dirs,files in os.walk(path,followlinks=False):
     for name in dirs+files:
@@ -121,14 +166,15 @@ def trusted_import_paths(python,*,aliases=None):
       # ancestry and target remain root-owned and non-writable. No directory
       # links/cycles or user-owned import targets are accepted.
       if info.st_uid or not child.resolve(strict=True).is_file():raise ValueError('python-import-tree-untrusted')
-      canonical=rooted_alias(child);record=alias_record(canonical)
+      with trust_location('import-alias',alias_links+1):canonical=rooted_alias(child);record=alias_record(canonical)
       alias_links+=1;alias_read_bytes+=record['bytes']
       if alias_links>MAX_ALIAS_LINKS or alias_read_bytes>MAX_ALIAS_READ_BYTES:raise ValueError('python-import-alias-read-budget')
       previous=targets.get(canonical)
       if previous is not None and previous!=record:raise ValueError('python-import-alias-target-changed')
       targets[canonical]=record
       if len(targets)>MAX_ALIAS_TARGETS or sum(item['bytes'] for item in targets.values())>MAX_ALIAS_TOTAL_BYTES:raise ValueError('python-import-alias-total-bound')
-     elif info.st_uid or info.st_mode&0o022 or not (stat.S_ISDIR(info.st_mode) or stat.S_ISREG(info.st_mode)):raise ValueError('python-import-tree-untrusted')
+     elif info.st_uid or info.st_mode&0o022 or not (stat.S_ISDIR(info.st_mode) or stat.S_ISREG(info.st_mode)):
+      with trust_location('import-tree',entries):raise TrustRefusal('python-import-tree-untrusted',info)
   elif not path.is_file():raise ValueError('python-import-root-type')
  records=validate_alias_records([targets[key] for key in sorted(targets)])
  if aliases is not None:aliases.extend(records)
@@ -141,7 +187,7 @@ def build(destination,policy,python=None,static_libraries=None):
  if set(policy)!={'version','hostUID','hostGID','sessionParent','nativeExecutables','nativeReadRoots'} \
    or type(policy['version']) is not int or policy['version']!=1 or type(policy['hostUID']) is not int or not 1<=policy['hostUID']<2**32-1 \
    or type(policy['hostGID']) is not int or not 1<=policy['hostGID']<2**32-1:raise ValueError('policy-header')
- python=rooted(python or '/usr/bin/python3')
+ with trust_location('python-executable',0):python=rooted(python or '/usr/bin/python3')
  if not re.fullmatch(r'/usr/bin/python3\.\d{1,2}',python):raise ValueError('python-distro-canonical-path')
  if policy['sessionParent'] not in ('/tmp','/run/user/'+str(policy['hostUID'])):raise ValueError('policy-session-parent')
  for key,maximum in (('nativeExecutables',8),('nativeReadRoots',32)):
@@ -247,4 +293,7 @@ profile overte-browser-network-owner flags=(attach_disconnected) {
 
 if __name__=='__main__':
  parser=argparse.ArgumentParser();parser.add_argument('--stage',required=True);parser.add_argument('--policy',required=True);parser.add_argument('--static-libraries')
- args=parser.parse_args();build(args.stage,json.loads(Path(args.policy).read_text()),static_libraries=args.static_libraries)
+ args=parser.parse_args()
+ try:build(args.stage,json.loads(Path(args.policy).read_text()),static_libraries=args.static_libraries)
+ except Exception as error:
+  print(json.dumps(staging_failure(error),sort_keys=True));raise SystemExit(1)

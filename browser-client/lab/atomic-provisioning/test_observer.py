@@ -20,6 +20,9 @@ observer = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(observer)
 STRACE = Path(os.environ.get('ATOMIC_DIAGNOSTIC_STRACE', str(HERE / 'strace')))
 ENV = dict(os.environ)
+diagnostic_spec = importlib.util.spec_from_file_location('preflight_diagnostics', HERE / 'preflight_diagnostics.py')
+preflight_diagnostics = importlib.util.module_from_spec(diagnostic_spec)
+diagnostic_spec.loader.exec_module(preflight_diagnostics)
 
 
 class ObserverTests(unittest.TestCase):
@@ -138,19 +141,37 @@ class ObserverTests(unittest.TestCase):
             capture = root / 'capture'
             capture.mkdir(mode=0o700)
             marker = root / 'preflight.py'
-            marker.write_text('import os\nfrom pathlib import Path\nf=Path("own-file").open("wb");f.write(b"x");f.flush();os.fsync(f.fileno());f.close()\n')
+            marker.write_text('import os\nfrom pathlib import Path\n'
+                'print("ATOMIC_PREFLIGHT:inner-start",flush=True)\n'
+                'f=Path("own-file").open("wb");f.write(b"x");f.flush();os.fsync(f.fileno());f.close()\n'
+                'print("ATOMIC_PREFLIGHT:inner-fsync",flush=True)\n')
             entry = root / 'entry.py'
-            entry.write_text('import importlib.util,os\nfrom pathlib import Path\n'
+            entry.write_text('import importlib.util,os,json\nfrom pathlib import Path\n'
+                'print("ATOMIC_PREFLIGHT:entry-start",flush=True)\n'
                 f's=importlib.util.spec_from_file_location("observer",{str(HERE / "observer.py")!r});m=importlib.util.module_from_spec(s);s.loader.exec_module(m)\n'
+                'print("ATOMIC_PREFLIGHT:observer-imported",flush=True)\n'
+                f'd=importlib.util.spec_from_file_location("preflight_diagnostics",{str(HERE / "preflight_diagnostics.py")!r});q=importlib.util.module_from_spec(d);d.loader.exec_module(q)\n'
                 'caps=Path("/proc/self/status").read_text().splitlines()\n'
+                'print("ATOMIC_PREFLIGHT_CAPS:"+json.dumps(q.capability_states(caps),sort_keys=True),flush=True)\n'
                 'assert all(int(line.split(":",1)[1],16)==0 for line in caps if line.startswith(("CapInh:","CapPrm:","CapEff:","CapBnd:","CapAmb:")))\n'
+                'print("ATOMIC_PREFLIGHT:zero-cap-asserted",flush=True)\n'
+                'print("ATOMIC_PREFLIGHT:tracer-launch-requested",flush=True)\n'
                 f'r=m.observe_owned({str(STRACE)!r},["/usr/bin/unshare","--user","--map-current-user","--ipc","--",{sys.executable!r},{str(marker)!r}],dict(os.environ),{str(root)!r},{str(capture)!r},seconds=5)\n'
-                'assert r["exitCode"]==0 and r["projection"]["calls"]["fsync"]["success"]>=1\n')
+                'print("ATOMIC_PREFLIGHT:observer-returned",flush=True)\n'
+                'raw=b"";capture_status="read"\n'
+                'try:\n'
+                f' raw=m.checked_regular(Path({str(capture / "native-output.private.log")!r}),m.MAX_CAPTURE,private=True)\n'
+                'except (OSError,ValueError):\n capture_status="read-refused"\n'
+                'print("ATOMIC_PREFLIGHT_OBSERVER:"+json.dumps(q.inner_observation(r,raw,capture_status),sort_keys=True),flush=True)\n'
+                'assert r["exitCode"]==0 and r["projection"]["calls"]["fsync"]["success"]>=1\n'
+                'print("ATOMIC_PREFLIGHT:strict-inner-asserted",flush=True)\n')
             result = subprocess.run(['/usr/bin/unshare', '--user', '--map-current-user', '--keep-caps',
                 '--ipc', '--', '/usr/bin/setpriv', '--bounding-set=-all', '--inh-caps=-all',
                 '--ambient-caps=-all', '--', sys.executable, str(entry)], stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE, timeout=8)
-            self.assertEqual(result.returncode, 0, 'unchanged-own-child-confinement-preflight-refused')
+            self.assertEqual(result.returncode, 0, 'unchanged-own-child-confinement-preflight-refused:' +
+                json.dumps(preflight_diagnostics.project_preflight(result.returncode, result.stdout, result.stderr),
+                           sort_keys=True, separators=(',', ':')))
 
     def test_original_deadline_kills_own_child_without_detached_tracee(self):
         with tempfile.TemporaryDirectory() as tmp:

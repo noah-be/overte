@@ -57,7 +57,7 @@ class TrustedKeyring(unittest.TestCase):
   self.assertEqual(KEYRING.read_bytes(),original);self.assertEqual(KEYRING.stat().st_mode,initial.st_mode)
  def test_public_or_symlink_directory_preexisting_fifo_and_modified_key_refused(self):
   with tempfile.TemporaryDirectory()as temp:
-   root=Path(temp);public=root/'public';public.mkdir(mode=0o755)
+   root=Path(temp);public=root/'public';public.mkdir(mode=0o755);public.chmod(0o755)
    with self.assertRaises(ValueError):k.locked_write(public,self.key,self.record)
    link=root/'alias';link.symlink_to(root,target_is_directory=True)
    with self.assertRaises(OSError):k.locked_write(link,self.key,self.record)
