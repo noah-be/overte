@@ -4,6 +4,34 @@ Last updated: 2026-10-02. **Original baseline passed; additional mandatory Table
 
 ## Current implementation and next step
 
+Current continuation (2026-10-02,00:08UTC): the narrow actual-Hub raw-zero FBX
+correction passes all1,144 registered components without skips, the production
+build, all34 required repository suites(181.04s), and both genuine browser workers
+on five native/codec fixtures each. Exact bounds and original input immutability
+remain mandatory. Local exact-source Jenkins build5 for the preceding strict
+diagnostic checkpoint is terminal FAILURE; its full nineteen-stage outcome is
+being inspected. No all-CI or corrected connected-Hub rendering claim follows.
+Next: publish this reviewed parser checkpoint, diagnose CI5, then run the short
+current-source real-Hub model/movement/native/rejoin checks with the original
+fluidness gates. The pending parse-turn optimization remains outside shipping.
+
+Current continuation (2026-10-01,23:55UTC): reviewed strict diagnostics checkpoint
+`0d09473978f2cb5a8d7dc0e738a5dc104d8a26a5` is published; exact-source local
+Jenkins build5 is running. The four unchanged-source stock Hub comparisons show
+no bitmap loading gain: model-jobs-idle bounds20.670/21.711s in Chromium and
+18.093/17.975s in Firefox. Both Chromium modes pass four fluid gates; both
+Firefox modes fail four despite correct native movement/rejoin. Upload records
+and geometric census are censored; no broad speed or instancing claim follows.
+[Current stock comparison](evidence/hub-bitmap-upload-stock-20261002.json).
+
+Actual captured Hub assets identified the visible invalid-array model warning:
+two native FBX7400 producers use valid raw arrays with compressedLength0. The
+reviewed narrow parser correction preserves exact payload/bounds and private
+input immutability. Both actual browser workers now pass five real/codec fixtures,
+including those two exact failures. Next: complete required checks, publish and
+verify both connected-world stock engines show the correction.
+[Raw-array compatibility evidence](evidence/hub-fbx-raw-zero-compatibility-20261002.json).
+
 Current continuation (2026-10-01,23:44UTC): strict settings-schema/endpoint/body validation
 and fixed persistence/RTNETLINK observations are integrated without changing
 any guest flag, route, capability, profile or original readiness deadline.

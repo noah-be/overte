@@ -123,6 +123,7 @@ function replaceArray(target: Node, type: 'i' | 'd', data: ArrayLike<number>): v
 function validateProperties(node: Node): number {
   const data = node.properties, view = new DataView(data.buffer, data.byteOffset, data.byteLength);
   let offset = 0, declaredArrays = 0;
+  let repairedProperties: Uint8Array | undefined, repairedView: DataView | undefined;
   const require = (length: number) => { if (offset + length > data.length) throw Error('Truncated baked FBX property'); };
   for (let i = 0; i < node.propertyCount; i++) {
     require(1); const type = String.fromCharCode(data[offset++]);
@@ -133,11 +134,22 @@ function validateProperties(node: Node): number {
       require(12); const count = view.getUint32(offset, true), encoding = view.getUint32(offset + 4, true), length = view.getUint32(offset + 8, true);
       const width = ({ f: 4, d: 8, l: 8, i: 4, b: 1, c: 1 } as Record<string, number>)[type];
       const expanded = safe(count * width, MAX_OUTPUT, 'expanded array length');
-      if (encoding > 1 || (encoding === 0 && length !== expanded)) throw Error('Invalid baked FBX array encoding');
-      declaredArrays += expanded; offset += 12; require(length); offset += length;
+      // Native readBinaryArray and Three BinaryParser consume count*width for
+      // encoding0; some genuine FBX7400 producers leave compressedLength0.
+      // Permit only that zero convention, still requiring every raw byte and
+      // exact property bounds. Repair a private node copy for our other graph
+      // readers/serialization, never mutate the prepared input buffer.
+      if (encoding > 1 || (encoding === 0 && length !== expanded && length !== 0)) throw Error('Invalid baked FBX array encoding');
+      const consumed = encoding === 0 ? expanded : length;
+      if (encoding === 0 && length === 0 && expanded) {
+        repairedProperties ??= data.slice(); repairedView ??= new DataView(repairedProperties.buffer);
+        repairedView.setUint32(offset + 8, expanded, true);
+      }
+      declaredArrays += expanded; offset += 12; require(consumed); offset += consumed;
     } else throw Error('Unsupported baked FBX property encoding');
   }
   if (offset !== data.length) throw Error('Baked FBX property lengths disagree');
+  if (repairedProperties) node.properties = repairedProperties;
   return declaredArrays;
 }
 function layer(label: string, arrayName: string, data: ArrayLike<number>, index = 0): Node {

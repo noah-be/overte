@@ -101,6 +101,40 @@ test('bounds every declared array including compressed metadata before invoking 
   await assert.rejects(adaptBakedFbx(fixture(true, compressed), async () => { assert.fail('Invalid metadata length must fail before decoding'); }), /array encoding/);
 });
 
+test('native zero compressedLength on raw arrays consumes exact count*width without mutating input', async () => {
+  for (const wide of [false, true]) for (const [type,width] of Object.entries({ f:4,d:8,l:8,i:4,b:1,c:1 })) {
+    const raw = new Uint8Array(13 + width * 3); raw[0] = type.charCodeAt(0);
+    const view = new DataView(raw.buffer); view.setUint32(1,3,true);
+    const payload = raw.subarray(13); payload.fill(1);
+    const input=fixture(wide,raw),original=new Uint8Array(input).slice();
+    const output=await adaptBakedFbx(input,async()=>geometry);
+    assert.deepEqual(new Uint8Array(input),original,'Cached prepared input stays immutable');
+    const loaded=new FBXLoader().parse(output,'');let vertices=0;
+    loaded.traverse(node=>{if((node as Mesh).isMesh)vertices+=(node as Mesh).geometry.getAttribute('position').count;});
+    assert.equal(vertices,6);
+    const repaired=raw.slice();new DataView(repaired.buffer).setUint32(9,width*3,true);
+    assert.notEqual(Buffer.from(output).indexOf(repaired),-1,'Private serialized metadata retains every raw payload byte');
+  }
+});
+test('zero raw length cannot conceal truncated, oversized, trailing or unknown array data', async () => {
+  for(const wide of [false,true])for(const variant of ['truncated','oversized','trailing','unknown','wrongNonzero'] as const){
+    const raw=new Uint8Array(variant==='trailing'?30:21),view=new DataView(raw.buffer);raw[0]=100;view.setUint32(1,variant==='oversized'?0xffffffff:variant==='truncated'?2:1,true);
+    if(variant==='unknown')view.setUint32(5,2,true);if(variant==='wrongNonzero')view.setUint32(9,1,true);
+    await assert.rejects(adaptBakedFbx(fixture(wide,raw),async()=>{assert.fail('Invalid array must fail before decoding');}),/Invalid baked FBX|Truncated baked FBX|property lengths disagree/);
+  }
+});
+test('raw zero-length convention leaves the following property at its exact byte offset', async () => {
+  for(const wide of [false,true]){
+    const raw=new Uint8Array(15);raw[0]=99;new DataView(raw.buffer).setUint32(1,2,true);raw.set([1,0],13);
+    const tail=property(42);const metadata:FixtureNode={name:'OrderedMetadata',props:[raw,tail],children:[]};
+    const source=fixture(wide,undefined,undefined,{objects:[metadata],connections:[]});const original=new Uint8Array(source).slice();
+    const restored=await adaptBakedFbx(source,async()=>geometry);assert.deepEqual(new Uint8Array(source),original);
+    const expected=Buffer.concat([Buffer.from(raw),Buffer.from(tail)]);expected.writeUInt32LE(2,9);
+    assert.notEqual(Buffer.from(restored).indexOf(expected),-1);
+    const loaded=new FBXLoader().parse(restored,'');let vertices=0;loaded.traverse(node=>{if((node as Mesh).isMesh)vertices+=(node as Mesh).geometry.getAttribute('position').count;});assert.equal(vertices,6);
+  }
+});
+
 function trianglesWithMaterials(mesh: Mesh): string[] {
   const position = mesh.geometry.getAttribute('position'), uv = mesh.geometry.getAttribute('uv'), normal = mesh.geometry.getAttribute('normal');
   const result: string[] = [];
