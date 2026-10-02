@@ -2,6 +2,7 @@
 // Runs against actual domain, assignment servers, gateway Interface, and second native participant.
 import { chromium, firefox } from '@playwright/test';
 import { launchSystemFirefox } from './system-firefox.mjs';
+import { captureNativePeerSnapshot, readNativePeerDiagnostic } from './native-peer-diagnostic.mjs';
 import assert from 'node:assert/strict';
 import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
@@ -42,6 +43,7 @@ async function command(value) {
     const sequence = Date.now();
     await writeFile(path.join(repo, 'build/browser-lab/http/command.json'), JSON.stringify({ sequence, ...value }) + '\n');
     await delay(2800);
+    return sequence;
 }
 function rms(buffer) {
     let square = 0, peak = 0;
@@ -101,7 +103,7 @@ let browser;
 try {
     await mkdir(evidenceDirectory, {recursive:true});
     evidence.sourceSHA256 = {};
-    for (const file of ['browser-client/gateway/server.mjs', 'browser-client/gateway/native-bridge.js', 'browser-client/gateway/process-lifecycle.mjs', 'browser-client/gateway/validation.mjs', 'browser-client/gateway/permission-policy.mjs', 'browser-client/dist/index.html', 'browser-client/tests/integration/real-session.mjs', 'browser-client/tests/integration/owned-audio-process.mjs', 'browser-client/tests/integration/system-firefox.mjs', 'browser-client/package-lock.json']) {
+    for (const file of ['browser-client/gateway/server.mjs', 'browser-client/gateway/native-bridge.js', 'browser-client/gateway/process-lifecycle.mjs', 'browser-client/gateway/validation.mjs', 'browser-client/gateway/permission-policy.mjs', 'browser-client/dist/index.html', 'browser-client/tests/integration/real-session.mjs', 'browser-client/tests/integration/native-peer-diagnostic.mjs', 'browser-client/lab/native-participant.js', 'browser-client/tests/integration/owned-audio-process.mjs', 'browser-client/tests/integration/system-firefox.mjs', 'browser-client/package-lock.json']) {
         evidence.sourceSHA256[file] = createHash('sha256').update(await readFile(path.join(repo, file))).digest('hex');
     }
     for (const file of await readdir(path.join(repo, 'browser-client/dist/assets'))) {
@@ -114,7 +116,7 @@ try {
     const errors = []; page.on('pageerror', error => errors.push(error.message));
     await page.addInitScript(() => {
         const OriginalWebSocket = window.WebSocket;
-        window.__labAudio = { incomingNonzero:0, incomingPeak:0, outgoingNonzero:0, outgoingPeak:0, snapshots:[],states:[] };
+        window.__labAudio = { incomingNonzero:0, incomingPeak:0, outgoingNonzero:0, outgoingPeak:0, snapshots:[],snapshotTimes:new WeakMap(),states:[] };
         window.WebSocket = class extends OriginalWebSocket {
             constructor(...args) {
                 super(...args);
@@ -125,7 +127,7 @@ try {
                         if (peak > .001) window.__labAudio.incomingNonzero++;
                         window.__labAudio.incomingPeak = Math.max(window.__labAudio.incomingPeak,peak);
                     } else if (typeof event.data === 'string') {
-                        try { const message=JSON.parse(event.data); if(message.type==='entities'||message.type==='avatars')window.__labAudio.snapshots.push(message);
+                        try { const message=JSON.parse(event.data); if(message.type==='entities'||message.type==='avatars'){window.__labAudio.snapshotTimes.set(message,performance.now());window.__labAudio.snapshots.push(message);}
                             if(message.type==='state'||message.type==='error'||message.type==='warning')window.__labAudio.states.push({at:Date.now(),...message}); } catch {}
                         if(window.__labAudio.snapshots.length>30)window.__labAudio.snapshots.shift();
                     }
@@ -178,8 +180,13 @@ try {
     assert(visibleBrowser && Math.hypot(visibleBrowser.position.x-after.x, visibleBrowser.position.z-after.z) < .2,
         'Actual native position agrees with browser position');
     await checkpoint('browser-movement-synchronized', { before,after,nativePosition:visibleBrowser.position });
-    await command({position:{x:4,y:1.8,z:2}});
-    const avatars = await page.evaluate(() => window.__labAudio.snapshots.filter(snapshot=>snapshot.type==='avatars').at(-1)?.avatars);
+    const peerTarget = {x:4,y:1.8,z:2};
+    const peerCommandSequence = await command({position:peerTarget});
+    const capturedPeer = await page.evaluate(captureNativePeerSnapshot, {fixtureName:'Native-Lab-Participant',target:peerTarget});
+    const avatars = capturedPeer.avatars;
+    evidence.nativePeerMovementDiagnostic = { browser:capturedPeer.diagnostic,
+        native:await readNativePeerDiagnostic(path.join(repo,'build/browser-lab/logs/native.log'), {sequence:peerCommandSequence,target:peerTarget}) };
+    await save();
     assert(avatars?.some(avatar=>avatar.displayName==='Native-Lab-Participant' && Math.abs(avatar.position.x-4)<.5),
         'Browser receives second native participant movement');
     await checkpoint('native-movement-synchronized');

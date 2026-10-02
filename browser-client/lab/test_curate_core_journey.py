@@ -60,6 +60,33 @@ class CurationTests(unittest.TestCase):
         for invalid in ('PRIVATE_SENTINEL','0'*63,'A'*64,'0'*64+'\n'):
             raw['sourceSHA256']={runtime:invalid}
             self.assertEqual(module.curate(raw,'firefox')['sourceSHA256'],{})
+    def test_native_peer_diagnostic_is_optional_and_cannot_change_journey_acceptance(self):
+        raw=self.fixture();raw['nativePeerMovementDiagnostic']={
+            'browser':{'snapshotPresent':True,'snapshotAgeMs':25,'avatarCount':2,'peerCount':1,
+                'fixtureNameMatchCount':1,'peerProjectionTruncated':False,
+                'peers':[{'fixtureNameMatch':True,'targetDistance':0}]},
+            'native':{'status':'read','commandSequenceMatched':True,'commandAppliedAtMs':1791000000000,
+                'observationAtMs':1791000001000,'observationTargetDistance':0,'bytesRead':4096}}
+        result=module.curate(raw,'chromium');self.assertTrue(result['completed'])
+        self.assertEqual(result['nativePeerMovementDiagnostic']['native']['commandAppliedAtMs'],1791000000000)
+        raw['completed']=False
+        self.assertFalse(module.curate(raw,'chromium')['completed'])
+    def test_native_peer_diagnostic_drops_private_strings_and_bounds_rows_and_numbers(self):
+        raw=self.fixture();secret='PRIVATE_SENTINEL'
+        raw['nativePeerMovementDiagnostic']={'path':secret,'browser':{
+            'snapshotAgeMs':float('inf'),'peerCount':-1,'displayName':secret,
+            'peers':[{'fixtureNameMatch':True,'targetDistance':.1,'id':secret,'displayName':secret}]*100},
+            'native':{'status':secret,'commandSequenceMatched':secret,'commandAppliedAtMs':float('nan'),
+                'bytesRead':1048577,'rawLog':secret}}
+        result=module.curate(raw,'firefox')['nativePeerMovementDiagnostic']
+        self.assertNotIn(secret,json.dumps(result));self.assertEqual(len(result['browser']['peers']),16)
+        self.assertIsNone(result['browser']['snapshotAgeMs']);self.assertIsNone(result['native']['bytesRead'])
+        self.assertNotIn('status',result['native']);self.assertNotIn('commandSequenceMatched',result['native'])
+    def test_native_peer_source_hashes_require_only_the_exact_reviewed_paths(self):
+        raw=self.fixture();valid=('browser-client/tests/integration/native-peer-diagnostic.mjs','browser-client/lab/native-participant.js')
+        raw['sourceSHA256']={key:'a'*64 for key in valid}
+        raw['sourceSHA256']['/private/native-peer-diagnostic.mjs']='b'*64
+        self.assertEqual(module.curate(raw,'chromium')['sourceSHA256'],{key:'a'*64 for key in valid})
     def test_empty_report_is_not_run_and_invalid_engine_is_rejected(self):
         self.assertEqual(module.curate({},'chromium')['status'],'not-run')
         with self.assertRaises(ValueError):module.curate({},'unexpected')

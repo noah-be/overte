@@ -15,7 +15,8 @@ SOURCE_FILES={f'browser-client/{name}' for name in (
  'gateway/server.mjs','gateway/native-bridge.js','gateway/process-lifecycle.mjs',
  'gateway/validation.mjs','gateway/permission-policy.mjs','dist/index.html',
  'tests/integration/real-session.mjs','tests/integration/system-firefox.mjs',
- 'tests/integration/owned-audio-process.mjs','package-lock.json')}
+ 'tests/integration/owned-audio-process.mjs','tests/integration/native-peer-diagnostic.mjs',
+ 'lab/native-participant.js','package-lock.json')}
 TIMESTAMP=re.compile(r'^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,6})?Z$')
 VERSION=re.compile(r'^(?:firefox/)?\d[0-9A-Za-z._+-]{0,59}$')
 DIGEST=re.compile(r'^[0-9a-f]{64}$')
@@ -42,6 +43,37 @@ def distance(checkpoint):
     values=[item.get(axis) for item in (before,after) for axis in ('x','y','z')]
     if not all(type(v) in (int,float) and math.isfinite(v) and abs(v)<=1e7 for v in values):return None
     return math.dist(values[:3],values[3:])
+
+
+
+def peer_diagnostic(document):
+    if not isinstance(document,dict):return None
+    def bounded(value,limit):
+        return value if type(value) in (int,float) and math.isfinite(value) and 0<=value<=limit else None
+    def booleans(source,keys):
+        return {key:source[key] for key in keys if type(source.get(key)) is bool}
+    result={}
+    browser=document.get('browser')
+    if isinstance(browser,dict):
+        item=booleans(browser,('snapshotPresent','peerProjectionTruncated'))
+        for key in ('snapshotAgeMs','avatarCount','peerCount','fixtureNameMatchCount'):
+            item[key]=bounded(browser.get(key),1e9 if key=='snapshotAgeMs' else 1000000)
+        peers=browser.get('peers')
+        if isinstance(peers,list):
+            item['peers']=[{**booleans(peer,('fixtureNameMatch',)),
+                'targetDistance':bounded(peer.get('targetDistance'),1e8)}
+                for peer in peers[:16] if isinstance(peer,dict)]
+        result['browser']=item
+    native=document.get('native')
+    if isinstance(native,dict):
+        item=booleans(native,('commandSequenceMatched','observationPresent','observationAfterCommand','tailTruncated'))
+        if native.get('status') in ('read','missing','symlink-refused','not-regular','read-refused'):item['status']=native['status']
+        for key in ('commandAppliedAtMs','commandAppliedAgeMs','commandTargetDistance',
+                    'observationAtMs','observationAgeMs','observationTargetDistance','bytesRead'):
+            limit=1e15 if key.endswith('AtMs') else 1024*1024 if key=='bytesRead' else 1e12
+            item[key]=bounded(native.get(key),limit)
+        result['native']=item
+    return result
 
 
 def curate(document,engine):
@@ -78,6 +110,8 @@ def curate(document,engine):
         for audio in ('nativeOutput','browserOutput'):
             if audio in entry:item[audio]=numeric_fields(entry[audio],('rms','peak','bytes','tone440Amplitude','tone997Amplitude'))
         result['checkpoints'].append(item)
+    if diagnostic:=peer_diagnostic(document.get('nativePeerMovementDiagnostic')):
+        result['nativePeerMovementDiagnostic']=diagnostic
     names={entry['name'] for entry in result['checkpoints']}
     short=type(document.get('durationSeconds')) in (int,float) and document.get('durationSeconds')==0
     result['completed']=document.get('completed') is True and short and document.get('syntheticMicrophone') is True and names==set(CHECKPOINTS)

@@ -9,6 +9,7 @@ import { mkdir, readFile, writeFile, readdir, readlink } from 'node:fs/promises'
 import { assetCategory, assetCategoryTotals, assetSessionTotals, requireWorldLoadingReady } from './public-hub-metrics.mjs';
 import { createHash } from 'node:crypto';
 import {installHubUploadProfile} from './hub-upload-profile.mjs';
+import {collectHubAsyncDrawCensus} from './hub-async-draw-census.mjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const repo=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../../..');
@@ -18,6 +19,7 @@ const sourceFiles=['browser-client/gateway/server.mjs','browser-client/gateway/n
 sourceFiles.push('browser-client/src/world-texture-preparation.ts','browser-client/src/foreground-texture-plan.ts','browser-client/src/world-cpu-frame-timing.ts','browser-client/src/render-cpu-breakdown.ts','browser-client/tests/integration/hub-upload-profile.mjs');
 sourceFiles.push('browser-client/src/static-model-matrices.ts','browser-client/src/native-image-material.ts','browser-client/src/native-image-effects.ts');
 sourceFiles.push('browser-client/src/model-parse-turn.ts');
+sourceFiles.push('browser-client/src/world-draw-census-async.ts','browser-client/tests/integration/hub-async-draw-census.mjs');
 const report={startedAt:new Date().toISOString(),completed:false,place:'overte_hub',microphoneRequested:false,worldInteractionsSent:0};
 const assetRequests = new Map(), assetStarts = new WeakMap();
 // Native session IDs are private lookup keys only; reports contain ordinal1/2.
@@ -82,6 +84,8 @@ try {
   await mkdir(output,{recursive:true});
   report.startSourceSHA256={};for(const file of sourceFiles){try{report.startSourceSHA256[file]=createHash('sha256').update(await readFile(path.join(repo,file))).digest('hex');}catch{}}
   report.startDistributionManifest=await distributionManifest();
+  report.asyncDrawCensusRequested=process.env.OVERTE_LAB_ASYNC_DRAW_CENSUS==='1';
+  if(report.asyncDrawCensusRequested)assert(report.startSourceSHA256['browser-client/src/world-draw-census-async.ts'],'Async census source hash must be available before the diagnostic journey');
   const env={...process.env,PULSE_SERVER:`unix:${repo}/build/browser-hub-lab/hub/pulse.socket`};
   if(process.env.OVERTE_LAB_CHROMIUM_LIBRARY_PATH)env.LD_LIBRARY_PATH=process.env.OVERTE_LAB_CHROMIUM_LIBRARY_PATH;
   if(process.env.OVERTE_LAB_BROWSER_DISPLAY)env.DISPLAY=process.env.OVERTE_LAB_BROWSER_DISPLAY;
@@ -217,6 +221,10 @@ try {
     if(!window.__overte?.connected||typeof window.__overte.drawCensus!=='function')throw Error('Draw census is unavailable in this connected browser bundle');
     const startedAt=Date.now(),data=window.__overte.drawCensus();return{admissionOrdinal:1,startedAt,finishedAt:Date.now(),data};
   });
+  // Each generation's performance samples are already copied above. No later
+  // metric from this diagnostic is added to its acceptance samples; rejoin gets
+  // a fresh World/ring. This optional request performs no world interaction.
+  if(report.asyncDrawCensusRequested)report.asyncDrawCensus=[await page.evaluate(collectHubAsyncDrawCensus,1)];
   if(report.uploadProfileRequested)await page.evaluate(()=>window.__hubUploadProfile?.setPhase('leaving'));
   await page.locator('#leave').click();
   if(process.env.OVERTE_LAB_RECONNECT==='1'){
@@ -231,7 +239,10 @@ try {
     await page.locator('#world canvas').evaluate(element=>element.focus());await page.keyboard.down('KeyW');await page.waitForTimeout(1000);await page.keyboard.up('KeyW');await page.waitForTimeout(300);
     report.reconnectedAfterMovement=await page.evaluate(()=>({pose:window.__overte.pose,nativePose:window.__hubNativePose,performance:window.__overte.performance}));
     report.reconnectedWalkFluidPerformance=assessFluidPerformance([report.reconnected.performance,report.reconnectedAfterMovement.performance]);
-    const before=report.reconnected.pose.position,after=report.reconnectedAfterMovement.pose.position;report.reconnectedMovementMeters=Math.hypot(after.x-before.x,after.z-before.z);assert(report.reconnectedMovementMeters>0.5,'Fully reloaded public-world session must move after rejoin');assert(Math.abs(after.y-before.y)<3,'Rejoined avatar stays on the actual nearby world');const native=report.reconnectedAfterMovement.nativePose;assert(native&&Date.now()-native.at<2500,'Rejoined native avatar observation must be current');report.reconnectedNativeDifferenceMeters=Math.hypot(...['x','y','z'].map(axis=>after[axis]-native.position[axis]));assert(report.reconnectedNativeDifferenceMeters<0.5,'Rejoined actual native avatar must follow browser movement');await page.locator('#leave').click();
+    const before=report.reconnected.pose.position,after=report.reconnectedAfterMovement.pose.position;report.reconnectedMovementMeters=Math.hypot(after.x-before.x,after.z-before.z);assert(report.reconnectedMovementMeters>0.5,'Fully reloaded public-world session must move after rejoin');assert(Math.abs(after.y-before.y)<3,'Rejoined avatar stays on the actual nearby world');const native=report.reconnectedAfterMovement.nativePose;assert(native&&Date.now()-native.at<2500,'Rejoined native avatar observation must be current');report.reconnectedNativeDifferenceMeters=Math.hypot(...['x','y','z'].map(axis=>after[axis]-native.position[axis]));assert(report.reconnectedNativeDifferenceMeters<0.5,'Rejoined actual native avatar must follow browser movement');
+    // Snapshot collection follows all rejoined movement/native/frame checks.
+    if(report.asyncDrawCensusRequested)report.asyncDrawCensus.push(await page.evaluate(collectHubAsyncDrawCensus,2));
+    await page.locator('#leave').click();
   }
   report.fluidMovementAcceptancePassed=[report.steadyFluidPerformance,report.walkFluidPerformance,...(report.reconnected ? [report.reconnectedSteadyFluidPerformance,report.reconnectedWalkFluidPerformance] : [])].every(value=>value?.passed);
   if(process.env.OVERTE_LAB_REQUIRE_FLUID==='1')assert(report.fluidMovementAcceptancePassed,'Actual loaded-world, walking and reconnect measurements must meet30FPS, p95<=66.7ms and no steady stall>250ms');
@@ -249,5 +260,5 @@ finally{
   report.assetTransfers.sessions=assetSessionTotals([...sessionAssetRequests.values()]);
   await writeFile(path.join(output,'public-hub.json'),JSON.stringify(report,null,2)+'\n');
   await writeFile(path.join(output,'public-hub-'+report.startedAt.replace(/[:.]/g,'-')+'.json'),JSON.stringify(report,null,2)+'\n');
-  console.log(JSON.stringify({startedAt:report.startedAt,finishedAt:report.finishedAt,completed:report.completed,error:report.error,browserVersion:report.browserVersion,webGL:report.webGL,performanceSamples:report.performance?.length,lastPerformance:report.performance?.at(-1),assetTransfers:{...report.assetTransfers,entries:undefined,sessions:report.assetTransfers.sessions.map(({entries,...session})=>session)},report:path.relative(repo,path.join(output,'public-hub.json'))}));
+  console.log(JSON.stringify({startedAt:report.startedAt,finishedAt:report.finishedAt,completed:report.completed,error:report.error,browserVersion:report.browserVersion,webGL:report.webGL,performanceSamples:report.performance?.length,lastPerformance:report.performance?.at(-1),asyncDrawCensus:report.asyncDrawCensus,assetTransfers:{...report.assetTransfers,entries:undefined,sessions:report.assetTransfers.sessions.map(({entries,...session})=>session)},report:path.relative(repo,path.join(output,'public-hub.json'))}));
 }

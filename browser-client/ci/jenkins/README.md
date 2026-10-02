@@ -1,6 +1,23 @@
 # Proposed isolated Jenkins native/browser qualification
 
-This is a reviewed candidate, not an actual Jenkins CI pass. The dedicated
+Current exact-source qualification: commit
+`09c062bf5a371df78b01014dccfdbc4c37febcb9` executes all nineteen gates in build6.
+Eighteen pass, including194 renderer tests and the complete Firefox core journey
+with synthetic voice in both directions. Chromium fails the original
+second-participant movement assertion; complete CI acceptance remains open.
+See [the actual gate evidence](../../../docs/browser-client/evidence/jenkins-ci-09c062-checkpoint-20261002.json).
+
+The integration harness now stamps the original avatar records through a private
+WeakMap, captures the existing last snapshot once after the unchanged2,800ms
+command delay, and uses those exact captured avatars in the original assertion.
+One subsequent regular-file-only/no-follow read projects at most1MiB of the
+owned native log into fixed numeric/boolean diagnostics matched to that exact
+command sequence. There is no retry, later browser sample, new wait or relaxed
+predicate. The optional curator whitelist cannot change eighteen-checkpoint
+completion. Nine Node and eleven Python contracts cover capture identity,
+bounded readback and safe projection; actual diagnostic CI proof is pending.
+
+Historical setup qualification: the dedicated
 `overte-browser-native-ci` job has been created through the official Jenkins CLI;
 unrelated jobs, nodes, services and device configuration are preserved.
 Its exact `9f8dc66e8751bb7c17f4c5f7a2123d10efba1938` build verifies the source

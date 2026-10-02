@@ -4,6 +4,71 @@ Last updated: 2026-10-02. **Original baseline passed; additional mandatory Table
 
 ## Current implementation and next step
 
+Current continuation (2026-10-02,01:48UTC): published runtime checkpoint
+`09c062bf5a371df78b01014dccfdbc4c37febcb9` passes the production build,
+1,233 components and all34 required repository suites. The new opt-in Hub
+collector adds eight contracts: the current harness checkpoint passes all1,241
+components without skips (10.560s). Its first short Chromium154 Hub cohort passes
+loading, actual native movement, rejoin and all four unchanged fluidness gates;
+both diagnostic admissions are censored by owner-revision changes. The sequential
+Firefox156 cohort loads295 genuine models and synchronizes/rejoins correctly but
+fails all four fluidness gates; both of its censuses reach the unchanged2MiB
+metadata ceiling. All74 source pins and both distributions remain unchanged.
+Zero censored groups cannot establish absent instancing opportunities.
+[Actual short censuses](evidence/hub-async-draw-census-stock-20261002.json).
+
+After the reviewed peer diagnostic integration, all1,250 registered components
+pass without skips (10.634s), including nine new original-snapshot/strict-tail
+contracts; all eleven curator contracts and all34 required repository suites
+pass (164.89s). Runtime sources and the prior qualified production build are
+unchanged. Its optional safe diagnostic does not alter the original assertion.
+
+Exact-source local Jenkins6 has now executed all nineteen gates: eighteen pass,
+including all194 genuine renderer tests and the complete eighteen-checkpoint
+Firefox native journey with bidirectional synthetic voice. The Chromium journey
+fails the unchanged second-participant movement assertion at its original2,800ms
+boundary. Independent native records already show that command applied at the
+target; the original browser snapshot lacks enough timing/identity metadata to
+locate the remaining delay. A read-only, bounded pre-assert diagnostic is under
+review; no movement predicate or deadline is relaxed. All owned CI services are
+cleaned up. [Full gate outcome](evidence/jenkins-ci-09c062-checkpoint-20261002.json),
+[complete Firefox journey](evidence/jenkins-core-firefox-09c062-20261002.json).
+
+Both hosted09c062 runs pass1,230 of1,233 components and the own-X acceptance
+test; three network preparation tests fail. Actual records show NET_ADMIN present
+inside the setup namespace, but the Ubuntu unshare-unpriv AppArmor child denies
+capabilities and route setup returns EPERM. A narrow trusted immutable setup
+entrypoint is being developed without changing system profiles or test rights.
+Guest provisioning verifies OAuth=false before and after the security-only POST,
+but native atomic settings commit still fails independently; a private owned-child
+syscall observer is being reviewed before an actual diagnostic run.
+[Hosted outcome](evidence/hosted-ci-09c062-checkpoint-20261002.json).
+
+The actual passive password event probe preserves the earlier failure: keydown,
+keypress and keyup carry the supplementary character's two UTF16 units, while
+genuine beforeinput/input carry one unit and the resulting literal has length4
+instead of5. The first four editor cases pass; the remaining password, undo,
+maxlength and cancellation cases remain open. A narrowly selected genuine native
+input-method commit for supplementary scalars is being investigated; shipping
+input is unchanged. [Event negative](evidence/tablet-password-event-negative-20261002.json).
+
+The actual narrowly selected supplementary native-IME experiment now produces
+the exact password Unicode literal, with the first five editor cases passing.
+The sixth original one-CtrlZ undo oracle fails: mixed keyboard/IME delivery
+restores only the last character edit, not the original selected value. Remaining
+eight cases are not run; owned renderer and display both stop. No shipping change
+follows. Next input candidate: one complete guarded native password IME commit,
+preserving all original undo/maxlength/cancellation oracles and deadlines.
+[Preserved mixed-route negative](evidence/tablet-password-supplementary-ime-negative-20261002.json).
+
+Next: finish both short stock Hub censuses, review and integrate the safe peer
+diagnostic, publish the fully checked checkpoint and rerun exact-source native CI.
+Prove a password correction against all fourteen original cases before shipping
+and refresh genuine Create/People/Chat effects. Complete the trusted hosted setup
+and atomic-commit cause proof separately. Full Tablet, Firefox fluidness, native
+parity and environment recommendations remain mandatory unfinished work.
+The user's canceled endurance requirement remains canceled.
+
 Current continuation (2026-10-02,01:06UTC): the integrated checkpoint passes all
 1,233 registered components without skips (10.839s), the production build, and all
 34 required repository suites (162.19s). Optional bounded parse scheduling remains

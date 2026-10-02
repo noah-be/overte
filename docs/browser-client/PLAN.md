@@ -61,12 +61,16 @@ pixels, functional acceptance and a meaningful Hub measurement before activation
 
 ## Current evidence and next concrete work
 
-Current next steps: measure the default-off integrated bitmap path and passive
-draw census in short stock-browser `overte_hub` journeys; preserve exact quality
-and original fluidness gates. Complete the actual native password maxlength and
-cancellation correction. Rerun the complete exact-source local CI after the
-proof-only full FBX protocol comparison correction; resolve hosted deny-route
-and guest-persistence failures through bounded cause diagnostics.
+Current next steps: finish source-frozen, short stock-browser `overte_hub`
+task-sliced draw censuses, preserving exact quality and original fluidness gates.
+The first Chromium cohort passes; its partial owner-revision census is not an
+instancing result. Review the bounded native-peer pre-assert diagnostic and rerun
+all nineteen exact-source CI gates; the latest run passes eighteen, with the
+Chromium second-participant movement assertion still failing. Prove supplementary
+password insertion, undo/redo, maxlength and pending cancellation against all
+fourteen original genuine editor cases before shipping. Resolve the observed
+Ubuntu unshare-unpriv capability-denial through a narrowly trusted immutable
+setup entrypoint, and measure the independent native atomic-commit failure.
 
 See [STATUS.md](STATUS.md) for exact published commits, actual source-frozen
 cohorts, preserved failures, tests and remaining limitations. Original real
