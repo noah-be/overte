@@ -219,7 +219,8 @@ probe and does not qualify browser core journeys or relabel historical failures.
 Hosted [37133105952](https://github.com/noah-be/overte/actions/runs/37133105952),
 at `d64bcb03dc4227d96e2591891f264f4d372b4e25`, qualifies the initial prototype:
 strict POST, persisted guest rows/flags and disabled OAuth pass; no persistence
-failure marker appears; exact settings-target rename and fdatasync succeed.
+failure marker appears; the exact settings-target rename succeeds. The successful
+fdatasync observation is aggregate-only: its descriptor remains unattributed.
 All native capabilities, threads, NNP, namespaces, identity, seccomp and enforcing
 AppArmor checks pass. That run remains failed because the two historical tests
 were still operational there. The current shared managed supervisor needs its
@@ -228,13 +229,26 @@ own exact-source hosted qualification; the earlier result does not qualify it.
 Managed startup passes its bounded environment through a sealed owned memfd,
 then a private read-only RAM mount inside Bubblewrap. No environment values enter
 host bootstrap argv/environment or a persistent host launch-record file. A
-registered supervisor survives normal start-command exit; its monitor and final
-payload die when that owned process group is stopped. An actual CPU fixture
-checks controller exit, five zero capabilities, NNP/seccomp, private RAM record
-permissions/readback and complete group/death cleanup. Noble requires the exact
+registered supervisor survives normal start-command exit. The CPU fixture checks
+controller exit, five zero capabilities, NNP/seccomp and private RAM record
+permissions/readback; its original death check treats zombies as dead and does
+not prove complete group retirement or reaping. Hosted
+[37137981342](https://github.com/noah-be/overte/actions/runs/37137981342), at
+`bedbd97c34a7e7469b0c496b0aeeb1a269756f4f`, additionally leaves an owned CPU
+descendant alive after the original 2.5-second stop deadline. That real negative
+result requires a parent-binding and cleanup correction before feature
+integration. Earlier standalone settings success does not qualify shutdown.
+Noble requires the exact
 enforcing AppArmor profile; Fedora additionally requires active SELinux and the
 unchanged original context. Unknown/disabled host policy refuses. Fedora CPU
 evidence is not Fedora DomainServer or browser acceptance.
+
+Hosted [37136985934](https://github.com/noah-be/overte/actions/runs/37136985934),
+at `fda0c057f2425ace8e7db96b882f3c6331d17b4d`, completes the standalone managed
+settings workflow: 146 CPU contracts, strict POST, stored guest rows/flags,
+disabled OAuth, actual native confinement readback and the exact-target rename
+pass. It remains separate from the later shutdown counterexample and full
+browser qualification. Its fdatasync descriptor is likewise unattributed.
 
 The explicitly reviewed source closure includes `native_launch.py`. This isolated
 baseline has six fixed members; integration with the separately reviewed Chrome

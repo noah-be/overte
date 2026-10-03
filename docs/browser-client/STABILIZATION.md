@@ -8,8 +8,10 @@ checkout; the existing browser owner retains integration and publication of
 The launcher and atomic provisioning probe now keep the random administration
 token in memory. They persist only its native SHA-256 verifier. Regression tests
 exercise actual startup/preparation code without launching services and refuse
-the previous plaintext `runtime/admin.json` file. The probe's reviewed five-file
-source manifest is checked against the candidate; integration with other
+the previous plaintext `runtime/admin.json` file. The probe's explicitly reviewed
+source manifest is checked against the candidate. Its historical five-file
+closure now has six members including the shared native launcher; the separate
+Chrome integration needs seven reviewed members. Integration with other
 `manage.py` changes requires a new review and exact manifest update.
 
 The Places adapter escapes HTML delimiters and JavaScript line separators in
@@ -44,8 +46,11 @@ evidence reports those journeys as `not-run`. Pull-request and ordinary full
 workflow behavior is unchanged. A diagnostic success is not full qualification.
 
 The existing Owned atomic settings diagnostic has a separate default-off manual
-`continue_diagnostics_after_contract_failure` input. Its original contract tests
-remain unconditional and their failure still fails the job. Only an explicit
+`continue_diagnostics_after_contract_failure` input. Operational contract tests
+remain unconditional and their failure still fails the job. The obsolete launch
+order remains a runnable historical regression with authenticated original
+source and failed records; corrected gates measure the actual repaired launch.
+Only an explicit
 diagnostic selection permits the existing fresh-domain preparation and observer
 to continue after that failure, retaining the original domain argv, ownership,
 private capture and fixed summary validation. This obtains further evidence;
@@ -119,9 +124,52 @@ quick run reports 34 passing checks in 158.46 seconds; its receipt explicitly
 records that this test changed while the run was queued, so it is not attributed
 to a clean exact final head.
 
-No native launch workaround is applied. Linux documentation warns that setting
+The shared native launch proposal uses the signed system Bubblewrap profile and
+a fixed sealed additional seccomp denial to select Qt's named atomic-file
+fallback. Its strict settings readback passes on a fresh Ubuntu VM, but the
+proposal is not ready for feature integration while owned shutdown remains
+unqualified. Linux documentation warns that setting
 `no_new_privs` before a daemon's exec can interfere with LSM confinement changes,
 so a proposed pre-unshare filter cannot be presumed safe merely because its
 syscall rules deny an operation. Any launch repair must preserve and qualify
 confinement, atomic replacement, owned cleanup and actual strict stored readback.
 See the [Linux no-new-privileges documentation](https://docs.kernel.org/userspace-api/no_new_privs.html).
+
+## Current source-bound follow-up
+
+- [37136985934](https://github.com/noah-be/overte/actions/runs/37136985934), at
+  `fda0c057f2425ace8e7db96b882f3c6331d17b4d`: the complete standalone settings
+  workflow succeeds with 146 CPU contracts and actual stored guest permissions,
+  disabled OAuth and native confinement guards. The same clean source passes
+  all 34 repository quick checks. The settings-target rename is attributed;
+  successful fdatasync remains aggregate-only with an unattributed descriptor.
+- [37137981342](https://github.com/noah-be/overte/actions/runs/37137981342), at
+  `bedbd97c34a7e7469b0c496b0aeeb1a269756f4f`: the combined startup workflow fails.
+  Protocol tests report 1,571 passes, one own-Xvfb authentication timeout and no
+  skips. Native CPU contracts report 33 passes and one owned descendant alive
+  after the original 2.5-second group-stop bound; actual native startup does not
+  run. These failures are retained and require their own corrections.
+- Public feature `96d4e6d51bee318b8bf1c0ade286b1a6687f1c8c` also requires ffmpeg
+  in the browser job, where three exact audio contracts otherwise fail before
+  execution. The signed apt prerequisite is added in `bedbd97c34a7e7469b0c496b0aeeb1a269756f4f`.
+  All five unchanged capture contracts pass independently on that public source
+  with synthetic CPU-only ffmpeg input; no native or hardware acceptance follows.
+- `0696eadd217bdf57d95923b5091e75f8dba27176` applies the existing safe JavaScript
+  literal serializer to the Places channel as well as the home destination.
+  All six actual-source Places tests pass. Current CodeQL alert 44 still needs
+  a fresh integrated feature scan. Alert 45's complete four-path SARIF flow
+  hashes public source identities inside an acceptance report, not a password;
+  source review supports a documented false-positive disposition, with no
+  change to artifact SHA-256 or analysis rules.
+- `1d2e42ab857c5c3c99c6934d6b9c33ec4efebd3f` requires a complete authenticated
+  own-cookie X11 setup before worker launch inside the original five-second
+  readiness bound. The original three-second worker auth assertion and every
+  host/sibling/abstract-socket denial remain. Fixed connection/write diagnostics
+  contain no cookie. Ten controlled-transport CPU cases and six diagnostic
+  cases pass; fresh hosted actual-Xvfb qualification remains pending.
+
+The original feature owner exclusively reconciles managed parent binding,
+process registry retirement and Chrome source closure. Stabilization stays in
+an isolated checkout. No existing native/browser services or physical devices
+are operated, and source-bound standalone results do not replace final PR CI,
+review resolution or full product acceptance.
