@@ -88,6 +88,19 @@
   "optional_tests": {
     "crash-recovery-policy-CrashRecoveryPolicyTests": []
   },
+  "separate_lanes": {
+    "browser-direct": {
+      "workflow": ".github/workflows/browser-direct-client.yml",
+      "job": "native",
+      "driver": "browser-direct-client/tools/ci-native.py",
+      "cmake_option": "OVERTE_BROWSER_TRANSPORT",
+      "tests": {
+        "browser-direct-transport-WebRTCTransportTests": [],
+        "browser-direct-transport-BrowserEntityProjectionTests": [],
+        "browser-direct-transport-NativeAvatarAudioWireTests": []
+      }
+    }
+  },
   "optional_methods": {
     "physics-ShapeManagerTests": [
       "rejectEmptyHullShapes"

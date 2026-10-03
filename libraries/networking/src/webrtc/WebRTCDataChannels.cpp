@@ -1,653 +1,466 @@
-//
-//  WebRTCDataChannels.cpp
-//  libraries/networking/src/webrtc
-//
-//  Created by David Rowe on 21 May 2021.
-//  Copyright 2021 Vircadia contributors.
-//
+// Created by David Rowe on 21 May 2021.
+// Copyright 2021 Vircadia contributors.
+// Copyright 2026 Overte contributors.
+// SPDX-License-Identifier: Apache-2.0
+// Modified in 2026 for the optional direct browser transport.
 
 #include "WebRTCDataChannels.h"
 
 #if defined(WEBRTC_DATA_CHANNELS)
 
+#include <atomic>
+#include <chrono>
+#include <mutex>
+#include <utility>
+#include <rtc/rtc.hpp>
+
 #include <QJsonDocument>
-#include <QJsonObject>
+#include <QThread>
+#include <QUuid>
 
+#include "BrowserDatagramValidator.h"
 #include "../NetworkLogging.h"
+#include "../udt/Constants.h"
 
+namespace {
+constexpr int MAX_PEERS = 256;
+constexpr int MAX_SIGNAL_BYTES = 65536;
+constexpr int MAX_SDP_BYTES = 49152;
+constexpr int MAX_CANDIDATE_BYTES = 2048;
+constexpr int MAX_CANDIDATES = 64;
+constexpr int MAX_PENDING_DATAGRAMS = 4096;
+constexpr int MAX_PENDING_PEER_DATAGRAMS = 256;
+constexpr int PEER_TIMEOUT_MS = 30000;
 
-// References:
-// - https://webrtc.github.io/webrtc-org/native-code/native-apis/
-// - https://webrtc.googlesource.com/src/+/master/api/peer_connection_interface.h
-
-// FIXME: stun:ice.vircadia.com:7337 doesn't work for WebRTC.
-// Firefox warns: "WebRTC: Using more than two STUN/TURN servers slows down discovery"
-const std::list<std::string> ICE_SERVER_URIS = {
-    "stun:stun1.l.google.com:19302",
-    "stun:stun.schlund.de"
-};
-const int MAX_WEBRTC_BUFFER_SIZE = 16777216;  // 16MB
-
-// #define WEBRTC_DEBUG
-
-using namespace webrtc;
-
-
-void WDCSetSessionDescriptionObserver::OnSuccess() {
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "WDCSetSessionDescriptionObserver::OnSuccess()";
-#endif
+qint64 monotonicMilliseconds() {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
 }
 
-void WDCSetSessionDescriptionObserver::OnFailure(RTCError error) {
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "WDCSetSessionDescriptionObserver::OnFailure() :" << error.message();
-#endif
+QString addressID(const SockAddr& address) {
+    return address.getAddress().toString() + ":" + QString::number(address.getPort());
 }
 
-
-WDCCreateSessionDescriptionObserver::WDCCreateSessionDescriptionObserver(WDCConnection* parent) :
-    _parent(parent)
-{ }
-
-void WDCCreateSessionDescriptionObserver::OnSuccess(SessionDescriptionInterface* description) {
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "WDCCreateSessionDescriptionObserver::OnSuccess()";
-#endif
-    _parent->sendAnswer(description);
-    _parent->setLocalDescription(description);
-}
-
-void WDCCreateSessionDescriptionObserver::OnFailure(RTCError error) {
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "WDCCreateSessionDescriptionObserver::OnFailure() :" << error.message();
-#endif
-}
-
-
-WDCPeerConnectionObserver::WDCPeerConnectionObserver(WDCConnection* parent) :
-    _parent(parent)
-{ }
-
-void WDCPeerConnectionObserver::OnSignalingChange(PeerConnectionInterface::SignalingState newState) {
-#ifdef WEBRTC_DEBUG
-    QStringList states {
-        "Stable",
-        "HaveLocalOffer",
-        "HaveLocalPrAnswer",
-        "HaveRemoteOffer",
-        "HaveRemotePrAnswer",
-        "Closed"
-    };
-    qCDebug(networking_webrtc) << "WDCPeerConnectionObserver::OnSignalingChange() :" << newState << states[newState];
-#endif
-}
-
-void WDCPeerConnectionObserver::OnRenegotiationNeeded() {
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "WDCPeerConnectionObserver::OnRenegotiationNeeded()";
-#endif
-}
-
-void WDCPeerConnectionObserver::OnIceGatheringChange(PeerConnectionInterface::IceGatheringState newState) {
-#ifdef WEBRTC_DEBUG
-    QStringList states {
-        "New",
-        "Gathering",
-        "Complete"
-    };
-    qCDebug(networking_webrtc) << "WDCPeerConnectionObserver::OnIceGatheringChange() :" << newState << states[newState];
-#endif
-}
-
-void WDCPeerConnectionObserver::OnIceCandidate(const IceCandidateInterface* candidate) {
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "WDCPeerConnectionObserver::OnIceCandidate()";
-#endif
-    _parent->sendIceCandidate(candidate);
-}
-
-void WDCPeerConnectionObserver::OnIceConnectionChange(PeerConnectionInterface::IceConnectionState newState) {
-#ifdef WEBRTC_DEBUG
-    QStringList states {
-        "New",
-        "Checking",
-        "Connected",
-        "Completed",
-        "Failed",
-        "Disconnected",
-        "Closed",
-        "Max"
-    };
-    qCDebug(networking_webrtc) << "WDCPeerConnectionObserver::OnIceConnectionChange() :" << newState << states[newState];
-#endif
-}
-
-void WDCPeerConnectionObserver::OnStandardizedIceConnectionChange(PeerConnectionInterface::IceConnectionState newState) {
-#ifdef WEBRTC_DEBUG
-    QStringList states {
-        "New",
-        "Checking",
-        "Connected",
-        "Completed",
-        "Failed",
-        "Disconnected",
-        "Closed",
-        "Max"
-    };
-    qCDebug(networking_webrtc) << "WDCPeerConnectionObserver::OnStandardizedIceConnectionChange() :" << newState
-        << states[newState];
-#endif
-}
-
-void WDCPeerConnectionObserver::OnDataChannel(rtc::scoped_refptr<DataChannelInterface> dataChannel) {
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "WDCPeerConnectionObserver::OnDataChannel()";
-#endif
-    _parent->onDataChannelOpened(dataChannel);
-}
-
-void WDCPeerConnectionObserver::OnConnectionChange(PeerConnectionInterface::PeerConnectionState newState) {
-#ifdef WEBRTC_DEBUG
-    QStringList states {
-        "New",
-        "Connecting",
-        "Connected",
-        "Disconnected",
-        "Failed",
-        "Closed"
-    };
-    qCDebug(networking_webrtc) << "WDCPeerConnectionObserver::OnConnectionChange() :" << (uint)newState
-        << states[(uint)newState];
-#endif
-    _parent->onPeerConnectionStateChanged(newState);
-}
-
-
-WDCDataChannelObserver::WDCDataChannelObserver(WDCConnection* parent) :
-    _parent(parent)
-{ }
-
-void WDCDataChannelObserver::OnStateChange() {
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "WDCDataChannelObserver::OnStateChange()";
-#endif
-    _parent->onDataChannelStateChanged();
-}
-
-void WDCDataChannelObserver::OnMessage(const DataBuffer& buffer) {
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "WDCDataChannelObserver::OnMessage()";
-#endif
-    _parent->onDataChannelMessageReceived(buffer);
-}
-
-
-WDCConnection::WDCConnection(WebRTCDataChannels* parent, const QString& dataChannelID) :
-    _parent(parent),
-    _dataChannelID(dataChannelID)
-{
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "WDCConnection::WDCConnection() :" << dataChannelID;
-#endif
-
-    // Create observers.
-    _setSessionDescriptionObserver = new rtc::RefCountedObject<WDCSetSessionDescriptionObserver>();
-    _createSessionDescriptionObserver = new rtc::RefCountedObject<WDCCreateSessionDescriptionObserver>(this);
-    _dataChannelObserver = std::make_shared<WDCDataChannelObserver>(this);
-    _peerConnectionObserver = std::make_shared<WDCPeerConnectionObserver>(this);
-
-    // Create new peer connection.
-    _peerConnection = _parent->createPeerConnection(_peerConnectionObserver);
-};
-
-void WDCConnection::setRemoteDescription(QJsonObject& description) {
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "WDCConnection::setRemoteDescription() :" << description;
-#endif
-
-    SdpParseError sdpParseError;
-    auto sessionDescription = CreateSessionDescription(
-        description.value("type").toString().toStdString(),
-        description.value("sdp").toString().toStdString(),
-        &sdpParseError);
-    if (!sessionDescription) {
-        qCWarning(networking_webrtc) << "Error creating WebRTC remote description:"
-            << QString::fromStdString(sdpParseError.description);
-        return;
+bool parseAddress(const QString& id, SockAddr& address) {
+    int separator = id.lastIndexOf(':');
+    if (separator <= 0) {
+        return false;
     }
-
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "3. Set remote description:" << sessionDescription;
-#endif
-    _peerConnection->SetRemoteDescription(_setSessionDescriptionObserver, sessionDescription);
-}
-
-void WDCConnection::createAnswer() {
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "WDCConnection::createAnswer()";
-    qCDebug(networking_webrtc) << "4.a Create answer";
-#endif
-    _peerConnection->CreateAnswer(_createSessionDescriptionObserver, PeerConnectionInterface::RTCOfferAnswerOptions());
-}
-
-void WDCConnection::sendAnswer(SessionDescriptionInterface* description) {
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "WDCConnection::sendAnswer()";
-    qCDebug(networking_webrtc) << "4.b Send answer to the remote peer";
-#endif
-
-    QJsonObject jsonDescription;
-    std::string descriptionString;
-    description->ToString(&descriptionString);
-    jsonDescription.insert("sdp", QString::fromStdString(descriptionString));
-    jsonDescription.insert("type", "answer");
-
-    QJsonObject jsonWebRTCPayload;
-    jsonWebRTCPayload.insert("description", jsonDescription);
-
-    QJsonObject jsonObject;
-    jsonObject.insert("from", QString(_parent->getNodeType()));
-    jsonObject.insert("to", _dataChannelID);
-    jsonObject.insert("data", jsonWebRTCPayload);
-
-    _parent->sendSignalingMessage(jsonObject);
-}
-
-void WDCConnection::setLocalDescription(SessionDescriptionInterface* description) {
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "WDCConnection::setLocalDescription()";
-    qCDebug(networking_webrtc) << "5. Set local description";
-#endif
-    _peerConnection->SetLocalDescription(_setSessionDescriptionObserver, description);
-}
-
-void WDCConnection::addIceCandidate(QJsonObject& data) {
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "WDCConnection::addIceCandidate()";
-#endif
-
-    SdpParseError sdpParseError;
-    auto iceCandidate = CreateIceCandidate(
-        data.value("sdpMid").toString().toStdString(),
-        data.value("sdpMLineIndex").toInt(),
-        data.value("candidate").toString().toStdString(),
-        &sdpParseError);
-    if (!iceCandidate) {
-        qCWarning(networking_webrtc) << "Error adding WebRTC ICE candidate:"
-            << QString::fromStdString(sdpParseError.description);
-        return;
+    QHostAddress host(id.left(separator));
+    bool validPort = false;
+    uint port = id.mid(separator + 1).toUInt(&validPort);
+    if (host.isNull() || !validPort || !port || port > 65535) {
+        return false;
     }
-
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "6. Add ICE candidate";
-#endif
-    _peerConnection->AddIceCandidate(iceCandidate);
+    address = SockAddr(SocketType::WebRTC, host, static_cast<quint16>(port));
+    return addressID(address) == id;
 }
 
-void WDCConnection::sendIceCandidate(const IceCandidateInterface* candidate) {
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "WDCConnection::sendIceCandidate()";
-#endif
-
-    std::string candidateString;
-    candidate->ToString(&candidateString);
-    QJsonObject jsonCandidate;
-    jsonCandidate.insert("candidate", QString::fromStdString(candidateString));
-    jsonCandidate.insert("sdpMid", QString::fromStdString(candidate->sdp_mid()));
-    jsonCandidate.insert("sdpMLineIndex", candidate->sdp_mline_index());
-
-    QJsonObject jsonWebRTCData;
-    jsonWebRTCData.insert("candidate", jsonCandidate);
-
-    QJsonObject jsonObject;
-    jsonObject.insert("from", QString(_parent->getNodeType()));
-    jsonObject.insert("to", _dataChannelID);
-    jsonObject.insert("data", jsonWebRTCData);
-    QJsonDocument jsonDocument = QJsonDocument(jsonObject);
-
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "7. Send ICE candidate to the remote peer";
-#endif
-    _parent->sendSignalingMessage(jsonObject);
-}
-
-void WDCConnection::onPeerConnectionStateChanged(PeerConnectionInterface::PeerConnectionState state) {
-#ifdef WEBRTC_DEBUG
-    QStringList states {
-        "New",
-        "Connecting",
-        "Connected",
-        "Disconnected",
-        "Failed",
-        "Closed"
-    };
-    qCDebug(networking_webrtc) << "WDCConnection::onPeerConnectionStateChanged() :" << (int)state << states[(int)state];
-#endif
-}
-
-void WDCConnection::onDataChannelOpened(rtc::scoped_refptr<DataChannelInterface> dataChannel) {
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "WDCConnection::onDataChannelOpened() :"
-        << dataChannel->id()
-        << QString::fromStdString(dataChannel->label())
-        << QString::fromStdString(dataChannel->protocol())
-        << dataChannel->negotiated()
-        << dataChannel->maxRetransmitTime()
-        << dataChannel->maxRetransmits()
-        << dataChannel->maxPacketLifeTime().value_or(-1)
-        << dataChannel->maxRetransmitsOpt().value_or(-1);
-#endif
-
-    _dataChannel = dataChannel;
-    _dataChannel->RegisterObserver(_dataChannelObserver.get());
-
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "WDCConnection::onDataChannelOpened() : channel ID:" << _dataChannelID;
-#endif
-    _parent->onDataChannelOpened(this, _dataChannelID);
-}
-
-void WDCConnection::onDataChannelStateChanged() {
-    auto state = _dataChannel->state();
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "WDCConnection::onDataChannelStateChanged() :" << (int)state
-        << DataChannelInterface::DataStateString(state);
-#endif
-    if (state == DataChannelInterface::kClosed) {
-        // Finish with the data channel.
-        _dataChannel->UnregisterObserver();
-        // Don't set _dataChannel = nullptr because it is a scoped_refptr.
-        _dataChannelObserver = nullptr;
-
-        // Close peer connection.
-        _parent->closePeerConnection(this);
+rtc::Configuration configuration() {
+    rtc::Configuration config;
+    // Empty by default. Operators may point this at their own STUN servers.
+    const auto servers = qEnvironmentVariable("OVERTE_BROWSER_STUN_SERVERS").split(';', Qt::SkipEmptyParts);
+    if (servers.size() > 8) {
+        throw std::invalid_argument("Too many configured STUN servers");
     }
-}
-
-void WDCConnection::onDataChannelMessageReceived(const DataBuffer& buffer) {
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "WDCConnection::onDataChannelMessageReceived()";
-#endif
-
-    auto byteArray = QByteArray(buffer.data.data<char>(), (int)buffer.data.size());
-
-    // Echo message back to sender.
-    if (byteArray.startsWith("echo:")) {
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "Echo message back";
-#endif
-        auto addressParts = _dataChannelID.split(":");
-        if (addressParts.length() != 2) {
-            qCWarning(networking_webrtc) << "Invalid dataChannelID:" << _dataChannelID;
-            return;
+    for (const auto& server : servers) {
+        if (!server.startsWith("stun:") || server.size() > 512) {
+            throw std::invalid_argument("Expected a STUN URI");
         }
-        auto address = SockAddr(SocketType::WebRTC, QHostAddress(addressParts[0]), addressParts[1].toInt());
-        _parent->sendDataMessage(address, byteArray);  // Use parent method to exercise the code stack.
-        return;
+        config.iceServers.emplace_back(server.toStdString());
     }
-
-    _parent->emitDataMessage(_dataChannelID, byteArray);
-}
-
-qint64 WDCConnection::getBufferedAmount() const {
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "WDCConnection::getBufferedAmount()";
-#endif
-    return _dataChannel && _dataChannel->state() != DataChannelInterface::kClosing
-            && _dataChannel->state() != DataChannelInterface::kClosed
-        ? _dataChannel->buffered_amount() : 0;
-}
-
-bool WDCConnection::sendDataMessage(const DataBuffer& buffer) {
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "WDCConnection::sendDataMessage()";
-    if (!_dataChannel || _dataChannel->state() == DataChannelInterface::kClosing
-        || _dataChannel->state() == DataChannelInterface::kClosed) {
-        qCDebug(networking_webrtc) << "No data channel to send on";
+    const auto bindAddress = qEnvironmentVariable("OVERTE_BROWSER_ICE_BIND_ADDRESS");
+    if (!bindAddress.isEmpty()) {
+        QHostAddress host(bindAddress);
+        if (host.isNull()) {
+            throw std::invalid_argument("Invalid ICE bind address");
+        }
+        config.bindAddress = host.toString().toStdString();
     }
-#endif
-    if (!_dataChannel || _dataChannel->state() == DataChannelInterface::kClosing
-            || _dataChannel->state() == DataChannelInterface::kClosed) {
-        // Data channel may have been closed while message to send was being prepared.
-        return false;
-    } else if (_dataChannel->buffered_amount() + buffer.size() > MAX_WEBRTC_BUFFER_SIZE) {
-        // Don't send, otherwise the data channel will be closed.
-        qCDebug(networking_webrtc) << "WebRTC send buffer overflow";
-        return false;
+    const std::pair<const char*, uint16_t*> portSettings[] = {
+        { "OVERTE_BROWSER_ICE_PORT_MIN", &config.portRangeBegin },
+        { "OVERTE_BROWSER_ICE_PORT_MAX", &config.portRangeEnd }
+    };
+    for (const auto& setting : portSettings) {
+        const auto value = qEnvironmentVariable(setting.first);
+        if (!value.isEmpty()) {
+            bool ok = false;
+            uint port = value.toUInt(&ok);
+            if (!ok || !port || port > 65535) {
+                throw std::invalid_argument("Invalid ICE port range");
+            }
+            *setting.second = static_cast<uint16_t>(port);
+        }
     }
-    return _dataChannel->Send(buffer);
-}
-
-void WDCConnection::closePeerConnection() {
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "WDCConnection::closePeerConnection() :" << (int)_peerConnection->peer_connection_state();
-#endif
-    _peerConnection->Close();
-    // Don't set _peerConnection = nullptr because it is a scoped_refptr.
-    _peerConnectionObserver = nullptr;
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "Disposed of peer connection";
-#endif
-}
-
-
-WebRTCDataChannels::WebRTCDataChannels(QObject* parent) :
-    QObject(parent),
-    _parent(parent)
-{
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "WebRTCDataChannels::WebRTCDataChannels()";
-#endif
-
-    // Create a peer connection factory.
-#ifdef WEBRTC_DEBUG
-    // Numbers are per WebRTC's peer_connection_interface.h.
-    qCDebug(networking_webrtc) << "1. Create a new PeerConnectionFactoryInterface";
-#endif
-    _rtcNetworkThread = rtc::Thread::CreateWithSocketServer();
-    _rtcNetworkThread->Start();
-    _rtcWorkerThread = rtc::Thread::Create();
-    _rtcWorkerThread->Start();
-    _rtcSignalingThread = rtc::Thread::Create();
-    _rtcSignalingThread->Start();
-    PeerConnectionFactoryDependencies dependencies;
-    dependencies.network_thread = _rtcNetworkThread.get();
-    dependencies.worker_thread = _rtcWorkerThread.get();
-    dependencies.signaling_thread = _rtcSignalingThread.get();
-    _peerConnectionFactory = CreateModularPeerConnectionFactory(std::move(dependencies));
-    if (!_peerConnectionFactory) {
-        qCWarning(networking_webrtc) << "Failed to create WebRTC peer connection factory";
+    if (config.portRangeBegin > config.portRangeEnd) {
+        throw std::invalid_argument("Invalid ICE port range");
     }
+    config.maxMessageSize = udt::MAX_PACKET_SIZE;
+    return config;
+}
+} // namespace
 
-    // Set up mechanism for closing peer connections.
-    connect(this, &WebRTCDataChannels::closePeerConnectionSoon, this, &WebRTCDataChannels::closePeerConnectionNow);
+struct WebRTCDataChannels::Connection {
+    QString id;
+    QString session;
+    const QString generation { QUuid::createUuid().toString(QUuid::WithoutBraces) };
+    SockAddr address;
+    NodeType_t nodeType;
+    std::shared_ptr<rtc::PeerConnection> peer;
+    std::shared_ptr<rtc::DataChannel> channel;
+    std::atomic<qint64> lastActivity { 0 };
+    int remoteCandidateCount { 0 };
+    std::atomic<int> pendingDatagrams { 0 };
+    std::atomic<int> pendingCallbacks { 0 };
+    std::atomic<bool> channelRequested { false };
+    std::mutex sendMutex;
+};
+
+// A worker holds this mutex only while posting to the QObject. Destruction
+// invalidates the owner before closing the library objects, preventing a race
+// between QObject destruction and a libdatachannel callback.
+struct WebRTCDataChannels::CallbackGuard {
+    std::mutex mutex;
+    WebRTCDataChannels* owner { nullptr };
+    std::atomic<int> pendingDatagrams { 0 };
+    std::atomic<int> pendingBytes { 0 };
+    std::atomic<int> pendingCallbacks { 0 };
+};
+
+struct WebRTCDataChannels::PendingCallback {
+    std::shared_ptr<CallbackGuard> guard;
+    std::shared_ptr<Connection> connection;
+    ~PendingCallback() {
+        guard->pendingCallbacks.fetch_sub(1);
+        connection->pendingCallbacks.fetch_sub(1);
+    }
+};
+
+// Accounting also releases if Qt discards a queued event during destruction.
+struct WebRTCDataChannels::PendingDatagram {
+    std::shared_ptr<CallbackGuard> guard;
+    std::shared_ptr<Connection> connection;
+    int size;
+    ~PendingDatagram() {
+        guard->pendingBytes.fetch_sub(size);
+        guard->pendingDatagrams.fetch_sub(1);
+        connection->pendingDatagrams.fetch_sub(1);
+    }
+};
+
+WebRTCDataChannels::WebRTCDataChannels(QObject* parent) : QObject(parent), _guard(std::make_shared<CallbackGuard>()) {
+    _guard->owner = this;
+    _expiryTimer.setParent(this);
+    _expiryTimer.setInterval(1000);
+    connect(&_expiryTimer, &QTimer::timeout, this, &WebRTCDataChannels::expireConnections);
+    _expiryTimer.start();
 }
 
 WebRTCDataChannels::~WebRTCDataChannels() {
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "WebRTCDataChannels::~WebRTCDataChannels()";
-#endif
-    reset();
-    _peerConnectionFactory = nullptr;
-    _rtcSignalingThread->Stop();
-    _rtcSignalingThread = nullptr;
-    _rtcWorkerThread->Stop();
-    _rtcWorkerThread = nullptr;
-    _rtcNetworkThread->Stop();
-    _rtcNetworkThread = nullptr;
-}
-
-void WebRTCDataChannels::reset() {
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "WebRTCDataChannels::reset() :" << _connectionsByID.count();
-#endif
-    QHashIterator<QString, WDCConnection*> i(_connectionsByID);
-    while (i.hasNext()) {
-        i.next();
-        delete i.value();
+    {
+        std::lock_guard<std::mutex> lock(_guard->mutex);
+        _guard->owner = nullptr;
     }
-    _connectionsByID.clear();
+    reset();
 }
 
-void WebRTCDataChannels::onDataChannelOpened(WDCConnection* connection, const QString& dataChannelID) {
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "WebRTCDataChannels::onDataChannelOpened() :" << dataChannelID;
-#endif
-    _connectionsByID.insert(dataChannelID, connection);
+bool WebRTCDataChannels::post(const std::shared_ptr<CallbackGuard>& guard,
+                             const std::weak_ptr<Connection>& connection, Callback callback) {
+    auto current = connection.lock();
+    if (!current) {
+        return false;
+    }
+    std::lock_guard<std::mutex> lock(guard->mutex);
+    auto owner = guard->owner;
+    if (!owner || guard->pendingCallbacks >= MAX_PENDING_DATAGRAMS ||
+        current->pendingCallbacks >= MAX_PENDING_PEER_DATAGRAMS) {
+        return false;
+    }
+    auto ticket = std::make_shared<PendingCallback>();
+    ticket->guard = guard;
+    ticket->connection = current;
+    guard->pendingCallbacks.fetch_add(1);
+    current->pendingCallbacks.fetch_add(1);
+    return QMetaObject::invokeMethod(owner, [owner, connection, ticket, callback = std::move(callback)] {
+        auto current = connection.lock();
+        if (current && owner->findConnection(current->id) == current) {
+            callback(owner, current);
+        }
+    }, Qt::QueuedConnection);
+}
+
+WebRTCDataChannels::ConnectionPtr WebRTCDataChannels::createConnection(const QString& id, const QString& session,
+                                                                       NodeType_t nodeType) {
+    auto connection = std::make_shared<Connection>();
+    connection->id = id;
+    connection->session = session;
+    connection->nodeType = nodeType;
+    parseAddress(id, connection->address);
+    connection->lastActivity = monotonicMilliseconds();
+    connection->peer = std::make_shared<rtc::PeerConnection>(configuration());
+    {
+        std::lock_guard<std::mutex> lock(_connectionsMutex);
+        _connections.insert(id, connection);
+    }
+    auto guard = _guard;
+    std::weak_ptr<Connection> weak = connection;
+    connection->peer->onLocalDescription([guard, weak](rtc::Description description) {
+        auto sdp = QString::fromStdString(std::string(description));
+        auto type = QString::fromStdString(description.typeString());
+        post(guard, weak, [sdp, type](WebRTCDataChannels* owner, const ConnectionPtr& current) {
+            owner->sendSignal(current, { { "description", QJsonObject { { "type", type }, { "sdp", sdp } } } });
+        });
+    });
+    connection->peer->onLocalCandidate([guard, weak](rtc::Candidate candidate) {
+        auto value = QString::fromStdString(candidate.candidate());
+        auto mid = QString::fromStdString(candidate.mid());
+        post(guard, weak, [value, mid](WebRTCDataChannels* owner, const ConnectionPtr& current) {
+            owner->sendSignal(current, { { "candidate", QJsonObject { { "candidate", value }, { "sdpMid", mid },
+                                                                        { "sdpMLineIndex", 0 } } } });
+        });
+    });
+    connection->peer->onStateChange([guard, weak](rtc::PeerConnection::State state) {
+        if (state == rtc::PeerConnection::State::Failed || state == rtc::PeerConnection::State::Closed ||
+            state == rtc::PeerConnection::State::Disconnected) {
+            post(guard, weak, [](WebRTCDataChannels* owner, const ConnectionPtr& current) {
+                owner->closeConnection(current);
+            });
+        }
+    });
+    connection->peer->onDataChannel([guard, weak](std::shared_ptr<rtc::DataChannel> channel) {
+        const auto current = weak.lock();
+        const auto reliability = channel->reliability();
+        // Limit DCEP channels before queueing to Qt. UDT owns reliability.
+        if (!current || current->channelRequested.exchange(true) || !reliability.unordered ||
+            !reliability.maxRetransmits || *reliability.maxRetransmits != 0 || reliability.maxPacketLifeTime) {
+            channel->close();
+            return;
+        }
+        if (!post(guard, weak, [channel](WebRTCDataChannels*, const ConnectionPtr& current) {
+            std::atomic_store(&current->channel, channel);
+        })) {
+            channel->close();
+            return;
+        }
+        // Install receive callbacks immediately on this worker. Deferring
+        // them to Qt would let SCTP build an unbounded incoming channel queue.
+        installDataChannel(guard, weak, channel);
+    });
+    return connection;
+}
+
+WebRTCDataChannels::ConnectionPtr WebRTCDataChannels::findConnection(const QString& id) const {
+    std::lock_guard<std::mutex> lock(_connectionsMutex);
+    return _connections.value(id);
+}
+
+void WebRTCDataChannels::installDataChannel(const std::shared_ptr<CallbackGuard>& guard,
+                                          const std::weak_ptr<Connection>& weak,
+                                          const std::shared_ptr<rtc::DataChannel>& channel) {
+    channel->onClosed([guard, weak] {
+        post(guard, weak, [](WebRTCDataChannels* owner, const ConnectionPtr& current) { owner->closeConnection(current); });
+    });
+    channel->onError([guard, weak](const std::string&) {
+        post(guard, weak, [](WebRTCDataChannels* owner, const ConnectionPtr& current) { owner->closeConnection(current); });
+    });
+    channel->onMessage([guard, weak](rtc::message_variant message) {
+        const auto bytes = std::get_if<rtc::binary>(&message);
+        if (!bytes || !isBrowserDatagramValid(reinterpret_cast<const char*>(bytes->data()), bytes->size())) {
+            return;
+        }
+        auto current = weak.lock();
+        if (!current) {
+            return;
+        }
+        const auto size = static_cast<int>(bytes->size());
+        {
+            std::lock_guard<std::mutex> lock(guard->mutex);
+            if (!guard->owner || guard->pendingDatagrams >= MAX_PENDING_DATAGRAMS ||
+                guard->pendingBytes + size > udt::WEBRTC_RECEIVE_BUFFER_SIZE_BYTES ||
+                current->pendingDatagrams >= MAX_PENDING_PEER_DATAGRAMS) {
+                return; // Native UDT handles datagram loss for reliable packet types.
+            }
+            guard->pendingDatagrams.fetch_add(1);
+            guard->pendingBytes.fetch_add(size);
+            current->pendingDatagrams.fetch_add(1);
+        }
+        auto ticket = std::make_shared<PendingDatagram>();
+        ticket->guard = guard;
+        ticket->connection = current;
+        ticket->size = size;
+        QByteArray payload(reinterpret_cast<const char*>(bytes->data()), size);
+        post(guard, weak, [payload, ticket](WebRTCDataChannels* owner, const ConnectionPtr& current) {
+            current->lastActivity = monotonicMilliseconds();
+            emit owner->dataMessage(current->address, payload);
+        });
+    });
+}
+
+void WebRTCDataChannels::sendSignal(const ConnectionPtr& connection, const QJsonObject& data) {
+    emit signalingMessage({ { "to", connection->id }, { "from", QString(QChar(connection->nodeType)) },
+                            { "session", connection->session }, { "data", data } });
 }
 
 void WebRTCDataChannels::onSignalingMessage(const QJsonObject& message) {
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "WebRTCDataChannel::onSignalingMessage()" << message;
-#endif
-
-    // Validate message.
-    const int MAX_DEBUG_DETAIL_LENGTH = 64;
-    const QRegularExpression DATA_CHANNEL_ID_REGEX{ "^[1-9]\\d*\\.\\d+\\.\\d+\\.\\d+:\\d+$" };
-    auto data = message.value("data").isObject() ? message.value("data").toObject() : QJsonObject();
-    auto from = message.value("from").toString();
-    auto to = NodeType::fromChar(message.value("to").toString().at(0));
-    if (!DATA_CHANNEL_ID_REGEX.match(from).hasMatch() || to == NodeType::Unassigned
-            || (!data.contains("description") && !data.contains("candidate"))) {
-        qCWarning(networking_webrtc) << "Invalid or unexpected signaling message:"
-            << QJsonDocument(message).toJson(QJsonDocument::Compact).left(MAX_DEBUG_DETAIL_LENGTH);
+    Q_ASSERT(QThread::currentThread() == thread());
+    if (QJsonDocument(message).toJson(QJsonDocument::Compact).size() > MAX_SIGNAL_BYTES) {
         return;
     }
-
-    // Remember this node's type for the reply.
-    _nodeType = to;
-
-    // Find or create a connection.
-    WDCConnection* connection;
-    if (_connectionsByID.contains(from)) {
-        connection = _connectionsByID.value(from);
-    } else {
-        connection = new WDCConnection(this, from);
-        _connectionsByID.insert(from, connection);
+    const auto id = message.value("from").toString();
+    const auto session = message.value("session").toString();
+    const auto target = message.value("to").toString();
+    SockAddr address;
+    if (!parseAddress(id, address) || target.size() != 1 || session.size() != 36) {
+        return;
     }
-
-    // Set the remote description and reply with an answer.
-    if (data.contains("description")) {
-        auto description = data.value("description").toObject();
-        if (description.value("type").toString() == "offer") {
-            connection->setRemoteDescription(description);
-            connection->createAnswer();
-        } else {
-            qCWarning(networking_webrtc) << "Unexpected signaling description:"
-                << QJsonDocument(description).toJson(QJsonDocument::Compact).left(MAX_DEBUG_DETAIL_LENGTH);
+    const auto nodeType = NodeType::fromChar(target.front());
+    if (nodeType == NodeType::Unassigned || (_nodeType != NodeType::Unassigned && _nodeType != nodeType) ||
+        !message.value("data").isObject()) {
+        return;
+    }
+    _nodeType = nodeType;
+    const auto data = message.value("data").toObject();
+    auto connection = findConnection(id);
+    if (data.value("close").toBool()) {
+        if (connection && connection->session == session) {
+            closeConnection(connection);
+        }
+        return;
+    }
+    try {
+        if (data.value("description").isObject()) {
+            const auto description = data.value("description").toObject();
+            const auto sdp = description.value("sdp").toString();
+            if (description.value("type").toString() != "offer" || sdp.isEmpty() ||
+                sdp.toUtf8().size() > MAX_SDP_BYTES || !sdp.contains("m=application ") ||
+                sdp.contains("m=audio ") || sdp.contains("m=video ")) {
+                return;
+            }
+            // Renegotiation is intentionally bounded to one offer per socket.
+            // Reconnection creates a new signaling session and native node.
+            if (connection) {
+                return;
+            }
+            {
+                std::lock_guard<std::mutex> lock(_connectionsMutex);
+                if (_connections.size() >= MAX_PEERS) {
+                    return;
+                }
+            }
+            connection = createConnection(id, session, nodeType);
+            connection->peer->setRemoteDescription(rtc::Description(sdp.toStdString(), "offer"));
+        } else if (!connection || connection->session != session) {
+            return; // Candidates cannot allocate unauthenticated peer contexts.
+        }
+        if (data.value("candidate").isObject()) {
+            const auto candidate = data.value("candidate").toObject();
+            const auto value = candidate.value("candidate").toString();
+            const auto mid = candidate.value("sdpMid").toString();
+            if (value.isEmpty()) {
+                return; // End-of-candidates notification.
+            }
+            if (value.toUtf8().size() > MAX_CANDIDATE_BYTES || mid.size() > 64 ||
+                connection->remoteCandidateCount >= MAX_CANDIDATES) {
+                closeConnection(connection);
+                return;
+            }
+            ++connection->remoteCandidateCount;
+            connection->peer->addRemoteCandidate(rtc::Candidate(value.toStdString(), mid.toStdString()));
+        }
+    } catch (const std::exception&) {
+        // SDP/ICE can contain private addresses and credentials; do not dump
+        // their contents or library exception text.
+        qCWarning(networking_webrtc) << "Rejected browser transport negotiation";
+        if (connection) {
+            closeConnection(connection);
         }
     }
-
-    // Add a remote ICE candidate.
-    if (data.contains("candidate")) {
-        auto candidate = data.value("candidate").toObject();
-        connection->addIceCandidate(candidate);
-    }
-
 }
 
-void WebRTCDataChannels::sendSignalingMessage(const QJsonObject& message) {
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "WebRTCDataChannels::sendSignalingMessage() :" << QJsonDocument(message).toJson(QJsonDocument::Compact);
-#endif
-    emit signalingMessage(message);
-}
-
-void WebRTCDataChannels::emitDataMessage(const QString& dataChannelID, const QByteArray& byteArray) {
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "WebRTCDataChannels::emitDataMessage() :" << dataChannelID << byteArray.toHex()
-        << byteArray.length();
-#endif
-    auto addressParts = dataChannelID.split(":");
-    if (addressParts.length() != 2) {
-        qCWarning(networking_webrtc) << "Invalid dataChannelID:" << dataChannelID;
-        return;
-    }
-    auto address = SockAddr(SocketType::WebRTC, QHostAddress(addressParts[0]), addressParts[1].toInt());
-    emit dataMessage(address, byteArray);
-}
-
-bool WebRTCDataChannels::sendDataMessage(const SockAddr& destination, const QByteArray& byteArray) {
-    auto dataChannelID = destination.toShortString();
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "WebRTCDataChannels::sendDataMessage() :" << dataChannelID;
-#endif
-
-    if (!_connectionsByID.contains(dataChannelID)) {
-        qCWarning(networking_webrtc) << "Could not find WebRTC data channel to send message on!";
+bool WebRTCDataChannels::sendDataMessage(const SockAddr& destination, const QByteArray& message) {
+    // Native audio/avatar mixers and UDT SendQueue may write from workers.
+    const auto connection = findConnection(addressID(destination));
+    if (!connection) {
         return false;
     }
+    std::lock_guard<std::mutex> sendLock(connection->sendMutex);
+    const auto channel = std::atomic_load(&connection->channel);
+    if (!channel || !channel->isOpen() || message.isEmpty() ||
+        message.size() > udt::MAX_PACKET_SIZE ||
+        channel->bufferedAmount() + message.size() > udt::WEBRTC_SEND_BUFFER_SIZE_BYTES) {
+        return false;
+    }
+    try {
+        // A false library return means accepted but buffered, still a successful write.
+        channel->send(reinterpret_cast<const rtc::byte*>(message.constData()), message.size());
+        connection->lastActivity = monotonicMilliseconds();
+        return true;
+    } catch (const std::exception&) {
+        post(_guard, connection, [](WebRTCDataChannels* owner, const ConnectionPtr& current) {
+            owner->closeConnection(current);
+        });
+        return false;
+    }
+}
 
-    auto connection = _connectionsByID.value(dataChannelID);
-    DataBuffer buffer(byteArray.toStdString(), true);
-    return connection->sendDataMessage(buffer);
+bool WebRTCDataChannels::isPeerOpen(const SockAddr& address) const {
+    return !peerGeneration(address).isEmpty();
+}
+
+QString WebRTCDataChannels::peerGeneration(const SockAddr& address) const {
+    if (address.getType() != SocketType::WebRTC) {
+        return {};
+    }
+    const auto connection = findConnection(addressID(address));
+    const auto channel = connection ? std::atomic_load(&connection->channel) : nullptr;
+    return channel && channel->isOpen() ? connection->generation : QString();
 }
 
 qint64 WebRTCDataChannels::getBufferedAmount(const SockAddr& address) const {
-    auto dataChannelID = address.toShortString();
-    if (!_connectionsByID.contains(dataChannelID)) {
-#ifdef WEBRTC_DEBUG
-        qCDebug(networking_webrtc) << "WebRTCDataChannels::getBufferedAmount() : Channel doesn't exist:" << dataChannelID;
-#endif
-        return 0;
+    const auto connection = findConnection(addressID(address));
+    const auto channel = connection ? std::atomic_load(&connection->channel) : nullptr;
+    return channel ? static_cast<qint64>(channel->bufferedAmount()) : 0;
+}
+
+void WebRTCDataChannels::closeConnection(const ConnectionPtr& connection) {
+    {
+        std::lock_guard<std::mutex> lock(_connectionsMutex);
+        if (_connections.value(connection->id) != connection) {
+            return;
+        }
+        _connections.remove(connection->id);
     }
-    auto connection = _connectionsByID.value(dataChannelID);
-    return connection->getBufferedAmount();
-}
-
-rtc::scoped_refptr<PeerConnectionInterface> WebRTCDataChannels::createPeerConnection(
-        const std::shared_ptr<WDCPeerConnectionObserver> peerConnectionObserver) {
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "WebRTCDataChannels::createPeerConnection()";
-#endif
-
-    PeerConnectionInterface::RTCConfiguration configuration;
-    for (const auto& uri : ICE_SERVER_URIS) {
-        PeerConnectionInterface::IceServer iceServer;
-        iceServer.uri = uri;
-        configuration.servers.push_back(iceServer);
+    if (const auto channel = std::atomic_load(&connection->channel)) {
+        channel->resetCallbacks();
+        channel->close();
     }
-
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "2. Create a new peer connection";
-#endif
-    PeerConnectionDependencies dependencies(peerConnectionObserver.get());
-    auto result = _peerConnectionFactory->CreatePeerConnection(configuration, std::move(dependencies));
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "Created peer connection";
-#endif
-    return result;
+    connection->peer->resetCallbacks();
+    connection->peer->close();
+    emit peerClosed(connection->address);
 }
 
-
-void WebRTCDataChannels::closePeerConnection(WDCConnection* connection) {
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "WebRTCDataChannels::closePeerConnection()";
-#endif
-    // Use Qt's signals/slots mechanism to close the peer connection on its own call stack, separate from the DataChannel
-    // callback that initiated the peer connection.
-    // https://bugs.chromium.org/p/webrtc/issues/detail?id=3721
-    emit closePeerConnectionSoon(connection);
+void WebRTCDataChannels::reset() {
+    QList<ConnectionPtr> connections;
+    {
+        std::lock_guard<std::mutex> lock(_connectionsMutex);
+        connections = _connections.values();
+    }
+    for (const auto& connection : connections) {
+        closeConnection(connection);
+    }
 }
 
-
-void WebRTCDataChannels::closePeerConnectionNow(WDCConnection* connection) {
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "WebRTCDataChannels::closePeerConnectionNow()";
-#endif
-    // Close the peer connection.
-    connection->closePeerConnection();
-
-    // Delete the WDCConnection.
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "Dispose of connection for channel:" << connection->getDataChannelID();
-#endif
-    _connectionsByID.remove(connection->getDataChannelID());
-    delete connection;
-#ifdef WEBRTC_DEBUG
-    qCDebug(networking_webrtc) << "Disposed of connection";
-#endif
+void WebRTCDataChannels::expireConnections() {
+    QList<ConnectionPtr> connections;
+    {
+        std::lock_guard<std::mutex> lock(_connectionsMutex);
+        connections = _connections.values();
+    }
+    for (const auto& connection : connections) {
+        if (monotonicMilliseconds() - connection->lastActivity > PEER_TIMEOUT_MS) {
+            closeConnection(connection);
+        }
+    }
 }
 
 #endif // WEBRTC_DATA_CHANNELS

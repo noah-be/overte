@@ -1,3 +1,4 @@
+// Modified in 2026 for the optional direct browser transport.
 //
 //  Socket.h
 //  libraries/networking/src/udt
@@ -59,6 +60,7 @@ public:
     Socket(QObject* object = 0, bool shouldChangeSocketOptions = true);
     
     quint16 localPort(SocketType socketType) const { return _networkSocket.localPort(socketType); }
+    const QHostAddress& udpBindAddress() const { return _udpBindAddress; }
     
     // Simple functions writing to the socket with no processing
     qint64 writeBasePacket(const BasePacket& packet, const SockAddr& sockAddr);
@@ -123,10 +125,11 @@ private:
     std::vector<SockAddr> getConnectionSockAddrs();
     void connectToSendSignal(const SockAddr& destinationAddr, QObject* receiver, const char* slot);
     
-    Q_INVOKABLE void writeReliablePacket(Packet* packet, const SockAddr& sockAddr);
-    Q_INVOKABLE void writeReliablePacketList(PacketList* packetList, const SockAddr& sockAddr);
+    Q_INVOKABLE void writeReliablePacket(Packet* packet, const SockAddr& sockAddr, const QString& rtcGeneration);
+    Q_INVOKABLE void writeReliablePacketList(PacketList* packetList, const SockAddr& sockAddr, const QString& rtcGeneration);
     
     NetworkSocket _networkSocket;
+    QHostAddress _udpBindAddress { QHostAddress::AnyIPv4 };
     PacketFilterOperator _packetFilterOperator;
     PacketHandler _packetHandler;
     MessageHandler _messageHandler;
