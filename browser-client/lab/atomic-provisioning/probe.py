@@ -4,7 +4,7 @@
 """Standalone owned DomainServer persistence probe; never attach or run CI gates."""
 import argparse,ast,base64,hashlib,importlib.util,json,os,signal,socket,stat,subprocess,sys,time
 from pathlib import Path
-from observer import checked_regular,validated_launch,MAX_CAPTURE,child_death_guard
+from observer import checked_regular,validated_launch,MAX_CAPTURE,MAX_ENV_ENTRIES,child_death_guard
 from target_projection import summarize
 
 def persistence_markers(data):
@@ -27,7 +27,8 @@ FIXED_FAILURES=frozenset(('probe-path-not-canonical','fresh-probe-directory-requ
  'input-path-not-canonical','input-not-owned-regular','input-not-private',
  'input-size-or-executable-invalid','input-size-invalid','launch-schema-invalid',
  'launch-path-invalid','launch-executable-hash-mismatch','launch-executable-kind-invalid',
- 'launch-environment-invalid','launch-environment-code-override','launch-inherited-home-changed'))
+ 'launch-environment-invalid','launch-environment-code-override','launch-inherited-home-changed',
+ 'launch-record-size-invalid'))
 
 def failure_observation(error):
  # Fixed source-owned exception tags only; no exception prose or paths escape.
@@ -41,7 +42,7 @@ def environment_shape(environment):
  if type(environment)is not dict:raise ValueError('launch-environment-invalid')
  strings=all(type(key)is str and type(value)is str for key,value in environment.items())
  return {'scope':'owned-native-environment-schema-observation','entries':len(environment),
-  'entryBoundExceeded':len(environment)>128,'typesValid':strings,
+  'entryBoundExceeded':len(environment)>MAX_ENV_ENTRIES,'typesValid':strings,
   'keyBoundExceeded':any(type(key)is str and (not key or len(key)>128)for key in environment),
   'valueBoundExceeded':any(type(value)is str and len(value)>8192 for value in environment.values()),
   'nulObserved':any(type(key)is str and type(value)is str and '\0'in key+value for key,value in environment.items())}

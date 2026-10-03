@@ -31,6 +31,17 @@ source-owned refusal tags is printed as `ATOMIC_PROBE_FAILURE`; arbitrary
 exception text and paths are never printed. Preparation still persists only the
 native password verifier; the random administration token stays in memory.
 
+Hosted run 37120791566, at `c7aaa59bc39bc7983bf4294d001263a3c8fc0559`,
+measured 129 inherited environment entries against the former 128-entry bound;
+all observed key/value/type/NUL bounds passed. The launch validator now accepts
+at most 256 entries while retaining the original 128-character keys,
+8192-character values, loader-override refusals and unchanged inherited HOME.
+It also checks the exact indented launch-record representation against the
+unchanged 64 KiB reader bound before writing. Direct validator tests cover 129
+short entries, exact 64 KiB acceptance, one-byte overflow and aggregate overflow
+despite individually valid values. The native environment and argv are preserved.
+This repairs probe preparation; it does not qualify the failed capability gate.
+
 `stage.py` creates unique owned 0700 probe/lab/output directories beneath the
 canonical RUNNER_TEMP and copies only the reviewed helpers/metadata. It downloads
 fixed official Noble InRelease/index/package URLs with bounded reads and checks

@@ -20,11 +20,11 @@ SOURCE = HERE.parent
 
 class ProbeCredentials(unittest.TestCase):
     def test_environment_schema_observation_reports_only_existing_bounds(self):
-        environment={f'PRIVATE_NAME_{index}':'private-token-value'for index in range(129)}
+        environment={f'PRIVATE_NAME_{index}':'private-token-value'for index in range(probe.MAX_ENV_ENTRIES+1)}
         environment['PRIVATE_NAME_0']='private-token-value'*500
         environment['PRIVATE_NAME_1']='private\0token'
         row=probe.environment_shape(environment)
-        self.assertEqual(row['entries'],129)
+        self.assertEqual(row['entries'],probe.MAX_ENV_ENTRIES+1)
         self.assertTrue(row['entryBoundExceeded'])
         self.assertTrue(row['valueBoundExceeded'])
         self.assertTrue(row['nulObserved'])
