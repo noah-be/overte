@@ -10,6 +10,8 @@ const LIMIT=16384;
 const errnos=new Map([['Operation not permitted',1],['Permission denied',13],['No such file or directory',2],['Invalid argument',22],['Cannot allocate memory',12],['No buffer space available',105],['Input/output error',5]]);
 // Exact literal operations from bubblewrap v0.9.0; paths/arguments never escape.
 const operations=new Map([['capset failed','bubblewrap-capset'],['capget failed','bubblewrap-capget'],['setting up uid map','bubblewrap-uid-map'],['setting up gid map','bubblewrap-gid-map'],['error writing to setgroups','bubblewrap-setgroups'],['prctl(PR_SET_NO_NEW_PRIVS) failed','bubblewrap-nnp'],['Creating new namespace failed','bubblewrap-namespace']]);
+// Exact fixed categories from the immutable owner admission module.
+const admissionRefusals=new Set(['bridge-port','broad-runtime','caller-policy','config-schema','duplicate-bind-target','duplicate-key','environment-argument','filesystem-target','headless-probe-display','headless-probe-environment','invalid-record','invalid-string','isolation-prefix','managed-address','managed-scope','missing-bind-argument','missing-filesystem-argument','missing-required-boundary','missing-worker-delimiter','namespace-attestation-mismatch','noncanonical-path','owner-capability-retirement','owner-parent','owner-profile','parent-mismatch','policy-schema','private-environment','public-runtime-root','record-size-changed','route-attestation','runtime-environment-path','runtime-policy','session-directory-ownership','session-file-type','session-scope','unapproved-bind','unexpected-managed-record','unknown-worker-option','unsealed-or-unbounded-record','webengine-path','worker-arguments','worker-command','worker-executable','working-directory','writable-host-bind']);
 export function projectNetworkTestStderr(bytes,observedBytes,streamsClosed=false) {
     if(!Buffer.isBuffer(bytes)||bytes.length>LIMIT||!Number.isSafeInteger(observedBytes)||observedBytes<bytes.length||typeof streamsClosed!=='boolean')throw Error('Network test stderr projection refused');
     const diagnostic=preparationDiagnostics('OVERTE_NET_NATIVE_STARTED');diagnostic.observe(bytes);
@@ -21,18 +23,21 @@ export function projectNetworkTestStderr(bytes,observedBytes,streamsClosed=false
     }
     const same=candidates.length>0&&candidates.every(v=>v.operation===candidates[0].operation&&v.errnoReported===candidates[0].errnoReported);
     // Only fixed exception names/numbers escape; traceback paths and messages stay private.
-    const python=[];let pythonProbeLine=null,nativeBoundaryRefused=false;
+    const python=[],refusals=[];let pythonProbeLine=null,nativeBoundaryRefused=false;
     for(const line of lines){
         const exception=/^(PermissionError|FileNotFoundError|OSError): \[Errno (1|2|13|22)\] .+$/.exec(line);
         if(exception)python.push({kind:exception[1],errnoReported:Number(exception[2])});
         const frame=/^  File "<string>", line ([1-9][0-9]{0,2})(?:, in [A-Za-z_<>][A-Za-z0-9_<>]*)?$/.exec(line);
         if(frame&&Number(frame[1])<=256)pythonProbeLine=Number(frame[1]);
         if(line==='Native capability boundary refused.')nativeBoundaryRefused=true;
+        const refusal=/^owner_admission\.Refusal: ([a-z-]{1,64})$/.exec(line);
+        if(refusal&&admissionRefusals.has(refusal[1]))refusals.push(refusal[1]);
     }
     const consistent=python.length>0&&python.every(v=>v.kind===python[0].kind&&v.errnoReported===python[0].errnoReported);
     return Object.freeze({schemaVersion:1,scope:'test-owned-child-stderr-not-syscall-proof',observedBytes,retainedBytes:bytes.length,truncated:observedBytes>bytes.length,streamsClosed,
         operation:same?candidates[0].operation:'unclassified',errnoReported:same?candidates[0].errnoReported:null,
         pythonException:consistent?python[0]:null,pythonProbeLine,nativeBoundaryRefused,
+        admissionRefusal:refusals.length>0&&refusals.every(v=>v===refusals[0])?refusals[0]:null,
         preparation:safePreparationDiagnostic(diagnostic.snapshot(null,null))});
 }
 // A private receipt is returned ONLY to the test caller, never its public projection.

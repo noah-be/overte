@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   browser:
-    name: ${{ inputs.startup_diagnostics && 'Protocol and network startup diagnostics' || 'Browser contracts and journeys' }}
+    name: ${{ inputs.startup_diagnostics && 'Protocol and network startup diagnostics' || 'browser' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     defaults:

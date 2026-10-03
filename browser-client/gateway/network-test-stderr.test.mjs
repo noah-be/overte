@@ -43,6 +43,12 @@ test('native boundary refusal is a boolean only for the exact existing fixed mes
   const bytes=Buffer.from(text);assert.equal(projectNetworkTestStderr(bytes,bytes.length).nativeBoundaryRefused,expected);
  }
 });
+test('immutable owner refusal projects only its exact reviewed category without exception prose',()=>{
+ const bytes=Buffer.from('owner_admission.Refusal: owner-profile\n');assert.equal(projectNetworkTestStderr(bytes,bytes.length).admissionRefusal,'owner-profile');
+ for(const text of ['owner_admission.Refusal: private-secret\n','owner_admission.Refusal: owner-profile private-secret\n','owner_admission.Refusal: owner-profile\nowner_admission.Refusal: worker-executable\n']){
+  const input=Buffer.from(text),row=projectNetworkTestStderr(input,input.length);assert.equal(row.admissionRefusal,null);assert(!JSON.stringify(row).includes('private-secret'));
+ }
+});
 test('exact current trusted-C marker and existing safe preparation projection remain reusable',()=>{
  const bytes=Buffer.from('OVERTE_NET_TRUSTED_FAILURE={"version":1,"phase":"route-install-ack","errnoObserved":1}\n');
  assert.deepEqual(projectNetworkTestStderr(bytes,bytes.length).preparation.trustedSetupFailure,{version:1,phase:'route-install-ack',errnoObserved:1});
