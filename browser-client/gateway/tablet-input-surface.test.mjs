@@ -22,8 +22,8 @@ function fixture(){
  const top=item('',1280,900),desktop=attach(top,item('desktop',1280,900)),tablet=attach(desktop,item('tabletRoot',480,706)),helper=attach(desktop,item('',1,1));
  const overlay=attach(top,item('',1280,900));overlay.visible=false;attach(overlay,item('',225,144));tablet.mapToItem=target=>target===top?{x:600,y:100}:{x:0,y:0};
  const context=vm.createContext({helper,Controls:{Overlay:{overlay}},captureSurface:'tablet',captureTarget:null,pointerSurface:null,inputSurface:null,savedSurface:null,activeCapture:null,privateGrab:null,
- events:{mouseRelease:()=>true,mousePress:(target,x,y)=>{actions.push(['press',target,x,y]);return true;},mouseMove:(target,x,y)=>{actions.push(['move',target,x,y]);return true;},keyClick:code=>{actions.push(['key',code]);return true;}},Qt:{LeftButton:1,Key_Return:13,NoModifier:0},sendToScript:message=>replies.push(message)});
- context.nativeInput={grabPrivateGui:(item,token)=>item.grabToImage(result=>context.completePrivateGrab(token,result))};
+ events:{mouseRelease:()=>true,mousePress:(target,x,y)=>{actions.push(['press',target,x,y]);return true;},mouseMove:(target,x,y)=>{actions.push(['move',target,x,y]);return true;},keyClick:()=>{throw new Error('Native keys must use the owned Application route');}},Qt:{LeftButton:1,Key_Return:13,NoModifier:0},sendToScript:message=>replies.push(message)});
+ context.nativeInput={grabPrivateGui:(item,token)=>item.grabToImage(result=>context.completePrivateGrab(token,result)),clickApplicationKey:(surface,key,mods)=>{assert.equal(surface,context.inputSurface.item);assert.equal(mods,0);actions.push(['key',context.keyCode(key)]);return true;}};
  vm.runInContext(['topRoot','find','hasDialog','popupTarget','target','modifiers','button','buttons','keyCode','focusedEditors','activateClickedEditor','cancelPointer','completePrivateGrab','grabOwned','fromScript'].map(extract).join('\n'),context);installQmlTextInputFixture(source,context);
  const capture=(sequence,revision=2)=>{context.fromScript({kind:'capture',revision,sequence,navigationSequence:1,path:'/private/owned.png'});return callbacks.at(-1);};
  const finish=callback=>callback({saveToFile:()=>true});

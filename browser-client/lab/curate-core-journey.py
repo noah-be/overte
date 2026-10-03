@@ -78,7 +78,7 @@ def peer_diagnostic(document):
 
 
 def curate(document,engine):
-    if engine not in ('chromium','firefox'):raise ValueError('Unexpected CI browser engine')
+    if engine not in ('chrome','chromium','firefox'):raise ValueError('Unexpected CI browser engine')
     if not isinstance(document,dict):raise ValueError('Journey report must be an object')
     result={'schemaVersion':1,'browser':engine,'status':'not-run','completed':False,
             'scope':'Real local managed-domain core journey; no public-world fluidness claim',
@@ -130,9 +130,11 @@ def main():
     parser.add_argument('--input',required=True,type=Path)
     parser.add_argument('--output',required=True,type=Path)
     parser.add_argument('--commit-sha',type=checked_commit)
+    parser.add_argument('--browser',choices=('chrome','chromium','firefox'),default='chrome',
+                        help='Current CI uses Google Chrome; older evidence can still be curated explicitly')
     args=parser.parse_args()
     args.output.mkdir(parents=True,exist_ok=True)
-    for engine in ('chromium','firefox'):
+    for engine in (args.browser,):
         source=args.input/f'real-session-{engine}.json'
         if source.exists():
             if source.stat().st_size>MAX_REPORT:raise ValueError('Journey report exceeds reviewed byte limit')

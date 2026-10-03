@@ -31,7 +31,7 @@ test('native AvatarManager null self key never becomes a phantom peer', async ()
     };
     const nativeLocation = { isConnected: true, href: 'overte://test', domainID: '{33333333-3333-3333-3333-333333333333}' };
     Object.defineProperty(context, 'location', { get: () => nativeLocation, set() {} });
-    vm.runInNewContext((await readFile(new URL('./native-world.js', import.meta.url), 'utf8')) + '\n' + await readFile(new URL('./native-bridge.js', import.meta.url), 'utf8'), context);
+    vm.runInNewContext((await readFile(new URL('./native-push-to-talk.js', import.meta.url), 'utf8')) + '\n' + (await readFile(new URL('./native-world.js', import.meta.url), 'utf8')) + '\n' + await readFile(new URL('./native-bridge.js', import.meta.url), 'utf8'), context);
     socket.onopen();
     timers.get(50)();
     const nonce = '0123456789abcdef0123456789abcdef';

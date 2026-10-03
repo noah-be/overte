@@ -31,6 +31,7 @@ from test_npm_config import NpmConfig  # Include the actual npm-loader regressio
 # This existing Linux contract entry point runs the actual adopted-orphan/Popen
 # status tests; npm retains its explicit Linux guard for this namespace owner.
 from test_namespace_reaping import NamespaceReaping
+from test_chrome_scope import Completion as ChromeCompletion, Payload as ChromePayload
 
 
 class Source(unittest.TestCase):

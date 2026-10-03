@@ -18,6 +18,14 @@ DENIED_ROUTES = (
     "100.64.0.0/10", "192.0.0.0/24", "192.0.2.0/24", "198.18.0.0/15",
     "198.51.100.0/24", "203.0.113.0/24", "224.0.0.0/4", "240.0.0.0/4",
 )
+LAUNCHER_ENVIRONMENT = {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8"}
+
+
+def launch_sandbox(config):
+    # The validated native environment lives in bwrap's --setenv arguments.
+    # Never apply native Qt/loader settings to the host bwrap executable.
+    return subprocess.Popen([config["command"], *config["args"]],
+                            env=dict(LAUNCHER_ENVIRONMENT))
 
 
 def pump(source, destination):
@@ -147,7 +155,7 @@ def main():
             return 0
         # The inner bwrap must create a NEW user namespace. It therefore cannot
         # regain CAP_NET_ADMIN in this outer-owned network namespace.
-        child = subprocess.Popen([config["command"], *config["args"]], env=config["environment"])
+        child = launch_sandbox(config)
         print("OVERTE_NET_NATIVE_STARTED", flush=True)
         while child.poll() is None:
             if stopping.wait(0.1) or signal_stopping:

@@ -1,7 +1,8 @@
 {
-  "manage.py": "9671e9e35b34cdbeef55a3cc37d8f9e0f0a921caeafc5c47b6fa3c579d444a3b",
+  "manage.py": "156bcbd944bf29a94647bcaee75e1ecdc06bcdf94dca388f9a60d7bebdf81ab2",
   "native_admin.py": "fe4b96615a984d8cdf98e7b7fe45cb999a6b6ce158ecc2a13b8d441e9b366bc6",
   "guest_permissions.py": "363d3108ebc80ef7d1e82ac3460382db621bf8499b260019e7286bf9a6872026",
   "provisioning_diagnostics.py": "0a9ba0e7f4164afa64dd10b97f443af14a85b03321d803641dcf1ceb3f884555",
-  "host_tools.py": "34e02d857d3c35b53b165e2d3b4ee63e30f4a417054cf0141758306ab25dc14a"
+  "host_tools.py": "34e02d857d3c35b53b165e2d3b4ee63e30f4a417054cf0141758306ab25dc14a",
+  "chrome_browser.py": "4220e1c5d656d95c93d68e649eeffef086bff6ab6a894435c47b0ef354408d21"
 }

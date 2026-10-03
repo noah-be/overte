@@ -1,3 +1,4 @@
+import {googleChromeLaunchOptions} from '../google-chrome-selection.mjs';
 // Copyright 2026 Overte contributors
 // SPDX-License-Identifier: Apache-2.0
 // Root-owned real browser invocation. Run with node --import tsx after the
@@ -12,10 +13,10 @@ import {createHash} from 'node:crypto';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import assert from 'node:assert/strict';
-const client=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..'),engine=process.env.OVERTE_LAB_BROWSER||'system-chromium',display=process.env.OVERTE_LAB_BROWSER_DISPLAY;
-assert(['chromium','firefox','system-chromium','system-firefox'].includes(engine));
+const client=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..'),engine=process.env.OVERTE_LAB_BROWSER||'chrome',display=process.env.OVERTE_LAB_BROWSER_DISPLAY;
+assert(['chrome','chromium','firefox','system-chromium','system-firefox'].includes(engine));
 const digest=bytes=>createHash('sha256').update(bytes).digest('hex');
-const sourceFiles=['src/baked-fbx.ts','src/model-fbx-worker.ts','src/model-fbx-pool.ts','src/embedded-fbx-images.ts','src/embedded-fbx-protocol.ts','tests/fixtures/fst-texture-admission.ts','tests/fixtures/native-ignored-fbx-pixels.ts','tests/integration/native-ignored-fbx-pixels.mjs','tests/integration/native-ignored-fbx-cleanup.mjs','tests/integration/system-firefox.mjs','vite.native-ignored-fbx.config.mjs','package-lock.json'];
+const sourceFiles=['tests/google-chrome-selection.mjs','src/baked-fbx.ts','src/model-fbx-worker.ts','src/model-fbx-pool.ts','src/embedded-fbx-images.ts','src/embedded-fbx-protocol.ts','tests/fixtures/fst-texture-admission.ts','tests/fixtures/native-ignored-fbx-pixels.ts','tests/integration/native-ignored-fbx-pixels.mjs','tests/integration/native-ignored-fbx-cleanup.mjs','tests/integration/system-firefox.mjs','vite.native-ignored-fbx.config.mjs','package-lock.json'];
 async function hashes(){const result={};for(const file of sourceFiles)result[file]=digest(await readFile(path.join(client,file)));return result;}
 const report={startedAt:new Date().toISOString(),completed:false,engine,scope:'Actual production preparation worker + FBXLoader pixel control on authored source; no native/public Hub or loading-gain claim',domainConnected:false,microphoneRequested:false,worldInteractionsSent:0,modelRequests:0,unusedDDSRequests:0,sourceStart:await hashes()};
 let server,browser,timer;
@@ -30,9 +31,10 @@ try{
   response.statusCode=403;response.end('Refused nonfixture source');
  });}}]});await server.listen();const address=server.httpServer.address();assert(address&&typeof address==='object');
  const env={...process.env,...(display?{DISPLAY:display}:{})};
+ if(engine==='chrome')delete env.LD_LIBRARY_PATH;
  if(engine==='system-firefox')browser=await launchSystemFirefox({executablePath:'/usr/bin/firefox',headless:!display,env,syntheticMicrophone:false});
  else if(engine==='firefox')browser=await firefox.launch({headless:!display,env});
- else {if(engine==='system-chromium')assert(process.env.OVERTE_LAB_CHROMIUM,'Stock Chromium executable must be explicit');browser=await chromium.launch({executablePath:engine==='system-chromium'?process.env.OVERTE_LAB_CHROMIUM:undefined,headless:!display,env:{...env,...(engine==='system-chromium'&&process.env.OVERTE_LAB_CHROMIUM_LIBRARY_PATH?{LD_LIBRARY_PATH:process.env.OVERTE_LAB_CHROMIUM_LIBRARY_PATH}:{})},args:['--mute-audio']});}
+ else {if(engine==='system-chromium')assert(process.env.OVERTE_LAB_CHROMIUM,'Stock Chromium executable must be explicit');browser=await chromium.launch({...(engine==='chrome'?googleChromeLaunchOptions():{}),...(engine==='system-chromium'?{executablePath:process.env.OVERTE_LAB_CHROMIUM}:{}),headless:!display,env:{...env,...(engine==='system-chromium'&&process.env.OVERTE_LAB_CHROMIUM_LIBRARY_PATH?{LD_LIBRARY_PATH:process.env.OVERTE_LAB_CHROMIUM_LIBRARY_PATH}:{})},args:['--mute-audio']});}
  report.browserVersion=await browser.version();const context=await browser.newContext({viewport:{width:1280,height:800}}),page=await context.newPage(),errors=[];
  page.on('pageerror',error=>errors.push(String(error.message).slice(0,1024)));
  await page.goto(`http://127.0.0.1:${address.port}/tests/fixtures/native-ignored-fbx-pixels.html`);await page.waitForFunction(()=>typeof window.runNativeIgnoredFbxPixels==='function',undefined,{timeout:10000});

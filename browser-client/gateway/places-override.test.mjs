@@ -14,7 +14,7 @@ const uiSource = await readFile(new URL('../../scripts/system/places/placesHtml.
 const channel = 'browser-places-11111111-1111-1111-1111-111111111111';
 const options = { channel, homeDomain: 'overte://overte_hub' };
 function signal() { const listeners = []; return { connect(fn) { listeners.push(fn); }, disconnect(fn) { const index = listeners.indexOf(fn); if (index >= 0) listeners.splice(index, 1); }, emit(...args) { listeners.slice().forEach(fn => fn(...args)); } }; }
-function fixture() {
+function fixture(adapterOptions = options) {
     let clock = 1000;
     const sent = [], ui = [], lookups = [], clicked = signal(), webEventReceived = signal(), messageReceived = signal();
     const tablet = { screenChanged: signal(), webEventReceived, fromQml: signal(), emitScriptEvent: message => ui.push(message),
@@ -26,9 +26,22 @@ function fixture() {
         Tablet: { getTablet: () => tablet }, PlatformInfo: { has3DHTML: () => true }, Window: window, location,
         Messages: { subscribe() {}, unsubscribe() {}, messageReceived, sendLocalMessage: (sourceChannel, text) => sent.push({ channel: sourceChannel, ...JSON.parse(text) }) },
         LocationBookmarks: { getHomeLocationAddress: () => '' } };
-    vm.runInNewContext(adaptPlacesScript(appSource, options), context); clicked.emit(); sent.length = 0;
-    return { sent, ui, lookups, messageReceived, action(action, address) { clock += 300; webEventReceived.emit(JSON.stringify({ channel: 'com.overte.places', action, address })); } };
+    vm.runInNewContext(adaptPlacesScript(appSource, adapterOptions), context); clicked.emit(); sent.length = 0;
+    return { sent, ui, lookups, messageReceived, context, action(action, address) { clock += 300; webEventReceived.emit(JSON.stringify({ channel: 'com.overte.places', action, address })); } };
 }
+
+test('generated Places code preserves hostile home strings without script-tag or line-separator injection', () => {
+    const homeDomain = 'overte://example.invalid/";globalThis.injected=true;//</script><script>&\u2028\u2029';
+    const adapted = adaptPlacesScript(appSource, { ...options, homeDomain });
+    assert.equal(adapted.includes('</script>'), false);
+    assert.equal(adapted.includes('\u2028'), false);
+    assert.equal(adapted.includes('\u2029'), false);
+    const f = fixture({ ...options, homeDomain });
+    f.action('GO_HOME');
+    assert.equal(f.sent.at(-1).address, homeDomain);
+    assert.equal(f.context.injected, undefined);
+    assert.deepEqual(f.lookups, []);
+});
 
 test('actual Places TELEPORT/Home/history handlers request admission before any native location lookup', () => {
     const f = fixture(); f.action('TELEPORT', '178.105.253.182:40114/1,2,3/0,0,0,1'); f.action('GO_HOME'); f.action('GO_BACK'); f.action('GO_FORWARD');

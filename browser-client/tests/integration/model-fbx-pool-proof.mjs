@@ -1,3 +1,4 @@
+import {googleChromeLaunchOptions} from '../google-chrome-selection.mjs';
 // SPDX-License-Identifier: Apache-2.0
 // Actual packaged/native FBX bytes, production-built workers and codec factories.
 // This proof uses no domain connection or world writes and needs no GPU context.
@@ -16,9 +17,10 @@ const fixtures=process.env.OVERTE_FBX_POOL_FIXTURES?JSON.parse(process.env.OVERT
 assert(Array.isArray(fixtures)&&fixtures.length>0&&fixtures.length<=8,'Provide 1–8 actual cached FBX files');
 const output=process.env.OVERTE_FBX_POOL_EVIDENCE||path.join(client,'build/model-fbx-pool-proof.json');
 const directory=await mkdtemp(path.join(tmpdir(),'overte-fbx-pool-proof-'));
-const report={startedAt:new Date().toISOString(),completed:false,browserKind:process.env.OVERTE_FBX_POOL_BROWSER||'chromium',fixtures:[]};
+const report={startedAt:new Date().toISOString(),completed:false,browserKind:process.env.OVERTE_FBX_POOL_BROWSER||'chrome',fixtures:[]};
 let server,browser;
 try{
+  report.chromeSelectorSHA256=createHash('sha256').update(await readFile(path.join(client,'tests/google-chrome-selection.mjs'))).digest('hex');
   const bytes=await Promise.all(fixtures.map(async file=>{const bytes=await readFile(file);assert(bytes.length<=32*1024*1024);return bytes;}));
   const kinds=fixtures.map(()=>process.env.OVERTE_FBX_POOL_FIXTURES?'cached-native-FBX':'packaged-native-mannequin');
   for(const custom of [false,true]){bytes.push(Buffer.from(createNativeBakedFbxFixture(custom).buffer));kinds.push(custom?'authored-native-custom-Draco':'authored-ordinary-Draco');}
@@ -35,7 +37,8 @@ try{
   await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});
   const origin=`http://127.0.0.1:${server.address().port}`;
   const browserType=report.browserKind==='firefox'?firefox:chromium;
-  browser=await browserType.launch({headless:true});report.browserVersion=browser.version();
+  const browserEnvironment={...process.env};if(report.browserKind==='chrome')delete browserEnvironment.LD_LIBRARY_PATH;
+  browser=await browserType.launch({headless:true,env:browserEnvironment,...(report.browserKind==='chrome'?googleChromeLaunchOptions():{})});report.browserVersion=browser.version();
   const page=await browser.newPage();const errors=[];page.on('pageerror',error=>errors.push(error.message));
   await page.goto(origin);
   report.actual=await page.evaluate(async count=>{

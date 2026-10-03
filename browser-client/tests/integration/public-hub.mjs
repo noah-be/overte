@@ -1,24 +1,34 @@
 // SPDX-License-Identifier: Apache-2.0
+import {selectGoogleChromeJourney} from './chrome-journey-selection.mjs';
 // Actual public-world read-only, always-muted diagnostics and movement proof.
 // Raw reports are ignored; publish only sanitized aggregates, never identities.
 import { chromium } from '@playwright/test';
 import { launchSystemFirefox } from './system-firefox.mjs';
 import assert from 'node:assert/strict';
 import {assessFluidPerformance} from '../../shared/fluid-performance.mjs';
-import { mkdir, readFile, writeFile, readdir, readlink } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, readdir, readlink, lstat } from 'node:fs/promises';
 import { assetCategory, assetCategoryTotals, assetSessionTotals, requireWorldLoadingReady } from './public-hub-metrics.mjs';
 import { createHash } from 'node:crypto';
 import {installHubUploadProfile} from './hub-upload-profile.mjs';
 import {collectHubAsyncDrawCensus} from './hub-async-draw-census.mjs';
 import {collectHubLoadedModelCohortCensus} from './hub-loaded-model-cohort-census.mjs';
 import {configureHubDispatchAttribution,collectHubDispatchAttribution,hubDispatchSourceCoherence} from './hub-render-dispatch-attribution.mjs';
+import {configureParsedFbxTemplateCohort} from './hub-parsed-fbx-cohort.mjs';
 import {OriginalImageErrorCollector} from './hub-original-image-errors.mjs';
+import {configureHubBitmapCohort,projectHubBitmapCohort,attestHubBitmapCohort} from './hub-bitmap-cohort.mjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const repo=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../../..');
-const firefox=process.env.OVERTE_LAB_BROWSER==='system-firefox';
-const output=path.join(repo,'build/browser-hub-lab/browser',...(firefox?['system-firefox']:[]));
-const sourceFiles=['browser-client/tests/integration/hub-original-image-errors.mjs','browser-client/gateway/server.mjs','browser-client/gateway/native-bridge.js','browser-client/gateway/native-world.js','browser-client/gateway/socket-heartbeat.mjs','browser-client/gateway/public-places.mjs','browser-client/gateway/validation.mjs','browser-client/gateway/worker-sandbox.mjs','browser-client/gateway/network-sandbox.mjs','browser-client/gateway/network_udp.py','browser-client/gateway/native-tablet.js','browser-client/gateway/tablet-capture.qml','browser-client/gateway/process-lifecycle.mjs','browser-client/shared/fluid-performance.mjs','browser-client/gateway/session-assets.mjs','browser-client/gateway/asset-download.mjs','browser-client/src/main.ts', 'browser-client/src/session.ts', 'browser-client/src/compressed-color-session.ts', 'browser-client/src/native-compressed-color.ts', 'browser-client/src/color-texture-metadata.ts', 'browser-client/src/initial-surface-wait.ts', 'browser-client/src/mesh-collision.ts', 'browser-client/src/simulation-clock.ts','browser-client/src/world.ts','browser-client/src/world-draw-census.ts','browser-client/src/world-bitmap-upload.ts','browser-client/src/world-bitmap-bindings.ts','browser-client/src/fst-graph-cache.ts','browser-client/src/fst-texture-admission.ts','browser-client/src/compressed-color-capabilities.ts','browser-client/src/graphics-warmup.ts','browser-client/src/graphics-warmup-owner.ts','browser-client/src/gpu-time-observer.ts','browser-client/src/world-gpu-timing.ts','browser-client/src/world-image-cache.ts','browser-client/src/world-source-text-cache.ts','browser-client/src/embedded-fbx-images.ts','browser-client/src/embedded-content-counts.ts','browser-client/src/embedded-fbx-protocol.ts','browser-client/src/native-zero-lights.ts','browser-client/src/static-model-batch.ts','browser-client/src/native-render-state.ts','browser-client/src/native-alpha-material.ts','browser-client/src/model-resources.ts','browser-client/src/world-data.ts','browser-client/src/worker-task-yield.ts','browser-client/src/prepared-fbx-cache.ts','browser-client/src/model-load-scheduler.ts','browser-client/src/model-geometry-stage.ts','browser-client/src/model-fbx-pool.ts','browser-client/src/model-fbx-decoder.ts','browser-client/src/model-fbx-decoder-memory.ts','browser-client/src/model-fbx-worker.ts','browser-client/src/model-textures.ts','browser-client/src/texture-alpha.ts','browser-client/src/texture-alpha-worker.ts','browser-client/src/baked-fbx.ts','browser-client/src/baked-draco.ts','browser-client/src/baked-draco-legacy.ts','browser-client/dist/index.html','browser-client/tests/integration/system-firefox.mjs','browser-client/tests/integration/public-hub-metrics.mjs','browser-client/tests/integration/public-hub.mjs'];
+const firefox=false; // Historical compatibility branches remain source evidence; current journeys select Google Chrome.
+function selectPrivateMembershipOutput(value, requested, original) {
+  if (value === undefined) return original;
+  if (typeof value !== 'string' || !path.isAbsolute(value) || !requested) throw Error('Private membership output refused');
+  return value;
+}
+const output=selectPrivateMembershipOutput(process.env.OVERTE_LAB_ENTITY_MEMBERSHIP_OUTPUT,
+  process.env.OVERTE_LAB_ENTITY_MEMBERSHIP==='1',
+  path.join(repo,'build/browser-hub-lab/browser',...(firefox?['system-firefox']:[])));
+const sourceFiles=['browser-client/tests/integration/chrome-journey-selection.mjs','browser-client/tests/google-chrome-selection.mjs','browser-client/tests/integration/hub-original-image-errors.mjs','browser-client/gateway/server.mjs','browser-client/gateway/native-bridge.js','browser-client/gateway/native-world.js','browser-client/gateway/socket-heartbeat.mjs','browser-client/gateway/public-places.mjs','browser-client/gateway/validation.mjs','browser-client/gateway/worker-sandbox.mjs','browser-client/gateway/network-sandbox.mjs','browser-client/gateway/network_udp.py','browser-client/gateway/native-tablet.js','browser-client/gateway/tablet-capture.qml','browser-client/gateway/process-lifecycle.mjs','browser-client/shared/fluid-performance.mjs','browser-client/gateway/session-assets.mjs','browser-client/gateway/asset-download.mjs','browser-client/src/main.ts', 'browser-client/src/session.ts', 'browser-client/src/compressed-color-session.ts', 'browser-client/src/native-compressed-color.ts', 'browser-client/src/color-texture-metadata.ts', 'browser-client/src/initial-surface-wait.ts', 'browser-client/src/mesh-collision.ts', 'browser-client/src/simulation-clock.ts','browser-client/src/world.ts','browser-client/src/world-draw-census.ts','browser-client/src/world-bitmap-upload.ts','browser-client/src/world-bitmap-bindings.ts','browser-client/src/fst-graph-cache.ts','browser-client/src/fst-texture-admission.ts','browser-client/src/compressed-color-capabilities.ts','browser-client/src/graphics-warmup.ts','browser-client/src/graphics-warmup-owner.ts','browser-client/src/gpu-time-observer.ts','browser-client/src/world-gpu-timing.ts','browser-client/src/world-image-cache.ts','browser-client/src/world-source-text-cache.ts','browser-client/src/embedded-fbx-images.ts','browser-client/src/embedded-content-counts.ts','browser-client/src/embedded-fbx-protocol.ts','browser-client/src/native-zero-lights.ts','browser-client/src/static-model-batch.ts','browser-client/src/native-render-state.ts','browser-client/src/native-alpha-material.ts','browser-client/src/model-resources.ts','browser-client/src/world-data.ts','browser-client/src/worker-task-yield.ts','browser-client/src/prepared-fbx-cache.ts','browser-client/src/model-load-scheduler.ts','browser-client/src/model-slot-residence.ts','browser-client/tests/model-slot-residence.test.ts','browser-client/tests/fixtures/model-slot-residence-original-parse.ts','browser-client/src/model-geometry-stage.ts','browser-client/src/model-fbx-pool.ts','browser-client/src/model-fbx-decoder.ts','browser-client/src/model-fbx-decoder-memory.ts','browser-client/src/model-fbx-worker.ts','browser-client/src/model-textures.ts','browser-client/src/texture-alpha.ts','browser-client/src/texture-alpha-worker.ts','browser-client/src/baked-fbx.ts','browser-client/src/baked-draco.ts','browser-client/src/baked-draco-legacy.ts','browser-client/dist/index.html','browser-client/tests/integration/system-firefox.mjs','browser-client/tests/integration/public-hub-metrics.mjs','browser-client/tests/integration/public-hub.mjs'];
 sourceFiles.push('browser-client/src/world-texture-preparation.ts','browser-client/src/foreground-texture-plan.ts','browser-client/src/world-cpu-frame-timing.ts','browser-client/src/render-cpu-breakdown.ts','browser-client/tests/integration/hub-upload-profile.mjs');
 sourceFiles.push('browser-client/src/static-model-matrices.ts','browser-client/src/native-image-material.ts','browser-client/src/native-image-effects.ts');
 sourceFiles.push('browser-client/src/model-parse-turn.ts');
@@ -26,10 +36,24 @@ sourceFiles.push('browser-client/src/world-draw-census-async.ts','browser-client
 sourceFiles.push('browser-client/src/loaded-model-cohort.ts','browser-client/tests/integration/hub-loaded-model-cohort-census.mjs');
 sourceFiles.push('browser-client/gateway/native-avatar-sample-diagnostics.js','browser-client/gateway/native-avatar-stdout-projection.mjs','browser-client/gateway/trusted-network-entry.mjs','browser-client/gateway/network-owner.py');
 sourceFiles.push('browser-client/src/render-dispatch-attribution.ts','browser-client/tests/integration/hub-render-dispatch-attribution.mjs','browser-client/tests/integration/render-dispatch-pixels.mjs','browser-client/tests/render-dispatch-attribution.browser.spec.ts','browser-client/tests/render-cpu-breakdown-fixture.ts','browser-client/package-lock.json');
+sourceFiles.push('browser-client/tests/integration/hub-bitmap-cohort.mjs','browser-client/tests/fixtures/world-bitmap-upload.ts','browser-client/tests/world-bitmap-upload.browser.spec.ts');
+sourceFiles.push('browser-client/src/parsed-fbx-template.ts','browser-client/src/parsed-fbx-admission-evidence.ts','browser-client/src/owned-skeletons.ts','browser-client/tests/integration/hub-parsed-fbx-cohort.mjs');
+sourceFiles.push('browser-client/shared/hub-entity-membership.mjs');
+import {collectHubEntityMembership} from '../../shared/hub-entity-membership.mjs';
 const report={startedAt:new Date().toISOString(),completed:false,place:'overte_hub',microphoneRequested:false,worldInteractionsSent:0};
+report.entityMembershipRequested=process.env.OVERTE_LAB_ENTITY_MEMBERSHIP==='1';
 const assetRequests = new Map(), assetStarts = new WeakMap();
 // Native session IDs are private lookup keys only; reports contain ordinal1/2.
 const assetSessionIDs = new Map(), sessionAssetRequests = new Map();
+async function requirePrivateMembershipOutput(output) {
+  if (typeof process.getuid !== 'function' || process.umask() !== 0o077) throw Error('Private membership output refused');
+  const owner = process.getuid(), directory = await lstat(output);
+  if (!directory.isDirectory() || directory.isSymbolicLink() || directory.uid !== owner || (directory.mode & 0o777) !== 0o700) throw Error('Private membership output refused');
+  for (const name of ['public-hub-progress.json','public-hub.json','public-hub-'+report.startedAt.replace(/[:.]/g,'-')+'.json']) {
+    let file; try { file = await lstat(path.join(output,name)); } catch (error) { if (error.code === 'ENOENT') continue; throw error; }
+    if (!file.isFile() || file.isSymbolicLink() || file.nlink !== 1 || file.uid !== owner || (file.mode & 0o777) !== 0o600) throw Error('Private membership output refused');
+  }
+}
 async function distributionManifest() {
   const root = path.join(repo, 'browser-client/dist'), manifest = {};
   async function scan(relative) {
@@ -89,6 +113,8 @@ async function screenshot(filename){
 }
 try {
   await mkdir(output,{recursive:true});
+  if(report.entityMembershipRequested)await requirePrivateMembershipOutput(output);
+  report.bitmapUploadCohort=configureHubBitmapCohort(process.env.OVERTE_LAB_BITMAP_COHORT,process.env);
   report.startSourceSHA256={};for(const file of sourceFiles){try{report.startSourceSHA256[file]=createHash('sha256').update(await readFile(path.join(repo,file))).digest('hex');}catch{}}
   report.startDistributionManifest=await distributionManifest();
   report.renderDispatchAttributionRequested=process.env.OVERTE_LAB_RENDER_DISPATCH_ATTRIBUTION==='1';
@@ -102,8 +128,7 @@ try {
   if(process.env.OVERTE_LAB_BROWSER_DISPLAY)env.DISPLAY=process.env.OVERTE_LAB_BROWSER_DISPLAY;
   const args=['--disable-dev-shm-usage','--mute-audio'];
   if(process.env.OVERTE_LAB_SWIFTSHADER==='1')args.push('--use-angle=swiftshader');
-  browser=firefox?await launchSystemFirefox({executablePath:process.env.OVERTE_LAB_FIREFOX||'/usr/bin/firefox',env,headless:!process.env.OVERTE_LAB_BROWSER_DISPLAY,syntheticMicrophone:false}):await chromium.launch({headless:!process.env.OVERTE_LAB_BROWSER_DISPLAY,args,env,
-    ...(process.env.OVERTE_LAB_CHROMIUM?{executablePath:process.env.OVERTE_LAB_CHROMIUM}:{})});
+  browser=await chromium.launch({headless:!process.env.OVERTE_LAB_BROWSER_DISPLAY,args,env,...selectGoogleChromeJourney(process.env)});
   report.browserVersion=await browser.version();
   page=firefox?await(await browser.newContext({viewport:{width:1280,height:800}})).newPage():await browser.newPage({viewport:{width:1280,height:800}});
   if(firefox)page.waitForTimeout=milliseconds=>new Promise(resolve=>setTimeout(resolve,milliseconds));
@@ -153,7 +178,9 @@ try {
       };
     }
     window.__hubLongTasks=[];new PerformanceObserver(list=>{for(const entry of list.getEntries())window.__hubLongTasks.push({start:entry.startTime,duration:entry.duration});if(window.__hubLongTasks.length>1000)window.__hubLongTasks.splice(0,window.__hubLongTasks.length-1000);}).observe({type:'longtask',buffered:true});window.__hubMessages=[];window.__hubEntitySummary=new Map();window.__hubNativePose=null;window.__hubTraffic={messages:0,textBytes:0,snapshots:0,deltas:0};const WS=window.WebSocket;window.WebSocket=class extends WS{constructor(...args){super(...args);this.addEventListener('message',event=>{if(typeof event.data!=='string')return;try{const j=JSON.parse(event.data);window.__hubTraffic.messages++;window.__hubTraffic.textBytes+=event.data.length;if(j.type==='entities'){window.__hubTraffic.snapshots++;window.__hubEntitySummary.clear();}if(j.type==='entityUpdates')window.__hubTraffic.deltas++;for(const entity of j.entities||[]){window.__hubEntitySummary.set(entity.id,{type:entity.type,hostType:entity.entityHostType||'missing',clientOnly:entity.clientOnly===true});}for(const id of j.removed||[])window.__hubEntitySummary.delete(id);if(j.type==='avatars'){const own=j.avatars.find(a=>a.id===j.selfId);if(own)window.__hubNativePose={at:Date.now(),position:own.position};}window.__hubMessages.push({at:Date.now(),type:j.type,state:j.state,message:j.message,position:j.position,entityCount:j.entities?.length});if(window.__hubMessages.length>100)window.__hubMessages.shift();}catch{}});this.addEventListener('close',event=>{window.__hubMessages.push({at:Date.now(),type:'close',code:event.code,reason:event.reason});});}};});
+  if(report.entityMembershipRequested)await page.addInitScript('window.__hubCaptureEntityMembership=('+collectHubEntityMembership.toString()+');');
   const entryURL = new URL(process.env.OVERTE_LAB_URL||'http://127.0.0.1:8092');
+  report.parsedFbxTemplateCohort=configureParsedFbxTemplateCohort(process.env.OVERTE_LAB_PARSED_FBX_COHORT,entryURL);
   if (process.env.OVERTE_LAB_GPU_TIMING === '1') entryURL.searchParams.set('gpuTiming','1');
   report.gpuTimingRequested = process.env.OVERTE_LAB_GPU_TIMING === '1';
   report.cpuFrameTimingRequested=process.env.OVERTE_LAB_CPU_FRAME_TIMING==='1';
@@ -167,6 +194,12 @@ try {
   if(report.bitmapUploadRequested)entryURL.searchParams.set('bitmapUpload','1');
   report.modelParseTurnRequested=process.env.OVERTE_LAB_MODEL_PARSE_TURN==='1';
   if(report.modelParseTurnRequested)entryURL.searchParams.set('modelParseTurn','1');
+  report.modelSlotResidenceRequested=process.env.OVERTE_LAB_MODEL_SLOT_RESIDENCE==='1';
+  if(report.modelSlotResidenceRequested){
+    assert(process.env.OVERTE_LAB_REQUIRE_FLUID==='1'&&process.env.OVERTE_LAB_RECONNECT==='1','Model slot observation retains all four original fluid/return gates');
+    assert(report.startSourceSHA256['browser-client/src/model-slot-residence.ts'],'Model slot observer source must be hashed before admission');
+    entryURL.searchParams.set('modelSlotResidence','1');
+  }
   if (process.env.OVERTE_LAB_SHADER_WARMUP === '1') entryURL.searchParams.set('shaderWarmup','1');
   report.shaderWarmupRequested = process.env.OVERTE_LAB_SHADER_WARMUP === '1';
   if (process.env.OVERTE_LAB_TEXTURE_PREPARATION === '1') entryURL.searchParams.set('texturePreparation','1');
@@ -205,7 +238,7 @@ try {
   await page.waitForFunction(()=>window.__overte.entityCount>20,null,{timeout:30000});
   report.performance=[];
   const loadingDeadline=Date.now()+Number(process.env.OVERTE_LAB_LOADING_TIMEOUT||90)*1000;
-  while(Date.now()<loadingDeadline){await page.waitForTimeout(3000);const sample=await page.evaluate(()=>({at:Date.now(),...window.__overte.performance,entityCount:window.__overte.entityCount,position:window.__overte.pose?.position}));report.performance.push(sample);await writeFile(path.join(output,'public-hub-progress.json'),JSON.stringify({startedAt:report.startedAt,sample})+'\n');if(!sample.position)throw Error(await page.locator('#notice').textContent());if(!report.earlyMovement&&sample.loadedModels>=10&&sample.meshColliders>0){const before=await page.evaluate(()=>window.__overte.pose);await page.locator('#world canvas').evaluate(element=>element.focus());await page.keyboard.down('KeyW');await page.waitForTimeout(250);await page.keyboard.up('KeyW');await page.waitForTimeout(300);report.earlyMovement=await page.evaluate(before=>({before,after:window.__overte.pose,nativePose:window.__hubNativePose}),before);await screenshot('public-hub-loading.png');}if(sample.queuedModels===0&&sample.loadingModels===0&&sample.compilingGraphics===0)break;}
+  while(Date.now()<loadingDeadline){await page.waitForTimeout(3000);const sample=await page.evaluate(requested=>{const sample={at:Date.now(),...window.__overte.performance,entityCount:window.__overte.entityCount,position:window.__overte.pose?.position};if(requested&&sample.queuedModels===0&&sample.loadingModels===0&&sample.compilingGraphics===0)sample.entityMembership=window.__hubCaptureEntityMembership();return sample;},report.entityMembershipRequested);report.performance.push(sample);await writeFile(path.join(output,'public-hub-progress.json'),JSON.stringify({startedAt:report.startedAt,sample})+'\n');if(!sample.position)throw Error(await page.locator('#notice').textContent());if(!report.earlyMovement&&sample.loadedModels>=10&&sample.meshColliders>0){const before=await page.evaluate(()=>window.__overte.pose);await page.locator('#world canvas').evaluate(element=>element.focus());await page.keyboard.down('KeyW');await page.waitForTimeout(250);await page.keyboard.up('KeyW');await page.waitForTimeout(300);report.earlyMovement=await page.evaluate(before=>({before,after:window.__overte.pose,nativePose:window.__hubNativePose}),before);await screenshot('public-hub-loading.png');}if(sample.queuedModels===0&&sample.loadingModels===0&&sample.compilingGraphics===0)break;}
   requireWorldLoadingReady(report.performance.at(-1));
   if(report.uploadProfileRequested)await page.evaluate(()=>window.__hubUploadProfile?.setPhase('steady'));
   for(let i=0;i<4;i++){
@@ -247,7 +280,7 @@ try {
     if(!await page.evaluate(()=>window.__overte.connected))throw Error(await page.locator('#notice').textContent());
     await page.waitForFunction(()=>window.__overte.entityCount>20&&window.__overte.performance.meshColliders>0&&window.__overte.performance.loadingModels===0&&window.__overte.performance.queuedModels===0&&window.__overte.performance.compilingGraphics===0,null,{timeout:90000});
     if(report.uploadProfileRequested)await page.evaluate(()=>window.__hubUploadProfile?.setPhase('rejoined-ready'));
-    report.reconnectedSteadySamples=[];for(let index=0;index<4;index++){await page.waitForTimeout(3000);report.reconnectedSteadySamples.push(await page.evaluate(()=>window.__overte.performance));}
+    report.reconnectedSteadySamples=[];for(let index=0;index<4;index++){await page.waitForTimeout(3000);report.reconnectedSteadySamples.push(await page.evaluate(requested=>{const sample=window.__overte.performance;if(requested)sample.entityMembership=window.__hubCaptureEntityMembership();return sample;},report.entityMembershipRequested&&index===0));}
     report.reconnectedSteadyFluidPerformance=assessFluidPerformance(report.reconnectedSteadySamples.slice(-2));
     report.reconnectedRuntimeHelperSHA256=await ownedRuntimeHelpers();report.reconnected=await page.evaluate(()=>({at:Date.now(),pose:window.__overte.pose,performance:window.__overte.performance,entityCount:window.__overte.entityCount,nativePose:window.__hubNativePose}));
     await page.locator('#world canvas').evaluate(element=>element.focus());await page.keyboard.down('KeyW');await page.waitForTimeout(1000);await page.keyboard.up('KeyW');await page.waitForTimeout(300);
@@ -273,6 +306,11 @@ finally{
     try{report.sourceSHA256??={};report.sourceSHA256[file]=createHash('sha256').update(await readFile(path.join(repo,file))).digest('hex');}catch{}
   }
   report.distributionManifest=await distributionManifest();
+  if(report.bitmapUploadCohort){
+    report.bitmapUploadCohort.attestation=attestHubBitmapCohort(sourceFiles,report.startSourceSHA256,report.sourceSHA256,report.startDistributionManifest,report.distributionManifest);
+    try{report.bitmapUploadCohort.samples=[projectHubBitmapCohort(report.performance?.at(-1),report.bitmapUploadCohort.mode,1),projectHubBitmapCohort(report.reconnectedAfterMovement?.performance,report.bitmapUploadCohort.mode,2)];}catch{report.bitmapUploadCohort.sampleRefused=true;report.completed=false;process.exitCode=1;}
+    if(!report.bitmapUploadCohort.attestation.sourceCoherent||!report.bitmapUploadCohort.attestation.distributionCoherent){report.bitmapUploadCohort.attestationRefused=true;report.completed=false;process.exitCode=1;}
+  }
   if(report.renderDispatchAttributionRequested){report.renderDispatchAttestation=hubDispatchSourceCoherence(sourceFiles,report.startSourceSHA256,report.sourceSHA256,report.startDistributionManifest,report.distributionManifest);if(!report.renderDispatchAttestation.sourceCoherent||!report.renderDispatchAttestation.distributionCoherent){report.completed=false;report.renderDispatchAttestationFailed=true;process.exitCode=1;}}
   report.assetTransfers={categories:assetCategoryTotals([...assetRequests.values()]),uniqueURLs:assetRequests.size,requests:[...assetRequests.values()].reduce((sum,value)=>sum+value.requests,0),knownBytes:[...assetRequests.values()].reduce((sum,value)=>sum+value.knownBytes,0),unknownByteResponses:[...assetRequests.values()].reduce((sum,value)=>sum+value.unknownByteResponses,0),duplicateRequests:[...assetRequests.values()].reduce((sum,value)=>sum+Math.max(0,value.requests-1),0),sources:Object.fromEntries(['download','shared','memory','unknown'].map(source=>[source,[...assetRequests.values()].reduce((sum,value)=>sum+value.sources[source],0)])),entries:[...assetRequests].map(([urlSHA256,value])=>({urlSHA256,...value}))};
   report.assetTransfers.sessions=assetSessionTotals([...sessionAssetRequests.values()]);

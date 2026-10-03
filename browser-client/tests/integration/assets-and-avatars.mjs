@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import {selectGoogleChromeJourney} from './chrome-journey-selection.mjs';
 // Focused actual-domain proof: binary ATP texture fidelity and rendered native peer.
 import { chromium } from '@playwright/test';
 import assert from 'node:assert/strict';
@@ -14,12 +15,12 @@ let browser;
 try {
     await mkdir(directory,{recursive:true});
     report.sourceSHA256={};
-    const files=['browser-client/gateway/server.mjs','browser-client/gateway/native-bridge.js',
+    const files=['browser-client/tests/integration/chrome-journey-selection.mjs','browser-client/tests/google-chrome-selection.mjs','browser-client/gateway/server.mjs','browser-client/gateway/native-bridge.js',
         'browser-client/gateway/validation.mjs','browser-client/gateway/permission-policy.mjs','browser-client/gateway/process-lifecycle.mjs',
         'browser-client/dist/index.html','browser-client/tests/integration/assets-and-avatars.mjs'];
     for(const asset of await readdir(path.join(repo,'browser-client/dist/assets')))files.push(`browser-client/dist/assets/${asset}`);
     for(const file of files)report.sourceSHA256[file]=sha(await readFile(path.join(repo,file)));
-    browser=await chromium.launch({headless:true,args:['--use-angle=swiftshader','--disable-dev-shm-usage'],
+    browser=await chromium.launch({...selectGoogleChromeJourney(process.env),headless:true,args:['--use-angle=swiftshader','--disable-dev-shm-usage'],
         env:{...process.env,PULSE_SERVER:`unix:${repo}/build/browser-lab/runtime/browser-pulse.sock`}});
     report.browserVersion=browser.version();
     const page=await browser.newPage({viewport:{width:1280,height:800}});

@@ -20,6 +20,25 @@ Item {
     property var privateGrab: null
     property string captureSurface: "tablet"
     property string domRefusal: "unobserved"
+    property var worldKeyRoot: null
+    property double worldKeyRequest: 0
+    property double worldKeyRevision: 0
+    property double worldKeyNavigation: 0
+    property bool worldKeyWasReady: false
+    Connections {target:helper.worldKeyRoot;ignoreUnknownSignals:true
+        onVisibleChanged:helper.updateWorldKeyReadiness()
+        onEnabledChanged:helper.updateWorldKeyReadiness()
+        onShownChanged:helper.updateWorldKeyReadiness()
+        onDestroyed:helper.cancelWorldKeys()
+    }
+    Connections {target:helper;enabled:helper.worldKeyRequest>0
+        onPendingTextChanged:helper.updateWorldKeyReadiness()
+        onPointerSurfaceChanged:helper.updateWorldKeyReadiness()
+        onInputSurfaceChanged:helper.updateWorldKeyReadiness()
+        onSavedSurfaceChanged:helper.updateWorldKeyReadiness()
+        onActiveCaptureChanged:helper.updateWorldKeyReadiness()
+        onPrivateGrabChanged:helper.updateWorldKeyReadiness()
+    }
     property var pendingText: null
     property var textInputQueue: []
     property int textInputQueueUnits: 0
@@ -271,8 +290,41 @@ Item {
         if(!nativeInput.grabPrivateGui(item,token)){privateGrab=null;return false;}
         return true;
     }
+    function cancelWorldKeys() {
+        worldKeyRequest=0;worldKeyRevision=0;worldKeyNavigation=0;worldKeyWasReady=false;worldKeyRoot=null;
+    }
+    function findWorldKeyRoot() {
+        var stack=[{item:topRoot(),depth:0}],seen=[],found=null;
+        while(stack.length){var node=stack.pop(),item=node.item;if(!item||seen.length>=4096||seen.indexOf(item)!==-1)return null;seen.push(item);
+            if(item.objectName==='tabletRoot'){if(found)return null;found=item;}
+            if(item!==topRoot()&&item.visible===false)continue;
+            if(node.depth>24)return null;
+            var children=item.children;if(!children||children.length>4096-seen.length-stack.length)return null;
+            for(var i=0;i<children.length;i++)stack.push({item:children[i],depth:node.depth+1});
+        }return found;
+    }
+    function worldKeyInputIdle() {
+        return !pendingText&&!pointerSurface&&!inputSurface&&!savedSurface&&!activeCapture&&!privateGrab;
+    }
+    function updateWorldKeyReadiness(force) {
+        if(!worldKeyRequest)return;
+        var ready=!!worldKeyRoot&&worldKeyInputIdle()&&nativeInput.worldKeyReady(topRoot())===true;
+        // Always answer the arm command, then publish only actual transitions.
+        if(force===true||ready!==worldKeyWasReady){worldKeyWasReady=ready;sendToScript({kind:'worldKeyReady',revision:worldKeyRevision,navigationSequence:worldKeyNavigation,requestId:worldKeyRequest,ready:ready});}
+    }
     function fromScript(message) {
         try {
+            if(message.kind==='cancelWorldKey'){cancelWorldKeys();return;}
+            if(message.kind==='armWorldKey'){
+                cancelWorldKeys();if(!(Number.isSafeInteger?Number.isSafeInteger(message.revision):typeof message.revision==='number'&&message.revision%1===0)||message.revision<1||message.revision>9007199254740991||typeof message.navigationSequence!=='number'||message.navigationSequence%1!==0||message.navigationSequence<1||message.navigationSequence>9007199254740991||typeof message.requestId!=='number'||message.requestId%1!==0||message.requestId<1||message.requestId>9007199254740991)return;
+                worldKeyRevision=message.revision;worldKeyNavigation=message.navigationSequence;worldKeyRequest=message.requestId;worldKeyRoot=findWorldKeyRoot();
+                worldKeyWasReady=false;updateWorldKeyReadiness(true);return;
+            }
+            if(message.kind==='worldKey'){
+                if(message.key!=='x'||!worldKeyRequest||message.requestId!==worldKeyRequest||message.revision!==worldKeyRevision||message.navigationSequence!==worldKeyNavigation)return;
+                if(!worldKeyRoot||!worldKeyInputIdle()||nativeInput.worldKeyReady(topRoot())!==true){worldKeyWasReady=true;updateWorldKeyReadiness();return;}
+                if(!nativeInput.clickWorldKey(topRoot()))throw new Error('The native world could not accept that key.');return;
+            }
             if(message.kind==="readyProbe") {
                 // Only this loaded capture Item can acknowledge readiness. There
                 // is no visitor command, script source or arbitrary evaluation.
@@ -281,12 +333,12 @@ Item {
                 return;
             }
             if(message.kind==="cancelCapture") {activeCapture=null;savedSurface=null;return;}
-            if(message.kind==="resetInput") {cancelTextInput();cancelPointer();inputSurface=null;savedSurface=null;captureTarget=null;return;}
+            if(message.kind==="resetInput") {if(typeof worldKeyRequest!=="undefined"&&worldKeyRequest)cancelWorldKeys();cancelTextInput();cancelPointer();inputSurface=null;savedSurface=null;captureTarget=null;return;}
             if(message.kind==="displayFrame") {
                 if(savedSurface && message.revision===savedSurface.revision && message.sequence===savedSurface.sequence && message.navigationSequence===savedSurface.navigationSequence){inputSurface=savedSurface;savedSurface=null;captureTarget=inputSurface.item;}
                 return;
             }
-            if(message.kind==="hide") {cancelTextInput();activeCapture=null;var root=find(topRoot(),"tabletRoot",0);if(root)root.shown=false;cancelPointer();captureTarget=null;inputSurface=null;savedSurface=null;return;}
+            if(message.kind==="hide") {if(typeof worldKeyRequest!=="undefined"&&worldKeyRequest)cancelWorldKeys();cancelTextInput();activeCapture=null;var root=find(topRoot(),"tabletRoot",0);if(root)root.shown=false;cancelPointer();captureTarget=null;inputSurface=null;savedSurface=null;return;}
             if(message.kind==="focusTablet") {var tabletWindow=find(topRoot(),"tabletRoot",0);if(tabletWindow){tabletWindow.shown=true;if(typeof tabletWindow.raise==="function")tabletWindow.raise();}return;}
             if(message.kind==="capture") {
                 var item=target();activeCapture=message;
@@ -322,8 +374,8 @@ Item {
                 else if(message.event==="clipboard")clipboard(message);
                 else if(message.event==="key"){
                     var code=keyCode(message.key);
-                    if(code!==undefined)accepted=events.keyClick(code,mods,0);
-                    else if(message.key.length===1&&message.key.charCodeAt(0)>=32&&message.key.charCodeAt(0)<=126)accepted=events.keyClickChar(message.key,mods,0);
+                    if(code!==undefined || (message.key.length===1&&message.key.charCodeAt(0)>=32&&message.key.charCodeAt(0)<=126))
+                        accepted=nativeInput.clickApplicationKey(targetItem,message.key,mods);
                     else accepted=text(message.key);
                 }
                 if(!accepted)throw new Error("The native tablet could not accept that input.");

@@ -14,16 +14,15 @@ test('task-scheduled genuine FBX preserves all geometry/material/image data and 
   await page.goto('/');
   const result = await page.evaluate(async fbx => {
     const turnPath = '/src/model-parse-turn.ts', worldPath='/src/world.ts', collisionPath='/src/mesh-collision.ts';
-    // page.evaluate runs in the browser, outside Vite's import transformation.
-    // Fetch the same transformed modules used by the actual World instead of
-    // leaving bare package specifiers in the serialized callback.
-    const threePath='/node_modules/.vite/deps/three.js',loaderPath='/node_modules/three/examples/jsm/loaders/FBXLoader.js';
+    // page.evaluate is serialized outside Vite's import transformation.
+    // An ordinary fixture module lets Vite resolve the real package imports.
+    const modulesPath='/tests/model-parse-turn-modules.ts';
     const [{ ModelParseTurn }, { BrowserWorld }, { MeshCollision }, THREE, { FBXLoader }] = await Promise.all([
       import(/* @vite-ignore */ turnPath) as Promise<typeof import('../src/model-parse-turn')>,
       import(/* @vite-ignore */ worldPath) as Promise<typeof import('../src/world')>,
       import(/* @vite-ignore */ collisionPath) as Promise<typeof import('../src/mesh-collision')>,
-      import(/* @vite-ignore */ threePath) as Promise<typeof import('three')>,
-      import(/* @vite-ignore */ loaderPath) as Promise<typeof import('three/addons/loaders/FBXLoader.js')>
+      import(/* @vite-ignore */ modulesPath).then(module => module.THREE) as Promise<typeof import('three')>,
+      import(/* @vite-ignore */ modulesPath) as Promise<typeof import('./model-parse-turn-modules')>
     ]);
     const bytes = new TextEncoder().encode(fbx).buffer; const controller = new AbortController(); const owner = new ModelParseTurn(controller.signal);
     const imageEvents: { scheduled: boolean; parsed: number }[] = [];

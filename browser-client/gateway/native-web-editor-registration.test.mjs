@@ -31,3 +31,6 @@ test('actual production C++ whole-event method compiled control contracts',()=>{
 test('real own-child diagnostic streams have strict retention and deadline bounds',()=>{
  execFileSync('python3',[fileURLToPath(new URL('../native-input/web-editor/test-runner.py',import.meta.url))],{timeout:5000,stdio:'pipe'});
 });
+test('real Linux renderer ownership reaps zombies and orphans with strict refusal bounds',()=>{
+ execFileSync('python3',['-B',fileURLToPath(new URL('../native-input/web-editor/test-owned-reaping.py',import.meta.url))],{timeout:20000,maxBuffer:65536,stdio:'pipe'});
+});

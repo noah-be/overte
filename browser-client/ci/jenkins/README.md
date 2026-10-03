@@ -1,6 +1,6 @@
 # Proposed isolated Jenkins native/browser qualification
 
-Current exact-source qualification: commit
+Historical exact-source qualification: commit
 `09c062bf5a371df78b01014dccfdbc4c37febcb9` executes all nineteen gates in build6.
 Eighteen pass, including194 renderer tests and the complete Firefox core journey
 with synthetic voice in both directions. Chromium fails the original
@@ -127,21 +127,21 @@ publish node labels, paths, raw console logs, private XML, profiles, operator
 credentials, device identifiers or audio. No blanket second full run is required;
 repeat only when a failure, meaningful change or unresolved concern justifies it.
 
-All nineteen required stages must pass, including the manager-state contracts,
-both engine worker/UI gates,
+For the current Google Chrome-only schema, all seventeen required stages must pass, including the manager-state contracts,
+Google Chrome worker/UI gates,
 normal kernel/network preflight, an actual domain plus independent native client,
-both unchanged native/browser movement/voice/interaction/reconnect journeys,
+the unchanged Google Chrome/native movement/voice/interaction/reconnect journey,
 source immutability and owned cleanup. The duration remains zero; endurance was
 cancelled by the user. No hardware speech or public-Hub GPU fluidness is inferred.
 `CI=true` prevents Playwright reusing another server. Mesa llvmpipe is the requested
 software graphics backend; actual WebGL and pixels must pass the unchanged
 embedded/renderer gates. It is not assumed available merely from environment
-variables. Per-engine curated reports are authoritative for synthetic browser
-audio: Chromium's file input and Firefox's generated input differ. The independent
+variables. The current Google Chrome curated report is authoritative for synthetic browser
+audio, using controlled file input. Historical per-engine evidence remains unchanged. The independent
 native test source is a synthetic 997 Hz tone, without hardware speech claims.
 
 Keep the actual Noble profile failures and corrected Ubuntu native-GUI diagnostic
-visible. This candidate does not remove or replace any existing required check.
+visible. This Chrome-scope amendment retains every Chrome gate and historical nineteen-stage completion checker. Firefox launches are removed under the explicit user scope change; historical evidence is retained.
 Any eventual automated fork check publication needs separately reviewed trusted
 orchestration and full exact-commit effective-gate evidence; no agent credentials
 or public Jenkins exposure are introduced here.
@@ -151,3 +151,17 @@ and `O_NONBLOCK`, then checked through their held descriptors. This keeps a
 substituted FIFO from blocking the gate before its regular-file check. Both
 files must remain distinct, owned, empty and mode 0600. The isolated actual-FIFO
 regression retains a negative control for the former blocking-open expression.
+
+## Current Chrome-only preparation contract
+
+The current runner emits `schemaVersion: 2`, `browserScope: google-chrome-only` and seventeen required rows. `REQUIRED_STAGES`/`complete_pass` retain the historical nineteen-row schema for retrospective controls. Current completion uses the separate `GOOGLE_CHROME_REQUIRED_STAGES`/`complete_chrome_pass` checker. There is no substitution of skipped stages for passes.
+
+Apply the separately reviewed Chrome-default and explicit-executable amendments before qualifying this runner. On the dedicated Fedora agent, supply `OVERTE_CI_CHROME_PAYLOAD_MANIFEST` (absolute manifest path) and `OVERTE_CI_CHROME_PAYLOAD_SHA256` (reviewed manifest SHA-256). They are preparation inputs, not copied into gate environments. No Playwright apt installer runs on Fedora. An absent selection refuses rather than downloading Chromium or Firefox. The operator must review the official Google Chrome package provenance and the complete extracted payload before authorizing its manifest; merely having ELF bytes is not proof of Google branding.
+
+The selected manifest directory contains `payload/` and a manifest with exactly `{version:1, executable:"chrome", files:[{path,bytes,sha256,executable},...]}`. Each file must be listed exactly once. Paths are relative with no empty/dot/parent components, symlinks or special files. Payload limits are 512 files, 512 MiB total file bytes, 16 directory levels and a 1 MiB manifest. The known extracted Google Chrome package has 254 files and approximately 457 MB, so these bounds fit the already reviewed payload. That package was not copied or rehashed by this CPU proposal. Fixed resources and locales must be included; do not reduce a complete browser to one ELF.
+
+Preparation copies only exact hash-matched files to the exclusively created `build/jenkins-browser-ci/google-chrome` directory, mode 0700, with files mode 0400/0500. No host install, chmod of the source, download or browser launch occurs in the admission helper. Failed copies clean only their created staging output; an existing target is never replaced. The ordinary preparation-complete marker remains the runtime readiness boundary; hard interruption can leave an incomplete target that is refused on reuse.
+
+The existing private `/tmp` mount hides external package paths. Staging inside the dedicated checkout lets the existing pre-opened checkout FD carry the payload into the same private mount; no extra host bind or namespace/capability grant is added. `run.py` records its admitted manifest identity before entering the namespace. `gates.py` revalidates every copied file and requires that same identity, then sets only `OVERTE_BROWSER_CHROME_EXECUTABLE` to the admitted executable. All five capability sets still must be zero before the helper or gates run. Runtime file hashes and ownership checks do not claim resilience against a malicious same-UID actor rewriting the entire pre-launch checkout; this remains the existing dedicated, reviewed agent/source trust boundary.
+
+The new helper belongs to `SOURCE_FILES`, so full CI requires exact Git-committed bytes and namespace-only smoke stages copy it with the other reviewed helpers. A new Chrome scope test module is imported by the existing runner test entry point and therefore its ordinary npm contract. Actual supplied-package dependencies, isolation, GUI, synthetic voice and all seventeen stages remain unqualified until the parent executes a fresh exact-source Jenkins run. Historical Firefox evidence is not a current launch prerequisite.

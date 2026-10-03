@@ -64,6 +64,8 @@ test('worker helpers retain exact startup bytes when checkout files change',asyn
     const root=await mkdtemp(join(tmpdir(),'tablet-startup-'));const directory=join(root,'gateway');
     await mkdir(directory);await mkdir(join(root,'shared'));
     await copyFile(new URL('../shared/browser-graphics.mjs',import.meta.url),join(root,'shared/browser-graphics.mjs'));
+    await copyFile(new URL('../shared/browser-graphics-local.mjs',import.meta.url),join(root,'shared/browser-graphics-local.mjs'));
+    await copyFile(new URL('../shared/browser-capture.mjs',import.meta.url),join(root,'shared/browser-capture.mjs'));
     try{
         const files=['tablet.mjs','tablet-snapshots.mjs','tablet-files.mjs','tablet-chat.mjs','native-tablet-chat.js','native-tablet.js','tablet-capture.qml'];
         for(const file of files)await copyFile(new URL(file,import.meta.url),join(directory,file));

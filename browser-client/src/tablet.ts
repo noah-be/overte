@@ -1,17 +1,26 @@
 // Copyright 2026 Overte contributors
 // SPDX-License-Identifier: Apache-2.0
+import {GraphicsEnvironmentPanel} from './graphics-environment-panel';
+import type {GraphicsEnvironmentScan} from './graphics-environment-scan';
+import {validateGraphicsLocalChange,graphicsBrowserRequestId} from '../shared/browser-graphics-local.mjs';
 import {parseTabletMessage, type TabletMessage} from './tablet-protocol';
 import {TabletFiles} from './tablet-files';
 import {TabletSnapshots} from './tablet-snapshots';
 import {TabletClipboard} from './tablet-clipboard';
+import {BrowserFullscreen} from './fullscreen';
 import {validateBrowserGraphicsResult,type BrowserGraphicsResult} from '../shared/browser-graphics.mjs';
 
+import {captureResult,type CaptureResult} from '../shared/browser-capture.mjs';
 export interface TabletOptions {
     send:(message:unknown)=>void;
     onStatus:(message:string)=>void;
     onVisibility:(visible:boolean)=>void;
     onMicrophoneRequest?:(muted:boolean)=>void;
+    graphicsEnvironment?:GraphicsEnvironmentScan;
+    onGraphicsApplied?:(value:Extract<TabletMessage,{kind:'graphicsApplied'}>)=>void;
     onGraphics?:(request:Extract<TabletMessage,{kind:'graphics'}>)=>BrowserGraphicsResult|undefined;
+    onCapture?:(request:Extract<TabletMessage,{kind:'capture'}>)=>Promise<CaptureResult|undefined>;
+    onCaptureCancelled?:()=>void;
     fileURL?:(name?:string)=>string;
     captureScene?:()=>Promise<Blob>;
 }
@@ -25,6 +34,10 @@ export class BrowserTablet {
     private holder:HTMLElement;
     private resize:ResizeObserver;
     private buttons:HTMLButtonElement[] = [];
+    private worldKeyRequest=0;
+    private worldKeyReady=false;
+    private worldKeyAwaiting=false;
+    private worldCanvasFocused=false;
     private revision = 0;
     private sequence = 0;
     private frameSequence = 0;
@@ -37,6 +50,9 @@ export class BrowserTablet {
     private files?:TabletFiles;
     private snapshots:TabletSnapshots;
     private clipboard:TabletClipboard;
+    private graphicsEnvironmentPanel?:GraphicsEnvironmentPanel;
+    private graphicsScanReturnGeneration=0;
+    private fullscreen:BrowserFullscreen;
     private abort = new AbortController();
     visible = false;
 
@@ -57,6 +73,21 @@ export class BrowserTablet {
         Object.assign(this.status.style,{overflowWrap:'anywhere',maxWidth:'100%',flex:'1 1 140px'});
         this.status.textContent = 'Opening the native tablet…'; toolbar.append(this.status);
         if(options.fileURL)this.files=new TabletFiles(toolbar,this.element,{fileURL:options.fileURL,onStatus:options.onStatus});
+        if(options.graphicsEnvironment)this.graphicsEnvironmentPanel=new GraphicsEnvironmentPanel(toolbar,options.graphicsEnvironment,{
+            showWorld:()=>{this.close();this.graphicsScanReturnGeneration=this.generation;},
+            showResultIfCurrent:()=>{if(this.connected&&!this.disposed&&!this.visible&&this.generation===this.graphicsScanReturnGeneration&&document.visibilityState==='visible')this.open();},
+        });
+        const fullscreenButton=document.createElement('button');fullscreenButton.type='button';fullscreenButton.textContent='Fullscreen';
+        fullscreenButton.disabled=true;fullscreenButton.setAttribute('aria-pressed','false');
+        fullscreenButton.style.flexShrink='0';
+        const fullscreenStatus=document.createElement('span');fullscreenStatus.setAttribute('role','status');
+        Object.assign(fullscreenStatus.style,{overflowWrap:'anywhere',maxWidth:'100%',flex:'0 1 auto'});
+        toolbar.append(fullscreenButton,fullscreenStatus);
+        this.fullscreen=new BrowserFullscreen(container,state=>{
+            fullscreenButton.textContent=state.active?'Exit fullscreen':'Fullscreen';fullscreenButton.setAttribute('aria-pressed',String(state.active));
+            fullscreenButton.disabled=!state.available||state.pending;fullscreenStatus.textContent=state.message;
+        });
+        fullscreenButton.addEventListener('click',event=>{void this.fullscreen.invoke(event);});
         this.clipboard=new TabletClipboard(toolbar,options.onStatus);
         this.snapshots=new TabletSnapshots(toolbar,{captureScene:options.captureScene,fileURL:options.fileURL,send:value=>this.send(value),onStatus:options.onStatus});
         const holder = document.createElement('div');
@@ -148,11 +179,25 @@ export class BrowserTablet {
         this.send({action:'input',event,frameSequence:held?.sequence??this.displayedFrameSequence,...this.coordinates(pointer),button:held?.button??Math.min(2,Math.max(0,pointer.button)),buttons:event==='cancel'?0:pointer.buttons&7,modifiers:this.modifiers(pointer)});
         if(event==='release'||event==='cancel')this.clearPointer();
     }
+    get worldInputReady():boolean {return this.worldKeyReady&&this.worldCanvasFocused&&!this.visible&&this.connected&&!this.disposed;}
+    worldInputFocus(focused:boolean,reactivate=false):void {
+        if(focused&&this.worldCanvasFocused&&this.worldKeyRequest&&(this.worldKeyReady||this.worldKeyAwaiting||!reactivate))return;
+        this.worldCanvasFocused=focused;this.worldKeyReady=false;this.worldKeyAwaiting=false;
+        if(!focused){if(this.worldKeyRequest)this.send({action:'worldKeyCancel',navigationSequence:this.navigationSequence});this.worldKeyRequest=0;return;}
+        if(!this.connected||this.disposed||this.visible||!this.revision||!this.navigationSequence)return;
+        this.worldKeyRequest=this.sequence+1;this.worldKeyAwaiting=true;this.send({action:'worldKeyArm',navigationSequence:this.navigationSequence});
+    }
+    worldKey(event:KeyboardEvent,canvas:HTMLCanvasElement):boolean {
+        if(!this.connected||this.disposed||this.visible||!this.worldCanvasFocused||!this.worldKeyReady||!this.worldKeyRequest||document.hidden||!document.hasFocus()||document.activeElement!==canvas||event.target!==canvas||!event.isTrusted||event.isComposing||event.defaultPrevented||event.repeat||event.key!=='x'||event.code!=='KeyX'||event.ctrlKey||event.metaKey||event.altKey||event.shiftKey)return false;
+        this.send({action:'worldKey',navigationSequence:this.navigationSequence,key:'x'});return true;
+    }
     private send(value:Record<string,unknown>):void {
         if (!this.connected || this.disposed || (value.action !== 'open' && !this.revision)) return;
         if(value.action==='input'&&(!this.visible||!this.displayedFrameSequence))return;
         const sequence=++this.sequence;
         if(['open','home','back','close'].includes(String(value.action))){
+            this.worldKeyRequest=0;this.worldKeyReady=false;this.worldKeyAwaiting=false;
+            this.options.onCaptureCancelled?.();
             this.clearPointer();this.displayedFrameSequence=0;this.navigationSequence=sequence;this.generation++;
         }
         this.options.send({type:'tablet',...value,...(this.revision ? {revision:this.revision} : {}),sequence});
@@ -160,10 +205,13 @@ export class BrowserTablet {
     private show(visible:boolean):void {
         if (this.visible === visible) return;
         if(!visible){
+            this.options.onCaptureCancelled?.();
             const held=this.activePointer;
             if(held)this.send({action:'input',event:'cancel',frameSequence:held.sequence,x:0,y:0,button:held.button,buttons:0,modifiers:0});
             this.clearPointer();this.displayedFrameSequence=0;this.generation++;
         }
+        if(visible&&this.graphicsEnvironmentPanel?.sampling)this.graphicsEnvironmentPanel.cancel();
+        if(visible){this.worldKeyRequest=0;this.worldKeyReady=false;this.worldKeyAwaiting=false;}
         this.visible = visible; this.element.hidden = !visible; this.element.style.display = visible ? 'flex' : 'none';
         this.options.onVisibility(visible);
         if (visible) {this.fit();if (document.pointerLockElement) void document.exitPointerLock();this.canvas.focus();}
@@ -172,23 +220,36 @@ export class BrowserTablet {
     open():void {if (this.connected) {this.displayedFrameSequence=0;this.show(true);this.status.textContent='Opening the native tablet…';this.send({action:'open'});}}
     close():void {this.snapshots.cancel(true);this.send({action:'close'});this.show(false);this.displayedFrameSequence=0;this.generation++;}
     setConnected(connected:boolean):void {
-        this.connected=connected; this.buttons.forEach(button=>button.disabled=!connected);
+        this.worldKeyRequest=0;this.worldKeyReady=false;this.worldKeyAwaiting=false;this.worldCanvasFocused=false;
+        this.connected=connected; this.fullscreen.setConnected(connected); this.buttons.forEach(button=>button.disabled=!connected);
         // Keep command ordering for this browser lifetime, matching TabletSession across reapproval.
-        if (!connected) {this.revision=0;this.frameSequence=0;this.displayedFrameSequence=0;this.navigationSequence=0;this.clearPointer();this.generation++;this.snapshots.cancel();this.show(false);}
+        if (!connected) {this.graphicsEnvironmentPanel?.cancel();this.revision=0;this.frameSequence=0;this.displayedFrameSequence=0;this.navigationSequence=0;this.clearPointer();this.generation++;this.snapshots.cancel();this.show(false);}
     }
     receive(message:TabletMessage):void {
         const value = parseTabletMessage(message);
         if (!this.connected || value.revision < this.revision) return;
         if (value.revision !== this.revision) {
+            this.options.onCaptureCancelled?.();
             this.clearPointer();
-            if(this.revision){this.navigationSequence=0;this.show(false);}
+            if(this.revision){this.graphicsEnvironmentPanel?.cancel();this.navigationSequence=0;this.show(false);}
+            this.worldKeyRequest=0;this.worldKeyReady=false;this.worldKeyAwaiting=false;this.worldCanvasFocused=false;
             this.revision=value.revision;this.frameSequence=0;this.displayedFrameSequence=0;this.generation++;this.snapshots.cancel();
         }
+        if(value.kind==='worldKeyReady'){if(value.requestId===this.worldKeyRequest&&value.navigationSequence===this.navigationSequence&&!this.visible){this.worldKeyReady=value.ready;this.worldKeyAwaiting=false;}return;}
         if (value.kind === 'state') {this.show(value.visible);this.status.textContent=value.loading?'Loading native tablet…':value.screen || 'Tablet';}
         else if (value.kind === 'error') {this.status.textContent=value.message;this.options.onStatus(value.message);}
         else if (value.kind === 'clipboard') this.clipboard.receive(value.text);
         else if (value.kind === 'snapshot') {this.show(false);void this.snapshots.capture(value);}
         else if (value.kind === 'microphone') this.options.onMicrophoneRequest?.(value.muted);
+        else if (value.kind === 'graphicsApplied') this.options.onGraphicsApplied?.(value);
+        else if (value.kind === 'capture') {
+            if(value.navigationSequence!==this.navigationSequence||!this.visible)return;
+            const generation=this.generation;
+            void (async()=>{try{const result=await this.options.onCapture?.(value);
+                if(result&&!this.disposed&&this.connected&&this.visible&&generation===this.generation&&value.revision===this.revision&&value.navigationSequence===this.navigationSequence)
+                    this.send({action:'captureResult',navigationSequence:value.navigationSequence,...captureResult({schemaVersion:result.schemaVersion,requestId:result.requestId,accepted:result.accepted,reason:result.reason,state:result.state})});
+            }catch{if(!this.disposed&&generation===this.generation)this.options.onStatus('The browser could not confirm that microphone setting.');}})();
+        }
         else if (value.kind === 'graphics') {
             try {
                 const result=this.options.onGraphics?.(value);
@@ -220,5 +281,10 @@ export class BrowserTablet {
         } catch(error) {if(generation===this.generation)this.options.onStatus(`Tablet display error: ${error instanceof Error ? error.message : String(error)}`);}
         finally {if(!this.disposed && generation===this.generation)this.send({action:'frameAck',frameSequence:frame.sequence,displayed});}
     }
-    dispose():void {if(this.disposed)return;this.close();this.disposed=true;this.abort.abort();this.resize.disconnect();this.files?.dispose();this.snapshots.dispose();this.clipboard.dispose();this.element.remove();}
+    sendGraphicsCommand(value:Record<string,unknown>):void {
+        if(value.action==='graphicsChange')this.send({action:'graphicsChange',...validateGraphicsLocalChange(value)});
+        else if(value.action==='graphicsCancel'&&value.schemaVersion===1)this.send({action:'graphicsCancel',schemaVersion:1,browserRequestId:graphicsBrowserRequestId(value.browserRequestId)});
+        else throw Error('Unsupported browser graphics command');
+    }
+    dispose():void {if(this.disposed)return;this.close();this.disposed=true;this.abort.abort();this.resize.disconnect();this.files?.dispose();this.snapshots.dispose();this.clipboard.dispose();this.graphicsEnvironmentPanel?.dispose();this.fullscreen.dispose();this.element.remove();}
 }

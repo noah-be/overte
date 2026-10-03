@@ -16,7 +16,7 @@ import sys
 import time
 
 REMOTE = 'https://github.com/noah-be/overte'
-SOURCE_FILES = ('run.py', 'namespace-owner.py', 'gates.py', 'prepare.py', 'probe.py', 'owned-exec.py', 'owned-xvfb.py')
+SOURCE_FILES = ('run.py', 'namespace-owner.py', 'gates.py', 'prepare.py', 'probe.py', 'owned-exec.py', 'owned-xvfb.py', 'chrome-payload.py')
 
 
 def safe_environment():
@@ -164,7 +164,11 @@ def main():
             if committed != (source/name).read_bytes():
                 raise RuntimeError('CI-helper-differs-from-attested-source')
     config = runtime / 'namespace-config.json'
-    identity = {'sourceSHA': args.source_sha, 'user': os.getuid(), 'group': os.getgid(),
+    browser_identity=None
+    if not args.probe_only:
+        from importlib import import_module
+        browser_identity=import_module('chrome-payload').admission_identity(runtime)
+    identity = {'browserPayloadManifestSHA256':browser_identity,'sourceSHA': args.source_sha, 'user': os.getuid(), 'group': os.getgid(),
                 'repo': str(repo), 'scripts': str(relative),
                 'timeoutSeconds': args.timeout_seconds,
                 'probeOnly': args.probe_only,

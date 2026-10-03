@@ -16,6 +16,29 @@ uses pinned actions without persisted credentials, installs the same signed host
 dependencies, and runs the existing shipped-AppArmor preparation unchanged.
 It never removes/overrides profiles, lifts capabilities or changes routes.
 
+Manual dispatch additionally accepts the default-off
+`continue_diagnostics_after_contract_failure` input. Explicit true selection
+allows the existing fresh-domain observer to collect more evidence after the
+unchanged unit contract step fails. Exact source and authenticated stage success
+remain required; cancellation and prerequisite failure still prevent execution.
+The contract failure still fails the job, with no `continue-on-error` masking.
+The whole-workflow source oracle strips only these exact reviewed additions and
+retains its original hash. This diagnostic mode does not qualify a failed
+zero-capability contract.
+
+Probe failures retain their original failure and cleanup. Only source-owned
+ValueError refusal tags are printed as `ATOMIC_PROBE_FAILURE`; arbitrary
+exception text and paths remain unclassified. The exact six-source Chrome
+closure and original complete probe recovery remain required. The isolated
+hosted c7aaa observation measured129 inherited entries against the old128-entry
+bound, with valid types, keys, values and NUL checks. The integrated observer now
+admits at most256 entries and directly enforces the unchanged64KiB exact
+indent-two-plus-newline serialized record limit. Original per-key128 and
+per-value8192 limits, full native environment/argv, loader/HOME/source checks
+remain. Five environment regressions include valid256 admission and exact257
+refusal below the byte limit; removing just the count predicate fails that test.
+This repairs preparation admission, without qualifying the zero-capability gate.
+
 `stage.py` creates unique owned 0700 probe/lab/output directories beneath the
 canonical RUNNER_TEMP and copies only the reviewed helpers/metadata. It downloads
 fixed official Noble InRelease/index/package URLs with bounded reads and checks
@@ -27,8 +50,8 @@ its checksum/size must match. No system package installation or key import is
 performed by this helper. Raw receipts and all intermediate files remain private.
 
 The source-root unit tests are wired before native startup, using the already
-verified cached signed files and executable. Twenty-six CPU contracts passed on
-the current Fedora host, including the actual gpgv→signed index→package→regular
+verified cached signed files and executable. The earlier twenty-six CPU contracts passed on
+the Fedora host, including the actual gpgv→signed index→package→regular
 binary chain, real tiny owned strace children, zero-cap user/IPC confinement,
 parent-death/deadline cleanup, exact-destination projection and strict curation.
 The original missing-binary test invocation was preserved as a negative log and
@@ -46,7 +69,10 @@ parent-death/EXITKILL ownership is retained, and no existing CI lab is stopped.
 
 `curate.py` reads only the bounded held private summary FD, refuses duplicate or
 unknown keys, unknown enum values, non-integer/over-limit counts and contradictory
-completed claims, then publishes only explicit fixed fields. Raw paths, PIDs,
+completed claims, then publishes only explicit fixed fields. The already validated observer
+aggregate now retains its fixed syscall/errno categories and bounded counters,
+including unparsed/oversized/incomplete counts. Exact target attribution and
+completion requirements are unchanged. Raw paths, PIDs,
 descriptors, auth, environment, stdout/stderr and config are never copied.
 Preparation failure writes an explicit bounded unavailable summary and exits
 nonzero; it cannot make the workflow successful. Upload retains only that one
@@ -65,7 +91,7 @@ remain parent-owned acceptance steps.
 
 ## Current cross-version test qualification
 
-The complete current diagnostic suite passes 121 cases locally with its reviewed
+The earlier diagnostic suite passed121 cases locally with its reviewed
 signed dependency inputs. Run from the repository root with the three explicit
 private, authenticated paths already prepared by the dependency workflow:
 
@@ -122,3 +148,26 @@ hosted password request or raw kernel artifact is produced. The original gate
 still fails and publishes its existing safe failure projection. Actual hosted
 journal admission and the cause of `apply-bounding-set` remain unqualified until
 a genuine reviewed run supplies a matching source-owned record.
+
+
+## Source-coherent native observation
+
+The standalone probe authenticates all six reviewed lab dependencies before
+importing the manager or checking/using any native endpoint. Its fixed
+`source-pins.json` must describe the exact committed dependency bytes. There is
+no runtime pin refresh or acceptance of stale metadata. A changed manager must
+be reviewed, then its literal pin updated as part of that same source checkpoint.
+The six source-coherence controls execute the actual validation helper, refuse
+the previous manager pin against current bytes, mutate every dependency,
+refuse unknown/missing dependencies, malformed/oversized pin metadata and
+symlinks, and recover the exact original probe after restoring the removed historical token write and stripping the reviewed
+validation factor. The native command, twenty-second readiness, ten-second POST,
+all guest flags, owned endpoint proof and syscall observer remain unchanged.
+
+This repair does not resolve hosted Atomic's original `apply-bounding-set`
+failure. By default a failed required unit-contract step prevents subsequent
+lab preparation and native observation. Only the explicit default-off manual
+continuation input allows the existing observer after exact source and signed
+stage preparation succeed; the original failed step and job remain failed.
+Updated source pins never waive that contract. The separately bounded diagnostic
+is never substitution for the original contracts or core-journey qualification.

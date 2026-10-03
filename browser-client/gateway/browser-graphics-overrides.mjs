@@ -63,7 +63,9 @@ export function buildBrowserGraphicsOverrides(sources,channel){
     js=once(js,'\t// Event listeners','\tMessages.subscribe(browserGraphicsChannel);Messages.messageReceived.connect(browserGraphicsMessage);\n\t// Event listeners');
     js=once(js,'\t\ttablet.removeButton(appButton);','\t\tMessages.messageReceived.disconnect(browserGraphicsMessage);Messages.unsubscribe(browserGraphicsChannel);\n\t\ttablet.removeButton(appButton);');
     js=once(js,'\t\tif (event.type === "switchApp") {','\t\tif(event.type==="browserGraphicsReady"||event.type==="browserGraphicsChange"){\n            Messages.sendLocalMessage(browserGraphicsChannel,JSON.stringify(event.type==="browserGraphicsReady"?{kind:"ready"}:{kind:"change",field:event.field,value:event.value}));return;\n        }\n\t\tif (event.type === "switchApp") {');
-    return {'settings.js':js,'Settings.qml':qml,'qml/pages/GraphicsSettings.qml':graphics,'qml/SettingSlider.qml':sources['qml/SettingSlider.qml'],'qml/SettingBoolean.qml':sources['qml/SettingBoolean.qml'],'qml/SettingComboBox.qml':sources['qml/SettingComboBox.qml']};
+    const combo=once(sources['qml/SettingComboBox.qml'],'popup: Popup {','popup: Popup {\n                    y: root.settingText === \"Resolution preset\" ? control.height : 0;');
+    const opaqueCombo=once(combo,'color: Qt.rgba(0,0,0,0.9)','color: Qt.rgba(0,0,0,root.settingText === "Resolution preset" ? 1 : 0.9)');
+    return {'settings.js':js,'Settings.qml':qml,'qml/pages/GraphicsSettings.qml':graphics,'qml/SettingSlider.qml':sources['qml/SettingSlider.qml'],'qml/SettingBoolean.qml':sources['qml/SettingBoolean.qml'],'qml/SettingComboBox.qml':opaqueCombo};
 }
 /** Call at gateway startup with an operator-approved installed defaultScripts URL. */
 export async function loadBrowserGraphicsPackage(defaultScriptsURL){

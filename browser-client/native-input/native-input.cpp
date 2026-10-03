@@ -12,6 +12,8 @@
 #include <QThread>
 #include <qqml.h>
 #include <cmath>
+#include "application-key-route.h"
+#include "world-key-route.h"
 
 // Deliver the same atomic commit event as the native input method. In particular,
 // do not invoke TextEdit.insert(): that interprets markup and can bypass readOnly.
@@ -19,6 +21,17 @@ class NativeInput : public QObject {
     Q_OBJECT
 public:
     explicit NativeInput(QObject* parent = nullptr) : QObject(parent) {}
+    // Use this worker's own original GLCanvas/OffscreenUi route. Native editors
+    // retain first refusal; never emit Controller or animation state directly.
+    Q_INVOKABLE bool clickApplicationKey(QObject* surface, const QString& key, int modifiers) {
+        return BrowserApplicationKey::click(this, ownerItem(), surface, key, modifiers);
+    }
+    Q_INVOKABLE bool worldKeyReady(QObject* root) {
+        return BrowserWorldKey::ready(this,ownerItem(),root);
+    }
+    Q_INVOKABLE bool clickWorldKey(QObject* root) {
+        return BrowserWorldKey::click(this,ownerItem(),root);
+    }
     Q_INVOKABLE bool commitText(QObject* target, const QString& text) {
         return deliver(target, text, false);
     }

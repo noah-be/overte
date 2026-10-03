@@ -4,6 +4,10 @@
 interface Reader { signal?:AbortSignal; abort?:()=>void; entry?:Pending; settled:boolean; resolve(value:string):void; reject(error:unknown):void }
 interface Pending { key:string; controller:AbortController; readers:Set<Reader>; timer:ReturnType<typeof setTimeout> }
 interface Ready { value:string; bytes:number }
+/** Optional readers may fall back only for these exact bounded admission refusals. */
+export class WorldSourceTextCapacityError extends Error {
+ constructor(readonly capacity:'readers'|'pending'){super(capacity==='readers'?'Too many readers of world source text':'Too many pending world source texts');this.name='WorldSourceTextCapacityError';}
+}
 export interface WorldSourceAuthority { generation:string; assertCurrent():void }
 const cancelled=()=>new DOMException('World text loading was cancelled','AbortError');
 const MAX_READERS=256,MAX_PENDING=32,MAX_ENTRIES=512,MAX_BYTES=8*1024*1024,MAX_KEY=65536;
@@ -19,10 +23,10 @@ export class WorldSourceTextCache {
   get(key:string,maximumBytes:number,producer:(signal:AbortSignal)=>Promise<string>,signal?:AbortSignal):Promise<string>{
     if(this.closed||signal?.aborted)return Promise.reject(cancelled());
     if(typeof key!=='string'||!key||key.length>MAX_KEY||!Number.isSafeInteger(maximumBytes)||maximumBytes<1||maximumBytes>1024*1024||typeof producer!=='function')return Promise.reject(Error('World text requires a bounded authorized route and byte limit'));
-    if(this.readers.size>=MAX_READERS)return Promise.reject(Error('Too many readers of world source text'));
+    if(this.readers.size>=MAX_READERS)return Promise.reject(new WorldSourceTextCapacityError('readers'));
     // Different response bounds are separate admission contracts.
     const slot=maximumBytes+':'+key,cached=this.ready.get(slot);let entry=this.pending.get(slot);
-    if(!cached&&!entry&&this.pending.size>=MAX_PENDING)return Promise.reject(Error('Too many pending world source texts'));
+    if(!cached&&!entry&&this.pending.size>=MAX_PENDING)return Promise.reject(new WorldSourceTextCapacityError('pending'));
     if(cached||entry)this.hits++;else this.misses++;
     if(cached){this.ready.delete(slot);this.ready.set(slot,cached);}
     let created=false;

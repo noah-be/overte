@@ -112,6 +112,18 @@ Portable control and registration tests run under the existing `npm test` glob;
 against controlled event contracts. These CPU checks cannot prove Blink's actual
 editing semantics. The genuine fixture remains necessary.
 
+The existing `npm test` registration also runs
+`native-input/web-editor/test-owned-reaping.py`: sixteen Linux CPU controls with
+real private Python zombie/orphan children, ownership refusals and a failed-reap
+counterfactual. It starts no Qt, display, browser or lab service. Linux child
+subreaping and pidfd facilities are required; an unavailable facility fails this
+qualification explicitly rather than skipping it. The three existing bounded
+pipe controls remain unchanged. Run the ownership controls directly with:
+
+```sh
+python3 -B browser-client/native-input/web-editor/test-owned-reaping.py
+```
+
 The explicit `--test-web-editors` flag requires `--test`. Jenkins enables it only
 with the reviewed packaged native runtime. Ordinary `--test` still runs the
 existing native input/root-grab tests against supported system Qt; it does not

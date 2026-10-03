@@ -54,7 +54,7 @@ export class AvatarRig {
     get boneCount():number { return [...this.bones.values()].reduce((count,bones) => count + bones.length,0); }
     inspect() {
         const joints:Record<string,{orientation:{x:number;y:number;z:number;w:number};position:{x:number;y:number;z:number}}> = {};
-        for (const name of ['Hips','Head','LeftArm','RightArm']) {
+        for (const name of ['Hips','Head','LeftArm','RightArm','LeftUpLeg','RightUpLeg','LeftLeg','RightLeg','LeftFoot','RightFoot']) {
             const bone = this.bones.get(name)?.[0];
             if (!bone) continue;
             joints[name] = {orientation:{x:bone.quaternion.x,y:bone.quaternion.y,z:bone.quaternion.z,w:bone.quaternion.w},

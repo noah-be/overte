@@ -1,3 +1,4 @@
+import {googleChromeLaunchOptions} from '../google-chrome-selection.mjs';
 // SPDX-License-Identifier: Apache-2.0
 // Runs against actual domain, assignment servers, gateway Interface, and second native participant.
 import { chromium, firefox } from '@playwright/test';
@@ -15,8 +16,8 @@ const exec = promisify(execFile);
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const evidenceDirectory = path.join(repo, 'build/browser-lab/evidence');
 const duration = Number(process.env.OVERTE_LAB_DURATION_SECONDS || 0);
-const browserKind = process.env.OVERTE_LAB_BROWSER || 'chromium';
-const isChromium = browserKind === 'chromium' || browserKind === 'system-chromium';
+const browserKind = process.env.OVERTE_LAB_BROWSER || 'chrome';
+const isChromium = browserKind === 'chrome' || browserKind === 'chromium' || browserKind === 'system-chromium';
 const baseURL = process.env.OVERTE_LAB_URL || 'http://127.0.0.1:8090';
 const nativePulse = `unix:${repo}/build/browser-lab/runtime/native-pulse.sock`;
 const browserPulse = `unix:${repo}/build/browser-lab/runtime/browser-pulse.sock`;
@@ -73,14 +74,15 @@ async function capture(pulseServer, source, filename, seconds = 5) {
 async function startBrowser() {
     const display = process.env.OVERTE_LAB_BROWSER_DISPLAY;
     const browserEnvironment = {...process.env,PULSE_SERVER:browserPulse,...(display ? {DISPLAY:display} : {})};
+    if(browserKind==='chrome')delete browserEnvironment.LD_LIBRARY_PATH;
     if(browserKind==='system-firefox')return launchSystemFirefox({executablePath:process.env.OVERTE_LAB_FIREFOX||'/usr/bin/firefox',
         headless:!display,env:browserEnvironment});
-    const options = {headless:!display,ignoreDefaultArgs:['--mute-audio'],env:browserEnvironment, args:isChromium
+    const options = {...(browserKind==='chrome'?googleChromeLaunchOptions():{}),headless:!display,ignoreDefaultArgs:['--mute-audio'],env:browserEnvironment, args:isChromium
         ? [...(!display ? ['--use-angle=swiftshader'] : []),'--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream',
             `--use-file-for-fake-audio-capture=${evidenceDirectory}/browser-microphone.wav`]
         : [], firefoxUserPrefs:browserKind==='firefox' ? {'media.navigator.streams.fake':true,'media.navigator.permission.disabled':true} : undefined};
-    if(isChromium && process.env.OVERTE_LAB_CHROMIUM)options.executablePath=path.resolve(repo,process.env.OVERTE_LAB_CHROMIUM);
-    if(isChromium && process.env.OVERTE_LAB_CHROMIUM_LIBRARY_PATH)options.env.LD_LIBRARY_PATH=path.resolve(repo,process.env.OVERTE_LAB_CHROMIUM_LIBRARY_PATH);
+    if(browserKind!=='chrome' && isChromium && process.env.OVERTE_LAB_CHROMIUM)options.executablePath=path.resolve(repo,process.env.OVERTE_LAB_CHROMIUM);
+    if(browserKind!=='chrome' && isChromium && process.env.OVERTE_LAB_CHROMIUM_LIBRARY_PATH)options.env.LD_LIBRARY_PATH=path.resolve(repo,process.env.OVERTE_LAB_CHROMIUM_LIBRARY_PATH);
     return (browserKind === 'firefox' ? firefox : chromium).launch(options);
 }
 async function screenshot(page, filename) {
@@ -103,7 +105,7 @@ let browser;
 try {
     await mkdir(evidenceDirectory, {recursive:true});
     evidence.sourceSHA256 = {};
-    for (const file of ['browser-client/gateway/server.mjs', 'browser-client/gateway/native-bridge.js', 'browser-client/gateway/native-avatar-sample-diagnostics.js', 'browser-client/gateway/native-avatar-stdout-projection.mjs', 'browser-client/lab/manage.py', 'browser-client/gateway/process-lifecycle.mjs', 'browser-client/gateway/validation.mjs', 'browser-client/gateway/permission-policy.mjs', 'browser-client/dist/index.html', 'browser-client/tests/integration/real-session.mjs', 'browser-client/tests/integration/native-peer-diagnostic.mjs', 'browser-client/lab/native-participant.js', 'browser-client/tests/integration/owned-audio-process.mjs', 'browser-client/tests/integration/system-firefox.mjs', 'browser-client/package-lock.json']) {
+    for (const file of ['browser-client/tests/google-chrome-selection.mjs', 'browser-client/gateway/server.mjs', 'browser-client/gateway/native-bridge.js', 'browser-client/gateway/native-avatar-sample-diagnostics.js', 'browser-client/gateway/native-avatar-stdout-projection.mjs', 'browser-client/lab/manage.py', 'browser-client/gateway/process-lifecycle.mjs', 'browser-client/gateway/validation.mjs', 'browser-client/gateway/permission-policy.mjs', 'browser-client/dist/index.html', 'browser-client/tests/integration/real-session.mjs', 'browser-client/tests/integration/native-peer-diagnostic.mjs', 'browser-client/lab/native-participant.js', 'browser-client/tests/integration/owned-audio-process.mjs', 'browser-client/tests/integration/system-firefox.mjs', 'browser-client/package-lock.json']) {
         evidence.sourceSHA256[file] = createHash('sha256').update(await readFile(path.join(repo, file))).digest('hex');
     }
     for (const file of await readdir(path.join(repo, 'browser-client/dist/assets'))) {

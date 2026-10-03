@@ -12,7 +12,7 @@ function fixture(input=source){
     assert(start>=0&&end>start,'The actual 50ms production avatar callback must be present');
     const ids=['{00000000-0000-0000-0000-000000000000}','{11111111-1111-1111-1111-111111111111}','{22222222-2222-2222-2222-222222222222}','{33333333-3333-3333-3333-333333333333}'];
     const ignored=new Set(),read=[],packets=[],rigCache={};let connected=true,approved=true,callback;
-    const context={avatarSampleDiagnostics:null,poseInterval:null,Script:{setInterval(fn,ms){assert.equal(ms,50);callback=fn;return 1;}},
+    const context={pushToTalk:{poll(){}},avatarSampleDiagnostics:null,poseInterval:null,Script:{setInterval(fn,ms){assert.equal(ms,50);callback=fn;return 1;}},
         state(){},flush(){},externalPose(){},location:{get isConnected(){return connected;}},
         get permissionsApproved(){return approved;},
         MyAvatar:{sessionUUID:ids[1]},AvatarList:{getAvatarIdentifiers:()=>ids,

@@ -40,16 +40,29 @@ The browser still performs the world rendering on the visitor's device.
 
 ## Development
 
-Install Node.js 22.12 or newer. From the checkout:
+Install Node.js 22.12 or newer and Google Chrome from its official distribution.
+Current browser development and qualification use Google Chrome exclusively.
+From the checkout:
 
 ```bash
 cd browser-client
 npm ci
-npx playwright install chromium firefox
 npm run build
 npm test
 npm run test:browser
 ```
+
+The browser tests select Playwright's installed `chrome` channel. If the official
+Chrome executable is outside that channel's standard location, set
+`OVERTE_BROWSER_CHROME_EXECUTABLE` to its absolute executable path before
+`npm run test:browser`. The launcher refuses invalid paths and has no automatic
+fallback to a bundled browser. Historical browser results remain in the status
+and evidence reports.
+
+The local `--open-browser` command also uses `OVERTE_BROWSER_CHROME_EXECUTABLE`
+when supplied, or the installed `google-chrome-stable`/`google-chrome` executable.
+It checks the Google Chrome version before starting laboratory services and
+opens Chrome directly, without using the system's default browser.
 
 ## Reproducible local start
 
@@ -143,7 +156,8 @@ replication continue. Full app-flow acceptance is tracked in the status report.
 The [verification report](VERIFICATION.md) records real native/browser sessions,
 both audio directions and a separate non-fake host capture-device check.
 The component suite verifies PCM formats, audio buffering, collision/mapping,
-protocol validation and renderer/session behavior in Chromium and Firefox.
+protocol validation and renderer/session behavior. Current browser journeys run
+in Google Chrome; Chromium and Firefox evidence describes earlier checkpoints.
 Its isolated fixtures are explicitly synthetic. Real-domain acceptance evidence,
 including native coexistence and voice, belongs in the laboratory report.
 

@@ -23,6 +23,9 @@ ERRNOS = frozenset(('EPERM', 'EACCES', 'ENOENT', 'EEXIST', 'ENOTDIR', 'EISDIR',
 MAX_CAPTURE = 256 * 1024
 MAX_LINE = 16384
 MAX_CONFIG = 65536
+# The hosted original launch has 129 inherited entries. Keep its full environment
+# within a finite entry bound and the unchanged serialized 64 KiB record bound.
+MAX_ENV_ENTRIES = 256
 MAX_SECONDS = 30
 _RESULT = re.compile(r'^(?:\[pid\s+\d+\]\s+|\d+\s+)?(?:\d{9,12}\.\d{1,9}\s+)?(?P<call>linkat|rename|renameat|renameat2|fsync|fdatasync)\(.*\)\s+=\s+(?P<value>-?\d+)(?:\s+(?P<errno>[A-Z][A-Z0-9]+)\s+\([^\r\n]*\))?\s*$')
 
@@ -285,13 +288,17 @@ def validated_launch(document):
         raise ValueError('launch-executable-kind-invalid')
     checked_regular(document['settings'], 1024 * 1024)
     env = document['environment']
-    if type(env) is not dict or len(env) > 128 or any(type(k) is not str or type(v) is not str
+    if type(env) is not dict or len(env) > MAX_ENV_ENTRIES or any(type(k) is not str or type(v) is not str
             or not k or len(k) > 128 or len(v) > 8192 or '\x00' in k + v for k, v in env.items()):
         raise ValueError('launch-environment-invalid')
     if any(name in env for name in ('LD_PRELOAD', 'LD_AUDIT', 'PYTHONPATH', 'PYTHONHOME')):
         raise ValueError('launch-environment-code-override')
     if env.get('HOME') != os.environ.get('HOME'):
         raise ValueError('launch-inherited-home-changed')
+    # prepare() calls this directly before writing this exact representation;
+    # enforce the reader's byte bound here too, including indentation/newline.
+    if len((json.dumps(document, indent=2) + '\n').encode()) > MAX_CONFIG:
+        raise ValueError('launch-record-size-invalid')
     command = [document['unshare'], '--user', '--map-current-user', '--ipc', '--',
                document['native'], '--user-config', document['settings'],
                '--logOptions', 'nocolor,nojournald']

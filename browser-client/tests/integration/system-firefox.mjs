@@ -42,6 +42,11 @@ export async function sizeSystemFirefoxWindow(browser, page, viewport) {
         if (exact(inner)) return await admit('public-window','not-requested');
         requestedBounds = {windowState:'normal',width:viewport.width+(requestedBounds?.width??bounds.width)-inner.width,
             height:viewport.height+(requestedBounds?.height??bounds.height)-inner.height};
+        // A prior public viewport constraint can keep inner dimensions fixed
+        // while the WM shrinks the outer window. An unreachable correction
+        // must use the existing, independently verified viewport fallback;
+        // it must never submit negative dimensions to the public window API.
+        if (![requestedBounds.width,requestedBounds.height].every(value=>Number.isSafeInteger(value)&&value>0)) break;
         attempts++;
         await bounded(() => browser.setWindowBounds(windowID,requestedBounds));
         try {
@@ -117,6 +122,7 @@ function pageAdapter(page) {
     return {
         on: (event, callback) => { page.on(event, callback); },
         bringToFront: () => page.bringToFront(),
+        close: options => page.close(options),
         addInitScript: (callback, ...args) => page.evaluateOnNewDocument(callback, ...args),
         goto: (url, options) => page.goto(url, options),
         evaluate: (callback, ...args) => page.evaluate(callback, ...args),

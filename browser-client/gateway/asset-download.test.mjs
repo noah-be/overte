@@ -54,6 +54,7 @@ test('real HTTP queue drains under the original sixteen active-download bound', 
     let active = 0, maximum = 0, requests = 0;
     const server = await origin((request,response) => {
         requests++; maximum=Math.max(maximum,++active);
+        response.writeHead(200, { 'content-type': 'text/plain; charset=utf-8', 'x-content-type-options': 'nosniff' });
         setTimeout(() => { active--; response.end(request.url); },25);
     });
     const assets = new SessionAssets({ authority: () => 'guest|1', load: (url, signal) => downloadAsset(url,new Set([server.url]),signal) });
@@ -61,6 +62,7 @@ test('real HTTP queue drains under the original sixteen active-download bound', 
         const results=await Promise.all(Array.from({length:32},(_,index)=>assets.request(server.url+'/'+index)));
         assert.equal(results.length,32);assert.equal(requests,32);assert.ok(maximum<=16);
         assert.ok(maximum>1,'Downloads genuinely overlap rather than becoming serial');
+        results.forEach((value, index) => assert.equal(value.data.toString(), '/' + index));
     } finally {assets.close();await server.close();}
 });
 test('every real HTTP redirect is freshly allowlisted and credentials are never forwarded', async () => {

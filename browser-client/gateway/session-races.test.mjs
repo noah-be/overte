@@ -1,3 +1,4 @@
+import {PushToTalkSession} from './push-to-talk.mjs';
 // SPDX-License-Identifier: Apache-2.0
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -25,7 +26,7 @@ async function connectionHarness() {
     const sessions = new Map(), sockets = new Set(), messages = [], launches = [], created = [];
     const browser = {readyState:1,on(name, listener) { this[name] = listener; }};
     const send = (socket, message) => { if (socket === browser) messages.push(message); };
-    const classContext = {SharedTeardown, randomBytes, randomUUID, clearTimeout, sessions, send,
+    const classContext = {PushToTalkSession, SharedTeardown, randomBytes, randomUUID, clearTimeout, sessions, send,
         WebSocket:{OPEN:1}};
     const GatewaySession = vm.runInNewContext(
         source.slice(classStart, classEnd).replace('class Session extends', 'class GatewaySession extends') + '\nGatewaySession;',
@@ -103,7 +104,7 @@ test('leaving during the final bridge file write cannot spawn a late native conn
     const write = new Promise(resolve => { finishWrite = resolve; });
     const messages = [], spawns = [], terminated = [], removed = [];
     const Session = vm.runInNewContext(source.slice(start, end) + '\nSession;', {
-        SharedTeardown, randomBytes, randomUUID, path, clearTimeout, setTimeout,
+        PushToTalkSession, SharedTeardown, randomBytes, randomUUID, path, clearTimeout, setTimeout,
         sessions:new Map(), WebSocket:{OPEN:1},
         process:{env:{OVERTE_INTERFACE:'/fixture/interface', OVERTE_GATEWAY_GUEST_POLICY:'/fixture/policy',
             OVERTE_GATEWAY_MANAGED_UDP_PORTS:'45102,45200'}}, managedUDPDomain, managedNavigationSelection, validateVisitorPreferences, validateVisitorPersona, WEARABLE_FIELDS, acceptedNativePersona,
@@ -143,7 +144,7 @@ test('native teardown keeps the private display and PulseAudio alive until nativ
     const start=source.indexOf('class Session extends SharedTeardown {'),end=source.indexOf('\nconst server = http.createServer',start);
     const events=[],terminations=new Map();
     const Session=vm.runInNewContext(source.slice(start,end)+'\nSession;',{
-        SharedTeardown,randomBytes,randomUUID,clearTimeout,sessions:new Map(),WebSocket:{OPEN:1},send:()=>{},
+        PushToTalkSession,SharedTeardown,randomBytes,randomUUID,clearTimeout,sessions:new Map(),WebSocket:{OPEN:1},send:()=>{},
         terminateProcess:child=>{events.push(child.label);return new Promise(resolve=>terminations.set(child.label,resolve));},
         rm:async()=>{}
     });

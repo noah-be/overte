@@ -1,15 +1,17 @@
 // Copyright 2026 Overte contributors
 // SPDX-License-Identifier: Apache-2.0
-import { BufferGeometry, Line, Material, Mesh, Texture, type Object3D } from 'three';
+import { Skeleton, BufferGeometry, Line, Material, Mesh, Texture, type Object3D } from 'three';
+import {ownedGraphSkeletons,disposeOwnedSkeleton} from './owned-skeletons';
 import {isOwnedUploadBitmap} from './world-bitmap-upload';
 
 interface Resources {
+  skeletons: Set<Skeleton>;
   geometries: Set<BufferGeometry>;
   materials: Set<Material>;
   textures: Set<Texture>;
 }
 function resources(): Resources {
-  return { geometries: new Set(), materials: new Set(), textures: new Set() };
+  return { skeletons: new Set(), geometries: new Set(), materials: new Set(), textures: new Set() };
 }
 function materialResources(material: Material, into: Resources): void {
   into.materials.add(material);
@@ -18,6 +20,7 @@ function materialResources(material: Material, into: Resources): void {
   for (const value of Object.values(material)) if (value instanceof Texture) into.textures.add(value);
 }
 function objectResources(root: Object3D, into: Resources): void {
+  for(const skeleton of ownedGraphSkeletons(root))into.skeletons.add(skeleton);
   root.traverse(object => {
     if (!(object instanceof Mesh || object instanceof Line)) return;
     into.geometries.add(object.geometry);
@@ -55,6 +58,11 @@ export class ModelResources {
     const retained = resources();
     if (root) objectResources(root, retained);
     const retainedBitmaps = bitmaps(retained.textures), ownedBitmaps = bitmaps(this.owned.textures);
+    for(const skeleton of this.owned.skeletons) {
+      if(retained.skeletons.has(skeleton)||this.released.skeletons.has(skeleton))continue;
+      this.released.skeletons.add(skeleton);
+      try{disposeOwnedSkeleton(skeleton);}catch{/* Preserve the original mapping failure. */}
+    }
     this.dispose(this.owned.geometries, retained.geometries, this.released.geometries);
     this.dispose(this.owned.textures, retained.textures, this.released.textures);
     this.dispose(this.owned.materials, retained.materials, this.released.materials);

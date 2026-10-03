@@ -9,6 +9,8 @@ import subprocess
 import sys
 import time
 from run import safe_environment, empty_npm_environment
+from importlib import import_module
+admitted_executable=import_module('chrome-payload').admitted_executable
 
 REQUIRED_STAGES = frozenset(('production-build','unit-isolation-contracts','actual-qt-input',
     'fbx-worker-chromium','fbx-worker-firefox','vite-embedded-config-mjs',
@@ -21,6 +23,12 @@ REQUIRED_STAGES = frozenset(('production-build','unit-isolation-contracts','actu
 def complete_pass(rows):
     return len(rows) == len(REQUIRED_STAGES) and REQUIRED_STAGES == {row['stage'] for row in rows} \
         and all(row['passed'] for row in rows)
+
+
+# Historical REQUIRED_STAGES/complete_pass remain the original 19-row contract.
+GOOGLE_CHROME_REQUIRED_STAGES=(REQUIRED_STAGES-{'fbx-worker-chromium','fbx-worker-firefox','native-core-chromium','native-core-firefox'})|{'fbx-worker-chrome','native-core-chrome'}
+def complete_chrome_pass(rows):
+    return len(rows)==len(GOOGLE_CHROME_REQUIRED_STAGES) and GOOGLE_CHROME_REQUIRED_STAGES=={row['stage'] for row in rows} and all(row['passed'] for row in rows)
 
 
 def isolated_identity():
@@ -54,6 +62,7 @@ def main():
         LIBGL_ALWAYS_SOFTWARE='true',GALLIUM_DRIVER='llvmpipe')
     for name in ('LD_LIBRARY_PATH','PULSE_SOURCE','PULSE_SINK','DISPLAY'):
         env.pop(name,None)
+    env['OVERTE_BROWSER_CHROME_EXECUTABLE']=admitted_executable(runtime,config['browserPayloadManifestSHA256'])
     tools = json.loads((root/'config/host-tools.json').read_text())
     # Tests launch the network helper with a deliberately fixed supervisor PATH.
     # Carry the absolute helper already verified during lab preparation.
@@ -73,9 +82,10 @@ def main():
     signal.signal(signal.SIGINT,cancel)
     def publish():
         report={'sourceSHA':config['sourceSHA'],'sourceFiles':config['sourceFiles'],
-            'passed':complete_pass(rows),
+            'browserPayloadManifestSHA256':config['browserPayloadManifestSHA256'],
+            'schemaVersion':2,'browserScope':'google-chrome-only','passed':complete_chrome_pass(rows),
             'isolation':'nonroot, zero inherited capabilities, private network/IPC/PID/mount/tmp',
-            'syntheticAudio':{'browserInput':'Per-engine curated core reports are authoritative; Chromium file input and Firefox generated input differ.',
+            'syntheticAudio':{'browserInput':'Google Chrome curated core report is authoritative; controlled file input, not hardware speech.',
                 'nativeInput':'997Hz synthetic independent native input',
                 'hardwareSpeech':'not tested'},
             'endurance':'omitted at user instruction','stages':rows}
@@ -126,7 +136,7 @@ def main():
             ]
             for name,command,cwd in commands:
                 if not stage(name,command,cwd=cwd):return 1
-            for engine in ('chromium','firefox'):
+            for engine in ('chrome',):
                 if not stage('fbx-worker-'+engine,['node','tests/integration/model-fbx-pool-proof.mjs'],cwd=package,
                     extra={'OVERTE_FBX_POOL_BROWSER':engine,'OVERTE_FBX_POOL_EVIDENCE':str(runtime/f'fbx-{engine}.json')}):return 1
             for config_name in ('vite.embedded.config.mjs','vite.embedded-world.config.mjs'):
@@ -138,8 +148,8 @@ def main():
             if not stage('normal-native-preflight',[sys.executable,str(lab/'manage.py'),'preflight']):return 1
             startup=stage('start-real-domain-native-gateway',[sys.executable,str(lab/'manage.py'),'start','--gateway'],timeout=600)
             if startup:
-                # Firefox still executes following a failed Chromium assertion.
-                for engine in ('chromium','firefox'):
+                # Current scope contains one actual branded Google Chrome journey.
+                for engine in ('chrome',):
                     stage('native-core-'+engine,xvfb+['bash',str(lab/'run-core-journey.sh')],
                         extra={'OVERTE_LAB_BROWSER':engine},timeout=900)
                 stage('source-immutability',['git','diff','--exit-code','HEAD','--'])
@@ -148,13 +158,13 @@ def main():
         stage('owned-lab-cleanup',[sys.executable,str(lab/'manage.py'),'stop'],timeout=45,cleanup=True)
         stage('curate-native-core',[sys.executable,str(lab/'curate-core-journey.py'),
             '--input',str(root/'evidence'),'--output',str(runtime/'curated-core'),
-            '--commit-sha',config['sourceSHA']],timeout=30,cleanup=True)
+            '--commit-sha',config['sourceSHA'],'--browser','chrome'],timeout=30,cleanup=True)
         if pulse is not None and pulse.poll() is None:
             os.killpg(pulse.pid,signal.SIGTERM)
             try:pulse.wait(timeout=3)
             except subprocess.TimeoutExpired:
                 os.killpg(pulse.pid,signal.SIGKILL);pulse.wait(timeout=3)
-    return 0 if startup and complete_pass(rows) else 1
+    return 0 if startup and complete_chrome_pass(rows) else 1
 
 
 if __name__ == '__main__':

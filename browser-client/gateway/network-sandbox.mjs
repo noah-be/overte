@@ -6,6 +6,7 @@ import { chmod, writeFile, rm } from 'node:fs/promises';
 import { once } from 'node:events';
 import { terminateProcess } from './process-lifecycle.mjs';
 import {trustedNetworkEntry} from './trusted-network-entry.mjs';
+import {networkWorkerEnvironment} from './network-worker-environment.mjs';
 import { preparationDiagnostics, helperPreparationDiagnostics } from './preparation-diagnostics.mjs';
 
 const owner = fileURLToPath(new URL('./network-owner.py', import.meta.url));
@@ -93,6 +94,7 @@ export async function launchNativeNetwork({ directory, command, args, env, hostP
     if (signal?.aborted) throw Error('Native network preparation cancelled');
     if (command !== 'bwrap' && path.basename(command) !== 'bwrap') throw Error('Native network requires the reviewed inner bubblewrap boundary');
     if (!args.includes('--unshare-user') || args.includes('--share-net')) throw Error('Native inner worker must create its own user namespace');
+    const trustedSetup = process.env.OVERTE_GATEWAY_TRUSTED_NETWORK_SETUP === '1';
     const bridgeSocket = path.join(directory, 'native-network.socket');
     const relay = await scopedNativeRelay({ socketPath: bridgeSocket, port: hostPort, nativePath });
     if (managedUDP && (net.isIP(managedUDP.address) !== 4 || !managedUDP.address.startsWith('127.')
@@ -115,7 +117,8 @@ export async function launchNativeNetwork({ directory, command, args, env, hostP
         const resolverIndex = privateArgs.indexOf('/etc/resolv.conf');
         if (resolverIndex >= 0) privateArgs[resolverIndex] = resolver;
         else privateArgs.splice(privateArgs.indexOf('--'), 0, '--ro-bind', resolver, '/etc/resolv.conf');
-        await writeFile(configPath, JSON.stringify({ command, args: privateArgs, environment: env, bridgePort: hostPort, bridgeSocket,
+        await writeFile(configPath, JSON.stringify({ command, args: privateArgs,
+            environment: trustedSetup ? networkWorkerEnvironment(privateArgs) : env, bridgePort: hostPort, bridgeSocket,
             ...(managedUDP ? { managedUDP, managedUDPSocket: path.join(directory, 'managed-udp.socket') } : {}),
             supervisorParentPID: process.pid }), { mode: 0o600 });
         if (signal?.aborted) throw Error('Native network preparation cancelled');
@@ -124,7 +127,7 @@ export async function launchNativeNetwork({ directory, command, args, env, hostP
             await lineFrom(udpHelper, 'OVERTE_UDP_RELAY_READY', signal);
         }
         preparationPhase = 'OVERTE_NET_OWNER_READY';
-        if (process.env.OVERTE_GATEWAY_TRUSTED_NETWORK_SETUP === '1') {
+        if (trustedSetup) {
             const trusted = await trustedNetworkEntry(configPath);
             try {
                 if (signal?.aborted) throw Error('Native network preparation cancelled');

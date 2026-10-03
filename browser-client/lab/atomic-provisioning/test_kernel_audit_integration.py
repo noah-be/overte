@@ -32,6 +32,28 @@ FAILURE="""                if audit_receipt is not None:
                     cause = kernel_audit.collect(audit_receipt, allow_sudo=audit_mode == 'sudo-noninteractive')
                     print('ATOMIC_PREFLIGHT_KERNEL_AUDIT:' + json.dumps(cause, sort_keys=True, separators=(',', ':')), flush=True)
 """
+WORKFLOW_DIAGNOSTICS=(
+"""      continue_diagnostics_after_contract_failure:
+        description: 'Collect the owned domain trace after a contract failure; the job remains failed'
+        type: boolean
+        default: false
+""",
+"        id: source\n", "        id: stage\n", "        id: contracts\n",
+"""        id: prepare
+        # Explicit diagnostics never turn the failed contract into a passing gate.
+        if: ${{ !cancelled() && steps.source.outcome == 'success' && steps.stage.outcome == 'success' && (steps.contracts.outcome == 'success' || (github.event_name == 'workflow_dispatch' && inputs.continue_diagnostics_after_contract_failure && steps.contracts.outcome == 'failure')) }}
+""",
+"        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}\n",
+)
+
+def original_workflow(workflow):
+    # Strip only the reviewed default-off continuation, retaining the original
+    # whole-workflow hash and every original command, gate and artifact rule.
+    for addition in WORKFLOW_DIAGNOSTICS:
+        if workflow.count(addition)!=1:
+            raise ValueError('changed-diagnostic-workflow')
+        workflow=workflow.replace(addition,'',1)
+    return workflow
 
 def original_source(source):
     for addition in (IMPORTS,HOOK,FAILURE):
@@ -85,7 +107,12 @@ class IntegrationTests(unittest.TestCase):
           ATOMIC_DIAGNOSTIC_KERNEL_AUDIT: sudo-noninteractive
 """
         self.assertEqual(workflow.count(addition),1)
-        self.assertEqual(hashlib.sha256(workflow.replace(addition,'',1).encode()).hexdigest(),WORKFLOW_ORIGINAL_SHA256)
+        original=original_workflow(workflow.replace(addition,'',1))
+        self.assertEqual(hashlib.sha256(original.encode()).hexdigest(),WORKFLOW_ORIGINAL_SHA256)
+        for old,new in [('default: false','default: true'),("steps.source.outcome == 'success'","true"),("steps.stage.outcome == 'success'","true"),("github.event_name == 'workflow_dispatch'","true")]:
+            with self.assertRaises(ValueError):original_workflow(workflow.replace(old,new,1))
+        changed=original_workflow(workflow.replace('            --private-output "$ATOMIC_PROBE_OUTPUT"','            --private-output /tmp/unowned',1).replace(addition,'',1))
+        self.assertNotEqual(hashlib.sha256(changed.encode()).hexdigest(),WORKFLOW_ORIGINAL_SHA256)
 
     def test_default_and_unknown_modes_never_observe_or_collect(self):
         for mode in (None,'1','arbitrary'):

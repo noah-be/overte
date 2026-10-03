@@ -1,0 +1,350 @@
+{
+  "schema": 1,
+  "scope": "One original shipping baseline; failed performance, no paired improvement proof",
+  "rawSHA256": "bbe5a031053c1b7d8ef07e5b4d018e75458ab4db5269fef95c329f5cb6dbb0a4",
+  "qualificationSHA256": "39c6349c6bf42988a133974f7b7401d2b28e1f6702d6a491d908bc5e6754a9d1",
+  "originalCompleted": false,
+  "sourceCoherent": true,
+  "managedBirthsUnchanged": true,
+  "ownedCleanup": true,
+  "browserVersion": "154.0.8037.97",
+  "loadingSnapshots": 11,
+  "firstObservedFullySettled": {
+    "fps": 21.619673903251968,
+    "p95FrameMs": 116.60000000000582,
+    "maximumFrameMs": 800.0999999999985,
+    "drawCalls": 676,
+    "triangles": 556725,
+    "loadedModels": 295,
+    "entities": 516,
+    "meshColliders": 75,
+    "drawingBufferWidth": 1280,
+    "drawingBufferHeight": 800,
+    "loadingModels": 0,
+    "queuedModels": 0,
+    "compilingGraphics": 0
+  },
+  "gates": [
+    {
+      "stage": "initial-steady",
+      "passed": true,
+      "validMeasurements": true,
+      "minimumFPS": 30,
+      "maximumP95FrameMs": 66.66666666666667,
+      "maximumStallMs": 250,
+      "fps": 31.506813348386583,
+      "p95FrameMs": 66.5,
+      "maximumFrameMs": 150,
+      "drawCalls": 675,
+      "triangles": 554597,
+      "loadedModels": 295,
+      "entities": 516,
+      "meshColliders": 75,
+      "drawingBufferWidth": 1280,
+      "drawingBufferHeight": 800
+    },
+    {
+      "stage": "initial-walk",
+      "passed": false,
+      "validMeasurements": true,
+      "minimumFPS": 30,
+      "maximumP95FrameMs": 66.66666666666667,
+      "maximumStallMs": 250,
+      "fps": 30.570522373801072,
+      "p95FrameMs": 66.70000000000437,
+      "maximumFrameMs": 150,
+      "drawCalls": 642,
+      "triangles": 521376,
+      "loadedModels": 295,
+      "entities": 516,
+      "meshColliders": 75,
+      "drawingBufferWidth": 1280,
+      "drawingBufferHeight": 800
+    },
+    {
+      "stage": "rejoin-steady",
+      "passed": false,
+      "validMeasurements": true,
+      "minimumFPS": 30,
+      "maximumP95FrameMs": 66.66666666666667,
+      "maximumStallMs": 250,
+      "fps": 28.971161622867935,
+      "p95FrameMs": 66.69999999999709,
+      "maximumFrameMs": 133.40000000000873,
+      "drawCalls": 678,
+      "triangles": 557048,
+      "loadedModels": 296,
+      "entities": 517,
+      "meshColliders": 75,
+      "drawingBufferWidth": 1280,
+      "drawingBufferHeight": 800
+    },
+    {
+      "stage": "rejoin-walk",
+      "passed": false,
+      "validMeasurements": true,
+      "minimumFPS": 30,
+      "maximumP95FrameMs": 66.66666666666667,
+      "maximumStallMs": 250,
+      "fps": 28.797696184305256,
+      "p95FrameMs": 66.79999999998836,
+      "maximumFrameMs": 133.40000000000873,
+      "drawCalls": 654,
+      "triangles": 533805,
+      "loadedModels": 296,
+      "entities": 517,
+      "meshColliders": 75,
+      "drawingBufferWidth": 1280,
+      "drawingBufferHeight": 800
+    }
+  ],
+  "memberships": [
+    {
+      "status": "complete",
+      "nativeRows": 516,
+      "worldRows": 516,
+      "worldSlotRows": 516,
+      "sameNativeWorldEntityMembership": true
+    },
+    {
+      "status": "complete",
+      "nativeRows": 517,
+      "worldRows": 517,
+      "worldSlotRows": 517,
+      "sameNativeWorldEntityMembership": true
+    }
+  ],
+  "membershipEqualAcrossJoins": false,
+  "queueObservations": [
+    {
+      "loadedModels": 33,
+      "queuedModels": 251,
+      "loadingModels": 6,
+      "compilingGraphics": 53
+    },
+    {
+      "loadedModels": 92,
+      "queuedModels": 202,
+      "loadingModels": 6,
+      "compilingGraphics": 1
+    },
+    {
+      "loadedModels": 145,
+      "queuedModels": 147,
+      "loadingModels": 6,
+      "compilingGraphics": 1
+    },
+    {
+      "loadedModels": 196,
+      "queuedModels": 96,
+      "loadingModels": 6,
+      "compilingGraphics": 0
+    },
+    {
+      "loadedModels": 238,
+      "queuedModels": 52,
+      "loadingModels": 6,
+      "compilingGraphics": 0
+    },
+    {
+      "loadedModels": 294,
+      "queuedModels": 0,
+      "loadingModels": 1,
+      "compilingGraphics": 0
+    },
+    {
+      "loadedModels": 295,
+      "queuedModels": 0,
+      "loadingModels": 0,
+      "compilingGraphics": 0
+    },
+    {
+      "loadedModels": 295,
+      "queuedModels": 0,
+      "loadingModels": 0,
+      "compilingGraphics": 0
+    },
+    {
+      "loadedModels": 295,
+      "queuedModels": 0,
+      "loadingModels": 0,
+      "compilingGraphics": 0
+    },
+    {
+      "loadedModels": 295,
+      "queuedModels": 0,
+      "loadingModels": 0,
+      "compilingGraphics": 0
+    },
+    {
+      "loadedModels": 295,
+      "queuedModels": 0,
+      "loadingModels": 0,
+      "compilingGraphics": 0
+    }
+  ],
+  "fst": [
+    {
+      "owners": 310,
+      "terminals": {
+        "completed": 294,
+        "refused": 16,
+        "cancelled": 0,
+        "censored": 0
+      },
+      "retainedRows": 64,
+      "retainedRowsWithFstDetails": 51,
+      "earlierRowsOmitted": 246,
+      "reportCensored": false,
+      "clockInvalid": 0,
+      "retainedFstOwners": 51,
+      "retainedOwnersMultipleTemplateAttempts": 18,
+      "retainedTemplateAttempts": 70,
+      "retainedTemplateCompleted": 70,
+      "retainedMapReaderAttempts": 41,
+      "retainedMaximumTemplatesPerOwner": 3,
+      "anyRetainedCountOrWaitCensored": false,
+      "exclusiveAcrossOwnerWallMs": {
+        "queued": 2502625.1999997795,
+        "loader-other": 30392.300000160933,
+        "mapping-metadata": 9925.199999988079,
+        "prepared-fbx": 30530.399999946356,
+        "fbx-parse": 4984.4000000059605,
+        "original-image-dependencies": 4426.099999964237,
+        "native-alpha": 1101.5000002980232,
+        "fst-definition": 9463.500000029802,
+        "fst-template": 31625.80000013113,
+        "post-loader-other": 545.8999995589256,
+        "geometry-commit": 4.699999928474426,
+        "graphics-publication": 11033.30000013113
+      }
+    },
+    {
+      "owners": 311,
+      "terminals": {
+        "completed": 295,
+        "refused": 16,
+        "cancelled": 0,
+        "censored": 0
+      },
+      "retainedRows": 64,
+      "retainedRowsWithFstDetails": 51,
+      "earlierRowsOmitted": 247,
+      "reportCensored": false,
+      "clockInvalid": 0,
+      "retainedFstOwners": 50,
+      "retainedOwnersMultipleTemplateAttempts": 16,
+      "retainedTemplateAttempts": 67,
+      "retainedTemplateCompleted": 67,
+      "retainedMapReaderAttempts": 40,
+      "retainedMaximumTemplatesPerOwner": 3,
+      "anyRetainedCountOrWaitCensored": false,
+      "exclusiveAcrossOwnerWallMs": {
+        "queued": 4113028.9000000358,
+        "loader-other": 33498.70000013709,
+        "mapping-metadata": 12925.7000002563,
+        "prepared-fbx": 36595.59999999404,
+        "fbx-parse": 5049.000000059605,
+        "original-image-dependencies": 4520.699999958277,
+        "native-alpha": 1211,
+        "fst-definition": 10985.5,
+        "fst-template": 38889.19999995828,
+        "post-loader-other": 882.4999995827675,
+        "geometry-commit": 1.899999976158142,
+        "graphics-publication": 1828.1000000834465
+      }
+    }
+  ],
+  "assetTransfers": {
+    "uniqueURLs": 599,
+    "requests": 1185,
+    "duplicateRequests": 586,
+    "knownBytes": 234933636,
+    "unknownByteResponses": 0
+  },
+  "assetCategories": {
+    "FBX": {
+      "uniqueURLs": 122,
+      "requests": 245,
+      "duplicateRequests": 123,
+      "knownBytes": 39503259,
+      "unknownByteResponses": 0
+    },
+    "FST": {
+      "uniqueURLs": 95,
+      "requests": 185,
+      "duplicateRequests": 90,
+      "knownBytes": 41194,
+      "unknownByteResponses": 0
+    },
+    "texmeta": {
+      "uniqueURLs": 135,
+      "requests": 262,
+      "duplicateRequests": 127,
+      "knownBytes": 81382,
+      "unknownByteResponses": 0
+    },
+    "JSON": {
+      "uniqueURLs": 93,
+      "requests": 185,
+      "duplicateRequests": 92,
+      "knownBytes": 122149,
+      "unknownByteResponses": 0
+    },
+    "image": {
+      "uniqueURLs": 146,
+      "requests": 291,
+      "duplicateRequests": 145,
+      "knownBytes": 183274088,
+      "unknownByteResponses": 0
+    },
+    "other": {
+      "uniqueURLs": 8,
+      "requests": 17,
+      "duplicateRequests": 9,
+      "knownBytes": 11911564,
+      "unknownByteResponses": 0
+    }
+  },
+  "glCallCpuWallObservations": {
+    "texSubImage2D:0": {
+      "calls": 46950,
+      "totalMs": 3590.899999946356,
+      "maxMs": 366.69999998807907
+    },
+    "getProgramInfoLog": {
+      "calls": 68,
+      "totalMs": 696.1999996900558,
+      "maxMs": 80.69999998807907
+    },
+    "useProgram": {
+      "calls": 525967,
+      "totalMs": 748.5000017881393,
+      "maxMs": 21.30000001192093
+    }
+  },
+  "observedProgramRecords": 77,
+  "observedShaderRecords": 154,
+  "longTasks": {
+    "count": 163,
+    "largestDurationMs": [
+      797,
+      657,
+      441
+    ]
+  },
+  "measurementFlags": {
+    "uploadProfileRequested": false,
+    "gpuTimingRequested": false,
+    "cpuFrameTimingRequested": false,
+    "renderCpuTimingRequested": false
+  },
+  "limits": [
+    "Across-owner leaf wall sums overlap and are not elapsed critical path or CPU/GPU time.",
+    "Retained FST rows omit earlier owners and cannot quantify whole-scene multiplicity.",
+    "Generic texSubImage2D counts do not distinguish HTML assets from dynamic bone/DataTexture updates.",
+    "No GPU timer/CPU frame segment/upload-kind profiler was requested.",
+    "Initial and rejoined entity membership differs; no same-scene comparison.",
+    "Native llvmpipe processes may impose contention, but this report contains no process CPU delta or native render-job timing."
+  ]
+}

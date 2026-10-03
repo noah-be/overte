@@ -5,7 +5,8 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFile } from 'node:fs/promises';
 
-const source = (await readFile(new URL('./native-world.js', import.meta.url), 'utf8')) + '\n'
+const source = (await readFile(new URL('./native-push-to-talk.js', import.meta.url), 'utf8')) + '\n'
+    + (await readFile(new URL('./native-world.js', import.meta.url), 'utf8')) + '\n'
     + await readFile(new URL('./native-bridge.js', import.meta.url), 'utf8');
 function fixture() {
     let socket, tabletSend, navigationReceive, clock = 1000;

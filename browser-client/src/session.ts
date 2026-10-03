@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import {pushToTalkState,type PushToTalkState} from '../shared/push-to-talk.mjs';
 import type { Avatar, Entity, Pose, Quat, Vec3 } from './world-data';
 import { parseTabletMessage, type TabletMessage } from './tablet-protocol';
 import { defaultAvatarAsset } from './default-avatar';
@@ -6,6 +7,7 @@ import {validateVisitorPreferences,type VisitorPreferences} from '../shared/visi
 import {validateVisitorPersona,type VisitorPersona} from '../shared/visitor-persona.mjs';
 
 export type ServerMessage =
+    | PushToTalkState
     | TabletMessage
     | {type:'state'; state:'connecting'|'connected'|'disconnected'|'error'; message?:string; sessionId?:string; permissionRevision?:number}
     | {type:'entities'; entities:Entity[]}
@@ -63,6 +65,7 @@ export function parseServerMessage(text: string): ServerMessage {
                 if (address.protocol !== 'overte:' || !address.hostname || address.username || address.password || address.hash || address.search) throw new Error('Invalid Places domain address');
             } else if (value.direction !== 'back' && value.direction !== 'forward') throw new Error('Invalid Places history direction');
             break;
+        case 'pushToTalkState': return pushToTalkState(value);
         case 'visitorPreferences':
             if (!Number.isSafeInteger(value.permissionRevision) || Number(value.permissionRevision) < 1) throw new Error('Invalid visitor preference authority');
             return {type:'visitorPreferences',permissionRevision:Number(value.permissionRevision),...validateVisitorPreferences({bookmarks:value.bookmarks,...(value.home === undefined ? {} : {home:value.home})})};

@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
+import {GraphicsEnvironmentScan} from './graphics-environment-scan';
+import {BrowserGraphicsIntent} from './browser-graphics-intent';
 import './style.css';
 import { BrowserAudio } from './audio';
+import { BrowserPushToTalk } from './push-to-talk';
 import { CompressedColorSession } from './compressed-color-session';
 import type { ServerMessage } from './session';
 import { BrowserWorld } from './world';
@@ -8,6 +11,8 @@ import { BrowserTablet } from './tablet';
 import { NavigationHistory, type NavigationAttempt } from './navigation-history';
 import { VisitorPreferenceStore } from './visitor-preferences';
 import { VisitorPersonaStore } from './visitor-persona';
+import {BrowserCaptureController} from './browser-capture-controller';
+import {BrowserCaptureTarget} from './browser-capture-target';
 import { BrowserGraphicsController } from './browser-graphics-controller';
 import {validateBrowserGraphics} from '../shared/browser-graphics.mjs';
 
@@ -24,7 +29,11 @@ const notice = element('notice');
 let world: BrowserWorld | undefined;
 let audio: BrowserAudio | undefined;
 let tablet: BrowserTablet | undefined;
+let pushToTalk: BrowserPushToTalk | undefined;
 let graphics: BrowserGraphicsController | undefined;
+let graphicsScan:GraphicsEnvironmentScan|undefined;
+let graphicsIntent:BrowserGraphicsIntent|undefined;
+let browserCapture:BrowserCaptureController|undefined;
 let epoch = 0;
 let entityCount = 0;
 let avatarCount = 0;
@@ -70,7 +79,7 @@ function updateStats(): void {
     element('stats').textContent = `${entityCount} entities · ${avatarCount} other participants`;
 }
 function updateMicrophone(): void {
-    micButton.textContent = audio?.muted === false ? 'Mute microphone' : 'Enable microphone';
+    micButton.textContent = audio?.muted === false ? (pushToTalk?.enabled ? (pushToTalk.talking ? 'Talking — release T to stop' : 'Microphone ready — hold T to talk') : pushToTalk?.nativeMuted ? 'Unmute microphone' : 'Mute microphone') : 'Enable microphone';
     micButton.setAttribute('aria-pressed', String(audio?.muted === false));
     micButton.disabled = microphonePending;
 }
@@ -78,7 +87,10 @@ function updateMicrophone(): void {
 function reset(): void {
     if (ready && world) navigationHistory.rememberDeparture(world.getPose());
     epoch++;
+    graphicsIntent?.dispose();graphicsIntent=undefined;graphicsScan?.dispose();graphicsScan=undefined;
+    pushToTalk?.close();pushToTalk=undefined;
     graphics?.close();graphics=undefined;
+    browserCapture?.close();browserCapture=undefined;
     session.leave();
     tablet?.dispose(); tablet = undefined; tabletButton.disabled = true;
     world?.dispose();
@@ -117,9 +129,11 @@ function onMessage(message:ServerMessage): void {
             if (message.message) log(message.message);
             if (message.state === 'connecting' && ready) {
                 ready = false;
+                pushToTalk?.setAuthority(permissionRevision,false);
                 world?.invalidateSourceTexts();
                 world?.invalidateModelParses();
-                graphics?.setAuthority(permissionRevision,false);
+                graphicsIntent?.cancel();graphicsScan?.cancel();graphics?.setAuthority(permissionRevision,false);
+                browserCapture?.setAuthority(permissionRevision,false);
                 worldLoaded = false;
                 world?.setEnabled(false);
                 tablet?.setConnected(false); tabletButton.disabled = true;
@@ -139,6 +153,8 @@ function onMessage(message:ServerMessage): void {
                 navigationAttempt = undefined;
                 if (message.permissionRevision) permissionRevision = message.permissionRevision;
                 graphics?.setAuthority(permissionRevision,true);
+                pushToTalk?.setAuthority(permissionRevision,true);
+                browserCapture?.setAuthority(permissionRevision,true);
                 sendNavigationHistory();
                 tablet?.setConnected(true); tabletButton.disabled = false;
                 joining = false;
@@ -209,9 +225,10 @@ function onMessage(message:ServerMessage): void {
         case 'error': log(message.message, 'error'); break;
         case 'warning': log(message.message, 'warning'); break;
         case 'interaction': log(message.message); break;
+        case 'pushToTalkState': pushToTalk?.receive(message); break;
         case 'tablet':
             if (!ready || message.revision < permissionRevision) break;
-            if (message.revision !== permissionRevision) { permissionRevision = message.revision; graphics?.setAuthority(permissionRevision,true); sendNavigationHistory(); }
+            if (message.revision !== permissionRevision) { graphicsIntent?.cancel(); graphicsScan?.cancel(); permissionRevision = message.revision; graphics?.setAuthority(permissionRevision,true); pushToTalk?.setAuthority(permissionRevision,true); browserCapture?.setAuthority(permissionRevision,true); sendNavigationHistory(); }
             tablet?.receive(message); break;
     }
 }
@@ -252,6 +269,9 @@ async function joinDomain(domain:string, direction?:'back'|'forward'):Promise<vo
             texturePreparation: new URLSearchParams(location.search).get('texturePreparation') === '1',
             bitmapUpload: new URLSearchParams(location.search).get('bitmapUpload') === '1',
             modelParseTurn: new URLSearchParams(location.search).get('modelParseTurn') === '1',
+            parsedFbxTemplates: new URLSearchParams(location.search).get('parsedFbxTemplates') === '1',
+            fstDefinitionLookahead: new URLSearchParams(location.search).get('fstDefinitionLookahead') === '1',
+            modelSlotResidence: new URLSearchParams(location.search).get('modelSlotResidence') === '1',
             compressedColors: (capabilities, signal) => session.compressedColors(capabilities, signal),
             captureAssetAuthority: () => session.captureAssetAuthority(),
             onPose: pose => session.sendPose(pose),
@@ -266,19 +286,36 @@ async function joinDomain(domain:string, direction?:'back'|'forward'):Promise<vo
         graphics=new BrowserGraphicsController(graphicsWorld.graphics,
             revision=>generation===epoch && world===graphicsWorld && ready && revision===permissionRevision,
             settings=>visitorStorage.setItem('overte.browser.graphics.v1',JSON.stringify(settings)));
+        const graphicsCurrent=()=>generation===epoch&&world===graphicsWorld&&ready&&permissionRevision>0;
+        graphicsIntent=new BrowserGraphicsIntent({document,current:graphicsCurrent,snapshot:()=>graphicsWorld.graphics.snapshot(),send:value=>{if(!tablet||!graphicsCurrent())throw Error('Graphics route unavailable');tablet.sendGraphicsCommand(value);}});
+        const currentIntent=graphicsIntent;
+        graphicsScan=new GraphicsEnvironmentScan({frames:graphicsWorld.getGraphicsScanFrames(),document,current:graphicsCurrent,
+            presentationVisible:()=>graphicsWorld.graphicsScanPresentationVisible(),settings:()=>graphicsWorld.graphics.snapshot(),capabilities:()=>graphicsWorld.getGraphicsEnvironment(),
+            applyResolution:value=>currentIntent.changeResolution(value)});
         audio = new BrowserAudio(data => session.sendAudio(data), log, muted => {
             session.send({type:'mute', muted});
+            pushToTalk?.refreshMicrophone();
             updateMicrophone();
         });
+        pushToTalk = new BrowserPushToTalk({current:revision=>generation===epoch&&ready&&revision===permissionRevision,
+            armed:()=>audio?.muted===false,send:message=>session.send(message),gate:allowed=>audio?.setTransmitEnabled(allowed),changed:updateMicrophone});
+        const captureAudio=audio;
+        browserCapture=new BrowserCaptureController(new BrowserCaptureTarget(()=>captureAudio.captureBinding()),
+            revision=>generation===epoch&&audio===captureAudio&&ready&&revision===permissionRevision);
         tablet = new BrowserTablet(element('app'), {
             send: message => session.send(message), onStatus: message => log(message, 'warning'),
-            onGraphics:request=>graphics?.receive(request,request.revision),
+            graphicsEnvironment:graphicsScan,
+            onGraphicsApplied:value=>currentIntent.complete(value),
+            onGraphics:request=>request.browserRequestId!==undefined&&!currentIntent.permits(request)?undefined:graphics?.receive(request,request.revision),
+            onCapture:request=>browserCapture?.receive({schemaVersion:request.schemaVersion,requestId:request.requestId,operation:request.operation,...(request.operation==='change'?{field:request.field,value:request.value}:{})},request.revision)??Promise.resolve(undefined),
+            onCaptureCancelled:()=>browserCapture?.cancelPending(),
             fileURL: name => {
                 if (!session.sessionId) throw new Error('Join a world before accessing visitor files');
                 return `/api/tablet-files/${encodeURIComponent(session.sessionId)}${name === undefined ? '' : `?name=${encodeURIComponent(name)}`}`;
             },
             captureScene: () => world ? world.captureScene() : Promise.reject(new Error('Join a world before taking a snapshot')),
             onVisibility: visible => {
+                if(visible)pushToTalk?.release();
                 world?.setInputEnabled(!visible); world?.setPresentationEnabled(!visible);
                 tabletButton.setAttribute('aria-pressed', String(visible));
             },
@@ -301,7 +338,14 @@ async function joinDomain(domain:string, direction?:'back'|'forward'):Promise<vo
         log(`Unable to join: ${error instanceof Error ? error.message : String(error)}`, 'error');
     }
 }
-form.addEventListener('submit', event => {
+const worldSurface=element('world');
+worldSurface.addEventListener('focusin',event=>{if(event.target===world?.getInputCanvas())tablet?.worldInputFocus(true);});
+worldSurface.addEventListener('click',event=>{if(event.isTrusted&&event.target===world?.getInputCanvas())tablet?.worldInputFocus(true,true);});
+worldSurface.addEventListener('focusout',event=>{if(event.target===world?.getInputCanvas())tablet?.worldInputFocus(false);});
+worldSurface.addEventListener('keydown',event=>{const canvas=world?.getInputCanvas();if(ready&&canvas&&!tablet?.visible&&tablet?.worldKey(event,canvas))event.preventDefault();});
+window.addEventListener('blur',()=>tablet?.worldInputFocus(false));
+document.addEventListener('visibilitychange',()=>{if(document.hidden)tablet?.worldInputFocus(false);});
+form.addEventListener('submit' , event => {
     event.preventDefault();
     void joinDomain(domainInput.value.trim());
 });
@@ -309,11 +353,15 @@ element('leave').addEventListener('click', () => { reset(); log('You left the do
 tabletButton.addEventListener('click', () => { if (tablet?.visible) tablet.close(); else tablet?.open(); });
 window.addEventListener('keydown', event => {
     if (event.code !== 'KeyT' || event.repeat || event.ctrlKey || event.metaKey || event.altKey
-        || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement) return;
-    if (ready) { event.preventDefault(); if (tablet?.visible) tablet.close(); else tablet?.open(); }
+        || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLElement&&event.target.isContentEditable) return;
+    if (ready) { event.preventDefault(); if(!tablet?.visible&&pushToTalk?.press())return; if (tablet?.visible) tablet.close(); else tablet?.open(); }
 });
+window.addEventListener('keyup',event=>{if(event.code==='KeyT')pushToTalk?.release();});
+window.addEventListener('blur',()=>pushToTalk?.release());
+document.addEventListener('visibilitychange',()=>{if(document.hidden)pushToTalk?.release();});
 micButton.addEventListener('click', async () => {
     if (!ready || !audio || microphonePending) return;
+    if (!audio.muted&&!pushToTalk?.enabled&&pushToTalk?.nativeMuted) {session.send({type:'mute',muted:false});return;}
     if (!audio.muted) {
         audio.stopMicrophone();
         session.send({type:'mute', muted:true});
@@ -361,6 +409,7 @@ void fetch('/api/config', {cache:'no-store'}).then(async response => {
 
 // Read-only diagnostics for repeatable journey tests; contains no credentials.
 Object.defineProperty(window, '__overte', {value:{
+    get nativeWorldKeyReady() {return tablet?.worldInputReady===true;},
     get connected() { return session.connected; },
     get pose() { return world?.getPose(); },
     get entityCount() { return entityCount; },
@@ -372,6 +421,7 @@ Object.defineProperty(window, '__overte', {value:{
     get tabletVisible() { return tablet?.visible ?? false; },
     get avatarRig() { return world?.getSelfAvatarRig(); },
     get participantGeometry() { return world?.getParticipantGeometry(); },
+    get entityModelMembership() { return ready&&session.connected ? world?.getEntityModelMembership() : undefined; },
     get avatarRender() { return world?.getSelfAvatarRenderState(); },
     get renderInventory() { return world?.getRenderInventory(); },
     drawCensus() { return world?.getDrawCensus(); },

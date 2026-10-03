@@ -65,8 +65,12 @@ int overte_route_ack(const void *input, size_t size, uint32_t sequence) {
 // Pure exact self-map string, never an arbitrary UID range/multiple mapping.
 int overte_self_map(uint32_t identity, char *output, size_t capacity) {
  if (!identity || identity == UINT32_MAX || !output || capacity < 24) return 0;
- int length=snprintf(output,capacity,"0 %u 1\n",identity);
- return length>0 && (size_t)length<capacity ? length : 0;
+ // Retain the caller's numeric identity. Mapping it to namespace UID0 makes
+ // the capability-free owner require a parent-root mapping at the next bwrap
+ // boundary, where Linux's CAP_SETFCAP restriction can refuse that mapping.
+ char record[32];int length=snprintf(record,sizeof(record),"%u %u 1\n",identity,identity);
+ if(length<=0||(size_t)length>=sizeof(record)||(size_t)length>=capacity)return 0;
+ memcpy(output,record,(size_t)length+1);return length;
 }
 
 // Future trusted C caller only: NEW network namespace, never setns an existing

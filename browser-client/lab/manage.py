@@ -18,7 +18,7 @@ import subprocess
 import sys
 import time
 import urllib.request
-import webbrowser
+from chrome_browser import chrome_executable, open_chrome
 from native_admin import native_admin_credential
 from guest_permissions import guest_permission_diagnostics
 from provisioning_diagnostics import post_guest_settings, ProvisioningDiagnosticError
@@ -234,9 +234,6 @@ def start(gateway=False):
                   "HIFI_DOMAIN_SERVER_PORT":"45102","HIFI_DOMAIN_SERVER_DTLS_PORT":"45103"}
     admin_credential = native_admin_credential()
     admin_password = admin_credential["token"]
-    admin_file = ROOT / "runtime/admin.json"
-    admin_file.write_text(json.dumps({"username":"browser-lab-admin","password":admin_password})+"\n")
-    admin_file.chmod(0o600)
     admin_authorization = "Basic " + base64.b64encode(("browser-lab-admin:"+admin_password).encode()).decode()
     permissions = {key:True for key in PERMISSION_KEYS}
     config = {"version":2.7,"metaverse":{"local_port":45102,"automatic_networking":"disabled","enable_packet_verification":True},
@@ -412,7 +409,7 @@ def main():
     parser.add_argument("--pulse-library-path", type=Path, action="append", default=[])
     parser.add_argument("--slirp", type=Path)
     parser.add_argument("--gateway",action="store_true")
-    parser.add_argument("--open-browser",action="store_true",help="Open the local browser interface after a successful managed start")
+    parser.add_argument("--open-browser",action="store_true",help="Open Google Chrome after a successful managed start")
     args=parser.parse_args()
     if args.action == "prepare" and args.host_tools != "system" and any([args.xvfb,args.pulseaudio,args.pulse_modules,args.pulse_library_path,args.slirp]):
         parser.error("Explicit host paths require --host-tools system")
@@ -424,8 +421,9 @@ def main():
         print(json.dumps(preflight(ROOT,load_tools(ROOT)),indent=2))
     elif args.action=="start":
         if args.open_browser and not args.gateway:parser.error("--open-browser requires --gateway")
+        browser = chrome_executable() if args.open_browser else None
         start(args.gateway)
-        if args.open_browser:webbrowser.open("http://127.0.0.1:8090")
+        if args.open_browser:open_chrome("http://127.0.0.1:8090", executable=browser)
     elif args.action=="stop":stop()
     elif args.action=="restart-gateway":
         stop(["gateway"])

@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { defineConfig, devices } from '@playwright/test';
+import {googleChromeLaunchOptions} from './tests/google-chrome-selection.mjs';
+const chrome = googleChromeLaunchOptions();
 
 export default defineConfig({
     testDir: './tests',
@@ -11,11 +13,8 @@ export default defineConfig({
     reporter: [['list'], ['html', {open:'never'}]],
     use: {baseURL:'http://127.0.0.1:5173', screenshot:'only-on-failure', trace:'retain-on-failure'},
     projects: [
-        {name:'chromium', use:{...devices['Desktop Chrome'], launchOptions:{args:['--use-angle=swiftshader']}}},
-        {name:'firefox', use:{...devices['Desktop Firefox'], launchOptions: {
-            // CI uses an actual Mesa software context, which Firefox can otherwise blocklist.
-            firefoxUserPrefs: process.env.CI ? {'webgl.force-enabled':true} : {},
-        }}},
+        // Branded Google Chrome; do not silently fall back to bundled Chromium.
+        {name:'google-chrome', use:{...devices['Desktop Chrome'], ...('channel' in chrome?{channel:chrome.channel}:{}), launchOptions:{...('executablePath' in chrome?{executablePath:chrome.executablePath}:{}),args:['--use-angle=swiftshader']}}},
     ],
     webServer: {command:'npm run dev', url:'http://127.0.0.1:5173', reuseExistingServer: !process.env.CI},
 });

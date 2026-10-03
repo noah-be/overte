@@ -74,6 +74,10 @@ def prepare_dependencies(repo,source_sha,runtime):
     for name in ('node','npm','git','python3','g++','ar','tar','rpm2cpio','cpio','dnf',
                  'ffmpeg','pactl','bwrap','unshare','mount','setpriv','ip','xauth'):
         checked_executable(name)
+    chrome_manifest=os.environ.get('OVERTE_CI_CHROME_PAYLOAD_MANIFEST')
+    chrome_manifest_sha=os.environ.get('OVERTE_CI_CHROME_PAYLOAD_SHA256')
+    if not chrome_manifest or not chrome_manifest_sha or not re.fullmatch('[0-9a-f]{64}',chrome_manifest_sha):
+        raise RuntimeError('reviewed-google-chrome-payload-selection-required')
     env = {**safe_environment(), 'PLAYWRIGHT_BROWSERS_PATH': str(runtime/'browsers'),
            **empty_npm_environment(runtime, create=True),
            'XDG_CACHE_HOME':str(runtime/'cache'), 'OVERTE_LAB_ROOT':str(repo/'build/browser-lab')}
@@ -83,7 +87,7 @@ def prepare_dependencies(repo,source_sha,runtime):
         raise RuntimeError('Node-does-not-meet-reviewed-package-engine')
     commands = [
         (['npm','ci'],repo/'browser-client'),
-        (['npx','playwright','install','chromium','firefox'],repo/'browser-client'),
+        ([sys.executable,str(Path(__file__).resolve().parent/'chrome-payload.py'),str(runtime),chrome_manifest,chrome_manifest_sha],repo),
         ([sys.executable,'browser-client/lab/manage.py','prepare'],repo),
     ]
     stages = []
@@ -107,9 +111,10 @@ def prepare_dependencies(repo,source_sha,runtime):
                     time.sleep(.1)
             finally:
                 stop_owned(result)
-        stages.append({'stage':['npm-ci','browser-downloads','pinned-native-artifacts'][number],
+        stages.append({'stage':['npm-ci','reviewed-google-chrome-payload','pinned-native-artifacts'][number],
                        'passed':result.returncode==0 and failure is None,'failureCategory':failure})
         publish_preparation(runtime,{'sourceSHA':source_sha,'nodeVersion':version,
+            'browserScope':'google-chrome-only','browserPayloadManifestSHA256':chrome_manifest_sha,
             'passed':all(row['passed'] for row in stages),'stages':stages})
         if result.returncode or failure:
             return 1

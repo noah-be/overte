@@ -71,8 +71,10 @@ the managed settings file and the permissions received by each native session.
 This laboratory does not modify an existing domain or a user's normal Interface
 profile. The released native HTTP server binds all IPv4 interfaces; the launcher
 limits the independent native viewport to half resolution for readable software-rendered
-screenshots without starving the browser compositor. It protects administration with a random password held only in the ignored,
-mode-0600 `build/browser-lab/runtime/admin.json` file. It never prints that password.
+screenshots without starving the browser compositor. It protects administration
+with a random token held only in the launcher process while provisioning the
+fresh domain. Neither the launcher nor the atomic diagnostic writes that token
+to disk or prints it. The domain configuration stores only its native verifier.
 The no-input Python/JavaScript credential generators always create 32 CSPRNG
 bytes, encoded as a 256-bit hexadecimal machine token. They never accept human
 passwords or supplied low-entropy secrets. Their SHA-256 verifier is the format
@@ -84,17 +86,14 @@ server from authenticating administration requests.
 
 ## Actual browser and native journeys
 
-Install browser test executables once and run the short functional tests:
+Install Google Chrome once and run the short functional tests. The recipes below select Google Chrome; retained Firefox fixtures and past evidence remain historical. Legacy `offline-browser-alpha.mjs` and `offline-browser-zones.mjs` are not current launch recipes and must not be run under the Chrome-only scope:
 
 ```bash
-npm --prefix browser-client exec playwright install chromium firefox
-node browser-client/tests/integration/real-session.mjs
-OVERTE_LAB_BROWSER=firefox node browser-client/tests/integration/real-session.mjs
-OVERTE_LAB_BROWSER=system-firefox node browser-client/tests/integration/real-session.mjs
-# Optional installed Chromium; its matching library directory is optional.
-OVERTE_LAB_BROWSER=system-chromium OVERTE_LAB_CHROMIUM=/path/to/chromium \
-  OVERTE_LAB_CHROMIUM_LIBRARY_PATH=/path/to/chromium/libraries \
-  node browser-client/tests/integration/real-session.mjs
+npm --prefix browser-client exec playwright install chrome
+OVERTE_LAB_BROWSER=chrome node browser-client/tests/integration/real-session.mjs
+# Optional reviewed official Google Chrome executable (no bundled-browser fallback).
+OVERTE_BROWSER_CHROME_EXECUTABLE=/absolute/path/to/google/chrome \
+  OVERTE_LAB_BROWSER=chrome node browser-client/tests/integration/real-session.mjs
 node browser-client/tests/integration/assets-and-avatars.mjs
 ```
 
@@ -105,9 +104,6 @@ by this test. For the short actual Hub movement/native-pose/reconnect journey:
 
 ```bash
 OVERTE_LAB_URL=http://127.0.0.1:8090 OVERTE_LAB_RECONNECT=1 OVERTE_LAB_REQUIRE_FLUID=1 \
-  node browser-client/tests/integration/public-hub.mjs
-OVERTE_LAB_URL=http://127.0.0.1:8090 OVERTE_LAB_RECONNECT=1 OVERTE_LAB_REQUIRE_FLUID=1 \
-  OVERTE_LAB_BROWSER=system-firefox \
   node browser-client/tests/integration/public-hub.mjs
 ```
 

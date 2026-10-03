@@ -20,7 +20,8 @@ function createBrowserTablet(config) {
             }catch(error){/* A release exposes either the deferred or forward jobs. */}
         });
     }
-    var snapshotRequest=0,snapshotSequence=0,outbox=[],chatObserver,graphics;
+    var worldKeyRequest=0,worldKeyReady=false;
+    var snapshotRequest=0,snapshotSequence=0,outbox=[],chatObserver,graphics,browserCapture;
     function effects(){var result={muted:!!Audio.muted};if(typeof Users!=='undefined'&&typeof Users.getIgnoreRadiusEnabled==='function')result.shield=!!Users.getIgnoreRadiusEnabled();return result;}
     function send(value){
         if(closed||!approved||!revision)return;value.type='tablet';value.revision=revision;
@@ -30,7 +31,7 @@ function createBrowserTablet(config) {
         if(outbox.length>=32){var index=0;while(index<outbox.length&&outbox[index].kind==='frameReady')index++;outbox.splice(index===outbox.length?0:index,1);}
         outbox.push(value);
     }
-    function flush(){var ready=outbox;outbox=[];ready.forEach(function(value){if(!closed&&approved&&revision===value.revision)config.send(value);});}
+    function flush(){var ready=outbox;outbox=[];ready.forEach(function(value){if(!closed&&approved&&revision===value.revision&&(value.kind!=='capture'||value.navigationSequence===navigationSequence&&visible))config.send(value);});}
     function state(){send({kind:'state',visible:visible,screen:lastScreen,loading:loading,effects:effects()});}
     function captureTimeout(){
         cancelCapture();helperProbe=0;retryCapture=false;captureFailed=true;loading=false;
@@ -44,12 +45,13 @@ function createBrowserTablet(config) {
     }
     function changeView(message){
         if(typeof message.navigationSequence!=='number'||message.navigationSequence%1!==0||message.navigationSequence<=navigationSequence||message.navigationSequence>9007199254740991)return false;
-        navigationSequence=message.navigationSequence;helper.sendToQml({kind:'resetInput'});cancelCapture();
+        navigationSequence=message.navigationSequence;worldKeyRequest=0;worldKeyReady=false;if(config.releasePushToTalk)config.releasePushToTalk();if(browserCapture)browserCapture.resetView();helper.sendToQml({kind:'resetInput'});cancelCapture();
         outbox=outbox.filter(function(value){return value.kind!=='frameReady'&&value.kind!=='clipboard';});return true;
     }
     function home(){tablet.loadQMLSource('hifi/tablet/TabletHome.qml');lastScreen='Home';
         Script.setTimeout(function(){if(!closed&&visible&&approved)helper.sendToQml({kind:'focusTablet'});},150);}
     function screenChanged(kind,url){
+        if(browserCapture)browserCapture.screen(kind,url);
         lastScreen=String(kind||'Tablet');loading=false;
         // Native desktop mode closes its loader on Home; present the actual existing
         // home QML with its real default-script buttons instead of inventing a menu.
@@ -58,6 +60,9 @@ function createBrowserTablet(config) {
     }
     function fromQml(message){
         if(closed)return;
+        if(message.kind==='worldKeyReady'){
+            if(approved&&!visible&&message.revision===revision&&message.navigationSequence===navigationSequence&&worldKeyRequest&&message.requestId===worldKeyRequest&&typeof message.ready==='boolean'){worldKeyReady=message.ready;send({kind:'worldKeyReady',requestId:worldKeyRequest,navigationSequence:navigationSequence,ready:worldKeyReady});}return;
+        }
         if(message.kind==='helperReady'){
             if(approved&&visible&&!captureFailed&&message.revision===revision&&helperProbe&&message.probe===helperProbe&&firstDeadline&&Date.now()<firstDeadline){helperReady=true;helperProbe=0;}
             return;
@@ -81,17 +86,18 @@ function createBrowserTablet(config) {
             if(message.message!==lastError){lastError=message.message;send({kind:'error',message:message.message});}
         }
     }
-    function muteChanged(){if(visible&&approved)send({kind:'microphone',muted:!!Audio.muted});}
+    function muteChanged(){if(visible&&approved&&Audio.pushToTalkDesktop!==true)send({kind:'microphone',muted:!!Audio.muted});}
     function snapshotMessage(channel,text,sender,localOnly){
         if(closed||!approved||channel!==config.snapshotChannel||!localOnly)return;
         var message;try{message=JSON.parse(text);}catch(error){return;}
         if(message.kind!=='request'||snapshotRequest)return;
-        snapshotRequest=++snapshotSequence;cancelCapture();visible=false;helper.sendToQml({kind:'hide'});state();
+        snapshotRequest=++snapshotSequence;cancelCapture();visible=false;if(browserCapture)browserCapture.resetView();helper.sendToQml({kind:'hide'});state();
         send({kind:'snapshot',requestId:snapshotRequest,animated:!!message.animated,aspectRatio:1.91});
     }
     if(config.snapshotChannel){Messages.subscribe(config.snapshotChannel);Messages.messageReceived.connect(snapshotMessage);}
     if(config.chatURL){Script.include(config.chatURL);chatObserver=createBrowserTabletChat({isActive:function(){return !closed&&approved&&visible;},send:send});}
     if(config.graphics){Script.include(config.graphics.scriptURL);graphics=createBrowserGraphics({channel:config.graphics.channel,now:Date.now,send:send});}
+    if(config.capture){Script.include(config.capture.scriptURL);browserCapture=createBrowserCapture({channel:config.capture.channel,qmlURL:config.capture.qmlURL,now:Date.now,send:send,current:function(){return !closed&&approved&&visible;},navigation:function(){return navigationSequence;}});}
     helper.fromQml.connect(fromQml);tablet.screenChanged.connect(screenChanged);
     if(Audio.mutedChanged)Audio.mutedChanged.connect(muteChanged);
     // Load the actual version-matched installed defaults alongside the browser
@@ -107,6 +113,7 @@ function createBrowserTablet(config) {
     tablet.toolbarMode=true;
     interval=Script.setInterval(function(){
         if(graphics)graphics.poll();
+        if(browserCapture)browserCapture.poll();
         flush();
         if(closed||!visible||!approved||captureFailed)return;
         if(firstFrame&&!firstDeadline)firstDeadline=Date.now()+30000;
@@ -130,13 +137,15 @@ function createBrowserTablet(config) {
     },150);
     return {
         setAuthority:function(nextRevision,allowed){
-            if(revision!==nextRevision||approved!==!!allowed){helper.sendToQml({kind:'resetInput'});cancelCapture();outbox=[];revision=nextRevision;navigationSequence=0;approved=!!allowed;lastError='';snapshotRequest=0;firstFrame=true;firstDeadline=0;helperReady=false;helperProbe=0;
+            if(revision!==nextRevision||approved!==!!allowed){helper.sendToQml({kind:'resetInput'});cancelCapture();outbox=[];worldKeyRequest=0;worldKeyReady=false;revision=nextRevision;navigationSequence=0;approved=!!allowed;lastError='';snapshotRequest=0;firstFrame=true;firstDeadline=0;helperReady=false;helperProbe=0;
                 if(graphics)graphics.setAuthority(revision,approved);
+                if(browserCapture)browserCapture.setAuthority(revision,approved);
                 if(!approved||visible){visible=false;helper.sendToQml({kind:'hide'});}if(approved)state();}
         },
         receive:function(message){
             if(closed||!approved||message.revision!==revision)return;
-            if(message.action==='graphicsResult'&&graphics){graphics.receive(message);return;}
+            if(['graphicsResult','graphicsChange','graphicsCancel'].indexOf(message.action)!==-1&&graphics){graphics.receive(message);return;}
+            if(message.action==='captureResult'&&browserCapture){browserCapture.receive(message);return;}
             if(message.action==='open'){if(!changeView(message))return;visible=true;loading=true;cancelCapture();tablet.toolbarMode=true;home();state();}
             else if(message.action==='close'){if(!changeView(message))return;visible=false;cancelCapture();firstDeadline=0;helperProbe=0;helper.sendToQml({kind:'hide'});state();}
             else if(message.action==='home'&&visible){if(!changeView(message))return;home();state();}
@@ -150,10 +159,14 @@ function createBrowserTablet(config) {
                 Messages.sendLocalMessage(config.snapshotChannel,JSON.stringify({kind:'result',stillPath:message.stillPath,gifPath:message.gifPath,error:message.error}));
                 Script.setTimeout(function(){if(!closed&&approved)helper.sendToQml({kind:'focusTablet'});},750);
             }
+            else if(message.action==='worldKeyArm'&&!visible&&message.navigationSequence===navigationSequence){worldKeyRequest=message.sequence;worldKeyReady=false;helper.sendToQml({kind:'armWorldKey',revision:revision,navigationSequence:navigationSequence,requestId:worldKeyRequest});}
+            else if(message.action==='worldKeyCancel'&&message.navigationSequence===navigationSequence){worldKeyRequest=0;worldKeyReady=false;helper.sendToQml({kind:'cancelWorldKey'});}
+            else if(message.action==='worldKey'&&!visible&&worldKeyReady&&worldKeyRequest&&message.requestId===worldKeyRequest&&message.navigationSequence===navigationSequence&&message.key==='x'){helper.sendToQml({kind:'worldKey',revision:revision,navigationSequence:navigationSequence,requestId:worldKeyRequest,key:'x'});}
             else if(message.action==='input'&&visible&&message.navigationSequence===navigationSequence){message.kind='input';helper.sendToQml(message);}
         },
-        close:function(){if(closed)return;closed=true;visible=false;outbox=[];Script.clearInterval(interval);
+        close:function(){if(closed)return;closed=true;visible=false;worldKeyRequest=0;worldKeyReady=false;helper.sendToQml({kind:'cancelWorldKey'});outbox=[];Script.clearInterval(interval);
             if(graphics)graphics.close();
+            if(browserCapture)browserCapture.close();
             if(chatObserver)chatObserver.close();
             helper.fromQml.disconnect(fromQml);tablet.screenChanged.disconnect(screenChanged);
             if(config.snapshotChannel){Messages.messageReceived.disconnect(snapshotMessage);Messages.unsubscribe(config.snapshotChannel);}

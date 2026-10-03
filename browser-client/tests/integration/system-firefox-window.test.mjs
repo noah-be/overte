@@ -7,7 +7,7 @@ import {sizeSystemFirefoxWindow} from './system-firefox.mjs';
 const target={width:1280,height:900},density=5/3;
 const timeout=()=>Object.assign(Error('Controlled public wait timeout'),{name:'TimeoutError'});
 const plain=value=>JSON.parse(JSON.stringify(value));
-function fixture({already=false,wm='quantized',viewport='pending',source=sizeSystemFirefoxWindow.toString(),clockTimers=false}={}){
+function fixture({already=false,wm='quantized',viewport='pending',source=sizeSystemFirefoxWindow.toString(),clockTimers=false,requested=target}={}){
  let now=0,requests=0,waits=0,disposals=0,closed=false,pendingReject;
  const trace=[],state={innerWidth:1280,innerHeight:already?900:956,devicePixelRatio:density};
  let bounds={width:1332,height:1092};
@@ -44,7 +44,7 @@ function fixture({already=false,wm='quantized',viewport='pending',source=sizeSys
    return new Promise((_,reject)=>{pendingReject=reject;});
   },
  };
- return{run:()=>run(browser,page,target),browser,page,context,trace,clock:()=>now,
+ return{run:()=>run(browser,page,requested),browser,page,context,trace,clock:()=>now,
   expire:()=>{const [id,timer]=[...timers].sort((a,b)=>a[1].at-b[1].at)[0];timers.delete(id);now=timer.at;timer.callback();},timerCount:()=>timers.size,
   setTime:value=>{now=value;},requests:()=>requests,waits:()=>waits,disposals:()=>disposals};
 }
@@ -65,6 +65,31 @@ test('recorded899-to901 WM quantization falls back to actual exact effect at unc
  const previous=f.trace.length,unhandled=[];const onUnhandled=value=>unhandled.push(value);process.on('unhandledRejection',onUnhandled);
  try{await f.browser.close();await new Promise(resolve=>setImmediate(resolve));assert.equal(f.trace.length,previous+1);assert.deepEqual(unhandled,[]);assert.equal(result.viewportAcknowledgementAtReturn,'pending','A later target-close rejection never invents an ACK');}
  finally{process.off('unhandledRejection',onUnhandled);}
+});
+
+test('a fixed inner viewport refuses negative WM corrections before RPC and requires exact fallback effect at native density',async()=>{
+ const exercise=async source=>{
+  const f=fixture({source,viewport:'fulfilled',requested:{width:360,height:560}}),requested=[];
+  f.browser.getWindowBounds=async()=>({width:460,height:700});
+  f.browser.setWindowBounds=async(_id,value)=>{
+   if(value.width===undefined)return;
+   requested.push(plain(value));
+   if(!Number.isSafeInteger(value.width)||value.width<=0)throw Error('Public window rejected negative width');
+  };
+  return{f,requested,pending:f.run()};
+ };
+ const current=sizeSystemFirefoxWindow.toString(),actual=await exercise(current);
+ const result=plain(await actual.pending);
+ assert.equal(actual.requested.length,0,'The first computed width is -460; no invalid window RPC is authorized');
+ assert.equal(result.method,'public-viewport-effect');
+ assert.deepEqual(result.actual,{width:360,height:560,density});
+ assert(result.durationMs<10000);
+ const guard='if (![requestedBounds.width,requestedBounds.height].every(value=>Number.isSafeInteger(value)&&value>0)) break;';
+ assert.equal(current.split(guard).length,2);
+ const original=await exercise(current.replace(guard,''));
+ await assert.rejects(original.pending,/Public window rejected negative width/);
+ assert.equal(original.requested.length,1);
+ assert.equal(original.f.trace.some(value=>value[0]==='viewport'),false);
 });
 
 test('fulfilled and timeout acknowledgements are distinguished but both still require observed exact dimensions/density',async()=>{

@@ -75,3 +75,13 @@ export function assertPaintedPttControl(rgba,width,height){
  let lo=255,hi=0,opaque=0;for(let i=0;i<rgba.length;i+=4){const value=(rgba[i]+rgba[i+1]+rgba[i+2])/3;lo=Math.min(lo,value);hi=Math.max(hi,value);if(rgba[i+3]===255)opaque++;}
  assert(hi-lo>20&&opaque>width*height/2,'Actual native control must have painted visible contrast');return true;
 }
+
+// Exact existing schema and native-state/control predicates for the passive fixture.
+export function pttAuditBrowserBindingsSource(){
+ return 'const assert=value=>{if(!value)throw Error("Owned native PTT audit refused");};assert.deepEqual=(a,b)=>assert(JSON.stringify(a)===JSON.stringify(b));const Buffer={byteLength:value=>new TextEncoder().encode(value).length};const PTT_AUDIT_PREFIX='+JSON.stringify(PTT_AUDIT_PREFIX)+';const keys=('+keys.toString()+');const integer=('+integer.toString()+');const rectangle=('+rectangle.toString()+');const parsePttAudit=('+parsePttAudit.toString()+');const pttClickControl=('+pttClickControl.toString()+');';
+}
+export function encodeValidatedPttRecords(records){
+ assert(Array.isArray(records)&&records.length<=32);
+ const text=records.map(record=>PTT_AUDIT_PREFIX+JSON.stringify(record)).join('\n');
+ assert(Buffer.byteLength(text)<=32*(4096+256));assert.equal(parsePttAudit(text).length,records.length);return text;
+}

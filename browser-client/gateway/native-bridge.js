@@ -12,6 +12,8 @@
     var approvedAuthority = '';
     var permissionRevision = 0;
     var tablet = null;
+    var pushToTalk = createBrowserPushToTalk({audio:Audio,send:send,authority:outputAuthority,
+        current:function(revision){return active&&permissionsApproved&&location.isConnected&&revision===permissionRevision;}});
     var interval;
     var poseInterval;
     var appliedPose = null;
@@ -61,7 +63,7 @@
         var text = JSON.stringify(value), size = utf8Size(text);
         // Qt socket/UI callbacks cannot write the engine-owned QWebSocket safely.
         // The existing Script timers drain all post-handshake output instead.
-        if (value.type === 'avatars' || value.type === 'heartbeat') {
+        if (value.type === 'avatars' || value.type === 'heartbeat' || value.type === 'pushToTalkState') {
             outbound = outbound.filter(function (item) {
                 if (item.type !== value.type) { return true; }
                 outboundBytes -= item.size; return false;
@@ -71,7 +73,7 @@
             outbound = []; outboundBytes = 0; outputFailed = true; return;
         }
         var item = { type: value.type, text: text, size: size, revision: permissionRevision, authority: outputAuthority(),
-            restricted: ['entities', 'entityUpdates', 'avatars', 'asset', 'pose', 'poseRequest', 'tablet', 'interaction', 'navigationRequest', 'navigationHistoryRequest', 'visitorPreferences', 'visitorPersona'].indexOf(value.type) !== -1
+            restricted: ['entities', 'entityUpdates', 'avatars', 'asset', 'pose', 'poseRequest', 'tablet', 'interaction', 'navigationRequest', 'navigationHistoryRequest', 'visitorPreferences', 'visitorPersona', 'pushToTalkState'].indexOf(value.type) !== -1
                 || (value.type === 'state' && value.state === 'connected'),
             deadline: value.type === 'nativePong' ? value.deadline : 0 };
         if (value.type === 'nativePong') { outbound.unshift(item); } else { outbound.push(item); }
@@ -81,7 +83,7 @@
         if (socket.readyState !== 1) { outbound = []; outboundBytes = 0; return; }
         if (outputFailed) {
             socket.send(JSON.stringify({ type: 'state', state: 'error', message: 'Native gateway output exceeded its bounded queue. Leave and reconnect.' }));
-            outputFailed = false; active = false; permissionsApproved = false; Audio.muted = true;
+            outputFailed = false; active = false; permissionsApproved = false; pushToTalk.setAuthority(permissionRevision,false); Audio.muted = true;
             worldStream.stop(); return;
         }
         var ready = outbound; outbound = []; outboundBytes = 0;
@@ -206,7 +208,7 @@
         var connected = !!location.isConnected;
         if (!connected) {
             appliedPose = null; pendingPose = null;
-            permissionsApproved = false; clearOutput();
+            permissionsApproved = false; pushToTalk.setAuthority(permissionRevision,false); clearOutput();
             if (tablet) { tablet.setAuthority(permissionRevision, false); }
             Audio.muted = true;
             lastPermissions = '';
@@ -232,7 +234,7 @@
         var serialized = JSON.stringify({ authority: authority, domainId: domainId, permissions: permissions });
         if (serialized !== lastPermissions) {
             appliedPose = null; pendingPose = null;
-            lastPermissions = serialized; permissionsApproved = false; clearOutput();
+            lastPermissions = serialized; permissionsApproved = false; pushToTalk.setAuthority(permissionRevision,false); clearOutput();
             Audio.muted = true;
             worldStream.reset();
             approvedAuthority = authority;
@@ -287,19 +289,20 @@
         if (BROWSER_GATEWAY.tablet) {
             try {
                 Script.include(BROWSER_GATEWAY.tablet.scriptURL);
-                tablet = createBrowserTablet({ qmlURL: BROWSER_GATEWAY.tablet.qmlURL,
+                tablet = createBrowserTablet({ releasePushToTalk:function(){pushToTalk.release();}, qmlURL: BROWSER_GATEWAY.tablet.qmlURL,
                     framePath: BROWSER_GATEWAY.tablet.framePath,
                     filesDirectory: BROWSER_GATEWAY.tablet.filesDirectory,
                     snapshotChannel: BROWSER_GATEWAY.tablet.snapshotChannel,
                     chatURL: BROWSER_GATEWAY.tablet.chatURL,
                     graphics: BROWSER_GATEWAY.tablet.graphics,
+                    capture: BROWSER_GATEWAY.tablet.capture,
                     defaultScriptsURL: BROWSER_GATEWAY.tablet.defaultScriptsURL, send: send });
                 tablet.setAuthority(permissionRevision, false);
             } catch (error) { send({ type: 'warning', message: 'The installed native tablet helper could not start.' }); }
         }
         interval = Script.setInterval(function () { send({ type: 'heartbeat' }); state(); world(); if (visitorPreferences) { visitorPreferences.poll(); } if (visitorPersona) { visitorPersona.poll(); } flush(); }, 500);
         poseInterval = Script.setInterval(function () {
-            state(); flush();
+            state(); pushToTalk.poll(); flush();
             if (!location.isConnected || !permissionsApproved) { return; }
             externalPose();
             if (avatarSampleDiagnostics) avatarSampleDiagnostics.beginBatch();
@@ -325,7 +328,7 @@
             var message = JSON.parse(event.data);
             if (message.type === 'shutdown') {
                 closeNavigation(); if (visitorPreferences) { visitorPreferences.stop(); } if (visitorPersona) { visitorPersona.stop(); }
-                active = false; permissionsApproved = false; Audio.muted = true; worldStream.stop();
+                active = false; permissionsApproved = false; pushToTalk.close(); Audio.muted = true; worldStream.stop();
                 if (tablet) { tablet.close(); }
                 // The normal File > Quit action runs native avatar/domain disconnect cleanup.
                 Menu.triggerOption('Quit');
@@ -342,14 +345,14 @@
             if (message.type === 'permissionsAccepted') {
                 state();
                 if (message.permissionRevision === permissionRevision && location.isConnected && lastPermissions) {
-                    permissionsApproved = true;
+                    permissionsApproved = true; pushToTalk.setAuthority(permissionRevision,true);
                     if (visitorPreferences) { visitorPreferences.restore(); }
                     if (visitorPersona) { visitorPersona.restore(); }
                     state();
                     if (visitorPreferences) { visitorPreferences.poll(true); }
                     if (visitorPersona) { visitorPersona.poll(true); }
                 }
-                Audio.muted = permissionsApproved ? message.muted !== false : true;
+                pushToTalk.setMuted(permissionsApproved ? message.muted !== false : true);
                 return;
             }
             state();
@@ -371,8 +374,10 @@
                 if (pendingPose && message.nonce === pendingPose.nonce && message.permissionRevision === permissionRevision) {
                     appliedPose = { position: pendingPose.position, orientation: pendingPose.orientation }; pendingPose = null;
                 }
+            } else if (message.type === 'pushToTalk') {
+                pushToTalk.receive(message);
             } else if (message.type === 'mute') {
-                Audio.muted = permissionsApproved ? message.muted : true;
+                pushToTalk.setMuted(permissionsApproved ? message.muted : true);
             } else if (message.type === 'asset') {
                 var requestAuthority = approvedAuthority;
                 var requestPermissionRevision = permissionRevision;
@@ -415,7 +420,7 @@
     };
     socket.onerror = function () { print('Browser gateway local transport error.'); };
     if (location.hostChanged && typeof location.hostChanged.connect === 'function') {
-        location.hostChanged.connect(function () { permissionsApproved = false; lastPermissions = ''; lastConnected = false;
+        location.hostChanged.connect(function () { permissionsApproved = false; pushToTalk.setAuthority(permissionRevision,false); lastPermissions = ''; lastConnected = false;
             appliedPose = null; pendingPose = null; worldStream.reset(); clearOutput();
             if (tablet) { tablet.setAuthority(permissionRevision, false); }
             Audio.muted = true;
@@ -423,6 +428,7 @@
     }
     Window.domainConnectionRefused.connect(function (reason) { send({ type: 'state', state: 'error', message: String(reason) }); });
     Script.scriptEnding.connect(function () {
+        pushToTalk.close();
         if (avatarSampleDiagnostics) avatarSampleDiagnostics.stop();
         worldStream.stop(); clearOutput(); closeNavigation(); if (visitorPreferences) { visitorPreferences.stop(); } if (visitorPersona) { visitorPersona.stop(); }
         if (tablet) { tablet.close(); }

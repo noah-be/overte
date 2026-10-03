@@ -23,6 +23,14 @@ parent-death binding and cleanup remain in that stage. The added fixed native
 entry guard verifies NNP, the exact distro payload label, and all five capability
 sets zero before launching the exact admitted native executable.
 
+The setup uses one exact identity-preserving UID/GID map (`id id 1`), retaining
+the caller's numeric identity at the next user-namespace boundary. The trusted
+gateway records the native environment from its pre-delimiter `--setenv` pairs;
+immutable admission still checks every key/value and boundary. The host bwrap
+launcher receives only fixed PATH and LANG, including when native Qt loader
+settings are present. Native loader settings take effect after bwrap clears its
+environment and establishes the original inner boundary.
+
 The optional runtime patch adds only `OVERTE_GATEWAY_TRUSTED_NETWORK_SETUP=1`.
 Without it, the current entry path is unchanged. No default activation is
 proposed before all qualification gates pass. No new debug endpoint is added.
@@ -69,8 +77,9 @@ exact readonly runtime roots, plus the canonical interpreter for the real
 network checks. Do not guess paths or add the runner home as a mount root.
 
 Then install the reviewed stage once, set the opt-in in the native laboratory
-job environment, and run the existing preflight and actual Chromium/Firefox
-core journeys unchanged. The native/browser auth/readback, world, movement,
+job environment, and run the existing preflight and current Google Chrome
+core journeys with their unchanged assertions. Historical Firefox results do
+not authorize new Firefox launches. The native/browser auth/readback, world, movement,
 mutual avatar, voice, interaction, clean leave/rejoin and owned cleanup gates
 remain mandatory. Preserve the private-X test and all final capabilities-zero
 checks. Keep failed negative source-bound reports. The existing QSaveFile
@@ -85,11 +94,21 @@ explicitly, not guessed or weakened.
 
 ## Qualification that is still absent
 
-No profile has been installed/loaded, no namespace or route/capability mutation
-has been executed by the candidate tests, and no hosted or native qualification
-run has been triggered. Parser/Px and sealed-FD path mediation, C ACK/readback
-compatibility, inner-bwrap transition after setup cap retirement, final native
-label/zero-cap guard, actual route/endpoint/cleanup and original browser/native
-journeys remain unproven. A fail-closed refusal at any such boundary is a failed
-qualification result. This package is complete proposed source, not a claim of
-working hosted confinement.
+Hosted startup diagnostics and their exact tested commits are recorded in
+[the stabilization evidence](../../../../docs/browser-client/STABILIZATION.md).
+The current identity/environment corrections still require the actual original
+route/endpoint/cleanup controls and final native label/zero-capability guard to
+pass on Ubuntu. Full browser/native journeys remain required. A refusal at any
+boundary is a failed qualification result; installation or CPU tests alone
+cannot establish working hosted confinement.
+
+## Current isolated hosted checkpoint
+
+At committed `42612a99dbdbabce298adcbab080fbff80856965`, the protocol/network
+job in [run37120210342](https://github.com/noah-be/overte/actions/runs/37120210342)
+passed the original three actual network controls. The whole Browser run failed
+in native laboratory startup; GUI journeys were explicitly not run. This
+qualifies that isolated network source and its ephemeral bundle only. It does
+not qualify the broader unpublished Chrome/Audio integration or an existing
+local installed prefix. Atomic run37120212527 remains failed at its original
+zero-capability preflight. Preserve both negative results.

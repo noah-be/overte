@@ -67,12 +67,12 @@ def build(output, runtime):
     moc = sdk / 'usr/lib/qt5/bin/moc'
     environment = {**os.environ, 'LD_LIBRARY_PATH': str(runtime)}
     flags = ['-std=c++17', '-fPIC', '-O2', '-Wall', '-Wextra', '-Werror', '-I', include]
-    for module in ['QtCore', 'QtGui', 'QtQml', 'QtQuick']:
+    for module in ['QtCore', 'QtGui', 'QtQml', 'QtQuick', 'QtWidgets']:
         flags.extend(['-I', include / module])
     run([moc, *flags[6:], SOURCE / 'native-input.cpp', '-o', output / 'native-input.moc'], env=environment)
     modules = output / 'qml/BrowserNativeInput'
     modules.mkdir(parents=True, exist_ok=True)
-    libraries = [runtime / f'libQt5{module}.so.5' for module in ['Quick', 'Qml', 'Gui', 'Core']]
+    libraries = [runtime / f'libQt5{module}.so.5' for module in ['Widgets', 'Quick', 'Qml', 'Gui', 'Core']]
     if not all(library.is_file() for library in libraries):
         raise RuntimeError('The native worker distribution lacks the required matching Qt5 libraries')
     # A worker may already have the old plugin mapped. Never truncate that inode;
@@ -98,8 +98,16 @@ def build(output, runtime):
     run(['g++', *flags, SOURCE / 'input-test.cpp', '-o', output / 'input-test', *libraries])
     run([moc, *flags[6:], SOURCE / 'grab-test.cpp', '-o', output / 'grab-test.moc'], env=environment)
     run(['g++', *flags, '-I', output, SOURCE / 'grab-test.cpp', '-o', output / 'grab-test', *libraries])
+    run([moc, *flags[6:], SOURCE / 'application-key-route-test.cpp', '-o', output / 'application-key-route-test.moc'], env=environment)
+    run(['g++', *flags, '-I', output, SOURCE / 'application-key-route-test.cpp', '-o', output / 'application-key-route-test', *libraries])
+    run(['g++', *flags, SOURCE / 'application-key-code-test.cpp', '-o', output / 'application-key-code-test', *libraries])
+    run([moc, *flags[6:], SOURCE / 'world-key-route-test.cpp', '-o', output / 'world-key-route-test.moc'], env=environment)
+    run(['g++', *flags, '-I', output, SOURCE / 'world-key-route-test.cpp', '-o', output / 'world-key-route-test', *libraries])
     (output / 'artifacts.json').write_text(json.dumps({'qtSDKVersion': '5.15.3', 'qtRuntimeVersion': runtime_version, 'packages': artifacts,
-        'sourceSha256': hashlib.sha256((SOURCE / 'native-input.cpp').read_bytes()).hexdigest()}, indent=2) + '\n')
+        'sourceSha256': hashlib.sha256((SOURCE / 'native-input.cpp').read_bytes()).hexdigest(),
+        'worldKeyRouteSha256': hashlib.sha256((SOURCE / 'world-key-route.h').read_bytes()).hexdigest(),
+        'applicationKeyRouteSha256': hashlib.sha256((SOURCE / 'application-key-route.h').read_bytes()).hexdigest(),
+        'pluginSha256': hashlib.sha256((modules / 'libbrowsernativeinput.so').read_bytes()).hexdigest()}, indent=2) + '\n')
     print(f'Built native input QML module: {modules}')
     return output / 'input-test'
 
@@ -145,6 +153,9 @@ if __name__ == '__main__':
                 environment.update(DISPLAY=':' + number, XAUTHORITY=str(authority))
                 run([test, output / 'qml', output / 'input-test.qml'], env=environment)
                 run([output / 'grab-test', output / 'qml'], env=environment)
+                run([output / 'application-key-code-test'], env=environment)
+                run([output / 'application-key-route-test'], env=environment)
+                run([output / 'world-key-route-test'], env=environment)
             finally:
                 display_process.terminate()
                 try:

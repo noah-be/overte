@@ -19,7 +19,20 @@ test('obsolete focus/URL/revision/navigation/surface refuses before native commi
 test('native refusal finishes false once with no fallback or keyboard delivery',()=>{const h=harness('abc',{accepted:false});h.s.continuePasswordText(h.pending);assert.equal(h.calls.filter(v=>v&&v.text).length,1);assert.deepEqual(h.calls.at(-1),{finished:false});});
 test('reentrant native cancellation cannot finish or schedule another delivery',()=>{const h=harness('abc');h.s.nativeInput.commitWebPasswordText=()=>{h.s.pendingText=null;h.pending.cancelled=true;h.pending.passwordValue='';return true;};h.s.continuePasswordText(h.pending);assert.deepEqual(h.calls,['current']);});
 const section=(s,a,b)=>s.slice(s.indexOf(a),s.indexOf(b,s.indexOf(a)+a.length));
-test('actual passed CPP and ordinary/native password guards remain byte exact',()=>{assert.equal(digest(cpp),expected.nativeInputCPP);});
+test('actual passed CPP and ordinary/native password guards remain byte exact after the separately qualified application-key addition',()=>{
+ assert.equal(digest(cpp),'e8326d2571327b435318f256e70eba9c53d393ccac31130f941ab48b5f4cf5df');
+ const worldAdditions=["#include \"world-key-route.h\"\n", "    Q_INVOKABLE bool worldKeyReady(QObject* root) {\n        return BrowserWorldKey::ready(this,ownerItem(),root);\n    }\n    Q_INVOKABLE bool clickWorldKey(QObject* root) {\n        return BrowserWorldKey::click(this,ownerItem(),root);\n    }\n"];
+ let applicationOnly=cpp;for(const addition of worldAdditions){assert.equal(applicationOnly.split(addition).length,2);applicationOnly=applicationOnly.replace(addition,'');}
+ assert.equal(digest(applicationOnly),'b342f2ea711e5b929602e14d7bd256f02b48f3a4700061a72fc96d91aa5e2f56');
+ const additions=['#include "application-key-route.h"\n',`    // Use this worker's own original GLCanvas/OffscreenUi route. Native editors
+    // retain first refusal; never emit Controller or animation state directly.
+    Q_INVOKABLE bool clickApplicationKey(QObject* surface, const QString& key, int modifiers) {
+        return BrowserApplicationKey::click(this, ownerItem(), surface, key, modifiers);
+    }
+`];
+ let original=applicationOnly;for(const addition of additions){assert.equal(original.split(addition).length,2);original=original.replace(addition,'');}
+ assert.equal(digest(original),expected.nativeInputCPP);
+});
 test('all eight text lifecycle methods are the exact actual-passed bodies',()=>{for(const name of ['cancelTextInput','currentTextTarget','failTextInput','queueTextInput','finishTextInput','startWebText','passwordTextValid','continuePasswordText'])assert.equal(digest('    '+method(qml,name)),expected[name]);});
 test('full-password native path sends one event only and guards reentrant completion',()=>{const s=section(cpp,'    Q_INVOKABLE bool commitWebPasswordText(','    // The offscreen');assert.equal((s.match(/QInputMethodEvent event;/g)||[]).length,1);assert(!s.includes('QKeyEvent'));assert.equal((s.match(/webPasswordTargetCurrent\(item, root, owner, window\)/g)||[]).length,3);assert.equal((s.match(/if \(!self\) return false;/g)||[]).length,2);assert.match(s,/event\.setCommitString\(text\)/);assert.match(s,/if \(!accepted\) return refuseWebGuard\("password-commit-refused"\)/);});
 test('same single readonly DOM admission, first-turn yield and no direct edits are preserved',()=>{const s=method(qml,'startWebText');assert.equal(digest('    '+s),expected.startWebText);assert.equal((s.match(/web.runJavaScript\(/g)||[]).length,1);assert(s.includes('Qt.callLater(function(){helper.continuePasswordText(pending);})'));assert(!s.includes('execCommand'));assert(!s.includes('e.value'));assert(!s.includes('.focus('));});

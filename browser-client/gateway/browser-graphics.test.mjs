@@ -79,7 +79,7 @@ function profilePage(generated,onChange){
 
 test('actual generated native combo has three explicit presets and truthful Custom; no new graphics wire fields or worker Render writes',async()=>{
     const originals=await sources(),generated=buildBrowserGraphicsOverrides(originals,channel),qml=generated['qml/pages/GraphicsSettings.qml'];
-    assert.equal(generated['qml/SettingComboBox.qml'],originals['qml/SettingComboBox.qml']);
+    assert.equal(generated['qml/SettingComboBox.qml'].replace('color: Qt.rgba(0,0,0,root.settingText === \"Resolution preset\" ? 1 : 0.9)','color: Qt.rgba(0,0,0,0.9)').replace('                    y: root.settingText === "Resolution preset" ? control.height : 0;\n',''),originals['qml/SettingComboBox.qml']);
     assert.equal((qml.match(/SettingComboBox \{/g)||[]).length,1);
     assert.match(qml,/options: \["Default \(100%\)", "Balanced \(80%\)", "Faster \(60%\)", "Custom"\]/);
     assert.match(qml,/graphicsPage\.selectResolutionProfile\(index\)/);

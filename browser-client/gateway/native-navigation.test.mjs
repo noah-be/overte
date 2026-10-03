@@ -18,7 +18,7 @@ async function fixture() {
         AvatarList:{getAvatarIdentifiers:()=>[]}, Window:{domainConnectionRefused:{connect(){}}},
         Script:{setInterval(callback,delay){timers.set(delay,callback);return delay;},scriptEnding:{connect(){}}} };
     Object.defineProperty(context,'location',{get:()=>location,set(){}});
-    vm.runInNewContext((await readFile(new URL('./native-world.js',import.meta.url),'utf8'))+'\n'+await readFile(new URL('./native-bridge.js',import.meta.url),'utf8'),context);
+    vm.runInNewContext((await readFile(new URL('./native-push-to-talk.js',import.meta.url),'utf8'))+'\n'+(await readFile(new URL('./native-world.js',import.meta.url),'utf8'))+'\n'+await readFile(new URL('./native-bridge.js',import.meta.url),'utf8'),context);
     const receive = message=>{socket.onmessage({data:JSON.stringify(message)});timers.get(50)();};
     socket.onopen();timers.get(50)();
     const revision=messages.find(message=>message.type==='permissions').permissionRevision;

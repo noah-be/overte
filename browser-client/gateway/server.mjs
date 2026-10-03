@@ -17,6 +17,7 @@ import { publicPlaceNames, publicPlaceSelection, resolvePublicPlace, validatePub
 import { inspectNativeProtocol } from './native-protocol.mjs';
 import { prepareTablet, TabletSession } from './tablet.mjs';
 import { loadBrowserGraphicsPackage } from './browser-graphics-overrides.mjs';
+import { loadBrowserCapturePackage } from './browser-capture-overrides.mjs';
 import { loadBrowserEmotePackage } from './tablet-emote.mjs';
 import { loadBrowserCreatePackage } from './create-responsive-overrides.mjs';
 import { prepareWorker } from './worker-sandbox.mjs';
@@ -36,7 +37,9 @@ const run = promisify(execFile);
 const directory = path.dirname(fileURLToPath(import.meta.url));
 // Every session belongs to this server version, including during development edits.
 // Restart the gateway when changing the native/browser protocol.
-const nativeBridgeSource = (await readFile(path.join(directory, 'native-visitor-persona.js'), 'utf8')) + '\n'
+import {PushToTalkSession} from './push-to-talk.mjs';
+const nativeBridgeSource = (await readFile(path.join(directory, 'native-push-to-talk.js'), 'utf8')) + '\n'
+    + (await readFile(path.join(directory, 'native-visitor-persona.js'), 'utf8')) + '\n'
     + (await readFile(path.join(directory, 'native-visitor-preferences.js'), 'utf8')) + '\n'
     + (await readFile(path.join(directory, 'native-world.js'), 'utf8')) + '\n'
     + (['1', 'passive'].includes(process.env.OVERTE_GATEWAY_AVATAR_SAMPLE_DIAGNOSTICS) ? '\n' + await readFile(path.join(directory, 'native-avatar-sample-diagnostics.js'), 'utf8') : '')
@@ -58,6 +61,7 @@ if (!Number.isSafeInteger(maximumSessions) || maximumSessions < 1) throw Error('
 const browserGraphicsPackages = new Map();
 const browserCreatePackages = new Map();
 const browserEmotePackages = new Map();
+const browserCapturePackages = new Map();
 for (const defaults of new Set([process.env.OVERTE_GATEWAY_DEFAULT_SCRIPTS, process.env.OVERTE_GATEWAY_PUBLIC_DEFAULT_SCRIPTS].filter(Boolean))) {
     if (!defaults.startsWith('file:') && !path.isAbsolute(defaults)) throw Error('Default tablet scripts must be an absolute installed file path.');
     const url = defaults.startsWith('file:') ? new URL(defaults).href : pathToFileURL(defaults).href;
@@ -66,6 +70,7 @@ for (const defaults of new Set([process.env.OVERTE_GATEWAY_DEFAULT_SCRIPTS, proc
     browserGraphicsPackages.set(url, await loadBrowserGraphicsPackage(url));
     browserCreatePackages.set(url, await loadBrowserCreatePackage(url));
     browserEmotePackages.set(url, await loadBrowserEmotePackage(url));
+    browserCapturePackages.set(url, await loadBrowserCapturePackage(url));
 }
 const sessions = new Map();
 const sockets = new Set();
@@ -84,6 +89,8 @@ class Session extends SharedTeardown {
         this.isCurrent = isCurrent;
         this.httpAssets = new Set();
         this.closed = false; this.muted = true; this.lastPose = 0;
+        this.pushToTalk = new PushToTalkSession({connected:()=>!this.closed&&this.connected,approved:()=>this.permissionsApproved,
+            revision:()=>this.permissionRevision,muted:()=>this.muted,sendNative:value=>send(this.native,value),sendBrowser:value=>send(this.browser,value)});
     }
     async launch(message) {
         const preferences = validateVisitorPreferences(message.visitorPreferences);
@@ -178,13 +185,17 @@ class Session extends SharedTeardown {
             const emotePackage = browserEmotePackages.get(configuration.tablet.defaultScriptsURL);
             if (!emotePackage) throw Error('The installed Emote package was not validated at startup.');
             this.emoteOverrides = await emotePackage.prepare(this.directory);
+            const capturePackage = browserCapturePackages.get(configuration.tablet.defaultScriptsURL);
+            if (!capturePackage) throw Error('The installed native Audio package was not validated at startup.');
+            this.captureOverrides = await capturePackage.prepare(this.directory);
+            configuration.tablet.capture = { scriptURL: this.captureOverrides.scriptURL, channel: this.captureOverrides.channel, qmlURL: this.captureOverrides.qmlURL, schemaVersion: 1 };
             configuration.tablet.graphics = { scriptURL: this.graphicsOverrides.scriptURL, channel: this.graphicsOverrides.channel, schemaVersion: 1 };
             configuration.navigation = { channel: 'browser-places-' + randomUUID() };
             this.placesOverrides = await preparePlacesOverride(this.directory, {
                 defaultScriptsURL: configuration.tablet.defaultScriptsURL, channel: configuration.navigation.channel, homeDomain: domain });
             this.tablet = new TabletSession({ framePath: configuration.tablet.framePath,
                 filesDirectory: this.files.directory,
-                sendNative: message => send(this.native, message), sendBrowser: message => send(this.browser, message),
+                sendNative: message => {if(['open','close','home','back'].includes(message.action))this.pushToTalk.cancel();send(this.native,message);}, sendBrowser: message => send(this.browser, message),
                 isActive: () => !this.closed && this.permissionsApproved && this.connected,
                 getRevision: () => this.permissionRevision });
         }
@@ -208,7 +219,7 @@ class Session extends SharedTeardown {
             const nativeRoot = this.publicPlace ? process.env.OVERTE_GATEWAY_PUBLIC_NATIVE_ROOT || process.env.OVERTE_PUBLIC_NATIVE_ROOT || process.env.OVERTE_GATEWAY_NATIVE_ROOT : process.env.OVERTE_GATEWAY_NATIVE_ROOT;
             this.worker = await prepareWorker({ directory: this.directory, executable: this.interfaceExecutable,
                 sourceEnvironment: env, nativeRoot, signal: this.workerAbort.signal,
-                readOnlyOverrides: [...(configuration.tablet?.snapshotOverride ? [configuration.tablet.snapshotOverride] : []), ...(this.placesOverrides || []), ...(this.graphicsOverrides?.readOnlyOverrides || []), ...(this.createOverrides?.readOnlyOverrides || []), ...(this.emoteOverrides?.readOnlyOverrides || [])],
+                readOnlyOverrides: [...(configuration.tablet?.snapshotOverride ? [configuration.tablet.snapshotOverride] : []), ...(this.placesOverrides || []), ...(this.graphicsOverrides?.readOnlyOverrides || []), ...(this.createOverrides?.readOnlyOverrides || []), ...(this.emoteOverrides?.readOnlyOverrides || []), ...(this.captureOverrides?.readOnlyOverrides || [])],
                 spawnOwned: (command, args, processEnv, label) => this.process(command, args, processEnv, label) });
             launchCommand = this.worker.command; launchPrefix = this.worker.args; launchEnv = this.worker.env;
             if (this.closed) throw Error('Session cancelled.');
@@ -317,7 +328,7 @@ class Session extends SharedTeardown {
         }, 45000);
     }
     revoke() {
-        this.closed = true; this.permissionsApproved = false; this.connected = false; this.muted = true;
+        this.closed = true; this.permissionsApproved = false; this.connected = false; this.muted = true; this.pushToTalk.reset();
         this.assets?.close();
         this.protocolInspection?.abort();
         this.workerAbort?.abort();
@@ -347,8 +358,8 @@ class Session extends SharedTeardown {
         await this.files?.close();
         await this.network?.release();
         this.worker?.release();
-        sessions.delete(this.id);
         if (this.directory) await rm(this.directory, { recursive: true, force: true }).catch(() => {});
+        sessions.delete(this.id);
         if (notify && this.isCurrent()) send(this.browser, { type: 'state', state: 'disconnected', message: 'You left the domain.' });
     }
 }
@@ -374,6 +385,10 @@ const server = http.createServer(async (request, response) => {
         if (url.pathname.startsWith('/api/assets/')) {
             const session = sessions.get(url.pathname.slice('/api/assets/'.length));
             if (!session || !session.permissionsApproved || !equal(cookie(request), session.owner)) return json(response, 403, { error: 'This asset belongs to another session or the session has ended.' });
+            // This bounded browser transport discriminator grants no authority.
+            // Ownership and current permission checks above/below remain required.
+            const partitions=url.searchParams.getAll('imagePartition');
+            if(partitions.length>1||(partitions.length===1&&(!/^[a-f0-9]{32}\.(?:0|[1-9][0-9]{0,15})$/.test(partitions[0])||!Number.isSafeInteger(Number(partitions[0].split('.')[1])))))return json(response,400,{error:'Invalid image transport partition.'});
             const asset = url.searchParams.get('url');
             if (!asset || asset.length > 4096) return json(response, 400, { error: 'Invalid asset address.' });
             const revision = session.permissionRevision;
@@ -418,7 +433,7 @@ browserServer.on('connection', (browser, request) => {
         let attempt; let admission;
         try {
             if (binary) {
-                if (session?.playback && !session.closed && session.connected && session.permissionsApproved && !session.muted && data.length % 2 === 0 && data.length <= 19200 && session.playback.stdin.writableLength < 19200) session.playback.stdin.write(data);
+                if (session?.playback && !session.closed && session.connected && session.permissionsApproved && !session.muted && session.pushToTalk.allowsAudio() && data.length % 2 === 0 && data.length <= 19200 && session.playback.stdin.writableLength < 19200) session.playback.stdin.write(data);
                 return;
             }
             const message = JSON.parse(data.toString());
@@ -468,7 +483,14 @@ browserServer.on('connection', (browser, request) => {
                         send(browser, { type: 'warning', message: error.message });
                     }
                 }
-                else if (message.type === 'mute' && typeof message.muted === 'boolean') { session.muted = message.muted; send(session.native, { type: 'mute', muted: message.muted }); }
+                else if (message.type === 'pushToTalk') { session.pushToTalk.receive(message); }
+                else if (message.type === 'mute' && typeof message.muted === 'boolean') {
+                    // Explicit mute/rearm cancels held intent synchronously. Keep
+                    // the ordinary-mode state: native status may coalesce a
+                    // quick mute/unmute into the same effective normal state.
+                    session.pushToTalk.cancel(); session.muted = message.muted;
+                    send(session.native, { type: 'mute', muted: message.muted });
+                }
                 else if (message.type === 'interact' && typeof message.entityId === 'string' && /^\{?[a-f0-9-]{36}\}?$/i.test(message.entityId)) send(session.native, { type: 'interact', entityId: message.entityId });
             }
         } catch (error) {
@@ -486,7 +508,7 @@ nativeServer.on('connection', native => {
         let messageKind = 'message';
         try {
             const message = JSON.parse(data.toString());
-            if (['poseRequest', 'entities', 'entityUpdates', 'avatars', 'state', 'permissions', 'asset', 'tablet'].includes(message.type)) messageKind = message.type;
+            if (['poseRequest', 'entities', 'entityUpdates', 'avatars', 'state', 'permissions', 'asset', 'tablet', 'pushToTalkState'].includes(message.type)) messageKind = message.type;
             if (!session) {
                 if (message.type !== 'nativeHello') return native.close();
                 const candidate = [...sessions.values()].find(candidate => equal(message.token, candidate.token));
@@ -515,11 +537,12 @@ nativeServer.on('connection', native => {
                 session.permissionsApproved = true;
                 session.pendingNativePose = null;
                 clearTimeout(session.navigationTimeout);
-                if (session.permissionRevision !== message.permissionRevision) session.assets?.reset();
+                if (session.permissionRevision !== message.permissionRevision) { session.assets?.reset(); session.pushToTalk.reset(); }
                 session.permissionRevision = message.permissionRevision;
                 send(native, { type: 'permissionsAccepted', permissionRevision: message.permissionRevision, muted: session.muted }); return;
             }
             if (!session.permissionsApproved && !(message.type === 'state' && message.state === 'error') && message.type !== 'warning') return;
+            if (message.type === 'pushToTalkState') { session.pushToTalk.receiveNative(message); return; }
             if (message.type === 'visitorPersona') {
                 if (!session.connected || message.permissionRevision !== session.permissionRevision) return;
                 const {persona,warnings} = acceptedNativePersona(message, session.personaOrigins);
@@ -597,7 +620,7 @@ nativeServer.on('connection', native => {
                     }
                 }
                 if (message.type === 'state' && message.state === 'connected') { message.permissionRevision = session.permissionRevision; session.connected = true; clearTimeout(session.connectionTimeout); }
-                if (message.type === 'state' && message.state === 'connecting') { session.assets?.reset(); session.pendingNativePose = null; clearTimeout(session.navigationTimeout); session.permissionsApproved = false; session.connected = false; session.waitForDomain(); }
+                if (message.type === 'state' && message.state === 'connecting') { session.pushToTalk.reset(); session.assets?.reset(); session.pendingNativePose = null; clearTimeout(session.navigationTimeout); session.permissionsApproved = false; session.connected = false; session.waitForDomain(); }
                 send(session.browser, { ...message, sessionId: session.id });
                 if (message.type === 'state' && message.state === 'error') session.close(false);
             }

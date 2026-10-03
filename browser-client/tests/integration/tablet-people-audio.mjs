@@ -58,11 +58,11 @@ export async function setPeopleSyntheticMicrophone(page,enabled){
 }
 /** Native open returns Home: the caller must re-enter genuine People via its painted frame. */
 export async function reopenPeopleSyntheticTablet(page,enterPeople){
- await page.bringToFront();
+ const deadline=Date.now()+30000;await page.bringToFront();
  const opened=!await page.evaluate(()=>window.__overte?.tabletVisible);
  if(opened){if(typeof enterPeople!=='function')throw Error('A genuine People navigation callback is required');await page.locator('#tablet').click();}
- await page.waitForFunction(()=>window.__overte?.tabletVisible&&window.__peopleAudit.frame?.tabletRect,undefined,{timeout:30000});
- if(opened)await enterPeople();
+ await page.waitForFunction(()=>window.__overte?.tabletVisible&&window.__peopleAudit.frame?.tabletRect,undefined,{timeout:Math.max(1,deadline-Date.now())});
+ if(opened)await enterPeople({deadline});
 }
 /** Fixed scalar projection, with no field names, errors, participant IDs or PCM. */
 export function projectPeopleAudioCheckpoint(phase,event,visitorOrdinal,row=null,category='none'){

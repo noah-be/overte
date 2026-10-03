@@ -7,6 +7,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import vm from 'node:vm';
 import { SessionAssets } from './session-assets.mjs';
+import { PushToTalkSession } from './push-to-talk.mjs';
 import { SharedTeardown } from './process-lifecycle.mjs';
 import { approvedAssetAddress, ASSET_SANDBOX_POLICY } from './validation.mjs';
 
@@ -18,7 +19,7 @@ async function fixture(load) {
     const serverEnd=source.indexOf('// Allowed clipboard quotation',serverStart);
     assert.ok(classStart>=0&&classEnd>classStart&&serverStart===classEnd+1&&serverEnd>serverStart);
     const sessions=new Map(), origins=new Set(['https://assets.example']);
-    const context={SharedTeardown,randomBytes,randomUUID,SessionAssets,approvedAssetAddress,downloadAsset:(url,origins,signal)=>load(url,signal),
+    const context={SharedTeardown,randomBytes,randomUUID,SessionAssets,PushToTalkSession,approvedAssetAddress,downloadAsset:(url,origins,signal)=>load(url,signal),
         assetOrigins:origins,publicAssetOrigins:new Set(),Buffer};
     const GatewaySession=vm.runInNewContext(source.slice(classStart,classEnd)+'\nSession;',context);
     const session=new GatewaySession({},'visitor-cookie');session.permissionsApproved=true;session.permissionRevision=1;

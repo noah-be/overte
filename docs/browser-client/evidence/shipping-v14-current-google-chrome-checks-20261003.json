@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 1,
+  "materialAssistance": "OpenAI Codex",
+  "date": "2026-10-03",
+  "scope": "Integrated uncommitted browser source, full product/unit/build/repository checks and129 authentic authored Google Chrome cases; public/native/device acceptance separate",
+  "baseCommit": "905e1a5239a1a2dcba03a799ef167a896911373e",
+  "sourceInventorySHA256": "6e6b0eab9aa7866cbe67a003478ffa9482f2c979c7235cb6e3284ee1f81ebaf2",
+  "completeManifestSHA256": "e8c3449bffe20f6b4d2f779db7fd13059e30960d95a2e69adc574126367c6b5f",
+  "preparerSHA256": "c93047cc72929cf14d726718c48363373406890f1b85b0a3c4566c5c5524087a",
+  "productionReceiptSHA256": "358fe6b186309fe988dda1d2fe657474c0719af463925a19a9d2f81d985370cf",
+  "productionDistributionFiles": 34,
+  "checks": [
+    {
+      "label": "product-unit-suite",
+      "command": [
+        "npm",
+        "test"
+      ],
+      "exitCode": 0,
+      "seconds": 28.269,
+      "logSHA256": "2f52fe2bcedd309e708fcdeea9727249e0a8c2590d35e9ed7accd8e5bb965cfb",
+      "counts": {
+        "tests": 2608,
+        "pass": 2608,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "sourceCoherent": true
+    },
+    {
+      "label": "production-build",
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "exitCode": 0,
+      "seconds": 5.938,
+      "logSHA256": "b335ed749a262e22267c803af8eb874fe42d178f26b911908a35faa7415101d5",
+      "counts": {},
+      "sourceCoherent": true
+    },
+    {
+      "label": "repository-quick",
+      "command": [
+        "python3",
+        "tests/run-project-tests.py",
+        "--profile",
+        "quick",
+        "--timeout",
+        "240"
+      ],
+      "exitCode": 0,
+      "seconds": 176.778,
+      "logSHA256": "9e9b950a820c2ee0117d61bd07dc844549f77e7871a58857811506267355a659",
+      "counts": {},
+      "sourceCoherent": true
+    }
+  ],
+  "browser": {
+    "chromeVersion": "Google Chrome 154.0.8037.97",
+    "chromeExecutableSHA256": "6c792041b07547a662e1b17974d1dc34a3db630379b45d9d89ddd7e3e68cc587",
+    "command": [
+      "node",
+      "node_modules/@playwright/test/cli.js",
+      "test",
+      "--project=google-chrome",
+      "--headed",
+      "--reporter=json"
+    ],
+    "firefoxLaunched": false,
+    "xvfbExecutableSHA256": "743d451bafa4ebd6b4ad6302c66aa4c655d245bd2c3ba1b48092857421f8e145",
+    "reportSHA256": "053a5a266c5243478e35d9e273ea2d30d2c544d46e55d1dcb3d692605aa75dc4",
+    "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "seconds": 544.947
+  },
+  "actualChrome": {
+    "pass": 129,
+    "fail": 0,
+    "skipped": 0,
+    "flaky": 0,
+    "durationMs": 533245.2629999999
+  },
+  "cleanup": {
+    "ownedProcessCleanup": true,
+    "ownedXvfbClosed": true,
+    "privateAuthorityRemoved": true,
+    "ownedProfilesClosed": true,
+    "ownedViteClosed": true,
+    "sourceCoherent": true,
+    "observedChromeProcesses": 358,
+    "observedOwnedBirths": 368
+  },
+  "retainedNegatives": [
+    "Original same-session PNG reapproval2pass1fail; real corrected3pass proof is separate",
+    "Original V14Chrome128pass1bare-importfailure preserved",
+    "Corrected-import product run2605pass1global-FD-countfailure preserved; own-FD oracle nowdetects actual close mutant",
+    "First single Chrome corrected-case parent final-port TIME_WAIT refusal preserved"
+  ],
+  "limitations": [
+    "Authored SwiftShader browser fixtures do not qualify fluid real overte_hub movement",
+    "Actual native capability and settings commit gates remain failed on separate immutable Ubuntu candidates",
+    "Fresh full native-input build and14Qt editor functional cases pass but its renderer cleanup qualification remains failed/pending repair",
+    "Physical microphone/native Tablet parity/current public-world loading gain remain open",
+    "Existing running frontend/native plugin/services are unchanged; private production build has not been installed",
+    "Fresh hosted CodeQL/current feature-head results pending publication"
+  ]
+}

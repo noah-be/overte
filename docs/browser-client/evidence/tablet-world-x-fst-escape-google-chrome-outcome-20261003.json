@@ -1,0 +1,141 @@
+{
+  "version": 1,
+  "scope": "Genuine authored native Sit, close and owned world X/standing journey with ordinary Escape/Leave cleanup; exact current source",
+  "browser": {
+    "product": "Google Chrome",
+    "reportedVersion": "154.0.8037.97",
+    "inputTransport": "automated Puppeteer CDP",
+    "legacyHarnessEngineLabel": "chromium"
+  },
+  "outcome": "failed",
+  "completed": false,
+  "terminalAccepted": false,
+  "exitCode": 1,
+  "durationSeconds": 62.881,
+  "stage": "genuine-Sit",
+  "fixedFailureCategory": "held-native-browser-sit-pose-deadline",
+  "nativeSitOverride": {
+    "variant": "Sit3",
+    "frames": 367,
+    "fps": 60,
+    "nominalDurationSeconds": 6.116666666666666
+  },
+  "observedPoseDifferences": {
+    "sitDifference": null,
+    "closedRetainedSitDifference": null,
+    "restoredDifference": null
+  },
+  "appliedJointCount": null,
+  "persistedJourneyFrameCount": 0,
+  "tabletErrorCount": 0,
+  "leaveObservation": {
+    "phase": "leave-state-confirmed",
+    "escapeSent": false,
+    "beforeEscape": {
+      "pointerLocked": false,
+      "pointerLockOwnedWorld": false,
+      "documentHidden": false,
+      "documentFocused": true,
+      "connected": true,
+      "tabletVisible": false
+    },
+    "preLeave": {
+      "pointerLocked": false,
+      "pointerLockOwnedWorld": false,
+      "documentHidden": false,
+      "documentFocused": true,
+      "connected": true,
+      "tabletVisible": false
+    },
+    "afterLeave": {
+      "pointerLocked": false,
+      "pointerLockOwnedWorld": false,
+      "documentHidden": false,
+      "documentFocused": true,
+      "connected": false,
+      "tabletVisible": false
+    }
+  },
+  "cleanupAndOwnership": {
+    "cleanupVerified": true,
+    "sourceCoherent": true,
+    "baselineUnchanged": true,
+    "browserClosed": true,
+    "ownedMappedModuleQualified": true,
+    "ownedNativeClosed": true,
+    "actualGoogleChromeObserved": true,
+    "ownedGoogleChromeClosed": true,
+    "ownedGatewayStopped": true,
+    "sourceAndDistributionUnchanged": true,
+    "preservedServiceIdentities": true,
+    "observedGoogleChromeProcessCount": 10,
+    "leaveFailed": null
+  },
+  "sourceMaps": {
+    "SourceSHA256": {
+      "observed": true,
+      "equal": true,
+      "startCount": 60,
+      "endCount": 60,
+      "startMapSHA256": "4845dfdbe750c7dadbe224b524fdca03b5ca50b4363a4c3f1306f96f001a354c",
+      "endMapSHA256": "4845dfdbe750c7dadbe224b524fdca03b5ca50b4363a4c3f1306f96f001a354c"
+    },
+    "CopiedSourceSHA256": {
+      "observed": true,
+      "equal": true,
+      "startCount": 152,
+      "endCount": 152,
+      "startMapSHA256": "d3581f9b496a948d96755d20cfd1450b920baa189573e7365079691df75fc88c",
+      "endMapSHA256": "d3581f9b496a948d96755d20cfd1450b920baa189573e7365079691df75fc88c"
+    },
+    "ShippingSnapshotSHA256": {
+      "observed": true,
+      "equal": true,
+      "startCount": 152,
+      "endCount": 152,
+      "startMapSHA256": "f16627bdff5b50bed2eb5dc0c107146fa093fdac51922cf8346b56c210cd04db",
+      "endMapSHA256": "f16627bdff5b50bed2eb5dc0c107146fa093fdac51922cf8346b56c210cd04db"
+    }
+  },
+  "limits": {
+    "originalActionsAndDeadlinesUnchanged": true,
+    "automatedEscapeOnly": true,
+    "humanOSDefaultEscapeTested": false,
+    "fullTabletAcceptanceClaimed": false,
+    "microphoneTested": false,
+    "freshPoseSamplesPersisted": false,
+    "causeBeyondFailedPredicateEstablished": false,
+    "noPerformanceGainClaim": true
+  },
+  "bindings": {
+    "actualRawReportSHA256": "c58482731f3b6b868aad01ce2ed928850b5b7b019aa98bff1885629060af0ece",
+    "parentReserializedCopySHA256": "c58482731f3b6b868aad01ce2ed928850b5b7b019aa98bff1885629060af0ece",
+    "independentParsedJSONEquality": true,
+    "actualSummarySHA256": "a14749b98027d592377d2ae3ffccbfd18a09e4ab7ee9e4d9b127361a5a81dacf",
+    "qualificationManifestSHA256": "b071ad981c18bad6e4e63a521e8b944078c5341c349d5bfbc7a09193b6dfb0d0",
+    "completeSourceManifestSHA256": "120a24ee206a04a710ccafcf32b09184eb280442e3de23184bfc0d38ea94a2a7",
+    "productionReceiptSHA256": "0892fcd6b4798195aa252156b979cba6edd659ed92d997984276e61f4d709714",
+    "distributionFiles": 34,
+    "declaredSourceRows": 97,
+    "runtimeClientRows": 96,
+    "moduleSHA256": "cb7b3c3b61cc68fda81275196d07282685c75a88e91bdb0fbf4fabdc4a77531f",
+    "artifactsSHA256": "6f1ffd9f0017ece44734c9ab675763f842b91faadf49f40534f5b7782ecabb36"
+  },
+  "retainedPreviousFailures": [
+    {
+      "rawReportSHA256": "f5a8887a48ea35511a677f8e1a2c414432a1313d2afccc75c145ccf35810a364",
+      "overallPassed": false,
+      "fixedStage": "close-before-world-key"
+    },
+    {
+      "rawReportSHA256": "12b7e289d225afac21d6ad92769e74dd07221d1df666ce4483480a23083936b6",
+      "overallPassed": false,
+      "fixedStage": "leave-cleanup"
+    },
+    {
+      "rawReportSHA256": "3b88e69dd3be314f6b1de7f7f04f4b6aafa14863149dcd993b17754cf799b5dd",
+      "overallPassed": false,
+      "fixedStage": "leave-cleanup"
+    }
+  ]
+}

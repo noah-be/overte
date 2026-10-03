@@ -25,6 +25,8 @@ KEYS={'PATH','LANG','HOME','USER','LOGNAME','TMPDIR','XDG_CONFIG_HOME','XDG_DATA
 OVERRIDES={'browser-snapshot.js':'/scripts/system/snapshot.js',
  'browser-places.js':'/scripts/system/places/places.js','browser-places-ui.js':'/scripts/system/places/placesHtml.js',
  'browser-create-properties.html':'/scripts/system/create/entityProperties/html/entityProperties.html',
+ 'browser-emote.js':'/scripts/system/emote.js',
+ 'browser-audio.js':'/scripts/system/audio.js',
  'browser-graphics-override-1.js':'/scripts/system/settings/settings.js',
  'browser-graphics-override-2.qml':'/scripts/system/settings/Settings.qml',
  'browser-graphics-override-3.qml':'/scripts/system/settings/qml/pages/GraphicsSettings.qml',

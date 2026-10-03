@@ -1,0 +1,15 @@
+// Copyright 2026 Overte contributors
+// SPDX-License-Identifier: Apache-2.0
+import assert from 'node:assert/strict';import {createHash} from 'node:crypto';
+export const PTT_RUNNER_SHA256='6dec42866e6818b1595840e4ccf517f1a56888d8752a3cfe197c0625f6996e3f';
+export const ADDITIONS=Object.freeze([
+ {before:"import {launchSystemFirefox} from './system-firefox.mjs';",after:"import {launchSystemFirefox} from './system-firefox.mjs';\nimport {captureBrowserObserver,captureInstallerSource} from './tablet-capture-browser.mjs';\nimport {runCapturePhase} from './tablet-capture-phase.mjs';\nimport {exactPttCaptureFilter} from './tablet-ptt-capture-samples.mjs';"},
+ {before:"'dist/index.html'];",after:"'dist/index.html','shared/browser-capture.mjs','src/browser-capture-target.ts','src/browser-capture-controller.ts','gateway/native-browser-capture.js','gateway/browser-capture-overrides.mjs','tests/integration/tablet-capture-audit.mjs','tests/integration/tablet-capture-browser.mjs','tests/integration/tablet-capture-phase.mjs','tests/integration/tablet-capture-worker.mjs','tests/integration/tablet-ptt-capture-samples.mjs'];"},
+ {before:' await page.goto(base);',after:" await page.addInitScript('('+captureBrowserObserver.toString()+')();');\n await page.addInitScript(await captureInstallerSource());\n await page.goto(base);"},
+ {before:' assert.deepEqual(await page.evaluate(()=>window.__pttAudit.errors),[]);',after:" report.captureProofPhase=true;\n await page.evaluate('window.__pttFrameAck=('+createPeopleFrameAcknowledgement.toString()+')();');\n await audioApp(false);\n await runCapturePhase({page,report,profile:profiles.at(-1),directory,readLog:readCreateWorkerLog,waitFor,capture,nativePulse,checkpoint,\n  openAudioHomeOnly:async()=>{await page.locator('#tablet').click();await page.waitForFunction(()=>window.__pttAudit.frame,undefined,{timeout:30000});await page.getByRole('button',{name:'Home',exact:true}).click();await click(await point('audio-app'));}});\n assert.deepEqual(await page.evaluate(()=>window.__pttAudit.errors),[]);"},
+ {before:"file:path.join(directory,'native-trusted-'+sample.kind+'-'+sample.proofOrdinal+'.png')",after:"file:path.join(directory,(report.captureProofPhase===true?'capture-native-trusted-':'native-trusted-')+sample.kind+'-'+sample.proofOrdinal+'.png')"},
+ {before:"'-t',String(seconds),'-ar','48000'",after:"'-t',String(seconds),'-af',exactPttCaptureFilter(seconds),'-ar','48000'"},
+]);
+const hash=s=>createHash('sha256').update(s).digest('hex');
+export function composeCaptureRunner(original){assert.equal(hash(original),PTT_RUNNER_SHA256);let value=original;for(const row of ADDITIONS){assert.equal(value.split(row.before).length,2);value=value.replace(row.before,row.after);}assert.equal(recoverPttRunner(value),original);return value;}
+export function recoverPttRunner(value){for(const row of [...ADDITIONS].reverse()){assert.equal(value.split(row.after).length,2);value=value.replace(row.after,row.before);}assert.equal(hash(value),PTT_RUNNER_SHA256);return value;}

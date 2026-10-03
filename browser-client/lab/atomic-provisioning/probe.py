@@ -4,7 +4,7 @@
 """Standalone owned DomainServer persistence probe; never attach or run CI gates."""
 import argparse,ast,base64,hashlib,importlib.util,json,os,signal,socket,stat,subprocess,sys,time
 from pathlib import Path
-from observer import checked_regular,validated_launch,MAX_CAPTURE,child_death_guard
+from observer import checked_regular,validated_launch,MAX_CAPTURE,MAX_ENV_ENTRIES,child_death_guard
 from target_projection import summarize
 
 def persistence_markers(data):
@@ -19,6 +19,33 @@ def persistence_markers(data):
 
 HERE=Path(__file__).resolve().parent
 sys.dont_write_bytecode=True
+FIXED_FAILURES=frozenset(('probe-path-not-canonical','fresh-probe-directory-required',
+ 'probe-directory-not-private-owned','probe-reviewed-source-changed',
+ 'fresh-probe-registry-required','fresh-probe-config-required','fresh-probe-admin-required',
+ 'original-initialization-boundary-changed','probe-runtime-directory-refused',
+ 'reviewed-packaged-native-input-changed','probe-output-refused','owned-endpoint-not-confirmed',
+ 'input-path-not-canonical','input-not-owned-regular','input-not-private',
+ 'input-size-or-executable-invalid','input-size-invalid','launch-schema-invalid',
+ 'launch-path-invalid','launch-executable-hash-mismatch','launch-executable-kind-invalid',
+ 'launch-environment-invalid','launch-environment-code-override','launch-inherited-home-changed',
+ 'launch-record-size-invalid'))
+
+def failure_observation(error):
+ # Fixed source-owned exception tags only; no exception prose or paths escape.
+ category='unclassified'
+ if type(error)is ValueError and len(error.args)==1 and type(error.args[0])is str and error.args[0]in FIXED_FAILURES:
+  category=error.args[0]
+ return {'scope':'owned-probe-failure-observation-not-causality','refusal':category}
+
+def environment_shape(environment):
+ # Observe existing schema bounds without publishing a variable name or value.
+ if type(environment)is not dict:raise ValueError('launch-environment-invalid')
+ strings=all(type(key)is str and type(value)is str for key,value in environment.items())
+ return {'scope':'owned-native-environment-schema-observation','entries':len(environment),
+  'entryBoundExceeded':len(environment)>MAX_ENV_ENTRIES,'typesValid':strings,
+  'keyBoundExceeded':any(type(key)is str and (not key or len(key)>128)for key in environment),
+  'valueBoundExceeded':any(type(value)is str and len(value)>8192 for value in environment.values()),
+  'nulObserved':any(type(key)is str and type(value)is str and '\0'in key+value for key,value in environment.items())}
 
 def sha(p,*,executable=False):return hashlib.sha256(checked_regular(p,64*1024*1024,executable=executable)).hexdigest()
 def exclusive(path,data,mode=0o600):
@@ -68,6 +95,16 @@ def owned_endpoint(wrapper,native):
   except (OSError,ValueError,IndexError):continue
  return False
 
+def verify_reviewed_sources(source):
+ # The fixed six source dependencies are commit-reviewed inputs, not a way to
+ # add imports or read arbitrary paths. Retain the original full-content check.
+ pins=json.loads(checked_regular(HERE/'source-pins.json',4096))
+ names={'manage.py','native_admin.py','guest_permissions.py','provisioning_diagnostics.py','host_tools.py','chrome_browser.py'}
+ if type(pins)is not dict or set(pins)!=names:raise ValueError('probe-reviewed-source-schema')
+ for name,value in pins.items():
+  if type(value)is not str or len(value)!=64 or any(c not in '0123456789abcdef'for c in value):raise ValueError('probe-reviewed-source-schema')
+  if sha(source/name)!=value:raise ValueError('probe-reviewed-source-changed')
+
 def prepare(repo,lab,output):
  repo,lab,output=map(canonical,(repo,lab,output))
  if repo==lab or lab in (Path('/'),Path('/tmp'),Path.home())or output in (lab,repo,Path('/'),Path('/tmp'),Path.home()):raise ValueError('fresh-probe-directory-required')
@@ -75,9 +112,7 @@ def prepare(repo,lab,output):
   st=directory.stat()
   if st.st_uid!=os.getuid()or stat.S_IMODE(st.st_mode)!=0o700:raise ValueError('probe-directory-not-private-owned')
  source=repo/'browser-client/lab'
- pins=json.loads((HERE/'source-pins.json').read_text())
- for name,value in pins.items():
-  if sha(source/name)!=value:raise ValueError('probe-reviewed-source-changed')
+ verify_reviewed_sources(source)
  sys.path.insert(0,str(source));os.environ['OVERTE_LAB_ROOT']=str(lab)
  spec=importlib.util.spec_from_file_location('owned_atomic_probe_manage',source/'manage.py');manage=importlib.util.module_from_spec(spec);spec.loader.exec_module(manage)
  from native_admin import native_admin_credential
@@ -102,7 +137,6 @@ def prepare(repo,lab,output):
   if p.is_symlink()or p.stat().st_uid!=os.getuid():raise ValueError('probe-runtime-directory-refused')
  # Same initial write mode/umask as manage.py, exclusively into a fresh root.
  exclusive(lab/'config/domain.json',(json.dumps(config,indent=2)+'\n').encode(),0o666)
- exclusive(lab/'runtime/admin.json',(json.dumps({'username':'browser-lab-admin','password':cred['token']})+'\n').encode())
  app=lab/'appimage/squashfs-root';server=lab/'server/opt/overte'
  env={**os.environ,'OVERTE_LAB_ROOT':str(lab),'QT_QPA_PLATFORM':'xcb','QT_SCALE_FACTOR':'1','QT_AUTO_SCREEN_SCALE_FACTOR':'0',
  'LD_LIBRARY_PATH':f'{server}/lib:{app}/usr/lib','QT_PLUGIN_PATH':str(app/'usr/plugins'),'XDG_CONFIG_HOME':str(lab/'config'),'XDG_DATA_HOME':str(lab/'data'),
@@ -114,7 +148,11 @@ def prepare(repo,lab,output):
  document={'version':1,'strace':str(HERE/'strace'),'straceSHA256':dep['binarySHA256'],'native':str(server/'domain-server'),'unshare':'/usr/bin/unshare',
  'settings':str(lab/'config/domain.json'),'cwd':str(repo),'output':str(output),'environment':env}
  for name in ('native','unshare'):document[name+'SHA256']=sha(document[name],executable=True)
- validated_launch(document)
+ try:validated_launch(document)
+ except ValueError as error:
+  if type(error)is ValueError and error.args==('launch-environment-invalid',):
+   print('ATOMIC_PROBE_ENVIRONMENT:'+json.dumps(environment_shape(env),sort_keys=True,separators=(',',':')),file=sys.stderr)
+  raise
  exclusive(output/'launch.private.json',(json.dumps(document,indent=2)+'\n').encode())
  payload={'security':{'standard_permissions':[{'permissions_id':name,**{flag:flag in('id_can_connect','id_can_rez','id_can_rez_avatar_entities','id_can_view_asset_urls')for flag in manage.PERMISSION_KEYS}}for name in('anonymous','localhost','logged-in','friends')],'ip_permissions':[],'machine_fingerprint_permissions':[]}}
  authorization='Basic '+base64.b64encode(('browser-lab-admin:'+cred['token']).encode()).decode()
@@ -177,6 +215,8 @@ def run(repo,lab,output):
 def main():
  p=argparse.ArgumentParser(description=__doc__);p.add_argument('--repo-root',required=True);p.add_argument('--lab-root',required=True);p.add_argument('--private-output',required=True);a=p.parse_args()
  try:r=run(a.repo_root,a.lab_root,a.private_output)
- except (OSError,ValueError,RuntimeError,subprocess.SubprocessError,KeyError,TypeError,UnicodeError):print('standalone-owned-probe-refused',file=sys.stderr);return 1
+ except (OSError,ValueError,RuntimeError,subprocess.SubprocessError,KeyError,TypeError,UnicodeError) as error:
+  print('ATOMIC_PROBE_FAILURE:'+json.dumps(failure_observation(error),sort_keys=True,separators=(',',':')),file=sys.stderr)
+  print('standalone-owned-probe-refused',file=sys.stderr);return 1
  print(json.dumps({'completed':r['completed'],'scope':r['scope']}));return 0 if r['completed']else 1
 if __name__=='__main__':raise SystemExit(main())

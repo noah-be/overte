@@ -1,5 +1,49 @@
 # Browser client status
 
+The final publication integration passes2,609/2,609 product tests with no
+skips, the production build (34 files), all34 required repository checks and all
+129 authentic Google Chrome cases with no skips/flaky results. All368 observed
+owned births,358 Chrome processes, profiles, Vite and the authenticated display
+retire. Original PNG/import/descriptor-fixture negatives remain preserved.
+[Current full source qualification](evidence/shipping-v14-current-google-chrome-checks-20261003.json).
+The final source replay includes the permanent editor ownership test and passes
+all34 required repository checks again. Production frontend bytes and the
+129-case browser bodies remain unchanged; its exact four editor source/test
+changes and documentation additions are declared separately.
+[Final publication source checks](evidence/publication-current-source-checks-20261003.json).
+The current native-input module builds with warnings treated as errors and
+passes its five basic Qt/key/render suites plus all14 genuine editor cases.
+The reviewed child-subreaper correction also passes the actual inner renderer
+retirement gate; all50 observed outer-owned births retire. Its sixteen process
+controls and three original bounded-pipe controls pass separately. The earlier
+functional pass with failed inner cleanup and outer54-birth cleanup is retained.
+[Current Qt lifecycle proof](evidence/native-web-editor-owned-cleanup-current-qt-20261003.json).
+The separate FST four-case Chrome run passes every original functional/pixel
+assertion but retains a parent cleanup failure from one owned regular temporary
+file. Its complete lifecycle gate remains pending; no Hub loading gain follows.
+An isolated Ubuntu candidate proves actual native settings readback under the
+enforcing signed bwrap profile, zero capabilities, NNP, isolated user/IPC
+namespaces and a fixed sealed tmpfile-denial filter. It is not installed in the
+managed launch path; the original operational launch failures remain open.
+Next: retain permanent cleanup regressions, publish the tested draft integration,
+then qualify the reviewed production-launch repair and fresh hosted security
+and native checks. Live frontend/module/services remain unchanged.
+
+The corrected genuine FBX test now passes its complete original geometry,
+material, twelve-image, collision and queued-revocation assertions in official
+Google Chrome154. The test imports the authentic Three.js/FBXLoader through a
+normal Vite fixture module; production loaders are unchanged. All13 observed
+owned births, four Chrome processes, profiles, Vite and the private authenticated
+display retire, with source and managed-service identity preserved. The first
+parent port-cleanup negative remains retained. An earlier full product run had
+2,605 passes and one global descriptor-count fixture failure (23 to22); an
+operation-owned descriptor identity regression now passes, including an actual
+five-descriptor leak mutant. The fresh complete2608/129 gates are recorded above.
+No public-world gain is inferred from that fixture correction.
+[Actual corrected FBX proof](evidence/model-parse-vite-import-google-chrome-20261003.json).
+That descriptor/import follow-up is complete; its failed evidence is retained
+separately from the current complete gates.
+
 ## Independent-review follow-up (2026-10-03)
 
 The existing implementation owner has implemented R1 and R2 from the independent
@@ -10,20 +54,1347 @@ rechecks captured approval/epoch at producer and reader delivery boundaries.
 The focused tests exercise shipping classes with controlled DOM/fetch/preparation
 handles; they do not establish browser pixels, native/domain or device acceptance.
 Existing replay refusal, cache limits, cancellation and product tests are retained.
-The analogous image-cache concern is unconfirmed and outside these two fixes.
+The analogous image-cache concern was not reproduced by that independent review
+and remains outside these two fixes. A later separate shipping-method CPU probe
+now reproduces old ready and pending image Sources after reapproval; a distinct
+correction is now source-integrated with borrowed-resource and six-slot controls. This
+is neither a third finding from the original review nor a browser pixel result.
 The narrow review snapshot passes all23 new regression cases with zero skips.
 Both original desired assertions and controls pass with unchanged assertions.
-The full unit suite, production build and required repository quick profile are
-pending the shared heavy-build lock. The user explicitly authorized a local
+The committed narrow successor `905e1a5239a1a2dcba03a799ef167a896911373e` now
+passes1,574/1,574 original unit tests, the production build and34/34 required
+quick-profile repository checks under the shared heavy-build lock. Existing
+verified host tools are supplied through supported Xvfb/slirp settings. The
+original first full attempt (1,569/1,574) is retained: four host-tool discovery
+failures and an incomplete prepared-cache teardown fixture. The fixture now uses
+the actual PreparedFbxCache with original assertions and disposal controls;
+production R1/R2 bytes remain exactly the independently reviewed e000 checkpoint.
+These gates cover committed narrow source only, excluding broad unpublished work. The user explicitly authorized a local
 committed checkpoint for independent bounded rechecking while those gates remain
-pending; it is not publication or acceptance. Next: independent committed-source
-review, then complete those gates under the lock. Earlier live evidence below is
-source-bound history, not acceptance of this changed source. No services have
-been restarted.
+pending; it is not publication or acceptance. Local checkpoint
+`e000f7c5474d5cfcab3890989b9a3faeb39e52cb` now passes the independently completed
+committed-source CPU recheck: six desired/control cases,56 focused shipping
+cases and one cache abort-listener reentrancy case (63 total, zero skips). The
+owner's23 new regression cases are separate and are not added to that total.
+Next: reconcile the separately reviewed security/network and image/loading changes;
+qualify their complete current source and fresh production distribution.
+Earlier live evidence below is source-bound history, not acceptance of this
+changed source. No services have been restarted or checkpoint pushed.
 
-Last updated: 2026-10-02. **Original baseline passed; additional mandatory Tablet and online-Hub implementation in progress.**
+Last updated: 2026-10-03. **Original baseline passed; additional mandatory Tablet and online-Hub implementation in progress.**
+
+Latest browser-testing instruction: Chrome only. No further Firefox launches;
+its retained results below are historical. Thirty-minute/endurance tests remain
+cancelled.
 
 ## Current implementation and next step
+
+The separate actual image-approval Chrome counterexample is now corrected by a
+bounded producer transport partition. The unchanged logical Session asset URL
+and gateway approval checks remain intact. All three original Chrome fixtures
+now pass: new red PNG bytes and a second real HTTP request after reapproval,
+old borrowed green pixels/resources, exact disposal and the six-slot scheduler.
+The original2-pass/1-fail counterexample is retained. This source-bound result
+is recorded in [image-approval-partition-google-chrome-20261003.json](evidence/image-approval-partition-google-chrome-20261003.json);
+it does not qualify native/public-world or fresh production acceptance.
+Next: complete strict current-source closure, full integrated units/build and
+repository gates, then qualify the new production browser distribution.
+
+The coherent V14 source now passes2,606/2,606 product units, a fresh production
+build (34 distribution files) and34/34 required repository checks under the
+shared heavy-build lock. The complete129-case official Google Chrome run
+retains128 passes and one failure: the model parse-turn browser fixture requests
+an untransformed node_modules FBXLoader containing a bare `three` import.
+All Chrome processes, profiles, Vite and the private authenticated Xvfb display
+closed; the nine existing managed births and source bytes remained unchanged.
+The negative source-bound result is [shipping-v14-chrome-negative-20261003.json](evidence/shipping-v14-chrome-negative-20261003.json).
+Next: correct only the genuine fixture import boundary with its original
+geometry/material/image/collision/revocation assertions, qualify it in Chrome,
+and finish the current complete browser gate. Production distribution remains
+in its private build directory; the existing live frontend is unchanged.
+
+The source owner has now integrated the separately reviewed image-approval
+correction and the bounded two-template FST window. The genuine image cache
+retains one six-slot scheduler across invalidation, keeps uncancellable decode
+slots and pending-byte budgets until settlement, and refuses old ready/pending
+reader delivery. Existing borrowed Source/sampler ownership survives. Complete
+FST ownership proof precedes the window; uncertain plans retain their serial
+path, material application remains ordered, and failure settles every issued
+producer before cleanup. The combined source passes196 focused CPU cases,
+12 full-recovery/source controls and strict typechecking. The separate three-case actual Chrome proof above qualifies PNG delivery,
+borrowed pixels and scheduler ownership. Measured Hub loading gain remains open.
+
+The reviewed hosted-network follow-up is also integrated as eleven narrow paths.
+All66 focused pure-admission/serialization/source cases pass, with the existing
+six-source Chrome schema/pins and original controls retained. On isolated hosted
+SHA42612, the protocol/network job passes its three original actual controls;
+the whole run still fails native startup and GUI journeys are not run. The
+Atomic zero-capability preflight remains failed. Its observer entry-count
+mismatch is separately measured (129 inherited entries against128); the guarded
+repair is now integrated with a finite256-entry limit, direct64KiB serialization
+guard and HOME-valid256/257 controls. Its fresh owner replay passes42 focused
+CPU cases, including the unchanged17-case projector; the six-source Chrome
+closure and original golden probe remain intact. The fixed aggregate curator
+passes its three new and four original CPU cases. Neither establishes a native
+commit cause or waives the failed zero-capability gate. Existing local bundles
+and services remain untouched. The current V12 closure admits138 exact rows and
+passes81 source/recovery controls, including unchanged historical checks.
+The first full integrated run passes2,557/2,559 units with no skips. Both failures
+are source-test preparation defects; exact current-documentation history and
+explicit0644 readable-file fixtures now retain the original assertions. V13
+admits142 exact rows and passes102 source/fixture controls. A separate actual
+Chrome source run passes two PNG cases and fails the same-route reapproval case:
+a distinct newly delivered Image/Source still decodes GREEN rather than the
+server's newly approved RED. The original trace has one no-store image GET, with
+no second request. All observed owned processes/profiles/Vite close; managed
+services remain unchanged. Correct the image producer transport before a fresh
+full build/Chrome qualification; old20ce remains historical.
+[Actual same-route negative](evidence/image-approval-same-route-negative-google-chrome-20261003.json).
+
+The qualified stable-height Audio factory, Chrome-only journey defaults and
+gateway shutdown lifetime correction are now integrated into V9 shipping source.
+The earlier V9 checkpoint passed2,457/2,457 unit tests, all126 actual Google Chrome browser
+tests, the production build and34/34 required quick-profile repository checks.
+The browser suite uses actual Google Chrome154 with authored fixtures and
+SwiftShader; it does not replace online-world or physical-audio qualification.
+Its retained build receipt binds the earlier119-row manifest and all34
+distribution files. That receipt does not qualify R1/R2 or a later source
+composition. A reviewed source-manifest successor and a new production build
+receipt are required before any new live qualification. Existing managed services
+have not been restarted and still run their previous startup source.
+[Current source, production and Chrome checks](evidence/shipping-v9-google-chrome-checks-20261003.json).
+
+The current-production Hub timing run completes both visits and walks4.20m
+and2.82m, with native position errors below1.9mm. All owned processes and
+session/profile directories retire; cleanup now passes. It renders516 real
+entities and295 models with the actual GTX1080Ti ANGLE backend. Initial steady
+fluidness passes, while initial walk/rejoin steady/rejoin walk fail unchanged
+FPS/p95 gates. The cumulative sampled idle-model CPU populations spend most
+time in renderer submission/draw dispatch; model/compile jobs are zero at all
+four measured stages. These samples include diagnostic overhead and do not
+prove a GPU cause or identify exact walking-only costs. Next: use the existing
+Chrome CPU profiler to identify the costly draw-submission paths.
+[Current real Hub CPU measurements and complete cleanup](evidence/public-hub-v9-cpu-timing-negative-google-chrome-20261003.json).
+
+An owned child gateway with one exact additional approved HTTPS origin delivers
+the previously refused JPG in both real Hub visits:46,854 bytes in169ms and135ms.
+Root independently replays the retained asset observation against its exact
+producer and original reports. The original four fluidness failures remain;
+this proves delivery, not individual texture pixel fidelity or faster world
+loading. The supplemental observer had incorrectly assumed a `jpg` category
+and equated screenshot surface dimensions with the CSS viewport. Its original
+failures remain preserved and explicitly corrected in the asset-only evidence.
+Separately, the largest observed model spends7.50s in38 serial material-template
+loads. A bounded two-template candidate now retains the R2 authority correction and
+passes72 focused CPU controls plus strict typechecking. It is now composed with the image-approval correction. Actual pixel and Hub
+comparison remain required before a loading-speed claim.
+[Actual image delivery and retained observer limitations](evidence/hub-one-origin-image-delivery-google-chrome-20261003.json).
+
+Earlier completed online checkpoint: the original Google Chrome154 Hub journey loads517 real
+entities and296 models, walks4.25m with native follow error below0.5mm, then
+rejoins and walks another2.86m. Three of four unchanged fluidness checks pass.
+The initial walking p95 is66.700ms, above the exact66.667ms limit; its31.645FPS
+and133.3ms maximum pass. No unexpected heartbeat termination is observed.
+All owned browser/gateway/native processes close, but one owned session tree
+remains. A separate exact-source CPU counterexample proves that shutdown can
+exit before an already closing session finishes recursive removal. Its narrow
+correction is integrated with five lifecycle tests; the actual residue's cause
+remains unproven. The later current-production run above now passes cleanup
+while preserving all original fluidness and cleanup checks.
+[Actual Hub measurements and cleanup failure](evidence/public-hub-fluidness-cleanup-negative-google-chrome-20261003.json).
+
+The stable-height Tablet Audio correction passes the complete original actual
+Chrome/native journey in201.815s with synthetic audio, six track replacements
+and50% gain PCM readback. Its exact qualified source is now integrated alongside
+Chrome-only journey defaults and the shutdown correction.
+[Actual synthetic Audio qualification](evidence/tablet-audio-stable-status-synthetic-google-chrome-20261003.json).
+Physical microphone qualification remains open. An earlier attempt
+fails before Chrome, with zero tunnel metadata reads. Root then verifies an
+actual socket-path mismatch: the expected owned path is109 UTF-8 bytes, while
+the created owned0700 socket is exactly its first107 bytes. Use a fresh short
+private preparation path and reject overlong socket paths before startup.
+The missing-default-source log is nonfatal in Pulse17 and does not explain
+daemon exit. The short-path successor passes exact tunnel metadata/readiness,
+launches actual Google Chrome without fake-media flags, authenticates native
+startup and observes the qualified native module. It then fails at an executable
+identity assertion, before retaining the original hardware report. The failing
+process identity was not retained, so its actual cause remains unknown. Owned
+cleanup passes. A narrowly bounded process-lifetime correction is being composed
+with current V9 source/build admission; ADC acceptance remains required.
+That current V9 successor passes82 offline controls, then the actual attempt
+again passes tunnel/startup/module/Chrome/cleanup but refuses an unreadable
+still-live member. Its fixed records distinguish six current, five proven gone
+and one same-birth member without readable executable/arguments. The exact
+kernel/process state was not retained. Next: bounded same-birth re-observation
+inside the unchanged runner deadline, preserving refusal of unreadable live,
+wrong executable, reused PID, permissions or fake flags.
+[Actual hardware socket-path evidence](evidence/hardware-microphone-socket-path-negative-google-chrome-20261003.json).
+[Later actual tunnel/startup success and process-check failure](evidence/hardware-microphone-process-check-negative-google-chrome-20261003.json).
+[Current actual live-process refusal](evidence/hardware-microphone-live-proc-negative-google-chrome-20261003.json).
+
+The bounded process re-observation successor passes105 offline controls and
+advances through the actual hardware journey. Google Chrome grants microphone
+permission and opens one real live capture track; genuine native PTT is enabled,
+trusted KeyT and the matching held acknowledgement complete. The subsequent
+three-second native PCM amplitude check fails its original0.001 RMS threshold.
+The original report's phase is the last completed step, not the failed assertion.
+All owned processes retire, source checks pass and the private cookie is removed.
+This remains a partial physical-input result; transport acceptance, released
+silence, hardware processing and human audibility remain unproved.
+[Real track, trusted PTT and failed native PCM amplitude gate](evidence/hardware-microphone-real-track-partial-google-chrome-20261003.json).
+
+The local `--open-browser` path now selects and verifies Google Chrome explicitly,
+before starting managed services. It has no system-browser fallback. Nine mocked
+Python controls, their ordinary npm-test entry and a version-only check of the
+actual pinned official Chrome executable pass. No browser window or service is
+started by those controls. Next: measure the real Hub's remaining walking margin,
+qualify the physical microphone path separately, and apply the smallest measured
+post-admission world/texture loading improvement. No Firefox or endurance test
+is used.
+
+### Retained diagnostic checkpoints
+
+Latest checkpoint: Root verifies all315 members of the copied stable-status
+successor731afd37, its complete recovery to7bd and unchanged run/terminal/cleanup.
+All35 Python,65 Node and two staging controls pass with zero skips. Current
+104-source admission,103 runtime rows,20 Chrome environment rows and the complete
+34-file production distribution pass. Fresh preparation6fbc8c34 succeeds with
+423 Root pins. The actual original Chrome/native Audio journey now passes in
+201.815s with exit0 and complete/source-coherent/cleanup-verified results.
+The copied factory is exactly a98031e5, and the unchanged actual worker21220086
+regenerates and authenticates its complete script/QML at start and end. All14
+required steps, six real track replacements/restores and trusted gain clicks
+pass. The measured50% gain wire-RMS ratio is0.500937879; native PCM is positive
+for initial/half/restored gain and decreases at half. Both native workers map
+the exact4a8 diagnostic module. All18 observed Chrome processes, the runner and
+owned gateway close, and all104/c39/19e/nine-birth guards remain unchanged.
+This qualifies the copied stable-height source correction with synthetic audio;
+it does not establish hardware processing or human audibility. Summary SHA
+4f308a1b9202bc512181c38a5be4bfee2fac60a6ca2b8ade2d93779e78e126c4,
+original raw report44d2b4f8a9cd83090e36abb95bb92b40f7b256312d4c8f6ef2d1f7d20395c4af.
+Shipping source integration follows the remaining current-input Hub/hardware
+diagnostics, so these archived strict cohorts remain reproducible.
+
+The current104-source hardware publication correction passes Root80-member
+review, whole two-source recovery and42 focused controls, plus independent
+review. Fresh preparation53c21adc succeeds with867 Root/871 copied pins and
+all34 production files. The actual hardware qualification fails at the private
+audio-tunnel readiness assertion, before Chrome or startup-proof execution.
+It retains no browser/native/module witness and cannot establish microphone
+acceptance. Owned cleanup passes with zero failures; the private cookie retires
+and host/source/defaults/nine-service checks remain exact. Summaryd97140d8 and
+private failured5708312 remain preserved. Next: diagnose the retained Pulse
+readiness failure without weakening source-card/module matching or deadlines.
+
+The independently owned8096 closure diagnostic c430bea4 ends early with a
+failure. Its final copied inventory differs in exactly two files:
+`gateway/__pycache__/network_route_diagnostics.cpython-314.pyc` and
+`gateway/__pycache__/network_udp.cpython-314.pyc`. The corresponding Python
+sources and every other copied byte remain exact; timestamp-based caches were
+regenerated after copying. Current canonical/source/distribution and all nine
+managed-birth guards still pass. The original loop exception was not retained;
+the original browser's closed-target error follows wrapper cleanup and cannot
+identify it. There are zero native closure observations. Owned Chrome/gateway
+trees and profiles close. Preserve the negative unchanged. Next: precompile only
+these two owned caches before the strict prepared snapshot, and retain bounded
+private primary and separately labelled final-admission exceptions. Keep all
+identity, complete-inventory,90s readiness and fluidness gates unchanged.
+
+Its cause-specific e4b601d7 successor now passes Root347-member and full four-file
+recovery review,29 CPU controls and an independent347-member/29-control review.
+Ownership and the whole original883 journey remain exact. Only the two validated
+owned timestamp caches are compiled before snapshot; first and final-admission
+exceptions use separate bounded0600 files. Actual new Hub qualification is next.
+
+The copied same-window observer's actual Chrome/native Audio run finishes in
+160.312s with an overall failure after all12 original PTT/voice steps and the
+additional no-implicit-microphone-grant step. All six processing changes/restores
+retain complete/current same-device and actual track-setting confirmations.
+The first gain50 calibration then fails the unchanged visible-contrast assertion
+before a physical gain click; no gain change request or gain-effect proof exists.
+Its diagnostic stage label still names the preceding AGC acknowledgement and
+must not be treated as the failed predicate. The earlier retained480x706 image
+passes the same crop's contrast gate; the exact failed synchronous canvas sample
+was not retained, so a palette/layout cause is not established.
+Both workers map the exact4a8 module and retain four
+accepted/current descendant-JS route records plus seven uncensored owned-window
+samples. All seven samples have initialized scene graph and visible/exposed
+proxy, with zero new synchronization/render/initialization signals since
+registration. These startup observations do not identify the scheduling gate.
+Original cleanup and source coherence pass; all15 observed Chrome processes,
+runner and gateway close. Next: inspect the exact later failed predicate and
+retain that exact failed sample without changing the paint gate and qualify a
+source-bound scheduling discriminator before any rendering change.
+[Actual processing readbacks, initial window observations and failed gain calibration](evidence/tablet-audio-processing-window-observation-20261003.json).
+
+The copied7bd33512 successor preserves the native7a12/QML20ac/module4a8,
+original12 PTT/voice actions, processing/gain assertions and all104/c39/19e
+guards. It adds existing render-task signal counts and retains at most one
+already-read failing pixel sample through the existing failure IPC. Root265
+member review and31 Python/22 outcome Node/two staging controls pass. Its real
+fresh preparation passes with423 Root/426 copied source pins and all34 files;
+prepared record1dc055ab. The actual Chrome/native Audio run fails in158.465s
+after all12 original PTT/voice steps, the no-implicit-grant step and all six
+processing changes/restores pass. Its primary failure is the physical gain50
+trusted press/release proof; no gain change request is sent. The retained failed
+sample has uniform opaque RGB37 and agrees exactly with the native PNG crop.
+The initial safe-curation receipt incorrectly calls it an earlier calibration.
+Root and both reviewers independently trace the exact producer: successful
+prepare clears every prior failed sample; arm does not sample; pointerDown
+revalidates pixels, catches the painted assertion as event-observer-refused,
+and complete then throws the original press/release failure. The sample is
+therefore source-bound to press-time revalidation; no event-stage label was
+directly persisted. Preserve the initial receipt and add an explicit corrected
+successor. The preceding AGC diagnostic stage is stale. Root verifies all eight
+initial safe-curation members, nine CPU controls and an exact raw replay; those
+checks did not establish its erroneous temporal label. Original
+cleanup, sources, both mapped native modules and all17 owned Chrome process
+closures pass. Gain effects, physical microphone and complete Audio acceptance
+remain open. Next: reproduce the status-dependent18-pixel control movement and
+the actual trusted-input failure in isolated Qt before changing the product.
+[Corrected press-time interpretation and actual processing confirmations](evidence/tablet-audio-gain-press-paint-negative-google-chrome-20261003.json).
+The [superseded temporal label](evidence/tablet-audio-processing-gain-click-negative-google-chrome-20261003.json)
+is retained. Root verifies all17 correction members, nine unchanged controls,
+three source/queue timeline controls and exact authoritative replay; only labels
+and the explicit source interpretation change.
+
+A separate strict offline collector authenticates the exact f91 dual-logger
+source and both retained logs. It admits exactly one byte-identical emission
+from each known category per helper key and rejects repeated invocations,
+conflicting bytes, extra/missing routes and invalid DTOs. Root24-member review,
+28 controls, independent Git-object source checks and actual owned replay pass.
+Each worker has ten qualified pairs with zero invalid/incomplete rows. Later
+task-wrapper counts are positive; the first seven pending observations are zero.
+These counts establish traversal since registration, not child work, shaders,
+texture consumption, historical absence or cold-load causality. Original censored
+projections and failed Audio acceptance remain unchanged.
+[Qualified separate offline task-wrapper observations](evidence/native-task-traversal-paired-offline-google-chrome-20261003.json).
+
+Exact generated native Audio QML now reproduces the measured18px status-layout
+flap in isolated packaged Qt5.15.3. The copied two-anchor correction reserves the
+maximum actual wrapped height of all12 finite messages at the current width and
+font. All52 software cases at240/320/480/640 retain all four control rectangles,
+complete text and original disabling; normal480 geometry remains exact. The same
+16px press target in the candidate's busy PNG passes the original contrast gate
+at102.666 with256 opaque pixels. Root verifies all30 packet members, complete
+source/generated-QML recovery, unchanged generated script and six controls.
+Owned Qt/Xvfb close and all nine births remain unchanged. This qualifies a copied
+source correction, not real gain/PCM or hardware acceptance. Next: bind the exact
+copied factory and generated-worker attestation in a narrow7bd successor, then
+run the whole original Chrome/native Audio journey. Shipping104/c39/19e remains
+unchanged. Packet SHA6ea9c011f3a05beac315a1d84500c8f8c06344a70690aac548b88b13973ed9ed.
+
+The separate copied native-closure observer passes Root's14 new controls and
+both17-case unchanged original/candidate transport/PTT test sets. Its eight
+server hunks recover the entire original source; challenge acceptance, deadlines,
+messages, authority and termination order remain unchanged. It records bounded
+fixed-category socket, heartbeat and launch-child exit observations in a private
+new file, with real synchronous-write overhead. No live closure cause is proved.
+Next: qualify an independently owned8096 Hub diagnostic copy while preserving
+managed8090/5173, Audio8095, all nine services and every original Hub gate.
+
+The corrected first-immutable-material prefetch passes both actual Google Chrome
+GPU cases in12.929s. Two exact original-source controls and the candidate satisfy
+the complete RGBA/geometry equality, actual material/image/pixel/request and
+single private-map-disposal assertions. Removal aborts the genuine captured
+model controller and retires real text readers; both late HTTP attempts complete
+before three additional real frames, with no model/image resurrection. This
+qualifies the copied source fixture, not Hub performance or worker delivery of
+an aborted late response. Current shipping source/build and all nine managed
+births remain unchanged; owned Chrome, both contexts and Vite close. Keep the
+experiment default-off and measure a copied-production Hub pair next.
+[Actual source-bound Chrome GPU qualification](evidence/fst-first-definition-chrome-qualification-20261003.json).
+
+The copied production Hub recipe's first real preparation refuses before any
+browser/native launch: the installed TypeScript package does not export the
+requested CLI subpath. Root also identifies a producer/consumer mismatch in its
+distribution assertion: the unchanged original journey returns relative JS/CSS/
+WASM rows, while the new build receipt pins all34 files with `dist/` prefixes.
+Preserve the immutable365f850c packet and failed build log. Qualify a narrow
+successor using the actual standard installed CLI and the exact original
+distribution projection; keep the complete build receipt and all journey gates.
+
+The narrow3c9f0fd successor passes Root and independent425-member review,
+21 CPU controls, actual installed CLI/original report-producer controls and
+canonical104/103/34-file/nine-birth preflight. Its real private production
+preparation now passes the standard typecheck, Vite and notices sequence;
+the private34-file receipt is63c9ad1c and prepared record7515021e. The shipping
+19e2e423 distribution remains unchanged. The actual original Chrome Hub baseline
+finishes with a failure after loading295 models/75 colliders and walking4.302m
+with a0.000644m native replication difference. Initial steady and walking
+fluid gates fail. Rejoin passes connection admission, then the native WebSocket
+closes19.619s later; the browser loses its World and the original90-second
+readiness predicate times out. The exact socket-close trigger is not retained.
+The wrapper's secondary `first-definition-mode` refusal validates an absent
+rejoin sample, not an observed runtime-option mismatch. Candidate never runs;
+cleanup, both distributions/sources and all managed births pass. No loading gain
+is established. Next: retain bounded socket/process/heartbeat cause evidence
+without changing the original deadlines, permissions or liveness requirements.
+[Actual Hub baseline and reconnect failure](evidence/fst-first-definition-hub-rejoin-negative-google-chrome-20261003.json).
+
+The copied pending-window observer's actual Audio attempt fails in60.177s at
+the initial30-second Home-frame wait, with only `joined-muted` reached. The
+private module is mapped; helper-ready and helper-accepted, capture-entered,
+grab-requested and grab-accepted are recorded, followed by capture timeout with
+no callback/save/frame/ACK. Twelve render samples pass, but zero pending-window
+rows are available. The observer admits only a C++ top-root grab, while the
+ordinary descendant JS grab bypasses that method; the actual target route was
+not recorded. No scheduler cause follows. The original cleanup criterion remains
+false because its required two profiles were not reached. All twelve observed
+Chrome processes, runner and gateway close; source coherence passes. Next:
+record the exact route and observe the same owned window for the existing JS
+grab without changing the capture, input, deadline or render path.
+[Retained initial frame failure and observer coverage limits](evidence/tablet-audio-initial-frame-observation-gap-20261003.json).
+
+The copied same-window JS observer passes23 software Qt and14 unchanged editor
+cases, but its first real preparation refuses before any Chrome/native launch.
+The immutable e2245864 packet still expects the preceding derived-QML hash in
+its wrapper, while the new producer emits the declared20ac65ae source. Preserve
+this authoring failure; qualify a recoverable dependent-hash successor and a
+producer/consumer binding regression before the actual route/window observation.
+Its narrow578dfc88 successor changes only the dependent QML digest and recovers
+the entire old wrapper. Independent22 Python,16 source/parser and14 retained
+render controls pass; the new regression executes the real composed QML against
+the actual preparation assertion and rejects the old digest. Real preparation
+then passes423 original/424 copied inputs and34 distribution files. The actual
+two-worker outcome is described above; neither diagnostic is a production fix.
+
+The fresh v8 Chrome/native Audio attempt fails overall after153.163s. All twelve
+original PTT/voice journey steps are recorded, but the appended transition times
+out at the original30-second native Home first-frame predicate before
+`runCapturePhase` is entered. Therefore processing/gain and the integrated click
+correction remain unqualified in this full browser journey. The second native
+worker records grab-entered/requested/accepted, then no ready callback, save,
+queue, frame or browser commit. The first worker's initial callback arrives in
+the22–24s quantized observation interval. Owned runner/gateway closure, all16
+observed Chrome processes, cleanup and source coherence pass.
+[Exact synthetic Audio and passive draw-readback boundary](evidence/audio-v8-render-cold-boundary-google-chrome-20261003.json).
+
+The same attempt produces12 uncensored passive render records in each native
+worker. In every record all four actual MainView draw configs are available and
+disabled. This excludes the previously unverified missing-path/enabled-draw
+explanation during those startup observations. All14 last-job CPU fields are
+zero; these fields do not establish execution cost, steady performance or a
+speed gain. The existing source-bound offline projection succeeds after cleanup.
+
+The fresh104-source World-X readiness discriminator also stops earlier than its
+target:56.353s overall, original30-second first-Tablet-frame timeout at
+`join-isolated`. Its readiness observer records zero samples/arms/ACKs; Sit,
+Close and X are not reached. Raw report
+SHAb6277e3e9dfb71eae71091f818daa907c9cc1df73bcf1247278309837de28fd1.
+Exact current source/build, native module, all ten Chrome processes, owned
+closure and the nine preserved services pass. Next: diagnose the accepted grab
+that does not reach its Qt ready callback using exact Qt5.15.3/offscreen-surface
+source and isolated software controls, then qualify the real frame path before
+repeating later Tablet assertions. No acceptance deadline is increased.
+[Exact current World-X first-frame outcome](evidence/tablet-world-x-v8-first-frame-outcome-20261003.json).
+
+Four isolated packaged Qt5.15.3 software controls establish that an accepted
+Quick grab requests rendering and completes only after an actual polish/sync/render
+cycle. With the manual cycle withheld, the event loop does not deliver ready;
+releasing one cycle produces exactly one callback and the expected red pixel.
+The three withheld-case names model scheduling refusal, rather than executing
+native SharedObject conditions. Owned Qt/display cleanup and registry/source
+checks pass. Exact native f91 source identifies held output, zero FPS and pause
+as possible scheduling gates; their state in the failing worker remains unknown.
+[Software render-cycle controls](evidence/native-quick-grab-render-cycle-qt-20261003.json).
+Next: qualify a copied-only bounded observer of the pending owned window's
+existing synchronization/render signals before making a production change.
+
+The independently reviewed exact f91 source has a separate startup gate:
+GraphicsEngine renders the splash until its queued shader-program completion
+callback sets the private compiled flag; only afterward does ApplicationOverlay
+consume the offscreen UI texture. Render-rate metadata and the four MainView
+draw flags cannot prove that consumption. A first Qt effect reference normally
+requests synchronization as well as rendering, so a previously clean scene alone
+does not establish a render-only grab bug. Source-only packet
+SHAafc53003331614234f849acee9f17661f066f5e36db7019a3f0ba27b18c21031
+passes all17 member hashes. These gates remain hypotheses for the failed worker.
+Pending-window counters describe signals after their registration; zero counts
+must not be presented as a complete historical absence proof.
+
+The initial first-material-prefetch GPU recipe was not launched. Its initial
+late-response successor, SHA4bdcbff39dd7e0b4c847821b0f80edf70a4393f38a0fa2661b6dd4fd9ad9734e,
+passes twelve new source/receipt controls but fails three of thirteen original
+copy contracts because its adjacent candidate fixture omits a required tool
+source. Its retained log also contains those failures, despite incorrect PASS
+metadata. Root rejected that packet before any browser launch. Preserve this
+negative and replace the incomplete fixture with exact self-contained canonical
+inputs; verify each independent exit code and log before freezing the successor.
+Runtime, current source/build and all original acceptance gates remain unchanged.
+The portable successor subsequently exposed an authored WeakMap-cardinality
+oracle error before reaching the candidate, preserved in the
+[original fixture failure](evidence/fst-first-definition-original-fixture-negative-20261003.json).
+The corrected source-bound successor is the two-case pass described above.
+
+The reviewed capture-readback/click correction is now integrated with its strict
+v8 successor: all17 before/after paths and34 immutable packet members were
+verified, including exact equality of the five independently qualified Lab
+changes. The104-row manifest retains all97 prior rows, migrates only declared
+inputs and preserves historical v4–v7 manifests and complete assertion bodies.
+`npm test` passes2,432/2,432 with zero skips (28.103s;
+logSHA85dfdeb51a70560927508e4f41f6500836e5d50bc8500f8555f9d0b17a202a3d).
+`npm run build` passes (6.184s;
+logSHAa5e70804740cbe5cca437f9ff74e5b8ce211d93b25f1547b0306d0e2174f85a2).
+The exact34-file distribution receipt is
+SHA19e2e42305f6a800c38342d86b17a14ad133305de2d496adfd586ecbddb0a405.
+All34 prescribed repository checks also pass:
+`python3 tests/run-project-tests.py --profile quick --timeout 240` (238.503s;
+logSHA5622b028c088f4f9275fa78de3e8acbf312640ba9b5ede88477b5d9ea304d500).
+`git diff --check` passes.
+Actual current Chrome/native processing/gain and physical-microphone acceptance
+remain pending; the previous successful isolated Qt controls do not replace them.
+
+The bounded original-callback World-X diagnostic finishes after72.235s with a
+failure before X. Held Sit1 passes after9,199ms: all seven joint names match,
+all are applied, and the native365-frame/60FPS action is admitted. One trusted
+Close click also passes: the Tablet is hidden after34ms with no recorded reopen.
+The subsequent combined native-world-key-readiness/document/world-focus gate
+fails; its individual values were not retained, so the cause remains unproved.
+RawSHA8a865d090ee9dfda908976866a18780f8a4f8fc978897016ceda1db3f9b0e6bf.
+The exact native module, all ten Chrome births, source coherence, owned closure
+and all nine preserved service births pass. Next: observe the existing focus
+predicate without changing its input, deadline or acceptance conditions.
+[Exact Sit/Close and subsequent readiness outcome](evidence/tablet-world-sit-qualified-world-ready-refusal-chrome-20261003.json).
+
+The preceding original Google Chrome Hub baseline fails three of its four unchanged
+fluidness gates (129.312s). Initial steady viewing passes; walking and rejoined
+viewing/walking do not. All295–296 models and75 real mesh colliders load from
+516–517 actual entities. Native and browser entity membership agrees within each
+join, and movement replication errors remain below0.001m. The six-loader queue
+falls from251 waiting models to zero; the first observed settled window still
+contains an800ms stall. Retained FST records show multiple material templates,
+but their overlapping wait sums are not elapsed critical-path timings. Generic
+WebGL uploads do not identify static texture reloading. Exact current sources,
+distribution, official Chrome executable, all nine service births and owned
+cleanup pass. This is a failed baseline, not an optimization gain.
+[Current Chrome Hub loading baseline](evidence/current-hub-loading-baseline-google-chrome-20261003.json).
+
+The faithful minimal actual Google Chrome Escape control now passes both
+original/candidate comparison cases. The original owns pointer lock but does not
+release it within the unchanged five-second bound; the product-owned candidate
+releases it in10.969ms after the same single trusted automated Escape. Source,
+browser closure and all nine unchanged service births pass. The preceding failed
+scaffold remains retained. This qualifies the actual minimal-canvas automated
+path; the complete World-X/native/Leave journey and human OS input remain separate.
+[Actual automated Escape comparison](evidence/world-owned-escape-automated-chrome-20261003.json).
+
+The reviewed default-off FST lookahead and product-owned Escape are now integrated
+with the exact97-row/96-client-row source successor. All18 declared files match
+their reviewed after hashes, and all original before hashes were verified before
+writing. The complete suite passes2,414/2,414, zero skips (26,841.512829ms;
+logSHA3f10c8aceab93acc5bfa3d9586ff2df36b44599a7efc34ba652832a1d315aeea).
+The fresh production typecheck/build passes (Vite4.32s, index-BrBtfGxM.js;
+logSHA3277f4ffc65163164c778d230196c003021544533eb948576f9ee50680066a74).
+Its exact34-file distribution receipt is
+SHA0892fcd6b4798195aa252156b979cba6edd659ed92d997984276e61f4d709714.
+Seventy-three focused historical-source/Escape controls also pass with no skips.
+All34 required repository quick checks pass (204.668s;
+logSHA5c7fe90ae89fe87ce8a70191ebe71f32d9fdeca9477d7f7706345888c75424d2);
+`git diff --check` passes.
+The next actual World-X and Hub comparisons must use this fresh source/build;
+no whole-Hub loading improvement or complete Tablet acceptance is claimed yet.
+
+The fresh97-source World-X attempt fails after62.881s at the original ten-second
+held Sit3/seven-joint pose predicate. The native Sit3 author override returns,
+but close, X and the full Escape/Leave path are not reached. Source coherence,
+exactcb7 native mapping, all ten Chrome process births, native/browser closure
+and all nine preserved services pass. Raw report
+SHAc58482731f3b6b868aad01ce2ed928850b5b7b019aa98bff1885629060af0ece.
+This earlier pose failure does not invalidate or extend the separate minimal
+Escape qualification, and its native/browser pose cause remains unproved.
+
+The fresh97-source Hub baseline also fails overall (133.640s): all four unchanged
+fluidness gates fail, with zero page errors, while actual loading/movement/rejoin
+and source/distribution/Chrome/service cleanup observations complete. Post-walk
+measurements are28.913FPS initially and29.265FPS after rejoining; the actual model
+counts are296 and295, with75 mesh colliders in both joins. Raw report
+SHA586f1048fe589594f537bfce4ed3a5e5eb23a09013d35aeaf5078312d82bd32a.
+The different-lookahead-option cohort passes all four original fluid gates,
+movement/native following and reconnect in127.105s. Its raw report is
+SHA6b0ee4aeb1f521c7d0f5db759754555a62b17f03c086e8870e32ea161cf11913.
+Both original first-ready polling brackets include early movement and sampling:
+25.230–28.347s without lookahead,28.562–31.636s with it. Cold readiness did not
+improve in these observations. The original strict pair refuses because the
+baseline failed; independent complete memberships/resources/request-byte metadata
+also differ despite equal headline model counts. Lookahead remains default-off.
+[Actual Hub comparison](evidence/hub-fst-lookahead-comparison-google-chrome-20261003.json).
+[Retained World-X pose failure](evidence/tablet-world-x-fst-escape-google-chrome-outcome-20261003.json)
+and [exact failed-predicate audit](evidence/world-x97-failed-predicate-audit.json)
+separate accepted native action delivery from the unqualified held pose.
+
+The capture-readback click cause is reproduced with the actual original
+Qt5.15.3 Switch resource: unchanged-ready and pending-readback messages cancel
+a held press before the fix and retain exactly one change afterward. The
+final candidate also passes programmatic no-echo, pending-change, scope-revocation,
+capture-ended, stale-epoch and rejected-change cases: all ten actual software-Qt
+cases and29 CPU controls pass, with exact source/resource and owned-process
+cleanup. The five-file production correction and its strict historical-source
+successor are now integrated as recorded above. This establishes the isolated
+click-cancellation cause, not every earlier Chrome failure or complete Audio
+processing/gain acceptance.
+[Original Qt Switch counterfactuals](evidence/native-capture-readback-click-qt-20261003.json).
+
+World-X, private Hub entity-membership reporting, the native gain Slider palette
+correction and default-off FST residence observations are now integrated. The
+preceding compound World source was SHA c02931412d89d91650cf9bf185e8aaaa9ad3c120fc07a159d770761c84839fa7.
+Thirty focused residence/material/style controls pass with zero skips
+(1,193.593149ms), including actual material method request concurrency, failure
+identity and late resource cleanup. Thirteen copied-only cold capture controls
+also pass (170.535746ms). These checks do not establish painted gain behavior,
+native World-X behavior or faster Hub loading. The strict source-manifest
+successor initially contained82 rows; its first whole-suite failure and the
+subsequent84-row repair are recorded below. Actual Chrome qualifications remain
+pending. The managed gateway has now adopted these changes through the guarded refresh
+recorded below. No other managed service has changed.
+
+The source-bound repairs now pass the complete ordinary suite:
+2,357/2,357 tests, zero skips (18,480.284396ms; log
+SHAe345d86fc40a65e478cfa0c72daf41cff9724893d85b707c0f376cddfc79f815).
+The fresh production typecheck/build passes (Vite2.41s;
+index-pobJA5pM.js; log
+SHAf9e96c127cc1c43c2e340aebeeb594f61470a2c8d0e9ebadbfe1ac234f4effcb).
+The strict successor now has84 rows, including83 exact runtime inputs and one
+unchanged historical non-runtime documentation row. Ten fixed historical
+inputs preserve all nine preceding inputs and the exact original preparer.
+The original full-source Application checks retain their c4ed/f990/09d1
+expected hashes; all42 trusted-pointer cases retain their original assertions.
+No shipping runtime changed in this repair. All34 required repository quick
+checks pass (221.854s; log
+SHAf3a8a1f5df28b7857741a072a5273f93d919674947230cb411b22d8f8fd61dc0).
+`git diff --check` also passes. The fresh source-checked World-X private cohort finishes as an actual Chrome
+failure (101.579s; exit1), before world canvas activation. Genuine Sit3 and all
+seven browser hip/leg bones pass (hips drop84.1972; maximum thigh change1.3972),
+but the original ten-second close-to-world predicate times out. Actual X
+restoration is not reached. Exact qualified module mapping, source coherence,
+all ten observed Google Chrome births, native closure and all nine managed
+service births pass. Only the owned temporary test gateway is stopped; the
+managed gateway remains running.
+[Retained current World-X attempt](evidence/tablet-world-x-current-google-chrome-attempt-20261003.json).
+Actual gain, native world stop and Hub loading measurements remain pending.
+
+The next copied close-observer Chrome cohort passes actual held Sit1, local
+Tablet close (hidden with world graphics active at11ms), native World-X readiness
+and the original native X restoration. The resulting standing pose passes the
+original gates (hips difference-0.9124; maximum thigh change0.05175). Overall
+acceptance remains false solely because `leaveFailed` is true in cleanup
+(92.037s; exit1); no main-body failure is recorded. All source, exact native-module
+mapping, ten actual Chrome births and nine-service lifecycle gates pass.
+The normal Escape/pointer-lock cleanup path is being investigated; no stale-state
+message was observed in this cohort.
+[Retained close and restoration partial proof](evidence/tablet-world-x-close-and-restore-partial-google-chrome-20261003.json).
+
+The parent-only managed module refresh passes with no rollback. The installed
+module is exactcb7 and metadata6f1; only the managed gateway restarts, and all
+eight other service identities/registry bytes remain unchanged. Independent
+readback verifies all nine live births, `/api/config` and exact current production
+index bytes at127.0.0.1:8090. New registry
+SHA1e4c4a39b8d9035d8673b87aeece42dc2375466f0aacb6901bc0a063ef65abf7;
+private refresh outcomeSHA2a834d640142113af1b6a7ab841d2582f3d7c2341934da9c41f8720bbb163519.
+This refresh is not a completed World-X, Audio or Tablet qualification.
+
+The copied-only FST lookahead GPU recipe fails its first original case
+(18.729s; Chrome154.0.8037.97; original10s predicate). The retained Vite log
+records late DRACO dependency optimization and a page reload; causal mapping of
+the exact failed predicate is being investigated before another execution.
+The owned browser/server close, sources remain coherent and all nine managed
+service births are unchanged. The proposal is not integrated or activated, and
+no faster-loading claim is made. Private report
+SHA577d80c1ec480d26c885b1c2c49424a187ddf06365e0c0d388825d3cfd949cb5.
+
+The corrected copied-only FST recipe now passes all five actual Google Chrome
+cases in16.401s. The original/candidate complete RGBA, source and visible pixel,
+request-order and exact resource-disposal checks pass, including image failure,
+entity removal and leaving during a pending load. The fixture correction uses
+the actual detached model stage rather than incorrectly expecting it already
+in the rendered scene, prebundles the two genuine DRACO imports and replaces a
+test-only `Window.status` DOMString collision with a private array name.
+Original thresholds, deadlines and failure assertions remain unchanged.
+Root runtime is unchanged, all nine managed births are preserved and the owned
+official Chrome/server close. This establishes fidelity and lifetime for the
+controlled real-FBX/HTTP fixture; actual Hub loading gain remains unproved.
+[Five-case Chrome proof](evidence/fst-definition-lookahead-google-chrome-20261003.json).
+
+The latest84-row/current-module synthetic Audio cohort fails overall after
+176.930s. All original twelve bidirectional-audio/PTT/consent/reconnect stages
+and the added no-grant stage pass. The genuine first EC click has no matching
+change request within the unchanged15s bound: the uncensored32-request snapshot
+contains only readback requests, all accepted, with zero wire errors. Processing
+changes and gain are not reached in this cohort. This differs from the earlier
+six-operation processing success below and must not inherit that result.
+Source coherence, all15 actual Chrome births, author restoration and owned
+cleanup pass. Raw reportSHA3cc673c9edd5d77c7fd4a0bfc7587c82eff1f1dcd943d235b543a46f261b89ba.
+The retained sparse first-four-capture logs place the first delay before callback
+entry:25 displayed whole seconds, approximately24–26s; save and send share its
+callback second. This does not diagnose why Qt waited. Copied-only signal-path
+observation is being prepared before another run; no hardware input is claimed.
+[Raw-bound Chrome Audio observations](evidence/audio-native-signal-gap-raw-bound-chrome-20261003.json)
+distinguish the original runner report from the independently equal parsed JSON
+written by the parent wrapper; their byte hashes deliberately differ.
+
+The copied signal-path observer's actual Chrome run also fails at the unchanged
+EC acknowledgement gate (167.515s), after the original twelve stages and no-grant
+checkpoint pass. Its37 validated signal records contain only six binding-driven
+change entries/refusals during initial state and teardown; no processing-click
+entry, native Audio forwarding or helper change forwarding is observed. The
+overall64-record cap is not reached. Effective-state observations are sampled
+to16 per QML instance; the aggregate25 includes separate instances and does not
+violate that limit. This narrows the absent change to UI/input handling without
+proving a periodic-readback, pointer or Qt cause. All16 actual Chrome births,
+exact404 source inputs,34 distribution files, native cleanup and nine-service
+lifecycle checks pass. Original raw
+SHAef4a0add082da0c1230338c04b158027593a15b57dfe8f87824bd0046f222477.
+Processing and gain remain unqualified for this cohort.
+The first sparse cold capture callback takes23 displayed whole seconds,
+approximately22–24s. Saving and sending each occur within one displayed second
+afterward. These timestamp bounds identify where waiting occurs without proving
+its cause. The raw report and independently equal parent JSON retain different
+byte hashes; all private observations are projected into bounded aggregate fields.
+[Actual signal-path observations](evidence/audio-capture-signal-absent-chrome-20261003.json).
+
+The separate no-fake-device hardware cohort selects the real non-monitor input
+and establishes its new private authenticated Pulse tunnel without changing host
+source/default settings. It then refuses in a Chrome process-argument check,
+before a native module or completed microphone transport is observed. Exact
+Chrome closure, listener-credential retirement and owned cleanup pass. No
+completed physical microphone, processing efficacy or human audibility is
+claimed. The actual private summary is
+SHAb451797106e3623d39917bb93277850b6e056709b64460aac804e1b9d34602d9.
+
+The ordinary-Escape World-X cleanup derivative also remains failed overall
+(92.085s). Genuine Sit, close, World-X/native standing restoration and source/
+native/Chrome/nine-service ownership checks pass. Its new bounded observation
+records an owned world pointer lock before Escape and immediately before Leave;
+the trusted Escape was sent but the observed lock was still active. Leave fails
+and no post-Leave observation exists. This is not proof that a physical user's
+browser Escape default fails. A normal product-owned Escape path is being
+prepared separately; the original Leave predicate and deadlines stay intact.
+Raw reportSHA3b88e69dd3be314f6b1de7f7f04f4b6aafa14863149dcd993b17754cf799b5dd.
+
+The next actual Chrome capture separates callback, synchronous PNG save and
+queued bridge stages without adding a capture, clock, timer or wait. The
+original first-frame deadline remains unchanged. One physical non-monitor input
+is currently available according to read-only host metadata; a separate private
+Pulse tunnel qualification is being implemented. No physical input has yet been
+captured, and synthetic results below remain explicitly synthetic.
+
+The first whole-suite attempt for this composition fails seven checks
+(2,159/2,166 pass, zero skips;18.589s; private log
+SHA8b121830c70d93ed46dbbe90871f6a4e6579f1e151705466281e4d785e81e445).
+Three native application composition controls still apply their old recovery
+directly to World-X sources; two Switch-width controls do not first recover the
+palette addition. Two audit import failures come from CPU VM extraction
+including newly inserted TypeScript World-X methods; the QML audit
+instrumentation itself accepts and recovers the current QML correctly. The
+lower discovered-case count reflects those import failures. The source-bound historical recovery and bounded method extraction repairs
+now pass the fresh whole suite and production rebuild recorded above, preserving
+the original assertions and rejection gates. Actual browser qualification remains
+pending.
+
+The source-bound Chrome first-frame diagnostic finishes as a partial failure
+(157.548s). All original twelve synthetic/native audio checkpoints and the
+additional no-grant checkpoint pass. All six genuine native EC/NS/AGC changes
+and restorations pass with one same-device acquisition each, retirement of the
+old source before acquisition, exact effective settings and one live track.
+Source coherence, native author restoration and owned cleanup pass; all15
+observed Chrome births close. Gain acceptance and overall completion remain
+false. The original raw report is SHA34bb9d1109230074422cd4200cc0ec5fca9470cf4effc7f61edbbb273990df99;
+its parsed-equal reserialized copy is SHA537f2d3b6d69b6abc2ee51dd29d4ad683a3e4c66186d397e654ee96d6ce34f4b.
+[Current processing partial proof](evidence/tablet-audio-v5-processing-partial-google-chrome-20261002.json).
+
+The first gain50 click is correctly refused before physical input: the actual
+16x16 native Slider track crop has256 opaque pixels but mean-channel contrast17,
+below the unchanged strict greater-than20 painted-control requirement. A local
+Slider palette correction preserves native geometry and input behavior and is
+being composed with the reviewed World-X/source-guard changes. No gain/PCM pass
+or hardware microphone/DSP efficacy is claimed. In this run the native first
+capture finishes about26s after helper readiness and pre-grab observation;
+save/render work is not yet separated. This successful start does not resolve
+the previous30s first-frame failure.
+
+The first actual integrated v5 Google Chrome154.0.8037.97 attempt is retained
+as a failure (59.162s): the original joined-muted stage succeeds with seven
+entities, then the original initial acknowledged-Tablet-frame30s wait expires.
+No new microphone processing operation was reached. Report
+SHA3860b373e0196d0a6fc2390bebd68cfb17637905c551e8b57e427bd2f026a6ab;
+wrapper summary SHA4279dc13f0a3d671fc58d96572b97550565f1b5d83820cf96e219c369a587f46.
+All381 source rows/428 tests/five configs/34 distribution files remain coherent.
+All12 observed actual Chrome processes, the owned runner and temporary gateway
+close; the original cleanup predicate is false because only one of the required
+two admissions was reached. That predicate does not establish a process leak.
+The missing first frame is under investigation; neither a relaxed deadline nor
+a completed full12/current-processing/gain result is claimed.
+[Retained current Chrome attempt](evidence/tablet-audio-v5-google-chrome-first-frame-attempt-20261002.json).
+
+The retained Hub loading trace identifies a late model with12,914ms queue wait
+and576.9ms loader residence; its FST material definition/template account for
+56.1/162.6ms of that residence. These overlapping wall measurements are not
+CPU/GPU cost or a proven world critical path. The current maps inside one
+material already load concurrently, with six bounded image requests. Actual
+replacement counts and template-map/alpha waits are being measured before
+changing cross-material scheduling. No faster-loading or quality-equivalence
+result is claimed for the current source composition.
+
+The preceding integrated runtime6, Style-v4, strict capture-v5, gzip-gold and
+Chrome-only composition passes2,293/2,293 ordinary component tests with zero
+skips (18,333.701705ms; log
+SHAd54cab0cc3e2b0b3aba2192f626dedefb4c2d7450039412d1b25bbc3634e9294).
+Whole-project TypeScript and the fresh production build pass (Vite3.67s; build
+log SHA1cc46d0fdd6e925e17a6e5b1611d7e66fe6644f3ec823dfa1e6eafc46ac838e0).
+All56 strict capture rows,20 Chrome configuration pins and all nine managed
+service births are verified. The original full12 runner and shipping added phase
+remain exact. The new same-device observer runs only in the private acceptance
+copy; no permission bypass or synthetic ACK is introduced. The whole current
+Chrome capture journey still awaits gain/PCM qualification; the later partial
+evidence above qualifies the original12 and six processing operations only.
+No hardware microphone claim.
+
+The preceding source composition, including the three native microphone-switch
+width corrections and the bounded parsed-FBX resource checks, passes2,237/2,237
+ordinary component tests with no skipped cases (17,057.689ms;
+log SHA5e869a4169e2968dcf4aaa6c83fdebcdc8f5ceff42cd81ebed75366014b39b2e).
+The production typecheck/build passes
+(169 modules; Vite2.54s; index-BRfpD40H.js). These checks launch no browser.
+The preceding Audio v2 composition passed2,181/2,181 ordinary contracts.
+The exact native Audio script and RCC
+are independently verified against the installed package. The managed gateway
+now runs this composition. A separate copied-only genuine capture acceptance
+adds browser-tab/no-grant, effective processing and signed-PCM gain assertions
+after the complete unchanged twelve-stage PTT journey. All24 focused acceptance
+contracts pass (170.316ms). The initial actual Firefox opening failure was a
+passive observer retaining navigation54 across fresh-session navigation1.
+The reviewed phase-boundary observer reset preserves the complete original
+runner. The subsequent proof-ownership correction retains preparation samples,
+persists every allocation and preserves the primary failure during cleanup.
+The third actual pair passes all twelve original stages in both stock engines
+(Firefox133.449s, Chromium132.102s), then genuinely opens the Browser microphone
+tab, verifies inactive/no-grant state and attests the exact generated worker.
+Two new control images persist; the next original checkpoint refuses EEXIST
+because fresh-session queue ordinal2 repeats a first-session filename. The fifth
+exact reversible anchor gives only the added post12 phase its own exclusive
+filename prefix. All original12 filenames, assertions and byte-exact runner
+recovery remain. The fresh fourth pair preserves failure: Firefox151.508s stops
+in the new capture phase; Chromium71.544s stops at the original real-T-release
+gate and its completion cleanup assertion fails. Chromium's primary is the
+original PCM byte cap: ffmpeg produces240,009 stereo frames/960,036 bytes,
+36 bytes above the unchanged960,000-byte limit. Only one admission was reached,
+so the original required-two-admissions cleanup predicate is false; the owned
+browser/leader close and native author mute restoration pass. This flag does
+not establish a leaked process. Firefox's helper consumes an already displayed
+Native-tab record after clicking Browser: native Echo enabled=true is compared
+against visitor support=false. Later genuine Browser-tab captures are correct,
+but do not repair that failed assertion. A selected-region readiness guard and
+exact output sample fixture bound are being prepared separately; no retry,
+relaxed byte cap or remaining capture-effect success is claimed.
+The fifth pair's Firefox had already stopped before the Chrome-only instruction;
+no further Firefox journey is scheduled. Its Chromium158.438s completes all twelve
+original gates under the exact sample bound, then verifies the selected Browser
+tab and real microphone grant. All three processing controls are supported and
+effective=true. Preparing the first genuine control's painted target times out.
+The exact native Switch wrapper has no implicit width; the generated callers
+omit width, placing the unchanged Switch background at x=-20. The strict
+full-bounds refusal correctly prevents the uncertain click. Supplying
+width:switchWidth at the three callers is now integrated. An independent review
+matches the original Switch fixture to Git f91 source and recovers the complete
+old generator and preparer byte for byte. All26 focused width/source-manifest
+contracts pass. The strict new layout-v3 manifest is
+0a40b3182cd441791f88a049e0ced1681484f7719c75ea0551546ba7e7e97e14;
+its preserved verification fields are historical, not new GUI results.
+All341 shipping/
+copied source assertions and full owned cleanup pass. No processing toggle or
+gain completion is claimed. The fresh actual Google Chrome154.0.8037.97 journey
+passes all twelve original PTT stages (158.001s total attempted journey), opens
+the Browser microphone page without permission and grants one real synthetic
+stream explicitly. The corrected switch now has x=0, its current painted target
+and matching trusted press/release pass. The next unchanged15s request/accepted
+result predicate times out on echoCancellation; no processing effect is proved.
+All352 shipping/copied pins,405 test files, five configs and34 distribution files
+remain coherent; native author restoration, both worker cleanup, observed Google
+Chrome closure and the owned gateway stop pass. Existing native rows alone
+cannot distinguish an absent request from browser rejection followed by rollback;
+a source counterexample verifies that ambiguity. Persist already-collected
+bounded request/result/trusted diagnostics before another genuine attempt.
+The separate missing HifiConstants declaration is now corrected in source;
+all31 focused style/width/admission controls pass, without a styled GUI claim.
+The additional genuine Chrome diagnostic preserves all12 original successes
+(159.383s), then records the exact echoCancellation=false request and matching
+apply-refused response, with effective=true after rollback and zero wire or
+trusted-input failures. The click and correlation are working. A small actual
+Chrome API probe reproduces OverconstrainedError for three exact in-place
+variants; a preferred false resolves but leaves effective=true. Acquiring a
+replacement before retiring the old stream also fails later changes. Retiring
+the old source first then acquiring the same private device with all three
+exact processing values passes all six toggles/restorations. These are synthetic
+API proofs, not completed Tablet acceptance. The consent-owned same-device
+restart is now integrated. All40 focused restart/Target/Audio controls pass with
+zero skips (833.074734ms), preserving the original eight-second deadline, one
+unresolved request slot, existing gain/PTT owners and late-result cancellation.
+Exact readback verifies all three settings before publication. A normal refusal
+permits one bounded same-device restore; definitive permission denial ends
+capture without requesting permission again. Independent unchanged denial and
+double-refusal controls also pass. The final source-bound v5/preparer and copied additional-phase observer are
+integrated; all32 new acceptance/source controls pass. Actual Chrome full12 plus
+six processing operations/gain acceptance remains pending.
+The managed gateway still needs its owned source refresh after qualification.
+[Retained request/result diagnosis](evidence/tablet-audio-v3-chrome-constraint-diagnostic-20261002.json).
+[Actual restart API probes](evidence/chrome-microphone-processing-restart-probes-20261002.json).
+
+Chrome-only defaults, explicit reviewed executable selection and the current
+17-stage Jenkins scope are integrated. All76 selected selector/Jenkins/curator
+CPU controls pass; historical evidence remains unchanged. Actual current Jenkins
+remain pending; the complete post-change component/build checks now pass.
+[Exact current Chrome Audio attempt](evidence/tablet-audio-v3-google-chrome-attempt-20261002.json).
+Exactly two owned derived Python
+caches are compiled before the freeze, with unchanged runtime security environment.
+Hardware microphone behavior remains unqualified.
+
+The default-off parsed-FBX template now admits only the exact reviewed detached
+DirectionalLight graph and rechecks bounded node/resource identity before cloning.
+It refuses post-inspection child, geometry, material and clip substitution;
+throwing shadow-map disposal cannot skip the separately owned map. All89 focused
+contracts and the current whole-project typecheck pass. Original graph, image,
+budget, cancellation and registered GPU assertions remain intact. All thirteen
+unchanged named/unnamed/World/Directional GPU bodies now pass in authenticated
+Google Chrome154.0.8037.97 (36.336s). All thirteen contexts, the actual observed
+Chrome births and the owned Vite server close; source/distribution and all nine
+managed process births remain coherent. The initial driver failed before any
+browser launch because its dynamic CommonJS namespace had no named exports;
+the exact one-line interop correction preserves all thirteen assertion bodies.
+A strict same-scene Hub comparison remains pending; no loading improvement or
+cache activation is claimed.
+[Current Google Chrome pixel/resource qualification](evidence/parsed-fbx-directional-google-chrome-20261002.json).
+
+The current prescribed repository quick profile also passes all34 suites,
+zero failures (245.13s; log SHA9dcfce78773d5ddbc5a59115392c170b26b94180bafb554b22b8988a3b0eb37e).
+`git diff --check` passes. Neither check launches Firefox.
+
+All four fresh current-source Hub journeys pass their unchanged fluid/movement/
+native/rejoin gates: Chrome baseline97.488s/templates103.410s and Firefox
+baseline105.975s/templates107.831s. Exact stock executables, source/distribution,
+owned cleanup and all nine managed services remain coherent. These are complete
+journey durations, not loading-time improvements. The template candidate still
+records201 provisional nodes-stage refusals and124 repeat starts after refusal
+in Chrome. Its464 parse calls exceed baseline295. The strict Chrome comparison
+refuses a genuine scene-count mismatch (296→295 loaded models); the Firefox
+comparison initially refuses the unrecognized actual `firefox/156.0` version
+syntax. The narrowly corrected passive parser passes50 contracts (227.656ms),
+retaining exact version equality and all scene/asset/source/fluidness guards.
+Both retained actual pairs now refuse scene-count mismatch.
+Parsed templates remain default OFF. Identify the actual structural refusal
+before claiming or activating a world-loading optimization.
+[Four exact current-source journeys](evidence/hub-unnamed-template-paired-stock-20261002.json).
+
+The first parent-owned Qt World-X qualification compiles the new native module
+against the exact packaged Qt5.15.3 and passes the original input, grab and
+Application-route stages. The new visible-readonly-TextInput negative then
+fails at its unchanged assertion106. ItemAcceptsInputMethod is false for that
+read-only editor, so the route now explicitly refuses the native editor classes
+within the existing visible/enabled guard. The fresh exact Qt5.15.3 candidate
+passes the unchanged assertion106, all original native input/grab/Application
+controls and all fourteen genuine editor cases (19.460s). All30 source files,
+six runtime libraries, nine resources and three signed SDK package pins remain
+coherent; owned renderer/display stop and inherited HOME is preserved.
+The candidate remains unintegrated; actual installed Sit/Stop acceptance is
+pending. The failed earlier test and its original assertion remain retained.
+[Exact candidate Qt/editor qualification](evidence/tablet-world-key-readonly-qt-20261002.json).
+
+The current distinct Sit→Home→Tab→X journey preserves both-stock failure:
+Chromium59.647s and Firefox63.572s qualify genuine Sit, all seven matched native/
+browser joints, fresh displayed Home/current authority and six real browser Tabs
+to the owned canvas. The original native restore-handler ten-second gate fails
+in both, with no Tablet error. Exact current bf73 native module/CPP/header mapping,
+stock ELF/source/distribution, baseline seven entities, gateway/native/browser
+cleanup and all nine managed services qualify. One subsequent Chromium observer cohort (60.115s) qualifies the same original
+failure and identifies the accepting recipient: native GLCanvas forwards to the
+same owned Tablet QQuickWindow; its key press is accepted there, and Application
+is never entered. The pinned native Window.qml intentionally consumes unmodified
+keys while focused, including Home. This is not a lost browser Tab or justification
+for a fallback past native input policy. A separate normal close/owned-world-X
+route is being implemented; the existing route and failures remain unchanged.
+[Bounded original recipient observation](evidence/tablet-sit-native-key-recipient-20261002.json).
+[Retained distinct Home/Tab failure](evidence/tablet-sit-home-tab-stop-attempt-20261002.json).
+
+
+Current verified checkpoint is `261fc77c1c322410f6096e65dcff0388c372286d`
+on the authorized fork, with open draft PR1023. The frontend changes below are
+integrated locally and await their next reviewed publication checkpoint.
+
+The source composition preceding the optional World/cache change passes the
+genuine twelve-stage Desktop PTT journey
+in both stock headed engines: Firefox156 (108.842s) and Chromium154 (97.588s).
+All297 shipping/copy source and distribution pins remain identical before/after;
+the sole copied-QML difference is passive test observation. Both voice directions,
+real T hold/release, actual blur/hidden release, Tablet-open release, ordinary
+mute, native mode-off, leave-held microphone cleanup and a fresh explicit grant
+on rejoin pass. Native peer unmute is verified and mute restored; both browsers,
+two native profiles and the copied gateway are closed. Synthetic audio is
+explicitly separate from physical microphones or human audibility. In-domain
+permission-revision transition is not exercised by this cohort.
+[Current exact-source PTT proof](evidence/tablet-ptt-current-shipping-stock-20261002.json).
+
+The preceding post-Application-key/owned-Escape/popup/Home-Tab ordinary suite passes2,065
+components with zero skipped cases (12.689s parent duration), and current
+production typecheck/build passes (166 modules; Vite1.53s). The previous2,041-case
+composition had one stale historical-CPP fixture hash failure. The corrected IME
+test requires the exact new whole CPP, removes only the two separately reviewed
+key additions exactly once, and reproduces the complete historical text source;
+all34 focused original IME/composition checks pass. An independent source review
+confirms all fourteen editor fixture bodies remain unchanged. Historical failed
+runs remain retained. The popup-opacity addition passes all17 focused graphics controls and the
+current ordinary-suite checkpoint. Subsequent test-only bounded network stderr
+retention passes11 focused controls; its real three Linux controls are separately
+qualified below without a hosted success claim.
+
+The new exact unnamed-FBX compatibility addition passes all40 focused controls
+(598.609ms). The subsequent composed ordinary suite passes2,086/2,086 with no
+skips (12.899s parent; log SHA47cf2decd358f0e483722df30e4c119e32a670705497586c340bac4a8e20be56).
+Whole-project production typecheck/build passes again (166 modules; Vite1.54s;
+index-Cn2mpLkV.js). Parsed templates remain default OFF, with no Hub speed claim.
+All three unchanged registered plain/skin/morph GPU assertions pass in current
+Chromium154 (5.877s) and Firefox156 (8.271s), with owned resources/browser/server
+closed and all managed services/source pins preserved. These existing named
+fixtures are regression proof; separate unnamed-image and actual Hub gates remain.
+
+All34 required repository suites pass again on the current Root composition
+(149.07s; zero failed; `python3 tests/run-project-tests.py --profile quick --timeout 240`).
+The current bounded-stderr test addition also passes all four actual local Linux
+network controls (1.227s), including the three original route, abrupt-parent and
+managed-UDP cases. This local result does not qualify the failed hosted Ubuntu
+run or identify its discarded stderr cause. Full trusted
+C/Python contracts previously pass132/132 with reviewed signed-runtime inputs.
+The source-coherent Atomic diagnostic now passes127 cases (3.086s), including six
+new exact-five-source pin/schema/mutation/symlink controls. This deliberately
+updates only the reviewed manager pin and bounded validator; no native argv,
+capability, workflow or provisioning gate changes. Actual hosted refusal remains
+failed. The managed gateway is restarted from current key-capture and popup
+source; the other eight registered identities remain unchanged.
+Local browser URL: http://127.0.0.1:8090.
+
+All six unchanged default-off clone pixel/lifetime bodies pass in Chromium
+(33.755s) and Firefox (43.804s). Firefox's prior error was actual BiDi serialization
+of a foreign-realm argument object. A schema-checked projection of the two fixed
+argument fields preserves the registered function and assertion bodies; four
+actual installed-serializer controls pass. No clone loading/FPS gain is claimed.
+
+Hosted6f7 reveals two separate causes. Five descriptor contracts assumed immutable
+UTC bytes, but official Ubuntu image20260927.320.1 recursively sets /usr/share to
+0777; the actual114-byte root-owned file is writable and correctly refused. The
+test now uses a genuinely immutable nested systemd target with every original
+hash/FD/ancestry/budget assertion plus three writable-byte refusal negatives.
+Actual hosted e3b2 execution no longer reports those five writable-file fixture
+failures. Three remaining fixed projections identify the oversized canonical
+Python library and package libpython3.12t64 version3.12.3-1ubuntu0.17. Installed
+package metadata agrees with independently authenticated package evidence; it
+does not prove installed bytes or loaded dependency membership. The original
+4MiB general bound remains unchanged. Atomic's actual outer127 projection still
+identifies capability-action-refused. Four new CPU controls qualify an exact
+fixed operation projection; its next hosted result must identify the suboperation
+before a cause-specific correction. Actual hosted3c53 Atomic37013432622 now
+identifies apply-bounding-set, outer127 with no milestones and untruncated
+prefixes. The same hosted97 run also refuses a Python-version-dependent AST-dump
+hash. Both failures are retained. The operation alone does not distinguish a
+missing effective CAP_SETPCAP from a policy-refused bounding-drop syscall. No admission is widened
+by diagnostics. The reviewed explicit signed-library composition is integrated
+locally:132 trusted contracts pass (4.588s), and actual same-cache gpgv/index/
+package/member replay succeeds from five private pinned inputs. Local Fedora
+Python does not prove installed Noble bytes or active AppArmor; hosted remains
+the required qualification. Default v2 and the general4MiB bound remain unchanged.
+[Exact image cause review](HOSTED_6F7_CAUSE_REVIEW.md).
+
+Both short default-quality Hub residence journeys pass all four original
+fluid/native/reconnect gates: Chromium91.810s and Firefox102.473s. The bounded
+ledger observes311 owners,295 completed and16 refused, with no censorship or
+invalid clocks. Overlapping queue/loader/publication totals are not elapsed world
+time or a critical path. Three-second polling first observes readiness17.110s
+and20.274s after connection; this does not establish a loading improvement.
+Bitmap upload and material-clone experiments remain default OFF.
+
+The fresh parsed-template Hub comparison preserves all original gates. Chrome
+baseline and templates pass (100.384s/103.454s); Firefox baseline passes
+(104.106s), while its template journey fails (59.566s). These are complete journey
+durations, not world-loading times. Every source/distribution pin, actual stock
+browser identity, owned cleanup and nine managed services remain coherent.
+The candidate Firefox failure is the original2500ms native freshness gate; its last retained pre-walk native/incoming packet age is6413ms while the model/cache queues are settled. Both initial fluid gates pass; native-follow/rejoin are not reached. No causal cache relation is established. Chrome comparison refuses scene-count mismatch (295→296 models,516→517 entities). Recorded parse calls increase294→456 in Chrome and294→464 in Firefox, including producers that refuse and original fallback parsing. Exact refusal subsets remain unmeasured. Templates remain default OFF; no loading gain is established.
+
+Published checkpoint261fc77 removes the duplicate Browser topic-push trigger; matching PR updates retain all jobs, checks, path gates, permissions and deadlines. The signed-runtime preparation steps change explicitly, independent of deduplication. This exact head has one Browser PR run37027426577. Atomic37027419548 passes signed preparation and120/121 tests, then preserves the original zero-cap exit127/apply-bounding-set refusal. Its source-owned bounded journal projection is uncensored with zero matching rows and status no-matching-owned-audit-record. This neither establishes nor excludes a kernel policy cause. No manual rerun or second push was made. Future checkpoints remain batched.
+
+Actual261fc77 Browser37027426577 now passes both signed-runtime build/install qualification steps, requiring whole installed interpreter and discovered library comparisons; the earlier oversized runtime admission failure is corrected. Its published1551-component run passes1548 and fails the three original network sandbox controls. Native core startup separately refuses original strict guest provisioning with commit-failed, unchanged stored configuration and retained prior rights. Both hosted browser journeys are skipped. Owned stop and safe curation pass. HTTP200 alone does not establish persisted guest rights; exact atomic-file commit cause is still being investigated. No new push/rerun follows this failed result.
+
+The explicit graphics scan is integrated with45 CPU controls and its correlated
+ordinary native request/apply/ACK/cache route. Independent review corrected
+Scan/Apply ownership overlap. Actual Chromium passes all17 native controls and
+an unchanged-settings Scan:122 actual World renders in2.266s, unchanged1280x900
+buffer and no graphics requests. The unchanged five-second hidden-tab gate then
+fails because the original driver context forces focus. A public owned-default
+context followup removes that emulation; its first actual setup correctly refuses
+a viewport API that changes native density. Twenty focused CPU controls qualify
+the exact-tab public viewport correction. The actual repeat passes all17 native
+controls,117 genuine World renders in2.347s, unchanged2133x1499 buffer at native
+DPR1.6666666269302368, fresh native Home and genuine hidden/leave cancellation
+in159.026s. Every source/distribution pin, baseline and owned cleanup passes.
+[Exact short Chrome Scan proof](evidence/tablet-graphics-scan-stock-chromium-20261002.json).
+Firefox passes16 controls, then refuses the final reconnected profile: browser
+settings remain70%, but native popup pixels show Low instead of Custom. Scan is
+not reached there. Both original cohorts preserve source/distribution coherence,
+baseline services and owned cleanup. Optional Apply is not yet GUI-qualified.
+
+The first below-control popup-placement actual repeat fails in both stocks after
+nine effective controls: Firefox75.070s and Chrome71.150s preserve the original
+fifteen-second visible-row deadline at the first preset80 opening. The retained
+native pixels show the selected Default row and real popup, with description and
+slider bleeding through the original90% background; its unchanged pixel oracle
+returns no qualifying popup. This does not establish an index/ACK failure.
+A scoped opaque background for the browser Resolution preset is now integrated;
+other native combo alpha and all handlers/indices/source targets stay exact.
+All17 focused controls pass. The unchanged native17-control/Scan/hidden/rejoin
+pair now passes in Firefox167.778s and Chromium158.872s: all17 native effects,
+all13 painted-popup checks, unchanged-settings Scan, genuine hidden/leave
+cancellation and persisted reconnect pass. The scan observes100/117 actual
+World renders over2.669s/2.546s with unchanged2133x1500/2133x1499 buffers and
+zero graphics changes. Both actual views recommend retaining settings, so
+optional Apply remains unqualified; no synthetic slow sample is used.
+Every source/distribution pin, actual stock ELF, baseline and owned cleanup
+passes, and all nine managed services remain. [Exact both-stock proof](evidence/tablet-graphics-popup-opaque-stock-20261002.json).
+
+A copied-only native Firefox state audit fails earlier after11 controls
+(86.697s), while preserving all source/copy/distribution and owned cleanup.
+At the exact displayed/capture sequence105, native page ready/state60, selected
+currentIndex2 and hovered highlightedIndex0 agree with painted row0. This proves
+selected state is correct in that cohort and distinguishes hover drift from a
+stale selected profile or capture mismatch. The314 projected records are neither
+censored nor refused. Native pointer delivery is the next causal diagnostic;
+the unchanged fifteen-second popup gate remains failed.
+
+The unused standalone parsed-FBX template cache passes20 actual loader CPU
+contracts and whole-project typecheck. Its three original plain/skin/morph GPU
+bodies pass in Firefox (8.978s) and Chromium (5.983s), including zero full-frame
+pixel delta, independent mutable descriptors and unchanged image Source versions.
+Original Chrome first refuses a real Vite dependency-discovery page reload; a
+separate public optimizeDeps.include setup correction prebundles SkeletonUtils.
+Owned browser/Vite cleanup and all nine services remain unchanged. A subsequent reviewed default-off World composition and owned-skeleton
+cleanup now pass42 focused CPU contracts and the current production build.
+Both stock engines pass all four actual World original/native-FST pixel bodies
+(25.131s/30.726s): all five fixed snapshots, actual twenty-render-frame stability,
+independent mutable state, unchanged original request sequence, no warnings and
+complete model/material/private-bone cleanup. One producer serves two owners in
+each authored case. The cache remains disabled by default until an actual Hub
+comparison establishes a gain. The separate skeleton GPU counterfactual proves
+one previously retained private texture is released while another owner remains
+visible in both engines (5.177s/7.867s). Original Firefox foreign-realm caller
+refusal is preserved; a Boolean-only host-realm argument projection leaves the
+registered function and assertions unchanged.
+[World pixel proof](evidence/parsed-fbx-world-stock-pixels-20261002.json) and
+[skeleton allocation proof](evidence/owned-skeleton-gpu-stock-20261002.json).
+
+Current corrected fullscreen geometry and owned Escape pass all four registered
+Chrome cases (8.759s) and all four equivalent stock Firefox cases (17.062s).
+Exact geometry, original pixels/trusted input, current-owner lifetime, real
+cross-origin denial and leave/rejoin assertions remain. All source/distribution
+pins and nine services stay coherent, and owned browsers/Vite close. The prior
+fractional-geometry, header-policy and Chrome renderer-Escape failures remain
+separate historical results. This authored Tablet fixture is not native-domain
+acceptance.
+[Current exact-source fullscreen proof](evidence/fullscreen-owned-escape-stock-20261002.json).
+
+Actual fullscreen runs preserve their failures. Chromium passes three of four
+unchanged bodies; exact DOMRect/integer-innerWidth equality fails at native
+fractional density. Firefox first passes native fullscreen/pixels/input/rejoin,
+then its resize helper submits a negative WM width. A setup-only guard with a
+causal counterfactual preserves the original10-second exact viewport/native-DPR
+fallback; that actual repeat passes the first two cases. Its third HTTP-header
+policy case fails because fullscreenEnabled remains true. No browser preference
+or product sizing was changed; actual embedding denial remains to be qualified.
+
+Two separately named real cross-origin embedding cases now pass in Firefox
+(9.337s): no-delegation shows the production disabled control/warning and actual
+trusted API TypeError, while explicit delegation permits real entry/exit. Actual
+pixels, trusted canvas input, both document owners and owned cleanup pass.
+Chromium passes the negative but refuses the positive's immediate canvas-wire
+observation (3.176s); source/cleanup pass. The original four bodies and Firefox
+HTTP-header failure remain unchanged. This is an authored Tablet fixture, not
+genuine native Tablet qualification. A separate passive Chrome repeat still
+fails (3.185s): negative trusted events/press/release reach the child, but positive
+trusted events hit the parent iframe and the child receives none. This identifies
+a physical frame-hit boundary before product input handling; a compositor/setup
+cause is not yet proven. Original input gate remains failed.
+
+
+A current-source copied native pointer cohort passes all17 Firefox native controls, Scan and the original hidden-tab predicates, then fails cleanup because the public adapter has no close method (133.673s). Every source/distribution/module identity, owned resource cleanup and all nine managed services remain coherent. Its66 complete pointer groups have own window/coordinates, trusted delivery and exact command authority; historical hover drift does not reproduce and is not declared fixed. All26 native Application observations satisfy guarded own MainWindow/GLCanvas surface/focus eligibility; Controller/Sit delivery is still unqualified. The one-property Firefox close forwarding passes three CPU contracts and an actual two-tab stock run (3.277s). It is now integrated with deliberately rebased current source pins; the complete normal gateway journey fails the original popup gate after10 controls (79.901s): selected80% opens with painted row0 instead of row1. Source/distribution, baseline, actual browser identity and owned cleanup pass. Scan is not reached. Historical proofs retain their original hashes.
+
+The earlier composed fullscreen cases pass in Firefox (9.740s); the current ICC-aware two-case Chrome followup passes (3.589s). Both actual element PNGs contain the independently reviewed exact480-byte ICC profile, and exact predicted encoded44/81/100 pixels match. Trusted canvas wire, actual denial/delegation, source and owned cleanup pass. The original strict raw-RGB refusal is retained; no tolerance or forced profile is introduced. Current corrected active four-case qualification remains separate. [Actual element-profile proof](evidence/fullscreen-actual-element-icc-stock-chromium-20261002.json).
+
+The reviewed current Application-key composition and test-only owned-window readiness amendment now pass the full original builder, all14 original genuine editor cases, authentic8/8 policy cases and all10 refusals with the same fresh mapped module. The original negative variant remains6/8, and earlier focus/Xvfb failures are retained. Its20 source files are integrated locally;62 focused current CPU controls pass (193.091ms). Actual installed Sit then succeeds in both stocks, but the original focused-Tablet x Stop still fails at its unchanged10-second handler deadline (Chrome56.973s/Firefox61.160s). No Tablet input error is emitted. The fresh module whole-file/maps, source/copy/distribution, seven-entity baseline, owned cleanup and all nine managed services pass. Native filter consumption is being investigated; compiled/editor acceptance does not prove Controller delivery. [Preserved actual Stop failure](evidence/tablet-sit-application-key-attempt-20261002.json).
+
+The isolated compiled native Application-route scaffold passes all14 original
+QtWebEngine editor cases (3.618s). Passive native observations preserve six of
+eight authored key cases and all10 refusals (11.670s). Two WebEngine body cases
+are consumed by the authentic native offscreen-window policy; their authored
+global-key expectations were incorrect. A separately named authentic-policy
+fixture passes8/8 cases plus all10 refusals (2.015s), using the exact same compiled
+module and original deadlines. Source, mapped module, runtime census, owned
+display/renderer cleanup and all nine managed services remain coherent. This
+does not prove installed Interface Controller/Sit Stop acceptance.
+
+The single current passive FBX producer-stage Hub journey passes all four original fluid/native/reconnect gates in Chrome (103.150s). Settled generations record194/197 producer failures, all graph/nodes/provisional, and117/120 repeated starts after a tracked graph refusal. Consumer fallbacks remain219; global parse calls are458/461. The uncensored evidence narrows one node predicate to investigate; it establishes no loading gain or safe negative memo.41 focused source controls,19 projector controls and the production build pass. [Fixed producer-stage evidence](evidence/hub-fbx-producer-refusal-stock-chromium-20261002.json).
+
+Next concrete work: finish ordinary Firefox Graphics/Scan/hidden/leave; establish why installed focused-Tablet keys are consumed and implement the native-parity Stop flow. Qualify the corrected active fullscreen cases, identify the precise repeated FBX node refusal before optimizing and capture the hosted failed syscall without relaxing capability or permission gates. No additional push or hosted rerun was made. All endurance tests remain cancelled; Goal active.
+
+### Preserved earlier checkpoints and failures
+
+
+Current continuation (2026-10-02): checkpoint
+`9939ba65a7342620c19ff04ef4d742a24880c67b` is pushed to the authorized fork;
+draft PR1023's exact body/head/repository are read back. This narrow commit
+publishes the hosted diagnostics; the frontend remains at5dc4. The complete component
+suite subsequently passes1,719 tests, zero skips,11.064seconds. The actual original production
+rendering source remains byte-identical to both stock pixel-qualified cohorts.
+The managed gateway is freshly restarted with current source; its eight other
+recorded services and identities are preserved.
+
+Latest actual loading qualification: all four ordered baseline/bitmap cohorts
+pass the original steady/walking/reconnected steady/walking fluid gates in both
+stock engines. Chromium uses1280x800; Firefox retains2133x1333 at its original
+device density. All91 source pins, distributions, paired versions/viewports/
+drawing buffers and managed service identities match. First observed ready
+times after connection are16.757/17.203s in Chromium and17.526/17.686s in Firefox
+(baseline/bitmap, three-second polling). Both paths load295 models and retain
+the same115 image requests/71 keys/44 hits/63 successes/8 failures. This ordered
+pair establishes functional fluidness at full quality, not a loading-speed gain
+or whole-Hub pixel fidelity. Bitmap upload remains default OFF. Previous
+instrumented Firefox fluid failures remain recorded separately.
+[Exact short paired evidence](evidence/hub-bitmap-paired-stock-20261002.json).
+
+Latest short qualification continuation: the stronger PTT observer initially
+refuses setup in both stocks because Main constructs the tablet canvas during
+join. The runner attached before join. The paired People/PTT correction retires
+the previous observer before join and attaches to the new canvas only after the
+unchanged connected/seven-entity gate; PTT retains its peer/state predicates.
+All8 extracted actual-runner lifecycle controls pass. Actual Firefox then proves
+a trusted primary mouse uses pointerId0; the fixture's positive-only assumption
+refused it. The W3C-permitted zero correction retains native/pixel/wire gates and
+all42 PTT/People binding controls pass. Chromium passes ten original stages with
+the stronger proof, then refuses its last hold; a passive key/permission snapshot
+is being prepared to distinguish pending explicit grant from stale mode state.
+Earlier complete Chromium PTT success remains
+separate from this stronger-proof qualification and physical microphone proof.
+
+The current default-off material-clone registered Chromium cohort now reports
+the fixed reason `fixture-duplicate-material-disposal`. Final World cleanup
+disposes the same shared material for each Mesh/slot; replacement-transition
+ModelResources already deduplicates its own resources. A narrow final-graph
+cleanup correction passes25 focused actual World lifecycle controls. All six
+unchanged registered Chromium pixel/lifetime bodies now pass in33.755s, with six
+contexts and browser/server closed. Firefox refuses baseline evaluation in4.905s;
+its setup cause is still unknown. Default-OFF state is unchanged.
+The six original browser assertion bodies remain unchanged. No candidate
+quality, FPS or loading benefit is claimed.
+
+Actual default-quality dispatch-on Hub journeys retain88 source pins and whole
+distribution coherence: Chromium passes all four fluidness gates in102.045s;
+Firefox completes the functional measurements but fails fluidness in104.012s.
+Every loaded-idle attribution sample in both engines reaches the original2ms
+inspection budget. Only partial call-entry prefixes are observed; material and
+program identity transitions are not a full-world census or a demonstrated lag
+cause. No bound, quality or fluidness gate is weakened.
+[Actual Hub evidence](evidence/hub-render-dispatch-stock-20261002.json).
+
+Exact5dc4 hosted atomic bootstrap and signed staging now pass. The original
+67-contract suite fails one unchanged zero-capability owned-child user/IPC
+launch preflight: its outer process returns127 rather than0. The native probe
+is not reached; the failing executable/loader/policy cause is still unknown.
+Both browser workflows now refuse earlier during trusted interpreter inventory
+with python-import-alias-target-untrusted and runtime-package-path-not-root-trusted.
+The former combines type/owner/write/size checks and does not establish which
+one failed. The actual canonical targets remain unknown. Add bounded fixed
+metadata diagnostics before changing prerequisites; retain immutable ancestry,
+source hashes and every original launch/capability/route gate.
+[Actual hosted failures](evidence/hosted-5dc4d5ca-checkpoint-20261002.json).
+
+Latest unpublished continuation (2026-10-02): the complete registered suite
+passes1,646 tests, zero skips,10.768s; the production build and all34 required
+repository suites pass (151.91s). Trusted interpreter metadata passes all90
+C/Python contracts (3.573s). Atomic fixed preflight diagnostics pass all80
+contracts under a private077 umask (2.845s), after the original public-directory
+negative fixture explicitly creates its intended755 mode. The previous80-test
+failure is retained: process umask had made that intended public fixture700.
+No production keyring mode or original rejection assertion changed.
+
+The copied PTT correction genuinely passes both synthetic voice directions in
+both stocks with actual native-author unmute/readback/mute restoration.
+[Voice and original next refusals](evidence/tablet-ptt-peer-consent-attempt-20261002.json).
+The source-bound visibility follow-up proves Chromium never becomes hidden or
+loses focus after the original driver switch. A separate-CDP-agent override
+removal still fails that original10s gate. The fresh owned default-context
+noDefaults correction first refuses setup: Puppeteer's address-only switch
+suppresses its automatic debugging port. A setup-only diagnostic preserves the
+actual30s endpoint timeout. The narrow explicit ephemeral-port correction
+passes89 Root CPU controls, including exact installed argument-builder positive
+and negative controls. Its complete actual stock Chromium journey passes in98.630s:
+all twelve original stages, both synthetic voice directions, actual trusted
+blur/hidden release, Tablet-open release, mute, mode-off, leave and new explicit
+consent on rejoin. Original sources/distribution and both owned profiles are
+coherent/removed; the actual owned browser leader exits and native peer mute is
+restored. No sandbox, focus/visibility override, audio predicate or deadline changes.
+[Complete copied Chromium PTT evidence](evidence/tablet-ptt-stock-chromium-20261002.json).
+Firefox previously passes both actual events, but its newest cohort refuses a
+legitimately advanced control frame. A stronger passive trusted-pointer and
+actual outgoing-frame oracle is being implemented independently; no existing
+native freshness, geometry/audio or cleanup gate is weakened. Physical
+microphones and production PTT remain unqualified.
+
+The original timestamp-preserved Sit pair reaches genuine native Sit in both
+engines but refuses duplicate print counting from two native log routes. Source,
+copy, distribution, seven-entity baseline and exact owned cleanup all pass.
+[Preserved original attempts](evidence/tablet-sit-authored-records-attempt-20261002.json).
+Canonical-print admission passes40 Root CPU/actual-rig controls. Actual Sit,
+animation elapsed time,500ms held pose and all seven native/browser Hip/leg
+rotations within1e-6 now pass in both stock engines. Their original10s key Stop
+gate fails: the current QtTest route does not prove actual delivery through the
+original Application/Controller key path. Official Qt5.15 TestEvent selects the
+current GUI focus window before its parent Quick fallback; the failed cohort
+does not establish which window received the key. Both
+failures preserve baseline, whole source/distribution coherence and exact owned
+cleanup. A faithful ordinary-key route is being prepared; no direct animation
+setter or fabricated Controller event qualifies.
+[Held pose and preserved Stop failures](evidence/tablet-sit-held-native-pose-20261002.json).
+
+The conservative within-model replacement clone candidate is integrated default
+OFF. All29 CPU/actual World/registered-body/GC contracts pass. Its first actual
+Chromium opaque registered case refuses before its attachment; browser/server
+close and source coherence pass. A new fixed-diagnostic run refuses during
+candidate evaluation, with one main-frame navigation and zero page errors or
+request failures. This does not establish an optimizer reload/context-loss
+cause. Eighteen driver/registration/GC CPU controls pass; the original exception
+needs a private causal diagnostic. No candidate pixel, loading or FPS gain is
+claimed; all six registered test bodies remain unchanged.
+
+The stronger passive People physical-event/actual-production-wire oracle and
+current-stock bitmap launcher are integrated as fixtures. All66 combined CPU
+controls pass (60 People,6 bitmap); neither result is actual GUI/pixel acceptance.
+The native People audit must be regenerated for its new passive Home record.
+PTT now has the same stronger physical-event/current-native-record and actual
+production-wire proof, retaining every original CAS counterexample. Its complete
+107-control suite and seven Hub bitmap adapter controls pass together (114 total).
+The short Firefox/Chromium genuine stronger-proof pair is running; production
+PTT remains unintegrated until both actual engines qualify.
+
+Both current stock bitmap bodies now pass: Chromium154.0.8037.57 and Firefox156.0.
+Each engine passes all twelve literal variants with zero channel error (six
+conversions and six original premultiplied fallbacks), plus the actual4096 World
+Image comparison with exact image hashes/sampler state and unchanged quality.
+All bitmap leases/bytes/active slots and renderer objects/textures/geometries
+are zero after close. Full source coherence and both contexts/browser/Vite
+cleanup pass. This is not embedded-FBX GPU coverage or whole-Hub fidelity/speed.
+[Current stock exact pixels](evidence/bitmap-upload-stock-pixels-20261002.json).
+All34 required repository suites pass again (151.60s); the next same-source,
+same-quality Hub baseline/bitmap cohorts keep all four original fluid gates.
+
+Image loading review finds zero decoded-image-cache evictions and actual large
+HTML-image driver upload spans; overlapping compressed-source reader timings
+are not CPU decode time. Next qualify the exact-fidelity bitmap upload path in
+original default-quality Hub journeys, preserving all four fluidness/native/
+source gates. Full Tablet/native parity and Firefox fluidness remain open.
+Goal active; all endurance tests remain canceled.
 
 Current continuation (2026-10-02,07:40UTC): published checkpoint
 `6389ab139436e78e73ce616c3ffe0a104f2b69d9` and draft PR1023 are verified on
