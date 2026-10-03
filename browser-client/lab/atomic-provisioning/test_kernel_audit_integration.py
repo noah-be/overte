@@ -44,6 +44,19 @@ WORKFLOW_DIAGNOSTICS=(
         if: ${{ !cancelled() && steps.source.outcome == 'success' && steps.stage.outcome == 'success' && (steps.contracts.outcome == 'success' || (github.event_name == 'workflow_dispatch' && inputs.continue_diagnostics_after_contract_failure && steps.contracts.outcome == 'failure')) }}
 """,
 "        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}\n",
+"""      confined_native_diagnostic:
+        description: 'Explicit alternate signed-bwrap launch; original failed contracts remain failed'
+        type: boolean
+        default: false
+""",
+"""        env:
+          CONFINED_NATIVE_DIAGNOSTIC: ${{ github.event_name == 'workflow_dispatch' && inputs.confined_native_diagnostic && 'true' || 'false' }}
+""",
+"""          probe_options=()
+          if [ "$CONFINED_NATIVE_DIAGNOSTIC" = true ]; then
+            probe_options=(--confined-diagnostic)
+          fi
+""",
 )
 
 def original_workflow(workflow):
@@ -53,6 +66,9 @@ def original_workflow(workflow):
         if workflow.count(addition)!=1:
             raise ValueError('changed-diagnostic-workflow')
         workflow=workflow.replace(addition,'',1)
+    options=' "${probe_options[@]}"'
+    if workflow.count(options)!=1:raise ValueError('changed-diagnostic-workflow')
+    workflow=workflow.replace(options,'',1)
     return workflow
 
 def original_source(source):

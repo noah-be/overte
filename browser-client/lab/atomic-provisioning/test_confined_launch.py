@@ -9,57 +9,24 @@ DomainServer, services, loader injection or profile changes are involved.
 """
 import ctypes
 import errno
-import fcntl
 import importlib.util
 import json
 import os
 from pathlib import Path
-import platform
-import struct
+import resource
+import signal
 import subprocess
 import sys
 import tempfile
 import unittest
+from confined_launch import base_command, sealed_filter
 
 HERE = Path(__file__).resolve().parent
 CAPS = ('CapInh', 'CapPrm', 'CapEff', 'CapBnd', 'CapAmb')
 KEYS = frozenset(('scope', 'zeroCapabilities', 'noNewPrivileges', 'userIsolated',
                   'ipcIsolated', 'profile', 'tracedSync', 'atomicReadback',
-                  'tmpfileDenied', 'openat2Denied', 'operationErrno'))
+                  'tmpfileDenied', 'openat2Denied', 'operationErrno', 'x32Denied'))
 PROFILES = frozenset(('signed-bwrap-child-enforce', 'local-unqualified', 'unknown'))
-
-
-def tmpfile_filter():
-    """Fixed x86-64 BPF: kill other ABIs; ERRNO for O_TMPFILE/openat2 only.
-
-    seccomp_data: nr@0, arch@4, args[1]@24, args[2]@32. open/openat
-    use integer flags. openat2's pointer cannot be inspected by classic BPF,
-    so return ENOSYS, the normal unsupported-syscall fallback. All other native
-    syscalls remain subject to existing policies, with this filter returning ALLOW.
-    """
-    if platform.machine() != 'x86_64' or os.O_TMPFILE != 0x410000:
-        raise ValueError('confined-CPU-filter-ABI-unreviewed')
-    instructions = (
-        (0x20, 0, 0, 4),              # LD arch
-        (0x15, 1, 0, 0xc000003e),     # JEQ AUDIT_ARCH_X86_64
-        (0x06, 0, 0, 0x80000000),     # RET KILL_PROCESS
-        (0x20, 0, 0, 0),              # LD syscall nr
-        (0x45, 0, 1, 0x40000000),     # JSET x32 ABI
-        (0x06, 0, 0, 0x80000000),
-        (0x15, 0, 1, 437),            # JEQ openat2
-        (0x06, 0, 0, 0x00050026),     # RET ERRNO ENOSYS (38)
-        (0x15, 2, 0, 2),              # JEQ open -> LD args[1]
-        (0x15, 3, 0, 257),            # JEQ openat -> LD args[2]
-        (0x06, 0, 0, 0x7fff0000),     # RET ALLOW other native calls
-        (0x20, 0, 0, 24),             # LD args[1]
-        (0x05, 0, 0, 1),              # JA flag mask
-        (0x20, 0, 0, 32),             # LD args[2]
-        (0x54, 0, 0, 0x410000),       # AND O_TMPFILE
-        (0x15, 0, 1, 0x410000),       # JEQ complete mask
-        (0x06, 0, 0, 0x0005005f),     # RET ERRNO EOPNOTSUPP (95)
-        (0x06, 0, 0, 0x7fff0000),     # RET ALLOW
-    )
-    return b''.join(struct.pack('HBBI', *instruction) for instruction in instructions)
 
 
 def child(directory, parent_user, parent_ipc, filtered):
@@ -106,6 +73,15 @@ def child(directory, parent_user, parent_ipc, filtered):
                 row['openat2Denied'] = result == -1 and ctypes.get_errno() == 38
                 if not row['openat2Denied']:
                     return row
+                resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+                pid = os.fork()
+                if pid == 0:
+                    library.syscall(ctypes.c_long(0x40000000 | 39))
+                    os._exit(1)
+                _, status = os.waitpid(pid, 0)
+                row['x32Denied'] = os.WIFSIGNALED(status) and os.WTERMSIG(status) == signal.SIGSYS
+                if not row['x32Denied']:
+                    return row
                 temporary = os.open('settings.json.ABCDEF', os.O_WRONLY | os.O_CREAT | os.O_EXCL
                                     | os.O_NOFOLLOW, 0o600, dir_fd=dfd)
                 try:
@@ -151,17 +127,10 @@ class ConfinedLaunchTests(unittest.TestCase):
             seed = root / 'settings.json'
             seed.write_bytes(b'owned-old')
             seed.chmod(0o600)
-            command = ['/usr/bin/bwrap', '--unshare-user', '--uid', str(os.getuid()),
-                       '--gid', str(os.getgid()), '--unshare-ipc', '--cap-drop', 'ALL',
-                       '--ro-bind', '/', '/', '--dev', '/dev', '--bind', directory, directory, '--chdir', directory,
-                       '--die-with-parent', '--new-session']
+            command = base_command((directory,), directory)
             try:
                 if filtered:
-                    fd = os.memfd_create('owned-fixed-deny-filter', os.MFD_CLOEXEC | os.MFD_ALLOW_SEALING)
-                    os.write(fd, tmpfile_filter())
-                    os.lseek(fd, 0, os.SEEK_SET)
-                    fcntl.fcntl(fd, fcntl.F_ADD_SEALS, fcntl.F_SEAL_WRITE | fcntl.F_SEAL_GROW
-                                | fcntl.F_SEAL_SHRINK | fcntl.F_SEAL_SEAL)
+                    fd = sealed_filter()
                     command += ['--seccomp', str(fd)]
                 command += ['--', sys.executable, str(Path(__file__).resolve()), '--owned-child',
                             directory, os.readlink('/proc/self/ns/user'), os.readlink('/proc/self/ns/ipc'),
@@ -194,6 +163,7 @@ class ConfinedLaunchTests(unittest.TestCase):
                     self.assertTrue(row['atomicReadback'], json.dumps(row, sort_keys=True))
                     self.assertTrue(row['tmpfileDenied'])
                     self.assertTrue(row['openat2Denied'])
+                    self.assertTrue(row['x32Denied'])
             finally:
                 if fd is not None:
                     os.close(fd)

@@ -15,6 +15,10 @@ on:
         description: 'Collect the owned domain trace after a contract failure; the job remains failed'
         type: boolean
         default: false
+      confined_native_diagnostic:
+        description: 'Explicit alternate signed-bwrap launch; original failed contracts remain failed'
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -79,10 +83,16 @@ jobs:
           python3 browser-client/lab/manage.py prepare --host-tools system
       - name: Observe only the separate newly owned domain and strict provisioning
         if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        env:
+          CONFINED_NATIVE_DIAGNOSTIC: ${{ github.event_name == 'workflow_dispatch' && inputs.confined_native_diagnostic && 'true' || 'false' }}
         run: |
+          probe_options=()
+          if [ "$CONFINED_NATIVE_DIAGNOSTIC" = true ]; then
+            probe_options=(--confined-diagnostic)
+          fi
           python3 "$ATOMIC_PROBE_DIRECTORY/probe.py" \
             --repo-root "$GITHUB_WORKSPACE" --lab-root "$OVERTE_LAB_ROOT" \
-            --private-output "$ATOMIC_PROBE_OUTPUT"
+            --private-output "$ATOMIC_PROBE_OUTPUT" "${probe_options[@]}"
       - name: Validate fixed enum summary for artifact publication
         if: always()
         run: python3 browser-client/lab/atomic-provisioning/curate.py

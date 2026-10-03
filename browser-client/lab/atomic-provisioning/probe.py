@@ -150,7 +150,7 @@ def prepare(repo,lab,output):
  authorization='Basic '+base64.b64encode(('browser-lab-admin:'+cred['token']).encode()).decode()
  return manage,document,payload,authorization,post_guest_settings,ProvisioningDiagnosticError,guest_permission_diagnostics
 
-def run(repo,lab,output):
+def run(repo,lab,output,*,confined_diagnostic=False):
  process=None;safe_output=False;out={'schemaVersion':1,'scope':'standalone-fresh-domain-provisioning-probe-not-nineteen-stage-world-lifecycle','completed':False,'endpointOwnership':'not-observed','provisioning':'not-requested','phase':'preparation'}
  try:
   output=canonical(output);info=output.stat()
@@ -160,13 +160,21 @@ def run(repo,lab,output):
   host={key:os.environ[key]for key in('HOME','PATH','LANG','LC_ALL','TMPDIR')if key in os.environ};host['PYTHONDONTWRITEBYTECODE']='1'
   out['phase']='observer-launch'
   expected=os.getpid()
-  process=subprocess.Popen([sys.executable,str(HERE/'observer.py'),'--configuration',str(Path(output)/'launch.private.json')],env=host,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,start_new_session=True,preexec_fn=lambda:child_death_guard(expected))
+  observer_command=[sys.executable,str(HERE/'observer.py'),'--configuration',str(Path(output)/'launch.private.json')]
+  if confined_diagnostic:
+   out['diagnosticLaunch']='signed-bwrap-fixed-tmpfile-denial'
+   observer_command.append('--confined-diagnostic')
+  process=subprocess.Popen(observer_command,env=host,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,start_new_session=True,preexec_fn=lambda:child_death_guard(expected))
   exclusive(output/'probe-process.private.json',(json.dumps({'pid':process.pid,'startTicks':manage.start_ticks(process.pid),'entrySHA256':sha(HERE/'observer.py')})+'\n').encode())
   out['phase']='native-readiness'
   manage.wait_port(45100) # Exact existing twenty-second readiness function.
   out['phase']='endpoint-ownership'
   if process.poll()is not None or not owned_endpoint(process.pid,doc['native']):raise ValueError('owned-endpoint-not-confirmed')
   out['endpointOwnership']='exact-owned-native-fixed-port'
+  if confined_diagnostic:
+   from confined_launch import owned_native_confinement,require_confinement
+   out['nativeConfinement']=owned_native_confinement(process.pid,doc['native'])
+   require_confinement(out['nativeConfinement'])
   out['phase']='settings-provisioning'
   start=time.time()
   try:
@@ -205,8 +213,8 @@ def run(repo,lab,output):
  return out
 
 def main():
- p=argparse.ArgumentParser(description=__doc__);p.add_argument('--repo-root',required=True);p.add_argument('--lab-root',required=True);p.add_argument('--private-output',required=True);a=p.parse_args()
- try:r=run(a.repo_root,a.lab_root,a.private_output)
+ p=argparse.ArgumentParser(description=__doc__);p.add_argument('--repo-root',required=True);p.add_argument('--lab-root',required=True);p.add_argument('--private-output',required=True);p.add_argument('--confined-diagnostic',action='store_true');a=p.parse_args()
+ try:r=run(a.repo_root,a.lab_root,a.private_output,confined_diagnostic=a.confined_diagnostic)
  except (OSError,ValueError,RuntimeError,subprocess.SubprocessError,KeyError,TypeError,UnicodeError) as error:
   print('ATOMIC_PROBE_FAILURE:'+json.dumps(failure_observation(error),sort_keys=True,separators=(',',':')),file=sys.stderr)
   print('standalone-owned-probe-refused',file=sys.stderr);return 1

@@ -6,7 +6,7 @@ import hashlib,io,json,lzma,os,re,stat,subprocess,tarfile,tempfile,urllib.reques
 from pathlib import Path
 HERE=Path(__file__).resolve().parent
 MAX_DOWNLOAD=4*1024*1024
-FILES=('observer.py','probe.py','target_projection.py','source-pins.json','native-pins.json','dependency.json')
+FILES=('observer.py','probe.py','target_projection.py','source-pins.json','native-pins.json','dependency.json','confined_launch.py')
 
 # Internal operation labels and exception classes are the only public inputs.
 # No exception text, argv, tool output, pathname, URL or environment is projected.

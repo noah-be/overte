@@ -165,6 +165,7 @@ hosted password request or raw kernel artifact is produced. The original gate
 still fails and publishes its existing safe failure projection. Actual hosted
 journal admission and the cause of `apply-bounding-set` remain unqualified until
 a genuine reviewed run supplies a matching source-owned record.
+
 ## Proposed confinement order CPU controls
 
 `test_confined_launch.py` adds a separate CPU experiment; it does not replace the
@@ -184,3 +185,28 @@ additional filter and still face all inherited policies. Real syscall probes
 must observe those refusals, while exclusive named creation, sync, same-directory
 atomic rename, actual readback and the unchanged owned tracer all succeed.
 No Qt or native persistence acceptance follows from this CPU experiment.
+
+## Explicit alternate native diagnostic
+
+The default-off manual `confined_native_diagnostic` input selects the measured
+signed-Bubblewrap alternative only for the separate newly owned diagnostic
+DomainServer. Original failed unit gates and original negative records stay
+failed. The ordinary native launch and its final executable/argv remain intact.
+The alternative uses the same verified native binary, strict launch record,
+full native environment, original readiness/POST/observer bounds, endpoint
+ownership, cleanup, permission readback and fixed curator.
+
+The shared reviewed helper keeps the host/native environments separate and
+creates the fixed sealed filter itself; callers cannot supply a policy. Only
+the private laboratory/output directories are writable; `/tmp` and `/dev` are
+fresh private mounts. Additional user namespaces are disabled. The final trusted
+bootstrap refuses unless the actual enforcing profile, all five zero capability
+sets, no-new-privileges and isolated user/IPC namespaces match. After native
+startup the owning parent independently checks those properties on its exact
+native executable descendant, with stable process identity, before POST.
+
+The safe summary identifies this diagnostic variant explicitly. Its completed
+state additionally requires every native confinement guard; CPU evidence alone
+cannot supply it. A successful result is limited to this standalone settings
+probe and does not turn the historical original capability test, browser core
+journeys or whole workflow green.

@@ -26,7 +26,7 @@ def rows(value):
   result[call]={key:count(row[key])for key in('success','failure','unclassifiedResult')};result[call]['errno']={key:count(number)for key,number in row['errno'].items()}
  return result
 def project(doc):
- allowed={'schemaVersion','scope','completed','phase','endpointOwnership','provisioning','postWindowClockMonotonic','guestReadback','observerStopped','observer','observerSummary','targetSyscalls','nativeCommitFailureCorrelatedWithExactDestinationFailure','fullCapturePersistenceMarkers','persistenceLogWindowLimit','failureCategory'}
+ allowed={'schemaVersion','scope','completed','phase','endpointOwnership','provisioning','postWindowClockMonotonic','guestReadback','observerStopped','observer','observerSummary','targetSyscalls','nativeCommitFailureCorrelatedWithExactDestinationFailure','fullCapturePersistenceMarkers','persistenceLogWindowLimit','failureCategory','diagnosticLaunch','nativeConfinement'}
  if type(doc)is not dict or set(doc)-allowed or doc.get('schemaVersion')!=1:raise ValueError('fixed-summary-shape-refused')
  enum(doc['scope'],{'standalone-fresh-domain-provisioning-probe-not-nineteen-stage-world-lifecycle'})
  for key in('postWindowClockMonotonic','nativeCommitFailureCorrelatedWithExactDestinationFailure'):
@@ -36,6 +36,14 @@ def project(doc):
  out={'schemaVersion':1,'scope':'standalone-owned-settings-probe-not-nineteen-stage-ci','completed':boolean(doc['completed']),'phase':enum(doc['phase'],{'preparation','observer-launch','native-readiness','endpoint-ownership','settings-provisioning','stored-readback'}),'endpointOwnership':enum(doc['endpointOwnership'],{'not-observed','exact-owned-native-fixed-port'}),'settingsCommitCause':'not-established'}
  if 'failureCategory'in doc:out['failureCategory']=enum(doc['failureCategory'],{'fixed-probe-refusal','owned-process-or-source-readback-refused'})
  if 'observerStopped'in doc:out['observerStopped']=boolean(doc['observerStopped'])
+ if 'diagnosticLaunch'in doc:
+  out['diagnosticLaunch']=enum(doc['diagnosticLaunch'],{'signed-bwrap-fixed-tmpfile-denial'})
+ if 'nativeConfinement'in doc:
+  confinement=doc['nativeConfinement']
+  keys={'zeroCapabilities','noNewPrivileges','userIsolated','ipcIsolated','profile','identityStable','seccompFiltered','allThreadsConfined'}
+  if type(confinement)is not dict or set(confinement)!=keys or 'diagnosticLaunch'not in out:raise ValueError('confinement-shape-refused')
+  out['nativeConfinement']={key:boolean(confinement[key])for key in keys-{'profile'}}
+  out['nativeConfinement']['profile']=enum(confinement['profile'],{'signed-bwrap-child-enforce','unqualified'})
  provision=doc['provisioning']
  if type(provision)is str:out['provisioning']=enum(provision,{'not-requested'})
  elif type(provision)is dict:
@@ -92,6 +100,9 @@ def project(doc):
  if out['completed']:
   valid=(out['phase']=='stored-readback'and out['endpointOwnership']=='exact-owned-native-fixed-port'and out.get('observerStopped')is True and out.get('guestReadback',{}).get('passed')is True and out.get('provisioning',{}).get('oauthBefore')=='disabled'and out['provisioning'].get('oauthAfter')=='disabled'and out['provisioning'].get('persistence')=='no-reported-failure'and out['provisioning'].get('response')=={'status':'200','endpoint':'expected-settings-endpoint','contentType':'application/json','body':'success'}and doc.get('postWindowClockMonotonic')is True and not any(out.get('fullCapturePersistenceMarkers',{}).values())and not out.get('observer',{}).get('nativeOutputTruncated',True))
   if not valid:raise ValueError('completed-without-strict-proof-refused')
+  if 'diagnosticLaunch'in out:
+   confinement=out.get('nativeConfinement',{})
+   if confinement.get('profile')!='signed-bwrap-child-enforce'or any(confinement.get(key)is not True for key in('zeroCapabilities','noNewPrivileges','userIsolated','ipcIsolated','identityStable','seccompFiltered','allThreadsConfined')):raise ValueError('completed-without-native-confinement-refused')
  return out
 
 def main():
