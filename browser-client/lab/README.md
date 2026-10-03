@@ -71,8 +71,10 @@ the managed settings file and the permissions received by each native session.
 This laboratory does not modify an existing domain or a user's normal Interface
 profile. The released native HTTP server binds all IPv4 interfaces; the launcher
 limits the independent native viewport to half resolution for readable software-rendered
-screenshots without starving the browser compositor. It protects administration with a random password held only in the ignored,
-mode-0600 `build/browser-lab/runtime/admin.json` file. It never prints that password.
+screenshots without starving the browser compositor. It protects administration
+with a random token held only in the launcher process while provisioning the
+fresh domain. Neither the launcher nor the atomic diagnostic writes that token
+to disk or prints it. The domain configuration stores only its native verifier.
 The no-input Python/JavaScript credential generators always create 32 CSPRNG
 bytes, encoded as a 256-bit hexadecimal machine token. They never accept human
 passwords or supplied low-entropy secrets. Their SHA-256 verifier is the format

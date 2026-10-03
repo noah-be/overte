@@ -102,7 +102,6 @@ def prepare(repo,lab,output):
   if p.is_symlink()or p.stat().st_uid!=os.getuid():raise ValueError('probe-runtime-directory-refused')
  # Same initial write mode/umask as manage.py, exclusively into a fresh root.
  exclusive(lab/'config/domain.json',(json.dumps(config,indent=2)+'\n').encode(),0o666)
- exclusive(lab/'runtime/admin.json',(json.dumps({'username':'browser-lab-admin','password':cred['token']})+'\n').encode())
  app=lab/'appimage/squashfs-root';server=lab/'server/opt/overte'
  env={**os.environ,'OVERTE_LAB_ROOT':str(lab),'QT_QPA_PLATFORM':'xcb','QT_SCALE_FACTOR':'1','QT_AUTO_SCREEN_SCALE_FACTOR':'0',
  'LD_LIBRARY_PATH':f'{server}/lib:{app}/usr/lib','QT_PLUGIN_PATH':str(app/'usr/plugins'),'XDG_CONFIG_HOME':str(lab/'config'),'XDG_DATA_HOME':str(lab/'data'),

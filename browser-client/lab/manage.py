@@ -234,9 +234,6 @@ def start(gateway=False):
                   "HIFI_DOMAIN_SERVER_PORT":"45102","HIFI_DOMAIN_SERVER_DTLS_PORT":"45103"}
     admin_credential = native_admin_credential()
     admin_password = admin_credential["token"]
-    admin_file = ROOT / "runtime/admin.json"
-    admin_file.write_text(json.dumps({"username":"browser-lab-admin","password":admin_password})+"\n")
-    admin_file.chmod(0o600)
     admin_authorization = "Basic " + base64.b64encode(("browser-lab-admin:"+admin_password).encode()).decode()
     permissions = {key:True for key in PERMISSION_KEYS}
     config = {"version":2.7,"metaverse":{"local_port":45102,"automatic_networking":"disabled","enable_packet_verification":True},

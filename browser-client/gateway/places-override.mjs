@@ -9,6 +9,12 @@ function replaceOnce(source, before, after) {
     return source.replace(before, after);
 }
 
+function javascriptStringLiteral(value) {
+    // JSON quoting also needs HTML delimiters and legacy JS line separators escaped.
+    return JSON.stringify(value).replace(/[<>&\u2028\u2029]/g,
+        character => '\\u' + character.charCodeAt(0).toString(16).padStart(4, '0'));
+}
+
 export function adaptPlacesScript(source, { channel, homeDomain }) {
     if (!/^browser-places-[a-f0-9-]{36}$/.test(channel) || typeof homeDomain !== 'string') throw Error('Invalid trusted Places adapter configuration.');
     const bootstrap = `\n    var browserPlacesChannel = ${JSON.stringify(channel)};
@@ -29,7 +35,7 @@ export function adaptPlacesScript(source, { channel, homeDomain }) {
     source = replaceOnce(source, 'LocationBookmarks.setHomeLocationToAddress(location.href);', "LocationBookmarks.setHomeLocationToAddress(location.href);\n                browserPlacesNavigate({kind:'preferencesChanged'});");
     source = replaceOnce(source, 'Window.location = messageObj.address;', "browserPlacesNavigate({kind:'target',address:messageObj.address});");
     source = replaceOnce(source, 'location.handleLookupString(LocationBookmarks.getHomeLocationAddress());', "browserPlacesNavigate({kind:'target',address:LocationBookmarks.getHomeLocationAddress()});");
-    source = replaceOnce(source, 'Window.location = "file:///~/serverless/tutorial.json";', `browserPlacesNavigate({kind:'target',address:${JSON.stringify(homeDomain)}});`);
+    source = replaceOnce(source, 'Window.location = "file:///~/serverless/tutorial.json";', `browserPlacesNavigate({kind:'target',address:${javascriptStringLiteral(homeDomain)}});`);
     source = replaceOnce(source, 'location.goBack();', "browserPlacesNavigate({kind:'history',direction:'back'});");
     source = replaceOnce(source, 'location.goForward();', "browserPlacesNavigate({kind:'history',direction:'forward'});");
     source = replaceOnce(source, 'tablet.screenChanged.connect(onScreenChanged);', "tablet.screenChanged.connect(onScreenChanged);\n    Messages.sendLocalMessage(browserPlacesChannel,JSON.stringify({kind:'historyRequest'}));");

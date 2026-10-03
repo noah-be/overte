@@ -139,6 +139,27 @@ class ManagedState(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(list(self.root.iterdir()), [])
 
+    def test_start_keeps_administration_token_out_of_persistent_files(self):
+        (self.root / 'appimage/squashfs-root').mkdir(parents=True)
+        (self.root / 'appimage/squashfs-root/AppRun').touch()
+        (self.root / 'config').mkdir()
+        (self.root / 'runtime').mkdir()
+        credential = {'token': 'a' * 64,
+                      'nativeVerifier': m.hashlib.sha256(('a' * 64).encode()).hexdigest()}
+        with patch.object(m, 'ROOT', self.root), patch.object(m, 'load_tools', return_value={}), \
+             patch.object(m, 'native_admin_credential', return_value=credential), \
+             patch.object(m.socket, 'socket'), \
+             patch.object(m, 'launch', side_effect=RuntimeError('owned-test-before-native-launch')) as launch, \
+             self.assertRaisesRegex(RuntimeError, 'owned-test-before-native-launch'):
+            m.start()
+        self.assertFalse((self.root / 'runtime/admin.json').exists(),
+                         'A startup-only administration token must not be stored on disk')
+        config = json.loads((self.root / 'config/domain.json').read_text())
+        self.assertEqual(config['security']['http_password'], credential['nativeVerifier'])
+        self.assertNotIn(credential['token'], (self.root / 'config/domain.json').read_text())
+        self.assertEqual(launch.call_args.args[0], 'domain')
+        self.assertNotIn(credential['token'], json.dumps(launch.call_args.args[2]))
+
 
 if __name__ == '__main__':
     unittest.main()
