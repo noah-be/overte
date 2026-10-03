@@ -309,12 +309,32 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--configuration', required=True)
     parser.add_argument('--exec-native', action='store_true', help=argparse.SUPPRESS)
+    parser.add_argument('--confined-diagnostic', action='store_true', help=argparse.SUPPRESS)
+    parser.add_argument('--managed-domain', action='store_true', help=argparse.SUPPRESS)
+    parser.add_argument('--confined-final-native', action='store_true', help=argparse.SUPPRESS)
+    parser.add_argument('--parent-user', help=argparse.SUPPRESS)
+    parser.add_argument('--parent-ipc', help=argparse.SUPPRESS)
     args = parser.parse_args()
     try:
         raw = checked_regular(args.configuration, MAX_CONFIG, private=True)
         document = json.loads(raw)
         command = validated_launch(document)
+        if args.managed_domain and (args.confined_diagnostic or args.confined_final_native):
+            raise ValueError('confined-final-arguments-refused')
+        if (args.parent_user or args.parent_ipc) and not args.confined_final_native:
+            raise ValueError('confined-final-arguments-refused')
+        if args.confined_final_native:
+            from confined_launch import exec_final
+            if not args.parent_user or not args.parent_ipc or args.exec_native or args.confined_diagnostic:
+                raise ValueError('confined-final-arguments-refused')
+            exec_final(document, command, args.parent_user, args.parent_ipc)
         if args.exec_native:
+            if args.confined_diagnostic:
+                from confined_launch import exec_confined
+                exec_confined(document, args.configuration)
+            if args.managed_domain:
+                from confined_launch import launch_managed_document
+                return launch_managed_document(document)
             os.execvpe(command[0], command, document['environment'])
         # Native Qt library directories must not be applied to the host tracer.
         # The reviewed same-file child loads the private environment only at the
@@ -323,13 +343,17 @@ def main():
         host_environment['PYTHONDONTWRITEBYTECODE'] = '1'
         child = [sys.executable, str(Path(__file__).resolve()), '--configuration',
                  args.configuration, '--exec-native']
+        if args.confined_diagnostic:
+            child.append('--confined-diagnostic')
+        if args.managed_domain:
+            child.append('--managed-domain')
         report = observe_owned(document['strace'], child, host_environment,
                                document['cwd'], document['output'])
         # Fixed status only. Raw output and filenames remain inside private files.
         print(json.dumps({'terminal': report['terminal'], 'exitCode': report['exitCode'],
                           'traceTruncated': report['trace']['truncated']}))
         return 0 if report['exitCode'] == 0 else 1
-    except (ValueError, OSError, subprocess.SubprocessError, json.JSONDecodeError):
+    except (ValueError, OSError, KeyError, TypeError, subprocess.SubprocessError, json.JSONDecodeError):
         print('{"terminal":"observer-preflight-or-owned-lifecycle-refused"}', file=sys.stderr)
         return 1
 

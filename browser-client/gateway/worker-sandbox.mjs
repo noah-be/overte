@@ -5,10 +5,51 @@ import {realpathSync} from 'node:fs';
 import { access, stat, lstat, writeFile, mkdir } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { createConnection } from 'node:net';
 import path from 'node:path';
 
 const run = promisify(execFile);
 const displays = new Set();
+function privateX11Ready(display, cookie, signal, timeoutMs) {
+    if (!Number.isSafeInteger(display) || display < 1200 || display >= 60000
+        || !Buffer.isBuffer(cookie) || cookie.length !== 16
+        || !Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 5000) {
+        throw Error('Invalid private display readiness scope.');
+    }
+    if (signal.aborted) return Promise.resolve('cancelled');
+    const request = Buffer.alloc(48);
+    request[0] = 108; request.writeUInt16LE(11, 2);
+    request.writeUInt16LE(18, 6); request.writeUInt16LE(16, 8);
+    request.write('MIT-MAGIC-COOKIE-1', 12); cookie.copy(request, 32);
+    return new Promise(resolve => {
+        let socket, timer, settled = false, response = Buffer.alloc(0);
+        const cancel = () => finish('cancelled');
+        function finish(kind) {
+            if (settled) return;
+            settled = true; clearTimeout(timer); signal.removeEventListener('abort', cancel);
+            socket?.destroy(); resolve(kind);
+        }
+        timer = setTimeout(() => finish('timeout'), timeoutMs);
+        signal.addEventListener('abort', cancel, { once: true });
+        try { socket = createConnection(`/tmp/.X11-unix/X${display}`); }
+        catch { finish('socket-error'); return; }
+        socket.on('error', () => finish('socket-error'));
+        socket.on('close', () => finish('closed'));
+        socket.on('connect', () => socket.write(request));
+        socket.on('data', bytes => {
+            if (settled) return;
+            if (response.length + bytes.length > 65536) { finish('invalid-setup'); return; }
+            response = Buffer.concat([response, bytes]);
+            if (response.length < 8) return;
+            if (response[0] !== 1) { finish('refused'); return; }
+            const size = 8 + response.readUInt16LE(6) * 4;
+            if (response.readUInt16LE(2) !== 11 || response.readUInt16LE(4) !== 0 || size < 40 || size > 65536) {
+                finish('invalid-setup'); return;
+            }
+            if (response.length >= size) finish('authenticated');
+        });
+    });
+}
 const runtimeVariables = ['LD_LIBRARY_PATH', 'QT_PLUGIN_PATH', 'QML2_IMPORT_PATH', 'QTWEBENGINEPROCESS_PATH',
     'QT_SCALE_FACTOR', 'QT_AUTO_SCREEN_SCALE_FACTOR', 'QT_ENABLE_HIGHDPI_SCALING',
     'OVERTE_PUBLIC_NATIVE_ROOT', 'LIBGL_ALWAYS_SOFTWARE', 'QT_QUICK_BACKEND'];
@@ -126,17 +167,26 @@ export async function prepareWorker({ directory, executable, sourceEnvironment, 
     if (display === undefined) throw Error('No isolated display could be reserved.');
     try {
         const authority = path.join(directory, 'Xauthority');
-        await run('xauth', ['-f', authority, 'add', `:${display}`, 'MIT-MAGIC-COOKIE-1', randomBytes(16).toString('hex')],
+        const cookie = randomBytes(16);
+        await run('xauth', ['-f', authority, 'add', `:${display}`, 'MIT-MAGIC-COOKIE-1', cookie.toString('hex')],
             { env: { PATH: '/usr/bin:/bin', LANG: 'C.UTF-8', HOME: directory }, timeout: 5000 });
         if (signal.aborted) throw Error('Session cancelled.');
         const xvfb = spawnOwned(process.env.OVERTE_GATEWAY_XVFB || 'Xvfb', ['-screen', '0', '1024x768x24',
             '-nolisten', 'tcp', '-noreset', '-auth', authority, `:${display}`],
             { PATH: '/usr/bin:/bin', LANG: 'C.UTF-8', HOME: directory, TMPDIR: directory }, 'Isolated display');
         let ready = false;
-        for (let attempts = 0; attempts < 100 && !signal.aborted; attempts++) {
+        const deadline = performance.now() + 5000;
+        for (let attempts = 0; attempts < 100 && !signal.aborted && performance.now() < deadline; attempts++) {
             if (xvfb.exitCode !== null || xvfb.signalCode !== null) break;
-            try { await access(`/tmp/.X11-unix/X${display}`); ready = true; break; }
-            catch { await new Promise(resolve => setTimeout(resolve, 50)); }
+            try { await access(`/tmp/.X11-unix/X${display}`); }
+            catch { await new Promise(resolve => setTimeout(resolve, 50)); continue; }
+            // Path creation precedes usable X11 setup. One authenticated setup
+            // must complete inside the same original five-second startup bound.
+            const remaining = Math.floor(deadline - performance.now());
+            if (remaining < 1) break;
+            const result = await privateX11Ready(display, cookie, signal, remaining);
+            if (result !== 'authenticated') throw Error('The private Xvfb display did not authenticate: ' + result);
+            ready = true; break;
         }
         if (signal.aborted) throw Error('Session cancelled.');
         if (!ready) throw Error('The private Xvfb display could not start. Install Xvfb and xauth.');

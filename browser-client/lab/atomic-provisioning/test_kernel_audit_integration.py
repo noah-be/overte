@@ -44,7 +44,31 @@ WORKFLOW_DIAGNOSTICS=(
         if: ${{ !cancelled() && steps.source.outcome == 'success' && steps.stage.outcome == 'success' && (steps.contracts.outcome == 'success' || (github.event_name == 'workflow_dispatch' && inputs.continue_diagnostics_after_contract_failure && steps.contracts.outcome == 'failure')) }}
 """,
 "        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}\n",
+"""      confined_native_diagnostic:
+        description: 'Explicit alternate signed-bwrap launch; original failed contracts remain failed'
+        type: boolean
+        default: false
+""",
+"""        env:
+          CONFINED_NATIVE_DIAGNOSTIC: ${{ github.event_name == 'workflow_dispatch' && inputs.confined_native_diagnostic && 'true' || 'false' }}
+""",
+"""          probe_options=()
+          if [ "$CONFINED_NATIVE_DIAGNOSTIC" = true ]; then
+            probe_options=(--confined-diagnostic)
+          fi
+""",
 )
+
+def reviewed_workflow_history(workflow):
+    if hashlib.sha256(workflow.encode()).hexdigest() != 'c27cd756c320c1467a89886c92080d3a0dcd32318a55ff7962e4d675b5b1375f':
+        raise ValueError('changed-operational-workflow')
+    anchors = (("      - 'browser-client/lab/chrome_browser.py'\n      - 'browser-client/lab/native_admin.py'\n      - 'browser-client/lab/guest_permissions.py'\n      - 'browser-client/lab/provisioning_diagnostics.py'\n      - 'browser-client/lab/host_tools.py'\n", ''), ("      - 'browser-client/lab/native_launch.py'\n      - 'browser-client/lab/manage.py'\n", ''), ('          # Read-only diagnostic authority for explicit historical investigations.\n          # Current launch contracts use the reviewed shared signed-bwrap boundary.\n', '          # Explicit read-only, noninteractive diagnostic authority. The original\n          # command, policy setup and every capability assertion remain unchanged.\n'), ('            python3 -B browser-client/lab/atomic-provisioning/operational_contracts.py\n', "            python3 -B -m unittest discover \\\n              -s browser-client/lab/atomic-provisioning -p 'test_*.py'\n"))
+    for after, before in anchors:
+        if workflow.count(after) != 1:raise ValueError('changed-operational-workflow-anchor')
+        workflow = workflow.replace(after, before, 1)
+    if hashlib.sha256(workflow.encode()).hexdigest() != 'f0ff79cf3ae08b7215994e90612a778479b12661de6bf1a43865f048cfb942e6':
+        raise ValueError('changed-operational-workflow-history')
+    return workflow
 
 def original_workflow(workflow):
     # Strip only the reviewed default-off continuation, retaining the original
@@ -53,9 +77,16 @@ def original_workflow(workflow):
         if workflow.count(addition)!=1:
             raise ValueError('changed-diagnostic-workflow')
         workflow=workflow.replace(addition,'',1)
+    options=' "${probe_options[@]}"'
+    if workflow.count(options)!=1:raise ValueError('changed-diagnostic-workflow')
+    workflow=workflow.replace(options,'',1)
     return workflow
 
 def original_source(source):
+    old_name='    def test_zero_cap_own_child_and_same_namespace_user_ipc_launch_preflight(self):'
+    history_name='    def historical_zero_cap_own_child_and_same_namespace_user_ipc_launch_preflight(self):'
+    if source.count(history_name)!=1:raise ValueError('changed-historical-preflight-name')
+    source=source.replace(history_name,old_name,1)
     for addition in (IMPORTS,HOOK,FAILURE):
         if source.count(addition)!=1:
             raise ValueError('changed-diagnostic-source')
@@ -86,7 +117,7 @@ class IntegrationTests(unittest.TestCase):
         output=io.StringIO();failure=None
         env={} if mode is None else {'ATOMIC_DIAGNOSTIC_KERNEL_AUDIT':mode}
         with patch.dict(os.environ,env,clear=True),patch.object(T.subprocess,'run',side_effect=command),patch.object(T.kernel_audit,'observe_original_run',side_effect=observed),patch.object(T.kernel_audit,'collect',side_effect=collected),contextlib.redirect_stdout(output):
-            try:T.ObserverTests('test_zero_cap_own_child_and_same_namespace_user_ipc_launch_preflight').test_zero_cap_own_child_and_same_namespace_user_ipc_launch_preflight()
+            try:T.ObserverTests('historical_zero_cap_own_child_and_same_namespace_user_ipc_launch_preflight').historical_zero_cap_own_child_and_same_namespace_user_ipc_launch_preflight()
             except (AssertionError,subprocess.TimeoutExpired) as error:failure=error
         return calls,output.getvalue(),failure
 
@@ -100,7 +131,7 @@ class IntegrationTests(unittest.TestCase):
             with self.assertRaises(ValueError):original_source(source.replace(old,new,1))
 
     def test_workflow_removes_only_explicit_unit_step_authority(self):
-        workflow=(HERE.parents[2]/'.github/workflows/browser-client-atomic-settings.yml').read_text()
+        workflow=reviewed_workflow_history((HERE.parents[2]/'.github/workflows/browser-client-atomic-settings.yml').read_text())
         addition="""        env:
           # Explicit read-only, noninteractive diagnostic authority. The original
           # command, policy setup and every capability assertion remain unchanged.

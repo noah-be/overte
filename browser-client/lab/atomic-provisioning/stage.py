@@ -6,7 +6,7 @@ import hashlib,io,json,lzma,os,re,stat,subprocess,tarfile,tempfile,urllib.reques
 from pathlib import Path
 HERE=Path(__file__).resolve().parent
 MAX_DOWNLOAD=4*1024*1024
-FILES=('observer.py','probe.py','target_projection.py','source-pins.json','native-pins.json','dependency.json')
+FILES=('observer.py','probe.py','target_projection.py','source-pins.json','native-pins.json','dependency.json','confined_launch.py','native_launch.py')
 
 # Internal operation labels and exception classes are the only public inputs.
 # No exception text, argv, tool output, pathname, URL or environment is projected.
@@ -153,7 +153,7 @@ def main(*,progress=None):
  base=Path(tempfile.mkdtemp(prefix='owned-atomic-settings-',dir=parent));base.chmod(0o700)
  for name in('probe','lab','output'):(base/name).mkdir(mode=0o700)
  staging_phase(progress,'helper-copy')
- for name in FILES:write(base/'probe'/name,regular(HERE/name))
+ for name in FILES:write(base/'probe'/name,regular((HERE.parent if name=='native_launch.py'else HERE)/name))
  keyring='/usr/share/keyrings/ubuntu-archive-keyring.gpg'
  reviewed=os.environ.get('ATOMIC_REVIEWED_KEYRING')
  if reviewed:

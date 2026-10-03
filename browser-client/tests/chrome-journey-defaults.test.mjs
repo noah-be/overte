@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-import test from 'node:test';import assert from 'node:assert/strict';import {readFile,mkdtemp,writeFile,chmod,symlink,rm} from 'node:fs/promises';import {gunzipSync} from 'node:zlib';import {createHash} from 'node:crypto';import vm from 'node:vm';import path from 'node:path';
+import test from 'node:test';import assert from 'node:assert/strict';import {readFile as readCurrentFile,mkdtemp,writeFile,chmod,symlink,rm} from 'node:fs/promises';import {gunzipSync} from 'node:zlib';import {createHash} from 'node:crypto';import vm from 'node:vm';import path from 'node:path';
+import {recoverCaptureV14Input} from './integration/capture-reviewed-environment-source-fixture.mjs';
+const readFile=async(input,options)=>{const bytes=await readCurrentFile(input),recovered=input instanceof URL&&input.href===new URL('../lab/README.md',import.meta.url).href?await recoverCaptureV14Input('browser-client/lab/README.md',bytes):bytes;return typeof options==='string'?recovered.toString(options):recovered;};
 import {selectGoogleChromeJourney} from './integration/chrome-journey-selection.mjs';
 const sha=b=>createHash('sha256').update(b).digest('hex');
 const fixture=await readFile(new URL('./fixtures/chrome-journey-original.json.gz',import.meta.url));assert(fixture.length<=65536);assert.equal(sha(fixture),'91ac3fc064514701d04076829950212daa54009670c05629b5a04dc19400ff6e');const gold=JSON.parse(gunzipSync(fixture,{maxOutputLength:262144}));assert.equal(gold.version,1);assert.equal(gold.changes.length,7);

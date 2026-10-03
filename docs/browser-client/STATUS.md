@@ -1,10 +1,23 @@
 # Browser client status
 
-The final publication integration passes2,609/2,609 product tests with no
+The final managed-launch/X11 integration passes all2,640 product tests without
+skips, a fresh34-file production build and all34 required repository suites.
+All production distribution bytes match the previously qualified129-case Chrome
+build. The local84-case host route also passes, including the original actual
+owned Bubblewrap shutdown control. Exact checks, hashes, source boundaries and
+retained failures are recorded in the
+[final stabilization source proof](evidence/managed-stabilization-source-checks-20261003.json).
+Next: publish this exact candidate, then require fresh hosted Native retirement
+and stored readback, full Browser and CodeQL checks. These local results do not
+complete the wider Tablet, public Hub or physical microphone acceptance.
+
+The published96d integration passes2,609/2,609 product tests with no
 skips, the production build (34 files), all34 required repository checks and all
 129 authentic Google Chrome cases with no skips/flaky results. All368 observed
 owned births,358 Chrome processes, profiles, Vite and the authenticated display
 retire. Original PNG/import/descriptor-fixture negatives remain preserved.
+The pending stabilization composition requires its own complete source gates;
+these results do not qualify the changed native launch or X11 transport.
 [Current full source qualification](evidence/shipping-v14-current-google-chrome-checks-20261003.json).
 The final source replay includes the permanent editor ownership test and passes
 all34 required repository checks again. Production frontend bytes and the
@@ -18,16 +31,67 @@ retirement gate; all50 observed outer-owned births retire. Its sixteen process
 controls and three original bounded-pipe controls pass separately. The earlier
 functional pass with failed inner cleanup and outer54-birth cleanup is retained.
 [Current Qt lifecycle proof](evidence/native-web-editor-owned-cleanup-current-qt-20261003.json).
-The separate FST four-case Chrome run passes every original functional/pixel
-assertion but retains a parent cleanup failure from one owned regular temporary
-file. Its complete lifecycle gate remains pending; no Hub loading gain follows.
+The separate FST four-case Chrome run now passes every original functional/pixel
+assertion and its complete parent lifecycle gate. After own Chrome retirement,
+one admitted regular scratch file is removed with bounded descriptor, inode,
+owner, mode and exact-name checks; unexpected leftovers still fail. Forty-nine
+CPU refusal/ownership controls pass. The earlier failed cleanup remains retained;
+no Hub loading or rendering gain follows.
+[FST complete owned-retirement proof](evidence/fst-four-case-owned-retirement-google-chrome-20261003.json).
 An isolated Ubuntu candidate proves actual native settings readback under the
 enforcing signed bwrap profile, zero capabilities, NNP, isolated user/IPC
 namespaces and a fixed sealed tmpfile-denial filter. It is not installed in the
-managed launch path; the original operational launch failures remain open.
-Next: retain permanent cleanup regressions, publish the tested draft integration,
-then qualify the reviewed production-launch repair and fresh hosted security
-and native checks. Live frontend/module/services remain unchanged.
+original published managed launch path. The reviewed successor is now installed
+in the working source; its final native runtime gates remain pending and the
+original operational launch failures stay recorded separately.
+The tested integration is published in draft PR1023 at
+96d4e6d51bee318b8bf1c0ade286b1a6687f1c8c. Its hosted Browser run retains
+native guest-readback failure and three missing-ffmpeg capture failures; the
+browser-job prerequisite is corrected without changing audio assertions. The
+Places bootstrap channel now uses its existing JavaScript literal sanitizer;
+all six actual source/VM/file-binding controls pass. CodeQL45's four paths hash
+public source metadata and a fixed enum in an acceptance report. Both analyzed
+merge files are byte-identical to the reviewed feature files; the false-positive
+dismissal and associated review-thread resolution were read back from the fork.
+Hashes, names, scans and all other review-thread states remain unchanged.
+
+The isolated fda0 managed proposal passes its complete Ubuntu Atomic workflow
+37136985934. A later exact-helper hosted run37137981342 independently fails the
+original2.5-second supervisor shutdown control with a still-live owned CPU
+descendant, and separately times out the original3-second own-Xvfb setup. These
+are retained counterexamples, not overridden by the earlier success. No actual
+domain started in the failed supervisor job. The aggregate fdatasync success is
+not attributed to the exact settings descriptor. Root owns supervisor, stop,
+registry and Chrome fixed-seven reconciliation; isolated stabilization owns
+bounded authenticated-X11 readiness and diagnostics with unchanged deadlines.
+The narrow readiness patch is now installed while retaining this owner's Audio
+and Emote admission. Thirteen new cases exercise the actual production function
+with controlled transport events; these and the two existing privacy controls
+pass with zero skips. The separate exact1d2 Ubuntu protocol run passes all1,572
+actual component controls, including own-cookie Xvfb authentication and the
+three original native-network controls. Its untouched supervisor gate still
+fails; this isolated pass does not qualify the composed final source.
+The complete managed source composition is installed with exact seven-file
+pins, post-exec parent binding, isolated helper startup and exception-safe
+pidfd admission. All244 package members and whole-source recoveries verify;
+197 named source/mock executions pass with no skips (overlapping suites, not
+197 distinct tests). The84-case host registration retains the original actual
+Bubblewrap retirement case and the corrected operational eight-second gates.
+The first full stabilization run retains2,630 passes and three failures from
+the older Chrome README metadata fixture. The exact CPU normalization now
+composes the reviewed new README with that fixture's original metadata checks;
+all original assertion bodies and unknown/missing/duplicate refusals remain.
+The V16 capture-source successor is installed:157 strict rows,159 focused
+source/history/Chrome/X11 checks with no skips, exact previous-source
+recovery and all49 browser specification files unchanged. The production
+preparer gains only the new manifest digest; historical normalization stays
+inside controlled CPU fixtures.
+The complete84-case host route also passes locally, including the actual owned
+Bubblewrap CPU shutdown control. This Fedora result launches no NativeDomain
+and does not establish Ubuntu AppArmor or actual native acceptance.
+The complete new source/build/repository gates now pass as recorded above.
+Next: publish the exact candidate for native/browser/security gates. Live
+frontend/module/services remain unchanged.
 
 The corrected genuine FBX test now passes its complete original geometry,
 material, twelve-image, collision and queued-revocation assertions in official

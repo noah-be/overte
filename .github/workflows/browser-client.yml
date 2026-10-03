@@ -45,7 +45,7 @@ jobs:
       - name: Install software graphics and isolated audio backends
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libgl1-mesa-dri libglx-mesa0 mesa-utils pulseaudio xvfb xauth bubblewrap slirp4netns iproute2 python3 gcc libc6-dev libssl-dev g++ gpgv zstd qtbase5-dev qtdeclarative5-dev qml-module-qtquick2 qml-module-qtquick-window2 apparmor-profiles
+          sudo apt-get install -y --no-install-recommends ffmpeg libgl1-mesa-dri libglx-mesa0 mesa-utils pulseaudio xvfb xauth bubblewrap slirp4netns iproute2 python3 gcc libc6-dev libssl-dev g++ gpgv zstd qtbase5-dev qtdeclarative5-dev qml-module-qtquick2 qml-module-qtquick-window2 apparmor-profiles
           task_runtime_dir="$(mktemp -d "${RUNNER_TEMP}/overte-browser-runtime.XXXXXX")"
           chmod 700 "$task_runtime_dir"
           export XDG_RUNTIME_DIR="$task_runtime_dir"

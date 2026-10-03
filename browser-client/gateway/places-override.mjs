@@ -17,7 +17,7 @@ function javascriptStringLiteral(value) {
 
 export function adaptPlacesScript(source, { channel, homeDomain }) {
     if (!/^browser-places-[a-f0-9-]{36}$/.test(channel) || typeof homeDomain !== 'string') throw Error('Invalid trusted Places adapter configuration.');
-    const bootstrap = `\n    var browserPlacesChannel = ${JSON.stringify(channel)};
+    const bootstrap = `\n    var browserPlacesChannel = ${javascriptStringLiteral(channel)};
     var browserPlacesHistory = {canGoBack:false,canGoForward:false};
     function browserPlacesNavigate(request) { Messages.sendLocalMessage(browserPlacesChannel,JSON.stringify(request)); }
     function browserPlacesSendHistory() { if(!tablet)return;tablet.emitScriptEvent({channel:channel,action:'BROWSER_HISTORY',canGoBack:browserPlacesHistory.canGoBack,canGoForward:browserPlacesHistory.canGoForward}); }

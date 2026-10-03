@@ -23,6 +23,7 @@ from native_admin import native_admin_credential
 from guest_permissions import guest_permission_diagnostics
 from provisioning_diagnostics import post_guest_settings, ProvisioningDiagnosticError
 from host_tools import select_tools, load_tools, preflight, tool_identities
+import native_launch
 
 REPO = Path(__file__).resolve().parents[2]
 SOURCE = Path(__file__).resolve().parent
@@ -65,6 +66,8 @@ def extract_rpm(source):
 def prepare(client_artifact=None, host_mode="fedora", **tool_options):
     if any(alive(entry["pid"]) for entry in load_state().values()):
         raise RuntimeError("The managed lab is running; preparation must not replace its tools or fixture files")
+    ROOT.mkdir(parents=True, mode=0o700, exist_ok=True)
+    native_launch.private_directory(ROOT)
     for name in ["downloads", "server", "host-tools", "rpms", "logs", "runtime", "http", "config", "data", "evidence"]:
         (ROOT / name).mkdir(parents=True, exist_ok=True)
     for name, expected in ARTIFACTS.items():
@@ -184,10 +187,11 @@ def start_ticks(pid):
     return Path(f"/proc/{pid}/stat").read_text().split(") ",1)[1].split()[19]
 
 
-def launch(name, arguments, environment, state):
+def launch(name, arguments, environment, state, *, pass_fds=()):
     with (ROOT / "logs" / f"{name}.log").open("w") as log:
         process = subprocess.Popen([str(a) for a in arguments], cwd=REPO,
-                                   env=environment, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+                                   env=environment, stdout=log, stderr=subprocess.STDOUT, start_new_session=True,
+                                   pass_fds=pass_fds)
     state[name] = {"pid":process.pid,"startedAt":time.time(),"startTicks":start_ticks(process.pid),"arguments":[str(a) for a in arguments]}
     STATE.write_text(json.dumps(state, indent=2) + "\n")
     time.sleep(0.2)
@@ -242,9 +246,11 @@ def start(gateway=False):
                                                                                         {"permissions_id":"anonymous","id_can_connect":False}]},
               "authentication":{"enable_oauth2":False},"wizard":{"completed":True}}
     (ROOT / "config/domain.json").write_text(json.dumps(config,indent=2)+"\n")
-    launch("domain",["unshare","--user","--map-current-user","--ipc","--",
-                     server/"domain-server","--user-config",ROOT/"config/domain.json","--logOptions","nocolor,nojournald"],server_env,state)
+    with native_launch.managed_command(ROOT, REPO, server_env) as (command, host_env, descriptor, policy):
+        launch("domain", command, host_env, state, pass_fds=(descriptor,))
     wait_port(45100)
+    print(json.dumps({"kind":"owned-domain-confinement", **native_launch.managed_confinement(
+        state["domain"]["pid"], server/"domain-server", policy, expected_start_ticks=state["domain"]["startTicks"])}, sort_keys=True), flush=True)
     launch("assignments",[server/"assignment-client","-a","127.0.0.1","--server-port","45102",
                            "--disable-domain-port-auto-discovery","--min-listen-port","45200","--monitor-port","45290","-n","6",
                            "--logOptions","nocolor,nojournald"],server_env,state)
@@ -365,37 +371,220 @@ def start_gateway(state):
     wait_port(8090)
 
 
+class _OwnedStop:
+    """Bounded, birth-bound retirement of the registered service's observed tree."""
+    LIMIT = 128
+
+    @staticmethod
+    def identity(pid):
+        try:
+            directory = Path('/proc') / str(pid)
+            with (directory / 'stat').open('rb') as stream:
+                data = stream.read(4097)
+            if len(data) > 4096:
+                raise RuntimeError('Managed stop stat bound exceeded')
+            fields = data.rsplit(b') ', 1)[1].split()
+            if len(fields) < 20:
+                raise RuntimeError('Managed stop stat is malformed')
+            return {'pid': pid, 'birth': fields[19].decode('ascii'),
+                    'parent': int(fields[1]), 'group': int(fields[2]),
+                    'session': int(fields[3]), 'uid': directory.stat().st_uid}
+        except (FileNotFoundError, ProcessLookupError):
+            return None
+
+    @staticmethod
+    def group_absent(group):
+        try:
+            os.kill(-group, 0)
+        except ProcessLookupError:
+            return True
+        return False
+
+    def __init__(self, entry):
+        self.pid = entry['pid']
+        self.birth = entry['startTicks']
+        self.rows = {}
+        self.groups = {self.pid}
+        self.descriptors = {}
+
+    def leader(self):
+        row = self.identity(self.pid)
+        if row is not None:
+            if row['birth'] != self.birth:
+                raise RuntimeError('Stored PID was reused; refusing managed stop')
+            if row['uid'] != os.getuid() or row['group'] != self.pid or row['session'] != self.pid:
+                raise RuntimeError('Managed leader ownership or process group changed')
+        return row
+
+    def admit(self, row):
+        previous = self.rows.get(row['pid'])
+        if row['uid'] != os.getuid() or int(row['birth']) < int(self.birth):
+            raise RuntimeError('Managed descendant ownership changed')
+        if previous and any(row[k] != previous[k] for k in ('birth', 'uid', 'group', 'session')):
+            raise RuntimeError('Managed descendant identity changed')
+        if not previous:
+            if len(self.rows) >= self.LIMIT:
+                raise RuntimeError('Managed descendant bound exceeded')
+            descriptor = os.pidfd_open(row['pid'])
+            transferred = False
+            try:
+                fresh = self.identity(row['pid'])
+                if fresh is None:
+                    return False
+                if any(fresh[k] != row[k] for k in ('birth', 'uid', 'group', 'session', 'parent')):
+                    raise RuntimeError('Managed descendant changed during admission')
+                self.rows[row['pid']] = row
+                self.descriptors[row['pid']] = descriptor
+                transferred = True
+                self.groups.add(row['group'])
+            finally:
+                if not transferred:
+                    os.close(descriptor)
+        return True
+
+    def children(self, row):
+        # Read only tasks belonging to an already authenticated owned process.
+        directory = Path('/proc') / str(row['pid']) / 'task'
+        try:
+            with os.scandir(directory) as iterator:
+                tasks = []
+                for task in iterator:
+                    if len(tasks) >= 256 or not task.name.isdigit():
+                        raise RuntimeError('Managed task enumeration bound exceeded')
+                    tasks.append(task.name)
+            children = set()
+            for task in tasks:
+                with (directory / task / 'children').open('rb') as stream:
+                    data = stream.read(8193)
+                fields = data.split()
+                if len(data) > 8192 or len(fields) > self.LIMIT or any(not p.isdigit() for p in fields):
+                    raise RuntimeError('Managed children enumeration bound exceeded')
+                children.update(int(p) for p in fields)
+                if len(children) > self.LIMIT:
+                    raise RuntimeError('Managed children bound exceeded')
+        except (FileNotFoundError, ProcessLookupError):
+            return []
+        fresh = self.identity(row['pid'])
+        if fresh is None:
+            raise RuntimeError('Managed parent disappeared during child observation')
+        if any(fresh[k] != row[k] for k in ('birth', 'uid', 'group', 'session')):
+            raise RuntimeError('Managed parent changed during child observation')
+        return sorted(children)
+
+    def observe(self):
+        leader = self.leader()
+        if not self.rows and leader is None:
+            raise RuntimeError('Managed leader vanished before payload attribution; registry retained')
+        pending = list(self.rows) or [self.pid]
+        visited = set()
+        while pending:
+            pid = pending.pop()
+            if pid in visited:
+                continue
+            visited.add(pid)
+            row = self.identity(pid)
+            if row is None:
+                continue
+            if pid != self.pid and pid not in self.rows:
+                raise RuntimeError('Managed descendant lacks an authenticated parent')
+            if not self.admit(row):
+                continue
+            for child in self.children(row):
+                fresh = self.identity(child)
+                if fresh is None:
+                    continue
+                if fresh['parent'] != pid:
+                    raise RuntimeError('Managed child ancestry changed')
+                if self.admit(fresh):
+                    pending.append(child)
+        return [row for pid in self.rows if (row := self.identity(pid)) is not None]
+
+    def send(self, number):
+        # No numeric PID or process-group signal: descriptors cannot retarget reuse.
+        self.leader()
+        for pid in reversed(list(self.rows)):
+            row = self.identity(pid)
+            if row is None:
+                continue
+            self.admit(row)
+            try:
+                signal.pidfd_send_signal(self.descriptors[pid], number)
+            except ProcessLookupError:
+                pass
+
+    def closed(self):
+        self.leader()
+        for pid, previous in self.rows.items():
+            row = self.identity(pid)
+            if row is not None:
+                self.admit(row)
+                if row['parent'] == os.getpid():
+                    # Reap only an authenticated direct child via its pinned fd.
+                    os.waitid(os.P_PIDFD, self.descriptors[pid], os.WEXITED | os.WNOHANG)
+                    row = self.identity(pid)
+                if row is not None:
+                    return False
+        return all(self.group_absent(group) for group in self.groups)
+
+    def retire(self):
+        deadline = time.monotonic() + 3.0
+        escalation = deadline - 1.0
+        self.observe()
+        self.send(signal.SIGTERM)
+        killed = False
+        while True:
+            self.observe()
+            if self.closed():
+                return
+            now = time.monotonic()
+            if now >= deadline:
+                raise RuntimeError('Managed retirement is unproven; registry retained')
+            if now >= escalation and not killed:
+                self.send(signal.SIGKILL)
+                killed = True
+            time.sleep(min(0.2, deadline - now))
+
+    def close(self):
+        for descriptor in self.descriptors.values():
+            os.close(descriptor)
+
+
 def stop(names=None):
-    state=load_state()
+    state = load_state()
     if not state:
-        # No owned processes were recorded; never create state during cleanup.
         return
-    for name,entry in reversed(list(state.items())):
+    remaining = dict(state)
+    for name, entry in reversed(list(state.items())):
         if names is not None and name not in names:
             continue
-        pid=entry["pid"]
-        if not alive(pid):
-            continue
-        # Every spawned service gets its own process group and this marker in
-        # its arguments or environment. Never operate on a reused arbitrary PID.
+        pid = entry['pid']
+        owned = _OwnedStop(entry)
         try:
-            command=Path(f"/proc/{pid}/cmdline").read_bytes().replace(b"\0",b" ")
-            working_directory=Path(f"/proc/{pid}/cwd").resolve()
-        except (FileNotFoundError,PermissionError):
-            continue
-        if start_ticks(pid) != entry.get("startTicks"):
-            raise RuntimeError(f"Stored PID for {name} was reused; refusing to stop another process")
-        if str(REPO).encode() not in command and working_directory != REPO:
-            raise RuntimeError(f"Stored PID for {name} belongs to another process; refusing to stop it")
-        if os.getpgid(pid) != pid:
-            raise RuntimeError(f"Process group for {name} changed; refusing to stop unrelated work")
-        os.killpg(pid,signal.SIGTERM)
-        for unused in range(15):
-            if not alive(pid):break
-            time.sleep(0.2)
-        if alive(pid):os.killpg(pid,signal.SIGKILL)
-        print(f"Stopped {name}")
-    STATE.write_text(json.dumps({name:entry for name,entry in state.items() if names is not None and name not in names},indent=2)+"\n")
+            if alive(pid):
+                command = Path(f'/proc/{pid}/cmdline').read_bytes().replace(b'\0', b' ')
+                working_directory = Path(f'/proc/{pid}/cwd').resolve()
+                if start_ticks(pid) != entry['startTicks']:
+                    raise RuntimeError(f'Stored PID for {name} was reused; refusing to stop another process')
+                if str(REPO).encode() not in command and working_directory != REPO:
+                    raise RuntimeError(f'Stored PID for {name} belongs to another process; refusing to stop it')
+                if os.getpgid(pid) != pid:
+                    raise RuntimeError(f'Process group for {name} changed; refusing to stop unrelated work')
+                owned.retire()
+            else:
+                arguments = entry.get('arguments', [])
+                if type(arguments) is not list:
+                    raise RuntimeError('Managed recorded arguments are malformed; registry retained')
+                if '--managed-record-fd' in arguments:
+                    # An old split-session payload cannot be rediscovered safely
+                    # after its registered supervisor has already disappeared.
+                    raise RuntimeError('Managed payload attribution is unavailable; registry retained')
+                if not owned.closed():
+                    raise RuntimeError(f'Owned process group for {name} remains; registry retained')
+            del remaining[name]
+            STATE.write_text(json.dumps(remaining, indent=2) + '\n')
+            print(f'Stopped {name}')
+        finally:
+            owned.close()
 
 
 def main():

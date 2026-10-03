@@ -101,7 +101,7 @@ class ProbeCredentials(unittest.TestCase):
     def test_reviewed_source_pins_match_all_current_probe_dependencies(self):
         pins = json.loads((HERE / 'source-pins.json').read_text())
         self.assertEqual(set(pins), {'manage.py', 'native_admin.py', 'guest_permissions.py',
-                                    'provisioning_diagnostics.py', 'host_tools.py', 'chrome_browser.py'})
+                                    'provisioning_diagnostics.py', 'host_tools.py', 'chrome_browser.py', 'native_launch.py'})
         for name, expected in pins.items():
             with self.subTest(source=name):
                 self.assertEqual(hashlib.sha256((SOURCE / name).read_bytes()).hexdigest(), expected)

@@ -171,3 +171,54 @@ continuation input allows the existing observer after exact source and signed
 stage preparation succeed; the original failed step and job remain failed.
 Updated source pins never waive that contract. The separately bounded diagnostic
 is never substitution for the original contracts or core-journey qualification.
+
+
+## Seven-source managed launch and operational contracts
+
+The reviewed composition retains the exact Chrome preload/open path and the
+removal of persisted administration credentials. Preparation authenticates exactly
+seven complete lab sources: `manage.py`, `native_admin.py`, `guest_permissions.py`,
+`provisioning_diagnostics.py`, `host_tools.py`, `chrome_browser.py`, and
+`native_launch.py`. Metadata remains bounded to 4 KiB. Duplicate keys, previous
+five/six-file sets, unknown files, and changed digests refuse before manager
+import or endpoint access. There is no runtime refresh or historical allowlist.
+
+The native helper now binds the final child to its actual supervisor through a
+separate sealed record, birth/UID/GID checks, held pidfds, parent ancestry, and
+parent-death SET/GET readback. Both helper subprocess phases use a checked
+root-owned canonical system interpreter with `-I -S -B`; native argv and the
+complete native environment remain unchanged. Nonprivileged ELF metadata and
+no-new-privileges checks are mandatory. An LSM or secure-exec transition may
+change the final native parent-death state; source and CPU proof do not qualify
+that native transition. The initial manager and probe still execute in the
+trusted caller's Python context. Seven source pins do not authenticate that
+caller's stdlib, preloaded modules, site customization, or unlisted siblings.
+
+Managed teardown uses the stored supervisor birth, bounded owned task-child
+sampling and pidfds before signalling. Unknown members or an existing unobserved
+group retain failure and the registry. Group retirement and exact adopted-child
+reaping must both pass; the original three-second bound and reverse stop order
+remain. Sampling is not an exhaustive historical descendant inventory.
+
+`test_manage_state.py` keeps all 34 original fda cases, including the original
+real Bubblewrap 2.5-second supervisor counterfixture, and registers 50 permanent
+lifetime/parent/Python controls. The five new real CPU-child cases retain their
+birth-bound cleanup and 2.5/3-second bounds. Historical helper bytes are used only
+for a named CPU negative, never for runtime admission. Mock/source replay is
+reported separately from those actual child and Bubblewrap cases.
+
+The workflow runs `operational_contracts.py` explicitly. It authenticates four
+current files and restores three complete historical sources before discovery.
+The corrected filtered and unfiltered eight-second capability/namespace/profile
+contracts, original host atomic-write contract, and original observer deadline
+retirement must each be discovered exactly once. Failed imports, missing or
+duplicate required cases, historical automatic discovery and skipped operational
+cases fail the gate. Exact original preflight bodies remain explicitly named
+historical controls; this is an operational command migration, not a pin refresh
+or a claim that the historical failed command passed.
+
+The earlier fda hosted Atomic 146-test result remains evidence for that checkpoint
+only. Combined source/CPU replay does not qualify this composition's enforcing
+host policy, final native execution, browser journey or managed teardown. Those
+real gates remain owner-run acceptance requirements. The default failed-contract
+job remains failed; explicit diagnostic continuation cannot substitute for it.

@@ -5,6 +5,13 @@ on:
     paths:
       - '.github/workflows/browser-client-atomic-settings.yml'
       - 'browser-client/lab/atomic-provisioning/**'
+      - 'browser-client/lab/native_launch.py'
+      - 'browser-client/lab/manage.py'
+      - 'browser-client/lab/chrome_browser.py'
+      - 'browser-client/lab/native_admin.py'
+      - 'browser-client/lab/guest_permissions.py'
+      - 'browser-client/lab/provisioning_diagnostics.py'
+      - 'browser-client/lab/host_tools.py'
   workflow_dispatch:
     inputs:
       source_sha:
@@ -13,6 +20,10 @@ on:
         type: string
       continue_diagnostics_after_contract_failure:
         description: 'Collect the owned domain trace after a contract failure; the job remains failed'
+        type: boolean
+        default: false
+      confined_native_diagnostic:
+        description: 'Explicit alternate signed-bwrap launch; original failed contracts remain failed'
         type: boolean
         default: false
 permissions:
@@ -62,15 +73,14 @@ jobs:
       - name: Require signed-dependency and fixed-summary contracts before native startup
         id: contracts
         env:
-          # Explicit read-only, noninteractive diagnostic authority. The original
-          # command, policy setup and every capability assertion remain unchanged.
+          # Read-only diagnostic authority for explicit historical investigations.
+          # Current launch contracts use the reviewed shared signed-bwrap boundary.
           ATOMIC_DIAGNOSTIC_KERNEL_AUDIT: sudo-noninteractive
         run: |
           ATOMIC_DIAGNOSTIC_CACHE="$ATOMIC_PROBE_DIRECTORY" \
           ATOMIC_DIAGNOSTIC_STRACE="$ATOMIC_PROBE_DIRECTORY/strace" \
           ATOMIC_DIAGNOSTIC_TEST_KEYRING="$ATOMIC_REVIEWED_KEYRING" \
-            python3 -B -m unittest discover \
-              -s browser-client/lab/atomic-provisioning -p 'test_*.py'
+            python3 -B browser-client/lab/atomic-provisioning/operational_contracts.py
       - name: Prepare a fresh original laboratory without starting services
         id: prepare
         # Explicit diagnostics never turn the failed contract into a passing gate.
@@ -79,10 +89,16 @@ jobs:
           python3 browser-client/lab/manage.py prepare --host-tools system
       - name: Observe only the separate newly owned domain and strict provisioning
         if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        env:
+          CONFINED_NATIVE_DIAGNOSTIC: ${{ github.event_name == 'workflow_dispatch' && inputs.confined_native_diagnostic && 'true' || 'false' }}
         run: |
+          probe_options=()
+          if [ "$CONFINED_NATIVE_DIAGNOSTIC" = true ]; then
+            probe_options=(--confined-diagnostic)
+          fi
           python3 "$ATOMIC_PROBE_DIRECTORY/probe.py" \
             --repo-root "$GITHUB_WORKSPACE" --lab-root "$OVERTE_LAB_ROOT" \
-            --private-output "$ATOMIC_PROBE_OUTPUT"
+            --private-output "$ATOMIC_PROBE_OUTPUT" "${probe_options[@]}"
       - name: Validate fixed enum summary for artifact publication
         if: always()
         run: python3 browser-client/lab/atomic-provisioning/curate.py

@@ -18,11 +18,9 @@ def persistence_markers(data):
  return {key:data.count(value)for key,value in phrases.items()}
 
 HERE=Path(__file__).resolve().parent
-SOURCE_DEPENDENCIES=frozenset(('manage.py','native_admin.py','guest_permissions.py',
- 'provisioning_diagnostics.py','host_tools.py','chrome_browser.py','native_launch.py'))
 sys.dont_write_bytecode=True
 FIXED_FAILURES=frozenset(('probe-path-not-canonical','fresh-probe-directory-required',
- 'probe-directory-not-private-owned','probe-reviewed-source-changed','probe-reviewed-source-schema-changed',
+ 'probe-directory-not-private-owned','probe-reviewed-source-changed',
  'fresh-probe-registry-required','fresh-probe-config-required','fresh-probe-admin-required',
  'original-initialization-boundary-changed','probe-runtime-directory-refused',
  'reviewed-packaged-native-input-changed','probe-output-refused','owned-endpoint-not-confirmed',
@@ -98,8 +96,13 @@ def owned_endpoint(wrapper,native):
  return False
 
 def verify_reviewed_sources(source):
- # Literal reviewed seven-source closure; no import or caller-selected path.
- for name,value in reviewed_source_pins().items():
+ # The fixed six source dependencies are commit-reviewed inputs, not a way to
+ # add imports or read arbitrary paths. Retain the original full-content check.
+ pins=json.loads(checked_regular(HERE/'source-pins.json',4096))
+ names={'manage.py','native_admin.py','guest_permissions.py','provisioning_diagnostics.py','host_tools.py','chrome_browser.py'}
+ if type(pins)is not dict or set(pins)!=names:raise ValueError('probe-reviewed-source-schema')
+ for name,value in pins.items():
+  if type(value)is not str or len(value)!=64 or any(c not in '0123456789abcdef'for c in value):raise ValueError('probe-reviewed-source-schema')
   if sha(source/name)!=value:raise ValueError('probe-reviewed-source-changed')
 
 def prepare(repo,lab,output):
@@ -155,18 +158,7 @@ def prepare(repo,lab,output):
  authorization='Basic '+base64.b64encode(('browser-lab-admin:'+cred['token']).encode()).decode()
  return manage,document,payload,authorization,post_guest_settings,ProvisioningDiagnosticError,guest_permission_diagnostics
 
-def reviewed_source_pins():
- def unique(pairs):
-  result={}
-  for key,value in pairs:
-   if key in result:raise ValueError('probe-reviewed-source-schema-changed')
-   result[key]=value
-  return result
- pins=json.loads(checked_regular(HERE/'source-pins.json',4096),object_pairs_hook=unique)
- if type(pins)is not dict or set(pins)!=SOURCE_DEPENDENCIES or any(type(value)is not str or len(value)!=64 or any(char not in'0123456789abcdef'for char in value)for value in pins.values()):raise ValueError('probe-reviewed-source-schema-changed')
- return pins
-
-def run(repo,lab,output,*,confined_diagnostic=False):
+def run(repo,lab,output):
  process=None;safe_output=False;out={'schemaVersion':1,'scope':'standalone-fresh-domain-provisioning-probe-not-nineteen-stage-world-lifecycle','completed':False,'endpointOwnership':'not-observed','provisioning':'not-requested','phase':'preparation'}
  try:
   output=canonical(output);info=output.stat()
@@ -176,28 +168,13 @@ def run(repo,lab,output,*,confined_diagnostic=False):
   host={key:os.environ[key]for key in('HOME','PATH','LANG','LC_ALL','TMPDIR')if key in os.environ};host['PYTHONDONTWRITEBYTECODE']='1'
   out['phase']='observer-launch'
   expected=os.getpid()
-  observer_command=[sys.executable,str(HERE/'observer.py'),'--configuration',str(Path(output)/'launch.private.json')]
-  if confined_diagnostic:
-   out['diagnosticLaunch']='signed-bwrap-fixed-tmpfile-denial'
-   observer_command.append('--confined-diagnostic')
-  else:
-   out['diagnosticLaunch']='managed-domain-fixed-tmpfile-denial'
-   observer_command.append('--managed-domain')
-  process=subprocess.Popen(observer_command,env=host,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,start_new_session=True,preexec_fn=lambda:child_death_guard(expected))
-  observer_birth=manage.start_ticks(process.pid)
-  exclusive(output/'probe-process.private.json',(json.dumps({'pid':process.pid,'startTicks':observer_birth,'entrySHA256':sha(HERE/'observer.py')})+'\n').encode())
+  process=subprocess.Popen([sys.executable,str(HERE/'observer.py'),'--configuration',str(Path(output)/'launch.private.json')],env=host,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,start_new_session=True,preexec_fn=lambda:child_death_guard(expected))
+  exclusive(output/'probe-process.private.json',(json.dumps({'pid':process.pid,'startTicks':manage.start_ticks(process.pid),'entrySHA256':sha(HERE/'observer.py')})+'\n').encode())
   out['phase']='native-readiness'
   manage.wait_port(45100) # Exact existing twenty-second readiness function.
   out['phase']='endpoint-ownership'
   if process.poll()is not None or not owned_endpoint(process.pid,doc['native']):raise ValueError('owned-endpoint-not-confirmed')
   out['endpointOwnership']='exact-owned-native-fixed-port'
-  if confined_diagnostic:
-   from confined_launch import owned_native_confinement,require_confinement
-   out['nativeConfinement']=owned_native_confinement(process.pid,doc['native'])
-   require_confinement(out['nativeConfinement'])
-  else:
-   from confined_launch import host_policy,managed_confinement
-   out['nativeConfinement']=managed_confinement(process.pid,doc['native'],host_policy(),expected_start_ticks=observer_birth)
   out['phase']='settings-provisioning'
   start=time.time()
   try:
@@ -236,8 +213,8 @@ def run(repo,lab,output,*,confined_diagnostic=False):
  return out
 
 def main():
- p=argparse.ArgumentParser(description=__doc__);p.add_argument('--repo-root',required=True);p.add_argument('--lab-root',required=True);p.add_argument('--private-output',required=True);p.add_argument('--confined-diagnostic',action='store_true');a=p.parse_args()
- try:r=run(a.repo_root,a.lab_root,a.private_output,confined_diagnostic=a.confined_diagnostic)
+ p=argparse.ArgumentParser(description=__doc__);p.add_argument('--repo-root',required=True);p.add_argument('--lab-root',required=True);p.add_argument('--private-output',required=True);a=p.parse_args()
+ try:r=run(a.repo_root,a.lab_root,a.private_output)
  except (OSError,ValueError,RuntimeError,subprocess.SubprocessError,KeyError,TypeError,UnicodeError) as error:
   print('ATOMIC_PROBE_FAILURE:'+json.dumps(failure_observation(error),sort_keys=True,separators=(',',':')),file=sys.stderr)
   print('standalone-owned-probe-refused',file=sys.stderr);return 1

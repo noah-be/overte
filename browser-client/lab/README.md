@@ -46,8 +46,20 @@ The exact release artifacts and SHA-256 checksums are pinned in `manage.py`;
 prepared artifact identities, including downloaded Fedora packages, are recorded
 in `build/browser-lab/evidence/artifacts.json`. A cached AppImage can be supplied
 with `prepare --client-artifact /absolute/path/Overte.AppImage`; its checksum must
-still match. Other hosts can use the gateway's documented native dependencies,
-but this automatic acceptance bootstrap is specifically tested on Fedora x86_64.
+still match. Other hosts can use the gateway's documented native dependencies.
+The retained Fedora x86_64 acceptance results use the previous domain launcher;
+they do not qualify the changed managed launch path.
+
+The managed domain now uses a registered supervisor and the reviewed confined
+launcher. Native arguments and environment stay unchanged. The launcher requires
+zero capabilities, no new privileges, isolated user/IPC namespaces and the
+admitted enforcing host policy. A sealed fixed syscall filter selects Qt's
+exclusive named temporary-file and atomic-rename fallback. Parent binding and
+birth-checked retirement remain required; unproved ownership retains the process
+registration. See the [managed launch contracts](atomic-provisioning/README.md)
+for the seven source dependencies, Python import boundary, historical failures
+and operational tests. Source/mock tests do not establish native runtime qualification;
+the native executable's own parent-death-signal readback is not directly measured.
 
 All runtime profiles, processes, logs, commands and test recordings remain under
 the ignored `build/browser-lab` directory. The launcher refuses occupied ports

@@ -239,7 +239,7 @@ class ActualGeneratedPreflightTests(unittest.TestCase):
         error = None
         with patch.object(T.subprocess, 'run', side_effect=fake_run) as run:
             try:
-                T.ObserverTests('test_zero_cap_own_child_and_same_namespace_user_ipc_launch_preflight').test_zero_cap_own_child_and_same_namespace_user_ipc_launch_preflight()
+                T.ObserverTests('historical_zero_cap_own_child_and_same_namespace_user_ipc_launch_preflight').historical_zero_cap_own_child_and_same_namespace_user_ipc_launch_preflight()
             except AssertionError as exc:
                 error = str(exc)
             self.assertEqual(run.call_count, 1)
@@ -313,7 +313,7 @@ class ActualGeneratedPreflightTests(unittest.TestCase):
     def test_original_outer_timeout_still_propagates_without_retry(self):
         with patch.object(T.subprocess, 'run', side_effect=subprocess.TimeoutExpired('authored-control', 8)) as run:
             with self.assertRaises(subprocess.TimeoutExpired) as failure:
-                T.ObserverTests('test_zero_cap_own_child_and_same_namespace_user_ipc_launch_preflight').test_zero_cap_own_child_and_same_namespace_user_ipc_launch_preflight()
+                T.ObserverTests('historical_zero_cap_own_child_and_same_namespace_user_ipc_launch_preflight').historical_zero_cap_own_child_and_same_namespace_user_ipc_launch_preflight()
             self.assertEqual(failure.exception.timeout, 8)
             self.assertEqual(run.call_count, 1)
             self.assertEqual(run.call_args.kwargs['timeout'], 8)

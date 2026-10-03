@@ -2,16 +2,36 @@
 
 ## Current integration checkpoint (2026-10-03)
 
-The current complete browser source passes2609 product tests, the production
+The published96d browser source passes2609 product tests, the production
 build,34 required repository checks and129 actual Google Chrome cases. A fresh
 Qt module passes five basic input/key/render suites and fourteen genuine
 WebEngine editors, including birth-checked renderer retirement. Preserve the
 original failed cleanup evidence and keep the outer owner timeout cleanup.
-Permanent owned-process regressions are integrated. Next: commit/publish this tested
-integration, reconcile the separately reviewed Ubuntu managed-launch proposal
-with an explicit fixed-seven source closure, then obtain exact integrated
-hosted native/CodeQL evidence. The four-case FST functional/pixel assertions
-pass but its own temporary-file retirement still requires qualification.
+Permanent owned-process regressions are integrated and published in draft PR
+1023 at96d4e6d51bee318b8bf1c0ade286b1a6687f1c8c. The separate four-case
+FST functional/pixel and complete owned-retirement gate now passes in real
+Chrome; its earlier cleanup failure remains unchanged. No Hub gain is inferred.
+The reviewed post-exec parent binding, owned retirement and explicit Chrome
+seven-source closure are integrated in the working source;197 named source/mock
+executions pass with no skips. The explicit157-row V16 capture-source successor
+passes159 focused checks and retains the prior source histories and browser
+bodies. Its exact README fixture normalization corrects three failures retained
+from the first full run without changing their assertions. The complete84-case
+host CPU route also passes locally; actual Ubuntu native qualification remains
+separate. The final full run passes2,640/2,640 product tests, a34-file production
+build and34/34 repository suites. Its production bytes match the earlier actual
+129-case Chrome build. Next: commit and publish this exact candidate, then
+qualify hosted Native retirement/readback, full Browser and CodeQL gates.
+The [source proof](evidence/managed-stabilization-source-checks-20261003.json)
+records commands, retained failures and the documentation-only post-run delta.
+The Places channel sanitization and
+missing browser-job ffmpeg prerequisite are corrected. CodeQL45 was dismissed
+as a reviewed artifact-hash false positive after authenticating both analyzed
+merge source files; other unresolved findings remain subject to fresh scanning.
+The narrow authenticated-X11 readiness patch is also installed with the same
+five-second production and three-second test deadlines; all15 focused CPU
+controls pass. Preserve current Audio/Emote admission and qualify the final
+composition separately from the isolated1d2 protocol success.
 The current live services/frontend/module remain untouched. Public Hub fluidness,
 complete Tablet acceptance and real microphone signal remain open; no broad
 feature completion follows from authored browser/Qt tests.
