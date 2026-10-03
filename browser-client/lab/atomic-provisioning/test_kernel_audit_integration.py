@@ -72,6 +72,10 @@ def original_workflow(workflow):
     return workflow
 
 def original_source(source):
+    old_name='    def test_zero_cap_own_child_and_same_namespace_user_ipc_launch_preflight(self):'
+    history_name='    def historical_zero_cap_own_child_and_same_namespace_user_ipc_launch_preflight(self):'
+    if source.count(history_name)!=1:raise ValueError('changed-historical-preflight-name')
+    source=source.replace(history_name,old_name,1)
     for addition in (IMPORTS,HOOK,FAILURE):
         if source.count(addition)!=1:
             raise ValueError('changed-diagnostic-source')
@@ -102,7 +106,7 @@ class IntegrationTests(unittest.TestCase):
         output=io.StringIO();failure=None
         env={} if mode is None else {'ATOMIC_DIAGNOSTIC_KERNEL_AUDIT':mode}
         with patch.dict(os.environ,env,clear=True),patch.object(T.subprocess,'run',side_effect=command),patch.object(T.kernel_audit,'observe_original_run',side_effect=observed),patch.object(T.kernel_audit,'collect',side_effect=collected),contextlib.redirect_stdout(output):
-            try:T.ObserverTests('test_zero_cap_own_child_and_same_namespace_user_ipc_launch_preflight').test_zero_cap_own_child_and_same_namespace_user_ipc_launch_preflight()
+            try:T.ObserverTests('historical_zero_cap_own_child_and_same_namespace_user_ipc_launch_preflight').historical_zero_cap_own_child_and_same_namespace_user_ipc_launch_preflight()
             except (AssertionError,subprocess.TimeoutExpired) as error:failure=error
         return calls,output.getvalue(),failure
 

@@ -23,6 +23,7 @@ from native_admin import native_admin_credential
 from guest_permissions import guest_permission_diagnostics
 from provisioning_diagnostics import post_guest_settings, ProvisioningDiagnosticError
 from host_tools import select_tools, load_tools, preflight, tool_identities
+import native_launch
 
 REPO = Path(__file__).resolve().parents[2]
 SOURCE = Path(__file__).resolve().parent
@@ -65,6 +66,8 @@ def extract_rpm(source):
 def prepare(client_artifact=None, host_mode="fedora", **tool_options):
     if any(alive(entry["pid"]) for entry in load_state().values()):
         raise RuntimeError("The managed lab is running; preparation must not replace its tools or fixture files")
+    ROOT.mkdir(parents=True, mode=0o700, exist_ok=True)
+    native_launch.private_directory(ROOT)
     for name in ["downloads", "server", "host-tools", "rpms", "logs", "runtime", "http", "config", "data", "evidence"]:
         (ROOT / name).mkdir(parents=True, exist_ok=True)
     for name, expected in ARTIFACTS.items():
@@ -184,10 +187,11 @@ def start_ticks(pid):
     return Path(f"/proc/{pid}/stat").read_text().split(") ",1)[1].split()[19]
 
 
-def launch(name, arguments, environment, state):
+def launch(name, arguments, environment, state, *, pass_fds=()):
     with (ROOT / "logs" / f"{name}.log").open("w") as log:
         process = subprocess.Popen([str(a) for a in arguments], cwd=REPO,
-                                   env=environment, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+                                   env=environment, stdout=log, stderr=subprocess.STDOUT, start_new_session=True,
+                                   pass_fds=pass_fds)
     state[name] = {"pid":process.pid,"startedAt":time.time(),"startTicks":start_ticks(process.pid),"arguments":[str(a) for a in arguments]}
     STATE.write_text(json.dumps(state, indent=2) + "\n")
     time.sleep(0.2)
@@ -242,9 +246,11 @@ def start(gateway=False):
                                                                                         {"permissions_id":"anonymous","id_can_connect":False}]},
               "authentication":{"enable_oauth2":False},"wizard":{"completed":True}}
     (ROOT / "config/domain.json").write_text(json.dumps(config,indent=2)+"\n")
-    launch("domain",["unshare","--user","--map-current-user","--ipc","--",
-                     server/"domain-server","--user-config",ROOT/"config/domain.json","--logOptions","nocolor,nojournald"],server_env,state)
+    with native_launch.managed_command(ROOT, REPO, server_env) as (command, host_env, descriptor, policy):
+        launch("domain", command, host_env, state, pass_fds=(descriptor,))
     wait_port(45100)
+    print(json.dumps({"kind":"owned-domain-confinement", **native_launch.managed_confinement(
+        state["domain"]["pid"], server/"domain-server", policy)}, sort_keys=True), flush=True)
     launch("assignments",[server/"assignment-client","-a","127.0.0.1","--server-port","45102",
                            "--disable-domain-port-auto-discovery","--min-listen-port","45200","--monitor-port","45290","-n","6",
                            "--logOptions","nocolor,nojournald"],server_env,state)

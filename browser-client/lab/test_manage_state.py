@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """No-process preparation cleanup and strict recorded-identity contracts."""
 import importlib.util
+from contextlib import nullcontext
 import json
 from pathlib import Path
 import subprocess
@@ -13,6 +14,7 @@ from unittest.mock import patch
 # These cases validate real helper output, without another gate or mirror tests.
 from test_guest_permissions import GuestReadback
 from test_provisioning_diagnostics import ProvisioningDiagnostics
+from test_native_launch import ManagedLaunchRecords, OwnedSupervisor
 
 SOURCE = Path(__file__).resolve().parent
 sys.path.insert(0, str(SOURCE))
@@ -148,6 +150,7 @@ class ManagedState(unittest.TestCase):
                       'nativeVerifier': m.hashlib.sha256(('a' * 64).encode()).hexdigest()}
         with patch.object(m, 'ROOT', self.root), patch.object(m, 'load_tools', return_value={}), \
              patch.object(m, 'native_admin_credential', return_value=credential), \
+             patch.object(m.native_launch, 'managed_command', return_value=nullcontext((['owned-domain-fixture'], {}, 3, {}))), \
              patch.object(m.socket, 'socket'), \
              patch.object(m, 'launch', side_effect=RuntimeError('owned-test-before-native-launch')) as launch, \
              self.assertRaisesRegex(RuntimeError, 'owned-test-before-native-launch'):

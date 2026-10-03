@@ -139,7 +139,7 @@ class ObserverTests(unittest.TestCase):
                 self.assertEqual(stat.S_IMODE(p.stat().st_mode), 0o600)
                 self.assertLessEqual(p.stat().st_size, observer.MAX_CAPTURE)
 
-    def test_zero_cap_own_child_and_same_namespace_user_ipc_launch_preflight(self):
+    def historical_zero_cap_own_child_and_same_namespace_user_ipc_launch_preflight(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             capture = root / 'capture'

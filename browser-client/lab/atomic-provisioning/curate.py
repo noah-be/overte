@@ -37,13 +37,13 @@ def project(doc):
  if 'failureCategory'in doc:out['failureCategory']=enum(doc['failureCategory'],{'fixed-probe-refusal','owned-process-or-source-readback-refused'})
  if 'observerStopped'in doc:out['observerStopped']=boolean(doc['observerStopped'])
  if 'diagnosticLaunch'in doc:
-  out['diagnosticLaunch']=enum(doc['diagnosticLaunch'],{'signed-bwrap-fixed-tmpfile-denial'})
+  out['diagnosticLaunch']=enum(doc['diagnosticLaunch'],{'signed-bwrap-fixed-tmpfile-denial','managed-domain-fixed-tmpfile-denial'})
  if 'nativeConfinement'in doc:
   confinement=doc['nativeConfinement']
   keys={'zeroCapabilities','noNewPrivileges','userIsolated','ipcIsolated','profile','identityStable','seccompFiltered','allThreadsConfined'}
   if type(confinement)is not dict or set(confinement)!=keys or 'diagnosticLaunch'not in out:raise ValueError('confinement-shape-refused')
   out['nativeConfinement']={key:boolean(confinement[key])for key in keys-{'profile'}}
-  out['nativeConfinement']['profile']=enum(confinement['profile'],{'signed-bwrap-child-enforce','unqualified'})
+  out['nativeConfinement']['profile']=enum(confinement['profile'],{'signed-bwrap-child-enforce','preserved-enforcing-selinux-context','unqualified'})
  provision=doc['provisioning']
  if type(provision)is str:out['provisioning']=enum(provision,{'not-requested'})
  elif type(provision)is dict:
@@ -102,7 +102,8 @@ def project(doc):
   if not valid:raise ValueError('completed-without-strict-proof-refused')
   if 'diagnosticLaunch'in out:
    confinement=out.get('nativeConfinement',{})
-   if confinement.get('profile')!='signed-bwrap-child-enforce'or any(confinement.get(key)is not True for key in('zeroCapabilities','noNewPrivileges','userIsolated','ipcIsolated','identityStable','seccompFiltered','allThreadsConfined')):raise ValueError('completed-without-native-confinement-refused')
+   if out['diagnosticLaunch']=='signed-bwrap-fixed-tmpfile-denial'and confinement.get('profile')!='signed-bwrap-child-enforce':raise ValueError('diagnostic-profile-mismatch-refused')
+   if confinement.get('profile')not in('signed-bwrap-child-enforce','preserved-enforcing-selinux-context')or any(confinement.get(key)is not True for key in('zeroCapabilities','noNewPrivileges','userIsolated','ipcIsolated','identityStable','seccompFiltered','allThreadsConfined')):raise ValueError('completed-without-native-confinement-refused')
  return out
 
 def main():

@@ -329,7 +329,8 @@ def main():
             if args.confined_diagnostic:
                 from confined_launch import exec_confined
                 exec_confined(document, args.configuration)
-            os.execvpe(command[0], command, document['environment'])
+            from confined_launch import launch_managed_document
+            return launch_managed_document(document)
         # Native Qt library directories must not be applied to the host tracer.
         # The reviewed same-file child loads the private environment only at the
         # exact native launch; no credentials/environment values enter argv.

@@ -1,10 +1,9 @@
 # Optional owned atomic-settings diagnostic
 
-This fork-only workflow is a separate diagnostic, not a change to the
-nineteen gates or a timer around their DomainServer. Its helpers preserve the
-frozen standalone probe (manifest d940a5217061389a623de386b1b366021a2f7cfd69785bc6f3d65c06d6cc7c31):
-exact reviewed source/native/schema, fresh random admin credential, original
-initial config/argv/environment and user/IPC namespace, twenty-second readiness,
+This fork-only workflow is a separate settings qualification, not a timer around
+the nineteen-stage world lifecycle. It preserves exact reviewed source/native/
+schema, fresh random admin credential, original initial config, final native
+argv and full environment, isolated user/IPC namespaces, twenty-second readiness,
 ten-second strict security-only POST, explicit stored OAuth false before/after,
 all mandatory guest rows/flags and newly owned endpoint identity. It starts no
 Interface, assignment, world, public mutation, account or GPU workload.
@@ -19,7 +18,7 @@ It never removes/overrides profiles, lifts capabilities or changes routes.
 Manual dispatch additionally accepts the default-off
 `continue_diagnostics_after_contract_failure` input. Explicit true selection
 allows the existing fresh-domain observer to collect more evidence after the
-unchanged unit contract step fails. Exact source and authenticated stage success
+operational unit contract step fails. Exact source and authenticated stage success
 remain required; cancellation and prerequisite failure still prevent execution.
 The contract failure still fails the job, with no `continue-on-error` masking.
 The whole-workflow source oracle strips only these exact reviewed additions and
@@ -168,8 +167,16 @@ a genuine reviewed run supplies a matching source-owned record.
 
 ## Proposed confinement order CPU controls
 
-`test_confined_launch.py` adds a separate CPU experiment; it does not replace the
-original eight-second test or change the native launcher. The signed system
+`test_confined_launch.py` supplies the corrected operational confinement gate.
+The original failed eight-second body is retained verbatim under its historical
+method name, remains explicitly runnable, and still recovers the original frozen
+whole-source checksum. Its original argv, five-capability assertions, deadline,
+fsync predicate and failed-outcome controls remain covered by CPU source tests.
+The original namespace tmpfile failure is also retained as an explicitly runnable
+historical method and authenticated failed hosted result. Neither failed result
+is relabeled successful. The current positive gates measure the repaired launcher
+and actual named atomic writing rather than executing obsolete launch order.
+The signed system
 Bubblewrap creates user/IPC namespaces, drops every capability before its final
 exec, and adds a read-only root view with only the fresh fixture writable and
 minimal synthetic `/dev`. The actual child and traced marker must have all five
@@ -188,11 +195,10 @@ No Qt or native persistence acceptance follows from this CPU experiment.
 
 ## Explicit alternate native diagnostic
 
-The default-off manual `confined_native_diagnostic` input selects the measured
-signed-Bubblewrap alternative only for the separate newly owned diagnostic
-DomainServer. Original failed unit gates and original negative records stay
-failed. The ordinary native launch and its final executable/argv remain intact.
-The alternative uses the same verified native binary, strict launch record,
+The default-off manual `confined_native_diagnostic` input retains the initial
+measured prototype as a separate source-bound comparison. The default settings
+probe now uses the same `native_launch.py` helper as managed DomainServer startup.
+Both retain the same verified native binary, strict launch record,
 full native environment, original readiness/POST/observer bounds, endpoint
 ownership, cleanup, permission readback and fixed curator.
 
@@ -208,5 +214,29 @@ native executable descendant, with stable process identity, before POST.
 The safe summary identifies this diagnostic variant explicitly. Its completed
 state additionally requires every native confinement guard; CPU evidence alone
 cannot supply it. A successful result is limited to this standalone settings
-probe and does not turn the historical original capability test, browser core
-journeys or whole workflow green.
+probe and does not qualify browser core journeys or relabel historical failures.
+
+Hosted [37133105952](https://github.com/noah-be/overte/actions/runs/37133105952),
+at `d64bcb03dc4227d96e2591891f264f4d372b4e25`, qualifies the initial prototype:
+strict POST, persisted guest rows/flags and disabled OAuth pass; no persistence
+failure marker appears; exact settings-target rename and fdatasync succeed.
+All native capabilities, threads, NNP, namespaces, identity, seccomp and enforcing
+AppArmor checks pass. That run remains failed because the two historical tests
+were still operational there. The current shared managed supervisor needs its
+own exact-source hosted qualification; the earlier result does not qualify it.
+
+Managed startup passes its bounded environment through a sealed owned memfd,
+then a private read-only RAM mount inside Bubblewrap. No environment values enter
+host bootstrap argv/environment or a persistent host launch-record file. A
+registered supervisor survives normal start-command exit; its monitor and final
+payload die when that owned process group is stopped. An actual CPU fixture
+checks controller exit, five zero capabilities, NNP/seccomp, private RAM record
+permissions/readback and complete group/death cleanup. Noble requires the exact
+enforcing AppArmor profile; Fedora additionally requires active SELinux and the
+unchanged original context. Unknown/disabled host policy refuses. Fedora CPU
+evidence is not Fedora DomainServer or browser acceptance.
+
+The explicitly reviewed source closure includes `native_launch.py`. This isolated
+baseline has six fixed members; integration with the separately reviewed Chrome
+launcher requires seven. Old manifests, unknown helpers, duplicates and changed
+digests refuse; no unreviewed pin refresh is allowed.

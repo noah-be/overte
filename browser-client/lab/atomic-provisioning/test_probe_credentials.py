@@ -101,10 +101,26 @@ class ProbeCredentials(unittest.TestCase):
     def test_reviewed_source_pins_match_all_current_probe_dependencies(self):
         pins = json.loads((HERE / 'source-pins.json').read_text())
         self.assertEqual(set(pins), {'manage.py', 'native_admin.py', 'guest_permissions.py',
-                                    'provisioning_diagnostics.py', 'host_tools.py'})
+                                    'provisioning_diagnostics.py', 'host_tools.py', 'native_launch.py'})
         for name, expected in pins.items():
             with self.subTest(source=name):
                 self.assertEqual(hashlib.sha256((SOURCE / name).read_bytes()).hexdigest(), expected)
+
+    def test_old_five_unknown_helper_duplicate_and_bad_digest_refuse_before_import(self):
+        current = json.loads((HERE / 'source-pins.json').read_text())
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with patch.object(probe, 'HERE', root):
+                for row in ({key: value for key, value in current.items() if key != 'native_launch.py'},
+                            {**current, 'caller-helper.py': 'a'*64},
+                            {**current, 'native_launch.py': 'private-text'}):
+                    (root / 'source-pins.json').write_text(json.dumps(row))
+                    with self.assertRaisesRegex(ValueError, '^probe-reviewed-source-schema-changed$'):
+                        probe.reviewed_source_pins()
+                raw = json.dumps(current)[:-1] + ', "manage.py": "' + current['manage.py'] + '"}'
+                (root / 'source-pins.json').write_text(raw)
+                with self.assertRaisesRegex(ValueError, '^probe-reviewed-source-schema-changed$'):
+                    probe.reviewed_source_pins()
 
 
 if __name__ == '__main__':

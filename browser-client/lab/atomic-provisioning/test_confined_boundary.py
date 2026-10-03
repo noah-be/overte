@@ -7,7 +7,8 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
-import confined_launch as launch
+import confined_launch
+import native_launch as launch
 import curate
 
 

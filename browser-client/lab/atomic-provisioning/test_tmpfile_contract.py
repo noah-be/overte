@@ -160,7 +160,7 @@ class TmpfileContract(unittest.TestCase):
     def test_host_atomic_tmpfile_materialization_and_readback(self):
         self.run_owned([])
 
-    def test_original_user_ipc_prefix_atomic_tmpfile_materialization_and_readback(self):
+    def historical_original_user_ipc_prefix_atomic_tmpfile_materialization_and_readback(self):
         self.run_owned(['/usr/bin/unshare', '--user', '--map-current-user', '--ipc', '--'])
 
 

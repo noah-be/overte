@@ -1,7 +1,8 @@
 {
-  "manage.py": "576144174727dd251f231bac301bf12a00b98136162d45d9bcc95b0be6648f66",
+  "manage.py": "0af9751d90fbc3137d862f076062ddf7cd41ce4059e848bfeecdde0828d54bb6",
   "native_admin.py": "fe4b96615a984d8cdf98e7b7fe45cb999a6b6ce158ecc2a13b8d441e9b366bc6",
   "guest_permissions.py": "363d3108ebc80ef7d1e82ac3460382db621bf8499b260019e7286bf9a6872026",
   "provisioning_diagnostics.py": "0a9ba0e7f4164afa64dd10b97f443af14a85b03321d803641dcf1ceb3f884555",
-  "host_tools.py": "34e02d857d3c35b53b165e2d3b4ee63e30f4a417054cf0141758306ab25dc14a"
+  "host_tools.py": "34e02d857d3c35b53b165e2d3b4ee63e30f4a417054cf0141758306ab25dc14a",
+  "native_launch.py": "c7bd9635f970e4b936231fb76d4b526e4b4fc11a8b591f6c44afb78833d2a3bd"
 }

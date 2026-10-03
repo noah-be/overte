@@ -18,9 +18,11 @@ def persistence_markers(data):
  return {key:data.count(value)for key,value in phrases.items()}
 
 HERE=Path(__file__).resolve().parent
+SOURCE_DEPENDENCIES=frozenset(('manage.py','native_admin.py','guest_permissions.py',
+ 'provisioning_diagnostics.py','host_tools.py','native_launch.py'))
 sys.dont_write_bytecode=True
 FIXED_FAILURES=frozenset(('probe-path-not-canonical','fresh-probe-directory-required',
- 'probe-directory-not-private-owned','probe-reviewed-source-changed',
+ 'probe-directory-not-private-owned','probe-reviewed-source-changed','probe-reviewed-source-schema-changed',
  'fresh-probe-registry-required','fresh-probe-config-required','fresh-probe-admin-required',
  'original-initialization-boundary-changed','probe-runtime-directory-refused',
  'reviewed-packaged-native-input-changed','probe-output-refused','owned-endpoint-not-confirmed',
@@ -102,7 +104,7 @@ def prepare(repo,lab,output):
   st=directory.stat()
   if st.st_uid!=os.getuid()or stat.S_IMODE(st.st_mode)!=0o700:raise ValueError('probe-directory-not-private-owned')
  source=repo/'browser-client/lab'
- pins=json.loads((HERE/'source-pins.json').read_text())
+ pins=reviewed_source_pins()
  for name,value in pins.items():
   if sha(source/name)!=value:raise ValueError('probe-reviewed-source-changed')
  sys.path.insert(0,str(source));os.environ['OVERTE_LAB_ROOT']=str(lab)
@@ -150,6 +152,17 @@ def prepare(repo,lab,output):
  authorization='Basic '+base64.b64encode(('browser-lab-admin:'+cred['token']).encode()).decode()
  return manage,document,payload,authorization,post_guest_settings,ProvisioningDiagnosticError,guest_permission_diagnostics
 
+def reviewed_source_pins():
+ def unique(pairs):
+  result={}
+  for key,value in pairs:
+   if key in result:raise ValueError('probe-reviewed-source-schema-changed')
+   result[key]=value
+  return result
+ pins=json.loads(checked_regular(HERE/'source-pins.json',65536),object_pairs_hook=unique)
+ if type(pins)is not dict or set(pins)!=SOURCE_DEPENDENCIES or any(type(value)is not str or len(value)!=64 or any(char not in'0123456789abcdef'for char in value)for value in pins.values()):raise ValueError('probe-reviewed-source-schema-changed')
+ return pins
+
 def run(repo,lab,output,*,confined_diagnostic=False):
  process=None;safe_output=False;out={'schemaVersion':1,'scope':'standalone-fresh-domain-provisioning-probe-not-nineteen-stage-world-lifecycle','completed':False,'endpointOwnership':'not-observed','provisioning':'not-requested','phase':'preparation'}
  try:
@@ -164,6 +177,7 @@ def run(repo,lab,output,*,confined_diagnostic=False):
   if confined_diagnostic:
    out['diagnosticLaunch']='signed-bwrap-fixed-tmpfile-denial'
    observer_command.append('--confined-diagnostic')
+  else:out['diagnosticLaunch']='managed-domain-fixed-tmpfile-denial'
   process=subprocess.Popen(observer_command,env=host,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,start_new_session=True,preexec_fn=lambda:child_death_guard(expected))
   exclusive(output/'probe-process.private.json',(json.dumps({'pid':process.pid,'startTicks':manage.start_ticks(process.pid),'entrySHA256':sha(HERE/'observer.py')})+'\n').encode())
   out['phase']='native-readiness'
@@ -175,6 +189,9 @@ def run(repo,lab,output,*,confined_diagnostic=False):
    from confined_launch import owned_native_confinement,require_confinement
    out['nativeConfinement']=owned_native_confinement(process.pid,doc['native'])
    require_confinement(out['nativeConfinement'])
+  else:
+   from confined_launch import host_policy,managed_confinement
+   out['nativeConfinement']=managed_confinement(process.pid,doc['native'],host_policy())
   out['phase']='settings-provisioning'
   start=time.time()
   try:
