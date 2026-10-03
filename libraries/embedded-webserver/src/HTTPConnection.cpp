@@ -12,7 +12,9 @@
 
 #include "HTTPConnection.h"
 
-#include <assert.h>
+#include <algorithm>
+#include <limits>
+#include <new>
 
 #include <QBuffer>
 #include <QCryptographicHash>
@@ -36,82 +38,88 @@ const char* HTTPConnection::DefaultContentType = "text/plain; charset=ISO-8859-1
 
 class MemoryStorage : public HTTPConnection::Storage {
 public:
-    static std::unique_ptr<MemoryStorage> make(qint64 size);
+    explicit MemoryStorage(QByteArray array) : _array(std::move(array)) {}
     virtual ~MemoryStorage() = default;
 
     const QByteArray& content() const override { return _array; }
     qint64 bytesLeftToWrite() const override { return _array.size() - _bytesWritten; }
-    void write(const QByteArray& data) override;
+    bool write(const QByteArray& data) override;
 
 private:
-    MemoryStorage(qint64 size) { _array.resize(size); }
-
     QByteArray _array;
     qint64 _bytesWritten { 0 };
 };
 
-std::unique_ptr<MemoryStorage> MemoryStorage::make(qint64 size) {
-    return std::unique_ptr<MemoryStorage>(new MemoryStorage(size));
-}
-
-void MemoryStorage::write(const QByteArray& data) {
-    assert(data.size() <= bytesLeftToWrite());
+bool MemoryStorage::write(const QByteArray& data) {
+    if (data.size() > bytesLeftToWrite()) {
+        return false;
+    }
     memcpy(_array.data() + _bytesWritten, data.data(), data.size());
     _bytesWritten += data.size();
+    return true;
 }
 
 
 class FileStorage : public HTTPConnection::Storage {
 public:
-    static std::unique_ptr<FileStorage> make(qint64 size);
+    FileStorage(std::unique_ptr<QTemporaryFile> file, qint64 size, HTTPManager* manager);
     virtual ~FileStorage();
 
     const QByteArray& content() const override { return _wrapperArray; };
     qint64 bytesLeftToWrite() const override { return _mappedMemorySize - _bytesWritten; }
-    void write(const QByteArray& data) override;
+    bool write(const QByteArray& data) override;
+    bool finish() override;
 
 private:
-    FileStorage(std::unique_ptr<QTemporaryFile> file, uchar* mapped, qint64 size);
-
-    // Byte array is const because any edit will trigger a deep copy
-    // and pull all the data we want to keep on disk in memory.
-    const QByteArray _wrapperArray;
+    // Initialized once after the checked writes; only const access thereafter.
+    QByteArray _wrapperArray;
     std::unique_ptr<QTemporaryFile> _file;
 
-    uchar* const _mappedMemoryAddress { nullptr };
+    uchar* _mappedMemoryAddress { nullptr };
     const qint64 _mappedMemorySize { 0 };
     qint64 _bytesWritten { 0 };
+    HTTPManager* _manager;
 };
-
-std::unique_ptr<FileStorage> FileStorage::make(qint64 size) {
-    auto file = std::unique_ptr<QTemporaryFile>(new QTemporaryFile());
-    file->open(); // Open for resize
-    file->resize(size);
-    auto mapped = file->map(0, size); // map the entire file
-
-    return std::unique_ptr<FileStorage>(new FileStorage(std::move(file), mapped, size));
-}
 
 // Use QByteArray::fromRawData to avoid a new allocation and access the already existing
 // memory directly as long as all operations on the array are const.
-FileStorage::FileStorage(std::unique_ptr<QTemporaryFile> file, uchar* mapped, qint64 size) :
-    _wrapperArray(QByteArray::fromRawData(reinterpret_cast<char*>(mapped), size)),
+FileStorage::FileStorage(std::unique_ptr<QTemporaryFile> file, qint64 size, HTTPManager* manager) :
     _file(std::move(file)),
-    _mappedMemoryAddress(mapped),
-    _mappedMemorySize(size)
+    _mappedMemorySize(size),
+    _manager(manager)
 {
 }
 
 FileStorage::~FileStorage() {
-    _file->unmap(_mappedMemoryAddress);
+    if (_mappedMemoryAddress) {
+        _file->unmap(_mappedMemoryAddress);
+    }
     _file->close();
 }
 
-void FileStorage::write(const QByteArray& data) {
-    assert(data.size() <= bytesLeftToWrite());
-    // We write directly to the mapped memory
-    memcpy(_mappedMemoryAddress + _bytesWritten, data.data(), data.size());
+bool FileStorage::write(const QByteArray& data) {
+    if (data.size() > bytesLeftToWrite()) {
+        return false;
+    }
+    // Checked file I/O avoids a SIGBUS from writing sparse mapped pages when
+    // the temporary filesystem is full. Map only fully written content.
+    if (_file->write(data) != data.size()) {
+        return false;
+    }
     _bytesWritten += data.size();
+    return true;
+}
+
+bool FileStorage::finish() {
+    if (bytesLeftToWrite() != 0 || !_file->flush()) {
+        return false;
+    }
+    _mappedMemoryAddress = _manager->mapRequestFile(*_file, _mappedMemorySize);
+    if (!_mappedMemoryAddress) {
+        return false;
+    }
+    _wrapperArray = QByteArray::fromRawData(reinterpret_cast<char*>(_mappedMemoryAddress), static_cast<int>(_mappedMemorySize));
+    return true;
 }
 
 
@@ -119,22 +127,187 @@ HTTPConnection::HTTPConnection(QTcpSocket* socket, HTTPManager* parentManager) :
     QObject(parentManager),
     _parentManager(parentManager),
     _socket(socket),
-    _address(socket->peerAddress())
+    _address(socket->peerAddress()),
+    _limits(parentManager->requestLimits()),
+    _requestTimer(new QTimer(this)),
+    _headerTimer(new QTimer(this)),
+    _idleTimer(new QTimer(this))
 {
     // take over ownership of the socket
     _socket->setParent(this);
+    _socket->setReadBufferSize(HTTPRequestLimits::SOCKET_BUFFER_BYTES);
 
     // connect initial slots
     connect(socket, &QAbstractSocket::readyRead, this, &HTTPConnection::readRequest);
-    connect(socket, &QAbstractSocket::errorOccurred, this, &HTTPConnection::deleteLater);
-    connect(socket, &QAbstractSocket::disconnected, this, &HTTPConnection::deleteLater);
+    auto cleanup = [this] {
+        _finished = true;
+        releaseResources();
+        deleteLater();
+    };
+    connect(socket, &QAbstractSocket::errorOccurred, this, cleanup);
+    connect(socket, &QAbstractSocket::disconnected, this, cleanup);
+
+    _elapsed.start();
+    for (auto timer : { _requestTimer, _headerTimer, _idleTimer }) {
+        timer->setSingleShot(true);
+        timer->setTimerType(Qt::PreciseTimer);
+        connect(timer, &QTimer::timeout, this, [this] { failRequest("408 Request Timeout"); });
+    }
+    _admitted = _parentManager->acquireRequest();
+    if (!_admitted) {
+        failRequest("503 Service Unavailable");
+        return;
+    }
+    _requestTimer->start(_limits.requestDeadlineMs);
+    _headerTimer->start(_limits.headerDeadlineMs);
+    _idleTimer->start(_limits.idleDeadlineMs);
 }
 
 HTTPConnection::~HTTPConnection() {
+    releaseResources();
     // log the destruction
     if (_socket->error() != QAbstractSocket::UnknownSocketError
         && _socket->error() != QAbstractSocket::RemoteHostClosedError) {
         qCDebug(embeddedwebserver) << _socket->errorString() << "-" << _socket->error();
+    }
+}
+
+void HTTPConnection::releaseStorage() {
+    _requestContent.reset(); // Unmap/remove the temporary file before returning its budget.
+    _parentManager->releaseRequestBody(_reservedBodyBytes);
+    _reservedBodyBytes = 0;
+}
+
+void HTTPConnection::releaseResources() {
+    _requestTimer->stop();
+    _headerTimer->stop();
+    _idleTimer->stop();
+    releaseStorage();
+    if (_admitted) {
+        _parentManager->releaseRequest();
+        _admitted = false;
+    }
+}
+
+void HTTPConnection::failRequest(const char* status) {
+    if (_finished) {
+        return;
+    }
+    _finished = true;
+    _requestTimer->stop();
+    _headerTimer->stop();
+    _idleTimer->stop();
+    disconnect(_socket, &QTcpSocket::readyRead, this, nullptr);
+    releaseStorage();
+    _requestHeaders.clear();
+    if (_responseStarted || _socket->state() != QAbstractSocket::ConnectedState) {
+        // A dispatch failure after response headers must not append a second
+        // response or keep a streaming response alive with its request budget.
+        disconnect(_socket, &QTcpSocket::bytesWritten, this, nullptr);
+        _socket->abort();
+        releaseResources();
+        deleteLater();
+        return;
+    }
+    try {
+        respond(status);
+    } catch (const std::bad_alloc&) {
+        _socket->abort();
+        deleteLater();
+    }
+    // Do not retain a rejected socket if the peer never drains its response.
+    QTimer::singleShot(1000, this, [this] { _socket->abort(); deleteLater(); });
+}
+
+bool HTTPConnection::withinDeadline() {
+    if (_finished) {
+        return false;
+    }
+    const auto elapsed = _elapsed.elapsed();
+    if (elapsed >= _limits.requestDeadlineMs ||
+        (!_headersComplete && elapsed >= _limits.headerDeadlineMs) ||
+        elapsed - _lastProgressMs >= _limits.idleDeadlineMs) {
+        failRequest("408 Request Timeout");
+        return false;
+    }
+    return true;
+}
+
+bool HTTPConnection::readHeaderLine(QByteArray& line) {
+    if (!withinDeadline()) {
+        return false;
+    }
+    const auto remaining = _limits.maxHeaderBytes - _headerBytes;
+    if (_socket->bytesAvailable() > 0) {
+        _lastProgressMs = _elapsed.elapsed();
+        _idleTimer->start(_limits.idleDeadlineMs);
+    }
+    if (!_socket->canReadLine()) {
+        // A full socket buffer with no newline must be rejected too, rather than
+        // waiting forever for a newline that cannot enter the bounded buffer.
+        if (_socket->bytesAvailable() >= remaining ||
+            _socket->bytesAvailable() >= HTTPRequestLimits::SOCKET_BUFFER_BYTES) {
+            failRequest("431 Request Header Fields Too Large");
+        }
+        return false;
+    }
+    line = _socket->readLine(remaining + 2); // At most remaining + 1 payload bytes.
+    if (line.size() > remaining) {
+        failRequest("431 Request Header Fields Too Large");
+        return false;
+    }
+    _headerBytes += line.size();
+    if (!line.endsWith("\r\n")) {
+        failRequest(StatusCode400);
+        return false;
+    }
+    line.chop(2);
+    return true;
+}
+
+bool HTTPConnection::prepareStorage(qint64 size) {
+    if (!_parentManager->reserveRequestBody(size)) {
+        failRequest("503 Service Unavailable");
+        return false;
+    }
+    _reservedBodyBytes = size;
+    if (size == 0 || size < _limits.memoryBodyThreshold) {
+        auto array = _parentManager->allocateRequestMemory(static_cast<int>(size));
+        if (array.size() != size) {
+            failRequest(StatusCode500);
+            return false;
+        }
+        _requestContent = std::make_unique<MemoryStorage>(std::move(array));
+    } else {
+        auto file = std::make_unique<QTemporaryFile>();
+        if (!_parentManager->openRequestFile(*file) || !file->isOpen() ||
+            !_parentManager->resizeRequestFile(*file, size)) {
+            file.reset();
+            failRequest(StatusCode500);
+            return false;
+        }
+        _requestContent = std::make_unique<FileStorage>(std::move(file), size, _parentManager);
+    }
+    return true;
+}
+
+void HTTPConnection::finishRequest() {
+    if (!withinDeadline()) {
+        return;
+    }
+    _finished = true;
+    _requestTimer->stop();
+    _headerTimer->stop();
+    _idleTimer->stop();
+    disconnect(_socket, &QTcpSocket::readyRead, this, nullptr);
+    try {
+        _parentManager->handleHTTPRequest(this, _requestUrl);
+    } catch (const std::bad_alloc&) {
+        // Parsing has finished, but failed synchronous dispatch still needs
+        // terminal cleanup. Successful asynchronous handlers keep the normal
+        // finished state, stopped parsing timers, and live body reservation.
+        _finished = false;
+        failRequest(StatusCode500);
     }
 }
 
@@ -147,7 +320,7 @@ QHash<QString, QString> HTTPConnection::parseUrlEncodedForm() {
         return QHash<QString, QString>();
     }
 
-    QUrlQuery form { _requestContent->content() };
+    QUrlQuery form { requestContent() };
     QHash<QString, QString> pairs;
     for (auto pair : form.queryItems()) {
         auto key = QUrl::fromPercentEncoding(pair.first.toLatin1().replace('+', ' '));
@@ -182,7 +355,7 @@ QList<FormData> HTTPConnection::parseFormData() const {
     QByteArray end = "\r\n--" + boundary + "--\r\n";
 
     QList<FormData> data;
-    QBuffer buffer(const_cast<QByteArray*>(&_requestContent->content()));
+    QBuffer buffer(const_cast<QByteArray*>(&requestContent()));
     buffer.open(QIODevice::ReadOnly);
     while (buffer.canReadLine()) {
         QByteArray line = buffer.readLine().trimmed();
@@ -192,12 +365,12 @@ QList<FormData> HTTPConnection::parseFormData() const {
                 QByteArray line = buffer.readLine().trimmed();
                 if (line.isEmpty()) {
                     // content starts after this line
-                    int idx = _requestContent->content().indexOf(end, buffer.pos());
+                    int idx = requestContent().indexOf(end, buffer.pos());
                     if (idx == -1) {
                         qWarning() << "Missing end boundary." << _address;
                         return data;
                     }
-                    datum.second = QByteArray(_requestContent->content().data() + buffer.pos(),
+                    datum.second = QByteArray(requestContent().data() + buffer.pos(),
                                                            idx - buffer.pos());
                     data.append(datum);
                     buffer.seek(idx + end.length());
@@ -206,7 +379,7 @@ QList<FormData> HTTPConnection::parseFormData() const {
                     // it's a header element
                     int idx = line.indexOf(':');
                     if (idx == -1) {
-                        qWarning() << "Invalid header line." << _address << line;
+                        qWarning() << "Invalid form header line." << _address;
                         continue;
                     }
                     datum.first.insert(line.left(idx).trimmed(), line.mid(idx + 1).trimmed());
@@ -264,6 +437,7 @@ void HTTPConnection::respond(const char* code, std::unique_ptr<QIODevice> device
 }
 
 void HTTPConnection::respondWithStatusAndHeaders(const char* code, const char* contentType, const Headers& headers, qint64 contentLength) {
+    _responseStarted = true; // Even a partial/throwing first write forbids another response.
     _socket->write("HTTP/1.1 ");
 
     _socket->write(code);
@@ -289,113 +463,160 @@ void HTTPConnection::respondWithStatusAndHeaders(const char* code, const char* c
     _socket->write("Connection: close\r\n\r\n");
 }
 
-void HTTPConnection::readRequest() {
-    if (!_socket->canReadLine()) {
+namespace {
+bool isHeaderToken(const QByteArray& token) {
+    if (token.isEmpty()) {
+        return false;
+    }
+    for (char c : token) {
+        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+              (c >= '0' && c <= '9') || QByteArray("!#$%&'*+-.^_`|~").contains(c))) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool parseLength(const QByteArray& value, qint64& length) {
+    length = 0;
+    if (value.isEmpty()) {
+        return false;
+    }
+    for (char c : value) {
+        if (c < '0' || c > '9' || length > (std::numeric_limits<qint64>::max() - (c - '0')) / 10) {
+            return false;
+        }
+        length = length * 10 + (c - '0');
+    }
+    return true;
+}
+} // namespace
+
+void HTTPConnection::readRequest() try {
+    QByteArray line;
+    if (!readHeaderLine(line)) {
         return;
     }
-    if (!_requestUrl.isEmpty()) {
-        qDebug() << "Request URL was already set";
+    const auto parts = line.split(' ');
+    if (parts.size() != 3 || parts[1].isEmpty() ||
+        (parts[2] != "HTTP/1.1" && parts[2] != "HTTP/1.0")) {
+        failRequest(StatusCode400);
         return;
     }
-    // parse out the method and resource
-    QByteArray line = _socket->readLine().trimmed();
-    if (line.startsWith("HEAD")) {
+    const auto& method = parts[0];
+    if (method == "HEAD") {
         _requestOperation = QNetworkAccessManager::HeadOperation;
-
-    } else if (line.startsWith("GET")) {
+    } else if (method == "GET") {
         _requestOperation = QNetworkAccessManager::GetOperation;
-
-    } else if (line.startsWith("PUT")) {
+    } else if (method == "PUT") {
         _requestOperation = QNetworkAccessManager::PutOperation;
-
-    } else if (line.startsWith("POST")) {
+    } else if (method == "POST") {
         _requestOperation = QNetworkAccessManager::PostOperation;
-
-    } else if (line.startsWith("DELETE")) {
+    } else if (method == "DELETE") {
         _requestOperation = QNetworkAccessManager::DeleteOperation;
-
     } else {
-        qWarning() << "Unrecognized HTTP operation." << _address << line;
-        respond("400 Bad Request", "Unrecognized operation.");
+        failRequest(StatusCode400);
         return;
     }
-    int idx = line.indexOf(' ') + 1;
-    _requestUrl.setUrl(line.mid(idx, line.lastIndexOf(' ') - idx));
-
-    // switch to reading the header
-    _socket->disconnect(this, SLOT(readRequest()));
-    connect(_socket, SIGNAL(readyRead()), SLOT(readHeaders()));
-
-    // read any headers immediately available
+    for (char c : parts[1]) {
+        if (static_cast<uchar>(c) <= 32 || c == 127) {
+            failRequest(StatusCode400);
+            return;
+        }
+    }
+    _requestUrl.setUrl(QString::fromUtf8(parts[1]));
+    if (!_requestUrl.isValid()) {
+        failRequest(StatusCode400);
+        return;
+    }
+    disconnect(_socket, &QTcpSocket::readyRead, this, nullptr);
+    connect(_socket, &QTcpSocket::readyRead, this, &HTTPConnection::readHeaders);
     readHeaders();
+} catch (const std::bad_alloc&) {
+    failRequest(StatusCode500);
 }
 
-void HTTPConnection::readHeaders() {
-    while (_socket->canReadLine()) {
-        QByteArray line = _socket->readLine();
-        QByteArray trimmed = line.trimmed();
-        if (trimmed.isEmpty()) {
-            _socket->disconnect(this, SLOT(readHeaders()));
-
-            QByteArray clength = requestHeader("Content-Length");
-            if (clength.isEmpty()) {
-                _requestContent = MemoryStorage::make(0);
-                _parentManager->handleHTTPRequest(this, _requestUrl);
-
-            } else {
-                bool success = false;
-                auto length = clength.toInt(&success);
-                if (!success) {
-                    qWarning() << "Invalid header." << _address << trimmed;
-                    respond("400 Bad Request", "The header was malformed.");
-                    return;
-                }
-
-                // Storing big requests in memory gets expensive, especially on servers
-                // with limited memory. So we store big requests in a temporary file on disk
-                // and map it to faster read/write access.
-                static const int MAX_CONTENT_SIZE_IN_MEMORY = 10 * 1000 * 1000;
-                if (length < MAX_CONTENT_SIZE_IN_MEMORY) {
-                    _requestContent = MemoryStorage::make(length);
-                } else {
-                    _requestContent = FileStorage::make(length);
-                }
-
-                connect(_socket, SIGNAL(readyRead()), SLOT(readContent()));
-
-                // read any content immediately available
-                readContent();
+void HTTPConnection::readHeaders() try {
+    QByteArray line;
+    while (readHeaderLine(line)) {
+        if (line.isEmpty()) {
+            _headersComplete = true;
+            _headerTimer->stop();
+            disconnect(_socket, &QTcpSocket::readyRead, this, nullptr);
+            qint64 length = 0;
+            if (_requestHeaders.contains("content-length") &&
+                !parseLength(_requestHeaders.value("content-length"), length)) {
+                failRequest(StatusCode400);
+                return;
             }
+            if (length > _limits.maxBodyBytes || length > std::numeric_limits<int>::max() - qint64(1)) {
+                failRequest("413 Payload Too Large");
+                return;
+            }
+            if (!prepareStorage(length)) {
+                return;
+            }
+            connect(_socket, &QTcpSocket::readyRead, this, &HTTPConnection::readContent);
+            readContent();
             return;
         }
-        char first = line.at(0);
-        if (first == ' ' || first == '\t') { // continuation
-            _requestHeaders[_lastRequestHeader].append(trimmed);
-            continue;
-        }
-        int idx = trimmed.indexOf(':');
-        if (idx == -1) {
-            qWarning() << "Invalid header." << _address << trimmed;
-            respond("400 Bad Request", "The header was malformed.");
+        const int colon = line.indexOf(':');
+        const auto key = line.left(colon).toLower();
+        if (colon < 1 || !isHeaderToken(key)) { // Includes obsolete folded headers.
+            failRequest(StatusCode400);
             return;
         }
-        _lastRequestHeader = trimmed.left(idx).toLower();
-        QByteArray& value = _requestHeaders[_lastRequestHeader];
-        if (!value.isEmpty()) {
-            value.append(", ");
+        auto value = line.mid(colon + 1);
+        for (char c : value) {
+            if ((static_cast<uchar>(c) < 32 && c != '\t') || c == 127) {
+                failRequest(StatusCode400);
+                return;
+            }
         }
-        value.append(trimmed.mid(idx + 1).trimmed());
+        value = value.trimmed(); // Only SP/HTAB can remain as whitespace here.
+        // This server never supported chunked bodies. Reject all transfer codings
+        // and repeated lengths (even identical) rather than accepting ambiguity.
+        if (key == "transfer-encoding" || (key == "content-length" && _requestHeaders.contains(key))) {
+            failRequest(StatusCode400);
+            return;
+        }
+        if (_requestHeaders.contains(key)) {
+            _requestHeaders[key].append(", ");
+            _requestHeaders[key].append(value);
+        } else {
+            _requestHeaders.insert(key, value);
+        }
     }
+} catch (const std::bad_alloc&) {
+    failRequest(StatusCode500);
 }
 
-void HTTPConnection::readContent() {
-    auto size = std::min(_socket->bytesAvailable(), _requestContent->bytesLeftToWrite());
-
-    _requestContent->write(_socket->read(size));
-
-    if (_requestContent->bytesLeftToWrite() == 0) {
-        _socket->disconnect(this, SLOT(readContent()));
-
-        _parentManager->handleHTTPRequest(this, _requestUrl);
+void HTTPConnection::readContent() try {
+    if (!withinDeadline()) {
+        return;
     }
+    // Bound the transient read allocation independently of the declared body size.
+    const auto size = std::min({ _socket->bytesAvailable(), _requestContent->bytesLeftToWrite(),
+                                HTTPRequestLimits::SOCKET_BUFFER_BYTES });
+    if (size > 0) {
+        const auto data = _socket->read(size);
+        if (data.size() != size || !_requestContent->write(data)) {
+            failRequest(StatusCode500);
+            return;
+        }
+        _lastProgressMs = _elapsed.elapsed();
+        _idleTimer->start(_limits.idleDeadlineMs);
+    }
+    if (_requestContent->bytesLeftToWrite() == 0) {
+        if (!_requestContent->finish()) {
+            failRequest(StatusCode500);
+            return;
+        }
+        finishRequest();
+    } else if (_socket->bytesAvailable() > 0) {
+        // Yield to the event loop so large bodies cannot starve deadline timers.
+        QMetaObject::invokeMethod(this, "readContent", Qt::QueuedConnection);
+    }
+} catch (const std::bad_alloc&) {
+    failRequest(StatusCode500);
 }
