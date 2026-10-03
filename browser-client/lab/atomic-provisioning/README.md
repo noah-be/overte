@@ -42,6 +42,14 @@ short entries, exact 64 KiB acceptance, one-byte overflow and aggregate overflow
 despite individually valid values. The native environment and argv are preserved.
 This repairs probe preparation; it does not qualify the failed capability gate.
 
+Two CPU filesystem contracts compare `O_TMPFILE`, permission copying, sync,
+`/proc/self/fd` linking to an existing target and a fresh temporary target,
+atomic replacement and real readback. One uses the host; the other retains the
+original `unshare --user --map-current-user --ipc --` prefix. They touch only
+new owned temporary files, run no Qt/native/service process, use a five-second
+child bound and print only fixed outcomes on failure. They test the primitive
+separately from the actual DomainServer; neither can establish its commit cause.
+
 `stage.py` creates unique owned 0700 probe/lab/output directories beneath the
 canonical RUNNER_TEMP and copies only the reviewed helpers/metadata. It downloads
 fixed official Noble InRelease/index/package URLs with bounded reads and checks
