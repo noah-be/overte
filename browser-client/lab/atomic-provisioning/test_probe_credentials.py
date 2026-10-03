@@ -19,6 +19,31 @@ SOURCE = HERE.parent
 
 
 class ProbeCredentials(unittest.TestCase):
+    def test_fixed_failure_observation_refuses_unknown_exception_prose(self):
+        self.assertEqual(probe.failure_observation(ValueError('input-size-or-executable-invalid'))['refusal'],
+                         'input-size-or-executable-invalid')
+        for error in (ValueError('/private/token-secret'), ValueError(['private-secret']),
+                      RuntimeError('probe-reviewed-source-changed'),
+                      ValueError('probe-reviewed-source-changed', '/private/token-secret')):
+            row=probe.failure_observation(error)
+            self.assertEqual(row['refusal'],'unclassified')
+            self.assertNotIn('private',json.dumps(row))
+            self.assertNotIn('token-secret',json.dumps(row))
+
+    def test_failed_cli_keeps_original_failure_and_prints_only_fixed_observation(self):
+        import contextlib
+        import io
+        stderr=io.StringIO()
+        with patch.object(sys,'argv',['probe','--repo-root','/unused-repo','--lab-root','/unused-lab','--private-output','/unused-output']), \
+             patch.object(probe,'run',side_effect=ValueError('probe-reviewed-source-changed')), \
+             contextlib.redirect_stderr(stderr):
+            self.assertEqual(probe.main(),1)
+        lines=stderr.getvalue().splitlines()
+        self.assertEqual(lines[-1],'standalone-owned-probe-refused')
+        row=json.loads(lines[0].split(':',1)[1])
+        self.assertEqual(row,{'scope':'owned-probe-failure-observation-not-causality',
+                              'refusal':'probe-reviewed-source-changed'})
+
     def test_preparation_persists_only_verifier_and_keeps_authentication_in_memory(self):
         original_path = list(sys.path)
         self.addCleanup(lambda: sys.path.__setitem__(slice(None), original_path))

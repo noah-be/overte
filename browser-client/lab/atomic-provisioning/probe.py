@@ -19,6 +19,22 @@ def persistence_markers(data):
 
 HERE=Path(__file__).resolve().parent
 sys.dont_write_bytecode=True
+FIXED_FAILURES=frozenset(('probe-path-not-canonical','fresh-probe-directory-required',
+ 'probe-directory-not-private-owned','probe-reviewed-source-changed',
+ 'fresh-probe-registry-required','fresh-probe-config-required','fresh-probe-admin-required',
+ 'original-initialization-boundary-changed','probe-runtime-directory-refused',
+ 'reviewed-packaged-native-input-changed','probe-output-refused','owned-endpoint-not-confirmed',
+ 'input-path-not-canonical','input-not-owned-regular','input-not-private',
+ 'input-size-or-executable-invalid','input-size-invalid','launch-schema-invalid',
+ 'launch-path-invalid','launch-executable-hash-mismatch','launch-executable-kind-invalid',
+ 'launch-environment-invalid','launch-environment-code-override','launch-inherited-home-changed'))
+
+def failure_observation(error):
+ # Fixed source-owned exception tags only; no exception prose or paths escape.
+ category='unclassified'
+ if type(error)is ValueError and len(error.args)==1 and type(error.args[0])is str and error.args[0]in FIXED_FAILURES:
+  category=error.args[0]
+ return {'scope':'owned-probe-failure-observation-not-causality','refusal':category}
 
 def sha(p,*,executable=False):return hashlib.sha256(checked_regular(p,64*1024*1024,executable=executable)).hexdigest()
 def exclusive(path,data,mode=0o600):
@@ -176,6 +192,8 @@ def run(repo,lab,output):
 def main():
  p=argparse.ArgumentParser(description=__doc__);p.add_argument('--repo-root',required=True);p.add_argument('--lab-root',required=True);p.add_argument('--private-output',required=True);a=p.parse_args()
  try:r=run(a.repo_root,a.lab_root,a.private_output)
- except (OSError,ValueError,RuntimeError,subprocess.SubprocessError,KeyError,TypeError,UnicodeError):print('standalone-owned-probe-refused',file=sys.stderr);return 1
+ except (OSError,ValueError,RuntimeError,subprocess.SubprocessError,KeyError,TypeError,UnicodeError) as error:
+  print('ATOMIC_PROBE_FAILURE:'+json.dumps(failure_observation(error),sort_keys=True,separators=(',',':')),file=sys.stderr)
+  print('standalone-owned-probe-refused',file=sys.stderr);return 1
  print(json.dumps({'completed':r['completed'],'scope':r['scope']}));return 0 if r['completed']else 1
 if __name__=='__main__':raise SystemExit(main())
