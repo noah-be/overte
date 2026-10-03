@@ -32,7 +32,7 @@ void HTTPSManager::incomingConnection(qintptr socketDescriptor) {
     sslSocket->setPrivateKey(_privateKey);
     sslSocket->setPeerVerifyMode(QSslSocket::VerifyNone);
     
-    if (sslSocket->setSocketDescriptor(socketDescriptor)) {
+    if (sslSocket->setSocketDescriptor(socketDescriptor) && hasRequestCapacity()) {
         new HTTPSConnection(sslSocket, this);
     } else {
         delete sslSocket;
