@@ -169,6 +169,7 @@ public:
     static glm::mat4 createMat4(const QVector<double>& doubleVector);
 
     static QVector<int> getIntVector(const FBXNode& node);
+    static bool getClusterIndexVector(const FBXNode& node, QVector<int>& indices);
     static QVector<float> getFloatVector(const FBXNode& node);
     static QVector<double> getDoubleVector(const FBXNode& node);
 };

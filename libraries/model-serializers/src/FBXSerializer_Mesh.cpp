@@ -208,6 +208,7 @@ ExtractedMesh FBXSerializer::extractMesh(const FBXNode& object, unsigned int& me
     foreach (const FBXNode& child, object.children) {
         if (child.name == "Vertices") {
             data.vertices = createVec3Vector(getDoubleVector(child));
+            data.extracted.sourceVertexCount = data.vertices.size();
 
         } else if (child.name == "PolygonVertexIndex") {
             data.polygonIndices = getIntVector(child);
