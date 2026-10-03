@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Modified in 2026 for direct browser transport routing and build coverage.
 """Map changed paths through CMake's configured target and include dependency graph."""
 from __future__ import annotations
 import argparse
@@ -106,6 +107,47 @@ def configured_test_names(policy, source, mode):
             names.add(name)
     if mode == 'core':
         names = {name for name in names if name.startswith('shared-')}
+    return names
+
+
+def separately_qualified_names(policy, source):
+    """Optional transports need explicit, executable CI ownership, not exclusion.
+
+    These targets are absent from the default dependency graph. Their dedicated
+    runner reads this same inventory, enables its feature, builds the real
+    servers, and fails when a listed CTest executable is missing.
+    """
+    names = set()
+    ordinary = set(policy['tests']) | set(policy.get('optional_tests', {}))
+    for lane in policy.get('separate_lanes', {}).values():
+        if set(lane) != {'workflow', 'job', 'driver', 'cmake_option', 'tests'}:
+            raise ValueError('invalid separate native CI lane')
+        option = lane['cmake_option']
+        if not re.fullmatch(r'OVERTE_[A-Z_]+', option) or not re.fullmatch(r'[a-z][a-z0-9-]*', lane['job']):
+            raise ValueError('invalid separate native CI option or job')
+        paths = []
+        for key in ('workflow', 'driver'):
+            path = Path(lane[key])
+            if path.is_absolute() or '..' in path.parts or not (source / path).is_file():
+                raise ValueError('missing separate native CI workflow or driver')
+            paths.append((source / path).read_text())
+        workflow, driver = paths
+        job = re.search(r'^  ' + re.escape(lane['job']) + r':\n(.*?)(?=^  [a-z][a-z0-9-]*:\n|\Z)',
+                        workflow, re.M | re.S)
+        if job is None or 'run: python3 ' + lane['driver'] not in job.group(1):
+            raise ValueError('separate native CI runner is not invoked by its declared job')
+        if ('"-D' + option + '=ON"' not in driver
+                or 'separately_qualified_names' not in driver or '--no-tests=error' not in driver):
+            raise ValueError('separate native CI does not enforce its feature and test inventory')
+        if not isinstance(lane['tests'], dict) or not lane['tests']:
+            raise ValueError('empty separate native CI inventory')
+        for name, methods in lane['tests'].items():
+            if not re.fullmatch(r'[A-Za-z0-9_-]+', name) or methods != [] or name in ordinary | names:
+                raise ValueError('invalid or duplicate separate native CI executable')
+            group, cls = name.rsplit('-', 1)
+            if not (source / 'tests' / group / 'src' / (cls + '.cpp')).is_file():
+                raise ValueError('separate native CI test source is missing')
+            names.add(name)
     return names
 
 
