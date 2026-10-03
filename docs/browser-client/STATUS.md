@@ -1,5 +1,29 @@
 # Browser client status
 
+Published candidate `6746424ca05185efeebd16fcd1d838c67b3af4e9` passes
+2,679 product tests, the production build and all34 repository suites locally.
+Its normal hosted Browser run37152499835 also passes the browser job, including
+129 actual Chrome cases and the embedded texture/upload/cancellation gate.
+Current required Repository37152966025, CodeQL and branch/dependency/sync
+checks pass. The draft remains incomplete: its original native/Core movement
+gate fails, and the explicit same-source diagnostic run37152626982 retains both
+the stale peer and an intermittent empty GPU frame. Neither positive run
+overrides these failures.
+
+The failed GPU frame has decoded red image bytes, zero uploads and zero draw
+calls. Context-loss/render-frame observations are the next bounded measurement.
+The native participant reaches the commanded position, but the browser still
+receives the old peer position. Fresh gateway getter/publication timings reject
+the earlier seconds-old blocked-getter hypothesis. Exact2026.04.1 source also
+shows that incoming position counters can advance before client avatar
+simulation applies a movement between1 and30 metres. Receiver simulation and
+author encoding counters will distinguish that boundary; the actual cause is
+not established. Keep all original assertions, deadlines and failure evidence.
+Live services remain unchanged. Full Tablet, fluid Hub movement and physical
+microphone acceptance remain open.
+
+The following checkpoints preserve earlier source qualifications.
+
 The final managed-launch/X11 integration passes all2,640 product tests without
 skips, a fresh34-file production build and all34 required repository suites.
 All production distribution bytes match the previously qualified129-case Chrome

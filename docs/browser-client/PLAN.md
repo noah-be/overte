@@ -2,6 +2,18 @@
 
 ## Current integration checkpoint (2026-10-03)
 
+Current published source is `6746424ca05185efeebd16fcd1d838c67b3af4e9`.
+Complete local product/build/repository gates pass; hosted required checks,
+fresh CodeQL and the normal129-case Chrome browser job also pass. Retain the
+same-source manual empty-GPU and stale-native-peer failures. Next: measure
+render-frame/context state around the original GPU assertion, and distinguish
+received avatar packets from receiver simulation and author encoding using
+existing capability-checked getters. Compose only reviewed bounded diagnostics
+with explicit current-source and historical CPU guards, then qualify exact
+committed source. No live service restart or wider acceptance is inferred.
+
+The following paragraphs retain earlier integration history.
+
 The published96d browser source passes2609 product tests, the production
 build,34 required repository checks and129 actual Google Chrome cases. A fresh
 Qt module passes five basic input/key/render suites and fourteen genuine
