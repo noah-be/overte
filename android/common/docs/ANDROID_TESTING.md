@@ -42,7 +42,21 @@ The categories are complementary:
 - Native host tests cover C++ logic without starting Android or Qt.
 - JavaScript tests execute the production Phone bootstrap, action bar and app
   scripts with controlled fakes for tablet, QML-fragment and system APIs.
+  The compatibility startup wrapper and its included `tablet-ui` implementation
+  execute in the same VM context. `Script.include` evaluates real local files,
+  resolves nested paths against the currently evaluated file and loads each
+  include once per VM. The fixture records the loaded files; production router
+  tests require both the wrapper and implementation. This host fixture does not
+  model network downloads or the production asynchronous loader. Bootstrap call
+  ordering uses a separate VM with explicit loader spies; individual production
+  scripts retain behavior and lifecycle tests through the real include loader.
 - Qt Quick tests exercise QML properties, signals and bindings in isolation.
+  Shared configuration tests inject `DirectTouchHostProfile.qml`, a bounded host
+  capability fixture derived from the real `TouchUiProfileBase`. They load the
+  actual shared configurations and test capability gating in both directions.
+  The logical controls import shims derive from the real production metrics and
+  base profile. Additional Phone tests retain its actual product profile and
+  live touch-metrics contracts on `android-phone`.
 - Contract tests protect invariants that cannot be expressed economically as
   runtime tests, including permissions, privacy and packaged resources.
 - Device tests cover the Android lifecycle, system integration, graphics and
@@ -450,6 +464,12 @@ android/common/tests/run-tests.sh mutation
 It validates a clean baseline before applying mutations, then covers the pure
 Java boundary policies (including asset cache marker/extraction behavior), the native graphics parsers and pending handoff,
 and curated lifecycle/routing decisions in five production JavaScript files.
+Tablet-router mutations target `scripts/system/tablet-ui/mobileTabletApps.js`,
+while tests enter through the Phone compatibility wrapper. The VM loader applies
+an override to that exact included file, preserving every other production file.
+External mutation overrides are cleared before the runner validates its baseline.
+Each JavaScript mutation test runs in a fresh process with explicit TAP output;
+assertion failures count as kills, while runtime crashes remain harness errors.
 The JavaScript mutations are injected only by exact canonical source-path
 substitution in the existing Node VM harness; normal test runs are unchanged.
 A mutant is counted as killed only when the production-facing harness

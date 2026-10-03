@@ -124,7 +124,7 @@ function startPlaces(options = {}) {
     runProductionScript(source, globals);
     const button = tablet.buttons.find((candidate) => candidate.properties.text === "PLACES");
     button.click();
-    if (options.has3DHTML) {
+    if (tablet.navigation.at(-1).type === "web") {
         tablet.webEventReceived.emit(JSON.stringify({ channel: "com.overte.places", action: "READY_FOR_CONTENT" }));
     } else {
         tablet.fromQml.emit({ channel: "com.overte.places", action: "READY_FOR_CONTENT" });
@@ -469,4 +469,18 @@ test("production Places processes a large adversarial directory batch exactly on
     assert.equal(results.length, 1);
     assert.ok(results[0].data.length > 0);
     assert.ok(results[0].data.length <= places.length);
+});
+
+
+test("flat-touch Places uses its QML bridge even on an HTML-capable host", () => {
+    for (const has3DHTML of [false, true]) {
+        const harness = startPlaces({ androidPhone: true, has3DHTML });
+        assert.equal(harness.tablet.navigation.at(-1).type, "qml");
+        assert.equal(harness.tablet.navigation.at(-1).args[0], "/packaged/places/PicoPlaces.qml");
+        assert.equal(harness.tablet.fromQml.listenerCount, 1);
+        assert.equal(harness.tablet.webEventReceived.listenerCount, 0);
+        harness.Script.end();
+        assert.equal(harness.tablet.fromQml.listenerCount, 0);
+        assert.equal(harness.tablet.webEventReceived.listenerCount, 0);
+    }
 });
