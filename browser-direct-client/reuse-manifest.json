@@ -1,0 +1,601 @@
+{
+  "sourceRevision": "261fc77c1c322410f6096e65dcff0388c372286d",
+  "sourceRepository": "noah-be/overte",
+  "mode": "Original inputs from committed snapshots only; reviewed adapted destinations are bound to current SHA-256 digests",
+  "files": [
+    {
+      "source": "browser-client/shared/browser-graphics.d.mts",
+      "destination": "shared/browser-graphics.d.mts",
+      "gitBlob": "7a921675475f84af8a9592256be3ad880b7eb048",
+      "bytes": 1300
+    },
+    {
+      "source": "browser-client/shared/browser-graphics.mjs",
+      "destination": "shared/browser-graphics.mjs",
+      "gitBlob": "1414bad552986e58d26626bd7c34354cd5814d8b",
+      "bytes": 2680
+    },
+    {
+      "source": "browser-client/shared/native-ktx.d.mts",
+      "destination": "shared/native-ktx.d.mts",
+      "gitBlob": "0c8d59a23e4e5ee0b5c505c52cac0dd96ca0c2bf",
+      "bytes": 669
+    },
+    {
+      "source": "browser-client/shared/native-ktx.mjs",
+      "destination": "shared/native-ktx.mjs",
+      "gitBlob": "46100006ab7462bd11f48282f174180d9f66080b",
+      "bytes": 4851
+    },
+    {
+      "source": "browser-client/src/asset-errors.ts",
+      "destination": "src/asset-errors.ts",
+      "gitBlob": "3e8eafbabe50ca1ada77f2222b54827913aa14e4",
+      "bytes": 1426
+    },
+    {
+      "source": "browser-client/src/avatar-rig.test.ts",
+      "destination": "src/avatar-rig.test.ts",
+      "gitBlob": "9f96fd8368490751a6eff6ccb7a72a1ecf603a3c",
+      "bytes": 2514
+    },
+    {
+      "source": "browser-client/src/avatar-rig.ts",
+      "destination": "src/avatar-rig.ts",
+      "gitBlob": "a67c1b44cc5b604e8459f562730b617acf5baf67",
+      "bytes": 3790,
+      "modified": true,
+      "modifications": "Convert native absolute rig rotations to parent-relative model rotations through the loaded hierarchy and known geometry rotation; restore authored defaults for null joint flags, preserve model-unit translations and loaded bone scales, and expose bounded read-only authored pose observations.",
+      "currentSha256": "728efb0105635ccd0e1b7092e66657f69edf36eb424e0d79becb94e9c52052a8"
+    },
+    {
+      "source": "browser-client/src/baked-deformation.ts",
+      "destination": "src/baked-deformation.ts",
+      "gitBlob": "ec6b671769440803349b6d6c1609ac062bbdf46b",
+      "bytes": 3195
+    },
+    {
+      "source": "browser-client/src/baked-draco-legacy.ts",
+      "destination": "src/baked-draco-legacy.ts",
+      "gitBlob": "9b74a71c2f6eddf6503995135bafa3423855640c",
+      "bytes": 7410
+    },
+    {
+      "source": "browser-client/src/baked-draco.ts",
+      "destination": "src/baked-draco.ts",
+      "gitBlob": "51ca674984d174adfbaeabc8dd4db3f444984bd8",
+      "bytes": 2924
+    },
+    {
+      "source": "browser-client/src/baked-fbx.ts",
+      "destination": "src/baked-fbx.ts",
+      "gitBlob": "1e02d0ead54eb2a38fd2b7a6a540310bf96071b7",
+      "bytes": 54993
+    },
+    {
+      "source": "browser-client/src/browser-graphics-controller.ts",
+      "destination": "src/browser-graphics-controller.ts",
+      "gitBlob": "235f6b017b1717aa138ad6cf25ef715e54929001",
+      "bytes": 2993
+    },
+    {
+      "source": "browser-client/src/browser-graphics-target.ts",
+      "destination": "src/browser-graphics-target.ts",
+      "gitBlob": "b6784fe62756d254d0a2a0de6579e50b4a613f7c",
+      "bytes": 2056
+    },
+    {
+      "source": "browser-client/src/color-texture-metadata.ts",
+      "destination": "src/color-texture-metadata.ts",
+      "gitBlob": "ab619fec1b40d0a86b8db0104b24dddac615d55c",
+      "bytes": 3147
+    },
+    {
+      "source": "browser-client/src/compressed-color-capabilities.test.ts",
+      "destination": "src/compressed-color-capabilities.test.ts",
+      "gitBlob": "0a78fcdb8818f5b1dc6c31af9c1b83857d8ce7a3",
+      "bytes": 1880
+    },
+    {
+      "source": "browser-client/src/compressed-color-capabilities.ts",
+      "destination": "src/compressed-color-capabilities.ts",
+      "gitBlob": "0253e290b116bc73a9c774544c8de1bbf8a74236",
+      "bytes": 771
+    },
+    {
+      "source": "browser-client/src/default-avatar.ts",
+      "destination": "src/default-avatar.ts",
+      "gitBlob": "cbc9b4a027872cbfb6819196edf262d22d3e0d8e",
+      "bytes": 949
+    },
+    {
+      "source": "browser-client/src/draco-factories.d.ts",
+      "destination": "src/draco-factories.d.ts",
+      "gitBlob": "b3ac94bdd5f9d2a91f4825e479fcea7a8bf0dac3",
+      "bytes": 421
+    },
+    {
+      "source": "browser-client/src/embedded-content-counts.ts",
+      "destination": "src/embedded-content-counts.ts",
+      "gitBlob": "b40f9ef23c0f214fe6a18efa7c8bd679ec1551b9",
+      "bytes": 1324
+    },
+    {
+      "source": "browser-client/src/embedded-fbx-images.ts",
+      "destination": "src/embedded-fbx-images.ts",
+      "gitBlob": "470dfd3e6f14f28cd4dc4fb37890105804818fac",
+      "bytes": 4773
+    },
+    {
+      "source": "browser-client/src/embedded-fbx-protocol.ts",
+      "destination": "src/embedded-fbx-protocol.ts",
+      "gitBlob": "4a092b5b9ee5262578c564d25f13746935eb2fc9",
+      "bytes": 2569
+    },
+    {
+      "source": "browser-client/src/fbx-materials.ts",
+      "destination": "src/fbx-materials.ts",
+      "gitBlob": "4f643615d85ebeeca229f527b295644521205e12",
+      "bytes": 717
+    },
+    {
+      "source": "browser-client/src/foreground-texture-plan.ts",
+      "destination": "src/foreground-texture-plan.ts",
+      "gitBlob": "b46bcd2914a303c6baefd2b6f856b6df506f72b1",
+      "bytes": 5865
+    },
+    {
+      "source": "browser-client/src/frame-metrics.test.ts",
+      "destination": "src/frame-metrics.test.ts",
+      "gitBlob": "a07a81d4fe91a420da437e49394c1281e85c5c92",
+      "bytes": 1268
+    },
+    {
+      "source": "browser-client/src/frame-metrics.ts",
+      "destination": "src/frame-metrics.ts",
+      "gitBlob": "f5fb280b298398b224d16d851e51e867522899b7",
+      "bytes": 1292
+    },
+    {
+      "source": "browser-client/src/fst-dependencies.test.ts",
+      "destination": "src/fst-dependencies.test.ts",
+      "gitBlob": "35f4ff67e135de3c9b792be6cbc09911855273de",
+      "bytes": 1202
+    },
+    {
+      "source": "browser-client/src/fst-dependencies.ts",
+      "destination": "src/fst-dependencies.ts",
+      "gitBlob": "f88d6060c7920d143532437daa44b2c96dba9a71",
+      "bytes": 774
+    },
+    {
+      "source": "browser-client/src/fst-graph-cache.ts",
+      "destination": "src/fst-graph-cache.ts",
+      "gitBlob": "0ab838e2f6701be8347a3e8546b7baf70d13a3eb",
+      "bytes": 2485
+    },
+    {
+      "source": "browser-client/src/fst-texture-admission.ts",
+      "destination": "src/fst-texture-admission.ts",
+      "gitBlob": "76edc63b4e2ee1a175f8026d013bf53ab1b06cb0",
+      "bytes": 7805
+    },
+    {
+      "source": "browser-client/src/gpu-time-observer.ts",
+      "destination": "src/gpu-time-observer.ts",
+      "gitBlob": "0c0b86592282dde4bd302ca564e76e084e56dde8",
+      "bytes": 8245
+    },
+    {
+      "source": "browser-client/src/graphics-warmup-owner.ts",
+      "destination": "src/graphics-warmup-owner.ts",
+      "gitBlob": "9950393b478ff180e5d3576a4eaab0a17121edda",
+      "bytes": 1609
+    },
+    {
+      "source": "browser-client/src/graphics-warmup.ts",
+      "destination": "src/graphics-warmup.ts",
+      "gitBlob": "682d67cb79964978dd3edf27bdd1dc8395bd1622",
+      "bytes": 8115
+    },
+    {
+      "source": "browser-client/src/initial-surface-wait.ts",
+      "destination": "src/initial-surface-wait.ts",
+      "gitBlob": "93eabe5fb80f14131e4d3428c0e94339fb628d45",
+      "bytes": 1619
+    },
+    {
+      "source": "browser-client/src/loaded-model-cohort.ts",
+      "destination": "src/loaded-model-cohort.ts",
+      "gitBlob": "dd2f815c329b9fbe53c34ba8526ddbedc8afb336",
+      "bytes": 9209
+    },
+    {
+      "source": "browser-client/src/mesh-collision.test.ts",
+      "destination": "src/mesh-collision.test.ts",
+      "gitBlob": "60047c8be46ba170fd805ca1fff5b77e6328a4a6",
+      "bytes": 2649
+    },
+    {
+      "source": "browser-client/src/mesh-collision.ts",
+      "destination": "src/mesh-collision.ts",
+      "gitBlob": "d416cd78fca49bc48af0afc453b2746b2c992380",
+      "bytes": 5762
+    },
+    {
+      "source": "browser-client/src/model-fbx-decoder-memory.ts",
+      "destination": "src/model-fbx-decoder-memory.ts",
+      "gitBlob": "b30c392db222d966900a72e06ad7ff082a1bb2b3",
+      "bytes": 883
+    },
+    {
+      "source": "browser-client/src/model-fbx-decoder.ts",
+      "destination": "src/model-fbx-decoder.ts",
+      "gitBlob": "1cb19b9c2566e4f9a1fcbc07182c5f2127b96431",
+      "bytes": 6435
+    },
+    {
+      "source": "browser-client/src/model-fbx-pool.ts",
+      "destination": "src/model-fbx-pool.ts",
+      "gitBlob": "13168f7fe808934e9b97fee2774cd1646f3a450b",
+      "bytes": 9424
+    },
+    {
+      "source": "browser-client/src/model-fbx-worker.ts",
+      "destination": "src/model-fbx-worker.ts",
+      "gitBlob": "0a511c403cc9c449914c1481ac7252a6ea7bb1d3",
+      "bytes": 2431
+    },
+    {
+      "source": "browser-client/src/model-geometry-stage.ts",
+      "destination": "src/model-geometry-stage.ts",
+      "gitBlob": "12080c6e3aa7e534c011c13eb52c00dbbc26186a",
+      "bytes": 4109
+    },
+    {
+      "source": "browser-client/src/model-load-scheduler.ts",
+      "destination": "src/model-load-scheduler.ts",
+      "gitBlob": "6ec70e2263751df87c8b38700b681c35ad33b5fb",
+      "bytes": 4991
+    },
+    {
+      "source": "browser-client/src/model-parse-turn.ts",
+      "destination": "src/model-parse-turn.ts",
+      "gitBlob": "8c8207d5270bebfdbc9f9cc1f63559bfe2a19145",
+      "bytes": 4166
+    },
+    {
+      "source": "browser-client/src/model-resources.ts",
+      "destination": "src/model-resources.ts",
+      "gitBlob": "471ba9ad5b8f8878881567a7b9860b1eca4f04cb",
+      "bytes": 3633
+    },
+    {
+      "source": "browser-client/src/model-textures.ts",
+      "destination": "src/model-textures.ts",
+      "gitBlob": "b485f723682d8636f4eb598dbdb222550eb0897b",
+      "bytes": 2375
+    },
+    {
+      "source": "browser-client/src/native-alpha-material.ts",
+      "destination": "src/native-alpha-material.ts",
+      "gitBlob": "19f7d3de3814648fd2ba3d391b41d762f2de7058",
+      "bytes": 5068
+    },
+    {
+      "source": "browser-client/src/native-compressed-color.ts",
+      "destination": "src/native-compressed-color.ts",
+      "gitBlob": "362c52604cc70034db175c69aa44bd39968074fe",
+      "bytes": 14992
+    },
+    {
+      "source": "browser-client/src/native-default-cull.ts",
+      "destination": "src/native-default-cull.ts",
+      "gitBlob": "fc68c5f94abd3853465e0c0f6b1658901696d5b2",
+      "bytes": 1126
+    },
+    {
+      "source": "browser-client/src/native-image-effects.ts",
+      "destination": "src/native-image-effects.ts",
+      "gitBlob": "528485f34c49d0ea1aa1406239ef19a0e5cfc767",
+      "bytes": 9590
+    },
+    {
+      "source": "browser-client/src/native-image-material.ts",
+      "destination": "src/native-image-material.ts",
+      "gitBlob": "8bd855839e6fbeeb7879db0b35a71abdacc2f92f",
+      "bytes": 2591
+    },
+    {
+      "source": "browser-client/src/native-render-state.ts",
+      "destination": "src/native-render-state.ts",
+      "gitBlob": "788abf496ae7f50bd4dd4ea82ffd4bedc474bfdf",
+      "bytes": 3421
+    },
+    {
+      "source": "browser-client/src/native-static-winding.ts",
+      "destination": "src/native-static-winding.ts",
+      "gitBlob": "def1cf3b6545b8ac6a058997f6822096cf65cf6c",
+      "bytes": 8406
+    },
+    {
+      "source": "browser-client/src/native-tone-output.ts",
+      "destination": "src/native-tone-output.ts",
+      "gitBlob": "c12aa73ee7707a328b37b4e12e4d9cbf802ed477",
+      "bytes": 2938
+    },
+    {
+      "source": "browser-client/src/native-zero-lights.ts",
+      "destination": "src/native-zero-lights.ts",
+      "gitBlob": "6ef992f8f805619de4a564e78d0b105bc36664e0",
+      "bytes": 7466
+    },
+    {
+      "source": "browser-client/src/participant-geometry.ts",
+      "destination": "src/participant-geometry.ts",
+      "gitBlob": "06bda0bec8e627b796a4b3465b3161ff3f56d9b0",
+      "bytes": 2655
+    },
+    {
+      "source": "browser-client/src/prepared-fbx-cache.ts",
+      "destination": "src/prepared-fbx-cache.ts",
+      "gitBlob": "b40a6c4fd8d64202e4bd424b7a368e664d373074",
+      "bytes": 6942
+    },
+    {
+      "source": "browser-client/src/render-cpu-breakdown.ts",
+      "destination": "src/render-cpu-breakdown.ts",
+      "gitBlob": "8d8e6eb518df63b549cad5cb708e208c2db4d259",
+      "bytes": 14444
+    },
+    {
+      "source": "browser-client/src/render-dispatch-attribution.ts",
+      "destination": "src/render-dispatch-attribution.ts",
+      "gitBlob": "16415968a0b88f1df26916c99561ae2b93d1f906",
+      "bytes": 9614
+    },
+    {
+      "source": "browser-client/src/simulation-clock.test.ts",
+      "destination": "src/simulation-clock.test.ts",
+      "gitBlob": "624053e48efec7b70569c8251fb3ff71eb4e3915",
+      "bytes": 1790
+    },
+    {
+      "source": "browser-client/src/simulation-clock.ts",
+      "destination": "src/simulation-clock.ts",
+      "gitBlob": "b64538f3b533d5512bd16e7ef5b9ee1e7ef4c3ad",
+      "bytes": 1257
+    },
+    {
+      "source": "browser-client/src/static-model-batch.ts",
+      "destination": "src/static-model-batch.ts",
+      "gitBlob": "bb7f5e60897a177873f671b9eeee749f1c75cec2",
+      "bytes": 12314
+    },
+    {
+      "source": "browser-client/src/static-model-matrices.ts",
+      "destination": "src/static-model-matrices.ts",
+      "gitBlob": "6de251f3fa07b5112e5ab93ff7ed29abae97932d",
+      "bytes": 7559
+    },
+    {
+      "source": "browser-client/src/texture-alpha-worker.ts",
+      "destination": "src/texture-alpha-worker.ts",
+      "gitBlob": "af64bb9bbe94794b893286e1166f58b52a8858ea",
+      "bytes": 2397
+    },
+    {
+      "source": "browser-client/src/texture-alpha.ts",
+      "destination": "src/texture-alpha.ts",
+      "gitBlob": "409bbf6c5f351aa529ae768d2de233985d5d499a",
+      "bytes": 6258
+    },
+    {
+      "source": "browser-client/src/worker-task-yield.test.ts",
+      "destination": "src/worker-task-yield.test.ts",
+      "gitBlob": "193d2eb05db4696956366c0a4241454b75ea19d7",
+      "bytes": 2566
+    },
+    {
+      "source": "browser-client/src/worker-task-yield.ts",
+      "destination": "src/worker-task-yield.ts",
+      "gitBlob": "f04c7ed62b1bfd2c048210fa9c15a53b07a91153",
+      "bytes": 2092
+    },
+    {
+      "source": "browser-client/src/world-bitmap-bindings.ts",
+      "destination": "src/world-bitmap-bindings.ts",
+      "gitBlob": "f075b8b9146f5e395b6d0282584a332fbf661a19",
+      "bytes": 8242
+    },
+    {
+      "source": "browser-client/src/world-bitmap-upload.ts",
+      "destination": "src/world-bitmap-upload.ts",
+      "gitBlob": "55823110f7a5d98cd468493ae146751be4b568ab",
+      "bytes": 15923
+    },
+    {
+      "source": "browser-client/src/world-cpu-frame-timing.ts",
+      "destination": "src/world-cpu-frame-timing.ts",
+      "gitBlob": "9eec078d6e7c300c34b4231a1e257a8413efda82",
+      "bytes": 5220
+    },
+    {
+      "source": "browser-client/src/world-data.test.ts",
+      "destination": "src/world-data.test.ts",
+      "gitBlob": "841be202ed72870fcabe40fa86766d6a2f66b677",
+      "bytes": 7567
+    },
+    {
+      "source": "browser-client/src/world-data.ts",
+      "destination": "src/world-data.ts",
+      "gitBlob": "506c8631bc016aca7377986d2ff4d7b36f5e56b9",
+      "bytes": 9381,
+      "modified": true,
+      "modifications": "Preserve nullable native joint default flags, parent hierarchy, absolute rig rotation semantics and parent-relative model translations at the renderer boundary; retain source default rotations, translations and trait scales as explicit metadata.",
+      "currentSha256": "2ce49b32860a1b473e1f9f75be9089fa89e687d9e86520c29fe49a78d9b80dd5"
+    },
+    {
+      "source": "browser-client/src/world-draw-census-async.ts",
+      "destination": "src/world-draw-census-async.ts",
+      "gitBlob": "11aafbf83ad0945ce685b6a218183c47b7f36e0f",
+      "bytes": 30715
+    },
+    {
+      "source": "browser-client/src/world-draw-census-refusal.ts",
+      "destination": "src/world-draw-census-refusal.ts",
+      "gitBlob": "ed34e281282ff68f287a16da9ba6903b48afdffe",
+      "bytes": 2069
+    },
+    {
+      "source": "browser-client/src/world-draw-census.ts",
+      "destination": "src/world-draw-census.ts",
+      "gitBlob": "c5126d9e5d1ac2d2a2c70dcb70169cfebfd5dac9",
+      "bytes": 21014
+    },
+    {
+      "source": "browser-client/src/world-gpu-timing.ts",
+      "destination": "src/world-gpu-timing.ts",
+      "gitBlob": "a48ae0e07b5f751fe9ebe7901c9a37e5f518455d",
+      "bytes": 5071
+    },
+    {
+      "source": "browser-client/src/world-image-cache.test.ts",
+      "destination": "src/world-image-cache.test.ts",
+      "gitBlob": "333cd10c96ec6e89845c946c16bc112775869a8d",
+      "bytes": 10524
+    },
+    {
+      "source": "browser-client/src/world-image-cache.ts",
+      "destination": "src/world-image-cache.ts",
+      "gitBlob": "f7573de0bd5fac7a71bcde4ff9c8d44517ee2ff3",
+      "bytes": 12767
+    },
+    {
+      "source": "browser-client/src/world-presentation.test.ts",
+      "destination": "src/world-presentation.test.ts",
+      "gitBlob": "0ab4f9f2291dd176bce3d012bcc1724689fa1548",
+      "bytes": 11947
+    },
+    {
+      "source": "browser-client/src/world-source-text-cache.test.ts",
+      "destination": "src/world-source-text-cache.test.ts",
+      "gitBlob": "16bdd868f01b2a77fee05b3237568952228e4695",
+      "bytes": 8244
+    },
+    {
+      "source": "browser-client/src/world-source-text-cache.ts",
+      "destination": "src/world-source-text-cache.ts",
+      "gitBlob": "35dc5c1f4a111f42a9ab9c65c7dda2bd1af80e61",
+      "bytes": 7875
+    },
+    {
+      "source": "browser-client/src/world-texture-preparation.ts",
+      "destination": "src/world-texture-preparation.ts",
+      "gitBlob": "33e2ee7df55316bf02bbcbb90f80237b73a48793",
+      "bytes": 7902
+    },
+    {
+      "source": "browser-client/src/world.ts",
+      "destination": "src/world.ts",
+      "gitBlob": "38e2080ab72df8d020abecba85b3706ca75d3745",
+      "bytes": 116209,
+      "modified": true,
+      "modifications": "Expose local tablet/camera controls, native ATP/HTTPS asset resolution, contained native Zone skyboxes and bounded entity/avatar draw observations; retain genuine loaded model geometry when authored texture maps fail and report those maps as explicitly incomplete without substituting pixels or reducing source quality; preserve raw nullable native pose records and expose bounded source and actual body transform observations.",
+      "currentSha256": "ebb1e521482c4d340dd159676070d58e3c02297b1242e4efc79bf16fa0bd258c"
+    },
+    {
+      "source": "browser-client/tests/mesh-support.test.ts",
+      "destination": "tests/mesh-support.test.ts",
+      "gitBlob": "cf07ff4eac790e377ec6c106f65e08a1dbcd4ad8",
+      "bytes": 4799
+    },
+    {
+      "source": "browser-client/tests/model-load-scheduler.test.ts",
+      "destination": "tests/model-load-scheduler.test.ts",
+      "gitBlob": "7eee9c3038de83b49768de73ffbef08340697ee3",
+      "bytes": 4640
+    },
+    {
+      "source": "browser-client/tests/prepared-fbx-cache.test.ts",
+      "destination": "tests/prepared-fbx-cache.test.ts",
+      "gitBlob": "926f1850fc37df164ef1d3b45ced79ccc4db3b83",
+      "bytes": 11625,
+      "modified": true,
+      "modifications": "Use direct HTTPS Unicode URL encoding instead of the old gateway URL adapter while retaining cache bounds and hit assertions.",
+      "currentSha256": "939e8639a3e8ab13e5b855b5cd96845692351d6ce73fade1879b22760e5ac8f2"
+    },
+    {
+      "source": "browser-client/tests/prepared-fbx-count-cap.test.ts",
+      "destination": "tests/prepared-fbx-count-cap.test.ts",
+      "gitBlob": "f872079ae9b43b7f4ff2a818d13867ab51c75121",
+      "bytes": 6373
+    },
+    {
+      "source": "browser-client/tests/world-ground-support.test.ts",
+      "destination": "tests/world-ground-support.test.ts",
+      "gitBlob": "dda7817ad46388b689b68670d14998d434a98fa9",
+      "bytes": 4700
+    },
+    {
+      "source": "browser-client/tests/world-simulation.test.ts",
+      "destination": "tests/world-simulation.test.ts",
+      "gitBlob": "baa610b698ae90280566749a89f8b79681742da1",
+      "bytes": 4604
+    },
+    {
+      "source": "browser-client/tools/DRACO_LICENSE.txt",
+      "destination": "tools/DRACO_LICENSE.txt",
+      "gitBlob": "30109545483a9b9889532c2bd5254c6fee4eb121",
+      "bytes": 13898
+    },
+    {
+      "source": "browser-client/tools/NATIVE_TONE_LICENSE.txt",
+      "destination": "tools/NATIVE_TONE_LICENSE.txt",
+      "gitBlob": "3a214ee45b1a346bda050c1ca9e280dddbab616d",
+      "bytes": 1083
+    },
+    {
+      "source": "browser-client/tools/prepare-default-avatar.mjs",
+      "destination": "tools/prepare-default-avatar.mjs",
+      "gitBlob": "82602aed829f4cd584123f1697c5865ffff8c241",
+      "bytes": 2960,
+      "modified": true,
+      "modifications": "Add immutable original Woody Apache-2.0 license/import metadata and High Fidelity/Haptic Monkey attribution to the bundled avatar manifest and license prelude; retain all six fixed native asset bytes and SHA-256 digests unchanged.",
+      "currentSha256": "55b5a04406476f72d80cb28077618b8b27626dae05b41afa3ac824f0ba1ed749"
+    },
+    {
+      "source": "browser-client/tools/build-notices.mjs",
+      "destination": "tools/build-notices.mjs",
+      "gitBlob": "2a586ba09df622b17c15287de6b62718bb18c57b",
+      "bytes": 5755,
+      "modified": true,
+      "modifications": "Include native SDK and complete renderer dependency notices, retain TinyEXR/OpenEXR/Draco/native tone-curve licenses and remove the unused GIF notice.",
+      "currentSha256": "d7729b5e06626624b6e76817c05c7ba917270832180a393dd0870c1f3003d08a"
+    },
+    {
+      "source": "browser-client/src/world-presentation.ts",
+      "destination": "src/world-presentation.ts",
+      "gitBlob": "eb101cad19644c9535c2a1d087c03d3214ddfc10",
+      "bytes": 13082
+    },
+    {
+      "source": "browser-client/src/audio.ts",
+      "destination": "src/audio.ts",
+      "gitBlob": "1267cb829265cb2f4a96a1099c23e665e1cc66d9",
+      "bytes": 5967,
+      "modified": true,
+      "modifications": "Retain explicit microphone consent, track stop and stale-permission guards; transfer bounded native PCM directly between the AudioWorklet and session worker with epoch-based leave/mixer-mute revocation.",
+      "currentSha256": "0297416567a40f80995e16984f6efd6925641544e3c65b3c1cc3f1bf5a9a6c26"
+    },
+    {
+      "source": "browser-client/src/audio-worklet.js",
+      "destination": "src/audio-worklet.js",
+      "gitBlob": "f172d4db65fc45e16f51ef6730bf48946950be01",
+      "bytes": 3781,
+      "modified": true,
+      "modifications": "Implement native 24 kHz/10 ms mono capture and stereo playback, bounded ten-frame queues/credits and direct worker ports with stale audio/unmute/ACK epoch rejection.",
+      "currentSha256": "966ccb298ddb5f3339442a8989ee11238c34987b1f0227b9ef6ac14e53e71931"
+    }
+  ]
+}
