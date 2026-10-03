@@ -153,6 +153,11 @@ candidate SHA. `select.py` converts that plan and the configured CMake graph to
 builds those targets, and writes timing/identity and JUnit results. Do not reuse
 a plan or result from another candidate as merge evidence.
 
+The [offline skinning regressions](../../tests/skinning/README.md) exercise real
+importers, palette remapping, packing and matrix/DQ shaders. Their Linux software
+EGL/OpenGL context is a required native prerequisite, separate from device GPU
+acceptance; they do not download model fixtures.
+
 ## Dependency preparation and activation
 
 The method shortlists in `.github/native-tests.json` also declare known
