@@ -76,3 +76,8 @@ the new transport. Isolated-domain evidence is recorded separately.
 Read this file, `STATUS.md`, research/architecture notes, and the latest evidence
 before resuming. Preserve the active scope and existing work. Do not report
 completion from unit tests alone or close issues automatically.
+The topic is published as [draft PR #1034](https://github.com/noah-be/overte/pull/1034).
+Code-head CI and software/synthetic qualification pass; real speech and hardware
+fluidity remain pending. Use [MANUAL_ACCEPTANCE.md](MANUAL_ACCEPTANCE.md) to
+prepare those checks once physical devices and an exclusive window are supplied.
+The proposed hardware steps have not been executed.

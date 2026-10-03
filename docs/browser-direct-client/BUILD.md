@@ -123,3 +123,6 @@ Real browser/native/physical microphone and equal-quality loading evidence
 also belong in `STATUS.md`; unit success alone is insufficient. Follow `LAB.md`
 for isolated ports, profiles, software displays and process ownership. Downloaded
 Hub assets remain ephemeral with provenance; none are redistributed in Git.
+The proposed [manual hardware and speech procedure](MANUAL_ACCEPTANCE.md)
+describes the remaining human acceptance and its required exclusive resources.
+Its commands have not been qualified on hardware.

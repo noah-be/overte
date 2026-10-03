@@ -5,6 +5,11 @@ assignment-client binaries. The gateway session at
 `/home/user/Documents/github/overte-browser-client` is read-only: none of its
 services, mutable caches, profiles, files, branches, or test resources are changed.
 
+Software and synthetic-audio qualification below is separate from the proposed
+[manual hardware and physical speech check](MANUAL_ACCEPTANCE.md). That check
+requires available physical devices and an agreed exclusive desktop/GPU window;
+its hardware launch and human acceptance remain unqualified.
+
 ## Native dependency and compiler environment
 
 The Fedora 44 host has CMake 4.3.0, Ninja 1.13.2, GCC 16.2.1, Conan 2.25.2,

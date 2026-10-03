@@ -69,7 +69,10 @@ actual stock microphone denial/allowance, virtual capture and complete stop pass
 their separate two-case diagnostic. **Physical bidirectional speech and hardware
 fluidity remain unqualified.** Software cadence is 1.248–1.674 fps in the controlled
 route comparison. Public Hub access needs operator-side server upgrades and has
-not been qualified. The Goal remains active; draft publication is being prepared.
+not been qualified. The topic is published as
+[draft PR #1034](https://github.com/noah-be/overte/pull/1034). All remote checks
+for code head `00c68dc31d6137ee8cc6d2d81dc25cf41dac68f8` have completed
+successfully. The Goal remains active while physical acceptance is pending.
 Detailed immutable-run evidence and hashes follow below.
 
 ## Verified checkpoint
@@ -181,8 +184,10 @@ including movement/collision/interaction, actual native-body synchronization,
 both synthetic audio directions and session cleanup. Actual Chrome consent UI
 also passes separately. Remaining acceptance is physical bidirectional speech,
 and smooth navigation on an available hardware GPU. The default-OFF native
-compatibility build and refreshed 34-suite repository checks pass. Pushing the
-topic, creating the draft PR and checking remote CI remain in progress.
+compatibility build and refreshed 34-suite repository checks pass. The topic
+and draft PR are published; all remote checks for the code head pass. The
+[manual hardware and speech procedure](MANUAL_ACCEPTANCE.md) prepares the
+remaining human-assisted checks; its hardware steps have not been executed.
 
 The earlier image-sharing comparison does not establish a full-scene speedup.
 The subsequent direct/page/page/direct comparison passes all four cases on
@@ -2013,7 +2018,8 @@ a new launch.
 
 Physical bidirectional speech, an agreed exclusive hardware-rendering window
 and public Hub operator upgrades remain outside this demonstrated acceptance.
-Draft publication and its remote checks are the next step. No issue is closed.
+At this checkpoint, draft publication and its remote checks were the next step;
+their subsequent results are recorded below. No issue is closed.
 
 
 ## Publication byte preservation (2026-10-03)
@@ -2065,3 +2071,77 @@ hardware test window is agreed. Descriptor ownership does not establish GPU
 work. The review performs no capture, routing, resource takeover or restart.
 Physical speech and hardware rendering remain unqualified. Resource proof
 SHA-256: `fded108c38a15e9878e4bbfec8cf3cf95b166cf39dbade9e826a064bf2f7ef5e`.
+
+
+## Draft publication and completed code CI (2026-10-03)
+
+The published code head contains three reviewed implementation commits: native transport
+`9e95caeebb8adbf66377ffb83c65a96d2827f58f`, browser client
+`9fb4169ab17982de841caea6dcceb953179a7676`, and CI qualification
+`00c68dc31d6137ee8cc6d2d81dc25cf41dac68f8`. The effective push URL targets
+`noah-be/overte`, with no URL rewrites; the installed guards match the reviewed
+version. [PR #1034](https://github.com/noah-be/overte/pull/1034) was created and
+read back as a draft against fork `main`. Material AI assistance is disclosed.
+
+At 10:14:03 UTC, all 17 reported checks pass and two dependency-inventory checks
+are skipped by the existing selection policy; no check remains pending or fails.
+This includes browser, native, full host, documentation, workflow security,
+CodeQL, branch policy, reuse and dependency policy checks. Snapshot proof
+SHA-256: `dbe9c599fbccce753486144e87893a58d3f281aa87df63eac6646fa2a8e935b9`.
+
+Both dedicated native runs build and pass all six expected CTest programs with
+zero failures/skips. Push run
+[37111728009](https://github.com/noah-be/overte/actions/runs/37111728009)
+has 1.523699 s of tests in a 35 min 05 s job; PR run
+[37111784222](https://github.com/noah-be/overte/actions/runs/37111784222)
+has 1.405432 s of tests in a 27 min 19 s job. These test times do not describe
+the compilation jobs. Downloaded JUnit SHA-256 values are
+`28daf2c1e4518b7ef273fc6bf127bd3b9d6c22e903e674698a71f250b8b818ab`
+and `06e2c7d33f328cf0b4dffdfe4583851ef9d41314830f945e64d8f3f02767be8b`.
+The general native job in
+[repository run 37111784430](https://github.com/noah-be/overte/actions/runs/37111784430)
+also completes successfully at 10:08:42 UTC. Remote CI does not establish
+physical microphone speech, hardware navigation or public Hub support.
+
+Its downloaded diagnostics independently confirm **33/33** selected CTest
+programs, no failures/errors/skips/disabled cases, and matching Qt XML coverage
+with 282 pass incidents across 218 functions. Build time is 3,625.486 s;
+actual test execution is 5.112 s; whole-job time is 3,876 s. CI checks out PR
+merge candidate `0f96e7eb708227c976030abcee4760ba69597b1b`, whose parent is
+the published code head. Both commits have the identical code tree
+`d0925d0ac3e77d2f2927155958dfbdd8ca3bc6a2`; their commit objects are distinct.
+The downloaded JUnit SHA-256 is
+`7b190e52180a6a2198ccfbfbda5292704d7155b93c6737695bfb516ab5607d83`;
+filtered diagnostic proof SHA-256 is
+`4c429d7b513aa8ab14438c17bcd392783fc6f5b57c3cd823c24b5bf04c4c0349`.
+
+The retained journey-g tablet PNG was independently inspected: the upright own
+Woody avatar appears in the foreground and the distinct upright native avatar
+appears farther along the actual bridge. The original texture warning remains
+visible. Actual geometry evidence records 55 loaded models and two loaded
+avatars, with own third-person/body/rig/model visibility all true. Screenshot
+SHA-256: `9fcb9996ece059171895467cedb0bf883dfb53819e287a3234d67a9e2c3bd82b`.
+This is inspection of existing software-rendered evidence, not a new run.
+
+A separate 09:26:48 UTC read-only resource refresh finds the same suspended
+physical ALSA source, two unavailable microphone ports and one unavailable
+line port. Four verified foreign registrations cover nine inspected processes;
+two display owners hold two DRM descriptors. This establishes resource ownership,
+not GPU activity or an agreed exclusive window. No capture or hardware context
+is opened. Proof SHA-256:
+`01982b12be96862fa47d6d9eff12d1cbd59ee1eceb07e0b5eb1a9afc5117c6a9`.
+
+[MANUAL_ACCEPTANCE.md](MANUAL_ACCEPTANCE.md) documents the proposed final check
+using a fresh owned profile, physical devices, the complete qualified browser
+bundle, process-local fixture trust, actual renderer/frame diagnostics, human
+phrase repetition in both directions and bounded identity-based cleanup. Its
+hardware steps remain **PROPOSED / UNQUALIFIED**. Available-resource inspection
+and snippet syntax checks do not count as human speech or hardware acceptance.
+
+The documentation follow-up passes the required repository quick profile again:
+**34 suites, zero failures**, 199.08 s. Log SHA-256:
+`fa686b46d07079d228fec23b833e4fe34e846ef930c2d73e63ee8659b90a3981`.
+All 198 workspace Markdown documents and incoming local links pass; the existing
+documentation-checker regressions pass 24/24 and repository policy displays match.
+The proposed guide passes syntax checks for two Bash fences, one embedded Python
+program and two JavaScript snippets. No hardware clients or capture are launched.
