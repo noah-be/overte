@@ -49,6 +49,16 @@ test('immutable owner refusal projects only its exact reviewed category without 
   const input=Buffer.from(text),row=projectNetworkTestStderr(input,input.length);assert.equal(row.admissionRefusal,null);assert(!JSON.stringify(row).includes('private-secret'));
  }
 });
+test('mixed known and unknown or malformed owner markers refuse the complete owner classification',()=>{
+ for(const suffix of ['owner_admission.Refusal: private-secret\n','owner_admission.Refusal: owner-profile private-secret\n']){
+  const bytes=Buffer.from('owner_admission.Refusal: owner-profile\n'+suffix),row=projectNetworkTestStderr(bytes,bytes.length);
+  assert.equal(row.admissionRefusal,null);assert(!JSON.stringify(row).includes('private-secret'));
+ }
+});
+test('truncated owner capture never implies a complete consistent owner-refusal category',()=>{
+ const bytes=Buffer.from('owner_admission.Refusal: owner-profile\nowner_admission.Refusal: owner-');
+ const row=projectNetworkTestStderr(bytes,bytes.length+1);assert.equal(row.admissionRefusal,null);assert.equal(row.truncated,true);
+});
 test('exact current trusted-C marker and existing safe preparation projection remain reusable',()=>{
  const bytes=Buffer.from('OVERTE_NET_TRUSTED_FAILURE={"version":1,"phase":"route-install-ack","errnoObserved":1}\n');
  assert.deepEqual(projectNetworkTestStderr(bytes,bytes.length).preparation.trustedSetupFailure,{version:1,phase:'route-install-ack',errnoObserved:1});

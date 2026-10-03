@@ -23,7 +23,7 @@ export function projectNetworkTestStderr(bytes,observedBytes,streamsClosed=false
     }
     const same=candidates.length>0&&candidates.every(v=>v.operation===candidates[0].operation&&v.errnoReported===candidates[0].errnoReported);
     // Only fixed exception names/numbers escape; traceback paths and messages stay private.
-    const python=[],refusals=[];let pythonProbeLine=null,nativeBoundaryRefused=false;
+    const python=[],refusals=[];let pythonProbeLine=null,nativeBoundaryRefused=false,ownerMarkersInvalid=false;
     for(const line of lines){
         const exception=/^(PermissionError|FileNotFoundError|OSError): \[Errno (1|2|13|22)\] .+$/.exec(line);
         if(exception)python.push({kind:exception[1],errnoReported:Number(exception[2])});
@@ -31,13 +31,16 @@ export function projectNetworkTestStderr(bytes,observedBytes,streamsClosed=false
         if(frame&&Number(frame[1])<=256)pythonProbeLine=Number(frame[1]);
         if(line==='Native capability boundary refused.')nativeBoundaryRefused=true;
         const refusal=/^owner_admission\.Refusal: ([a-z-]{1,64})$/.exec(line);
-        if(refusal&&admissionRefusals.has(refusal[1]))refusals.push(refusal[1]);
+        if(line.startsWith('owner_admission.Refusal:')){
+            if(refusal&&admissionRefusals.has(refusal[1]))refusals.push(refusal[1]);
+            else ownerMarkersInvalid=true;
+        }
     }
     const consistent=python.length>0&&python.every(v=>v.kind===python[0].kind&&v.errnoReported===python[0].errnoReported);
     return Object.freeze({schemaVersion:1,scope:'test-owned-child-stderr-not-syscall-proof',observedBytes,retainedBytes:bytes.length,truncated:observedBytes>bytes.length,streamsClosed,
         operation:same?candidates[0].operation:'unclassified',errnoReported:same?candidates[0].errnoReported:null,
         pythonException:consistent?python[0]:null,pythonProbeLine,nativeBoundaryRefused,
-        admissionRefusal:refusals.length>0&&refusals.every(v=>v===refusals[0])?refusals[0]:null,
+        admissionRefusal:observedBytes===bytes.length&&!ownerMarkersInvalid&&refusals.length>0&&refusals.every(v=>v===refusals[0])?refusals[0]:null,
         preparation:safePreparationDiagnostic(diagnostic.snapshot(null,null))});
 }
 // A private receipt is returned ONLY to the test caller, never its public projection.
