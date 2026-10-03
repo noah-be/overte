@@ -310,6 +310,7 @@ def main():
     parser.add_argument('--configuration', required=True)
     parser.add_argument('--exec-native', action='store_true', help=argparse.SUPPRESS)
     parser.add_argument('--confined-diagnostic', action='store_true', help=argparse.SUPPRESS)
+    parser.add_argument('--managed-domain', action='store_true', help=argparse.SUPPRESS)
     parser.add_argument('--confined-final-native', action='store_true', help=argparse.SUPPRESS)
     parser.add_argument('--parent-user', help=argparse.SUPPRESS)
     parser.add_argument('--parent-ipc', help=argparse.SUPPRESS)
@@ -318,6 +319,8 @@ def main():
         raw = checked_regular(args.configuration, MAX_CONFIG, private=True)
         document = json.loads(raw)
         command = validated_launch(document)
+        if args.managed_domain and (args.confined_diagnostic or args.confined_final_native):
+            raise ValueError('confined-final-arguments-refused')
         if (args.parent_user or args.parent_ipc) and not args.confined_final_native:
             raise ValueError('confined-final-arguments-refused')
         if args.confined_final_native:
@@ -329,8 +332,10 @@ def main():
             if args.confined_diagnostic:
                 from confined_launch import exec_confined
                 exec_confined(document, args.configuration)
-            from confined_launch import launch_managed_document
-            return launch_managed_document(document)
+            if args.managed_domain:
+                from confined_launch import launch_managed_document
+                return launch_managed_document(document)
+            os.execvpe(command[0], command, document['environment'])
         # Native Qt library directories must not be applied to the host tracer.
         # The reviewed same-file child loads the private environment only at the
         # exact native launch; no credentials/environment values enter argv.
@@ -340,6 +345,8 @@ def main():
                  args.configuration, '--exec-native']
         if args.confined_diagnostic:
             child.append('--confined-diagnostic')
+        if args.managed_domain:
+            child.append('--managed-domain')
         report = observe_owned(document['strace'], child, host_environment,
                                document['cwd'], document['output'])
         # Fixed status only. Raw output and filenames remain inside private files.

@@ -177,7 +177,9 @@ def run(repo,lab,output,*,confined_diagnostic=False):
   if confined_diagnostic:
    out['diagnosticLaunch']='signed-bwrap-fixed-tmpfile-denial'
    observer_command.append('--confined-diagnostic')
-  else:out['diagnosticLaunch']='managed-domain-fixed-tmpfile-denial'
+  else:
+   out['diagnosticLaunch']='managed-domain-fixed-tmpfile-denial'
+   observer_command.append('--managed-domain')
   process=subprocess.Popen(observer_command,env=host,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,start_new_session=True,preexec_fn=lambda:child_death_guard(expected))
   exclusive(output/'probe-process.private.json',(json.dumps({'pid':process.pid,'startTicks':manage.start_ticks(process.pid),'entrySHA256':sha(HERE/'observer.py')})+'\n').encode())
   out['phase']='native-readiness'
