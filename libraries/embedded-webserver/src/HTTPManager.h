@@ -18,6 +18,10 @@
 
 #include <QtNetwork/QTcpServer>
 #include <QtCore/QTimer>
+#include <QTemporaryFile>
+#include <memory>
+
+#include "HTTPRequestLimits.h"
 
 class HTTPConnection;
 class HTTPSConnection;
@@ -34,6 +38,13 @@ class HTTPManager : public QTcpServer, public HTTPRequestHandler {
 public:
     /// Initializes the manager.
     HTTPManager(const QHostAddress& listenAddress, quint16 port, const QString& documentRoot, HTTPRequestHandler* requestHandler = nullptr);
+    ~HTTPManager() override;
+
+    // Configure before accepting requests. Invalid policies or live reservations are rejected.
+    bool setRequestLimits(const HTTPRequestLimits& limits);
+    const HTTPRequestLimits& requestLimits() const { return _requestLimits; }
+    qint64 reservedRequestBytes() const { return _reservedRequestBytes; }
+    int liveRequestCount() const { return _liveRequestCount; }
 
     bool handleHTTPRequest(HTTPConnection* connection, const QUrl& url, bool skipSubHandler = false) override;
 
@@ -42,9 +53,24 @@ private slots:
     void queuedExit(QString errorMessage);
     
 private:
+    friend class HTTPConnection;
+    friend class FileStorage;
+    bool acquireRequest();
+    bool reserveRequestBody(qint64 bytes);
+    void releaseRequestBody(qint64 bytes);
+    void releaseRequest();
+    HTTPRequestLimits _requestLimits;
+    qint64 _reservedRequestBytes { 0 };
+    int _liveRequestCount { 0 };
     bool bindSocket();
     
 protected:
+    bool hasRequestCapacity() const;
+    // Narrow storage operations used by production; overridable for deterministic fault tests.
+    virtual QByteArray allocateRequestMemory(int size);
+    virtual bool openRequestFile(QTemporaryFile& file);
+    virtual bool resizeRequestFile(QTemporaryFile& file, qint64 size);
+    virtual uchar* mapRequestFile(QTemporaryFile& file, qint64 size);
     /// Accepts all pending connections
     virtual void incomingConnection(qintptr socketDescriptor) override;
     virtual bool requestHandledByRequestHandler(HTTPConnection* connection, const QUrl& url);

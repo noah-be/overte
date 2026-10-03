@@ -31,6 +31,12 @@ glm::vec3 normalizeDirForPacking(const glm::vec3& dir) {
 }
 
 void buildGraphicsMesh(const hfm::Mesh& hfmMesh, graphics::MeshPointer& graphicsMeshPointer, const baker::MeshNormals& meshNormals, const baker::MeshTangents& meshTangentsIn) {
+    graphicsMeshPointer.reset();
+    QString skinningError;
+    if (!hfmMesh.validateSkinningPalette(skinningError)) {
+        qCWarning(model_baker) << "Rejecting mesh before skinning packing:" << skinningError;
+        return;
+    }
     auto graphicsMesh = std::make_shared<graphics::Mesh>();
 
     // Fill tangents with a dummy value to force tangents to be present if there are normals
@@ -98,9 +104,8 @@ void buildGraphicsMesh(const hfm::Mesh& hfmMesh, graphics::MeshPointer& graphics
     // 4 Weights are normalized 16bits
     const auto clusterWeightElement = gpu::Element(gpu::VEC4, gpu::NUINT16, gpu::XYZW);
 
-    // Cluster indices and weights must be the same sizes
-    const int NUM_CLUSTERS_PER_VERT = 4;
-    const int numVertClusters = (hfmMesh.clusterIndices.size() == hfmMesh.clusterWeights.size() ? hfmMesh.clusterIndices.size() / NUM_CLUSTERS_PER_VERT : 0);
+    // validateSkinningPalette established exact per-vertex cardinality.
+    const int numVertClusters = hfmMesh.clusterIndices.isEmpty() ? 0 : numVerts;
     const int clusterIndicesSize = numVertClusters * clusterIndiceElement.getSize();
     const int clusterWeightsSize = numVertClusters * clusterWeightElement.getSize();
 
@@ -203,8 +208,9 @@ void buildGraphicsMesh(const hfm::Mesh& hfmMesh, graphics::MeshPointer& graphics
             QVector<uint8_t> clusterIndices;
             clusterIndices.resize(numIndices);
             for (int32_t i = 0; i < numIndices; ++i) {
-                assert(hfmMesh.clusterIndices[i] <= UINT8_MAX);
-                clusterIndices[i] = (uint8_t)(hfmMesh.clusterIndices[i]);
+                // An inactive lane never loads a cluster. Canonicalize it before
+                // narrowing even when called directly with unprepared HFM data.
+                clusterIndices[i] = hfmMesh.clusterWeights[i] ? uint8_t(hfmMesh.clusterIndices[i]) : 0;
             }
             vertBuffer->setSubData(clusterIndicesOffset, clusterIndicesSize, (const gpu::Byte*) clusterIndices.constData());
         } else {
