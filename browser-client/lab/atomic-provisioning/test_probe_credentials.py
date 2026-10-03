@@ -19,6 +19,19 @@ SOURCE = HERE.parent
 
 
 class ProbeCredentials(unittest.TestCase):
+    def test_environment_schema_observation_reports_only_existing_bounds(self):
+        environment={f'PRIVATE_NAME_{index}':'private-token-value'for index in range(129)}
+        environment['PRIVATE_NAME_0']='private-token-value'*500
+        environment['PRIVATE_NAME_1']='private\0token'
+        row=probe.environment_shape(environment)
+        self.assertEqual(row['entries'],129)
+        self.assertTrue(row['entryBoundExceeded'])
+        self.assertTrue(row['valueBoundExceeded'])
+        self.assertTrue(row['nulObserved'])
+        self.assertNotIn('PRIVATE_NAME',json.dumps(row))
+        self.assertNotIn('private-token',json.dumps(row))
+        with self.assertRaises(ValueError):probe.environment_shape(['private-token'])
+
     def test_fixed_failure_observation_refuses_unknown_exception_prose(self):
         self.assertEqual(probe.failure_observation(ValueError('input-size-or-executable-invalid'))['refusal'],
                          'input-size-or-executable-invalid')

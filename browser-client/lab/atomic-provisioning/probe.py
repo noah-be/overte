@@ -36,6 +36,16 @@ def failure_observation(error):
   category=error.args[0]
  return {'scope':'owned-probe-failure-observation-not-causality','refusal':category}
 
+def environment_shape(environment):
+ # Observe existing schema bounds without publishing a variable name or value.
+ if type(environment)is not dict:raise ValueError('launch-environment-invalid')
+ strings=all(type(key)is str and type(value)is str for key,value in environment.items())
+ return {'scope':'owned-native-environment-schema-observation','entries':len(environment),
+  'entryBoundExceeded':len(environment)>128,'typesValid':strings,
+  'keyBoundExceeded':any(type(key)is str and (not key or len(key)>128)for key in environment),
+  'valueBoundExceeded':any(type(value)is str and len(value)>8192 for value in environment.values()),
+  'nulObserved':any(type(key)is str and type(value)is str and '\0'in key+value for key,value in environment.items())}
+
 def sha(p,*,executable=False):return hashlib.sha256(checked_regular(p,64*1024*1024,executable=executable)).hexdigest()
 def exclusive(path,data,mode=0o600):
  fd=os.open(path,os.O_CREAT|os.O_EXCL|os.O_WRONLY|os.O_NOFOLLOW|os.O_NONBLOCK,mode)
@@ -129,7 +139,11 @@ def prepare(repo,lab,output):
  document={'version':1,'strace':str(HERE/'strace'),'straceSHA256':dep['binarySHA256'],'native':str(server/'domain-server'),'unshare':'/usr/bin/unshare',
  'settings':str(lab/'config/domain.json'),'cwd':str(repo),'output':str(output),'environment':env}
  for name in ('native','unshare'):document[name+'SHA256']=sha(document[name],executable=True)
- validated_launch(document)
+ try:validated_launch(document)
+ except ValueError as error:
+  if type(error)is ValueError and error.args==('launch-environment-invalid',):
+   print('ATOMIC_PROBE_ENVIRONMENT:'+json.dumps(environment_shape(env),sort_keys=True,separators=(',',':')),file=sys.stderr)
+  raise
  exclusive(output/'launch.private.json',(json.dumps(document,indent=2)+'\n').encode())
  payload={'security':{'standard_permissions':[{'permissions_id':name,**{flag:flag in('id_can_connect','id_can_rez','id_can_rez_avatar_entities','id_can_view_asset_urls')for flag in manage.PERMISSION_KEYS}}for name in('anonymous','localhost','logged-in','friends')],'ip_permissions':[],'machine_fingerprint_permissions':[]}}
  authorization='Basic '+base64.b64encode(('browser-lab-admin:'+cred['token']).encode()).decode()
