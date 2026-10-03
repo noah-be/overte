@@ -7,6 +7,7 @@ import { Group, Scene, PerspectiveCamera, Vector3 } from 'three';
 import { BrowserWorld } from './world';
 import { FstGraphCache } from './fst-graph-cache';
 import { SimulationClock } from './simulation-clock';
+import { PreparedFbxCache } from './prepared-fbx-cache';
 
 function fixture(t: TestContext) {
   const events: string[] = [], token = Object.freeze({});
@@ -24,13 +25,15 @@ function fixture(t: TestContext) {
     entities: new Map(), objects: new Map(), avatarModels: new Map(), meshCollisions: new Map(),
     modelScheduler: { stats: { active: 0, queued: 0 } }, compilingGraphics: 0, imageCache: { stats: () => ({}) },
     embeddedFbxImages: { statistics: {} }, embeddedFbxCounts: {}, fbxPreparePool: { counters: {} },
-    preparedFbx: { stats: {} }, initialSurfaceWait: { state: 'supported' }, loadPhases: new Map(),
+    initialSurfaceWait: { state: 'supported' }, loadPhases: new Map(),
     abort: new AbortController(), resizeObserver: { disconnect() {} }, loadManagers: new Set(),
     scene: new Scene(), signatures: new Map(), modelReaders: new WeakMap(),
     modelBatches: new Map(), modelGeometry: new WeakMap(), canvas: { remove() { events.push('canvas-remove'); },
       toBlob(callback: (blob: Blob) => void) { callback(new Blob(['owned visitor capture'], { type: 'image/png' })); } },
   });
   context.fstGraphCache = new FstGraphCache(context.abort.signal);
+  context.preparedFbx = new PreparedFbxCache({signal:context.abort.signal});
+  t.after(() => context.abort.abort());
   const previousRaf = globalThis.requestAnimationFrame, previousCancel = globalThis.cancelAnimationFrame, previousDocument = globalThis.document;
   globalThis.requestAnimationFrame = () => { events.push('raf'); return 1; };
   globalThis.cancelAnimationFrame = () => {};
@@ -92,5 +95,8 @@ test('actual visitor snapshot remains independent of sampled normal-frame diagno
 test('actual World teardown releases diagnostic ownership before the renderer and blocks future frames', t => {
   const f = fixture(t); f.context.gpuTiming = f.diagnostic; f.context.dispose();
   assert.deepEqual(f.events, ['gpu-dispose', 'renderer-dispose', 'canvas-remove']); assert.equal(f.context.abort.signal.aborted, true);
+  assert.equal(f.context.preparedFbx.stats.disposed, true);
+  assert.equal(f.context.preparedFbx.stats.readers, 0);
+  assert.equal(f.context.preparedFbx.stats.active, 0);
   f.context.animate(2000); assert.deepEqual(f.events, ['gpu-dispose', 'renderer-dispose', 'canvas-remove']);
 });
