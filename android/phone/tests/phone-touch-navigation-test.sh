@@ -8,8 +8,9 @@ device_header="$repo_root/libraries/input-plugins/src/input-plugins/TouchscreenV
 phone_mapping="$repo_root/interface/resources/controllers/touchscreenvirtualpad-phone.json"
 phone_action_bar="$repo_root/scripts/system/+android_phoneInterface/mobileActionBar.js"
 phone_defaults="$repo_root/scripts/+android_phoneInterface/defaultScripts.js"
-phone_tablet_apps="$repo_root/scripts/system/+android_phoneInterface/mobileTabletApps.js"
-phone_preferences="$repo_root/interface/resources/qml/hifi/tablet/+android_phoneInterface/TabletGeneralPreferences.qml"
+phone_tablet_wrapper="$repo_root/scripts/system/+android_phoneInterface/mobileTabletApps.js"
+phone_tablet_apps="$repo_root/scripts/system/tablet-ui/mobileTabletApps.js"
+phone_preferences="$repo_root/interface/resources/qml/hifi/tablet/TabletGeneralPreferences.qml"
 preferences_cpp="$repo_root/interface/src/ui/PreferencesDialog.cpp"
 application_events="$repo_root/interface/src/Application_Events.cpp"
 application_graphics="$repo_root/interface/src/Application_Graphics.cpp"
@@ -67,10 +68,12 @@ require "$preferences_cpp" '"Navigation"' \
     'phone navigation preference category is missing'
 require "$preferences_cpp" 'Enable two-finger perspective zoom' \
     'phone pinch zoom preference is missing'
-require "$phone_preferences" 'showCategories: phonePolicy[.]allowedCategories' \
+require "$phone_preferences" 'showCategories:[[:space:]]*preferencesPolicy[.]allowedCategories' \
     'phone tablet settings do not expose Navigation'
 require "$phone_defaults" 'system/\+android_phoneInterface/mobileTabletApps[.]js' \
     'phone defaults do not load the phone tablet app registrar'
+require "$phone_tablet_wrapper" 'Script[.]include\(Script[.]resolvePath\("[.][.]/tablet-ui/mobileTabletApps[.]js"\)\)' \
+    'phone startup is disconnected from the shared tablet implementation'
 require "$phone_tablet_apps" 'SETTINGS_SOURCE.*settings/Settings[.]qml' \
     'phone tablet app registrar does not expose Settings'
 reject "$phone_defaults" 'system/settings/settings[.]js' \

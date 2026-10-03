@@ -21,7 +21,8 @@ TestCase {
     function test_repeatedCreateInteractDestroyReleasesOwnedObjects() {
         var emoteComponent = load("../../../../scripts/system/+android_phoneInterface/PhoneEmote.qml")
         var addressComponent = load("../../../../interface/resources/qml/+android_phoneInterface/AddressBarDialog.qml")
-        var touchComponent = load("../../../../interface/resources/qml/hifi/tablet/+android_phoneInterface/TabletTouchConfiguration.qml")
+        var touchComponent = load("../../../../interface/resources/qml/hifi/tablet/TabletTouchConfiguration.qml")
+        var profileComponent = load("../qml/DirectTouchHostProfile.qml")
         var baselineChildren = host.children.length
 
         for (var cycle = 0; cycle < 200; ++cycle) {
@@ -29,7 +30,10 @@ TestCase {
             AddressManager.reset()
             var emote = emoteComponent.createObject(host)
             var address = addressComponent.createObject(host)
+            var profile = profileComponent.createObject(host)
+            verify(profile !== null, profileComponent.errorString())
             var touch = touchComponent.createObject(host, {
+                profile: profile,
                 availableWidth: cycle % 2 ? 360 : 800,
                 availableHeight: cycle % 2 ? 800 : 360
             })
@@ -49,6 +53,7 @@ TestCase {
             emote.destroy()
             address.destroy()
             touch.destroy()
+            profile.destroy()
             wait(0)
             compare(host.children.length, baselineChildren,
                     "owned QML objects leaked after cycle " + cycle)

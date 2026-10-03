@@ -2,8 +2,9 @@
 
 const assert = require("node:assert/strict");
 const path = require("node:path");
+const fs = require("node:fs");
+const vm = require("node:vm");
 const test = require("node:test");
-const { runProductionScript } = require("../support");
 
 const source = path.resolve(__dirname, "../../../../../scripts/+android_phoneInterface/defaultScripts.js");
 const expected = [
@@ -27,7 +28,10 @@ function start() {
         include(value) { calls.push(["include", value]); }
     };
     const LODManager = { automaticLODAdjust: true, lodAngleDeg: 99 };
-    const execution = runProductionScript(source, { Script, LODManager });
+    const context = vm.createContext({ Script, LODManager });
+    const result = vm.runInContext(fs.readFileSync(source, "utf8"), context,
+        { filename: source, timeout: 1000 });
+    const execution = { context, result };
     return { ...execution, calls, LODManager };
 }
 

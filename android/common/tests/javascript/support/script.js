@@ -2,7 +2,22 @@
 
 const { FakeSignal } = require("./signal");
 
+const loaders = new WeakMap();
+
+function bindScriptLoader(api, loader) {
+    const state = loaders.get(api);
+    if (state) {
+        state.loader = loader;
+    } else if (api) {
+        api.include = loader.include;
+        if (typeof api.resolvePath !== "function") {
+            api.resolvePath = loader.resolvePath;
+        }
+    }
+}
+
 function createScriptApi() {
+    const state = { loader: null };
     let nextTimerId = 1;
     const timers = new Map();
     const clearedTimers = [];
@@ -22,7 +37,7 @@ function createScriptApi() {
         }
     }
 
-    return {
+    const api = {
         scriptEnding: new FakeSignal(),
         setTimeout(callback, delay = 0) {
             return schedule(callback, delay, false);
@@ -33,7 +48,13 @@ function createScriptApi() {
         },
         clearInterval: clear,
         resolvePath(path) {
-            return path;
+            return state.loader ? state.loader.resolvePath(path) : path;
+        },
+        include(files, callback) {
+            if (!state.loader) {
+                throw new Error("Script.include requires a production VM loader");
+            }
+            return state.loader.include(files, callback);
         },
         runTimer(id) {
             const timer = timers.get(id);
@@ -52,6 +73,8 @@ function createScriptApi() {
         timers,
         clearedTimers
     };
+    loaders.set(api, state);
+    return api;
 }
 
-module.exports = { createScriptApi };
+module.exports = { createScriptApi, bindScriptLoader };

@@ -6,7 +6,6 @@ readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly repo_root="$(cd -- "$script_dir/../../.." && pwd)"
 readonly settings="$repo_root/scripts/system/settings/Settings.qml"
 readonly desktop_config="$repo_root/scripts/system/settings/qml/SettingsTouchConfiguration.qml"
-readonly phone_config="$repo_root/scripts/system/settings/qml/+android_phoneInterface/SettingsTouchConfiguration.qml"
 readonly pico_config="$repo_root/scripts/system/settings/qml/+android_picoInterface/SettingsTouchConfiguration.qml"
 readonly quest_config="$repo_root/scripts/system/settings/qml/+android_questInterface/SettingsTouchConfiguration.qml"
 readonly file_utils="$repo_root/libraries/shared/src/shared/FileUtils.cpp"
@@ -33,16 +32,16 @@ require "$base_profile" 'picoResolutionSettingsAvailable:[[:space:]]*true' \
     'the default profile preserves existing render-scale settings'
 require "$desktop_config" 'showGraphicsSettings:[[:space:]]*profile[.]graphicsSettingsAvailable' \
     'Settings resolve policy through the shared device profile'
-require "$phone_config" 'showControllerSettings:[[:space:]]*false' \
-    'phone Settings hide the unavailable desktop and VR controller page'
-require "$phone_config" 'showGraphicsSettings:[[:space:]]*false' \
-    'phone Settings hide the unbounded desktop graphics page'
-require "$phone_config" 'showPicoResolutionSettings:[[:space:]]*false' \
-    'phone Settings hide the Pico-only render scale restart control'
+require "$desktop_config" 'showControllerSettings:[[:space:]]*profile[.]controllerSettingsAvailable' \
+    'shared Settings gate controller pages through the explicit capability'
+require "$desktop_config" 'showGraphicsSettings:[[:space:]]*profile[.]graphicsSettingsAvailable' \
+    'shared Settings gate graphics pages through the explicit capability'
+require "$desktop_config" 'showPicoResolutionSettings:[[:space:]]*profile[.]picoResolutionSettingsAvailable' \
+    'shared Settings gate render-scale controls through the explicit capability'
 require "$desktop_config" 'showPicoInteractionSettings:[[:space:]]*false' \
     'unselected Settings profiles fail closed for Pico interaction controls'
-require "$phone_config" 'showPicoInteractionSettings:[[:space:]]*false' \
-    'phone Settings reject the Pico interaction page'
+require "$base_profile" 'readonly property bool vrRenderResolutionAvailable:[[:space:]]*picoResolutionSettingsAvailable' \
+    'render-resolution availability is the exact capability projection'
 require "$pico_config" 'showPicoInteractionSettings:[[:space:]]*true' \
     'the compiled Pico selector enables Pico interaction controls'
 require "$quest_config" 'showPicoInteractionSettings:[[:space:]]*false' \
