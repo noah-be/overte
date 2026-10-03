@@ -76,7 +76,8 @@ pins, post-exec parent binding, isolated helper startup and exception-safe
 pidfd admission. All244 package members and whole-source recoveries verify;
 197 named source/mock executions pass with no skips (overlapping suites, not
 197 distinct tests). The84-case host registration retains the original actual
-Bubblewrap retirement case and the corrected operational eight-second gates.
+Bubblewrap retirement case. The separate atomic runner retains the corrected
+operational eight-second gates.
 The first full stabilization run retains2,630 passes and three failures from
 the older Chrome README metadata fixture. The exact CPU normalization now
 composes the reviewed new README with that fixture's original metadata checks;

@@ -400,14 +400,15 @@ new job; keep credentials, selectors, profiles, raw logs and PCM private.
 Disclose material AI assistance in commits/PR. Keep the existing draft PR current
 with truthful exact-commit evidence; publication is a checkpoint, not completion.
 
-Current next step (2026-10-03): qualify the exact integrated V12/image/FST and
+Historical next step (2026-10-03, completed before the current checkpoint):
+qualify the exact integrated V12/image/FST and
 security/network/finite-environment/curator source in a fresh full snapshot,
 create its actual production receipt, and run the three genuine Chrome PNG
 approval cases. The same session/revision/asset URL must yield new approved
 bytes while already loaded borrowers retain their resources. Keep actual
 negative results and all original gates.
 
-## Current next step (2026-10-03)
+## Historical next step (2026-10-03, completed before the current checkpoint)
 
 Complete the corrected model parse-turn Chrome fixture and current browser gate.
 Bind the fresh private V14 distribution to the FST comparison while preserving
