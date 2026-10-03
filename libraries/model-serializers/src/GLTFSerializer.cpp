@@ -32,8 +32,11 @@
 #include <qfileinfo.h>
 
 #include <sstream>
+#include <cmath>
+#include <limits>
 
 #include <glm/gtx/transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 #include <shared/NsightHelpers.h>
 #include <NetworkAccessManager.h>
@@ -113,22 +116,25 @@ glm::mat4 GLTFSerializer::getModelTransform(const cgltf_node& node) {
 }
 
 bool GLTFSerializer::getSkinInverseBindMatrices(std::vector<std::vector<float>>& inverseBindMatrixValues) {
-    for (size_t i = 0; i < _data->skins_count; i++) {
-        auto &skin = _data->skins[i];
-
-        if (skin.inverse_bind_matrices == NULL) {
-            return false;
+    for (size_t i = 0; i < _data->skins_count; ++i) {
+        const auto& skin = _data->skins[i];
+        if (skin.joints_count > size_t(UINT16_MAX) + 1) { return false; }
+        std::vector<float> matrices(skin.joints_count * 16, 0.0f);
+        if (!skin.inverse_bind_matrices) {
+            // glTF specifies identity inverse binds when the accessor is absent.
+            for (size_t j = 0; j < skin.joints_count; ++j) {
+                for (int diagonal = 0; diagonal < 4; ++diagonal) { matrices[j * 16 + diagonal * 5] = 1.0f; }
+            }
+        } else {
+            const auto* accessor = skin.inverse_bind_matrices;
+            if (accessor->type != cgltf_type_mat4 || accessor->component_type != cgltf_component_type_r_32f ||
+                accessor->normalized || accessor->count != skin.joints_count ||
+                cgltf_accessor_unpack_floats(accessor, matrices.data(), matrices.size()) != matrices.size()) {
+                return false;
+            }
         }
-
-        cgltf_accessor &matricesAccessor = *skin.inverse_bind_matrices;
-        QVector<float> matrices;
-        if (matricesAccessor.type != cgltf_type_mat4) {
-            return false;
-        }
-        matrices.resize((int)matricesAccessor.count * 16);
-        size_t numFloats = cgltf_accessor_unpack_floats(&matricesAccessor, matrices.data(), matricesAccessor.count * 16);
-        Q_ASSERT(numFloats == matricesAccessor.count * 16);
-        inverseBindMatrixValues.push_back(std::vector<float>(matrices.begin(), matrices.end()));
+        for (float value : matrices) { if (!std::isfinite(value)) { return false; } }
+        inverseBindMatrixValues.push_back(std::move(matrices));
     }
     return true;
 }
@@ -191,7 +197,8 @@ bool findAttribute(const QString &name, const cgltf_attribute *attributes, size_
 bool GLTFSerializer::buildGeometry(HFMModel& hfmModel, const hifi::VariantHash& mapping, const hifi::URL& url) {
     hfmModel.originalURL = url.toString();
 
-    int numNodes = (int)_data->nodes_count;
+    if (_data->nodes_count > size_t(std::numeric_limits<int>::max())) { return false; }
+    int numNodes = int(_data->nodes_count);
 
     //Build dependencies
     QVector<int> parents;
@@ -312,56 +319,27 @@ bool GLTFSerializer::buildGeometry(HFMModel& hfmModel, const hifi::VariantHash& 
         glm::mat4_cast(offsetRotation) * glm::scale(glm::mat4(), glm::vec3(offsetScale, offsetScale, offsetScale));
 
 
-    // Build skeleton
-    std::vector<glm::mat4> jointInverseBindTransforms;
-    std::vector<glm::mat4> globalBindTransforms;
-    jointInverseBindTransforms.resize(numNodes);
-    globalBindTransforms.resize(numNodes);
-
+    // Global joints remain scene nodes; each mesh has its own skin-local binds.
+    std::vector<std::vector<float>> inverseBindValues;
     hfmModel.hasSkeletonJoints = _data->skins_count > 0;
-    if (hfmModel.hasSkeletonJoints) {
-        std::vector<std::vector<float>> inverseBindValues;
-        if (!getSkinInverseBindMatrices(inverseBindValues)) {
-            qDebug(modelformat) << "GLTFSerializer::getSkinInverseBindMatrices: wrong matrices accessor type for model: " << _url;
-            hfmModel.loadErrorCount++;
-            return false;
-        }
-
-        for (int jointIndex = 0; jointIndex < numNodes; ++jointIndex) {
-            int nodeIndex = sortedNodes[jointIndex];
-            auto joint = hfmModel.joints[jointIndex];
-
-            for (size_t s = 0; s < _data->skins_count; ++s) {
-                const auto& skin = _data->skins[s];
-                size_t jointNodeIndex = 0;
-                joint.isSkeletonJoint = findNodeInPointerArray(&_data->nodes[nodeIndex], skin.joints, skin.joints_count, jointNodeIndex);
-
-                // build inverse bind matrices
-                if (joint.isSkeletonJoint) {
-                    size_t matrixIndex = jointNodeIndex;
-                    std::vector<float>& value = inverseBindValues[s];
-                    size_t matrixCount = 16 * matrixIndex;
-                    if (matrixCount + 15 >= value.size()) {
-                        qDebug(modelformat) << "GLTFSerializer::buildGeometry: not enough entries in jointInverseBindTransforms: " << _url;
-                        hfmModel.loadErrorCount++;
-                        return false;
-                    }
-                    jointInverseBindTransforms[jointIndex] =
-                        glm::mat4(value[matrixCount], value[matrixCount + 1], value[matrixCount + 2], value[matrixCount + 3],
-                            value[matrixCount + 4], value[matrixCount + 5], value[matrixCount + 6], value[matrixCount + 7],
-                            value[matrixCount + 8], value[matrixCount + 9], value[matrixCount + 10], value[matrixCount + 11],
-                            value[matrixCount + 12], value[matrixCount + 13], value[matrixCount + 14], value[matrixCount + 15]);
-                } else {
-                    jointInverseBindTransforms[jointIndex] = glm::mat4();
-                }
-                globalBindTransforms[jointIndex] = jointInverseBindTransforms[jointIndex];
-                if (joint.parentIndex != -1) {
-                    globalBindTransforms[jointIndex] = globalBindTransforms[joint.parentIndex] * globalBindTransforms[jointIndex];
-                }
-                glm::vec3 bindTranslation = extractTranslation(hfmModel.offset * glm::inverse(jointInverseBindTransforms[jointIndex]));
-                hfmModel.bindExtents.addPoint(bindTranslation);
+    if (!getSkinInverseBindMatrices(inverseBindValues)) {
+        qCWarning(modelformat) << "Rejecting glTF: invalid inverse bind matrix cardinality or values";
+        ++hfmModel.loadErrorCount;
+        return false;
+    }
+    auto skinBind = [&](size_t skinIndex, size_t jointIndex) {
+        const auto& values = inverseBindValues[skinIndex];
+        return glm::make_mat4(values.data() + jointIndex * 16);
+    };
+    for (int jointIndex = 0; jointIndex < numNodes; ++jointIndex) {
+        auto& joint = hfmModel.joints[jointIndex];
+        for (size_t skinIndex = 0; skinIndex < _data->skins_count; ++skinIndex) {
+            const auto& skin = _data->skins[skinIndex];
+            size_t skinJoint = 0;
+            if (findNodeInPointerArray(&_data->nodes[sortedNodes[jointIndex]], skin.joints, skin.joints_count, skinJoint)) {
+                joint.isSkeletonJoint = true;
+                hfmModel.bindExtents.addPoint(extractTranslation(hfmModel.offset * glm::inverse(skinBind(skinIndex, skinJoint))));
             }
-            hfmModel.joints[jointIndex] = joint;
         }
     }
 
@@ -400,28 +378,38 @@ bool GLTFSerializer::buildGeometry(HFMModel& hfmModel, const hifi::VariantHash& 
 
             hfmModel.meshes.append(HFMMesh());
             HFMMesh& mesh = hfmModel.meshes[hfmModel.meshes.size() - 1];
+            QVector<size_t> previousShapeSizes;
+            for (const auto& points : hfmModel.shapeVertices) { previousShapeSizes.append(points.size()); }
             mesh.modelTransform = globalTransforms[nodeIndex];
 
-            if (!hfmModel.hasSkeletonJoints) {
+            if (!node.skin) {
                 HFMCluster cluster;
                 cluster.jointIndex = nodeCount;
-                cluster.inverseBindMatrix = glm::mat4();
+                cluster.inverseBindMatrix = glm::mat4(1.0f);
                 cluster.inverseBindTransform = Transform(cluster.inverseBindMatrix);
                 mesh.clusters.append(cluster);
-            } else { // skinned model
-                for (int j = 0; j < numNodes; ++j) {
+            } else {
+                size_t skinIndex = 0;
+                if (!findPointerInArray(node.skin, _data->skins, _data->skins_count, skinIndex) ||
+                    node.skin->joints_count > size_t(UINT16_MAX) + 1) {
+                    qCWarning(modelformat) << "Rejecting glTF: skin cannot be represented by influence indices";
+                    ++hfmModel.loadErrorCount;
+                    return false;
+                }
+                for (size_t j = 0; j < node.skin->joints_count; ++j) {
+                    size_t originalJoint = 0;
+                    if (!findPointerInArray(node.skin->joints[j], _data->nodes, _data->nodes_count, originalJoint)) {
+                        qCWarning(modelformat) << "Rejecting glTF: skin joint is not a scene node";
+                        ++hfmModel.loadErrorCount;
+                        return false;
+                    }
                     HFMCluster cluster;
-                    cluster.jointIndex = j;
-                    cluster.inverseBindMatrix = jointInverseBindTransforms[j];
+                    cluster.jointIndex = originalToNewNodeIndexMap[int(originalJoint)];
+                    cluster.inverseBindMatrix = skinBind(skinIndex, j);
                     cluster.inverseBindTransform = Transform(cluster.inverseBindMatrix);
                     mesh.clusters.append(cluster);
                 }
             }
-            HFMCluster root;
-            root.jointIndex = 0;
-            root.inverseBindMatrix = jointInverseBindTransforms[root.jointIndex];
-            root.inverseBindTransform = Transform(root.inverseBindMatrix);
-            mesh.clusters.append(root);
 
             QList<QString> meshAttributes;
             for (size_t primitiveIndex = 0; primitiveIndex < node.mesh->primitives_count; primitiveIndex++) {
@@ -465,7 +453,8 @@ bool GLTFSerializer::buildGeometry(HFMModel& hfmModel, const hifi::VariantHash& 
                 QVector<float> weights;
                 int weightStride = 4;
 
-                indices.resize((int)indicesAccessor->count);
+                if (indicesAccessor->count > size_t(std::numeric_limits<int>::max())) { return false; }
+                indices.resize(int(indicesAccessor->count));
                 size_t readIndicesCount = cgltf_accessor_unpack_indices(indicesAccessor, indices.data(), sizeof(unsigned int), indicesAccessor->count);
 
                 if (readIndicesCount != indicesAccessor->count) {
@@ -488,6 +477,12 @@ bool GLTFSerializer::buildGeometry(HFMModel& hfmModel, const hifi::VariantHash& 
                         return false;
                     }
                     QString key(primitive.attributes[attributeIndex].name);
+                    if ((key.startsWith("JOINTS_") && key != "JOINTS_0") ||
+                        (key.startsWith("WEIGHTS_") && key != "WEIGHTS_0")) {
+                        qCWarning(modelformat) << "Rejecting glTF: more than four influences per vertex are unsupported";
+                        ++hfmModel.loadErrorCount;
+                        return false;
+                    }
 
                     if (primitive.attributes[attributeIndex].data == nullptr) {
                         qDebug() << "Inalid accessor for mesh: " << _url;
@@ -495,6 +490,11 @@ bool GLTFSerializer::buildGeometry(HFMModel& hfmModel, const hifi::VariantHash& 
                         return false;
                     }
                     auto accessor = primitive.attributes[attributeIndex].data;
+                    if (accessor->count > size_t(std::numeric_limits<int>::max() / 16)) {
+                        qCWarning(modelformat) << "Rejecting glTF: accessor exceeds representable attribute size";
+                        ++hfmModel.loadErrorCount;
+                        return false;
+                    }
                     int accessorCount = (int)accessor->count;
 
                     if (key == "POSITION") {
@@ -591,50 +591,38 @@ bool GLTFSerializer::buildGeometry(HFMModel& hfmModel, const hifi::VariantHash& 
                             continue;
                         }
                     } else if (key == "JOINTS_0") {
-                        if (accessor->type == cgltf_type_vec4) {
-                            jointStride = 4;
-                        } else if (accessor->type == cgltf_type_vec3) {
-                            jointStride = 3;
-                        } else if (accessor->type == cgltf_type_vec2) {
-                            jointStride = 2;
-                        } else if (accessor->type == cgltf_type_scalar) {
-                            jointStride = 1;
-                        } else {
-                            qWarning(modelformat) << "Invalid accessor type on glTF JOINTS_0 data for model " << _url;
-                            hfmModel.loadErrorCount++;
-                            continue;
+                        if (accessor->type != cgltf_type_vec4 || accessor->normalized ||
+                            (accessor->component_type != cgltf_component_type_r_8u &&
+                             accessor->component_type != cgltf_component_type_r_16u)) {
+                            qCWarning(modelformat) << "Rejecting glTF: invalid JOINTS_0 representation";
+                            ++hfmModel.loadErrorCount;
+                            return false;
                         }
-
                         joints.resize(accessorCount * jointStride);
                         cgltf_uint jointIndices[4];
-                        for (size_t i = 0; i < accessor->count; i++) {
-                            cgltf_accessor_read_uint(accessor, i, jointIndices, jointStride);
-                            for (int component = 0; component < jointStride; component++) {
-                                joints[(int)i * jointStride + component] = (uint16_t)jointIndices[component];
+                        for (size_t i = 0; i < accessor->count; ++i) {
+                            if (!cgltf_accessor_read_uint(accessor, i, jointIndices, 4)) {
+                                ++hfmModel.loadErrorCount;
+                                return false;
+                            }
+                            for (int component = 0; component < 4; ++component) {
+                                joints[int(i) * 4 + component] = uint16_t(jointIndices[component]);
                             }
                         }
-
                     } else if (key == "WEIGHTS_0") {
-                        if (accessor->type == cgltf_type_vec4) {
-                            weightStride = 4;
-                        } else if (accessor->type == cgltf_type_vec3) {
-                            weightStride = 3;
-                        } else if (accessor->type == cgltf_type_vec2) {
-                            weightStride = 2;
-                        } else if (accessor->type == cgltf_type_scalar) {
-                            weightStride = 1;
-                        } else {
-                            qWarning(modelformat) << "Invalid accessor type on glTF WEIGHTS_0 data for model " << _url;
-                            hfmModel.loadErrorCount++;
-                            continue;
+                        const bool floatWeights = accessor->component_type == cgltf_component_type_r_32f && !accessor->normalized;
+                        const bool normalizedWeights = (accessor->component_type == cgltf_component_type_r_8u ||
+                            accessor->component_type == cgltf_component_type_r_16u) && accessor->normalized;
+                        if (accessor->type != cgltf_type_vec4 || !(floatWeights || normalizedWeights)) {
+                            qCWarning(modelformat) << "Rejecting glTF: invalid WEIGHTS_0 representation";
+                            ++hfmModel.loadErrorCount;
+                            return false;
                         }
-
                         weights.resize(accessorCount * weightStride);
-                        size_t floatCount = cgltf_accessor_unpack_floats(accessor, weights.data(), accessor->count * weightStride);
-                        if (floatCount != accessor->count * weightStride) {
-                            qWarning(modelformat) << "There was a problem reading glTF WEIGHTS_0 data for model " << _url;
-                            hfmModel.loadErrorCount++;
-                            continue;
+                        if (cgltf_accessor_unpack_floats(accessor, weights.data(), weights.size()) != size_t(weights.size())) {
+                            qCWarning(modelformat) << "Rejecting glTF: unreadable WEIGHTS_0 data";
+                            ++hfmModel.loadErrorCount;
+                            return false;
                         }
                     }
                 }
@@ -652,6 +640,19 @@ bool GLTFSerializer::buildGeometry(HFMModel& hfmModel, const hifi::VariantHash& 
                 }
 
                 int partVerticesCount = vertices.size() / 3;
+                if (node.skin && (joints.size() != qint64(partVerticesCount) * 4 ||
+                                  weights.size() != qint64(partVerticesCount) * 4)) {
+                    qCWarning(modelformat) << "Rejecting glTF: skin requires four indices and weights per vertex";
+                    ++hfmModel.loadErrorCount;
+                    return false;
+                }
+                for (float weight : weights) {
+                    if (!std::isfinite(weight) || weight < 0.0f) {
+                        qCWarning(modelformat) << "Rejecting glTF: nonfinite or negative skin weight";
+                        ++hfmModel.loadErrorCount;
+                        return false;
+                    }
+                }
 
                 // generate the normals if they don't exist
                 if (normals.size() == 0) {
@@ -669,7 +670,7 @@ bool GLTFSerializer::buildGeometry(HFMModel& hfmModel, const hifi::VariantHash& 
                         int v2_index = (indices[n + 1] * 3);
                         int v3_index = (indices[n + 2] * 3);
 
-                        if (v1_index + 2 >= vertices.size() || v2_index + 2 >= vertices.size() || v3_index + 2 >= vertices.size()) {
+                        if (v1_index < 0 || v2_index < 0 || v3_index < 0 || v1_index + 2 >= vertices.size() || v2_index + 2 >= vertices.size() || v3_index + 2 >= vertices.size()) {
                             qWarning(modelformat) << "Indices out of range for model " << _url;
                             hfmModel.loadErrorCount++;
                             return false;
@@ -760,7 +761,7 @@ bool GLTFSerializer::buildGeometry(HFMModel& hfmModel, const hifi::VariantHash& 
 
                 QVector<int> validatedIndices;
                 for (int n = 0; n < indices.count(); ++n) {
-                    if (indices[n] < partVerticesCount) {
+                    if (indices[n] >= 0 && indices[n] < partVerticesCount) {
                         validatedIndices.push_back(indices[n] + prevMeshVerticesCount);
                     } else {
                         validatedIndices = QVector<int>();
@@ -834,143 +835,39 @@ bool GLTFSerializer::buildGeometry(HFMModel& hfmModel, const hifi::VariantHash& 
                     }
                 }
 
-                if (joints.size() == partVerticesCount * jointStride) {
-                    for (int n = 0; n < joints.size(); n += jointStride) {
-                        clusterJoints.push_back(joints[n]);
-                        if (jointStride > 1) {
-                            clusterJoints.push_back(joints[n + 1]);
-                            if (jointStride > 2) {
-                                clusterJoints.push_back(joints[n + 2]);
-                                if (jointStride > 3) {
-                                    clusterJoints.push_back(joints[n + 3]);
-                                } else {
-                                    clusterJoints.push_back(0);
-                                }
-                            } else {
-                                clusterJoints.push_back(0);
-                                clusterJoints.push_back(0);
-                            }
-                        } else {
-                            clusterJoints.push_back(0);
-                            clusterJoints.push_back(0);
-                            clusterJoints.push_back(0);
-                        }
+                clusterJoints = joints;
+                clusterWeights = weights;
+
+                if (node.skin) {
+                    const int numVertices = mesh.vertices.size() - prevMeshVerticesCount;
+                    // Source cardinality was checked before any vertex expansion.
+                    // Do not invent a root influence for zero-weight vertices.
+                    if (clusterJoints.size() != qint64(numVertices) * 4 ||
+                        clusterWeights.size() != qint64(numVertices) * 4) {
+                        qCWarning(modelformat) << "Rejecting glTF: expanded skin cardinality mismatch";
+                        ++hfmModel.loadErrorCount;
+                        return false;
                     }
-                } else {
-                    if (meshAttributes.contains("JOINTS_0")) {
-                        for (int i = 0; i < partVerticesCount; ++i) {
-                            for (int j = 0; j < 4; ++j) {
-                                clusterJoints.push_back(0);
-                            }
-                        }
-                    }
-                }
-
-                if (weights.size() == partVerticesCount * weightStride) {
-                    for (int n = 0; n + weightStride - 1 < weights.size(); n += weightStride) {
-                        clusterWeights.push_back(weights[n]);
-                        if (weightStride > 1) {
-                            clusterWeights.push_back(weights[n + 1]);
-                            if (weightStride > 2) {
-                                clusterWeights.push_back(weights[n + 2]);
-                                if (weightStride > 3) {
-                                    clusterWeights.push_back(weights[n + 3]);
-                                } else {
-                                    clusterWeights.push_back(0.0f);
-                                }
-                            } else {
-                                clusterWeights.push_back(0.0f);
-                                clusterWeights.push_back(0.0f);
-                            }
-                        } else {
-                            clusterWeights.push_back(0.0f);
-                            clusterWeights.push_back(0.0f);
-                            clusterWeights.push_back(0.0f);
-                        }
-                    }
-                } else {
-                    if (meshAttributes.contains("WEIGHTS_0")) {
-                        for (int i = 0; i < partVerticesCount; ++i) {
-                            clusterWeights.push_back(1.0f);
-                            for (int j = 1; j < 4; ++j) {
-                                clusterWeights.push_back(0.0f);
-                            }
-                        }
-                    }
-                }
-
-                // Build weights (adapted from FBXSerializer.cpp)
-                if (hfmModel.hasSkeletonJoints) {
-                    int prevMeshClusterIndexCount = mesh.clusterIndices.count();
-                    int prevMeshClusterWeightCount = mesh.clusterWeights.count();
-                    const int WEIGHTS_PER_VERTEX = 4;
-                    const float ALMOST_HALF = 0.499f;
-                    int numVertices = mesh.vertices.size() - prevMeshVerticesCount;
-
-                    // Append new cluster indices and weights for this mesh part
-                    for (int i = 0; i < numVertices * WEIGHTS_PER_VERTEX; ++i) {
-                        mesh.clusterIndices.push_back(mesh.clusters.size() - 1);
-                        mesh.clusterWeights.push_back(0);
-                    }
-
-                    for (int c = 0; c < clusterJoints.size(); ++c) {
-                        if (mesh.clusterIndices.length() <= prevMeshClusterIndexCount + c) {
-                            qCWarning(modelformat) << "Trying to write past end of clusterIndices at" <<  prevMeshClusterIndexCount + c;
-                            hfmModel.loadErrorCount++;
-                            continue;
-                        }
-
-                        if ( clusterJoints.length() <= c) {
-                            qCWarning(modelformat) << "Trying to read past end of clusterJoints at" << c;
-                            hfmModel.loadErrorCount++;
-                            continue;
-                        }
-
-                        if ( node.skin->joints_count <= clusterJoints[c]) {
-                            qCWarning(modelformat) << "Trying to read past end of _file.skins[node.skin].joints at" << clusterJoints[c]
-                                                   << "; there are only" << node.skin->joints_count << "for skin" << node.skin->name;
-                            hfmModel.loadErrorCount++;
-                            continue;
-                        }
-
-                        size_t jointIndex = 0;
-                        if (!findPointerInArray(node.skin->joints[clusterJoints[c]], _data->nodes, _data->nodes_count, jointIndex)) {
-                            qCWarning(modelformat) << "Cannot find the joint " << node.skin->joints[clusterJoints[c]]->name <<" in joint array";
-                            hfmModel.loadErrorCount++;
-                            continue;
-                        }
-                        mesh.clusterIndices[prevMeshClusterIndexCount + c] =
-                            originalToNewNodeIndexMap[(int)jointIndex];
-                    }
-
-                    // normalize and compress to 16-bits
                     for (int i = 0; i < numVertices; ++i) {
-                        int j = i * WEIGHTS_PER_VERTEX;
-
-                        float totalWeight = 0.0f;
-                        for (int k = j; k < j + WEIGHTS_PER_VERTEX; ++k) {
-                            totalWeight += clusterWeights[k];
-                        }
-                        if (totalWeight > 0.0f) {
-                            float weightScalingFactor = (float)(UINT16_MAX) / totalWeight;
-                            for (int k = j; k < j + WEIGHTS_PER_VERTEX; ++k) {
-                                mesh.clusterWeights[prevMeshClusterWeightCount + k] = (uint16_t)(weightScalingFactor * clusterWeights[k] + ALMOST_HALF);
+                        const int base = i * 4;
+                        double totalWeight = 0.0;
+                        for (int lane = 0; lane < 4; ++lane) { totalWeight += double(clusterWeights[base + lane]); }
+                        for (int lane = 0; lane < 4; ++lane) {
+                            const float weight = clusterWeights[base + lane];
+                            const int index = clusterJoints[base + lane];
+                            if (weight > 0.0f && index >= mesh.clusters.size()) {
+                                qCWarning(modelformat) << "Rejecting glTF: weighted influence outside skin palette";
+                                ++hfmModel.loadErrorCount;
+                                return false;
                             }
-                        } else {
-                            mesh.clusterWeights[prevMeshClusterWeightCount + j] = (uint16_t)((float)(UINT16_MAX) + ALMOST_HALF);
-                        }
-                        for (int k = j; k < j + WEIGHTS_PER_VERTEX; ++k) {
-                            int clusterIndex = mesh.clusterIndices[prevMeshClusterIndexCount + k];
-                            ShapeVertices& points = hfmModel.shapeVertices.at(clusterIndex);
-                            glm::vec3 globalMeshScale = extractScale(globalTransforms[nodeIndex]);
-                            const glm::mat4 meshToJoint = glm::scale(glm::mat4(), globalMeshScale) * jointInverseBindTransforms[clusterIndex];
-
-                            const uint16_t EXPANSION_WEIGHT_THRESHOLD = UINT16_MAX/4; // Equivalent of 0.25f?
-                            if (mesh.clusterWeights[prevMeshClusterWeightCount + k] >= EXPANSION_WEIGHT_THRESHOLD) {
-                                auto& vertex = mesh.vertices[prevMeshVerticesCount + i];
-                                const glm::mat4 vertexTransform = meshToJoint * glm::translate(vertex);
-                                glm::vec3 transformedVertex = extractTranslation(vertexTransform);
-                                points.push_back(transformedVertex);
+                            const uint16_t packedWeight = totalWeight > 0.0 ? uint16_t(65535.0 * (double(weight) / totalWeight) + 0.499) : 0;
+                            mesh.clusterIndices.append(weight > 0.0f ? uint16_t(index) : 0);
+                            mesh.clusterWeights.append(packedWeight);
+                            if (packedWeight >= UINT16_MAX / 4) {
+                                const auto& cluster = mesh.clusters[index];
+                                auto& points = hfmModel.shapeVertices[cluster.jointIndex];
+                                const auto meshToJoint = glm::scale(glm::mat4(1.0f), extractScale(globalTransforms[nodeIndex])) * cluster.inverseBindMatrix;
+                                points.push_back(glm::vec3(meshToJoint * glm::vec4(mesh.vertices[prevMeshVerticesCount + i], 1.0f)));
                             }
                         }
                     }
@@ -1173,6 +1070,14 @@ bool GLTFSerializer::buildGeometry(HFMModel& hfmModel, const hifi::VariantHash& 
             hfmModel.meshExtents.minimum -= delta;
             hfmModel.meshExtents.maximum += delta;
 
+            QString skinningError;
+            if (!mesh.prepareSkinningPalette(hfmModel.joints.size(), skinningError)) {
+                qCWarning(modelformat) << "Rejecting glTF mesh skinning:" << skinningError;
+                ++hfmModel.loadErrorCount;
+                for (int joint = 0; joint < previousShapeSizes.size(); ++joint) {
+                    hfmModel.shapeVertices[joint].resize(previousShapeSizes[joint]);
+                }
+            }
             mesh.meshIndex = hfmModel.meshes.size();
         }
         ++nodeCount;
@@ -1229,7 +1134,16 @@ HFMModel::Pointer GLTFSerializer::read(const hifi::ByteArray& data, const hifi::
 
     auto hfmModelPtr = std::make_shared<HFMModel>();
     HFMModel& hfmModel = *hfmModelPtr;
-    buildGeometry(hfmModel, mapping, _url);
+    // cgltf validates buffer extents before accessor reads, including malformed
+    // index/weight cardinalities. Do not return a partially built unsafe model.
+    if (cgltf_validate(_data) != cgltf_result_success) {
+        qCWarning(modelformat) << "Rejecting glTF: invalid buffers, accessors or attribute cardinalities";
+        return nullptr;
+    }
+    if (!buildGeometry(hfmModel, mapping, _url)) {
+        qCWarning(modelformat) << "Rejecting glTF: could not build safe geometry";
+        return nullptr;
+    }
 
     return hfmModelPtr;
 }
