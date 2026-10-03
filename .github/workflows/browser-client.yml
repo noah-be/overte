@@ -6,6 +6,11 @@ on:
       - 'browser-client/**'
       - '.github/workflows/browser-client.yml'
   workflow_dispatch:
+    inputs:
+      startup_diagnostics:
+        description: 'Run unchanged startup/isolation checks only; browser journeys remain not-run'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -16,6 +21,7 @@ concurrency:
 
 jobs:
   browser:
+    name: ${{ inputs.startup_diagnostics && 'Protocol and network startup diagnostics' || 'Browser contracts and journeys' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     defaults:
@@ -77,12 +83,14 @@ jobs:
       - name: Test protocol, collision, audio and worker isolation contracts
         run: npm test
       - name: Build and test actual Qt Tablet composition and clipboard input
+        if: ${{ !inputs.startup_diagnostics }}
         run: |
           python3 tools/build-native-input.py --test --output "$RUNNER_TEMP/overte-native-input" \
             --qt-libraries /usr/lib/x86_64-linux-gnu \
             --qt-plugins /usr/lib/x86_64-linux-gnu/qt5/plugins \
             --qt-qml /usr/lib/x86_64-linux-gnu/qt5/qml
       - name: Prove production FBX workers with actual native and authored Draco assets
+        if: ${{ !inputs.startup_diagnostics }}
         run: |
           for engine in chromium firefox; do
             OVERTE_FBX_POOL_BROWSER="$engine" \
@@ -90,6 +98,7 @@ jobs:
               node tests/integration/model-fbx-pool-proof.mjs
           done
       - name: Prove embedded FBX decoding, shared GPU upload and actual World cancellation
+        if: ${{ !inputs.startup_diagnostics }}
         env:
           LIBGL_ALWAYS_SOFTWARE: 'true'
           GALLIUM_DRIVER: llvmpipe
@@ -99,6 +108,7 @@ jobs:
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             bash ../browser-client/lab/run-embedded-journey.sh
       - name: Prove native-ignored FBX pruning preserves actual production-worker pixels
+        if: ${{ !inputs.startup_diagnostics }}
         env:
           LIBGL_ALWAYS_SOFTWARE: 'true'
           OVERTE_IGNORED_FBX_EVIDENCE: '${{ runner.temp }}/overte-native-ignored-fbx-evidence'
@@ -107,6 +117,7 @@ jobs:
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             bash lab/run-native-ignored-fbx-journey.sh
       - name: Test Chromium and Firefox user interface and renderer
+        if: ${{ !inputs.startup_diagnostics }}
         # Firefox needs a display/GLX context even with software Mesa on the Ubuntu runner.
         # The null audio sink exercises real Web Audio without requiring host hardware.
         env:
@@ -115,7 +126,7 @@ jobs:
         run: xvfb-run --auto-servernum --server-args='-screen 0 1280x720x24' npm run test:browser -- --headed
 
   native-journey:
-    name: Actual native and browser core journeys
+    name: ${{ inputs.startup_diagnostics && 'Native startup diagnostics (journeys not-run)' || 'Actual native and browser core journeys' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
@@ -182,7 +193,7 @@ jobs:
         id: start
         run: python3 browser-client/lab/manage.py start --gateway
       - name: Actual Chromium world, native movement, interaction, voice and reconnect
-        if: ${{ !cancelled() && steps.start.outcome == 'success' }}
+        if: ${{ !cancelled() && !inputs.startup_diagnostics && steps.start.outcome == 'success' }}
         env:
           LIBGL_ALWAYS_SOFTWARE: 'true'
           GALLIUM_DRIVER: llvmpipe
@@ -191,7 +202,7 @@ jobs:
             bash browser-client/lab/run-core-journey.sh \
             > build/browser-lab/logs/core-chromium.log 2>&1
       - name: Actual Firefox world, native movement, interaction, voice and reconnect
-        if: ${{ !cancelled() && steps.start.outcome == 'success' }}
+        if: ${{ !cancelled() && !inputs.startup_diagnostics && steps.start.outcome == 'success' }}
         env:
           OVERTE_LAB_BROWSER: firefox
           LIBGL_ALWAYS_SOFTWARE: 'true'

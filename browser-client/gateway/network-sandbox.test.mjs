@@ -11,6 +11,7 @@ import { scopedNativeRelay, launchNativeNetwork } from './network-sandbox.mjs';
 import { sandboxCommand } from './worker-sandbox.mjs';
 import { terminateProcess } from './process-lifecycle.mjs';
 import { safePreparationDiagnostic } from './preparation-diagnostics.mjs';
+import { networkTestStderr } from './network-test-stderr.mjs';
 
 function preparationFailure(error) {
     const diagnostic = safePreparationDiagnostic(error?.networkPreparation);
@@ -62,6 +63,7 @@ test('actual nested native network denies host/LAN routes and route tampering wh
     { skip: process.platform !== 'linux' }, async () => {
     const directory = await mkdtemp(path.join(tmpdir(), process.env.OVERTE_GATEWAY_TRUSTED_NETWORK_SETUP==='1'?'overte-browser-':'overte-net-worker-'));
     const owned = [];
+    const stderr = networkTestStderr(); let failed;
     const target = net.createServer(client => client.once('data', () => client.end('HTTP/1.1 101 Switching Protocols\r\n\r\nowned-native-bridge')));
     target.listen(0, '127.0.0.1'); await once(target, 'listening');
     let network;
@@ -99,17 +101,18 @@ raise SystemExit(0 if all(result.values()) else 1)
             hostPort: port, nativePath: '/native', slirpExecutable, signal: new AbortController().signal,
             spawnOwned(command, args, env, label, options) {
                 const child = spawn(command, args, { env: { ...env, OVERTE_SYNTHETIC_SECRET: 'must-not-inherit' }, stdio: ['pipe', 'pipe', 'pipe', ...(options ? [options.configurationFD] : [])] });
-                owned.push(child); child.stderr.on('data', () => {}); return child;
+                owned.push(child); stderr.watch(child); return child;
             } });
         if (network.child.exitCode === null) await once(network.child, 'exit');
         const result = JSON.parse(await readFile(path.join(directory, 'proof.json'), 'utf8'));
         assert.ok(Object.values(result).every(value => value === true), JSON.stringify(result));
         assert.equal(network.child.exitCode, 0);
     } catch (error) {
-        throw preparationFailure(error);
+        failed=error; throw preparationFailure(error);
     } finally {
         await network?.release(); await Promise.all(owned.map(child => terminateProcess(child, 100)));
         await new Promise(resolve => target.close(resolve)); await rm(directory, { recursive: true, force: true });
+        await stderr.finish(failed);
     }
 });
 
@@ -117,6 +120,7 @@ test('abrupt gateway death also removes the actual network owner, helper and nat
     { skip: process.platform !== 'linux' }, async () => {
     const directory = await mkdtemp(path.join(tmpdir(), process.env.OVERTE_GATEWAY_TRUSTED_NETWORK_SETUP==='1'?'overte-browser-':'overte-net-parent-death-'));
     let parent;
+    const stderr = networkTestStderr(); let failed;
     const descendants = new Set();
     try {
         await writeFile(path.join(directory, 'machine-id'), 'b'.repeat(32) + '\n');
@@ -135,7 +139,7 @@ test('abrupt gateway death also removes the actual network owner, helper and nat
             args:[...worker.args,'-c',${JSON.stringify(`import signal,time,pathlib; signal.signal(signal.SIGTERM,signal.SIG_IGN); pathlib.Path(${JSON.stringify(path.join(directory,'native-ready'))}).write_text('TERM-resistant native process is running'); time.sleep(600)`)}],
             env:worker.env,hostPort:40999,nativePath:'/native',slirpExecutable:${JSON.stringify(slirpExecutable)},
             signal:new AbortController().signal,
-            spawnOwned(command,args,env,label,options){const child=spawn(command,args,{env,stdio:['pipe','pipe','pipe',...(options?[options.configurationFD]:[])]});owned.push(child);child.stderr.on('data',()=>{});return child;}}).catch(error=>{console.log(JSON.stringify({preparationFailure:safePreparationDiagnostic(error.networkPreparation)}));throw error;});
+            spawnOwned(command,args,env,label,options){const child=spawn(command,args,{env,stdio:['pipe','pipe','pipe',...(options?[options.configurationFD]:[])]});owned.push(child);child.stderr.pipe(process.stderr,{end:false});return child;}}).catch(error=>{console.log(JSON.stringify({preparationFailure:safePreparationDiagnostic(error.networkPreparation)}));throw error;});
           let nativeReady=false;
           for(let attempt=0;attempt<1000;attempt++){
             try{nativeReady=(await readFile(${JSON.stringify(path.join(directory,'native-ready'))},'utf8'))==='TERM-resistant native process is running';}catch{}
@@ -146,7 +150,7 @@ test('abrupt gateway death also removes the actual network owner, helper and nat
           console.log(JSON.stringify({owner:network.child.pid,helper:network.helper.pid}));
           setInterval(()=>{},1000);`;
         parent = spawn(process.execPath, ['--input-type=module', '-e', fixture], { stdio: ['ignore', 'pipe', 'pipe'] });
-        parent.stderr.on('data', () => {});
+        stderr.watch(parent);
         const value = await new Promise((resolve, reject) => {
             let output = '';
             const timer = setTimeout(() => reject(Error('Actual gateway fixture did not initialize its private network')), 15000);
@@ -184,10 +188,11 @@ test('abrupt gateway death also removes the actual network owner, helper and nat
             return { role: pid === value.owner ? 'owner' : pid === value.helper ? 'helper' : 'native descendant', stat };
         }));
         assert.deepEqual(survivors, [], `Parent death cannot orphan a gateway native worker or network helper: ${JSON.stringify(remaining)}`);
-    } finally {
+    } catch(error) { failed=error; throw error; } finally {
         if (parent) await terminateProcess(parent, 100);
         for (const pid of descendants) { try { process.kill(pid, 'SIGKILL'); } catch { /* Already reaped as asserted. */ } }
         await rm(directory, { recursive: true, force: true });
+        await stderr.finish(failed);
     }
 });
 
@@ -196,6 +201,7 @@ test('real managed UDP route forwards only fixed domain/mixer ports from the iso
     const { createSocket } = await import('node:dgram');
     const directory = await mkdtemp(path.join(tmpdir(), process.env.OVERTE_GATEWAY_TRUSTED_NETWORK_SETUP==='1'?'overte-browser-':'overte-net-managed-'));
     const owned = [];
+    const stderr = networkTestStderr(); let failed;
     const domain = createSocket('udp4');
     const forbidden = createSocket('udp4');
     let forbiddenPackets = 0, network;
@@ -226,7 +232,7 @@ raise SystemExit(0 if all(result.values()) else 1)
             hostPort: 40998, nativePath: '/native', slirpExecutable, managedUDP: { address: '127.0.0.2', ports: [domain.address().port] },
             signal: new AbortController().signal, spawnOwned(command, args, env, label, options) {
                 const child = spawn(command, args, { env, stdio: ['pipe', 'pipe', 'pipe', ...(options ? [options.configurationFD] : [])] });
-                owned.push(child); child.stderr.on('data', () => {}); return child;
+                owned.push(child); stderr.watch(child); return child;
             } });
         if (network.child.exitCode === null) await once(network.child, 'exit');
         const proof = JSON.parse(await readFile(path.join(directory, 'proof.json'), 'utf8'));
@@ -234,9 +240,10 @@ raise SystemExit(0 if all(result.values()) else 1)
         assert.equal(network.child.exitCode, 0);
         assert.equal(forbiddenPackets, 0);
     } catch (error) {
-        throw preparationFailure(error);
+        failed=error; throw preparationFailure(error);
     } finally {
         await network?.release(); await Promise.all(owned.map(child => terminateProcess(child, 100)));
         domain.close(); forbidden.close(); await rm(directory, { recursive: true, force: true });
+        await stderr.finish(failed);
     }
 });
