@@ -47,7 +47,12 @@ Two CPU filesystem contracts compare `O_TMPFILE`, permission copying, sync,
 atomic replacement and real readback. One uses the host; the other retains the
 original `unshare --user --map-current-user --ipc --` prefix. They touch only
 new owned temporary files, run no Qt/native/service process, use a five-second
-child bound and print only fixed outcomes on failure. They test the primitive
+child bound and print only fixed outcomes on failure. The child pins a canonical,
+private, same-owner directory containing only the unchanged private seed before
+writing through held directory descriptors. The parent rejects output beyond
+4 KiB, unknown DTO fields/enums and non-boolean completion values. Launch timeout,
+OS refusal and malformed output become fixed categories without private argv.
+They test the primitive
 separately from the actual DomainServer; neither can establish its commit cause.
 
 `stage.py` creates unique owned 0700 probe/lab/output directories beneath the
@@ -160,3 +165,22 @@ hosted password request or raw kernel artifact is produced. The original gate
 still fails and publishes its existing safe failure projection. Actual hosted
 journal admission and the cause of `apply-bounding-set` remain unqualified until
 a genuine reviewed run supplies a matching source-owned record.
+## Proposed confinement order CPU controls
+
+`test_confined_launch.py` adds a separate CPU experiment; it does not replace the
+original eight-second test or change the native launcher. The signed system
+Bubblewrap creates user/IPC namespaces, drops every capability before its final
+exec, and adds a read-only root view with only the fresh fixture writable and
+minimal synthetic `/dev`. The actual child and traced marker must have all five
+capability sets zero and no-new-privileges enabled. Hosted execution additionally
+requires the exact enforcing `bwrap//&unpriv_bwrap` profile label; local success
+is explicitly unqualified for that profile.
+
+The paired fixed-filter control uses a sealed, owned descriptor containing only
+reviewed x86-64 BPF. It kills foreign/x32 ABIs, refuses `open`/`openat` with the
+complete `O_TMPFILE` mask using `EOPNOTSUPP`, and returns `ENOSYS` for `openat2`,
+whose pointer flags cannot be inspected. Other calls receive ALLOW from this
+additional filter and still face all inherited policies. Real syscall probes
+must observe those refusals, while exclusive named creation, sync, same-directory
+atomic rename, actual readback and the unchanged owned tracer all succeed.
+No Qt or native persistence acceptance follows from this CPU experiment.
