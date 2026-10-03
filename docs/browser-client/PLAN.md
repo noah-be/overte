@@ -1,5 +1,21 @@
 # Browser client implementation plan
 
+## Immediate independent-review follow-up (2026-10-03)
+
+The existing browser implementation owner is fixing the two confirmed defects
+reviewed at `261fc77c1c322410f6096e65dcff0388c372286d`: retain Tablet command
+ordering across same-worker reapproval, and bind prepared FBX cache delivery to
+the captured asset approval and revocation epoch. Keep stale/replayed commands,
+reader cancellation, deduplication and all resource limits enforced. Qualify a
+narrow source snapshot with actual-handler CPU regressions. The user authorized
+a local committed review checkpoint while full-suite/build/repository checks
+wait for the shared heavy-build lock. Return its full SHA with those gates
+explicitly pending, then complete them under the lock before publication.
+This handoff does not trigger a live/native/device journey, restart services,
+change issue state or publish the PR. Subsequent browser work uses Chrome only;
+thirty-minute/endurance tests remain cancelled. Existing source-bound live
+qualifications remain historical until reconciled with the changed source.
+
 Material assistance: OpenAI Codex. This is the user-authorized browser project,
 independent of the existing product roadmap.
 

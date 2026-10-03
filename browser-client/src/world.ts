@@ -137,6 +137,8 @@ export class BrowserWorld {
   private readonly embeddedFbxCounts={preparations:0,convertedImages:0,extractedBytes:0,skippedOversize:0,skippedUnsupported:0};
   private readonly fbxPreparePool = new BakedFbxPreparePool({signal:this.abort.signal,limit:2});
   private readonly preparedFbx = new PreparedFbxCache({signal:this.abort.signal});
+  private preparedFbxGeneration?:string;
+  private preparedFbxEpoch=0;
   private readonly fstGraphCache = new FstGraphCache(this.abort.signal);
   private readonly modelScheduler = new ModelLoadScheduler({signal:this.abort.signal});
   private readonly imagePulseOwners=new Map<THREE.Group,{pulse:ImagePulse;entity:Entity;mesh:THREE.Mesh;material:ReturnType<typeof makeNativeImageMaterial>;assertCurrent():void;stop():void}>();
@@ -988,7 +990,8 @@ export class BrowserWorld {
   private async sourceText(url:string,label:string,maximumBytes:number,signal=this.abort.signal):Promise<string>{
     signal.throwIfAborted();
     const authority=this.options.captureAssetAuthority?.();authority?.assertCurrent();
-    if(this.sourceTextGeneration!==authority?.generation){this.invalidateSourceTexts();this.sourceTextGeneration=authority?.generation;}
+    if(this.sourceTextGeneration!==authority?.generation)this.clearSourceTexts(authority?.generation);
+    authority?.assertCurrent();
     // Resolve every reader under current visitor authority, including hits.
     // The exact owned gateway route is the cache key, never a public/global URL.
     // HTTP fragments select a material after parsing and never reach its HTTP
@@ -1005,10 +1008,18 @@ export class BrowserWorld {
   }
 
   /** Revoke queued parses and their texture dependencies before reconnect callbacks. */
-  invalidateModelParses():void{this.modelParseEpoch?.abort();this.modelParseTurn?.dispose();this.modelParseEpoch=undefined;this.modelParseTurn=undefined;}
+  invalidateModelParses():void{this.invalidatePreparedFbx();this.modelParseEpoch?.abort();this.modelParseTurn?.dispose();this.modelParseEpoch=undefined;this.modelParseTurn=undefined;}
 
   /** Revoke old metadata synchronously during transient transport loss. */
-  invalidateSourceTexts():void{this.sourceTexts?.dispose();this.sourceTexts=undefined;this.sourceTextGeneration=undefined;this.bitmapUploads?.invalidate();this.bitmapGeneration=undefined;}
+  invalidateSourceTexts():void{this.clearSourceTexts();}
+
+  private clearSourceTexts(generation?:string):void{
+    const previous=this.sourceTexts;this.sourceTexts=undefined;this.sourceTextGeneration=generation;this.bitmapGeneration=undefined;
+    if(generation===undefined||this.preparedFbxGeneration!==generation)this.invalidatePreparedFbx(generation);
+    previous?.dispose();this.bitmapUploads?.invalidate();
+  }
+
+  private invalidatePreparedFbx(generation?:string):void{this.preparedFbxEpoch=(this.preparedFbxEpoch??0)+1;this.preparedFbxGeneration=generation;this.preparedFbx?.invalidate();}
 
   private async populateEntity(entity: Entity, root: THREE.Group): Promise<void> {
     const size = vector(entity.dimensions, 1);
@@ -1101,19 +1112,34 @@ export class BrowserWorld {
   }
 
   private async loadPreparedFbx(source:string,signal:AbortSignal):Promise<CachedPreparedFbx> {
+        signal.throwIfAborted();this.abort.signal.throwIfAborted();
+        const authority=this.options.captureAssetAuthority?.();authority?.assertCurrent();
+        if(this.preparedFbxGeneration!==authority?.generation)this.invalidatePreparedFbx(authority?.generation);
+        const epoch=this.preparedFbxEpoch??0;
+        const assertCurrent=()=>{
+          this.abort.signal.throwIfAborted();
+          if(this.disposed||(this.preparedFbxEpoch??0)!==epoch)throw new DOMException('Prepared FBX approval ended','AbortError');
+          authority?.assertCurrent();
+        };
+        assertCurrent();
         const modelURL=this.options.resolveAsset(source),prepareStarted=performance.now();
         const prepared=await this.preparedFbx.get(modelURL,async producerSignal=>{
+          producerSignal.throwIfAborted();assertCurrent();
           const response=await fetch(modelURL,{signal:producerSignal});
+          producerSignal.throwIfAborted();assertCurrent();
           await requireAssetResponse(response,'FBX');
+          producerSignal.throwIfAborted();assertCurrent();
           const bytes=await response.arrayBuffer();
+          producerSignal.throwIfAborted();assertCurrent();
           const prepared=await this.fbxPreparePool.prepare(bytes,producerSignal);
+          producerSignal.throwIfAborted();assertCurrent();
           if(prepared.embeddedCounts){const counts=prepared.embeddedCounts;this.embeddedFbxCounts.preparations++;this.embeddedFbxCounts.convertedImages+=counts.converted;this.embeddedFbxCounts.extractedBytes+=counts.rawBytes;this.embeddedFbxCounts.skippedOversize+=counts.skippedOversize;this.embeddedFbxCounts.skippedUnsupported+=counts.skippedUnsupported;}
           this.recordLoadDuration('fbxMaterialBindings',prepared.phases.materialBindingsMs);
           this.recordLoadDuration('fbxDecode',prepared.phases.decodeMs);
           return prepared;
         },signal);
         this.recordLoadPhase('fbxPrepareWait',prepareStarted);
-        signal.throwIfAborted(); return prepared;
+        signal.throwIfAborted();assertCurrent(); return prepared;
   }
 
   private async loadModel(source: string, visited = new Set<string>(), textureBase?: string, signal = this.abort.signal, onGeometryReady?: (model:THREE.Object3D)=>void, fstAdmission?: { replacements?:readonly ResolvedFstReplacement[]; prepared:CachedPreparedFbx; assertCurrent():void }): Promise<THREE.Object3D> {

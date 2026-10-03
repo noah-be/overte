@@ -1,5 +1,26 @@
 # Browser client status
 
+## Independent-review follow-up (2026-10-03)
+
+The existing implementation owner has implemented R1 and R2 from the independent
+review of `261fc77c1c322410f6096e65dcff0388c372286d`. R1 retains the browser
+Tablet command counter across a transient reconnect to the same native worker.
+R2 revokes prepared FBX ready and pending entries with the asset approval, and
+rechecks captured approval/epoch at producer and reader delivery boundaries.
+The focused tests exercise shipping classes with controlled DOM/fetch/preparation
+handles; they do not establish browser pixels, native/domain or device acceptance.
+Existing replay refusal, cache limits, cancellation and product tests are retained.
+The analogous image-cache concern is unconfirmed and outside these two fixes.
+The narrow review snapshot passes all23 new regression cases with zero skips.
+Both original desired assertions and controls pass with unchanged assertions.
+The full unit suite, production build and required repository quick profile are
+pending the shared heavy-build lock. The user explicitly authorized a local
+committed checkpoint for independent bounded rechecking while those gates remain
+pending; it is not publication or acceptance. Next: independent committed-source
+review, then complete those gates under the lock. Earlier live evidence below is
+source-bound history, not acceptance of this changed source. No services have
+been restarted.
+
 Last updated: 2026-10-02. **Original baseline passed; additional mandatory Tablet and online-Hub implementation in progress.**
 
 ## Current implementation and next step

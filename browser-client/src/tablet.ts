@@ -173,7 +173,8 @@ export class BrowserTablet {
     close():void {this.snapshots.cancel(true);this.send({action:'close'});this.show(false);this.displayedFrameSequence=0;this.generation++;}
     setConnected(connected:boolean):void {
         this.connected=connected; this.buttons.forEach(button=>button.disabled=!connected);
-        if (!connected) {this.revision=0;this.sequence=0;this.frameSequence=0;this.displayedFrameSequence=0;this.navigationSequence=0;this.clearPointer();this.generation++;this.snapshots.cancel();this.show(false);}
+        // Keep command ordering for this browser lifetime, matching TabletSession across reapproval.
+        if (!connected) {this.revision=0;this.frameSequence=0;this.displayedFrameSequence=0;this.navigationSequence=0;this.clearPointer();this.generation++;this.snapshots.cancel();this.show(false);}
     }
     receive(message:TabletMessage):void {
         const value = parseTabletMessage(message);

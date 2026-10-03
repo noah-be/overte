@@ -86,9 +86,13 @@ export class PreparedFbxCache {
     });
   }
   private evict(key:string):void{const value=this.ready.get(key);if(!value)return;this.ready.delete(key);this.bytes-=value.bytes;this.keyBytes-=key.length*2;this.evictions++;}
+  /** Revoke one approval generation while retaining the same bounded cache. */
+  invalidate():void{
+    const pending=[...this.pending.values()],readers=[...this.readers];this.pending.clear();this.ready.clear();this.bytes=0;this.keyBytes=0;
+    for(const entry of pending)entry.controller.abort();for(const reader of readers)this.finish(reader,abortError());
+  }
   dispose():void{
     if(this.disposed)return;this.disposed=true;this.signal?.removeEventListener('abort',this.onAbort);
-    const pending=[...this.pending.values()];this.pending.clear();this.ready.clear();this.bytes=0;this.keyBytes=0;
-    for(const entry of pending)entry.controller.abort();for(const reader of [...this.readers])this.finish(reader,abortError());
+    this.invalidate();
   }
 }
