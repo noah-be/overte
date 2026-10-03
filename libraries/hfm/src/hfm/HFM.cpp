@@ -12,6 +12,107 @@
 #include "HFM.h"
 
 #include "ModelFormatLogging.h"
+#include <graphics/ShaderConstants.h>
+#include <cmath>
+
+namespace {
+bool finiteBind(const glm::mat4& matrix) {
+    for (int column = 0; column < 4; ++column) {
+        for (int row = 0; row < 4; ++row) {
+            if (!std::isfinite(matrix[column][row])) { return false; }
+        }
+    }
+    // Transform's DQ representation supports affine binds only. Validate the
+    // matrix first, before inspecting a representation constructed from it.
+    return std::abs(matrix[0][3]) <= 0.0001f && std::abs(matrix[1][3]) <= 0.0001f &&
+        std::abs(matrix[2][3]) <= 0.0001f && std::abs(matrix[3][3] - 1.0f) <= 0.0001f;
+}
+bool finiteBind(const hfm::Cluster& cluster) {
+    if (!finiteBind(cluster.inverseBindMatrix)) { return false; }
+    glm::mat4 dqBind;
+    cluster.inverseBindTransform.getMatrix(dqBind);
+    return finiteBind(dqBind);
+}
+}
+
+bool hfm::Mesh::validateSkinningPalette(QString& error) const {
+    error.clear();
+    if (!skinningDataValid) {
+        error = "previously rejected skinning data";
+        return false;
+    }
+    if (clusters.size() > GRAPHICS_MAX_SKINNING_CLUSTERS) {
+        error = "palette exceeds the supported 128 clusters";
+        return false;
+    }
+    if (clusterIndices.isEmpty() && clusterWeights.isEmpty()) { return true; }
+    const qint64 expected = qint64(vertices.size()) * 4;
+    if (clusterIndices.size() != expected || clusterWeights.size() != expected) {
+        error = "skinning requires exactly four indices and weights per vertex";
+        return false;
+    }
+    for (int lane = 0; lane < clusterIndices.size(); ++lane) {
+        if (clusterWeights[lane] && clusterIndices[lane] >= clusters.size()) {
+            error = "weighted influence is outside the actual palette";
+            return false;
+        }
+    }
+    return true;
+}
+
+bool hfm::Mesh::prepareSkinningPalette(int jointCount, QString& error) {
+    error.clear();
+    auto reject = [&](const QString& reason) {
+        error = reason;
+        skinningDataValid = false;
+        clusters.clear();
+        clusterIndices.clear();
+        clusterWeights.clear();
+        parts.clear(); // ModelCache derives render shapes from HFM parts, even for a null graphics mesh.
+        _mesh.reset();
+        return false;
+    };
+    if (!skinningDataValid) { return reject("previously rejected skinning data"); }
+    if (clusterIndices.isEmpty() && clusterWeights.isEmpty()) {
+        // Rigid meshes use their first cluster as a local transform.
+        for (const auto& cluster : clusters) {
+            if (cluster.jointIndex < 0 || cluster.jointIndex >= jointCount || !finiteBind(cluster)) {
+                return reject("invalid rigid cluster joint or bind matrix");
+            }
+        }
+        if (!validateSkinningPalette(error)) { return reject(error); }
+        return true;
+    }
+    const qint64 expected = qint64(vertices.size()) * 4;
+    if (clusterIndices.size() != expected || clusterWeights.size() != expected) {
+        return reject("skinning requires exactly four indices and weights per vertex");
+    }
+    QVector<int> remap(clusters.size(), -1);
+    for (int lane = 0; lane < clusterIndices.size(); ++lane) {
+        if (!clusterWeights[lane]) { continue; }
+        int index = clusterIndices[lane];
+        if (index >= clusters.size()) { return reject("weighted influence is outside the actual palette"); }
+        remap[index] = 0;
+    }
+    QVector<hfm::Cluster> used;
+    for (int index = 0; index < clusters.size(); ++index) {
+        if (remap[index] < 0) { continue; }
+        const auto& cluster = clusters[index];
+        if (cluster.jointIndex < 0 || cluster.jointIndex >= jointCount || !finiteBind(cluster)) {
+            return reject("invalid used cluster joint or bind matrix");
+        }
+        if (used.size() == GRAPHICS_MAX_SKINNING_CLUSTERS) {
+            return reject("used skinning palette exceeds the supported 128 clusters; mesh rejected");
+        }
+        remap[index] = used.size();
+        used.append(cluster); // Preserve the joint index and BOTH inverse bind representations.
+    }
+    for (int lane = 0; lane < clusterIndices.size(); ++lane) {
+        clusterIndices[lane] = clusterWeights[lane] ? uint16_t(remap[clusterIndices[lane]]) : 0;
+    }
+    clusters = used;
+    return true;
+}
 
 void HFMMaterial::getTextureNames(QSet<QString>& textureList) const {
     if (!normalTexture.isNull()) {
