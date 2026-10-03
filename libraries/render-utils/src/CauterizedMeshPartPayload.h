@@ -33,6 +33,7 @@ private:
     gpu::BufferPointer _cauterizedClusterBuffer;
     Transform _cauterizedTransform;
     bool _enableCauterization { false };
+    bool _reportedCauterizedPaletteError { false };
 };
 
 #endif // hifi_CauterizedMeshPartPayload_h

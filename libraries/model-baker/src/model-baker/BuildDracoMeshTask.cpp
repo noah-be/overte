@@ -52,6 +52,11 @@ std::vector<hifi::ByteArray> createMaterialList(const hfm::Mesh& mesh) {
 }
 
 std::tuple<std::unique_ptr<draco::Mesh>, bool> createDracoMesh(const hfm::Mesh& mesh, const std::vector<glm::vec3>& normals, const std::vector<glm::vec3>& tangents, const std::vector<hifi::ByteArray>& materialList) {
+    QString skinningError;
+    if (!mesh.validateSkinningPalette(skinningError)) {
+        qCWarning(model_baker) << "Rejecting mesh before Draco encoding:" << skinningError;
+        return std::make_tuple(std::unique_ptr<draco::Mesh>(), true);
+    }
     Q_ASSERT(normals.size() == 0 || (int)normals.size() == mesh.vertices.size());
     Q_ASSERT(mesh.colors.size() == 0 || mesh.colors.size() == mesh.vertices.size());
     Q_ASSERT(mesh.texCoords.size() == 0 || mesh.texCoords.size() == mesh.vertices.size());

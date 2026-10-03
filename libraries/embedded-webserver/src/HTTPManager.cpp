@@ -60,12 +60,79 @@ HTTPManager::HTTPManager(const QHostAddress& listenAddress, quint16 port, const 
     _isListeningTimer->start(SOCKET_CHECK_INTERVAL_IN_MS);
 }
 
+HTTPManager::~HTTPManager() {
+    // QObject deletes children after members have died. Release reservations while
+    // this manager's accounting is still alive, including HTTPSConnection children.
+    const auto connections = findChildren<HTTPConnection*>(QString(), Qt::FindDirectChildrenOnly);
+    for (auto connection : connections) {
+        delete connection;
+    }
+}
+
+bool HTTPManager::setRequestLimits(const HTTPRequestLimits& limits) {
+    const qint64 arrayLimit = std::numeric_limits<int>::max() - qint64(1);
+    if (_liveRequestCount || limits.maxHeaderBytes < 4 || limits.maxHeaderBytes > arrayLimit ||
+        limits.maxBodyBytes < 0 || limits.maxBodyBytes > arrayLimit ||
+        limits.memoryBodyThreshold < 0 || limits.memoryBodyThreshold > arrayLimit ||
+        limits.maxReservedBytes < limits.maxHeaderBytes + HTTPRequestLimits::SOCKET_BUFFER_BYTES ||
+        limits.maxConnections < 1 || limits.headerDeadlineMs < 1 ||
+        limits.requestDeadlineMs < 1 || limits.idleDeadlineMs < 1) {
+        return false;
+    }
+    _requestLimits = limits;
+    return true;
+}
+
+bool HTTPManager::hasRequestCapacity() const {
+    const auto bytes = _requestLimits.maxHeaderBytes + HTTPRequestLimits::SOCKET_BUFFER_BYTES;
+    return _liveRequestCount < _requestLimits.maxConnections &&
+        bytes <= _requestLimits.maxReservedBytes - _reservedRequestBytes;
+}
+
+bool HTTPManager::acquireRequest() {
+    if (!hasRequestCapacity()) {
+        return false;
+    }
+    _reservedRequestBytes += _requestLimits.maxHeaderBytes + HTTPRequestLimits::SOCKET_BUFFER_BYTES;
+    ++_liveRequestCount;
+    return true;
+}
+
+bool HTTPManager::reserveRequestBody(qint64 bytes) {
+    if (bytes < 0 || bytes > _requestLimits.maxReservedBytes - _reservedRequestBytes) {
+        return false;
+    }
+    _reservedRequestBytes += bytes;
+    return true;
+}
+
+void HTTPManager::releaseRequestBody(qint64 bytes) {
+    Q_ASSERT(bytes >= 0 && bytes <= _reservedRequestBytes);
+    _reservedRequestBytes -= bytes;
+}
+
+void HTTPManager::releaseRequest() {
+    releaseRequestBody(_requestLimits.maxHeaderBytes + HTTPRequestLimits::SOCKET_BUFFER_BYTES);
+    Q_ASSERT(_liveRequestCount > 0);
+    --_liveRequestCount;
+}
+
+QByteArray HTTPManager::allocateRequestMemory(int size) {
+    return QByteArray(size, Qt::Uninitialized);
+}
+
+bool HTTPManager::openRequestFile(QTemporaryFile& file) { return file.open(); }
+bool HTTPManager::resizeRequestFile(QTemporaryFile& file, qint64 size) { return file.resize(size); }
+uchar* HTTPManager::mapRequestFile(QTemporaryFile& file, qint64 size) { return file.map(0, size); }
+
 void HTTPManager::incomingConnection(qintptr socketDescriptor) {
     QTcpSocket* socket = new QTcpSocket(this);
 
-    if (socket->setSocketDescriptor(socketDescriptor)) {
+    if (socket->setSocketDescriptor(socketDescriptor) && hasRequestCapacity()) {
         new HTTPConnection(socket, this);
     } else {
+        // Rejections must not accumulate parser/timer/socket children waiting
+        // for deferred deletion. Close immediately, including before TLS setup.
         delete socket;
     }
 }
