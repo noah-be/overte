@@ -41,10 +41,20 @@ class EnvironmentBound(unittest.TestCase):
   env["PADDING"]+="x"
   with self.assertRaises(ValueError):observer.validated_launch(self.document)
  def test_finite_count_types_original_key_value_loader_and_home_guards_remain(self):
-  cases=[{f"VARIABLE_{i}":"x"for i in range(257)}, {"HOME":os.environ["HOME"],"LD_PRELOAD":"/unapproved"}, {"HOME":"/different"}, {"HOME":os.environ["HOME"],"X"*129:"x"}, {"HOME":os.environ["HOME"],"X":"x"*8193}, {"HOME":os.environ["HOME"],"X":123}, {"HOME":os.environ["HOME"],"X":"x\0y"}]
+  cases=[{"HOME":os.environ["HOME"],**{f"VARIABLE_{i}":"x"for i in range(256)}}, {"HOME":os.environ["HOME"],"LD_PRELOAD":"/unapproved"}, {"HOME":"/different"}, {"HOME":os.environ["HOME"],"X"*129:"x"}, {"HOME":os.environ["HOME"],"X":"x"*8193}, {"HOME":os.environ["HOME"],"X":123}, {"HOME":os.environ["HOME"],"X":"x\0y"}]
   for env in cases:
    with self.subTest(case=list(env)[:2]):
     self.document["environment"]=env
     with self.assertRaises(ValueError):observer.validated_launch(self.document)
+ def test_finite_entry_boundary_is_not_masked_by_home_or_byte_guards(self):
+  env={"HOME":os.environ["HOME"],**{f"VARIABLE_{i}":"x"for i in range(255)}}
+  self.document["environment"]=env
+  self.assertEqual(len(env),256)
+  observer.validated_launch(self.document)
+  env["ONE_MORE"]="x"
+  self.assertEqual(len(env),257)
+  self.assertLess(len((json.dumps(self.document,indent=2)+"\n").encode()),observer.MAX_CONFIG)
+  with self.assertRaisesRegex(ValueError,"^launch-environment-invalid$"):
+   observer.validated_launch(self.document)
 
 if __name__=="__main__":unittest.main()
