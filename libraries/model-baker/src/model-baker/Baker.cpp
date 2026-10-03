@@ -32,6 +32,15 @@ namespace baker {
 
         void run(const BakeContextPointer& context, const Input& input, Output& output) {
             const auto& hfmModelIn = input;
+            // The same compact clusters must reach packing, AnimSkeleton and runtime
+            // palette updates. Remapping only the graphics attributes is unsafe.
+            for (auto& mesh : hfmModelIn->meshes) {
+                QString error;
+                if (!mesh.prepareSkinningPalette(hfmModelIn->joints.size(), error)) {
+                    qWarning() << "Rejecting mesh skinning:" << error;
+                    ++hfmModelIn->loadErrorCount;
+                }
+            }
             output.edit0() = std::vector<hfm::Mesh>(hfmModelIn->meshes.begin(), hfmModelIn->meshes.end());
             output.edit1() = hfmModelIn->originalURL;
             output.edit2() = hfmModelIn->meshIndicesToModelNames;
