@@ -1,5 +1,34 @@
 # Browser client status
 
+The current context/avatar diagnostic successor passes all 2,732 product tests
+without skips, the standard production build and all 34 required repository
+suites. Its 34 distribution files are byte-identical to published `6746424c` and
+the earlier 129-case actual Chrome build. The independent source review passes
+308 controls without skips. Exact commands, source/output identities and both
+intermediate failures are in the
+[current source proof](evidence/context-avatar-diagnostics-source-checks-20261004.json).
+Next: publish this exact source and require fresh hosted Native/Core, embedded
+GPU and CodeQL qualification. These local results do not resolve the retained
+hosted failures or complete wider Tablet/Hub/microphone acceptance.
+
+The reviewed bounded context and avatar-rate diagnostics are integrated with
+an explicit 190-row current-source closure and authenticated whole-source CPU
+history. The corrected native-audio author admission and passive `MyAvatar`
+fixture pass 308 focused source/history controls without skips. Historical served
+bytes, independent component pins and all original refusal and cleanup rules
+remain intact. The first complete predecessor run remains recorded: 2,709 tests,
+2,706 passes and three failures, with no skips. Build and repository gates did
+not run after that unit failure. The corrected complete run passes all 2,723
+product tests without skips; its build fails on the new GPU helper's WebGL2-only
+parameter against the renderer's declared WebGL1/WebGL2 union. Repository checks
+did not run after the build failure. The reviewed type-only signature correction
+now passes isolated project typecheck and emits byte-identical JavaScript; the
+fresh complete gates above also pass. Reviewed fork main `db0ba6e05c`, including native skinning and HTTP
+request resource limits, is merged without changing the published browser
+baseline or restarting services.
+[GPU observations](GPU_DIAGNOSTICS.md) and
+[native rate interpretation](NATIVE_AVATAR_DIAGNOSTICS.md) retain the limits.
+
 Published candidate `6746424ca05185efeebd16fcd1d838c67b3af4e9` passes
 2,679 product tests, the production build and all34 repository suites locally.
 Its normal hosted Browser run37152499835 also passes the browser job, including

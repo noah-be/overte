@@ -115,12 +115,12 @@ const workflowChanges = [
   }
 ];
 const unchangedPins = {
-  "browser-client/gateway/native-avatar-stdout-projection.mjs": "a6ff49b5214da56f4713ceadd68e9048c45bb2680e45b81538bfe624a39ec0f7",
-  "browser-client/gateway/native-avatar-sample-diagnostics.js": "ac3bb49a0ab81913044e1c3c1cde78280098a6b0ff0c59d07f72ede7faba0ca8",
+  "browser-client/gateway/native-avatar-stdout-projection.mjs": "e2d1a517165c17543cbc03df8bf1241861e974a690b32fba74ecfabe1edc309e",
+  "browser-client/gateway/native-avatar-sample-diagnostics.js": "1c386213ac2ddb89ae313db55a6df4df2ecd0a38a1d6be93ef545384bc4299fd",
   "browser-client/gateway/native-bridge.js": "a0ad9878a10023646aad6ecd3a926cde1d364f441786c8a0cf0969ee536604d9",
   "browser-client/gateway/server.mjs": "e17fae1f721ed162e131309c983041ef824d5688080e5053b6b98f2f9f4722ea",
   "browser-client/lab/manage.py": "84b4426187e078515b77984a3581a63130d2dbc0c5edf4230a66a17ecdbf8e66",
-  "browser-client/lab/native-participant.js": "c0648ce3fb6f4924cee122445ef6132e0770d15568b36bcc71aefe8204e0f17f",
+  "browser-client/lab/native-participant.js": "735a5ee9b4327963ea7fb2ebec5e2159c1196aa99d8b6e7fd996809f521b7ede",
   "browser-client/lab/run-core-journey.sh": "9693ae82a858752909988534251b28c81bbc9a7c199328fc63915e77f84e25e4",
   "browser-client/tests/integration/real-session.mjs": "daba35297a9090a29a916ddd7658c11b2713fcf1f25d78894e17d9ac922e915b"
 };

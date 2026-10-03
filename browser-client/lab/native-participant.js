@@ -11,7 +11,7 @@
     var commandSequence = 0;
     var avatarSampleDiagnostics = typeof BROWSER_LAB_AVATAR_SAMPLE_DIAGNOSTICS !== 'undefined' && BROWSER_LAB_AVATAR_SAMPLE_DIAGNOSTICS === true
         && typeof createNativeAvatarSampleDiagnostics === 'function'
-        ? createNativeAvatarSampleDiagnostics({print:print,window:Window,mode:typeof BROWSER_LAB_AVATAR_SAMPLE_DIAGNOSTICS_MODE !== 'undefined'?BROWSER_LAB_AVATAR_SAMPLE_DIAGNOSTICS_MODE:'full',stats:typeof Stats !== 'undefined'?Stats:null,
+        ? createNativeAvatarSampleDiagnostics({print:print,window:Window,mode:typeof BROWSER_LAB_AVATAR_SAMPLE_DIAGNOSTICS_MODE !== 'undefined'?BROWSER_LAB_AVATAR_SAMPLE_DIAGNOSTICS_MODE:'full',stats:typeof Stats !== 'undefined'?Stats:null,avatar:MyAvatar,
             current:function(){return !!location.isConnected;}}) : null;
     function report(kind, data) {
         print("BROWSER_LAB " + JSON.stringify({ kind: kind, at: Date.now(), data: data }));

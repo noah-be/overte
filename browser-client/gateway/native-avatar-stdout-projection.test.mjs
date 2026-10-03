@@ -11,11 +11,12 @@ const sample = () => ({ version: 1, kind: 'sample', at: 1790899200123, sequence:
     role: 'fixture-peer', batchMs: 500, publishedPoseAgeMs: 20, avatarBuildMs: 5,
     jointNamesMs: null, jointRotationsMs: 0, jointTranslationsMs: 1,
     postPublicationPoseDeltaMeters: 0.1, postPublicationProbeMs: 2,
-    peerPacketRateHz: 30, peerGlobalPositionUpdateRateHz: 15,
+    peerPacketRateHz: 30, peerGlobalPositionUpdateRateHz: 15, peerSimulationRateHz: null,
     interstitialState: 'unknown', interstitialSignalAgeMs: null });
 const author = () => ({version: 1, kind: 'author-transmission', at: 1790899200123,
     interstitialState: 'inactive', interstitialSignalAgeMs: 300000,
     cachedMyAvatarSendRateHz: null, cachedAvatarMixerOutPps: 50,
+    authorGlobalPositionOutboundKbps: null, authorLocalPositionOutboundKbps: null,
     statsFreshness: 'not-forced-or-established'});
 function fixture(options = {}) {
     const child = new EventEmitter(); child.stdout = new EventEmitter(); child.stderr = new EventEmitter();

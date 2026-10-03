@@ -11,9 +11,17 @@ interface TestWorld extends Pick<BrowserWorld,'getPerformance'|'dispose'|'setPre
 const assert=(value:unknown,message:string)=>{if(!value)throw Error(message);};
 function map(root:THREE.Object3D){let result:THREE.Texture|undefined;root.traverse(object=>{if(object instanceof THREE.Mesh){const material=Array.isArray(object.material)?object.material[0]:object.material;result=(material as THREE.MeshPhongMaterial).map??undefined;}});assert(result,'The actual FBX model has no albedo map');return result!;}
 // BEGIN bounded embedded diagnostic (authored fixture only).
-function createEmbeddedDiagnostic(){return {version:1,phase:'model-await',decodedRGBA:[] as number[],frames:[] as number[][]};}
+function createEmbeddedDiagnostic(){return {version:2,phase:'model-await',decodedRGBA:[] as number[],frames:[] as number[][],contextStates:[] as number[][]};}
 function recordEmbeddedFrame(diagnostic:ReturnType<typeof createEmbeddedDiagnostic>,frame:number,pixel:number[],uploads:number,ma:THREE.Texture,mb:THREE.Texture,calls:number){
  if(diagnostic.frames.length<20)diagnostic.frames.push([frame,...pixel,uploads,ma.version,mb.version,ma.source.version,mb.source.version,calls]);
+}
+function sampleEmbeddedRender(frame:number,renderer:THREE.WebGLRenderer,gl:WebGLRenderingContext|WebGL2RenderingContext,scene:THREE.Scene,camera:THREE.Camera){
+ const beforeRenderFrame=renderer.info.render.frame,isContextLostBefore=gl.isContextLost()?1:0;
+ renderer.render(scene,camera);
+ return [frame,beforeRenderFrame,renderer.info.render.frame,isContextLostBefore,gl.isContextLost()?1:0];
+}
+function recordEmbeddedContext(diagnostic:ReturnType<typeof createEmbeddedDiagnostic>,row:number[]){
+ if(diagnostic.contextStates.length<20)diagnostic.contextStates.push(row.slice());
 }
 // END bounded embedded diagnostic.
 export async function runEmbeddedWorldFixture(){
@@ -38,7 +46,7 @@ export async function runEmbeddedWorldFixture(){
   gl.texImage2D=function(this:WebGL2RenderingContext,...args:unknown[]){if(args.some(arg=>arg===image))uploads++;return Reflect.apply(original,this,args);} as typeof original;
   gl.texSubImage2D=function(this:WebGL2RenderingContext,...args:unknown[]){if(args.some(arg=>arg===image))uploads++;return Reflect.apply(originalSub,this,args);} as typeof originalSub;
   try{
-   for(let frame=0;frame<20;frame++){mesh.material=frame%2?materialA:materialB;renderer.render(scene,camera);renderer.readRenderTargetPixels(target,0,0,16,16,output);gpuPixel=Array.from(output.slice((8*16+8)*4,(8*16+8)*4+4));recordEmbeddedFrame(diagnostic,frame,gpuPixel,uploads,ma,mb,renderer.info.render.calls);assert(gpuPixel.join(',')==='255,0,0,255','Actual GPU embedded pixels changed');assert(gl.getError()===gl.NO_ERROR,'Embedded GPU upload raised a GL error');}
+   for(let frame=0;frame<20;frame++){mesh.material=frame%2?materialA:materialB;const contextState=sampleEmbeddedRender(frame,renderer,gl,scene,camera);renderer.readRenderTargetPixels(target,0,0,16,16,output);gpuPixel=Array.from(output.slice((8*16+8)*4,(8*16+8)*4+4));recordEmbeddedFrame(diagnostic,frame,gpuPixel,uploads,ma,mb,renderer.info.render.calls);recordEmbeddedContext(diagnostic,contextState);assert(gpuPixel.join(',')==='255,0,0,255','Actual GPU embedded pixels changed');assert(gl.getError()===gl.NO_ERROR,'Embedded GPU upload raised a GL error');}
    diagnostic.phase='gpu-upload-check';assert(uploads===1,'Independent samplers reuploaded their shared HTML Source');
   }finally{gl.texImage2D=original;gl.texSubImage2D=originalSub;renderer.setRenderTarget(null);renderer.toneMapping=oldTone;target.dispose();geometry.dispose();materialA.dispose();materialB.dispose();}
   diagnostic.phase='post-gpu-resources';const before=world.getPerformance();assert(before.imageLoading.sourceKinds.blob.uniqueImages===1,'Actual World path created duplicate blob images');assert(before.embeddedImages.createdURLs===1&&before.embeddedImages.reusedURLs===1&&before.embeddedImages.scopes===0,'Texture leases were not closed after real decode');

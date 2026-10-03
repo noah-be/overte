@@ -48,9 +48,9 @@ test('source-exact author factory receives passive mode with unchanged current/t
  const expression=participant.slice(participant.indexOf('    var avatarSampleDiagnostics ='),participant.indexOf('    function report('));
  for(const mode of ['passive','full',undefined]){
   let received;
-  const context={BROWSER_LAB_AVATAR_SAMPLE_DIAGNOSTICS:true,createNativeAvatarSampleDiagnostics:config=>{received=config;return {};},print(){},Window:{},Stats:{},location:{isConnected:true}};
+  const context={BROWSER_LAB_AVATAR_SAMPLE_DIAGNOSTICS:true,createNativeAvatarSampleDiagnostics:config=>{received=config;return {};},print(){},Window:{},Stats:{},MyAvatar:{getDataRate(){throw Error('Factory must not probe native rates');}},location:{isConnected:true}};
   if(mode!==undefined)context.BROWSER_LAB_AVATAR_SAMPLE_DIAGNOSTICS_MODE=mode;
-  vm.runInNewContext(expression,context);assert.equal(received.mode,mode??'full');assert.equal(received.current(),true);
+  vm.runInNewContext(expression,context);assert.equal(received.mode,mode??'full');assert.equal(received.current(),true);assert.equal(received.avatar,context.MyAvatar);
  }
  assert(participant.includes('}, 2000);'));assert(participant.includes('}, 500);'));
  assert(participant.includes('report("command-applied", command);\n            if (avatarSampleDiagnostics) avatarSampleDiagnostics.authorObservation();'));

@@ -1,6 +1,31 @@
 # Browser client implementation plan
 
-## Current integration checkpoint (2026-10-03)
+## Current integration checkpoint (2026-10-04)
+
+The complete corrected source passes all 2,732 product tests, the standard build
+and all 34 required repository suites. Its 34 distribution files match the
+previously qualified Chrome build byte for byte. Preserve both intermediate
+local failures and the hosted negative results in the
+[source proof](evidence/context-avatar-diagnostics-source-checks-20261004.json).
+Publish this exact source from the sole owner, then measure the new context and
+simulation/encoding fields in fresh hosted original-gate cohorts. Resolve actual
+causes without changing assertions, deadlines or production source safeguards.
+
+The context/rate successor, corrected author admission and strict 190-row
+source/history closure are installed; 308 focused CPU controls pass. Reviewed
+fork main `db0ba6e05c` is merged. The first predecessor unit run remains recorded
+with 2,706 passes and three failures out of 2,709, with no skips; build and
+repository checks did not run after that failure. The corrected passive
+`MyAvatar` fixture and exact current source admission retain all original
+assertions and historical admissions. The corrected run passes all 2,723 product
+tests without skips, then fails typecheck on the GPU helper's narrower WebGL2
+parameter. The reviewed type-only signature correction passes project typecheck
+and emits identical JavaScript. Retain both negatives and run fresh complete
+local gates. Publish solely from
+this owner, then measure the new
+context and simulation/encoding fields in a freshly prepared hosted cohort.
+The existing shared-scene avatar-render toggle is not adopted: source review
+shows it would remove geometry used by Adjust Wearables mirror previews.
 
 Current published source is `6746424ca05185efeebd16fcd1d838c67b3af4e9`.
 Complete local product/build/repository gates pass; hosted required checks,

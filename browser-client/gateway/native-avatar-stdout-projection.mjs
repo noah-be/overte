@@ -7,8 +7,9 @@ const MAX_ROWS = 512;
 const COMMON = ['version', 'kind', 'at', 'interstitialState', 'interstitialSignalAgeMs'];
 const SAMPLE_NUMBERS = ['batchMs', 'publishedPoseAgeMs', 'avatarBuildMs', 'jointNamesMs',
     'jointRotationsMs', 'jointTranslationsMs', 'postPublicationPoseDeltaMeters',
-    'postPublicationProbeMs', 'peerPacketRateHz', 'peerGlobalPositionUpdateRateHz'];
-const AUTHOR_NUMBERS = ['cachedMyAvatarSendRateHz', 'cachedAvatarMixerOutPps'];
+    'postPublicationProbeMs', 'peerPacketRateHz', 'peerGlobalPositionUpdateRateHz', 'peerSimulationRateHz'];
+const AUTHOR_NUMBERS = ['cachedMyAvatarSendRateHz', 'cachedAvatarMixerOutPps',
+    'authorGlobalPositionOutboundKbps', 'authorLocalPositionOutboundKbps'];
 const decoder = new TextDecoder('utf-8', { fatal: true });
 const bounded = value => value === null || typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 300000;
 

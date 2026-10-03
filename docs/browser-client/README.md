@@ -153,6 +153,10 @@ replication continue. Full app-flow acceptance is tracked in the status report.
 
 ## Verification and supported content
 
+The [native avatar diagnostics](NATIVE_AVATAR_DIAGNOSTICS.md) and
+[embedded texture GPU diagnostics](GPU_DIAGNOSTICS.md) preserve original
+acceptance failures and document bounded observations used to diagnose them.
+
 The [verification report](VERIFICATION.md) records real native/browser sessions,
 both audio directions and a separate non-fake host capture-device check.
 The component suite verifies PCM formats, audio buffering, collision/mapping,

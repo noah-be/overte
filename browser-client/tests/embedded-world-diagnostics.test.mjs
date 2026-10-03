@@ -3,7 +3,10 @@
 // Exercise authored diagnostic functions without importing the browser fixture.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFile} from 'node:fs/promises';
+import {readFile as readCurrentFile} from 'node:fs/promises';
+import {fileURLToPath} from 'node:url';import path from 'node:path';
+import {recoverCaptureV18Input} from './integration/capture-embedded-context-source-fixture.mjs';
+const readFile=async(input,options)=>{const bytes=await readCurrentFile(input),file=input instanceof URL?fileURLToPath(input):path.resolve(input),relative=path.relative(fileURLToPath(new URL('../../',import.meta.url)),file),recovered=await recoverCaptureV18Input(relative,bytes);return typeof options==='string'?recovered.toString(options):recovered;};
 import {stripTypeScriptTypes} from 'node:module';
 import vm from 'node:vm';
 

@@ -17,7 +17,7 @@ controlled managed-domain measurement, not public-world or device acceptance.
 
 After the original stop and evidence curation steps, the workflow adds
 `native-avatar-samples.json` to the existing `native-core-journey-evidence`
-artifact. The collector uses the unchanged production projection and only the
+artifact. The collector uses the current reviewed production projection and only the
 last 1 MiB and at most 512 accepted rows of each owned native/gateway log. It
 discards incomplete lines and reports tail and row censoring explicitly. It
 refuses unsafe files or metadata changes rather than exporting partial raw data.
@@ -29,6 +29,20 @@ arrived browser snapshot does not establish when its native pose was sampled.
 Two projected sources can overlap; their counts must not be added as independent
 observations. Full sampling has observer overhead, and neither Stats freshness
 nor native packet delivery is established by these counters alone.
+
+The expanded sampler also records `peerSimulationRateHz`,
+`authorGlobalPositionOutboundKbps` and `authorLocalPositionOutboundKbps`.
+Missing capabilities or invalid readbacks remain null; zero remains zero.
+Simulation counts receiver simulation entries, and the outbound fields measure
+encoding work. Neither proves delivery of the commanded coordinates. Native
+rate getters can roll their averaging intervals, so these observations have
+that bookkeeping effect. The simulation getter also returns zero when its
+native avatar lookup is absent; its averaging window, personal mute and update
+scheduling remain alternatives to budget starvation. A zero value alone does
+not establish that cause. Passive mode performs none of these additional reads.
+The strict expanded projection refuses old rows without the new fields. Replay
+historical artifacts with their exact frozen projector; do not reinterpret them
+using current source.
 
 Offline replay against an already stopped, owned private laboratory is:
 

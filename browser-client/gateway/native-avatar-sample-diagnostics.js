@@ -28,9 +28,20 @@ function createNativeAvatarSampleDiagnostics(config) {
         var uuid = id.length === 38 && id.charAt(0) === '{' && id.charAt(37) === '}' ? id.slice(1,-1) : id;
         if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid)
             || uuid === '00000000-0000-0000-0000-000000000000') return null;
-        try { return current() && config.avatarList && typeof config.avatarList.getAvatarUpdateRate === 'function'
-            ? number(config.avatarList.getAvatarUpdateRate(id, name)) : null; }
+        try { var owner = config.avatarList;
+            if (!current() || !owner) return null;
+            var method = arguments[2] === true ? 'getAvatarSimulationRate' : 'getAvatarUpdateRate';
+            var read = owner[method];
+            return current() && typeof read === 'function' ? number(read.call(owner, id, name)) : null; }
         catch (error) { return null; }
+    }
+    function authorRate(name) {
+        // RateCounter readback may roll its averaging interval; it never sends a packet.
+        try {
+            if (!current() || !config.avatar) return null;
+            var owner = config.avatar, read = owner.getDataRate;
+            return current() && typeof read === 'function' ? number(read.call(owner, name)) : null;
+        } catch (error) { return null; }
     }
     function stats(name) {
         try { return config.stats ? number(config.stats[name]) : null; } catch (error) { return null; }
@@ -74,28 +85,31 @@ function createNativeAvatarSampleDiagnostics(config) {
             // Neither mode replaces the already-published pose.
             batch.forEach(function (row) {
                 if (!current() || emitted >= 512 || !row.result) return;
-                var distance = null, packetRate = null, positionRate = null, probeStarted = passive ? null : now();
+                var distance = null, packetRate = null, positionRate = null, simulationRate = null, probeStarted = passive ? null : now();
                 if (!passive) try {
                     var fresh = row.avatar.position, old = row.result.position;
                     if (fresh && old && [fresh.x,fresh.y,fresh.z,old.x,old.y,old.z].every(function (n) { return typeof n === 'number' && isFinite(n); })) {
                         distance = number(Math.sqrt(Math.pow(fresh.x-old.x,2)+Math.pow(fresh.y-old.y,2)+Math.pow(fresh.z-old.z,2)));
                     }
-                    if (row.role === 'fixture-peer') { packetRate = rate(row.result.id,''); positionRate = rate(row.result.id,'globalPosition'); }
+                    if (row.role === 'fixture-peer') { packetRate = rate(row.result.id,''); positionRate = rate(row.result.id,'globalPosition'); simulationRate = rate(row.result.id,'',true); }
                 } catch (error) { /* Native read failure is unknown, never raw error text. */ }
                 var state = signalState();
                 print({ version:1, kind:'sample', at:now(), sequence:sequence, role:row.role,
                     batchMs:batchMs, publishedPoseAgeMs:number(publicationAt-row.poseAt), avatarBuildMs:number(row.completedAt-row.started),
                     jointNamesMs:row.names, jointRotationsMs:row.rotations, jointTranslationsMs:row.translations,
                     postPublicationPoseDeltaMeters:distance, postPublicationProbeMs:passive?null:elapsed(probeStarted),
-                    peerPacketRateHz:packetRate, peerGlobalPositionUpdateRateHz:positionRate,
+                    peerPacketRateHz:packetRate, peerGlobalPositionUpdateRateHz:positionRate, peerSimulationRateHz:simulationRate,
                     interstitialState:state.interstitialState, interstitialSignalAgeMs:state.interstitialSignalAgeMs });
             });
         },
         authorObservation: function () {
+            if (!current()) return;
             var state = signalState();
             print({version:1,kind:'author-transmission',at:now(),interstitialState:state.interstitialState,
                 interstitialSignalAgeMs:state.interstitialSignalAgeMs,
                 cachedMyAvatarSendRateHz:passive?null:stats('myAvatarSendRate'),cachedAvatarMixerOutPps:passive?null:stats('avatarMixerOutPps'),
+                authorGlobalPositionOutboundKbps:passive?null:authorRate('globalPositionOutbound'),
+                authorLocalPositionOutboundKbps:passive?null:authorRate('localPositionOutbound'),
                 statsFreshness:'not-forced-or-established'});
         },
         stop: stop

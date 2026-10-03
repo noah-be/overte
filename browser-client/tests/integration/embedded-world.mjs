@@ -13,13 +13,18 @@ import assert from 'node:assert/strict';
 // BEGIN strict fixed-field diagnostic consumer.
 function validateEmbeddedDiagnostic(value){
  assert(value&&typeof value==='object'&&!Array.isArray(value));
- assert.deepEqual(Object.keys(value).sort(),['decodedRGBA','frames','phase','version']);assert.equal(value.version,1);
+ assert.deepEqual(Object.keys(value).sort(),['contextStates','decodedRGBA','frames','phase','version']);assert.equal(value.version,2);
  assert(['model-await','gpu-loop','gpu-upload-check','post-gpu-resources','model-cancellation','complete'].includes(value.phase));
  assert(Array.isArray(value.decodedRGBA)&&[0,4].includes(value.decodedRGBA.length));
  assert(value.decodedRGBA.every(n=>Number.isInteger(n)&&n>=0&&n<=255));assert(Array.isArray(value.frames)&&value.frames.length<=20);
  for(let i=0;i<value.frames.length;i++){const row=value.frames[i];assert(Array.isArray(row)&&row.length===11);assert.equal(row[0],i);
   for(let j=1;j<5;j++)assert(Number.isInteger(row[j])&&row[j]>=0&&row[j]<=255);
   for(let j=5;j<11;j++)assert(Number.isSafeInteger(row[j])&&row[j]>=0&&row[j]<=1000000);
+ }
+ assert(Array.isArray(value.contextStates)&&value.contextStates.length===value.frames.length&&value.contextStates.length<=20);
+ for(let i=0;i<value.contextStates.length;i++){const row=value.contextStates[i];assert(Array.isArray(row)&&row.length===5);assert.equal(row[0],i);
+  for(let j=1;j<3;j++)assert(Number.isSafeInteger(row[j])&&row[j]>=0&&row[j]<=1000000);
+  for(let j=3;j<5;j++)assert(row[j]===0||row[j]===1);
  }
  return value;
 }
