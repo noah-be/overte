@@ -72,6 +72,10 @@ public:
     void setBlendshapeBuffer(const std::unordered_map<int, gpu::BufferPointer>& blendshapeBuffers, const QVector<int>& blendedMeshSizes);
 
 protected:
+    bool hasSkinning() const { return _isSkinned; }
+    size_t _expectedClusterCount { 0 };
+    bool _clusterPaletteValid { false };
+    bool _reportedPaletteError { false };
     mutable Transform _previousRenderTransform;
 
 private:
