@@ -33,8 +33,8 @@ deny routes and retires all five capability sets before the confined owner runs.
 The gateway passes the actual native `--setenv` contract to immutable admission;
 the host bwrap launcher receives only fixed PATH/LANG. CPU tests reproduce the
 old host/native mismatch against the actual admission code, verify the corrected
-contract, and keep native loader variables out of the host launcher. These fixes
-require actual Ubuntu qualification; the original network tests are unchanged.
+contract, and keep native loader variables out of the host launcher. The original network tests are unchanged. Hosted Ubuntu run 37120210342
+qualifies these three network controls at the exact candidate SHA below.
 
 The existing Browser client workflow has an explicit, default-off manual
 `startup_diagnostics` input. Diagnostic runs retain all protocol/network tests,
@@ -51,44 +51,47 @@ to continue after that failure, retaining the original domain argv, ownership,
 private capture and fixed summary validation. This obtains further evidence;
 it cannot qualify or replace the failed zero-capability contract.
 
-Focused verification on the isolated Fedora checkout:
+Verified results remain tied to their exact source and execution scope:
 
-```text
-node --test browser-client/gateway/places-override.test.mjs browser-client/gateway/asset-download.test.mjs
-  11 passed, 0 skipped
-node --test browser-client/gateway/network-test-stderr.test.mjs
-  15 passed, 0 skipped
-python3 -B browser-client/lab/test_manage_state.py
-  29 passed
-python3 -B -m unittest discover -s browser-client/lab/atomic-provisioning -p test_probe_credentials.py
-  4 passed
-python3 -B browser-client/lab/test_provisioning_diagnostics.py
-  11 passed
-python3 -B browser-client/lab/test_guest_permissions.py
-  6 passed
-git diff --check
-  passed
-```
+- Ubuntu [37120210342](https://github.com/noah-be/overte/actions/runs/37120210342),
+  at `42612a99dbdbabce298adcbab080fbff80856965`: the protocol/network job succeeds
+  with all 1,572 component tests passing, zero failures and zero skips. All three
+  original real-network tests pass, including twelve denied routes, scoped UDP,
+  capability retirement and parent-death cleanup. The signed setup runs all 133
+  CPU contracts successfully and the browser build passes. The separate native
+  startup job still fails; later GUI journeys are not run in manual diagnostics.
+  The overall workflow fails and does not establish full browser qualification.
+- Ubuntu [37120791566](https://github.com/noah-be/overte/actions/runs/37120791566),
+  at `c7aaa59bc39bc7983bf4294d001263a3c8fc0559`: fixed metadata measures 129 native
+  environment entries against the old 128-entry preparation bound. All observed
+  type/key/value/NUL guards pass. Preparation is corrected with a finite
+  256-entry limit and a direct check of the exact serialized 64 KiB launch record;
+  original per-field, loader/HOME/native/hash guards and complete argv/env remain.
+  Four CPU regressions fail before the fix and pass afterward, including exact
+  byte-boundary and aggregate-overflow controls.
+- Ubuntu [37121546297](https://github.com/noah-be/overte/actions/runs/37121546297),
+  at `17e9eff6ec42e6f660559be0015560a739d0c5ff`: preparation now succeeds and the
+  observer reaches exact owned native endpoint and stored settings readback.
+  HTTP 200 success accompanies a native `commit-failed` marker and failed guest
+  permissions. The non-truncated exact-target summary reports one `linkat`
+  `EEXIST` and sixteen unmatched destinations; this recoverable first operation
+  does not establish the commit cause. The original zero-capability contract
+  remains the sole failure among 130 unit tests. Diagnostic continuation keeps
+  that job failed.
+- Isolated Fedora CPU checks: Places/queue fixtures 11 passing, actual managed
+  startup credential controls 29 passing, bounded stderr projector 17 passing,
+  provisioning 11 passing and guest permissions 6 passing. The four environment
+  records, five probe controls, five unchanged workflow-oracle controls and
+  three aggregate-curator controls pass; original fixed-curator controls pass
+  separately (four). These tests start no native services or GUI sessions.
+- The required repository quick suite at the environment repair passes all 34
+  checks in 156.30 seconds. Workflow Actionlint, pinned-action audit and
+  `git diff --check` pass. Earlier Fedora component runs retain their explicit
+  network/Xvfb failures and do not substitute for Ubuntu results.
 
-The new Places and launcher regressions failed against the published code before
-the fixes. The repository quick suite passed all 34 checks in 158.92 seconds.
-The Fedora component run passed 1,563 of 1,567 tests; the three original real
-network tests failed during local isolation/startup and the actual worker test
-failed with missing Xvfb. Hosted run
-[37117941828](https://github.com/noah-be/overte/actions/runs/37117941828), bound to
-`0f077230f797c28c1c7b1a15c88b6ff05e529149`, built successfully and ran 1,566
-component tests: 1,563 passed and the original three network tests failed.
-The first reports Bubblewrap UID-map failure with errno 1; the other two report
-an unclassified trusted Python bootstrap failure at line 17. A subsequent exact
-run [37118786388](https://github.com/noah-be/overte/actions/runs/37118786388), at
-`da5d2c9e6b62fd78088475e98b2718309749d30f`, passed 1,564 of 1,567 tests and
-classified both remaining startup failures as `worker-executable` admission
-refusals, exposing the host/native environment mismatch. Native provisioning
-again reports HTTP 200 success with `commit-failed` and no saved configuration
-change. These are startup observations, not kernel causality. Full Ubuntu
-qualification and a fresh CodeQL run remain pending. Three native network
-fixtures fail startup, native domain provisioning reports `commit-failed`, and
-the separate atomic preflight fails its unchanged zero-capability contract.
-Local Fedora results do not qualify Ubuntu's AppArmor environment. No security
-review thread is resolved and the PR remains a draft until the owner integrates
-and qualifies the resulting head.
+The initial Places and plaintext-credential regressions failed against the
+published code. The current shipping PR head still needs owner integration,
+a fresh CodeQL run and full native/browser acceptance. No security review
+thread is resolved. The original capability failure, stored-settings failure
+and later browser/device journeys remain open requirements; successful
+protocol tests and diagnostic preparation do not waive them.

@@ -74,6 +74,10 @@ parent-death/EXITKILL ownership is retained, and no existing CI lab is stopped.
 unknown keys, unknown enum values, non-integer/over-limit counts and contradictory
 completed claims, then publishes only explicit fixed fields. Raw paths, PIDs,
 descriptors, auth, environment, stdout/stderr and config are never copied.
+The observer's already validated aggregate syscall counts and fixed errno enums
+are retained separately from exact settings-target observations. They include
+the whole owned process lifetime and cannot establish which operation caused a
+settings commit failure; the original exact-target projection is unchanged.
 Preparation failure writes an explicit bounded unavailable summary and exits
 nonzero; it cannot make the workflow successful. Upload retains only that one
 safe summary. Raw diagnostics stay under RUNNER_TEMP outside artifact globs.
