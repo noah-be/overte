@@ -114,11 +114,13 @@ test('actual isolated worker cannot read host files, sibling profiles, host proc
             const x11ProbeDiagnostic=${x11ProbeDiagnostic.toString()};
             function probe(number,useCookie,abstract){return new Promise(resolve=>{
                 const client=net.createConnection((abstract?String.fromCharCode(0):'')+'/tmp/.X11-unix/X'+number);
-                client.on('error',error=>resolve({accepted:false,diagnostic:x11ProbeDiagnostic('socket-error',error)}));client.on('data',data=>{client.destroy();resolve({accepted:data[0]===1,diagnostic:x11ProbeDiagnostic('setup',data)})});
-                client.on('connect',()=>{const head=Buffer.alloc(12);head[0]=108;head.writeUInt16LE(11,2);
-                    if(useCookie){head.writeUInt16LE(18,6);head.writeUInt16LE(16,8);const name=Buffer.alloc(20);name.write('MIT-MAGIC-COOKIE-1');client.write(Buffer.concat([head,name,cookie]));}
-                    else client.write(head)});
-                client.setTimeout(3000,()=>{client.destroy();resolve({accepted:false,diagnostic:x11ProbeDiagnostic('timeout')})});
+                let connected=false,requestWritten=false,settled=false;
+                function finish(accepted,diagnostic){if(settled)return;settled=true;client.destroy();resolve({accepted,diagnostic:{...diagnostic,connected,requestWritten}});}
+                client.on('error',error=>finish(false,x11ProbeDiagnostic('socket-error',error)));client.on('data',data=>finish(data[0]===1,x11ProbeDiagnostic('setup',data)));
+                client.on('connect',()=>{connected=true;const head=Buffer.alloc(12);head[0]=108;head.writeUInt16LE(11,2);
+                    if(useCookie){head.writeUInt16LE(18,6);head.writeUInt16LE(16,8);const name=Buffer.alloc(20);name.write('MIT-MAGIC-COOKIE-1');client.write(Buffer.concat([head,name,cookie]),error=>{requestWritten=!error;});}
+                    else client.write(head,error=>{requestWritten=!error;})});
+                client.setTimeout(3000,()=>finish(false,x11ProbeDiagnostic('timeout')));
             })}
             Promise.all([probe(process.env.DISPLAY.slice(1),true),probe(process.argv[2],false),probe(process.argv[2],false,true)]).then(([own,other,otherAbstract])=>{
                 const ownX=own.accepted,otherX=other.accepted,otherAbstractX=otherAbstract.accepted;
