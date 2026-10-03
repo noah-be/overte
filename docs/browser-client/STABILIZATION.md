@@ -110,11 +110,11 @@ Verified results remain tied to their exact source and execution scope:
   network/Xvfb failures and do not substitute for Ubuntu results.
 
 The initial Places and plaintext-credential regressions failed against the
-published code. The current shipping PR head still needs owner integration,
-a fresh CodeQL run and full native/browser acceptance. No security review
-thread is resolved. The original capability failure, stored-settings failure
-and later browser/device journeys remain open requirements; successful
-protocol tests and diagnostic preparation do not waive them.
+original published code. Their historical records remain separate from later
+integration and scan results. The current shipping PR still needs a fresh scan
+of the channel fix, final managed-launch integration and full native/browser
+acceptance; successful protocol tests and diagnostic preparation do not waive
+those requirements.
 
 The entry-bound review gap is corrected at
 `045901459438ed7347a7d00ac2857546ae4f4be4`: 256 short entries with valid HOME pass;
@@ -149,6 +149,13 @@ See the [Linux no-new-privileges documentation](https://docs.kernel.org/userspac
   skips. Native CPU contracts report 33 passes and one owned descendant alive
   after the original 2.5-second group-stop bound; actual native startup does not
   run. These failures are retained and require their own corrections.
+- [37139289353](https://github.com/noah-be/overte/actions/runs/37139289353), at
+  `1d2e42ab857c5c3c99c6934d6b9c33ec4efebd3f`: all 1,572 protocol tests pass
+  without skips, including actual Xvfb authentication and the unchanged network
+  and socket-denial controls. The separate native CPU job still fails the
+  owned-descendant shutdown test at its original 2.5-second bound, so actual
+  native startup does not run and the complete workflow fails. Later GUI
+  journeys are not run in these explicitly selected startup diagnostics.
 - Public feature `96d4e6d51bee318b8bf1c0ade286b1a6687f1c8c` also requires ffmpeg
   in the browser job, where three exact audio contracts otherwise fail before
   execution. The signed apt prerequisite is added in `bedbd97c34a7e7469b0c496b0aeeb1a269756f4f`.
@@ -158,15 +165,32 @@ See the [Linux no-new-privileges documentation](https://docs.kernel.org/userspac
   literal serializer to the Places channel as well as the home destination.
   All six actual-source Places tests pass. Current CodeQL alert 44 still needs
   a fresh integrated feature scan. Alert 45's complete four-path SARIF flow
-  hashes public source identities inside an acceptance report, not a password;
-  source review supports a documented false-positive disposition, with no
-  change to artifact SHA-256 or analysis rules.
+  hashes public source identities inside an acceptance report, not a password.
+  The feature owner dismissed that alert as a documented false positive and
+  resolved its review thread after authenticating the analyzed source. Artifact
+  SHA-256 and analysis rules are unchanged; alert 44's thread remains open.
 - `1d2e42ab857c5c3c99c6934d6b9c33ec4efebd3f` requires a complete authenticated
   own-cookie X11 setup before worker launch inside the original five-second
   readiness bound. The original three-second worker auth assertion and every
   host/sibling/abstract-socket denial remain. Fixed connection/write diagnostics
   contain no cookie. Ten controlled-transport CPU cases and six diagnostic
-  cases pass; fresh hosted actual-Xvfb qualification remains pending.
+  cases pass, followed by the actual hosted protocol success above. The feature
+  owner integrated only the narrow X11 hunks, preserving the current Audio/Emote
+  authority, with 13 permanent production-function CPU cases and two original
+  privacy controls passing. Fresh full integrated-source qualification remains
+  pending; the isolated candidate does not qualify that different composition.
+
+The final managed-lifetime proposal received a separate independent COPY-only
+replay: all 42 immutable members authenticated and 67 controls passed with no
+skips, including five genuine owned Python lifecycle controls. The previously
+reproduced admission-descriptor leak is corrected on its exact Chrome-preserving
+manager source. The operational-gate migration received 11 independent pure/mock
+passes and exact recovery of all three whole historical test files. These are
+source/CPU checks, not actual native, Bubblewrap or namespace qualification.
+The tmpfile test's declared historical baseline is not an existing feature file;
+installation must record its actual absent-to-present transition. The owner
+still must compose the final helper, seven-file closure and operational suite,
+then qualify and publish the complete feature source.
 
 The original feature owner exclusively reconciles managed parent binding,
 process registry retirement and Chrome source closure. Stabilization stays in
