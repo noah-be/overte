@@ -24,6 +24,8 @@ predicates, cleanup and deadlines remain byte-exact. Only fixed operation names,
 exception categories, errno numbers and bounded inline-probe line numbers are
 reported publicly. Raw stderr remains private and is never an uploaded artifact.
 These observations cannot establish syscall or AppArmor causality.
+Exact fixed refusal categories from the immutable owner admission module are
+also projected; unknown or conflicting exception prose remains unclassified.
 
 The existing Browser client workflow has an explicit, default-off manual
 `startup_diagnostics` input. Diagnostic runs retain all protocol/network tests,
@@ -32,13 +34,21 @@ later GUI/browser journeys and label the run accordingly; curated journey
 evidence reports those journeys as `not-run`. Pull-request and ordinary full
 workflow behavior is unchanged. A diagnostic success is not full qualification.
 
+The existing Owned atomic settings diagnostic has a separate default-off manual
+`continue_diagnostics_after_contract_failure` input. Its original contract tests
+remain unconditional and their failure still fails the job. Only an explicit
+diagnostic selection permits the existing fresh-domain preparation and observer
+to continue after that failure, retaining the original domain argv, ownership,
+private capture and fixed summary validation. This obtains further evidence;
+it cannot qualify or replace the failed zero-capability contract.
+
 Focused verification on the isolated Fedora checkout:
 
 ```text
 node --test browser-client/gateway/places-override.test.mjs browser-client/gateway/asset-download.test.mjs
   11 passed, 0 skipped
 node --test browser-client/gateway/network-test-stderr.test.mjs
-  14 passed, 0 skipped
+  15 passed, 0 skipped
 python3 -B browser-client/lab/test_manage_state.py
   29 passed
 python3 -B -m unittest discover -s browser-client/lab/atomic-provisioning -p test_probe_credentials.py
@@ -53,8 +63,15 @@ git diff --check
 
 The new Places and launcher regressions failed against the published code before
 the fixes. Full component and repository quick checks are queued behind the
-shared build lock. Hosted Ubuntu startup qualification and a fresh CodeQL run
-remain pending. Original hosted failures are retained: three native network
+shared build lock. Hosted run
+[37117941828](https://github.com/noah-be/overte/actions/runs/37117941828), bound to
+`0f077230f797c28c1c7b1a15c88b6ff05e529149`, built successfully and ran 1,566
+component tests: 1,563 passed and the original three network tests failed.
+The first reports Bubblewrap UID-map failure with errno 1; the other two report
+an unclassified trusted Python bootstrap failure at line 17. Native provisioning
+again reports HTTP 200 success with `commit-failed` and no saved configuration
+change. These are startup observations, not kernel causality. Full Ubuntu
+qualification and a fresh CodeQL run remain pending. Three native network
 fixtures fail startup, native domain provisioning reports `commit-failed`, and
 the separate atomic preflight fails its unchanged zero-capability contract.
 Local Fedora results do not qualify Ubuntu's AppArmor environment. No security
