@@ -3043,6 +3043,58 @@ the existing default FBX is uncompressed and does not require baked-skin
 decompression. This implementation is in progress.
 
 Next concrete step: complete real Places handoff and Tablet People/Chat effects,
-then verify the actual skinned default avatar and Emote animation. Firefox Hub,
-the expanded production package, later native feature parity, graphics settings,
+then verify the actual skinned default avatar and Emote animation. This is a
+historical checkpoint; subsequent user instructions require Google Chrome only.
+The expanded production package, later native feature parity, graphics settings,
 environment recommendations, stability and measured optimizations remain open.
+
+## Hosted stabilization diagnostics, 2026-10-03
+
+Published `aeb585ee332fec6c20866b0ce128b3ab038bc772` passes the mandatory
+repository checks, branch and dependency policy, fresh CodeQL and the actual
+owned atomic-settings workflow. CodeQL finding 44 is fixed and no review thread
+remains unresolved. The full Browser workflow still has two negative gates:
+the embedded World GPU pixel assertion and browser observation of a commanded
+native peer position. Its 2,640 product contracts and 84 managed lifecycle
+contracts pass. These results do not complete Browser or Hub acceptance.
+
+The owned local embedded fixture passed the unchanged exact pixel, single
+texture-upload, cancellation and scope checks using Google Chrome 154.0.8037.97
+under an authenticated private Xvfb display. One upstream model request was
+observed. All nine observed Chrome births, private scratch, authentication data
+and task groups were retired; source, index and nine existing managed service
+births stayed coherent. This is a Fedora authored-fixture result, not an
+explanation of the Ubuntu failure. An earlier local attempt refused Chrome
+launch because its task-owned Unix socket path was too long; that negative is
+retained separately, with successful cleanup. A fresh shorter private path
+corrected that launcher setup without altering fixture assertions or deadlines.
+
+The integrated diagnostics preserve both original failed assertions. Embedded
+failure evidence admits only bounded frame/RGBA/upload/version counters and a
+fixed phase; its secondary read has a 500 ms bound and is omitted after the
+original 30-second fixture deadline. The native sample mode is explicitly
+manual and off by default. Its collector reads only bounded, stable owned log
+tails through the existing production projector, excluding raw logs and private
+fields; see [the diagnostic guide](NATIVE_AVATAR_DIAGNOSTICS.md). Opt-in sampling
+has observer overhead and does not prove packet delivery
+or Stats freshness. The explicit V17 closure preserves the diagnostic workflow;
+V18 also admits the exact embedded diagnostic sources and checks current Chrome
+environment sources separately from the unchanged historical assertion. The
+first complete local suite retained a source-coherence refusal (2,668 pass,
+one failure) before this declared history/current-source migration; build and
+repository checks were not run after that refusal. Historical complete-source
+guards stay separate from the production gate.
+
+The composed V18 source passes all 2,679 product tests with zero failures/skips
+(29.995 s), the production build (5.778 s, 34 distribution files), and all 34
+required repository suites (164.395 s parent wall time). The complete production
+distribution is byte-identical to the prior tested build. The retained first
+suite failure was resolved by explicit source/history admission, preserving the
+unchanged original Chrome-20 body and adding raw current-source refusal tests.
+Post-gate changes only record results in this section and the sanitized proof;
+the two documentation suites are rerun before committing.
+
+Next concrete step: publish the diagnostic source and collect actual Ubuntu
+pixels and opt-in native pose age before choosing a production repair. No timeout
+increase, threshold relaxation, retry-to-hide-failure or wider native/Tablet/Hub/
+microphone acceptance is implied.

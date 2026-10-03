@@ -414,3 +414,13 @@ Complete the corrected model parse-turn Chrome fixture and current browser gate.
 Bind the fresh private V14 distribution to the FST comparison while preserving
 the live frontend. Native capability/persistence, Hub performance and physical
 microphone negatives remain open; no endurance run is scheduled.
+# Active stabilization continuation, 2026-10-03
+
+Keep the expanded product goals and Chrome-only scope. Published aeb585 passes
+repository, CodeQL and actual atomic settings gates; retain the separate failed
+embedded GPU and browser/native-peer movement evidence. Integrate bounded
+numeric pixel diagnostics and explicit default-off manual native sample
+diagnostics with the reviewed V17/V18 capture-source closure. Run full unit, build
+and repository checks before committing. Collect exact-source Ubuntu evidence
+and repair measured causes without weakening assertions or deadlines. The local
+owned embedded fixture passes; it does not explain the hosted pixel failure.

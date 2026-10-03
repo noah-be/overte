@@ -11,6 +11,10 @@ on:
         description: 'Run unchanged startup/isolation checks only; browser journeys remain not-run'
         type: boolean
         default: false
+      avatar_sample_diagnostics:
+        description: 'Collect bounded opt-in native avatar diagnostics during the unchanged full journey'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -130,6 +134,7 @@ jobs:
     timeout-minutes: 35
     env:
       OVERTE_LAB_DURATION_SECONDS: '0'
+      OVERTE_LAB_AVATAR_SAMPLE_DIAGNOSTICS: ${{ github.event_name == 'workflow_dispatch' && inputs.avatar_sample_diagnostics && !inputs.startup_diagnostics && '1' || '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -210,6 +215,11 @@ jobs:
           python3 browser-client/lab/curate-core-journey.py \
             --input build/browser-lab/evidence --output "$RUNNER_TEMP/overte-native-core-evidence" \
             --commit-sha "$GITHUB_SHA" --browser chrome
+      - name: Collect bounded opt-in native avatar diagnostics
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.avatar_sample_diagnostics && !inputs.startup_diagnostics }}
+        run: |
+          node browser-client/tools/curate-avatar-samples.mjs \
+            --output "$RUNNER_TEMP/overte-native-core-evidence" --commit-sha "$GITHUB_SHA"
       - name: Preserve only curated native core evidence
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
