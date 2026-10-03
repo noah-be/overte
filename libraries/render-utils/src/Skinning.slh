@@ -15,11 +15,12 @@
 
 <@func declareSkinning(USE_DUAL_QUATERNION_SKINNING, USE_NORMAL, USE_TANGENT)@>
 
-const int MAX_CLUSTERS = 128;
+const int MAX_CLUSTERS = GRAPHICS_MAX_SKINNING_CLUSTERS;
 const int INDICES_PER_VERTEX = 4;
 
 UNIFORM_BUFFER(GRAPHICS_BUFFER_SKINNING, skinClusterBuffer) {
     mat4 clusterMatrices[MAX_CLUSTERS];
+    uvec4 skinClusterInfo; // x is the actual populated palette count.
 };
 
 <@if USE_DUAL_QUATERNION_SKINNING@>
@@ -69,13 +70,28 @@ void evalSkinning(uvec4 skinClusterIndex, vec4 skinClusterWeight, vec4 inPositio
     vec4 rAccum = vec4(0.0, 0.0, 0.0, 0.0);
     vec4 dAccum = vec4(0.0, 0.0, 0.0, 0.0);
     vec4 cAccum = vec4(0.0, 0.0, 0.0, 0.0);
-    vec4 polarityReference = clusterMatrices[skinClusterIndex[0]][1];
+    // Finite bind-space fallback for no usable influence or degenerate blending.
+    skinnedPosition = inPosition;
+<@if USE_NORMAL@>
+    skinnedNormal = inNormal;
+<@endif@>
+<@if USE_TANGENT@>
+    skinnedTangent = inTangent;
+<@endif@>
+    vec4 polarityReference = vec4(0.0);
+    bool hasReference = false;
     for (int i = 0; i < INDICES_PER_VERTEX; i++) {
-        mat4 clusterMatrix = clusterMatrices[(skinClusterIndex[i])];
         float clusterWeight = skinClusterWeight[i];
+        if (!(clusterWeight > 0.0) || isinf(clusterWeight) || isnan(clusterWeight) ||
+            skinClusterIndex[i] >= min(skinClusterInfo.x, uint(MAX_CLUSTERS))) { continue; }
+        mat4 clusterMatrix = clusterMatrices[skinClusterIndex[i]];
 
         vec4 scale = clusterMatrix[0];
         vec4 real = clusterMatrix[1];
+        if (!hasReference) {
+            polarityReference = real;
+            hasReference = true;
+        }
         vec4 dual = clusterMatrix[2];
         vec4 cauterizedPos = clusterMatrix[3];
 
@@ -91,6 +107,7 @@ void evalSkinning(uvec4 skinClusterIndex, vec4 skinClusterWeight, vec4 inPositio
 
     // normalize dual quaternion
     float norm = length(rAccum);
+    if (!(norm > 1.0e-6) || isinf(norm) || isnan(norm)) { return; }
     rAccum /= norm;
     dAccum /= norm;
 
@@ -134,9 +151,13 @@ void evalSkinning(uvec4 skinClusterIndex, vec4 skinClusterWeight, vec4 inPositio
     vec4 newTangent = vec4(0.0, 0.0, 0.0, 0.0);
 <@endif@>
 
+    bool hasInfluence = false;
     for (int i = 0; i < INDICES_PER_VERTEX; i++) {
-        mat4 clusterMatrix = clusterMatrices[(skinClusterIndex[i])];
         float clusterWeight = skinClusterWeight[i];
+        if (!(clusterWeight > 0.0) || isinf(clusterWeight) || isnan(clusterWeight) ||
+            skinClusterIndex[i] >= min(skinClusterInfo.x, uint(MAX_CLUSTERS))) { continue; }
+        mat4 clusterMatrix = clusterMatrices[skinClusterIndex[i]];
+        hasInfluence = true;
         newPosition += clusterMatrix * inPosition * clusterWeight;
 <@if USE_NORMAL@>
         newNormal += clusterMatrix * vec4(inNormal.xyz, 0.0) * clusterWeight;
@@ -146,12 +167,12 @@ void evalSkinning(uvec4 skinClusterIndex, vec4 skinClusterWeight, vec4 inPositio
 <@endif@>
     }
 
-    skinnedPosition = newPosition;
+    skinnedPosition = hasInfluence ? newPosition : inPosition;
 <@if USE_NORMAL@>
-    skinnedNormal = newNormal.xyz;
+    skinnedNormal = hasInfluence ? newNormal.xyz : inNormal;
 <@endif@>
 <@if USE_TANGENT@>
-    skinnedTangent = newTangent.xyz;
+    skinnedTangent = hasInfluence ? newTangent.xyz : inTangent;
 <@endif@>
 }
 

@@ -4,7 +4,8 @@ set -euo pipefail
 
 readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly repo_root="$(cd -- "$script_dir/../../.." && pwd)"
-readonly router="$repo_root/scripts/system/+android_phoneInterface/mobileTabletApps.js"
+readonly entrypoint="$repo_root/scripts/system/+android_phoneInterface/mobileTabletApps.js"
+readonly router="$repo_root/scripts/system/tablet-ui/mobileTabletApps.js"
 
 require() {
     local pattern="$1" description="$2"
@@ -14,6 +15,12 @@ require() {
     fi
     printf 'PASS: %s\n' "$description"
 }
+
+if ! grep -Eq 'Script[.]include\(Script[.]resolvePath\("[.][.]/tablet-ui/mobileTabletApps[.]js"\)\)' "$entrypoint"; then
+    printf 'FAIL: Phone startup is disconnected from its production implementation\n' >&2
+    exit 1
+fi
+printf 'PASS: Phone wrapper includes its actual shared production router\n'
 
 require 'var SETTINGS_ROUTES = \{' \
     'Phone Settings navigation uses an explicit route allowlist'
@@ -26,6 +33,7 @@ require 'currentSource !== SETTINGS_SOURCE' \
 require 'tablet[.]loadQMLSource\(SETTINGS_ROUTES\[message[.]appUrl\]\)' \
     'only an allowlisted resolved route reaches the tablet loader'
 
+node --check "$entrypoint"
 node --check "$router"
 node "$script_dir/phone-tablet-app-router-mock.js"
 printf 'Android phone tablet app-router checks passed.\n'
