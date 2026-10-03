@@ -27,6 +27,15 @@ These observations cannot establish syscall or AppArmor causality.
 Exact fixed refusal categories from the immutable owner admission module are
 also projected; unknown or conflicting exception prose remains unclassified.
 
+The trusted setup now retains the caller's exact UID/GID numeric identity instead
+of mapping it to namespace ID zero. It still installs and reads back all twelve
+deny routes and retires all five capability sets before the confined owner runs.
+The gateway passes the actual native `--setenv` contract to immutable admission;
+the host bwrap launcher receives only fixed PATH/LANG. CPU tests reproduce the
+old host/native mismatch against the actual admission code, verify the corrected
+contract, and keep native loader variables out of the host launcher. These fixes
+require actual Ubuntu qualification; the original network tests are unchanged.
+
 The existing Browser client workflow has an explicit, default-off manual
 `startup_diagnostics` input. Diagnostic runs retain all protocol/network tests,
 isolation/audio preflight and actual native startup requirements. They omit
@@ -52,7 +61,7 @@ node --test browser-client/gateway/network-test-stderr.test.mjs
 python3 -B browser-client/lab/test_manage_state.py
   29 passed
 python3 -B -m unittest discover -s browser-client/lab/atomic-provisioning -p test_probe_credentials.py
-  2 passed
+  4 passed
 python3 -B browser-client/lab/test_provisioning_diagnostics.py
   11 passed
 python3 -B browser-client/lab/test_guest_permissions.py
@@ -62,13 +71,19 @@ git diff --check
 ```
 
 The new Places and launcher regressions failed against the published code before
-the fixes. Full component and repository quick checks are queued behind the
-shared build lock. Hosted run
+the fixes. The repository quick suite passed all 34 checks in 158.92 seconds.
+The Fedora component run passed 1,563 of 1,567 tests; the three original real
+network tests failed during local isolation/startup and the actual worker test
+failed with missing Xvfb. Hosted run
 [37117941828](https://github.com/noah-be/overte/actions/runs/37117941828), bound to
 `0f077230f797c28c1c7b1a15c88b6ff05e529149`, built successfully and ran 1,566
 component tests: 1,563 passed and the original three network tests failed.
 The first reports Bubblewrap UID-map failure with errno 1; the other two report
-an unclassified trusted Python bootstrap failure at line 17. Native provisioning
+an unclassified trusted Python bootstrap failure at line 17. A subsequent exact
+run [37118786388](https://github.com/noah-be/overte/actions/runs/37118786388), at
+`da5d2c9e6b62fd78088475e98b2718309749d30f`, passed 1,564 of 1,567 tests and
+classified both remaining startup failures as `worker-executable` admission
+refusals, exposing the host/native environment mismatch. Native provisioning
 again reports HTTP 200 success with `commit-failed` and no saved configuration
 change. These are startup observations, not kernel causality. Full Ubuntu
 qualification and a fresh CodeQL run remain pending. Three native network

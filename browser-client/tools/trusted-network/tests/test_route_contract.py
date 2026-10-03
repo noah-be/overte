@@ -71,9 +71,9 @@ class Serialization(unittest.TestCase):
   for identity in (1,1000,2**32-2):
    out=ctypes.create_string_buffer(32)
    size=self.api.overte_self_map(identity,out,32)
-   self.assertEqual(out.raw[:size],f'0 {identity} 1\n'.encode())
+   self.assertEqual(out.raw[:size],f'{identity} {identity} 1\n'.encode())
  def test_invalid_self_maps_do_not_change_output(self):
-  for identity,capacity in ((0,32),(2**32-1,32),(1000,23)):
+  for identity,capacity in ((0,32),(2**32-1,32),(1000,23),(2**32-2,24)):
    out=ctypes.create_string_buffer(b'X'*32,33)
    self.assertEqual(self.api.overte_self_map(identity,out,capacity),0)
    self.assertEqual(out.raw[:32],b'X'*32)

@@ -16,6 +16,21 @@ uses pinned actions without persisted credentials, installs the same signed host
 dependencies, and runs the existing shipped-AppArmor preparation unchanged.
 It never removes/overrides profiles, lifts capabilities or changes routes.
 
+Manual dispatch additionally accepts the default-off
+`continue_diagnostics_after_contract_failure` input. Explicit true selection
+allows the existing fresh-domain observer to collect more evidence after the
+unchanged unit contract step fails. Exact source and authenticated stage success
+remain required; cancellation and prerequisite failure still prevent execution.
+The contract failure still fails the job, with no `continue-on-error` masking.
+The whole-workflow source oracle strips only these exact reviewed additions and
+retains its original hash. This mode is diagnostic continuation, not acceptance
+of a failed zero-capability contract.
+
+Probe failures retain their original failure and cleanup. A fixed whitelist of
+source-owned refusal tags is printed as `ATOMIC_PROBE_FAILURE`; arbitrary
+exception text and paths are never printed. Preparation still persists only the
+native password verifier; the random administration token stays in memory.
+
 `stage.py` creates unique owned 0700 probe/lab/output directories beneath the
 canonical RUNNER_TEMP and copies only the reviewed helpers/metadata. It downloads
 fixed official Noble InRelease/index/package URLs with bounded reads and checks
