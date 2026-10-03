@@ -124,8 +124,8 @@ public:
 class Cluster {
 public:
 
-    int jointIndex;
-    glm::mat4 inverseBindMatrix;
+    int jointIndex { -1 };
+    glm::mat4 inverseBindMatrix { 1.0f };
     Transform inverseBindTransform;
 };
 
@@ -256,6 +256,13 @@ public:
 
     QVector<Cluster> clusters;
 
+    // Compact cluster objects and influences together before baking/runtime setup.
+    // Zero-weight lanes are canonicalized to zero; all-zero vertices retain their
+    // bind-space position in the shader, including an entirely empty palette.
+    bool prepareSkinningPalette(int jointCount, QString& error);
+    bool validateSkinningPalette(QString& error) const;
+    bool skinningDataValid { true };
+
     Extents meshExtents;
     glm::mat4 modelTransform;
 
@@ -381,6 +388,7 @@ class ExtractedMesh {
 public:
     hfm::Mesh mesh;
     QMultiHash<int, int> newIndices;
+    int sourceVertexCount { -1 }; // -1 when compressed original IDs have no dense source array.
     QVector<QHash<int, int> > blendshapeIndexMaps;
     QVector<QPair<int, int> > partMaterialTextures;
     QHash<QString, size_t> texcoordSetMap;
