@@ -14,6 +14,7 @@
 
 #include <PerfStat.h>
 #include <graphics/ShaderConstants.h>
+#include <graphics/SkinningPalette.h>
 
 #include "CauterizedModel.h"
 
@@ -27,36 +28,26 @@ void CauterizedMeshPartPayload::updateClusterBuffer(const std::vector<glm::mat4>
                                                     const std::vector<glm::mat4>& cauterizedClusterMatrices) {
     ModelMeshPartPayload::updateClusterBuffer(clusterMatrices);
 
-    if (cauterizedClusterMatrices.size() > 1) {
-        if (!_cauterizedClusterBuffer) {
-            _cauterizedClusterBuffer = std::make_shared<gpu::Buffer>(gpu::Buffer::UniformBuffer, cauterizedClusterMatrices.size() * sizeof(glm::mat4),
-                (const gpu::Byte*) cauterizedClusterMatrices.data());
-        } else {
-            _cauterizedClusterBuffer->setSubData(0, cauterizedClusterMatrices.size() * sizeof(glm::mat4),
-                (const gpu::Byte*) cauterizedClusterMatrices.data());
-        }
-    }
+    bool valid = graphics::updateSkinningPalette(_cauterizedClusterBuffer, cauterizedClusterMatrices, _expectedClusterCount);
+    if (!valid && !_reportedCauterizedPaletteError) { qWarning() << "Rejecting mismatched or oversized cauterized matrix upload"; }
+    _reportedCauterizedPaletteError = !valid;
+    _clusterPaletteValid = _clusterPaletteValid && valid;
 }
 
 void CauterizedMeshPartPayload::updateClusterBuffer(const std::vector<Model::TransformDualQuaternion>& clusterDualQuaternions,
                                                     const std::vector<Model::TransformDualQuaternion>& cauterizedClusterDualQuaternions) {
     ModelMeshPartPayload::updateClusterBuffer(clusterDualQuaternions);
 
-    if (cauterizedClusterDualQuaternions.size() > 1) {
-        if (!_cauterizedClusterBuffer) {
-            _cauterizedClusterBuffer = std::make_shared<gpu::Buffer>(gpu::Buffer::UniformBuffer, cauterizedClusterDualQuaternions.size() * sizeof(Model::TransformDualQuaternion),
-                (const gpu::Byte*) cauterizedClusterDualQuaternions.data());
-        } else {
-            _cauterizedClusterBuffer->setSubData(0, cauterizedClusterDualQuaternions.size() * sizeof(Model::TransformDualQuaternion),
-                (const gpu::Byte*) cauterizedClusterDualQuaternions.data());
-        }
-    }
+    bool valid = graphics::updateSkinningPalette(_cauterizedClusterBuffer, cauterizedClusterDualQuaternions, _expectedClusterCount);
+    if (!valid && !_reportedCauterizedPaletteError) { qWarning() << "Rejecting mismatched or oversized cauterized DQ upload"; }
+    _reportedCauterizedPaletteError = !valid;
+    _clusterPaletteValid = _clusterPaletteValid && valid;
 }
 
 void CauterizedMeshPartPayload::updateTransformForCauterizedMesh(const Transform& modelTransform, const Model::MeshState& meshState, bool useDualQuaternionSkinning) {
     Transform renderTransform = modelTransform;
     if (useDualQuaternionSkinning) {
-        if (meshState.clusterDualQuaternions.size() == 1 || meshState.clusterDualQuaternions.size() == 2) {
+        if (!hasSkinning() && !meshState.clusterDualQuaternions.empty()) {
             const auto& dq = meshState.clusterDualQuaternions[0];
             Transform transform(dq.getRotation(),
                                 dq.getScale(),
@@ -64,7 +55,7 @@ void CauterizedMeshPartPayload::updateTransformForCauterizedMesh(const Transform
             renderTransform = modelTransform.worldTransform(Transform(transform));
         }
     } else {
-        if (meshState.clusterMatrices.size() == 1 || meshState.clusterMatrices.size() == 2) {
+        if (!hasSkinning() && !meshState.clusterMatrices.empty()) {
             renderTransform = modelTransform.worldTransform(Transform(meshState.clusterMatrices[0]));
         }
     }

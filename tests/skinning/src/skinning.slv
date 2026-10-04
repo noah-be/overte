@@ -1,0 +1,22 @@
+<!
+Copyright 2026 Overte e.V.
+SPDX-License-Identifier: Apache-2.0
+!>
+<@include Skinning.slh@>
+<@if TEST_DQ == 1@>
+<$declareSkinning(1, 1, 1)$>
+<@else@>
+<$declareSkinning(_SCRIBE_NULL, 1, 1)$>
+<@endif@>
+INPUT(0, uvec4, testIndices);
+INPUT(1, vec4, testWeights);
+uniform vec4 testInputPosition;
+uniform vec3 testInputNormal;
+OUTPUT(0, vec4, testPosition);
+OUTPUT(1, vec3, testNormal);
+OUTPUT(2, vec3, testTangent);
+void main() {
+    evalSkinning(testIndices, testWeights, testInputPosition, testPosition,
+                 testInputNormal, testNormal, vec3(1,0,0), testTangent);
+    gl_Position = testPosition;
+}
