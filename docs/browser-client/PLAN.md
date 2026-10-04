@@ -2,6 +2,31 @@
 
 ## Current integration checkpoint (2026-10-04)
 
+Published78a passes complete local gates, current repository/CodeQL checks and
+one explicit130-case actual Chrome browser job; the same-source automatic GPU
+failure and both native Core failures remain recorded. Keep original assertions
+and deadlines. The separate original/prewarm-control headless experiment passes
+both lanes and justifies no production omission. Actual context loss precedes
+the direct GPU draw; its trigger remains open.
+
+The four-path diagnostic successor carries existing matched command-issued and
+readback time references through the current native log projection and curator.
+All27 focused controls pass. Full Core/actions/2800ms remain byte-identical,
+and the209 direct capture rows omit these paths. The separate current Chrome20
+binding includes the curator: its explicit whole-source CPU history and current
+binding migration is required. The first complete run retains2803 cases,2796
+passes and seven binding failures with no skips; build and quick did not run.
+The reviewed V24 migration is installed:215 rows retain all209, and216
+independent CPU controls pass without skips. No production history imports.
+Fresh2813/2813 product cases, the34-file build and all34 repository suites
+pass. Next: commit/publish exact source, then measure the issued/apply/read boundary in one
+existing opt-in cohort.
+Bind the future strict viewer explicitly to the new producer/curator; retain
+old artifacts on their frozen decoder. Continue actual cause repairs and wider
+Tablet/Hub/audio acceptance without restarting the existing live services.
+
+## Preserved 6a integration checkpoint (2026-10-04)
+
 The sole owner published `6a613eeda62688e3e33bd381292410fba6957a14` after
 complete local gates. Fresh automatic37158620294 and explicit37158851212
 Browser runs retain both original failures. Actual observations establish a

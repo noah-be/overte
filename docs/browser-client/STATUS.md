@@ -1,5 +1,53 @@
 # Browser client status
 
+Published source is `78a0060cf63ad1b2aa2983294e0f38952ed5c74a` in draft
+PR1023. Its complete local gates pass: 2799 product tests, a fresh 34-file
+production build and 34 repository suites. Fresh CodeQL and current required
+Repository37167617308 also pass. Automatic Browser37167152055 retains both
+original GPU/native failures. The single explicit37167669290 passes the browser
+job, including all2799 product cases, three real network cases, 130 actual
+Chrome UI cases and the original embedded upload/cancellation gate; its native
+Core gate still fails. Same-source success does not erase either negative.
+
+The new fixed lifecycle data records trusted context loss during model-await,
+before the direct GPU test, on SwiftShader, with no recorded GPU-process crash.
+A separate local headed attempt retains its165s/167.149s outer failure and
+retires all three observed Chrome births. Two separately owned headless lanes
+(original and one-statement hidden-avatar-prewarm omission) both pass the
+original20 pixels/upload/samplers/cancellation and the restoration component;
+each retires18 observed Chrome births. The control is not installed in product
+source: this comparison does not establish a prewarm cause or qualify a headed
+repair. Existing live services remain unchanged.
+
+The strict actual78a native sample projection contains the commanded position
+at a reported1775ms after the native command-applied event, while the captured
+browser observation is still old. That offset cannot be aligned to the original
+2800ms wait, which begins at the earlier Node command-file write. The current
+working successor adds only the already-existing issued/apply/read references
+through the owned log and curated report. It changes no clock call, wait,
+movement predicate, authority, input record or runtime service. Its13 Node and
+14 Python focused controls pass. The first complete candidate run retains
+2803 cases,2796 passes and seven failures, with no skips. All seven refuse the
+new curator against the historical Chrome20 source binding; production build
+and repository gates did not run after that failure. The
+[source proof](evidence/native-command-clock-source-checks-20261004.json)
+retains the exact commands, source inventory and failure record. The current209 direct
+capture rows omit this lab path, but the separate current Chrome20 binding
+includes it. The explicit V24 whole-source history and current binding migration is now
+installed: all209 prior rows remain among215 current rows, all original
+assertions and archives are preserved, and216 independent CPU controls pass
+without skips. Production preparation changes one manifest hash and imports
+no historical recovery. The corrected complete run passes2813 product cases
+without skips, a fresh34-file production build and all34 repository suites.
+The local distribution is byte-identical to the prior V23 build on the same
+toolchain; this is not hosted or hardware evidence. Next: commit and publish
+solely from this owner. A fresh source-bound
+original-gate cohort must distinguish command latency from publication,
+transport and receiver delay. Wider Tablet/Hub/microphone
+acceptance and the spontaneous GPU cause remain open.
+
+## Preserved published 6a checkpoint
+
 Published source is `6a613eeda62688e3e33bd381292410fba6957a14` in draft
 PR1023. Its complete local product/build/repository checks pass as recorded
 below. Fresh CodeQL, branch, dependency and sync checks pass; the replacement

@@ -44,6 +44,17 @@ The strict expanded projection refuses old rows without the new fields. Replay
 historical artifacts with their exact frozen projector; do not reinterpret them
 using current source.
 
+The Core movement diagnostic keeps three separate time references:
+`commandIssuedAtMs` is the matched command's existing Node timestamp/sequence,
+`commandAppliedAtMs` is the participant's existing reported timestamp, and
+`diagnosticReadAtMs` is the existing Node readback time. The projection adds no
+clock call, wait, file read or retry. Invalid or unavailable references remain
+null. The original 2800 ms wait starts at command-file publication, rather than
+at the later native application event. Gateway sample offsets measured from
+that native event do not establish alignment with the browser capture or
+synchronized producer clocks. These diagnostics cannot change the captured
+movement assertion or turn a failed journey into acceptance.
+
 Offline replay against an already stopped, owned private laboratory is:
 
 ```sh

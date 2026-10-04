@@ -91,3 +91,33 @@ test('production harness waits unchanged 2800 ms and asserts captured avatars af
     assert(section.indexOf('const avatars = capturedPeer.avatars;')<section.indexOf('readNativePeerDiagnostic'));
     assert(section.includes("assert(avatars?.some(avatar=>avatar.displayName==='Native-Lab-Participant' && Math.abs(avatar.position.x-4)<.5),\n        'Browser receives second native participant movement');"));
 });
+
+test('matched write and existing read clocks remain separate fixed nullable scalars',()=>{
+    const issued=1791077071000,appliedAt=issued+300,readAt=issued+3200;
+    const result=projectNativePeerLog(line({...applied,at:appliedAt,data:{sequence:issued,position:target}}),{sequence:issued,target,now:readAt});
+    assert.equal(result.commandIssuedAtMs,issued);assert.equal(result.commandAppliedAtMs,appliedAt);
+    assert.equal(result.diagnosticReadAtMs,readAt);assert.equal(result.commandAppliedAgeMs,2900);
+    assert.equal(result.commandSequenceMatched,true);assert(!JSON.stringify(result).includes('PRIVATE'));
+});
+test('new clock projection introduces no extra clock call and never guesses an unmatched write',()=>{
+    const original=Date.now;let calls=0;Date.now=()=>{calls++;return 1000;};
+    try {const result=projectNativePeerLog(line(applied),{sequence:43,target});
+        assert.equal(calls,1);assert.equal(result.commandIssuedAtMs,null);assert.equal(result.diagnosticReadAtMs,1000);
+    } finally {Date.now=original;}
+});
+test('invalid exact matching sequences and invalid read clocks stay null without prose',()=>{
+    for(const value of [true,false,'PRIVATE',-1,1e15+1,Infinity,NaN]) {
+        const record={...applied,data:{sequence:value,position:target}};
+        const result=projectNativePeerLog(line(record),{sequence:value,target,now:value});
+        assert.equal(result.commandIssuedAtMs,null);assert.equal(result.diagnosticReadAtMs,null);
+        assert(!JSON.stringify(result).includes('PRIVATE'));
+    }
+});
+test('existing one-read owned tail carries clocks without replacing the captured movement',async()=>{
+    const directory=await mkdtemp(path.join(tmpdir(),'overte-peer-clock-'));
+    try {const file=path.join(directory,'native.log');await writeFile(file,line(applied)+line(observation));
+        const result=await readNativePeerDiagnostic(file,operation);
+        assert.equal(result.commandIssuedAtMs,42);assert.equal(result.diagnosticReadAtMs,1000);
+        assert.equal(result.observationTargetDistance,0);assert.equal(result.bytesRead,Buffer.byteLength(line(applied)+line(observation)));
+    } finally {await rm(directory,{recursive:true,force:true});}
+});

@@ -91,4 +91,33 @@ class CurationTests(unittest.TestCase):
         self.assertEqual(module.curate({},'chromium')['status'],'not-run')
         with self.assertRaises(ValueError):module.curate({},'unexpected')
 
+    def test_actual_native_producer_to_curator_preserves_separate_clock_references(self):
+        import subprocess
+        helper=Path(__file__).resolve().parents[1]/'tests/integration/native-peer-diagnostic.mjs'
+        code="""import {projectNativePeerLog}from %s;
+const sequence=1791077071000,target={x:4,y:1.8,z:2};
+const text='BROWSER_LAB '+JSON.stringify({kind:'command-applied',at:sequence+300,data:{sequence,position:target,private:'PRIVATE'}})+'\\n';
+process.stdout.write(JSON.stringify(projectNativePeerLog(text,{sequence,target,now:sequence+3200})));"""%json.dumps(helper.as_uri())
+        child=subprocess.run(['node','--input-type=module','--eval',code],stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=10)
+        self.assertEqual(child.returncode,0);native=json.loads(child.stdout)
+        raw=self.fixture();raw['nativePeerMovementDiagnostic']={'native':native}
+        result=module.curate(raw,'chrome')['nativePeerMovementDiagnostic']['native']
+        self.assertEqual(result['commandIssuedAtMs'],1791077071000)
+        self.assertEqual(result['diagnosticReadAtMs'],1791077074200)
+        self.assertEqual(result['commandAppliedAtMs'],1791077071300)
+        self.assertTrue(module.curate(raw,'chrome')['completed']);self.assertNotIn('PRIVATE',json.dumps(result))
+    def test_clock_projection_unknowns_and_nonfinite_values_cannot_define_timestamps(self):
+        raw=self.fixture()
+        for value in ('PRIVATE',True,False,-1,float('nan'),float('inf'),1e15+1):
+            raw['nativePeerMovementDiagnostic']={'native':{'commandIssuedAtMs':value,'diagnosticReadAtMs':value,'unknownClock':'PRIVATE'}}
+            result=module.curate(raw,'chrome')['nativePeerMovementDiagnostic']['native']
+            self.assertIsNone(result['commandIssuedAtMs']);self.assertIsNone(result['diagnosticReadAtMs']);self.assertNotIn('PRIVATE',json.dumps(result))
+    def test_new_clock_fields_are_optional_diagnostics_and_never_turn_failed_core_green(self):
+        raw=self.fixture();raw['completed']=False
+        raw['nativePeerMovementDiagnostic']={'native':{'commandIssuedAtMs':123,'diagnosticReadAtMs':456}}
+        self.assertFalse(module.curate(raw,'chrome')['completed'])
+        raw['nativePeerMovementDiagnostic']={'native':{'status':'missing'}}
+        result=module.curate(raw,'chrome')['nativePeerMovementDiagnostic']['native']
+        self.assertIsNone(result['commandIssuedAtMs']);self.assertIsNone(result['diagnosticReadAtMs'])
+
 if __name__=='__main__':unittest.main()

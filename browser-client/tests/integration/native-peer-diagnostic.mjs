@@ -46,6 +46,7 @@ export function projectNativePeerLog(text, { sequence, target, now = Date.now() 
     const age = stamp => stamp !== null && finiteTimestamp(now) !== null && now >= stamp ? now - stamp : null;
     return {
         status: 'read', commandSequenceMatched: !!applied,
+        commandIssuedAtMs: applied ? finiteTimestamp(sequence) : null, diagnosticReadAtMs: finiteTimestamp(now),
         commandAppliedAtMs, commandAppliedAgeMs: age(commandAppliedAtMs),
         commandTargetDistance: applied ? distance(applied.data.position, target) : null,
         observationPresent: !!observation, observationAtMs, observationAgeMs: age(observationAtMs),

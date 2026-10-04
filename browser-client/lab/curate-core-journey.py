@@ -69,7 +69,7 @@ def peer_diagnostic(document):
     if isinstance(native,dict):
         item=booleans(native,('commandSequenceMatched','observationPresent','observationAfterCommand','tailTruncated'))
         if native.get('status') in ('read','missing','symlink-refused','not-regular','read-refused'):item['status']=native['status']
-        for key in ('commandAppliedAtMs','commandAppliedAgeMs','commandTargetDistance',
+        for key in ('commandIssuedAtMs','diagnosticReadAtMs','commandAppliedAtMs','commandAppliedAgeMs','commandTargetDistance',
                     'observationAtMs','observationAgeMs','observationTargetDistance','bytesRead'):
             limit=1e15 if key.endswith('AtMs') else 1024*1024 if key=='bytesRead' else 1e12
             item[key]=bounded(native.get(key),limit)
