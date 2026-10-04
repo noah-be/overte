@@ -49,6 +49,9 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Set Apple compiler budget
+        run: python3 ios/tools/ci-build-budget.py --jobs 2 --github-env "$GITHUB_ENV"
+
       - name: Fail closed without an explicit Qt cache key
         env:
           QT_CACHE_KEY: ${{ inputs.qt_cache_key }}
@@ -89,7 +92,7 @@ jobs:
           ios/build-ios.sh configure --platform device --client-graph 2>&1 | tee build-ios/ci-raw-diagnostics/configure.log
 
       - name: Build experimental full client
-        run: cmake --build build-ios/device --config Debug --target Overte 2>&1 | tee build-ios/ci-raw-diagnostics/xcode-build.log
+        run: cmake --build build-ios/device --config Debug --parallel "$OVERTE_IOS_BUILD_JOBS" --target Overte 2>&1 | tee build-ios/ci-raw-diagnostics/xcode-build.log
 
       - name: Package numbered unsigned client IPA
         env:

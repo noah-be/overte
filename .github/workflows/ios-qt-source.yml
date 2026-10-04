@@ -62,7 +62,8 @@ jobs:
         run: |
           ios/tools/build-qt-ios-from-source.sh \
             --work-root "$QT_WORK_ROOT" \
-            --install-root "$QT_INSTALL_ROOT"
+            --install-root "$QT_INSTALL_ROOT" \
+            --jobs 2
 
       - name: Validate restored or built Qt
         run: |

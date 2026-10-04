@@ -75,6 +75,9 @@ require_v8=0
 with_graphics_toolchain=False
 require_moltenvk=0
 client_graph=0
+build_jobs="${OVERTE_IOS_BUILD_JOBS-2}"
+[[ "$build_jobs" =~ ^[1-9][0-9]*$ ]] \
+    || fail "OVERTE_IOS_BUILD_JOBS must be a positive integer"
 
 while (($#)); do
     case "$1" in
@@ -327,6 +330,7 @@ resolve_dependencies() {
         --profile:host="$conan_profile" \
         --profile:build=default \
         --build=missing \
+        --conf:all="tools.build:jobs=$build_jobs" \
         --options="overte-ios-dependencies/*:with_graphics_toolchain=$with_graphics_toolchain" \
         --output-folder="$conan_output" \
         --format=json > "$conan_output/graph.json"
@@ -388,7 +392,8 @@ configure_project() {
 
 build_project() {
     configure_project
-    cmake --build "$build_dir" --config "$configuration" --target OverteIOSBootstrap
+    cmake --build "$build_dir" --config "$configuration" \
+        --parallel "$build_jobs" --target OverteIOSBootstrap
 }
 
 run_tests() {
