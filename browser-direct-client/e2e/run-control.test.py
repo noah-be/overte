@@ -17,11 +17,14 @@ runner = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(runner)
 
 HOLDER = """
-import fcntl,json,subprocess,sys,time
+import fcntl,importlib.util,json,subprocess,sys,time
 from pathlib import Path
 sys.path.insert(0,sys.argv[1])
 from manage import process_identity
 directory=Path(sys.argv[2]); corrupt=sys.argv[3]=='true'
+spec=importlib.util.spec_from_file_location('owned_holder_runner',sys.argv[4])
+runner=importlib.util.module_from_spec(spec);spec.loader.exec_module(runner)
+runner.REGISTRY=directory/'registry.json'
 with (directory/'run.lock').open('a') as lock:
  fcntl.flock(lock,fcntl.LOCK_EX)
  worker=subprocess.Popen([sys.executable,'-c',"import time;print('ready',flush=True);time.sleep(20)"],stdout=subprocess.PIPE,text=True)
@@ -29,7 +32,9 @@ with (directory/'run.lock').open('a') as lock:
   assert worker.stdout.readline().strip()=='ready'
   identity=process_identity(worker.pid)
   if corrupt: identity['startTicks']=str(int(identity['startTicks'])+1)
-  (directory/'registry.json').write_text(json.dumps({'driver':{'parent':identity,'children':[]}}))
+  # Match the production launcher's atomic publication, including final cleanup.
+  # A reader must never observe the fixture's truncate/write window.
+  runner.save({'driver':{'parent':identity,'children':[]}})
   print('ready',flush=True)
   if corrupt:
    time.sleep(.5)
@@ -40,7 +45,7 @@ with (directory/'run.lock').open('a') as lock:
  finally:
   if worker.poll() is None: worker.terminate();worker.wait(timeout=2)
   worker.stdout.close()
-  (directory/'registry.json').write_text('{}')
+  runner.save({})
 """
 
 
@@ -134,7 +139,8 @@ class ActiveStopTests(unittest.TestCase):
         parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         with tempfile.TemporaryDirectory(prefix="runner-stop-regression-", dir=parent) as temporary:
             directory = Path(temporary)
-            holder = subprocess.Popen([sys.executable, "-c", HOLDER, str(runner.LAB), str(directory), str(corrupt).lower()],
+            holder = subprocess.Popen([sys.executable, "-c", HOLDER, str(runner.LAB), str(directory), str(corrupt).lower(),
+                                       str(Path(__file__).with_name("run.py"))],
                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=runner.CLIENT)
             try:
                 self.assertEqual(holder.stdout.readline().strip(), "ready")
