@@ -1,6 +1,7 @@
 // Copyright 2026 Overte contributors
 // SPDX-License-Identifier: Apache-2.0
 // Exact historical V30 CPU sources only; never imported by shipping runners.
+import {recoverCaptureV31Input} from './capture-movement-input-source-fixture.mjs';
 import {open,realpath} from 'node:fs/promises';
 import {constants} from 'node:fs';
 import {fileURLToPath} from 'node:url';
@@ -28,6 +29,7 @@ export async function readCaptureV30History(){
 }
 export async function readCaptureV30Source(relative){if(!Object.hasOwn(BEFORE,relative))refuse();return(await readCaptureV30History()).files[relative].source;}
 export async function recoverCaptureV30Input(relative,bytes){
+ bytes=await recoverCaptureV31Input(relative,bytes);
  if(!Buffer.isBuffer(bytes))refuse();if(!Object.hasOwn(CURRENT,relative))return bytes;
  const h=sha(bytes);if(h===BEFORE[relative]||HISTORICAL[relative]?.includes(h))return bytes;if(h!==CURRENT[relative])refuse();return Buffer.from(await readCaptureV30Source(relative));
 }

@@ -115,6 +115,16 @@ def curate(document,engine):
         if entry['name']=='stable-real-connection':item.update(numeric_fields(entry,('connectedSeconds',)))
         if entry['name']=='movement-measured':
             item['renderPerformance']=numeric_fields(entry.get('performance'),('fps','p95FrameMs','maximumFrameMs','drawCalls','triangles'))
+            performance=entry.get('performance')
+            surface=performance.get('initialSurfaceWait') if isinstance(performance,dict) else None
+            if isinstance(surface,dict):
+                item['initialSurfaceWait']={key:surface[key] for key in ('verified','waiting','expired') if type(surface.get(key)) is bool}
+                if (started:=number(surface.get('startedAt'))) is not None:item['initialSurfaceWait']['startedAtMs']=started
+            presentation=entry.get('browserPresentation')
+            if isinstance(presentation,dict):
+                item['browserPresentation']={}
+                if presentation.get('visibility') in ('visible','hidden','prerender'):item['browserPresentation']['visibility']=presentation['visibility']
+                if type(presentation.get('focused')) is bool:item['browserPresentation']['focused']=presentation['focused']
         for audio in ('nativeOutput','browserOutput'):
             if audio in entry:item[audio]=numeric_fields(entry[audio],('rms','peak','bytes','tone440Amplitude','tone997Amplitude'))
         result['checkpoints'].append(item)

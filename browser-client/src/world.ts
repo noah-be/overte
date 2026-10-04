@@ -1721,11 +1721,20 @@ export class BrowserWorld {
       if (event.ctrlKey || event.metaKey || event.altKey || (event.code === 'Space' && event.target instanceof HTMLButtonElement)) return;
       if (!this.enabled || !this.inputEnabled || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement) return;
       if (!controlled.has(event.code)) return;
+      // Advance the old input state before changing it: a complete press can
+      // arrive between render frames on a busy software renderer. The shared
+      // clock retains its 250 ms clamp and collision/support safeguards.
+      if (!this.disposed && !this.abort.signal.aborted && Number.isFinite(event.timeStamp) && event.timeStamp >= 0) this.advanceMovement(event.timeStamp);
       event.preventDefault(); this.keys.add(event.code);
       if (event.code === 'KeyE' && !event.repeat) this.interact();
       if (event.code === 'KeyV' && !event.repeat) { this.thirdPerson = !this.thirdPerson; this.self.visible = this.thirdPerson && this.self.userData.shadersReady === true; }
     }, eventOptions);
-    window.addEventListener('keyup', event => this.keys.delete(event.code), eventOptions);
+    window.addEventListener('keyup', event => {
+      try {
+        if (this.keys.has(event.code) && !this.disposed && !this.abort.signal.aborted && this.enabled && this.inputEnabled
+            && Number.isFinite(event.timeStamp) && event.timeStamp >= 0) this.advanceMovement(event.timeStamp);
+      } finally { this.keys.delete(event.code); }
+    }, eventOptions);
     const releaseInput = () => { this.keys.clear(); this.touchMove.set(0, 0); this.touchOrigin = undefined; this.touchLast = undefined; this.simulationClock.reset(); };
     window.addEventListener('blur', releaseInput, eventOptions);
     document.addEventListener('visibilitychange', () => { if (document.hidden) releaseInput(); }, eventOptions);
@@ -1818,6 +1827,25 @@ export class BrowserWorld {
     }
   }
 
+  /** Both input transitions and rendered frames consume the same bounded clock. */
+  private advanceMovement(time: number, ticks = this.simulationClock.advance(time)): void {
+    if (!this.enabled) return;
+    const needsSupport = this.initialSurfaceWait.needsSupport;
+    const pendingSurface = needsSupport && this.pendingModelColliders.some(collider => !this.meshCollisions.has(collider.id)
+      && !this.objects.get(collider.id)?.userData.modelFailed && !!resolveCollision(this.position, collider));
+    let actualSupport = false;
+    if (needsSupport) {
+      for (const { value } of this.meshCollisions.values()) {
+        if (value.supports(this.position)) { actualSupport = true; break; }
+      }
+  }
+  const surface = this.initialSurfaceWait.update(time, pendingSurface, actualSupport);
+  if (surface.started) this.options.onStatus('Loading the walkable geometry around you…', 'info');
+  const waitForSurface = surface.waiting;
+  for (let tick = 0; tick < ticks; tick++) this.simulateMovement(this.simulationClock.stepSeconds, waitForSurface);
+  if (this.position.y < this.spawn.y - 100) { this.setSpawn(this.spawn); this.options.onStatus('Returned to spawn after falling outside the world.', 'warning'); }
+  }
+
   private animate(time: number): void {
     if (this.disposed) return;
     const cpuLoadState=this.cpuFrameTiming||this.renderCpuTiming?this.modelScheduler.stats:undefined;
@@ -1828,20 +1856,7 @@ export class BrowserWorld {
     const ticks = this.simulationClock.advance(time);
     this.cpuFrameTiming?.segment(cpuSample,'setup');
     if (this.enabled) {
-      const needsSupport = this.initialSurfaceWait.needsSupport;
-      const pendingSurface = needsSupport && this.pendingModelColliders.some(collider => !this.meshCollisions.has(collider.id)
-        && !this.objects.get(collider.id)?.userData.modelFailed && !!resolveCollision(this.position, collider));
-      let actualSupport = false;
-      if (needsSupport) {
-        for (const { value } of this.meshCollisions.values()) {
-          if (value.supports(this.position)) { actualSupport = true; break; }
-        }
-      }
-      const surface = this.initialSurfaceWait.update(time, pendingSurface, actualSupport);
-      if (surface.started) this.options.onStatus('Loading the walkable geometry around you…', 'info');
-      const waitForSurface = surface.waiting;
-      for (let tick = 0; tick < ticks; tick++) this.simulateMovement(this.simulationClock.stepSeconds, waitForSurface);
-      if (this.position.y < this.spawn.y - 100) { this.setSpawn(this.spawn); this.options.onStatus('Returned to spawn after falling outside the world.', 'warning'); }
+      this.advanceMovement(time, ticks);
       if (time - this.lastPose > 50) { this.options.onPose(this.getPose()); this.lastPose = time; }
     }
     this.cpuFrameTiming?.segment(cpuSample,'physicsPose');
