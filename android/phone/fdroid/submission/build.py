@@ -203,6 +203,11 @@ def write_reproducible_cmake(args):
         if any(c in old + new for c in ('"', ';', '$', '\\', '\n', '\r')):
             raise ValueError('unsafe compiler path mapping')
         lines.append(f'add_compile_options("-ffile-prefix-map={old}={new}")')
+    # AGP puts CMake output below a checkout-dependent .cxx configuration hash.
+    # Mapping ROOT alone leaves that hash in generated __FILE__ strings and
+    # DW_AT_comp_dir, which also changes the linker's build ID before stripping.
+    # Keep this most-specific mapping last so it wins over the checkout map.
+    lines.append('add_compile_options("-ffile-prefix-map=${CMAKE_BINARY_DIR}=/usr/src/overte-build/app")')
     output.write_text('\n'.join(lines) + '\n')
     return output
 

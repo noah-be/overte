@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -29,6 +30,38 @@ builder, staging = load('build'), load('stage')
 
 
 class BuildContractTests(unittest.TestCase):
+    @unittest.skipUnless(shutil.which('cmake') and shutil.which('c++'), 'requires CMake and a C++ compiler')
+    def test_generated_source_and_debug_build_id_ignore_cmake_directory_hash(self):
+        # Exercise the actual generated flags with two different checkout and
+        # AGP-style CMake paths. Debug information participates in the build ID.
+        with tempfile.TemporaryDirectory() as temporary:
+            artifacts = []
+            for label, config_hash in [('a', '6s2p13z2'), ('b', 'different-hash')]:
+                root = Path(temporary) / label / 'checkout'
+                work = root.parent / 'build-work'
+                root.mkdir(parents=True)
+                work.mkdir()
+                args = argparse.Namespace(work_dir=work, sdk=Path('/opt/android-sdk'))
+                with patch.object(builder, 'ROOT', root):
+                    flags = builder.write_reproducible_cmake(args)
+                (root / 'CMakeLists.txt').write_text(
+                    'cmake_minimum_required(VERSION 3.16)\n'
+                    'project(path_fixture LANGUAGES CXX)\n'
+                    f'include("{flags}")\n'
+                    'file(WRITE "${CMAKE_BINARY_DIR}/generated.cpp" '
+                    '"extern \\\"C\\\" const char* generated_path() { return __FILE__; }\\n")\n'
+                    'add_library(fixture SHARED "${CMAKE_BINARY_DIR}/generated.cpp")\n'
+                    'target_link_options(fixture PRIVATE "-Wl,--build-id=sha1")\n')
+                output = root / '.cxx' / 'RelWithDebInfo' / config_hash / 'abi'
+                for command in [
+                    ['cmake', '-S', str(root), '-B', str(output), '-DCMAKE_BUILD_TYPE=RelWithDebInfo'],
+                    ['cmake', '--build', str(output)],
+                ]:
+                    subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                artifacts.append((output / 'libfixture.so').read_bytes())
+            self.assertIn(b'/usr/src/overte-build/app/generated.cpp', artifacts[0])
+            self.assertEqual(artifacts[0], artifacts[1])
+
     def test_approved_release_identity_is_consistent_across_app_and_store(self):
         package = 'io.github.noah_be.overte.phone'
         title = 'Overte Mobile (Unofficial)'
