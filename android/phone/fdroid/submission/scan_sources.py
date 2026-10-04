@@ -2,10 +2,11 @@
 # SPDX-License-Identifier: Apache-2.0
 """Expose locked native archives to F-Droid's source scanner before compilation.
 
-The archive cache remains outside the checkout. Its complete expanded view is
-inside the checkout, with a content inventory bound to the archive digests.
-Compilation refuses a missing or changed view, including scanner deletions:
-it must never restore rejected files silently from an unscanned archive.
+The archive cache remains outside the checkout. All native archives are expanded
+inside the checkout and cleaned using the explicit, content-bound policy before
+inventorying. Conan applies the same exclusions to actual compiler sources.
+Compilation refuses unexpected changes to the inventoried view, including
+scanner deletions; raw archives must never silently restore rejected files.
 """
 import hashlib
 import json
@@ -14,6 +15,68 @@ import os
 import stat
 import tarfile
 import zipfile
+
+
+def load_policy(path, manifest=None):
+    policy = json.loads(Path(path).read_text())
+    if policy.get('schema_version') != 1:
+        raise ValueError('unsupported source scan policy')
+    if manifest is not None and digest(manifest) != policy['source_manifest_sha256']:
+        raise ValueError('source cleanup policy does not match locked manifest')
+    seen = set()
+    for rule in policy['remove'] + policy['scanignore']:
+        for key in ('archive_path', 'compiler_suffix'):
+            relative = Path(rule[key])
+            if relative.is_absolute() or '..' in relative.parts or not relative.parts:
+                raise ValueError('unsafe source cleanup path')
+        identity = (rule['archive_sha256'], rule['archive_path'])
+        if identity in seen:
+            raise ValueError('duplicate source cleanup rule')
+        seen.add(identity)
+    return policy
+
+
+def clean_view(root, policy):
+    """Only exact, content-bound removals; preserve source and license files."""
+    for rule in policy['remove'] + policy['scanignore']:
+        path = root / rule['archive_sha256'] / rule['archive_path']
+        if path.is_symlink() or not path.is_file() or digest(path) != rule['sha256']:
+            raise ValueError('source cleanup rule is stale: ' + rule['archive_path'])
+    # Validate every rule before changing any file.
+    for rule in policy['remove']:
+        (root / rule['archive_sha256'] / rule['archive_path']).unlink()
+
+
+def clean_compiler_sources(root, reference, policy):
+    """Apply the same exclusions after Conan source() and before any build().
+
+    Recipes may put their extracted archive below an additional source directory;
+    a full relative suffix plus SHA-256 binds each exclusion. Qt's composed module
+    prefix is explicitly recorded in the policy. Missing inputs may already have
+    been excluded by a recipe, but changed matching inputs fail closed.
+    """
+    rules = [rule for rule in policy['remove'] if rule['reference'] == reference]
+    by_name = {}
+    for rule in rules:
+        by_name.setdefault(Path(rule['compiler_suffix']).name, []).append(rule)
+    remove = []
+    for directory, dirs, files in os.walk(root, followlinks=False):
+        for name in files:
+            if name not in by_name:
+                continue
+            path = Path(directory) / name
+            relative = path.relative_to(root).as_posix()
+            for rule in by_name[name]:
+                suffix = rule['compiler_suffix']
+                if relative != suffix and not relative.endswith('/' + suffix):
+                    continue
+                if path.is_symlink() or digest(path) != rule['sha256']:
+                    raise ValueError('compiler source cleanup input changed: ' + relative)
+                remove.append(path)
+                break
+    for path in remove:
+        path.unlink()
+    return len(remove)
 
 
 def digest(path):
@@ -57,7 +120,7 @@ def unpack(archive, destination):
             source.extractall(destination, filter='data')
 
 
-def expand(document, store, destination, checkout):
+def expand(document, store, destination, checkout, policy=None):
     destination = destination.resolve()
     if not destination.is_relative_to(checkout.resolve()) or destination == checkout.resolve():
         raise ValueError('expanded sources must be inside the scanned checkout')
@@ -72,6 +135,8 @@ def expand(document, store, destination, checkout):
             raise ValueError('source archive changed before expansion')
         unpack(archive, destination / sha)
         archives[sha] = source['store_path']
+    if policy is not None:
+        clean_view(destination, policy)
     record = {'archives': archives, 'files': inventory(destination)}
     (destination / 'inventory.json').write_text(json.dumps(record, sort_keys=True) + '\n')
     return digest(destination / 'inventory.json')

@@ -18,7 +18,7 @@ Binaries:
 Builds:
   - versionName: 0.1.3
     versionCode: 4
-    disable: Local review candidate; source scan and new release qualification pending
+    disable: Local review candidate; cleanup and new release build qualification pending
     commit: @COMMIT@
     timeout: 36000
     subdir: android/phone
@@ -47,6 +47,271 @@ Builds:
       - tools/nitpick/AppDataHighFidelity/assignment-client/entities/models.json.gz
       - tools/nitpick/AppDataHighFidelity/domain-server/entities/models.json.gz
       - unpublishedScripts/marketplace/doppleganger-attachments/package.json
+    scanignore:
+      - fdroid-source-closure/123ae8e7ef24db9b14d7a6b781253feedde1996285c7c615af5f6cd74ba06a04/qtwebchannel-2a157921861e651f43456cb7941b250c89feb736/examples/webchannel/nodejs/package.json
+      - fdroid-source-closure/123ae8e7ef24db9b14d7a6b781253feedde1996285c7c615af5f6cd74ba06a04/qtwebchannel-2a157921861e651f43456cb7941b250c89feb736/examples/webchannel/qwclient/package.json
+      - fdroid-source-closure/342300656bfdafb6cc09325bdd0fd507366ecaa6be25fa4525f50889adf7c606/meson-1.6.0/test cases/rust/22 cargo subproject/subprojects/bar-0.1-rs/Cargo.toml
+      - fdroid-source-closure/342300656bfdafb6cc09325bdd0fd507366ecaa6be25fa4525f50889adf7c606/meson-1.6.0/test cases/rust/22 cargo subproject/subprojects/foo-0-rs/Cargo.toml
+      - fdroid-source-closure/446b288fe76d3f31bbf9a405d62b97020ac0f135edb0ed5dbdf1136c488138f5/SPIRV-Tools-vulkan-sdk-1.4.350.0/source/wasm/package.json
+      - fdroid-source-closure/446b288fe76d3f31bbf9a405d62b97020ac0f135edb0ed5dbdf1136c488138f5/SPIRV-Tools-vulkan-sdk-1.4.350.0/utils/vscode/package.json
+      - fdroid-source-closure/510bf1496d27cfd9625c696ae03914ec6bc4bf1b678b19f7c83459cb6e96dba6/qtscxml-57491f554bc53bd020978b5744437b7ac7e56a27/tests/3rdparty/scion-tests/scxml-test-framework/package.json
+      - fdroid-source-closure/563e61d70febb514138af0fac36b97621e01a4aacbca07b86e7bd95b85055ba0/hwloc-2.12.2/contrib/hwloc-ps.www/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/acorn/acorn-walk/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/acorn/acorn/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/amaro/dist/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/amaro/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/corepack/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/@isaacs/cliui/node_modules/ansi-regex/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/@isaacs/cliui/node_modules/emoji-regex/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/@isaacs/cliui/node_modules/string-width/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/@isaacs/cliui/node_modules/strip-ansi/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/@isaacs/cliui/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/@isaacs/fs-minipass/dist/commonjs/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/@isaacs/fs-minipass/dist/esm/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/@isaacs/fs-minipass/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/@isaacs/string-locale-compare/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/@npmcli/agent/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/@npmcli/arborist/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/@npmcli/config/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/@npmcli/fs/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/@npmcli/git/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/@npmcli/installed-package-contents/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/@npmcli/map-workspaces/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/@npmcli/metavuln-calculator/node_modules/pacote/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/@npmcli/metavuln-calculator/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/@npmcli/name-from-folder/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/@npmcli/node-gyp/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/@npmcli/package-json/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/@npmcli/promise-spawn/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/@npmcli/query/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/@npmcli/redact/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/@npmcli/run-script/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/@pkgjs/parseargs/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/@sigstore/bundle/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/@sigstore/core/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/@sigstore/protobuf-specs/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/@sigstore/sign/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/@sigstore/tuf/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/@sigstore/verify/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/@tufjs/canonical-json/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/abbrev/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/agent-base/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/ansi-regex/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/ansi-styles/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/aproba/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/archy/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/balanced-match/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/bin-links/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/binary-extensions/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/brace-expansion/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/cacache/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/chalk/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/chownr/dist/commonjs/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/chownr/dist/esm/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/chownr/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/ci-info/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/cidr-regex/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/cli-columns/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/cmd-shim/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/color-convert/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/color-name/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/common-ancestor-path/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/cross-spawn/node_modules/which/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/cross-spawn/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/cssesc/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/debug/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/diff/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/eastasianwidth/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/emoji-regex/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/encoding/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/env-paths/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/err-code/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/exponential-backoff/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/fastest-levenshtein/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/fdir/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/foreground-child/dist/commonjs/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/foreground-child/dist/esm/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/foreground-child/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/fs-minipass/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/glob/dist/commonjs/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/glob/dist/esm/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/glob/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/graceful-fs/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/hosted-git-info/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/http-cache-semantics/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/http-proxy-agent/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/https-proxy-agent/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/iconv-lite/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/ignore-walk/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/imurmurhash/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/ini/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/init-package-json/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/ip-address/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/ip-regex/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/is-cidr/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/is-fullwidth-code-point/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/isexe/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/jackspeak/dist/commonjs/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/jackspeak/dist/esm/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/jackspeak/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/json-parse-even-better-errors/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/json-stringify-nice/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/jsonparse/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/just-diff-apply/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/just-diff/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/libnpmaccess/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/libnpmdiff/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/libnpmexec/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/libnpmfund/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/libnpmhook/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/libnpmorg/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/libnpmpack/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/libnpmpublish/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/libnpmsearch/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/libnpmteam/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/libnpmversion/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/lru-cache/dist/commonjs/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/lru-cache/dist/esm/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/lru-cache/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/make-fetch-happen/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/minimatch/dist/commonjs/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/minimatch/dist/esm/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/minimatch/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/minipass-collect/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/minipass-fetch/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/minipass-flush/node_modules/minipass/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/minipass-flush/node_modules/yallist/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/minipass-flush/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/minipass-pipeline/node_modules/minipass/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/minipass-pipeline/node_modules/yallist/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/minipass-pipeline/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/minipass-sized/node_modules/minipass/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/minipass-sized/node_modules/yallist/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/minipass-sized/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/minipass/dist/commonjs/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/minipass/dist/esm/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/minipass/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/minizlib/dist/commonjs/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/minizlib/dist/esm/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/minizlib/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/ms/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/mute-stream/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/negotiator/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/node-gyp/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/nopt/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/normalize-package-data/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/npm-audit-report/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/npm-bundled/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/npm-install-checks/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/npm-normalize-package-bin/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/npm-package-arg/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/npm-packlist/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/npm-pick-manifest/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/npm-profile/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/npm-registry-fetch/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/npm-user-validate/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/p-map/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/package-json-from-dist/dist/commonjs/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/package-json-from-dist/dist/esm/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/package-json-from-dist/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/pacote/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/parse-conflict-json/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/path-key/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/path-scurry/dist/commonjs/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/path-scurry/dist/esm/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/path-scurry/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/picomatch/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/postcss-selector-parser/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/proc-log/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/proggy/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/promise-all-reject-late/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/promise-call-limit/dist/commonjs/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/promise-call-limit/dist/esm/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/promise-call-limit/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/promise-retry/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/promzard/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/qrcode-terminal/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/read-cmd-shim/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/read-package-json-fast/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/read/dist/commonjs/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/read/dist/esm/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/read/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/retry/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/safer-buffer/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/semver/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/shebang-command/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/shebang-regex/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/signal-exit/dist/cjs/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/signal-exit/dist/mjs/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/signal-exit/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/sigstore/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/smart-buffer/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/socks-proxy-agent/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/socks/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/spdx-correct/node_modules/spdx-expression-parse/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/spdx-correct/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/spdx-exceptions/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/spdx-expression-parse/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/spdx-license-ids/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/ssri/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/string-width-cjs/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/string-width/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/strip-ansi-cjs/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/strip-ansi/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/supports-color/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/tar/dist/commonjs/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/tar/dist/esm/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/tar/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/text-table/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/tiny-relative-date/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/tinyglobby/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/treeverse/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/tuf-js/node_modules/@tufjs/models/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/tuf-js/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/unique-filename/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/unique-slug/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/util-deprecate/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/validate-npm-package-license/node_modules/spdx-expression-parse/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/validate-npm-package-license/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/validate-npm-package-name/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/walk-up-path/dist/cjs/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/walk-up-path/dist/mjs/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/walk-up-path/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/which/node_modules/isexe/dist/commonjs/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/which/node_modules/isexe/dist/esm/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/which/node_modules/isexe/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/which/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/wrap-ansi-cjs/node_modules/ansi-styles/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/wrap-ansi-cjs/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/wrap-ansi/node_modules/ansi-regex/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/wrap-ansi/node_modules/emoji-regex/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/wrap-ansi/node_modules/string-width/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/wrap-ansi/node_modules/strip-ansi/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/wrap-ansi/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/write-file-atomic/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/yallist/dist/commonjs/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/yallist/dist/esm/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/node_modules/yallist/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/npm/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/undici/src/package.json
+      - fdroid-source-closure/5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb/node-22.22.3/deps/v8/third_party/ittapi/ittapi-rs/Cargo.toml
+      - fdroid-source-closure/7890287d911dd4ee1ebd0efb61ed0321bfcd87c725df923a837cf90c6508f96b/meson-1.10.2/test cases/rust/22 cargo subproject/subprojects/bar-0.1-rs/Cargo.toml
+      - fdroid-source-closure/7890287d911dd4ee1ebd0efb61ed0321bfcd87c725df923a837cf90c6508f96b/meson-1.10.2/test cases/rust/22 cargo subproject/subprojects/common-0-rs/Cargo.toml
+      - fdroid-source-closure/7890287d911dd4ee1ebd0efb61ed0321bfcd87c725df923a837cf90c6508f96b/meson-1.10.2/test cases/rust/22 cargo subproject/subprojects/foo-0-rs/Cargo.toml
+      - fdroid-source-closure/7890287d911dd4ee1ebd0efb61ed0321bfcd87c725df923a837cf90c6508f96b/meson-1.10.2/test cases/rust/22 cargo subproject/subprojects/libname-1-rs/Cargo.toml
+      - fdroid-source-closure/7890287d911dd4ee1ebd0efb61ed0321bfcd87c725df923a837cf90c6508f96b/meson-1.10.2/test cases/rust/22 cargo subproject/subprojects/unixdep-0.1-rs/Cargo.toml
+      - fdroid-source-closure/7890287d911dd4ee1ebd0efb61ed0321bfcd87c725df923a837cf90c6508f96b/meson-1.10.2/test cases/rust/26 cargo system deps/subprojects/sub-1-rs/Cargo.toml
+      - fdroid-source-closure/7890287d911dd4ee1ebd0efb61ed0321bfcd87c725df923a837cf90c6508f96b/meson-1.10.2/test cases/rust/32 cargo workspace/subprojects/foo/Cargo.toml
+      - fdroid-source-closure/7890287d911dd4ee1ebd0efb61ed0321bfcd87c725df923a837cf90c6508f96b/meson-1.10.2/test cases/rust/32 cargo workspace/subprojects/foo/src/foo/Cargo.toml
+      - fdroid-source-closure/7890287d911dd4ee1ebd0efb61ed0321bfcd87c725df923a837cf90c6508f96b/meson-1.10.2/test cases/rust/32 cargo workspace/subprojects/foo/src/member1/Cargo.toml
+      - fdroid-source-closure/7890287d911dd4ee1ebd0efb61ed0321bfcd87c725df923a837cf90c6508f96b/meson-1.10.2/test cases/rust/32 cargo workspace/subprojects/foo/subprojects/member2-1.0/Cargo.toml
+      - fdroid-source-closure/7890287d911dd4ee1ebd0efb61ed0321bfcd87c725df923a837cf90c6508f96b/meson-1.10.2/test cases/rust/33 cargo multiple versions/subprojects/foo-1-rs/Cargo.toml
+      - fdroid-source-closure/7890287d911dd4ee1ebd0efb61ed0321bfcd87c725df923a837cf90c6508f96b/meson-1.10.2/test cases/rust/33 cargo multiple versions/subprojects/foo-2-rs/Cargo.toml
+      - fdroid-source-closure/7890287d911dd4ee1ebd0efb61ed0321bfcd87c725df923a837cf90c6508f96b/meson-1.10.2/test cases/rust/33 cargo multiple versions/subprojects/main/Cargo.toml
+      - fdroid-source-closure/a3ac692397574166ad99493ff1efcd7b5c69b580e7eb4500d5d181b2f676aa6e/draco-1.3.5/javascript/npm/draco3d/package.json
+      - fdroid-source-closure/a3ac692397574166ad99493ff1efcd7b5c69b580e7eb4500d5d181b2f676aa6e/draco-1.3.5/javascript/npm/draco3dgltf/package.json
+      - fdroid-source-closure/a3ac692397574166ad99493ff1efcd7b5c69b580e7eb4500d5d181b2f676aa6e/draco-1.3.5/javascript/npm/draco_animation/package.json
+      - fdroid-source-closure/bdbd3a1eab033385cccf672da5bc9ab1e20e4edefb41d6674f2c3d9ee2388fc3/qtbase-bebdfd54917e25d1c100e6bd9f5dd53c2e645fd8/src/android/java/src/org/qtproject/qt5/android/bindings/QtLoader.java
     build:
       - export PATH="$HOME/.overte-fdroid/conan/bin:$PATH"
       - python3 fdroid/submission/build.py --build-only --commit $$COMMIT$$ --version-code $$VERCODE$$
@@ -67,8 +332,11 @@ MaintainerNotes: |
   loopback-only network. There is no online compilation fallback.
   The 36000-second limit is a ceiling, not a measured official-buildserver result.
   Standard Debian trixie tools are used; no repository code runs under sudo.
-  scandelete lists only the existing unused application test/manifests; new
-  dependency-source scan findings must be resolved before enabling this candidate.
+  Exact-file scanignore entries cover pinned vendored package manifests and the
+  standard Qt Java loader; they do not hide library source directories or binaries.
+  source-scan-policy.json removes content-bound binary fixtures/platform tools
+  in both the scanner view and Conan post_source, before compiling either context.
+  Full-build qualification after source cleanup is required before enabling.
   The maintainer-signed reference must match the source build and allowed key.
   Automatic updates select android-phone-release-v<versionName>+<versionCode>.
   Published 0.1.2 and its tag/reference must remain unchanged; this local candidate

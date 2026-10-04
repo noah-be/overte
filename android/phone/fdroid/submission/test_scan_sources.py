@@ -19,6 +19,58 @@ scan = builder.scan_sources
 
 
 class ScannerInputTests(unittest.TestCase):
+    def test_compiler_cleanup_removes_only_exact_content_bound_paths(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            binary = root / 'extra-source-prefix/tests/platform.exe'
+            binary.parent.mkdir(parents=True)
+            binary.write_bytes(b'fixture binary')
+            source = binary.with_suffix('.cpp')
+            source.write_text('int library() { return 1; }')
+            rule = {'reference': 'library/1', 'compiler_suffix': 'tests/platform.exe',
+                    'sha256': scan.digest(binary)}
+            policy = {'remove': [rule]}
+            self.assertEqual(0, scan.clean_compiler_sources(root, 'different/1', policy))
+            self.assertTrue(binary.exists())
+            self.assertEqual(1, scan.clean_compiler_sources(root, 'library/1', policy))
+            self.assertFalse(binary.exists())
+            self.assertTrue(source.exists())
+            self.assertEqual(0, scan.clean_compiler_sources(root, 'library/1', policy))
+
+    def test_cleanup_refuses_changed_files_before_removing_anything(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            binary = root / 'fixture.bin'
+            binary.write_bytes(b'original')
+            policy = {'remove': [{'reference': 'library/1',
+                                  'compiler_suffix': 'fixture.bin', 'sha256': scan.digest(binary)}]}
+            binary.write_bytes(b'different')
+            with self.assertRaisesRegex(ValueError, 'input changed'):
+                scan.clean_compiler_sources(root, 'library/1', policy)
+            self.assertEqual(b'different', binary.read_bytes())
+
+    def test_cleanup_rejects_symlink_targets(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / 'outside').write_bytes(b'original')
+            (root / 'fixture.bin').symlink_to(root / 'outside')
+            policy = {'remove': [{'reference': 'library/1',
+                                  'compiler_suffix': 'fixture.bin', 'sha256': scan.digest(root / 'outside')}]}
+            with self.assertRaisesRegex(ValueError, 'input changed'):
+                scan.clean_compiler_sources(root, 'library/1', policy)
+            self.assertTrue((root / 'outside').exists())
+
+    def test_candidate_exceptions_are_exact_source_manifests_or_qt_loader(self):
+        policy = scan.load_policy(HERE / 'source-scan-policy.json',
+                                  HERE.parent / 'manifests/source-closure.lock.json')
+        template = (HERE / 'metadata/io.github.noah_be.overte.phone.yml.in').read_text()
+        for rule in policy['scanignore']:
+            self.assertIn(Path(rule['archive_path']).name,
+                          ['package.json', 'Cargo.toml', 'QtLoader.java'])
+            self.assertNotIn('*', rule['archive_path'])
+            self.assertIn('fdroid-source-closure/' + rule['archive_sha256'] + '/' +
+                          rule['archive_path'], template)
+
     def fixture(self, root):
         archive = root / 'source.tar.gz'
         with tarfile.open(archive, 'w:gz') as out:

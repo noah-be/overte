@@ -92,15 +92,16 @@ Debian tools, not the dependency graph's source identity.
 
 **Current validation boundary:** the published 0.1.2 reference remains tied to
 `cd08e500d73d661c6050a8f3ad4c45921c03770c`. This review follow-up is a disabled
-0.1.3 (4) candidate. Source-scan findings, a clean build and a new signed reference
-must be resolved before enabling it. Do not replace the existing 0.1.2 tag or APK.
+0.1.3 (4) candidate. The proposed scanner exceptions need review; a clean build,
+reproducibility comparison and new signed reference are required before enabling it. Do not replace the existing 0.1.2 tag or APK.
 The 36000-second timeout is an upper limit, not evidence of performance on the
 official buildserver. No successful shared-runner/official-server test is claimed.
 
 The work directory, Conan cache and Gradle home stay outside the checkout.
 `prebuild` calls `--acquire-only`: it downloads the hash-locked archives and
 Gradle inputs, prepares the dependency source caches, and expands all native
-source archives into `fdroid-source-closure/` inside the checkout. F-Droid's
+source archives into `fdroid-source-closure/` inside the checkout, applying the
+content-bound cleanup in `source-scan-policy.json`. F-Droid's
 normal source scanner therefore sees those sources before `build` is invoked.
 No broad `scanignore` is added. The expanded view and the original archives are
 bound by a recorded inventory, which is checked again before compilation.
@@ -112,11 +113,29 @@ re-extracting rejected files from the archive cache is deliberately prohibited.
 Unexpected findings must be resolved in the source closure and its preparation,
 not hidden by deleting just the scanner view or restoring the original blobs.
 
-A local scan of the expanded retained 0.1.2 dependency archives exposed 1812 fatal
-findings, including native test fixtures, prebuilt tools and vendored manifests.
-The Qt source wrapper is also removed by the scanner. The draft therefore stays
-disabled: a complete scan-visible build path needs reviewed dependency cleanup,
-not just moving the download command. This is not a clean source-scan claim.
+The initial offline scan exposed 1812 fatal dependency-source findings. The
+candidate policy removes 1551 exact, SHA-256-bound binary fixtures/platform tools
+and unused Qt wrapper files. The same policy runs in Conan's actual `post_source`
+hook before dependency compilation, not only in the scanner view. A rehearsal
+on all 51 source-bearing recipes removed exactly the same 1551 files. This checks
+hook behavior and archive layouts; it does not prove a successful native build.
+
+The metadata proposes 264 exact-file scanner exceptions: 263 vendored
+`package.json`/`Cargo.toml` files and Qt's open-source `QtLoader.java`. The native
+recipes do not install npm/Cargo dependencies from those manifests; their bytes
+are part of the pinned native archive closure. Node is configured without npm
+and Corepack. Qt's standard Java loader triggers the dynamic-class-loader rule;
+the Phone app packages its Qt libraries locally. This exception is limited to
+that source file and does not assert that every Qt loader code path is disabled.
+There are no binary or whole-directory exceptions. The policy records each
+file's archive, recipe, content digest and reason; prebuild rejects stale rules.
+
+A local scan of the cleaned dependency view with these proposed exceptions
+returned zero fatal findings using the retained fdroidserver's bundled SUSS
+rules, offline. Warnings remain recorded in the local evidence. This is not
+acceptance by F-Droid or a scan using freshly downloaded rules. Full native build
+qualification must establish that the exclusions do not remove a required build
+input, followed by independent APK comparison and candidate device checks.
 
 `build.py --check` verifies source coordinates, the SDK/toolchain and isolation
 without acquiring or compiling. On a host with networking it requires working
@@ -159,7 +178,7 @@ that this complete recipe passed a cold build.
 
 English text lives under `android/phone/fastlane/metadata/android/en-US/` and is
 copied into the submission by the staging helper. The store icon is a 512-pixel
-rendering of the [maintainer-supplied Navy artwork](../../branding/README.md),
+rendering of the [maintainer-supplied Deep Magenta artwork](../../branding/README.md),
 matching the Phone launcher and splash drawable, with metadata stripped.
 Only the approved author name and public profile are included; no private
 contact details or private device screenshots are included. Two maintainer-created
@@ -167,10 +186,11 @@ Phone screenshots are included in `images/phoneScreenshots/`: the beach view
 first, then the Overte sign. They were visually reviewed for private information;
 EXIF metadata was removed without changing image pixels.
 
-The maintainer approved the following release configuration:
+Current release configuration:
 
 - **Identity:** `Overte Mobile (Unofficial)`, application ID
-  `io.github.noah_be.overte.phone`, versionCode `1`, versionName `0.1.0`.
+  `io.github.noah_be.overte.phone`. Published version: `0.1.2` (3); disabled
+  review candidate: `0.1.3` (4).
   The internal Java/JNI namespace remains `org.overte.phone`; Android components
   therefore use fully qualified class names. Earlier local test APKs used a
   different application ID. They are separate installations, not upgrade inputs.
@@ -182,15 +202,15 @@ The maintainer approved the following release configuration:
   the description requires OpenGL ES 3.2 and does not list jumping separately.
 - **Device support:** API 26 minimum, target/compile API 36, ARM64 and OpenGL ES
   3.2. SDK/NDK/CMake versions and the existing eight scanner deletions remain
-  unchanged. The supplied Navy artwork and two maintainer-created Phone
+  unchanged. The supplied Deep Magenta artwork and two maintainer-created Phone
   screenshots are included.
-- **Signing:** normal F-Droid signing for the F-Droid release. The local Android
-  debug key remains test-only. Signing for any separate distribution channel
-  must be planned separately.
-- **Publication:** disabled draft, full commit binding, unsigned release APK,
-  twelve-hour build timeout and Android-specific tag update detection. The
-  current submission and existing tag use the earlier qualified toolchain.
-  Publish a newly validated source revision before updating that submission.
+- **Signing:** reproducible builds against the maintainer-signed published APK,
+  with `AllowedAPKSigningKeys` binding the established release certificate.
+  The local Android debug key remains test-only. No keys belong in the checkout.
+- **Publication:** disabled candidate, full commit binding, unsigned build output,
+  ten-hour timeout ceiling and Android-specific tag update detection. The
+  published 0.1.2 reference remains unchanged. Qualify the new source revision
+  before requesting approval to publish a new tag, signed reference or metadata.
 
 The [earlier qualification record](VALIDATION.md) documents the old test identity
 and is historical evidence, not validation of the renamed APK. On 2026-09-21,

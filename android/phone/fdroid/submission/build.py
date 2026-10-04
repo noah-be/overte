@@ -80,6 +80,7 @@ def environment(args):
         GRADLE_USER_HOME=str(args.work_dir / 'gradle-home'),
         JAVA_HOME=str(args.java_home),
         OVERTE_FDROID_STANDARD_TOOLCHAIN='1',
+        OVERTE_FDROID_SCAN_POLICY=str(FDROID / 'submission/source-scan-policy.json'),
     )
     env['PATH'] = os.pathsep.join([str(args.java_home / 'bin'),
                                     str(args.sdk / 'cmdline-tools/22.0/bin'),
@@ -153,13 +154,16 @@ def acquire(args, env):
     # retains its own empty-binary-cache and exact-lock checks at build time.
     run([FDROID / 'scripts/build-dependencies.sh', '--prepare'], env=env)
     document = json.loads((FDROID / 'manifests/source-closure.lock.json').read_text())
-    scan_sha = scan_sources.expand(document, args.source_store, args.scan_dir, ROOT)
+    policy_path = FDROID / 'submission/source-scan-policy.json'
+    policy = scan_sources.load_policy(policy_path, FDROID / 'manifests/source-closure.lock.json')
+    scan_sha = scan_sources.expand(document, args.source_store, args.scan_dir, ROOT, policy)
     (args.work_dir / 'acquired.json').write_text(json.dumps({
         'source_commit': args.commit, 'version_code': args.version_code,
         'version_name': args.version_name,
         'source_manifest_sha256': digest(FDROID / 'manifests/source-closure.lock.json'),
         'gradle_sha256': digest(archive),
         'scan_directory': str(args.scan_dir), 'scan_inventory_sha256': scan_sha,
+        'scan_policy_sha256': digest(policy_path),
     }, indent=2) + '\n')
     return gradle
 
@@ -173,6 +177,7 @@ def prepared_inputs(args):
     expected = {'source_commit': args.commit, 'version_code': args.version_code,
                 'version_name': args.version_name,
                 'source_manifest_sha256': digest(FDROID / 'manifests/source-closure.lock.json'),
+                'scan_policy_sha256': digest(FDROID / 'submission/source-scan-policy.json'),
                 'gradle_sha256': GRADLE_SHA256, 'scan_directory': str(args.scan_dir)}
     if any(record.get(key) != value for key, value in expected.items()):
         raise ValueError('prebuild identity differs from build inputs')
