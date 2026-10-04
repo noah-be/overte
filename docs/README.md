@@ -49,6 +49,7 @@ needs a native build, cache preparation, and staged gate activation.
 | Task | Start here |
 | --- | --- |
 | Understand components and source entry points | [Architecture](ARCHITECTURE.md) |
+| Build and host the browser client | [Browser client](browser-client/README.md) |
 | Select and run the relevant verification layer | [Project testing](../tests/PROJECT_TESTING.md) |
 | Work on a platform port | [Platform guides](interfaces/README.md) |
 | Build or test the experimental direct browser client | [Direct browser build guide](browser-direct-client/BUILD.md) |

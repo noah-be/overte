@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "materialAssistance": "OpenAI Codex",
+  "scope": "Unchanged genuine native seventeen-control/popup/Scan/hidden/leave/reconnect journey, isolated seven-entity Overte domain; no public-world mutation or hardware microphone.",
+  "popupSourceSHA256": "e8a5f612fd2dc2c88d22158fda763a11fa36183c266fb85b4fdb2f7245dce2c0",
+  "captureSHA256": "7f928cae36ed66bbaab7a87221dd72dd306b856662f426d7d8125e6335734247",
+  "driverSHA256": "446ce0cc522edeafff54d9ba200096abf21283345744420a942166c3d4525615",
+  "contractSHA256": "4e735855f1e721a0c8578bd4afd85f7e34f56a81b0bccfac664e9e1a29efaa85",
+  "parentSummarySHA256": "d5cb7fc8e67b951e4cbcbdc79e89e4a0d1f63e0ab56391e8a63fc8056f4525d7",
+  "sourceAndDistributionFiles": 312,
+  "cohorts": [
+    {
+      "engine": "firefox",
+      "browserVersion": "firefox/156.0",
+      "completed": true,
+      "controlAcceptance": true,
+      "controlEffects": 17,
+      "scanAcceptance": true,
+      "optionalApplyQualified": false,
+      "cleanupVerified": true,
+      "sevenBaselineUnchanged": true,
+      "sourceAttestation": true,
+      "stockExecutableObserved": true,
+      "ownedBrowserClosed": true,
+      "seconds": 167.778,
+      "rawReportSHA256": "aa5f6ab72ff11ae794ca80efd919417dbaade76df966b423ceb3486ad5644be0",
+      "paintedPopupChecks": 13,
+      "successfulWorldRendersDuringScan": 100,
+      "scanSpanMs": 2669,
+      "drawingBuffer": {
+        "width": 2133,
+        "height": 1500
+      },
+      "unchangedSettingsAndGraphicsRequests": true,
+      "genuineHiddenAndLeaveCancellation": true,
+      "optionalApplyPending": "The real managed view did not recommend reduction; no synthetic slow sample was used."
+    },
+    {
+      "engine": "chromium",
+      "browserVersion": "154.0.8037.57",
+      "completed": true,
+      "controlAcceptance": true,
+      "controlEffects": 17,
+      "scanAcceptance": true,
+      "optionalApplyQualified": false,
+      "cleanupVerified": true,
+      "sevenBaselineUnchanged": true,
+      "sourceAttestation": true,
+      "stockExecutableObserved": true,
+      "ownedBrowserClosed": true,
+      "seconds": 158.872,
+      "rawReportSHA256": "aced9fadf098ca2622f2777d9b1c9abb74f4e0d22498a60783301972b1ffe50d",
+      "paintedPopupChecks": 13,
+      "successfulWorldRendersDuringScan": 117,
+      "scanSpanMs": 2546.199999988079,
+      "drawingBuffer": {
+        "width": 2133,
+        "height": 1499
+      },
+      "unchangedSettingsAndGraphicsRequests": true,
+      "genuineHiddenAndLeaveCancellation": true,
+      "optionalApplyPending": "The real managed view did not recommend reduction; no synthetic slow sample was used."
+    }
+  ],
+  "nineManagedServicesPreserved": true,
+  "previousFailuresRetained": true,
+  "allOriginalAssertionsAndDeadlinesMaintained": true
+}

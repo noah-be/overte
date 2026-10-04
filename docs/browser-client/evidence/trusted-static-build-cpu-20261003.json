@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "dateUTC": "2026-10-03",
+  "materialAIAssistance": true,
+  "scope": "Actual existing trusted-network CPU build/authentication/refusal contracts with local static development dependencies; no profile/namespace/native/domain acceptance",
+  "tests": {
+    "pass": 17,
+    "fail": 0,
+    "skip": 0
+  },
+  "command": [
+    "OVERTE_SETUP_STATIC_LIBRARIES=<private reviewed archive directory>",
+    "python3",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "browser-client/tools/trusted-network/tests",
+    "-p",
+    "test_workflow.py",
+    "-v"
+  ],
+  "sourceOwnerAdmissionSHA256": "dd8a22af858d1efff0780aa528cb0ada39c56e8f25a4351776f28ab6058d276c",
+  "sourceLauncherSHA256": "16a6b1558c8b81c333e05d7622ed6acba0fb6f99fb5a483306c3780f0c516131",
+  "staticLibraries": {
+    "libc.a": {
+      "bytes": 30832908,
+      "sha256": "f92985edc21837751790e7fc14c32408cdda60fe405efc15c07e315bcfdbde0e"
+    },
+    "libcrypto.a": {
+      "bytes": 12215096,
+      "sha256": "cce5919e5009fa405f26fc28a005d532f39864f434bda3556b470f6f8ff3ef58"
+    }
+  },
+  "opensslSourceArchiveSHA256": "a8f84a39918ec6415ce765d9b429d313ba97b8143169c172e734b9514464f5b2",
+  "assertions": [
+    "Both actual entrypoints compile with existing strict flags and have no ELF interpreter.",
+    "Actual launcher static SHA256 agrees with independent empty/abc/binary known vectors.",
+    "Authenticated immutable bundle verifies; mutation, alias, oversized file and extra file refuse.",
+    "Untrusted LD_PRELOAD constructors cannot execute before fixed admission.",
+    "Missing installed profile and native capability boundary refuse before namespace/payload."
+  ],
+  "logSHA256": "e2a3a89cb5d910795f1dba090a2aedda503b2060810f3f4a6451f8f4c68b6090",
+  "sourceCoherent": true,
+  "managedBirthsUnchanged": true,
+  "limitations": [
+    "Static OpenSSL is unmodified upstream3.5.8 authenticated inside exact signed Fedora SRPM; not Fedora patched/shared/FIPS reproduction.",
+    "No system package or trusted prefix was installed.",
+    "Existing native zero-capability and QSaveFile persistence negatives remain.",
+    "No hosted Ubuntu or final native/browser acceptance is inferred."
+  ]
+}

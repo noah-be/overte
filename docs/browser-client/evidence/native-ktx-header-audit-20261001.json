@@ -1,0 +1,405 @@
+{
+  "scope": "Audit only: actual saved public Hub KTX bytes, no renderer or runtime changes",
+  "assets": [
+    {
+      "asset": "shrub-jungle-leafy-1a",
+      "sha256": "8271f00457196483ecf617df4f644885d35e52fad010ad31b9bd35afe2cc5355",
+      "fileBytes": 349744,
+      "width": 512,
+      "height": 512,
+      "mipmapCount": 10,
+      "completeMipChain": true,
+      "glInternalFormat": 35919,
+      "format": {
+        "name": "SRGBA_DXT5",
+        "threeFormat": 33779,
+        "blockBytes": 16,
+        "srgb": true,
+        "alpha": true
+      },
+      "nativeUsage": {
+        "version": 1,
+        "flags": 13,
+        "color": true,
+        "normal": false,
+        "classification": "mask"
+      },
+      "orientation": null,
+      "payloadBytes": 349552,
+      "mipmaps": [
+        {
+          "width": 512,
+          "height": 512,
+          "byteLength": 262144
+        },
+        {
+          "width": 256,
+          "height": 256,
+          "byteLength": 65536
+        },
+        {
+          "width": 128,
+          "height": 128,
+          "byteLength": 16384
+        },
+        {
+          "width": 64,
+          "height": 64,
+          "byteLength": 4096
+        },
+        {
+          "width": 32,
+          "height": 32,
+          "byteLength": 1024
+        },
+        {
+          "width": 16,
+          "height": 16,
+          "byteLength": 256
+        },
+        {
+          "width": 8,
+          "height": 8,
+          "byteLength": 64
+        },
+        {
+          "width": 4,
+          "height": 4,
+          "byteLength": 16
+        },
+        {
+          "width": 2,
+          "height": 2,
+          "byteLength": 16
+        },
+        {
+          "width": 1,
+          "height": 1,
+          "byteLength": 16
+        }
+      ]
+    },
+    {
+      "asset": "shrub-bluepops-1a",
+      "sha256": "665f2c22827bafda51eb0127b69cce6c5d33869a98ae7331b8aafa88985d89f6",
+      "fileBytes": 393432,
+      "width": 768,
+      "height": 768,
+      "mipmapCount": 10,
+      "completeMipChain": true,
+      "glInternalFormat": 35916,
+      "format": {
+        "name": "SRGB_DXT1",
+        "threeFormat": 33776,
+        "blockBytes": 8,
+        "srgb": true,
+        "alpha": false
+      },
+      "nativeUsage": {
+        "version": 1,
+        "flags": 1,
+        "color": true,
+        "normal": false,
+        "classification": "opaque"
+      },
+      "orientation": null,
+      "payloadBytes": 393240,
+      "mipmaps": [
+        {
+          "width": 768,
+          "height": 768,
+          "byteLength": 294912
+        },
+        {
+          "width": 384,
+          "height": 384,
+          "byteLength": 73728
+        },
+        {
+          "width": 192,
+          "height": 192,
+          "byteLength": 18432
+        },
+        {
+          "width": 96,
+          "height": 96,
+          "byteLength": 4608
+        },
+        {
+          "width": 48,
+          "height": 48,
+          "byteLength": 1152
+        },
+        {
+          "width": 24,
+          "height": 24,
+          "byteLength": 288
+        },
+        {
+          "width": 12,
+          "height": 12,
+          "byteLength": 72
+        },
+        {
+          "width": 6,
+          "height": 6,
+          "byteLength": 32
+        },
+        {
+          "width": 3,
+          "height": 3,
+          "byteLength": 8
+        },
+        {
+          "width": 1,
+          "height": 1,
+          "byteLength": 8
+        }
+      ]
+    },
+    {
+      "asset": "shrub-noodle-1b",
+      "sha256": "7e0f6b5979bd750f20e65359150342391aa6ec19f665076a696e430322cddad9",
+      "fileBytes": 393432,
+      "width": 768,
+      "height": 768,
+      "mipmapCount": 10,
+      "completeMipChain": true,
+      "glInternalFormat": 35916,
+      "format": {
+        "name": "SRGB_DXT1",
+        "threeFormat": 33776,
+        "blockBytes": 8,
+        "srgb": true,
+        "alpha": false
+      },
+      "nativeUsage": {
+        "version": 1,
+        "flags": 1,
+        "color": true,
+        "normal": false,
+        "classification": "opaque"
+      },
+      "orientation": null,
+      "payloadBytes": 393240,
+      "mipmaps": [
+        {
+          "width": 768,
+          "height": 768,
+          "byteLength": 294912
+        },
+        {
+          "width": 384,
+          "height": 384,
+          "byteLength": 73728
+        },
+        {
+          "width": 192,
+          "height": 192,
+          "byteLength": 18432
+        },
+        {
+          "width": 96,
+          "height": 96,
+          "byteLength": 4608
+        },
+        {
+          "width": 48,
+          "height": 48,
+          "byteLength": 1152
+        },
+        {
+          "width": 24,
+          "height": 24,
+          "byteLength": 288
+        },
+        {
+          "width": 12,
+          "height": 12,
+          "byteLength": 72
+        },
+        {
+          "width": 6,
+          "height": 6,
+          "byteLength": 32
+        },
+        {
+          "width": 3,
+          "height": 3,
+          "byteLength": 8
+        },
+        {
+          "width": 1,
+          "height": 1,
+          "byteLength": 8
+        }
+      ]
+    },
+    {
+      "asset": "tree-palm-sago",
+      "sha256": "e68975955b84598ffcf95f7c0c909f40d36ce30f6c7b60403ba83f77131b92f4",
+      "fileBytes": 699260,
+      "width": 1024,
+      "height": 1024,
+      "mipmapCount": 11,
+      "completeMipChain": true,
+      "glInternalFormat": 35916,
+      "format": {
+        "name": "SRGB_DXT1",
+        "threeFormat": 33776,
+        "blockBytes": 8,
+        "srgb": true,
+        "alpha": false
+      },
+      "nativeUsage": {
+        "version": 1,
+        "flags": 1,
+        "color": true,
+        "normal": false,
+        "classification": "opaque"
+      },
+      "orientation": null,
+      "payloadBytes": 699064,
+      "mipmaps": [
+        {
+          "width": 1024,
+          "height": 1024,
+          "byteLength": 524288
+        },
+        {
+          "width": 512,
+          "height": 512,
+          "byteLength": 131072
+        },
+        {
+          "width": 256,
+          "height": 256,
+          "byteLength": 32768
+        },
+        {
+          "width": 128,
+          "height": 128,
+          "byteLength": 8192
+        },
+        {
+          "width": 64,
+          "height": 64,
+          "byteLength": 2048
+        },
+        {
+          "width": 32,
+          "height": 32,
+          "byteLength": 512
+        },
+        {
+          "width": 16,
+          "height": 16,
+          "byteLength": 128
+        },
+        {
+          "width": 8,
+          "height": 8,
+          "byteLength": 32
+        },
+        {
+          "width": 4,
+          "height": 4,
+          "byteLength": 8
+        },
+        {
+          "width": 2,
+          "height": 2,
+          "byteLength": 8
+        },
+        {
+          "width": 1,
+          "height": 1,
+          "byteLength": 8
+        }
+      ]
+    },
+    {
+      "asset": "Tree-Royal-Poinciana-1",
+      "sha256": "5b02517697cd036aa07cb5facb5f0426f52583ce87dec5f00ff71813db5f3103",
+      "fileBytes": 699260,
+      "width": 1024,
+      "height": 1024,
+      "mipmapCount": 11,
+      "completeMipChain": true,
+      "glInternalFormat": 35916,
+      "format": {
+        "name": "SRGB_DXT1",
+        "threeFormat": 33776,
+        "blockBytes": 8,
+        "srgb": true,
+        "alpha": false
+      },
+      "nativeUsage": {
+        "version": 1,
+        "flags": 1,
+        "color": true,
+        "normal": false,
+        "classification": "opaque"
+      },
+      "orientation": null,
+      "payloadBytes": 699064,
+      "mipmaps": [
+        {
+          "width": 1024,
+          "height": 1024,
+          "byteLength": 524288
+        },
+        {
+          "width": 512,
+          "height": 512,
+          "byteLength": 131072
+        },
+        {
+          "width": 256,
+          "height": 256,
+          "byteLength": 32768
+        },
+        {
+          "width": 128,
+          "height": 128,
+          "byteLength": 8192
+        },
+        {
+          "width": 64,
+          "height": 64,
+          "byteLength": 2048
+        },
+        {
+          "width": 32,
+          "height": 32,
+          "byteLength": 512
+        },
+        {
+          "width": 16,
+          "height": 16,
+          "byteLength": 128
+        },
+        {
+          "width": 8,
+          "height": 8,
+          "byteLength": 32
+        },
+        {
+          "width": 4,
+          "height": 4,
+          "byteLength": 8
+        },
+        {
+          "width": 2,
+          "height": 2,
+          "byteLength": 8
+        },
+        {
+          "width": 1,
+          "height": 1,
+          "byteLength": 8
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+// Copyright 2026 Overte contributors
+// SPDX-License-Identifier: Apache-2.0
+import test from 'node:test';import assert from 'node:assert/strict';import vm from 'node:vm';import {readFile} from 'node:fs/promises';
+const read=p=>readFile(new URL(p,import.meta.url),'utf8');
+const [qml,cpp,fixture,proof]=await Promise.all(['tablet-capture.qml','../native-input/native-input.cpp','../native-input/web-editor/editor-fixture.template.qml','./fixtures/native-web-ime-proof.json'].map(read));
+const expected=JSON.parse(proof);
+import {createHash} from 'node:crypto';
+const digest=s=>createHash('sha256').update(s).digest('hex');
+function method(source,name){const start=source.indexOf('function '+name+'(');assert(start>=0);let i=source.indexOf('{',start)+1,depth=1,quote='',escaped=false;for(;depth&&i<source.length;i++){const c=source[i];if(quote){if(escaped)escaped=false;else if(c==='\\')escaped=true;else if(c===quote)quote='';}else if(c==='"'||c==="'")quote=c;else if(c==='{')depth++;else if(c==='}')depth--;}assert.equal(depth,0);return source.slice(start,i);}
+function install(names,s={}){vm.createContext(s);for(const name of names)vm.runInContext(method(qml,name),s);return s;}
+const valid=install(['passwordTextValid']).passwordTextValid;
+for(const text of ['A','é','世界','👋','Aé👋Z','123456789'])test('whole native password permits '+JSON.stringify(text),()=>assert.equal(valid(text),true));
+for(const[label,text]of [['empty',''],['zero','\0'],['line','\n'],['tab','\t'],['delete','\x7f'],['high','\ud800'],['low','\udc00'],['badpair','\ud800A'],['toolong','x'.repeat(65537)],['bytebudget','é'.repeat(32769)]])test('reject '+label+' before any native commit',()=>assert.equal(valid(text),false));
+test('exact original UTF8 and UTF16 budgets remain enforced',()=>{for(const text of ['x'.repeat(65536),'é'.repeat(32768),'👋'.repeat(16384)]){assert.equal(Buffer.byteLength(text),65536);assert(valid(text));}assert(!valid('👋'.repeat(16384)+'a'));});
+function harness(value,{accepted=true,current=true}={}){const calls=[],focus={},web={},pending={passwordValue:value,passwordOffset:0,focus,web,cancelled:false};const s={pendingText:pending,currentTextTarget(){calls.push('current');return current;},nativeInput:{commitWebPasswordText(f,w,text){calls.push({f,w,text});return accepted;}},finishTextInput(p,ok){calls.push({finished:ok});s.pendingText=null;p.cancelled=true;p.passwordValue='';}};install(['continuePasswordText'],s);return{s,pending,calls,focus,web};}
+for(const text of ['Aé👋Z','a'.repeat(40),'👋'.repeat(16384)])test('one event receives the entire literal with no scalar loop: '+text.length+' units',()=>{const h=harness(text);h.s.continuePasswordText(h.pending);const calls=h.calls.filter(v=>v&&typeof v==='object'&&'text'in v);assert.equal(calls.length,1);assert.equal(calls[0].text,text);assert.equal(calls[0].f,h.focus);assert.equal(calls[0].w,h.web);assert.deepEqual(h.calls.at(-1),{finished:true});assert.equal(h.pending.passwordValue,'');});
+test('immediate pending cancellation prevents the one future native event',()=>{const h=harness('Aé👋Z');h.pending.cancelled=true;h.pending.passwordValue='';h.s.pendingText=null;h.s.continuePasswordText(h.pending);assert.deepEqual(h.calls,[]);});
+test('obsolete focus/URL/revision/navigation/surface refuses before native commit',()=>{const h=harness('abc',{current:false});h.s.continuePasswordText(h.pending);assert.deepEqual(h.calls,['current',{finished:false}]);});
+test('native refusal finishes false once with no fallback or keyboard delivery',()=>{const h=harness('abc',{accepted:false});h.s.continuePasswordText(h.pending);assert.equal(h.calls.filter(v=>v&&v.text).length,1);assert.deepEqual(h.calls.at(-1),{finished:false});});
+test('reentrant native cancellation cannot finish or schedule another delivery',()=>{const h=harness('abc');h.s.nativeInput.commitWebPasswordText=()=>{h.s.pendingText=null;h.pending.cancelled=true;h.pending.passwordValue='';return true;};h.s.continuePasswordText(h.pending);assert.deepEqual(h.calls,['current']);});
+const section=(s,a,b)=>s.slice(s.indexOf(a),s.indexOf(b,s.indexOf(a)+a.length));
+test('actual passed CPP and ordinary/native password guards remain byte exact after the separately qualified application-key addition',()=>{
+ assert.equal(digest(cpp),'e8326d2571327b435318f256e70eba9c53d393ccac31130f941ab48b5f4cf5df');
+ const worldAdditions=["#include \"world-key-route.h\"\n", "    Q_INVOKABLE bool worldKeyReady(QObject* root) {\n        return BrowserWorldKey::ready(this,ownerItem(),root);\n    }\n    Q_INVOKABLE bool clickWorldKey(QObject* root) {\n        return BrowserWorldKey::click(this,ownerItem(),root);\n    }\n"];
+ let applicationOnly=cpp;for(const addition of worldAdditions){assert.equal(applicationOnly.split(addition).length,2);applicationOnly=applicationOnly.replace(addition,'');}
+ assert.equal(digest(applicationOnly),'b342f2ea711e5b929602e14d7bd256f02b48f3a4700061a72fc96d91aa5e2f56');
+ const additions=['#include "application-key-route.h"\n',`    // Use this worker's own original GLCanvas/OffscreenUi route. Native editors
+    // retain first refusal; never emit Controller or animation state directly.
+    Q_INVOKABLE bool clickApplicationKey(QObject* surface, const QString& key, int modifiers) {
+        return BrowserApplicationKey::click(this, ownerItem(), surface, key, modifiers);
+    }
+`];
+ let original=applicationOnly;for(const addition of additions){assert.equal(original.split(addition).length,2);original=original.replace(addition,'');}
+ assert.equal(digest(original),expected.nativeInputCPP);
+});
+test('all eight text lifecycle methods are the exact actual-passed bodies',()=>{for(const name of ['cancelTextInput','currentTextTarget','failTextInput','queueTextInput','finishTextInput','startWebText','passwordTextValid','continuePasswordText'])assert.equal(digest('    '+method(qml,name)),expected[name]);});
+test('full-password native path sends one event only and guards reentrant completion',()=>{const s=section(cpp,'    Q_INVOKABLE bool commitWebPasswordText(','    // The offscreen');assert.equal((s.match(/QInputMethodEvent event;/g)||[]).length,1);assert(!s.includes('QKeyEvent'));assert.equal((s.match(/webPasswordTargetCurrent\(item, root, owner, window\)/g)||[]).length,3);assert.equal((s.match(/if \(!self\) return false;/g)||[]).length,2);assert.match(s,/event\.setCommitString\(text\)/);assert.match(s,/if \(!accepted\) return refuseWebGuard\("password-commit-refused"\)/);});
+test('same single readonly DOM admission, first-turn yield and no direct edits are preserved',()=>{const s=method(qml,'startWebText');assert.equal(digest('    '+s),expected.startWebText);assert.equal((s.match(/web.runJavaScript\(/g)||[]).length,1);assert(s.includes('Qt.callLater(function(){helper.continuePasswordText(pending);})'));assert(!s.includes('execCommand'));assert(!s.includes('e.value'));assert(!s.includes('.focus('));});
+test('fourteen native fixture oracles and original five-second deadline remain exact',()=>{assert.equal(digest(fixture),expected['editor-fixture.template.qml']);assert.match(fixture,/id:caseDeadline; interval:5000/);assert.equal((fixture.match(/caseDeadline.restart\(\)/g)||[]).length,1);});

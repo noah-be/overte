@@ -1,0 +1,480 @@
+{
+  "schemaVersion": 1,
+  "reviewedShippingBase": "232a7093ab522b1812ca8eef60287af12c593559",
+  "scope": "Production native IME in complete genuine stock Create workflows; fixed read-only readiness audit on a separate owned loopback gateway; no public world mutations or audio",
+  "nativeQtEditorProof": "tablet-production-native-ime-20261002.json",
+  "cohorts": [
+    {
+      "startedAt": "2026-10-02T02:55:27.333Z",
+      "finishedAt": "2026-10-02T02:56:36.697Z",
+      "browserVersion": "154.0.8037.57",
+      "nativeVersion": "2026.04.1",
+      "nativeBinarySHA256": "91f3e10c42c1e35d5c8265e9b0007e925844d9bee61a26807118dde6e527887c",
+      "nativeCreateScriptsSHA256": {
+        "system/create/qml/EditTabView.qml": "4895d0f72d438829b4e15626b0dbb719c734e4486a74d175ac3de1a8d15d2621",
+        "system/create/entityProperties/html/js/entityProperties.js": "5e31fbdc3e577dd13663c0d9ee429f7c816bf1c7c91f45ea62438a6b575e08d5",
+        "system/create/entityList/html/js/entityList.js": "1a398a1ab644af6714c16c8a3e00191dd1b861f8fbdd75e78ceb71de6494ecf1",
+        "system/create/edit.js": "c7e20e8a23b7657608da533c35850668558a356d96b515e6eee477858a905a3d"
+      },
+      "observerScriptSHA256": "544fbfa8e18875c1b6c72252581a00f55d66279d980ae98f7268f24b33c52685",
+      "baselineIdentitySHA256": "8f52882ae70f9e6ec2759e217807b9167e379d8c5b3a1400cea093b1c7936661",
+      "ownedEntitySHA256": "6bb85d1a4d782381b8916359c64342b2a62e1a2a62d6ebd8a1a19a10dbb9f876",
+      "ownedFixtureCount": 1,
+      "editedProperties": {
+        "nameSHA256": "70c56d77a6478952c83f082588e199921b6a3ade9a490be1afbd91377db72cc8",
+        "color": {
+          "red": 30,
+          "green": 170,
+          "blue": 220
+        },
+        "dimensions": {
+          "x": 0.699999988079071,
+          "y": 0.8999999761581421,
+          "z": 1.100000023841858
+        }
+      },
+      "filteredList": {
+        "visibleEntityCount": 1,
+        "ownEntitySHA256": "6bb85d1a4d782381b8916359c64342b2a62e1a2a62d6ebd8a1a19a10dbb9f876",
+        "sequence": 34,
+        "revision": 1
+      },
+      "geometryDiagnostic": {
+        "before": 9,
+        "after": 9,
+        "afterDeletion": 9
+      },
+      "runtimeAuditCaptureSHA256": "8e84e38fec0f5ebf93af63555e7b12bdb8c992af326a17a31eca235a354930da",
+      "screens": [
+        {
+          "label": "home",
+          "screen": "Home",
+          "pngSHA256": "99330d15295c496f41e9cd848c4f0b04b478aac5ebb8d52a2f207cce16fcaf56",
+          "width": 480,
+          "height": 706,
+          "tabletRect": {
+            "x": 0,
+            "y": 0,
+            "width": 480,
+            "height": 706
+          }
+        },
+        {
+          "label": "create",
+          "screen": "QML",
+          "pngSHA256": "98418fe45b589323a6ce5804dab7e2e61b1bb10acb467ba2a96e59099f65c7ff",
+          "width": 480,
+          "height": 706,
+          "tabletRect": {
+            "x": 0,
+            "y": 0,
+            "width": 480,
+            "height": 706
+          }
+        },
+        {
+          "label": "properties-initial",
+          "screen": "QML",
+          "pngSHA256": "0a30223947a96366b0440f9df61a18d70f937a18dece095f46b77e559e15b7ee",
+          "width": 480,
+          "height": 706,
+          "tabletRect": {
+            "x": 0,
+            "y": 0,
+            "width": 480,
+            "height": 706
+          }
+        },
+        {
+          "label": "shape-properties",
+          "screen": "QML",
+          "pngSHA256": "a78fdf166e05e6c5e1e791884ea26ba8a7ca038fafbcd3487cc0d5c92abd6518",
+          "width": 480,
+          "height": 706,
+          "tabletRect": {
+            "x": 0,
+            "y": 0,
+            "width": 480,
+            "height": 706
+          }
+        },
+        {
+          "label": "color-picker-edit",
+          "screen": "QML",
+          "pngSHA256": "7152557a6584829c699a92abb9d994928b98c5aa3e7cb50558b7cd8b25373729",
+          "width": 480,
+          "height": 706,
+          "tabletRect": {
+            "x": 0,
+            "y": 0,
+            "width": 480,
+            "height": 706
+          }
+        },
+        {
+          "label": "transform-properties",
+          "screen": "QML",
+          "pngSHA256": "2ace084e593fb5d1d79d3f5f8ad2ce0c2f199f9b60514cef9a3ecded353a6544",
+          "width": 480,
+          "height": 706,
+          "tabletRect": {
+            "x": 0,
+            "y": 0,
+            "width": 480,
+            "height": 706
+          }
+        },
+        {
+          "label": "properties-edited",
+          "screen": "QML",
+          "pngSHA256": "3865dcc33cf6dd4fa3330679b6549d644fbeea5fbb188f3de64b3a6f91a4c47a",
+          "width": 480,
+          "height": 706,
+          "tabletRect": {
+            "x": 0,
+            "y": 0,
+            "width": 480,
+            "height": 706
+          }
+        },
+        {
+          "label": "list-filtered-before-selection",
+          "screen": "QML",
+          "pngSHA256": "7a783c739711573a88bccceaf9703be5c4fcdaa04bb102770a0a654d7f7e2907",
+          "width": 480,
+          "height": 706,
+          "tabletRect": {
+            "x": 0,
+            "y": 0,
+            "width": 480,
+            "height": 706
+          }
+        },
+        {
+          "label": "list-selected-owned",
+          "screen": "QML",
+          "pngSHA256": "7a783c739711573a88bccceaf9703be5c4fcdaa04bb102770a0a654d7f7e2907",
+          "width": 480,
+          "height": 706,
+          "tabletRect": {
+            "x": 0,
+            "y": 0,
+            "width": 480,
+            "height": 706
+          }
+        },
+        {
+          "label": "list-deleted",
+          "screen": "QML",
+          "pngSHA256": "3ddd4f60cd428620da8d116cc4b40209e215857f80861b64256e21323b6e3e82",
+          "width": 480,
+          "height": 706,
+          "tabletRect": {
+            "x": 0,
+            "y": 0,
+            "width": 480,
+            "height": 706
+          }
+        }
+      ],
+      "assertions": [
+        "Native Shape button created exactly one domain Cube and its actual domain properties reached the browser",
+        "Genuine Qt Name/Color/Dimensions changes agree with independent native observation and browser domain data; List UI deletes the single own Shape"
+      ],
+      "cleanupVerified": true,
+      "functionalAcceptance": true,
+      "completed": true,
+      "sourceCoherent": true,
+      "sourceHashes": {
+        "start": {
+          "tests/integration/tablet-create.mjs": "e91a8a7e8ff9ffb93260ca8334c254986fae8e8bd0c878176db9cf2b963f90ae",
+          "tests/integration/atomic-fixture-command.mjs": "ad0de96229306ace820bc1c14b360360fe9785edc148b6413aa87dd8241f920a",
+          "tests/integration/tablet-create-readiness.mjs": "ca5dbc144ed49153a11baed470f0ffa4aebe6db730ca36a5114bf5b41f8ae649",
+          "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+          "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+          "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+          "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+          "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+          "gateway/tablet-capture.qml": "f990c2ed3f5b0d68e50b959774214f4b7637e332b1c9613567c8ea9252f5f1bc",
+          "gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+          "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+          "src/world.ts": "54b37bd80e184c7a8333a214b054e614834de1711d61f3d1d6c9f4c2ff8470ef",
+          "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd"
+        },
+        "end": {
+          "tests/integration/tablet-create.mjs": "e91a8a7e8ff9ffb93260ca8334c254986fae8e8bd0c878176db9cf2b963f90ae",
+          "tests/integration/atomic-fixture-command.mjs": "ad0de96229306ace820bc1c14b360360fe9785edc148b6413aa87dd8241f920a",
+          "tests/integration/tablet-create-readiness.mjs": "ca5dbc144ed49153a11baed470f0ffa4aebe6db730ca36a5114bf5b41f8ae649",
+          "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+          "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+          "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+          "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+          "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+          "gateway/tablet-capture.qml": "f990c2ed3f5b0d68e50b959774214f4b7637e332b1c9613567c8ea9252f5f1bc",
+          "gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+          "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+          "src/world.ts": "54b37bd80e184c7a8333a214b054e614834de1711d61f3d1d6c9f4c2ff8470ef",
+          "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd"
+        }
+      },
+      "warningCount": 0,
+      "engine": "chromium",
+      "rawReportSHA256": "d963fc21b5f889f87b95a51a0538fa5309ac8e7a3dce990fad5b77470cc29b4a",
+      "sourceAttestationCount": 13
+    },
+    {
+      "startedAt": "2026-10-02T02:56:38.932Z",
+      "finishedAt": "2026-10-02T02:57:59.686Z",
+      "browserVersion": "firefox/156.0",
+      "nativeVersion": "2026.04.1",
+      "nativeBinarySHA256": "91f3e10c42c1e35d5c8265e9b0007e925844d9bee61a26807118dde6e527887c",
+      "nativeCreateScriptsSHA256": {
+        "system/create/qml/EditTabView.qml": "4895d0f72d438829b4e15626b0dbb719c734e4486a74d175ac3de1a8d15d2621",
+        "system/create/entityProperties/html/js/entityProperties.js": "5e31fbdc3e577dd13663c0d9ee429f7c816bf1c7c91f45ea62438a6b575e08d5",
+        "system/create/entityList/html/js/entityList.js": "1a398a1ab644af6714c16c8a3e00191dd1b861f8fbdd75e78ceb71de6494ecf1",
+        "system/create/edit.js": "c7e20e8a23b7657608da533c35850668558a356d96b515e6eee477858a905a3d"
+      },
+      "observerScriptSHA256": "d82fa9cfd7b7a4f622e2e2ceb90af2a058773250c31c5c31dc23c09e41d2c674",
+      "baselineIdentitySHA256": "8f52882ae70f9e6ec2759e217807b9167e379d8c5b3a1400cea093b1c7936661",
+      "ownedEntitySHA256": "92e6fb3e44c0052cd8bc631befbb4c29f44d44c6ad28899478086a2f8ea6c243",
+      "ownedFixtureCount": 1,
+      "editedProperties": {
+        "nameSHA256": "cbd618045d1c326bd5a81f5af627d7986335f29fd9742509c99aa42cbe330b2d",
+        "color": {
+          "red": 30,
+          "green": 170,
+          "blue": 220
+        },
+        "dimensions": {
+          "x": 0.699999988079071,
+          "y": 0.8999999761581421,
+          "z": 1.100000023841858
+        }
+      },
+      "filteredList": {
+        "visibleEntityCount": 1,
+        "ownEntitySHA256": "92e6fb3e44c0052cd8bc631befbb4c29f44d44c6ad28899478086a2f8ea6c243",
+        "sequence": 45,
+        "revision": 1
+      },
+      "geometryDiagnostic": {
+        "before": 6,
+        "after": 7,
+        "afterDeletion": 7
+      },
+      "runtimeAuditCaptureSHA256": "8e84e38fec0f5ebf93af63555e7b12bdb8c992af326a17a31eca235a354930da",
+      "screens": [
+        {
+          "label": "home",
+          "screen": "Home",
+          "pngSHA256": "2b7659c315337fb4fce0d5eb327cc777f2f2398f0385f87f16c4f13550cba8e1",
+          "width": 480,
+          "height": 706,
+          "tabletRect": {
+            "x": 0,
+            "y": 0,
+            "width": 480,
+            "height": 706
+          }
+        },
+        {
+          "label": "create",
+          "screen": "QML",
+          "pngSHA256": "4740b8925643d2132f1f7efd0c984dd67b88fe19fd6ed1e9a6450aeebb1f5da7",
+          "width": 480,
+          "height": 706,
+          "tabletRect": {
+            "x": 0,
+            "y": 0,
+            "width": 480,
+            "height": 706
+          }
+        },
+        {
+          "label": "properties-initial",
+          "screen": "QML",
+          "pngSHA256": "f8e23e79c59b92c7a85d88bda022ae7de19c587657a76b283837e0555b297578",
+          "width": 480,
+          "height": 706,
+          "tabletRect": {
+            "x": 0,
+            "y": 0,
+            "width": 480,
+            "height": 706
+          }
+        },
+        {
+          "label": "shape-properties",
+          "screen": "QML",
+          "pngSHA256": "75c357d2021075b3a8cd41fc0831d8a60f46906fbcacf5e235e1f8b4152fb31e",
+          "width": 480,
+          "height": 706,
+          "tabletRect": {
+            "x": 0,
+            "y": 0,
+            "width": 480,
+            "height": 706
+          }
+        },
+        {
+          "label": "color-picker-edit",
+          "screen": "QML",
+          "pngSHA256": "4fa01a0dc8530cc89fbf619aa5e5db0b99d5aaa5d30837c093af6fa44b5b1ae3",
+          "width": 480,
+          "height": 706,
+          "tabletRect": {
+            "x": 0,
+            "y": 0,
+            "width": 480,
+            "height": 706
+          }
+        },
+        {
+          "label": "transform-properties",
+          "screen": "QML",
+          "pngSHA256": "07724c7931855a62317e9c2a72e1f68c25b33f4f57c59396a107232f14efb74f",
+          "width": 480,
+          "height": 706,
+          "tabletRect": {
+            "x": 0,
+            "y": 0,
+            "width": 480,
+            "height": 706
+          }
+        },
+        {
+          "label": "properties-edited",
+          "screen": "QML",
+          "pngSHA256": "23b50f5ffd7b3e49380bd6e0544d067373adf8aed3da9c840412cf032bff5fec",
+          "width": 480,
+          "height": 706,
+          "tabletRect": {
+            "x": 0,
+            "y": 0,
+            "width": 480,
+            "height": 706
+          }
+        },
+        {
+          "label": "list-filtered-before-selection",
+          "screen": "QML",
+          "pngSHA256": "a5c20b1b934393842722321179c3fd7f97acf8c882a6de2c98c2d517f8bd8ec8",
+          "width": 480,
+          "height": 706,
+          "tabletRect": {
+            "x": 0,
+            "y": 0,
+            "width": 480,
+            "height": 706
+          }
+        },
+        {
+          "label": "list-selected-owned",
+          "screen": "QML",
+          "pngSHA256": "a5c20b1b934393842722321179c3fd7f97acf8c882a6de2c98c2d517f8bd8ec8",
+          "width": 480,
+          "height": 706,
+          "tabletRect": {
+            "x": 0,
+            "y": 0,
+            "width": 480,
+            "height": 706
+          }
+        },
+        {
+          "label": "list-deleted",
+          "screen": "QML",
+          "pngSHA256": "54d511f113a6d1f09a9a56f98c24bb5599885ef5b829228f56e8a4e8bc7e5536",
+          "width": 480,
+          "height": 706,
+          "tabletRect": {
+            "x": 0,
+            "y": 0,
+            "width": 480,
+            "height": 706
+          }
+        }
+      ],
+      "assertions": [
+        "Native Shape button created exactly one domain Cube and its actual domain properties reached the browser",
+        "Genuine Qt Name/Color/Dimensions changes agree with independent native observation and browser domain data; List UI deletes the single own Shape"
+      ],
+      "cleanupVerified": true,
+      "functionalAcceptance": true,
+      "completed": true,
+      "sourceCoherent": true,
+      "sourceHashes": {
+        "start": {
+          "tests/integration/tablet-create.mjs": "e91a8a7e8ff9ffb93260ca8334c254986fae8e8bd0c878176db9cf2b963f90ae",
+          "tests/integration/atomic-fixture-command.mjs": "ad0de96229306ace820bc1c14b360360fe9785edc148b6413aa87dd8241f920a",
+          "tests/integration/tablet-create-readiness.mjs": "ca5dbc144ed49153a11baed470f0ffa4aebe6db730ca36a5114bf5b41f8ae649",
+          "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+          "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+          "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+          "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+          "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+          "gateway/tablet-capture.qml": "f990c2ed3f5b0d68e50b959774214f4b7637e332b1c9613567c8ea9252f5f1bc",
+          "gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+          "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+          "src/world.ts": "54b37bd80e184c7a8333a214b054e614834de1711d61f3d1d6c9f4c2ff8470ef",
+          "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd"
+        },
+        "end": {
+          "tests/integration/tablet-create.mjs": "e91a8a7e8ff9ffb93260ca8334c254986fae8e8bd0c878176db9cf2b963f90ae",
+          "tests/integration/atomic-fixture-command.mjs": "ad0de96229306ace820bc1c14b360360fe9785edc148b6413aa87dd8241f920a",
+          "tests/integration/tablet-create-readiness.mjs": "ca5dbc144ed49153a11baed470f0ffa4aebe6db730ca36a5114bf5b41f8ae649",
+          "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+          "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+          "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+          "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+          "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+          "gateway/tablet-capture.qml": "f990c2ed3f5b0d68e50b959774214f4b7637e332b1c9613567c8ea9252f5f1bc",
+          "gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+          "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+          "src/world.ts": "54b37bd80e184c7a8333a214b054e614834de1711d61f3d1d6c9f4c2ff8470ef",
+          "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd"
+        }
+      },
+      "warningCount": 0,
+      "engine": "firefox",
+      "rawReportSHA256": "46e0a82a222d9af9dd182599c015e4082c2f81720893d79c0c192fa39e299e9b",
+      "sourceAttestationCount": 13
+    }
+  ],
+  "preservedNegatives": [
+    {
+      "engine": "chromium",
+      "category": "normal-gateway-missing-required-readonly-test-audit",
+      "rawReportSHA256": "37fb47fc3f02f58524c780b1678baa8b4ea506ff138efcc10b8c7d5ffc66347e",
+      "beforeWorldMutation": true,
+      "cleanupVerified": true
+    },
+    {
+      "engine": "firefox",
+      "category": "normal-gateway-missing-required-readonly-test-audit",
+      "rawReportSHA256": "50918923030b63267140a467e0757ac2faf65faa3dcbb495ddfe2d6e39492c34",
+      "beforeWorldMutation": true,
+      "cleanupVerified": true
+    },
+    {
+      "engine": "chromium",
+      "category": "in-place-fixture-command-truncated-json-observed",
+      "rawReportSHA256": "bc74b6b88f2817211393eecf816986a6e8419c573a17ede0fe8e73bded5d4238",
+      "reportedCleanupVerified": false,
+      "independentFinalBaselineCount": 7,
+      "independentFinalBaselineIdentityMatches": true,
+      "observerArmed": true,
+      "observerOwnedShape": false,
+      "correction": "Atomic same-directory fixture-command rename; observer/oracles/deadlines unchanged."
+    }
+  ],
+  "ownedAuditGatewayStopped": true,
+  "shippingQmlUnchanged": true,
+  "shippingQmlSHA256": "f990c2ed3f5b0d68e50b959774214f4b7637e332b1c9613567c8ea9252f5f1bc",
+  "testQmlSHA256": "8e84e38fec0f5ebf93af63555e7b12bdb8c992af326a17a31eca235a354930da",
+  "limits": [
+    "Create success does not establish complete Tablet or distinct same-page password DOM identity.",
+    "Browser composition input is synthetic; the native Qt edit/observer/GUI Create and List actions are genuine.",
+    "No public Hub writes or physical microphone test."
+  ]
+}

@@ -1,0 +1,1162 @@
+{
+  "version": 8,
+  "scope": "current-native-capture-readback-click-lifetime-composition",
+  "historicalManifestSHA256": "e6f781b8482b32617fc684e3da4ce0a50ace8979bee558c8435fd831e1a62549",
+  "historicalPatchSHA256": "bf6410daf58605c16bf3895e8209f161ff454fcd86b0b23c5ea27b26df6afbd0",
+  "files": [
+    {
+      "path": "browser-client/shared/browser-capture.mjs",
+      "beforeSHA256": null,
+      "afterSHA256": "a0282af718ec85c59c9899365a3d816917a293f7002836b08f0c0df2f7dd6125",
+      "bytes": 3663
+    },
+    {
+      "path": "browser-client/shared/browser-capture.d.mts",
+      "beforeSHA256": null,
+      "afterSHA256": "328c5d9d09a71a8528af2c11f5504e481e481004c9c1bff0c4b4e4e61e5df48e",
+      "bytes": 1404
+    },
+    {
+      "path": "browser-client/src/browser-capture-target.ts",
+      "beforeSHA256": null,
+      "afterSHA256": "888d45a66279fe17d6231a119c15757858fe78feee5438b223f7013c838b272a",
+      "bytes": 6410
+    },
+    {
+      "path": "browser-client/src/browser-capture-controller.ts",
+      "beforeSHA256": null,
+      "afterSHA256": "c5b0b124b27c4a38527605038ad5f3f3b2f469f869e83189689d0f0edbded2f8",
+      "bytes": 2078
+    },
+    {
+      "path": "browser-client/src/browser-capture.test.ts",
+      "beforeSHA256": null,
+      "afterSHA256": "48c698e7c0bbf11553b1234ee3e1c155a87fb487704615f52b524922d919256c",
+      "bytes": 8988
+    },
+    {
+      "path": "browser-client/src/browser-capture-audio.test.ts",
+      "beforeSHA256": null,
+      "afterSHA256": "f75252b1e4065b792c1b28788f277ace46e6fac9ecfbdc5cd5daec34a51637d7",
+      "bytes": 12690
+    },
+    {
+      "path": "browser-client/src/browser-capture-tablet.test.ts",
+      "beforeSHA256": null,
+      "afterSHA256": "ecc0a97895ba291af938f473b0d2b4eec0afba7ba8abe68c39b07b1a5e7d8a89",
+      "bytes": 4211
+    },
+    {
+      "path": "browser-client/gateway/native-browser-capture.js",
+      "beforeSHA256": null,
+      "afterSHA256": "ba6d32f99acc960a9539c19faba5cdc8d6ad005f73f927b49a0941df247979c3",
+      "bytes": 5798
+    },
+    {
+      "path": "browser-client/gateway/browser-capture-overrides.mjs",
+      "beforeSHA256": null,
+      "afterSHA256": "38aa8a75aeca858af220f98a020fc6ab806b5611a28c6d3da1ea377b0e6f40bc",
+      "bytes": 13857
+    },
+    {
+      "path": "browser-client/gateway/browser-capture.test.mjs",
+      "beforeSHA256": null,
+      "afterSHA256": "aea4777a77ec45521113d0b0420e189fe59c09427ffb928de1a73b8d1fce9190",
+      "bytes": 25607
+    },
+    {
+      "path": "browser-client/gateway/browser-capture-admission.test.mjs",
+      "beforeSHA256": null,
+      "afterSHA256": "e91fb167ee0351b6c4f6d03585d268070d3f0d817d9dcd306a1023545d85aace",
+      "bytes": 5359
+    },
+    {
+      "path": "browser-client/gateway/browser-capture-worker.test.mjs",
+      "beforeSHA256": null,
+      "afterSHA256": "6738970ebb0fbf49f0d73f5fc1e8cfc240f465a5c6b1a6166f7310cf1264bb5f",
+      "bytes": 4660
+    },
+    {
+      "path": "browser-client/gateway/fixtures/native-audio-f91d15a.js.gz",
+      "beforeSHA256": null,
+      "afterSHA256": "27862db288cea7eed42098d2f87a33d02184794f1a81a86da91cd00f42cb2968",
+      "bytes": 1110,
+      "binary": true
+    },
+    {
+      "path": "browser-client/gateway/server.mjs",
+      "beforeSHA256": "5a9e59fd22b04efe243ab5282cf61982209e0085142f114819ef4018080d0d7a",
+      "afterSHA256": "fa16513f98327619bea099778500b297f2ddcf6d0f897c98fb3a0b9dcacfe2b2",
+      "bytes": 56120
+    },
+    {
+      "path": "browser-client/gateway/worker-sandbox.mjs",
+      "beforeSHA256": "0bcc0b8001888b31d6cdf247172b3d91d410c7453b8549f695281e03910058fd",
+      "afterSHA256": "984fcaf01a09518c5df3032572a357790941e3de3a113c82b1badb218009e5e9",
+      "bytes": 10967
+    },
+    {
+      "path": "browser-client/gateway/native-bridge.js",
+      "beforeSHA256": "5faabe08b1cd12f6e89a2f96f464a859a15a92a57fa225459bf82c616649c068",
+      "afterSHA256": "a0ad9878a10023646aad6ecd3a926cde1d364f441786c8a0cf0969ee536604d9",
+      "bytes": 29308
+    },
+    {
+      "path": "browser-client/gateway/native-tablet.js",
+      "beforeSHA256": "53238a8ca18606137b146b43c93a7f53c9c81305482577fcc3078309594e7c0c",
+      "afterSHA256": "3f21000d280e6747ed032fe2183bd76512cbb521b6bcd3416db22b7b58e57bb3",
+      "bytes": 15119
+    },
+    {
+      "path": "browser-client/gateway/tablet.mjs",
+      "beforeSHA256": "afef81dd5b22507c6bb39e1080063d3658b317386000edbc21a27f723411ce4d",
+      "afterSHA256": "c658e82e0446d97e5d100234c878df2b835883a730081cba58856be86cbf051f",
+      "bytes": 21495
+    },
+    {
+      "path": "browser-client/src/tablet-protocol.ts",
+      "beforeSHA256": "e6691b20b9588273a1d20813145a49dcb8d8645df79e5623049a10ca0d77869a",
+      "afterSHA256": "8e88c7ddbc9d7dbfe6bfc1a514992c5f5eb4bdc3ad086cdd95cd3ddd4f6b6c3f",
+      "bytes": 6202
+    },
+    {
+      "path": "browser-client/src/tablet.ts",
+      "beforeSHA256": "d0624d76d2bffa2f60dfeaaefd0e53e6f5a5798f635183ba04c75a983e32e7a6",
+      "afterSHA256": "6bff82a459b0b2b3a2c6f0c8abc0ba120dc89976a5215ff2c537f7c5c63a28b4",
+      "bytes": 22586
+    },
+    {
+      "path": "browser-client/src/main.ts",
+      "beforeSHA256": "58930f7e982e7c5304503ecd0c4f1a9c8b1ae8062bc07fb9f2d2c4818d8d18f7",
+      "afterSHA256": "8059c8e774e9f641d85f0255dcd6e37f0143cf005a7dcb5a4d7d714eedca4ac4",
+      "bytes": 24933
+    },
+    {
+      "path": "browser-client/src/audio.ts",
+      "beforeSHA256": "1f8b23394abbbf3ce6a9346187e40453642d3792fefe7b1166b05228d45f51ef",
+      "afterSHA256": "99fa5cda1b6e571872f07162bedd850382dabad9d95044704d886f9a40ea000d",
+      "bytes": 10994
+    },
+    {
+      "path": "docs/browser-client/BROWSER_MICROPHONE_CONTROLS.md",
+      "beforeSHA256": null,
+      "afterSHA256": "68f392980cdece6f0eac13fff65de89d1a22d8ed94bebd037b0b538d8d38a178",
+      "bytes": 8872
+    },
+    {
+      "path": "browser-client/tests/push-to-talk.test.ts",
+      "beforeSHA256": "fbfaef7bc6c3f5a145cd482a0ffa1eb05141bf5f8be2aaaddb69da7b28a514af",
+      "afterSHA256": "f137596c998f9bb53179151bccea0cbed54440fd7ab03b56f61738bf79055426",
+      "bytes": 13417
+    },
+    {
+      "path": "browser-client/gateway/tablet.test.mjs",
+      "beforeSHA256": "0fdc90cbd20bf1403ada46e178d8c5f3d4a6ab529b32eaf4693ffdbbbf852914",
+      "afterSHA256": "3027f76e5c346b5bf2f768d117e3c42db09de0f0d72133b7d725652e95e2345d",
+      "bytes": 12482
+    },
+    {
+      "path": "browser-client/tests/tablet-capture-switch-width.test.mjs",
+      "beforeSHA256": null,
+      "afterSHA256": "9065766ffc07415bd3650e9ce98b238f0e5087075a6f829b9ef9a6cbe7109303",
+      "bytes": 5950
+    },
+    {
+      "path": "browser-client/tests/fixtures/capture-overrides-before-switch-width.mjs.txt",
+      "beforeSHA256": null,
+      "afterSHA256": "a13bca555a65e5a0ae52f7b578d22ef9697e2157fab1f4077fc6ba7b5ce585f7",
+      "bytes": 12932
+    },
+    {
+      "path": "browser-client/tests/fixtures/native-switch-f91d15a.qml.txt",
+      "beforeSHA256": null,
+      "afterSHA256": "31df4673f94ba0f5828cda60b740f1ca3bdd39e9adc95c875cd23287bbbcb907",
+      "bytes": 4991
+    },
+    {
+      "path": "browser-client/tests/fixtures/capture-clipped-switch-source-row.json",
+      "beforeSHA256": null,
+      "afterSHA256": "16aaeaa31d6c623986dbb6fd5041036f6ac1052ab17aa87472cbad06b77bb9b3",
+      "bytes": 2110
+    },
+    {
+      "path": "browser-client/tests/tablet-capture-layout-manifest.test.mjs",
+      "beforeSHA256": "26cfa953605e2e837cab0dff51b8056f0e00499826cef4eb74d7048397484f47",
+      "afterSHA256": "aedbd44493a831edade94b511d7bb3263a8e04b9f2f082dd2e8f2b40005e47a0",
+      "bytes": 7745
+    },
+    {
+      "path": "browser-client/tests/fixtures/capture-style-v3-overrides.mjs.txt",
+      "beforeSHA256": null,
+      "afterSHA256": "3b5ddde7ff350c0ddafe27de9841dac084c8326c7bed8fa1c766a353e81ff4cf",
+      "bytes": 12986
+    },
+    {
+      "path": "browser-client/tests/fixtures/native-audio-f91d15a.qml.gz",
+      "beforeSHA256": null,
+      "afterSHA256": "c8cd2d3ebafe34bf895ece8c9ad8f6bc48d62a3f38d0bea294714f5235b65116",
+      "bytes": 4888
+    },
+    {
+      "path": "browser-client/tests/fixtures/capture-style-recovery.mjs",
+      "beforeSHA256": null,
+      "afterSHA256": "2dcfd7decedbf6a334c37459fdf6af630358d607d83e7bb9b30162651aec8b21",
+      "bytes": 652
+    },
+    {
+      "path": "browser-client/tests/tablet-capture-style.test.mjs",
+      "beforeSHA256": null,
+      "afterSHA256": "235979f6d71c0b042bff5b44027d36f4ebbdc83427ddd5b8e4973cc96abd7783",
+      "bytes": 9081
+    },
+    {
+      "path": "browser-client/tests/fixtures/layout-v2-complete-source-manifest.json",
+      "beforeSHA256": "e6f3ad43d392f15ba6273ef8fdb50b06d623ce307471d6136feafd6bc08577d5",
+      "afterSHA256": "e6f3ad43d392f15ba6273ef8fdb50b06d623ce307471d6136feafd6bc08577d5",
+      "bytes": 7696
+    },
+    {
+      "path": "browser-client/tests/fixtures/layout-v2-prepare-capture.mjs.txt",
+      "beforeSHA256": "4b6a658ec40e8a971fcb051d6bfa80ce7893d78652a686301ecea4e93b03c661",
+      "afterSHA256": "4b6a658ec40e8a971fcb051d6bfa80ce7893d78652a686301ecea4e93b03c661",
+      "bytes": 4032
+    },
+    {
+      "path": "browser-client/tests/fixtures/layout-v3-complete-source-manifest.json",
+      "beforeSHA256": "0a40b3182cd441791f88a049e0ced1681484f7719c75ea0551546ba7e7e97e14",
+      "afterSHA256": "0a40b3182cd441791f88a049e0ced1681484f7719c75ea0551546ba7e7e97e14",
+      "bytes": 9311
+    },
+    {
+      "path": "browser-client/tests/fixtures/layout-v4-complete-source-manifest.json",
+      "beforeSHA256": "1f3f211bb0c7d0c2c9bbcd9cc2319847af88e84b591cbc5657760b6816c483a5",
+      "afterSHA256": "1f3f211bb0c7d0c2c9bbcd9cc2319847af88e84b591cbc5657760b6816c483a5",
+      "bytes": 12041
+    },
+    {
+      "path": "browser-client/src/browser-capture-restart.ts",
+      "beforeSHA256": null,
+      "afterSHA256": "2718cd3c992c0446ce8e47212cb1fd1c27536fa3bd7bf98b477176f9b7ae3768",
+      "bytes": 3270
+    },
+    {
+      "path": "browser-client/src/browser-capture-restart.test.ts",
+      "beforeSHA256": null,
+      "afterSHA256": "a7fb6a9b67952d65ce903e58818e6aedd7b7984435d767c50c8bc72e44a97c3a",
+      "bytes": 7601
+    },
+    {
+      "path": "browser-client/src/browser-capture-restart-reason.test.ts",
+      "beforeSHA256": null,
+      "afterSHA256": "60b46f446b115045ef292184175f6cc6a5fa1c93cb033e564f91f9fc7b8ffdaf",
+      "bytes": 2541
+    },
+    {
+      "path": "browser-client/tests/integration/tablet-capture-reacquisition-observer.mjs",
+      "beforeSHA256": null,
+      "afterSHA256": "839ec48be7f02105a136e0d3a576c1e0710c5e3f411df968c91f46279c037e7a",
+      "bytes": 5512
+    },
+    {
+      "path": "browser-client/tests/fixtures/capture-reacquisition-phase.mjs.txt",
+      "beforeSHA256": null,
+      "afterSHA256": "f23c217dbee97355d5ccef6d248a7a92fe0a9bc0c497840ce6e541e4dd7f7825",
+      "bytes": 20468
+    },
+    {
+      "path": "browser-client/tests/fixtures/capture-reacquisition-diagnostic-before.mjs.txt",
+      "beforeSHA256": null,
+      "afterSHA256": "546236dbec6475d8fa8e2b195ffa57fb24671c157724aaf71ed25bd2a5dfe56e",
+      "bytes": 17653
+    },
+    {
+      "path": "browser-client/tests/tablet-capture-reacquisition.test.mjs",
+      "beforeSHA256": null,
+      "afterSHA256": "7a0c231e6203f360c37b92c38821426185ceb754620eb5bac3a73bc3d739a4c1",
+      "bytes": 9156
+    },
+    {
+      "path": "browser-client/tests/fixtures/capture-reacquisition-v4-audio.ts.txt",
+      "beforeSHA256": null,
+      "afterSHA256": "8e60d96fb9d9ead5ea840b4a27ac1d363f0166090ddcc66fec375e3737dd6303",
+      "bytes": 8550
+    },
+    {
+      "path": "browser-client/tests/fixtures/capture-reacquisition-v4-target.ts.txt",
+      "beforeSHA256": null,
+      "afterSHA256": "6ba823e20d42a09342b5a8322990916f896aaf17ef5290e5218ce50941973cac",
+      "bytes": 5517
+    },
+    {
+      "path": "browser-client/tests/fixtures/capture-reacquisition-v4-audio-test.ts.txt",
+      "beforeSHA256": null,
+      "afterSHA256": "ad8e9c4207e26eaa0b828311ce126c73703e962d25f503b30d0477ae48d55751",
+      "bytes": 6753
+    },
+    {
+      "path": "browser-client/tests/fixtures/capture-reacquisition-v4-layout-test.mjs.txt",
+      "beforeSHA256": null,
+      "afterSHA256": "e6af72e4057fde66de0c088fdda3ac1c01600fb628b37fbbdae7a0473f4a9211",
+      "bytes": 7260
+    },
+    {
+      "path": "browser-client/tests/fixtures/capture-reacquisition-v4-prepare.mjs.txt",
+      "beforeSHA256": null,
+      "afterSHA256": "80c2ce58e464ae7f91755d6493fccd8046105bfd0dd80ea9c86af4d33dce02bd",
+      "bytes": 4032
+    },
+    {
+      "path": "browser-client/tests/tablet-capture-reacquisition-manifest.test.mjs",
+      "beforeSHA256": null,
+      "afterSHA256": "be273205c43c1be072fe6a04e57a4ef0de2e083f64cffdb955633985411d4c8c",
+      "bytes": 6138
+    },
+    {
+      "path": "browser-client/tests/tablet-capture-reacquisition-phase.test.mjs",
+      "beforeSHA256": null,
+      "afterSHA256": "000cda92ded9039007112f2fac4b9ed52ce34a9c01b8fb3a2636fb254153fc8a",
+      "bytes": 3532
+    },
+    {
+      "path": "browser-client/tests/fixtures/capture-reacquisition-phase-anchors.json",
+      "beforeSHA256": null,
+      "afterSHA256": "00c75c3a1774cdbf9e5b800436e03df7b05be812f9abaa076a5a5ae6a2d51033",
+      "bytes": 14290
+    },
+    {
+      "path": "browser-client/tests/integration/tablet-capture-phase.mjs",
+      "beforeSHA256": "4cf36d150cf42f680c005a863a0739aba99a58e36b33cd63b92d993e95e4f89f",
+      "afterSHA256": "4cf36d150cf42f680c005a863a0739aba99a58e36b33cd63b92d993e95e4f89f",
+      "bytes": 11908
+    },
+    {
+      "path": "browser-client/tests/integration/tablet-capture-compose.mjs",
+      "beforeSHA256": "45cf2bfea1563b1786b976de36446f8c4662c398056b547dc89ea57403633e50",
+      "afterSHA256": "45cf2bfea1563b1786b976de36446f8c4662c398056b547dc89ea57403633e50",
+      "bytes": 3023
+    },
+    {
+      "path": "browser-client/tests/integration/tablet-push-to-talk.mjs",
+      "beforeSHA256": "6dec42866e6818b1595840e4ccf517f1a56888d8752a3cfe197c0625f6996e3f",
+      "afterSHA256": "6dec42866e6818b1595840e4ccf517f1a56888d8752a3cfe197c0625f6996e3f",
+      "bytes": 31650
+    },
+    {
+      "path": "browser-client/gateway/native-web-ime.test.mjs",
+      "beforeSHA256": "d2dfcc2a3f8c60b4dd4c976089a8551cbdb137a3822685729182b1bbe08e7e78",
+      "afterSHA256": "ddf1705555f2401bdfae345ba4294135b521d08a7d5c1df84810e450f8473bfe",
+      "bytes": 7196
+    },
+    {
+      "path": "browser-client/gateway/tablet-capture.qml",
+      "beforeSHA256": "7f928cae36ed66bbaab7a87221dd72dd306b856662f426d7d8125e6335734247",
+      "afterSHA256": "ddfbef52f203822885d889dab4c34c841f4ffc407b82d743fb07ffe6df2a50fd",
+      "bytes": 26230
+    },
+    {
+      "path": "browser-client/gateway/world-key-native.test.mjs",
+      "beforeSHA256": null,
+      "afterSHA256": "b4116ade42c93629757d8f89f26604fc09dc67bb6c95625dc6ef915b6b73fcd6",
+      "bytes": 2767
+    },
+    {
+      "path": "browser-client/gateway/world-key-qml.test.mjs",
+      "beforeSHA256": null,
+      "afterSHA256": "a5138395214ce8cef738660354b592417227993dbd17161cc0dfa94e7b7c8d79",
+      "bytes": 4445
+    },
+    {
+      "path": "browser-client/gateway/world-key.test.mjs",
+      "beforeSHA256": null,
+      "afterSHA256": "3b86ab7f740145daa51867f1cc3fbfc1f267887bbbd53c2e1fa3e0b288053f95",
+      "bytes": 2986
+    },
+    {
+      "path": "browser-client/native-input/native-input.cpp",
+      "beforeSHA256": "b342f2ea711e5b929602e14d7bd256f02b48f3a4700061a72fc96d91aa5e2f56",
+      "afterSHA256": "e8326d2571327b435318f256e70eba9c53d393ccac31130f941ab48b5f4cf5df",
+      "bytes": 16116
+    },
+    {
+      "path": "browser-client/native-input/world-key-route-test.cpp",
+      "beforeSHA256": null,
+      "afterSHA256": "38737a0b38413d32db89f0bfa2bbb98e49127d217691e3de814d3eb56dee4469",
+      "bytes": 8308
+    },
+    {
+      "path": "browser-client/native-input/world-key-route.h",
+      "beforeSHA256": null,
+      "afterSHA256": "9769fe814d69345bc5959a2ed71060add048f72925fe200edf66d7c1d7ef6170",
+      "bytes": 4625
+    },
+    {
+      "path": "browser-client/shared/hub-entity-membership.d.mts",
+      "beforeSHA256": null,
+      "afterSHA256": "a2c819999d03edd51c4244d6822a90ec5fda52b9189815b60411610e3b63bb20",
+      "bytes": 441
+    },
+    {
+      "path": "browser-client/shared/hub-entity-membership.mjs",
+      "beforeSHA256": null,
+      "afterSHA256": "62a58095b0e458b2a33ef062d60a46e2c822544b700d42c33a7e98bea3e25ef3",
+      "bytes": 3379
+    },
+    {
+      "path": "browser-client/src/world.ts",
+      "beforeSHA256": "66fd95766c79f4deb78400e342fd19cbc19d55a127b75c53f00da09061d660da",
+      "afterSHA256": "a732522ba5e3d9b710d7402e9fa564c7da856d90147a2fa7c2edbb9b14a1c41c",
+      "bytes": 129776
+    },
+    {
+      "path": "browser-client/tests/hub-entity-membership-output.test.mjs",
+      "beforeSHA256": null,
+      "afterSHA256": "7a510292b956f6824158ce9f2ab30efe30f1f2c319b374965754a9ec4fad99b6",
+      "bytes": 3990
+    },
+    {
+      "path": "browser-client/tests/hub-entity-membership.test.mjs",
+      "beforeSHA256": null,
+      "afterSHA256": "59aa7c6ec13bbb996617986597edec60de924dd2209f4f3f09d1a901de024e93",
+      "bytes": 4797
+    },
+    {
+      "path": "browser-client/tests/integration/public-hub.mjs",
+      "beforeSHA256": "a25fb165549b3b04ecfb5f67fa7dd8786cdff6104749281c1b0cec6f396807cf",
+      "afterSHA256": "883c4f95ce01e7ae0ae4b249ad5c55a8a997bff88797b2d09d18035685e26114",
+      "bytes": 41198
+    },
+    {
+      "path": "browser-client/tests/integration/tablet-sit-world-stop-session.mjs",
+      "beforeSHA256": null,
+      "afterSHA256": "e86aea1e3587d9aa4eece135eb8c5ad6a4f94bfc9d71bb6a96d2f375d3f87e67",
+      "bytes": 21449
+    },
+    {
+      "path": "browser-client/tests/tablet-world-key.test.ts",
+      "beforeSHA256": null,
+      "afterSHA256": "5cd7bc9f11bfcc4e87d8cc3337b991c7b3ded6a6917cbdae0006f9feaff6a333",
+      "bytes": 6761
+    },
+    {
+      "path": "browser-client/tools/build-native-input.py",
+      "beforeSHA256": "b00db382d8297d4e1e1bf1f1758daf9411602ae410e7a5f290b9d9f91cd970a9",
+      "afterSHA256": "aabc6f68439fc2396f99b6ec5377fd307f32815b161c6a3a5df6782b80b53be0",
+      "bytes": 11143
+    },
+    {
+      "path": "browser-client/tests/integration/capture-source-fixture.mjs",
+      "beforeSHA256": null,
+      "afterSHA256": "eb4dc8764b9db77cec674710c67504ff9df3f04e43aadf2bcfd086a8136a4ca1",
+      "bytes": 7446
+    },
+    {
+      "path": "browser-client/tests/fixtures/capture-source-history-v5-world-key.json.gz",
+      "beforeSHA256": null,
+      "afterSHA256": "65f09bc5c7c92597abb6e877b1c5a85b26749f8a116724e7387600dc40639fb9",
+      "bytes": 31429,
+      "binary": true
+    },
+    {
+      "path": "browser-client/tests/tablet-capture-world-key-manifest.test.mjs",
+      "beforeSHA256": null,
+      "afterSHA256": "39110eefee67b787eaf92ab08dd815af720eeeabc5553db4e27b49185283de12",
+      "bytes": 9250
+    },
+    {
+      "path": "browser-client/tests/tablet-capture-source-fixture.test.mjs",
+      "beforeSHA256": null,
+      "afterSHA256": "1d9011960eacee697368e5074ece06c2196995479d0dc0290b50e6dc6d18cea0",
+      "bytes": 6901
+    },
+    {
+      "path": "browser-client/tests/fixtures/capture-reacquisition-v5-complete-source-manifest.json",
+      "beforeSHA256": "0c8b85887e17f4655f00cc38f56fef2ed7c378c5c951d3581be0c05ce90eef27",
+      "afterSHA256": "0c8b85887e17f4655f00cc38f56fef2ed7c378c5c951d3581be0c05ce90eef27",
+      "bytes": 22709
+    },
+    {
+      "path": "browser-client/tests/fixtures/layout-v4-gzip-complete-source-manifest.json",
+      "beforeSHA256": "eb415f63f1a5b17786431aece8af06cc5fc29755a115376add1e110346077ee1",
+      "afterSHA256": "eb415f63f1a5b17786431aece8af06cc5fc29755a115376add1e110346077ee1",
+      "bytes": 12843
+    },
+    {
+      "path": "browser-client/src/model-slot-residence.ts",
+      "beforeSHA256": "f752427d462e49e36e1e87c775b593971fedf427129d6d2bbef5fec0dc86e398",
+      "afterSHA256": "2604a4df1109d30269f3e629a34ca5fc9c817db44fdaa6ed3d087e61cb7adb76",
+      "bytes": 8836
+    },
+    {
+      "path": "browser-client/tests/fst-residence-detail.test.ts",
+      "beforeSHA256": null,
+      "afterSHA256": "399f0a2561ae00a004fe724e81b86ca417d03eff91d21cea2f3365e0b2ccad4b",
+      "bytes": 8380
+    },
+    {
+      "path": "browser-client/tests/fixtures/fst-residence-original-material.ts",
+      "beforeSHA256": null,
+      "afterSHA256": "d141dbb44526fc74acec6815b25feb99d8efe4f5f8c9f6c9e825f7c6aa4b6b75",
+      "bytes": 4019
+    },
+    {
+      "path": "browser-client/gateway/native-application-composition.test.mjs",
+      "beforeSHA256": null,
+      "afterSHA256": "00343cf26b866d92c636ef675e1d8f5b4bf0b5f1ac51b70d10dcf8fd5c369f49",
+      "bytes": 6681
+    },
+    {
+      "path": "browser-client/gateway/fixtures/world-key-historical-recovery.json",
+      "beforeSHA256": null,
+      "afterSHA256": "e2d75a09ef046a5fba8e51fd3b0abd50f7cfc49144195b5d5e862e761d342d07",
+      "bytes": 6698
+    },
+    {
+      "path": "browser-client/src/fst-definition-lookahead.test.ts",
+      "beforeSHA256": null,
+      "afterSHA256": "b7f8d1aebf1a6a4d5af6ebc63fd794d362231ce55ce4d9c83959809df589b367",
+      "bytes": 7051
+    },
+    {
+      "path": "browser-client/src/fst-definition-lookahead.ts",
+      "beforeSHA256": null,
+      "afterSHA256": "18818d1e4abeb42af7874a1514bde74bbf795f082a056bf7ed976a62fa06a844",
+      "bytes": 2527
+    },
+    {
+      "path": "browser-client/src/world-source-text-cache.ts",
+      "beforeSHA256": "57ccb98bed54e788ed0e2f263e8362ae505f4b3073648dc08c311925e21116b1",
+      "afterSHA256": "1e6e24dc462a68dbe44dfa0e2494c862c8d3eb160eb67d511859421683cf311a",
+      "bytes": 8219
+    },
+    {
+      "path": "browser-client/tests/fixtures/capture-v6-fst-escape-before.json.gz",
+      "beforeSHA256": null,
+      "afterSHA256": "71de859065c082e3abca0039b5f8b96aa1dcdd78097b79699739aa5362d3f0ec",
+      "bytes": 45640
+    },
+    {
+      "path": "browser-client/tests/fixtures/capture-world-key-v6-complete-source-manifest.json",
+      "beforeSHA256": "a823a0e90c8a6cc3f25601982527fdfe194f9a1484ca9a6867c58596a67db901",
+      "afterSHA256": "a823a0e90c8a6cc3f25601982527fdfe194f9a1484ca9a6867c58596a67db901",
+      "bytes": 42379
+    },
+    {
+      "path": "browser-client/tests/fixtures/world-owned-escape-hunk.json",
+      "beforeSHA256": null,
+      "afterSHA256": "a7161381f49e8238c13a09b66754d029e3522b14ed70a15cbe298a77041973e1",
+      "bytes": 994
+    },
+    {
+      "path": "browser-client/tests/fst-lookahead-stage-fixture.ts",
+      "beforeSHA256": null,
+      "afterSHA256": "0ef2d55fac67638d05695b5274ce7fba704977a394a02078ece79a002185db7f",
+      "bytes": 1832
+    },
+    {
+      "path": "browser-client/tests/integration/capture-lookahead-source-fixture.mjs",
+      "beforeSHA256": null,
+      "afterSHA256": "0f0a99dbd92025346bb6dd40bf8c0e2e0a064f1eddf1ed707d2b05a14ecc4ab8",
+      "bytes": 4100
+    },
+    {
+      "path": "browser-client/tests/lookahead-stage-fixture.test.ts",
+      "beforeSHA256": null,
+      "afterSHA256": "b0a0396b3114210d576d775fec12c8df539d784dd8e8fadc74edcb661b1c07cb",
+      "bytes": 2063
+    },
+    {
+      "path": "browser-client/tests/tablet-capture-fst-escape-manifest.test.mjs",
+      "beforeSHA256": null,
+      "afterSHA256": "36f3eec12811a360ab91c8846fdec7827098d03a092e85da499cfa20986ae69a",
+      "bytes": 7613
+    },
+    {
+      "path": "browser-client/tests/world-fst-definition-lookahead.browser.spec.ts",
+      "beforeSHA256": null,
+      "afterSHA256": "fe330553d9709352af203e0388a2c204593d8855697d877205c7c8efce23c501",
+      "bytes": 8281
+    },
+    {
+      "path": "browser-client/tests/world-fst-definition-lookahead.test.ts",
+      "beforeSHA256": null,
+      "afterSHA256": "9a9bb1082914779352fcc45eb741800f89689afcd853ab4eeebb4087910c226f",
+      "bytes": 5259
+    },
+    {
+      "path": "browser-client/tests/world-owned-escape.test.mjs",
+      "beforeSHA256": null,
+      "afterSHA256": "2c46f221a9617507357fbc37f580f5a8e780c778a6c62a1f50525443c7427919",
+      "bytes": 5773
+    },
+    {
+      "path": "browser-client/gateway/fixtures/native-browser-capture-readback-before.js.gz",
+      "beforeSHA256": null,
+      "afterSHA256": "3c152e1257a04e4afbfd5e1ed2ebf905a197839828ddef1c164aeaf84219467c",
+      "bytes": 2075
+    },
+    {
+      "path": "browser-client/gateway/fixtures/native-browser-capture-readback-before.qml.gz",
+      "beforeSHA256": null,
+      "afterSHA256": "922e1c9e585030edd48b6dfd049299b8fc74c30bf8efbf330cf5b1a84f45b716",
+      "bytes": 1822
+    },
+    {
+      "path": "browser-client/tests/integration/capture-readback-source-fixture.mjs",
+      "beforeSHA256": null,
+      "afterSHA256": "e666b298307a8e5c882ea4fa7cfc193f06df9712b8a66e0969c98484581d1153",
+      "bytes": 7782
+    },
+    {
+      "path": "browser-client/tests/fixtures/capture-v7-readback-before.json.gz",
+      "beforeSHA256": null,
+      "afterSHA256": "1018f171330b0174894c53e5e989c03066db17d07a699df3f7632fcedf26d1d4",
+      "bytes": 22095
+    },
+    {
+      "path": "browser-client/tests/fixtures/capture-v8-readback-input-recovery.json",
+      "beforeSHA256": null,
+      "afterSHA256": "52793229632f94e4552fa55a68aa8dd11f008c1c9298985114ba94ba9add2151",
+      "bytes": 3686
+    },
+    {
+      "path": "browser-client/tests/fixtures/capture-fst-escape-v7-complete-source-manifest.json",
+      "beforeSHA256": null,
+      "afterSHA256": "120a24ee206a04a710ccafcf32b09184eb280442e3de23184bfc0d38ea94a2a7",
+      "bytes": 48467
+    },
+    {
+      "path": "browser-client/tests/tablet-capture-readback-manifest.test.mjs",
+      "beforeSHA256": null,
+      "afterSHA256": "48fbea79ac8c823c142f61b8b6b4afa1fb2b00046eef4bfc06bf8976cfec1ac1",
+      "bytes": 7070
+    }
+  ],
+  "dependencyPins": {
+    "browser-client/src/fullscreen.ts": "a311c55214699670c6cacd7bdbba0fec024d0ef50e69f90f2c28db6e3357715e",
+    "browser-client/src/world.ts": "a732522ba5e3d9b710d7402e9fa564c7da856d90147a2fa7c2edbb9b14a1c41c",
+    "browser-client/src/push-to-talk.ts": "61e2d6a750abf377a16a4451dfa76907d093d210f3efd4980cf3476ffcf25cab",
+    "browser-client/gateway/native-push-to-talk.js": "9cc0c88a015e8a56b038c4a31c33a5190993fe47d2d439d99e0e159fa6088321",
+    "browser-client/tests/tablet-fullscreen.browser.spec.ts": "ddaf2bc6ff709c302476b8f63581176684d738b71d076783c94edfcaa77915c2"
+  },
+  "verification": {
+    "selectedCasesPassed": 160,
+    "allOriginal142CaseNamesPreservedAndPassed": true,
+    "newFixCases": 10,
+    "skipped": 0,
+    "wholeProjectStrictTypeScript": true,
+    "actualQtBrowserMicrophoneHardware": false
+  },
+  "packagePins": {
+    "audio.js": "42f48103b327c63bdb7a22f7cfb8fe9c57010014e468ed7cda5a557cfc1d2e17",
+    "resources.rcc": "dd8a9efebe9b09a4b5e84e5c768ad7c7a38ea9702e681a357898dcbb9674ce01"
+  },
+  "limits": {
+    "applyAdapterDeadlineMs": 8000,
+    "outstandingBrowserReconfiguration": 1,
+    "slotReleasedOnlyAfterActualPromiseSettles": true,
+    "newMicrophoneRights": false,
+    "deviceOrLabelWireFields": false
+  },
+  "followupManifestSHA256": "8704ce7ec5bd85686bb96ee9382917ed8e227c90aef0ef8be50a11cf0a376f7e",
+  "layoutDerivation": {
+    "completeAudioV2ManifestSHA256": "e6f3ad43d392f15ba6273ef8fdb50b06d623ce307471d6136feafd6bc08577d5",
+    "widthCorrectionManifestSHA256": "35f2a699657e34dae3fb2f717ecff05e39b9f85b99b2ca66b7cd767f7d0b944c",
+    "widthCorrectionPatchSHA256": "8d8c2749a3238601f9bdfca4897321bfa209d1ab0c7307b1478e5b090754fb2c",
+    "onlyOriginalRowChanged": "browser-client/gateway/browser-capture-overrides.mjs",
+    "originalRows": 25,
+    "widthNewCPURows": 4,
+    "historicalVerificationPreserved": true,
+    "historicalDependencyPinsPreserved": true,
+    "historicalDocsRowNotRuntimeValidated": true,
+    "actualGoogleChromeCaptureEffectsQualified": false
+  },
+  "styleDerivation": {
+    "completeLayoutV3ManifestSHA256": "0a40b3182cd441791f88a049e0ced1681484f7719c75ea0551546ba7e7e97e14",
+    "declaration": "HifiConstants { id: hifi; }",
+    "importAlreadyReviewed": "stylesUit 1.0",
+    "nativeAudioQmlSHA256": "4208e7f17c85d1c1bd57e515eb191fa6afb1ffb517b5506d58844922e8f99379",
+    "nativeSwitchQmlSHA256": "31df4673f94ba0f5828cda60b740f1ca3bdd39e9adc95c875cd23287bbbcb907",
+    "onlyOriginalRuntimeRowChanged": "browser-client/gateway/browser-capture-overrides.mjs",
+    "historicalVerificationPreserved": true,
+    "actualStyledQtQualified": false,
+    "actualECChangeAcknowledgementCauseEstablished": false
+  },
+  "gzipGoldDerivation": {
+    "previousCompleteManifestSHA256": "1f3f211bb0c7d0c2c9bbcd9cc2319847af88e84b591cbc5657760b6816c483a5",
+    "originalRawSHA256": "4208e7f17c85d1c1bd57e515eb191fa6afb1ffb517b5506d58844922e8f99379",
+    "originalRawBytes": 35827,
+    "gzipSHA256": "c8cd2d3ebafe34bf895ece8c9ad8f6bc48d62a3f38d0bea294714f5235b65116",
+    "gzipBytes": 4888,
+    "header": "1f8b08000000000002ff",
+    "maxDecodedBytes": 65536,
+    "runtimeChanged": false,
+    "whitespacePolicyChanged": false
+  },
+  "reacquisitionDerivation": {
+    "previousCompleteManifestSHA256": "eb415f63f1a5b17786431aece8af06cc5fc29755a115376add1e110346077ee1",
+    "originalStyledV4ManifestSHA256": "1f3f211bb0c7d0c2c9bbcd9cc2319847af88e84b591cbc5657760b6816c483a5",
+    "runtimeManifestSHA256": "392066ca0c605ab4685f6f55e1185d490484e1e827552dd16ed23ce8ee9586ef",
+    "gzipManifestSHA256": "91e5c8623e036ee163cb8456c0dcdaf0ede08bcf8b266fa7ce47253c7c15fe71",
+    "original12BodySHA256": "6dec42866e6818b1595840e4ccf517f1a56888d8752a3cfe197c0625f6996e3f",
+    "shippingExtraPhaseSHA256": "4cf36d150cf42f680c005a863a0739aba99a58e36b33cd63b92d993e95e4f89f",
+    "historicalDiagnosticPhaseSHA256": "546236dbec6475d8fa8e2b195ffa57fb24671c157724aaf71ed25bd2a5dfe56e",
+    "copyExtraPhaseSHA256": "f23c217dbee97355d5ccef6d248a7a92fe0a9bc0c497840ce6e541e4dd7f7825",
+    "copiedOnlyPhase": true,
+    "originalCompositionAnchors": 6,
+    "happyProcessingOperations": 6,
+    "getUserMediaCallsPerHappyOperation": 1,
+    "gainGetUserMediaCalls": 0,
+    "oldEndedBeforeAcquisition": true,
+    "samePrivateDeviceRequired": true,
+    "allThreeExactSettingsRequired": true,
+    "originalTrackedLiveResourceBound": 4,
+    "restoredOldSettingsNeverAcceptedDesiredChange": true,
+    "newMicrophoneConsent": false,
+    "deviceIdentifiersExported": false,
+    "actualCaptureReacquisitionQualified": false,
+    "physicalMicrophoneQualified": false,
+    "historicalV4GuardBodiesPreservedInFixedInputSnapshots": true,
+    "strictCurrentV5GuardAdded": true,
+    "changedOriginalRowPaths": [
+      "browser-client/src/audio.ts",
+      "browser-client/src/browser-capture-target.ts",
+      "browser-client/src/browser-capture-audio.test.ts",
+      "browser-client/tests/tablet-capture-layout-manifest.test.mjs"
+    ],
+    "appendedRows": [
+      "src/browser-capture-restart.ts",
+      "src/browser-capture-restart.test.ts",
+      "src/browser-capture-restart-reason.test.ts",
+      "tests/integration/tablet-capture-reacquisition-observer.mjs",
+      "tests/fixtures/capture-reacquisition-phase.mjs.txt",
+      "tests/fixtures/capture-reacquisition-diagnostic-before.mjs.txt",
+      "tests/tablet-capture-reacquisition.test.mjs",
+      "tests/fixtures/capture-reacquisition-v4-audio.ts.txt",
+      "tests/fixtures/capture-reacquisition-v4-target.ts.txt",
+      "tests/fixtures/capture-reacquisition-v4-audio-test.ts.txt",
+      "tests/fixtures/capture-reacquisition-v4-layout-test.mjs.txt",
+      "tests/fixtures/capture-reacquisition-v4-prepare.mjs.txt",
+      "tests/tablet-capture-reacquisition-manifest.test.mjs",
+      "tests/tablet-capture-reacquisition-phase.test.mjs",
+      "tests/fixtures/capture-reacquisition-phase-anchors.json",
+      "tests/integration/tablet-capture-phase.mjs",
+      "tests/integration/tablet-capture-compose.mjs",
+      "tests/integration/tablet-push-to-talk.mjs"
+    ],
+    "chromeEnvironmentSourcePins": {
+      ".github/workflows/browser-client.yml": "36c9c308d37c38e1fcf9da2ec6b9a54be9446bb2e5ae439acd414909696a0fcc",
+      "browser-client/ci/jenkins/README.md": "8a6ff009b9a008f8bc0343e04ada491a369fe9c44eb15f47bc0c2bc3d839cc1c",
+      "browser-client/ci/jenkins/chrome-payload.py": "6e9c456bb29c6d0c19e579ae394956a5dbd63eddc2bb9de7ef00cebd9d38eddb",
+      "browser-client/ci/jenkins/gates.py": "547f59dddaaf8b15078f86d63ebb40b67d36adbf87b1564bdfe3cacd1660a5e1",
+      "browser-client/ci/jenkins/prepare.py": "568df6cf68329a0a49fd3d9347130e7031d07c8046f1c47d80ca3d7a08748496",
+      "browser-client/ci/jenkins/run.py": "9b3a43c063a8fb65c39b18636ba6ad79036455f428e595d78f13cfebbded55b7",
+      "browser-client/ci/jenkins/test_chrome_scope.py": "48d0b1ff80969463d6285fd12d5efe1e8527b5f32f9c99bc3e99ee1070975b53",
+      "browser-client/ci/jenkins/test_runner.py": "be125b173e2f285275050f6a89e15298076ce7bb802e8c693be588345bfe558e",
+      "browser-client/lab/curate-core-journey.py": "3980961dde13cb9c26b1dbcc0ed2d733cc9aeebe5068347704f6d891e652bc36",
+      "browser-client/lab/run-embedded-journey.sh": "dcef1408c231efdc040eefc3dbc54dcf12c9db1a5d56561cdb13a7011db09a1c",
+      "browser-client/lab/run-native-ignored-fbx-journey.sh": "026609d3a0fa0a82f9f13b327af67d3f110ba57d1be252b7de687f67c2f1e66b",
+      "browser-client/playwright.config.ts": "89bda4d8e4c9a8c04504abb4d3d1d6577c20126334e1537fb95b0dd42194bd5d",
+      "browser-client/tests/chrome-only-defaults.test.mjs": "b5208047eb69d8e9c2113bff444f2880522beb2acb7ca075a5077052784c8c76",
+      "browser-client/tests/google-chrome-selection.d.mts": "2c82a1e68a270e1357a81d1a187ea2397985a64d7d8807da33403580ddcc874b",
+      "browser-client/tests/google-chrome-selection.mjs": "00a78214a6c4f152e883e516f66fa4fd4ccb4bb89a1dc617f50916c94d573c14",
+      "browser-client/tests/google-chrome-selection.test.mjs": "dea7599df87c2a5bd4cc484b0e15e137aeec514f8ea738513c178929c516ba94",
+      "browser-client/tests/integration/embedded-world.mjs": "e02885bc1c7be64d26f24f49784d70bea937948005657bd14baab83260a4511e",
+      "browser-client/tests/integration/model-fbx-pool-proof.mjs": "726c481a742c12745bfe4dc8315a37fec891469a3e3d751c96af72317118aaf6",
+      "browser-client/tests/integration/native-ignored-fbx-pixels.mjs": "7edd8b8938c7d6ac168182e51d1d40ce32c0eb74d937d7092f52f223b0365821",
+      "browser-client/tests/integration/real-session.mjs": "daba35297a9090a29a916ddd7658c11b2713fcf1f25d78894e17d9ac922e915b"
+    },
+    "chromeEnvironmentReviewManifestSHA256": "018b85156521d62be8bf9c7c58be469c38cfe89b17fff837ebe2e014c76ccf89"
+  },
+  "worldKeyDerivation": {
+    "previousCompleteManifestSHA256": "0c8b85887e17f4655f00cc38f56fef2ed7c378c5c951d3581be0c05ce90eef27",
+    "worldKeyCompositionManifestSHA256": "4c5937b6a18ac5b8f72c36a11001da3f9214f6b884a3d61180555b3cdad4f97d",
+    "changedOriginalRowPaths": [
+      "browser-client/gateway/native-tablet.js",
+      "browser-client/gateway/tablet.mjs",
+      "browser-client/src/main.ts",
+      "browser-client/src/tablet-protocol.ts",
+      "browser-client/src/tablet.ts",
+      "browser-client/tests/tablet-capture-layout-manifest.test.mjs",
+      "browser-client/tests/tablet-capture-reacquisition-manifest.test.mjs",
+      "browser-client/gateway/browser-capture-overrides.mjs",
+      "browser-client/tests/tablet-capture-style.test.mjs",
+      "browser-client/tests/tablet-capture-switch-width.test.mjs"
+    ],
+    "changedWorldKeyRows": [
+      "browser-client/gateway/native-tablet.js",
+      "browser-client/gateway/native-web-ime.test.mjs",
+      "browser-client/gateway/tablet-capture.qml",
+      "browser-client/gateway/tablet.mjs",
+      "browser-client/gateway/world-key-native.test.mjs",
+      "browser-client/gateway/world-key-qml.test.mjs",
+      "browser-client/gateway/world-key.test.mjs",
+      "browser-client/native-input/native-input.cpp",
+      "browser-client/native-input/world-key-route-test.cpp",
+      "browser-client/native-input/world-key-route.h",
+      "browser-client/shared/hub-entity-membership.d.mts",
+      "browser-client/shared/hub-entity-membership.mjs",
+      "browser-client/src/main.ts",
+      "browser-client/src/tablet-protocol.ts",
+      "browser-client/src/tablet.ts",
+      "browser-client/src/world.ts",
+      "browser-client/tests/hub-entity-membership-output.test.mjs",
+      "browser-client/tests/hub-entity-membership.test.mjs",
+      "browser-client/tests/integration/public-hub.mjs",
+      "browser-client/tests/integration/tablet-sit-world-stop-session.mjs",
+      "browser-client/tests/tablet-world-key.test.ts",
+      "browser-client/tools/build-native-input.py"
+    ],
+    "worldKeyRows": {
+      "browser-client/gateway/native-tablet.js": {
+        "before": "0c90732c34a8b06dc5ce1112697ac1a4f6f88a5a20754d21a71a42ee7f3b8eb4",
+        "after": "3f21000d280e6747ed032fe2183bd76512cbb521b6bcd3416db22b7b58e57bb3"
+      },
+      "browser-client/gateway/native-web-ime.test.mjs": {
+        "before": "d2dfcc2a3f8c60b4dd4c976089a8551cbdb137a3822685729182b1bbe08e7e78",
+        "after": "ddf1705555f2401bdfae345ba4294135b521d08a7d5c1df84810e450f8473bfe"
+      },
+      "browser-client/gateway/tablet-capture.qml": {
+        "before": "7f928cae36ed66bbaab7a87221dd72dd306b856662f426d7d8125e6335734247",
+        "after": "ddfbef52f203822885d889dab4c34c841f4ffc407b82d743fb07ffe6df2a50fd"
+      },
+      "browser-client/gateway/tablet.mjs": {
+        "before": "3f332c951c7225478c67765fd102d295d30bcff832551e5088d09b95e54d4ba5",
+        "after": "c658e82e0446d97e5d100234c878df2b835883a730081cba58856be86cbf051f"
+      },
+      "browser-client/gateway/world-key-native.test.mjs": {
+        "before": null,
+        "after": "b4116ade42c93629757d8f89f26604fc09dc67bb6c95625dc6ef915b6b73fcd6"
+      },
+      "browser-client/gateway/world-key-qml.test.mjs": {
+        "before": null,
+        "after": "a5138395214ce8cef738660354b592417227993dbd17161cc0dfa94e7b7c8d79"
+      },
+      "browser-client/gateway/world-key.test.mjs": {
+        "before": null,
+        "after": "3b86ab7f740145daa51867f1cc3fbfc1f267887bbbd53c2e1fa3e0b288053f95"
+      },
+      "browser-client/native-input/native-input.cpp": {
+        "before": "b342f2ea711e5b929602e14d7bd256f02b48f3a4700061a72fc96d91aa5e2f56",
+        "after": "e8326d2571327b435318f256e70eba9c53d393ccac31130f941ab48b5f4cf5df"
+      },
+      "browser-client/native-input/world-key-route-test.cpp": {
+        "before": null,
+        "after": "38737a0b38413d32db89f0bfa2bbb98e49127d217691e3de814d3eb56dee4469"
+      },
+      "browser-client/native-input/world-key-route.h": {
+        "before": null,
+        "after": "9769fe814d69345bc5959a2ed71060add048f72925fe200edf66d7c1d7ef6170"
+      },
+      "browser-client/shared/hub-entity-membership.d.mts": {
+        "before": null,
+        "after": "a2c819999d03edd51c4244d6822a90ec5fda52b9189815b60411610e3b63bb20"
+      },
+      "browser-client/shared/hub-entity-membership.mjs": {
+        "before": null,
+        "after": "62a58095b0e458b2a33ef062d60a46e2c822544b700d42c33a7e98bea3e25ef3"
+      },
+      "browser-client/src/main.ts": {
+        "before": "f33b27cab252aff9f194fc64d9a9b4ae942ec77f79e04f91d1597b61afe55324",
+        "after": "d351b82de0fdface9266fc05597d3656d6e29248d981179fd0e5240debe9fb88"
+      },
+      "browser-client/src/tablet-protocol.ts": {
+        "before": "006e304a3e5a03d7a762d7b64e4ec8b24c46796340e00178c3264dedf6f9c8c1",
+        "after": "8e88c7ddbc9d7dbfe6bfc1a514992c5f5eb4bdc3ad086cdd95cd3ddd4f6b6c3f"
+      },
+      "browser-client/src/tablet.ts": {
+        "before": "04e91da914725e290d56dbeb2b5e837a2d7f9233d455eda88e4ca30e21c9e92e",
+        "after": "6bff82a459b0b2b3a2c6f0c8abc0ba120dc89976a5215ff2c537f7c5c63a28b4"
+      },
+      "browser-client/src/world.ts": {
+        "before": "66fd95766c79f4deb78400e342fd19cbc19d55a127b75c53f00da09061d660da",
+        "after": "2091ddde38ece3bb5ed1dbfe4efdaf9f6979a9d99a9dc094de3f315f71961407"
+      },
+      "browser-client/tests/hub-entity-membership-output.test.mjs": {
+        "before": null,
+        "after": "7a510292b956f6824158ce9f2ab30efe30f1f2c319b374965754a9ec4fad99b6"
+      },
+      "browser-client/tests/hub-entity-membership.test.mjs": {
+        "before": null,
+        "after": "59aa7c6ec13bbb996617986597edec60de924dd2209f4f3f09d1a901de024e93"
+      },
+      "browser-client/tests/integration/public-hub.mjs": {
+        "before": "a25fb165549b3b04ecfb5f67fa7dd8786cdff6104749281c1b0cec6f396807cf",
+        "after": "883c4f95ce01e7ae0ae4b249ad5c55a8a997bff88797b2d09d18035685e26114"
+      },
+      "browser-client/tests/integration/tablet-sit-world-stop-session.mjs": {
+        "before": null,
+        "after": "e86aea1e3587d9aa4eece135eb8c5ad6a4f94bfc9d71bb6a96d2f375d3f87e67"
+      },
+      "browser-client/tests/tablet-world-key.test.ts": {
+        "before": null,
+        "after": "5cd7bc9f11bfcc4e87d8cc3337b991c7b3ded6a6917cbdae0006f9feaff6a333"
+      },
+      "browser-client/tools/build-native-input.py": {
+        "before": "b00db382d8297d4e1e1bf1f1758daf9411602ae410e7a5f290b9d9f91cd970a9",
+        "after": "aabc6f68439fc2396f99b6ec5377fd307f32815b161c6a3a5df6782b80b53be0"
+      }
+    },
+    "appendedSourceRows": [
+      "browser-client/gateway/native-web-ime.test.mjs",
+      "browser-client/gateway/tablet-capture.qml",
+      "browser-client/gateway/world-key-native.test.mjs",
+      "browser-client/gateway/world-key-qml.test.mjs",
+      "browser-client/gateway/world-key.test.mjs",
+      "browser-client/native-input/native-input.cpp",
+      "browser-client/native-input/world-key-route-test.cpp",
+      "browser-client/native-input/world-key-route.h",
+      "browser-client/shared/hub-entity-membership.d.mts",
+      "browser-client/shared/hub-entity-membership.mjs",
+      "browser-client/src/world.ts",
+      "browser-client/tests/hub-entity-membership-output.test.mjs",
+      "browser-client/tests/hub-entity-membership.test.mjs",
+      "browser-client/tests/integration/public-hub.mjs",
+      "browser-client/tests/integration/tablet-sit-world-stop-session.mjs",
+      "browser-client/tests/tablet-world-key.test.ts",
+      "browser-client/tools/build-native-input.py",
+      "browser-client/tests/integration/capture-source-fixture.mjs",
+      "browser-client/tests/fixtures/capture-source-history-v5-world-key.json.gz",
+      "browser-client/tests/tablet-capture-world-key-manifest.test.mjs",
+      "browser-client/tests/tablet-capture-source-fixture.test.mjs",
+      "browser-client/tests/fixtures/capture-reacquisition-v5-complete-source-manifest.json",
+      "browser-client/tests/fixtures/layout-v4-gzip-complete-source-manifest.json"
+    ],
+    "historicalSourceArchiveSHA256": "5a407f6a74e4e607e021f882a662cd0428f36c3341bfea0c93feb2ee2eb4038b",
+    "historicalArchiveCompressedLimit": 65536,
+    "historicalArchiveDecodedLimit": 262144,
+    "historicalArchiveCompressedBytes": 30599,
+    "historicalArchiveDecodedBytes": 122554,
+    "historicalFactoryVersions": [
+      4,
+      5,
+      6
+    ],
+    "original56SourcePathsRetained": true,
+    "originalCaptureGatesRetained": true,
+    "original12BodyUnchanged": true,
+    "currentNativeSourceKindsExplicit": [
+      "native-input",
+      "tools"
+    ],
+    "nativeSourceCopied": true,
+    "actualAudioAfterWorldKeyQualified": false,
+    "actualNativeWorldStopQualified": false,
+    "runtimeQualityOrPermissionChanges": false,
+    "worldKeyBehaviorAddedBySeparateReviewedPacket": true,
+    "historicalSourceRows": 9
+  },
+  "paletteDerivation": {
+    "previousProspectiveV6CompleteManifestSHA256": "bf074eb36cedebca2209e99aa2672e410fd7b83a0e117d6c6d8fa5a54462cd09",
+    "gainPaletteManifestSHA256": "36531116e3a6ebf56ac04527511a10de8ad1042f5716fbec0c6049eaa94d390f",
+    "changedOriginalRowPaths": [
+      "browser-client/gateway/browser-capture-overrides.mjs",
+      "browser-client/tests/tablet-capture-style.test.mjs"
+    ],
+    "rows": [
+      {
+        "path": "browser-client/gateway/browser-capture-overrides.mjs",
+        "beforeSHA256": "661347b2b9e27f18ce1cebf2f88fa3d853a7646f236818a7f93dc08cede48f52",
+        "afterSHA256": "9a41d28676ada36d6a54bec5186214963d9864f6cad8c79e7abe666f9d36d7fe"
+      },
+      {
+        "path": "browser-client/tests/tablet-capture-style.test.mjs",
+        "beforeSHA256": "6d7095041c22aeb579d5a94679c86d69bc27ccfebf50c0b4b45af1f0b3ec2826",
+        "afterSHA256": "26184206a3f39e42bcae68eff06cbe985cd412f8122deb08fd7f813ea2f35fef"
+      }
+    ],
+    "localProperty": "palette.dark:enabled?'#00b4ef':'#686868';",
+    "originalPaintedContrastThreshold": 20,
+    "widgetGeometryOrActionChanged": false,
+    "currentBeforeInputsRecoveredForV4V5": true,
+    "actualNativePaletteQualified": false
+  },
+  "fstObservationDerivation": {
+    "manifestSHA256": "d95f38c7bcc1ba03e3e13dfc00a60e1e0c6dbfe0f7edc608519b9d028bdf0e0c",
+    "patchSHA256": "652ecabeed0751ead17fc4e3b5ed8647514f8d6ccf56535137eb0034af6c8987",
+    "worldOriginalBeforeSHA256": "66fd95766c79f4deb78400e342fd19cbc19d55a127b75c53f00da09061d660da",
+    "worldBeforeSHA256": "2091ddde38ece3bb5ed1dbfe4efdaf9f6979a9d99a9dc094de3f315f71961407",
+    "worldAfterSHA256": "c02931412d89d91650cf9bf185e8aaaa9ad3c120fc07a159d770761c84839fa7",
+    "admittedRows": [
+      {
+        "path": "browser-client/src/model-slot-residence.ts",
+        "beforeSHA256": "f752427d462e49e36e1e87c775b593971fedf427129d6d2bbef5fec0dc86e398",
+        "afterSHA256": "2604a4df1109d30269f3e629a34ca5fc9c817db44fdaa6ed3d087e61cb7adb76",
+        "bytes": 8836
+      },
+      {
+        "path": "browser-client/src/world.ts",
+        "beforeSHA256": "2091ddde38ece3bb5ed1dbfe4efdaf9f6979a9d99a9dc094de3f315f71961407",
+        "afterSHA256": "c02931412d89d91650cf9bf185e8aaaa9ad3c120fc07a159d770761c84839fa7",
+        "bytes": 127698
+      },
+      {
+        "path": "browser-client/tests/fst-residence-detail.test.ts",
+        "beforeSHA256": null,
+        "afterSHA256": "399f0a2561ae00a004fe724e81b86ca417d03eff91d21cea2f3365e0b2ccad4b",
+        "bytes": 8380
+      },
+      {
+        "path": "browser-client/tests/fixtures/fst-residence-original-material.ts",
+        "beforeSHA256": null,
+        "afterSHA256": "d141dbb44526fc74acec6815b25feb99d8efe4f5f8c9f6c9e825f7c6aa4b6b75",
+        "bytes": 4019
+      }
+    ],
+    "defaultEnabled": false,
+    "loadOrderOrConcurrencyChanged": false,
+    "maximumPerFieldCount": 256,
+    "maximumIndependentWaitsPerStage": 256,
+    "nestedLeafStackChanged": false,
+    "runtimeOptimizationEnabled": false,
+    "actualLateOwnerMultiplicityEstablished": false
+  },
+  "historicalCompositionDerivation": {
+    "previousCompleteManifestSHA256": "e8798d41b6a35268d70f52d14375ac96a7cdbdf56ecad92910bfbd439708ce87",
+    "scope": "Exact World-X reversal before original Application composition and exact local gain palette removal before historical Switch-width assertions",
+    "oldApplicationExpectedSHA256": [
+      "c4edbad2ea9697cc969b0ab965ad5c834119a553465ae5ef7d95205d73f2d3ca",
+      "f990c2ed3f5b0d68e50b959774214f4b7637e332b1c9613567c8ea9252f5f1bc",
+      "09d1aa93dc612d6a9229ca58ae214b3d4e51bd9bf62009f7ea4d921db51741e4"
+    ],
+    "changedHistoricalOriginalRows": [
+      "browser-client/tests/tablet-capture-switch-width.test.mjs"
+    ],
+    "addedSourceRows": [
+      "browser-client/gateway/native-application-composition.test.mjs",
+      "browser-client/gateway/fixtures/world-key-historical-recovery.json"
+    ],
+    "historicalArchiveInputs": 10,
+    "runtimeChanges": false,
+    "assertionsRemoved": false
+  },
+  "fstEscapeDerivation": {
+    "originalManifestSHA256": "a823a0e90c8a6cc3f25601982527fdfe194f9a1484ca9a6867c58596a67db901",
+    "fstManifestSHA256": "65ed27e537e73f0487e854bd37be68a43c8cf561a5c3b7ec6f02796a3fc626ec",
+    "escapeManifestSHA256": "046ca3024fa941dd4f1b3e3dc17499c4f2909126733e27b4dd80e96b5927a5aa",
+    "gpuCorrectionManifestSHA256": "e9045cb81d2587a2e5b7cc3c8b8d630128058f5f48911a784c247bbcca1a1d4a",
+    "migrations": {
+      "browser-client/src/main.ts": {
+        "beforeSHA256": "d351b82de0fdface9266fc05597d3656d6e29248d981179fd0e5240debe9fb88",
+        "afterSHA256": "8059c8e774e9f641d85f0255dcd6e37f0143cf005a7dcb5a4d7d714eedca4ac4"
+      },
+      "browser-client/src/world.ts": {
+        "beforeSHA256": "c02931412d89d91650cf9bf185e8aaaa9ad3c120fc07a159d770761c84839fa7",
+        "afterSHA256": "a732522ba5e3d9b710d7402e9fa564c7da856d90147a2fa7c2edbb9b14a1c41c"
+      },
+      "browser-client/tests/integration/capture-source-fixture.mjs": {
+        "beforeSHA256": "f6ab1354c893f676f6456379c661db8d6f7aec4144a4b77366cdbf69101d3d8c",
+        "afterSHA256": "518b2bee68d61396a968a2754fb2e5e9e7bd5868b8ee562cdd0f1236e1369664"
+      },
+      "browser-client/tests/tablet-capture-world-key-manifest.test.mjs": {
+        "beforeSHA256": "e6180d12e2b40453d506ed72c522ff1fd24119e024d75cb3e803ae2fb6708ac5",
+        "afterSHA256": "f761e5b2d30c86202b6187ce41c703a89cc67fe28e11ae9dc721b65b61e50661"
+      }
+    },
+    "addedRows": [
+      "browser-client/src/fst-definition-lookahead.test.ts",
+      "browser-client/src/fst-definition-lookahead.ts",
+      "browser-client/src/world-source-text-cache.ts",
+      "browser-client/tests/fixtures/capture-v6-fst-escape-before.json.gz",
+      "browser-client/tests/fixtures/capture-world-key-v6-complete-source-manifest.json",
+      "browser-client/tests/fixtures/world-owned-escape-hunk.json",
+      "browser-client/tests/fst-lookahead-stage-fixture.ts",
+      "browser-client/tests/integration/capture-lookahead-source-fixture.mjs",
+      "browser-client/tests/lookahead-stage-fixture.test.ts",
+      "browser-client/tests/tablet-capture-fst-escape-manifest.test.mjs",
+      "browser-client/tests/world-fst-definition-lookahead.browser.spec.ts",
+      "browser-client/tests/world-fst-definition-lookahead.test.ts",
+      "browser-client/tests/world-owned-escape.test.mjs"
+    ],
+    "historicalInputs": {
+      "src/world.ts": "c02931412d89d91650cf9bf185e8aaaa9ad3c120fc07a159d770761c84839fa7",
+      "src/main.ts": "d351b82de0fdface9266fc05597d3656d6e29248d981179fd0e5240debe9fb88",
+      "tests/tablet-capture-world-key-manifest.test.mjs": "e6180d12e2b40453d506ed72c522ff1fd24119e024d75cb3e803ae2fb6708ac5",
+      "tests/integration/prepare-tablet-capture-acceptance.mjs": "e9e99b5439105dc67bfc2620453bca89f1e7ea901e7c490e95f22935dafadfce",
+      "tests/integration/capture-source-fixture.mjs": "f6ab1354c893f676f6456379c661db8d6f7aec4144a4b77366cdbf69101d3d8c"
+    },
+    "defaultEnabled": false,
+    "applicationOrder": [
+      "fst-definition-lookahead",
+      "owned-canvas-Escape"
+    ],
+    "mainChange": "Explicit fstDefinitionLookahead=1 query only; default off"
+  },
+  "readbackDerivation": {
+    "previousCompleteManifestSHA256": "120a24ee206a04a710ccafcf32b09184eb280442e3de23184bfc0d38ea94a2a7",
+    "qualifiedRuntimeManifestSHA256": "a65f3bc175f4a86cc3acfcc77179254d8e866f95b5787dcb5fc4e4236465f9a4",
+    "originalRuntimeManifestSHA256": "d507bcfe3fde129f875dd842e3e372253039cd58ef730e21e27259d988e13ca8",
+    "migrations": {
+      "browser-client/gateway/native-browser-capture.js": {
+        "beforeSHA256": "1d258ce76705033598e3f5decbe084e746feb2bcd19ba30f8b0c1afa416d6f2f",
+        "afterSHA256": "ba6d32f99acc960a9539c19faba5cdc8d6ad005f73f927b49a0941df247979c3"
+      },
+      "browser-client/gateway/browser-capture-overrides.mjs": {
+        "beforeSHA256": "9a41d28676ada36d6a54bec5186214963d9864f6cad8c79e7abe666f9d36d7fe",
+        "afterSHA256": "38aa8a75aeca858af220f98a020fc6ab806b5611a28c6d3da1ea377b0e6f40bc"
+      },
+      "browser-client/gateway/browser-capture.test.mjs": {
+        "beforeSHA256": "0cda7142dd4dc51dd188ff78a13aacdcf8367905028b6c5e9fc802c46816be6c",
+        "afterSHA256": "aea4777a77ec45521113d0b0420e189fe59c09427ffb928de1a73b8d1fce9190"
+      },
+      "browser-client/tests/tablet-capture-switch-width.test.mjs": {
+        "beforeSHA256": "2ccb87e96756e48a6619a74fd7b5a488c399e63578ca1c072e885d71f307bc3d",
+        "afterSHA256": "9065766ffc07415bd3650e9ce98b238f0e5087075a6f829b9ef9a6cbe7109303"
+      },
+      "browser-client/tests/tablet-capture-style.test.mjs": {
+        "beforeSHA256": "26184206a3f39e42bcae68eff06cbe985cd412f8122deb08fd7f813ea2f35fef",
+        "afterSHA256": "235979f6d71c0b042bff5b44027d36f4ebbdc83427ddd5b8e4973cc96abd7783"
+      },
+      "browser-client/tests/integration/capture-source-fixture.mjs": {
+        "beforeSHA256": "518b2bee68d61396a968a2754fb2e5e9e7bd5868b8ee562cdd0f1236e1369664",
+        "afterSHA256": "eb4dc8764b9db77cec674710c67504ff9df3f04e43aadf2bcfd086a8136a4ca1"
+      },
+      "browser-client/tests/tablet-capture-world-key-manifest.test.mjs": {
+        "beforeSHA256": "f761e5b2d30c86202b6187ce41c703a89cc67fe28e11ae9dc721b65b61e50661",
+        "afterSHA256": "39110eefee67b787eaf92ab08dd815af720eeeabc5553db4e27b49185283de12"
+      },
+      "browser-client/tests/integration/capture-lookahead-source-fixture.mjs": {
+        "beforeSHA256": "c3b0afaf2fb666fe49a3349da60426c73f0b44a9585f09852b9bb90a501b27cd",
+        "afterSHA256": "0f0a99dbd92025346bb6dd40bf8c0e2e0a064f1eddf1ed707d2b05a14ecc4ab8"
+      },
+      "browser-client/tests/tablet-capture-fst-escape-manifest.test.mjs": {
+        "beforeSHA256": "19a8faaa5d04511c8b53e02ebe7d924fc81c6f72f3f82830f8a5b425362ac97f",
+        "afterSHA256": "36f3eec12811a360ab91c8846fdec7827098d03a092e85da499cfa20986ae69a"
+      }
+    },
+    "addedRows": [
+      "browser-client/gateway/fixtures/native-browser-capture-readback-before.js.gz",
+      "browser-client/gateway/fixtures/native-browser-capture-readback-before.qml.gz",
+      "browser-client/tests/integration/capture-readback-source-fixture.mjs",
+      "browser-client/tests/fixtures/capture-v7-readback-before.json.gz",
+      "browser-client/tests/fixtures/capture-v8-readback-input-recovery.json",
+      "browser-client/tests/fixtures/capture-fst-escape-v7-complete-source-manifest.json",
+      "browser-client/tests/tablet-capture-readback-manifest.test.mjs"
+    ],
+    "historicalInputs": {
+      "archiveSHA256": "1018f171330b0174894c53e5e989c03066db17d07a699df3f7632fcedf26d1d4",
+      "compressedBytes": 22095,
+      "decodedBytes": 85552,
+      "before": {
+        "gateway/native-browser-capture.js": "1d258ce76705033598e3f5decbe084e746feb2bcd19ba30f8b0c1afa416d6f2f",
+        "gateway/browser-capture-overrides.mjs": "9a41d28676ada36d6a54bec5186214963d9864f6cad8c79e7abe666f9d36d7fe",
+        "gateway/browser-capture.test.mjs": "0cda7142dd4dc51dd188ff78a13aacdcf8367905028b6c5e9fc802c46816be6c",
+        "tests/integration/capture-source-fixture.mjs": "518b2bee68d61396a968a2754fb2e5e9e7bd5868b8ee562cdd0f1236e1369664",
+        "tests/integration/capture-lookahead-source-fixture.mjs": "c3b0afaf2fb666fe49a3349da60426c73f0b44a9585f09852b9bb90a501b27cd",
+        "tests/integration/prepare-tablet-capture-acceptance.mjs": "aba9987b7939b236e27e93d14a869f8e1248d7063796a6cd025425d9105b2409",
+        "tests/tablet-capture-style.test.mjs": "26184206a3f39e42bcae68eff06cbe985cd412f8122deb08fd7f813ea2f35fef",
+        "tests/tablet-capture-switch-width.test.mjs": "2ccb87e96756e48a6619a74fd7b5a488c399e63578ca1c072e885d71f307bc3d",
+        "tests/tablet-capture-fst-escape-manifest.test.mjs": "19a8faaa5d04511c8b53e02ebe7d924fc81c6f72f3f82830f8a5b425362ac97f",
+        "tests/tablet-capture-world-key-manifest.test.mjs": "f761e5b2d30c86202b6187ce41c703a89cc67fe28e11ae9dc721b65b61e50661"
+      }
+    },
+    "runtimeFilesChanged": [
+      "browser-client/gateway/native-browser-capture.js",
+      "browser-client/gateway/browser-capture-overrides.mjs"
+    ],
+    "actualNativeQtSwitchCasesPassed": 10,
+    "actualChromeAudioAfterFixQualified": false,
+    "historicalAssertionsRecoveredByExactInputSubstitution": true,
+    "productionHistoricalFallback": false,
+    "captureConstraintsOrDeadlinesChanged": false
+  }
+}

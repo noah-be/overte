@@ -1,0 +1,120 @@
+{
+  "date": "2026-10-02",
+  "materialAssistance": "OpenAI Codex",
+  "scope": "Actual private native target/DOM branch diagnostic. Shipping source unchanged; no acceptance or causal correction claimed.",
+  "frozenManifestSHA256": "cd6877e4feaf5f7b54528c75346d44aac11b39d3b4ea4cf6ac91ccc196aa665b",
+  "rawCaptureSHA256": "76d30f766b71f7247c4fc590c2c5b3486b09312f921bc487debdca700c164587",
+  "sourceSHA256": {
+    "candidateQmlSHA256": "54d66811774e4c001d2da77199dc67f283b28297533582c5780ad2960f88cba8",
+    "pluginLibrarySHA256": "f3202346aeaf948806e2ea5b89f8a4428ca0601834ce979e91b26617927bfd53"
+  },
+  "startedAt": "2026-10-02T00:29:51.344335+00:00",
+  "finishedAt": "2026-10-02T00:29:54.634798+00:00",
+  "cases": [
+    {
+      "afterLength": 10,
+      "afterSelectionLength": 0,
+      "beforeLength": 3,
+      "beforeSelectionLength": 0,
+      "domRefusal": "accepted",
+      "errorCategory": "none",
+      "kind": "unicode-text",
+      "nativeCommitAccepted": true,
+      "nativeCommitObserved": true,
+      "passed": true,
+      "stage": "verify-value",
+      "targetChecks": [
+        "current",
+        "current",
+        "current"
+      ]
+    },
+    {
+      "afterLength": 3,
+      "afterSelectionLength": -1,
+      "beforeLength": 3,
+      "beforeSelectionLength": -1,
+      "domRefusal": "accepted",
+      "errorCategory": "none",
+      "kind": "native-number",
+      "nativeCommitAccepted": true,
+      "nativeCommitObserved": true,
+      "passed": true,
+      "stage": "verify-value",
+      "targetChecks": [
+        "current",
+        "current",
+        "current"
+      ]
+    },
+    {
+      "afterLength": 10,
+      "afterSelectionLength": 0,
+      "beforeLength": 3,
+      "beforeSelectionLength": 0,
+      "domRefusal": "accepted",
+      "errorCategory": "none",
+      "kind": "textarea",
+      "nativeCommitAccepted": true,
+      "nativeCommitObserved": true,
+      "passed": true,
+      "stage": "verify-value",
+      "targetChecks": [
+        "current",
+        "current",
+        "current"
+      ]
+    },
+    {
+      "afterLength": 17,
+      "afterSelectionLength": -1,
+      "beforeLength": 3,
+      "beforeSelectionLength": -1,
+      "domRefusal": "accepted",
+      "errorCategory": "none",
+      "kind": "literal-contenteditable",
+      "nativeCommitAccepted": true,
+      "nativeCommitObserved": true,
+      "passed": true,
+      "stage": "verify-value",
+      "targetChecks": [
+        "current",
+        "current",
+        "current"
+      ]
+    },
+    {
+      "afterLength": -1,
+      "afterSelectionLength": -1,
+      "beforeLength": 3,
+      "beforeSelectionLength": 0,
+      "domRefusal": "accepted",
+      "errorCategory": "focused-field-refused",
+      "kind": "password-unicode",
+      "nativeCommitAccepted": false,
+      "nativeCommitObserved": true,
+      "passed": false,
+      "stage": "await-text-completion",
+      "targetChecks": [
+        "current",
+        "current"
+      ]
+    }
+  ],
+  "QtLibraryPathsMatched": true,
+  "ownedRendererGroupStopped": true,
+  "ownedDisplayStopped": true,
+  "literalCases": 14,
+  "executedCases": 5,
+  "passedCases": 4,
+  "failedCases": 1,
+  "notRunCases": 9,
+  "extraQueries": 0,
+  "extraTimers": 0,
+  "forceFocus": false,
+  "limitations": [
+    "The actual password Unicode refusal follows current-target and readonly-DOM approval, then the native function returns false. Which original C++ guard refused remains to be measured.",
+    "The prior first-Unicode and password-maxlength negatives are retained. Instrumentation can affect callback timing; four preceding passes do not constitute a shipping fix.",
+    "Native password undo/redo, maxlength and cancellation cases are not run after this original fail-fast refusal."
+  ]
+}

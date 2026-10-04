@@ -1,0 +1,222 @@
+{
+  "version": 3,
+  "scope": "Separate source-bound native Browser microphone switch layout correction; actual Google Chrome controls/DSP acceptance pending",
+  "historicalManifestSHA256": "e6f781b8482b32617fc684e3da4ce0a50ace8979bee558c8435fd831e1a62549",
+  "historicalPatchSHA256": "bf6410daf58605c16bf3895e8209f161ff454fcd86b0b23c5ea27b26df6afbd0",
+  "files": [
+    {
+      "path": "browser-client/shared/browser-capture.mjs",
+      "beforeSHA256": null,
+      "afterSHA256": "a0282af718ec85c59c9899365a3d816917a293f7002836b08f0c0df2f7dd6125",
+      "bytes": 3663
+    },
+    {
+      "path": "browser-client/shared/browser-capture.d.mts",
+      "beforeSHA256": null,
+      "afterSHA256": "328c5d9d09a71a8528af2c11f5504e481e481004c9c1bff0c4b4e4e61e5df48e",
+      "bytes": 1404
+    },
+    {
+      "path": "browser-client/src/browser-capture-target.ts",
+      "beforeSHA256": null,
+      "afterSHA256": "6ba823e20d42a09342b5a8322990916f896aaf17ef5290e5218ce50941973cac",
+      "bytes": 5517
+    },
+    {
+      "path": "browser-client/src/browser-capture-controller.ts",
+      "beforeSHA256": null,
+      "afterSHA256": "c5b0b124b27c4a38527605038ad5f3f3b2f469f869e83189689d0f0edbded2f8",
+      "bytes": 2078
+    },
+    {
+      "path": "browser-client/src/browser-capture.test.ts",
+      "beforeSHA256": null,
+      "afterSHA256": "48c698e7c0bbf11553b1234ee3e1c155a87fb487704615f52b524922d919256c",
+      "bytes": 8988
+    },
+    {
+      "path": "browser-client/src/browser-capture-audio.test.ts",
+      "beforeSHA256": null,
+      "afterSHA256": "ad8e9c4207e26eaa0b828311ce126c73703e962d25f503b30d0477ae48d55751",
+      "bytes": 6753
+    },
+    {
+      "path": "browser-client/src/browser-capture-tablet.test.ts",
+      "beforeSHA256": null,
+      "afterSHA256": "ecc0a97895ba291af938f473b0d2b4eec0afba7ba8abe68c39b07b1a5e7d8a89",
+      "bytes": 4211
+    },
+    {
+      "path": "browser-client/gateway/native-browser-capture.js",
+      "beforeSHA256": null,
+      "afterSHA256": "1d258ce76705033598e3f5decbe084e746feb2bcd19ba30f8b0c1afa416d6f2f",
+      "bytes": 5754
+    },
+    {
+      "path": "browser-client/gateway/browser-capture-overrides.mjs",
+      "beforeSHA256": null,
+      "afterSHA256": "3b5ddde7ff350c0ddafe27de9841dac084c8326c7bed8fa1c766a353e81ff4cf",
+      "bytes": 12986
+    },
+    {
+      "path": "browser-client/gateway/browser-capture.test.mjs",
+      "beforeSHA256": null,
+      "afterSHA256": "0cda7142dd4dc51dd188ff78a13aacdcf8367905028b6c5e9fc802c46816be6c",
+      "bytes": 17525
+    },
+    {
+      "path": "browser-client/gateway/browser-capture-admission.test.mjs",
+      "beforeSHA256": null,
+      "afterSHA256": "e91fb167ee0351b6c4f6d03585d268070d3f0d817d9dcd306a1023545d85aace",
+      "bytes": 5359
+    },
+    {
+      "path": "browser-client/gateway/browser-capture-worker.test.mjs",
+      "beforeSHA256": null,
+      "afterSHA256": "6738970ebb0fbf49f0d73f5fc1e8cfc240f465a5c6b1a6166f7310cf1264bb5f",
+      "bytes": 4660
+    },
+    {
+      "path": "browser-client/gateway/fixtures/native-audio-f91d15a.js.gz",
+      "beforeSHA256": null,
+      "afterSHA256": "27862db288cea7eed42098d2f87a33d02184794f1a81a86da91cd00f42cb2968",
+      "bytes": 1110,
+      "binary": true
+    },
+    {
+      "path": "browser-client/gateway/server.mjs",
+      "beforeSHA256": "5a9e59fd22b04efe243ab5282cf61982209e0085142f114819ef4018080d0d7a",
+      "afterSHA256": "fa16513f98327619bea099778500b297f2ddcf6d0f897c98fb3a0b9dcacfe2b2",
+      "bytes": 56120
+    },
+    {
+      "path": "browser-client/gateway/worker-sandbox.mjs",
+      "beforeSHA256": "0bcc0b8001888b31d6cdf247172b3d91d410c7453b8549f695281e03910058fd",
+      "afterSHA256": "984fcaf01a09518c5df3032572a357790941e3de3a113c82b1badb218009e5e9",
+      "bytes": 10967
+    },
+    {
+      "path": "browser-client/gateway/native-bridge.js",
+      "beforeSHA256": "5faabe08b1cd12f6e89a2f96f464a859a15a92a57fa225459bf82c616649c068",
+      "afterSHA256": "a0ad9878a10023646aad6ecd3a926cde1d364f441786c8a0cf0969ee536604d9",
+      "bytes": 29308
+    },
+    {
+      "path": "browser-client/gateway/native-tablet.js",
+      "beforeSHA256": "53238a8ca18606137b146b43c93a7f53c9c81305482577fcc3078309594e7c0c",
+      "afterSHA256": "0c90732c34a8b06dc5ce1112697ac1a4f6f88a5a20754d21a71a42ee7f3b8eb4",
+      "bytes": 13714
+    },
+    {
+      "path": "browser-client/gateway/tablet.mjs",
+      "beforeSHA256": "afef81dd5b22507c6bb39e1080063d3658b317386000edbc21a27f723411ce4d",
+      "afterSHA256": "3f332c951c7225478c67765fd102d295d30bcff832551e5088d09b95e54d4ba5",
+      "bytes": 19765
+    },
+    {
+      "path": "browser-client/src/tablet-protocol.ts",
+      "beforeSHA256": "e6691b20b9588273a1d20813145a49dcb8d8645df79e5623049a10ca0d77869a",
+      "afterSHA256": "006e304a3e5a03d7a762d7b64e4ec8b24c46796340e00178c3264dedf6f9c8c1",
+      "bytes": 5793
+    },
+    {
+      "path": "browser-client/src/tablet.ts",
+      "beforeSHA256": "d0624d76d2bffa2f60dfeaaefd0e53e6f5a5798f635183ba04c75a983e32e7a6",
+      "afterSHA256": "04e91da914725e290d56dbeb2b5e837a2d7f9233d455eda88e4ca30e21c9e92e",
+      "bytes": 20380
+    },
+    {
+      "path": "browser-client/src/main.ts",
+      "beforeSHA256": "58930f7e982e7c5304503ecd0c4f1a9c8b1ae8062bc07fb9f2d2c4818d8d18f7",
+      "afterSHA256": "f33b27cab252aff9f194fc64d9a9b4ae942ec77f79e04f91d1597b61afe55324",
+      "bytes": 23848
+    },
+    {
+      "path": "browser-client/src/audio.ts",
+      "beforeSHA256": "1f8b23394abbbf3ce6a9346187e40453642d3792fefe7b1166b05228d45f51ef",
+      "afterSHA256": "8e60d96fb9d9ead5ea840b4a27ac1d363f0166090ddcc66fec375e3737dd6303",
+      "bytes": 8550
+    },
+    {
+      "path": "docs/browser-client/BROWSER_MICROPHONE_CONTROLS.md",
+      "beforeSHA256": null,
+      "afterSHA256": "68f392980cdece6f0eac13fff65de89d1a22d8ed94bebd037b0b538d8d38a178",
+      "bytes": 8872
+    },
+    {
+      "path": "browser-client/tests/push-to-talk.test.ts",
+      "beforeSHA256": "fbfaef7bc6c3f5a145cd482a0ffa1eb05141bf5f8be2aaaddb69da7b28a514af",
+      "afterSHA256": "f137596c998f9bb53179151bccea0cbed54440fd7ab03b56f61738bf79055426",
+      "bytes": 13417
+    },
+    {
+      "path": "browser-client/gateway/tablet.test.mjs",
+      "beforeSHA256": "0fdc90cbd20bf1403ada46e178d8c5f3d4a6ab529b32eaf4693ffdbbbf852914",
+      "afterSHA256": "3027f76e5c346b5bf2f768d117e3c42db09de0f0d72133b7d725652e95e2345d",
+      "bytes": 12482
+    },
+    {
+      "path": "browser-client/tests/tablet-capture-switch-width.test.mjs",
+      "beforeSHA256": null,
+      "afterSHA256": "7d391bb041a02a4f1649ed21a811b85edb81e5240d10dfb6d30560a58f515ba1",
+      "bytes": 4213
+    },
+    {
+      "path": "browser-client/tests/fixtures/capture-overrides-before-switch-width.mjs.txt",
+      "beforeSHA256": null,
+      "afterSHA256": "a13bca555a65e5a0ae52f7b578d22ef9697e2157fab1f4077fc6ba7b5ce585f7",
+      "bytes": 12932
+    },
+    {
+      "path": "browser-client/tests/fixtures/native-switch-f91d15a.qml.txt",
+      "beforeSHA256": null,
+      "afterSHA256": "31df4673f94ba0f5828cda60b740f1ca3bdd39e9adc95c875cd23287bbbcb907",
+      "bytes": 4991
+    },
+    {
+      "path": "browser-client/tests/fixtures/capture-clipped-switch-source-row.json",
+      "beforeSHA256": null,
+      "afterSHA256": "16aaeaa31d6c623986dbb6fd5041036f6ac1052ab17aa87472cbad06b77bb9b3",
+      "bytes": 2110
+    }
+  ],
+  "dependencyPins": {
+    "browser-client/src/fullscreen.ts": "a311c55214699670c6cacd7bdbba0fec024d0ef50e69f90f2c28db6e3357715e",
+    "browser-client/src/world.ts": "66fd95766c79f4deb78400e342fd19cbc19d55a127b75c53f00da09061d660da",
+    "browser-client/src/push-to-talk.ts": "61e2d6a750abf377a16a4451dfa76907d093d210f3efd4980cf3476ffcf25cab",
+    "browser-client/gateway/native-push-to-talk.js": "9cc0c88a015e8a56b038c4a31c33a5190993fe47d2d439d99e0e159fa6088321",
+    "browser-client/tests/tablet-fullscreen.browser.spec.ts": "ddaf2bc6ff709c302476b8f63581176684d738b71d076783c94edfcaa77915c2"
+  },
+  "verification": {
+    "selectedCasesPassed": 160,
+    "allOriginal142CaseNamesPreservedAndPassed": true,
+    "newFixCases": 10,
+    "skipped": 0,
+    "wholeProjectStrictTypeScript": true,
+    "actualQtBrowserMicrophoneHardware": false
+  },
+  "packagePins": {
+    "audio.js": "42f48103b327c63bdb7a22f7cfb8fe9c57010014e468ed7cda5a557cfc1d2e17",
+    "resources.rcc": "dd8a9efebe9b09a4b5e84e5c768ad7c7a38ea9702e681a357898dcbb9674ce01"
+  },
+  "limits": {
+    "applyAdapterDeadlineMs": 8000,
+    "outstandingBrowserReconfiguration": 1,
+    "slotReleasedOnlyAfterActualPromiseSettles": true,
+    "newMicrophoneRights": false,
+    "deviceOrLabelWireFields": false
+  },
+  "followupManifestSHA256": "8704ce7ec5bd85686bb96ee9382917ed8e227c90aef0ef8be50a11cf0a376f7e",
+  "layoutDerivation": {
+    "completeAudioV2ManifestSHA256": "e6f3ad43d392f15ba6273ef8fdb50b06d623ce307471d6136feafd6bc08577d5",
+    "widthCorrectionManifestSHA256": "35f2a699657e34dae3fb2f717ecff05e39b9f85b99b2ca66b7cd767f7d0b944c",
+    "widthCorrectionPatchSHA256": "8d8c2749a3238601f9bdfca4897321bfa209d1ab0c7307b1478e5b090754fb2c",
+    "onlyOriginalRowChanged": "browser-client/gateway/browser-capture-overrides.mjs",
+    "originalRows": 25,
+    "widthNewCPURows": 4,
+    "historicalVerificationPreserved": true,
+    "historicalDependencyPinsPreserved": true,
+    "historicalDocsRowNotRuntimeValidated": true,
+    "actualGoogleChromeCaptureEffectsQualified": false
+  }
+}

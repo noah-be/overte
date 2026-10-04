@@ -1,0 +1,22 @@
+{
+  "startedAt": "2026-09-30T14:49:16.081Z",
+  "syntheticMicrophone": false,
+  "recordings": false,
+  "microphonePermissionGranted": true,
+  "hostAudioOutputMuted": true,
+  "completed": true,
+  "browserVersion": "154.0.8037.57",
+  "clientHTMLSHA256": "0174aafcefd3b5346610ed01f2503c653d39bc8b4340a7346b4c3324c183fd13",
+  "availableAudioInputs": 0,
+  "loadedRealEntities": 7,
+  "displayedError": "No microphone found. Connect one and try again.",
+  "connectedAfterError": true,
+  "realEntitiesAfterError": 7,
+  "microphoneMutedAfterError": true,
+  "sentCaptureFrames": 0,
+  "retryEnabled": true,
+  "movementDistanceAfterErrorMetres": 0.4200022429518174,
+  "cleanLeave": true,
+  "uncaughtPageErrors": 0,
+  "finishedAt": "2026-09-30T14:49:30.937Z"
+}

@@ -1,0 +1,25 @@
+<!doctype html>
+<!-- Copyright 2026 Overte contributors; SPDX-License-Identifier: Apache-2.0 -->
+<meta charset="utf-8">
+<style>body{margin:10px;background:#ddd;height:580px}input{display:block;box-sizing:border-box;width:360px;height:42px;margin:12px;padding:6px;font:16px sans-serif}#body{height:160px;border:2px solid #777}</style>
+<input id="plain" value="seed" autocomplete="off">
+<input id="password" type="password" value="seed" maxlength="8" autocomplete="off">
+<input id="readonly" value="seed" readonly>
+<input id="disabled" value="seed" disabled>
+<div id="body">Noneditable authored document background</div>
+<script>
+(function(){
+ let down=0,up=0,input=0,untrusted=0;
+ for(const name of ['keydown','keyup','input'])document.addEventListener(name,function(event){
+  if(name!=='input'&&event.key!=='x')return;
+  if(!event.isTrusted){untrusted++;return;}
+  if(name==='keydown')down++;else if(name==='keyup')up++;else input++;
+ },true);
+ Object.defineProperty(window,'fixtureKeyboardRead',{value:function(id){
+  const e=document.getElementById(id),v=e&&'value'in e?e.value:'';
+  return {down:down,up:up,input:input,untrusted:untrusted,active:document.activeElement===e,
+   bodyActive:document.activeElement===document.body,length:v.length,xCount:(v.match(/x/g)||[]).length,
+   changed:v==='seedx',unchanged:v==='seed'};
+ }});
+})();
+</script>

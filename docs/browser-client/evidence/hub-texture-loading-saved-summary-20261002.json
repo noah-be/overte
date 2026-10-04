@@ -1,0 +1,830 @@
+{
+  "schema": 1,
+  "generatedAt": "2026-10-02T09:20:57.589Z",
+  "reviewedCurrentSourceSHA256": {
+    "browser-client/src/world.ts": "65e22cc16ef843c2ac96e280a31c59e189cef9ba380a56f33382592293320e4a",
+    "browser-client/src/world-image-cache.ts": "ba45a6125087f8b275c939a5e9e36dadac6879a37cb0fbe50d8c19dd9f1c6af9",
+    "browser-client/src/native-compressed-color.ts": "312e6beac3a95b16f0ad3675d9789270eec69a6cdf808b66ce23da007c22aa56",
+    "browser-client/src/world-bitmap-upload.ts": "18fefcf4fafdcc14403b8ee8b4140cf7ec33455a0ec642459c0255e91d356b09",
+    "browser-client/src/world-bitmap-bindings.ts": "31cba7d754d160054d83881da5f6ba9d8c98c5198b520addcc80b47529881f54",
+    "browser-client/tests/fixtures/world-bitmap-upload.ts": "9640c4796a457a6e89db0b4b1c637c00ff0970424de21bf2c0e8cd22bc152d12",
+    "browser-client/tests/world-bitmap-upload.browser.spec.ts": "9ce1232df245500888879c713a3b6437f3731b0d231905224281147869a48544",
+    "browser-client/tests/integration/public-hub.mjs": "b80340f87b938d6ce22ef3a556980df32b9767c86b038b092a47cbccf64ceae8"
+  },
+  "reports": {
+    "chromium": {
+      "inputSHA256": "c546ec49e8d52e2d9a856c6b9da1a3f3414f552804dab729159cb1cd80d3b2ca",
+      "schema": 1,
+      "scope": "Saved initial/rejoin asset responses; initial-world caches/phases; bounded two-session GL observations",
+      "sourceCoherent": true,
+      "completed": true,
+      "fluidAcceptance": true,
+      "experiments": {
+        "bitmapUpload": false,
+        "texturePreparation": false,
+        "shaderWarmup": false,
+        "modelParseTurn": false
+      },
+      "sampledReadyInterval": {
+        "scope": "initial-session",
+        "lowerBoundAfterConnectMs": 14067,
+        "upperBoundAfterConnectMs": 17108,
+        "coarseSampleBound": true
+      },
+      "assetResponses": {
+        "merged": {
+          "requests": 1178,
+          "uniqueURLs": 601,
+          "duplicateRequests": 577,
+          "knownBytes": 215149883,
+          "unknownByteResponses": 0,
+          "sources": {
+            "download": 1153,
+            "shared": 0,
+            "memory": 9,
+            "unknown": 16
+          }
+        },
+        "sessions": [
+          {
+            "ordinal": 1,
+            "requests": 591,
+            "uniqueURLs": 585,
+            "duplicateRequests": 6,
+            "knownBytes": 107042214,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 579,
+              "shared": 0,
+              "memory": 4,
+              "unknown": 8
+            },
+            "categories": {
+              "FBX": {
+                "requests": 124,
+                "uniqueURLs": 123,
+                "duplicateRequests": 1,
+                "knownBytes": 19808648,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 123,
+                  "shared": 0,
+                  "memory": 1,
+                  "unknown": 0
+                },
+                "overlappingRequestTotalMs": 14602.368,
+                "maximumObservedRequestMs": 927.218
+              },
+              "FST": {
+                "requests": 95,
+                "uniqueURLs": 95,
+                "duplicateRequests": 0,
+                "knownBytes": 20853,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 94,
+                  "shared": 0,
+                  "memory": 0,
+                  "unknown": 1
+                },
+                "overlappingRequestTotalMs": 8944.006,
+                "maximumObservedRequestMs": 328.975
+              },
+              "texmeta": {
+                "requests": 133,
+                "uniqueURLs": 133,
+                "duplicateRequests": 0,
+                "knownBytes": 41372,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 133,
+                  "shared": 0,
+                  "memory": 0,
+                  "unknown": 0
+                },
+                "overlappingRequestTotalMs": 11806.991,
+                "maximumObservedRequestMs": 322.745
+              },
+              "JSON": {
+                "requests": 91,
+                "uniqueURLs": 91,
+                "duplicateRequests": 0,
+                "knownBytes": 60675,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 91,
+                  "shared": 0,
+                  "memory": 0,
+                  "unknown": 0
+                },
+                "overlappingRequestTotalMs": 8372.543,
+                "maximumObservedRequestMs": 304.661
+              },
+              "image": {
+                "requests": 140,
+                "uniqueURLs": 135,
+                "duplicateRequests": 5,
+                "knownBytes": 81324858,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 130,
+                  "shared": 0,
+                  "memory": 3,
+                  "unknown": 7
+                },
+                "overlappingRequestTotalMs": 22263.183,
+                "maximumObservedRequestMs": 1098.805
+              },
+              "other": {
+                "requests": 8,
+                "uniqueURLs": 8,
+                "duplicateRequests": 0,
+                "knownBytes": 5785808,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 8,
+                  "shared": 0,
+                  "memory": 0,
+                  "unknown": 0
+                },
+                "overlappingRequestTotalMs": 4735.921,
+                "maximumObservedRequestMs": 2443.788
+              }
+            }
+          },
+          {
+            "ordinal": 2,
+            "requests": 587,
+            "uniqueURLs": 580,
+            "duplicateRequests": 7,
+            "knownBytes": 108107669,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 574,
+              "shared": 0,
+              "memory": 5,
+              "unknown": 8
+            },
+            "categories": {
+              "FBX": {
+                "requests": 123,
+                "uniqueURLs": 122,
+                "duplicateRequests": 1,
+                "knownBytes": 19767135,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 122,
+                  "shared": 0,
+                  "memory": 1,
+                  "unknown": 0
+                },
+                "overlappingRequestTotalMs": 11808.25,
+                "maximumObservedRequestMs": 960.721
+              },
+              "FST": {
+                "requests": 93,
+                "uniqueURLs": 93,
+                "duplicateRequests": 0,
+                "knownBytes": 18474,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 92,
+                  "shared": 0,
+                  "memory": 0,
+                  "unknown": 1
+                },
+                "overlappingRequestTotalMs": 9676.465,
+                "maximumObservedRequestMs": 541.477
+              },
+              "texmeta": {
+                "requests": 130,
+                "uniqueURLs": 130,
+                "duplicateRequests": 0,
+                "knownBytes": 40420,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 130,
+                  "shared": 0,
+                  "memory": 0,
+                  "unknown": 0
+                },
+                "overlappingRequestTotalMs": 11737.201,
+                "maximumObservedRequestMs": 317.137
+              },
+              "JSON": {
+                "requests": 91,
+                "uniqueURLs": 91,
+                "duplicateRequests": 0,
+                "knownBytes": 60742,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 91,
+                  "shared": 0,
+                  "memory": 0,
+                  "unknown": 0
+                },
+                "overlappingRequestTotalMs": 10225.37,
+                "maximumObservedRequestMs": 549.837
+              },
+              "image": {
+                "requests": 141,
+                "uniqueURLs": 136,
+                "duplicateRequests": 5,
+                "knownBytes": 82095142,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 131,
+                  "shared": 0,
+                  "memory": 3,
+                  "unknown": 7
+                },
+                "overlappingRequestTotalMs": 19050.44,
+                "maximumObservedRequestMs": 1112.911
+              },
+              "other": {
+                "requests": 9,
+                "uniqueURLs": 8,
+                "duplicateRequests": 1,
+                "knownBytes": 6125756,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 8,
+                  "shared": 0,
+                  "memory": 1,
+                  "unknown": 0
+                },
+                "overlappingRequestTotalMs": 4896.002,
+                "maximumObservedRequestMs": 2431.1
+              }
+            }
+          }
+        ],
+        "knownBytesSemantics": "Recorded response Content-Length, including errors; not upstream wire bytes",
+        "durationSemantics": "Overlapping completed-request durations; no actual concurrency or critical path inferred"
+      },
+      "decodedImages": {
+        "requests": 115,
+        "uniqueImages": 71,
+        "cacheHits": 44,
+        "completed": 63,
+        "failed": 8,
+        "cancelled": 0,
+        "evictions": 0,
+        "peakActive": 6,
+        "retainedEntries": 63,
+        "retainedPixels": 65404045,
+        "sourceKinds": {
+          "http": {
+            "requests": 39,
+            "uniqueImages": 29,
+            "cacheHits": 10,
+            "completed": 21,
+            "failed": 8,
+            "cancelled": 0,
+            "evictions": 0
+          },
+          "https": {
+            "requests": 0,
+            "uniqueImages": 0,
+            "cacheHits": 0,
+            "completed": 0,
+            "failed": 0,
+            "cancelled": 0,
+            "evictions": 0
+          },
+          "data": {
+            "requests": 0,
+            "uniqueImages": 0,
+            "cacheHits": 0,
+            "completed": 0,
+            "failed": 0,
+            "cancelled": 0,
+            "evictions": 0
+          },
+          "blob": {
+            "requests": 76,
+            "uniqueImages": 42,
+            "cacheHits": 34,
+            "completed": 42,
+            "failed": 0,
+            "cancelled": 0,
+            "evictions": 0
+          },
+          "other": {
+            "requests": 0,
+            "uniqueImages": 0,
+            "cacheHits": 0,
+            "completed": 0,
+            "failed": 0,
+            "cancelled": 0,
+            "evictions": 0
+          }
+        },
+        "schemeSemantics": "Browser request scheme; not original host, file format, or upstream protocol"
+      },
+      "compressedColor": {
+        "retainedBytes": 67050996,
+        "retainedEntries": 98,
+        "active": 0,
+        "queued": 0,
+        "readers": 0,
+        "statisticsLimitation": "Cache hits, evictions and request-versus-queue time are not recorded"
+      },
+      "phases": {
+        "imageLoad": {
+          "count": 63,
+          "overlappingTotalMs": 6117.5,
+          "maximumObservedMs": 612.8
+        },
+        "imageDecode": {
+          "count": 63,
+          "overlappingTotalMs": 2347.8,
+          "maximumObservedMs": 266.3
+        },
+        "compressedColor": {
+          "count": 233,
+          "overlappingTotalMs": 20793.2,
+          "maximumObservedMs": 649.5
+        },
+        "textureAlpha": {
+          "count": 847,
+          "overlappingTotalMs": 539.6,
+          "maximumObservedMs": 45.9
+        },
+        "fbxTextures": {
+          "count": 294,
+          "overlappingTotalMs": 2702.7,
+          "maximumObservedMs": 507.1
+        },
+        "fbxPrepareWait": {
+          "count": 294,
+          "overlappingTotalMs": 23308.6,
+          "maximumObservedMs": 968.7
+        },
+        "fbxDecode": {
+          "count": 122,
+          "overlappingTotalMs": 2197.6,
+          "maximumObservedMs": 501.9
+        },
+        "fbxParse": {
+          "count": 294,
+          "overlappingTotalMs": 4011.3,
+          "maximumObservedMs": 331.2
+        },
+        "shaderPrepare": {
+          "count": 500,
+          "overlappingTotalMs": 9446.8,
+          "maximumObservedMs": 189.6
+        },
+        "graphicsSubmit": {
+          "count": 1909,
+          "overlappingTotalMs": 18429.5,
+          "maximumObservedMs": 466.5
+        }
+      },
+      "phaseSemantics": "Calls may be cache hits; totals overlap and do not equal elapsed loading or CPU time",
+      "originalImageErrorProjection": {
+        "scope": "Both sessions, matching bounded collector observations only",
+        "extensionIsNotDecodedFormat": true,
+        "counts": {
+          "png:upstream-network": 2,
+          "tga:upstream-http": 6,
+          "jpg:origin-refused": 2
+        },
+        "unclassifiedImageFailures": true
+      },
+      "driverObservations": {
+        "scope": "Both sessions, first 256 slow calls only",
+        "texSubImage2D": {
+          "calls": 71176,
+          "overlappingTotalMs": 2413.6,
+          "maximumDriverCallMs": 207.5
+        },
+        "slowImageDimensions": {
+          "2048x2048": {
+            "observedCalls": 8,
+            "maximumDriverCallMs": 144.3
+          },
+          "1920x1031": {
+            "observedCalls": 2,
+            "maximumDriverCallMs": 61.8
+          },
+          "4096x4096": {
+            "observedCalls": 2,
+            "maximumDriverCallMs": 207.5
+          }
+        },
+        "interpretation": "CPU duration may wait earlier GPU work; not pure GPU time or unique uploaded-image count"
+      },
+      "resourceTimingScope": {
+        "retainedRecords": 250,
+        "fullWorldCoverage": false
+      }
+    },
+    "firefox": {
+      "inputSHA256": "eaa5142186e7f98b4e3e597cf94fe52f276534bf4ebe4405422a92e3a0502137",
+      "schema": 1,
+      "scope": "Saved initial/rejoin asset responses; initial-world caches/phases; bounded two-session GL observations",
+      "sourceCoherent": true,
+      "completed": false,
+      "fluidAcceptance": false,
+      "experiments": {
+        "bitmapUpload": false,
+        "texturePreparation": false,
+        "shaderWarmup": false,
+        "modelParseTurn": false
+      },
+      "sampledReadyInterval": {
+        "scope": "initial-session",
+        "lowerBoundAfterConnectMs": 14262,
+        "upperBoundAfterConnectMs": 17300,
+        "coarseSampleBound": true
+      },
+      "assetResponses": {
+        "merged": {
+          "requests": 1219,
+          "uniqueURLs": 603,
+          "duplicateRequests": 616,
+          "knownBytes": 251454601,
+          "unknownByteResponses": 0,
+          "sources": {
+            "download": 1185,
+            "shared": 0,
+            "memory": 8,
+            "unknown": 26
+          }
+        },
+        "sessions": [
+          {
+            "ordinal": 1,
+            "requests": 609,
+            "uniqueURLs": 603,
+            "duplicateRequests": 6,
+            "knownBytes": 125223202,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 592,
+              "shared": 0,
+              "memory": 4,
+              "unknown": 13
+            },
+            "categories": {
+              "FBX": {
+                "requests": 123,
+                "uniqueURLs": 122,
+                "duplicateRequests": 1,
+                "knownBytes": 19767135,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 122,
+                  "shared": 0,
+                  "memory": 1,
+                  "unknown": 0
+                },
+                "overlappingRequestTotalMs": 7362.035,
+                "maximumObservedRequestMs": 865.982
+              },
+              "FST": {
+                "requests": 95,
+                "uniqueURLs": 95,
+                "duplicateRequests": 0,
+                "knownBytes": 20919,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 94,
+                  "shared": 0,
+                  "memory": 0,
+                  "unknown": 1
+                },
+                "overlappingRequestTotalMs": 3265.066,
+                "maximumObservedRequestMs": 222.463
+              },
+              "texmeta": {
+                "requests": 135,
+                "uniqueURLs": 135,
+                "duplicateRequests": 0,
+                "knownBytes": 41985,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 135,
+                  "shared": 0,
+                  "memory": 0,
+                  "unknown": 0
+                },
+                "overlappingRequestTotalMs": 5430.912,
+                "maximumObservedRequestMs": 184.609
+              },
+              "JSON": {
+                "requests": 93,
+                "uniqueURLs": 93,
+                "duplicateRequests": 0,
+                "knownBytes": 61185,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 93,
+                  "shared": 0,
+                  "memory": 0,
+                  "unknown": 0
+                },
+                "overlappingRequestTotalMs": 3303.7,
+                "maximumObservedRequestMs": 222.635
+              },
+              "image": {
+                "requests": 150,
+                "uniqueURLs": 146,
+                "duplicateRequests": 4,
+                "knownBytes": 99546050,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 140,
+                  "shared": 0,
+                  "memory": 3,
+                  "unknown": 7
+                },
+                "overlappingRequestTotalMs": 14312.473,
+                "maximumObservedRequestMs": 812.685
+              },
+              "other": {
+                "requests": 13,
+                "uniqueURLs": 12,
+                "duplicateRequests": 1,
+                "knownBytes": 5785928,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 8,
+                  "shared": 0,
+                  "memory": 0,
+                  "unknown": 5
+                },
+                "overlappingRequestTotalMs": 5601.87,
+                "maximumObservedRequestMs": 2394.274
+              }
+            }
+          },
+          {
+            "ordinal": 2,
+            "requests": 610,
+            "uniqueURLs": 603,
+            "duplicateRequests": 7,
+            "knownBytes": 126231399,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 593,
+              "shared": 0,
+              "memory": 4,
+              "unknown": 13
+            },
+            "categories": {
+              "FBX": {
+                "requests": 122,
+                "uniqueURLs": 122,
+                "duplicateRequests": 0,
+                "knownBytes": 19736124,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 122,
+                  "shared": 0,
+                  "memory": 0,
+                  "unknown": 0
+                },
+                "overlappingRequestTotalMs": 9034.596,
+                "maximumObservedRequestMs": 1066.267
+              },
+              "FST": {
+                "requests": 95,
+                "uniqueURLs": 95,
+                "duplicateRequests": 0,
+                "knownBytes": 20919,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 94,
+                  "shared": 0,
+                  "memory": 0,
+                  "unknown": 1
+                },
+                "overlappingRequestTotalMs": 2913.984,
+                "maximumObservedRequestMs": 128.046
+              },
+              "texmeta": {
+                "requests": 135,
+                "uniqueURLs": 135,
+                "duplicateRequests": 0,
+                "knownBytes": 41985,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 135,
+                  "shared": 0,
+                  "memory": 0,
+                  "unknown": 0
+                },
+                "overlappingRequestTotalMs": 4618.937,
+                "maximumObservedRequestMs": 124.015
+              },
+              "JSON": {
+                "requests": 93,
+                "uniqueURLs": 93,
+                "duplicateRequests": 0,
+                "knownBytes": 61185,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 93,
+                  "shared": 0,
+                  "memory": 0,
+                  "unknown": 0
+                },
+                "overlappingRequestTotalMs": 2763.169,
+                "maximumObservedRequestMs": 115.467
+              },
+              "image": {
+                "requests": 151,
+                "uniqueURLs": 146,
+                "duplicateRequests": 5,
+                "knownBytes": 100245310,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 141,
+                  "shared": 0,
+                  "memory": 3,
+                  "unknown": 7
+                },
+                "overlappingRequestTotalMs": 14765.839,
+                "maximumObservedRequestMs": 1431.854
+              },
+              "other": {
+                "requests": 14,
+                "uniqueURLs": 12,
+                "duplicateRequests": 2,
+                "knownBytes": 6125876,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 8,
+                  "shared": 0,
+                  "memory": 1,
+                  "unknown": 5
+                },
+                "overlappingRequestTotalMs": 5536.696,
+                "maximumObservedRequestMs": 2297.667
+              }
+            }
+          }
+        ],
+        "knownBytesSemantics": "Recorded response Content-Length, including errors; not upstream wire bytes",
+        "durationSemantics": "Overlapping completed-request durations; no actual concurrency or critical path inferred"
+      },
+      "decodedImages": {
+        "requests": 116,
+        "uniqueImages": 71,
+        "cacheHits": 45,
+        "completed": 63,
+        "failed": 8,
+        "cancelled": 0,
+        "evictions": 0,
+        "peakActive": 6,
+        "retainedEntries": 63,
+        "retainedPixels": 65404045,
+        "sourceKinds": {
+          "http": {
+            "requests": 40,
+            "uniqueImages": 29,
+            "cacheHits": 11,
+            "completed": 21,
+            "failed": 8,
+            "cancelled": 0,
+            "evictions": 0
+          },
+          "https": {
+            "requests": 0,
+            "uniqueImages": 0,
+            "cacheHits": 0,
+            "completed": 0,
+            "failed": 0,
+            "cancelled": 0,
+            "evictions": 0
+          },
+          "data": {
+            "requests": 0,
+            "uniqueImages": 0,
+            "cacheHits": 0,
+            "completed": 0,
+            "failed": 0,
+            "cancelled": 0,
+            "evictions": 0
+          },
+          "blob": {
+            "requests": 76,
+            "uniqueImages": 42,
+            "cacheHits": 34,
+            "completed": 42,
+            "failed": 0,
+            "cancelled": 0,
+            "evictions": 0
+          },
+          "other": {
+            "requests": 0,
+            "uniqueImages": 0,
+            "cacheHits": 0,
+            "completed": 0,
+            "failed": 0,
+            "cancelled": 0,
+            "evictions": 0
+          }
+        },
+        "schemeSemantics": "Browser request scheme; not original host, file format, or upstream protocol"
+      },
+      "compressedColor": {
+        "retainedBytes": 66907944,
+        "retainedEntries": 93,
+        "active": 0,
+        "queued": 0,
+        "readers": 0,
+        "statisticsLimitation": "Cache hits, evictions and request-versus-queue time are not recorded"
+      },
+      "phases": {
+        "imageLoad": {
+          "count": 63,
+          "overlappingTotalMs": 5918,
+          "maximumObservedMs": 361
+        },
+        "imageDecode": {
+          "count": 63,
+          "overlappingTotalMs": 2073,
+          "maximumObservedMs": 320
+        },
+        "compressedColor": {
+          "count": 234,
+          "overlappingTotalMs": 19709,
+          "maximumObservedMs": 1017
+        },
+        "textureAlpha": {
+          "count": 848,
+          "overlappingTotalMs": 2949,
+          "maximumObservedMs": 455
+        },
+        "fbxTextures": {
+          "count": 295,
+          "overlappingTotalMs": 3404,
+          "maximumObservedMs": 554
+        },
+        "fbxPrepareWait": {
+          "count": 295,
+          "overlappingTotalMs": 22785,
+          "maximumObservedMs": 1104
+        },
+        "fbxDecode": {
+          "count": 122,
+          "overlappingTotalMs": 2387,
+          "maximumObservedMs": 376
+        },
+        "fbxParse": {
+          "count": 295,
+          "overlappingTotalMs": 4189,
+          "maximumObservedMs": 205
+        },
+        "shaderPrepare": {
+          "count": 500,
+          "overlappingTotalMs": 23919,
+          "maximumObservedMs": 398
+        },
+        "graphicsSubmit": {
+          "count": 1669,
+          "overlappingTotalMs": 16437,
+          "maximumObservedMs": 383
+        }
+      },
+      "phaseSemantics": "Calls may be cache hits; totals overlap and do not equal elapsed loading or CPU time",
+      "originalImageErrorProjection": {
+        "scope": "Both sessions, matching bounded collector observations only",
+        "extensionIsNotDecodedFormat": true,
+        "counts": {
+          "png:upstream-network": 2,
+          "tga:upstream-http": 6,
+          "jpg:origin-refused": 2
+        },
+        "unclassifiedImageFailures": true
+      },
+      "driverObservations": {
+        "scope": "Both sessions, first 256 slow calls only",
+        "texSubImage2D": {
+          "calls": 40709,
+          "overlappingTotalMs": 2441,
+          "maximumDriverCallMs": 267
+        },
+        "slowImageDimensions": {
+          "2048x2048": {
+            "observedCalls": 2,
+            "maximumDriverCallMs": 267
+          },
+          "4096x4096": {
+            "observedCalls": 2,
+            "maximumDriverCallMs": 95
+          }
+        },
+        "interpretation": "CPU duration may wait earlier GPU work; not pure GPU time or unique uploaded-image count"
+      },
+      "resourceTimingScope": {
+        "retainedRecords": 250,
+        "fullWorldCoverage": false
+      }
+    }
+  }
+}

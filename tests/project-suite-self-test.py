@@ -161,8 +161,13 @@ class ProjectSuiteCliTests(unittest.TestCase):
                                     ], start_new_session=detached, stdout=subprocess.DEVNULL,
                                        stderr=subprocess.DEVNULL)
                                     children.append(child.pid)
-                                pathlib.Path(os.environ['CANCELLATION_TEST_MARKER']).write_text(json.dumps(
-                                    [os.getpid(), os.getppid(), *children]))
+                                # Publish readiness only after complete identity
+                                # bytes exist. exists() must never expose an
+                                # empty file while the JSON writer is running.
+                                marker = pathlib.Path(os.environ['CANCELLATION_TEST_MARKER'])
+                                pending = marker.with_name(marker.name + '.pending')
+                                pending.write_text(json.dumps([os.getpid(), os.getppid(), *children]))
+                                pending.replace(marker)
                                 time.sleep(60)
                     """))
                     timeout = "1" if interruption is None else "30"

@@ -1,0 +1,671 @@
+{
+  "date": "2026-10-02",
+  "materialAssistance": "OpenAI Codex",
+  "scope": "Four short real stock-browser overte_hub source-frozen comparisons with native pose observation and reconnect; no endurance or synthetic world.",
+  "thresholds": {
+    "minimumFPS": 30,
+    "maximumP95FrameMs": 66.66666666666667,
+    "maximumSteadyStallMs": 250
+  },
+  "sourceSHA256": {
+    "browser-client/gateway/server.mjs": "f8399c1015cb85ada0da613b9278b8a90dca0660d2478b8810d43161b1ed237c",
+    "browser-client/gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+    "browser-client/gateway/native-world.js": "bec2f02313446afde7a0be20899358a082b41c6c6c5d745ec67a24809e2b7ddb",
+    "browser-client/gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60",
+    "browser-client/gateway/public-places.mjs": "cbac3df2ecf7071da6e77df8d58b09be194afa184cfb0c37f6015f9f1f570471",
+    "browser-client/gateway/validation.mjs": "65eba4a66c76d4bfc0dbd18e172def64f43b37cca0db2301da5bf4d18645de79",
+    "browser-client/gateway/worker-sandbox.mjs": "0f676af4e006de48a0aeb32185ea37eb9500d1a7c65d064a5a16a27024c268a1",
+    "browser-client/gateway/network-sandbox.mjs": "3fd278b91a6ea383ddf816753d9eee870736b295ecd945714e827d794c8016d9",
+    "browser-client/gateway/network_udp.py": "378f7159b1456ab5a0e25d2f933f35106344106625cef0ce0d589de3d1e45eca",
+    "browser-client/gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+    "browser-client/gateway/tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+    "browser-client/gateway/process-lifecycle.mjs": "e8d7e021a8b934b271910883e27c2a1109aedd22e12044b763d4bf8acc274eaf",
+    "browser-client/shared/fluid-performance.mjs": "44e5262f62785e3a9ba4a96c275f5f0bf3a93c27e1d44fdad3bdbec739deebe2",
+    "browser-client/gateway/session-assets.mjs": "68542cb352ccad1bdc23a65ae34ab19d4abc2b02e1f81dec3f529d525ab84bf4",
+    "browser-client/gateway/asset-download.mjs": "4718cfe223afa884ab4f5890b6dc093303a70b864917fe5d85dc5cc2b8568357",
+    "browser-client/src/main.ts": "1a60e855a84c2f4fed03d3c5d994e6f065fab8f8f035f83397bf500370a833da",
+    "browser-client/src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+    "browser-client/src/compressed-color-session.ts": "e18af74fe59593bf9f1aee0ce7a91f0e6910ed5e903868f646f1311d61c42fcf",
+    "browser-client/src/native-compressed-color.ts": "312e6beac3a95b16f0ad3675d9789270eec69a6cdf808b66ce23da007c22aa56",
+    "browser-client/src/color-texture-metadata.ts": "1a4053acae0e7fd47076c0472598cf09b4da6ae178bd0563fa81857477c3d785",
+    "browser-client/src/initial-surface-wait.ts": "70c5a8c833eb2d7f71f21be0602e8e8a93aaa9e6452e9a942b02cfead61f4e47",
+    "browser-client/src/mesh-collision.ts": "2fa7aded6c11e1defb9dd87d2963abd0212ab9a4243eb3089aa01073d5b3e4a6",
+    "browser-client/src/simulation-clock.ts": "263fffd2b448c01fd25dc6f2adeceacf5cc28c2550d3dc249c07d915737bc7f5",
+    "browser-client/src/world.ts": "23138c29b063dabddc7a68e43979dcf9bea7f3e9d13665aaaeec13247b458e16",
+    "browser-client/src/fst-graph-cache.ts": "3a97e6dfcff1afaf1919b766ba38370befcb740e36f54662d8c9a4769c157230",
+    "browser-client/src/fst-texture-admission.ts": "385f257d5f60ea60ab26af0df1d1f77186e836ba64e33640012349786244a5d5",
+    "browser-client/src/compressed-color-capabilities.ts": "9e0536d5b2c82dee198b4e952b8b4f92bce8c49011ec5972b53608e94583d9fe",
+    "browser-client/src/graphics-warmup.ts": "878c32f9d7503cd334f66e348e10670f73c8c077373906c979523d75884a93e6",
+    "browser-client/src/graphics-warmup-owner.ts": "e09c8bfbfb71dadbe838413551cce82a6b689967237e355cd4a787a9da0050d4",
+    "browser-client/src/gpu-time-observer.ts": "6431fd2ee12ed93a19c98abba26e895b82598da94f2c12f227c2b0a649d0fed3",
+    "browser-client/src/world-gpu-timing.ts": "f20d8edec0b0666e88fb7a60cc2b5dae35ae02d5c6e6b44bc2ae86810beccd46",
+    "browser-client/src/world-image-cache.ts": "ba45a6125087f8b275c939a5e9e36dadac6879a37cb0fbe50d8c19dd9f1c6af9",
+    "browser-client/src/world-source-text-cache.ts": "57ccb98bed54e788ed0e2f263e8362ae505f4b3073648dc08c311925e21116b1",
+    "browser-client/src/embedded-fbx-images.ts": "790210b1205de5a26798e59c428da4bfff94ace0357374b6c370d53a42009e66",
+    "browser-client/src/embedded-content-counts.ts": "99fdefbe880cc81f8871565875fd95620211cbbc7a64ff3cfb6a5ee601d33864",
+    "browser-client/src/embedded-fbx-protocol.ts": "381179c36c71ab04bd0214fde9d2da4afa2a04f7f52dcbadc526b9eb2dd0c1db",
+    "browser-client/src/native-zero-lights.ts": "db505e6dbbfa856f3f5a5cb7d2c38768ab47f68e545a44d2281589613e151659",
+    "browser-client/src/static-model-batch.ts": "e14251976cfbc726dc8758759d13b0318b5bd08bec47499f64083b7e9ff44b8a",
+    "browser-client/src/native-render-state.ts": "af31a1e01576c233c1f7e8a8231dd5c2cc5871cb58b5783bf01f788da70d01df",
+    "browser-client/src/native-alpha-material.ts": "a3515894f69f078222c7e2b543c46ce22f7bd05b58e12f3eaa14aa0a638dcfbb",
+    "browser-client/src/model-resources.ts": "23e551d60f53e02e2a9d28573df47e0bc7710fc499d1f05aeca88daa89703949",
+    "browser-client/src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+    "browser-client/src/worker-task-yield.ts": "6fdfa71526163386c9e041b74a533b2ff50c52f533145bfc2facb213d4333cc8",
+    "browser-client/src/prepared-fbx-cache.ts": "d4fe5ef8699e329094f4c4e99b0a8baa9da29739ee5b3dd6f28ff756b6466579",
+    "browser-client/src/model-load-scheduler.ts": "5b0f79beda5b11ba85dff0c34fbd4e091e5f21a0130efa78022d7eef9f453290",
+    "browser-client/src/model-geometry-stage.ts": "d940a9180cbb26f50a2fe8a712e6f8d9d30a2d31ec2b6dd5551b6ee6b83d34a3",
+    "browser-client/src/model-fbx-pool.ts": "76234b181e0cdded5d4e65350386bc62bf393802266e5614d825b57308e5b902",
+    "browser-client/src/model-fbx-decoder.ts": "5b80bced09705301a14574c8082a946dd3fd32f2ef1a9d1ce08ca7f30dd19ead",
+    "browser-client/src/model-fbx-decoder-memory.ts": "0f209e406a3571af97e78bf12471d7ea6a788cec26adbef733dc353b864cdc68",
+    "browser-client/src/model-fbx-worker.ts": "e418b09a7a3771bcb2cd52c130cc9ee01fcbfbca2ad5828df9c307adec9502f5",
+    "browser-client/src/model-textures.ts": "6de3ec3be2ce235642209ffab87295e52198e4fbebc12559c712ba6283e889bb",
+    "browser-client/src/texture-alpha.ts": "af9b46d9c56a156febaff92db76fe06b38dd4fa2ba7943ddfd4bbeaa47024ebe",
+    "browser-client/src/texture-alpha-worker.ts": "68cc81f419ed2373cfe18e9efd950222452479a7a742c5e10b8d965264d91761",
+    "browser-client/src/baked-fbx.ts": "eaa429192150981bb8c894ec77140a829a9430264652f0321dd41fc1486c0d00",
+    "browser-client/src/baked-draco.ts": "7e4426363fd8809df02d4f6c79d2b2fb899ae56ed663f839ffeb297e2a7d7844",
+    "browser-client/src/baked-draco-legacy.ts": "ba30ca915fcb85f5915fd5ef08f01745c13d3c9c7412c8dcefecb504c89a0a71",
+    "browser-client/dist/index.html": "7799589d4580b2b5f49a9b7a500799da7d33fb7b6c1599c357a116ae220c4618",
+    "browser-client/tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+    "browser-client/tests/integration/public-hub-metrics.mjs": "18c9ed36feb60ddadbc5b3a73dcc73e2caa8561ab26cd672d8882de2bd25c789",
+    "browser-client/tests/integration/public-hub.mjs": "fa11cb7da5116b60bd13e3c48c3ec47436267d0ce5b3d82325c54a151753fcda",
+    "browser-client/src/world-texture-preparation.ts": "9bbe55c2b77a6df70b393cc139a35a34eb0d72b2f1f71d2b3f459dcb90a81be6",
+    "browser-client/src/foreground-texture-plan.ts": "9e986216767c9d65070e337e672c1f5bede40d5fd222d0191f715abba8c899c2",
+    "browser-client/src/world-cpu-frame-timing.ts": "579a99969dd17e1ec9d3cd93701817597aa2741ee6d531d0f99aa8df84490b36",
+    "browser-client/src/render-cpu-breakdown.ts": "19a7c3b5add363fbffbfb5b5dbb863054447ac50a5ac5312c722a984a715eeb3",
+    "browser-client/tests/integration/hub-upload-profile.mjs": "d16dfd152f78b6b6294d9f0791b44670562c9eee41014ede5c82e2a14f99e8ea",
+    "browser-client/src/static-model-matrices.ts": "f1d25bf43d7f0d8d3bfdad21e28aab1960b0638071fdd7c3c33d1c0b8c93b585",
+    "browser-client/src/native-image-material.ts": "53b2f6c9785611b3be7e50441feb317a854753dd9422f1152e88c19ca5818784",
+    "browser-client/src/native-image-effects.ts": "71146573d8ea9ee836119302b09c4af48a0c9e987ee5196fd32b59fceeab8d97"
+  },
+  "distributionManifestSHA256": "3d005492d8a3ca7543ed89ade5cf8da42ba5aa21aa0eb6546d273c3e16d90486",
+  "distributionHashEncoding": "Python canonical compact insertion-order JSON of the captured sorted manifest",
+  "conclusion": "Both Chromium cohorts pass all four original gates; both Firefox cohorts fail. Reuse admits only64 roots and increases sampled Firefox matrix spans in this pair. No causal speed benefit is established; default remains off.",
+  "limitations": [
+    "Single live-world cohort per engine/variant; scene content and external scheduling may vary.",
+    "Renderer spans are sampled nested wall time, not CPU self time or GPU elapsed time.",
+    "Model-job readiness is a three-second observation interval, not all-content/fidelity completion.",
+    "No quality, resolution, material, collision or acceptance threshold is reduced."
+  ],
+  "runs": [
+    {
+      "engine": "firefox",
+      "variant": "baseline",
+      "version": "firefox/156.0",
+      "startedAt": "2026-10-01T21:44:43.484Z",
+      "finishedAt": "2026-10-01T21:46:30.953Z",
+      "rawSHA256": "3868fc2203194a3ec07342c308e7e7c93d88ffa9867cf233469a59047b94b24a",
+      "sourceStable": true,
+      "distributionStable": true,
+      "runtimeHelperSHA256": {
+        "native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+        "tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+        "bridge.js": "bca07eba0e962bb471e280b2a27fc9f52964777759273e5d66a9e6d039d44089"
+      },
+      "rejoinedRuntimeHelperSHA256": {
+        "native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+        "tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+        "bridge.js": "778ec7dfe514c3e17cb78da839fbff63a1fd853e5b8c3ad5a55e18147581d2d9"
+      },
+      "passedAllFourOriginalFluidGates": false,
+      "gateResults": {
+        "steadyFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "walkFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedSteadyFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedWalkFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        }
+      },
+      "movementMeters": 4.248090600084606,
+      "nativePoseDifferenceMeters": 0.000544403932741987,
+      "rejoinedMovementMeters": 3.096096664827134,
+      "rejoinedNativePoseDifferenceMeters": 0.0003710520769244607,
+      "firstObservedModelJobsIdleInterval": {
+        "greaterThanSeconds": 18.391,
+        "atMostSeconds": 21.483
+      },
+      "phases": {
+        "idle": {
+          "fps": 28.372148008038774,
+          "p95FrameMs": 68,
+          "staticMatrixReuse": {
+            "enabled": false
+          },
+          "rendererSamples": 53,
+          "rendererPhaseWallSpansMs": {
+            "sceneMatrices": 4.452830188679245,
+            "cameraMatrices": 0,
+            "sceneBeforeHook": 0,
+            "drawDispatch": 15.660377358490566,
+            "renderRemainder": 5.69811320754717,
+            "total": 25.81132075471698
+          },
+          "meanDrawCalls": 670.5849056603773,
+          "meanTriangles": 550105.3396226416
+        },
+        "walking": {
+          "fps": 28.388928317955997,
+          "p95FrameMs": 67,
+          "staticMatrixReuse": {
+            "enabled": false
+          },
+          "rendererSamples": 61,
+          "rendererPhaseWallSpansMs": {
+            "sceneMatrices": 4.524590163934426,
+            "cameraMatrices": 0,
+            "sceneBeforeHook": 0,
+            "drawDispatch": 16.065573770491802,
+            "renderRemainder": 5.688524590163935,
+            "total": 26.278688524590162
+          },
+          "meanDrawCalls": 667.7049180327868,
+          "meanTriangles": 546946.8360655737
+        },
+        "rejoinedIdle": {
+          "fps": 27.38475581926061,
+          "p95FrameMs": 68,
+          "staticMatrixReuse": {
+            "enabled": false
+          },
+          "rendererSamples": 44,
+          "rendererPhaseWallSpansMs": {
+            "sceneMatrices": 5.454545454545454,
+            "cameraMatrices": 0,
+            "sceneBeforeHook": 0,
+            "drawDispatch": 16.886363636363637,
+            "renderRemainder": 4.568181818181818,
+            "total": 26.90909090909091
+          },
+          "meanDrawCalls": 674.2727272727273,
+          "meanTriangles": 551844.6363636364
+        },
+        "rejoinedWalking": {
+          "fps": 28.345340734616748,
+          "p95FrameMs": 64,
+          "staticMatrixReuse": {
+            "enabled": false
+          },
+          "rendererSamples": 49,
+          "rendererPhaseWallSpansMs": {
+            "sceneMatrices": 5.448979591836735,
+            "cameraMatrices": 0.02040816326530612,
+            "sceneBeforeHook": 0,
+            "drawDispatch": 16.489795918367346,
+            "renderRemainder": 4.755102040816326,
+            "total": 26.714285714285715
+          },
+          "meanDrawCalls": 673.0612244897959,
+          "meanTriangles": 550581.4897959183
+        }
+      }
+    },
+    {
+      "engine": "firefox",
+      "variant": "optimized",
+      "version": "firefox/156.0",
+      "startedAt": "2026-10-01T21:47:01.243Z",
+      "finishedAt": "2026-10-01T21:48:52.814Z",
+      "rawSHA256": "5a3bc66a0a4e08d0b48225322d2d90011fdeb56c777414011f9adf4014a91351",
+      "sourceStable": true,
+      "distributionStable": true,
+      "runtimeHelperSHA256": {
+        "native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+        "tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+        "bridge.js": "631efd4f7f2dfe33e3e66e8b62f2e0a6ef36b163f8d705530e53e671607ddcf4"
+      },
+      "rejoinedRuntimeHelperSHA256": {
+        "native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+        "tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+        "bridge.js": "3e44a8e6d6cfeeb3408f6650ad966277994ba1de30b89605351b7cb198fa3c61"
+      },
+      "passedAllFourOriginalFluidGates": false,
+      "gateResults": {
+        "steadyFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "walkFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedSteadyFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedWalkFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        }
+      },
+      "movementMeters": 4.388525326072844,
+      "nativePoseDifferenceMeters": 0.00030850897031905626,
+      "rejoinedMovementMeters": 2.81698404331811,
+      "rejoinedNativePoseDifferenceMeters": 0.00022875910479186403,
+      "firstObservedModelJobsIdleInterval": {
+        "greaterThanSeconds": 20.584,
+        "atMostSeconds": 23.652
+      },
+      "phases": {
+        "idle": {
+          "fps": 29.368575624082233,
+          "p95FrameMs": 61,
+          "staticMatrixReuse": {
+            "enabled": true,
+            "activeRoots": 64,
+            "retainedNodes": 384,
+            "skippedTraversals": 33796,
+            "updatedTraversals": 293,
+            "refusedRoots": 229,
+            "changedGraphs": 64
+          },
+          "rendererSamples": 48,
+          "rendererPhaseWallSpansMs": {
+            "sceneMatrices": 5.75,
+            "cameraMatrices": 0.020833333333333332,
+            "sceneBeforeHook": 0,
+            "drawDispatch": 15.104166666666666,
+            "renderRemainder": 5.0625,
+            "total": 25.9375
+          },
+          "meanDrawCalls": 672.0208333333334,
+          "meanTriangles": 550959.6666666666
+        },
+        "walking": {
+          "fps": 28.493410898729667,
+          "p95FrameMs": 63,
+          "staticMatrixReuse": {
+            "enabled": true,
+            "activeRoots": 64,
+            "retainedNodes": 384,
+            "skippedTraversals": 37636,
+            "updatedTraversals": 293,
+            "refusedRoots": 229,
+            "changedGraphs": 64
+          },
+          "rendererSamples": 55,
+          "rendererPhaseWallSpansMs": {
+            "sceneMatrices": 5.963636363636364,
+            "cameraMatrices": 0.01818181818181818,
+            "sceneBeforeHook": 0,
+            "drawDispatch": 15.10909090909091,
+            "renderRemainder": 5.2727272727272725,
+            "total": 26.363636363636363
+          },
+          "meanDrawCalls": 669.2,
+          "meanTriangles": 547773.7636363637
+        },
+        "rejoinedIdle": {
+          "fps": 28.271881258098716,
+          "p95FrameMs": 63,
+          "staticMatrixReuse": {
+            "enabled": true,
+            "activeRoots": 64,
+            "retainedNodes": 384,
+            "skippedTraversals": 29278,
+            "updatedTraversals": 292,
+            "refusedRoots": 228,
+            "changedGraphs": 64
+          },
+          "rendererSamples": 43,
+          "rendererPhaseWallSpansMs": {
+            "sceneMatrices": 5.906976744186046,
+            "cameraMatrices": 0,
+            "sceneBeforeHook": 0,
+            "drawDispatch": 16.162790697674417,
+            "renderRemainder": 6.046511627906977,
+            "total": 28.11627906976744
+          },
+          "meanDrawCalls": 675.2093023255813,
+          "meanTriangles": 552243.5581395349
+        },
+        "rejoinedWalking": {
+          "fps": 27.36290046744955,
+          "p95FrameMs": 67,
+          "staticMatrixReuse": {
+            "enabled": true,
+            "activeRoots": 64,
+            "retainedNodes": 384,
+            "skippedTraversals": 31838,
+            "updatedTraversals": 292,
+            "refusedRoots": 228,
+            "changedGraphs": 64
+          },
+          "rendererSamples": 48,
+          "rendererPhaseWallSpansMs": {
+            "sceneMatrices": 5.9375,
+            "cameraMatrices": 0,
+            "sceneBeforeHook": 0,
+            "drawDispatch": 15.916666666666666,
+            "renderRemainder": 6.229166666666667,
+            "total": 28.083333333333332
+          },
+          "meanDrawCalls": 674.125,
+          "meanTriangles": 551058.9166666666
+        }
+      }
+    },
+    {
+      "engine": "chromium",
+      "variant": "baseline",
+      "version": "154.0.8037.57",
+      "startedAt": "2026-10-01T21:51:07.295Z",
+      "finishedAt": "2026-10-01T21:52:48.236Z",
+      "rawSHA256": "bbe13197decab271a1870c8e7d212066daaf604b07cb8c6579052aa77a3638b6",
+      "sourceStable": true,
+      "distributionStable": true,
+      "runtimeHelperSHA256": {
+        "native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+        "tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+        "bridge.js": "e848d63a401a0ca2ace7d2dd17fce981a60ccb11c9c3b63d62e980feeeabe8f6"
+      },
+      "rejoinedRuntimeHelperSHA256": {
+        "native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+        "tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+        "bridge.js": "6f3d511007747ba05e3ce09c4a07df56795e75a4c2de1638d2dcc48ed0edbbe9"
+      },
+      "passedAllFourOriginalFluidGates": true,
+      "gateResults": {
+        "steadyFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "walkFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedSteadyFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedWalkFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        }
+      },
+      "movementMeters": 4.251532815942493,
+      "nativePoseDifferenceMeters": 0.0002119169703952789,
+      "rejoinedMovementMeters": 2.8634325249064747,
+      "rejoinedNativePoseDifferenceMeters": 0.0008590879524465938,
+      "firstObservedModelJobsIdleInterval": {
+        "greaterThanSeconds": 17.616,
+        "atMostSeconds": 20.649
+      },
+      "phases": {
+        "idle": {
+          "fps": 46.29540325225209,
+          "p95FrameMs": 33.400000000001455,
+          "staticMatrixReuse": {
+            "enabled": false
+          },
+          "rendererSamples": 86,
+          "rendererPhaseWallSpansMs": {
+            "sceneMatrices": 2.9058139525180637,
+            "cameraMatrices": 0.005813953141833461,
+            "sceneBeforeHook": 0,
+            "drawDispatch": 13.794186047689859,
+            "renderRemainder": 3.0081395337054895,
+            "total": 19.713953487055246
+          },
+          "meanDrawCalls": 673.6976744186046,
+          "meanTriangles": 551913.976744186
+        },
+        "walking": {
+          "fps": 45.849651351609516,
+          "p95FrameMs": 33.400000000001455,
+          "staticMatrixReuse": {
+            "enabled": false
+          },
+          "rendererSamples": 99,
+          "rendererPhaseWallSpansMs": {
+            "sceneMatrices": 2.86060605988358,
+            "cameraMatrices": 0.005050504749471491,
+            "sceneBeforeHook": 0,
+            "drawDispatch": 13.606060606662673,
+            "renderRemainder": 2.9464646457421657,
+            "total": 19.41818181703789
+          },
+          "meanDrawCalls": 670.7777777777778,
+          "meanTriangles": 548724.0202020202
+        },
+        "rejoinedIdle": {
+          "fps": 47.67769875640666,
+          "p95FrameMs": 33.40000000000873,
+          "staticMatrixReuse": {
+            "enabled": false
+          },
+          "rendererSamples": 69,
+          "rendererPhaseWallSpansMs": {
+            "sceneMatrices": 2.744927534590597,
+            "cameraMatrices": 0.0014492752759352975,
+            "sceneBeforeHook": 0,
+            "drawDispatch": 14.042028979114864,
+            "renderRemainder": 2.8043478334295577,
+            "total": 19.592753622410953
+          },
+          "meanDrawCalls": 674.2608695652174,
+          "meanTriangles": 551842.5652173914
+        },
+        "rejoinedWalking": {
+          "fps": 47.520988436559534,
+          "p95FrameMs": 33.40000000000873,
+          "staticMatrixReuse": {
+            "enabled": false
+          },
+          "rendererSamples": 78,
+          "rendererPhaseWallSpansMs": {
+            "sceneMatrices": 2.734615383239893,
+            "cameraMatrices": 0.0012820512056350708,
+            "sceneBeforeHook": 0,
+            "drawDispatch": 13.934615379342667,
+            "renderRemainder": 2.7756410313722415,
+            "total": 19.446153845160435
+          },
+          "meanDrawCalls": 673.1538461538462,
+          "meanTriangles": 550763.5
+        }
+      }
+    },
+    {
+      "engine": "chromium",
+      "variant": "optimized",
+      "version": "154.0.8037.57",
+      "startedAt": "2026-10-01T21:55:51.952Z",
+      "finishedAt": "2026-10-01T21:57:36.751Z",
+      "rawSHA256": "ecd056fb4e693ae29339916c30779b99843469086a9f5e9ae46a4356151decca",
+      "sourceStable": true,
+      "distributionStable": true,
+      "runtimeHelperSHA256": {
+        "native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+        "tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+        "bridge.js": "e05cf0a7698ea9b33921b8d98adc3b92498778eb82b25c5b5415936b209c78de"
+      },
+      "rejoinedRuntimeHelperSHA256": {
+        "native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+        "tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+        "bridge.js": "18a7f81e9970b4ab6dba1626a3dff43130ec49476e677d741dacc739896bf367"
+      },
+      "passedAllFourOriginalFluidGates": true,
+      "gateResults": {
+        "steadyFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "walkFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedSteadyFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedWalkFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        }
+      },
+      "movementMeters": 4.249272158838743,
+      "nativePoseDifferenceMeters": 0.0004253941933651943,
+      "rejoinedMovementMeters": 2.8616709676787035,
+      "rejoinedNativePoseDifferenceMeters": 0.0008442420523154475,
+      "firstObservedModelJobsIdleInterval": {
+        "greaterThanSeconds": 20.056,
+        "atMostSeconds": 23.126
+      },
+      "phases": {
+        "idle": {
+          "fps": 46.1476339723499,
+          "p95FrameMs": 33.400000000001455,
+          "staticMatrixReuse": {
+            "enabled": true,
+            "activeRoots": 64,
+            "retainedNodes": 384,
+            "skippedTraversals": 51634,
+            "updatedTraversals": 293,
+            "refusedRoots": 229,
+            "changedGraphs": 64
+          },
+          "rendererSamples": 76,
+          "rendererPhaseWallSpansMs": {
+            "sceneMatrices": 3.7355263142993578,
+            "cameraMatrices": 0.009210526551070967,
+            "sceneBeforeHook": 0.0026315791826499136,
+            "drawDispatch": 13.411842105420012,
+            "renderRemainder": 3.2473684200330784,
+            "total": 20.40657894548617
+          },
+          "meanDrawCalls": 673.4342105263158,
+          "meanTriangles": 550870
+        },
+        "walking": {
+          "fps": 46.15384615384615,
+          "p95FrameMs": 33.400000000001455,
+          "staticMatrixReuse": {
+            "enabled": true,
+            "activeRoots": 64,
+            "retainedNodes": 384,
+            "skippedTraversals": 58226,
+            "updatedTraversals": 293,
+            "refusedRoots": 229,
+            "changedGraphs": 64
+          },
+          "rendererSamples": 89,
+          "rendererPhaseWallSpansMs": {
+            "sceneMatrices": 3.6876404489694017,
+            "cameraMatrices": 0.008988764178886843,
+            "sceneBeforeHook": 0.0033707866507969547,
+            "drawDispatch": 13.41910112205516,
+            "renderRemainder": 3.2022471913460935,
+            "total": 20.32134831320034
+          },
+          "meanDrawCalls": 670.2134831460675,
+          "meanTriangles": 547323.1123595505
+        },
+        "rejoinedIdle": {
+          "fps": 46.14852132446264,
+          "p95FrameMs": 33.40000000000873,
+          "staticMatrixReuse": {
+            "enabled": true,
+            "activeRoots": 64,
+            "retainedNodes": 384,
+            "skippedTraversals": 47579,
+            "updatedTraversals": 292,
+            "refusedRoots": 228,
+            "changedGraphs": 64
+          },
+          "rendererSamples": 69,
+          "rendererPhaseWallSpansMs": {
+            "sceneMatrices": 3.3608695640080217,
+            "cameraMatrices": 0.004347826691641324,
+            "sceneBeforeHook": 0,
+            "drawDispatch": 13.80000000414641,
+            "renderRemainder": 2.886956517679104,
+            "total": 20.052173912525177
+          },
+          "meanDrawCalls": 674.1014492753624,
+          "meanTriangles": 551813.5217391305
+        },
+        "rejoinedWalking": {
+          "fps": 44.98847170412584,
+          "p95FrameMs": 33.40000000000873,
+          "staticMatrixReuse": {
+            "enabled": true,
+            "activeRoots": 64,
+            "retainedNodes": 384,
+            "skippedTraversals": 51803,
+            "updatedTraversals": 292,
+            "refusedRoots": 228,
+            "changedGraphs": 64
+          },
+          "rendererSamples": 77,
+          "rendererPhaseWallSpansMs": {
+            "sceneMatrices": 3.3545454535391426,
+            "cameraMatrices": 0.0038961044379643033,
+            "sceneBeforeHook": 0.001298701221292669,
+            "drawDispatch": 13.99090909493434,
+            "renderRemainder": 2.8870129829103295,
+            "total": 20.23766233704307
+          },
+          "meanDrawCalls": 673.025974025974,
+          "meanTriangles": 550735.2987012987
+        }
+      }
+    }
+  ]
+}

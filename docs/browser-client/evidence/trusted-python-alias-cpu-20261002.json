@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "scope": "isolated source and CPU only",
+  "cpuTests": {
+    "passed": 80,
+    "failed": 0,
+    "skipped": 0,
+    "elapsedSeconds": 3.213
+  },
+  "existingCpuTests": 62,
+  "newCpuTests": 18,
+  "staticElfWithoutInterpreter": true,
+  "profileInstalled": false,
+  "namespaceCreated": false,
+  "routesChanged": false,
+  "rootEdits": false,
+  "actualHostedTargetKnown": false,
+  "actualUbuntuRuntimeProven": false,
+  "manifestVersionAfter": 2,
+  "failureWireVersionUnchanged": 1,
+  "failureFieldSchemaUnchanged": true,
+  "policyJsonVersionUnchanged": 1,
+  "bounds": {
+    "uniqueAliasTargets": 64,
+    "aliasLinks": 128,
+    "individualTargetBytes": 4194304,
+    "uniqueTargetBytes": 16777216,
+    "repeatedReadBytes": 33554432,
+    "aggregateTargetPathBytes": 16384,
+    "individualTargetPathCharacters": 4096,
+    "targetPathComponents": 32
+  },
+  "primarySourceURL": "https://manpages.ubuntu.com/manpages/noble/man5/apparmor.d.5.html"
+}

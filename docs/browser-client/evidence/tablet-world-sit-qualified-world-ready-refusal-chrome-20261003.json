@@ -1,0 +1,222 @@
+{
+  "version": 1,
+  "scope": "Genuine authored native Sit, close and owned world X/standing journey with ordinary Escape/Leave cleanup; exact current source",
+  "browser": {
+    "product": "Google Chrome",
+    "reportedVersion": "154.0.8037.97",
+    "inputTransport": "automated Puppeteer CDP",
+    "legacyHarnessEngineLabel": "chromium"
+  },
+  "outcome": "failed",
+  "completed": false,
+  "terminalAccepted": false,
+  "exitCode": 1,
+  "durationSeconds": 72.235,
+  "stage": "genuine-close-before-world-key",
+  "fixedFailureCategory": "post-close-native-world-ready-and-focus-conjunction-deadline",
+  "nativeSitOverride": {
+    "variant": "Sit1",
+    "frames": 365,
+    "fps": 60,
+    "nominalDurationSeconds": 6.083333333333333
+  },
+  "observedPoseDifferences": {
+    "sitDifference": {
+      "hipsDrop": 85.530517578125,
+      "maximumThighChange": 1.3089793286548421
+    },
+    "closedRetainedSitDifference": null,
+    "restoredDifference": null
+  },
+  "appliedJointCount": 7,
+  "persistedJourneyFrameCount": 1,
+  "tabletErrorCount": 0,
+  "leaveObservation": {
+    "phase": "leave-state-confirmed",
+    "escapeSent": true,
+    "beforeEscape": {
+      "pointerLocked": true,
+      "pointerLockOwnedWorld": true,
+      "documentHidden": false,
+      "documentFocused": true,
+      "connected": true,
+      "tabletVisible": false
+    },
+    "preLeave": {
+      "pointerLocked": false,
+      "pointerLockOwnedWorld": false,
+      "documentHidden": false,
+      "documentFocused": true,
+      "connected": true,
+      "tabletVisible": false
+    },
+    "afterLeave": {
+      "pointerLocked": false,
+      "pointerLockOwnedWorld": false,
+      "documentHidden": false,
+      "documentFocused": true,
+      "connected": false,
+      "tabletVisible": false
+    }
+  },
+  "cleanupAndOwnership": {
+    "cleanupVerified": true,
+    "sourceCoherent": true,
+    "baselineUnchanged": true,
+    "browserClosed": true,
+    "ownedMappedModuleQualified": true,
+    "ownedNativeClosed": true,
+    "actualGoogleChromeObserved": true,
+    "ownedGoogleChromeClosed": true,
+    "ownedGatewayStopped": true,
+    "sourceAndDistributionUnchanged": true,
+    "preservedServiceIdentities": true,
+    "observedGoogleChromeProcessCount": 10,
+    "leaveFailed": null
+  },
+  "sourceMaps": {
+    "SourceSHA256": {
+      "observed": true,
+      "equal": true,
+      "startCount": 60,
+      "endCount": 60,
+      "startMapSHA256": "94b40593bc996251471a8baf810e9d367854488c3010609f0805b1653a04b03f",
+      "endMapSHA256": "94b40593bc996251471a8baf810e9d367854488c3010609f0805b1653a04b03f"
+    },
+    "CopiedSourceSHA256": {
+      "observed": true,
+      "equal": true,
+      "startCount": 152,
+      "endCount": 152,
+      "startMapSHA256": "d3581f9b496a948d96755d20cfd1450b920baa189573e7365079691df75fc88c",
+      "endMapSHA256": "d3581f9b496a948d96755d20cfd1450b920baa189573e7365079691df75fc88c"
+    },
+    "ShippingSnapshotSHA256": {
+      "observed": true,
+      "equal": true,
+      "startCount": 152,
+      "endCount": 152,
+      "startMapSHA256": "f16627bdff5b50bed2eb5dc0c107146fa093fdac51922cf8346b56c210cd04db",
+      "endMapSHA256": "f16627bdff5b50bed2eb5dc0c107146fa093fdac51922cf8346b56c210cd04db"
+    }
+  },
+  "limits": {
+    "originalActionsAndDeadlinesUnchanged": true,
+    "automatedEscapeOnly": true,
+    "humanOSDefaultEscapeTested": false,
+    "fullTabletAcceptanceClaimed": false,
+    "microphoneTested": false,
+    "causeBeyondFailedPredicateEstablished": false,
+    "noPerformanceGainClaim": true,
+    "fullNativeJointPoseSamplesPersisted": false,
+    "boundedOriginalPredicateObservationPersisted": true,
+    "lateCleanupValuesProveEarlierPredicate": false,
+    "worldXDispatched": false,
+    "noClaimStaleStateCausedFailure": true
+  },
+  "sitPredicateObservation": {
+    "version": 1,
+    "samples": 75,
+    "censored": false,
+    "conditionCounters": {
+      "animationWaiting": 50,
+      "jointMismatch": 0,
+      "batchNotAdvanced": 0,
+      "hipDropInsufficient": 38,
+      "thighChangeInsufficient": 28,
+      "holdStarted": 1,
+      "holdWaiting": 19,
+      "holdReset": 4,
+      "qualified": 1
+    },
+    "last": {
+      "stage": "qualified",
+      "elapsedMs": 9199,
+      "nativeBrowserJointMatch": true,
+      "avatarBatchAdvanced": true,
+      "hipsDrop": 85.530517578125,
+      "maximumThighChange": 1.3089793286548421
+    },
+    "conditionCountersOverlap": true,
+    "criticalPathAttribution": false
+  },
+  "closeObservation": {
+    "trustedCloseClicks": 1,
+    "observations": 3,
+    "censored": 0,
+    "originalClosePredicatePassed": true,
+    "rows": [
+      {
+        "tabletVisible": true,
+        "graphicsActive": null,
+        "elementHidden": false,
+        "documentHidden": false,
+        "documentFocused": true,
+        "incomingVisible": null,
+        "incomingLoading": null,
+        "firstMs": 0,
+        "lastMs": 0,
+        "count": 1,
+        "phase": "close-click"
+      },
+      {
+        "tabletVisible": true,
+        "graphicsActive": null,
+        "elementHidden": false,
+        "documentHidden": false,
+        "documentFocused": true,
+        "incomingVisible": null,
+        "incomingLoading": null,
+        "firstMs": 0,
+        "lastMs": 0,
+        "count": 1,
+        "phase": "close-sent"
+      },
+      {
+        "tabletVisible": false,
+        "graphicsActive": true,
+        "elementHidden": true,
+        "documentHidden": false,
+        "documentFocused": true,
+        "incomingVisible": null,
+        "incomingLoading": null,
+        "firstMs": 34,
+        "lastMs": 34,
+        "count": 1,
+        "phase": "wait"
+      }
+    ],
+    "reopeningObserved": false
+  },
+  "failedPredicateConjuncts": {
+    "nativeWorldKeyReady": "unobserved",
+    "documentHasFocus": "unobserved",
+    "documentHidden": "unobserved",
+    "activeElementParentIsWorld": "unobserved"
+  },
+  "bindings": {
+    "actualRawReportSHA256": "8a865d090ee9dfda908976866a18780f8a4f8fc978897016ceda1db3f9b0e6bf",
+    "parentReserializedCopySHA256": "8a865d090ee9dfda908976866a18780f8a4f8fc978897016ceda1db3f9b0e6bf",
+    "independentParsedJSONEquality": true,
+    "actualSummarySHA256": "968ef83659eb55792007107abf1f8c7d0e1d44ded76d8cffa21edfad90641270",
+    "qualificationManifestSHA256": "b57a90df1134049b6707d49b82c5e20cf5632a87e08b8706ee29dd73d83c1d80",
+    "completeSourceManifestSHA256": "120a24ee206a04a710ccafcf32b09184eb280442e3de23184bfc0d38ea94a2a7",
+    "productionReceiptSHA256": "0892fcd6b4798195aa252156b979cba6edd659ed92d997984276e61f4d709714",
+    "nativeModuleSHA256": "cb7b3c3b61cc68fda81275196d07282685c75a88e91bdb0fbf4fabdc4a77531f",
+    "artifactsSHA256": "6f1ffd9f0017ece44734c9ab675763f842b91faadf49f40534f5b7782ecabb36",
+    "workerLogSHA256": "4bdeefecfff651a066a2ecdcc310ff527c8e1b6a38a618554364f62c438602e5"
+  },
+  "authenticNativeEmoteAudit": {
+    "parserSourceSHA256": "12cffd284e3d3eb9997d586f731ef9b6ed173cb5819aebc2656e9f4ab1f19f8e",
+    "overrideReturnedRecords": 1,
+    "restoreControlReturnedRecords": 0,
+    "zeroRecordsProveZeroNativeCalls": false,
+    "sourceLiteralMatchesCounted": false
+  },
+  "retainedPriorFailure": {
+    "rawReportSHA256": "c58482731f3b6b868aad01ce2ed928850b5b7b019aa98bff1885629060af0ece",
+    "stage": "genuine-Sit",
+    "overallPassed": false,
+    "causeEstablished": false
+  }
+}
