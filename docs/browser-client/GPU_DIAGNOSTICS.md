@@ -7,8 +7,8 @@ passing run does not erase a same-source failure.
 
 On failure, the existing runner makes one bounded 500 ms read of fixed diagnostic
 data. It makes no additional read after the original 30 s fixture deadline and
-preserves the original failure. Version 3 retains the eleven-number frame row
-and the paired `contextStates` row introduced in version 2:
+preserves the original failure. Current version 4 retains the eleven-number
+frame row and the paired `contextStates` row introduced in version 2:
 
 ```text
 [frame, beforeRenderFrame, afterRenderFrame, contextLostBefore01, contextLostAfter01]
@@ -33,6 +33,28 @@ bounded read of the cumulative GPU-process crash count; no read follows the
 original 30 s deadline. A zero crash count does not exclude context reset or
 identify its cause. No raw console message, driver identifier or extra render
 is exported.
+
+Version 4 adds a separate `eventTimings` array, one row for each retained
+lifecycle event, and a `timingRefused` flag. Each row is
+`[eventIndex, relativeRoundedMsOrNull, compilingGraphicsOrNull]`. The first
+observed event supplies the time origin; intervals are nondecreasing integers
+bounded to 60000 ms, with at most 16 rows. These are new synchronous clock and
+property observations at existing callbacks. They add no timer, Promise
+continuation, render retry or shader-readiness wait. Invalid observations remain
+null and mark refusal. A positive preparation count means the method remains
+pending; zero means its existing finally path settled, not that the GPU is
+healthy. Event delivery time is not a driver reset trigger time. Older artifacts
+require their frozen version-3 decoder; current consumers refuse missing or
+unknown version-4 fields.
+
+At exact `3329dfc`, automatic run `37171816468` still fails after trusted
+model-await context loss, while explicit run `37171981635` passes the browser
+job and original pixels/upload/cancellation. A private owned headed experiment
+with one explicit `--use-angle=swiftshader` flag also exceeds the original
+165-second work budget before an inner report. Its three observed Chrome births
+retire and source coherence holds; no backend mode or cause is inferred from
+the missing report. No unsafe SwiftShader flag or production backend change is
+installed. Actual version-4 hosted timing remains a separate required check.
 
 At exact `78a0060`, automatic run `37167152055` retains a trusted context-loss
 event during model-await, before the direct pixel test, on SwiftShader. The

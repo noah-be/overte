@@ -11,7 +11,7 @@ interface TestWorld extends Pick<BrowserWorld,'getPerformance'|'dispose'|'setPre
 const assert=(value:unknown,message:string)=>{if(!value)throw Error(message);};
 function map(root:THREE.Object3D){let result:THREE.Texture|undefined;root.traverse(object=>{if(object instanceof THREE.Mesh){const material=Array.isArray(object.material)?object.material[0]:object.material;result=(material as THREE.MeshPhongMaterial).map??undefined;}});assert(result,'The actual FBX model has no albedo map');return result!;}
 // BEGIN bounded embedded diagnostic (authored fixture only).
-function createEmbeddedDiagnostic(){return {version:3,phase:'model-await',decodedRGBA:[] as number[],frames:[] as number[][],contextStates:[] as number[][],lifecycle:createEmbeddedLifecycle()};}
+function createEmbeddedDiagnostic(){return {version:4,phase:'model-await',decodedRGBA:[] as number[],frames:[] as number[][],contextStates:[] as number[][],lifecycle:createEmbeddedLifecycle()};}
 function recordEmbeddedFrame(diagnostic:ReturnType<typeof createEmbeddedDiagnostic>,frame:number,pixel:number[],uploads:number,ma:THREE.Texture,mb:THREE.Texture,calls:number){
  if(diagnostic.frames.length<20)diagnostic.frames.push([frame,...pixel,uploads,ma.version,mb.version,ma.source.version,mb.source.version,calls]);
 }
@@ -23,19 +23,28 @@ function sampleEmbeddedRender(frame:number,renderer:THREE.WebGLRenderer,gl:WebGL
 function recordEmbeddedContext(diagnostic:ReturnType<typeof createEmbeddedDiagnostic>,row:number[]){
  if(diagnostic.contextStates.length<20)diagnostic.contextStates.push(row.slice());
 }
-function createEmbeddedLifecycle(){return {phase:1,backend:0,backendSource:0,prepareCalls:0,resizeCalls:0,observerRefused:0,dropped:0,events:[] as number[][]};}
+function createEmbeddedLifecycle(){return {phase:1,backend:0,backendSource:0,prepareCalls:0,resizeCalls:0,observerRefused:0,dropped:0,events:[] as number[][],eventTimings:[] as (number|null)[][],timingRefused:0};}
 function embeddedBackendCategory(value:unknown):number {
  if(typeof value!=='string'||value.length<1||value.length>1024)return 0;
  if(/swiftshader/i.test(value))return 1;if(/llvmpipe/i.test(value))return 2;if(/\bANGLE\b/i.test(value))return 3;return 4;
 }
 function observeEmbeddedWorld(prototype:object,diagnostic:ReturnType<typeof createEmbeddedDiagnostic>){
  type Owner={renderer:THREE.WebGLRenderer};
- let owner:Owner|undefined,canvas:HTMLCanvasElement|undefined,closed=false;const lifecycle=diagnostic.lifecycle,installed:{name:string,before:PropertyDescriptor,wrapper:Function}[]=[];
+ let owner:(Owner&{compilingGraphics?:number})|undefined,canvas:HTMLCanvasElement|undefined,closed=false,timingOrigin:number|undefined,lastEventMs=0;const lifecycle=diagnostic.lifecycle,installed:{name:string,before:PropertyDescriptor,wrapper:Function}[]=[];
  const refused=()=>{lifecycle.observerRefused=1;};
  const record=(kind:number,trusted=0)=>{
   if(closed||!owner)return;
   try{const frame=owner.renderer.info.render.frame,gl=owner.renderer.getContext();if(!Number.isSafeInteger(frame)||frame<0||frame>1000000){refused();return;}
-   if(lifecycle.events.length<16)lifecycle.events.push([kind,lifecycle.phase,frame,gl.isContextLost()?1:0,trusted,lifecycle.prepareCalls]);else lifecycle.dropped=Math.min(1000000,lifecycle.dropped+1);
+   if(lifecycle.events.length<16){
+    const index=lifecycle.events.length;lifecycle.events.push([kind,lifecycle.phase,frame,gl.isContextLost()?1:0,trusted,lifecycle.prepareCalls]);
+    // New diagnostic clock reads; synchronous observation only, no Promise continuation.
+    let elapsed:number|null=null,pending:number|null=null;
+    try{const now=performance.now();if(!Number.isFinite(now)||now<0)throw Error('Unavailable diagnostic clock');
+     timingOrigin??=now;const value=Math.round(now-timingOrigin);if(!Number.isSafeInteger(value)||value<lastEventMs||value>60000)throw Error('Unavailable diagnostic interval');elapsed=value;lastEventMs=value;
+    }catch{lifecycle.timingRefused=1;}
+    try{const value=owner.compilingGraphics;if(typeof value!=='number'||!Number.isSafeInteger(value)||value<0||value>1000000)throw Error('Unavailable diagnostic preparation count');pending=value;}catch{lifecycle.timingRefused=1;}
+    lifecycle.eventTimings.push([index,elapsed,pending]);
+   }else lifecycle.dropped=Math.min(1000000,lifecycle.dropped+1);
   }catch{refused();}
  };
  const lost=(event:Event)=>record(5,event.isTrusted?1:0),restored=(event:Event)=>record(6,event.isTrusted?1:0);

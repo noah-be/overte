@@ -2,6 +2,29 @@
 
 ## Current integration checkpoint (2026-10-04)
 
+Published3329 passes current policy/CodeQL/repository checks and the explicit
+130-case actual Chrome browser job. Retain its automatic GPU failure and both
+native Core failures. Reported command timing is available; absent later gateway
+samples do not prove absent production or packet delivery. Original2800ms,
+movement assertions and all negative records remain unchanged.
+
+V25 is integrated and passes2832 complete product tests, production build,
+both embedded fixture builds and34 repository suites. The original310-case independent review, Root19 overlapping controls and ten
+independent guards for the EOF-format/digest correction pass. Preserve the
+staged formatting failure; fresh complete gates pass on the corrected source. Preserve215 inherited rows, exact old CPU
+histories and original browser bodies; production imports no recovery. Publish
+this exact source, then measure bounded relative event time and preparation
+state in the original GPU gate. Qualify the strict v4 decoder on that existing
+committed identity; keep old artifacts on their frozen decoders.
+
+Continue native decoded-versus-presented pose diagnosis and separately owned
+headed fixed-stage controls. The explicit-ANGLE local control fails within the
+original165s budget and cleans all owned births; do not install a speculative
+backend fix or claim a GPU cause. Live services stay unchanged. Wider Tablet,
+Hub movement, physical microphone and full client parity remain open.
+
+## Preserved native-clock integration checkpoint (2026-10-04)
+
 Published78a passes complete local gates, current repository/CodeQL checks and
 one explicit130-case actual Chrome browser job; the same-source automatic GPU
 failure and both native Core failures remain recorded. Keep original assertions

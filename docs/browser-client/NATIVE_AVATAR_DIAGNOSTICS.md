@@ -19,8 +19,12 @@ After the original stop and evidence curation steps, the workflow adds
 `native-avatar-samples.json` to the existing `native-core-journey-evidence`
 artifact. The collector uses the current reviewed production projection and only the
 last 1 MiB and at most 512 accepted rows of each owned native/gateway log. It
-discards incomplete lines and reports tail and row censoring explicitly. It
-refuses unsafe files or metadata changes rather than exporting partial raw data.
+discards incomplete lines and reports offline tail and row censoring explicitly.
+An uncensored retained log does not establish the sampler or live projector's
+internal budget: native print/output loss or a caught projector emit failure can
+consume those separate limits without creating a retained row. Missing later
+rows therefore do not prove absent production, simulation or packet delivery.
+The collector refuses unsafe files or metadata changes rather than exporting partial raw data.
 No raw log, path, avatar name, session identifier or credential is included.
 
 Compare publication pose age, rig phase/timing, post-publication pose delta and
@@ -49,8 +53,10 @@ The Core movement diagnostic keeps three separate time references:
 `commandAppliedAtMs` is the participant's existing reported timestamp, and
 `diagnosticReadAtMs` is the existing Node readback time. The projection adds no
 clock call, wait, file read or retry. Invalid or unavailable references remain
-null. The original 2800 ms wait starts at command-file publication, rather than
-at the later native application event. Gateway sample offsets measured from
+null. The original 2800 ms wait starts after the awaited command-file write, rather
+than at the later native application event. The existing issued timestamp is
+captured before that write; issued and diagnostic-read are Node wall clocks,
+while native apply and observation use the separately scoped native wall clock. Gateway sample offsets measured from
 that native event do not establish alignment with the browser capture or
 synchronized producer clocks. These diagnostics cannot change the captured
 movement assertion or turn a failed journey into acceptance.

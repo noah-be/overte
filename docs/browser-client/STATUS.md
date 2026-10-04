@@ -1,5 +1,46 @@
 # Browser client status
 
+Published source is `3329dfc45ec31244fdc15463c3eee1e17e6d869a` in draft PR1023.
+Its source-bound automatic Browser37171816468 preserves the original GPU and
+native Core failures. The single explicit37171981635 passes the browser job:
+2813 product tests, three real network cases and 130 actual Chrome UI cases,
+including original pixels/upload/cancellation. Its native Core gate still fails.
+Current replacement repository and fresh CodeQL checks pass. Both outcomes stay
+recorded; same-source success does not resolve the spontaneous GPU defect.
+
+Existing command references now establish a reported3291ms Node issue-to-read
+interval. Native apply/read clocks are separately scoped. The native target is
+correct while the captured browser peer remains old. Gateway diagnostics end
+before the command in this cohort. No offline log truncation or rejected row is
+present; this does not establish the internal sampler/projector budget or later
+packet delivery. No cause, aligned deadline or native acceptance is inferred.
+
+The reviewed working V25 successor adds bounded relative event times and the
+actual pending graphics-preparation count to existing lifecycle callbacks.
+These are new synchronous observations; a pending/settled method is not proof
+of GPU health. World, backend, shader logic, workflow and original assertions
+remain unchanged. Its220 rows retain all215 inherited rows, with four exact
+migrations and five admissions. Six whole historical CPU inputs preserve old
+assertions; production changes one manifest digest and imports no recovery.
+The original310-case independent review and Root19 overlapping focused checks
+pass. A staged EOF-format refusal is preserved; its three-path whitespace/digest
+correction passes ten independent source guards. Complete gates are repeated
+and pass on the corrected source.
+Complete2832 product cases, the34-file production build, both original embedded
+fixture builds and all34 repository suites pass. The production distribution
+matches the previous local build on the same toolchain; hosted equality is not
+assumed. Exact commands and identities are in the
+[source proof](evidence/gpu-event-timing-source-checks-20261004.json).
+
+A separate owned headed explicit-ANGLE control retains its original165s failure
+(167.384s including cleanup), no inner report, and all three observed Chrome
+births retired. Existing live services remain unchanged. Next: publish the
+reviewed source and measure actual v4 timing at the original hosted gate; use
+separately reviewed private fixed-stage observations to locate the local headed
+hang. Native peer cause and wider Tablet/Hub/microphone acceptance remain open.
+
+## Preserved 78a and native-clock prepublication checkpoint
+
 Published source is `78a0060cf63ad1b2aa2983294e0f38952ed5c74a` in draft
 PR1023. Its complete local gates pass: 2799 product tests, a fresh 34-file
 production build and 34 repository suites. Fresh CodeQL and current required

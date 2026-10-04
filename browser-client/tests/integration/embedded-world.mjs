@@ -13,7 +13,7 @@ import assert from 'node:assert/strict';
 // BEGIN strict fixed-field diagnostic consumer.
 function validateEmbeddedDiagnostic(value){
  assert(value&&typeof value==='object'&&!Array.isArray(value));
- assert.deepEqual(Object.keys(value).sort(),['contextStates','decodedRGBA','frames','lifecycle','phase','version']);assert.equal(value.version,3);
+ assert.deepEqual(Object.keys(value).sort(),['contextStates','decodedRGBA','frames','lifecycle','phase','version']);assert.equal(value.version,4);
  assert(['model-await','gpu-loop','gpu-upload-check','post-gpu-resources','model-cancellation','complete'].includes(value.phase));
  assert(Array.isArray(value.decodedRGBA)&&[0,4].includes(value.decodedRGBA.length));
  assert(value.decodedRGBA.every(n=>Number.isInteger(n)&&n>=0&&n<=255));assert(Array.isArray(value.frames)&&value.frames.length<=20);
@@ -30,10 +30,15 @@ function validateEmbeddedDiagnostic(value){
  return value;
 }
 function validateEmbeddedLifecycle(value){
- assert(value&&typeof value==='object'&&!Array.isArray(value));assert.deepEqual(Object.keys(value).sort(),['backend','backendSource','dropped','events','observerRefused','phase','prepareCalls','resizeCalls']);
+ assert(value&&typeof value==='object'&&!Array.isArray(value));assert.deepEqual(Object.keys(value).sort(),['backend','backendSource','dropped','eventTimings','events','observerRefused','phase','prepareCalls','resizeCalls','timingRefused']);
  for(const name of ['prepareCalls','resizeCalls','dropped'])assert(Number.isSafeInteger(value[name])&&value[name]>=0&&value[name]<=1000000);
  assert(Number.isInteger(value.phase)&&value.phase>=1&&value.phase<=10);assert(Number.isInteger(value.backend)&&value.backend>=0&&value.backend<=4);assert(Number.isInteger(value.backendSource)&&value.backendSource>=0&&value.backendSource<=2);assert(value.observerRefused===0||value.observerRefused===1);
  assert(Array.isArray(value.events)&&value.events.length<=16);for(const row of value.events){assert(Array.isArray(row)&&row.length===6);assert(Number.isInteger(row[0])&&row[0]>=0&&row[0]<=10);assert(Number.isInteger(row[1])&&row[1]>=1&&row[1]<=10);for(const j of [2,5])assert(Number.isSafeInteger(row[j])&&row[j]>=0&&row[j]<=1000000);for(const j of [3,4])assert(row[j]===0||row[j]===1);}
+ assert(value.timingRefused===0||value.timingRefused===1);assert(Array.isArray(value.eventTimings)&&value.eventTimings.length===value.events.length&&value.eventTimings.length<=16);
+ let previous=0;for(let i=0;i<value.eventTimings.length;i++){const row=value.eventTimings[i];assert(Array.isArray(row)&&row.length===3&&row[0]===i);
+  if(row[1]===null)assert.equal(value.timingRefused,1);else{assert(Number.isSafeInteger(row[1])&&row[1]>=previous&&row[1]<=60000);previous=row[1];}
+  if(row[2]===null)assert.equal(value.timingRefused,1);else assert(Number.isSafeInteger(row[2])&&row[2]>=0&&row[2]<=1000000);
+ }
  return value;
 }
 function createEmbeddedBrowserObserver(){
