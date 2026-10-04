@@ -7,7 +7,8 @@ const MAX_ROWS = 512;
 const COMMON = ['version', 'kind', 'at', 'interstitialState', 'interstitialSignalAgeMs'];
 const SAMPLE_NUMBERS = ['batchMs', 'publishedPoseAgeMs', 'avatarBuildMs', 'jointNamesMs',
     'jointRotationsMs', 'jointTranslationsMs', 'postPublicationPoseDeltaMeters',
-    'postPublicationProbeMs', 'peerPacketRateHz', 'peerGlobalPositionUpdateRateHz', 'peerSimulationRateHz'];
+    'postPublicationProbeMs', 'peerPacketRateHz', 'peerGlobalPositionUpdateRateHz', 'peerSimulationRateHz',
+    'capturedFixtureTargetDistanceMeters'];
 const AUTHOR_NUMBERS = ['cachedMyAvatarSendRateHz', 'cachedAvatarMixerOutPps',
     'authorGlobalPositionOutboundKbps', 'authorLocalPositionOutboundKbps'];
 const decoder = new TextDecoder('utf-8', { fatal: true });
@@ -31,6 +32,7 @@ function project(line) {
     if (value.kind === 'sample') {
         if (!Number.isSafeInteger(value.sequence) || value.sequence < 1 || value.sequence > MAX_ROWS
             || !['self', 'fixture-peer'].includes(value.role) || !SAMPLE_NUMBERS.every(key => bounded(value[key]))) return null;
+        if (value.role !== 'fixture-peer' && value.capturedFixtureTargetDistanceMeters !== null) return null;
         keys = [...COMMON, 'sequence', 'role', ...SAMPLE_NUMBERS];
     } else if (value.kind === 'author-transmission') {
         if (value.statsFreshness !== 'not-forced-or-established' || !AUTHOR_NUMBERS.every(key => bounded(value[key]))) return null;

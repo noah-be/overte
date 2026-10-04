@@ -1,5 +1,36 @@
 # Browser client status
 
+Published source is `6a613eeda62688e3e33bd381292410fba6957a14` in draft
+PR1023. Its complete local product/build/repository checks pass as recorded
+below. Fresh CodeQL, branch, dependency and sync checks pass; the replacement
+required Repository run37158749015 remains in progress at this checkpoint.
+The automatic Browser run37158620294 and the single explicit diagnostic
+run37158851212 both retain the original embedded-GPU and native/Core failures.
+Their owned stop and evidence curation complete successfully.
+The [source-bound hosted negative proof](evidence/hosted-context-avatar-negatives-20261004.json)
+records exact runs, source authentication and the fixed numeric observations.
+
+Both actual GPU reports authenticate all13 tracked source hashes. The image
+decodes to exact red, but the WebGL context is already lost before the first
+original render: context row `[0,0,0,1,1]`, zero draw calls and uploads, and a
+transparent-black pixel. This establishes context loss, not its initiating
+operation or driver/backend cause. Next: capture bounded passive reset-phase
+and backend observations without changing renders, assertions or deadlines.
+
+The explicit native diagnostic reaches the exact commanded target while the
+browser still publishes the old peer position. Six post-command gateway samples
+have positive packet, position-update and simulation rates; author position
+encoding counters also advance. Fresh getter/publication timings and positive
+simulation narrow the cause, but averaged rates do not establish delivery of
+the specific commanded pose. No truncation, rejected diagnostic rows or row
+budget censoring is present. Source review now follows position encoding,
+mixing and receiver application. Hosted source maps are qualified separately
+from executable assets; Fedora build equality is not presumed for those maps.
+All original failures and thresholds remain. No wider Tablet/Hub/microphone
+acceptance is inferred, and existing live services remain unchanged.
+
+## Preserved prepublication source checkpoint
+
 The current context/avatar diagnostic successor passes all 2,732 product tests
 without skips, the standard production build and all 34 required repository
 suites. Its 34 distribution files are byte-identical to published `6746424c` and
@@ -3151,3 +3182,21 @@ Next concrete step: publish the diagnostic source and collect actual Ubuntu
 pixels and opt-in native pose age before choosing a production repair. No timeout
 increase, threshold relaxation, retry-to-hide-failure or wider native/Tablet/Hub/
 microphone acceptance is implied.
+
+## Graphics context lifetime integration (2026-10-04)
+
+The owner installed the reviewed V22 source composition: stable graphics-scan facade and controller across actual restoration, monotonic context epochs, stale recommendation and queued graphics-intent refusal, and lost-context render/frame refusal. Loss observed through a getter also latches rendering unavailable and revokes the retained scan epoch. Settings synchronously applied before loss remain truthful; a late confirmation is refused rather than claiming rollback.
+
+Root independently authenticated all 636 proposal members, verified 28 complete source reversals and passed 406 focused source/history/graphics controls with no skips. The 65 graphics controls are included in that count. All 49 existing browser spec files and their 129 existing bodies remain unchanged. One additional Chrome spec deliberately loses and restores its own context, retains authored resources and checks equal nonblack pixels against a black test background. It has passed source/type checks; actual execution is pending.
+
+The current manifest has 203 rows: 202 strict browser source rows and one inherited historical non-browser documentation row that the existing preparer deliberately does not admit. Its finite whole-history archive retains 21 inputs within the unchanged 524,288-byte expanded bound. The production preparer changes only its exact current digest; history recovery remains CPU-fixture-only.
+
+The first complete V22 product run retained six failures: 2,759 of 2,765 tests passed, with zero skips. Five failures use sparse graphics mocks that omit the new readable live-context contract; the sixth is an explicit historical comparison of the complete controls method. The failed immutable source snapshot and log are preserved. Production build and repository quick checks were not run after that failure. The correction must supply faithful mocks and exact CPU-only historical recovery while keeping the original assertions intact, then repeat the complete gates and actual Chrome qualification.
+
+The reviewed V23 correction supplies those mock bindings and finite historical-reader plumbing. All 42 original cases in the three affected files pass with their assertions intact; the combined focused source/history/graphics run passes 457 cases with no skips. Root authenticated all 609 packet members and verified ten complete installation reversals. The current manifest preserves the previous 203 rows through three explicit test-source migrations and six declared admissions, giving 209 rows. Seven complete before inputs fit within the unchanged archive bounds. Production behavior is unchanged by this test correction; the preparer changes only its reviewed manifest digest.
+
+The fresh complete source passes all 2,799 product tests with no failures or skips, the production build with 34 distribution files, and all 34 required repository suites. A separate actual Google Chrome contract passes deliberate context loss and restoration, retained geometry and equal visible pixels against black, frame suspension/resumption, stable scan ownership and stale recommendation refusal. All nine observed Chrome births and private authentication state were retired. The original local embedded invocation separately failed its unchanged 165-second outer bound without obtaining an inner report; its three observed Chrome births were retired and source coherence passed. That negative is retained and not waived by the component result. The source-bound results and qualification limits are in [context-lifetime-source-checks-20261004.json](evidence/context-lifetime-source-checks-20261004.json).
+
+Original hosted automatic/manual GPU loss and stale native-peer results remain failures; bounded antecedent/backend/crash and already-captured target-distance diagnostics do not establish a cause or claim a repair. The existing nine registered local services, native binary and served distribution remain unchanged.
+
+Next concrete step: publish this reviewed source, collect the exact new hosted lifecycle and captured-pose diagnostics, then repair their measured causes. Full Tablet, public Hub motion and physical microphone acceptance remain open.

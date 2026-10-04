@@ -115,8 +115,8 @@ const workflowChanges = [
   }
 ];
 const unchangedPins = {
-  "browser-client/gateway/native-avatar-stdout-projection.mjs": "e2d1a517165c17543cbc03df8bf1241861e974a690b32fba74ecfabe1edc309e",
-  "browser-client/gateway/native-avatar-sample-diagnostics.js": "1c386213ac2ddb89ae313db55a6df4df2ecd0a38a1d6be93ef545384bc4299fd",
+  "browser-client/gateway/native-avatar-stdout-projection.mjs": "90c7c18ab0c35e85620bcfa94427253232715da53c0abaf781e817b14515ea3f",
+  "browser-client/gateway/native-avatar-sample-diagnostics.js": "cd2f35f8bc04edfdb9c09fcd8b5399d1e03b5b3b40bbbf9a459620b68ad9be49",
   "browser-client/gateway/native-bridge.js": "a0ad9878a10023646aad6ecd3a926cde1d364f441786c8a0cf0969ee536604d9",
   "browser-client/gateway/server.mjs": "e17fae1f721ed162e131309c983041ef824d5688080e5053b6b98f2f9f4722ea",
   "browser-client/lab/manage.py": "84b4426187e078515b77984a3581a63130d2dbc0c5edf4230a66a17ecdbf8e66",

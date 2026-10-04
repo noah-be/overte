@@ -12,6 +12,7 @@ const sample = () => ({ version: 1, kind: 'sample', at: 1790899200123, sequence:
     jointNamesMs: null, jointRotationsMs: 0, jointTranslationsMs: 1,
     postPublicationPoseDeltaMeters: 0.1, postPublicationProbeMs: 2,
     peerPacketRateHz: 30, peerGlobalPositionUpdateRateHz: 15, peerSimulationRateHz: null,
+    capturedFixtureTargetDistanceMeters: null,
     interstitialState: 'unknown', interstitialSignalAgeMs: null });
 const author = () => ({version: 1, kind: 'author-transmission', at: 1790899200123,
     interstitialState: 'inactive', interstitialSignalAgeMs: 300000,

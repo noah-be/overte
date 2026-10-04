@@ -3,7 +3,7 @@
 // Only the already owned isolated lab author; no native launch, entity operation or permission provisioning.
 import assert from 'node:assert/strict';import {constants} from 'node:fs';import {open,readFile,realpath,readlink,unlink} from 'node:fs/promises';import path from 'node:path';import {createHash} from 'node:crypto';
 export const AUTHOR_SOURCE_SHA256='735a5ee9b4327963ea7fb2ebec5e2159c1196aa99d8b6e7fd996809f521b7ede';
-export const AUTHOR_DIAGNOSTICS_SHA256='1c386213ac2ddb89ae313db55a6df4df2ecd0a38a1d6be93ef545384bc4299fd';
+export const AUTHOR_DIAGNOSTICS_SHA256='cd2f35f8bc04edfdb9c09fcd8b5399d1e03b5b3b40bbbf9a459620b68ad9be49';
 const MAX_TAIL=1024*1024,sha=b=>createHash('sha256').update(b).digest('hex'),flags=constants.O_RDONLY|constants.O_NOFOLLOW|constants.O_NONBLOCK;
 
 export const HISTORICAL_AUTHOR_SOURCE_SHA256='6f9460727f45e954ba576a642e9711b5fa734fa634b724c14cad7da6dbb38af8';

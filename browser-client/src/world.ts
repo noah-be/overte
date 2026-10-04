@@ -149,6 +149,7 @@ export class BrowserWorld {
   private readonly resizeObserver: ResizeObserver;
   private readonly abort = new AbortController();
   private graphicsScanSource?:GraphicsScanFrames;
+  private graphicsContextAvailable=false;
   private readonly graphicsWarmups=new GraphicsWarmupOwner(this.abort.signal);
   private readonly shaderWarmup:boolean;
   private modelParseTurn?:ModelParseTurn;
@@ -242,6 +243,7 @@ export class BrowserWorld {
     this.nativeCullDefaults = options.nativeCullDefaults === true;
     this.replacementClonesEnabled=options.replacementMaterialClones===true;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    this.graphicsContextAvailable=this.readGraphicsContext();
     if (options.gpuTiming === true) this.gpuTiming = new WorldGpuTiming(this.renderer.getContext(), {
       onWarning: message => options.onStatus(message, 'warning'),
     });
@@ -580,10 +582,12 @@ export class BrowserWorld {
       visiblePointSlots:visible(this.pointSlots),visibleSpotSlots:visible(this.spotSlots),
       contributingPointSlots:contributing(this.pointSlots),contributingSpotSlots:contributing(this.spotSlots)};
   }
-  graphicsScanPresentationVisible():boolean {return !this.disposed&&this.enabled&&this.presentationEnabled;}
+  private readGraphicsContext():boolean {try{return !this.disposed&&!this.abort.signal.aborted&&this.renderer.getContext().isContextLost()===false;}catch{return false;}}
+  private hasGraphicsContext():boolean {if(!this.graphicsContextAvailable)return false;if(this.readGraphicsContext())return true;this.graphicsContextAvailable=false;this.graphicsScanSource?.suspendContext();return false;}
+  graphicsScanPresentationVisible():boolean {return !this.disposed&&this.enabled&&this.presentationEnabled&&this.hasGraphicsContext();}
   getGraphicsScanFrames():GraphicsScanFrames {
     if(this.disposed)throw new DOMException('World closed','AbortError');
-    return this.graphicsScanSource??=new GraphicsScanFrames(this.abort.signal);
+    return this.graphicsScanSource??=new GraphicsScanFrames(this.abort.signal,()=>this.hasGraphicsContext());
   }
   getGraphicsEnvironment():GraphicsScanCapabilities {
     if(this.disposed)throw new DOMException('World closed','AbortError');
@@ -1755,7 +1759,12 @@ export class BrowserWorld {
     const releaseTouch = () => { this.touchOrigin = undefined; this.touchLast = undefined; this.touchMove.set(0, 0); };
     this.canvas.addEventListener('pointerup', releaseTouch, eventOptions);
     this.canvas.addEventListener('pointercancel', releaseTouch, eventOptions);
-    this.canvas.addEventListener('webglcontextlost', event => { this.graphicsScanSource?.dispose();this.cpuFrameTiming?.loseContext();this.renderCpuTiming?.loseContext();event.preventDefault(); this.options.onStatus('Graphics context lost. Reload the page to reconnect.', 'error'); }, eventOptions);
+    this.canvas.addEventListener('webglcontextlost', event => { this.graphicsContextAvailable=false;this.graphicsScanSource?.suspendContext();this.cpuFrameTiming?.loseContext();this.renderCpuTiming?.loseContext();event.preventDefault(); this.options.onStatus('Graphics context lost. Reload the page to reconnect.', 'error'); }, eventOptions);
+    this.canvas.addEventListener('webglcontextrestored', event => {
+      if(event.target!==this.canvas||event.isTrusted!==true||this.disposed||!this.readGraphicsContext())return;
+      this.graphicsContextAvailable=true;this.graphicsScanSource?.resumeContext();
+      this.options.onStatus('Graphics context restored.', 'info');
+    }, eventOptions);
   }
 
   private look(x: number, y: number): void {
@@ -1879,7 +1888,7 @@ export class BrowserWorld {
       }
     }
     this.cpuFrameTiming?.segment(cpuSample,'localLights');
-    if (this.presentationEnabled) {
+    if (this.presentationEnabled&&this.hasGraphicsContext()) {
       // Poll/begin/end stay outside the existing CPU submission interval. A
       // token identifies only this World's owned sample, never a GL handle.
       const sample = this.gpuTiming?.beginFrame();
@@ -1889,14 +1898,17 @@ export class BrowserWorld {
       try {
         if(this.renderCpuTiming)this.renderCpuTiming.measure(this.renderer,this.scene,this.camera,readiness==='loading'?'loading':readiness==='emptyScene'?'emptyScene':'modelJobsIdle',()=>this.renderer.render(this.scene,this.camera));
         else this.renderer.render(this.scene, this.camera);
-        this.renderedFrames++;
-        if(this.graphicsScanSource?.active){const jobs=this.modelScheduler.stats;this.graphicsScanSource.publish({timestampMs:time,cpuSubmitMs:performance.now()-started,ready:jobs.active===0&&jobs.queued===0&&this.compilingGraphics===0});}
-        if (sample) submittedMs = performance.now() - started;
+        const contextCurrent=this.hasGraphicsContext();
+        if(contextCurrent){
+          this.renderedFrames++;
+          if(this.graphicsScanSource?.active){const jobs=this.modelScheduler.stats;this.graphicsScanSource.publish({timestampMs:time,cpuSubmitMs:performance.now()-started,ready:jobs.active===0&&jobs.queued===0&&this.compilingGraphics===0});}
+          if (sample) submittedMs = performance.now() - started;
+        }else{this.graphicsContextAvailable=false;this.graphicsScanSource?.suspendContext();}
         this.recordLoadPhase('graphicsSubmit', started);
         this.cpuFrameTiming?.segment(cpuSample,'renderSubmission');
-        rendered = true;
+        rendered = contextCurrent;
       } finally { this.gpuTiming?.endFrame(sample, submittedMs, rendered); }
-    } else this.gpuTiming?.pollFrame();
+    } else {if(this.presentationEnabled){this.graphicsContextAvailable=false;this.graphicsScanSource?.suspendContext();}this.gpuTiming?.pollFrame();}
     this.frame = requestAnimationFrame(next => this.animate(next));
     cpuCompleted=true;
     } finally {this.cpuFrameTiming?.endFrame(cpuSample,cpuCompleted);}

@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {BrowserWorld} from '../src/world';
-function owner(){const world=Object.create(BrowserWorld.prototype) as any;Object.assign(world,{disposed:false,enabled:true,presentationEnabled:true,abort:new AbortController()});return world;}
+function owner(){const world=Object.create(BrowserWorld.prototype) as any;Object.assign(world,{disposed:false,graphicsContextAvailable:true,renderer:{getContext:()=>({isContextLost:()=>false})},enabled:true,presentationEnabled:true,abort:new AbortController()});return world;}
 test('actual World lazily owns one frame source; presentation pause and world lifetime cancel rather than schedule renders',()=>{
  const world=owner(),frames=world.getGraphicsScanFrames();assert.equal(frames,world.getGraphicsScanFrames());let cancellations=0;
  frames.subscribe(()=>{},()=>cancellations++);assert(world.graphicsScanPresentationVisible());world.setPresentationEnabled(false);assert.equal(cancellations,1);assert.equal(frames.active,false);assert.equal(world.graphicsScanPresentationVisible(),false);
@@ -18,5 +18,6 @@ test('actual World capability getter reads only fixed numeric limits/current dra
 test('actual World snapshot render cannot manufacture a visible-frame scanner sample',async()=>{
  const world=owner(),frames=world.getGraphicsScanFrames();let observations=0,renders=0;
  frames.subscribe(()=>observations++,()=>{});world.renderer={render(){renders++;}};world.canvas={toBlob(callback:(blob:Blob)=>void){callback(new Blob(['authored fixture']));}};
+ Object.assign(world.renderer,{getContext:()=>({isContextLost:()=>false})});
  try{await world.captureScene();assert.equal(renders,1);assert.equal(observations,0);assert.equal(frames.active,true);}finally{world.abort.abort();}
 });

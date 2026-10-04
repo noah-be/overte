@@ -14,12 +14,12 @@ function fixture(t: TestContext) {
   const context = Object.create(BrowserWorld.prototype);
   let calls = 0;
   Object.assign(context, {
-    disposed: false, imagePulseOwners:new Map(), enabled: false, simulationClock: new SimulationClock(), metrics: { sample() {}, snapshot: () => ({ fps: 60 }) },
+    disposed: false, graphicsContextAvailable:true, imagePulseOwners:new Map(), enabled: false, simulationClock: new SimulationClock(), metrics: { sample() {}, snapshot: () => ({ fps: 60 }) },
     options: {}, camera: new PerspectiveCamera(), thirdPerson: false, yaw: 0, pitch: 0,
     position: new Vector3(0, .85, 0), self: new Group(), avatars: new Map(), localLights: new Set(),
     pointSlots: [], spotSlots: [], lastLightSelection: 0, presentationEnabled: true, renderedFrames: 0,
     renderer: { render() { events.push('render'); calls++; }, dispose() { events.push('renderer-dispose'); },
-      getContext: () => ({ drawingBufferWidth: 1280, drawingBufferHeight: 800 }),
+      getContext: () => ({ isContextLost:()=>false, drawingBufferWidth: 1280, drawingBufferHeight: 800 }),
       info: { render: { calls: 10, triangles: 20 }, memory: { geometries: 3, textures: 2 } }, extensions: { has: () => false } },
     recordLoadPhase(name: string, started: number) { assert.equal(name, 'graphicsSubmit'); assert.ok(Number.isFinite(started)); events.push('cpu-record'); },
     entities: new Map(), objects: new Map(), avatarModels: new Map(), meshCollisions: new Map(),

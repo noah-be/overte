@@ -2,6 +2,21 @@
 
 ## Current integration checkpoint (2026-10-04)
 
+The sole owner published `6a613eeda62688e3e33bd381292410fba6957a14` after
+complete local gates. Fresh automatic37158620294 and explicit37158851212
+Browser runs retain both original failures. Actual observations establish a
+WebGL context lost before the first render and a stale native peer despite
+positive receiver simulation and position encoding. Next: identify the reset
+trigger with bounded passive observations, and trace the specific native pose
+through encoding/mixing/application. Preserve every original assertion,
+deadline and negative record; qualify a production repair on exact source.
+The [hosted negative proof](evidence/hosted-context-avatar-negatives-20261004.json)
+preserves both runs and their bounded source-authenticated observations.
+Current CodeQL and policy checks pass; replacement Repository qualification
+is still running. Wider product acceptance remains open.
+
+## Preserved source qualification checkpoint
+
 The complete corrected source passes all 2,732 product tests, the standard build
 and all 34 required repository suites. Its 34 distribution files match the
 previously qualified Chrome build byte for byte. Preserve both intermediate
@@ -461,3 +476,9 @@ diagnostics with the reviewed V17/V18 capture-source closure. Run full unit, bui
 and repository checks before committing. Collect exact-source Ubuntu evidence
 and repair measured causes without weakening assertions or deadlines. The local
 owned embedded fixture passes; it does not explain the hosted pixel failure.
+
+### V22 integrated follow-up
+
+Correct the six failures from the first complete V22 product run: faithful readable-context graphics mocks and precise CPU-only recovery for the existing complete controls-method assertion. Preserve that failed snapshot and every original assertion. Run the corrected exact source in a fresh owned copy through the complete product suite, production build and required repository quick checks under the shared heavy-build lock. Then execute the original embedded pixel/upload/cancellation contract and the separate deliberate Chrome context-restoration spec with bounded owned-process cleanup. Publish only a coherent reviewed candidate and retain the prior spontaneous GPU/native negatives. The next hosted diagnostics must distinguish reset stage and captured gateway pose before selecting a cause-based repair. Wider Tablet, public Hub motion and physical microphone acceptance remain open.
+
+Completed: V23 preserves the original assertions and passes all 2,799 product tests, production build and 34 repository suites. The separate actual Chrome context-restoration contract passes. The original local embedded invocation remains a distinct outer-deadline failure with no inner report; cleanup and source coherence pass. Publish the reviewed correction and diagnostics, then use fresh exact-source hosted evidence to resolve the original GPU and native-peer gates. Preserve all previous failures and limits; no endurance test is scheduled.

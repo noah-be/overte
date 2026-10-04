@@ -2,10 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 import {readFileSync} from 'node:fs';import {createHash} from 'node:crypto';import {runInNewContext} from 'node:vm';import test from 'node:test';import assert from 'node:assert/strict';
 import {readCaptureV6History} from './integration/capture-lookahead-source-fixture.mjs';
+import {recoverCaptureV21Input} from './integration/capture-context-lifecycle-source-fixture.mjs';
 const before=(await readCaptureV6History()).files['src/world.ts'].source;
 const hunk=JSON.parse(readFileSync(new URL('./fixtures/world-owned-escape-hunk.json',import.meta.url)));
 assert.equal(before.split(hunk.before).length,2);const after=before.replace(hunk.before,hunk.after);
-const current=readFileSync(new URL('../src/world.ts',import.meta.url),'utf8');
+const current=(await recoverCaptureV21Input('browser-client/src/world.ts',readFileSync(new URL('../src/world.ts',import.meta.url)))).toString('utf8');
 const controls=s=>s.slice(s.indexOf('  private installControls(): void {'),s.indexOf('\n  private look',s.indexOf('  private installControls(): void {')));
 assert.equal(controls(current),controls(after),'Actual current installControls must equal the qualified one-hunk method');
 const hash=s=>createHash('sha256').update(s).digest('hex');

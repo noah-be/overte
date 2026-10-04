@@ -46,6 +46,18 @@ function createNativeAvatarSampleDiagnostics(config) {
     function stats(name) {
         try { return config.stats ? number(config.stats[name]) : null; } catch (error) { return null; }
     }
+    function capturedFixtureTargetDistance(row) {
+        // The Core fixture target is fixed. This reads only the already captured
+        // browser DTO; it is not a native pose or packet-content readback.
+        if (row.role !== 'fixture-peer' || !current()) return null;
+        try {
+            var position = row.result.position;
+            if (!position || typeof position !== 'object') return null;
+            var x = position.x, y = position.y, z = position.z;
+            if (!current() || ![x,y,z].every(function (value) { return typeof value === 'number' && isFinite(value); })) return null;
+            return number(Math.sqrt(Math.pow(x-4,2)+Math.pow(y-1.8,2)+Math.pow(z-2,2)));
+        } catch (error) { return null; }
+    }
     function stop() {
         if (stopped) return;
         stopped = true; rows = []; batchAuthority = undefined; tracking = false;
@@ -99,6 +111,7 @@ function createNativeAvatarSampleDiagnostics(config) {
                     jointNamesMs:row.names, jointRotationsMs:row.rotations, jointTranslationsMs:row.translations,
                     postPublicationPoseDeltaMeters:distance, postPublicationProbeMs:passive?null:elapsed(probeStarted),
                     peerPacketRateHz:packetRate, peerGlobalPositionUpdateRateHz:positionRate, peerSimulationRateHz:simulationRate,
+                    capturedFixtureTargetDistanceMeters:capturedFixtureTargetDistance(row),
                     interstitialState:state.interstitialState, interstitialSignalAgeMs:state.interstitialSignalAgeMs });
             });
         },

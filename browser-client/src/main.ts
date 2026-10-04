@@ -288,10 +288,10 @@ async function joinDomain(domain:string, direction?:'back'|'forward'):Promise<vo
             settings=>visitorStorage.setItem('overte.browser.graphics.v1',JSON.stringify(settings)));
         const graphicsCurrent=()=>generation===epoch&&world===graphicsWorld&&ready&&permissionRevision>0;
         graphicsIntent=new BrowserGraphicsIntent({document,current:graphicsCurrent,snapshot:()=>graphicsWorld.graphics.snapshot(),send:value=>{if(!tablet||!graphicsCurrent())throw Error('Graphics route unavailable');tablet.sendGraphicsCommand(value);}});
-        const currentIntent=graphicsIntent;
-        graphicsScan=new GraphicsEnvironmentScan({frames:graphicsWorld.getGraphicsScanFrames(),document,current:graphicsCurrent,
+        const currentIntent=graphicsIntent,scanFrames=graphicsWorld.getGraphicsScanFrames();
+        graphicsScan=new GraphicsEnvironmentScan({frames:scanFrames,document,current:graphicsCurrent,
             presentationVisible:()=>graphicsWorld.graphicsScanPresentationVisible(),settings:()=>graphicsWorld.graphics.snapshot(),capabilities:()=>graphicsWorld.getGraphicsEnvironment(),
-            applyResolution:value=>currentIntent.changeResolution(value)});
+            applyResolution:value=>{const contextEpoch=scanFrames.contextEpoch;if(contextEpoch===undefined)return Promise.reject(Error('The current graphics context is unavailable'));return currentIntent.changeResolution(value,()=>scanFrames.contextEpoch===contextEpoch);}});
         audio = new BrowserAudio(data => session.sendAudio(data), log, muted => {
             session.send({type:'mute', muted});
             pushToTalk?.refreshMicrophone();
