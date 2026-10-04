@@ -501,8 +501,8 @@
       "gitBlob": "38e2080ab72df8d020abecba85b3706ca75d3745",
       "bytes": 116209,
       "modified": true,
-      "modifications": "Expose local tablet/camera controls, native ATP/HTTPS asset resolution, contained native Zone skyboxes and bounded entity/avatar draw observations; retain genuine loaded model geometry when authored texture maps fail and report those maps as explicitly incomplete without substituting pixels or reducing source quality; preserve raw nullable native pose records and expose bounded source and actual body transform observations.",
-      "currentSha256": "ebb1e521482c4d340dd159676070d58e3c02297b1242e4efc79bf16fa0bd258c"
+      "modifications": "Expose local tablet/camera controls, native ATP/HTTPS asset resolution, contained native Zone skyboxes and bounded entity/avatar draw observations; retain genuine loaded model geometry when authored texture maps fail and report those maps as explicitly incomplete without substituting pixels or reducing source quality; preserve raw nullable native pose records and expose bounded source and actual body transform observations. Carry forward the accepted PR #1023 bounded keyboard-transition movement repair from ee477a960d7e82920e785930647d2f6f105750d7 while retaining direct-native adapters and collision/support guards.",
+      "currentSha256": "2e98c4d173f33462c508ed66a64e26d975908aa0f01f655137299e2b8453bc8f"
     },
     {
       "source": "browser-client/tests/mesh-support.test.ts",

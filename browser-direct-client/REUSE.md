@@ -48,6 +48,17 @@ The only initially modified reusable files are:
 The separately copied `WorldPresentation` and native tone curve are an unused
 renderer prototype and its companion tests; importing them does not change
 `BrowserWorld`. They retain their original MIT-derived tone-curve notices.
+
+Current-main integration also carries forward the bounded keyboard-transition
+repair accepted in PR #1023 at `ee477a960d7e82920e785930647d2f6f105750d7`.
+The direct client's actual input handlers and animation consume the same 60 Hz
+simulation clock with the existing 250 ms stall limit. Input transitions advance
+the previous key state before changing it, retaining a press that occurs entirely
+between rendered frames. Nine actual-World CPU regressions cover movement,
+idle-time attribution, direction changes, collision, focus/visibility revocation,
+input disable/disposal, pending support, shared-clock accounting and invalid
+timestamps. The original renderer manifest remains intact; the adapted world
+file's current SHA-256 and modification notice include this accepted repair.
 Renderer experiments such as compressed-color admission, asynchronous upload,
 shader warmup and matrix memoization remain disabled initially. The existing
 image/source and prepared-FBX caches run with their original bounds. An explicit

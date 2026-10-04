@@ -1,8 +1,29 @@
 # Direct browser client status
 
-Updated: 2026-10-03 (Europe/Berlin). Goal is active. Acceptance is **not yet demonstrated**.
+Updated: 2026-10-04 (Europe/Berlin). Physical acceptance remains **not yet demonstrated**.
 The user narrowed ongoing browser work to Chrome only. Firefox results below
 were completed before that scope change; no further Firefox tests are planned.
+
+## Current-main integration
+
+PR #1034 reconciles `main` at `b796cd49f1cdf9d811de544c9ae40fb86c0bf59d`,
+including the accepted HTTP, skinning and gateway-browser repairs. Both browser
+clients and their native test inventories are retained. The direct renderer also
+carries the keyboard-transition repair accepted in PR #1023, with nine actual
+World CPU regressions and an updated hash-bound reuse notice. Six of those
+regressions fail against the pre-repair direct renderer; all nine pass after the
+repair. The 60 Hz collision steps, 250 ms stall limit, pending-support guard,
+native session authority and default-disabled transport are preserved.
+
+Integration requires fresh repository, browser/provenance/build and native
+transport checks against the resulting source and current base. The native
+default-OFF and explicit-ON lanes retain their independent coverage. The runtime
+and CI results dated 2026-10-03 below are historical evidence, not acceptance of
+this new integration candidate. No physical speech, hardware rendering/navigation,
+public-world performance or missing original PSD is newly qualified. The live
+branch rules require normal integration and current status checks; those physical
+and source-asset limitations remain explicit follow-up acceptance work for this
+optional experimental feature.
 
 ## Completed preparation
 
