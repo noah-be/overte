@@ -7,11 +7,13 @@
 from __future__ import annotations
 
 import json
+import multiprocessing
 import os
 import plistlib
 import shutil
 import stat
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -103,8 +105,42 @@ def main() -> None:
                 "PATH": f"{shims}{os.pathsep}{environment['PATH']}",
                 "FAKE_SDK_PATH": str(sdk),
                 "FAKE_TOOL_LOG": str(log),
+                "OVERTE_IOS_BUILD_JOBS": "2",
             }
         )
+
+        for invalid_jobs in ("", "0", "-1", "2x"):
+            log.write_text("", encoding="utf-8")
+            rejected = run_cli(environment | {"OVERTE_IOS_BUILD_JOBS": invalid_jobs}, "doctor")
+            assert rejected.returncode == 1
+            assert "OVERTE_IOS_BUILD_JOBS must be a positive integer" in rejected.stderr
+            assert log.read_text(encoding="utf-8") == ""
+
+        budget_environment = root / "github-env"
+        budget_tool = IOS_ROOT / "tools/ci-build-budget.py"
+        for jobs in (1, 2):
+            budget_environment.write_text("EXISTING_VALUE=preserved\n", encoding="utf-8")
+            exported = subprocess.run(
+                [sys.executable, str(budget_tool), "--jobs", str(jobs),
+                 "--github-env", str(budget_environment)],
+                capture_output=True, text=True, check=False,
+            )
+            assert exported.returncode == 0, exported.stderr
+            values = dict(line.split("=", 1) for line in budget_environment.read_text().splitlines())
+            assert values["EXISTING_VALUE"] == "preserved"
+            assert values["OVERTE_IOS_BUILD_JOBS"] == str(jobs)
+            assert values["CMAKE_BUILD_PARALLEL_LEVEL"] == str(jobs)
+            assert values["NINJA_CORE_LIMIT"] == str(jobs)
+            assert int(values["NINJA_CORE_ADDITION"]) + multiprocessing.cpu_count() == jobs
+        for invalid_jobs in ("", "0", "-1", "2x"):
+            before = budget_environment.read_bytes()
+            rejected = subprocess.run(
+                [sys.executable, str(budget_tool), "--jobs", invalid_jobs,
+                 "--github-env", str(budget_environment)],
+                capture_output=True, text=True, check=False,
+            )
+            assert rejected.returncode == 2
+            assert budget_environment.read_bytes() == before
 
         qt_root = root / "qt-ios"
         (qt_root / "lib/cmake/Qt6").mkdir(parents=True)
@@ -261,6 +297,7 @@ def main() -> None:
         invocation = log.read_text(encoding="utf-8")
         assert "<-DOVERTE_IOS_BOOTSTRAP_ONLY=ON>" in invocation
         assert "<--target> <OverteIOSBootstrap>" in invocation
+        assert "<--parallel> <2>" in invocation
 
         integrated_build = root / "integrated-package"
         integrated_app = integrated_build / "interface/Debug-iphonesimulator/Overte.app"
@@ -337,6 +374,7 @@ def main() -> None:
         assert dependencies.returncode == 0, dependencies.stderr
         invocation = log.read_text(encoding="utf-8")
         assert "conan <install>" in invocation
+        assert "<--conf:all=tools.build:jobs=2>" in invocation
         assert "sdk-simulator=<" + str(sdk) + ">" in invocation
         sbom = json.loads(
             (root / "dependency-build/conan/sbom.cdx.json").read_text(encoding="utf-8")
