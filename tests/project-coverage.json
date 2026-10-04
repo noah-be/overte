@@ -56,7 +56,8 @@
       ],
       "native": [
         "baking",
-        "model-serializers"
+        "model-serializers",
+        "skinning"
       ],
       "hardware": []
     },
@@ -78,7 +79,8 @@
       "native": [
         "crash-recovery-policy",
         "gpu",
-        "ktx"
+        "ktx",
+        "skinning"
       ],
       "hardware": [
         "gpu-driver-acceptance"

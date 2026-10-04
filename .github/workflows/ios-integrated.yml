@@ -145,6 +145,7 @@ jobs:
       OVERTE_CHECKPOINT_BRANCH: ${{ github.head_ref || github.ref_name }}
       OVERTE_ARTIFACT_INDEX_CACHE: ${{ github.workspace }}/build-ios/ios-artifact-index-${{ github.run_id }}-${{ github.run_attempt }}-v8.json
       OVERTE_IOS_V8_ROOT: ${{ github.workspace }}/build-ios/external/v8-ios
+      OVERTE_IOS_V8_BUILD_JOBS: "2"
       IOS_RUNNER_TELEMETRY_DIR: ${{ github.workspace }}/build-ios/v8-telemetry
       SCCACHE_DIR: ${{ github.workspace }}/build-ios/v8-sccache
       SCCACHE_CACHE_SIZE: 512M
@@ -467,6 +468,8 @@ jobs:
       OVERTE_IOS_QT_ROOT: ${{ github.workspace }}/build-ios/qt-install/qt/ios
       OVERTE_IOS_QT_HOST_ROOT: ${{ github.workspace }}/build-ios/qt-install/qt/macos
       CONAN_HOME: ${{ github.workspace }}/build-ios/conan-home
+      OVERTE_IOS_BUILD_JOBS: "2"
+      CMAKE_BUILD_PARALLEL_LEVEL: "2"
       OVERTE_IOS_MOLTENVK_ROOT: ${{ github.workspace }}/build-ios/external/MoltenVK
       OVERTE_IOS_V8_ROOT: ${{ github.workspace }}/build-ios/external/v8-ios
       SCCACHE_DIR: ${{ github.workspace }}/build-ios/client-sccache
@@ -1047,7 +1050,7 @@ jobs:
             --watch build=build-ios/device \
             --watch conan="$CONAN_HOME" \
             --watch sccache="$SCCACHE_DIR" -- \
-            cmake --build build-ios/device --config Release --parallel "$(sysctl -n hw.logicalcpu)" --target Overte -- \
+            cmake --build build-ios/device --config Release --parallel "$OVERTE_IOS_BUILD_JOBS" --target Overte -- \
               DEPLOYMENT_POSTPROCESSING=NO STRIP_INSTALLED_PRODUCT=NO \
               GCC_GENERATE_DEBUGGING_SYMBOLS=YES DEBUG_INFORMATION_FORMAT=dwarf-with-dsym
 

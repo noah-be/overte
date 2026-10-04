@@ -132,6 +132,7 @@ def main() -> None:
                 "PATH": f"{shims}{os.pathsep}{environment['PATH']}",
                 "FAKE_SDK_PATH": str(sdk),
                 "FAKE_TOOL_LOG": str(log),
+                "OVERTE_IOS_BUILD_JOBS": "2",
                 "FAKE_APP_UUID": "87810988-b99f-37df-b30d-599a85a641b6",
             }
         )
@@ -172,6 +173,28 @@ def main() -> None:
         (v8_root / "lib").mkdir()
         (v8_root / "lib/libnode.a").touch()
         environment["OVERTE_IOS_V8_ROOT"] = str(v8_root)
+
+        for invalid_jobs in ("", "0", "-1", "2x"):
+            log.write_text("", encoding="utf-8")
+            rejected_jobs = run_cli(
+                environment | {"OVERTE_IOS_BUILD_JOBS": invalid_jobs}, "doctor"
+            )
+            assert rejected_jobs.returncode == 1
+            assert "OVERTE_IOS_BUILD_JOBS must be a positive integer" in rejected_jobs.stderr
+            assert log.read_text(encoding="utf-8") == ""
+            rejected_v8_jobs = subprocess.run(
+                [str(IOS_ROOT / "tools/build-v8-ios.sh"), "build"],
+                env=environment | {"OVERTE_IOS_V8_BUILD_JOBS": invalid_jobs},
+                capture_output=True, text=True, check=False,
+            )
+            assert rejected_v8_jobs.returncode == 1
+            assert "OVERTE_IOS_V8_BUILD_JOBS must be a positive integer" in rejected_v8_jobs.stderr
+            assert log.read_text(encoding="utf-8") == ""
+
+        log.write_text("", encoding="utf-8")
+        bounded_build = run_cli(environment, "build", "--platform", "simulator")
+        assert bounded_build.returncode == 0, bounded_build.stderr
+        assert "<--parallel> <2> <--target> <OverteIOSBootstrap>" in log.read_text(encoding="utf-8")
 
         doctor = run_cli(
             environment,
@@ -526,6 +549,7 @@ def main() -> None:
             "<https://artifactory.overte.org/artifactory/api/conan/overte>"
         ) in invocation
         assert "conan <install>" in invocation
+        assert "<--conf:all=tools.build:jobs=2>" in invocation
         assert f"<--profile:build={IOS_ROOT}/conan/profiles/macos-arm64>" in invocation
         assert "sdk-simulator=<" + str(sdk) + ">" in invocation
         sbom = json.loads(
