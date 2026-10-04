@@ -1,6 +1,44 @@
 # Browser client implementation plan
 
-## Active application-consumption correction, 2026-10-04
+## Active startup ordering and runtime failures, 2026-10-04
+
+Published `c624d6976ee2c3769f9855b6bb64fb379e2982cd` implements current-browser
+application acknowledgements. Complete local product/build/repository gates and
+fresh hosted required checks pass. Actual native movement still fails; no full
+journey or wider Tablet, Hub, voice or parity acceptance is established.
+
+The reviewed startup correction and V31 source closure are installed. Complete
+3104-case product tests, four distribution/fixture builds and all 34 repository
+suites pass; actual new-source qualification remains pending. Publish this exact
+source and qualify the unchanged automatic Chrome/native journey.
+
+The awaited native launch
+can deliver permission/connected messages before the unconditional final initial
+connecting message. The actual launch-method interleaving reproduces four desired
+failures on c624 and preserves five controls. Moving the identical announcement
+before native creation passes all nine cases and 52 existing ACK controls, without
+granting permissions or weakening stale-epoch/replay refusal.
+
+Then distinguish current application consumption from physical socket callback
+completion. The current opt-in observation sees no outstanding physical flight,
+a pending target snapshot and an old browser pose; it does not observe logical
+application credit. Retain the original 2800 ms movement assertion and all
+earlier failures. Do not infer a missing acknowledgement from that observation.
+
+Separately retain the automatic pruning context-loss failure and the manual
+private-Xvfb readiness timeout. Add bounded stage observations only where needed,
+preserving original rendering/error reads, authentication, cleanup and deadlines.
+The bounded context and X11 observations have been reviewed and integrated;
+complete code gates pass. Their actual causes remain unknown. Qualify the
+unchanged actual Chrome/native journey at the published commit and avoid
+duplicate diagnostic dispatches. See the
+[source evidence](evidence/startup-runtime-source-checks-20261004.json).
+
+The private FST serial-versus-paired comparison overlay passes 76 focused CPU
+cases and strict scoped types. It remains uninstalled: actual Hub eligibility,
+pixels, fluidity and loading-time improvement still require measurement.
+
+## Preserved application-consumption proposal, 2026-10-04
 
 Keep exact 24a automatic Browser success (3015 product cases, three network
 controls, 130 Chrome UI cases and both source-bound GPU contracts) separate

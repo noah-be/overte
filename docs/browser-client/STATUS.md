@@ -1,6 +1,74 @@
 # Browser client status
 
-## Current application-consumption checkpoint, 2026-10-04
+## Reviewed startup correction and bounded observations, 2026-10-04
+
+The startup correction and finite V31 source closure are installed on the topic
+branch. The initial connecting announcement now precedes native creation, so
+later permission/connected events cannot be overwritten by that announcement.
+All 3104 product cases pass with zero skips; production, both embedded fixtures
+and the native-ignored FBX fixture build, plus all 34 repository suites pass.
+The source and existing lifecycle state remain unchanged throughout these gates.
+The [source evidence](evidence/startup-runtime-source-checks-20261004.json)
+records exact commands, source identities, inverses and limits.
+
+X11 setup observations retain the original five-second readiness and three-second
+positive-authentication deadlines. The GPU fixture adds two context-state reads
+and at most eight trusted own-canvas context events, preserving every original
+render/error read and pixel assertion. These bounded observations do not establish
+the old timeout or context-loss cause. Actual Chrome/native qualification remains
+pending for this new source; the complete earlier failures below remain preserved.
+
+Next: publish this exact checked source, qualify automatic Chrome/native gates,
+and choose any further repair from their fixed measurements. Optional application-
+credit telemetry and the FST comparison remain separate and uninstalled. Full
+Tablet, Hub fluidity/loading, physical voice and native parity remain open.
+
+## Preserved c624 actual qualification, 2026-10-04
+
+Published `c624d6976ee2c3769f9855b6bb64fb379e2982cd` passes all four required
+repository checks and fresh CodeQL with no open alerts. The complete local
+suite passes 3057 product cases, production and both fixture builds, and all
+34 repository quick suites. These code gates do not establish runtime acceptance.
+
+Automatic Browser run 37203123522 passes 3057 product cases, three actual network
+controls and the embedded GPU contract. Pruning fails at its first background
+readback with `CONTEXT_LOST_WEBGL` (37442); subsequent Chrome UI tests do not run.
+The recorded source identities match the feature commit and tested virtual merge.
+The context-loss trigger and backend at the failed read remain unestablished.
+
+Its actual native Core journey fails the original native-to-browser movement
+assertion after four of eighteen checkpoints. Native reaches the target while
+the browser retains the old pose; snapshot arrival age is 4687.8 ms. Owned stop
+and evidence curation pass. Later voice, interaction and reconnect checkpoints
+are not accepted.
+
+Single opt-in run 37203996072 retains that Core failure. Its source-bound samples
+contain 41 native rows, 152 gateway rows and 76 flow rows without truncation or
+rejected lines. The browser pose is 22622.4 ms old; a complete target snapshot is
+pending and no physical write remains outstanding. Application consumption
+credit is explicitly unobserved, so this does not prove an acknowledgement stall.
+Owned stop, curation and optional collection pass.
+
+The same opt-in run has a separate Browser failure: 3056 of 3057 product cases
+pass, and the original worker-isolation case times out during private Xvfb
+authentication within its original five-second readiness budget. All later
+Qt/FBX/GPU/UI steps do not run. No timeout increase, retry or skip hides this
+negative. Earlier successful and failed cohorts remain separate.
+
+Independent source review identifies a startup ordering race, without proving
+it caused either actual movement failure: native permission/connected events
+can precede the launch method's final initial connecting message. The actual
+complete-method regression reproduces four desired failures on c624 and five
+passing controls. The relocation-only proposal passes all nine cases and 52
+existing ACK controls in both Root and independent replays. Next: integrate its
+reviewed source closure and qualify exact published source. Bounded application-
+credit, context-loss and X11-stage observations remain separate proposed work.
+
+Private FST comparison source/CPU checks pass 76 cases and strict scoped types;
+the overlay is uninstalled and no actual Hub speedup is claimed. Full Tablet,
+Hub loading/fluidity, physical microphone and native parity acceptance remain open.
+
+## Preserved 24a application-consumption checkpoint, 2026-10-04
 
 Published `24a52bb1687354fffd6e193373e187173f1d1d0a` passes all four required
 repository checks and fresh CodeQL. Automatic Browser 37197722428 passes

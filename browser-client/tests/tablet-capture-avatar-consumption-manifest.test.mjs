@@ -3,16 +3,18 @@
 // Current V30 gate and exact historical V29 CPU inputs remain separate.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFile,writeFile,mkdtemp,mkdir,rm,lstat,realpath,unlink,symlink,chmod,link} from 'node:fs/promises';
+import {readFile as readCurrentFile,writeFile,mkdtemp,mkdir,rm,lstat,realpath,unlink,symlink,chmod,link} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {tmpdir} from 'node:os';
 import {createHash} from 'node:crypto';
 import {readCaptureV29History,readCaptureV29Source,recoverCaptureV29Input,decodeCaptureV29History,readCurrentAvatarConsumptionSource} from './integration/capture-avatar-consumption-source-fixture.mjs';
+import {recoverCaptureV30Input,readCaptureV30Source} from './integration/capture-startup-runtime-source-fixture.mjs';
+const readFile=async(input,options)=>{const bytes=await readCurrentFile(input),file=input instanceof URL?fileURLToPath(input):path.resolve(input),relative=path.relative(fileURLToPath(new URL('../../',import.meta.url)),file),recovered=await recoverCaptureV30Input(relative,bytes);return typeof options==='string'?recovered.toString(options):recovered;};
 const sha=b=>createHash('sha256').update(b).digest('hex'),client=fileURLToPath(new URL('../',import.meta.url)),root=path.dirname(client);
 const bytes=await readFile(new URL('./fixtures/capture-avatar-consumption-v30-complete-source-manifest.json',import.meta.url)),m=JSON.parse(bytes);
 const oldBytes=await readFile(new URL('./fixtures/capture-pruning-flight-v29-complete-source-manifest.json',import.meta.url)),old=JSON.parse(oldBytes);
-const prep=await readFile(new URL('./integration/prepare-tablet-capture-acceptance.mjs',import.meta.url),'utf8'),d=m.avatarConsumptionDerivation;
+const prep=await readCaptureV30Source('browser-client/tests/integration/prepare-tablet-capture-acceptance.mjs'),d=m.avatarConsumptionDerivation;
 const a=prep.indexOf('const manifestBytes=await readFile(proposal);'),z=prep.indexOf('const directory=await mkdtemp(',a);
 assert(a>=0&&z>a);
 const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;

@@ -14,6 +14,20 @@ import { workerSurvivorState } from './worker-process-diagnostics.mjs';
 import { x11ProbeDiagnostic } from './x11-probe-diagnostics.mjs';
 
 const run = promisify(execFile);
+
+// CPU-testable failure projection. The original failure still propagates.
+function workerX11FailureDiagnostic(error, workerOrdinal) {
+    const value = error?.x11ReadinessDiagnostic;
+    if (![1, 2].includes(workerOrdinal) || !value || typeof value !== 'object' || Array.isArray(value)
+        || Object.keys(value).length !== 4 || typeof value.connectReached !== 'boolean'
+        || typeof value.writeInvoked !== 'boolean' || (value.writeInvoked && !value.connectReached)
+        || !Number.isSafeInteger(value.responseBytes) || value.responseBytes < 0 || value.responseBytes > 65536
+        || (value.validatedExpectedBytes !== null && (!Number.isSafeInteger(value.validatedExpectedBytes)
+            || value.validatedExpectedBytes < 40 || value.validatedExpectedBytes > 65536))
+        || (value.validatedExpectedBytes !== null && value.responseBytes < 8)) return null;
+    return {workerOrdinal, connectReached:value.connectReached, writeInvoked:value.writeInvoked,
+        responseBytes:value.responseBytes, validatedExpectedBytes:value.validatedExpectedBytes};
+}
 test('native worker environment excludes operator credentials, accounts and shared desktop', () => {
     const env = workerEnvironment('/session', { GITHUB_TOKEN: 'synthetic-secret', SSH_AUTH_SOCK: '/operator/ssh.sock',
         HOME: '/operator', DISPLAY: ':0', XAUTHORITY: '/operator/Xauthority',
@@ -99,11 +113,18 @@ test('actual isolated worker cannot read host files, sibling profiles, host proc
         try { await access(localXvfb); xvfb = localXvfb.pathname; } catch { /* CI installs Xvfb. */ }
         const previous = process.env.OVERTE_GATEWAY_XVFB; process.env.OVERTE_GATEWAY_XVFB = xvfb;
         try {
-            for (const profile of [first, second]) workers.push(await prepareWorker({ directory: profile,
+            for (const profile of [first, second]) {
+                try { workers.push(await prepareWorker({ directory: profile,
                 executable: process.execPath, nativeRoot,
                 readOnlyOverrides: profile === first ? [{ source: snapshotSource, target: snapshotTarget }, {source:placesSource,target:placesTarget},{source:createSource,target:createTarget},...graphicsOverrides] : [],
                 sourceEnvironment: { GITHUB_TOKEN: 'synthetic-secret' }, signal: new AbortController().signal,
-                spawnOwned(command, args, env) { const child = spawn(command, args, { env, stdio: 'ignore' }); owned.push(child); return child; } }));
+                spawnOwned(command, args, env) { const child = spawn(command, args, { env, stdio: 'ignore' }); owned.push(child); return child; } })); }
+                catch (error) {
+                    const diagnostic = workerX11FailureDiagnostic(error, workers.length + 1);
+                    if (diagnostic) console.error('BROWSER_X11_READINESS ' + JSON.stringify(diagnostic));
+                    throw error;
+                }
+            }
         } finally { if (previous === undefined) delete process.env.OVERTE_GATEWAY_XVFB; else process.env.OVERTE_GATEWAY_XVFB = previous; }
         const script = `
             const fs=require('fs'),net=require('net');
