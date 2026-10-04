@@ -12,7 +12,7 @@ CHECKPOINTS=('actual-domain-joined','native-sees-browser','movement-measured',
  'reconnected-to-actual-domain','reconnection-movement-observed','reconnection-movement',
  'mouse-look','final-view','all-real-session-assertions-passed')
 SOURCE_FILES={f'browser-client/{name}' for name in (
- 'gateway/server.mjs','gateway/native-bridge.js','gateway/native-avatar-sample-diagnostics.js',
+ 'gateway/server.mjs','gateway/avatar-snapshot-sender.mjs','gateway/native-bridge.js','gateway/native-avatar-sample-diagnostics.js',
  'gateway/native-avatar-stdout-projection.mjs','gateway/process-lifecycle.mjs',
  'gateway/validation.mjs','gateway/permission-policy.mjs','dist/index.html',
  'tests/integration/real-session.mjs','tests/integration/system-firefox.mjs',

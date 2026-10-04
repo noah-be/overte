@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';import {readFile,writeFile,cp,mkdtemp,mk
 import {instrumentPttAudit} from './tablet-ptt-audit.mjs';import {instrumentCaptureAudit} from './tablet-capture-audit.mjs';import {composeCaptureRunner} from './tablet-capture-compose.mjs';
 const sha=b=>createHash('sha256').update(b).digest('hex');
 const source=await realpath(process.argv[2]),proposal=await realpath(process.argv[3]);
-const manifestBytes=await readFile(proposal);assert.equal(sha(manifestBytes),'a366564b2ec15d802d0981e67327e1bb702212dc2c1ee1472371bc59f2ee7c3d');const m=JSON.parse(manifestBytes);
+const manifestBytes=await readFile(proposal);assert.equal(sha(manifestBytes),'cea7ea30a934b4b2af6e96f8ab6f769dd81e094199cb14003419d4230cfa236c');const m=JSON.parse(manifestBytes);
 for(const r of m.files){assert(/^browser-client\/(?:src|shared|gateway|tests|native-input|tools)\/[A-Za-z0-9_.\/-]+$/.test(r.path)||r.path==='docs/browser-client/BROWSER_MICROPHONE_CONTROLS.md');if(!r.path.startsWith('browser-client/'))continue;const f=path.join(source,r.path.slice(15));assert((await lstat(f)).isFile());assert.equal(await realpath(f),f);assert.equal(sha(await readFile(f)),r.afterSHA256,'Exact reviewed capture composition required');}
 const environmentPins=[['.github/workflows/browser-client.yml',m.reacquisitionDerivation.chromeEnvironmentSourcePins['.github/workflows/browser-client.yml']],['browser-client/lab/README.md',m.statusChromeDerivation.documentationPins['browser-client/lab/README.md'].afterSHA256]];
 for(const [relative,expected]of environmentPins){const f=path.join(source,'..',relative);assert((await lstat(f)).isFile());assert.equal(await realpath(f),f);assert.equal(sha(await readFile(f)),expected,'Exact reviewed capture environment required');}

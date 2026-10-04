@@ -21,6 +21,8 @@ from test_managed_registered_wrapper import Registered
 from test_managed_python_boundary import PythonBoundary
 from test_managed_owned_cpu import OwnedCPU
 from test_managed_parent_owned_cpu import RealParent
+from test_managed_ancestry import ManagedAncestry
+from test_managed_ancestry_owned_cpu import ManagedAncestryOwnedCPU
 
 SOURCE = Path(__file__).resolve().parent
 sys.path.insert(0, str(SOURCE))

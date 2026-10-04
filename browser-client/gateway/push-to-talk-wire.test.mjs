@@ -4,6 +4,7 @@ import test from 'node:test';import assert from 'node:assert/strict';import vm f
 import {readFile} from 'node:fs/promises';import {randomUUID,randomBytes} from 'node:crypto';
 import {SharedTeardown} from './process-lifecycle.mjs';import {PushToTalkSession} from './push-to-talk.mjs';
 import {NativeHeartbeat} from './socket-heartbeat.mjs';
+import {AvatarSnapshotSender} from './avatar-snapshot-sender.mjs';
 const source=await readFile(new URL('./server.mjs',import.meta.url),'utf8');
 function harness(){
     const browserHandlers={},nativeHandlers={},writes=[],sent=[],sessions=new Map(),sockets=new Set();
@@ -19,7 +20,7 @@ function harness(){
             this.playback={stdin:{writableLength:0,write(data){writes.push(Buffer.from(data));}}};}
     }
     const begin=source.indexOf("browserServer.on('connection'"),finish=source.indexOf("nativeServer.on('connection'",begin);
-    vm.runInNewContext(source.slice(begin,finish),{Session,sessions,sockets,maximumSessions:1,shuttingDown:false,send,WebSocket:{OPEN:1},cookie:()=> 'owned-test-cookie',equal:(a,b)=>a===b,
+    vm.runInNewContext(source.slice(begin,finish),{AvatarSnapshotSender,Session,sessions,sockets,maximumSessions:1,shuttingDown:false,send,WebSocket:{OPEN:1},cookie:()=> 'owned-test-cookie',equal:(a,b)=>a===b,
         browserServer:{on(name,fn){fn(browser,{headers:{}});}}});
     vm.runInNewContext(source.slice(finish,source.indexOf('const heartbeat =',finish)),{
         sessions,sockets,send,NativeHeartbeat,equal:(a,b)=>a===b,setTimeout:()=>1,clearTimeout(){},

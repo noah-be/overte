@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import http from 'node:http';
 import { attachNativeAvatarProjection } from './native-avatar-stdout-projection.mjs';
+import { AvatarSnapshotSender } from './avatar-snapshot-sender.mjs';
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { mkdtemp, mkdir, readFile, writeFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -84,9 +85,8 @@ const send = (socket, value, observe) => {
     if (observe) observe(socketOpen,bufferedBytes,writeInvoked);
 };
 // Uses the already captured session message time. No timer or clock read.
-function observeAvatarForward(session, message, socketOpen, bufferedBytes, writeInvoked) {
+function observeAvatarForward(session, message, socketOpen, bufferedBytes, writeInvoked, at = session.lastNativeMessage) {
     if (session.publicPlace || !['1','passive'].includes(process.env.OVERTE_GATEWAY_AVATAR_SAMPLE_DIAGNOSTICS)) return;
-    const at = session.lastNativeMessage;
     if (!Number.isSafeInteger(at) || at < 0) return;
     const state = session.avatarDelivery || (session.avatarDelivery={sequence:0,lastAt:null});
     if (state.sequence >= 128) { if(state.snapshot)state.snapshot.observationCensored=true; return; }
@@ -118,11 +118,12 @@ const json = (response, code, value) => { const body = JSON.stringify(value); re
 const equal = (a, b) => typeof a === 'string' && Buffer.byteLength(a) === Buffer.byteLength(b) && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 
 class Session extends SharedTeardown {
-    constructor(browser, owner, isCurrent = () => true) {
+    constructor(browser, owner, isCurrent = () => true, avatarSender) {
         super();
         this.id = randomUUID(); this.token = randomBytes(32).toString('hex'); this.browser = browser;
         this.owner = owner; this.modules = []; this.processes = []; this.pendingAssets = new Map();
         this.isCurrent = isCurrent;
+        this.avatarSender = avatarSender;
         this.httpAssets = new Set();
         this.closed = false; this.muted = true; this.lastPose = 0;
         this.pushToTalk = new PushToTalkSession({connected:()=>!this.closed&&this.connected,approved:()=>this.permissionsApproved,
@@ -364,6 +365,7 @@ class Session extends SharedTeardown {
         }, 45000);
     }
     revoke() {
+        this.avatarSender?.invalidate(this);
         this.closed = true; this.permissionsApproved = false; this.connected = false; this.muted = true; this.pushToTalk.reset();
         this.assets?.close();
         this.protocolInspection?.abort();
@@ -465,6 +467,21 @@ server.on('upgrade', (request, socket, head) => {
 });
 browserServer.on('connection', (browser, request) => {
     sockets.add(browser); let session; let joins = 0; let pendingJoin = null;
+    // This physical send slot survives leave/rejoin on the same browser socket.
+    const avatarSender = new AvatarSnapshotSender(browser, () => session, value => {
+        if (!value.owner.publicPlace && ['1','passive'].includes(process.env.OVERTE_GATEWAY_AVATAR_SAMPLE_DIAGNOSTICS)) {
+            observeAvatarForward(value.owner, JSON.parse(value.text), value.open, value.bytes, value.writeInvoked, value.at);
+        }
+    }, () => {
+        // Callback errors may arrive after a rejoin: close this socket's current
+        // owned session, never only the retired flight's previous owner.
+        try {
+            if (session && !session.closed) {
+                send(browser, {type:'state',state:'error',message:'Avatar delivery failed. Leave and reconnect.'});
+                session.close(false);
+            }
+        } finally { browser.close(1011, 'Avatar delivery failed.'); }
+    });
     browser.on('message', async (data, binary) => {
         let attempt; let admission;
         try {
@@ -491,7 +508,8 @@ browserServer.on('connection', (browser, request) => {
                 if (shuttingDown) throw Error('The gateway is shutting down.');
                 if (sessions.size >= maximumSessions) throw Error('The gateway session limit has been reached.');
                 pendingJoin = null;
-                attempt = new Session(browser, owner, () => session === attempt);
+                if (session) avatarSender.invalidate(session);
+                attempt = new Session(browser, owner, () => session === attempt, avatarSender);
                 session = attempt; sessions.set(attempt.id, attempt);
                 attempt.launching = attempt.launch(message);
                 await attempt.launching;
@@ -534,7 +552,7 @@ browserServer.on('connection', (browser, request) => {
             if (attempt && !attempt.native) await attempt.close(false);
         } finally { if (pendingJoin === admission) pendingJoin = null; }
     });
-    browser.on('close', () => { pendingJoin = null; sockets.delete(browser); session?.close(); });
+    browser.on('close', () => { pendingJoin = null; avatarSender.close(); sockets.delete(browser); session?.close(); });
     browser.on('error', () => {});
 });
 nativeServer.on('connection', native => {
@@ -551,6 +569,7 @@ nativeServer.on('connection', native => {
                 if (!candidate || candidate.native || candidate.closed) return native.close();
                 session = candidate;
                 native.nativeHeartbeat = new NativeHeartbeat({ send: message => send(native, message) });
+                session.avatarSender?.invalidate(session);
                 session.native = native; session.lastNativeMessage = Date.now(); clearTimeout(timer); clearTimeout(session.timeout);
                 session.waitForDomain();
                 send(native, { type: 'mute', muted: session.muted }); return;
@@ -566,6 +585,7 @@ nativeServer.on('connection', native => {
                     else validateNativePermissions(message.permissions, session.permissionPolicy.permissions, message.domain, session.nativeDomain);
                 }
                 catch (error) {
+                    session.avatarSender?.invalidate(session);
                     session.permissionsApproved = false;
                     send(session.browser, { type: 'state', state: 'error', message: error.message });
                     session.close(false); return;
@@ -573,7 +593,7 @@ nativeServer.on('connection', native => {
                 session.permissionsApproved = true;
                 session.pendingNativePose = null;
                 clearTimeout(session.navigationTimeout);
-                if (session.permissionRevision !== message.permissionRevision) { session.assets?.reset(); session.pushToTalk.reset(); }
+                if (session.permissionRevision !== message.permissionRevision) { session.avatarSender?.invalidate(session); session.assets?.reset(); session.pushToTalk.reset(); }
                 session.permissionRevision = message.permissionRevision;
                 send(native, { type: 'permissionsAccepted', permissionRevision: message.permissionRevision, muted: session.muted }); return;
             }
@@ -656,9 +676,9 @@ nativeServer.on('connection', native => {
                     }
                 }
                 if (message.type === 'state' && message.state === 'connected') { message.permissionRevision = session.permissionRevision; session.connected = true; clearTimeout(session.connectionTimeout); }
-                if (message.type === 'state' && message.state === 'connecting') { session.pushToTalk.reset(); session.assets?.reset(); session.pendingNativePose = null; clearTimeout(session.navigationTimeout); session.permissionsApproved = false; session.connected = false; session.waitForDomain(); }
-                send(session.browser, { ...message, sessionId: session.id }, message.type === 'avatars' && !session.publicPlace && ['1','passive'].includes(process.env.OVERTE_GATEWAY_AVATAR_SAMPLE_DIAGNOSTICS)
-                    ? (open,bytes,invoked)=>observeAvatarForward(session,message,open,bytes,invoked) : undefined);
+                if (message.type === 'state' && message.state === 'connecting') { session.avatarSender?.invalidate(session); session.pushToTalk.reset(); session.assets?.reset(); session.pendingNativePose = null; clearTimeout(session.navigationTimeout); session.permissionsApproved = false; session.connected = false; session.waitForDomain(); }
+                if (message.type === 'avatars') session.avatarSender.offer(session, { ...message, sessionId: session.id }, session.lastNativeMessage);
+                else send(session.browser, { ...message, sessionId: session.id });
                 if (message.type === 'state' && message.state === 'error') session.close(false);
             }
         } catch (error) {
@@ -667,7 +687,7 @@ nativeServer.on('connection', native => {
             native.close();
         }
     });
-    native.on('close', () => { clearTimeout(timer); sockets.delete(native); if (session && !session.closed) {
+    native.on('close', () => { session?.avatarSender?.invalidate(session); clearTimeout(timer); sockets.delete(native); if (session && !session.closed) {
         send(session.browser, { type: 'state', state: 'error', message: session.bridgeFailure
             ? `The native bridge rejected invalid ${session.bridgeFailure.kind} data. Leave and reconnect.`
             : 'The native domain bridge disconnected.' }); session.close(false);
@@ -696,6 +716,7 @@ const policyWatchdog = setInterval(async () => {
             if (!session.permissionPolicy) continue;
             const current = policies.get(session.policyDomain || session.domain);
             if (!current || current.settingsFile !== session.permissionPolicy.settingsFile || JSON.stringify(current.permissions) !== JSON.stringify(session.permissionPolicy.permissions)) {
+                session.avatarSender?.invalidate(session);
                 session.permissionsApproved = false;
                 send(session.browser, { type: 'state', state: 'error', message: 'The domain guest permission policy changed. Connection revoked; review the policy before reconnecting.' });
                 session.close(false);
@@ -704,6 +725,7 @@ const policyWatchdog = setInterval(async () => {
     } catch {
         for (const session of sessions.values()) {
             if (!session.permissionPolicy) continue;
+            session.avatarSender?.invalidate(session);
             session.permissionsApproved = false;
             send(session.browser, { type: 'state', state: 'error', message: 'The domain guest permission policy is no longer valid. Connection revoked.' });
             session.close(false);
@@ -724,6 +746,7 @@ const publicPlaceWatchdog = setInterval(async () => {
                     current.domainId !== session.publicPlace.domainId || current.protocolVersion !== session.publicPlace.protocolVersion) throw Error('Public place destination changed.');
             } catch {
                 if (!session.closed) {
+                    session.avatarSender?.invalidate(session);
                     session.permissionsApproved = false;
                     send(session.browser, { type: 'state', state: 'error', message: 'The public place is no longer available with its approved destination, protocol and unlimited capacity. Rejoin after Directory Services recovers.' });
                     session.close(false);

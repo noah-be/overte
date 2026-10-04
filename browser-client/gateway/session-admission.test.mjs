@@ -9,6 +9,7 @@ import {randomUUID} from 'node:crypto';
 import vm from 'node:vm';
 import WebSocket,{WebSocketServer} from 'ws';
 import {SharedTeardown} from './process-lifecycle.mjs';
+import {AvatarSnapshotSender} from './avatar-snapshot-sender.mjs';
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 async function until(predicate){for(let i=0;i<100;i++){if(predicate())return;await new Promise(resolve=>setTimeout(resolve,5));}assert.fail('Production admission did not reach the expected state');}
 
@@ -28,7 +29,7 @@ async function harness(t){
         revoke(){this.closed=true;}
         async teardown(notify=true){await this.cleanup;sessions.delete(this.id);if(this.finalCleanup)await this.finalCleanup;if(notify&&this.isCurrent()&&this.browser.readyState===WebSocket.OPEN)this.browser.send(JSON.stringify({type:'state',state:'disconnected'}));}
     }
-    const context=vm.createContext({Session,sessions,sockets,maximumSessions:1,shuttingDown:false,browserServer,WebSocket,
+    const context=vm.createContext({AvatarSnapshotSender,Session,sessions,sockets,maximumSessions:1,shuttingDown:false,browserServer,WebSocket,
         cookie:request=>request.headers.cookie, equal:(a,b)=>a===b,send:(browser,value)=>{if(browser.readyState===WebSocket.OPEN)browser.send(JSON.stringify(value));},pose:()=>{}});
     vm.runInContext(source.slice(start,end),context);
     server.listen(0,'127.0.0.1');await once(server,'listening');

@@ -1,6 +1,46 @@
 # Browser client implementation plan
 
-## Active delivery and graphics comparison, 2026-10-04
+## Active bounded avatar delivery and software fixture, 2026-10-04
+
+Keep both exact 9e hosted outcomes in the retained comparison proof. The original
+automatic GPU and Core gates failed. One explicit SwiftShader comparison passed
+the original embedded gate and 130 actual Chrome UI cases, while Core and the
+managed stop still failed. Four distinct target-bearing gateway witnesses did not invoke a browser
+write above the original 4 MiB admission limit. Initial buffer origin and the
+hosted ancestry topology are not established.
+
+Integrate the reviewed complete-avatar scheduler: one physical send and one
+newest complete pending snapshot per browser socket, with approval/session
+revocation and callback failure controls. Retain the original 4 MiB threshold,
+frontend text limit, participant/joint limits and movement deadlines. Reapprove
+or rejoin cannot deliver a pending snapshot from old authority. The managed
+stop correction admits parent changes only for a previously pinned same-birth
+owned descendant; its original three-second retirement and closure checks stay.
+
+The GPU-less hosted fixture explicitly selects its existing SwiftShader driver.
+The manual default-off counterfactual restores the original default ANGLE
+request. This changes only the trusted fixture; product graphics preferences
+and all pixel/upload/cancellation assertions stay. Retain all 230 inherited
+source rows and exact CPU histories in the explicit 241-row V27 closure;
+production imports no history recovery.
+
+Publish the exact tested source from the sole owner and qualify fresh actual
+hosted Core, owned stop and browser rendering. The original missing-registered-Native
+preflight remains separate from code checks. No existing service or registry
+repair is inferred. Continue Tablet, public Hub fluidness, physical microphone
+and native feature parity after these measured blockers.
+
+Complete source gates now pass: 2930/2930 product cases without skips, the
+34-file production build, both original embedded fixture builds, and all 34
+repository suites in 121.522 s. All 94 controlled managed-process cases also pass.
+See the [source proof](evidence/coalesced-avatar-source-checks-20261004.json) and
+[retained hosted comparison](evidence/hosted-avatar-delivery-repairs-20261004.json).
+The local distribution matches the previous 34-file build on the same toolchain;
+this is not hosted distribution provenance. Original 84 process controls and
+all action/assertion bodies remain; the interrupted first full unit invocation
+and missing-module counterexample are retained separately.
+
+## Preserved V26 delivery and graphics proposal, 2026-10-04
 
 Preserve the exact 58e hosted failures. Both local owned-X11 graphics cohorts
 pass the original pixels/upload/cancellation and deliberate restoration case;

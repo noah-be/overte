@@ -1,39 +1,49 @@
 # Embedded texture GPU diagnostics
 
-## Explicit hosted graphics comparison
+## Trusted software fixture and original-driver control
 
-The existing manual Browser client workflow also offers
-`embedded_swangle_diagnostic`, a boolean that defaults false. Selecting it
-supplies only `OVERTE_EMBEDDED_USE_SWANGLE=1` to the original embedded GPU step.
-The runner adds exactly `--use-angle=swiftshader` for Google Chrome. Undefined,
-empty and `0` retain the original mute-only arguments; unknown values refuse
-before launch. All original pixel/frame/upload/sampler/cancellation assertions,
-deadlines, failure observations and other workflow steps remain unchanged.
+The normal GPU-less Browser client workflow now selects the existing
+`OVERTE_EMBEDDED_USE_SWANGLE=1` fixture request, which adds exactly
+`--use-angle=swiftshader` to Google Chrome. This driver request applies to the
+trusted test fixture. Product browser graphics preferences and launcher paths
+are unchanged. No unsafe SwiftShader flag is added. [Chromium documents](https://chromium.googlesource.com/chromium/src/+/main/docs/gpu/swiftshader.md)
+this explicit driver selection for automated test bots without a GPU.
 
-`requestedAngleMode` records `default` or `swiftshader-requested`. This is a
-request, not observed backend identity or an explanation of context loss. Both
-local owned-X11 requested/default comparisons pass and report the same renderer
-family. Preserve same-source hosted successes and failures. Do not infer a fix
-or driver cause from one selected success.
+The existing manual workflow offers `embedded_default_angle_control`, a boolean
+that defaults false. Selecting true supplies `OVERTE_EMBEDDED_USE_SWANGLE=0`
+and restores the original mute-only fixture arguments for a counterfactual.
+Undefined, empty and0runner values retain that original argument behavior;
+unknown values refuse before launch. All original pixel/frame/upload/sampler/
+cancellation assertions, deadlines, failure observations and other workflow
+steps remain. The former `embedded_swangle_diagnostic` input is superseded;
+no compatibility alias interprets an old request as the opposite treatment.
 
-The current V26 code gates pass: 2874 product tests without skips, the
-34-file production build, both original embedded fixture configuration builds
-and repository quick profile. The [source proof](evidence/avatar-delivery-angle-source-checks-20261004.json)
-retains the separate failed nine-service preflight: registered Native missing,
-other eight births matching, cause unknown. No restart or native/session
-acceptance follows from these code checks.
+`requestedAngleMode` records `default` or `swiftshader-requested`. This records
+a request, not observed backend identity or context-loss cause. Preserve both
+exact 9e hosted cohorts: automatic37180320361fails before the direct GPU draw;
+explicit37180436175passes the original20 frames/red CPU and GPU pixels, one
+shared upload, independent samplers and cancellation. Both original Core
+failures and the manual managed-stop refusal remain. This comparison supports
+explicit software-fixture configuration, not a general rendering or driver
+cause claim. Both separate local comparisons also pass on the same reported
+renderer family and do not provide a causal contrast.
 
-For one source-reviewed exact-head comparison on the authorized fork:
+For a reviewed exact-head original-driver counterfactual on the authorized fork:
 
 ```sh
 gh workflow run browser-client.yml --repo noah-be/overte \
   --ref feature/main/browser-client \
   -f startup_diagnostics=false -f avatar_sample_diagnostics=true \
-  -f embedded_swangle_diagnostic=true
+  -f embedded_default_angle_control=true
 ```
 
-Confirm the actual fork and ref before dispatch. The full default workflow
-continues to run; this input omits no acceptance step.
+Confirm the actual fork and ref before dispatch. The full workflow continues
+to run; this input omits no acceptance step. Normal PR and manual executions
+with false/default explicitly request the software driver. Fresh actual
+corrected-source qualification remains required. The original local
+nine-service preflight still reports registered Native missing, with the other
+eight births matching. Separate code tests do not replace that failed preflight
+or authorize an existing service/registry repair.
 
 The authored embedded-FBX journey retains its original 20 exact pixel checks,
 single shared image upload, independent samplers and actual model cancellation.
@@ -76,9 +86,10 @@ observed event supplies the time origin; intervals are nondecreasing integers
 bounded to 60000 ms, with at most 16 rows. These are new synchronous clock and
 property observations at existing callbacks. They add no timer, Promise
 continuation, render retry or shader-readiness wait. Invalid observations remain
-null and mark refusal. A positive preparation count means the method remains
-pending; zero means its existing finally path settled, not that the GPU is
-healthy. Event delivery time is not a driver reset trigger time. Older artifacts
+null and mark refusal. A positive `compilingGraphics` value means one or more preparation methods
+remain pending; `prepareCalls` counts invocations, not readiness. Zero
+`compilingGraphics` means the existing finally paths settled, not that the GPU
+is healthy. Event delivery time is not a driver reset trigger time. Older artifacts
 require their frozen version-3 decoder; current consumers refuse missing or
 unknown version-4 fields.
 

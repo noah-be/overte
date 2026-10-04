@@ -10,7 +10,7 @@ import test_manage_state as host
 import test_kernel_audit_integration as audit
 
 SEVEN=('manage.py','native_admin.py','guest_permissions.py','provisioning_diagnostics.py','host_tools.py','chrome_browser.py','native_launch.py')
-FINAL={'manage.py':'84b4426187e078515b77984a3581a63130d2dbc0c5edf4230a66a17ecdbf8e66','native_launch.py':'5358a62e101c2fc8fc94063b6ec617a9a221b93b6778f59fc80cac2171ccc581','atomic-provisioning/probe.py':'67d90f5598f05ef50af1098d33854cb64165b315874aa449003119adc03364e1'}
+FINAL={'manage.py':'53cd7fcce5887c993bc724ce3e391c4c7d0975f338ed1c96a1adfdbe7c9bdb95','native_launch.py':'5358a62e101c2fc8fc94063b6ec617a9a221b93b6778f59fc80cac2171ccc581','atomic-provisioning/probe.py':'67d90f5598f05ef50af1098d33854cb64165b315874aa449003119adc03364e1'}
 def sha(b):return hashlib.sha256(b).hexdigest()
 def methods(p):
  text=p.read_text();lines=text.splitlines(True)
@@ -23,12 +23,14 @@ class Composition(unittest.TestCase):
  def test_exact_three_complete_reviewed_sources_and_literal_seven(self):
   for n,h in FINAL.items():self.assertEqual(sha((LAB/n).read_bytes()),h,n)
   self.assertEqual(probe.SOURCE_DEPENDENCIES,frozenset(SEVEN));probe.verify_reviewed_sources(LAB)
- def test_host_route_keeps_all_original34_and_added50_once(self):
+ def test_host_route_keeps_all_original84_and_added10_once(self):
   records=list(cases(unittest.defaultTestLoader.loadTestsFromModule(host)))
-  ids=[c.id()for c in records];self.assertEqual(len(ids),84);self.assertEqual(len(set(ids)),84)
+  ids=[c.id()for c in records];self.assertEqual(len(ids),94);self.assertEqual(len(set(ids)),94)
   expected={'ManagedState':12,'ManagedLaunchRecords':4,'OwnedSupervisor':1,'GuestReadback':6,'ProvisioningDiagnostics':11,'StopContracts':12,'SessionBoundary':2,'ParentGuards':11,'NativePrivilege':4,'AdmitRetirement':1,'Registered':11,'PythonBoundary':4,'OwnedCPU':3,'RealParent':2}
   actual={type(c).__name__:sum(type(d)is type(c)for d in records)for c in records}
-  self.assertEqual(actual,expected)
+  self.assertEqual({name: count for name, count in actual.items() if name in expected},expected)
+  self.assertEqual(sum(actual[name] for name in expected),84)
+  self.assertEqual({name: count for name, count in actual.items() if name not in expected},{'ManagedAncestry':9,'ManagedAncestryOwnedCPU':1})
  def test_original_host_and_real_bwrap_assertions_remain_byte_exact(self):
   record=json.loads((LAB/'fixtures/managed-lifetime-original-bodies.json').read_text())
   for file,key in(('test_manage_state.py','originalHostMethods'),('test_native_launch.py','originalNativeMethods')):

@@ -1,7 +1,7 @@
 // Copyright 2026 Overte contributors
 // SPDX-License-Identifier: Apache-2.0
 import test from 'node:test';
-import {readReviewedAvatarSource} from './fixtures/avatar-delivery-source-fixture.mjs';
+import {recoverReviewedAvatarSource,readReviewedAvatarSource as readHistoricalAvatarSource} from './fixtures/avatar-delivery-source-fixture.mjs';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { mkdtemp, mkdir, writeFile, chmod, symlink, link, readFile, rm, stat } from 'node:fs/promises';
@@ -14,6 +14,8 @@ import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { projectAvatarTail, readAvatarLog, collectAvatarSamples, writeAvatarSamples } from '../tools/curate-avatar-samples.mjs';
+import {prepareAvatarV26HistoryReaders} from './integration/capture-software-managed-source-fixture.mjs';
+const {readReviewedAvatarSource}=await prepareAvatarV26HistoryReaders(readCurrentFileSync,readHistoricalAvatarSource,recoverReviewedAvatarSource);
 const marker = 'BROWSER_AVATAR_SAMPLE ';
 const producer = readFileSync(new URL('../gateway/native-avatar-sample-diagnostics.js', import.meta.url), 'utf8');
 function produced() {

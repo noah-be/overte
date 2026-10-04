@@ -2,9 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // Strict CPU historical inputs; no runtime admission or source fallback.
 import test from 'node:test';import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';import {mkdtemp,writeFile,mkdir,rm,symlink,link} from 'node:fs/promises';
+import {readFileSync as readCurrentFileSync} from 'node:fs';import {mkdtemp,writeFile,mkdir,rm,symlink,link} from 'node:fs/promises';
 import {createHash} from 'node:crypto';import {join} from 'node:path';import {tmpdir} from 'node:os';import {pathToFileURL} from 'node:url';
-import {recoverReviewedAvatarSource,readReviewedAvatarSource,avatarDeliverySourcePins} from './fixtures/avatar-delivery-source-fixture.mjs';
+import {recoverReviewedAvatarSource,readReviewedAvatarSource as readHistoricalAvatarSource,avatarDeliverySourcePins} from './fixtures/avatar-delivery-source-fixture.mjs';
+import {prepareAvatarV26HistoryReaders} from './integration/capture-software-managed-source-fixture.mjs';
+const {readFileSync,readReviewedAvatarSource}=await prepareAvatarV26HistoryReaders(readCurrentFileSync,readHistoricalAvatarSource,recoverReviewedAvatarSource);
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
 const source=readFileSync(new URL('./fixtures/avatar-delivery-source-fixture.mjs',import.meta.url));
 const archive=readFileSync(new URL('./fixtures/avatar-delivery-before.json.gz',import.meta.url));

@@ -494,7 +494,11 @@ class _OwnedStop:
                 if fresh is None:
                     continue
                 if fresh['parent'] != pid:
-                    raise RuntimeError('Managed child ancestry changed')
+                    # An already pinned descendant may reparent while its old
+                    # parent exits. Retain its original birth/UID/group/session
+                    # admission; never attribute a newly observed child this way.
+                    if child not in self.rows or child not in self.descriptors:
+                        raise RuntimeError('Managed child ancestry changed')
                 if self.admit(fresh):
                     pending.append(child)
         return [row for pid in self.rows if (row := self.identity(pid)) is not None]

@@ -13,6 +13,7 @@ import { managedNavigationSelection } from './navigation.mjs';
 import { validateVisitorPreferences } from '../shared/visitor-preferences.mjs';
 import { validateVisitorPersona, WEARABLE_FIELDS } from '../shared/visitor-persona.mjs';
 import {acceptedNativePersona} from './visitor-persona.mjs';
+import {AvatarSnapshotSender} from './avatar-snapshot-sender.mjs';
 
 // Execute the production Session teardown and message handler, replacing only
 // external native launch with a deferred operation. No domain or service is used.
@@ -37,7 +38,7 @@ async function connectionHarness() {
         launch() { return new Promise((resolve, reject) => launches.push({resolve, reject, session:this})); }
     }
     vm.runInNewContext(source.slice(handlerStart, handlerEnd), {
-        Session:DeferredSession, sessions, sockets, maximumSessions:4, shuttingDown:false,
+        AvatarSnapshotSender, Session:DeferredSession, sessions, sockets, maximumSessions:4, shuttingDown:false,
         cookie:() => 'owned-session-cookie', send, pose:() => {}, WebSocket:{OPEN:1}, equal:(a,b)=>a===b,
         browserServer:{on(event, listener) { assert.equal(event, 'connection'); listener(browser, {headers:{}}); }},
     });

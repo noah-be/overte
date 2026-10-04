@@ -11,8 +11,8 @@ on:
         description: 'Run unchanged startup/isolation checks only; browser journeys remain not-run'
         type: boolean
         default: false
-      embedded_swangle_diagnostic:
-        description: 'Request the single SwiftShader ANGLE launch flag during the unchanged embedded GPU proof'
+      embedded_default_angle_control:
+        description: 'Run the unchanged embedded GPU proof with the original default ANGLE selection instead of the software-fixture driver request'
         type: boolean
         default: false
       avatar_sample_diagnostics:
@@ -108,7 +108,7 @@ jobs:
       - name: Prove embedded FBX decoding, shared GPU upload and actual World cancellation
         if: ${{ !inputs.startup_diagnostics }}
         env:
-          OVERTE_EMBEDDED_USE_SWANGLE: ${{ github.event_name == 'workflow_dispatch' && inputs.embedded_swangle_diagnostic && '1' || '' }}
+          OVERTE_EMBEDDED_USE_SWANGLE: ${{ github.event_name == 'workflow_dispatch' && inputs.embedded_default_angle_control && '0' || '1' }}
           LIBGL_ALWAYS_SOFTWARE: 'true'
           GALLIUM_DRIVER: llvmpipe
         run: |

@@ -8,6 +8,7 @@ import { once } from 'node:events';
 import { randomUUID } from 'node:crypto';
 import { WebSocket, WebSocketServer } from 'ws';
 import { TabletSession } from './tablet.mjs';
+import {AvatarSnapshotSender} from './avatar-snapshot-sender.mjs';
 
 test('actual visitor WebSocket and Tablet handler refuse unsupported controls and preserve allowed clipboard limits', async () => {
     const source = await readFile(new URL('./server.mjs', import.meta.url), 'utf8');
@@ -28,7 +29,7 @@ test('actual visitor WebSocket and Tablet handler refuse unsupported controls an
         }
         close() { this.closed = true; this.tablet?.close(); sessions.delete(this.id); }
     }
-    vm.runInNewContext(handler, { browserServer, sessions, sockets: new Set(), Session, maximumSessions: 1,
+    vm.runInNewContext(handler, { AvatarSnapshotSender, browserServer, sessions, sockets: new Set(), Session, maximumSessions: 1,
         shuttingDown: false, cookie: request => request.headers.cookie, equal: (a, b) => a === b, send, WebSocket });
     await once(browserServer, 'listening');
     const visitor = new WebSocket(`ws://127.0.0.1:${browserServer.address().port}`, { headers: { Cookie: 'owned-test-cookie' } });

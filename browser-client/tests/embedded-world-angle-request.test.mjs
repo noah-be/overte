@@ -3,7 +3,8 @@
 // Source-extracted actual launch configuration; no browser or server.
 import test from 'node:test';import assert from 'node:assert/strict';import vm from 'node:vm';import {readFile} from 'node:fs/promises';
 const runner=await readFile(new URL('./integration/embedded-world.mjs',import.meta.url),'utf8');
-const workflow=await readFile(new URL('../../.github/workflows/browser-client.yml',import.meta.url),'utf8');
+import {recoverCaptureV26Input} from './integration/capture-software-managed-source-fixture.mjs';
+const workflow=(await recoverCaptureV26Input('.github/workflows/browser-client.yml',await readFile(new URL('../../.github/workflows/browser-client.yml',import.meta.url)))).toString('utf8');
 const begin='// BEGIN explicit embedded ANGLE request.',end='// END explicit embedded ANGLE request.';
 assert.equal(runner.split(begin).length,2);assert.equal(runner.split(end).length,2);
 const producer=runner.slice(runner.indexOf(begin),runner.indexOf(end));

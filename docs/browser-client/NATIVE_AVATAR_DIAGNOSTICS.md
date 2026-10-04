@@ -1,5 +1,32 @@
 # Opt-in native avatar diagnostics
 
+## Complete-avatar scheduling and source identity
+
+Avatar delivery now retains one physical send and the newest complete unsent
+snapshot per browser socket. It uses the original 4 MiB admission threshold;
+non-avatar senders, world overflow, audio and Tablet policies keep their
+existing paths. Queued snapshots capture serialized state and its original
+native-message time, approval revision and native/session generation.
+Revocation clears queued authority; an already issued physical write remains
+in flight until its callback. A failed physical channel closes its current
+owner even across a same-socket rejoin. No retry timer or partial avatar/joint
+truncation is added.
+
+A delivery witness records the selected complete snapshot's actual attempted
+send and original receive time. An offer queued behind a physical write is not
+a refused send. Existing512-row, 128-observation and 500 ms bounds remain.
+Latest-state replacement may deliberately omit intermediate poses; it does
+not prove browser receipt. Current source evidence adds the new
+`gateway/avatar-snapshot-sender.mjs` producer:15 runtime source identities plus
+two Git-only diagnostic fixture identities. Old14+2 artifacts remain on their
+frozen decoder; missing identities are refused without backfill.
+
+Exact9e negative evidence shows four distinct target-bearing observations
+blocked above4 MiB; the native target is correct and the browser peer is stale.
+A real own-WebSocket regression reproduces old failure within the original
+2800 ms wait and passes the bounded complete-state scheduler. This is
+loopback/source evidence, not a substitute for fresh actual native Core.
+
 ## Delivery witnesses
 
 Current opt-in samples add `nativeDelivery` and `gatewayDelivery`; absent

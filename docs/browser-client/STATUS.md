@@ -1,6 +1,49 @@
 # Browser client status
 
-## Current delivery and graphics comparison, 2026-10-04
+## Current measured repair integration, 2026-10-04
+
+Exact published 9e5e020210d312407fd67514d2a2811039eb675d passes required
+Repository 37180390765 and CodeQL 37180320286. Automatic Browser 37180320361
+retains the original embedded and Core failures. The single explicit
+SwiftShader run 37180436175 passes the browser job: 2874 product tests and
+130 actual Chrome UI cases, with original red pixels, one image upload,
+20 frames, independent samplers and cancellation. Its Core gate still fails;
+its managed stop adds a genuine managed-child-ancestry-changed refusal.
+Keep both outcomes in the comparison proof; no driver/kernel cause follows.
+
+Four distinct gateway witnesses contain the native target but do not invoke a
+browser write: the selected socket is open with 4,211,892 buffered bytes, above
+the original limit of 4,194,304 bytes. The initial buffer origin remains
+unknown. The native participant reaches its command target while the browser
+retains its old peer pose. These observations are not same-envelope
+correlation or remote receipt.
+
+The reviewed corrective source preserves that threshold and retains complete
+avatar state in one physical send plus one newest pending snapshot. Approval,
+native generation, session replacement and failed-channel cleanup are checked
+at the actual send. Managed stop permits reparenting only for an already pinned
+same-birth owned descendant; all other identity and retirement guards remain.
+The original owned-Python differential fails on old source and passes corrected
+source with every child reaped and held descriptor closed.
+
+The software CI fixture explicitly uses its existing SwiftShader launch flag;
+one manual counterfactual restores the original default request. The original
+assertions and deadlines remain. V27 retains 230 inherited rows among 241;
+whole histories stay CPU-only and bounded. Complete source qualification passes;
+fresh exact hosted Core/stop remains required. Local Native absence, public Hub
+fluidness, complete Tablet, physical microphone and native parity remain open.
+
+Complete source gates now pass: 2930/2930 product cases without skips, the
+34-file production build, both original embedded fixture builds, and all 34
+repository suites in 121.522 s. All 94 controlled managed-process cases also pass.
+See the [source proof](evidence/coalesced-avatar-source-checks-20261004.json) and
+[retained hosted comparison](evidence/hosted-avatar-delivery-repairs-20261004.json).
+The local distribution matches the previous 34-file build on the same toolchain;
+this is not hosted distribution provenance. Original 84 process controls and
+all action/assertion bodies remain; the interrupted first full unit invocation
+and missing-module counterexample are retained separately.
+
+## Preserved V26 delivery and graphics proposal, 2026-10-04
 
 Published 58e2a38af17ed7e6505cadcf7145b6d51bf0a941 passes current required
 Repository and CodeQL checks. Automatic 37174449237 and the single explicit
