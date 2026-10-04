@@ -178,7 +178,7 @@ that this complete recipe passed a cold build.
 
 English text lives under `android/phone/fastlane/metadata/android/en-US/` and is
 copied into the submission by the staging helper. The store icon is a 512-pixel
-rendering of the [maintainer-supplied Deep Magenta artwork](../../branding/README.md),
+rendering of the [maintainer-supplied Navy artwork](../../branding/README.md),
 matching the Phone launcher and splash drawable, with metadata stripped.
 Only the approved author name and public profile are included; no private
 contact details or private device screenshots are included. Two maintainer-created
@@ -202,7 +202,7 @@ Current release configuration:
   the description requires OpenGL ES 3.2 and does not list jumping separately.
 - **Device support:** API 26 minimum, target/compile API 36, ARM64 and OpenGL ES
   3.2. SDK/NDK/CMake versions and the existing eight scanner deletions remain
-  unchanged. The supplied Deep Magenta artwork and two maintainer-created Phone
+  unchanged. The supplied Navy artwork and two maintainer-created Phone
   screenshots are included.
 - **Signing:** reproducible builds against the maintainer-signed published APK,
   with `AllowedAPKSigningKeys` binding the established release certificate.
