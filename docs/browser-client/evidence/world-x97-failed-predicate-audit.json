@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "actualRawReportSHA256": "c58482731f3b6b868aad01ce2ed928850b5b7b019aa98bff1885629060af0ece",
+  "retainedNativeLogSHA256": "7d3399afcf7e61e3a052a0a2d70cba98802cc9a31fcd06884a9c672407183e07",
+  "retainedNativeLogBytes": 334410,
+  "originalNativeLogReaderBoundBytes": 4194304,
+  "admittedNativeActionRecords": 1,
+  "admittedSitOverrideRecords": 1,
+  "admittedRestoreControlRecords": 0,
+  "nativeAuthoredOverride": {
+    "variant": "Sit3",
+    "frames": 367,
+    "fps": 60
+  },
+  "fixedFailedPredicate": "held-native-browser-seven-joint-sitting-pose",
+  "originalPredicateDeadlineMs": 10000,
+  "nominalAnimationDurationMs": 6116.666666666666,
+  "paintedControlCurrentFrameAndNativeDeliveryPassed": true,
+  "seatedPoseQualified": false,
+  "closeAndWorldXNotReached": true,
+  "scriptedEscapeInJourneyNotReached": true,
+  "originalPoseSamplesPersisted": false,
+  "failureSubconditionKnown": false,
+  "zeroAdmittedRestoreRecordsProvesZeroNativeCalls": false,
+  "rawSubstringCountsAreNotAuthenticActionRecords": true,
+  "nextMinimalDiscriminator": [
+    "animation-wait-window",
+    "native-browser-joint-match",
+    "fresh-avatar-batches",
+    "hips-drop",
+    "thigh-change",
+    "held-pose-stability"
+  ]
+}

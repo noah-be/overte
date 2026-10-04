@@ -1,0 +1,168 @@
+{
+  "schema": 1,
+  "date": "2026-10-02",
+  "scope": "Current shipping source copied independently; genuine isolated Overte/native participant and stock headed browsers; synthetic audio only. Sole copied QML change is passive capture audit.",
+  "materialAssistance": "OpenAI Codex",
+  "command": "node tests/integration/tablet-push-to-talk.mjs",
+  "cohorts": [
+    {
+      "engine": "firefox",
+      "exitCode": 0,
+      "completed": true,
+      "cleanupVerified": true,
+      "sourceCoherent": true,
+      "failurePhase": null,
+      "browserVersion": "firefox/156.0",
+      "durationSeconds": 108.842,
+      "rawReportSHA256": "fd3abca56b15b6fd394a57d94f65c0995fc63f5eeadfc5094c19d3a04980fa93",
+      "steps": [
+        {
+          "name": "joined-muted",
+          "passed": true
+        },
+        {
+          "name": "genuine-native-desktop-ptt-enabled",
+          "passed": true
+        },
+        {
+          "name": "explicit-synthetic-microphone-grant",
+          "passed": true
+        },
+        {
+          "name": "real-T-hold-browser-to-native",
+          "passed": true
+        },
+        {
+          "name": "real-T-release",
+          "passed": true
+        },
+        {
+          "name": "native-to-browser-audio",
+          "passed": true
+        },
+        {
+          "name": "actual-window-blur-and-document-hidden-release",
+          "passed": true
+        },
+        {
+          "name": "genuine-Tablet-open-releases-hold",
+          "passed": true
+        },
+        {
+          "name": "ordinary-mute-preserves-native-PTT-mode",
+          "passed": true
+        },
+        {
+          "name": "genuine-native-mode-off-preserves-ordinary-audio",
+          "passed": true
+        },
+        {
+          "name": "leave-releases-held-microphone",
+          "passed": true
+        },
+        {
+          "name": "fresh-session-authority-requires-new-explicit-grant",
+          "passed": true
+        }
+      ],
+      "nativeAuthorUnmuteReadbackAndMuteRestoration": true,
+      "ownedNativeGuardClosed": true,
+      "ownedBrowserClosed": true,
+      "inDomainAuthorityRevisionChangeProved": false
+    },
+    {
+      "engine": "chromium",
+      "exitCode": 0,
+      "completed": true,
+      "cleanupVerified": true,
+      "sourceCoherent": true,
+      "failurePhase": null,
+      "browserVersion": "154.0.8037.57",
+      "durationSeconds": 97.588,
+      "rawReportSHA256": "624b2b5bed82b3d5c0acf4f0500c80a901d0a53f102f75c3ba95ee77b349e2a3",
+      "steps": [
+        {
+          "name": "joined-muted",
+          "passed": true
+        },
+        {
+          "name": "genuine-native-desktop-ptt-enabled",
+          "passed": true
+        },
+        {
+          "name": "explicit-synthetic-microphone-grant",
+          "passed": true
+        },
+        {
+          "name": "real-T-hold-browser-to-native",
+          "passed": true
+        },
+        {
+          "name": "real-T-release",
+          "passed": true
+        },
+        {
+          "name": "native-to-browser-audio",
+          "passed": true
+        },
+        {
+          "name": "actual-window-blur-and-document-hidden-release",
+          "passed": true
+        },
+        {
+          "name": "genuine-Tablet-open-releases-hold",
+          "passed": true
+        },
+        {
+          "name": "ordinary-mute-preserves-native-PTT-mode",
+          "passed": true
+        },
+        {
+          "name": "genuine-native-mode-off-preserves-ordinary-audio",
+          "passed": true
+        },
+        {
+          "name": "leave-releases-held-microphone",
+          "passed": true
+        },
+        {
+          "name": "fresh-session-authority-requires-new-explicit-grant",
+          "passed": true
+        }
+      ],
+      "nativeAuthorUnmuteReadbackAndMuteRestoration": true,
+      "ownedNativeGuardClosed": true,
+      "ownedBrowserClosed": true,
+      "inDomainAuthorityRevisionChangeProved": false
+    }
+  ],
+  "shippingSourcePinCount": 297,
+  "shippingSourcePinsSHA256": "f09d5f45ceca626fb6a8328959122efc111d510edab47f7d7e121938c0741ed1",
+  "shippingRuntimeSHA256": {
+    "src/main.ts": "c263d89c4d0bd229d9563bf455585ebde6c4036f72922b9061ddc6726c8f5acb",
+    "src/world.ts": "9881f136f1ad2c9cbc5e777ece3d8daac5fdb9dd08fb8b0266c6c917fabf8e6f",
+    "src/tablet.ts": "21a7149bc0b61da0f8f24f7edcc7ebb4dbe4b7ef302c159cc31967c96f02419a",
+    "gateway/server.mjs": "5a9e59fd22b04efe243ab5282cf61982209e0085142f114819ef4018080d0d7a",
+    "gateway/native-bridge.js": "5faabe08b1cd12f6e89a2f96f464a859a15a92a57fa225459bf82c616649c068",
+    "gateway/native-tablet.js": "6e8bbe38b2654aace6a4e999b6e1315582981e83245f8266c2b272bd8fc4ee6a",
+    "gateway/tablet-capture.qml": "f990c2ed3f5b0d68e50b959774214f4b7637e332b1c9613567c8ea9252f5f1bc",
+    "shared/push-to-talk.mjs": "2b425bc8b21f2c992f48a9b6f3363ba71ba16de134a084e2d8a1124a2556a376",
+    "src/fullscreen.ts": "c6cc3b470ff6c6f5763a56227c1ec19693507e5abdbb2580c9407ab00ce16720",
+    "src/model-slot-residence.ts": "f752427d462e49e36e1e87c775b593971fedf427129d6d2bbef5fec0dc86e398"
+  },
+  "passiveCaptureAuditSHA256": "0b165cae29a6247eddf30f4d9bdbea0e09e9ace1e1e7711cc887f01de6d913b9",
+  "shippingCaptureSHA256": "f990c2ed3f5b0d68e50b959774214f4b7637e332b1c9613567c8ea9252f5f1bc",
+  "distributionIndependentCopy": true,
+  "sourceEquivalentExceptPassiveCapture": true,
+  "ownedCohortGatewayStopped": true,
+  "otherManagedServiceIdentitiesPreserved": 9,
+  "hardwareMicrophoneTested": false,
+  "humanAudibilityTested": false,
+  "inDomainAuthorityRevisionChangeProved": false,
+  "limitations": [
+    "Two-way audio uses a synthetic440Hz Chromium microphone, Firefox fake microphone, and997Hz native source. Actual native/browser playback RMS is checked in both; exact440Hz is checked in Chromium and997Hz in both. No physical microphone or human hearing evidence.",
+    "The twelve-stage cohort does not exercise an in-domain authority revision transition.",
+    "No public-domain voice, complete native Tablet parity or whole-Hub pixel fidelity is established."
+  ],
+  "allEnduranceTestsCancelled": true
+}

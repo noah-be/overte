@@ -1,0 +1,190 @@
+{
+  "date": "2026-10-02",
+  "materialAssistance": "OpenAI Codex",
+  "scope": "Short current-source actual stock Hub model/movement/native/rejoin proof; genuine negative journeys retained. No endurance run.",
+  "testedCommit": "a5864e5cb1b47698bf79679cf3107a2b47ace229",
+  "sourceSHA256": {
+    "browser-client/gateway/server.mjs": "f8399c1015cb85ada0da613b9278b8a90dca0660d2478b8810d43161b1ed237c",
+    "browser-client/gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+    "browser-client/gateway/native-world.js": "bec2f02313446afde7a0be20899358a082b41c6c6c5d745ec67a24809e2b7ddb",
+    "browser-client/src/baked-fbx.ts": "c62387724472564c82c8ba89eb28db708147902613429062a27014c55bc53d20",
+    "browser-client/src/world.ts": "30e302aaf480b3c1a377df33aca244b95fe2d3e985a78d83e7dc5a17166d0a5e",
+    "browser-client/src/main.ts": "80a7eb3f5466c00a7388895a5607b6e6ca4a12d97338d01c126d2dcf88802720",
+    "browser-client/tests/integration/public-hub.mjs": "68e986927833c066960a6de9fd3aa0b1f6acc7308efff4fcaaa21abbc7236886"
+  },
+  "distribution": {
+    "assets/FBXLoader-Dw_7mmKi.js": {
+      "sha256": "c6d4346035a37062103b3d5919f4a9ca1dcfe79ecc43a485fd4ea8f850ca608e",
+      "bytes": 49922
+    },
+    "assets/GLTFLoader-DqIyEBkG.js": {
+      "sha256": "d8afb6db9337adc76f3f706d41caab522031490ac357c8dd0230b5a6f8500298",
+      "bytes": 44308
+    },
+    "assets/OBJLoader-DIZbBdBQ.js": {
+      "sha256": "82b1205f54d9c543d9332b5b77e8ff482509f9465fced11c8f9c2768c1169f8d",
+      "bytes": 8633
+    },
+    "assets/baked-draco-C2cWfkC-.js": {
+      "sha256": "ed0221d1c121e2e4166afbdcc721be7c46246fedf72aa85116c61e3e6fc0a698",
+      "bytes": 125046
+    },
+    "assets/baked-draco-legacy-CMhlgON6.js": {
+      "sha256": "eb84ebc5eff49c7b0593382b07b23010897080f46b779ececdd515efcfb482d4",
+      "bytes": 816324
+    },
+    "assets/draco_decoder-C32yEggz.wasm": {
+      "sha256": "c55a594e8ffd18426d36b27fea9618af3df5e173640a3e56d46f09d76f0574f2",
+      "bytes": 285747
+    },
+    "assets/draco_decoder-Z1_iN-Ht.wasm": {
+      "sha256": "a680d927bed9cb864ddbd63521868891af2bfbe755092761b4837487618df8ac",
+      "bytes": 192420
+    },
+    "assets/draco_decoder-fzg4nYZr.js": {
+      "sha256": "30e4d486fa020737af10e3c56197693e5b904bdc05b8bfa5d7b06751dec6da04",
+      "bytes": 719410
+    },
+    "assets/draco_wasm_wrapper-DxJM36Ib.js": {
+      "sha256": "e8049906ef3f8f75d3456c22a3f31bfdfe5b5b5bd09ccdec613b9e9a49d554d8",
+      "bytes": 58763
+    },
+    "assets/draco_wasm_wrapper-fZCQGLGb.js": {
+      "sha256": "8bb2952d2ba7d67e1414f8df819410cb0434a666be53f671fff75f68843d76f6",
+      "bytes": 58456
+    },
+    "assets/index-B2mAMfm4.css": {
+      "sha256": "cbf321b921d05ff91c3020a6ccffc91385eeebf223ea6ec0577c6354df12a521",
+      "bytes": 5451
+    },
+    "assets/index-DbcQ0qDX.js": {
+      "sha256": "610d6be5fe7a7bc80f4886716bba8f4cee5b306f26ee8e622b294cff1e2a7a14",
+      "bytes": 935015
+    },
+    "assets/model-fbx-worker-IRDjibFR.js": {
+      "sha256": "0f8e47ffa43d75c813c4c46122239587c22580214653735d9f4ebffdf94bc485",
+      "bytes": 825582
+    },
+    "assets/tablet-gif.worker-DACjp6Cn.js": {
+      "sha256": "78ebb1c3db4d062dd4119c2cd86d201b7df2757fedf22a8993dd460fbb1057c8",
+      "bytes": 10409
+    },
+    "assets/texture-alpha-worker-CBG2kYQR.js": {
+      "sha256": "f04f415ff39370ae4ab0268903ffaf6c86b9a7addeb0aed95d4a7948ee803485",
+      "bytes": 2417
+    },
+    "index.html": {
+      "sha256": "b05843d5c5ea0b9cac8460547a8a7764a3b18574e82855b7de3d69546cecf904",
+      "bytes": 2916
+    }
+  },
+  "cohorts": [
+    {
+      "engine": "chromium",
+      "browserVersion": "154.0.8037.57",
+      "startedAt": "2026-10-02T00:15:15.452Z",
+      "finishedAt": "2026-10-02T00:16:05.459Z",
+      "rawSHA256": "f1ac016364b0879af37713c27faf07bc3c5eea30db66767e720fae07c89e5115",
+      "rawPrivate": true,
+      "completeJourneyPassed": false,
+      "sourceAndDistributionUnchanged": true,
+      "sourcePinCount": 71,
+      "distributionAssetCount": 15,
+      "loadedModels": 295,
+      "invalidArrayWarningCount": 0,
+      "otherModelWarningCount": 1,
+      "pageErrors": 0,
+      "movementMeters": 4.248452977972766,
+      "nativePoseDifferenceMeters": null,
+      "reconnectedMovementMeters": null,
+      "reconnectedNativeDifferenceMeters": null,
+      "fluidGates": {
+        "steadyFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "walkFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedSteadyFluidPerformance": {
+          "status": "not-run"
+        },
+        "reconnectedWalkFluidPerformance": {
+          "status": "not-run"
+        }
+      },
+      "gatewayRestartBeforeBothCohorts": true,
+      "failure": "native-own-avatar-observation-stale",
+      "microphoneRequested": false,
+      "publicWorldInteractionsSent": 0
+    },
+    {
+      "engine": "firefox",
+      "browserVersion": "firefox/156.0",
+      "startedAt": "2026-10-02T00:18:08.832Z",
+      "finishedAt": "2026-10-02T00:19:50.601Z",
+      "rawSHA256": "b631cc981fcef4b5732d5de8cc72b228314f1c73fb191eb418d3a8121408432f",
+      "rawPrivate": true,
+      "completeJourneyPassed": false,
+      "sourceAndDistributionUnchanged": true,
+      "sourcePinCount": 71,
+      "distributionAssetCount": 15,
+      "loadedModels": 295,
+      "invalidArrayWarningCount": 0,
+      "otherModelWarningCount": 1,
+      "pageErrors": 0,
+      "movementMeters": 4.433038983867717,
+      "nativePoseDifferenceMeters": 0.00043907320389437936,
+      "reconnectedMovementMeters": 2.9565685072624075,
+      "reconnectedNativeDifferenceMeters": 0.00023047179766717192,
+      "fluidGates": {
+        "steadyFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "walkFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedSteadyFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedWalkFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        }
+      },
+      "gatewayRestartBeforeBothCohorts": true,
+      "failure": "original-fluidness-gates-failed",
+      "microphoneRequested": false,
+      "publicWorldInteractionsSent": 0
+    }
+  ],
+  "limits": [
+    "Both actual worlds load295models and no prior invalid-array warning. A remaining independent image-resource model warning is retained.",
+    "Chromium passes the initial steady/walking fluid gates, then fails the original2.5second native-observation freshness assertion; rejoin is not run. Its native stream interruption is not diagnosed by this capture.",
+    "Firefox satisfies native pose and reconnect assertions but fails all four unchanged fluidness gates.",
+    "One ordered cohort per engine establishes actual parser behavior, not general native-session stability, cross-engine FPS parity or a loading-speed improvement.",
+    "Source and distribution are checked against the exact published commit; the own gateway was restarted before testing. Native session helper hashes remain private in the raw reports."
+  ]
+}

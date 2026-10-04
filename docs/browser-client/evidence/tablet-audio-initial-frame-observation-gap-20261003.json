@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "kind": "actual-initial-audio-home-frame-negative",
+  "browser": "google-chrome",
+  "status": "failed",
+  "completed": false,
+  "cleanupVerified": false,
+  "sourceCoherent": true,
+  "hardwareAcceptance": false,
+  "processingAcceptance": false,
+  "originalStepsPassed": 1,
+  "originalFrameDeadlineMs": 30000,
+  "originalReportSHA256": "dc1ed7f4fbb1fe53650daf1dd6853a4ffaaff2f0e592d5193ee5998060436c49",
+  "originalSummarySHA256": "6bf77fe13a2acada7c9566f1d1466ec423828f2ea68bed859b00c5760074f94d",
+  "originalWorkerLogSHA256": "cdf901863ecffa7ef7d82eb839b4a215d58fd1988e69042d6e97fa5686ebc274",
+  "retainedFixedProjectionSHA256": "fa3dbe11a07624fc4dd7b2a4c4275bb721ec74430fb19d31b7ff3ff938d35039",
+  "copiedCaptureQmlSHA256": "669e8e52ed1784b1f7cb374942654ccd799b6307c9dd97ba8bfbba9badbd6152",
+  "observations": {
+    "helperReady": true,
+    "helperAccepted": true,
+    "captureEntered": 1,
+    "grabRequested": 1,
+    "grabAccepted": 1,
+    "callbackBeforeSave": 0,
+    "saveStageReturned": 0,
+    "frameQueueReturned": 0,
+    "captureTimeout": 1,
+    "rootCppObserverRows": 0,
+    "renderHeartbeatRows": 12,
+    "censored": false,
+    "fourScopedDrawJobsPresentAndDisabledInAllSamples": true
+  },
+  "sourceScope": {
+    "cppOnlyWhenCapturedItemEqualsWindowRoot": true,
+    "descendantUsesOriginalJsGrab": true,
+    "oldCounterProjectionRequiresCppPrivateGrab": true,
+    "ordinaryTabletTargetSelectsNamedTabletRoot": true,
+    "actualCapturedRoute": "unobserved",
+    "actualCppAdmission": "unobserved",
+    "windowSynchronization": "unobserved",
+    "schedulerCause": "unproved"
+  },
+  "ownedClosure": {
+    "runner": true,
+    "gateway": true,
+    "chrome": true
+  },
+  "cleanupGate": "exactly-two-profiles-not-satisfied",
+  "limitations": [
+    "mapped-module-does-not-prove-cpp-grab-entry",
+    "zero-cpp-observer-rows-do-not-prove-zero-window-signals",
+    "render-metadata-is-not-elapsed-or-gpu-cost",
+    "no-performance-or-remedy-claim",
+    "all-original-gates-remain-failed"
+  ]
+}

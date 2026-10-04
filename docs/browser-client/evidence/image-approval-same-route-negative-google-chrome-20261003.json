@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-03",
+  "materialAssistance": "OpenAI Codex",
+  "scope": "Actual source-bound authored Chrome PNG/Session/Three fixtures; not online/native/production acceptance",
+  "source": {
+    "worldSHA256": "fd86e005c4b24c055da051a0a38385b8f02b25b0945d001bfed9ac577578e4d0",
+    "imageCacheSHA256": "5e3098922fde0a021a605596917062210168f210485783709f24ccc7ea89788b",
+    "sessionSHA256": "79d78c5c170917c79c5d740456a419a5656528ea7a961ab1ef2b3dc92e2779c1",
+    "fixtureSHA256": "f38feb2db7b22714fb4699ab88a8a7225556bccefc694bbed97652b1b153076f",
+    "sourceInventorySHA256": "61cdaa0cd061cf98b5ec0dc0569ade047ca906fffc49916c7717cceb10078872"
+  },
+  "chrome": {
+    "product": "Google Chrome",
+    "version": "Google Chrome 154.0.8037.97",
+    "executableSHA256": "6c792041b07547a662e1b17974d1dc34a3db630379b45d9d89ddd7e3e68cc587",
+    "renderBackend": "SwiftShader",
+    "passed": 2,
+    "failed": 1,
+    "skipped": 0,
+    "reportSHA256": "ef42acc5ccc3f605565945a3ffb4e4e76ebbca36e3c06a17bbf6d5a34eff258d",
+    "traceSHA256": "ee495a960a3f59abf7f50a7d99c7b7777b1bc38e10021f68da2d0201c21e70ba",
+    "observedChromeBirths": 8,
+    "observedOwnedBirths": 14,
+    "ownedProcessesClosed": true,
+    "ownedProfilesClosed": true,
+    "ownedViteClosed": true,
+    "sourceCoherent": true
+  },
+  "observations": {
+    "sessionIdUnchanged": true,
+    "permissionRevisionUnchanged": true,
+    "logicalSessionAssetURLUnchanged": true,
+    "oldAuthorityRefused": true,
+    "newImageAndSourceIdentity": true,
+    "expectedFreshPixel": [
+      255,
+      0,
+      0,
+      255
+    ],
+    "actualFreshPixel": [
+      0,
+      255,
+      0,
+      255
+    ],
+    "oldBorrowersRemainGreen": true,
+    "matchingHTTPRequests": 1,
+    "HTTPRecords": [
+      {
+        "method": "GET",
+        "status": 200,
+        "bytes": 79,
+        "bodySHA256": "0ce0dafde0455dc4c0ee0bb1957ee68f7c39a6668c155126ac5697816b559faa",
+        "cacheControl": [
+          "no-store"
+        ],
+        "resourceType": "image"
+      }
+    ],
+    "cause": "not-established; actual same-route stale decoded bytes and no second HTTP observed"
+  },
+  "fullSourceGates": {
+    "initialUnitsPassed": 2557,
+    "initialUnitsFailed": 2,
+    "skipped": 0,
+    "logSHA256": "537de6301a130e9bd7543e34cdc547f9e282d12081e10eba176a0ee34a7510ad",
+    "limits": "Historical documentation fixture and explicit readable-file creation repaired separately; no fresh production distribution receipt yet"
+  },
+  "firefoxLaunched": false,
+  "enduranceTestPerformed": false,
+  "managedServicesRestarted": false,
+  "nativeDomainAccepted": false,
+  "publicWorldAccepted": false,
+  "completed": false
+}

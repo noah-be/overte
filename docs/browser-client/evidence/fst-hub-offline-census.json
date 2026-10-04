@@ -1,0 +1,969 @@
+{
+  "status": "Offline provisional graph census; synthetic templates, no rendering/auth proof",
+  "mappedFSTs": 94,
+  "cachedFBXs": 124,
+  "cachedOriginalGraphs": 92,
+  "missingOriginalGraphs": 0,
+  "uncertainPlans": 2,
+  "graphsWithoutProvableOmission": 92,
+  "plansWithProvisionalOmission": 0,
+  "removedTextures": 0,
+  "removedVideos": 0,
+  "retainedTextures": 0,
+  "originalOnlyURLBytesUnknown": true,
+  "measuredSavedBytes": null,
+  "originalTextureNodes": 0,
+  "originalVideoNodes": 0,
+  "completeDefinitionRows": 186,
+  "unsupportedDefinitionRows": 28,
+  "plansWithAllDefinitionsSupported": 84,
+  "materialNameSelectorMatches": 213,
+  "materialNameSelectorMisses": 1,
+  "entries": [
+    {
+      "FSTSourceSHA256": "19492d97a9ae8855e52432fcfe9d3edad3e8b69299296faa8efa151991297129",
+      "FSTCacheSHA256": "9ef14d0985be80f1887f8ed35136ce274e1f25c0fea9a2c767372add5f552d43",
+      "FBXSourceSHA256": "7643fd31ef970ee3e631c316bd69c430f868ef4919b808eb238e07e6be2f501d",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "5779a7f5dd7e1e5a69f7925663c33f4bdd33efae24e2ca311c7ce38d3745fcd4",
+      "FSTCacheSHA256": "ed5f4c4d3a819955d96c13ec335738000dfc5b1c5a00c8143cc93679240cec44",
+      "FBXSourceSHA256": "603d4cf9f498f2744f552893afdb8dc8242db19c1ca48b9ee37508ea81b612f3",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 4,
+      "definitionRows": 4,
+      "completeDefinitionRows": 4,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "7cdacf5c0f9a9ee3446cb5e447fb04c203ee4718d9a6f2167753ec127cbc28b9",
+      "FSTCacheSHA256": "2291b40c29640790c79a1327918df9b8c0547a9048da02947af06f1a65eb907f",
+      "FBXSourceSHA256": "fe22261538b64218bc578cb78d878e2ce6beb735dafcff497c76d4738c7e175b",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "a197ec201110da49613a997a886b8d2349203568d47469c8440de4f97d05b322",
+      "FSTCacheSHA256": "18b838b0112189d685f0e0aa4acc46fdf1a60daa830cb66b031a150989474bbd",
+      "FBXSourceSHA256": "87915ab9ded842fccfe249c420a7848037cded5518ab4e80311001488d687643",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 2,
+      "definitionRows": 2,
+      "completeDefinitionRows": 2,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "2eb2ac6bc89b695ec499ec70cde67929510e9ab36e433a02c678875ffc724bf3",
+      "FSTCacheSHA256": "f1b31dfb81ba695db8e2c9e843448ee9ea629af8d8ad9d93218f7ddfaa20cce8",
+      "FBXSourceSHA256": "b4040e9c8fb877055c3e749a590c3323a2032a7c48555b8a2820658c0d25f5f9",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "e62876f4cd26811881ee7e48ec2a7510517e2c3bd29140e65a2f7598f3256b68",
+      "FSTCacheSHA256": "5cbb73c52a1ac0078c8971047b69c82bfa7cf013892afb0d787760696c590ede",
+      "FBXSourceSHA256": "8df8e0d4811d60277fd9ce4394e386a01d34764a5b86ae3383a93ff9f7b6597f",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 2,
+      "definitionRows": 2,
+      "completeDefinitionRows": 2,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "ff6d9bc460a46c9807d736a478d0ea2da1211a13315ff770aa7445062ce1c7a8",
+      "FSTCacheSHA256": "57d375abc0936576c624e56f43787238f72649f63996308adc86e5defe58f718",
+      "FBXSourceSHA256": "38d592ca53382e636e42774a9174b6494463edc8e8175e198a43747773e32c14",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "af77dbdd89309bdc753e69a7272d26bf562b158b952d4714b129e7bd80bea745",
+      "FSTCacheSHA256": "75d4d970d452afd8881b19e2fe74cdaf4e03eef64fff064fd668794bf8b50b15",
+      "FBXSourceSHA256": "7ac365e8a52481730a34cfc22c384cfa538e87b3e3f90024a55d7de18a3ad3b8",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 3,
+      "definitionRows": 3,
+      "completeDefinitionRows": 2,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "38c959e9a4cf805e81dbe8d96b717f6afb4c0e8b5f87fbc2d0300ce186a980e2",
+      "FSTCacheSHA256": "dbe9f8a14159ef970470c980e5ea4f864a32035bdabe2351c72a6c5e1bb67a6c",
+      "FBXSourceSHA256": "66cb8d4e5262fe843036daa95d0ac3d41f6f4192eec6756672db9e2e352db7bb",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 0,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "0cbcaa06c00ad0fef9b5a77d57b6a0f7f6d3f90f44f2bddd572225dfd135413f",
+      "FSTCacheSHA256": "1c947abf5242a7b5c2ae52266cda034588d7f3785bd94a64013489773eed2bcb",
+      "FBXSourceSHA256": "858aa5245890b98cbb6e2186583968bfdbae1f2465a710b466912a105a53afa4",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "23254eaea30a22f785f47934114250ede9b85ada805bcd41833d297236d2c6ad",
+      "FSTCacheSHA256": "9e84b467b080028948b8066f6f04bf99032310ac7864ccf502215fea395bae0d",
+      "FBXSourceSHA256": "5b3ad6ceb5cde7c357f97d75f5197c197f8971d7706d00897fe1a9a8441036b7",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 2,
+      "definitionRows": 2,
+      "completeDefinitionRows": 2,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "7a93caa6c2502f29e23574270b9354a52d16e060bd5ecc83c2982cea6cdf0abf",
+      "FSTCacheSHA256": "5acd700c4b01942be28361809d68d4f80439aa07457be90ae3dfe1f2bf005d2e",
+      "FBXSourceSHA256": "f1672e881d243a92d76d50ac1bc5e2622576b0c0f3223850a8eed3f7cfa9cc67",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "614c6ede13171e9251cf92fee28ea64f219f80f53fe6adbd05d25a16a201b286",
+      "FSTCacheSHA256": "7bd886df1d7a50b63b0cccc1a921a2c69ba56f562f797399a42d7730c7a98cc7",
+      "FBXSourceSHA256": "5247e3f2f104ba5f4a8b306e741fb0dad9f94c6b707bea5e113773070934059c",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "29d81ff08f4a0c92d5412b1af8ebe954314abcc64555452bf98c96b7981e3f94",
+      "FSTCacheSHA256": "bef117c1edcc7ea782218814e4829571570501e3469f321420c9105113a472f2",
+      "FBXSourceSHA256": "a5f8e0e11f71da9876d90117a3bb93602d35a76c5647949f1e1b9a22e34a294f",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "e71969835215cdcfb56dfcd28b0c525dd172977288b2449e7f97ff5ca9ff40f5",
+      "FSTCacheSHA256": "1d61cdaa25e7856a3d2bd643114eb667c1d73463815bf260060423c11a393597",
+      "FBXSourceSHA256": "fcb950fb81159d957e8a8a6d67e92a8a8ebb38008c1bc7e95cc93000079f974c",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "161719ecd8a618c9c810e8fa1055ec65410550c5e55fd2c64e054ae7bcbc3abb",
+      "FSTCacheSHA256": "ee062dd7da2d1a370e754874dffd772af6880b13f42fff55670057cbd8edfeed",
+      "FBXSourceSHA256": "1fae5e7978f4c35089d1cd4d9074d50dd4bdc677f06e5e78b7be6522609c173d",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 2,
+      "definitionRows": 2,
+      "completeDefinitionRows": 2,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "b1cf0aad43b579c56a2be5bcdccef47520e78bbc7fe7181b88ca4b9534e093d8",
+      "FSTCacheSHA256": "2ad13130740293f60420b34bae4634476c15955af273317ab9215cd405518714",
+      "FBXSourceSHA256": "f690e45227b3a2ec6f4eb1877cc6cd747aa94680c6ce21c7f3c964fbe623bcbf",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "a01de5feaf6b5e6b5f688dd8a9b26c2678a288eb5c95c9b0ce6c5f782b46bbbb",
+      "FSTCacheSHA256": "e85ca79022fc2219d47342598fc3f699e54b60e7bcd17dfc0b2d05400a0b0416",
+      "FBXSourceSHA256": "893e610d0e53aee99546f30c22bcb3f14dc6de6eee8b354949bd56a2e43d7981",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 7,
+      "definitionRows": 7,
+      "completeDefinitionRows": 3,
+      "allSelectorsMatch": false
+    },
+    {
+      "FSTSourceSHA256": "f85d88cdd1253cd764a94720682849ad16015f4391525832690a8ca6fec902d9",
+      "FSTCacheSHA256": "9b2bb190c100d65f05327bcfca48210a8adde9cfd7e2ec856950e6da518b5e7f",
+      "FBXSourceSHA256": "c05e42b438d80eb37a46f7edb0aea345ad63367f9825adfa84635e26380f3a77",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "d0556ee60a904b70628cb75233dd8520f0724c35acedb35f8334d159387bb70a",
+      "FSTCacheSHA256": "776e701572614b076e0391961a959a3124b42386041eb7ef1e9e9ae64e10a75b",
+      "FBXSourceSHA256": "0ce6e4897da516ab75e56597014cd8d3ef9b7c5e9ca1438b560ab6492542c34b",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "9002f7ad44e5aada3be1ff79a4187088269d2366e9ab087a88f4e05a877de972",
+      "FSTCacheSHA256": "e661bc329d5830990bc3ce70c6f9ddb7cc295aa4401b7bced32b710df6bad5e7",
+      "FBXSourceSHA256": "ff4da12b58896997a1ff34fcc7e10b0a7564ad534029fe26c1fbb70f53a50dbb",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "f15aa916d63708b46933f612a3098d6561c9be7f29d2f62b921d84db250455bb",
+      "FSTCacheSHA256": "06e6b9fc0f1787073954397aac332f1a7a84f7e35b0582dc11db9a89e7f07d6b",
+      "FBXSourceSHA256": "5ea0d86d5433fcce93846a7e46dee9cffa665afac531e5f749add66315123ea9",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 3,
+      "definitionRows": 3,
+      "completeDefinitionRows": 3,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "33c394dcad517fd2a01e43ada53a4541a41aec8e3db70a70ccfa9b77489508df",
+      "FSTCacheSHA256": "dbca5320f61481bbab6e5ae66395d5941dfd0b17d6715d927446558e78bb2bcb",
+      "FBXSourceSHA256": "61b54302e20fd4225f993467db7ce10e9fb1ca06c55bbd4877cb1605bed75b2c",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 50,
+      "definitionRows": 50,
+      "completeDefinitionRows": 50,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "32fcd59657bc5c1fc84ad3317109e1953fd616c67205170528e3028db59be5ac",
+      "FSTCacheSHA256": "e43525f3024d941ce2769ad468e69641f3aa3fcbf4bc3c42c4f4cab8c398f06d",
+      "FBXSourceSHA256": "4052ad64153312f9e5b20104f11b4c3382bcf6993eecc17c13f4c7fb49ab8439",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "e388c36d14c9bf616cc58679258e867ba1e5c994dd8bd51a2636d5f79c98a61d",
+      "FSTCacheSHA256": "0fc071027ac1dc3c524eae6c138b8db7231a84743a271385600f93b2eda1d0c1",
+      "FBXSourceSHA256": "27fb8f6505bf21a4d895471dc3e8a1cc302b39d728cca9aa4cb6f6c6de504aed",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "211585b169f081c4122fdf716116257dacd502de2e65325b316d31c60cde37b1",
+      "FSTCacheSHA256": "a359e2ae73686b6772aaf75db24f15ae06c9879bb14eab2efe75fe71a5e15c7d",
+      "FBXSourceSHA256": "72f6ca4d39eb9774594d55981eab935f9b3e44ae8c6ca93fcb4f0fda9cdd3edf",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "1176e1a8d85ace09009b82960f49ea849c18a1d02bf736c44146f3dfc477adbc",
+      "FSTCacheSHA256": "f16c26699a1c57fc051296d1b1051d77d5b1c19dafec2d4259253e8e82328cf9",
+      "FBXSourceSHA256": "5c7edc66f503f7939c36245997e08a3bba3f22b30aec8bd08f031f0e2e1f2048",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "76e37874927a4b48cd6c5eaa26157f32a12adbf36109de6f79000babac7e49da",
+      "FSTCacheSHA256": "a3f03f8f74c4ed35789d0a0606c37b20d53f8b2e764b18721416496f9a6e4581",
+      "FBXSourceSHA256": "e04c717df497d56b1fa7f1a017b13475d8e898ca490b44cffea6466e894731f0",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "1acfcb113b490ca0a9e2d7ac06da66e5e51e16aa6e815cc2d53b09a585d1b0a9",
+      "FSTCacheSHA256": "d91dda2428e1afc60701818c6ebba66c382144ed42f7906f3a87d5458ee38fdb",
+      "FBXSourceSHA256": "64a8900a0007b240207e83fa0861f93b679a0928e4f49a4ca240f899ec9e1ed1",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "43797294214481e4edc8f756384aa04b339be6de1bca9ec8823829c84e27712b",
+      "FSTCacheSHA256": "47f49270ec8f0c204dfffef9e2e8ec6deaa2a31a5d8934501a4f1bc276b4c618",
+      "FBXSourceSHA256": "b637fabaf970fceaa013b2622ed5fbaf5cb6c4152feb83a6b46b99b8c12d6f40",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "6e438c7c0dd4d994ffd726e95dfaddac2c3e5c141b1ca286295167313e8d039e",
+      "FSTCacheSHA256": "cef6bf4abd0d0982ea6e13d6c424c86b1cd23f4843d9515f01e4588ed7de0e11",
+      "FBXSourceSHA256": "7fbbd1ff8b60d95d3f96a59fb2df8f901b80207104942e69cd2ac6f5da4df561",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "266a9163631033764185f79169fb93127e84b8e871c31ec342d75dc9c02f7f79",
+      "FSTCacheSHA256": "48092d2d722e1093acf7461a995874702bdc126d01d78be6b4e8b36a2c39c731",
+      "FBXSourceSHA256": "385aed355fab5c109578fd8cc3135a29c3221f923c376fc77ee5c143236172e9",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "885c68679c0fc56df4c59ee00b3501d4b0d2e78b692183f880424ff6c9637498",
+      "FSTCacheSHA256": "d33b34402d7f75a0d007ff387b428fa36124898c53f2a358e6a8407655789356",
+      "FBXSourceSHA256": "4ca482d65a115719193c125679c5dc77ea44e5611925663dfdd5ef62f5273681",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 2,
+      "definitionRows": 2,
+      "completeDefinitionRows": 2,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "f45f8bb7c54d811cdd6284706af5289193f01de987681ea849406f998e3ad5c8",
+      "FSTCacheSHA256": "148689ee1eb101f8cde3460fec07aa9b96c245d553dc96569e1dda0ffa3f7184",
+      "FBXSourceSHA256": "c76d2b12606e7f0c96a247ead1dd5d8d38ccaed28b3da288674d51dba676aea3",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "9d75906bb2749b57df67150f384b2a838c2cdc3bba8b1967df9c9c398a142f46",
+      "FSTCacheSHA256": "c4675734e149914a35be0d98e2d5c5cee7548eca5679e5f53d72e6a603d08b09",
+      "FBXSourceSHA256": "d63428d6c78fb308194b320be8f236a62bb257ada25831d9629972e4df091984",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "ad7c3fc897694ea48c17530ec635685dd777e60b8a5ed10272cf164b702c694c",
+      "FSTCacheSHA256": "1c6a0419682373baf1adba1adaebede0d7d2953cbb23b18ef62002c7856fde59",
+      "FBXSourceSHA256": "de1872817568d3ea5e2717201e91fcce82247cb88eb1d331b1f9e8ebd355d449",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "fd5deafba951e26616410cf5d5f996bdf4e1e7b9e7325371e521c6e6f8de2ac6",
+      "FSTCacheSHA256": "2758c6e9d76525b7dda4c3d4bf9267b87b60e729b118fa661183af9459a7445e",
+      "FBXSourceSHA256": "6d0cd20d5ffb0aeba4d600adc57f181f9e18e05fadb35c40c7c5aaeb76f801b4",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "aa35bd0953f2fa1d26029dba9ada3ee2756c4f40e200ca09f6b61e7a0bbd27e8",
+      "FSTCacheSHA256": "3649b8c72c49cc6b097ee69805ad866c1afb163cc1bafd64ed22d2cfa3a89c6c",
+      "FBXSourceSHA256": "7a1c27c88c2ba15f2dbcc619039b274e4a7d0a6b28dd253073216956e98b57b3",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "ec6c26d171f7d3520c89fdceacef97edc2ba62a9c00b9c7202158dcdc3a76e66",
+      "FSTCacheSHA256": "2fc03dee197d668c7fee8bdadb4343aa5b80615305e418c4cc3789c3314fd923",
+      "FBXSourceSHA256": "96ebd57a65547809e3a9b13698e44f389b4430397fb508f8a1d7055d110c9258",
+      "status": "original graph inspection rejected",
+      "reason": "Invalid baked FBX array encoding"
+    },
+    {
+      "FSTSourceSHA256": "063d22a39c3dec2f62bd9a8ccf99cdcd5e39fd51dec6d43a5c081534d0dba0d8",
+      "FSTCacheSHA256": "3b591c960ed84cba5d7decf6318d600f22769050fa67d9823c58df7742fa9b8a",
+      "FBXSourceSHA256": "3df462b11c314cbcd1d74b9bf8d5f1067ab6d031c0fd2db335dc88f526fd1b34",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "855e217685b71a9df5008f0f929de6a1b1f0c635a29bcfeebbe0c2e6753d940d",
+      "FSTCacheSHA256": "58e4849de1384858740d19cf993638652cd4aea6acbe4704a83dedc29d803d60",
+      "FBXSourceSHA256": "3636d334addfb4571b3f9b43e18e5ae21f5529d683dd9fe1db87c492b419cd12",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 2,
+      "definitionRows": 2,
+      "completeDefinitionRows": 0,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "42ad746a7dbd4b8010ba29afb7c5682d5effa609079e6f72bbe84af4d6fe4f50",
+      "FSTCacheSHA256": "16a9ca3738db04043e45ec8798a59cd17706808694c3c952ee835576bca18b56",
+      "FBXSourceSHA256": "212af9dbed89359bf7c1d357c59b573ca895d8d8d506cd40a3f5c0b77f8aabc5",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "a09153b6a98e1622a4416c28c1c06c78a6e03d022c198daeac59255333cb846e",
+      "FSTCacheSHA256": "cb004ec9a65b5650417dbebea1f9bb23fba0451a0a93ae3e3e4b5c394e4b327f",
+      "FBXSourceSHA256": "eaa070bbcf2a7dbb54ec4ed40967fbd3cb189e4e499a989b2d3c73587c26c48a",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "e851cd6e630333bb0ebe015b29e5eb26314ca1aa112a9c2c0558847543831454",
+      "FSTCacheSHA256": "ac75750792e7fa8354bcf487e7d0a485de3366ed4bcaa6d395c7c5650a1de722",
+      "FBXSourceSHA256": "a404f0e3d4a2b5936a22b5c5212ebcff6bf29a833677f76df3c7a69024055f98",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "dd250834b49e130cf8fbbc60e16de7661e345672e3f65fea3e146e6e4f57ed0e",
+      "FSTCacheSHA256": "e4cee4cdc6dac2ed8d2f8d7832f7ce0d63011f099bd696ec9c2eba1cdc9062bc",
+      "FBXSourceSHA256": "7990dee45b57330ac7ece12b8ebe3c2597835dcf2193a4436907f79ec3826f98",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "ac6591579ec5190cababc923f9574b3124dde252a529c790fe214dcc9b63771c",
+      "FSTCacheSHA256": "e5ddd32eb6e7303a9ac512939807c6d2d30d4d830f05df097536f073cca7926d",
+      "FBXSourceSHA256": "90df80cde912350bbec78be8359754754b47a5fe1f5b7ea258a20bf4eb4644a8",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "4fb7eed278490302eb5f28468285524f80ab3b0b1a62aa0f0cee70a04f22f3f0",
+      "FSTCacheSHA256": "21dd8ea5d42da11b4ba2b553828ef2164bd92dc0de4cdfe77c9af7b542a51832",
+      "FBXSourceSHA256": "9d9b60c2e4911003ecde7a036691f47a996f46010228e39a74556a6d6dade56c",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "361e83d415ef9a30d9cc302a62165833bd0b62fb9e1d46b60b13a58be46a1183",
+      "FSTCacheSHA256": "a62cdb55f8756c60b1eaaa4a2ad9456544b719650758cc61390cef2e5efdf045",
+      "FBXSourceSHA256": "c346bea2a280f0852a98806cf6e8e981ddc041d69dbfe51007482a306677b582",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "eb6697160c20f9c7de8276fb7ea470a50b447ccdcbdea6c46773216cfc733bff",
+      "FSTCacheSHA256": "b98bcfa3e5d69fae7fbd01b35a1dbfc638a6562dca372206191961b49ed007d6",
+      "FBXSourceSHA256": "0ecbb0398e9128547de4f540418fdd2a540c1f05ab7e88ea646cb85644815780",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "32d98b7d98dfd8625c5ae4fa0f77ae5009f06f7342e29d0ea3b7f107935aa7fd",
+      "FSTCacheSHA256": "b14600e501e03216872670a254f292c942ee6da7bf14d695bfb81c0170908d16",
+      "FBXSourceSHA256": "16ecae2c10ad9ca4ab44635e892f9cc1fe6ffbb342812341bf4c88bb18eb4a5d",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "263ef0b74f1d00413c5363a066b7e61a3092622c02fac89374ea621f02878007",
+      "FSTCacheSHA256": "948dfb578a20fb9776beef11092c186935fcd7fc7d127023789c598b01c05887",
+      "FBXSourceSHA256": "2b9f0f0c6e1e251178f8706f2c54e1309892f09fa9ed57ce6db46bf919e95602",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 4,
+      "definitionRows": 4,
+      "completeDefinitionRows": 4,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "c75d5c353054364027fa29c7f892d96c3216a8943ca9a873cdc98d17548edd7e",
+      "FSTCacheSHA256": "5463a0554693f44dd6c34f31248a2741b32a6065a57cf666a892e1181ee7c8ad",
+      "FBXSourceSHA256": "bf0f047f48ce4ce314ae910ac17392eb9130d089ca3c5ce3bcc51aa82ab17616",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "2783e184212ac9b6eb101edca24dc9ea1ddff026833266c2929616c96cf80c49",
+      "FSTCacheSHA256": "8609e0a5beccc0e46dd524805a8c7f82652101264a4d0a0c24b28cdf87e4827b",
+      "FBXSourceSHA256": "dbe37f6934db13bc6d7cc90ac42de3ddf84bcb106faa2429e60b24aeb85d97cd",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 3,
+      "definitionRows": 3,
+      "completeDefinitionRows": 3,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "547654d31876823edd199eec07ab42d539cecef060a6359d06863afd45cc646c",
+      "FSTCacheSHA256": "e67ce2f8a92aaa2fed081b20d956a1d03772a604328472d232aa780df9814b04",
+      "FBXSourceSHA256": "d05079c7c507e554a601f55bd86bc59d0e1776a7234c40644ff9658136b223aa",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "218d7c982948176adfaf55717f5298d9d4ebf0e5af4d9eae203380b7bc2311dd",
+      "FSTCacheSHA256": "4029f4cc1d1cea6b114a6383eb00659d49aa45a7679dd3699ca089bed1892120",
+      "FBXSourceSHA256": "29adc84578280d8449ec3e36121ad1901f022e9848b6bf4fa701106efe5f5e3d",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "ebf8eac2b3e19574e15e02162c36981da7607093abca237b5544e2c87ab63178",
+      "FSTCacheSHA256": "87d317f0231a5881993bd26bc61a932c59f8774aaa918f83e3b12c4569b9d8c3",
+      "FBXSourceSHA256": "88426071db6753b6e5ee36ea6e273c18378c21cfe5a74281356898af22f7b6b1",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 2,
+      "definitionRows": 2,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "5375cecce503bd07f9f9c8ce1ae2c389b286d063f42c06595013d98e6abde154",
+      "FSTCacheSHA256": "efcb665ae5f28c26ec02bed9ee01f30b9df247b95f0e7a8642efc7e9ca70d2ab",
+      "FBXSourceSHA256": "582475e3006cb1c8ad016b959cf381f3c5ae4769035269451772194a3a2575ed",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "161c3ab002d64997a1974e30e65b004844190b4ebc469d2adf987c11067a99ca",
+      "FSTCacheSHA256": "0156ce2365ecfc9e2e5b27c5d5543653e5505a1e1e74f5c9fe61db2f02c34c87",
+      "FBXSourceSHA256": "7aa217ee08870fff21ba06b0bb4f5f511f119f3b8d55662f1d1c2f23e759593d",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "cf83ab1bb58087c010b63b6e93f09d5197fbc6de6f462fa9547b89f81804f71e",
+      "FSTCacheSHA256": "05d27131ef3cc33c8d5bbe7532ee5d150cb7b8b59637e141ea0ba30b6f2c5e6c",
+      "FBXSourceSHA256": "60ccb0780b3964ec8e58001a4bedeb5f7a11da0844e5dcc3bc151ba7b07a2509",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 2,
+      "definitionRows": 2,
+      "completeDefinitionRows": 2,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "ff828e98f6b284b96714bb9b93f4b92833fc3d3872e9921dcd9294f339d8d00d",
+      "FSTCacheSHA256": "128d74f935c96d5a74a8381a6ee0836395fd34524995b0995860c343fbdca7e6",
+      "FBXSourceSHA256": "c0dbcf753102f89211545d4a2eeb04f63ea6dc1bd1a3a968053ffccb09a67aec",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "fba9c3f3b20e6a55c6adb258dfa65f3132ba4e7e2d32228aaf2d0bcdf2a08d83",
+      "FSTCacheSHA256": "3c37a1683bf8af621f7c0447a7141f88605c7b65149a4bdb61e6300f67c1b622",
+      "FBXSourceSHA256": "b0a9406b2cc8fc64571737c3d7f9e195518caa2edcd01f230aa41281d24e02f5",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "4c7ab671dfa3cef3b4d2eda2903d8c67a2b2caf731136d2df8598a8554853145",
+      "FSTCacheSHA256": "69d8d1b195c2a142109172d9ac24eab39a7a0313b1fce062320a78386c56b9f4",
+      "FBXSourceSHA256": "9bc09dcd63cdd92611fe3a68308eaa3786aeda1d1892eb13890519ffcdcd1ba1",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 2,
+      "definitionRows": 2,
+      "completeDefinitionRows": 2,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "ac421238905d993eeb02713b49ab4d851ffe6ecabcce17409b7836f1eae7f9be",
+      "FSTCacheSHA256": "55c791f1b0263c4aeb02928e8f59211ff6cbff830a1718c5c83edbac9c92aa5a",
+      "FBXSourceSHA256": "c9c690da2bb5e201ce4406ab0227b81acfef96c39aaf8e404a662e80e36d2fa7",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "ffc7775cb40574ff9632b04c4ee44f9023096e4a17781dbfcf80ab901a878449",
+      "FSTCacheSHA256": "b2e5df5ff2b7aaff7fc1667269968a10d44693dba2809d5c6663f97fea35b489",
+      "FBXSourceSHA256": "c99130ff67e4429da11d1f0caf97235385e28faf944609c2e6ae9c02e845229c",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "fb26ae8b8cc1693d4a9ae87246252a5f99e1034f823d166b3232dc1cd6a8c51e",
+      "FSTCacheSHA256": "e60f2cc7aabd593759047760acf6fdf871ec36c4cafa82be72883f3150459338",
+      "FBXSourceSHA256": "1303bc09977629d354f8ed1ac8572723ebf951e18747638880c5c85903d0594e",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 38,
+      "definitionRows": 38,
+      "completeDefinitionRows": 21,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "a8a5a618e0b69593d4dd4498bf5a5249dfeb96915c735502bcc46a4d08dadf64",
+      "FSTCacheSHA256": "d64242e43472c26ea5bdb94112610662e134dc45a1951ea59f8827d5d6f95e8b",
+      "FBXSourceSHA256": "34c6a9cd2c839adc5c9f305bf2b50c3f2909c3642321a66697245a45491762c8",
+      "status": "original graph inspection rejected",
+      "reason": "Invalid baked FBX array encoding"
+    },
+    {
+      "FSTSourceSHA256": "aae1841f5dbde7a2769a0b4de38bfd187d3b85d1b52722de437a28a4a7a31fb8",
+      "FSTCacheSHA256": "085d198a3a04b8bfa5c518d287db9359e63d0fbea4f271a90d5063027921826e",
+      "FBXSourceSHA256": "c905d72d27d873105dd4fc38d1221f0a125af5c4d71b2d31e1eae9a4448ca616",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "4694c3682b63b14a5163e6de3cabb789199e797488aeec3bc09e00ac3ecaa3f4",
+      "FSTCacheSHA256": "2091018cc66201d040cc51f0b1308530e27b0f56e1140c030e4dba803b9ee57d",
+      "FBXSourceSHA256": "46047b2e3ab9ad5c9a165176821cd86fab5d5f7802ff6c4f1012d20e3a64f619",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "b58bbeb613ffd7823fbead83497f4f931bd3cfcca361f8c3c7decfad3afa7c58",
+      "FSTCacheSHA256": "1bd2a837f9e8a2da8d1e25c286e3a556db658c5c9f9417ac5c99bf0b5760728c",
+      "FBXSourceSHA256": "35645e04a6125dd166b9b24e960f3c2de61ef5621a8be4fb8a22ea53edffaf24",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "8481a7cccefb33497efb299b936dbbcff86c9671ae342f2a5415335ee3ee557b",
+      "FSTCacheSHA256": "a96935397be22f1f6e1c31ed18cfd100654f6c413c1df9028c5ca95e1b32089a",
+      "FBXSourceSHA256": "e7623cd56c70e13650cb84fae6a25023a45c391fd179ac49f3b3834efecfc307",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 2,
+      "definitionRows": 2,
+      "completeDefinitionRows": 2,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "365f3c702f7db7de9c55abee80acace52c863d72d9192f1ea57e634dd1a171a6",
+      "FSTCacheSHA256": "c010e22ae8a148eb4d3971884e03c71efbc81c993efb17d20ddd65c55481b4e3",
+      "FBXSourceSHA256": "ddc487319fc750228d3a6623415049ca95e1b4a3b558e39369ae810c3b774799",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "cc9625364ecd95da9a7ed412c52230365704a230f21608f6c4350f1913f03bef",
+      "FSTCacheSHA256": "280def29b7cdce351c0f72baac5b247a6d6ce9370032e59fabd544320040993b",
+      "FBXSourceSHA256": "ac9bdc4f2c2c31b073c4e5d24ae09a4dc55a9da7b62406cb0d9b5e1f2f424f44",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "eabaee4cbeca8916dbb0a4400f183b6160790a0a196c0432c9ca5732e208fa3a",
+      "FSTCacheSHA256": "dfa8cd8a9e03ed2370c16fdb6a6a5efbd04e2fb4c20929fb7c1127c1becbf1f5",
+      "FBXSourceSHA256": "ce4c719428883f206c32291775e90a1080f27d7761b8391486378f822b6f2d1a",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "14e7d7168c4a15dc64670a2ebba62cc565f6974a7f69dacd85d6aa3c0c8a4da8",
+      "FSTCacheSHA256": "1340e1ccae64c5791081285e87d9cbdaa1c069d1105fb2f8385ddd29b50dae1f",
+      "FBXSourceSHA256": "d2e966ead5c291118f454270e9cd60a946bf741082255589d591bc5bb3228fb5",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 2,
+      "definitionRows": 2,
+      "completeDefinitionRows": 2,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "038dc2b439ed937a6f1c69d42a2ad7e999fdd240199bce09b043b73e29649b1e",
+      "FSTCacheSHA256": "825053e82aa378a0b6f5eeb76f984318ffa4f10b228c3caa1666e750bd07fc5c",
+      "FBXSourceSHA256": "e463d88eff3bdfdf342b5d21e0bb82e1b6f6952d6bbac4d7f3591fb3dbaa64cf",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 2,
+      "definitionRows": 2,
+      "completeDefinitionRows": 2,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "21d6c5deef7a6ca8e709f41e5eff4ac46441f98a8cc6b7b3a10e5f76ec75d5fb",
+      "FSTCacheSHA256": "727bdd1013ace347e7f1cde0c1724c70abbf65c0aa6b547e66246c4e19678409",
+      "FBXSourceSHA256": "e4c1833dcaa71edf6bfae7266daa83f1f1f91aed112df662353d35c7475165da",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "ce5ee233800018893e0d4d8f2d6fa1207e3dcd76a121dd1775373d9085dcf086",
+      "FSTCacheSHA256": "0e42f8d666cb0952fbc2c88b23293afb38fe4756784e3cddd768c2fc67a62dd3",
+      "FBXSourceSHA256": "98cd4d3ee9424581bbca78fb187b44fe262b6a7270fad550c4d28d849b94a045",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "99d438e58854f57a329254d02c4cc64464bb80bd2cc030c2aa24f3641e07b7d6",
+      "FSTCacheSHA256": "40df8dabbeafb03c27a81220d01627e7f6308f76044a05d2255dc59f91af0a58",
+      "FBXSourceSHA256": "57dc59f3c5103355bd44d1bc2d5dfcf0afe10163dfee6523537129d097fff30a",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "05cf5d8eca85e3843375825d2260d7acde128dc68bc8a12af312411e34d91976",
+      "FSTCacheSHA256": "772f9d0b0bfeb8622407fcb7d25f0c5a070d0eb5540fa1068962839bf809ea37",
+      "FBXSourceSHA256": "0979645ce12f507db64a39cf2cc637e9f1dba2e44607199b9507164cc19f3a48",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "3cbb53c340cc28f0711afcf7fb16be51ecd00959a213624a2eaaeea16360893a",
+      "FSTCacheSHA256": "31e5fd84dce474360bca9fbe312ea8ec52ef7dcf5fcb35332f017c097e54adb7",
+      "FBXSourceSHA256": "dc1031c9f0f935bccd3148f7a6695cc8a08e42a65af8c3ab697e5f402d6a699b",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "276667c23e87c5aa65e209c942f90f96dec0bb2339f76be60bef64e3fb499eb6",
+      "FSTCacheSHA256": "4545ae62e52d3d821f480afa0eda9f4eed673944b3152cffc2b298f305efbead",
+      "FBXSourceSHA256": "395689b282339a6a391f6e4c6505c1f9bc12499e13a1879be964b75c5d6778a0",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 2,
+      "definitionRows": 2,
+      "completeDefinitionRows": 2,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "d5dffc76c47b836f2384d3437277918156b984e08a76a952379770c036f41fee",
+      "FSTCacheSHA256": "7ae6792282f2229572f9344e8321b10579ec71159ad611d685e46f26ab42d191",
+      "FBXSourceSHA256": "b55af3926cc8e9f51c93230bbb5a5d59d6864c99c181179110af8e69572ce308",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 6,
+      "definitionRows": 6,
+      "completeDefinitionRows": 5,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "6d299a5f58ee724d5ee304eb4e1b8a62c4a14ca48a91872538ae05216702f4f4",
+      "FSTCacheSHA256": "5a6e833f6f43e52fb9d5638eda56cf2113db745adc852f43cf687dfe525f24db",
+      "FBXSourceSHA256": "1a4a5926ca61a44e8b34e51986d003a23cc5a1f1a22072b16473753d12c93e0c",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "8e9d87fb8988770733b671bb2f82cb38aa8329d2cf56270947a6daf17dce7f9d",
+      "FSTCacheSHA256": "2643d83181c4e53bda467e14ac063ca91849d6bf8fbbcdd3789d94eb4a796bfb",
+      "FBXSourceSHA256": "d3dcc38640d27ee6bc21902125e22362050fd1a56418861ff48a1cbae6da028a",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "0b067db78d2af2fcadc322159d1e4ba94acf186099e7c68c98d7cd967bf28cd1",
+      "FSTCacheSHA256": "34f223f102acc3892444eeef8560221afbe843d9f4424b3926ceda0115c32d46",
+      "FBXSourceSHA256": "004b2923f9f7fcd51f80d271dedfd18ec13e76b0da6e37f99a1545b254bcaf3d",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "95332a1cc2764316219348a863203b2abd2ffa5cf62e9561e05a309ec0363cac",
+      "FSTCacheSHA256": "58b7cc86fa5ed6b52b0960f14ced90cef432015add18f70938d97fcd61023aea",
+      "FBXSourceSHA256": "921d87bb14f6108c5b8573520e2206607ac83f5611513454f82811b1e387fe00",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "9aa2ae567cec452d034c113ba91870cd8d5d82b4b20448a00f2078bd937e0407",
+      "FSTCacheSHA256": "6431e247562f7d16246b3de417959fe4fe8dc5825887f8708e57ef6a7fef5158",
+      "FBXSourceSHA256": "9ba4d0e706abfc4fcdf6179b29e8082cb8402d1d40e70575b14b04b7012e4ed0",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "4d43db920fab07064f6546b674f9707cdf3bbd13ceef7b0e55052174d04b1a55",
+      "FSTCacheSHA256": "2999c8099e051089928b73737db766bc99b28fa7bfe7b51712aacba073cf8b12",
+      "FBXSourceSHA256": "38fe4a352f36df2d94215b420abfe6caf4f36ab395df36032a0d385d6c1e4bc1",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "f668e469af1dcf5a5d073ba8086083293c856f4b2cddb5174e6278e77157dde2",
+      "FSTCacheSHA256": "f77f2c5202aec63915b8824fd858f7a1fb8b0412d3fcf6baaee823733eb82ac1",
+      "FBXSourceSHA256": "210546f8f984b75fecede7184b3e6fba2e05e0beecc399fbe65e1adea12e81da",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "bd92f175eacfa22537a6ef5a65aa6f3c91e9d4cc20233fce62f41591def51d4f",
+      "FSTCacheSHA256": "ae735948c849ea12ee1297cfd26672203ff887e812b71a90ae6eaf7ffa80cef2",
+      "FBXSourceSHA256": "5fac2024392de249a03376f18d06e251f6f152134eb69cd7994414d7e6ff2e77",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "643b1b18fed147c50f5eea6505a9e6c09463f320b32890f89beddb078ac99280",
+      "FSTCacheSHA256": "24d84eec8987990594ff96d8886110193f69f139b73b6e65740197a9676c3366",
+      "FBXSourceSHA256": "fa5567cec68aec58eb3bedb9a8a3bc40ef7cdf1647f5eab109e36b3ba7e0a985",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "dba62c7b1aca52af18df5ae7bf46da0338d01fcb8bee82757aaf142cb1985b87",
+      "FSTCacheSHA256": "5b2398cc812392cbf7d6601f6a6dedfb88207644b698c932ab3dc32d6d0b66e4",
+      "FBXSourceSHA256": "fef0a598d29e76a94c2c750b51948775e8ed7eac1106f54fcbb0fd54dd7b27b3",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "0526e415088c2e7a1bb727044e7a132a00ab71fa9bc75596ecf15a81a4a58904",
+      "FSTCacheSHA256": "74ad71014a3b9850e01ee2dd2b9451962ca8b926db209240129c3bb2e6fbd279",
+      "FBXSourceSHA256": "a729a770383900566fa85bac1aee4c31df9e1e7dab3b5d1abce1bebe1b81c9ce",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 0,
+      "allSelectorsMatch": true
+    },
+    {
+      "FSTSourceSHA256": "20f6de05dd5c58eeb5e52892f6c1bfc396f017108bc8513f4db49b593cd45441",
+      "FSTCacheSHA256": "f9fa17c4eaf12de0b4a823958f76f286f47bd6a6d1259b9110f49f58e7b5dd94",
+      "FBXSourceSHA256": "3433c962d7c16b837c52b153015dee78389cece548a370018897c16c883edce5",
+      "status": "conservative helper refuses or no omission",
+      "originalMaterialCount": 1,
+      "definitionRows": 1,
+      "completeDefinitionRows": 1,
+      "allSelectorsMatch": true
+    }
+  ],
+  "allDefinitionRows": 216,
+  "allSupportedDefinitions": 188,
+  "allUnsupportedDefinitions": 28,
+  "definitionUnknownFieldOccurrences": {
+    "texCoordTransform0": 25,
+    "texCoordTransform1": 4,
+    "occlusionMap": 8,
+    "glossMap": 3
+  },
+  "templateFirstWouldDelayHubGeometryWithoutOmittedOriginalImages": true,
+  "actualCachedFBXProof": "92 original cached public model graphs with zero Texture nodes;2 retain existing array validation rejection"
+}

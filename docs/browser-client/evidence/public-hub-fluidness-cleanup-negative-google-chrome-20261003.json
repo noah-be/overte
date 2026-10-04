@@ -1,0 +1,245 @@
+{
+  "schema": 1,
+  "attempt": "f165-22639",
+  "rawReportSHA256": "17ec62f0cecb3bae6cdef4b0acde5b30045314463bcebcb26c585909aed76e18",
+  "qualificationSHA256": "04dba213833c29a4039dcad8c4cc46e59df0681fdb74221aa704ebceebdfc05c",
+  "observerSHA256": "cd455b1e6cf103dc44fc23fb4a653982f0982e094cb1ef526ce989d0f7a817cf",
+  "elapsedOriginalMs": 127764.0,
+  "firstOriginalFailure": "combined-four-fluid-gate",
+  "originalFailureStage": "after-both-movement-and-rejoin-journeys",
+  "performanceGate": {
+    "minimumFPS": 30,
+    "maximumP95Ms": 66.66666666666667,
+    "maximumStallMs": 250
+  },
+  "windows": {
+    "initialSteady": {
+      "passed": true,
+      "validMeasurements": true,
+      "samples": [
+        {
+          "fps": 35.730236712818225,
+          "p95FrameMs": 50.19999999999709,
+          "maximumFrameMs": 83.70000000000437,
+          "samples": 240,
+          "entities": 517,
+          "loadedModels": 296,
+          "loadingModels": 0,
+          "queuedModels": 0,
+          "compilingGraphics": 0,
+          "drawCalls": 675,
+          "triangles": 556132
+        },
+        {
+          "fps": 33.09751354929463,
+          "p95FrameMs": 66.60000000000582,
+          "maximumFrameMs": 100,
+          "samples": 240,
+          "entities": 517,
+          "loadedModels": 296,
+          "loadingModels": 0,
+          "queuedModels": 0,
+          "compilingGraphics": 0,
+          "drawCalls": 674,
+          "triangles": 554004
+        }
+      ]
+    },
+    "initialWalk": {
+      "passed": false,
+      "validMeasurements": true,
+      "samples": [
+        {
+          "fps": 33.09751354929463,
+          "p95FrameMs": 66.60000000000582,
+          "maximumFrameMs": 100,
+          "samples": 240,
+          "entities": 517,
+          "loadedModels": 296,
+          "loadingModels": 0,
+          "queuedModels": 0,
+          "compilingGraphics": 0,
+          "drawCalls": 674,
+          "triangles": 554004
+        },
+        {
+          "fps": 31.644735107196553,
+          "p95FrameMs": 66.70000000000437,
+          "maximumFrameMs": 133.3000000000029,
+          "samples": 240,
+          "entities": 517,
+          "loadedModels": 296,
+          "loadingModels": 0,
+          "queuedModels": 0,
+          "compilingGraphics": 0,
+          "drawCalls": 637,
+          "triangles": 513163
+        }
+      ]
+    },
+    "rejoinSteady": {
+      "passed": true,
+      "validMeasurements": true,
+      "samples": [
+        {
+          "fps": 35.290484803035,
+          "p95FrameMs": 50,
+          "maximumFrameMs": 100,
+          "samples": 240,
+          "entities": 516,
+          "loadedModels": 295,
+          "loadingModels": 0,
+          "queuedModels": 0,
+          "compilingGraphics": 0,
+          "drawCalls": 675,
+          "triangles": 556001
+        },
+        {
+          "fps": 34.94823292997246,
+          "p95FrameMs": 50.10000000000582,
+          "maximumFrameMs": 100,
+          "samples": 240,
+          "entities": 516,
+          "loadedModels": 295,
+          "loadingModels": 0,
+          "queuedModels": 0,
+          "compilingGraphics": 0,
+          "drawCalls": 675,
+          "triangles": 556001
+        }
+      ]
+    },
+    "rejoinWalk": {
+      "passed": true,
+      "validMeasurements": true,
+      "samples": [
+        {
+          "fps": 34.94823292997246,
+          "p95FrameMs": 50.10000000000582,
+          "maximumFrameMs": 100,
+          "samples": 240,
+          "entities": 516,
+          "loadedModels": 295,
+          "loadingModels": 0,
+          "queuedModels": 0,
+          "compilingGraphics": 0,
+          "drawCalls": 675,
+          "triangles": 556001
+        },
+        {
+          "fps": 35.81768796824162,
+          "p95FrameMs": 50,
+          "maximumFrameMs": 100,
+          "samples": 240,
+          "entities": 516,
+          "loadedModels": 295,
+          "loadingModels": 0,
+          "queuedModels": 0,
+          "compilingGraphics": 0,
+          "drawCalls": 652,
+          "triangles": 533182
+        }
+      ]
+    }
+  },
+  "onlyFailedCondition": {
+    "window": "initialWalk",
+    "field": "p95FrameMs",
+    "observed": 66.70000000000437,
+    "limit": 66.66666666666667
+  },
+  "originalReadinessTimeout": false,
+  "allRejoinStagesPresent": true,
+  "pageErrorCount": 0,
+  "initialPerformanceSamples": 12,
+  "rejoinSteadySamples": 4,
+  "movementMeters": 4.250645881617389,
+  "nativeFollowErrorMeters": 0.00041712367537656374,
+  "rejoinMovementMeters": 2.8603129200736257,
+  "rejoinNativeFollowErrorMeters": 0.0006103560442421924,
+  "closureSessions": [
+    {
+      "ordinal": 1,
+      "challengeToAcceptedPongMs": [
+        90,
+        152
+      ],
+      "terminalEvents": [
+        {
+          "event": "socket-closed",
+          "elapsedMs": 47993,
+          "ownerClosing": true,
+          "code": 1000,
+          "category": "normal"
+        },
+        {
+          "event": "process-exit",
+          "elapsedMs": 49147,
+          "ownerClosing": true,
+          "code": 241,
+          "signal": "none"
+        }
+      ],
+      "expiredChallenges": 0,
+      "messageIdleTerminations": 0,
+      "rejectedPongs": 0
+    },
+    {
+      "ordinal": 2,
+      "challengeToAcceptedPongMs": [
+        88,
+        45
+      ],
+      "terminalEvents": [
+        {
+          "event": "socket-closed",
+          "elapsedMs": 47145,
+          "ownerClosing": true,
+          "code": 1000,
+          "category": "normal"
+        },
+        {
+          "event": "process-exit",
+          "elapsedMs": 50615,
+          "ownerClosing": true,
+          "code": 241,
+          "signal": "none"
+        }
+      ],
+      "expiredChallenges": 0,
+      "messageIdleTerminations": 0,
+      "rejectedPongs": 0
+    }
+  ],
+  "nativeHeartbeatFailureObserved": false,
+  "serverDisconnectCauseEstablished": false,
+  "primaryWrapperExceptionFilePresent": false,
+  "finalAdmissionExceptionFilePresent": false,
+  "cleanup": false,
+  "ownedGoogleChromeClosed": true,
+  "ownedGatewayClosed": true,
+  "ownedGatewayTreeRetired": true,
+  "ownedNativeChildrenReturnedToBaseline": true,
+  "retiredOwnedMembers": 45,
+  "remainingSessionOrBrowserDirectories": 1,
+  "remainingDirectoryClass": "owned-native-session-tree",
+  "remainingRootOwned0700": true,
+  "remainingTopLevelDirectories": 4,
+  "remainingTopLevelRegularFiles": 0,
+  "remainingHelperFiles": 0,
+  "boundedTopLevelAndDepth2Metadata": {
+    "entriesExamined": 14,
+    "allCurrentOwner": true,
+    "allModes0700": true,
+    "fullRecursiveCleanupCauseEstablished": false
+  },
+  "canonical104AndRoot19eUnchanged": true,
+  "managedNineBirthsUnchanged": true,
+  "actual22639DirectoryFailureCauseEstablished": false,
+  "sourceProvenSeparateCleanupRace": {
+    "removedFromTrackedSessionsBeforeAwaitedRecursiveRemoval": true,
+    "actualSourceBodyCPUCountersPassed": true,
+    "oneStatementMoveCounterfactualPass": true
+  },
+  "gainClaim": false
+}

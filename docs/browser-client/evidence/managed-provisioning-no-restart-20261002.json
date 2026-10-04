@@ -1,0 +1,68 @@
+{
+  "date": "2026-10-02",
+  "materialAssistance": "OpenAI Codex",
+  "scope": "Strict security-only managed guest provisioning; source-verified native restart trigger removed, actual native requalification pending.",
+  "proposalManifestSHA256": "58329d133141f6219f0f8dec2f6704bec5117932f881d541fb722a0477096edc",
+  "sourceSHA256": {
+    "browser-client/lab/manage.py": "2fc4d679c026ca9294e9c481bd5615ede07f5c96e765dc09f0d47414eccde2b6",
+    "browser-client/lab/provisioning_diagnostics.py": "0a9ba0e7f4164afa64dd10b97f443af14a85b03321d803641dcf1ceb3f884555",
+    "browser-client/lab/test_provisioning_diagnostics.py": "28f9c2928af762b9c1ac5900f3259f399163b5315c7f459699f53f24d5a04b4f"
+  },
+  "nativePrimarySources": [
+    {
+      "path": "domain-server/src/DomainServerSettingsManager.cpp",
+      "commit": "f91d15a08587dcd37c642234424b3215dd331724",
+      "SHA256": "d0f656fb9b9527ad4317e990bed9cf3a0cc0f26a20fa51b18ec341059be27d28"
+    },
+    {
+      "path": "domain-server/resources/describe-settings.json",
+      "commit": "f91d15a08587dcd37c642234424b3215dd331724",
+      "SHA256": "ff4aba7eee1e502757fc5ec9ce1826af6581607d808260214c91cd5f0413afd1"
+    }
+  ],
+  "actualPrecedingCI": {
+    "sourceSHA": "0d09473978f2cb5a8d7dc0e738a5dc104d8a26a5",
+    "build": 5,
+    "passedGates": 17,
+    "failedGates": 2,
+    "observation": "Seven genuine scene entities precede native assignment restart; subsequent observer tree is zero. Both native core joins fail original entity/peer predicate."
+  },
+  "behavior": {
+    "storedOAuthStrictlyFalseRequiredBeforeAndAfter": true,
+    "postGroups": [
+      "security"
+    ],
+    "guestPermissionRows": 4,
+    "permissionFlagsPerRow": 11,
+    "originalGuestFlagsPreserved": true,
+    "emptyIPAndFingerprintOverridesRequired": true,
+    "authenticationAndAllowedSubnetPostsRefused": true,
+    "originalHTTPTimeoutSeconds": 10,
+    "savedNativePermissionReadbackPreserved": true,
+    "directWriteFallbackAdded": false
+  },
+  "tests": [
+    {
+      "command": "python3 -m unittest -q test_manage_state",
+      "cwd": "browser-client/lab",
+      "passed": 28,
+      "skipped": 0
+    },
+    {
+      "command": "python3 -m unittest -v test_provisioning_diagnostics",
+      "cwd": "browser-client/lab",
+      "passed": 11,
+      "skipped": 0
+    }
+  ],
+  "parentTestCommand": "python3 -m unittest -q test_manage_state",
+  "parentPassed": 28,
+  "parentSkipped": 0,
+  "parentPrivateCaptureSHA256": "0c5868829674307e83360bfabfaa7759a2513ee1164bb0b22b326190ea1105cf",
+  "limitations": [
+    "Pinned native updateSetting schedules a restart for recognized authentication-group fields without comparing existing values; security changes exclude allowed_subnets from that restart branch.",
+    "Removing this avoidable trigger does not independently diagnose how entity persistence was lost or establish a passing fresh nineteen-gate native CI run.",
+    "Hosted atomic QSaveFile commit-failed is a separate unresolved cause and is not corrected by this change.",
+    "Unrecognized/missing/duplicate/malformed/symlink/FIFO OAuth config and non-guest payloads fail closed without posting."
+  ]
+}

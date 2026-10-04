@@ -1,0 +1,304 @@
+{
+  "schema": 1,
+  "scope": "later anonymous bounded read-only replay of exact recorded stock Hub asset failures",
+  "startedAt": "2026-10-02T04:47:27.352Z",
+  "finishedAt": "2026-10-02T04:47:28.986Z",
+  "privateSummarySHA256": "09969e8358203e398bf6c9947abf0a4fbb20594ae6dfca670352ed0d29e0c1d6",
+  "probeSourceSHA256": "6bd673bb0a2586727c8b765454b280c464ced89f7d6acb30773aa09af0fd137a",
+  "approvedAddressPolicySHA256": "65eba4a66c76d4bfc0dbd18e172def64f43b37cca0db2301da5bf4d18645de79",
+  "recordedReports": [
+    {
+      "engine": "chromium",
+      "rawSHA256": "656562e7f3890b5120d62be6ba2b4f8ce3dd0c44b4284d57eb3d15f90e29a050",
+      "occurrences": 32
+    },
+    {
+      "engine": "firefox",
+      "rawSHA256": "e9a32ef45c1149ede76f480abc7f9d91dc5b3c12cbba9983fcf4351bd2ae9879",
+      "occurrences": 32
+    }
+  ],
+  "currentOriginConfigurationSHA256": "d4dce80e09caf880073d13fda298f7cd7db64bba5ef1331e7c0c2c69c1b71a56",
+  "ownedContextUnchanged": true,
+  "operatorOriginCount": 11,
+  "recordedFailureOccurrences": 64,
+  "distinctRecordedAddresses": 14,
+  "actualAnonymousGETs": 11,
+  "localAdmissionRefusals": 3,
+  "maximumActive": 2,
+  "retries": 0,
+  "redirects": 0,
+  "credentialsSent": false,
+  "bodyByteCap": 131072,
+  "perRequestDeadlineMs": 30000,
+  "overallDeadlineMs": 120000,
+  "diagnosticDeadlineHits": 0,
+  "results": [
+    {
+      "urlSHA256": "f9a79bf054114ef719180b1a55b5818b9766a1e8eee9b0beb2e9b0bb62d428fd",
+      "suffix": "psd",
+      "recordedOccurrences": {
+        "chromium": 4,
+        "firefox": 4
+      },
+      "phase": "origin-refused",
+      "status": null,
+      "mime": "other-or-absent",
+      "magic": "unknown",
+      "bytesObserved": 0,
+      "bodyComplete": false,
+      "bodyCensored": false,
+      "redirects": 0,
+      "networkCode": "unknown",
+      "elapsedMs": 2
+    },
+    {
+      "urlSHA256": "cf2433931596b0667030ce2b1ce288bf01b756b810f5d08f4ef965ef0122af02",
+      "suffix": "glb",
+      "recordedOccurrences": {
+        "chromium": 2,
+        "firefox": 2
+      },
+      "phase": "upstream-network",
+      "status": null,
+      "mime": "other-or-absent",
+      "magic": "unknown",
+      "bytesObserved": 0,
+      "bodyComplete": false,
+      "bodyCensored": false,
+      "redirects": 0,
+      "networkCode": "ETIMEDOUT",
+      "elapsedMs": 343
+    },
+    {
+      "urlSHA256": "aa25d0187a62a0dcbc9fd4ba9acca9c54acdf8a377808b93fd6e673e9ef24f9f",
+      "suffix": "png",
+      "recordedOccurrences": {
+        "chromium": 2,
+        "firefox": 2
+      },
+      "phase": "upstream-network",
+      "status": null,
+      "mime": "other-or-absent",
+      "magic": "unknown",
+      "bytesObserved": 0,
+      "bodyComplete": false,
+      "bodyCensored": false,
+      "redirects": 0,
+      "networkCode": "ETIMEDOUT",
+      "elapsedMs": 342
+    },
+    {
+      "urlSHA256": "d2766ad2c71b1f1c3f69203f3bc1d819903ba301845f0c8d046a3cba90bd5aad",
+      "suffix": "dds",
+      "recordedOccurrences": {
+        "chromium": 2,
+        "firefox": 2
+      },
+      "phase": "upstream-http",
+      "status": 404,
+      "mime": "text/html",
+      "magic": "markup",
+      "bytesObserved": 153,
+      "bodyComplete": true,
+      "bodyCensored": false,
+      "redirects": 0,
+      "networkCode": "unknown",
+      "elapsedMs": 217
+    },
+    {
+      "urlSHA256": "f10c53c6e09b3ea74db424778f7e4ad8f535f8802756daa6551119a4f1b98dbd",
+      "suffix": "dds",
+      "recordedOccurrences": {
+        "chromium": 2,
+        "firefox": 2
+      },
+      "phase": "upstream-http",
+      "status": 404,
+      "mime": "text/html",
+      "magic": "markup",
+      "bytesObserved": 153,
+      "bodyComplete": true,
+      "bodyCensored": false,
+      "redirects": 0,
+      "networkCode": "unknown",
+      "elapsedMs": 217
+    },
+    {
+      "urlSHA256": "13414d71795b5c0806ae10f03810253bae54e259baef3b69fda338c7b36a150b",
+      "suffix": "dds",
+      "recordedOccurrences": {
+        "chromium": 2,
+        "firefox": 2
+      },
+      "phase": "upstream-http",
+      "status": 404,
+      "mime": "text/html",
+      "magic": "markup",
+      "bytesObserved": 153,
+      "bodyComplete": true,
+      "bodyCensored": false,
+      "redirects": 0,
+      "networkCode": "unknown",
+      "elapsedMs": 74
+    },
+    {
+      "urlSHA256": "1d3a4833946f515f2d37ebc8ab0c50c33a244ac88ac70a0bc8b00cca59687f21",
+      "suffix": "glb",
+      "recordedOccurrences": {
+        "chromium": 4,
+        "firefox": 4
+      },
+      "phase": "upstream-network",
+      "status": null,
+      "mime": "other-or-absent",
+      "magic": "unknown",
+      "bytesObserved": 0,
+      "bodyComplete": false,
+      "bodyCensored": false,
+      "redirects": 0,
+      "networkCode": "ETIMEDOUT",
+      "elapsedMs": 258
+    },
+    {
+      "urlSHA256": "6698960a1785bc06695c58200dd1d8fe3983ed12d878448668de1fece96a14b3",
+      "suffix": "fst",
+      "recordedOccurrences": {
+        "chromium": 2,
+        "firefox": 2
+      },
+      "phase": "origin-refused",
+      "status": null,
+      "mime": "other-or-absent",
+      "magic": "unknown",
+      "bytesObserved": 0,
+      "bodyComplete": false,
+      "bodyCensored": false,
+      "redirects": 0,
+      "networkCode": "unknown",
+      "elapsedMs": 1
+    },
+    {
+      "urlSHA256": "8adc1ebd3d9aff983e0e00fc66a8c168d6f8e54797a9ae44c123e32c228f2a32",
+      "suffix": "glb",
+      "recordedOccurrences": {
+        "chromium": 2,
+        "firefox": 2
+      },
+      "phase": "upstream-network",
+      "status": null,
+      "mime": "other-or-absent",
+      "magic": "unknown",
+      "bytesObserved": 0,
+      "bodyComplete": false,
+      "bodyCensored": false,
+      "redirects": 0,
+      "networkCode": "ETIMEDOUT",
+      "elapsedMs": 259
+    },
+    {
+      "urlSHA256": "a2cb600226bfb3ff67fdeef5c37fa912c4345459c88ce10fb278049b1347102e",
+      "suffix": "glb",
+      "recordedOccurrences": {
+        "chromium": 2,
+        "firefox": 2
+      },
+      "phase": "upstream-network",
+      "status": null,
+      "mime": "other-or-absent",
+      "magic": "unknown",
+      "bytesObserved": 0,
+      "bodyComplete": false,
+      "bodyCensored": false,
+      "redirects": 0,
+      "networkCode": "ETIMEDOUT",
+      "elapsedMs": 254
+    },
+    {
+      "urlSHA256": "8d7e6cc66f7aa02b7068d4218e25811990a65c6854c13ddbecfce1c7d15bdab4",
+      "suffix": "tga",
+      "recordedOccurrences": {
+        "chromium": 2,
+        "firefox": 2
+      },
+      "phase": "upstream-http",
+      "status": 404,
+      "mime": "text/html",
+      "magic": "markup",
+      "bytesObserved": 131072,
+      "bodyComplete": false,
+      "bodyCensored": true,
+      "redirects": 0,
+      "networkCode": "unknown",
+      "elapsedMs": 386
+    },
+    {
+      "urlSHA256": "ff483d77f999e33726485ff37638876649f476aa7a6cc43dd1befe47414ff098",
+      "suffix": "tga",
+      "recordedOccurrences": {
+        "chromium": 2,
+        "firefox": 2
+      },
+      "phase": "upstream-http",
+      "status": 404,
+      "mime": "text/html",
+      "magic": "markup",
+      "bytesObserved": 131072,
+      "bodyComplete": false,
+      "bodyCensored": true,
+      "redirects": 0,
+      "networkCode": "unknown",
+      "elapsedMs": 369
+    },
+    {
+      "urlSHA256": "60390dbf6bdd1366758ce7751a663740fe27e56d95b0b659817dfbc6a8011535",
+      "suffix": "jpg",
+      "recordedOccurrences": {
+        "chromium": 2,
+        "firefox": 2
+      },
+      "phase": "origin-refused",
+      "status": null,
+      "mime": "other-or-absent",
+      "magic": "unknown",
+      "bytesObserved": 0,
+      "bodyComplete": false,
+      "bodyCensored": false,
+      "redirects": 0,
+      "networkCode": "unknown",
+      "elapsedMs": 4
+    },
+    {
+      "urlSHA256": "8848194b11621f9be58a97c993be04992a2caaa08f07d353f83e1f506fe625d4",
+      "suffix": "tga",
+      "recordedOccurrences": {
+        "chromium": 2,
+        "firefox": 2
+      },
+      "phase": "upstream-http",
+      "status": 404,
+      "mime": "text/html",
+      "magic": "markup",
+      "bytesObserved": 131072,
+      "bodyComplete": false,
+      "bodyCensored": true,
+      "redirects": 0,
+      "networkCode": "unknown",
+      "elapsedMs": 346
+    }
+  ],
+  "limits": [
+    "This is a later anonymous operator-approved public-origin replay, not the original visitor request or original error cause.",
+    "Repeated recorded URLs are fetched once; each engine retains original occurrence counts.",
+    "Exact redirect admission and current owner/config identity enforced; refused addresses are not requested.",
+    "HTTPstatus/MIME/magic are observations; no decoder or pixels tested.",
+    "TGA has no universal prefix magic; unknown is preserved.",
+    "Body cap and deadlines censor observations and cannot establish original timeout.",
+    "Private originalURLs/source context are held only in0700directory/0600files. No original URLs, identities, cookies, query tokens, response bodies, stack or environment are exported.",
+    "The original 32per-engine failure occurrences include duplicate URLs; this replay fetches each allowed distinct URL once.",
+    "ETIMEDOUT is a native fetch cause code, not proof that the diagnostic30-second deadline expired, a DNS fault, a TLS fault, or the original visitor failure cause.",
+    "HTTP404/text-html/markup proves an error response in this later replay; it does not identify why a remote operator removed/moved the asset.",
+    "Three refused origins remained unrequested; no new origin or redirect admission is authorized.",
+    "No decoding or GPU/native/world operation was executed; no loading speed gain measured."
+  ]
+}

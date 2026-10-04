@@ -1,0 +1,592 @@
+{
+  "schemaVersion": 1,
+  "updatedAtUTC": "2026-10-04T05:33:34.166954+00:00",
+  "baselineCommit": "58e2a38af17ed7e6505cadcf7145b6d51bf0a941",
+  "purpose": "Preserve the original gates while measuring downstream avatar delivery and comparing one explicit graphics request.",
+  "materialAIAssistance": "OpenAI Codex implementation, complete source review and validation.",
+  "versions": {
+    "node": "v24.21.0",
+    "npm": "11.19.0",
+    "python": "Python 3.14.7"
+  },
+  "sourceProposals": {
+    "baseline": "58e2a38af17ed7e6505cadcf7145b6d51bf0a941",
+    "delivery": {
+      "manifest": "617104952fbb9b403f8ff4dc67f91f3474ff33a89bda6eb33605506fbb94491a",
+      "rootReceiptSHA256": "3958e10a029e5394c8267cf6d3a926c8c8d7841729da712bad9e08ccd8c7fb98",
+      "rootFocusedTests": 71,
+      "wholeRecoveredModified": 10,
+      "recoveredNewAbsences": 4
+    },
+    "hostedRequest": {
+      "manifest": "cf38326eaa01168dedf8726c33b26c79a22cf8b29fa46a0a01611bfe898bfaa3",
+      "rootReceiptSHA256": "a44413b7fc530b165911f9c18e81cdab0e1a5e8a481ce4b691034e2121409384",
+      "rootChecks": 35,
+      "actionlint": true,
+      "wholeInverse": true
+    },
+    "closure": "Explicit V26 installed after authentication of all 27 before/absence premises. Independent full product, production, embedded and repository code gates pass on this exact source.",
+    "limitations": [
+      "Source review and full local code gates pass. Fresh committed-source hosted qualification remains pending.",
+      "Original hosted GPU and native Core failures remain unchanged; new diagnostics are no acceptance or cause-based repair.",
+      "Both local graphics treatment/control whole gates pass; no causal contrast."
+    ],
+    "updatedAtUTC": "2026-10-04T05:32:17.413207+00:00"
+  },
+  "rootFocusedChecks": {
+    "delivery": {
+      "tests": 71,
+      "pass": 71,
+      "fail": 0,
+      "skipped": 0,
+      "command": [
+        "node",
+        "--test",
+        "--test-reporter=tap",
+        "gateway/native-avatar-delivery.test.mjs",
+        "gateway/native-avatar-stdout-projection.test.mjs",
+        "tests/native-avatar-curation.test.mjs",
+        "tests/avatar-delivery-source-fixture.test.mjs",
+        "tests/integration/tablet-ptt-historical-author.test.mjs",
+        "tests/integration/tablet-ptt-native-peer.test.mjs"
+      ]
+    },
+    "angle": {
+      "checks": 35,
+      "fail": 0,
+      "skipped": 0,
+      "nodeTests": 30,
+      "sourceControls": 5,
+      "actionlint": "1.7.12; external shellcheck/pyflakes not included",
+      "wholeInverse": true
+    }
+  },
+  "localActualComparisons": [
+    {
+      "requestedLane": "explicit-swangle",
+      "receiptSHA256": "2351c60dea4a1786ff3f54d98f44641591f060726d18449aefbc3905b5e65591",
+      "publishedSHA": "58e2a38af17ed7e6505cadcf7145b6d51bf0a941",
+      "result": "PASS",
+      "seconds": 20.981,
+      "sourceRows": 1422,
+      "dependencies": 5867,
+      "gpuPixel": [
+        255,
+        0,
+        0,
+        255
+      ],
+      "cpuPixel": [
+        255,
+        0,
+        0,
+        255
+      ],
+      "uploads": 1,
+      "frames": 20,
+      "independentSamplers": true,
+      "realModelCancellation": true,
+      "context": {
+        "expected": 1,
+        "unexpected": 0,
+        "skipped": 0,
+        "flaky": 0
+      },
+      "backendClass": "ANGLE/Vulkan SwiftShader",
+      "ownedGoogleChromeBirths": 20,
+      "ownedMetadataUnknownCount": 1,
+      "cleanupVerified": true,
+      "sourceCoherent": true,
+      "authorityRemoved": true
+    },
+    {
+      "requestedLane": "automatic-angle",
+      "receiptSHA256": "424e0968f33fd8c3bc20ae5f9a11a610f5d03288ca96fec8e118cfe7b5670759",
+      "publishedSHA": "58e2a38af17ed7e6505cadcf7145b6d51bf0a941",
+      "result": "PASS",
+      "seconds": 21.038,
+      "sourceRows": 1422,
+      "dependencies": 5867,
+      "gpuPixel": [
+        255,
+        0,
+        0,
+        255
+      ],
+      "cpuPixel": [
+        255,
+        0,
+        0,
+        255
+      ],
+      "uploads": 1,
+      "frames": 20,
+      "independentSamplers": true,
+      "realModelCancellation": true,
+      "context": {
+        "expected": 1,
+        "unexpected": 0,
+        "skipped": 0,
+        "flaky": 0
+      },
+      "backendClass": "ANGLE/Vulkan SwiftShader",
+      "ownedGoogleChromeBirths": 20,
+      "ownedMetadataUnknownCount": 0,
+      "cleanupVerified": true,
+      "sourceCoherent": true,
+      "authorityRemoved": true
+    }
+  ],
+  "hostedBaseline": {
+    "automaticRun": 37174449237,
+    "manualRun": 37174581344,
+    "originalGPU": "FAIL context lost before direct draw",
+    "originalNativeCore": "FAIL stale browser peer despite target native readback",
+    "requiredRepository": 37174521073,
+    "codeQL": 37174449306,
+    "requiredChecks": "PASS on baseline; new source pending"
+  },
+  "limitations": [
+    "Both local graphics cohorts pass on the same renderer family; no causal contrast, hosted reproduction, driver cause or effectiveness claim.",
+    "Write invocation is not remote delivery; gateway snapshot is asynchronous latest state, not same-envelope correlation.",
+    "Original assertions, waits, deadlines, authority, session bounds and wire messages remain unchanged.",
+    "Default-off diagnostic state; no additional sampler row budget, retry, timer or raw data.",
+    "Fresh exact-commit hosted qualification, wider Tablet, public Hub movement, physical microphone and native parity remain unfinished.",
+    "Original local nine-process liveness preflight failed before tests because the registered Native process was missing. Separate code gates retain that absence and eight matching births; no shared-session or healthy-nine-service acceptance is inferred. Cause not established."
+  ],
+  "completeGates": {
+    "status": "PASS: independent local code qualification; original Native-liveness preflight remains separately FAILED",
+    "sourceInventorySHA256": "67584aa5e3cd7a4740fe8deda3d6aff6cdcae64a1a902dff61065aeb6fe6e88c",
+    "commands": [
+      {
+        "label": "product-unit-suite",
+        "command": [
+          "npm",
+          "test"
+        ],
+        "exitCode": 0,
+        "seconds": 23.73,
+        "logSHA256": "534283dae060f7644b75a2573be698e04802abf6b4553c47dd1e658993683024",
+        "counts": {
+          "tests": 2874,
+          "pass": 2874,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "sourceCoherent": true,
+        "scope": "Independent code gates only; original Native-liveness preflight remains failed; eight existing births and one missing row unchanged"
+      },
+      {
+        "label": "production-build",
+        "command": [
+          "npm",
+          "run",
+          "build"
+        ],
+        "exitCode": 0,
+        "seconds": 3.564,
+        "logSHA256": "bf27f8bd9b0f3a3103ce1512762ddd86c31b21723c8b7639da3f19bce30103c6",
+        "counts": {},
+        "sourceCoherent": true,
+        "scope": "Independent code gates only; original Native-liveness preflight remains failed; eight existing births and one missing row unchanged"
+      },
+      {
+        "label": "embedded-fixture-build",
+        "command": [
+          "node",
+          "node_modules/vite/bin/vite.js",
+          "build",
+          "--config",
+          "vite.embedded.config.mjs",
+          "--configLoader",
+          "native"
+        ],
+        "exitCode": 0,
+        "seconds": 1.81,
+        "logSHA256": "6b518404eb0d4079d0570a85a79552cbd9ed4f3d35855b9d70ccdef55d1a3749",
+        "counts": {},
+        "sourceCoherent": true,
+        "scope": "Independent code gates only; original Native-liveness preflight remains failed; eight existing births and one missing row unchanged"
+      },
+      {
+        "label": "embedded-world-build",
+        "command": [
+          "node",
+          "node_modules/vite/bin/vite.js",
+          "build",
+          "--config",
+          "vite.embedded-world.config.mjs",
+          "--configLoader",
+          "native"
+        ],
+        "exitCode": 0,
+        "seconds": 2.065,
+        "logSHA256": "882e56c0a66d4d3e9888ed16a588308f97c73c842a1b30ef21194d8d33c1c16c",
+        "counts": {},
+        "sourceCoherent": true,
+        "scope": "Independent code gates only; original Native-liveness preflight remains failed; eight existing births and one missing row unchanged"
+      },
+      {
+        "label": "repository-quick",
+        "command": [
+          "python3",
+          "tests/run-project-tests.py",
+          "--profile",
+          "quick",
+          "--timeout",
+          "240"
+        ],
+        "exitCode": 0,
+        "seconds": 122.074,
+        "logSHA256": "cc6362917a5ab9cf4ec6522fd4ac2b51fc9369fd90ceeedc68d431a9de6f46db",
+        "counts": {
+          "suites": 34,
+          "pass": 34,
+          "fail": 0
+        },
+        "sourceCoherent": true,
+        "scope": "Independent code gates only; original Native-liveness preflight remains failed; eight existing births and one missing row unchanged"
+      }
+    ],
+    "productionDistributionFiles": 34,
+    "productionReceiptSHA256": "91f6d2e1ee846d46cf6106460de40857bb4330f279e92cfad503f0416dc64be2",
+    "priorDistributionEquality": "Not independently compared; fresh current build recorded without an equality claim.",
+    "sourceIndexRegistryCoherentBeforeAndAfterEachCommand": true,
+    "normalSharedHeavyBuildLock": true,
+    "guardChecks": {
+      "rootPureCPU": 8,
+      "independentPureCPU": 8,
+      "independentReceiptSHA256": "56290e5fe8238ea7b98c65d01d0d8319c43427cdbe488a91c700acc7e912023a",
+      "overlappingNotAdded": true
+    },
+    "retainedGuardNegative": "Initial 7/8 private guard controls failed the terminal status-label assertion before any code command. Corrected runner labeling, not the assertion; original source/test/negative preserved.",
+    "originalPreflight": {
+      "status": "FAIL before any code command",
+      "category": "existing-registered-process-missing-before-full-gates",
+      "observedAtUTC": "2026-10-04T05:12:26.946982+00:00",
+      "missingRegisteredRole": "native",
+      "otherRegisteredBirthsMatching": 8,
+      "cause": "not-established",
+      "receiptSHA256": "c6d939ad65d7254fa9c7684c7a947a769c2944872b8c8d3bb0f738b2b5834ae1",
+      "originalRunnerSHA256": "108ee7467b47510515098f111738bab310451b043912a8d048c2722345f387b9",
+      "unchangedOriginalRunner": true,
+      "serviceRestarts": false,
+      "registryRepair": false
+    },
+    "scope": "Same five original code commands, assertions and limits in a separate source copy under the normal shared lock. Eight existing births and explicit Native absence checked at command boundaries; no continuous lifetime or local Native/session acceptance. Only documentation/proof updates follow these code gates."
+  },
+  "independentFocusedReview": {
+    "receiptSHA256": "55eef8a080b12cf59d7513888c5b07343fba943f7e29ca0616129df88bd183b4",
+    "reviewManifestSHA256": "eac5d7d52af4758fc23961226de93d6db4a383b4afa84b6fcd48ea4f0fa6ac1d",
+    "deliveryTests": 55,
+    "hostedRequestChecks": 35,
+    "skip": 0,
+    "original16OwnFIFOProcTests": "Excluded from independent narrow scope; passed in Root71; overlapping counts are not added as unique product tests.",
+    "correctedOriginalBranchCounterexample": "PASS",
+    "wholeInverse": true,
+    "limitations": "Source/mock/controlled own files only; no native/browser/service or complete shipping acceptance."
+  },
+  "retainedCompositionChecks": [
+    {
+      "scope": "World intermediate integrated source/history focus",
+      "tests": 397,
+      "pass": 397,
+      "fail": 0,
+      "skipped": 0,
+      "seconds": 19.35,
+      "limitations": "Focused source-only, not complete product suite or final composed source."
+    },
+    {
+      "scope": "Additional affected consumer census",
+      "tests": 70,
+      "pass": 69,
+      "fail": 1,
+      "failedCase": "tests/tablet-ptt-author-registration.test.mjs actual manager-produced declarations; exact old cd2 sampler literal disagrees with reviewed current d59 producer/admission",
+      "disposition": "One explicit current exact-pin declaration plus authenticated whole before test/source historical replay; all six original bodies and refusal/identity/deadline controls preserved.",
+      "limitations": "Failure remains negative; no Root source installation or final gates yet."
+    }
+  ],
+  "documentationSourceReview": {
+    "receiptSHA256": "bd70d9a8dc3fdf26224805b3d979f88b1b9883006e204813436b61d04f5ca268",
+    "boundedSourceOnly": true,
+    "appliedExactWordingCorrections": 4,
+    "scope": "Stored-observation versus emitted-row budgets, capture-versus-arrival socket state, preserved older checkpoints."
+  },
+  "closure": {
+    "packetSHA256": "7eaa4f4b9d6293a9e68824eec2f53f6158fefe0e1c1843060e4662b899006206",
+    "authenticatedMembers": 405,
+    "beforePremises": 27,
+    "rootFocusedCases": 475,
+    "independentFocusedCases": 459,
+    "independentExcludedOwnFIFOProc": 16,
+    "countsOverlapNotAdded": true,
+    "rootReceiptSHA256": "6a1f24e505d65335c95c3f2314dcbe129100dccae63ca0b6cd8850584b8d7314",
+    "independentReceiptSHA256": "5af124693265e53bb89c1a3311517d46a1623ff0bedcf008fa70c24200e638bc",
+    "oldRows": 220,
+    "currentRows": 230,
+    "migrations": 13,
+    "admissions": 10,
+    "historicalWholeInputs": 18,
+    "inflatedHistoryBytes": 476543,
+    "unchangedInflatedBound": 524288,
+    "ancestorExactHashes": 20,
+    "ancestorPaths": 10,
+    "wholeInverse": true,
+    "productionPreparer": "Single reviewed manifest digest literal only; no production history import.",
+    "innerSHA256": "a366564b2ec15d802d0981e67327e1bb702212dc2c1ee1472371bc59f2ee7c3d",
+    "preparerSHA256": "0572f416b5d5b28a7ebf393015395aa0b68d96035af60a89effbd31640562abe"
+  },
+  "changedSourcePremises": [
+    {
+      "path": "browser-client/gateway/native-avatar-sample-diagnostics.js",
+      "beforeSHA256": "cd2f35f8bc04edfdb9c09fcd8b5399d1e03b5b3b40bbbf9a459620b68ad9be49",
+      "beforeBytes": 8760,
+      "afterSHA256": "d59ff56f281fe91c19a16ff36686dcb29767405943023b11a76daa2c5a6a651e",
+      "bytes": 8884
+    },
+    {
+      "path": "browser-client/gateway/native-avatar-stdout-projection.mjs",
+      "beforeSHA256": "90c7c18ab0c35e85620bcfa94427253232715da53c0abaf781e817b14515ea3f",
+      "beforeBytes": 4551,
+      "afterSHA256": "eb6a09fd81cf973077f40fcd0d108884c78aea60540782799acd0aca6c46b860",
+      "bytes": 6953
+    },
+    {
+      "path": "browser-client/gateway/native-bridge.js",
+      "beforeSHA256": "a0ad9878a10023646aad6ecd3a926cde1d364f441786c8a0cf0969ee536604d9",
+      "beforeBytes": 29308,
+      "afterSHA256": "0ddc1fe1a664f9fc4b46ee85bb283d537c321285cee2b95f983a6d6ca7d536e9",
+      "bytes": 30751
+    },
+    {
+      "path": "browser-client/gateway/server.mjs",
+      "beforeSHA256": "e17fae1f721ed162e131309c983041ef824d5688080e5053b6b98f2f9f4722ea",
+      "beforeBytes": 56614,
+      "afterSHA256": "6d5d81332a41a66df667fa1f8d75a5bbd1c29a345ccbb85fcb75e89419642099",
+      "bytes": 59084
+    },
+    {
+      "path": "browser-client/lab/curate-core-journey.py",
+      "beforeSHA256": "d879087afc510171c0e131c69ca40fd5127c77bbe78f6d8f86a4749c3cfb55b4",
+      "beforeBytes": 8612,
+      "afterSHA256": "e6cf19232d627a7daa232cb299e365f4b2154b06bbf36f1946ce72f564ccb3e6",
+      "bytes": 9438
+    },
+    {
+      "path": "browser-client/tests/integration/native-peer-diagnostic.mjs",
+      "beforeSHA256": "3aec808022e1dd3fc95bdd895d370aae1eeb99386b0e90fb21f52f29a5029c1d",
+      "beforeBytes": 4989,
+      "afterSHA256": "3f98145c4f78c9686a7df4bbeaf4ba0b67910a87ab8312d861ce0884aafa6cfe",
+      "bytes": 5681
+    },
+    {
+      "path": "browser-client/tests/integration/real-session.mjs",
+      "beforeSHA256": "daba35297a9090a29a916ddd7658c11b2713fcf1f25d78894e17d9ac922e915b",
+      "beforeBytes": 23390,
+      "afterSHA256": "ca8f8f6502e569c130625ca72403b0a1bf145ac227645a16af88bb43aa7f94a7",
+      "bytes": 23918
+    },
+    {
+      "path": "browser-client/tests/integration/tablet-ptt-native-peer.mjs",
+      "beforeSHA256": "557f8cb9c6bec67c18dcbb2fcde5ea6ae4bcae58df57a628f69b18e290a6be89",
+      "beforeBytes": 14021,
+      "afterSHA256": "51cb012c7e0e8882e6427dd409088fb427ee064a051c02684ed30a49d33accd9",
+      "bytes": 14021
+    },
+    {
+      "path": "browser-client/gateway/native-avatar-stdout-projection.test.mjs",
+      "beforeSHA256": "df8160c80ecd597828e4fd9a1a6243e8aa7f16b7187a99e68e9ebb470ecb9a1e",
+      "beforeBytes": 10179,
+      "afterSHA256": "e07575c0d8643a4375eeb80ed01fe9973036f2e48e16fc43ffb01e1790209bc6",
+      "bytes": 10499
+    },
+    {
+      "path": "browser-client/tests/native-avatar-curation.test.mjs",
+      "beforeSHA256": "9c61fa0f2657792a9b71105db51bb79418973942f36883e3246cc6d58af91dee",
+      "beforeBytes": 14223,
+      "afterSHA256": "6750521df33bac1447c05450ba674ce67e2c9a9de8e86ad63ffefc39311b9ee5",
+      "bytes": 14886
+    },
+    {
+      "path": "browser-client/tests/integration/embedded-world.mjs",
+      "beforeSHA256": "71a6753cc91f750d3f05114f09c79e65214a63df0e010f0ce23e71a69ee096e1",
+      "beforeBytes": 11859,
+      "afterSHA256": "dd7325199f929f82143252d0444e9860a2c3728d4a330501e2ba36fcbe443044",
+      "bytes": 12513
+    },
+    {
+      "path": ".github/workflows/browser-client.yml",
+      "beforeSHA256": "a816f629c06196be7de077eb1a62fa883f2680d24770a8f6bf934478f28ca813",
+      "beforeBytes": 13230,
+      "afterSHA256": "d608f4173399093959bda9362953a46589d02b08893cc5468c0c09c0de358202",
+      "bytes": 13560
+    },
+    {
+      "path": "browser-client/tests/integration/capture-event-timing-source-fixture.mjs",
+      "beforeSHA256": "aa86a4afa05410c39a7699a5356889f2652f8446846121c2f203c4a4845484d1",
+      "beforeBytes": 3863,
+      "afterSHA256": "73dbc7e020c273a7979ac436e91dc724fcc7d63c6b03f16a2e9ecce9e1699bad",
+      "bytes": 4104
+    },
+    {
+      "path": "browser-client/tests/tablet-capture-event-timing-manifest.test.mjs",
+      "beforeSHA256": "5885f0d7f7d5e14f1d7f73862320a15ee7409b5be9f221508dde5dcd7d654545",
+      "beforeBytes": 9037,
+      "afterSHA256": "e3bfe98e1d9200e33ab0ca7e2ba620722e4e1dcda90748dc4b6c8c136dfb09c9",
+      "bytes": 9525
+    },
+    {
+      "path": "browser-client/tests/tablet-capture-command-clock-manifest.test.mjs",
+      "beforeSHA256": "21418051c8e4e32f5f898b4b3ef005f5a1d9212a9d844489c3d58248c522bc12",
+      "beforeBytes": 10415,
+      "afterSHA256": "677dfa93a3143374d8326177b346b5ca916fad8d9da2ff719be7f2d7316e3279",
+      "bytes": 11203
+    },
+    {
+      "path": "browser-client/tests/tablet-ptt-author-registration.test.mjs",
+      "beforeSHA256": "5f587986bc8e418a592ff485c886f4b8098eae3680ac38037c67302fe94e1e7f",
+      "beforeBytes": 6424,
+      "afterSHA256": "99b64fba9327bd93dfabab980d008addac3306b35edb4e8be6a8e8d317e745bb",
+      "bytes": 6424
+    },
+    {
+      "path": "browser-client/gateway/native-avatar-delivery.test.mjs",
+      "beforeSHA256": null,
+      "beforeBytes": null,
+      "afterSHA256": "390532d3e0afc46ce923e1572e38964ccf25283b3f1b8da1887d2414581f5ca8",
+      "bytes": 17343
+    },
+    {
+      "path": "browser-client/tests/fixtures/avatar-delivery-source-fixture.mjs",
+      "beforeSHA256": null,
+      "beforeBytes": null,
+      "afterSHA256": "b26d984a8c0af91e3ea80303d7b05422ae7a7f9eda42ba2536a10cff91c8dfdb",
+      "bytes": 5081
+    },
+    {
+      "path": "browser-client/tests/fixtures/avatar-delivery-before.json.gz",
+      "beforeSHA256": null,
+      "beforeBytes": null,
+      "afterSHA256": "f24bbe974e2213f83bdcb4f0abb6cc66d6b45d71d6c19243ce2e245f90cfd609",
+      "bytes": 40266
+    },
+    {
+      "path": "browser-client/tests/avatar-delivery-source-fixture.test.mjs",
+      "beforeSHA256": null,
+      "beforeBytes": null,
+      "afterSHA256": "2c789e1d020e596372d6faa6bb5ac3af4fedf350f7bec0264b571ac2832b3b5a",
+      "bytes": 4911
+    },
+    {
+      "path": "browser-client/tests/embedded-world-angle-request.test.mjs",
+      "beforeSHA256": null,
+      "beforeBytes": null,
+      "afterSHA256": "e74491294407efa86e27ab2f93eec46b7ff621f2497fce207e6bf9fd12260a1e",
+      "bytes": 5430
+    },
+    {
+      "path": "browser-client/tests/fixtures/capture-event-timing-v25-complete-source-manifest.json",
+      "beforeSHA256": "e549f49dab6f14f8040b58d77444e60f3252ae44108ac1d6523f3f9fd260332d",
+      "beforeBytes": 224131,
+      "afterSHA256": "e549f49dab6f14f8040b58d77444e60f3252ae44108ac1d6523f3f9fd260332d",
+      "bytes": 224131
+    },
+    {
+      "path": "browser-client/tests/fixtures/capture-v25-delivery-angle-before.json.gz",
+      "beforeSHA256": null,
+      "beforeBytes": null,
+      "afterSHA256": "d4f3f4f138d566436daf43240a2524cd9b6649de1ffd117fcf4fd325a24ffac4",
+      "bytes": 112940
+    },
+    {
+      "path": "browser-client/tests/integration/capture-delivery-angle-source-fixture.mjs",
+      "beforeSHA256": null,
+      "beforeBytes": null,
+      "afterSHA256": "e4951061d28a70629cc821b9ae627138b1b7316da62b262ece67b0ce9242cad5",
+      "bytes": 9504
+    },
+    {
+      "path": "browser-client/tests/tablet-capture-delivery-angle-manifest.test.mjs",
+      "beforeSHA256": null,
+      "beforeBytes": null,
+      "afterSHA256": "bb6ac7162961d801a3d2a29b2ca982c55e936da4ce6c19fdeee95e78e20f388f",
+      "bytes": 11675
+    },
+    {
+      "path": "browser-client/tests/fixtures/capture-delivery-angle-v26-complete-source-manifest.json",
+      "beforeSHA256": null,
+      "beforeBytes": null,
+      "afterSHA256": "a366564b2ec15d802d0981e67327e1bb702212dc2c1ee1472371bc59f2ee7c3d",
+      "bytes": 244404
+    },
+    {
+      "path": "browser-client/tests/integration/prepare-tablet-capture-acceptance.mjs",
+      "beforeSHA256": "7530dfeb18151f53c6695d7f34856a4470b41412148531e7393356f06e6b257c",
+      "beforeBytes": 4597,
+      "afterSHA256": "0572f416b5d5b28a7ebf393015395aa0b68d96035af60a89effbd31640562abe",
+      "bytes": 4597
+    }
+  ],
+  "privateViewerCPU": {
+    "delivery": 29,
+    "GPU": 12,
+    "actualGitOrHostedQualification": false,
+    "shippingPaths": []
+  },
+  "privateViewerSourceControls": {
+    "delivery": {
+      "cases": 29,
+      "fail": 0,
+      "skipped": 0,
+      "rootReceiptSHA256": "c7510c542aecd992a3118f39617e053c3941a7509192a72b24dad3c8d7de72b9"
+    },
+    "graphicsRequestedMode": {
+      "cases": 12,
+      "fail": 0,
+      "skipped": 0,
+      "rootReceiptSHA256": "a97dcba3ad1dd918ac7918edd59bc51b1c7f6642b4836bd10e1ba966bb4fb919"
+    },
+    "scope": "Private fixed source/mock/controlled own-file tools; no shipping paths, actual Git tool, future commit or new hosted interpretation claimed."
+  },
+  "installedSourceIndependentCensus": {
+    "premises": 27,
+    "modified": 17,
+    "new": 9,
+    "unchangedHistorical": 1,
+    "discrepancies": 0,
+    "receiptSHA256": "fd8c107749f21b775dad8aca4533bd09ebcafbb0e3e219f8d9fd68e61e334012"
+  },
+  "postDocumentationChecks": {
+    "commands": [
+      [
+        "python3",
+        "tests/run-project-tests.py",
+        "--suite",
+        "documentation-contracts",
+        "--suite",
+        "documentation",
+        "--suite",
+        "workflow-action-pins",
+        "--timeout",
+        "240"
+      ],
+      [
+        "actionlint",
+        "-config-file",
+        ".github/actionlint.yaml",
+        "-shellcheck=",
+        "-pyflakes=",
+        ".github/workflows/browser-client.yml"
+      ],
+      [
+        "git",
+        "diff",
+        "--check"
+      ]
+    ],
+    "status": "PASS; three project suites, zero failed; actionlint and whitespace checks pass",
+    "limits": "External shellcheck/pyflakes not included. Full code source remains byte-identical; proof and documentation finalized after independent code gates."
+  }
+}

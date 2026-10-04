@@ -1,0 +1,54 @@
+{
+  "schema": 1,
+  "date": "2026-10-03",
+  "scope": "Actual Google Chrome and stock native client held Sit; close-to-world gate failed. Overall World-X acceptance is false.",
+  "materialAIAssistance": "Implemented and reviewed with Codex assistance.",
+  "browser": {
+    "product": "Google Chrome",
+    "version": "154.0.8037.97",
+    "executableSHA256": "6c792041b07547a662e1b17974d1dc34a3db630379b45d9d89ddd7e3e68cc587"
+  },
+  "sources": {
+    "worldSHA256": "c02931412d89d91650cf9bf185e8aaaa9ad3c120fc07a159d770761c84839fa7",
+    "mainSHA256": "d351b82de0fdface9266fc05597d3656d6e29248d981179fd0e5240debe9fb88",
+    "nativeModuleSHA256": "cb7b3c3b61cc68fda81275196d07282685c75a88e91bdb0fbf4fabdc4a77531f"
+  },
+  "durationSeconds": 101.579,
+  "completed": false,
+  "exitCode": 1,
+  "failure": {
+    "step": "genuine-close-before-world-key",
+    "message": "page.waitForFunction: Timeout 10000ms exceeded.",
+    "meaning": "Original ten-second predicate requiring Tablet hidden and world graphics active timed out before world canvas activation. Actual X restoration was not reached."
+  },
+  "heldSit": {
+    "nativeAction": {
+      "variant": "Sit3",
+      "frames": 367,
+      "fps": 60
+    },
+    "appliedJointCount": 7,
+    "difference": {
+      "hipsDrop": 84.19715881347656,
+      "maximumThighChange": 1.3971765955214346
+    }
+  },
+  "proofs": {
+    "sourceCoherent": true,
+    "cleanupVerified": true,
+    "ownedMappedModuleQualified": true,
+    "ownedNativeClosed": true,
+    "baselineUnchanged": true,
+    "browserClosed": true,
+    "actualGoogleChromeObserved": true,
+    "ownedGoogleChromeClosed": true,
+    "actualGoogleChromeProcessCount": 10
+  },
+  "ownedGatewayStopped": true,
+  "nineManagedServiceBirthsPreserved": true,
+  "originalRawReportSHA256": "f5a8887a48ea35511a677f8e1a2c414432a1313d2afccc75c145ccf35810a364",
+  "parsedEqualPrivateReportSHA256": "f5a8887a48ea35511a677f8e1a2c414432a1313d2afccc75c145ccf35810a364",
+  "microphoneTested": false,
+  "worldXRestorationTested": false,
+  "gainOrLoadingImprovementClaimed": false
+}

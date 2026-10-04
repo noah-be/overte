@@ -1,0 +1,1663 @@
+{
+  "date": "2026-10-01",
+  "scope": "Actual native Qt Graphics controls, browser framebuffer dimensions, effective state and leave/rejoin; four supported controls only. Separate actual BrowserWorld GPU fixtures establish local-light pixels and collision-constrained camera behavior. No complete native graphics parity, environment scan or loading speed claim.",
+  "nativeVersion": "2026.04.1 f91",
+  "runs": [
+    {
+      "startedAt": "2026-10-01T10:44:07.831Z",
+      "finishedAt": "2026-10-01T10:45:00.575Z",
+      "completed": true,
+      "step": "actual native Graphics",
+      "browserVersion": "153.0.8010.12",
+      "entityMutations": false,
+      "functionalAcceptance": false,
+      "browserGraphics": {
+        "version": 1,
+        "fieldOfView": 70,
+        "resolutionPercent": 100,
+        "localLights": true,
+        "cameraClipping": true
+      },
+      "drawingBuffer": {
+        "width": 1280,
+        "height": 900
+      },
+      "assertions": [
+        "Actual native Settings Graphics page captured; pointer-driven control effects remain pending"
+      ],
+      "rawSHA256": "3362856ee1729bf537b2d5a7679ed52ccfd4a28a63392d4b953bc0ec9e8ae8a4",
+      "sourceCoherent": true,
+      "sourceSHA256": {
+        "start": {
+          "gateway/native-tablet.js": "bc9780865aac1ab92da773230fdfcd11df04511698aace696f9f3e5aa3d86b41",
+          "gateway/tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+          "gateway/native-browser-graphics.js": "723bc8456a884964c3c96c8ab4720f8773ae29a19b8f7adb54a4c1b11cecfa16",
+          "gateway/browser-graphics-overrides.mjs": "a5339a9a334f7de995e6ad7ebdde20f7af56b318bbce5a6611b2157fabef571e",
+          "gateway/tablet.mjs": "270234a52cccbc75f706a096ef47b7661ab34d5b2e8e9d72be8be5b50b79ff0e",
+          "src/main.ts": "05e85d4cd3aa6af1722efbbdeb03c6f661f08ca68ca497952623c1649293c97e",
+          "src/world.ts": "18b6fd8b193693442f61754353a4d4b886126ceb02abd720c95c88007ce011f8",
+          "src/browser-graphics-controller.ts": "0f8e5cf0a26b54e05224debcecb7a4db3dbdcba1894ab617f4ad8821e7cfddbd",
+          "src/browser-graphics-target.ts": "605b347d480909ae29667242cd058199b2877ce35657edb65510d0ac08ce91f6",
+          "shared/browser-graphics.mjs": "b7b66b25602f430cf303d24902dbc4715a3fd48135829fcddda06b238fbdd682",
+          "tests/integration/tablet-graphics.mjs": "e94d08e6894d3eb15dccfa8303447596cf6469d29f51ac0753f38669668ec136"
+        },
+        "end": {
+          "gateway/native-tablet.js": "bc9780865aac1ab92da773230fdfcd11df04511698aace696f9f3e5aa3d86b41",
+          "gateway/tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+          "gateway/native-browser-graphics.js": "723bc8456a884964c3c96c8ab4720f8773ae29a19b8f7adb54a4c1b11cecfa16",
+          "gateway/browser-graphics-overrides.mjs": "a5339a9a334f7de995e6ad7ebdde20f7af56b318bbce5a6611b2157fabef571e",
+          "gateway/tablet.mjs": "270234a52cccbc75f706a096ef47b7661ab34d5b2e8e9d72be8be5b50b79ff0e",
+          "src/main.ts": "05e85d4cd3aa6af1722efbbdeb03c6f661f08ca68ca497952623c1649293c97e",
+          "src/world.ts": "18b6fd8b193693442f61754353a4d4b886126ceb02abd720c95c88007ce011f8",
+          "src/browser-graphics-controller.ts": "0f8e5cf0a26b54e05224debcecb7a4db3dbdcba1894ab617f4ad8821e7cfddbd",
+          "src/browser-graphics-target.ts": "605b347d480909ae29667242cd058199b2877ce35657edb65510d0ac08ce91f6",
+          "shared/browser-graphics.mjs": "b7b66b25602f430cf303d24902dbc4715a3fd48135829fcddda06b238fbdd682",
+          "tests/integration/tablet-graphics.mjs": "e94d08e6894d3eb15dccfa8303447596cf6469d29f51ac0753f38669668ec136"
+        }
+      },
+      "screens": [
+        {
+          "name": "home",
+          "screen": "Home",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "b3c4b14a100b75f954a1417a703c8ac2304a0b53b544f5d80eb589f5b89fe07c"
+        },
+        {
+          "name": "settings",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "6dfeaeb816aa0418cb3cb84cd07ad9ae1a2b491546ea37cd40f14d67302b6ffa"
+        },
+        {
+          "name": "graphics",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "919bd501d3f16629c613dc70166de736adccc976938afb77d133a1d8e95a4108"
+        }
+      ],
+      "nativeRefreshExperimentEnabled": false
+    },
+    {
+      "startedAt": "2026-10-01T10:50:42.832Z",
+      "finishedAt": "2026-10-01T10:52:25.956Z",
+      "completed": false,
+      "step": "reconnect persisted browser controls",
+      "browserVersion": "153.0.8010.12",
+      "entityMutations": false,
+      "functionalAcceptance": false,
+      "browserGraphics": {
+        "version": 1,
+        "fieldOfView": 70,
+        "resolutionPercent": 100,
+        "localLights": true,
+        "cameraClipping": true
+      },
+      "drawingBuffer": {
+        "width": 1280,
+        "height": 900
+      },
+      "restored": {
+        "settings": {
+          "version": 1,
+          "fieldOfView": 130,
+          "resolutionPercent": 50,
+          "localLights": true,
+          "cameraClipping": true
+        },
+        "width": 640,
+        "height": 450
+      },
+      "controlEffects": [
+        {
+          "settings": {
+            "version": 1,
+            "fieldOfView": 20,
+            "resolutionPercent": 100,
+            "localLights": true,
+            "cameraClipping": true
+          },
+          "width": 1280,
+          "height": 900,
+          "request": {
+            "type": "tablet",
+            "kind": "graphics",
+            "revision": 1,
+            "schemaVersion": 1,
+            "requestId": 2,
+            "operation": "change",
+            "field": "fieldOfView",
+            "value": 20
+          }
+        },
+        {
+          "settings": {
+            "version": 1,
+            "fieldOfView": 130,
+            "resolutionPercent": 100,
+            "localLights": true,
+            "cameraClipping": true
+          },
+          "width": 1280,
+          "height": 900,
+          "request": {
+            "type": "tablet",
+            "kind": "graphics",
+            "revision": 1,
+            "schemaVersion": 1,
+            "requestId": 3,
+            "operation": "change",
+            "field": "fieldOfView",
+            "value": 130
+          }
+        },
+        {
+          "settings": {
+            "version": 1,
+            "fieldOfView": 130,
+            "resolutionPercent": 50,
+            "localLights": true,
+            "cameraClipping": true
+          },
+          "width": 640,
+          "height": 450,
+          "request": {
+            "type": "tablet",
+            "kind": "graphics",
+            "revision": 1,
+            "schemaVersion": 1,
+            "requestId": 4,
+            "operation": "change",
+            "field": "resolutionPercent",
+            "value": 50
+          }
+        },
+        {
+          "settings": {
+            "version": 1,
+            "fieldOfView": 130,
+            "resolutionPercent": 200,
+            "localLights": true,
+            "cameraClipping": true
+          },
+          "width": 2560,
+          "height": 1800,
+          "request": {
+            "type": "tablet",
+            "kind": "graphics",
+            "revision": 1,
+            "schemaVersion": 1,
+            "requestId": 5,
+            "operation": "change",
+            "field": "resolutionPercent",
+            "value": 200
+          }
+        },
+        {
+          "settings": {
+            "version": 1,
+            "fieldOfView": 130,
+            "resolutionPercent": 100,
+            "localLights": true,
+            "cameraClipping": true
+          },
+          "width": 1280,
+          "height": 900,
+          "request": {
+            "type": "tablet",
+            "kind": "graphics",
+            "revision": 1,
+            "schemaVersion": 1,
+            "requestId": 6,
+            "operation": "change",
+            "field": "resolutionPercent",
+            "value": 100
+          }
+        },
+        {
+          "settings": {
+            "version": 1,
+            "fieldOfView": 130,
+            "resolutionPercent": 100,
+            "localLights": false,
+            "cameraClipping": true
+          },
+          "width": 1280,
+          "height": 900,
+          "request": {
+            "type": "tablet",
+            "kind": "graphics",
+            "revision": 1,
+            "schemaVersion": 1,
+            "requestId": 7,
+            "operation": "change",
+            "field": "localLights",
+            "value": false
+          }
+        },
+        {
+          "settings": {
+            "version": 1,
+            "fieldOfView": 130,
+            "resolutionPercent": 100,
+            "localLights": true,
+            "cameraClipping": true
+          },
+          "width": 1280,
+          "height": 900,
+          "request": {
+            "type": "tablet",
+            "kind": "graphics",
+            "revision": 1,
+            "schemaVersion": 1,
+            "requestId": 8,
+            "operation": "change",
+            "field": "localLights",
+            "value": true
+          }
+        },
+        {
+          "settings": {
+            "version": 1,
+            "fieldOfView": 130,
+            "resolutionPercent": 100,
+            "localLights": true,
+            "cameraClipping": false
+          },
+          "width": 1280,
+          "height": 900,
+          "request": {
+            "type": "tablet",
+            "kind": "graphics",
+            "revision": 1,
+            "schemaVersion": 1,
+            "requestId": 9,
+            "operation": "change",
+            "field": "cameraClipping",
+            "value": false
+          }
+        },
+        {
+          "settings": {
+            "version": 1,
+            "fieldOfView": 130,
+            "resolutionPercent": 100,
+            "localLights": true,
+            "cameraClipping": true
+          },
+          "width": 1280,
+          "height": 900,
+          "request": {
+            "type": "tablet",
+            "kind": "graphics",
+            "revision": 1,
+            "schemaVersion": 1,
+            "requestId": 10,
+            "operation": "change",
+            "field": "cameraClipping",
+            "value": true
+          }
+        },
+        {
+          "settings": {
+            "version": 1,
+            "fieldOfView": 130,
+            "resolutionPercent": 50,
+            "localLights": true,
+            "cameraClipping": true
+          },
+          "width": 640,
+          "height": 450,
+          "request": {
+            "type": "tablet",
+            "kind": "graphics",
+            "revision": 1,
+            "schemaVersion": 1,
+            "requestId": 11,
+            "operation": "change",
+            "field": "resolutionPercent",
+            "value": 50
+          }
+        }
+      ],
+      "assertions": [],
+      "rawSHA256": "ed8601daaacd800e065e247a796ce3cae1d09c681e1ff7c85277b88e9aceadd5",
+      "sourceCoherent": true,
+      "sourceSHA256": {
+        "start": {
+          "gateway/native-tablet.js": "bc9780865aac1ab92da773230fdfcd11df04511698aace696f9f3e5aa3d86b41",
+          "gateway/tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+          "gateway/native-browser-graphics.js": "723bc8456a884964c3c96c8ab4720f8773ae29a19b8f7adb54a4c1b11cecfa16",
+          "gateway/browser-graphics-overrides.mjs": "a5339a9a334f7de995e6ad7ebdde20f7af56b318bbce5a6611b2157fabef571e",
+          "gateway/tablet.mjs": "270234a52cccbc75f706a096ef47b7661ab34d5b2e8e9d72be8be5b50b79ff0e",
+          "gateway/server.mjs": "28a6a653f7fbdf3750d347b79d1417bcd52f9d1a6d37ee0c4bed6e433ce9db50",
+          "gateway/native-bridge.js": "44ecbdf489bc54c4f73d9dddb2a6bf3a8f1d281c0c7daf3e8d73a6ab6472dcd4",
+          "gateway/worker-sandbox.mjs": "2d1d752707c1b6bfbcacb9c0c61e77a6a1bc1a1136c70b42bd78373738f68751",
+          "gateway/native-worker-refresh-readback.js": "a703b627786a3f2660a4f478ad3776c53ae9c28d7aba85f62823048bcb360d10",
+          "gateway/native-worker-refresh-probe.js": "7513a1a873444b7514f913057f5fa99d09f32b84ce2f47526a7d75326b2d0893",
+          "dist/index.html": "2b22fe7081b5f2fd3ff8b4bf81878a510e8ea86c284142cc5af25728247caa45",
+          "src/main.ts": "05e85d4cd3aa6af1722efbbdeb03c6f661f08ca68ca497952623c1649293c97e",
+          "src/world.ts": "18b6fd8b193693442f61754353a4d4b886126ceb02abd720c95c88007ce011f8",
+          "src/browser-graphics-controller.ts": "0f8e5cf0a26b54e05224debcecb7a4db3dbdcba1894ab617f4ad8821e7cfddbd",
+          "src/browser-graphics-target.ts": "605b347d480909ae29667242cd058199b2877ce35657edb65510d0ac08ce91f6",
+          "shared/browser-graphics.mjs": "b7b66b25602f430cf303d24902dbc4715a3fd48135829fcddda06b238fbdd682",
+          "tests/integration/tablet-graphics.mjs": "a886e348a2cc0131e97fd0d9201ae52bc07d18b90fa8104f6d912ce9289b7069"
+        },
+        "end": {
+          "gateway/native-tablet.js": "bc9780865aac1ab92da773230fdfcd11df04511698aace696f9f3e5aa3d86b41",
+          "gateway/tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+          "gateway/native-browser-graphics.js": "723bc8456a884964c3c96c8ab4720f8773ae29a19b8f7adb54a4c1b11cecfa16",
+          "gateway/browser-graphics-overrides.mjs": "a5339a9a334f7de995e6ad7ebdde20f7af56b318bbce5a6611b2157fabef571e",
+          "gateway/tablet.mjs": "270234a52cccbc75f706a096ef47b7661ab34d5b2e8e9d72be8be5b50b79ff0e",
+          "gateway/server.mjs": "28a6a653f7fbdf3750d347b79d1417bcd52f9d1a6d37ee0c4bed6e433ce9db50",
+          "gateway/native-bridge.js": "44ecbdf489bc54c4f73d9dddb2a6bf3a8f1d281c0c7daf3e8d73a6ab6472dcd4",
+          "gateway/worker-sandbox.mjs": "2d1d752707c1b6bfbcacb9c0c61e77a6a1bc1a1136c70b42bd78373738f68751",
+          "gateway/native-worker-refresh-readback.js": "a703b627786a3f2660a4f478ad3776c53ae9c28d7aba85f62823048bcb360d10",
+          "gateway/native-worker-refresh-probe.js": "7513a1a873444b7514f913057f5fa99d09f32b84ce2f47526a7d75326b2d0893",
+          "dist/index.html": "2b22fe7081b5f2fd3ff8b4bf81878a510e8ea86c284142cc5af25728247caa45",
+          "src/main.ts": "05e85d4cd3aa6af1722efbbdeb03c6f661f08ca68ca497952623c1649293c97e",
+          "src/world.ts": "18b6fd8b193693442f61754353a4d4b886126ceb02abd720c95c88007ce011f8",
+          "src/browser-graphics-controller.ts": "0f8e5cf0a26b54e05224debcecb7a4db3dbdcba1894ab617f4ad8821e7cfddbd",
+          "src/browser-graphics-target.ts": "605b347d480909ae29667242cd058199b2877ce35657edb65510d0ac08ce91f6",
+          "shared/browser-graphics.mjs": "b7b66b25602f430cf303d24902dbc4715a3fd48135829fcddda06b238fbdd682",
+          "tests/integration/tablet-graphics.mjs": "a886e348a2cc0131e97fd0d9201ae52bc07d18b90fa8104f6d912ce9289b7069"
+        }
+      },
+      "screens": [
+        {
+          "name": "home",
+          "screen": "Home",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "29de7a5accfd9a72051787ce3dd99188405a3966bab406136503bcb4c9daccd4"
+        },
+        {
+          "name": "settings",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "6dfeaeb816aa0418cb3cb84cd07ad9ae1a2b491546ea37cd40f14d67302b6ffa"
+        },
+        {
+          "name": "graphics",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "919bd501d3f16629c613dc70166de736adccc976938afb77d133a1d8e95a4108"
+        },
+        {
+          "name": "fieldOfView-20",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "e424ce9d2055a061ee92d15fe4ccd177a24987a51d771394a64f7e85baddef57"
+        },
+        {
+          "name": "fieldOfView-130",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "188926e8fa0eb7d358aa8df9ddf6abb0619df100ca2ffe4ffb436ad9b24529c4"
+        },
+        {
+          "name": "resolutionPercent-50",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "e40a4a36d0df71630915bf3f25a49bbf6e004d518ac8b8e96fe20f5e27d7c62c"
+        },
+        {
+          "name": "resolutionPercent-200",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "aef1b3130d193ab7fe552654cc4597f1dce73e3307386f1532dd80e75814b7db"
+        },
+        {
+          "name": "resolutionPercent-100",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "83e965e07d87c7c30b7608eee1cb19041fdff4ec0f43d308b5bfe7d4f002cb2f"
+        },
+        {
+          "name": "localLights-false",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "2dd1523a7c27f0bef8d12b4e8c4ffe8866d553dfb86866ad348f950e08899368"
+        },
+        {
+          "name": "localLights-true",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "fd1c1bc4cd9bbda0bc072ee7bdd3c8629861e7df39821801bb7ce7401d24459e"
+        },
+        {
+          "name": "cameraClipping-false",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "95d15d7fba65685f43c6a6d1c0ed76a10a2a1a1a2b1b17a95bd0eeb5b0754fd2"
+        },
+        {
+          "name": "cameraClipping-true",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "5e6614c642fdb8ebee7ca6fb856eb9b11b521de22d452ff64f8d401d090e81eb"
+        },
+        {
+          "name": "resolutionPercent-50",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "e40a4a36d0df71630915bf3f25a49bbf6e004d518ac8b8e96fe20f5e27d7c62c"
+        }
+      ],
+      "failure": "page.waitForFunction: Timeout 20000ms exceeded.",
+      "nativeRefreshExperimentEnabled": true
+    },
+    {
+      "startedAt": "2026-10-01T10:53:45.661Z",
+      "finishedAt": "2026-10-01T10:54:31.892Z",
+      "completed": false,
+      "step": "join",
+      "browserVersion": "153.0.8010.12",
+      "entityMutations": false,
+      "functionalAcceptance": false,
+      "controlEffects": [],
+      "assertions": [],
+      "rawSHA256": "fa9e30cd80e0646750ecd1987bb9e36dde61f4bf0355e25735b07343a2f64e8e",
+      "sourceCoherent": true,
+      "sourceSHA256": {
+        "start": {
+          "gateway/native-tablet.js": "bc9780865aac1ab92da773230fdfcd11df04511698aace696f9f3e5aa3d86b41",
+          "gateway/tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+          "gateway/native-browser-graphics.js": "723bc8456a884964c3c96c8ab4720f8773ae29a19b8f7adb54a4c1b11cecfa16",
+          "gateway/browser-graphics-overrides.mjs": "a5339a9a334f7de995e6ad7ebdde20f7af56b318bbce5a6611b2157fabef571e",
+          "gateway/tablet.mjs": "270234a52cccbc75f706a096ef47b7661ab34d5b2e8e9d72be8be5b50b79ff0e",
+          "gateway/server.mjs": "28a6a653f7fbdf3750d347b79d1417bcd52f9d1a6d37ee0c4bed6e433ce9db50",
+          "gateway/native-bridge.js": "44ecbdf489bc54c4f73d9dddb2a6bf3a8f1d281c0c7daf3e8d73a6ab6472dcd4",
+          "gateway/worker-sandbox.mjs": "2d1d752707c1b6bfbcacb9c0c61e77a6a1bc1a1136c70b42bd78373738f68751",
+          "gateway/native-worker-refresh-readback.js": "a703b627786a3f2660a4f478ad3776c53ae9c28d7aba85f62823048bcb360d10",
+          "gateway/native-worker-refresh-probe.js": "7513a1a873444b7514f913057f5fa99d09f32b84ce2f47526a7d75326b2d0893",
+          "dist/index.html": "2b22fe7081b5f2fd3ff8b4bf81878a510e8ea86c284142cc5af25728247caa45",
+          "src/main.ts": "05e85d4cd3aa6af1722efbbdeb03c6f661f08ca68ca497952623c1649293c97e",
+          "src/world.ts": "18b6fd8b193693442f61754353a4d4b886126ceb02abd720c95c88007ce011f8",
+          "src/browser-graphics-controller.ts": "0f8e5cf0a26b54e05224debcecb7a4db3dbdcba1894ab617f4ad8821e7cfddbd",
+          "src/browser-graphics-target.ts": "605b347d480909ae29667242cd058199b2877ce35657edb65510d0ac08ce91f6",
+          "shared/browser-graphics.mjs": "b7b66b25602f430cf303d24902dbc4715a3fd48135829fcddda06b238fbdd682",
+          "tests/integration/tablet-graphics.mjs": "f5a95ba1e63feeb347203ecb626633e35d51c0ffa4772808797aea22835493b7"
+        },
+        "end": {
+          "gateway/native-tablet.js": "bc9780865aac1ab92da773230fdfcd11df04511698aace696f9f3e5aa3d86b41",
+          "gateway/tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+          "gateway/native-browser-graphics.js": "723bc8456a884964c3c96c8ab4720f8773ae29a19b8f7adb54a4c1b11cecfa16",
+          "gateway/browser-graphics-overrides.mjs": "a5339a9a334f7de995e6ad7ebdde20f7af56b318bbce5a6611b2157fabef571e",
+          "gateway/tablet.mjs": "270234a52cccbc75f706a096ef47b7661ab34d5b2e8e9d72be8be5b50b79ff0e",
+          "gateway/server.mjs": "28a6a653f7fbdf3750d347b79d1417bcd52f9d1a6d37ee0c4bed6e433ce9db50",
+          "gateway/native-bridge.js": "44ecbdf489bc54c4f73d9dddb2a6bf3a8f1d281c0c7daf3e8d73a6ab6472dcd4",
+          "gateway/worker-sandbox.mjs": "2d1d752707c1b6bfbcacb9c0c61e77a6a1bc1a1136c70b42bd78373738f68751",
+          "gateway/native-worker-refresh-readback.js": "a703b627786a3f2660a4f478ad3776c53ae9c28d7aba85f62823048bcb360d10",
+          "gateway/native-worker-refresh-probe.js": "7513a1a873444b7514f913057f5fa99d09f32b84ce2f47526a7d75326b2d0893",
+          "dist/index.html": "2b22fe7081b5f2fd3ff8b4bf81878a510e8ea86c284142cc5af25728247caa45",
+          "src/main.ts": "05e85d4cd3aa6af1722efbbdeb03c6f661f08ca68ca497952623c1649293c97e",
+          "src/world.ts": "18b6fd8b193693442f61754353a4d4b886126ceb02abd720c95c88007ce011f8",
+          "src/browser-graphics-controller.ts": "0f8e5cf0a26b54e05224debcecb7a4db3dbdcba1894ab617f4ad8821e7cfddbd",
+          "src/browser-graphics-target.ts": "605b347d480909ae29667242cd058199b2877ce35657edb65510d0ac08ce91f6",
+          "shared/browser-graphics.mjs": "b7b66b25602f430cf303d24902dbc4715a3fd48135829fcddda06b238fbdd682",
+          "tests/integration/tablet-graphics.mjs": "f5a95ba1e63feeb347203ecb626633e35d51c0ffa4772808797aea22835493b7"
+        }
+      },
+      "screens": [],
+      "failure": "page.waitForFunction: Timeout 30000ms exceeded.",
+      "nativeRefreshExperimentEnabled": true
+    },
+    {
+      "startedAt": "2026-10-01T10:59:14.169Z",
+      "finishedAt": "2026-10-01T11:00:01.526Z",
+      "completed": false,
+      "step": "join",
+      "browserVersion": "153.0.8010.12",
+      "entityMutations": false,
+      "functionalAcceptance": false,
+      "controlEffects": [],
+      "assertions": [],
+      "rawSHA256": "cbacdeb1226e8fc6e3c895d3eec52696613d556a0363d3fa2c1d9e20eef8688e",
+      "sourceCoherent": true,
+      "sourceSHA256": {
+        "start": {
+          "gateway/native-tablet.js": "bc9780865aac1ab92da773230fdfcd11df04511698aace696f9f3e5aa3d86b41",
+          "gateway/tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+          "gateway/native-browser-graphics.js": "723bc8456a884964c3c96c8ab4720f8773ae29a19b8f7adb54a4c1b11cecfa16",
+          "gateway/browser-graphics-overrides.mjs": "a5339a9a334f7de995e6ad7ebdde20f7af56b318bbce5a6611b2157fabef571e",
+          "gateway/tablet.mjs": "270234a52cccbc75f706a096ef47b7661ab34d5b2e8e9d72be8be5b50b79ff0e",
+          "gateway/server.mjs": "28a6a653f7fbdf3750d347b79d1417bcd52f9d1a6d37ee0c4bed6e433ce9db50",
+          "gateway/native-bridge.js": "44ecbdf489bc54c4f73d9dddb2a6bf3a8f1d281c0c7daf3e8d73a6ab6472dcd4",
+          "gateway/worker-sandbox.mjs": "2d1d752707c1b6bfbcacb9c0c61e77a6a1bc1a1136c70b42bd78373738f68751",
+          "gateway/native-worker-refresh-readback.js": "a703b627786a3f2660a4f478ad3776c53ae9c28d7aba85f62823048bcb360d10",
+          "gateway/native-worker-refresh-probe.js": "7513a1a873444b7514f913057f5fa99d09f32b84ce2f47526a7d75326b2d0893",
+          "dist/index.html": "2b22fe7081b5f2fd3ff8b4bf81878a510e8ea86c284142cc5af25728247caa45",
+          "src/main.ts": "05e85d4cd3aa6af1722efbbdeb03c6f661f08ca68ca497952623c1649293c97e",
+          "src/world.ts": "18b6fd8b193693442f61754353a4d4b886126ceb02abd720c95c88007ce011f8",
+          "src/browser-graphics-controller.ts": "0f8e5cf0a26b54e05224debcecb7a4db3dbdcba1894ab617f4ad8821e7cfddbd",
+          "src/browser-graphics-target.ts": "605b347d480909ae29667242cd058199b2877ce35657edb65510d0ac08ce91f6",
+          "shared/browser-graphics.mjs": "b7b66b25602f430cf303d24902dbc4715a3fd48135829fcddda06b238fbdd682",
+          "tests/integration/tablet-graphics.mjs": "da1f924d3f0f97974c1a1270cf9a2ed3f3e2e84404444dbbd1f7304f72a4f211"
+        },
+        "end": {
+          "gateway/native-tablet.js": "bc9780865aac1ab92da773230fdfcd11df04511698aace696f9f3e5aa3d86b41",
+          "gateway/tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+          "gateway/native-browser-graphics.js": "723bc8456a884964c3c96c8ab4720f8773ae29a19b8f7adb54a4c1b11cecfa16",
+          "gateway/browser-graphics-overrides.mjs": "a5339a9a334f7de995e6ad7ebdde20f7af56b318bbce5a6611b2157fabef571e",
+          "gateway/tablet.mjs": "270234a52cccbc75f706a096ef47b7661ab34d5b2e8e9d72be8be5b50b79ff0e",
+          "gateway/server.mjs": "28a6a653f7fbdf3750d347b79d1417bcd52f9d1a6d37ee0c4bed6e433ce9db50",
+          "gateway/native-bridge.js": "44ecbdf489bc54c4f73d9dddb2a6bf3a8f1d281c0c7daf3e8d73a6ab6472dcd4",
+          "gateway/worker-sandbox.mjs": "2d1d752707c1b6bfbcacb9c0c61e77a6a1bc1a1136c70b42bd78373738f68751",
+          "gateway/native-worker-refresh-readback.js": "a703b627786a3f2660a4f478ad3776c53ae9c28d7aba85f62823048bcb360d10",
+          "gateway/native-worker-refresh-probe.js": "7513a1a873444b7514f913057f5fa99d09f32b84ce2f47526a7d75326b2d0893",
+          "dist/index.html": "2b22fe7081b5f2fd3ff8b4bf81878a510e8ea86c284142cc5af25728247caa45",
+          "src/main.ts": "05e85d4cd3aa6af1722efbbdeb03c6f661f08ca68ca497952623c1649293c97e",
+          "src/world.ts": "18b6fd8b193693442f61754353a4d4b886126ceb02abd720c95c88007ce011f8",
+          "src/browser-graphics-controller.ts": "0f8e5cf0a26b54e05224debcecb7a4db3dbdcba1894ab617f4ad8821e7cfddbd",
+          "src/browser-graphics-target.ts": "605b347d480909ae29667242cd058199b2877ce35657edb65510d0ac08ce91f6",
+          "shared/browser-graphics.mjs": "b7b66b25602f430cf303d24902dbc4715a3fd48135829fcddda06b238fbdd682",
+          "tests/integration/tablet-graphics.mjs": "da1f924d3f0f97974c1a1270cf9a2ed3f3e2e84404444dbbd1f7304f72a4f211"
+        }
+      },
+      "screens": [],
+      "failure": "page.waitForFunction: Timeout 30000ms exceeded.",
+      "failureDiagnostics": {
+        "connected": true,
+        "states": [
+          {
+            "screen": "Home",
+            "visible": false
+          },
+          {
+            "screen": "Home",
+            "visible": true
+          },
+          {
+            "screen": "Home",
+            "visible": true
+          }
+        ],
+        "frameMetadata": [],
+        "warningCount": 0,
+        "graphicsRequestCount": 0
+      },
+      "nativeRefreshExperimentEnabled": true
+    },
+    {
+      "startedAt": "2026-10-01T11:03:45.101Z",
+      "finishedAt": "2026-10-01T11:05:38.117Z",
+      "completed": true,
+      "step": "native pointer resolutionPercent 100",
+      "browserVersion": "153.0.8010.12",
+      "entityMutations": false,
+      "controlAcceptance": true,
+      "functionalAcceptance": false,
+      "browserGraphics": {
+        "version": 1,
+        "fieldOfView": 70,
+        "resolutionPercent": 100,
+        "localLights": true,
+        "cameraClipping": true
+      },
+      "drawingBuffer": {
+        "width": 1280,
+        "height": 900
+      },
+      "restored": {
+        "settings": {
+          "version": 1,
+          "fieldOfView": 130,
+          "resolutionPercent": 50,
+          "localLights": true,
+          "cameraClipping": true
+        },
+        "width": 640,
+        "height": 450
+      },
+      "controlEffects": [
+        {
+          "settings": {
+            "version": 1,
+            "fieldOfView": 20,
+            "resolutionPercent": 100,
+            "localLights": true,
+            "cameraClipping": true
+          },
+          "width": 1280,
+          "height": 900,
+          "request": {
+            "type": "tablet",
+            "kind": "graphics",
+            "revision": 1,
+            "schemaVersion": 1,
+            "requestId": 2,
+            "operation": "change",
+            "field": "fieldOfView",
+            "value": 20
+          }
+        },
+        {
+          "settings": {
+            "version": 1,
+            "fieldOfView": 130,
+            "resolutionPercent": 100,
+            "localLights": true,
+            "cameraClipping": true
+          },
+          "width": 1280,
+          "height": 900,
+          "request": {
+            "type": "tablet",
+            "kind": "graphics",
+            "revision": 1,
+            "schemaVersion": 1,
+            "requestId": 3,
+            "operation": "change",
+            "field": "fieldOfView",
+            "value": 130
+          }
+        },
+        {
+          "settings": {
+            "version": 1,
+            "fieldOfView": 130,
+            "resolutionPercent": 50,
+            "localLights": true,
+            "cameraClipping": true
+          },
+          "width": 640,
+          "height": 450,
+          "request": {
+            "type": "tablet",
+            "kind": "graphics",
+            "revision": 1,
+            "schemaVersion": 1,
+            "requestId": 4,
+            "operation": "change",
+            "field": "resolutionPercent",
+            "value": 50
+          }
+        },
+        {
+          "settings": {
+            "version": 1,
+            "fieldOfView": 130,
+            "resolutionPercent": 200,
+            "localLights": true,
+            "cameraClipping": true
+          },
+          "width": 2560,
+          "height": 1800,
+          "request": {
+            "type": "tablet",
+            "kind": "graphics",
+            "revision": 1,
+            "schemaVersion": 1,
+            "requestId": 5,
+            "operation": "change",
+            "field": "resolutionPercent",
+            "value": 200
+          }
+        },
+        {
+          "settings": {
+            "version": 1,
+            "fieldOfView": 130,
+            "resolutionPercent": 100,
+            "localLights": true,
+            "cameraClipping": true
+          },
+          "width": 1280,
+          "height": 900,
+          "request": {
+            "type": "tablet",
+            "kind": "graphics",
+            "revision": 1,
+            "schemaVersion": 1,
+            "requestId": 6,
+            "operation": "change",
+            "field": "resolutionPercent",
+            "value": 100
+          }
+        },
+        {
+          "settings": {
+            "version": 1,
+            "fieldOfView": 130,
+            "resolutionPercent": 100,
+            "localLights": false,
+            "cameraClipping": true
+          },
+          "width": 1280,
+          "height": 900,
+          "request": {
+            "type": "tablet",
+            "kind": "graphics",
+            "revision": 1,
+            "schemaVersion": 1,
+            "requestId": 7,
+            "operation": "change",
+            "field": "localLights",
+            "value": false
+          }
+        },
+        {
+          "settings": {
+            "version": 1,
+            "fieldOfView": 130,
+            "resolutionPercent": 100,
+            "localLights": true,
+            "cameraClipping": true
+          },
+          "width": 1280,
+          "height": 900,
+          "request": {
+            "type": "tablet",
+            "kind": "graphics",
+            "revision": 1,
+            "schemaVersion": 1,
+            "requestId": 8,
+            "operation": "change",
+            "field": "localLights",
+            "value": true
+          }
+        },
+        {
+          "settings": {
+            "version": 1,
+            "fieldOfView": 130,
+            "resolutionPercent": 100,
+            "localLights": true,
+            "cameraClipping": false
+          },
+          "width": 1280,
+          "height": 900,
+          "request": {
+            "type": "tablet",
+            "kind": "graphics",
+            "revision": 1,
+            "schemaVersion": 1,
+            "requestId": 9,
+            "operation": "change",
+            "field": "cameraClipping",
+            "value": false
+          }
+        },
+        {
+          "settings": {
+            "version": 1,
+            "fieldOfView": 130,
+            "resolutionPercent": 100,
+            "localLights": true,
+            "cameraClipping": true
+          },
+          "width": 1280,
+          "height": 900,
+          "request": {
+            "type": "tablet",
+            "kind": "graphics",
+            "revision": 1,
+            "schemaVersion": 1,
+            "requestId": 10,
+            "operation": "change",
+            "field": "cameraClipping",
+            "value": true
+          }
+        },
+        {
+          "settings": {
+            "version": 1,
+            "fieldOfView": 130,
+            "resolutionPercent": 50,
+            "localLights": true,
+            "cameraClipping": true
+          },
+          "width": 640,
+          "height": 450,
+          "request": {
+            "type": "tablet",
+            "kind": "graphics",
+            "revision": 1,
+            "schemaVersion": 1,
+            "requestId": 11,
+            "operation": "change",
+            "field": "resolutionPercent",
+            "value": 50
+          }
+        },
+        {
+          "settings": {
+            "version": 1,
+            "fieldOfView": 70,
+            "resolutionPercent": 50,
+            "localLights": true,
+            "cameraClipping": true
+          },
+          "width": 640,
+          "height": 450,
+          "request": {
+            "type": "tablet",
+            "kind": "graphics",
+            "revision": 1,
+            "schemaVersion": 1,
+            "requestId": 2,
+            "operation": "change",
+            "field": "fieldOfView",
+            "value": 70
+          }
+        },
+        {
+          "settings": {
+            "version": 1,
+            "fieldOfView": 70,
+            "resolutionPercent": 100,
+            "localLights": true,
+            "cameraClipping": true
+          },
+          "width": 1280,
+          "height": 900,
+          "request": {
+            "type": "tablet",
+            "kind": "graphics",
+            "revision": 1,
+            "schemaVersion": 1,
+            "requestId": 3,
+            "operation": "change",
+            "field": "resolutionPercent",
+            "value": 100
+          }
+        }
+      ],
+      "assertions": [
+        "Genuine native Graphics slider/switch input changes actual browser target state and framebuffer dimensions; persisted settings survive leave/reconnect. Actual local-light pixels and constrained-camera pixels remain separate acceptance."
+      ],
+      "rawSHA256": "fcbb0ee5c7c24237e83a3b3e5019b24192798eaa4a29ab1f3b1e4def93973b12",
+      "sourceCoherent": true,
+      "sourceSHA256": {
+        "start": {
+          "gateway/native-tablet.js": "bc9780865aac1ab92da773230fdfcd11df04511698aace696f9f3e5aa3d86b41",
+          "gateway/tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+          "gateway/native-browser-graphics.js": "723bc8456a884964c3c96c8ab4720f8773ae29a19b8f7adb54a4c1b11cecfa16",
+          "gateway/browser-graphics-overrides.mjs": "a5339a9a334f7de995e6ad7ebdde20f7af56b318bbce5a6611b2157fabef571e",
+          "gateway/tablet.mjs": "270234a52cccbc75f706a096ef47b7661ab34d5b2e8e9d72be8be5b50b79ff0e",
+          "gateway/server.mjs": "dbba6b07c63fc3d3f65851945c05e67d22404ba081382c4d8f29924477b44444",
+          "gateway/native-bridge.js": "44ecbdf489bc54c4f73d9dddb2a6bf3a8f1d281c0c7daf3e8d73a6ab6472dcd4",
+          "gateway/worker-sandbox.mjs": "2d1d752707c1b6bfbcacb9c0c61e77a6a1bc1a1136c70b42bd78373738f68751",
+          "gateway/native-worker-refresh-readback.js": "a703b627786a3f2660a4f478ad3776c53ae9c28d7aba85f62823048bcb360d10",
+          "gateway/native-worker-refresh-probe.js": "7513a1a873444b7514f913057f5fa99d09f32b84ce2f47526a7d75326b2d0893",
+          "dist/index.html": "2b22fe7081b5f2fd3ff8b4bf81878a510e8ea86c284142cc5af25728247caa45",
+          "src/main.ts": "05e85d4cd3aa6af1722efbbdeb03c6f661f08ca68ca497952623c1649293c97e",
+          "src/world.ts": "18b6fd8b193693442f61754353a4d4b886126ceb02abd720c95c88007ce011f8",
+          "src/browser-graphics-controller.ts": "0f8e5cf0a26b54e05224debcecb7a4db3dbdcba1894ab617f4ad8821e7cfddbd",
+          "src/browser-graphics-target.ts": "605b347d480909ae29667242cd058199b2877ce35657edb65510d0ac08ce91f6",
+          "shared/browser-graphics.mjs": "b7b66b25602f430cf303d24902dbc4715a3fd48135829fcddda06b238fbdd682",
+          "tests/integration/tablet-graphics.mjs": "da1f924d3f0f97974c1a1270cf9a2ed3f3e2e84404444dbbd1f7304f72a4f211"
+        },
+        "end": {
+          "gateway/native-tablet.js": "bc9780865aac1ab92da773230fdfcd11df04511698aace696f9f3e5aa3d86b41",
+          "gateway/tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+          "gateway/native-browser-graphics.js": "723bc8456a884964c3c96c8ab4720f8773ae29a19b8f7adb54a4c1b11cecfa16",
+          "gateway/browser-graphics-overrides.mjs": "a5339a9a334f7de995e6ad7ebdde20f7af56b318bbce5a6611b2157fabef571e",
+          "gateway/tablet.mjs": "270234a52cccbc75f706a096ef47b7661ab34d5b2e8e9d72be8be5b50b79ff0e",
+          "gateway/server.mjs": "dbba6b07c63fc3d3f65851945c05e67d22404ba081382c4d8f29924477b44444",
+          "gateway/native-bridge.js": "44ecbdf489bc54c4f73d9dddb2a6bf3a8f1d281c0c7daf3e8d73a6ab6472dcd4",
+          "gateway/worker-sandbox.mjs": "2d1d752707c1b6bfbcacb9c0c61e77a6a1bc1a1136c70b42bd78373738f68751",
+          "gateway/native-worker-refresh-readback.js": "a703b627786a3f2660a4f478ad3776c53ae9c28d7aba85f62823048bcb360d10",
+          "gateway/native-worker-refresh-probe.js": "7513a1a873444b7514f913057f5fa99d09f32b84ce2f47526a7d75326b2d0893",
+          "dist/index.html": "2b22fe7081b5f2fd3ff8b4bf81878a510e8ea86c284142cc5af25728247caa45",
+          "src/main.ts": "05e85d4cd3aa6af1722efbbdeb03c6f661f08ca68ca497952623c1649293c97e",
+          "src/world.ts": "18b6fd8b193693442f61754353a4d4b886126ceb02abd720c95c88007ce011f8",
+          "src/browser-graphics-controller.ts": "0f8e5cf0a26b54e05224debcecb7a4db3dbdcba1894ab617f4ad8821e7cfddbd",
+          "src/browser-graphics-target.ts": "605b347d480909ae29667242cd058199b2877ce35657edb65510d0ac08ce91f6",
+          "shared/browser-graphics.mjs": "b7b66b25602f430cf303d24902dbc4715a3fd48135829fcddda06b238fbdd682",
+          "tests/integration/tablet-graphics.mjs": "da1f924d3f0f97974c1a1270cf9a2ed3f3e2e84404444dbbd1f7304f72a4f211"
+        }
+      },
+      "screens": [
+        {
+          "name": "home",
+          "screen": "Home",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "66a832c81d9168f9a4faf033dfc9a2e212c4d15a6e74cc2b055eedd5760b38f3"
+        },
+        {
+          "name": "settings",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "64fbb2e8b8ba07cc8679632881ff636e4ca56d5f1a48b8c3077abe4cecf9d899"
+        },
+        {
+          "name": "graphics",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "d48cbb4a9dd3b83b34c032dc78c3f4b5dbecf3c350eb24185fa508e782d78886"
+        },
+        {
+          "name": "fieldOfView-20",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "7187011219093d47f42895da5936dd8fad13880647381d6ac62398742cc71500"
+        },
+        {
+          "name": "fieldOfView-130",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "898d4214e5884b915a1d37469edfabd3e31f8fa5fcf7c3758ebbfcb6db8ffc36"
+        },
+        {
+          "name": "resolutionPercent-50",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "505bdebe02f299eb241b44a8e932e87234f783678afd3ebd21cf9260f46b9d23"
+        },
+        {
+          "name": "resolutionPercent-200",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "22b724910d64a7b8a3a22d256734eaa9d40e9122a586400a396181ef6a891757"
+        },
+        {
+          "name": "resolutionPercent-100",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "b1012ba3a76ca8f04f0cb6b1ac881b5ac8739a820cbba539ed6806d43908b9a5"
+        },
+        {
+          "name": "localLights-false",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "57883cf69cc4bd92b6b72b998188260895ec588125f1dbaa8f6f21dfad397070"
+        },
+        {
+          "name": "localLights-true",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "2b199b6dcd60f758f639b11ea2f2879ab3f6755ed46655c04395ce293491a952"
+        },
+        {
+          "name": "cameraClipping-false",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "a234142671bf1414739fcb141be1e019f4237134581c385438f47af5b53a66ea"
+        },
+        {
+          "name": "cameraClipping-true",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "8d79bd5eef3047871938cd342ea40b38bbf1ea30f59c987c7e0d8f2eef9aed54"
+        },
+        {
+          "name": "resolutionPercent-50",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "505bdebe02f299eb241b44a8e932e87234f783678afd3ebd21cf9260f46b9d23"
+        },
+        {
+          "name": "graphics-reconnected",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "4021777901c47a5c50283d8f61bc22e9c4375086330216f7fc3caf674685cec6"
+        },
+        {
+          "name": "fieldOfView-70",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "4084a3ce4d1a668417c6c507729aa791d45bd261a5f91d97c31de4d98b37ec6a"
+        },
+        {
+          "name": "resolutionPercent-100",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "d02a73671ee40723c6afd2c80df664fda295c9343487a969a561741dbc35c20f"
+        }
+      ],
+      "nativeRefreshExperimentEnabled": false
+    },
+    {
+      "startedAt": "2026-10-01T11:09:13.899Z",
+      "finishedAt": "2026-10-01T11:09:55.932Z",
+      "completed": false,
+      "step": "join",
+      "browserVersion": "firefox/156.0",
+      "entityMutations": false,
+      "functionalAcceptance": false,
+      "controlEffects": [],
+      "assertions": [],
+      "rawSHA256": "0bfd66ae28d8c2c46a9a8589c63886c59439e9f5347b8a6c6292f999478cdfdb",
+      "sourceCoherent": true,
+      "sourceSHA256": {
+        "start": {
+          "gateway/native-tablet.js": "bc9780865aac1ab92da773230fdfcd11df04511698aace696f9f3e5aa3d86b41",
+          "gateway/tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+          "gateway/native-browser-graphics.js": "723bc8456a884964c3c96c8ab4720f8773ae29a19b8f7adb54a4c1b11cecfa16",
+          "gateway/browser-graphics-overrides.mjs": "a5339a9a334f7de995e6ad7ebdde20f7af56b318bbce5a6611b2157fabef571e",
+          "gateway/tablet.mjs": "270234a52cccbc75f706a096ef47b7661ab34d5b2e8e9d72be8be5b50b79ff0e",
+          "gateway/server.mjs": "dbba6b07c63fc3d3f65851945c05e67d22404ba081382c4d8f29924477b44444",
+          "gateway/native-bridge.js": "44ecbdf489bc54c4f73d9dddb2a6bf3a8f1d281c0c7daf3e8d73a6ab6472dcd4",
+          "gateway/worker-sandbox.mjs": "2d1d752707c1b6bfbcacb9c0c61e77a6a1bc1a1136c70b42bd78373738f68751",
+          "gateway/native-worker-refresh-readback.js": "a703b627786a3f2660a4f478ad3776c53ae9c28d7aba85f62823048bcb360d10",
+          "gateway/native-worker-refresh-probe.js": "7513a1a873444b7514f913057f5fa99d09f32b84ce2f47526a7d75326b2d0893",
+          "dist/index.html": "2b22fe7081b5f2fd3ff8b4bf81878a510e8ea86c284142cc5af25728247caa45",
+          "src/main.ts": "05e85d4cd3aa6af1722efbbdeb03c6f661f08ca68ca497952623c1649293c97e",
+          "src/world.ts": "18b6fd8b193693442f61754353a4d4b886126ceb02abd720c95c88007ce011f8",
+          "src/browser-graphics-controller.ts": "0f8e5cf0a26b54e05224debcecb7a4db3dbdcba1894ab617f4ad8821e7cfddbd",
+          "src/browser-graphics-target.ts": "605b347d480909ae29667242cd058199b2877ce35657edb65510d0ac08ce91f6",
+          "shared/browser-graphics.mjs": "b7b66b25602f430cf303d24902dbc4715a3fd48135829fcddda06b238fbdd682",
+          "tests/integration/tablet-graphics.mjs": "da1f924d3f0f97974c1a1270cf9a2ed3f3e2e84404444dbbd1f7304f72a4f211"
+        },
+        "end": {
+          "gateway/native-tablet.js": "bc9780865aac1ab92da773230fdfcd11df04511698aace696f9f3e5aa3d86b41",
+          "gateway/tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+          "gateway/native-browser-graphics.js": "723bc8456a884964c3c96c8ab4720f8773ae29a19b8f7adb54a4c1b11cecfa16",
+          "gateway/browser-graphics-overrides.mjs": "a5339a9a334f7de995e6ad7ebdde20f7af56b318bbce5a6611b2157fabef571e",
+          "gateway/tablet.mjs": "270234a52cccbc75f706a096ef47b7661ab34d5b2e8e9d72be8be5b50b79ff0e",
+          "gateway/server.mjs": "dbba6b07c63fc3d3f65851945c05e67d22404ba081382c4d8f29924477b44444",
+          "gateway/native-bridge.js": "44ecbdf489bc54c4f73d9dddb2a6bf3a8f1d281c0c7daf3e8d73a6ab6472dcd4",
+          "gateway/worker-sandbox.mjs": "2d1d752707c1b6bfbcacb9c0c61e77a6a1bc1a1136c70b42bd78373738f68751",
+          "gateway/native-worker-refresh-readback.js": "a703b627786a3f2660a4f478ad3776c53ae9c28d7aba85f62823048bcb360d10",
+          "gateway/native-worker-refresh-probe.js": "7513a1a873444b7514f913057f5fa99d09f32b84ce2f47526a7d75326b2d0893",
+          "dist/index.html": "2b22fe7081b5f2fd3ff8b4bf81878a510e8ea86c284142cc5af25728247caa45",
+          "src/main.ts": "05e85d4cd3aa6af1722efbbdeb03c6f661f08ca68ca497952623c1649293c97e",
+          "src/world.ts": "18b6fd8b193693442f61754353a4d4b886126ceb02abd720c95c88007ce011f8",
+          "src/browser-graphics-controller.ts": "0f8e5cf0a26b54e05224debcecb7a4db3dbdcba1894ab617f4ad8821e7cfddbd",
+          "src/browser-graphics-target.ts": "605b347d480909ae29667242cd058199b2877ce35657edb65510d0ac08ce91f6",
+          "shared/browser-graphics.mjs": "b7b66b25602f430cf303d24902dbc4715a3fd48135829fcddda06b238fbdd682",
+          "tests/integration/tablet-graphics.mjs": "da1f924d3f0f97974c1a1270cf9a2ed3f3e2e84404444dbbd1f7304f72a4f211"
+        }
+      },
+      "screens": [],
+      "failure": "canvas.screenshot is not a function",
+      "failureDiagnostics": {
+        "connected": true,
+        "states": [
+          {
+            "screen": "Home",
+            "visible": false
+          },
+          {
+            "screen": "Home",
+            "visible": true
+          }
+        ],
+        "frameMetadata": [
+          {
+            "sequence": 1,
+            "revision": 1,
+            "width": 480,
+            "height": 706,
+            "surface": "tablet",
+            "tabletRect": {
+              "x": 0,
+              "y": 0,
+              "width": 480,
+              "height": 706
+            }
+          },
+          {
+            "sequence": 2,
+            "revision": 1,
+            "width": 480,
+            "height": 706,
+            "surface": "tablet",
+            "tabletRect": {
+              "x": 0,
+              "y": 0,
+              "width": 480,
+              "height": 706
+            }
+          },
+          {
+            "sequence": 3,
+            "revision": 1,
+            "width": 480,
+            "height": 706,
+            "surface": "tablet",
+            "tabletRect": {
+              "x": 0,
+              "y": 0,
+              "width": 480,
+              "height": 706
+            }
+          },
+          {
+            "sequence": 4,
+            "revision": 1,
+            "width": 480,
+            "height": 706,
+            "surface": "tablet",
+            "tabletRect": {
+              "x": 0,
+              "y": 0,
+              "width": 480,
+              "height": 706
+            }
+          }
+        ],
+        "warningCount": 0,
+        "graphicsRequestCount": 0
+      },
+      "nativeRefreshExperimentEnabled": false
+    },
+    {
+      "startedAt": "2026-10-01T11:11:51.281Z",
+      "finishedAt": "2026-10-01T11:13:32.083Z",
+      "completed": true,
+      "step": "native pointer resolutionPercent 100",
+      "browserVersion": "firefox/156.0",
+      "entityMutations": false,
+      "controlAcceptance": true,
+      "functionalAcceptance": false,
+      "browserGraphics": {
+        "version": 1,
+        "fieldOfView": 70,
+        "resolutionPercent": 100,
+        "localLights": true,
+        "cameraClipping": true
+      },
+      "drawingBuffer": {
+        "width": 1280,
+        "height": 900
+      },
+      "restored": {
+        "settings": {
+          "version": 1,
+          "fieldOfView": 130,
+          "resolutionPercent": 50,
+          "localLights": true,
+          "cameraClipping": true
+        },
+        "width": 640,
+        "height": 450
+      },
+      "controlEffects": [
+        {
+          "settings": {
+            "version": 1,
+            "fieldOfView": 20,
+            "resolutionPercent": 100,
+            "localLights": true,
+            "cameraClipping": true
+          },
+          "width": 1280,
+          "height": 900,
+          "request": {
+            "type": "tablet",
+            "kind": "graphics",
+            "revision": 1,
+            "schemaVersion": 1,
+            "requestId": 2,
+            "operation": "change",
+            "field": "fieldOfView",
+            "value": 20
+          }
+        },
+        {
+          "settings": {
+            "version": 1,
+            "fieldOfView": 130,
+            "resolutionPercent": 100,
+            "localLights": true,
+            "cameraClipping": true
+          },
+          "width": 1280,
+          "height": 900,
+          "request": {
+            "type": "tablet",
+            "kind": "graphics",
+            "revision": 1,
+            "schemaVersion": 1,
+            "requestId": 3,
+            "operation": "change",
+            "field": "fieldOfView",
+            "value": 130
+          }
+        },
+        {
+          "settings": {
+            "version": 1,
+            "fieldOfView": 130,
+            "resolutionPercent": 50,
+            "localLights": true,
+            "cameraClipping": true
+          },
+          "width": 640,
+          "height": 450,
+          "request": {
+            "type": "tablet",
+            "kind": "graphics",
+            "revision": 1,
+            "schemaVersion": 1,
+            "requestId": 4,
+            "operation": "change",
+            "field": "resolutionPercent",
+            "value": 50
+          }
+        },
+        {
+          "settings": {
+            "version": 1,
+            "fieldOfView": 130,
+            "resolutionPercent": 200,
+            "localLights": true,
+            "cameraClipping": true
+          },
+          "width": 2560,
+          "height": 1800,
+          "request": {
+            "type": "tablet",
+            "kind": "graphics",
+            "revision": 1,
+            "schemaVersion": 1,
+            "requestId": 5,
+            "operation": "change",
+            "field": "resolutionPercent",
+            "value": 200
+          }
+        },
+        {
+          "settings": {
+            "version": 1,
+            "fieldOfView": 130,
+            "resolutionPercent": 100,
+            "localLights": true,
+            "cameraClipping": true
+          },
+          "width": 1280,
+          "height": 900,
+          "request": {
+            "type": "tablet",
+            "kind": "graphics",
+            "revision": 1,
+            "schemaVersion": 1,
+            "requestId": 6,
+            "operation": "change",
+            "field": "resolutionPercent",
+            "value": 100
+          }
+        },
+        {
+          "settings": {
+            "version": 1,
+            "fieldOfView": 130,
+            "resolutionPercent": 100,
+            "localLights": false,
+            "cameraClipping": true
+          },
+          "width": 1280,
+          "height": 900,
+          "request": {
+            "type": "tablet",
+            "kind": "graphics",
+            "revision": 1,
+            "schemaVersion": 1,
+            "requestId": 7,
+            "operation": "change",
+            "field": "localLights",
+            "value": false
+          }
+        },
+        {
+          "settings": {
+            "version": 1,
+            "fieldOfView": 130,
+            "resolutionPercent": 100,
+            "localLights": true,
+            "cameraClipping": true
+          },
+          "width": 1280,
+          "height": 900,
+          "request": {
+            "type": "tablet",
+            "kind": "graphics",
+            "revision": 1,
+            "schemaVersion": 1,
+            "requestId": 8,
+            "operation": "change",
+            "field": "localLights",
+            "value": true
+          }
+        },
+        {
+          "settings": {
+            "version": 1,
+            "fieldOfView": 130,
+            "resolutionPercent": 100,
+            "localLights": true,
+            "cameraClipping": false
+          },
+          "width": 1280,
+          "height": 900,
+          "request": {
+            "type": "tablet",
+            "kind": "graphics",
+            "revision": 1,
+            "schemaVersion": 1,
+            "requestId": 9,
+            "operation": "change",
+            "field": "cameraClipping",
+            "value": false
+          }
+        },
+        {
+          "settings": {
+            "version": 1,
+            "fieldOfView": 130,
+            "resolutionPercent": 100,
+            "localLights": true,
+            "cameraClipping": true
+          },
+          "width": 1280,
+          "height": 900,
+          "request": {
+            "type": "tablet",
+            "kind": "graphics",
+            "revision": 1,
+            "schemaVersion": 1,
+            "requestId": 10,
+            "operation": "change",
+            "field": "cameraClipping",
+            "value": true
+          }
+        },
+        {
+          "settings": {
+            "version": 1,
+            "fieldOfView": 130,
+            "resolutionPercent": 50,
+            "localLights": true,
+            "cameraClipping": true
+          },
+          "width": 640,
+          "height": 450,
+          "request": {
+            "type": "tablet",
+            "kind": "graphics",
+            "revision": 1,
+            "schemaVersion": 1,
+            "requestId": 11,
+            "operation": "change",
+            "field": "resolutionPercent",
+            "value": 50
+          }
+        },
+        {
+          "settings": {
+            "version": 1,
+            "fieldOfView": 70,
+            "resolutionPercent": 50,
+            "localLights": true,
+            "cameraClipping": true
+          },
+          "width": 640,
+          "height": 450,
+          "request": {
+            "type": "tablet",
+            "kind": "graphics",
+            "revision": 1,
+            "schemaVersion": 1,
+            "requestId": 2,
+            "operation": "change",
+            "field": "fieldOfView",
+            "value": 70
+          }
+        },
+        {
+          "settings": {
+            "version": 1,
+            "fieldOfView": 70,
+            "resolutionPercent": 100,
+            "localLights": true,
+            "cameraClipping": true
+          },
+          "width": 1280,
+          "height": 900,
+          "request": {
+            "type": "tablet",
+            "kind": "graphics",
+            "revision": 1,
+            "schemaVersion": 1,
+            "requestId": 3,
+            "operation": "change",
+            "field": "resolutionPercent",
+            "value": 100
+          }
+        }
+      ],
+      "assertions": [
+        "Genuine native Graphics slider/switch input changes actual browser target state and framebuffer dimensions; persisted settings survive leave/reconnect. Actual local-light pixels and constrained-camera pixels remain separate acceptance."
+      ],
+      "rawSHA256": "dde63ccf95497aa0b07d6d224eaee9c7f1f76316233b7f897416d84a7095a9e9",
+      "sourceCoherent": true,
+      "sourceSHA256": {
+        "start": {
+          "gateway/native-tablet.js": "bc9780865aac1ab92da773230fdfcd11df04511698aace696f9f3e5aa3d86b41",
+          "gateway/tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+          "gateway/native-browser-graphics.js": "723bc8456a884964c3c96c8ab4720f8773ae29a19b8f7adb54a4c1b11cecfa16",
+          "gateway/browser-graphics-overrides.mjs": "a5339a9a334f7de995e6ad7ebdde20f7af56b318bbce5a6611b2157fabef571e",
+          "gateway/tablet.mjs": "270234a52cccbc75f706a096ef47b7661ab34d5b2e8e9d72be8be5b50b79ff0e",
+          "gateway/server.mjs": "dbba6b07c63fc3d3f65851945c05e67d22404ba081382c4d8f29924477b44444",
+          "gateway/native-bridge.js": "44ecbdf489bc54c4f73d9dddb2a6bf3a8f1d281c0c7daf3e8d73a6ab6472dcd4",
+          "gateway/worker-sandbox.mjs": "2d1d752707c1b6bfbcacb9c0c61e77a6a1bc1a1136c70b42bd78373738f68751",
+          "gateway/native-worker-refresh-readback.js": "a703b627786a3f2660a4f478ad3776c53ae9c28d7aba85f62823048bcb360d10",
+          "gateway/native-worker-refresh-probe.js": "7513a1a873444b7514f913057f5fa99d09f32b84ce2f47526a7d75326b2d0893",
+          "dist/index.html": "2b22fe7081b5f2fd3ff8b4bf81878a510e8ea86c284142cc5af25728247caa45",
+          "src/main.ts": "05e85d4cd3aa6af1722efbbdeb03c6f661f08ca68ca497952623c1649293c97e",
+          "src/world.ts": "18b6fd8b193693442f61754353a4d4b886126ceb02abd720c95c88007ce011f8",
+          "src/browser-graphics-controller.ts": "0f8e5cf0a26b54e05224debcecb7a4db3dbdcba1894ab617f4ad8821e7cfddbd",
+          "src/browser-graphics-target.ts": "605b347d480909ae29667242cd058199b2877ce35657edb65510d0ac08ce91f6",
+          "shared/browser-graphics.mjs": "b7b66b25602f430cf303d24902dbc4715a3fd48135829fcddda06b238fbdd682",
+          "tests/integration/tablet-graphics.mjs": "d18a73f4781f5ddc6287e0a6b81e5457e4234d6d1562457ddae12cea8a23ead7"
+        },
+        "end": {
+          "gateway/native-tablet.js": "bc9780865aac1ab92da773230fdfcd11df04511698aace696f9f3e5aa3d86b41",
+          "gateway/tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+          "gateway/native-browser-graphics.js": "723bc8456a884964c3c96c8ab4720f8773ae29a19b8f7adb54a4c1b11cecfa16",
+          "gateway/browser-graphics-overrides.mjs": "a5339a9a334f7de995e6ad7ebdde20f7af56b318bbce5a6611b2157fabef571e",
+          "gateway/tablet.mjs": "270234a52cccbc75f706a096ef47b7661ab34d5b2e8e9d72be8be5b50b79ff0e",
+          "gateway/server.mjs": "dbba6b07c63fc3d3f65851945c05e67d22404ba081382c4d8f29924477b44444",
+          "gateway/native-bridge.js": "44ecbdf489bc54c4f73d9dddb2a6bf3a8f1d281c0c7daf3e8d73a6ab6472dcd4",
+          "gateway/worker-sandbox.mjs": "2d1d752707c1b6bfbcacb9c0c61e77a6a1bc1a1136c70b42bd78373738f68751",
+          "gateway/native-worker-refresh-readback.js": "a703b627786a3f2660a4f478ad3776c53ae9c28d7aba85f62823048bcb360d10",
+          "gateway/native-worker-refresh-probe.js": "7513a1a873444b7514f913057f5fa99d09f32b84ce2f47526a7d75326b2d0893",
+          "dist/index.html": "2b22fe7081b5f2fd3ff8b4bf81878a510e8ea86c284142cc5af25728247caa45",
+          "src/main.ts": "05e85d4cd3aa6af1722efbbdeb03c6f661f08ca68ca497952623c1649293c97e",
+          "src/world.ts": "18b6fd8b193693442f61754353a4d4b886126ceb02abd720c95c88007ce011f8",
+          "src/browser-graphics-controller.ts": "0f8e5cf0a26b54e05224debcecb7a4db3dbdcba1894ab617f4ad8821e7cfddbd",
+          "src/browser-graphics-target.ts": "605b347d480909ae29667242cd058199b2877ce35657edb65510d0ac08ce91f6",
+          "shared/browser-graphics.mjs": "b7b66b25602f430cf303d24902dbc4715a3fd48135829fcddda06b238fbdd682",
+          "tests/integration/tablet-graphics.mjs": "d18a73f4781f5ddc6287e0a6b81e5457e4234d6d1562457ddae12cea8a23ead7"
+        }
+      },
+      "screens": [
+        {
+          "name": "home",
+          "screen": "Home",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "03011c4e683fad8613d7cbeda9925019da3df79e7fc360e65807eac1ef680f82"
+        },
+        {
+          "name": "settings",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "e98ef2f4a60e677fb61b860ecb4058f0e26607ff0d934bb4797c34efe2e20601"
+        },
+        {
+          "name": "graphics",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "095de98c445283cd5d1bb1105b22997d36ef871ade8c3c5cad4962c247e725f3"
+        },
+        {
+          "name": "fieldOfView-20",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "8d5296b5aad332ac55c8b5eb3e416c196d155ffbedb28ec4abbb6b4836ec3166"
+        },
+        {
+          "name": "fieldOfView-130",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "4666e256b2b14394286bd566e85cc861af634841a99117da4a736e6e844d0fc5"
+        },
+        {
+          "name": "resolutionPercent-50",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "627ff0942949b7cd5ad32af52500d9bff80daf536afda8dfc4adb8fb0a2a4b98"
+        },
+        {
+          "name": "resolutionPercent-200",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "f18e01145bd0ae4009e6ffcade0f3ad7a4bb38cbe5cd77bb6e8a52ed787a2185"
+        },
+        {
+          "name": "resolutionPercent-100",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "693721292fd9fd401239af07902781b3dfb62b6a3094758b6f4407519092c66a"
+        },
+        {
+          "name": "localLights-false",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "e30aec218a647c4a4b3bfab4266af3a5f8e9296b4944b676106f3c4c714b9997"
+        },
+        {
+          "name": "localLights-true",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "4449e298106b167ae5f9bff6a121390bdb6cca11a9cff1d801759f7ffc3aacc8"
+        },
+        {
+          "name": "cameraClipping-false",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "4f53fc48c9b26325a060dbe3a9368b66cb771ecefe3a21f5b7758b0324066c75"
+        },
+        {
+          "name": "cameraClipping-true",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "340d1e71fd47c9263b26ef822cebc3584823e38c4ea788fcf7e6c7708ab3edda"
+        },
+        {
+          "name": "resolutionPercent-50",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "ca85444fbdc1ce91d1ad1143e884cea4520cf77758b2724b36712f8e997db2fe"
+        },
+        {
+          "name": "graphics-reconnected",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "4021777901c47a5c50283d8f61bc22e9c4375086330216f7fc3caf674685cec6"
+        },
+        {
+          "name": "fieldOfView-70",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "938a6320406207d4302ea6f247276cab032d5c08b7154f7952cb5ab157ac0438"
+        },
+        {
+          "name": "resolutionPercent-100",
+          "screen": "QML",
+          "surface": "tablet",
+          "width": 480,
+          "height": 706,
+          "pngSha256": "03464c3b99da689b8c9b59aceed633b6d8d8aa98833d477c5e2731255c0ff0bd"
+        }
+      ],
+      "nativeRefreshExperimentEnabled": false
+    }
+  ],
+  "refreshExperiment": "Uniform10FPS CUSTOM refresh experiment failed three short native Tablet cohorts; production default remains OFF. Its custom performance preset also changes native Render/LOD initialization, so this is not an isolated refresh comparison."
+}

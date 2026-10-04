@@ -1,0 +1,31 @@
+{
+  "status": "integrated-source-frozen-cohort-tested",
+  "baseWorldSHA256": "d4e47f99a3ff465f71a74ef2cda9304248d4afa404633e966429c0d4fc3c0ea8",
+  "stagedWorldSHA256": "6d962c98f12a36250b68b3213a781e31e4b0e78a29e94b1ea1d4dfb6bad0cfec",
+  "patch": {
+    "name": "progressive-model-geometry.patch",
+    "sha256": "6573e4c63488ddec963a770a57d578f84dca45cc2d6df47447439f6c42665901"
+  },
+  "files": {
+    "src/model-geometry-stage.ts": "d940a9180cbb26f50a2fe8a712e6f8d9d30a2d31ec2b6dd5551b6ee6b83d34a3",
+    "tests/model-geometry-stage.test.ts": "90426a9a6df4291d39b8eefc59719e93f36f79279a96a6485fc679b5578cbe13",
+    "tests/world-model-geometry.test.ts": "7e313d1fdb16aec996f9c24046a1f6ab9b1d2bf6fb737126a55c7df3c6538824",
+    "tests/model-geometry.browser.spec.ts": "a93f5dd216b90ed3f2a69e3aceee83c2199f08cdbcfecedbb1fef4d03bfb9a26",
+    "tests/fixtures/model-floor.ts": "4d0bbe64d80683c6929d747d7c56d0d010c3c5bad66c543df7876b5882196f5b"
+  },
+  "verification": {
+    "typecheck": "passed",
+    "actualWorldTests": 5,
+    "geometryLifecycleTests": 6,
+    "precedingCacheWorldTests": 4,
+    "cpuFailed": 0,
+    "browserEngines": "32 focused cases passed in Chromium and Firefox including actual delayed-image floor",
+    "realNativeDomain": "Both actual short local-domain18-checkpoint journeys passed afterSimulationClock integration, including synthetic bidirectional voice, movement/collision, interaction and rejoin; source-specificcore-loading-clock-20261001.json",
+    "realPublicHubPerformance": "Actual stock Chrome154 early movement0.545m/all4 fluid gates pass; Firefox156 early movement0.633m/all4 fluid gates fail; no full-texture-speed claim"
+  },
+  "reviewFindings": [
+    "FST scale/rotation are avatar metadata in the current completed Model loader. No new Model geometry interpretation introduced. Nested metadata now validates before descent and is assigned once child to parent before early geometry publication.",
+    "Three0.186.1 returns a sole parsed Group while retaining its internal identity SceneGraph parent. Only the fresh parser-owned callback result is detached before staging. The independent completed-loader regression confirms identity parent and exact normalized world-space Float32 triangle equality.",
+    "An initial test incorrectly assumed the returned imported Group itself had identity transform. The authored nested FBX correctly preserves nonidentity local transform; the test now compares against the actual independent completed loader, rather than an assumed identity."
+  ]
+}
