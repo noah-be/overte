@@ -1,0 +1,2 @@
+Uses the supplied Deep Magenta launcher and store icon. Clarifies directory, account and content services in the store description. Prepares F-Droid input acquisition before source scanning, with offline compilation and source-integrity checks.
+Known issues remain: intermittent Go To keyboard Back crash (#933), and app restart required after microphone permission regrant.

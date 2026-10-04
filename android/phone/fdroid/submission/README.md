@@ -58,7 +58,7 @@ source commit is public and buildserver prerequisites are verified, remove the
 build's `disable` field in the submission copy and run:
 
 ```sh
-fdroid build --server --test io.github.noah_be.overte.phone:1
+fdroid build --server --test io.github.noah_be.overte.phone:4
 ```
 
 This requires a configured local F-Droid buildserver VM; metadata lint alone does
@@ -90,36 +90,53 @@ Dependency source versions, recipe locks and archive hashes remain unchanged.
 Source-built Conan build tools remain locked too; this changes the host's
 Debian tools, not the dependency graph's source identity.
 
-**Validation boundary:** the successful GCC 15/OpenJDK 17 builds do not qualify
-this new toolchain. Run a clean source build before enabling the generated draft.
-Reproducible APK comparison and the signing/reference-APK workflow are separate
-follow-up work. Keep the existing public `android-phone-v0.1.0+1` tag unchanged.
+**Current validation boundary:** the published 0.1.2 reference remains tied to
+`cd08e500d73d661c6050a8f3ad4c45921c03770c`. This review follow-up is a disabled
+0.1.3 (4) candidate. Source-scan findings, a clean build and a new signed reference
+must be resolved before enabling it. Do not replace the existing 0.1.2 tag or APK.
+The 36000-second timeout is an upper limit, not evidence of performance on the
+official buildserver. No successful shared-runner/official-server test is claimed.
 
-The recipe targets ARM64 only, Android 8.0+ (API 26), versionCode 1/versionName
-0.1.0. The new workspace, Conan cache and Gradle home are isolated from developer
-caches. The metadata places the work directory beside the checkout: recipe
-transport archives must stay outside the scanned source tree. Acquired dependencies come from the existing public, version/hash-locked
-source closure and locked Gradle project.
+The work directory, Conan cache and Gradle home stay outside the checkout.
+`prebuild` calls `--acquire-only`: it downloads the hash-locked archives and
+Gradle inputs, prepares the dependency source caches, and expands all native
+source archives into `fdroid-source-closure/` inside the checkout. F-Droid's
+normal source scanner therefore sees those sources before `build` is invoked.
+No broad `scanignore` is added. The expanded view and the original archives are
+bound by a recorded inventory, which is checked again before compilation.
 
-`build.py --check` verifies the commit, tool versions, SDK files and working
-network namespaces without acquiring or compiling. It also checks the APK
-inspection tools and runs the pinned `apkanalyzer` before the expensive build,
-so a missing analyzer cannot first fail during release packaging. `--acquire-only` additionally
-acquires and prepares sources/Gradle dependencies, but does not compile the app.
-A direct check on an already provisioned buildserver looks like:
+`build` calls `--build-only`: it requires the same prebuild commit, version,
+manifest, Gradle distribution and expanded-source inventory. It never invokes
+input acquisition. Missing, modified or scanner-deleted inputs stop the build;
+re-extracting rejected files from the archive cache is deliberately prohibited.
+Unexpected findings must be resolved in the source closure and its preparation,
+not hidden by deleting just the scanner view or restoring the original blobs.
+
+A local scan of the expanded retained 0.1.2 dependency archives exposed 1812 fatal
+findings, including native test fixtures, prebuilt tools and vendored manifests.
+The Qt source wrapper is also removed by the scanner. The draft therefore stays
+disabled: a complete scan-visible build path needs reviewed dependency cleanup,
+not just moving the download command. This is not a clean source-scan claim.
+
+`build.py --check` verifies source coordinates, the SDK/toolchain and isolation
+without acquiring or compiling. On a host with networking it requires working
+`unshare --user --map-root-user --net`. On a runner already isolated to loopback
+it reuses that isolation without nested user namespaces. Both paths test a local
+socket handshake for Gradle and reject any non-loopback interface. There is no
+fallback to network-enabled compilation.
 
 ```sh
 python3 android/phone/fdroid/submission/build.py \
-  --commit "$(git rev-parse HEAD)" --version-code 1 --version-name 0.1.0 \
+  --commit "$(git rev-parse HEAD)" --version-code 4 --version-name 0.1.3 \
   --sdk "$ANDROID_SDK_ROOT" --work-dir /absolute/new/build-attempt --check
 ```
 
-Remove `--check` for the complete build. The native build retains the existing
-empty-cache checks and `--no-remote --build='*'` policy. Both compilation stages
-run in fresh network namespaces, with loopback enabled for Gradle's local daemon
-handshake and no external network interfaces. Kernel policy must allow user and
-network namespaces; an unsupported host fails before acquisition. There is no
-network-enabled compilation fallback.
+Use a fresh work directory for `--acquire-only`; retain it for the subsequent
+F-Droid scan and `--build-only`. Do not skip the intervening scanner. The native
+build retains its empty-binary-cache and `--no-remote --build='*'` checks.
+A source-scan failure is useful evidence and must not be presented as a completed
+buildserver qualification. The local loopback-only container probe demonstrates
+the alternative isolation path, not official infrastructure compatibility.
 
 Conan source extraction uses `tools.files.unzip:filter=data`. Archive owner IDs
 are deliberately not restored in the root-mapped namespace: those foreign IDs

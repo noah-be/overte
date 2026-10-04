@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""F-Droid manual build: acquire locked inputs, then build without networking.
+"""F-Droid split build: acquire in prebuild, scan sources, then compile offline.
 
 Runs on the provisioned buildserver directly; no Podman, developer binaries,
 Gradle wrapper, production key, or private service is required.
@@ -14,10 +14,15 @@ import os
 from pathlib import Path
 import re
 import shutil
+import socket
 import subprocess
 import sys
 import urllib.request
 import zipfile
+
+# Also supports importlib-based regression tests.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import scan_sources
 
 ROOT = Path(__file__).resolve().parents[4]
 FDROID = ROOT / 'android/phone/fdroid'
@@ -86,6 +91,11 @@ def environment(args):
 def isolation_prefix():
     # Gradle's local daemon handshake needs loopback even in an otherwise
     # empty network namespace. No physical interfaces or default route exist.
+    # A buildserver may already provide an isolated network namespace. Accept
+    # that only when the kernel reports loopback as the sole interface. This
+    # avoids requiring nested unprivileged user namespaces on such runners.
+    if {name for _, name in socket.if_nameindex()} == {'lo'}:
+        return []
     return ['unshare', '--user', '--map-root-user', '--net', 'sh', '-ec',
             'ip link set lo up; exec "$@"', 'overte-offline']
 
@@ -114,10 +124,15 @@ def preflight(args, env):
     env.update(SOURCE_DATE_EPOCH=epoch, QT_RCC_SOURCE_DATE_OVERRIDE=epoch,
                TZ='UTC', LC_ALL='C.UTF-8', PYTHONHASHSEED='0', QT_HASH_SEED='0')
     run([sys.executable, FDROID / 'submission/toolchain.py'], env=env)
-    run([*isolation_prefix(), sys.executable, '-c',
-         'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); '
-         's.listen(); c=socket.create_connection(s.getsockname(),timeout=3); '
-         'c.close(); s.close()'], env=env)
+    try:
+        run([*isolation_prefix(), sys.executable, '-c',
+             'import socket; assert {name for _, name in socket.if_nameindex()} == {"lo"}; '
+             's=socket.socket(); s.bind(("127.0.0.1",0)); '
+             's.listen(); c=socket.create_connection(s.getsockname(),timeout=3); '
+             'c.close(); s.close()'], env=env)
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise ValueError('offline build requires working user/network namespaces or '
+                         'an externally isolated loopback-only network; no online fallback') from error
     print('FDROID_BUILDSERVER_PREFLIGHT=PASS', flush=True)
 
 
@@ -137,12 +152,38 @@ def acquire(args, env):
     # This prepares source archives only. The existing source-only executor
     # retains its own empty-binary-cache and exact-lock checks at build time.
     run([FDROID / 'scripts/build-dependencies.sh', '--prepare'], env=env)
+    document = json.loads((FDROID / 'manifests/source-closure.lock.json').read_text())
+    scan_sha = scan_sources.expand(document, args.source_store, args.scan_dir, ROOT)
     (args.work_dir / 'acquired.json').write_text(json.dumps({
         'source_commit': args.commit, 'version_code': args.version_code,
         'version_name': args.version_name,
         'source_manifest_sha256': digest(FDROID / 'manifests/source-closure.lock.json'),
         'gradle_sha256': digest(archive),
+        'scan_directory': str(args.scan_dir), 'scan_inventory_sha256': scan_sha,
     }, indent=2) + '\n')
+    return gradle
+
+
+def prepared_inputs(args):
+    """Only reuse this prebuild's source acquisition, never old binary outputs."""
+    marker = args.work_dir / 'acquired.json'
+    if not marker.is_file():
+        raise ValueError('prebuild acquisition is missing; build will not download inputs')
+    record = json.loads(marker.read_text())
+    expected = {'source_commit': args.commit, 'version_code': args.version_code,
+                'version_name': args.version_name,
+                'source_manifest_sha256': digest(FDROID / 'manifests/source-closure.lock.json'),
+                'gradle_sha256': GRADLE_SHA256, 'scan_directory': str(args.scan_dir)}
+    if any(record.get(key) != value for key, value in expected.items()):
+        raise ValueError('prebuild identity differs from build inputs')
+    if digest(args.work_dir / 'gradle-8.13-bin.zip') != GRADLE_SHA256:
+        raise ValueError('prepared Gradle archive changed')
+    scan_sources.verify(args.source_store, args.scan_dir, record['scan_inventory_sha256'])
+    if any((args.work_dir / name).exists() for name in ('conan', 'bootstrap', 'host-tools', 'target')):
+        raise ValueError('binary build output exists; use a fresh prebuild')
+    gradle = args.work_dir / 'gradle-8.13/bin/gradle'
+    if not gradle.is_file():
+        raise ValueError('prepared Gradle executable is missing')
     return gradle
 
 
@@ -180,14 +221,19 @@ def main():
     parser.add_argument('--java-home', type=Path, default=Path('/usr/lib/jvm/java-21-openjdk-amd64'))
     parser.add_argument('--work-dir', required=True, type=Path)
     parser.add_argument('--source-store', type=Path, help='optional existing hash-verified source archives, never binary packages')
-    parser.add_argument('--check', action='store_true', help='check prerequisites only')
-    parser.add_argument('--acquire-only', action='store_true', help='acquire/prepare inputs without compiling')
+    parser.add_argument('--scan-dir', type=Path, default=ROOT / 'fdroid-source-closure',
+                        help='expanded native sources inside the scanned checkout')
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument('--check', action='store_true', help='check prerequisites only')
+    mode.add_argument('--acquire-only', action='store_true', help='prebuild acquisition; no compilation')
+    mode.add_argument('--build-only', action='store_true', help='compile previously scanned inputs; no downloads')
     args = parser.parse_args()
     args.sdk = args.sdk.resolve()
     args.java_home = args.java_home.resolve()
     args.work_dir = args.work_dir.resolve()
     args.source_store = (args.source_store or args.work_dir / 'source-store').resolve()
-    if args.work_dir.exists():
+    args.scan_dir = args.scan_dir.resolve()
+    if not args.build_only and args.work_dir.exists():
         raise ValueError('work directory must be new; no developer caches are reused')
     env = environment(args)
     preflight(args, env)
@@ -196,10 +242,11 @@ def main():
     for directory in ('build', '.cxx'):
         if (APK.parents[4] / directory).exists():
             raise ValueError('application build output exists; use a clean F-Droid checkout')
-    gradle = acquire(args, env)
     if args.acquire_only:
-        print('FDROID_INPUT_ACQUISITION=PASS (no build performed)')
+        acquire(args, env)
+        print('FDROID_INPUT_ACQUISITION=PASS (expanded sources ready for F-Droid scan; no build performed)')
         return
+    gradle = prepared_inputs(args)
     env['OVERTE_FDROID_CONAN_DIR'] = str(args.work_dir / 'target')
     isolation = isolation_prefix()
     run([*isolation, FDROID / 'scripts/build-dependencies.sh', '--build'], env=env)

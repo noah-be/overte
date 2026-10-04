@@ -5,3 +5,7 @@ This is an early version of the noah-be/overte fork. It includes touch navigatio
 Requires a 64-bit ARM Android device running Android 8.0 or newer with OpenGL ES 3.2 support. World content is downloaded from the domains and asset servers you visit. Performance and compatibility vary with the world and device.
 
 Overte is free and open-source software. This phone client is developed in a separate fork; it is not a claim of an official upstream Android release.
+
+Network services: the app uses mv.overte.org for the world/place directory and optional Overte account sign-in. Browsing worlds and signing in can contact this service. Content, community applications and tutorial resources may be downloaded from content.overte.org and more.overte.org. Worlds you visit can load content from their own servers and other third-party hosts. A legacy default avatar collision sound is hosted at hifi-public.s3.amazonaws.com.
+
+Connections can also use ice.overte.org and Google's public STUN service to establish connectivity. These services and the worlds you visit are operated separately from this unofficial client. The app starts in a bundled tutorial; this does not mean all app features work offline. Microphone permission is optional and is required only to transmit voice.

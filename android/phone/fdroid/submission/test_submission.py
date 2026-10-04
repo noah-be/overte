@@ -59,9 +59,9 @@ class BuildContractTests(unittest.TestCase):
                 self.assertTrue(name.startswith('org.overte.phone.'))
                 self.assertTrue((source / 'java' / (name.replace('.', '/') + '.java')).is_file())
 
-    def test_phone_launcher_uses_supplied_navy_artwork(self):
+    def test_phone_launcher_uses_supplied_deep_magenta_artwork(self):
         phone = ROOT / 'android/phone'
-        source = ET.parse(phone / 'branding/launcher-navy.svg').getroot()
+        source = ET.parse(phone / 'branding/launcher-deep-magenta.svg').getroot()
         ns = {'svg': 'http://www.w3.org/2000/svg'}
         android = '{http://schemas.android.com/apk/res/android}'
         res = phone / 'apps/phoneInterface/src/main/res'
@@ -73,8 +73,8 @@ class BuildContractTests(unittest.TestCase):
                          group.attrib[android + 'translateY'] + ')', source.find('svg:g', ns).attrib['transform'])
         self.assertEqual(source.find('.//svg:path', ns).attrib['d'],
                          group.findall('path')[1].attrib[android + 'pathData'])
-        self.assertIn('fill:#2a4d85', source.find('.//svg:circle', ns).attrib['style'])
-        self.assertEqual('#2A4D85', group.findall('path')[0].attrib[android + 'fillColor'])
+        self.assertIn('fill:#a12371', source.find('.//svg:circle', ns).attrib['style'])
+        self.assertEqual('#A12371', group.findall('path')[0].attrib[android + 'fillColor'])
         manifest = ET.parse(res.parent / 'AndroidManifest.xml').getroot()
         self.assertEqual('@drawable/ic_launcher', manifest.find('application').attrib[android + 'icon'])
         splash = ET.parse(res / 'values-v31/styles.xml').getroot()
@@ -207,7 +207,7 @@ class BuildContractTests(unittest.TestCase):
     def test_existing_work_directory_rejected_without_running_build(self):
         with tempfile.TemporaryDirectory() as td:
             args = ['build.py', '--commit', 'a' * 40, '--version-code', '1', '--version-name', '0.1.0',
-                    '--sdk', '/sdk', '--work-dir', td]
+                    '--sdk', '/sdk', '--work-dir', td, '--acquire-only']
             with patch('sys.argv', args), patch.object(builder, 'preflight') as preflight:
                 with self.assertRaisesRegex(ValueError, 'must be new'):
                     builder.main()
