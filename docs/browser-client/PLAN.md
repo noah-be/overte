@@ -1,5 +1,33 @@
 # Browser client implementation plan
 
+## Active held-flight and pruning discriminator, 2026-10-04
+
+Published `39ff99ac902b22eb84b732b2cba2ae61e47ab9e5` passes current required
+Repository and CodeQL gates. Both its automatic and single opt-in Browser runs
+retain native movement and pruning GL failures. The opt-in flow shows a received
+target and a complete target pending assignment while an old physical avatar
+write stays in flight. Local callbacks and pre-write witnesses do not explain
+that held slot. The embedded GPU check passes in both cohorts; pruning fails
+before Chrome UI runs. Retain every negative and the original acceptance bounds.
+
+Integrate the independently reviewed same-flight queue/state and last generic
+write observations, plus the pruning fixture's existing GL return and read phase.
+Keep diagnostics off by default, source-role decoding strict, and the physical
+sender, permissions, 4 MiB admission, Core actions and 2800 ms movement assertion
+unchanged. A last generic write is not a complete traffic history or proof of
+queue origin. The GL observation adds no GL query; its failure-only secondary
+read stays inside the original fixture work deadline.
+
+Compose the finite V29 current/history closure with every inherited row and
+browser spec preserved. Keep the old zero-getter expectation in its exact
+historical CPU boundary; new current tests check the intentionally added two
+sampled queue getters. Complete gates pass: 3015 product cases without skips, the production and two
+fixture builds, and all 34 repository suites. See the
+[source proof](evidence/pruning-flight-source-checks-20261004.json). Publish
+this exact checked source, then qualify actual exact-head Core and Chrome. Choose the repair
+from those fixed measurements. Full Tablet, Hub fluidness, physical voice and
+native parity remain open. No existing service or registry repair is implied.
+
 ## Active envelope and callback measurement, 2026-10-04
 
 Keep both exact `1f7950b2` hosted outcomes. Automatic rendering, 2930 product

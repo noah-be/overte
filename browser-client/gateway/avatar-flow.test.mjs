@@ -2,15 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
+import {readFileSync as readCurrentFileSync} from 'node:fs';
 import {mkdtemp,mkdir,writeFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import vm from 'node:vm';
 import {EventEmitter} from 'node:events';
 import {AvatarSnapshotSender} from './avatar-snapshot-sender.mjs';
-import {attachNativeAvatarProjection} from './native-avatar-stdout-projection.mjs';
-import {projectAvatarTail,collectAvatarSamples,writeAvatarSamples} from '../tools/curate-avatar-samples.mjs';
+import {prepareAvatarV28FlowHistoryReaders} from '../tests/integration/capture-pruning-flight-source-fixture.mjs';
+const {readFileSync,attachNativeAvatarProjection,projectAvatarTail,collectAvatarSamples,writeAvatarSamples}=await prepareAvatarV28FlowHistoryReaders(readCurrentFileSync);
 const source=readFileSync(new URL('./server.mjs',import.meta.url),'utf8');
 function slice(first,last){assert.equal(source.split(first).length,2);assert.equal(source.split(last).length,2);return source.slice(source.indexOf(first),source.indexOf(last));}
 const flowSource=slice('function avatarFlowEnabled(session) {','const cookie = request =>');

@@ -1,5 +1,61 @@
 # Opt-in native avatar diagnostics
 
+## Current same-flight transport fields
+
+The diagnostic successor uses strict inner flow version 2, adding required
+nullable `transport` and `otherWrite` fields to the ten keys described below.
+Gateway-log sample version 2, native-child sample version 1 and author version 1
+remain separate source roles. Old inner flow-1 artifacts require their exact
+frozen decoder; they are refused by current projection without backfill.
+The flow-1 description below records the published `39ff99ac` boundary.
+Published `39ff99ac` results used inner flow 1; fresh actual measurements
+of inner flow 2 remain required. Integrated source gates now pass; those
+measurements are still pending.
+
+| Field | Values, in order |
+| --- | --- |
+| `transport` | readyState 0..3 or null; current buffered bytes or null |
+| `otherWrite` | class; serialized UTF8 bytes or null; original pre-write buffer or null; captured native-message timestamp or null; diagnostic binding owner |
+
+Transport exists only with a held physical flight. Two sequential socket getters
+are measured at an existing unthrottled snapshot opportunity and guarded by the
+captured token, sender epoch, pending slot, sender and flow identities. Reentrant
+replacement refuses the whole snapshot; unavailable measurements remain null.
+These are local sequential properties, not an atomic kernel view or remote ACK.
+The 64 MiB observation cap does not alter the original 4 MiB admission predicate.
+
+Generic classes are 0/state, 1/entities or entityUpdates, 2/Tablet and 3/other.
+Recognition uses only the fixed leading serialized type; other key orders remain
+other. Metadata is committed after the actual generic send returns, from the
+same original single serialization and captured pre-write buffer. Invalidation,
+close or a reentrant binding/epoch change refuses its commit. Registration occurs
+only after the existing approved managed permission branch; default-off/public
+paths create no binding or byte scan. Existing send errors, undefined payload,
+method lookup and observer order remain. Binary PCM is excluded.
+
+The reused timestamp is captured at generic entry from the last native message;
+it is not actual write or callback time. Owner 0/current or 1/retired describes
+the socket diagnostic binding at snapshot, not proven original caller/message
+authority. One last generic witness cannot account for all traffic or establish
+buffer origin. UTF8 counting scans the existing serialized text before applying
+the nullable byte-size cap; no separate fixed diagnostic CPU-work cap is claimed.
+The sampled getters, byte scan and new bookkeeping have explicit observer cost.
+No callback release, timer, transport repair or causal inference is added.
+
+At exact `39ff99ac902b22eb84b732b2cba2ae61e47ab9e5`, automatic run
+37192753251 and single opt-in 37193186302 each fail the unchanged movement
+checkpoint after four of eighteen Core checks; owned stop passes. The opt-in
+artifact retains 38 native and 118 gateway rows without offline rejection or
+censoring. Target-bearing ingress and validated target pending assignments
+coexist with an old-pose physical flight of 26158 bytes. That held slot motivates
+current queue measurement; it does not explain its cause or prove channel
+continuity across sampled rows. Later Core voice/interaction/rejoin are not run.
+
+The sender and collector remain byte-identical `39ff99ac`. Current private
+viewer source meanings stay fifteen runtime identities and three Git-only
+identities, with collector as the third Git-only dependency. Frozen old viewers
+remain bound to their old schema/source; no missing identity is backfilled.
+
 ## Received envelopes, send slots and callbacks
 
 The reviewed diagnostic successor distinguishes a received avatar envelope,

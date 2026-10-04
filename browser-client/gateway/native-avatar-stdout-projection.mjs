@@ -35,7 +35,7 @@ function gatewayDelivery(value) {
         && (!value.observationCensored || value.sequence===128)
         && (value.bufferedBytes===null || value.writeInvoked===(value.socketOpen && value.bufferedBytes<4*1024*1024));
 }
-const FLOW_KEYS=['version','at','sequence','censored','counts','ingress','offer','flight','pending','callback'];
+const FLOW_KEYS=['version','at','sequence','censored','counts','ingress','offer','flight','pending','callback','transport','otherWrite'];
 const stamp=value=>Number.isSafeInteger(value) && value>=0;
 const tuple=(value,length)=>Array.isArray(value) && value.length===length;
 const nullableBool=value=>value===null || typeof value==='boolean';
@@ -43,9 +43,9 @@ const ownerCode=value=>value===0 || value===1;
 const textBytes=value=>Number.isSafeInteger(value) && value>=0 && value<=48*1024*1024+1024;
 function gatewayAvatarFlow(value) {
     if(value===null)return true;
-    if(!exact(value,FLOW_KEYS) || value.version!==1 || !stamp(value.at) || !Number.isSafeInteger(value.sequence)
+    if(!exact(value,FLOW_KEYS) || value.version!==2 || !stamp(value.at) || !Number.isSafeInteger(value.sequence)
         || value.sequence<1 || value.sequence>128 || !tuple(value.censored,2) || !value.censored.every(v=>typeof v==='boolean'))return false;
-    const measurements=['counts','ingress','offer','flight','pending','callback'];
+    const measurements=['counts','ingress','offer','flight','pending','callback','transport','otherWrite'];
     if(value.censored[1])return value.sequence===128 && measurements.every(key=>value[key]===null);
     if(!tuple(value.counts,9) || !value.counts.every(count))return false;
     if(value.ingress!==null && !(tuple(value.ingress,5) && stamp(value.ingress[0]) && bounded(value.ingress[1])
@@ -56,6 +56,14 @@ function gatewayAvatarFlow(value) {
         || value.offer[0]===1 && value.offer[1]===null)return false;
     for(const key of ['flight','pending'])if(value[key]!==null && !(tuple(value[key],4) && stamp(value[key][0])
         && textBytes(value[key][1]) && bounded(value[key][2]) && ownerCode(value[key][3])))return false;
+    const queueBytes=v=>v===null || Number.isSafeInteger(v)&&v>=0&&v<=64*1024*1024;
+    if(value.transport!==null && !(value.flight!==null && tuple(value.transport,2)
+        && (value.transport[0]===null || Number.isSafeInteger(value.transport[0])&&value.transport[0]>=0&&value.transport[0]<=3)
+        && queueBytes(value.transport[1])))return false;
+    if(value.otherWrite!==null && !(tuple(value.otherWrite,5) && [0,1,2,3].includes(value.otherWrite[0])
+        && (value.otherWrite[1]===null || textBytes(value.otherWrite[1])&&value.otherWrite[1]>0)
+        && (value.otherWrite[2]===null || queueBytes(value.otherWrite[2])&&value.otherWrite[2]<4*1024*1024)
+        && (value.otherWrite[3]===null || stamp(value.otherWrite[3])) && ownerCode(value.otherWrite[4])))return false;
     return value.callback===null || tuple(value.callback,4) && stamp(value.callback[0]) && textBytes(value.callback[1])
         && ownerCode(value.callback[2]) && ownerCode(value.callback[3]);
 }

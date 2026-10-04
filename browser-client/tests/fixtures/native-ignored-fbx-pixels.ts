@@ -8,7 +8,20 @@ import {EmbeddedFbxImages} from '../../src/embedded-fbx-images';
 import {normalizeNativeFbxTransparency} from '../../src/baked-fbx';
 import {ModelResources} from '../../src/model-resources';
 const assert=(v:unknown,m:string)=>{if(!v)throw Error(m);};
+// BEGIN fixed native-ignored GPU read observation.
+function createNativeIgnoredGpuDiagnostic(){return {version:1,records:[] as (number|null)[][],refused:false};}
+function recordNativeIgnoredGpuRead(diagnostic:ReturnType<typeof createNativeIgnoredGpuDiagnostic>,code:unknown){
+ try{
+  if(diagnostic.records.length>=22){diagnostic.refused=true;return;}
+  const ordinal=diagnostic.records.length,kind=ordinal===0?0:ordinal===1?1:2;
+  const valid=typeof code==='number'&&Number.isSafeInteger(code)&&code>=0&&code<=65535;
+  if(!valid)diagnostic.refused=true;
+  diagnostic.records.push([ordinal,kind,valid?code:null]);
+ }catch{try{diagnostic.refused=true;}catch{}}
+}
+// END fixed native-ignored GPU read observation.
 export async function runNativeIgnoredFbxPixels(){
+ const gpuReadDiagnostic=createNativeIgnoredGpuDiagnostic();Object.assign(window,{__nativeIgnoredGpuReadDiagnostic:gpuReadDiagnostic});
  const owner=new AbortController(),pool=new BakedFbxPreparePool({signal:owner.signal,limit:1}),registry=new EmbeddedFbxImages(owner.signal),renderer=new THREE.WebGLRenderer({antialias:false}),roots:THREE.Object3D[]=[],ownedURLs=new Set<string>(),originalURL=URL.createObjectURL;
  URL.createObjectURL=function(blob){const url=originalURL.call(URL,blob);ownedURLs.add(url);return url;};
  const target=new THREE.WebGLRenderTarget(64,64),scene=new THREE.Scene(),camera=new THREE.OrthographicCamera(-1,1,1,-1,.1,10);camera.position.z=2;
@@ -25,7 +38,7 @@ export async function runNativeIgnoredFbxPixels(){
   });
  }
  function signature(root:THREE.Object3D){const records:unknown[]=[];root.traverse(o=>{if(o instanceof THREE.Mesh){const g=o.geometry;records.push({matrix:o.matrix.toArray(),attrs:Object.fromEntries(Object.entries(g.attributes).map(([key,raw])=>{const a=raw as THREE.BufferAttribute;return [key,{size:a.itemSize,values:Array.from(a.array)}];})),index:g.index&&Array.from(g.index.array),groups:g.groups,materials:(Array.isArray(o.material)?o.material:[o.material]).map((m:any)=>({opacity:m.opacity,transparent:m.transparent,color:m.color.toArray(),normal:!!m.normalMap,map:!!m.map}))});}});return JSON.stringify(records);}
- const read=(root?:THREE.Object3D)=>{if(root)scene.add(root);renderer.setRenderTarget(target);renderer.setClearColor(0x123456,1);renderer.render(scene,camera);const output=new Uint8Array(64*64*4);renderer.readRenderTargetPixels(target,0,0,64,64,output);if(root)scene.remove(root);assert(renderer.getContext().getError()===0,'Actual GPU render produced a GL error');return output;};
+ const read=(root?:THREE.Object3D)=>{if(root)scene.add(root);renderer.setRenderTarget(target);renderer.setClearColor(0x123456,1);renderer.render(scene,camera);const output=new Uint8Array(64*64*4);renderer.readRenderTargetPixels(target,0,0,64,64,output);if(root)scene.remove(root);const glErrorCode=renderer.getContext().getError();recordNativeIgnoredGpuRead(gpuReadDiagnostic,glErrorCode);assert(glErrorCode===0,'Actual GPU render produced a GL error');return output;};
  try{
   const response=await fetch('/__native_ignored/model.fbx');assert(response.ok,'Owned fixture model unavailable');const bytes=await response.arrayBuffer();
   const baseline=await load(normalizeNativeFbxTransparency(bytes),url=>{assert(url.startsWith('blob:')&&ownedURLs.has(url)||url===`${location.origin}/__native_ignored/unused-a.dds`,'Baseline dependency escaped its fixed owned source');return url;},'baseline');

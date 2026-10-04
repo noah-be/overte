@@ -1,5 +1,30 @@
 # Embedded texture GPU diagnostics
 
+## Pruning GL return and read phase
+
+Both exact `39ff99ac902b22eb84b732b2cba2ae61e47ab9e5` Browser runs
+37192753251 and 37193186302 pass the original embedded GPU contract and fail
+pruning's unchanged `Actual GPU render produced a GL error` assertion. Pruning
+receives `LIBGL_ALWAYS_SOFTWARE` only; the embedded step's SwiftShader request
+is not propagated to pruning. No pruning backend or GL code was captured, so
+no backend or initiating-operation cause follows.
+
+The pruning diagnostic stores the return of each existing `getError()` call
+once, before the same original zero assertion. It adds no GL query or drain.
+At most 22 rows are `[readOrdinal, kind, codeOrNull]`, with kind 0/background,
+1/baseline or 2/candidate. Codes are strict bounded integers 0..65535, not a
+whitelist of known GL constants; invalid observations remain null and mark
+refusal. The twenty candidate renders and all pixel/material/network assertions
+remain unchanged. A thrown render/readback can leave no GL row.
+
+After a failure only, the runner may make one new fixed-state RPC bounded by
+500 ms and the remaining original 30-second work budget. Missing/not-started,
+elapsed or original timeout cases omit it. Deferred invocation rechecks the
+same deadline; its timer and late Promise outcome are handled. This RPC and
+clock bookkeeping have observer cost. The primary error and original browser/
+server cleanup remain. A recorded code locates the read, not the earlier GL
+operation that caused it, and a diagnostic success never waives the failure.
+
 ## Functional dispatch comparison and clock scope
 
 Exact `1f7950b2` automatic run 37185774127 passes the actual embedded pixels

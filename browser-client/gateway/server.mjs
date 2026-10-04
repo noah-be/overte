@@ -81,7 +81,12 @@ const send = (socket, value, observe) => {
     const socketOpen = socket?.readyState === WebSocket.OPEN;
     const bufferedBytes = socketOpen ? socket.bufferedAmount : null;
     const writeInvoked = socketOpen && bufferedBytes < 4 * 1024 * 1024;
-    if (writeInvoked) socket.send(JSON.stringify(value));
+    if (writeInvoked) {
+        const observation=typeof avatarOtherWrites==='undefined'?null:beginAvatarOtherWrite(socket);
+        let text;
+        socket.send(text=JSON.stringify(value));
+        if(observation)commitAvatarOtherWrite(observation,text,bufferedBytes);
+    }
     if (observe) observe(socketOpen,bufferedBytes,writeInvoked);
 };
 // Uses the already captured session message time. No timer or clock read.
@@ -112,6 +117,57 @@ function observeAvatarForward(session, message, socketOpen, bufferedBytes, write
 function avatarFlowEnabled(session) {
     return session && !session.publicPlace && ['1','passive'].includes(process.env.OVERTE_GATEWAY_AVATAR_SAMPLE_DIAGNOSTICS);
 }
+// Registered only by the existing successful managed permissions branch.
+// No binding/state is allocated in default-off, public or Native-only paths.
+let avatarOtherWrites;
+function registerAvatarOtherWrites(session) {
+    try {
+        if(!avatarFlowEnabled(session) || !session.avatarSender)return;
+        const sender=session.avatarSender;
+        if(sender.closed)return;
+        (avatarOtherWrites || (avatarOtherWrites=new WeakMap())).set(session.browser,
+            {owner:session,sender,epoch:sender.epoch});
+    }catch{/* A diagnostic registration cannot alter permission admission. */}
+}
+function retireAvatarOtherWrites(sender,owner) {
+    const entry=avatarOtherWrites?.get(sender.socket);
+    if(entry && entry.sender===sender && (!owner || entry.owner===owner))avatarOtherWrites.delete(sender.socket);
+    if(sender.avatarFlow?.otherWrite && (!owner || sender.avatarFlow.otherWrite.owner===owner))sender.avatarFlow.otherWrite=null;
+}
+function beginAvatarOtherWrite(socket) {
+    try {
+        if(!['1','passive'].includes(process.env.OVERTE_GATEWAY_AVATAR_SAMPLE_DIAGNOSTICS))return null;
+        const binding=avatarOtherWrites?.get(socket);
+        if(!binding || binding.sender.closed || binding.sender.epoch!==binding.epoch)return null;
+        const at=binding.owner.lastNativeMessage;
+        return {binding,socket,at:Number.isSafeInteger(at)&&at>=0?at:null};
+    }catch{return null;}
+}
+function commitAvatarOtherWrite(observation,text,bufferedBytes) {
+    try {
+        if(!['1','passive'].includes(process.env.OVERTE_GATEWAY_AVATAR_SAMPLE_DIAGNOSTICS))return;
+        const {binding,socket,at}=observation,{sender,owner,epoch}=binding;
+        if(avatarOtherWrites?.get(socket)!==binding || sender.closed || sender.epoch!==epoch || typeof text!=='string')return;
+        // Leading-type recognition only: other includes unclassified key order.
+        const type=/^\{"type":"(state|entities|entityUpdates|tablet)"(?=[,}])/.exec(text.slice(0,96))?.[1];
+        const kind=type==='state'?0:type==='entities'||type==='entityUpdates'?1:type==='tablet'?2:3;
+        const size=Buffer.byteLength(text);
+        const bytes=Number.isSafeInteger(bufferedBytes)&&bufferedBytes>=0&&bufferedBytes<=64*1024*1024?bufferedBytes:null;
+        if(avatarOtherWrites?.get(socket)!==binding || sender.closed || sender.epoch!==epoch)return;
+        const flow=sender.avatarFlow || (sender.avatarFlow={counts:Array(9).fill(0),counterCensored:false,sequence:0,lastAt:null,
+            ingress:null,offer:[0,null,null],callback:null,otherWrite:null});
+        flow.otherWrite={owner,epoch,value:[kind,size<=48*1024*1024+1024?size:null,bytes,at]};
+    }catch{/* Diagnostic bookkeeping cannot change an actual generic write. */}
+}
+function captureAvatarFlightTransport(sender,token,epoch,pending) {
+    if(!token)return null;
+    try {
+        const ready=sender.socket.readyState,bytes=sender.socket.bufferedAmount;
+        if(sender.flight!==token || sender.epoch!==epoch || sender.pending!==pending)return null;
+        return [Number.isSafeInteger(ready)&&ready>=0&&ready<=3?ready:null,
+            Number.isSafeInteger(bytes)&&bytes>=0&&bytes<=64*1024*1024?bytes:null];
+    }catch{return null;}
+}
 function avatarFlowDistance(message) {
     const avatars=Array.isArray(message?.avatars)?message.avatars:[];
     if(avatars.length>32)return null;
@@ -125,11 +181,12 @@ function avatarFlowDistance(message) {
 function noteAvatarFlow(sender,event,value) {
     try {
         if(event==='capture')return avatarFlowEnabled(value.owner)?avatarFlowDistance(value.captured):undefined;
+        if(event==='invalidate' || event==='close')retireAvatarOtherWrites(sender,event==='close'?null:value?.owner);
         const state=sender.avatarFlow;
         const managed=avatarFlowEnabled(value?.owner);
         if(!managed && !(state && (event==='close' || event==='invalidate')))return null;
         const flow=state || (sender.avatarFlow={counts:Array(9).fill(0),counterCensored:false,sequence:0,lastAt:null,
-            ingress:null,offer:[0,null,null],callback:null});
+            ingress:null,offer:[0,null,null],callback:null,otherWrite:null});
         const index={'ingress':0,'offer-enter':1,'offer-validated':2,'offer-refused':3,'offer-threw':4,
             'write-observed':5,'callback-success':6,'callback-error':7,'invalidate':8,'close':8}[event];
         if(index===undefined)return null;
@@ -150,16 +207,21 @@ function snapshotAvatarFlow(session) {
         if(!avatarFlowEnabled(session))return null;
         const sender=session.avatarSender,flow=sender?.avatarFlow,at=session.lastNativeMessage;
         if(!flow || !Number.isSafeInteger(at) || at<0)return null;
-        if(flow.sequence>=128)return {version:1,at:flow.lastAt,sequence:128,censored:[flow.counterCensored,true],
-            counts:null,ingress:null,offer:null,flight:null,pending:null,callback:null};
+        if(flow.sequence>=128)return {version:2,at:flow.lastAt,sequence:128,censored:[flow.counterCensored,true],
+            counts:null,ingress:null,offer:null,flight:null,pending:null,callback:null,transport:null,otherWrite:null};
         if(flow.lastAt!==null && at-flow.lastAt<500){if(flow.snapshot)flow.snapshot.censored[0]=flow.counterCensored;return flow.snapshot || null;}
         const owner=item=>item.owner===session && item.epoch===sender.epoch?0:1;
         const slot=item=>item?[item.at,item.size,item.flowDistance??null,owner(item)]:null;
-        const callback=flow.callback;
+        const callback=flow.callback,token=sender.flight,pending=sender.pending,epoch=sender.epoch;
+        const transport=captureAvatarFlightTransport(sender,token,epoch,pending);
+        if(sender.flight!==token || sender.pending!==pending || sender.epoch!==epoch
+            || session.avatarSender!==sender || sender.avatarFlow!==flow)return null;
+        const other=flow.otherWrite;
         flow.sequence++;flow.lastAt=at;
-        flow.snapshot={version:1,at,sequence:flow.sequence,censored:[flow.counterCensored,false],counts:flow.counts.slice(),
-            ingress:flow.ingress?.slice() || null,offer:flow.offer.slice(),flight:slot(sender.flight?.item),pending:slot(sender.pending),
-            callback:callback?[callback.item.at,callback.item.size,callback.outcome,owner(callback.item)]:null};
+        flow.snapshot={version:2,at,sequence:flow.sequence,censored:[flow.counterCensored,false],counts:flow.counts.slice(),
+            ingress:flow.ingress?.slice() || null,offer:flow.offer.slice(),flight:slot(token?.item),pending:slot(pending),
+            callback:callback?[callback.item.at,callback.item.size,callback.outcome,owner(callback.item)]:null,
+            transport,otherWrite:other?[...other.value,owner(other)]:null};
         return flow.snapshot;
     }catch{return null;}
 }
@@ -652,6 +714,7 @@ nativeServer.on('connection', native => {
                 clearTimeout(session.navigationTimeout);
                 if (session.permissionRevision !== message.permissionRevision) { session.avatarSender?.invalidate(session); session.assets?.reset(); session.pushToTalk.reset(); }
                 session.permissionRevision = message.permissionRevision;
+                registerAvatarOtherWrites(session);
                 send(native, { type: 'permissionsAccepted', permissionRevision: message.permissionRevision, muted: session.muted }); return;
             }
             if(avatarFlowEnabled(session) && message.type==='avatars')noteAvatarFlow(session.avatarSender,'ingress',

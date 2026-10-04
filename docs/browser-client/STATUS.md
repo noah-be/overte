@@ -1,5 +1,54 @@
 # Browser client status
 
+## Current held-flight and pruning checkpoint, 2026-10-04
+
+Published `39ff99ac902b22eb84b732b2cba2ae61e47ab9e5` passes current required
+Repository and CodeQL gates. Automatic Browser 37192753251 and the single opt-in
+37193186302 each pass all 2972 product cases, three real network controls and
+the embedded GPU contract. Each then fails pruning with the original
+`Actual GPU render produced a GL error` assertion; Chrome UI is not run.
+The existing evidence does not retain that GL code, phase or pruning backend.
+The embedded SwiftShader request applies only to the embedded step, not pruning.
+
+Both native Core runs stop after four of eighteen checkpoints at the unchanged
+2800 ms native-to-browser movement assertion. Native reaches its target while
+the browser retains the old peer pose; owned stop succeeds. The opt-in artifact
+has 38 native and 118 gateway rows with no rejected rows or tail/output censoring.
+Its 59 fixture flow rows include target-bearing ingress and a validated target
+pending slot, while a 26158-byte old-pose physical flight remains held. Observed
+callback counts do not prove remote acknowledgement or aligned clocks.
+Later interaction, voice and reconnect checkpoints are not reached.
+
+An own-loopback characterization can reproduce this held-slot pattern by
+pausing its receiver while generic JSON transport stimuli share the socket.
+Resuming the receiver completes the two actual callbacks and delivers the target
+in 730.453 ms, inside the unchanged 2800 ms bound. All three controls pass and
+owned endpoints close. This proves that transport constraint can produce the
+pattern; it does not establish the hosted cause. The local Node version is
+24.21.0; the hosted workflow selects 22 without an observed exact minor.
+
+The accepted diagnostic successor measures queue/state against the captured
+physical-flight token and the last successful generic JSON write's fixed class,
+UTF8 byte size and original pre-write buffer. It adds two queue getters at an
+existing sampled opportunity and one diagnostic byte scan after a generic send.
+Default-off/public paths create no binding or byte scan. These costs are explicit;
+zero scheduling cost is not claimed. The sender and collector stay unchanged.
+A same-query GL discriminator records the existing return and read phase while
+preserving the failure, assertions, deadline and cleanup. Complete integrated source gates pass: 3015/3015 product cases with no skips,
+the 34-file production build, both original embedded fixture builds and all
+34 repository suites (130.93 s suite; 132.363 s wall). The local distribution
+is byte-identical to the prior build on this toolchain. Fresh actual Core/Chrome
+qualification remains required. See the [source proof](evidence/pruning-flight-source-checks-20261004.json).
+
+Source review finds that explicit Tablet Close stops new visual captures. An
+open Tablet may encode a complete PNG at each 150 ms capture opportunity under
+its single-frame ACK gate. The five inspected modules contain no document-hidden
+pause; application-wide behavior and actual traffic costs are not measured.
+No Tablet or audio origin of the held flight is claimed. Registered Native
+remains missing separately, with the other eight births matching; no existing
+service or registry repair was performed. Full Tablet, public Hub fluidness,
+physical voice and native parity remain unfinished.
+
 ## Current hosted checkpoint, 2026-10-04
 
 Published `1f7950b2cd127a664fcb6d940961285ae1690a11` passes current required
