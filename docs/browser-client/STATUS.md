@@ -1,5 +1,56 @@
 # Browser client status
 
+## Current hosted checkpoint, 2026-10-04
+
+Published `1f7950b2cd127a664fcb6d940961285ae1690a11` passes current required
+Repository checks, CodeQL and owned atomic settings. Automatic Browser
+37185774127 passes 2930 product cases, the three real network controls and
+130 actual Chrome UI cases. Its native Core stops after four of eighteen
+checkpoints: native-to-browser movement still fails the original 2800 ms
+assertion. Owned cleanup succeeds. Later interaction, voice and reconnect
+checkpoints have not been reached.
+
+The single opt-in run 37186294900 retains that movement failure and successful
+owned cleanup. Its 17 distinct retained gateway send witnesses all invoke a
+write with an empty pre-write buffer. Five native-side samples contain the
+target, but attach an earlier gateway send witness containing the old pose.
+There is no observed target-bearing gateway write. These samples do not show
+whether a target-bearing envelope reached the gateway or remained pending
+behind a physical write; callback completion is not yet measured.
+
+The same opt-in run passes embedded pixels and pruning but has a separate UI
+negative: 129 of 130 cases pass. The attribution comparison passes its pixels,
+transforms and public-call identities, then observes one censored sample where
+the fixture expects none. Its censor reason was not captured. Preserve this
+outcome alongside the automatic same-source success. No diagnostic limit is
+raised and no passing run waives the failure.
+
+The bounded default-off envelope/offer/write/callback discriminator and the
+attribution fixture clock correction are integrated with the reviewed V28
+source closure. Root's portable replay passes 589 cases without skips, narrow
+TypeScript and twenty whole-source inverses. The 249 rows retain all 241 prior
+inputs; fourteen whole histories stay below the original byte limits.
+The first complete unit invocation retains 2973 reported cases: 2932 pass,
+40 fail and one is cancelled, with no skips. Five extracted-handler fixtures
+omit newly required configuration/helper bindings; the clipboard fixture keeps
+the run open until its owned runner is interrupted. Source, index and registry
+remain coherent. Builds and repository quick do not start. The five fixture
+bindings are corrected with a controlled empty environment and the exact actual
+helper source. All original actions/assertions remain; the targeted 47 original
+cases now pass, including genuine WebSocket controls, with no skips.
+The corrected complete gates pass: 2972/2972 product cases without skips, the
+34-file production build, both original embedded fixture builds, and all 34
+repository suites (120.02 s suite time; 121.33 s wall time). The distribution
+matches the prior local build on the same toolchain; hosted provenance is not
+inferred. Exact commands, source identities, reviews and the retained first
+failure are in the [source proof](evidence/avatar-flow-source-checks-20261004.json).
+The original missing-registered-Native preflight remains failed separately.
+No service or registry repair was performed.
+Next step: publish exact tested source, then measure fresh hosted Core and
+Chrome. No movement repair is claimed.
+Hub fluidness, full Tablet, physical voice and complete native parity remain
+unfinished.
+
 ## Current measured repair integration, 2026-10-04
 
 Exact published 9e5e020210d312407fd67514d2a2811039eb675d passes required

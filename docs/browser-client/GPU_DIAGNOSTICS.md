@@ -1,5 +1,23 @@
 # Embedded texture GPU diagnostics
 
+## Functional dispatch comparison and clock scope
+
+Exact `1f7950b2` automatic run 37185774127 passes the actual embedded pixels
+and 130 Chrome UI cases. The single opt-in run 37186294900 also passes embedded
+pixels, but its dispatch-attribution comparison fails after observing one
+censored sample. All preceding pixel, transform, public-method and program
+identity assertions pass. The censor reason was not captured; retain this
+negative alongside the same-source automatic success.
+
+The reviewed fixture correction binds the actual render observer through its
+existing injectable clock to a bounded synthetic clock for this functional
+comparison only. It retains the original nine renders, GL calls, pixel and
+attribution assertions, first/ninth-frame cadence and production limits.
+Clock scope is explicitly `synthetic-fixture-not-host-CPU`: these timings cannot
+qualify host CPU performance. The separate real-clock renderer browser test
+and production 2 ms per sampled attribution frame, 500 ms aggregate and 512-sample limits
+remain unchanged. Fresh exact-source Chrome execution remains required.
+
 ## Trusted software fixture and original-driver control
 
 The normal GPU-less Browser client workflow now selects the existing

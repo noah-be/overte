@@ -23,11 +23,11 @@ async function directory(path, privateRoot = false) {
 
 // Delegate each complete line to the exact production projector. No original
 // text, decorators, exceptions or unknown fields can enter the returned DTO.
-export function projectAvatarTail(buffer, tailTruncated = false) {
-    if (!Buffer.isBuffer(buffer) || buffer.length > MAX_BYTES || typeof tailTruncated !== 'boolean') throw new Error('input-refused');
+export function projectAvatarTail(buffer, tailTruncated = false, mode = 'native-child') {
+    if (!Buffer.isBuffer(buffer) || buffer.length > MAX_BYTES || typeof tailTruncated !== 'boolean' || !['native-child','gateway-log'].includes(mode)) throw new Error('input-refused');
     const child = new EventEmitter(); child.stdout = new EventEmitter();
     const rows = [];
-    attachNativeAvatarProjection(child, { enabled: true, publicPlace: false,
+    attachNativeAvatarProjection(child, { enabled: true, publicPlace: false, mode,
         emit(line) { rows.push(JSON.parse(line.slice(MARKER.length))); } });
     let offset = 0, prefixDiscarded = false;
     if (tailTruncated) {
@@ -75,7 +75,7 @@ export async function readAvatarLog(root, name) {
             || !stable(rootBefore, await directory(root, true)) || !stable(logsBefore, await directory(logs))) {
             return { source: name, status: 'refused', reason: 'changed-during-read' };
         }
-        return { source: name, status: 'read', ...projectAvatarTail(buffer, start > 0) };
+        return { source: name, status: 'read', ...projectAvatarTail(buffer, start > 0, name==='native'?'native-child':'gateway-log') };
     } catch (error) {
         return { source: name, status: error?.code === 'ENOENT' ? 'missing' : 'refused',
             ...(error?.code === 'ENOENT' ? {} : { reason: 'read-boundary-refused' }) };

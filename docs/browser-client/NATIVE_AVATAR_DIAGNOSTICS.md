@@ -1,5 +1,69 @@
 # Opt-in native avatar diagnostics
 
+## Received envelopes, send slots and callbacks
+
+The reviewed diagnostic successor distinguishes a received avatar envelope,
+complete serialized pending assignment, observed write invocation and matching
+local send callback. It changes no native wire message, approval decision,
+socket capacity predicate or Core movement deadline. The Native bridge and
+sampler remain unchanged. Diagnostics stay disabled by default and are limited
+to the owned managed-domain path.
+
+Native log samples remain version 1. Gateway log samples use version 2 and
+require a nullable `gatewayAvatarFlow` field. The collector chooses the strict
+projector modes `native-child` and `gateway-log` from the fixed filenames
+`native.log` and `gateway.log`. It never chooses a version from a row or backfills old gateway
+rows. Historical artifacts retain their exact frozen decoder. Current private
+viewer meaning includes the collector as a third Git-only dependency; the
+fifteen runtime source paths and key set are unchanged; the four reviewed
+production source hashes change.
+
+Flow version 1 has ten fixed keys: `version`, `at`, `sequence`, `censored`,
+`counts`, `ingress`, `offer`, `flight`, `pending` and `callback`. Compact tuples
+have these meanings:
+
+| Field | Values, in order |
+| --- | --- |
+| `censored` | saturated counter; exhausted observation budget |
+| `counts` | ingress; offer entry; pending assignment; offer refusal; thrown offer; observed write; successful callback; failed callback; invalidation |
+| `ingress` | original receive time; fixture target distance; approval; connected; current native association |
+| `offer` | outcome; last validated receive time; last validated target distance |
+| `flight`, `pending` | original receive time; serialized byte size; target distance; current or retired owner |
+| `callback` | original receive time; serialized byte size; success or error; current or retired owner |
+
+Outcome codes are 0/no recorded outcome, 1/pending assignment, 2/refusal and
+3/exception. Owner codes are 0/current and 1/retired relative to the emitting
+session and original item epoch. Callback codes are 0/success and 1/error.
+Unknown target distance or memory facts remain null. Ingress is observed before
+approval filtering; it does not admit the envelope. Pending assignment is
+observed before pumping and does not prove successful offer return. Write
+observation follows the existing send invocation, while a synchronous callback
+can precede it. Neither callback completion nor write observation proves
+browser receipt.
+
+Counters include only observed managed diagnostic events over the physical
+channel lifetime. Rows carry no channel identifier, so an artifact alone cannot
+prove continuity across rows. They are not per-generation totals or conservation equations.
+They saturate at 65535. Revocation clears cached ingress and offer state, while
+an already issued physical write and bounded counters retain their lifetime.
+Snapshots use the existing receive timestamp, at most 128 observations and
+500 ms spacing. A terminal censored snapshot clears all measurement fields to
+null. Cached snapshots can accompany later native rows; those rows do not
+identify the same envelope or establish clock alignment.
+
+The original 16 KiB line, 512-row, 1 MiB tail/output and avatar text limits
+remain. Worst-sized legal rows can still exceed the combined output cap and
+refuse; finite diagnostic tuples do not promise full retention. No raw pose,
+identifier, URL, cookie or error text is exported.
+
+Exact `1f7950b2` automatic run 37185774127 passes all 2930 product and 130
+Chrome UI cases, while native Core retains its original movement failure.
+The single opt-in run 37186294900 also fails movement: 79 attached write
+witnesses have an empty pre-write buffer, but five native target samples attach
+an earlier old-pose witness. No target-bearing gateway write was observed.
+That result does not distinguish received content from a held physical slot;
+the successor measures that boundary rather than claiming a movement repair.
+
 ## Complete-avatar scheduling and source identity
 
 Avatar delivery now retains one physical send and the newest complete unsent
@@ -17,9 +81,10 @@ send and original receive time. An offer queued behind a physical write is not
 a refused send. Existing512-row, 128-observation and 500 ms bounds remain.
 Latest-state replacement may deliberately omit intermediate poses; it does
 not prove browser receipt. Current source evidence adds the new
-`gateway/avatar-snapshot-sender.mjs` producer:15 runtime source identities plus
-two Git-only diagnostic fixture identities. Old14+2 artifacts remain on their
-frozen decoder; missing identities are refused without backfill.
+`gateway/avatar-snapshot-sender.mjs` producer:15 runtime source identities.
+The exact `1f7950b2` viewer has two Git-only fixture identities; the successor
+adds the collector as described above. Old14+2 and15+2 artifacts remain on their
+frozen decoders; missing identities are refused without backfill.
 
 Exact9e negative evidence shows four distinct target-bearing observations
 blocked above4 MiB; the native target is correct and the browser peer is stale.

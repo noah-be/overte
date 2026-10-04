@@ -4,12 +4,13 @@ import {expect,test} from '@playwright/test';
 test('actual World dispatch attribution preserves exact rendered pixels and program-call boundaries',async({page},testInfo)=>{
  const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));await page.goto('/');
  const report=await page.evaluate(async()=>{
-  const path='/tests/render-cpu-breakdown-fixture.ts';const {THREE,BrowserWorld}=await import(/* @vite-ignore */path);
+  const path='/tests/render-cpu-breakdown-fixture.ts';const {THREE,BrowserWorld,bindAttributionFixtureClock}=await import(/* @vite-ignore */path);
   const cases:any[]=[];
   for(const enabled of [false,true]){
    const host=document.createElement('div');host.style.cssText='position:fixed;inset:0;width:256px;height:192px';document.body.append(host);let world:any;
    try{
     const warnings:string[]=[];world=new BrowserWorld(host,{renderCpuTiming:true,renderDispatchAttribution:enabled,resolveAsset(){throw Error('No external assets are authorized by this fixture');},onPose(){},onInteract(){},onStatus:(text:string,kind?:string)=>{if(kind==='warning'||kind==='error')warnings.push(text);}});
+    const clockScope=bindAttributionFixtureClock(world,enabled);
     cancelAnimationFrame(world.frame);world.setInputEnabled(false);world.setEnabled(false);world.setPresentationEnabled(false);world.renderer.setPixelRatio(1);world.renderer.setSize(256,192);
     const gl=world.renderer.getContext();if(!(gl instanceof WebGL2RenderingContext))throw Error('Actual WebGL2 is required');
     world.setSpawn({x:0,y:0,z:3});world.camera.aspect=256/192;world.camera.updateProjectionMatrix();
@@ -21,7 +22,7 @@ test('actual World dispatch attribution preserves exact rendered pixels and prog
     const pixels=new Uint8Array(256*192*4);gl.readPixels(0,0,256,192,gl.RGBA,gl.UNSIGNED_BYTE,pixels);if(gl.isContextLost()||gl.getError()!==gl.NO_ERROR)throw Error('Actual diagnostic comparison graphics failed');
     const pixelHash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',pixels))).map(byte=>byte.toString(16).padStart(2,'0')).join('');
     const center=(x:number)=>{const p=new THREE.Vector3(x,.65,0).project(world.camera),offset=(Math.floor((p.y*.5+.5)*192)*256+Math.floor((p.x*.5+.5)*256))*4;return Array.from(pixels.slice(offset,offset+4));};
-    const performanceReport=world.getPerformance();cases.push({enabled,pixelHash,programIdentityUnchanged:gl.useProgram===programBefore,centers:[center(-.55),center(.55)],matrices:matrices(),methodIdentitiesUnchanged:before.scene===world.scene.updateMatrixWorld&&before.camera===world.camera.updateMatrixWorld&&before.hook===world.scene.onBeforeRender&&before.draw===world.renderer.renderBufferDirect,matrixAutoUpdates:[world.scene.matrixWorldAutoUpdate,...['box','sphere'].map(id=>world.objects.get(id).matrixAutoUpdate)],renderCpuTiming:performanceReport.renderCpuTiming,drawCalls:performanceReport.drawCalls,warnings});
+    const performanceReport=world.getPerformance();cases.push({enabled,clockScope,pixelHash,programIdentityUnchanged:gl.useProgram===programBefore,centers:[center(-.55),center(.55)],matrices:matrices(),methodIdentitiesUnchanged:before.scene===world.scene.updateMatrixWorld&&before.camera===world.camera.updateMatrixWorld&&before.hook===world.scene.onBeforeRender&&before.draw===world.renderer.renderBufferDirect,matrixAutoUpdates:[world.scene.matrixWorldAutoUpdate,...['box','sphere'].map(id=>world.objects.get(id).matrixAutoUpdate)],renderCpuTiming:performanceReport.renderCpuTiming,drawCalls:performanceReport.drawCalls,warnings});
    }finally{try{world?.dispose();}finally{host.remove();}}
   }
   return cases;

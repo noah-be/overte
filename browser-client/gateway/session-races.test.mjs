@@ -38,7 +38,7 @@ async function connectionHarness() {
         launch() { return new Promise((resolve, reject) => launches.push({resolve, reject, session:this})); }
     }
     vm.runInNewContext(source.slice(handlerStart, handlerEnd), {
-        AvatarSnapshotSender, Session:DeferredSession, sessions, sockets, maximumSessions:4, shuttingDown:false,
+        process:{env:{}}, AvatarSnapshotSender, Session:DeferredSession, sessions, sockets, maximumSessions:4, shuttingDown:false,
         cookie:() => 'owned-session-cookie', send, pose:() => {}, WebSocket:{OPEN:1}, equal:(a,b)=>a===b,
         browserServer:{on(event, listener) { assert.equal(event, 'connection'); listener(browser, {headers:{}}); }},
     });

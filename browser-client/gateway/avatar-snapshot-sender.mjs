@@ -7,11 +7,12 @@ export const MAX_TEXT_BYTES = 48 * 1024 * 1024 + 1024; // existing native ingres
 export const MAX_TEXT_CODE_UNITS = 16 * 1024 * 1024; // frontend text.length, not UTF-8 bytes
 const channels=new WeakMap();
 export class AvatarSnapshotSender {
-    constructor(socket, currentOwner, observe = () => {}, onError = () => {}) {
+    constructor(socket, currentOwner, observe = () => {}, onError = () => {}, onFlow) {
         if(channels.has(socket))throw Error('avatar-channel-already-owned');
         channels.set(socket,this);
         this.socket=socket;this.currentOwner=currentOwner;this.observe=observe;this.onError=onError;
         this.pending=null;this.flight=null;this.pumping=false;this.epoch=0;this.closed=false;this.observationRefused=false;
+        if(typeof onFlow==='function')this.onFlow=onFlow;
     }
     authority(owner) {
         try {
@@ -26,14 +27,21 @@ export class AvatarSnapshotSender {
         return current && current.native===item.native && current.revision===item.revision
             && current.epoch===item.epoch;
     }
+    flow(event, value) {try{return this.onFlow?.(event,value);}catch{return null;}}
     offer(owner, value, at) {
+        if(this.onFlow)this.flow('offer-enter',{owner,at});
+        try {
         const epoch=this.epoch,authority=this.authority(owner);
-        if(!authority || epoch!==this.epoch)return false;
+        if(!authority || epoch!==this.epoch){if(this.onFlow)this.flow('offer-refused',{owner,at});return false;}
         if(value?.type!=='avatars' || !Number.isSafeInteger(at) || at<0)throw Error('avatar-offer-refused');
-        const text=avatarSnapshotText(value),size=Buffer.byteLength(text);
-        if(!this.valid(authority))return false;
+        let distance=null;
+        const text=avatarSnapshotText(value,this.onFlow ? captured=>{distance=this.flow('capture',{owner,captured});} : undefined),size=Buffer.byteLength(text);
+        if(!this.valid(authority)){if(this.onFlow)this.flow('offer-refused',{owner,at});return false;}
         // Serialized bytes cannot retain a mutable caller pose reference.
-        this.pending={...authority,text,size,at};this.pump();return true;
+        this.pending={...authority,text,size,at};
+        if(this.onFlow){if(distance!==undefined)this.pending.flowDistance=typeof distance==='number' && Number.isFinite(distance) && distance>=0 && distance<=300000?distance:null;this.flow('offer-validated',this.pending);}
+        this.pump();return true;
+        }catch(error){if(this.onFlow)this.flow('offer-threw',{owner,at});throw error;}
     }
     record(value) {try{this.observe(value);}catch{this.observationRefused=true;}}
     pump() {
@@ -56,10 +64,12 @@ export class AvatarSnapshotSender {
         try {
             this.socket.send(item.text,error=>{
                 if(this.flight!==token)return; // duplicate/stale callbacks cannot retarget
+                if(this.onFlow)this.flow(error?'callback-error':'callback-success',token.item);
                 this.flight=null;
                 if(error){this.fail();return;}
                 this.pump();
             });
+            if(this.onFlow)this.flow('write-observed',item);
             this.record({owner:item.owner,text:item.text,at:item.at,open,bytes,writeInvoked:true});
         }catch(error){
             if(this.flight===token)this.flight=null;
@@ -79,8 +89,9 @@ export class AvatarSnapshotSender {
         this.epoch++;
         if(this.pending?.owner===owner)this.pending=null;
         // An issued physical write cannot be cancelled or marked retired here.
+        if(this.onFlow)this.flow('invalidate',{owner});
     }
-    close() {this.closed=true;this.pending=null;this.epoch++;}
+    close() {this.closed=true;this.pending=null;this.epoch++;if(this.onFlow)this.flow('close',null);}
     bounds() {return {physicalInFlight:this.flight?1:0,latestPending:this.pending?1:0,
         inFlightBytes:this.flight?.item.size||0,pendingBytes:this.pending?.size||0};}
 }
@@ -113,7 +124,7 @@ function validAvatar(value) {
 }
 
 
-export function avatarSnapshotText(value) {
+export function avatarSnapshotText(value, capture) {
     if(value?.type !== 'avatars')throw Error('Invalid avatar snapshot');
     const text=JSON.stringify(value);
     if(typeof text !== 'string' || text.length > MAX_TEXT_CODE_UNITS || Buffer.byteLength(text) > MAX_TEXT_BYTES)throw Error('Gateway response too large');
@@ -121,5 +132,6 @@ export function avatarSnapshotText(value) {
     if(!isRecord(captured) || captured.type !== 'avatars' || !Array.isArray(captured.avatars)
         || captured.avatars.length > 10000 || !captured.avatars.every(validAvatar))throw Error('Invalid avatar snapshot');
     if(captured.message !== undefined && typeof captured.message !== 'string')throw Error('Invalid gateway notice');
+    if(capture){try{capture(captured);}catch{/* Diagnostics cannot change admission. */}}
     return text;
 }

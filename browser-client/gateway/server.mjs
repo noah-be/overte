@@ -107,10 +107,66 @@ function observeAvatarForward(session, message, socketOpen, bufferedBytes, write
         fixtureNameMatches:peers.length,avatarProjectionCensored:avatars.length>32,observationCensored:false};
     state.snapshot=value;
 }
+// Flow records only managed opt-in diagnostic events on this physical channel.
+// Its clocks are existing received-message timestamps, not callback times.
+function avatarFlowEnabled(session) {
+    return session && !session.publicPlace && ['1','passive'].includes(process.env.OVERTE_GATEWAY_AVATAR_SAMPLE_DIAGNOSTICS);
+}
+function avatarFlowDistance(message) {
+    const avatars=Array.isArray(message?.avatars)?message.avatars:[];
+    if(avatars.length>32)return null;
+    const peers=avatars.filter(avatar=>avatar && avatar.id!==message.selfId && avatar.displayName==='Native-Lab-Participant');
+    if(peers.length!==1)return null;
+    const p=peers[0].position;
+    if(!p || ![p.x,p.y,p.z].every(value=>typeof value==='number' && Number.isFinite(value)))return null;
+    const distance=Math.hypot(p.x-4,p.y-1.8,p.z-2);
+    return distance<=300000?distance:null;
+}
+function noteAvatarFlow(sender,event,value) {
+    try {
+        if(event==='capture')return avatarFlowEnabled(value.owner)?avatarFlowDistance(value.captured):undefined;
+        const state=sender.avatarFlow;
+        const managed=avatarFlowEnabled(value?.owner);
+        if(!managed && !(state && (event==='close' || event==='invalidate')))return null;
+        const flow=state || (sender.avatarFlow={counts:Array(9).fill(0),counterCensored:false,sequence:0,lastAt:null,
+            ingress:null,offer:[0,null,null],callback:null});
+        const index={'ingress':0,'offer-enter':1,'offer-validated':2,'offer-refused':3,'offer-threw':4,
+            'write-observed':5,'callback-success':6,'callback-error':7,'invalidate':8,'close':8}[event];
+        if(index===undefined)return null;
+        if(managed && event!=='close'){if(flow.counts[index]===65535)flow.counterCensored=true;else flow.counts[index]++;}
+        if(event==='ingress') {
+            const plain=key=>{const d=Object.getOwnPropertyDescriptor(value.owner,key);return d && 'value' in d && typeof d.value==='boolean'?d.value:null;};
+            flow.ingress=[value.at,avatarFlowDistance(value.message),plain('permissionsApproved'),plain('connected'),value.currentNative];
+        } else if(event==='offer-validated')flow.offer=[1,value.at,value.flowDistance];
+        else if(event==='offer-refused')flow.offer[0]=2;
+        else if(event==='offer-threw')flow.offer[0]=3;
+        else if(event==='callback-success' || event==='callback-error')flow.callback={item:{owner:value.owner,epoch:value.epoch,at:value.at,size:value.size},outcome:event==='callback-success'?0:1};
+        else if(event==='invalidate' || event==='close'){flow.ingress=null;flow.offer=[0,null,null];flow.snapshot=null;}
+    }catch{/* Fixed diagnostics never change the original operation. */}
+    return null;
+}
+function snapshotAvatarFlow(session) {
+    try {
+        if(!avatarFlowEnabled(session))return null;
+        const sender=session.avatarSender,flow=sender?.avatarFlow,at=session.lastNativeMessage;
+        if(!flow || !Number.isSafeInteger(at) || at<0)return null;
+        if(flow.sequence>=128)return {version:1,at:flow.lastAt,sequence:128,censored:[flow.counterCensored,true],
+            counts:null,ingress:null,offer:null,flight:null,pending:null,callback:null};
+        if(flow.lastAt!==null && at-flow.lastAt<500){if(flow.snapshot)flow.snapshot.censored[0]=flow.counterCensored;return flow.snapshot || null;}
+        const owner=item=>item.owner===session && item.epoch===sender.epoch?0:1;
+        const slot=item=>item?[item.at,item.size,item.flowDistance??null,owner(item)]:null;
+        const callback=flow.callback;
+        flow.sequence++;flow.lastAt=at;
+        flow.snapshot={version:1,at,sequence:flow.sequence,censored:[flow.counterCensored,false],counts:flow.counts.slice(),
+            ingress:flow.ingress?.slice() || null,offer:flow.offer.slice(),flight:slot(sender.flight?.item),pending:slot(sender.pending),
+            callback:callback?[callback.item.at,callback.item.size,callback.outcome,owner(callback.item)]:null};
+        return flow.snapshot;
+    }catch{return null;}
+}
 // Only receives the exact strict projector's fixed DTO, never raw native text.
 function emitAvatarProjection(session, line) {
     const value=JSON.parse(line.slice('BROWSER_AVATAR_SAMPLE '.length));
-    if(value.kind==='sample')value.gatewayDelivery=session.avatarDelivery?.snapshot || null;
+    if(value.kind==='sample'){value.version=2;value.gatewayDelivery=session.avatarDelivery?.snapshot || null;value.gatewayAvatarFlow=snapshotAvatarFlow(session);}
     process.stdout.write('BROWSER_AVATAR_SAMPLE '+JSON.stringify(value)+'\n');
 }
 const cookie = request => /(?:^|;\s*)overte_browser=([a-f0-9]{64})(?:;|$)/.exec(request.headers.cookie || '')?.[1];
@@ -481,7 +537,8 @@ browserServer.on('connection', (browser, request) => {
                 session.close(false);
             }
         } finally { browser.close(1011, 'Avatar delivery failed.'); }
-    });
+    }, ['1','passive'].includes(process.env.OVERTE_GATEWAY_AVATAR_SAMPLE_DIAGNOSTICS)
+        ? (event,value)=>noteAvatarFlow(avatarSender,event,value) : undefined);
     browser.on('message', async (data, binary) => {
         let attempt; let admission;
         try {
@@ -597,6 +654,8 @@ nativeServer.on('connection', native => {
                 session.permissionRevision = message.permissionRevision;
                 send(native, { type: 'permissionsAccepted', permissionRevision: message.permissionRevision, muted: session.muted }); return;
             }
+            if(avatarFlowEnabled(session) && message.type==='avatars')noteAvatarFlow(session.avatarSender,'ingress',
+                {owner:session,message,at:session.lastNativeMessage,currentNative:session.native===native});
             if (!session.permissionsApproved && !(message.type === 'state' && message.state === 'error') && message.type !== 'warning') return;
             if (message.type === 'pushToTalkState') { session.pushToTalk.receiveNative(message); return; }
             if (message.type === 'visitorPersona') {

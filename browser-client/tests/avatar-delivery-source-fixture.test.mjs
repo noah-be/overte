@@ -6,7 +6,9 @@ import {readFileSync as readCurrentFileSync} from 'node:fs';import {mkdtemp,writ
 import {createHash} from 'node:crypto';import {join} from 'node:path';import {tmpdir} from 'node:os';import {pathToFileURL} from 'node:url';
 import {recoverReviewedAvatarSource,readReviewedAvatarSource as readHistoricalAvatarSource,avatarDeliverySourcePins} from './fixtures/avatar-delivery-source-fixture.mjs';
 import {prepareAvatarV26HistoryReaders} from './integration/capture-software-managed-source-fixture.mjs';
-const {readFileSync,readReviewedAvatarSource}=await prepareAvatarV26HistoryReaders(readCurrentFileSync,readHistoricalAvatarSource,recoverReviewedAvatarSource);
+import {prepareAvatarV27ProjectionHistoryReaders} from './integration/capture-avatar-flow-source-fixture.mjs';
+const originalReaders=await prepareAvatarV26HistoryReaders(readCurrentFileSync,readHistoricalAvatarSource,recoverReviewedAvatarSource);
+const {readFileSync,readReviewedAvatarSource}=await prepareAvatarV27ProjectionHistoryReaders(originalReaders.readFileSync,originalReaders.readReviewedAvatarSource,recoverReviewedAvatarSource);
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
 const source=readFileSync(new URL('./fixtures/avatar-delivery-source-fixture.mjs',import.meta.url));
 const archive=readFileSync(new URL('./fixtures/avatar-delivery-before.json.gz',import.meta.url));

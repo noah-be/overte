@@ -15,7 +15,9 @@ import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { projectAvatarTail, readAvatarLog, collectAvatarSamples, writeAvatarSamples } from '../tools/curate-avatar-samples.mjs';
 import {prepareAvatarV26HistoryReaders} from './integration/capture-software-managed-source-fixture.mjs';
-const {readReviewedAvatarSource}=await prepareAvatarV26HistoryReaders(readCurrentFileSync,readHistoricalAvatarSource,recoverReviewedAvatarSource);
+import {prepareAvatarV27ProjectionHistoryReaders} from './integration/capture-avatar-flow-source-fixture.mjs';
+const originalReaders=await prepareAvatarV26HistoryReaders(readCurrentFileSync,readHistoricalAvatarSource,recoverReviewedAvatarSource);
+const {readReviewedAvatarSource}=await prepareAvatarV27ProjectionHistoryReaders(originalReaders.readFileSync,originalReaders.readReviewedAvatarSource,recoverReviewedAvatarSource);
 const marker = 'BROWSER_AVATAR_SAMPLE ';
 const producer = readFileSync(new URL('../gateway/native-avatar-sample-diagnostics.js', import.meta.url), 'utf8');
 function produced() {

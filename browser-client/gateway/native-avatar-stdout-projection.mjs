@@ -35,10 +35,34 @@ function gatewayDelivery(value) {
         && (!value.observationCensored || value.sequence===128)
         && (value.bufferedBytes===null || value.writeInvoked===(value.socketOpen && value.bufferedBytes<4*1024*1024));
 }
+const FLOW_KEYS=['version','at','sequence','censored','counts','ingress','offer','flight','pending','callback'];
+const stamp=value=>Number.isSafeInteger(value) && value>=0;
+const tuple=(value,length)=>Array.isArray(value) && value.length===length;
+const nullableBool=value=>value===null || typeof value==='boolean';
+const ownerCode=value=>value===0 || value===1;
+const textBytes=value=>Number.isSafeInteger(value) && value>=0 && value<=48*1024*1024+1024;
+function gatewayAvatarFlow(value) {
+    if(value===null)return true;
+    if(!exact(value,FLOW_KEYS) || value.version!==1 || !stamp(value.at) || !Number.isSafeInteger(value.sequence)
+        || value.sequence<1 || value.sequence>128 || !tuple(value.censored,2) || !value.censored.every(v=>typeof v==='boolean'))return false;
+    const measurements=['counts','ingress','offer','flight','pending','callback'];
+    if(value.censored[1])return value.sequence===128 && measurements.every(key=>value[key]===null);
+    if(!tuple(value.counts,9) || !value.counts.every(count))return false;
+    if(value.ingress!==null && !(tuple(value.ingress,5) && stamp(value.ingress[0]) && bounded(value.ingress[1])
+        && value.ingress.slice(2).every(nullableBool)))return false;
+    if(!tuple(value.offer,3) || ![0,1,2,3].includes(value.offer[0]) || !(value.offer[1]===null || stamp(value.offer[1]))
+        || !bounded(value.offer[2]) || value.offer[1]===null && value.offer[2]!==null
+        || value.offer[0]===0 && (value.offer[1]!==null || value.offer[2]!==null)
+        || value.offer[0]===1 && value.offer[1]===null)return false;
+    for(const key of ['flight','pending'])if(value[key]!==null && !(tuple(value[key],4) && stamp(value[key][0])
+        && textBytes(value[key][1]) && bounded(value[key][2]) && ownerCode(value[key][3])))return false;
+    return value.callback===null || tuple(value.callback,4) && stamp(value.callback[0]) && textBytes(value.callback[1])
+        && ownerCode(value.callback[2]) && ownerCode(value.callback[3]);
+}
 const decoder = new TextDecoder('utf-8', { fatal: true });
 const bounded = value => value === null || typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 300000;
 
-function project(line) {
+function project(line, mode) {
     let message = decoder.decode(line);
     const markerAt = message.indexOf(MARKER);
     if (markerAt < 0 || message.indexOf(MARKER, markerAt + MARKER.length) >= 0) return null;
@@ -48,17 +72,19 @@ function project(line) {
         if (typeof message !== 'string' || !message.startsWith(MARKER)) return null;
     } else message = message.slice(markerAt);
     const value = JSON.parse(message.slice(MARKER.length));
-    if (!value || typeof value !== 'object' || Array.isArray(value) || value.version !== 1
+    if (!value || typeof value !== 'object' || Array.isArray(value)
         || !Number.isSafeInteger(value.at) || value.at < 0
         || !['unknown', 'active', 'inactive'].includes(value.interstitialState)
         || !bounded(value.interstitialSignalAgeMs)) return null;
     let keys;
     if (value.kind === 'sample') {
+        if(value.version!==(mode==='native-child'?1:2) || mode==='gateway-log' && !gatewayAvatarFlow(value.gatewayAvatarFlow))return null;
         if (!Number.isSafeInteger(value.sequence) || value.sequence < 1 || value.sequence > MAX_ROWS
             || !['self', 'fixture-peer'].includes(value.role) || !SAMPLE_NUMBERS.every(key => bounded(value[key])) || !delivery(value.nativeDelivery) || !gatewayDelivery(value.gatewayDelivery)) return null;
         if (value.role !== 'fixture-peer' && value.capturedFixtureTargetDistanceMeters !== null) return null;
-        keys = [...COMMON, 'sequence', 'role', ...SAMPLE_NUMBERS, 'nativeDelivery', 'gatewayDelivery'];
+        keys = [...COMMON, 'sequence', 'role', ...SAMPLE_NUMBERS, 'nativeDelivery', 'gatewayDelivery', ...(mode==='gateway-log'?['gatewayAvatarFlow']:[])];
     } else if (value.kind === 'author-transmission') {
+        if(value.version!==1)return null;
         if (value.statsFreshness !== 'not-forced-or-established' || !AUTHOR_NUMBERS.every(key => bounded(value[key]))) return null;
         keys = [...COMMON, 'statsFreshness', ...AUTHOR_NUMBERS];
     } else return null;
@@ -67,8 +93,8 @@ function project(line) {
     return Object.fromEntries(keys.map(key => [key, value[key]]));
 }
 
-export function attachNativeAvatarProjection(child, { enabled, publicPlace, emit }) {
-    if (enabled !== true || publicPlace !== false || typeof emit !== 'function') return;
+export function attachNativeAvatarProjection(child, { enabled, publicPlace, emit, mode = 'native-child' }) {
+    if (enabled !== true || publicPlace !== false || typeof emit !== 'function' || !['native-child','gateway-log'].includes(mode)) return;
     const pending = Buffer.alloc(MAX_LINE_BYTES);
     let length = 0, dropping = false, rows = 0, closed = false;
     const close = () => { closed = true; length = 0; dropping = false; pending.fill(0); child.stdout.removeListener('data', receive); };
@@ -85,7 +111,7 @@ export function attachNativeAvatarProjection(child, { enabled, publicPlace, emit
             if (newline < 0) break;
             if (!dropping) {
                 try {
-                    const value = project(pending.subarray(0, length));
+                    const value = project(pending.subarray(0, length),mode);
                     if (value) {
                         rows++;
                         try { emit(MARKER + JSON.stringify(value) + '\n'); } catch { /* Diagnostics cannot change session outcome. */ }

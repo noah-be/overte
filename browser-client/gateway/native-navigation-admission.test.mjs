@@ -37,7 +37,7 @@ async function harness(t, resolve = async () => ({ nativeDomain: 'overte://203.0
         muted: true, pendingAssets: new Map(), personaOrigins: new Set(['https://content.overte.org']), waitForDomain() {},
         close() { this.closed = true; this.permissionsApproved = false; this.connected = false; events.push('revoke'); return Promise.resolve(); }
     };
-    const context = vm.createContext({ nativeServer, sockets, sessions: new Map([[session.id, session]]),
+    const context = vm.createContext({ process:{env:{}}, nativeServer, sockets, sessions: new Map([[session.id, session]]),
         setTimeout, clearTimeout, Date, Buffer, NativeHeartbeat, equal: (a, b) => a === b,
         domains: [domain], publicPlaces: ['overte_hub'], validateNativeNavigation, validateVisitorPreferences, acceptedNativePersona,
         admittedNavigationTarget: (address, configuration) => admittedNavigationTarget(address, { ...configuration, resolve }),
@@ -46,7 +46,7 @@ async function harness(t, resolve = async () => ({ nativeDomain: 'overte://203.0
             else if (target.readyState === WebSocket.OPEN) target.send(JSON.stringify(message));
         }
     });
-    vm.runInContext(source.slice(start, end), context);
+    vm.runInContext(source.slice(source.indexOf('function avatarFlowEnabled('), source.indexOf('function avatarFlowDistance(')) + source.slice(start, end), context);
     server.listen(0, '127.0.0.1'); await once(server, 'listening');
     const native = new WebSocket(`ws://127.0.0.1:${server.address().port}`);
     const nativeMessages = []; native.on('message', data => nativeMessages.push(JSON.parse(data.toString())));

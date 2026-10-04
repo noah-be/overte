@@ -103,7 +103,7 @@ test('actual source-extracted process method preserves native spawn/stdio and ex
         ['1', false, 'Native audio', false]]) {
         const child = new EventEmitter(); child.stdout = new EventEmitter(); child.stderr = new EventEmitter();
         const projected = [], spawns = []; let wireCalls = 0;
-        const projectionBegin=source.indexOf('function emitAvatarProjection(session, line) {'), projectionEnd=source.indexOf('const cookie = ',projectionBegin);
+        const projectionBegin=source.indexOf('function avatarFlowEnabled(session) {'), projectionEnd=source.indexOf('const cookie = ',projectionBegin);
         assert.ok(projectionBegin>=0&&projectionEnd>projectionBegin);
         const method = vm.runInNewContext(source.slice(projectionBegin,projectionEnd)+'\n({' + source.slice(begin, end) + '}).process', {
             spawn: (...args) => { spawns.push(args); return child; }, attachNativeAvatarProjection,

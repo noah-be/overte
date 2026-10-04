@@ -1,5 +1,34 @@
 # Browser client implementation plan
 
+## Active envelope and callback measurement, 2026-10-04
+
+Keep both exact `1f7950b2` hosted outcomes. Automatic rendering, 2930 product
+cases, three real network controls, 130 Chrome UI cases, required Repository
+checks and owned atomic settings pass. Native Core still fails its original
+native-to-browser movement checkpoint; owned stop passes. One opt-in cohort
+retains that failure and adds an attribution-fixture censor-counter negative.
+
+Distinguish actual received avatar envelopes, accepted complete offers, pending
+and physical send slots, and local callback completion. Use existing captured
+timestamps and sample rows, bounded fixed fields and explicit source-specific
+projection. Keep diagnostics off by default, with no extra state when disabled.
+Do not change wire data, approval, the 4 MiB threshold, movement wait, log budgets
+or other message senders. The reviewed V28 composition is integrated: 249 rows
+retain all 241 inherited inputs, with ten exact migrations and eight admissions.
+Root's portable replay passes 589 cases without skips, narrow TypeScript and
+all twenty whole-source inverses. Complete source gates now pass: 2972 product
+cases without skips, the 34-file production build, both embedded fixture builds
+and all 34 repository suites. See the [source proof](evidence/avatar-flow-source-checks-20261004.json).
+Publish the exact checked source and measure fresh hosted execution next; native
+movement and the corrected actual Chrome fixture remain unqualified.
+
+Keep actual rendering and public-call comparison in the attribution fixture,
+but isolate its functional census from host scheduling through the observer's
+existing injectable clock. Retain every rendering assertion and the production
+2 ms and aggregate limits. Synthetic fixture timing cannot qualify host CPU
+performance; the real-clock renderer test stays separate. Qualify the corrected
+source through complete local gates and fresh exact-head Chrome/Core evidence.
+
 ## Active bounded avatar delivery and software fixture, 2026-10-04
 
 Keep both exact 9e hosted outcomes in the retained comparison proof. The original
