@@ -1,6 +1,58 @@
 # Browser client implementation plan
 
-## Active application-consumption correction, 2026-10-04
+## Current follow-up plan, 2026-10-04
+
+The first implementation is integrated through
+[PR #1023](https://github.com/noah-be/overte/pull/1023), merge
+`b796cd49f1cdf9d811de544c9ae40fb86c0bf59d`. Final feature source
+`ee477a960d7e82920e785930647d2f6f105750d7` passes the complete hosted Browser
+and Native jobs and all 18 original real-domain Core checkpoints. Movement,
+collision, basic interaction, bidirectional synthetic audio, leave and reconnect
+are demonstrated in the isolated domain. The [status](STATUS.md#current-delivery-and-remaining-work-2026-10-04)
+records exact evidence and its limits. Merge completion does not complete the
+expanded Tablet, public-Hub, physical voice, graphics and native-parity goals.
+
+Continue in this order, with world/texture loading as the immediate priority:
+
+1. Reconcile the prepared narrow startup-order regression/fix and inherited
+   software-rendering test-environment isolation with current `main`. Preserve
+   approvals, stale-revision refusal, original assertions and source provenance.
+   Local `2648f3ff234c48bb4fc0fe7a84140f72f89fe646` has complete source gates,
+   but is not part of the merged feature and has no new hosted runtime acceptance.
+   Use an isolated follow-up topic; do not push the stale, merged PR branch.
+2. Capture a reproducible current-source Chrome baseline in actual `overte_hub`:
+   admission-to-visible-world time, model/texture readiness, download/decode/upload
+   phases, frame times, walking/native synchronization and rejoin. Keep public
+   activity read-only and muted. Diagnose the measured loading bottleneck and
+   verify a correction against the same workload and visual/permission controls.
+   Private FST CPU comparisons alone do not justify enabling an optimization.
+3. Complete genuine Tablet app journeys and test physical microphone permission,
+   mute, playback and native interoperability. Preserve selected existing app
+   successes and failed editing controls separately until the complete flows pass.
+4. Continue the [native parity inventory](FEATURE_PARITY.md), then finish all
+   effective browser graphics options, useful Tablet profiles, resolution
+   percentage and measured environment-scan recommendations. Existing partial
+   controls require full acceptance; recommendations must not silently apply.
+5. Run short Hub stability journeys and fix measured stalls, errors and resource
+   faults. Continue loading and rendering optimization with source-bound
+   before/after results. Do not reinstate the cancelled endurance test.
+
+Every new implementation must retain relevant product/regression checks and
+qualify its exact published source in Chrome. Synthetic signals, controlled
+CPU cases and software-rendered frames must remain distinguishable from physical
+hardware, actual public-Hub performance and whole-feature acceptance.
+Use the existing [self-hosting guide](README.md); the gateway remains required.
+This plan does not change the repository's product roadmap or close issues.
+
+Material implementation and documentation assistance: OpenAI Codex.
+
+## Preserved implementation history
+
+The sections below retain earlier plans and their then-current findings.
+Their old publish/run instructions are historical; current work follows the
+plan above and keeps the recorded negative evidence unchanged.
+
+## Historical application-consumption correction, 2026-10-04
 
 Keep exact 24a automatic Browser success (3015 product cases, three network
 controls, 130 Chrome UI cases and both source-bound GPU contracts) separate
