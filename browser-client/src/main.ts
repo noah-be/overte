@@ -115,7 +115,7 @@ function reset(): void {
     showState('disconnected');
     updateMicrophone();
 }
-function onMessage(message:ServerMessage): void {
+function onMessage(message:ServerMessage): void | boolean {
     switch (message.type) {
         case 'state':
             if (message.state === 'error') {
@@ -184,11 +184,12 @@ function onMessage(message:ServerMessage): void {
             updateStats();
             break;
         case 'avatars':
+            if (!world) return false;
             if (message.selfId) world?.setLocalAvatar(message.selfId);
             world?.setAvatars(message.avatars);
             avatarCount = message.avatars.filter(avatar => avatar.id !== message.selfId).length;
             updateStats();
-            break;
+            return true;
         case 'pose':
             world?.setSpawn(message.position, message.orientation);
             break;

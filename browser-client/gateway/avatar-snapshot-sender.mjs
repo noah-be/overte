@@ -11,7 +11,7 @@ export class AvatarSnapshotSender {
         if(channels.has(socket))throw Error('avatar-channel-already-owned');
         channels.set(socket,this);
         this.socket=socket;this.currentOwner=currentOwner;this.observe=observe;this.onError=onError;
-        this.pending=null;this.flight=null;this.pumping=false;this.epoch=0;this.closed=false;this.observationRefused=false;
+        this.pending=null;this.flight=null;this.consumption=null;this.sequence=0;this.pumping=false;this.epoch=0;this.closed=false;this.observationRefused=false;
         if(typeof onFlow==='function')this.onFlow=onFlow;
     }
     authority(owner) {
@@ -48,7 +48,8 @@ export class AvatarSnapshotSender {
         if(this.pumping)return;
         this.pumping=true;
         try {
-        if(this.closed || this.flight || !this.pending)return;
+        if(this.consumption && !this.valid(this.consumption.item))this.consumption=null;
+        if(this.closed || this.flight || this.consumption || !this.pending)return;
         const item=this.pending;
         if(!this.valid(item)){if(this.pending===item)this.pending=null;return;}
         if(this.pending!==item)return; // a reentrant offer superseded this value
@@ -60,22 +61,46 @@ export class AvatarSnapshotSender {
             // Keep latest complete snapshot. No timer or independent retry.
             this.record({owner:item.owner,text:item.text,at:item.at,open,bytes,writeInvoked:false});return;
         }
-        this.pending=null;const token={item};this.flight=token;
+        let selected=item;
+        if(item.owner.avatarConsumption==='ack-v1') {
+            if(this.sequence===Number.MAX_SAFE_INTEGER){this.fail();throw Error('Avatar delivery sequence exhausted');}
+            const delivery={version:1,sessionId:item.owner.id,permissionRevision:item.revision,epoch:item.epoch,sequence:this.sequence+1};
+            if(!validAvatarDelivery(delivery)){this.fail();throw Error('Invalid avatar delivery authority');}
+            const suffix=',"delivery":'+JSON.stringify(delivery)+'}';
+            const text=item.text.slice(0,-1)+suffix,size=item.size-1+Buffer.byteLength(suffix);
+            if(text.length>MAX_TEXT_CODE_UNITS || size>MAX_TEXT_BYTES){this.fail();throw Error('Gateway response too large');}
+            selected={...item,text,size};
+            if(!this.valid(item) || this.pending!==item)return;
+            this.sequence=delivery.sequence;
+            this.consumption={item:selected,delivery};
+        }
+        this.pending=null;const token={item:selected};this.flight=token;
         try {
-            this.socket.send(item.text,error=>{
+            this.socket.send(selected.text,error=>{
                 if(this.flight!==token)return; // duplicate/stale callbacks cannot retarget
                 if(this.onFlow)this.flow(error?'callback-error':'callback-success',token.item);
                 this.flight=null;
                 if(error){this.fail();return;}
                 this.pump();
             });
-            if(this.onFlow)this.flow('write-observed',item);
-            this.record({owner:item.owner,text:item.text,at:item.at,open,bytes,writeInvoked:true});
+            if(this.onFlow)this.flow('write-observed',selected);
+            this.record({owner:selected.owner,text:selected.text,at:selected.at,open,bytes,writeInvoked:true});
         }catch(error){
             if(this.flight===token)this.flight=null;
             this.fail();throw error;
         }
         }finally{this.pumping=false;}
+    }
+    acknowledge(owner, message) {
+        const token=this.consumption;
+        if(!token || !message || typeof message!=='object' || Array.isArray(message)
+            || Object.keys(message).length!==2 || message.type!=='avatarConsumed'
+            || !validAvatarDelivery(message.delivery) || token.item.owner!==owner)return false;
+        const delivery=message.delivery;
+        if(!Object.keys(token.delivery).every(key=>token.delivery[key]===delivery[key]) || !this.valid(token.item)
+            || this.consumption!==token)return false;
+        // Application acknowledgement NEVER releases a physical callback token.
+        this.consumption=null;this.pump();return true;
     }
     fail() {
         if(this.closed)return;
@@ -86,12 +111,14 @@ export class AvatarSnapshotSender {
     }
     invalidate(owner) {
         if(this.currentOwner()!==owner && this.pending?.owner!==owner)return;
+        if(this.epoch===Number.MAX_SAFE_INTEGER){this.fail();return;}
         this.epoch++;
+        if(this.consumption?.item.owner===owner)this.consumption=null;
         if(this.pending?.owner===owner)this.pending=null;
         // An issued physical write cannot be cancelled or marked retired here.
         if(this.onFlow)this.flow('invalidate',{owner});
     }
-    close() {this.closed=true;this.pending=null;this.epoch++;if(this.onFlow)this.flow('close',null);}
+    close() {this.closed=true;this.pending=null;this.consumption=null;if(this.epoch<Number.MAX_SAFE_INTEGER)this.epoch++;if(this.onFlow)this.flow('close',null);}
     bounds() {return {physicalInFlight:this.flight?1:0,latestPending:this.pending?1:0,
         inFlightBytes:this.flight?.item.size||0,pendingBytes:this.pending?.size||0};}
 }
@@ -129,9 +156,19 @@ export function avatarSnapshotText(value, capture) {
     const text=JSON.stringify(value);
     if(typeof text !== 'string' || text.length > MAX_TEXT_CODE_UNITS || Buffer.byteLength(text) > MAX_TEXT_BYTES)throw Error('Gateway response too large');
     const captured=JSON.parse(text);
+    if(Object.hasOwn(captured,'delivery'))throw Error('Native avatar delivery metadata is not admitted');
     if(!isRecord(captured) || captured.type !== 'avatars' || !Array.isArray(captured.avatars)
         || captured.avatars.length > 10000 || !captured.avatars.every(validAvatar))throw Error('Invalid avatar snapshot');
     if(captured.message !== undefined && typeof captured.message !== 'string')throw Error('Invalid gateway notice');
     if(capture){try{capture(captured);}catch{/* Diagnostics cannot change admission. */}}
     return text;
+}
+
+export function validAvatarDelivery(value) {
+    return !!value && typeof value==='object' && !Array.isArray(value)
+        && Object.keys(value).length===5 && value.version===1
+        && typeof value.sessionId==='string' && /^[a-zA-Z0-9_-]{1,128}$/.test(value.sessionId)
+        && Number.isSafeInteger(value.permissionRevision) && value.permissionRevision>=1
+        && Number.isSafeInteger(value.epoch) && value.epoch>=0
+        && Number.isSafeInteger(value.sequence) && value.sequence>=1;
 }

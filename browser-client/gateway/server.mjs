@@ -421,7 +421,7 @@ class Session extends SharedTeardown {
             '-f', 'pulse', '-device', this.input, 'Browser microphone'], mediaEnv, 'Audio playback');
         this.playback.stdin.on('error', () => {});
         this.timeout = setTimeout(() => { if (!this.native) { send(this.browser, { type: 'state', state: 'error', message: 'The native gateway did not start its bridge within 90 seconds.' }); this.close(false); } }, 90000);
-        send(this.browser, { type: 'state', state: 'connecting', sessionId: this.id, message: 'Starting your isolated native connection…' });
+        send(this.browser, { type: 'state', state: 'connecting', sessionId: this.id, ...(this.avatarConsumption==='ack-v1'?{avatarConsumption:'ack-v1',avatarEpoch:this.avatarSender.epoch}:{}), message: 'Starting your isolated native connection…' });
     }
     process(command, args, env, label, options) {
         const stdio = ['pipe', 'pipe', 'pipe'];
@@ -610,6 +610,7 @@ browserServer.on('connection', (browser, request) => {
             }
             const message = JSON.parse(data.toString());
             if (message.type === 'join') {
+                if(message.avatarConsumption!==undefined && message.avatarConsumption!=='ack-v1')throw Error('Unsupported avatar consumption capability');
                 if (shuttingDown) throw Error('The gateway is shutting down.');
                 if (pendingJoin || (session && !session.closed)) throw Error('Leave your current domain before joining another.');
                 if (++joins > 20) throw Error('The gateway session limit has been reached.');
@@ -629,12 +630,14 @@ browserServer.on('connection', (browser, request) => {
                 pendingJoin = null;
                 if (session) avatarSender.invalidate(session);
                 attempt = new Session(browser, owner, () => session === attempt, avatarSender);
+                attempt.avatarConsumption=message.avatarConsumption==='ack-v1'?'ack-v1':'legacy';
                 session = attempt; sessions.set(attempt.id, attempt);
                 attempt.launching = attempt.launch(message);
                 await attempt.launching;
             } else if (message.type === 'leave') { pendingJoin = null; await session?.close(); }
             else if (session && !session.closed) {
-                if (message.type === 'pose') { if (session.pendingNativePose || Date.now() - session.lastPose < 20) return; session.lastPose = Date.now(); send(session.native, pose(message)); }
+                if (message.type === 'avatarConsumed') { session.avatarSender.acknowledge(session,message); }
+                else if (message.type === 'pose') { if (session.pendingNativePose || Date.now() - session.lastPose < 20) return; session.lastPose = Date.now(); send(session.native, pose(message)); }
                 else if (message.type === 'poseAccepted') {
                     if (!session.connected || !session.permissionsApproved || !session.pendingNativePose ||
                         message.nonce !== session.pendingNativePose.nonce || message.permissionRevision !== session.permissionRevision) return;
@@ -709,12 +712,17 @@ nativeServer.on('connection', native => {
                     send(session.browser, { type: 'state', state: 'error', message: error.message });
                     session.close(false); return;
                 }
+                const avatarAuthorityChanged=!session.permissionsApproved || session.permissionRevision!==message.permissionRevision;
                 session.permissionsApproved = true;
                 session.pendingNativePose = null;
                 clearTimeout(session.navigationTimeout);
                 if (session.permissionRevision !== message.permissionRevision) { session.avatarSender?.invalidate(session); session.assets?.reset(); session.pushToTalk.reset(); }
                 session.permissionRevision = message.permissionRevision;
                 registerAvatarOtherWrites(session);
+                // Publish the actual sender epoch after permission/revision
+                // invalidation; early approved snapshots need no connected gate.
+                if(session.avatarConsumption==='ack-v1' && avatarAuthorityChanged)send(session.browser,{type:'state',state:session.connected?'connected':'connecting',
+                    sessionId:session.id,permissionRevision:session.permissionRevision,avatarConsumption:'ack-v1',avatarEpoch:session.avatarSender.epoch});
                 send(native, { type: 'permissionsAccepted', permissionRevision: message.permissionRevision, muted: session.muted }); return;
             }
             if(avatarFlowEnabled(session) && message.type==='avatars')noteAvatarFlow(session.avatarSender,'ingress',
@@ -797,10 +805,10 @@ nativeServer.on('connection', native => {
                         send(session.browser, { type: 'warning', message: 'This domain does not expose model URLs to this visitor. Some models cannot be displayed; request asset URL viewing permission from the domain owner.' });
                     }
                 }
-                if (message.type === 'state' && message.state === 'connected') { message.permissionRevision = session.permissionRevision; session.connected = true; clearTimeout(session.connectionTimeout); }
+                if (message.type === 'state' && message.state === 'connected') { message.permissionRevision = session.permissionRevision; if(session.avatarConsumption==='ack-v1')message.avatarConsumption='ack-v1'; session.connected = true; clearTimeout(session.connectionTimeout); }
                 if (message.type === 'state' && message.state === 'connecting') { session.avatarSender?.invalidate(session); session.pushToTalk.reset(); session.assets?.reset(); session.pendingNativePose = null; clearTimeout(session.navigationTimeout); session.permissionsApproved = false; session.connected = false; session.waitForDomain(); }
                 if (message.type === 'avatars') session.avatarSender.offer(session, { ...message, sessionId: session.id }, session.lastNativeMessage);
-                else send(session.browser, { ...message, sessionId: session.id });
+                else send(session.browser, { ...message, sessionId: session.id, ...(message.type==='state' && session.avatarConsumption==='ack-v1'?{avatarConsumption:'ack-v1',avatarEpoch:session.avatarSender.epoch}:{}) });
                 if (message.type === 'state' && message.state === 'error') session.close(false);
             }
         } catch (error) {

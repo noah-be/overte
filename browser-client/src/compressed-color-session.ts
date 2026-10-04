@@ -57,7 +57,7 @@ export class CompressedColorSession extends BrowserSession {
  constructor(callbacks:SessionCallbacks){
   let matchesSession:(id:string)=>boolean=()=>false;
   const assets=new AssetApproval(new URL(window.location.href).origin,id=>matchesSession(id));
-  super({message:message=>{if(message.type==='state')assets.observe(message);callbacks.message(message);},audio:callbacks.audio,
+  super({message:message=>{if(message.type==='state')assets.observe(message);return callbacks.message(message);},audio:callbacks.audio,
    error:reason=>{assets.revoke();callbacks.error(reason);},closed:reason=>{assets.revoke();callbacks.closed(reason);}});
   this.assets=assets;matchesSession=id=>this.connected&&this.sessionId===id;
  }

@@ -1,5 +1,62 @@
 # Browser client status
 
+## Current application-consumption checkpoint, 2026-10-04
+
+Published `24a52bb1687354fffd6e193373e187173f1d1d0a` passes all four required
+repository checks and fresh CodeQL. Automatic Browser 37197722428 passes
+3015 product cases, three real network controls and 130 actual Chrome UI cases,
+with no failures or skips in those test censuses. Embedded pixels and model
+pruning both pass against their thirteen exact runtime source identities; both
+report ANGLE/Vulkan SwiftShader. The two earlier 39ff pruning failures remain
+negative evidence. This success does not establish their cause.
+
+The automatic and single opt-in 37198251851 native journeys each retain the
+original native-to-browser movement failure after four of eighteen checkpoints;
+owned stop passes. The opt-in artifact authenticates fifteen runtime identities
+and three Git-only meaning dependencies. Its newest sixteen displayed samples
+retain an old-pose physical flight with OPEN state and 195278 buffered bytes,
+while target-bearing complete snapshots remain pending. Successful callbacks
+plateau at 110 against 111 observed writes. The browser's fresh JavaScript
+arrival timestamp still accompanies the old pose; it is not a wire-age proof.
+No complete traffic history, clock alignment or queue-origin cause is established.
+The separate opt-in Browser job also passes all 3015 product cases, three real
+network controls, 130 Chrome UI cases and both source-bound GPU contracts, with
+the same reported SwiftShader backend. Its native failure remains separate.
+
+Next concrete step: review and test genuine browser application-consumption
+acknowledgements, retaining one physical write and the newest complete pending
+snapshot, session/native/permission revocation and all original acceptance
+bounds. Local socket write completion alone does not bound browser-event
+backlog. The corrected negotiated ACK implementation and finite V30 source
+closure are now installed locally. Complete code gates pass: 3057 product cases
+with zero failures/skips, production build, both fixture builds and all 34
+repository quick suites. The actual Chrome/native gates remain pending for this
+new source. Root's 52 source/mock controls and the
+independent 52-case replay pass with zero skips; these overlap and are not added.
+Four independently authored desired cases fail on the original private prototype
+and pass on the corrected successor: nested consumption fails without an ACK,
+old epochs remain refused after revocation, and retired callback errors preserve
+the new session's asset approval. The original prototype and negative records
+remain unchanged. Independent source review confirms exact sender epoch/revision
+publication before native acceptance and preserves approved-before-connected
+startup. Application ACK means synchronous World state consumption; it does not
+prove rendering, assets, native movement or hardware acceptance.
+
+The V30 current and immediate historical controls pass 18 cases; the full
+manifest chain passes 250 cases, with zero skips. Nine whole historical inputs
+remain within the unchanged 524288 expanded/131072 compressed byte limits.
+All 256 prior admission rows remain; five migrate and nine are admitted,
+including two real pre-existing Session/wrapper sources with honest before
+identities. Production accepts one exact current manifest digest and imports no
+historical reader. Existing native, Core, World, Chrome specs and deadlines are
+unchanged. The [protocol guide](AVATAR_APPLICATION_CONSUMPTION.md) and
+[source evidence](evidence/avatar-consumption-source-checks-20261004.json)
+record the implementation and exact checks. Source
+review also identifies separate six-model and six-image/decode admission pools;
+measure existing admission, image and publication phases before choosing a
+texture-loading optimization. No existing service or registry repair was made.
+Full Tablet, public Hub fluidness, physical voice and native parity remain open.
+
 ## Current held-flight and pruning checkpoint, 2026-10-04
 
 Published `39ff99ac902b22eb84b732b2cba2ae61e47ab9e5` passes current required

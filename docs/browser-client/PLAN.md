@@ -1,5 +1,31 @@
 # Browser client implementation plan
 
+## Active application-consumption correction, 2026-10-04
+
+Keep exact 24a automatic Browser success (3015 product cases, three network
+controls, 130 Chrome UI cases and both source-bound GPU contracts) separate
+from its two native movement failures and the earlier 39ff pruning negatives.
+The opt-in flight discriminator observes OPEN state with 195278 buffered bytes,
+an old physical snapshot and a newer target pending snapshot. Browser arrival
+freshness does not establish wire freshness or a queue-origin cause.
+
+Review a genuine application-consumption ACK protocol that waits for successful
+current-browser parsing and application delivery before admitting another
+complete avatar snapshot. Retain one physical write, newest complete pending
+data, immutable authority, callback failures, cancellation and byte limits.
+Reject stale/replayed/reentrant acknowledgements without forging socket
+completion, adding retry timers or weakening the original movement assertion.
+The corrected source/mock contracts and finite V30 history admission pass their
+bounded checks. Complete product/build/repository gates also pass. Publish the
+reviewed candidate, then run the unchanged actual native journey. Retain all
+earlier actual failures; a controlled socket experiment is not a hosted cause.
+The [application consumption guide](AVATAR_APPLICATION_CONSUMPTION.md) documents
+the negotiated protocol and its exact authority, compatibility and credit limits.
+
+Continue texture-loading optimization through measured existing model-slot,
+image/decode and publication phases. Source facts alone do not establish the
+bottleneck. Full Tablet, Hub motion, voice and later native parity remain required.
+
 ## Active held-flight and pruning discriminator, 2026-10-04
 
 Published `39ff99ac902b22eb84b732b2cba2ae61e47ab9e5` passes current required

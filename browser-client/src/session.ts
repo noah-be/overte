@@ -6,13 +6,14 @@ import { defaultAvatarAsset } from './default-avatar';
 import {validateVisitorPreferences,type VisitorPreferences} from '../shared/visitor-preferences.mjs';
 import {validateVisitorPersona,type VisitorPersona} from '../shared/visitor-persona.mjs';
 
+export interface AvatarDelivery {version:1;sessionId:string;permissionRevision:number;epoch:number;sequence:number}
 export type ServerMessage =
     | PushToTalkState
     | TabletMessage
-    | {type:'state'; state:'connecting'|'connected'|'disconnected'|'error'; message?:string; sessionId?:string; permissionRevision?:number}
+    | {type:'state'; state:'connecting'|'connected'|'disconnected'|'error'; message?:string; sessionId?:string; permissionRevision?:number; avatarConsumption?:'ack-v1'; avatarEpoch?:number}
     | {type:'entities'; entities:Entity[]}
     | {type:'entityUpdates'; entities:Entity[]; removed:string[]}
-    | {type:'avatars'; avatars:Avatar[]; selfId?:string}
+    | {type:'avatars'; avatars:Avatar[]; selfId?:string; delivery?:AvatarDelivery}
     | {type:'pose'; position:Vec3; orientation?:Quat}
     | {type:'poseRequest'; nonce:string; permissionRevision:number; position:Vec3; orientation:Quat}
     | {type:'navigation'; nonce:string; permissionRevision:number; domain:string}
@@ -32,6 +33,8 @@ export function parseServerMessage(text: string): ServerMessage {
     switch (value.type) {
         case 'tablet': return parseTabletMessage(value);
         case 'state':
+            if(value.avatarConsumption!==undefined && value.avatarConsumption!=='ack-v1')throw Error('Invalid avatar consumption capability');
+            if(value.avatarEpoch!==undefined && (!Number.isSafeInteger(value.avatarEpoch) || Number(value.avatarEpoch)<0))throw Error('Invalid avatar epoch');
             if (!['connecting','connected','disconnected','error'].includes(String(value.state))) throw new Error('Invalid connection state');
             if (value.sessionId !== undefined && (typeof value.sessionId !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(value.sessionId))) throw new Error('Invalid session identifier');
             if (value.permissionRevision !== undefined && (!Number.isSafeInteger(value.permissionRevision) || Number(value.permissionRevision) < 1)) throw new Error('Invalid session authority');
@@ -43,6 +46,7 @@ export function parseServerMessage(text: string): ServerMessage {
             if (value.type === 'entityUpdates' && (!Array.isArray(value.removed) || value.removed.length > 100000 || !value.removed.every(id => typeof id === 'string' && id.length <= 128))) throw new Error('Invalid entity deletions');
             break;
         case 'avatars':
+            if(value.delivery!==undefined && !validAvatarDelivery(value.delivery))throw Error('Invalid avatar delivery authority');
             if (!Array.isArray(value.avatars) || value.avatars.length > 10000 ||
                 !value.avatars.every(validAvatar)) throw new Error('Invalid avatar snapshot');
             break;
@@ -107,8 +111,17 @@ function validAvatar(value:unknown):boolean {
     return true;
 }
 
+
+function validAvatarDelivery(value:unknown):value is AvatarDelivery {
+    return isRecord(value) && Object.keys(value).length===5 && value.version===1
+        && typeof value.sessionId==='string' && /^[a-zA-Z0-9_-]{1,128}$/.test(value.sessionId)
+        && Number.isSafeInteger(value.permissionRevision) && Number(value.permissionRevision)>=1
+        && Number.isSafeInteger(value.epoch) && Number(value.epoch)>=0
+        && Number.isSafeInteger(value.sequence) && Number(value.sequence)>=1;
+}
+
 export interface SessionCallbacks {
-    message: (message:ServerMessage) => void;
+    message: (message:ServerMessage) => void | boolean;
     audio: (data:ArrayBuffer) => void;
     closed: (reason:string) => void;
     error: (reason:string) => void;
@@ -121,11 +134,17 @@ export class BrowserSession {
     sessionId = '';
     connected = false;
     private lastPose = 0;
+    private avatarConsumption:'pending'|'legacy'|'ack-v1'='pending';
+    private avatarSequence=0;
+    private avatarEpoch=-1;
+    private avatarStateEpoch=-1;
+    private avatarRevision=0;
+    private avatarAuthorityGeneration=0;
 
     constructor(private callbacks:SessionCallbacks) {}
 
     join(domain:string, displayName:string, visitorPreferences?:VisitorPreferences, visitorPersona?:VisitorPersona): void {
-        const payload=JSON.stringify({type:'join',domain,displayName,
+        const payload=JSON.stringify({type:'join',domain,displayName,avatarConsumption:'ack-v1',
             ...(visitorPreferences ? {visitorPreferences:validateVisitorPreferences(visitorPreferences)} : {}),
             ...(visitorPersona ? {visitorPersona:validateVisitorPersona(visitorPersona)} : {})});
         if (new TextEncoder().encode(payload).length>192*1024) throw new Error('Your combined join address and visitor preferences exceed the 192 KiB session limit.');
@@ -144,27 +163,67 @@ export class BrowserSession {
         socket.onopen = () => {
             if (generation === this.generation) socket.send(payload);
         };
+        let processingDelivery:AvatarDelivery|undefined;
+        let protocolFailed=false;
         socket.onmessage = event => {
-            if (generation !== this.generation) return;
+            if (generation !== this.generation || this.socket!==socket || protocolFailed) return;
             if (event.data instanceof ArrayBuffer) {
                 if (event.data.byteLength <= 384000 && event.data.byteLength % 4 === 0) this.callbacks.audio(event.data);
                 return;
             }
+            let deliveryToken:AvatarDelivery|undefined;
+            let callbackAuthority=this.avatarAuthorityGeneration;
             try {
                 const message = parseServerMessage(event.data);
                 if (message.type === 'state') {
-                    if (message.sessionId) this.sessionId = message.sessionId;
+                    if (message.sessionId) {
+                        if(this.sessionId && this.sessionId!==message.sessionId)throw Error('Avatar session changed without reconnect');
+                        this.sessionId = message.sessionId;
+                        const mode=message.avatarConsumption==='ack-v1'?'ack-v1':'legacy';
+                        if(this.avatarConsumption!=='pending' && this.avatarConsumption!==mode)throw Error('Avatar consumption mode changed');
+                        this.avatarConsumption=mode;
+                        if(mode==='ack-v1') {
+                            if(message.avatarEpoch===undefined || message.avatarEpoch<this.avatarStateEpoch
+                                || (message.state==='connecting' && message.avatarEpoch<=this.avatarEpoch)
+                                || (message.permissionRevision!==undefined && message.permissionRevision!==this.avatarRevision && message.avatarEpoch<=this.avatarEpoch)
+                                || (message.state==='connected' && message.permissionRevision===undefined))throw Error('Avatar state epoch was retired');
+                            this.avatarStateEpoch=message.avatarEpoch;
+                        } else if(message.avatarEpoch!==undefined)throw Error('Legacy avatar state has negotiated metadata');
+                    }
+                    if(message.state==='connecting' || message.state==='disconnected' || message.state==='error'){this.avatarRevision=0;this.avatarAuthorityGeneration++;}
+                    if(message.permissionRevision){if(this.avatarRevision!==message.permissionRevision)this.avatarAuthorityGeneration++;this.avatarRevision=message.permissionRevision;}
                     this.connected = message.state === 'connected';
                     if (this.connected) clearTimeout(this.timeout);
                 }
-                this.callbacks.message(message);
+                const delivery=message.type==='avatars' && message.delivery?Object.freeze({...message.delivery}):undefined;
+                if(message.type==='avatars') {
+                    if(this.avatarConsumption==='ack-v1') {
+                        if(!delivery || delivery.sessionId!==this.sessionId || delivery.sequence<=this.avatarSequence
+                            || delivery.epoch!==this.avatarStateEpoch || this.avatarRevision<1 || delivery.permissionRevision!==this.avatarRevision)throw Error('Avatar delivery does not match this session');
+                        if(processingDelivery)throw Error('Avatar delivery is already being consumed');
+                        this.avatarSequence=delivery.sequence;this.avatarEpoch=delivery.epoch;
+                        processingDelivery=delivery;deliveryToken=delivery;
+                    } else if(delivery || this.avatarConsumption==='pending')throw Error('Avatar delivery mode was not negotiated');
+                }
+                const consumptionGeneration=this.avatarAuthorityGeneration;callbackAuthority=consumptionGeneration;
+                const result=this.callbacks.message(message);
+                if(delivery && generation===this.generation && this.socket===socket && consumptionGeneration===this.avatarAuthorityGeneration && result!==true)throw Error('Avatar snapshot was not consumed by the current application');
+                if(delivery && !protocolFailed && result===true && generation===this.generation && this.socket===socket
+                    && consumptionGeneration===this.avatarAuthorityGeneration
+                    && this.avatarConsumption==='ack-v1' && this.sessionId===delivery.sessionId
+                    && this.avatarRevision===delivery.permissionRevision && this.avatarStateEpoch===delivery.epoch
+                    && socket.readyState===WebSocket.OPEN) {
+                    socket.send(JSON.stringify({type:'avatarConsumed',delivery}));
+                }
             } catch (error) {
+                if(generation!==this.generation || this.socket!==socket || callbackAuthority!==this.avatarAuthorityGeneration || protocolFailed)return;
+                protocolFailed=true;
                 this.callbacks.error(`Gateway protocol error: ${error instanceof Error ? error.message : String(error)}`);
                 // The browser API forbids protocol-reserved codes such as
                 // 1002. Use an application code so rejection still tears down
                 // the owned session (https://websockets.spec.whatwg.org/#dom-websocket-close).
                 socket.close(4002, 'Protocol error');
-            }
+            } finally {if(deliveryToken && processingDelivery===deliveryToken)processingDelivery=undefined;}
         };
         socket.onerror = () => {
             if (generation === this.generation) this.callbacks.error('Gateway unavailable. Start the gateway or check your connection.');
@@ -203,6 +262,7 @@ export class BrowserSession {
         this.send({type:'leave'});
         this.socket?.close(1000, 'Left domain');
         this.socket = undefined;
+        this.avatarConsumption='pending';this.avatarSequence=0;this.avatarEpoch=-1;this.avatarStateEpoch=-1;this.avatarRevision=0;this.avatarAuthorityGeneration++;
         this.sessionId = '';
         this.connected = false;
     }
