@@ -11,7 +11,10 @@
     "apple-main",
     "apple-ios"
   ],
-  "holds": {},
+  "holds": {
+    "feature/main/browser-direct-client": "Retain the integrated PR #1034 feature branch until the user separately authorizes deletion.",
+    "ci/main/pr1034-retention": "Retain the PR #1034 retention-policy branch until the user separately authorizes deletion."
+  },
   "keep_label": "keep-branch",
   "artifact_retention_days": 30
 }
