@@ -1,6 +1,34 @@
 # Browser client implementation plan
 
-## Current integration checkpoint (2026-10-04)
+## Active delivery and graphics comparison, 2026-10-04
+
+Preserve the exact 58e hosted failures. Both local owned-X11 graphics cohorts
+pass the original pixels/upload/cancellation and deliberate restoration case;
+they do not reproduce the hosted defect or establish a graphics-mode cause.
+
+V26 integrates bounded native queue/flush, gateway forwarding and Core
+socket-selection witnesses with one default-off manual ANGLE request. It retains
+all 220 prior source rows among 230, whole CPU histories, movement assertions,
+the original 2800 ms wait, GPU deadlines, permissions, wire messages and the
+512-row log budget. Root 475 and independent 459 focused checks pass; overlapping
+counts are not added.
+
+All 2874 product tests pass without skips. The fresh 34-file production build,
+both original embedded fixture configuration builds and repository quick profile
+pass; quick completed in 122.074 s. See the
+[source proof](evidence/avatar-delivery-angle-source-checks-20261004.json).
+The separate original nine-service preflight failed before its commands because
+the registered Native was missing; the other eight births match. Preserve that
+failure and its unknown cause. Source, index and registry stayed unchanged;
+there was no restart or native/session acceptance.
+
+After publication, compare the original automatic workflow with one exact-head
+manual run selecting avatar sampling and the single graphics request. No
+invocation proves remote receipt, and no passing cohort erases a same-source
+negative. Tablet, Hub movement, physical microphone and client parity remain
+separate unfinished acceptance work.
+
+## Preserved 3329 and V25 integration checkpoint (2026-10-04)
 
 Published3329 passes current policy/CodeQL/repository checks and the explicit
 130-case actual Chrome browser job. Retain its automatic GPU failure and both

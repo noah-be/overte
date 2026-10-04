@@ -1,5 +1,40 @@
 # Embedded texture GPU diagnostics
 
+## Explicit hosted graphics comparison
+
+The existing manual Browser client workflow also offers
+`embedded_swangle_diagnostic`, a boolean that defaults false. Selecting it
+supplies only `OVERTE_EMBEDDED_USE_SWANGLE=1` to the original embedded GPU step.
+The runner adds exactly `--use-angle=swiftshader` for Google Chrome. Undefined,
+empty and `0` retain the original mute-only arguments; unknown values refuse
+before launch. All original pixel/frame/upload/sampler/cancellation assertions,
+deadlines, failure observations and other workflow steps remain unchanged.
+
+`requestedAngleMode` records `default` or `swiftshader-requested`. This is a
+request, not observed backend identity or an explanation of context loss. Both
+local owned-X11 requested/default comparisons pass and report the same renderer
+family. Preserve same-source hosted successes and failures. Do not infer a fix
+or driver cause from one selected success.
+
+The current V26 code gates pass: 2874 product tests without skips, the
+34-file production build, both original embedded fixture configuration builds
+and repository quick profile. The [source proof](evidence/avatar-delivery-angle-source-checks-20261004.json)
+retains the separate failed nine-service preflight: registered Native missing,
+other eight births matching, cause unknown. No restart or native/session
+acceptance follows from these code checks.
+
+For one source-reviewed exact-head comparison on the authorized fork:
+
+```sh
+gh workflow run browser-client.yml --repo noah-be/overte \
+  --ref feature/main/browser-client \
+  -f startup_diagnostics=false -f avatar_sample_diagnostics=true \
+  -f embedded_swangle_diagnostic=true
+```
+
+Confirm the actual fork and ref before dispatch. The full default workflow
+continues to run; this input omits no acceptance step.
+
 The authored embedded-FBX journey retains its original 20 exact pixel checks,
 single shared image upload, independent samplers and actual model cancellation.
 An empty frame is a failed assertion even when image decoding succeeded. A

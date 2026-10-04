@@ -1,5 +1,43 @@
 # Opt-in native avatar diagnostics
 
+## Delivery witnesses
+
+Current opt-in samples add `nativeDelivery` and `gatewayDelivery`; absent
+observations remain null. Native counters record queue, refusal and socket-write
+invocation branches over the helper lifetime, saturate at 65535 and expose
+censoring. They do not establish write-return acceptance or remote delivery.
+
+Gateway stores at most 128 observations per session, separated by at least
+500 ms using the existing native-message timestamp; it adds no clock or timer.
+Each observation records the open/buffer/write branch and the fixed fixture
+target distance from an already captured envelope. The latest stored snapshot
+can be attached repeatedly to existing projected sample rows. Thus more than
+128 rows can contain a witness without exceeding the storage bound. No extra
+row consumes the original 512-row projection budget. The snapshot has its own
+ordinal and timestamp, can be stale, and does not identify the same envelope
+as the accompanying native row. Unknown buffers remain null; finite buffers require the exact
+open/below 4 MiB write predicate. Saturation and avatar-projection censoring remain
+explicit.
+
+Core `socketSelection` identifies the selected and latest-created WebSocket
+using only bounded ordinals and fixed readiness enums, with censoring after 32
+sockets. It adds no socket URL, identifiers or raw positions. It observes the
+original raw-snapshot selection rather than changing it. Latest-created does
+not prove current admitted session; readiness is observed at Core capture, not
+at message arrival. Default-off execution allocates no delivery state. All
+original movement assertions and waits remain.
+
+Use the exact current projector for current artifacts. Older artifacts require
+their frozen decoder; missing new fields are refused, never backfilled. These
+witnesses distinguish unobserved forwarding and socket-selection boundaries;
+no individual witness proves end-to-end delivery or acceptance.
+
+Current V26 product/build/fixture/repository code checks pass; the
+[source proof](evidence/avatar-delivery-angle-source-checks-20261004.json) records
+all 2874 product tests without skips and the separate failed nine-service
+preflight. Registered Native was missing while the other eight births matched.
+The cause is unknown; no restart or native/session acceptance is claimed.
+
 Use the existing Browser client workflow's manual `avatar_sample_diagnostics`
 input to investigate a native peer's stale browser pose. It defaults to false.
 The normal workflow and all original core-journey assertions remain unchanged.

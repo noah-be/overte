@@ -13,7 +13,14 @@ export function captureNativePeerSnapshot({ fixtureName, target }) {
     const distance = position => position && [position.x, position.y, position.z].every(value => typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= 1e7)
         ? Math.hypot(position.x - target.x, position.y - target.y, position.z - target.z) : null;
     const peers = Array.isArray(avatars) ? avatars.filter(avatar => avatar.id !== snapshot.selfId) : [];
+    const delivery=audio.delivery, selected=delivery && snapshot && delivery.snapshotSockets.get(snapshot);
+    const ready=value=>[0,1,2,3].includes(value)?['connecting','open','closing','closed'][value]:'unknown';
+    const socketSelection=delivery ? {selectedSocketOrdinal:selected?.ordinal ?? null,latestCreatedSocketOrdinal:delivery.censored?null:delivery.sockets,
+        selectedIsLatest:selected ? selected.socket===delivery.latestSocket : null,
+        selectedReadyState:selected?ready(selected.socket.readyState):'unknown',latestReadyState:ready(delivery.latestSocket?.readyState),
+        ordinalCensored:delivery.censored} : null;
     return { avatars, diagnostic: {
+        ...(delivery ? {socketSelection} : {}),
         snapshotPresent: !!snapshot,
         snapshotAgeMs: Number.isFinite(age) && age >= 0 && age <= 1e9 ? age : null,
         avatarCount: Array.isArray(avatars) ? avatars.length : 0,

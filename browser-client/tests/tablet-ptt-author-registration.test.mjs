@@ -30,7 +30,7 @@ print(json.dumps(rows))
 test('actual manager-produced declarations authenticate current plain/full/passive bytes without unknown-mode expansion',()=>{
  const rows=JSON.parse(execFileSync('python3',['-B','-c',producer,new URL('../lab/',import.meta.url).pathname],{encoding:'utf8',timeout:5000,maxBuffer:1024*1024}));
  assert.equal(sha(source),'735a5ee9b4327963ea7fb2ebec5e2159c1196aa99d8b6e7fd996809f521b7ede');
- assert.equal(sha(diagnostics),'cd2f35f8bc04edfdb9c09fcd8b5399d1e03b5b3b40bbbf9a459620b68ad9be49');
+ assert.equal(sha(diagnostics),'d59ff56f281fe91c19a16ff36686dcb29767405943023b11a76daa2c5a6a651e');
  for(const row of rows){const bytes=Buffer.from(row.bytes,'base64'),mode=row.value==='1'?'full':row.value==='passive'?'passive':'plain';
   assert.deepEqual(bytes,mode==='plain'?source:composed(mode));
   assert.deepEqual(admitServedAuthor(bytes,{source,diagnostics}),{sourceSHA256:AUTHOR_SOURCE_SHA256,diagnosticsSHA256:AUTHOR_DIAGNOSTICS_SHA256,servedSourceSHA256:sha(bytes),registration:'current-'+mode});

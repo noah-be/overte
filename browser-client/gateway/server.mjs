@@ -76,7 +76,43 @@ const sessions = new Map();
 const sockets = new Set();
 let shuttingDown = false;
 let shutdownPromise;
-const send = (socket, value) => { if (socket?.readyState === WebSocket.OPEN && socket.bufferedAmount < 4 * 1024 * 1024) socket.send(JSON.stringify(value)); };
+const send = (socket, value, observe) => {
+    const socketOpen = socket?.readyState === WebSocket.OPEN;
+    const bufferedBytes = socketOpen ? socket.bufferedAmount : null;
+    const writeInvoked = socketOpen && bufferedBytes < 4 * 1024 * 1024;
+    if (writeInvoked) socket.send(JSON.stringify(value));
+    if (observe) observe(socketOpen,bufferedBytes,writeInvoked);
+};
+// Uses the already captured session message time. No timer or clock read.
+function observeAvatarForward(session, message, socketOpen, bufferedBytes, writeInvoked) {
+    if (session.publicPlace || !['1','passive'].includes(process.env.OVERTE_GATEWAY_AVATAR_SAMPLE_DIAGNOSTICS)) return;
+    const at = session.lastNativeMessage;
+    if (!Number.isSafeInteger(at) || at < 0) return;
+    const state = session.avatarDelivery || (session.avatarDelivery={sequence:0,lastAt:null});
+    if (state.sequence >= 128) { if(state.snapshot)state.snapshot.observationCensored=true; return; }
+    if (state.lastAt !== null && at-state.lastAt < 500) return;
+    state.sequence++; state.lastAt=at;
+    const avatars = Array.isArray(message.avatars) ? message.avatars : [];
+    const peers = avatars.slice(0,32).filter(avatar=>avatar && avatar.id !== message.selfId && avatar.displayName === 'Native-Lab-Participant');
+    let distance = null;
+    if (avatars.length <= 32 && peers.length === 1) {
+        const p=peers[0].position;
+        if (p && [p.x,p.y,p.z].every(value=>typeof value==='number' && Number.isFinite(value))) {
+            const value=Math.hypot(p.x-4,p.y-1.8,p.z-2); if(value<=300000)distance=value;
+        }
+    }
+    const value={at,sequence:state.sequence,socketOpen,
+        bufferedBytes:Number.isSafeInteger(bufferedBytes)&&bufferedBytes>=0&&bufferedBytes<=64*1024*1024?bufferedBytes:null,
+        writeInvoked,writeReturnAccepted:null,capturedFixtureTargetDistanceMeters:distance,
+        fixtureNameMatches:peers.length,avatarProjectionCensored:avatars.length>32,observationCensored:false};
+    state.snapshot=value;
+}
+// Only receives the exact strict projector's fixed DTO, never raw native text.
+function emitAvatarProjection(session, line) {
+    const value=JSON.parse(line.slice('BROWSER_AVATAR_SAMPLE '.length));
+    if(value.kind==='sample')value.gatewayDelivery=session.avatarDelivery?.snapshot || null;
+    process.stdout.write('BROWSER_AVATAR_SAMPLE '+JSON.stringify(value)+'\n');
+}
 const cookie = request => /(?:^|;\s*)overte_browser=([a-f0-9]{64})(?:;|$)/.exec(request.headers.cookie || '')?.[1];
 const json = (response, code, value) => { const body = JSON.stringify(value); response.writeHead(code, { 'content-type': 'application/json', 'cache-control': 'no-store', 'content-length': Buffer.byteLength(body) }); response.end(body); };
 const equal = (a, b) => typeof a === 'string' && Buffer.byteLength(a) === Buffer.byteLength(b) && timingSafeEqual(Buffer.from(a), Buffer.from(b));
@@ -287,7 +323,7 @@ class Session extends SharedTeardown {
             this.diagnostics = () => diagnostics;
             attachNativeAvatarProjection(child, {
                 enabled: ['1', 'passive'].includes(process.env.OVERTE_GATEWAY_AVATAR_SAMPLE_DIAGNOSTICS),
-                publicPlace: !!this.publicPlace, emit: line => process.stdout.write(line)
+                publicPlace: !!this.publicPlace, emit: line => emitAvatarProjection(this,line)
             });
         } else {
             child.stderr.on('data', () => {});
@@ -621,7 +657,8 @@ nativeServer.on('connection', native => {
                 }
                 if (message.type === 'state' && message.state === 'connected') { message.permissionRevision = session.permissionRevision; session.connected = true; clearTimeout(session.connectionTimeout); }
                 if (message.type === 'state' && message.state === 'connecting') { session.pushToTalk.reset(); session.assets?.reset(); session.pendingNativePose = null; clearTimeout(session.navigationTimeout); session.permissionsApproved = false; session.connected = false; session.waitForDomain(); }
-                send(session.browser, { ...message, sessionId: session.id });
+                send(session.browser, { ...message, sessionId: session.id }, message.type === 'avatars' && !session.publicPlace && ['1','passive'].includes(process.env.OVERTE_GATEWAY_AVATAR_SAMPLE_DIAGNOSTICS)
+                    ? (open,bytes,invoked)=>observeAvatarForward(session,message,open,bytes,invoked) : undefined);
                 if (message.type === 'state' && message.state === 'error') session.close(false);
             }
         } catch (error) {

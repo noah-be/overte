@@ -12,7 +12,7 @@ const sample = () => ({ version: 1, kind: 'sample', at: 1790899200123, sequence:
     jointNamesMs: null, jointRotationsMs: 0, jointTranslationsMs: 1,
     postPublicationPoseDeltaMeters: 0.1, postPublicationProbeMs: 2,
     peerPacketRateHz: 30, peerGlobalPositionUpdateRateHz: 15, peerSimulationRateHz: null,
-    capturedFixtureTargetDistanceMeters: null,
+    capturedFixtureTargetDistanceMeters: null, nativeDelivery:null, gatewayDelivery:null,
     interstitialState: 'unknown', interstitialSignalAgeMs: null });
 const author = () => ({version: 1, kind: 'author-transmission', at: 1790899200123,
     interstitialState: 'inactive', interstitialSignalAgeMs: 300000,
@@ -103,7 +103,9 @@ test('actual source-extracted process method preserves native spawn/stdio and ex
         ['1', false, 'Native audio', false]]) {
         const child = new EventEmitter(); child.stdout = new EventEmitter(); child.stderr = new EventEmitter();
         const projected = [], spawns = []; let wireCalls = 0;
-        const method = vm.runInNewContext('({' + source.slice(begin, end) + '}).process', {
+        const projectionBegin=source.indexOf('function emitAvatarProjection(session, line) {'), projectionEnd=source.indexOf('const cookie = ',projectionBegin);
+        assert.ok(projectionBegin>=0&&projectionEnd>projectionBegin);
+        const method = vm.runInNewContext(source.slice(projectionBegin,projectionEnd)+'\n({' + source.slice(begin, end) + '}).process', {
             spawn: (...args) => { spawns.push(args); return child; }, attachNativeAvatarProjection,
             process: { env: { OVERTE_GATEWAY_AVATAR_SAMPLE_DIAGNOSTICS: enabled }, stdout: { write: row => projected.push(row) } },
             send: () => { wireCalls++; }

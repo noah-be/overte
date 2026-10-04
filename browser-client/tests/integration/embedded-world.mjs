@@ -73,10 +73,18 @@ async function collectEmbeddedFailureDiagnostic(page,primaryMessage,browser){
  return {...(pixel?{pixelDiagnostic:pixel}:{pixelDiagnosticRefusal:'unavailable-or-invalid'}),gpuProcessDiagnostic:gpu};
 }
 // END strict fixed-field diagnostic consumer.
+// BEGIN explicit embedded ANGLE request.
+function embeddedGraphicsLaunchOptions(value,engine){
+ assert(value===undefined||value===''||value==='0'||value==='1','Embedded ANGLE request refused');
+ const selected=value==='1';assert(!selected||engine==='chrome','Embedded ANGLE request requires Google Chrome');
+ return {args:selected?['--mute-audio','--use-angle=swiftshader']:['--mute-audio'],requestedAngleMode:selected?'swiftshader-requested':'default'};
+}
+// END explicit embedded ANGLE request.
 const client=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..'),engine=process.env.OVERTE_LAB_BROWSER||'chrome',display=process.env.OVERTE_LAB_BROWSER_DISPLAY;
 assert(['chrome','chromium','firefox','system-chromium','system-firefox'].includes(engine));
+const graphicsLaunch=embeddedGraphicsLaunchOptions(process.env.OVERTE_EMBEDDED_USE_SWANGLE,engine);
 const digest=bytes=>createHash('sha256').update(bytes).digest('hex');
-const report={startedAt:new Date().toISOString(),completed:false,engine,domainConnected:false,microphoneRequested:false,worldInteractionsSent:0,scope:'Actual BrowserWorld.loadModel, production-built worker and ordinary embedded PNG fixture; no public/native whole-world or speed claim',requests:0};
+const report={startedAt:new Date().toISOString(),completed:false,engine,requestedAngleMode:graphicsLaunch.requestedAngleMode,domainConnected:false,microphoneRequested:false,worldInteractionsSent:0,scope:'Actual BrowserWorld.loadModel, production-built worker and ordinary embedded PNG fixture; no public/native whole-world or speed claim',requests:0};
 let server,browser,page;const browserObserver=createEmbeddedBrowserObserver();
 try{
  const {embeddedFbx}=await import('../../build-embedded/entry.js'),bytes=new Uint8Array(embeddedFbx());report.assetSHA256=digest(bytes);
@@ -89,7 +97,7 @@ try{
  if(engine==='chrome')delete env.LD_LIBRARY_PATH;
  if(engine==='system-firefox')browser=await launchSystemFirefox({executablePath:'/usr/bin/firefox',headless:!display,env,syntheticMicrophone:false});
  else if(engine==='firefox')browser=await firefox.launch({headless:!display,env});
- else {if(engine==='system-chromium')assert(process.env.OVERTE_LAB_CHROMIUM,'Stock Chromium executable must be explicit');browser=await chromium.launch({...(engine==='chrome'?googleChromeLaunchOptions():{}),...(engine==='system-chromium'?{executablePath:process.env.OVERTE_LAB_CHROMIUM}:{}),headless:!display,env:{...env,...(engine==='system-chromium'&&process.env.OVERTE_LAB_CHROMIUM_LIBRARY_PATH?{LD_LIBRARY_PATH:process.env.OVERTE_LAB_CHROMIUM_LIBRARY_PATH}:{})},args:['--mute-audio']});}
+ else {if(engine==='system-chromium')assert(process.env.OVERTE_LAB_CHROMIUM,'Stock Chromium executable must be explicit');browser=await chromium.launch({...(engine==='chrome'?googleChromeLaunchOptions():{}),...(engine==='system-chromium'?{executablePath:process.env.OVERTE_LAB_CHROMIUM}:{}),headless:!display,env:{...env,...(engine==='system-chromium'&&process.env.OVERTE_LAB_CHROMIUM_LIBRARY_PATH?{LD_LIBRARY_PATH:process.env.OVERTE_LAB_CHROMIUM_LIBRARY_PATH}:{})},args:graphicsLaunch.args});}
  report.browserVersion=await browser.version();const context=await browser.newContext({viewport:{width:1280,height:800}}),errors=[];page=await context.newPage();browserObserver.attach(browser,page);
  page.on('pageerror',error=>errors.push(String(error.message).slice(0,1024)));
  await page.goto(`http://127.0.0.1:${address.port}/tests/fixtures/embedded-world.html`);await page.waitForFunction(()=>typeof window.runEmbeddedWorldFixture==='function',undefined,{timeout:10000});

@@ -116,12 +116,16 @@ try {
     const context = await browser.newContext({viewport:{width:1280,height:800}, permissions:isChromium ? ['microphone'] : []});
     const page = await context.newPage();
     const errors = []; page.on('pageerror', error => errors.push(error.message));
-    await page.addInitScript(() => {
+    await page.addInitScript(avatarDeliveryEnabled => {
         const OriginalWebSocket = window.WebSocket;
         window.__labAudio = { incomingNonzero:0, incomingPeak:0, outgoingNonzero:0, outgoingPeak:0, snapshots:[],snapshotTimes:new WeakMap(),states:[] };
+        if (avatarDeliveryEnabled) window.__labAudio.delivery = {sockets:0,censored:false,snapshotSockets:new WeakMap(),latestSocket:null};
         window.WebSocket = class extends OriginalWebSocket {
             constructor(...args) {
                 super(...args);
+                const delivery=window.__labAudio.delivery;
+                const ordinal=delivery ? (delivery.sockets<32 ? ++delivery.sockets : (delivery.censored=true,null)) : null;
+                if(delivery)delivery.latestSocket=this;
                 this.addEventListener('message', event => {
                     if (event.data instanceof ArrayBuffer) {
                         const samples = new Int16Array(event.data); let peak = 0;
@@ -129,7 +133,7 @@ try {
                         if (peak > .001) window.__labAudio.incomingNonzero++;
                         window.__labAudio.incomingPeak = Math.max(window.__labAudio.incomingPeak,peak);
                     } else if (typeof event.data === 'string') {
-                        try { const message=JSON.parse(event.data); if(message.type==='entities'||message.type==='avatars'){window.__labAudio.snapshotTimes.set(message,performance.now());window.__labAudio.snapshots.push(message);}
+                        try { const message=JSON.parse(event.data); if(message.type==='entities'||message.type==='avatars'){window.__labAudio.snapshotTimes.set(message,performance.now());window.__labAudio.snapshots.push(message);if(delivery)delivery.snapshotSockets.set(message,{ordinal,socket:this});}
                             if(message.type==='state'||message.type==='error'||message.type==='warning')window.__labAudio.states.push({at:Date.now(),...message}); } catch {}
                         if(window.__labAudio.snapshots.length>30)window.__labAudio.snapshots.shift();
                     }
@@ -145,7 +149,7 @@ try {
                 return super.send(data);
             }
         };
-    });
+    }, process.env.OVERTE_LAB_AVATAR_SAMPLE_DIAGNOSTICS === '1');
     const join = async () => {
         await page.locator('#domain').fill('overte://127.0.0.2:45102');
         await page.locator('#name').fill(`Browser-Lab-Audit-${browserKind}`);

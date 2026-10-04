@@ -58,8 +58,20 @@
         }
         return bytes;
     }
+    // Opt-in branch witnesses only. A write invocation is not remote delivery.
+    function observeAvatarOutput(type, outcome) {
+        if (type !== 'avatars' || !avatarDelivery) return;
+        avatarDelivery.lastAdmission = outcome;
+        var key = outcome === 'queued' ? 'queued' : outcome === 'write-invoked' ? 'writeInvoked' : 'refused';
+        if (avatarDelivery[key] < 65535) avatarDelivery[key]++; else avatarDelivery.censored = true;
+    }
+    function avatarDeliverySnapshot() {
+        return avatarDelivery ? {queued:avatarDelivery.queued,writeInvoked:avatarDelivery.writeInvoked,
+            refused:avatarDelivery.refused,lastAdmission:avatarDelivery.lastAdmission,censored:avatarDelivery.censored,
+            writeReturnAccepted:null} : null;
+    }
     function send(value) {
-        if (socket.readyState !== 1 || outputFailed) { return; }
+        if (socket.readyState !== 1 || outputFailed) { if(avatarDelivery)observeAvatarOutput(value.type,'not-admitted'); return; }
         var text = JSON.stringify(value), size = utf8Size(text);
         // Qt socket/UI callbacks cannot write the engine-owned QWebSocket safely.
         // The existing Script timers drain all post-handshake output instead.
@@ -70,17 +82,17 @@
             });
         }
         if (outbound.length >= 128 || outboundBytes + size > 64 * 1024 * 1024) {
-            outbound = []; outboundBytes = 0; outputFailed = true; return;
+            outbound = []; outboundBytes = 0; outputFailed = true; if(avatarDelivery)observeAvatarOutput(value.type,'overflow'); return;
         }
         var item = { type: value.type, text: text, size: size, revision: permissionRevision, authority: outputAuthority(),
             restricted: ['entities', 'entityUpdates', 'avatars', 'asset', 'pose', 'poseRequest', 'tablet', 'interaction', 'navigationRequest', 'navigationHistoryRequest', 'visitorPreferences', 'visitorPersona', 'pushToTalkState'].indexOf(value.type) !== -1
                 || (value.type === 'state' && value.state === 'connected'),
             deadline: value.type === 'nativePong' ? value.deadline : 0 };
         if (value.type === 'nativePong') { outbound.unshift(item); } else { outbound.push(item); }
-        outboundBytes += size;
+        outboundBytes += size; if(avatarDelivery)observeAvatarOutput(value.type,'queued');
     }
     function flush() {
-        if (socket.readyState !== 1) { outbound = []; outboundBytes = 0; return; }
+        if (socket.readyState !== 1) { if(avatarDelivery)outbound.forEach(function(item){observeAvatarOutput(item.type,'socket-closed');}); outbound = []; outboundBytes = 0; return; }
         if (outputFailed) {
             socket.send(JSON.stringify({ type: 'state', state: 'error', message: 'Native gateway output exceeded its bounded queue. Leave and reconnect.' }));
             outputFailed = false; active = false; permissionsApproved = false; pushToTalk.setAuthority(permissionRevision,false); Audio.muted = true;
@@ -89,9 +101,9 @@
         var ready = outbound; outbound = []; outboundBytes = 0;
         ready.forEach(function (item) {
             if (item.type === 'nativePong') { if (Date.now() < item.deadline) { socket.send(item.text); } return; }
-            if (item.type !== 'heartbeat' && (item.revision !== permissionRevision || item.authority !== outputAuthority())) { return; }
-            if (item.restricted && (!active || !permissionsApproved || !location.isConnected || !lastConnected)) { return; }
-            socket.send(item.text);
+            if (item.type !== 'heartbeat' && (item.revision !== permissionRevision || item.authority !== outputAuthority())) { if(avatarDelivery)observeAvatarOutput(item.type,'authority-refused'); return; }
+            if (item.restricted && (!active || !permissionsApproved || !location.isConnected || !lastConnected)) { if(avatarDelivery)observeAvatarOutput(item.type,'inactive-refused'); return; }
+            socket.send(item.text); if(avatarDelivery)observeAvatarOutput(item.type,'write-invoked');
         });
     }
     function clearOutput() {
@@ -116,8 +128,9 @@
     }
     var rigCache = {};
     var avatarSampleDiagnostics = null;
+    var avatarDelivery = BROWSER_GATEWAY.avatarSampleDiagnostics ? {queued:0,writeInvoked:0,refused:0,lastAdmission:'none',censored:false} : null;
     if (BROWSER_GATEWAY.avatarSampleDiagnostics && typeof createNativeAvatarSampleDiagnostics === 'function') {
-        avatarSampleDiagnostics = createNativeAvatarSampleDiagnostics({print:print,window:Window,avatarList:AvatarList,mode:BROWSER_GATEWAY.avatarSampleDiagnosticsMode,
+        avatarSampleDiagnostics = createNativeAvatarSampleDiagnostics({print:print,window:Window,avatarList:AvatarList,mode:BROWSER_GATEWAY.avatarSampleDiagnosticsMode,delivery:avatarDeliverySnapshot,
             current:function(){return active && permissionsApproved && lastConnected && location.isConnected;},
             authority:function(){return permissionRevision+'|'+outputAuthority();}});
     }

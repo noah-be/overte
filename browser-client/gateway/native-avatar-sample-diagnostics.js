@@ -112,6 +112,7 @@ function createNativeAvatarSampleDiagnostics(config) {
                     postPublicationPoseDeltaMeters:distance, postPublicationProbeMs:passive?null:elapsed(probeStarted),
                     peerPacketRateHz:packetRate, peerGlobalPositionUpdateRateHz:positionRate, peerSimulationRateHz:simulationRate,
                     capturedFixtureTargetDistanceMeters:capturedFixtureTargetDistance(row),
+                    nativeDelivery: typeof config.delivery === 'function' ? config.delivery() : null, gatewayDelivery:null,
                     interstitialState:state.interstitialState, interstitialSignalAgeMs:state.interstitialSignalAgeMs });
             });
         },

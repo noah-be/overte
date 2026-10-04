@@ -1,6 +1,44 @@
 # Browser client status
 
-Published source is `3329dfc45ec31244fdc15463c3eee1e17e6d869a` in draft PR1023.
+## Current delivery and graphics comparison, 2026-10-04
+
+Published 58e2a38af17ed7e6505cadcf7145b6d51bf0a941 passes current required
+Repository and CodeQL checks. Automatic 37174449237 and the single explicit
+37174581344 retain both original Browser failures. The GPU has a trusted
+context-loss event before the direct draw; the native author reaches its target
+while the browser retains the old peer pose. Eight gateway samples after the
+command eventually contain the target. Fresh snapshot arrival is not pose age,
+and clocks/delivery are not thereby aligned or established.
+
+Two separate local owned-X11 comparisons now pass the complete original
+embedded contract and one original deliberate context-restoration case: explicit
+ANGLE 20.981 s and automatic ANGLE 21.038 s. Both report ANGLE/Vulkan SwiftShader;
+there is no causal contrast or hosted repair claim. The earlier 165 s headed
+failure and the first context-copy prerequisite failure remain preserved.
+
+The reviewed next source adds bounded, default-off delivery witnesses and a
+single optional hosted graphics request. Root 71 focused delivery tests and 35
+request/source controls pass without skips. The corrected projector refuses a
+write-refused claim that contradicts its known open/zero-buffer branch. The explicit
+V26 closure is integrated, retaining all 220 prior rows among 230. Root 475
+focused source/history checks and independent 459 checks pass without skips;
+those overlapping totals are not added.
+
+The reviewed V26 source passes all 2874 product tests without skips, a fresh
+34-file production build, both original embedded fixture configuration builds,
+and the repository quick profile in 122.074 s. Exact commands and results are
+in the [source proof](evidence/avatar-delivery-angle-source-checks-20261004.json).
+
+The original nine-service preflight failed before its commands because the
+registered Native was missing; the other eight service births match. Its cause
+is unknown. Separate code gates passed with source, index and registry unchanged;
+no restart or native/session acceptance is claimed. This checkpoint does not
+qualify Tablet, public Hub fluidness, physical microphone or native feature parity.
+
+## Preserved 3329 and V25 checkpoint
+
+Published source at this preserved checkpoint was
+`3329dfc45ec31244fdc15463c3eee1e17e6d869a` in draft PR1023.
 Its source-bound automatic Browser37171816468 preserves the original GPU and
 native Core failures. The single explicit37171981635 passes the browser job:
 2813 product tests, three real network cases and 130 actual Chrome UI cases,

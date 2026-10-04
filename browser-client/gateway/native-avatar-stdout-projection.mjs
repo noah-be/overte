@@ -11,6 +11,30 @@ const SAMPLE_NUMBERS = ['batchMs', 'publishedPoseAgeMs', 'avatarBuildMs', 'joint
     'capturedFixtureTargetDistanceMeters'];
 const AUTHOR_NUMBERS = ['cachedMyAvatarSendRateHz', 'cachedAvatarMixerOutPps',
     'authorGlobalPositionOutboundKbps', 'authorLocalPositionOutboundKbps'];
+const DELIVERY_KEYS = ['queued','writeInvoked','refused','lastAdmission','censored','writeReturnAccepted'];
+const DELIVERY_ENUM = ['none','not-admitted','overflow','queued','socket-closed','authority-refused','inactive-refused','write-invoked'];
+const count = value => Number.isSafeInteger(value) && value >= 0 && value <= 65535;
+const exact = (value, keys) => value && typeof value === 'object' && !Array.isArray(value)
+    && Object.keys(value).length === keys.length && Object.keys(value).every(key => keys.includes(key));
+function delivery(value) {
+    return value === null || exact(value,DELIVERY_KEYS) && ['queued','writeInvoked','refused'].every(key=>count(value[key]))
+        && DELIVERY_ENUM.includes(value.lastAdmission) && typeof value.censored === 'boolean' && value.writeReturnAccepted === null;
+}
+const GATEWAY_KEYS=['at','sequence','socketOpen','bufferedBytes','writeInvoked','writeReturnAccepted',
+    'capturedFixtureTargetDistanceMeters','fixtureNameMatches','avatarProjectionCensored','observationCensored'];
+function gatewayDelivery(value) {
+    return value===null || exact(value,GATEWAY_KEYS) && Number.isSafeInteger(value.at) && value.at>=0
+        && Number.isSafeInteger(value.sequence) && value.sequence>=1 && value.sequence<=128
+        && typeof value.socketOpen==='boolean' && typeof value.writeInvoked==='boolean' && value.writeReturnAccepted===null
+        && (value.bufferedBytes===null || Number.isSafeInteger(value.bufferedBytes) && value.bufferedBytes>=0 && value.bufferedBytes<=64*1024*1024)
+        && bounded(value.capturedFixtureTargetDistanceMeters) && count(value.fixtureNameMatches) && value.fixtureNameMatches<=32
+        && typeof value.avatarProjectionCensored==='boolean' && typeof value.observationCensored==='boolean'
+        && (!value.writeInvoked || value.socketOpen && value.bufferedBytes !== null && value.bufferedBytes < 4*1024*1024)
+        && (value.socketOpen || value.bufferedBytes===null && !value.writeInvoked)
+        && (value.capturedFixtureTargetDistanceMeters===null || value.fixtureNameMatches===1 && !value.avatarProjectionCensored)
+        && (!value.observationCensored || value.sequence===128)
+        && (value.bufferedBytes===null || value.writeInvoked===(value.socketOpen && value.bufferedBytes<4*1024*1024));
+}
 const decoder = new TextDecoder('utf-8', { fatal: true });
 const bounded = value => value === null || typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 300000;
 
@@ -31,9 +55,9 @@ function project(line) {
     let keys;
     if (value.kind === 'sample') {
         if (!Number.isSafeInteger(value.sequence) || value.sequence < 1 || value.sequence > MAX_ROWS
-            || !['self', 'fixture-peer'].includes(value.role) || !SAMPLE_NUMBERS.every(key => bounded(value[key]))) return null;
+            || !['self', 'fixture-peer'].includes(value.role) || !SAMPLE_NUMBERS.every(key => bounded(value[key])) || !delivery(value.nativeDelivery) || !gatewayDelivery(value.gatewayDelivery)) return null;
         if (value.role !== 'fixture-peer' && value.capturedFixtureTargetDistanceMeters !== null) return null;
-        keys = [...COMMON, 'sequence', 'role', ...SAMPLE_NUMBERS];
+        keys = [...COMMON, 'sequence', 'role', ...SAMPLE_NUMBERS, 'nativeDelivery', 'gatewayDelivery'];
     } else if (value.kind === 'author-transmission') {
         if (value.statsFreshness !== 'not-forced-or-established' || !AUTHOR_NUMBERS.every(key => bounded(value[key]))) return null;
         keys = [...COMMON, 'statsFreshness', ...AUTHOR_NUMBERS];

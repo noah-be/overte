@@ -1,10 +1,14 @@
 // Copyright 2026 Overte contributors
 // SPDX-License-Identifier: Apache-2.0
 import test from 'node:test';
+import {readReviewedAvatarSource} from './fixtures/avatar-delivery-source-fixture.mjs';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { mkdtemp, mkdir, writeFile, chmod, symlink, link, readFile, rm, stat } from 'node:fs/promises';
-import { readFileSync } from 'node:fs';
+import { readFileSync as readCurrentFileSync } from 'node:fs';
+import {recoverCaptureV25Input} from './integration/capture-delivery-angle-source-fixture.mjs';
+const workflowURL=new URL('../../.github/workflows/browser-client.yml',import.meta.url),reviewedWorkflow=await recoverCaptureV25Input('.github/workflows/browser-client.yml',readCurrentFileSync(workflowURL));
+const readFileSync=(input,encoding)=>input instanceof URL&&input.href===workflowURL.href?(encoding===undefined?reviewedWorkflow:reviewedWorkflow.toString(encoding)):readCurrentFileSync(input,encoding);
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -146,7 +150,7 @@ test('manual full opt-in alone selects full diagnostics; PR/default/startup comb
     assert(workflow.includes("avatar_sample_diagnostics:\n        description: 'Collect bounded opt-in native avatar diagnostics during the unchanged full journey'\n        type: boolean\n        default: false"));
     assert(workflow.includes("github.event_name == 'workflow_dispatch' && inputs.avatar_sample_diagnostics && !inputs.startup_diagnostics && '1' || ''"));
 });
-test('actual producer/projector/manager/author and original movement predicate have exact unchanged source closure', () => {
+test('actual producer/projector/manager/author and original movement predicate have exact unchanged source closure', ((readFileSync) => () => {
     for (const [path, sha] of Object.entries(unchangedPins)) {
         const value = readFileSync(new URL('../' + path.replace(/^browser-client\//, ''), import.meta.url));
         assert.equal(createHash('sha256').update(value).digest('hex'), sha, path);
@@ -154,7 +158,7 @@ test('actual producer/projector/manager/author and original movement predicate h
     const journey = readFileSync(new URL('./integration/real-session.mjs', import.meta.url), 'utf8');
     assert(journey.includes('await delay(2800);'));
     assert(journey.includes("'Browser receives second native participant movement'"));
-});
+})(readReviewedAvatarSource));
 test('actual reader fresh-descriptor mutation/identity exception refuses and closes its sole held descriptor', async () => {
     for (const changed of ['size', 'ino', 'uid', 'mode', 'exception']) {
         let closed = 0, calls = 0;

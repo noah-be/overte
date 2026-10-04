@@ -64,6 +64,13 @@ def peer_diagnostic(document):
             item['peers']=[{**booleans(peer,('fixtureNameMatch',)),
                 'targetDistance':bounded(peer.get('targetDistance'),1e8)}
                 for peer in peers[:16] if isinstance(peer,dict)]
+        selection=browser.get('socketSelection')
+        keys={'selectedSocketOrdinal','latestCreatedSocketOrdinal','selectedIsLatest','selectedReadyState','latestReadyState','ordinalCensored'}
+        if isinstance(selection,dict) and set(selection)==keys:
+            ordinal=lambda v: v is None or type(v) is int and 1<=v<=32
+            states=('connecting','open','closing','closed','unknown')
+            if all(ordinal(selection.get(k)) for k in ('selectedSocketOrdinal','latestCreatedSocketOrdinal')) and (selection.get('selectedIsLatest') is None or type(selection.get('selectedIsLatest')) is bool) and all(selection.get(k) in states for k in ('selectedReadyState','latestReadyState')) and type(selection.get('ordinalCensored')) is bool:
+                item['socketSelection']={k:selection[k] for k in sorted(keys)}
         result['browser']=item
     native=document.get('native')
     if isinstance(native,dict):
