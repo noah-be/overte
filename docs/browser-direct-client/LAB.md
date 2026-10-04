@@ -724,6 +724,17 @@ context trusts its specific public key. It performs no domain/protocol forwardin
 directory listing or out-of-tree file access. `https-fixtures.py stop` cleans up
 only its verified owned process.
 
+Before accepting requests, it freezes exact URL names to an inventory of prepared
+in-tree files. Requests only select an inventoried path; the handler opens that
+same file without a second request-path translation and hashes the opened stream
+for its audit. Traversal, directories, missing files and out-of-tree symlinks
+remain unavailable. Assets added after inventory cannot expand its authority.
+The fixture directory is trusted and immutable while serving; this does not
+provide atomic protection against a hostile local writer changing filesystem
+entries between validation and open. `python3
+browser-direct-client/e2e/https-fixtures.test.py` checks the actual handler on
+ephemeral loopback HTTP with temporary assets, without certificates or a browser.
+
 The initial Ed25519 fixture certificate worked with the packaged Qt HTTPS
 client but produced Chrome `ERR_SSL_VERSION_OR_CIPHER_MISMATCH`. The fixture
 now generates RSA-2048 certificates with SHA-256, retaining TLS 1.2 or newer.

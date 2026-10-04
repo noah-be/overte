@@ -30,7 +30,20 @@ AUDIT_LOCK = threading.Lock()
 ASSET_HASHES = {}
 
 
+def asset_inventory(directory: Path) -> dict[str, Path]:
+    """Freeze request names to trusted prepared files before accepting requests."""
+    root = directory.resolve()
+    files = {}
+    for candidate in root.rglob("*"):
+        target = candidate.resolve()
+        if target.is_relative_to(root) and target.is_file():
+            files["/" + candidate.relative_to(root).as_posix()] = target
+    return files
+
+
 class Assets(http.server.SimpleHTTPRequestHandler):
+    asset_files: dict[str, Path] = {}
+
     def end_headers(self) -> None:
         self.send_header("Access-Control-Allow-Origin", ORIGIN)
         self.send_header("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
@@ -49,29 +62,45 @@ class Assets(http.server.SimpleHTTPRequestHandler):
         if "\x00" in path or "\\" in path:
             self.send_error(400)
             return None
-        target = (DIRECTORY / path.lstrip("/")).resolve()
-        if not target.is_relative_to(DIRECTORY.resolve()) or not target.is_file():
+        # The request is only an exact lookup key. It never constructs a path,
+        # and SimpleHTTPRequestHandler must not translate it a second time.
+        target = self.asset_files.get(path)
+        if target is None or not target.resolve().is_relative_to(DIRECTORY.resolve()) or not target.is_file():
             self.send_error(404)
             return None
-        stream = super().send_head()
-        if stream is not None:
+        try:
+            stream = target.open("rb")
+        except OSError:
+            self.send_error(404)
+            return None
+        try:
+            info = os.fstat(stream.fileno())
             with AUDIT_LOCK:
                 if not AUDIT.exists() or AUDIT.stat().st_size < 2 * 1024 * 1024:
-                    identity = (str(target), target.stat().st_mtime_ns, target.stat().st_size)
+                    identity = (str(target), info.st_mtime_ns, info.st_size)
                     digest = ASSET_HASHES.get(identity)
                     if digest is None:
-                        digest = hashlib.sha256(target.read_bytes()).hexdigest()
+                        digest = hashlib.file_digest(stream, "sha256").hexdigest()
                         ASSET_HASHES[identity] = digest
+                        stream.seek(0)
                     agent = self.headers.get("User-Agent", "")
                     record = {"unixTime": time.time(), "serverPID": os.getpid(),
                               "method": self.command,
                               "relativePath": str(target.relative_to(DIRECTORY.resolve())),
-                              "bytes": target.stat().st_size, "servedSHA256": digest,
+                              "bytes": info.st_size, "servedSHA256": digest,
                               "clientClass": "Chrome" if "Chrome/" in agent else
                                   "Qt" if "Qt/" in agent or "Overte" in agent else "other"}
                     with AUDIT.open("a") as audit:
                         audit.write(json.dumps(record) + "\n")
                     AUDIT.chmod(0o600)
+            self.send_response(200)
+            self.send_header("Content-type", self.guess_type(str(target)))
+            self.send_header("Content-Length", str(info.st_size))
+            self.send_header("Last-Modified", self.date_time_string(info.st_mtime))
+            self.end_headers()
+        except BaseException:
+            stream.close()
+            raise
         return stream
 
     def log_message(self, *_arguments) -> None:
@@ -126,6 +155,7 @@ def rotate_tls() -> None:
 
 
 def serve() -> None:
+    Assets.asset_files = asset_inventory(DIRECTORY)
     key, cert = certificate()
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.minimum_version = ssl.TLSVersion.TLSv1_2

@@ -59,6 +59,7 @@ jobs:
           python3 e2e/native-visitor-qualification.test.py
           python3 e2e/native-build-evidence.test.py
           python3 e2e/chrome-permission-ui.test.py
+          python3 e2e/https-fixtures.test.py
           npm run build
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
