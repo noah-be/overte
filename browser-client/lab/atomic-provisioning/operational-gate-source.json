@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "scope": "operational-command-migration-not-native-acceptance",
+  "current": {
+    "browser-client/lab/atomic-provisioning/test_observer.py": {
+      "sha256": "fe28b0a4ec461d6fb383da85796ebd53220961d34038af58bde9222e7b47b4b7",
+      "bytes": 20232
+    },
+    "browser-client/lab/atomic-provisioning/test_tmpfile_contract.py": {
+      "sha256": "1fc2c6560851fe3a2590ec995b97481c37fc4bef5ebf983c8b8115fe46e52f98",
+      "bytes": 10889
+    },
+    "browser-client/lab/atomic-provisioning/test_preflight_diagnostics.py": {
+      "sha256": "99357ea4ed6ff9602cdcba53c3fcf751a71d3afd10a372605005d59b24e1efdd",
+      "bytes": 25670
+    },
+    "browser-client/lab/atomic-provisioning/test_confined_launch.py": {
+      "sha256": "c621791ace64bda3feeb842e5ada78f59f54d7c7649c4cb04b2d0001005e69d2",
+      "bytes": 9820
+    }
+  },
+  "historical": {
+    "browser-client/lab/atomic-provisioning/test_observer.py": {
+      "sha256": "0e5fc33e4664afa96c9371efd98de104bb2c52a5ca54359256b6145607dc96d9",
+      "bytes": 20226
+    },
+    "browser-client/lab/atomic-provisioning/test_tmpfile_contract.py": {
+      "sha256": "6b630de099560de01d8026269231b886f778a62ff11c8234bc073a11ad649142",
+      "bytes": 10883
+    },
+    "browser-client/lab/atomic-provisioning/test_preflight_diagnostics.py": {
+      "sha256": "6c61e0ba4b77d6cadee97b8500c2c183944dfcaa87d59cd933291a42862c4b68",
+      "bytes": 25646
+    }
+  }
+}

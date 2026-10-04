@@ -1,0 +1,238 @@
+{
+  "scope": "Captured per-admission FBX cache count-limit evidence and authored cardinality control; no measured speed improvement",
+  "reports": [
+    {
+      "cohort": "loaded-model-cohort",
+      "engine": "chromium",
+      "rawSHA256": "656562e7f3890b5120d62be6ba2b4f8ce3dd0c44b4284d57eb3d15f90e29a050",
+      "sourceCoherent": true,
+      "distributionCoherent": true,
+      "connectedAt": "2026-10-02T03:12:06.676Z",
+      "initialModelJobsIdleCache": {
+        "hits": 165,
+        "misses": 131,
+        "bytes": 10022838,
+        "ready": 64,
+        "evictions": 66
+      },
+      "admissions": [
+        {
+          "ordinal": 1,
+          "fbxRequests": 131,
+          "uniqueFBXURLHashes": 123,
+          "duplicateFBXRequests": 8,
+          "sources": {
+            "download": 130,
+            "shared": 0,
+            "memory": 1,
+            "unknown": 0
+          },
+          "repeatedURLGroups": 8,
+          "knownBytesAcrossOriginalAndRepeatedResponses": 2508808,
+          "estimatedExtraBytesAssumingUniformLengths": 1254404.0,
+          "totalMillisecondsAcrossOriginalAndRepeatedResponses": 1610.5388019999991,
+          "maximumRepeatedGroupRequestMs": 224.31762199999866
+        },
+        {
+          "ordinal": 2,
+          "fbxRequests": 132,
+          "uniqueFBXURLHashes": 122,
+          "duplicateFBXRequests": 10,
+          "sources": {
+            "download": 130,
+            "shared": 0,
+            "memory": 2,
+            "unknown": 0
+          },
+          "repeatedURLGroups": 10,
+          "knownBytesAcrossOriginalAndRepeatedResponses": 2664082,
+          "estimatedExtraBytesAssumingUniformLengths": 1332041.0,
+          "totalMillisecondsAcrossOriginalAndRepeatedResponses": 1890.4670510000142,
+          "maximumRepeatedGroupRequestMs": 220.5157290000061
+        }
+      ]
+    },
+    {
+      "cohort": "loaded-model-cohort",
+      "engine": "firefox",
+      "rawSHA256": "e9a32ef45c1149ede76f480abc7f9d91dc5b3c12cbba9983fcf4351bd2ae9879",
+      "sourceCoherent": true,
+      "distributionCoherent": true,
+      "connectedAt": "2026-10-02T03:13:58.113Z",
+      "initialModelJobsIdleCache": {
+        "hits": 166,
+        "misses": 131,
+        "bytes": 11275880,
+        "ready": 64,
+        "evictions": 66
+      },
+      "admissions": [
+        {
+          "ordinal": 1,
+          "fbxRequests": 130,
+          "uniqueFBXURLHashes": 122,
+          "duplicateFBXRequests": 8,
+          "sources": {
+            "download": 129,
+            "shared": 0,
+            "memory": 1,
+            "unknown": 0
+          },
+          "repeatedURLGroups": 8,
+          "knownBytesAcrossOriginalAndRepeatedResponses": 2508808,
+          "estimatedExtraBytesAssumingUniformLengths": 1254404.0,
+          "totalMillisecondsAcrossOriginalAndRepeatedResponses": 651.0637300000053,
+          "maximumRepeatedGroupRequestMs": 109.61157900000035
+        },
+        {
+          "ordinal": 2,
+          "fbxRequests": 131,
+          "uniqueFBXURLHashes": 122,
+          "duplicateFBXRequests": 9,
+          "sources": {
+            "download": 129,
+            "shared": 0,
+            "memory": 2,
+            "unknown": 0
+          },
+          "repeatedURLGroups": 9,
+          "knownBytesAcrossOriginalAndRepeatedResponses": 2561094,
+          "estimatedExtraBytesAssumingUniformLengths": 1280547.0,
+          "totalMillisecondsAcrossOriginalAndRepeatedResponses": 817.7103719999868,
+          "maximumRepeatedGroupRequestMs": 221.31944599999406
+        }
+      ]
+    },
+    {
+      "cohort": "native-ignored-fbx",
+      "engine": "chromium",
+      "rawSHA256": "227b700327c7c9b92991060929a9eccc320be04577e26271edb380e54d934252",
+      "sourceCoherent": true,
+      "distributionCoherent": true,
+      "connectedAt": "2026-10-02T05:35:24.521Z",
+      "initialModelJobsIdleCache": {
+        "hits": 165,
+        "misses": 131,
+        "bytes": 10415630,
+        "ready": 64,
+        "evictions": 66
+      },
+      "admissions": [
+        {
+          "ordinal": 1,
+          "fbxRequests": 131,
+          "uniqueFBXURLHashes": 123,
+          "duplicateFBXRequests": 8,
+          "sources": {
+            "download": 130,
+            "shared": 0,
+            "memory": 1,
+            "unknown": 0
+          },
+          "repeatedURLGroups": 8,
+          "knownBytesAcrossOriginalAndRepeatedResponses": 2508808,
+          "estimatedExtraBytesAssumingUniformLengths": 1254404.0,
+          "totalMillisecondsAcrossOriginalAndRepeatedResponses": 1638.6658250000091,
+          "maximumRepeatedGroupRequestMs": 242.33703500000047
+        },
+        {
+          "ordinal": 2,
+          "fbxRequests": 132,
+          "uniqueFBXURLHashes": 122,
+          "duplicateFBXRequests": 10,
+          "sources": {
+            "download": 130,
+            "shared": 0,
+            "memory": 2,
+            "unknown": 0
+          },
+          "repeatedURLGroups": 10,
+          "knownBytesAcrossOriginalAndRepeatedResponses": 2664082,
+          "estimatedExtraBytesAssumingUniformLengths": 1332041.0,
+          "totalMillisecondsAcrossOriginalAndRepeatedResponses": 2321.530895999982,
+          "maximumRepeatedGroupRequestMs": 247.22951799999282
+        }
+      ]
+    },
+    {
+      "cohort": "native-ignored-fbx",
+      "engine": "firefox",
+      "rawSHA256": "48479f952a9fa61814d6960802dd64aecc570bfe80a6da58f1c1ff5f97b7260f",
+      "sourceCoherent": true,
+      "distributionCoherent": true,
+      "connectedAt": "2026-10-02T05:37:16.724Z",
+      "initialModelJobsIdleCache": {
+        "hits": 164,
+        "misses": 133,
+        "bytes": 11401113,
+        "ready": 64,
+        "evictions": 67
+      },
+      "admissions": [
+        {
+          "ordinal": 1,
+          "fbxRequests": 132,
+          "uniqueFBXURLHashes": 122,
+          "duplicateFBXRequests": 10,
+          "sources": {
+            "download": 130,
+            "shared": 0,
+            "memory": 2,
+            "unknown": 0
+          },
+          "repeatedURLGroups": 10,
+          "knownBytesAcrossOriginalAndRepeatedResponses": 2623116,
+          "estimatedExtraBytesAssumingUniformLengths": 1311558.0,
+          "totalMillisecondsAcrossOriginalAndRepeatedResponses": 737.8430699999917,
+          "maximumRepeatedGroupRequestMs": 66.14993999999933
+        },
+        {
+          "ordinal": 2,
+          "fbxRequests": 131,
+          "uniqueFBXURLHashes": 122,
+          "duplicateFBXRequests": 9,
+          "sources": {
+            "download": 129,
+            "shared": 0,
+            "memory": 2,
+            "unknown": 0
+          },
+          "repeatedURLGroups": 9,
+          "knownBytesAcrossOriginalAndRepeatedResponses": 2570830,
+          "estimatedExtraBytesAssumingUniformLengths": 1285415.0,
+          "totalMillisecondsAcrossOriginalAndRepeatedResponses": 895.4682919999759,
+          "maximumRepeatedGroupRequestMs": 162.32051099999808
+        }
+      ]
+    }
+  ],
+  "counterfactual": {
+    "scope": "Authored order with recorded cardinalities, not replay of private request order",
+    "distinctKeys": 123,
+    "oldKeyRepeats": 8,
+    "bytesPerPreparedBuffer": 32768,
+    "actual64EntryMethod": {
+      "preparations": 131,
+      "identicalBorrowedRepeatBuffers": 0
+    },
+    "actual128EntryMethod": {
+      "preparations": 123,
+      "identicalBorrowedRepeatBuffers": 8
+    }
+  },
+  "limits": {
+    "maximumReadyEntriesBefore": 64,
+    "maximumReadyEntriesCandidate": 128,
+    "payloadBytesBeforeAndAfter": 134217728,
+    "readyUTF16KeyBytesCandidate": 8388608,
+    "maximumPendingKeysBeforeAndAfter": 16,
+    "maximumReadersBeforeAndAfter": 256,
+    "maximumSourceKeyUTF16UnitsBeforeAndAfter": 65536
+  },
+  "limitations": [
+    "Fixed per-entry owner/Map record bound doubles64 to128; this is not a stronger total-memory bound.",
+    "Overlapping request/prepare/texture/compile sums are not wall-clock bottleneck or speed predictions.",
+    "Uniform-length repeated-byte estimate is descriptive; it is not a measured savings counter.",
+    "Preparation/image/material/picking/collision/rig semantics are unchanged; parsed graphs and mutable textures are not shared."
+  ]
+}

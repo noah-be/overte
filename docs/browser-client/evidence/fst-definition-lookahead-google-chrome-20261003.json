@@ -1,0 +1,180 @@
+{
+  "schema": 1,
+  "scope": "Controlled authored real-FBX/authorized-HTTP Google Chrome lookahead fidelity and lifetime qualification; no actual Hub gain",
+  "actualBrowser": {
+    "product": "Google Chrome",
+    "version": "154.0.8037.97",
+    "executableSHA256": "6c792041b07547a662e1b17974d1dc34a3db630379b45d9d89ddd7e3e68cc587",
+    "observedAndRetired": true
+  },
+  "durationSeconds": 16.401,
+  "cases": [
+    {
+      "case": "original-original",
+      "passed": true,
+      "bodySHA256": "fe330553d9709352af203e0388a2c204593d8855697d877205c7c8efce23c501",
+      "passive": {
+        "topLevelNavigations": 1,
+        "ownedImageRequests": 4,
+        "ownedDefinitionRequests": 4,
+        "failedRequests": 4,
+        "pageErrors": 0,
+        "viteMessages": 0,
+        "censored": false
+      },
+      "lifetime": null
+    },
+    {
+      "case": "counterfactual-counterfactual",
+      "passed": true,
+      "bodySHA256": "ca6cd14413c06d7feeba774e6db4d7ef10464bffeed7e82118e838c6f73d63ff",
+      "passive": {
+        "topLevelNavigations": 1,
+        "ownedImageRequests": 4,
+        "ownedDefinitionRequests": 4,
+        "failedRequests": 1,
+        "pageErrors": 0,
+        "viteMessages": 0,
+        "censored": false
+      },
+      "lifetime": null
+    },
+    {
+      "case": "lifetime-image-failure",
+      "passed": true,
+      "bodySHA256": "db4c9dfab19f85a853cd99215e4a2c2aa20b9704331241c99b74c0170a0e0c86",
+      "passive": {
+        "topLevelNavigations": 1,
+        "ownedImageRequests": 1,
+        "ownedDefinitionRequests": 2,
+        "failedRequests": 0,
+        "pageErrors": 0,
+        "viteMessages": 0,
+        "censored": false
+      },
+      "lifetime": {
+        "mode": "image-failure",
+        "models": 0,
+        "geometryCount": 1,
+        "statuses": [
+          "warning"
+        ],
+        "geometryDisposedOnce": true,
+        "objects": 0,
+        "entities": 0,
+        "managers": 0,
+        "readers": 0,
+        "cacheClosed": true,
+        "requestCounts": {
+          "model.fst": 1,
+          "model.fbx": 1,
+          "first.json": 1,
+          "first.png": 1,
+          "second.json": 1
+        }
+      }
+    },
+    {
+      "case": "lifetime-remove",
+      "passed": true,
+      "bodySHA256": "db4c9dfab19f85a853cd99215e4a2c2aa20b9704331241c99b74c0170a0e0c86",
+      "passive": {
+        "topLevelNavigations": 1,
+        "ownedImageRequests": 1,
+        "ownedDefinitionRequests": 2,
+        "failedRequests": 2,
+        "pageErrors": 0,
+        "viteMessages": 0,
+        "censored": false
+      },
+      "lifetime": {
+        "mode": "remove",
+        "models": 0,
+        "geometryCount": 1,
+        "statuses": [],
+        "geometryDisposedOnce": true,
+        "objects": 0,
+        "entities": 0,
+        "managers": 0,
+        "readers": 0,
+        "cacheClosed": true,
+        "requestCounts": {
+          "model.fst": 1,
+          "model.fbx": 1,
+          "first.json": 1,
+          "first.png": 1,
+          "second.json": 1
+        }
+      }
+    },
+    {
+      "case": "lifetime-leave",
+      "passed": true,
+      "bodySHA256": "db4c9dfab19f85a853cd99215e4a2c2aa20b9704331241c99b74c0170a0e0c86",
+      "passive": {
+        "topLevelNavigations": 1,
+        "ownedImageRequests": 1,
+        "ownedDefinitionRequests": 2,
+        "failedRequests": 2,
+        "pageErrors": 0,
+        "viteMessages": 0,
+        "censored": false
+      },
+      "lifetime": {
+        "mode": "leave",
+        "models": 0,
+        "geometryCount": 1,
+        "statuses": [],
+        "geometryDisposedOnce": true,
+        "objects": 0,
+        "entities": 0,
+        "managers": 0,
+        "readers": 0,
+        "cacheClosed": true,
+        "requestCounts": {
+          "model.fst": 1,
+          "model.fbx": 1,
+          "first.json": 1,
+          "first.png": 1,
+          "second.json": 1
+        }
+      }
+    }
+  ],
+  "quality": {
+    "completeRGBAEquality": "PASS",
+    "exactSourceAndVisiblePixel": "PASS",
+    "requestsAndOrder": "PASS",
+    "ownedDisposalExactlyOnce": "PASS",
+    "latePublicationRefusal": "PASS",
+    "wholeHubScenePixelProof": false,
+    "loadImprovementClaim": false,
+    "defaultActivation": false
+  },
+  "ownership": {
+    "managedBirthsUnchanged": true,
+    "managedCount": 9,
+    "officialChromeClosed": true,
+    "allContextsAndViteClosed": {
+      "contextsClosed": 5,
+      "browser": true,
+      "server": true
+    }
+  },
+  "coherence": {
+    "beforeWorldSHA256": "c02931412d89d91650cf9bf185e8aaaa9ad3c120fc07a159d770761c84839fa7",
+    "afterWorldSHA256": "8cdd93cef26846e9a5b94d2b78f734b1dfb1c13ab70a1e914d3214f1cbacd28e",
+    "shippingSourceUnchanged": true,
+    "copiedSourcesUnchanged": true
+  },
+  "evidenceHashes": {
+    "qualificationSHA256": "8a18bea9037bc2db12770aeabbd93e891431cf816dda381a3be87a6d0df31371",
+    "reportSHA256": "c089636705f6209292fd8da3eb319b04612fc6b1e30a7b2761d3a5f7be9dc6f5",
+    "recipeSHA256": "e9045cb81d2587a2e5b7cc3c8b8d630128058f5f48911a784c247bbcca1a1d4a"
+  },
+  "preservedFailures": [
+    "Initial first-image assertion failure with late DRACO discovery; cause not established",
+    "Newly authored detached-stage scene predicate was incorrect",
+    "Window.status DOMString collision caused lifetime callback TypeError; corrected private fixture namespace"
+  ]
+}

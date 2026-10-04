@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "package": "ubuntu-keyring",
+  "version": "2023.11.28.1",
+  "architecture": "all",
+  "packageURL": "https://archive.ubuntu.com/ubuntu/pool/main/u/ubuntu-keyring/ubuntu-keyring_2023.11.28.1_all.deb",
+  "packageSHA256": "36de43b15853ccae0028e9a767613770c704833f82586f28eb262f0311adb8a8",
+  "packageBytes": 11124,
+  "memberName": "./usr/share/keyrings/ubuntu-archive-keyring.gpg",
+  "memberSHA256": "80a36b0a6de2f69f49d2df75ef473ccde121e9e190b9ea01d20a4f63778d5c31",
+  "memberBytes": 3607,
+  "trustSource": "reviewed-repository-package-and-member-digests"
+}

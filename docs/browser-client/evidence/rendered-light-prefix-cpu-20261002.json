@@ -1,0 +1,46 @@
+{
+  "kind": "isolated-candidate-cpu-contracts",
+  "gpuExecuted": false,
+  "defaultOff": true,
+  "performanceGainDemonstrated": false,
+  "runs": [
+    {
+      "command": [
+        "./node_modules/.bin/tsx",
+        "--test",
+        "src/rendered-light-capacity.test.ts",
+        "src/world-rendered-light-capacity.test.ts"
+      ],
+      "startUtc": "2026-10-02T03:47:03.341372+00:00",
+      "endUtc": "2026-10-02T03:47:03.898010+00:00",
+      "exitCode": 0,
+      "log": "focused-cpu.log",
+      "logSha256": "ac5a8b7b3149a1900243f1e8bd0a597f1ab4754db2073198c409948a91f3f991"
+    },
+    {
+      "command": [
+        "./node_modules/.bin/tsc",
+        "--noEmit"
+      ],
+      "startUtc": "2026-10-02T03:47:03.898236+00:00",
+      "endUtc": "2026-10-02T03:47:04.818663+00:00",
+      "exitCode": 0,
+      "log": "whole-project-typescript.log",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "primarySourceHashes": {
+    "node_modules/three/src/renderers/webgl/WebGLLights.js": "ceb5079e0a3fd6093156d2d207641b26bf383b94de017b4db0647fa5946dd025",
+    "node_modules/three/src/renderers/webgl/WebGLPrograms.js": "a682663382b1437ab261f74a52f62686b0160605108f1db05639e68f062a945d",
+    "node_modules/three/src/renderers/WebGLRenderer.js": "9e8740aad691246b31b3704014e8f3bbd38a8e7bf4b1b4d23868541b023cc63a",
+    "node_modules/three/src/renderers/shaders/ShaderChunk/lights_fragment_begin.glsl.js": "59701d74c43b49f5e5648f92c011ff7c8d24905f532617cb7e5db17f650b9701",
+    "src/native-alpha-material.ts": "a3515894f69f078222c7e2b543c46ce22f7bd05b58e12f3eaa14aa0a638dcfbb",
+    "src/native-zero-lights.ts": "db505e6dbbfa856f3f5a5cb7d2c38768ab47f68e545a44d2281589613e151659"
+  },
+  "count": {
+    "tests": 14,
+    "pass": 14,
+    "fail": 0,
+    "skip": 0
+  }
+}

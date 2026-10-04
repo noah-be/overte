@@ -1,0 +1,119 @@
+{
+  "schema": 1,
+  "date": "2026-10-03",
+  "scope": "Actual Google Chrome held native Sit, local Tablet close and original native world X restoration passed; overall journey failed only during Leave cleanup.",
+  "materialAIAssistance": "Implemented and reviewed with Codex assistance.",
+  "browser": {
+    "product": "Google Chrome",
+    "version": "154.0.8037.97",
+    "executableSHA256": "6c792041b07547a662e1b17974d1dc34a3db630379b45d9d89ddd7e3e68cc587"
+  },
+  "durationSeconds": 92.037,
+  "completed": false,
+  "exitCode": 1,
+  "heldSit": {
+    "nativeAction": {
+      "variant": "Sit1",
+      "frames": 365,
+      "fps": 60
+    },
+    "appliedJointCount": 7,
+    "difference": {
+      "hipsDrop": 84.12474060058594,
+      "maximumThighChange": 1.2910760281897329
+    },
+    "closedRetainedDifference": {
+      "hipsDrop": 84.12474060058594,
+      "maximumThighChange": 1.2910760281897329
+    }
+  },
+  "nativeWorldXRestoration": {
+    "passed": true,
+    "standingDifference": {
+      "hipsDrop": -0.9123611450195312,
+      "maximumThighChange": 0.05174461312319853
+    },
+    "qualification": "Original authored native restore returned and matching browser hip/leg standing pose passed the unchanged numeric gates."
+  },
+  "closeObservation": {
+    "schemaVersion": 1,
+    "scope": "copied-only-original-close-wait",
+    "trustedCloseClicks": 1,
+    "observations": 3,
+    "censored": 0,
+    "rows": [
+      {
+        "phase": "close-click",
+        "tabletVisible": true,
+        "graphicsActive": null,
+        "elementHidden": false,
+        "elementDisplay": "flex",
+        "documentHidden": false,
+        "documentFocused": true,
+        "incomingVisible": null,
+        "incomingLoading": null,
+        "revision": null,
+        "sequence": null,
+        "navigationSequence": null,
+        "firstMs": 0,
+        "lastMs": 0,
+        "count": 1
+      },
+      {
+        "phase": "close-sent",
+        "tabletVisible": true,
+        "graphicsActive": null,
+        "elementHidden": false,
+        "elementDisplay": "flex",
+        "documentHidden": false,
+        "documentFocused": true,
+        "incomingVisible": null,
+        "incomingLoading": null,
+        "revision": 1,
+        "sequence": 38,
+        "navigationSequence": null,
+        "firstMs": 0,
+        "lastMs": 0,
+        "count": 1
+      },
+      {
+        "phase": "wait",
+        "tabletVisible": false,
+        "graphicsActive": true,
+        "elementHidden": true,
+        "elementDisplay": "none",
+        "documentHidden": false,
+        "documentFocused": true,
+        "incomingVisible": null,
+        "incomingLoading": null,
+        "revision": null,
+        "sequence": null,
+        "navigationSequence": null,
+        "firstMs": 11,
+        "lastMs": 11,
+        "count": 1
+      }
+    ]
+  },
+  "failure": {
+    "leaveFailed": true,
+    "message": "Original cleanup Leave predicate failed; retained report has no main-body failure. Pointer-lock behavior is under investigation, not yet established as the cause."
+  },
+  "sourceAndOwnership": {
+    "sourceCoherent": true,
+    "cleanupVerified": true,
+    "ownedMappedModuleQualified": true,
+    "ownedNativeClosed": true,
+    "baselineUnchanged": true,
+    "browserClosed": true,
+    "actualGoogleChromeObserved": true,
+    "ownedGoogleChromeClosed": true,
+    "actualGoogleChromeProcessCount": 10
+  },
+  "temporaryGatewayStopped": true,
+  "nineManagedServicesPreserved": true,
+  "originalRawReportSHA256": "12b7e289d225afac21d6ad92769e74dd07221d1df666ce4483480a23083936b6",
+  "microphoneTested": false,
+  "overallWorldXJourneyPassed": false,
+  "gainOrLoadingImprovementClaimed": false
+}

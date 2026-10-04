@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-03",
+  "scope": "Actual current V9 Google Chrome native Sit/Tablet Close/World-X readiness; unchanged functional actions and deadlines",
+  "completed": false,
+  "rawReportSHA256": "b0240a563f3866980f1a11b59734893ff075d824b3541f1caaace87c2127c671",
+  "qualifierManifestSHA256": "049b78bcfe025eb4a5089276f7b955c974fe43c8f1b1e2e506224a20fcd5b375",
+  "productionReceiptSHA256": "20cedb53d46a8b8b123b82bb385b6b380458c08cdaaa98256d506e97f0fc0212",
+  "browserVersion": "154.0.8037.97",
+  "durationSeconds": 72.734,
+  "genuineNativeSitCompleted": true,
+  "trustedTabletCloseCompleted": true,
+  "worldKeyReadinessSamples": 585,
+  "nativeNotReadySamples": 585,
+  "readySamplesCensored": 0,
+  "finalBrowserPredicateRows": [
+    {
+      "ordinal": 580,
+      "nativeWorldKeyReady": false,
+      "documentHasFocus": true,
+      "documentHidden": false,
+      "activeElementParentIsWorld": true,
+      "accepted": false,
+      "diagnosticReadError": false
+    },
+    {
+      "ordinal": 581,
+      "nativeWorldKeyReady": false,
+      "documentHasFocus": true,
+      "documentHidden": false,
+      "activeElementParentIsWorld": true,
+      "accepted": false,
+      "diagnosticReadError": false
+    },
+    {
+      "ordinal": 582,
+      "nativeWorldKeyReady": false,
+      "documentHasFocus": true,
+      "documentHidden": false,
+      "activeElementParentIsWorld": true,
+      "accepted": false,
+      "diagnosticReadError": false
+    },
+    {
+      "ordinal": 583,
+      "nativeWorldKeyReady": false,
+      "documentHasFocus": true,
+      "documentHidden": false,
+      "activeElementParentIsWorld": true,
+      "accepted": false,
+      "diagnosticReadError": false
+    },
+    {
+      "ordinal": 584,
+      "nativeWorldKeyReady": false,
+      "documentHasFocus": true,
+      "documentHidden": false,
+      "activeElementParentIsWorld": true,
+      "accepted": false,
+      "diagnosticReadError": false
+    },
+    {
+      "ordinal": 585,
+      "nativeWorldKeyReady": false,
+      "documentHasFocus": true,
+      "documentHidden": false,
+      "activeElementParentIsWorld": true,
+      "accepted": false,
+      "diagnosticReadError": false
+    }
+  ],
+  "wire": {
+    "armCount": 1,
+    "cancelCount": 1,
+    "ackCount": 1,
+    "lastAck": {
+      "ready": false,
+      "matchesLastArm": true
+    }
+  },
+  "joinSamples": 700,
+  "finalJoinAccepted": true,
+  "joinSamplesCensored": 0,
+  "keyXFunctionalAcceptance": false,
+  "keyXDeliveryNotAttempted": true,
+  "exactNativeReadinessRefusalCauseEstablished": false,
+  "cleanupVerified": true,
+  "sourceCoherent": true,
+  "allOwnedChromeAndNativeClosed": true,
+  "ownedGatewayClosed": true,
+  "managedNinePreserved": true,
+  "actualChromeProcessCount": 10,
+  "nativeMappedModuleSHA256": "cb7b3c3b61cc68fda81275196d07282685c75a88e91bdb0fbf4fabdc4a77531f",
+  "baselineUnchanged": true,
+  "gainClaim": false,
+  "enduranceTestPerformed": false,
+  "limitations": [
+    "The final six individual rows establish correct browser focus/visibility/canvas while native readiness remains false; they do not identify the failing native subpredicate.",
+    "Arm/cancel/ACK counts and the matching negative ACK are observations, not input or animation acceptance.",
+    "Native standing/Stop requires the original X delivery and seven-joint restore checks; these remain unproved."
+  ]
+}

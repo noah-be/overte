@@ -1,0 +1,50 @@
+{
+  "startedAt": "2026-09-30T16:08:28.718Z",
+  "completed": true,
+  "productionOnly": true,
+  "domain": "overte://127.0.0.2:45102",
+  "checks": [
+    "Production-only install, real entities/native participant, WebGL2, real binary ATP fidelity and asset isolation",
+    "Overlapping browser leave/repeated gateway SIGTERM awaits all real children and removes session profile"
+  ],
+  "sourceSHA256": {
+    "browser-client/gateway/server.mjs": "0d38ce57f501bfc4de50003376e391f9844f6a042ea39f40c54be27ae8101512",
+    "browser-client/gateway/process-lifecycle.mjs": "e8d7e021a8b934b271910883e27c2a1109aedd22e12044b763d4bf8acc274eaf",
+    "browser-client/gateway/native-bridge.js": "99fcb3ecd48be7b712b8df805ce71aa7ee3bc3d7e6dd50c7fa071ffd92c92e29",
+    "browser-client/dist/index.html": "0174aafcefd3b5346610ed01f2503c653d39bc8b4340a7346b4c3324c183fd13",
+    "browser-client/dist/assets/FBXLoader-DYpVg82l.js": "a0a5770f07f5dafeecb08624d8dbc073a4e517927f0ce59396258aee805bae65",
+    "browser-client/dist/assets/FBXLoader-DYpVg82l.js.map": "bf8d69dbd7459a6e87cd93d827d90fc8a0900f021ef1a8c8e223ac894dff46ab",
+    "browser-client/dist/assets/GLTFLoader-B1lZGHM3.js": "ce0da28cbbdb8e0a2847a643fc79c46c32c608cebcc367fe2c81e1cb2d9cf380",
+    "browser-client/dist/assets/GLTFLoader-B1lZGHM3.js.map": "f0ba7271e6a84c1ea9308dcdfdcaab80f7257b7648f6a345839fbbbc6d702d39",
+    "browser-client/dist/assets/OBJLoader-xNoXB-9E.js": "429ceafb87061eb60ffca1e0fb14e1f3a89b61e332b90676df2b29159e408bce",
+    "browser-client/dist/assets/OBJLoader-xNoXB-9E.js.map": "9508d9037cebdf05e981af97f46580507ef95e3019d4ac4899e0809e7495c675",
+    "browser-client/dist/assets/index-B2mAMfm4.css": "cbf321b921d05ff91c3020a6ccffc91385eeebf223ea6ec0577c6354df12a521",
+    "browser-client/dist/assets/index-Dwjc-qtg.js": "a7f170f4da215438be9ed4c4f2da36f0a71b944aff1382525553e2853a66c2d0",
+    "browser-client/dist/assets/index-Dwjc-qtg.js.map": "fd2f67205fcbd27a8e5cfd8b6cc224eaa765af9fe23ed4932b97099676ad7fc9"
+  },
+  "productionDependencies": [
+    "node_modules/three",
+    "node_modules/ws"
+  ],
+  "browserVersion": "153.0.8010.12",
+  "binaryTexture": {
+    "bytes": 79,
+    "sha256": "18e1d2c0906dacb97f5f2bee825f1b5714c481c299e9401261ac21c0cf7b903c"
+  },
+  "world": {
+    "connected": true,
+    "entities": 7,
+    "participants": 1
+  },
+  "shutdown": {
+    "overlappingLeave": true,
+    "repeatedSignal": true,
+    "pendingOwnedChildrenAtSignal": 7,
+    "milliseconds": 5706,
+    "ownedChildren": 9,
+    "survivingOwnedChildren": 0,
+    "removedPrivateProfiles": 1,
+    "exitCode": 0
+  },
+  "finishedAt": "2026-09-30T16:08:46.818Z"
+}

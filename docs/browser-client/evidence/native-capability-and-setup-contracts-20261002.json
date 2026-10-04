@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "scope": "Actual default-path native boundary and local CPU setup/provisioning contracts; Ubuntu-specific runtime remains unqualified",
+  "sourceSHA256": {
+    "browser-client/gateway/worker-sandbox.mjs": "a1d1dcf7aa661e128bfbc5885e928349881306ee86d1b571bf56fb4455c1a35a",
+    "browser-client/gateway/network-sandbox.test.mjs": "6f9ed987dc29f7ef2f4f2a68e00b96ddacd71c449cbdb49a3311f4a2ad49e90f",
+    "browser-client/tools/trusted-network/src/owner_admission.py": "4ae6e938a9408a788375c2ad6a53e7dea3e2f3a9f150545dccfa1d9b037681a7",
+    "browser-client/tools/trusted-network/src/launcher.c": "045f4794fdc6cf9c39e370a42b859f0b990a805c4b4a196667b70ced9de489b5",
+    "browser-client/tools/trusted-network/src/native-boundary-exec.c": "a8e2fb47e67240061778b43293e906e73e7454c1398b580c891859c9a8b27317",
+    "browser-client/tools/trusted-network/workflow/install.py": "3508eff65846a5149e84d4e8a63445c3a42acabf9eb0c8b45cfd7c0fb32fbf2a",
+    "browser-client/lab/atomic-provisioning/stage.py": "e8838a5c74c23098ad0f7bad74587a44fa4b0e5b14d4d37ee9bec3204589e1ce",
+    ".github/workflows/browser-client.yml": "8034e87c945773b513872aef9aa7f15756e1e5544a09b4de68f0a0ca5c1a1a7c",
+    ".github/workflows/browser-client-atomic-settings.yml": "65aa30d3a3568c4e92053877ff65f2977a2756407e165866a56aa24ad4a14fd8"
+  },
+  "defaultNativeBoundary": {
+    "command": "cd browser-client && node --test gateway/network-sandbox.test.mjs gateway/worker-sandbox.test.mjs gateway/preparation-diagnostics.test.mjs",
+    "passed": 21,
+    "failed": 0,
+    "skipped": 0,
+    "durationMs": 1285,
+    "observations": [
+      "All twelve exact prohibited routes",
+      "All five native capability sets zero and no_new_privs",
+      "Original host-loopback, scoped bridge and managed/forbidden UDP checks",
+      "Abrupt parent-death and descendant cleanup"
+    ],
+    "preservedEarlierFailure": {
+      "passed": 16,
+      "failed": 1,
+      "allFiveCapabilitySetsZero": false,
+      "change": "Explicit original bwrap --cap-drop ALL and exact sealed owner prefix; no endpoint or mount widening"
+    }
+  },
+  "trustedSetupCPU": {
+    "command": "OVERTE_SETUP_STATIC_LIBRARIES=<reviewed-local-static-archives> python3 -B -m unittest discover -s browser-client/tools/trusted-network/tests",
+    "passed": 52,
+    "failed": 0,
+    "skipped": 0,
+    "seconds": 1.623,
+    "adapterNodeContracts": {
+      "passed": 3,
+      "failed": 0,
+      "skipped": 0
+    },
+    "dependencyScope": "Locally checksum-verified mixed host static archives for CPU qualification; not the signed Noble runtime or APT-chain proof"
+  },
+  "atomicDiagnosticCPU": {
+    "command": "ATOMIC_DIAGNOSTIC_CACHE=<private-reviewed-cache> ATOMIC_DIAGNOSTIC_STRACE=<signed-Noble-executable> ATOMIC_DIAGNOSTIC_TEST_KEYRING=<reviewed-keyring> python3 -B -m unittest discover -s browser-client/lab/atomic-provisioning -p \"test_*.py\"",
+    "passed": 26,
+    "failed": 0,
+    "skipped": 0,
+    "seconds": 1.297,
+    "preservedEarlierFailure": "Restrictive umask produced0700 where the executable contract requires0755; explicit fchmod fixes private stage modes"
+  },
+  "workflowLint": {
+    "tool": "actionlint1.7.12",
+    "publishedArchiveSHA256": "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8",
+    "bothWorkflows": "passed"
+  },
+  "stillRequired": [
+    "Actual Noble dedicated AppArmor label and sealed-FD/fexecve Px mediation",
+    "Trusted owner through shipped bwrap and exact final stacked label/zero-capability guard",
+    "Unchanged actual endpoint/route/native browser journeys on Ubuntu",
+    "Original QSaveFile atomic commit syscall result and honest cause classification"
+  ],
+  "productionTrustedEntry": "Default off; complete proposed source plus ephemeral qualification only",
+  "endurance": "Omitted at the user explicit instruction"
+}

@@ -1,0 +1,44 @@
+{
+  "frozenUTC": "2026-10-01T16:07:59.702229+00:00",
+  "status": "Standalone unactivated candidate; no World edits or browser/native/GPU run",
+  "primaryPackage": {
+    "version": "0.186.1",
+    "resolved": "https://registry.npmjs.org/three/-/three-0.186.1.tgz",
+    "integrity": "sha512-blFeqb49wRCSGUGj7gtpfnSGHy2lwDk94RhUmS1c/hTby70kvChbWpkJ4Pm1390LqzzvTmzgXKHPEafJwCb8jA==",
+    "license": "MIT"
+  },
+  "primarySourceHashes": {
+    "node_modules/three/src/renderers/WebGLRenderer.js": "9e8740aad691246b31b3704014e8f3bbd38a8e7bf4b1b4d23868541b023cc63a",
+    "node_modules/three/src/renderers/webgl/WebGLTextures.js": "a1947fd09ac98b3a57e40018dc8eccfce9c40f2cf4b6200b3180a00af5406451",
+    "src/world.ts": "88d3b361810fcace58116bfdfad8ee8b5cd2ef8d89e29d3d1fcb59376591e4c6",
+    "src/world-image-cache.ts": "ba45a6125087f8b275c939a5e9e36dadac6879a37cb0fbe50d8c19dd9f1c6af9",
+    "src/model-resources.ts": "f05d539e19554cfa49ed35ce8fc6ec1c92f6c985c3b1d1f90849df9b558628ca",
+    "src/worker-task-yield.ts": "6fdfa71526163386c9e041b74a533b2ff50c52f533145bfc2facb213d4333cc8",
+    "tests/integration/public-hub.mjs": "9460c7cae7cf00c47c1acf278652cf9b956a33e32a384236b2a19c5241e44d6e"
+  },
+  "sourceFindings": {
+    "publicInitTexture": "WebGLRenderer initTexture public documentation explicitly describes preloading to avoid decode/GPU upload lag; method routes through normal WebGLTextures setters and unbinds texture state.",
+    "compileAsync": "Public compileAsync traverses material programs and waits for readiness. It does not ordinarily initialize material maps. Existing World mandatory final compileAsync must remain.",
+    "sharing": "WebGLTextures maps Source to GPU textures keyed by14 sampler/format/color-space fields. Upload occurs on changed Source version or forced new sampler-key allocation. Source identity alone cannot authorize skipping init.",
+    "scopeLimit": "A single large texSubImage2D remains synchronous and indivisible through public initTexture. Warming offscreen roots could create additional GPU residency/work; no global activation justified without foreground eligibility and measured memory/load evidence."
+  },
+  "verification": {
+    "unitCommand": "node --import tsx src/world-texture-preparation.test.ts",
+    "passedCPU": 11,
+    "typescript": "node node_modules/typescript/bin/tsc --noEmit passed against coherent latest root imports",
+    "GPUScaffold": "Six cases per engine: shared/different sampler \u00d7opaque/mask/blend; prepared NOT executed. Exact whole image hash, actual image GL call counts, source/sampler multiplicity, hook/version stability and zero after-release texture memory gates.",
+    "nativeHubSpeed": "Not measured; no speed/bytes/frame-time improvement claimed."
+  },
+  "bounds": {
+    "maximumJobs": 64,
+    "maximumTextureReferences": 8192,
+    "maximumTexturesPerGraph": 4096,
+    "maximumGraphObjects": 100000,
+    "deadlineMs": 30000,
+    "callsPerTask": 1
+  },
+  "retainedInvestigation": [
+    "CPU compressed fixture originally used RGBAFormat which is not a compressed pixel format; corrected to actual DXT5 enum and tsc passed.",
+    "While checking all source imports, root concurrently added new graphics warmup modules; added read-only links to those existing modules and reran tsc successfully. No root source changed."
+  ]
+}

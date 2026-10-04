@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 1,
+  "scope": "Current Google Chrome v8 synthetic Audio run; fixed offline projection",
+  "completed": false,
+  "originalPttVoiceStepsPassed": 12,
+  "captureTransitionReached": true,
+  "processingPhaseEntered": false,
+  "processingControlsAfterFixQualified": false,
+  "gainQualified": false,
+  "hardwareMicrophone": false,
+  "failure": {
+    "category": "native-first-frame-wait-deadline",
+    "deadlineMs": 30000,
+    "stage": "second-session-audio-open-before-processing",
+    "sourceReferences": [
+      {
+        "file": "tablet-push-to-talk.mjs",
+        "line": 138,
+        "column": 53
+      },
+      {
+        "file": "tablet-push-to-talk.mjs",
+        "line": 139,
+        "column": 80
+      },
+      {
+        "file": "tablet-push-to-talk.mjs",
+        "line": 182,
+        "column": 2
+      }
+    ]
+  },
+  "nativeCapture": {
+    "firstWorkerFirstGrab": {
+      "entered": true,
+      "accepted": true,
+      "callbackObserved": true,
+      "callbackCurrent": true,
+      "saved": true,
+      "frameQueued": true,
+      "requestToCallbackDisplayedSeconds": 23,
+      "elapsedLowerBoundSeconds": 22,
+      "elapsedUpperBoundSecondsExclusive": 24,
+      "callbackToSaveUpperBoundSecondsExclusive": 1,
+      "saveToQueueUpperBoundSecondsExclusive": 1
+    },
+    "secondWorkerFirstGrab": {
+      "entered": true,
+      "requested": true,
+      "accepted": true,
+      "callbackObserved": false,
+      "savedObserved": false,
+      "frameQueuedObserved": false,
+      "coldRecordCount": 3,
+      "coldRecordLimit": 32,
+      "coldRecordsRejected": 0,
+      "helperReadyAcceptedObserved": true,
+      "browserFramesReceived": 0,
+      "browserFrameCommitted": false,
+      "nativeErrorCount": 0,
+      "protocolErrorCount": 0,
+      "noCallbackWithinOriginalWaitProved": true,
+      "underlyingRenderSchedulingCause": "unresolved"
+    }
+  },
+  "renderReadback": {
+    "workers": [
+      {
+        "ordinal": 1,
+        "sourceProjectionSHA256": "379fa5449af0d6e2170c96b2cba7c24288fd7171bac2cce78db692d0c7cacfeb",
+        "nativeLogSHA256": "afaf0b9037f4f5c7e7cc247df2b8db2814c710b28f322da3ef894d25c8182aee",
+        "connectedSampleCount": 12,
+        "drawJobsPerSample": 4,
+        "drawReadsAvailableDisabled": 48,
+        "nonDrawJobsPerSample": 10,
+        "nonDrawJobsAvailableEnabled": 120,
+        "everyJobCpuMetadataZero": true,
+        "invalidRows": 0,
+        "censored": false
+      },
+      {
+        "ordinal": 2,
+        "sourceProjectionSHA256": "379fa5449af0d6e2170c96b2cba7c24288fd7171bac2cce78db692d0c7cacfeb",
+        "nativeLogSHA256": "520710d9cc6aa57f768e912ef3d626a63db0063ffe2681ed404066cafde79013",
+        "connectedSampleCount": 12,
+        "drawJobsPerSample": 4,
+        "drawReadsAvailableDisabled": 48,
+        "nonDrawJobsPerSample": 10,
+        "nonDrawJobsAvailableEnabled": 120,
+        "everyJobCpuMetadataZero": true,
+        "invalidRows": 0,
+        "censored": false
+      }
+    ],
+    "actualFourDrawAvailabilityProved": true,
+    "drawEnabledDuringSamples": false,
+    "steadyStateCpuOrGainProved": false,
+    "nestedCpuTotalsComputed": false
+  },
+  "originalOutcomes": {
+    "sourceCoherent": true,
+    "cleanupVerified": true,
+    "browserClosed": true,
+    "ownedRunnerStopped": true,
+    "ownedGatewayStopped": true,
+    "ownedChromeClosed": true
+  },
+  "bindings": {
+    "rawReportSHA256": "24f67d2eeded1fdf8dfb5f75780af962a1d6273ae91d25686173af823ea75dd4",
+    "reserializedReportSHA256": "a5945c04dcd20c9f1cbffa13a4aa191880c8eda2eb47c890ec804665ec8292a5",
+    "summarySHA256": "be7e53ee6c200337dd31a80ff86f726e656c6507c29126603d4310e9ea75652e",
+    "failureTextSHA256": "26c977867eadadec540385dd3e36c1002a0a1464bd0bcb88601f51fac55abac7",
+    "recipeManifestSHA256": "43c5b8c0f25202f6d4b1f7c7f4ec7c6ca38028fe5fe82afe388ffe70e2e9b0e5",
+    "complete104SHA256": "66c7ce8e7723cfff9ba1c88a0d59730214c896def3fe9597db98d777d790db31",
+    "productionReceiptSHA256": "19e2e42305f6a800c38342d86b17a14ad133305de2d496adfd586ecbddb0a405"
+  }
+}

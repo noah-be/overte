@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "nativeVersion": "2026.04.1",
+  "capturedAt": "2026-09-30T21:12:05Z",
+  "nativeArtifactSHA256": "dc39f5b4694a1c48cfb1454a8922f6a25fa4db5820bf937113ebf4086aa99145",
+  "resourceAudit": "Six fixed QResource files read from the packaged native resources.rcc; exact SHA256 equality with repository and generated browser bundle. No general qrc/file gateway route.",
+  "assets": [
+    {
+      "bytes": 2544,
+      "packagedPath": "meshes/defaultAvatar_full.fst",
+      "sha256": "0519e02f2f3d6afe19f680dd824a29f14a3baa65acb06b87ace33b1836717c50",
+      "matchesRepository": true
+    },
+    {
+      "bytes": 3655100,
+      "packagedPath": "meshes/mannequin/mannequin.fbx",
+      "sha256": "e247f3342ff109e17f7ae90916f81935d17ff4f51f60c60908094bb4f38db7da",
+      "matchesRepository": true
+    },
+    {
+      "bytes": 1229369,
+      "packagedPath": "meshes/mannequin/lambert1_Base_Color.png",
+      "sha256": "70b544b69ea325ee03f726694d9392ea8a12ddc66d47559382d142da12b9bdc6",
+      "matchesRepository": true
+    },
+    {
+      "bytes": 1177174,
+      "packagedPath": "meshes/mannequin/lambert1_Normal_OpenGL.png",
+      "sha256": "ead05dbdca83bc70c7546a3bd88ab2d58ccea85fed8f9f19b845cbfcd7b1fc05",
+      "matchesRepository": true
+    },
+    {
+      "bytes": 522873,
+      "packagedPath": "meshes/mannequin/lambert1_Roughness.png",
+      "sha256": "2f3c696977e1a8bf888b107f4935c0b3e0dca1bee2540cec8f780228468771a8",
+      "matchesRepository": true
+    },
+    {
+      "bytes": 22414,
+      "packagedPath": "meshes/mannequin/Eyes.png",
+      "sha256": "e8be0da314bfa0e3ad7e0f9d2315dddc38f39510dd421c9edbafc5406086700d",
+      "matchesRepository": true
+    }
+  ],
+  "actualNativeJointNames": 69,
+  "browserCanonicalBones": 67,
+  "browserSkinnedMeshes": 2,
+  "browserTriangles": 14748,
+  "nativeJointPose": "Actual isolated offline native idle animation; domain disconnected and audio muted. No synthetic joint values.",
+  "nativeVersusBrowserWorldJoints": {
+    "compared": 67,
+    "maximumErrorMeters": 0.00014200578428632364,
+    "toleranceMeters": 0.001
+  },
+  "bothActualSkinsDeform": true,
+  "mapping": {
+    "unitScale": 0.01,
+    "orientationCorrectionRadiansY": 3.141592653589793,
+    "restHipsCentimeters": [
+      0.24627070128917694,
+      101.3274154663086,
+      0.6300752758979797
+    ],
+    "sharedIdentityBindingChildren": "inherit canonical parent once",
+    "jointOrder": "actual native jointNames; ignore stale FST jointIndex order"
+  },
+  "verificationCommand": "node node_modules/tsx/dist/cli.mjs --test tests/default-avatar-rig.test.ts",
+  "limitations": [
+    "Focused packaged-asset/rig audit; public participant appearance and actual Emote UI remain separate acceptance tests."
+  ],
+  "rawAudioSaved": false,
+  "participantIdentifiersSaved": false
+}

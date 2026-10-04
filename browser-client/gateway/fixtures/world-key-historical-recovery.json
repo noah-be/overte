@@ -1,0 +1,60 @@
+{
+  "cpp": {
+    "beforeSha256": "b342f2ea711e5b929602e14d7bd256f02b48f3a4700061a72fc96d91aa5e2f56",
+    "afterSha256": "e8326d2571327b435318f256e70eba9c53d393ccac31130f941ab48b5f4cf5df",
+    "replacements": [
+      {
+        "before": "",
+        "after": "#include \"world-key-route.h\"\n"
+      },
+      {
+        "before": "",
+        "after": "    }\n    Q_INVOKABLE bool worldKeyReady(QObject* root) {\n        return BrowserWorldKey::ready(this,ownerItem(),root);\n    }\n    Q_INVOKABLE bool clickWorldKey(QObject* root) {\n        return BrowserWorldKey::click(this,ownerItem(),root);\n"
+      }
+    ]
+  },
+  "qml": {
+    "beforeSha256": "7f928cae36ed66bbaab7a87221dd72dd306b856662f426d7d8125e6335734247",
+    "afterSha256": "ddfbef52f203822885d889dab4c34c841f4ffc407b82d743fb07ffe6df2a50fd",
+    "replacements": [
+      {
+        "before": "",
+        "after": "    property var worldKeyRoot: null\n    property double worldKeyRequest: 0\n    property double worldKeyRevision: 0\n    property double worldKeyNavigation: 0\n    property bool worldKeyWasReady: false\n    Connections {target:helper.worldKeyRoot;ignoreUnknownSignals:true\n        onVisibleChanged:helper.updateWorldKeyReadiness()\n        onEnabledChanged:helper.updateWorldKeyReadiness()\n        onShownChanged:helper.updateWorldKeyReadiness()\n        onDestroyed:helper.cancelWorldKeys()\n    }\n    Connections {target:helper;enabled:helper.worldKeyRequest>0\n        onPendingTextChanged:helper.updateWorldKeyReadiness()\n        onPointerSurfaceChanged:helper.updateWorldKeyReadiness()\n        onInputSurfaceChanged:helper.updateWorldKeyReadiness()\n        onSavedSurfaceChanged:helper.updateWorldKeyReadiness()\n        onActiveCaptureChanged:helper.updateWorldKeyReadiness()\n        onPrivateGrabChanged:helper.updateWorldKeyReadiness()\n    }\n"
+      },
+      {
+        "before": "",
+        "after": "    function cancelWorldKeys() {\n        worldKeyRequest=0;worldKeyRevision=0;worldKeyNavigation=0;worldKeyWasReady=false;worldKeyRoot=null;\n    }\n    function findWorldKeyRoot() {\n        var stack=[{item:topRoot(),depth:0}],seen=[],found=null;\n        while(stack.length){var node=stack.pop(),item=node.item;if(!item||seen.length>=4096||seen.indexOf(item)!==-1)return null;seen.push(item);\n            if(item.objectName==='tabletRoot'){if(found)return null;found=item;}\n            if(item!==topRoot()&&item.visible===false)continue;\n            if(node.depth>24)return null;\n            var children=item.children;if(!children||children.length>4096-seen.length-stack.length)return null;\n            for(var i=0;i<children.length;i++)stack.push({item:children[i],depth:node.depth+1});\n        }return found;\n    }\n    function worldKeyInputIdle() {\n        return !pendingText&&!pointerSurface&&!inputSurface&&!savedSurface&&!activeCapture&&!privateGrab;\n    }\n    function updateWorldKeyReadiness(force) {\n        if(!worldKeyRequest)return;\n        var ready=!!worldKeyRoot&&worldKeyInputIdle()&&nativeInput.worldKeyReady(topRoot())===true;\n        // Always answer the arm command, then publish only actual transitions.\n        if(force===true||ready!==worldKeyWasReady){worldKeyWasReady=ready;sendToScript({kind:'worldKeyReady',revision:worldKeyRevision,navigationSequence:worldKeyNavigation,requestId:worldKeyRequest,ready:ready});}\n    }\n"
+      },
+      {
+        "before": "",
+        "after": "            if(message.kind==='cancelWorldKey'){cancelWorldKeys();return;}\n            if(message.kind==='armWorldKey'){\n                cancelWorldKeys();if(!(Number.isSafeInteger?Number.isSafeInteger(message.revision):typeof message.revision==='number'&&message.revision%1===0)||message.revision<1||message.revision>9007199254740991||typeof message.navigationSequence!=='number'||message.navigationSequence%1!==0||message.navigationSequence<1||message.navigationSequence>9007199254740991||typeof message.requestId!=='number'||message.requestId%1!==0||message.requestId<1||message.requestId>9007199254740991)return;\n                worldKeyRevision=message.revision;worldKeyNavigation=message.navigationSequence;worldKeyRequest=message.requestId;worldKeyRoot=findWorldKeyRoot();\n                worldKeyWasReady=false;updateWorldKeyReadiness(true);return;\n            }\n            if(message.kind==='worldKey'){\n                if(message.key!=='x'||!worldKeyRequest||message.requestId!==worldKeyRequest||message.revision!==worldKeyRevision||message.navigationSequence!==worldKeyNavigation)return;\n                if(!worldKeyRoot||!worldKeyInputIdle()||nativeInput.worldKeyReady(topRoot())!==true){worldKeyWasReady=true;updateWorldKeyReadiness();return;}\n                if(!nativeInput.clickWorldKey(topRoot()))throw new Error('The native world could not accept that key.');return;\n            }\n"
+      },
+      {
+        "before": "            if(message.kind===\"resetInput\") {cancelTextInput();cancelPointer();inputSurface=null;savedSurface=null;captureTarget=null;return;}\n",
+        "after": "            if(message.kind===\"resetInput\") {if(typeof worldKeyRequest!==\"undefined\"&&worldKeyRequest)cancelWorldKeys();cancelTextInput();cancelPointer();inputSurface=null;savedSurface=null;captureTarget=null;return;}\n"
+      },
+      {
+        "before": "            if(message.kind===\"hide\") {cancelTextInput();activeCapture=null;var root=find(topRoot(),\"tabletRoot\",0);if(root)root.shown=false;cancelPointer();captureTarget=null;inputSurface=null;savedSurface=null;return;}\n",
+        "after": "            if(message.kind===\"hide\") {if(typeof worldKeyRequest!==\"undefined\"&&worldKeyRequest)cancelWorldKeys();cancelTextInput();activeCapture=null;var root=find(topRoot(),\"tabletRoot\",0);if(root)root.shown=false;cancelPointer();captureTarget=null;inputSurface=null;savedSurface=null;return;}\n"
+      }
+    ]
+  },
+  "builder": {
+    "beforeSha256": "b00db382d8297d4e1e1bf1f1758daf9411602ae410e7a5f290b9d9f91cd970a9",
+    "afterSha256": "aabc6f68439fc2396f99b6ec5377fd307f32815b161c6a3a5df6782b80b53be0",
+    "replacements": [
+      {
+        "before": "",
+        "after": "    run([moc, *flags[6:], SOURCE / 'world-key-route-test.cpp', '-o', output / 'world-key-route-test.moc'], env=environment)\n    run(['g++', *flags, '-I', output, SOURCE / 'world-key-route-test.cpp', '-o', output / 'world-key-route-test', *libraries])\n"
+      },
+      {
+        "before": "",
+        "after": "        'worldKeyRouteSha256': hashlib.sha256((SOURCE / 'world-key-route.h').read_bytes()).hexdigest(),\n"
+      },
+      {
+        "before": "",
+        "after": "                run([output / 'world-key-route-test'], env=environment)\n"
+      }
+    ]
+  }
+}

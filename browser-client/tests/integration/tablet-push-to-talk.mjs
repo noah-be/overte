@@ -1,0 +1,165 @@
+// Copyright 2026 Overte contributors
+// SPDX-License-Identifier: Apache-2.0
+// Real native Audio GUI + physical browser key events; synthetic microphone only.
+import {launchSystemFirefox} from './system-firefox.mjs';
+import {openOwnedNativeAudioAuthor} from './tablet-ptt-native-peer.mjs';
+import {ownedAudioProcess} from './owned-audio-process.mjs';
+import {workerProfiles,freshWorkerProfile} from './tablet-create-selection.mjs';
+import {readCreateWorkerLog} from './tablet-create-readiness.mjs';
+import {assertIsolatedCreateTarget,baselineIdentity} from './tablet-create-contract.mjs';
+import {createPeopleFrameAcknowledgement} from './tablet-people-audit.mjs';
+import {parsePttAudit,pttClickControl,assertPaintedPttControl,pttAuditBrowserBindingsSource,encodeValidatedPttRecords} from './tablet-ptt-audit.mjs';
+import {pttProofQueueInstallerSource} from './tablet-ptt-proof-queue.mjs';
+import {createPeopleTrustedEventOracle} from './tablet-people-trusted-event-oracle.mjs';
+import {pttTrustedBindingInstallerSource} from './tablet-ptt-trusted-binding.mjs';
+import {observePttVisibilityEvents,recordPttVisibilityCheckpoint} from './tablet-ptt-visibility.mjs';
+import {readPttKeyDownSnapshot,validatePttKeyDownSnapshots} from './tablet-ptt-keydown-snapshot.mjs';
+import {useActualPttPageFocus,openActualPttChromium} from './tablet-ptt-real-focus.mjs';
+import {samplePttDisplayedControl,incrementPttRefusal} from './tablet-ptt-frame-sample.mjs';
+import assert from 'node:assert/strict';import {mkdir,readFile,writeFile,readdir,lstat,open} from 'node:fs/promises';import {constants} from 'node:fs';
+import {fileURLToPath} from 'node:url';import path from 'node:path';import {tmpdir} from 'node:os';import {createHash,randomUUID} from 'node:crypto';
+const client=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..'),repo=path.dirname(client);
+const base=process.env.OVERTE_LAB_URL,domain='overte://127.0.0.2:45102';assertIsolatedCreateTarget(base,domain);
+const nativePulse=process.env.OVERTE_PTT_NATIVE_PULSE,browserPulse=process.env.OVERTE_PTT_BROWSER_PULSE;
+assert(typeof nativePulse==='string'&&nativePulse.startsWith('unix:/')&&typeof browserPulse==='string'&&browserPulse.startsWith('unix:/')&&nativePulse!==browserPulse,'Two distinct owned private Pulse servers are required');
+const display=process.env.OVERTE_LAB_BROWSER_DISPLAY;assert(typeof display==='string'&&/^:[0-9]{1,3}$/.test(display),'A real private browser display is required for actual blur/hidden acceptance');
+const firefox=process.env.OVERTE_LAB_BROWSER==='system-firefox';
+const directory=path.join(repo,'build/browser-lab/evidence/tablet-push-to-talk',randomUUID()),profiles=[],contexts=[],children=[];
+const privateControlProofs=new Map();let controlProofOrdinal=0;
+const report={version:1,startedAt:new Date().toISOString(),completed:false,syntheticMicrophone:true,hardwareMicrophone:false,scope:'Genuine isolated native Audio Desktop PTT UI and browser keys; synthetic two-way audio only',steps:[],cleanupVerified:false,inDomainRevisionChangeProved:false};
+const sha=bytes=>createHash('sha256').update(bytes).digest('hex');const delay=ms=>new Promise(r=>setTimeout(r,ms));
+const sources=['gateway/server.mjs','gateway/native-bridge.js','gateway/native-push-to-talk.js','gateway/native-tablet.js','gateway/push-to-talk.mjs','gateway/tablet-capture.qml','shared/push-to-talk.mjs','src/main.ts','src/audio.ts','src/push-to-talk.ts','src/session.ts','tests/integration/tablet-push-to-talk.mjs','tests/integration/tablet-ptt-audit.mjs','tests/integration/tablet-ptt-frame-sample.mjs','tests/integration/tablet-ptt-proof-queue.mjs','tests/integration/tablet-ptt-trusted-binding.mjs','tests/integration/tablet-people-trusted-event-oracle.mjs','src/tablet.ts','tests/integration/system-firefox.mjs','tests/integration/owned-audio-process.mjs','tests/integration/tablet-ptt-native-peer.mjs','tests/integration/tablet-ptt-visibility.mjs','tests/integration/tablet-ptt-keydown-snapshot.mjs','tests/integration/tablet-ptt-real-focus.mjs','dist/index.html'];
+async function hashes(){const output={};for(const file of sources)output[file]=sha(await readFile(path.join(client,file)));for(const file of await readdir(path.join(client,'dist/assets')))if(/\.(?:js|css)$/.test(file))output['dist/assets/'+file]=sha(await readFile(path.join(client,'dist/assets',file)));return output;}
+async function waitFor(read,label,timeout=15000){const deadline=Date.now()+timeout;while(Date.now()<deadline){const value=await read();if(value)return value;await delay(100);}throw Error(label+' deadline');}
+async function flushControlProofs(){
+ if(!page){assert.equal(privateControlProofs.size,0);return;}
+ const events=await page.evaluate(()=>window.__pttAudit?.trusted?.readProofMetadata()??[]);assert(Array.isArray(events)&&events.length<=16);
+ for(const sample of events){assert(['audio-app','desktop-ptt'].includes(sample.kind)&&Number.isSafeInteger(sample.proofOrdinal)&&sample.proofOrdinal>0&&sample.proofOrdinal<=1000000);if(privateControlProofs.has(sample.proofOrdinal)){const prior=privateControlProofs.get(sample.proofOrdinal);assert.deepEqual(prior.frame,sample.frame);assert.deepEqual(prior.image,sample.image);}else {assert(privateControlProofs.size<16);privateControlProofs.set(sample.proofOrdinal,{file:path.join(directory,'native-trusted-'+sample.kind+'-'+sample.proofOrdinal+'.png'),frame:sample.frame,canvas:sample.canvas,image:sample.image});}}
+ const metadata=await page.evaluate(()=>window.__pttAudit?.proofs?.metadata()??{ordinals:[],count:0,bytes:0});
+ assert.deepEqual(metadata.ordinals,[...privateControlProofs.keys()].sort((a,b)=>a-b),'Every owned browser proof must have an exact tracked ordinal');assert.equal(metadata.count,privateControlProofs.size);assert(metadata.count<=16&&metadata.bytes<=32*1024*1024);
+ for(const id of metadata.ordinals){
+  const full=await page.evaluate(id=>window.__pttAudit.proofs.read(id),id),proof=privateControlProofs.get(id);
+  assert.equal(full.proofOrdinal,id);assert.deepEqual(full.frame,proof.frame);assert.deepEqual(full.canvas,proof.canvas);assert.equal(full.image.width,proof.image.width);assert.equal(full.image.height,proof.image.height);
+  assertPaintedPttControl(full.image.rgba,full.image.width,full.image.height);
+  const png=Buffer.from(full.nativePNG,'base64');assert(png.length>0&&png.length<=2*1024*1024);
+  await writeFile(proof.file,png,{flag:'wx',mode:0o600});await page.evaluate(id=>(window.__pttAudit.proofs.release(id),window.__pttAudit.trusted?.forgetProof(id)),id);privateControlProofs.delete(id);
+ }
+}
+async function checkpoint(name,data={}){await flushControlProofs();report.steps.push({name,at:new Date().toISOString(),...data});await writeFile(path.join(directory,'report.private.json'),JSON.stringify(report,null,2)+'\n',{mode:0o600});}
+function metrics(bytes){assert(bytes.length>0&&bytes.length<=5*48000*4&&bytes.length%4===0);let square=0;const frames=bytes.length/4;
+ for(let i=0;i<bytes.length;i+=2){const v=bytes.readInt16LE(i)/32768;square+=v*v;}
+ function tone(frequency){let real=0,imaginary=0;const n=Math.min(48000,frames),start=frames-n;for(let i=0;i<n;i++){const v=(bytes.readInt16LE((start+i)*4)+bytes.readInt16LE((start+i)*4+2))/65536,a=2*Math.PI*frequency*i/48000;real+=v*Math.cos(a);imaginary+=v*Math.sin(a);}return 2*Math.hypot(real,imaginary)/n;}
+ return{rms:Math.sqrt(square/(bytes.length/2)),frames,bytes:bytes.length,tone440Amplitude:tone(440),tone997Amplitude:tone(997)};
+}
+async function capture(server,source,label,seconds=3){const file=path.join(directory,label+'.pcm'),child=ownedAudioProcess('ffmpeg',['-hide_banner','-loglevel','error','-y','-f','pulse','-i',source,'-t',String(seconds),'-ar','48000','-ac','2','-f','s16le',file],{env:{...process.env,PULSE_SERVER:server},timeoutMs:15000,graceMs:1000});children.push(child);const result=await child.completion;assert.equal(result.kind,'exited');assert.equal(result.exitCode,0);return metrics(await readFile(file));}
+async function runtimeCapture(profile,expected){const handles=[];try{const d=await open(profile,constants.O_RDONLY|constants.O_DIRECTORY|constants.O_NOFOLLOW);handles.push(d);const f=await open('/proc/self/fd/'+d.fd+'/tablet-capture.qml',constants.O_RDONLY|constants.O_NOFOLLOW|constants.O_NONBLOCK);handles.push(f);const stat=await f.stat();assert(stat.isFile()&&stat.size>0&&stat.size<=128*1024);const bytes=Buffer.alloc(stat.size),r=await f.read(bytes,0,bytes.length,0);assert.equal(bytes.subarray(0,r.bytesRead).toString(),expected);return sha(bytes.subarray(0,r.bytesRead));}finally{for(const h of handles.reverse())await h.close();}}
+let browser,page,context,baseline,start,nativeAuthor,actualChromium;
+try{
+ await mkdir(directory,{recursive:true,mode:0o700});start=await hashes();report.startSourceSHA256=start;
+ const qml=await readFile(path.join(client,'gateway/tablet-capture.qml'),'utf8');assert(qml.includes('BROWSER_TABLET_PTT_AUDIT '),'Run only the independently copied passive-audit gateway');
+ assert((await readFile(path.join(client,'gateway/server.mjs'),'utf8')).includes('session.pushToTalk.cancel(); session.muted = message.muted;'),'The reviewed synchronous mute-consent follow-up is required');
+ const env={...process.env,PULSE_SERVER:browserPulse,DISPLAY:display};
+ if(firefox)browser=await launchSystemFirefox({headless:false,env,syntheticMicrophone:true});
+ else {const microphone=process.env.OVERTE_PTT_MICROPHONE_WAV;assert(typeof microphone==='string'&&path.isAbsolute(microphone));const wav=await readFile(microphone);assert(wav.length>44&&wav.length<=2*1024*1024&&wav.subarray(0,4).toString()==='RIFF');report.syntheticWavSHA256=sha(wav);
+  const owned=actualChromium=await openActualPttChromium({executablePath:process.env.OVERTE_LAB_CHROMIUM,env:{...env,...(process.env.OVERTE_LAB_CHROMIUM_LIBRARY_PATH?{LD_LIBRARY_PATH:process.env.OVERTE_LAB_CHROMIUM_LIBRARY_PATH}:{})},microphone});browser=owned.browser;context=owned.context;report.browserFocusSetup=owned.readOwnership();}
+ report.browserVersion=await browser.version();if(firefox)context=await browser.newContext({viewport:{width:1280,height:800},permissions:[]});contexts.push(context);page=await context.newPage();if(!firefox)await page.setViewportSize({width:1280,height:800});report.actualFocusPages=[await useActualPttPageFocus(context,page,firefox?'system-firefox':'system-chromium')];
+ await page.addInitScript(pttProofQueueInstallerSource(samplePttDisplayedControl,assertPaintedPttControl));
+ await page.addInitScript(pttTrustedBindingInstallerSource(pttAuditBrowserBindingsSource(),createPeopleTrustedEventOracle));
+ await page.addInitScript('window.__pttFrameAck=('+createPeopleFrameAcknowledgement.toString()+')();');
+ await page.addInitScript('window.__pttKeyDownSnapshot=('+readPttKeyDownSnapshot.toString()+');('+(()=>{
+  const Original=window.WebSocket,a=window.__pttAudit={frame:null,frames:[],navigation:0,tabletState:null,state:null,states:[],revision:0,entities:new Map(),peerCount:0,outgoing:0,incoming:0,commands:[],getUserMediaCalls:0,tracks:[],keyDownSnapshots:[],events:{keyDown:0,keyUp:0,blur:0,hidden:0},errors:[]};
+  const media=navigator.mediaDevices,originalMedia=media.getUserMedia.bind(media);media.getUserMedia=function(...args){a.getUserMediaCalls++;return originalMedia(...args).then(stream=>{a.tracks.push(...stream.getAudioTracks());if(a.tracks.length>4)throw Error('Synthetic input track bound');return stream;});};
+  window.addEventListener('keydown',e=>{if(e.code==='KeyT'&&e.isTrusted){a.events.keyDown++;a.keyDownSnapshots.push(window.__pttKeyDownSnapshot());if(a.keyDownSnapshots.length>16)a.keyDownSnapshots.shift();}});window.addEventListener('keyup',e=>{if(e.code==='KeyT'&&e.isTrusted)a.events.keyUp++;});window.addEventListener('blur',()=>a.events.blur++);document.addEventListener('visibilitychange',()=>{if(document.hidden)a.events.hidden++;});
+  window.WebSocket=class extends Original{constructor(...args){super(...args);this.addEventListener('message',e=>{
+   if(e.data instanceof ArrayBuffer){const d=new Int16Array(e.data);for(const value of d)if(Math.abs(value)>32){a.incoming++;break;}return;}if(typeof e.data!=='string')return;
+   try{const m=JSON.parse(e.data);if(m.type==='entities')a.entities=new Map(m.entities.map(e=>[e.id,e]));if(m.type==='entityUpdates'){for(const id of m.removed)a.entities.delete(id);for(const entity of m.entities)a.entities.set(entity.id,entity);}
+    if(m.type==='avatars')a.peerCount=m.avatars.filter(v=>v.id!==m.selfId).length;
+    if(m.type==='state'){if(m.state!=='connected'||a.revision&&m.permissionRevision!==a.revision){a.trusted?.invalidate();a.frame=null;}if(m.state==='connected')a.revision=m.permissionRevision;}
+    if(m.type==='tablet'){if(a.frame&&m.revision!==a.frame.revision||m.kind==='state'&&m.visible===false){a.trusted?.invalidate();a.frame=null;}if(m.kind==='state')a.tabletState=m;}
+    if(m.type==='pushToTalkState'){a.state={version:m.version,permissionRevision:m.permissionRevision,sequence:m.sequence,enabled:m.enabled,held:m.held,muted:m.muted};a.states.push(a.state);if(a.states.length>64)a.states.shift();}
+    if(m.type==='tablet'&&m.kind==='frame'){a.frames.push(m);if(a.frames.length>16)a.frames.shift();}if(m.type==='tablet'&&m.kind==='error'){a.errors.push('native-tablet-error');if(a.errors.length>32)a.errors.shift();}
+   }catch{a.errors.push('probe-protocol-refused');if(a.errors.length>32)a.errors.shift();}
+  });}send(data){if(data instanceof ArrayBuffer){a.outgoing++;}else if(typeof data==='string'){const m=JSON.parse(data);if(m.type==='pushToTalk'){a.commands.push({held:m.held,sequence:m.sequence,permissionRevision:m.permissionRevision,outgoing:a.outgoing});if(a.commands.length>128)a.commands.shift();}
+   if(m.type==='tablet'){if(['open','home','back','close'].includes(m.action)){a.frame=null;a.navigation=m.sequence;}const f=window.__pttFrameAck(m,a.frames);if(f)a.frame=f;a.trusted?.wire(m);}}return super.send(data);}};
+ }).toString()+')();('+observePttVisibilityEvents.toString()+')();');
+ await page.goto(base);
+ async function join(){assert.equal(privateControlProofs.size,0);await page.evaluate(()=>{const a=window.__pttAudit;if(a.proofs){if(a.proofs.metadata().count!==0)throw Error('Unreleased prior PTT evidence');a.proofs.retire();}a.trusted?.retire();a.proofs=window.__pttProofFactory();a.trusted=null;a.tabletState=null;a.state=null;a.frames=[];a.frame=null;a.peerCount=0;a.entities.clear();a.commands=[];});const before=await workerProfiles(tmpdir());await page.locator('#domain').fill(domain);await page.locator('#name').fill('Browser PTT owned acceptance');await page.locator('#join').click();await page.waitForFunction(()=>window.__overte?.connected&&window.__pttAudit.entities.size===7&&window.__pttAudit.peerCount>=1&&window.__pttAudit.state,undefined,{timeout:90000});await page.evaluate(()=>{window.__pttAudit.trusted=window.__pttTrustedFactory();});const after=await workerProfiles(tmpdir()),profile=freshWorkerProfile(before,after);profiles.push(profile);const captureSHA=await runtimeCapture(profile,qml);const identity=baselineIdentity(await page.evaluate(()=>[...window.__pttAudit.entities.values()]));if(baseline)assert.deepEqual(identity,baseline);else baseline=identity;return{profile,captureSHA};}
+ const first=await join();report.runtimeCaptureSHA256=[first.captureSHA];assert.equal(await page.evaluate(()=>window.__pttAudit.getUserMediaCalls),0);assert.equal(await page.locator('#microphone').evaluate(el=>el.getAttribute('aria-pressed')),'false');await checkpoint('joined-muted',{entityCount:7});
+ const canvas=page.getByLabel('Native tablet apps and dialogs');
+ async function nativeRecords(){return encodeValidatedPttRecords(parsePttAudit(await readCreateWorkerLog(profiles.at(-1))));}
+ async function point(kind,expected){return waitFor(async()=>{
+  report.calibrationRefusals??={};const text=await nativeRecords(),value={kind,expected};
+  const row=await page.evaluate(({value,text})=>window.__pttAudit.trusted.prepare(value,text),{value,text});
+  if(row.refusal){const reason=row.refusal==='native-control-not-qualified'?'native-control-not-qualified':row.refusal;incrementPttRefusal(report.calibrationRefusals,reason);report.controlDiagnostics={kind,phase:reason};return null;}
+  const sampled=row.sample,p=row.point,image=sampled.image;
+  report.controlDiagnostics={kind,phase:'displayed-pixel-calibration',frameWidth:p.width,frameHeight:p.height,sequence:p.sequence,canvasWidth:sampled.canvas.width,canvasHeight:sampled.canvas.height,mappedWidth:image.width,mappedHeight:image.height};
+  const record=parsePttAudit(text).findLast(r=>r.sequence===p.sequence&&r.revision===p.revision&&r.navigationSequence===p.navigationSequence);assert(record?.nativeBuildVersion,'Actual native About.buildVersion must be readable');report.nativeBuildVersion=record.nativeBuildVersion;
+  assert(privateControlProofs.size<16&&Number.isSafeInteger(sampled.proofOrdinal)&&!privateControlProofs.has(sampled.proofOrdinal),'Owned native control proof queue bound');privateControlProofs.set(sampled.proofOrdinal,{file:path.join(directory,'native-control-'+kind+'-'+String(expected)+'-'+(++controlProofOrdinal)+'.png'),frame:sampled.frame,canvas:sampled.canvas,image:sampled.image});return {...p,kind,expected};
+ },'Current acknowledged painted native '+kind,30000);}
+ async function click(p){
+  const text=await nativeRecords(),value={kind:p.kind,expected:p.expected};
+  const sampled=await page.evaluate(({value,text,expected})=>window.__pttAudit.trusted.arm(value,text,expected),{value,text,expected:p});
+  assert.equal(sampled.refusal,null,'Current same native control/layout/authority must own the physical PTT click');
+  await page.mouse.click(sampled.x,sampled.y);
+  const proof=await page.evaluate(id=>window.__pttAudit.trusted.complete(id),sampled.intentOrdinal);
+  assert(proof.press.accepted&&proof.release.accepted);assert.equal(proof.press.eventOrdinal,proof.release.eventOrdinal);assert.equal(proof.press.proofOrdinal,proof.release.proofOrdinal);assert.deepEqual(proof.press.frame,proof.release.frame);
+  report.trustedClicks??=[];assert(report.trustedClicks.length<16);report.trustedClicks.push(proof);
+ }
+ async function visitAudioHome(expected){await page.waitForFunction(()=>window.__pttAudit.frame,undefined,{timeout:30000});await page.getByRole('button',{name:'Home',exact:true}).click();await click(await point('audio-app'));await point('desktop-ptt',expected);}
+ async function audioApp(expected){await page.locator('#tablet').click();await visitAudioHome(expected);}
+ await audioApp(false);await click(await point('desktop-ptt',false));await point('desktop-ptt',true);await checkpoint('genuine-native-desktop-ptt-enabled');await page.getByRole('button',{name:'Close tablet',exact:true}).click();
+ await page.waitForFunction(()=>window.__pttAudit.state?.enabled&&!window.__pttAudit.state.held&&window.__pttAudit.state.muted,undefined,{timeout:15000});
+ const quiet=await capture(nativePulse,'lab_output.monitor','initial-muted');assert(quiet.rms<.0005,'Controlled native output baseline must be quiet');
+ await page.locator('#microphone').click();await page.waitForFunction(()=>document.querySelector('#microphone').getAttribute('aria-pressed')==='true'&&window.__pttAudit.getUserMediaCalls===1,undefined,{timeout:15000});
+ const count=await page.evaluate(()=>window.__pttAudit.outgoing);await delay(1000);assert.equal(await page.evaluate(()=>window.__pttAudit.outgoing),count,'PTT-ready granted microphone must not transmit before a real hold');await checkpoint('explicit-synthetic-microphone-grant',{getUserMediaCalls:1});
+ async function hold(){await page.bringToFront();const before=await page.evaluate(()=>window.__pttAudit.events.keyDown);await page.keyboard.down('t');assert(await page.evaluate(()=>window.__pttAudit.events.keyDown)>before,'The held command must follow a real trusted KeyT keydown');await page.waitForFunction(()=>{const a=window.__pttAudit,last=a.commands.at(-1);return last?.held===true&&a.state?.enabled&&a.state.held&&!a.state.muted&&a.state.sequence===last.sequence&&a.state.permissionRevision===last.permissionRevision;},undefined,{timeout:15000});}
+ async function released(){await page.waitForFunction(()=>{const a=window.__pttAudit,last=a.commands.at(-1);return last?.held===false&&a.state?.enabled&&!a.state.held&&a.state.muted&&a.state.sequence===last.sequence;},undefined,{timeout:15000,polling:100});const n=await page.evaluate(()=>window.__pttAudit.outgoing);await delay(1000);assert.equal(await page.evaluate(()=>window.__pttAudit.outgoing),n,'Native released ACK cannot permit further browser PCM');return n;}
+ await hold();const heard=await capture(nativePulse,'lab_output.monitor','real-t-hold');assert(heard.rms>.001);if(!firefox)assert(heard.tone440Amplitude>.001,'Actual native output must contain the known synthetic browser 440Hz input');await checkpoint('real-T-hold-browser-to-native',{nativeOutput:heard});
+ await page.keyboard.up('t');await released();const silent=await capture(nativePulse,'lab_output.monitor','real-t-released');assert(silent.rms<.0005,'Released PTT must silence synthetic input at real native output');await checkpoint('real-T-release',{nativeOutput:silent});
+ nativeAuthor=await openOwnedNativeAudioAuthor(process.env.OVERTE_PTT_AUTHOR_ROOT,{pulseServer:nativePulse});
+ report.nativeAuthor={sourceSHA256:nativeAuthor.sourceSHA256,servedSourceSHA256:nativeAuthor.servedSourceSHA256,diagnosticsSHA256:nativeAuthor.diagnosticsSHA256,registration:nativeAuthor.registration,currentSourceSHA256:nativeAuthor.currentSourceSHA256,currentDiagnosticsSHA256:nativeAuthor.currentDiagnosticsSHA256};
+ const peerUnmuted=await nativeAuthor.setMuted(false);assert(peerUnmuted.commandApplied&&peerUnmuted.observationAfterCommand&&peerUnmuted.actualMuted===false);report.nativeAuthor.unmutedVerified=true;
+ const nativeTone=ownedAudioProcess('ffmpeg',['-hide_banner','-loglevel','error','-re','-f','lavfi','-i','sine=frequency=997:sample_rate=48000','-t','9','-ac','1','-f','pulse','-device','lab_input','Owned native synthetic input'],{env:{...process.env,PULSE_SERVER:nativePulse},timeoutMs:12000,graceMs:1000});children.push(nativeTone);
+ let reverse;try{reverse=await capture(browserPulse,'browser_output.monitor','native-to-browser',5);const result=await nativeTone.completion;assert.equal(result.kind,'exited');assert.equal(result.exitCode,0);}finally{try{await nativeTone.stop();}finally{await nativeAuthor.restore();report.nativeAuthor.mutedRestored=true;}}
+ assert(reverse.rms>.001&&reverse.tone997Amplitude>.001,'Browser actual output must contain the native peer 997Hz synthetic input');await checkpoint('native-to-browser-audio',{browserOutput:reverse});
+ async function visibilityCheckpoint(phase){await recordPttVisibilityCheckpoint(report,page,phase,async()=>writeFile(path.join(directory,'report.private.json'),JSON.stringify(report,null,2)+'\n',{mode:0o600}));}
+ await visibilityCheckpoint('before-second-tab');
+ const other=await context.newPage();report.actualFocusPages.push(await useActualPttPageFocus(context,other,firefox?'system-firefox':'system-chromium'));await other.goto('about:blank');await page.bringToFront();const beforeEvents=await page.evaluate(()=>({...window.__pttAudit.events}));await hold();
+ await visibilityCheckpoint('before-other-front');await other.bringToFront();
+ // Start the original 10s gate immediately after the physical foreground action.
+ // The diagnostic read cannot move or reset its deadline; handle rejection now.
+ const visibilityOutcome=page.waitForFunction(({blur,hidden})=>document.hidden&&window.__pttAudit.events.blur>blur&&window.__pttAudit.events.hidden>hidden,beforeEvents,{timeout:10000,polling:100}).then(()=>({ok:true}),error=>({ok:false,error}));
+ await visibilityCheckpoint('after-other-front');const visibilityResult=await visibilityOutcome;
+ if(!visibilityResult.ok){await visibilityCheckpoint('original-hidden-wait-refused');throw visibilityResult.error;}
+ await released();await page.bringToFront();await page.keyboard.up('t');await checkpoint('actual-window-blur-and-document-hidden-release',{actualBothEvents:true});
+ await hold();await page.locator('#tablet').click();await released();await page.keyboard.up('t');await visitAudioHome(true);await checkpoint('genuine-Tablet-open-releases-hold');await page.getByRole('button',{name:'Close tablet',exact:true}).click();
+ await hold();await page.locator('#microphone').click();await page.keyboard.up('t');await page.waitForFunction(()=>window.__pttAudit.state?.enabled&&!window.__pttAudit.state.held&&window.__pttAudit.state.muted&&document.querySelector('#microphone').getAttribute('aria-pressed')==='false',undefined,{timeout:15000});await checkpoint('ordinary-mute-preserves-native-PTT-mode');
+ await audioApp(true);await click(await point('desktop-ptt',true));await point('desktop-ptt',false);await page.getByRole('button',{name:'Close tablet',exact:true}).click();
+ await page.waitForFunction(()=>window.__pttAudit.state?.enabled===false&&window.__pttAudit.state.muted,undefined,{timeout:15000});
+ await page.locator('#microphone').click();await page.waitForFunction(()=>window.__pttAudit.state?.enabled===false&&!window.__pttAudit.state.muted,undefined,{timeout:15000});
+ const ordinary=await capture(nativePulse,'lab_output.monitor','ordinary-mode');assert(ordinary.rms>.001);if(!firefox)assert(ordinary.tone440Amplitude>.001);await checkpoint('genuine-native-mode-off-preserves-ordinary-audio',{nativeOutput:ordinary});
+ await page.locator('#microphone').click();await page.waitForFunction(()=>window.__pttAudit.state?.enabled===false&&window.__pttAudit.state.muted,undefined,{timeout:15000});
+ await audioApp(false);await click(await point('desktop-ptt',false));await point('desktop-ptt',true);await page.getByRole('button',{name:'Close tablet',exact:true}).click();
+ await page.waitForFunction(()=>window.__pttAudit.state?.enabled&&!window.__pttAudit.state.held&&window.__pttAudit.state.muted,undefined,{timeout:15000});
+ const finalGrantCalls=await page.evaluate(()=>window.__pttAudit.getUserMediaCalls);
+ await page.locator('#microphone').click();
+ await page.waitForFunction(calls=>{const a=window.__pttAudit,m=document.querySelector('#microphone');return m.disabled===false&&m.getAttribute('aria-pressed')==='true'&&a.getUserMediaCalls===calls+1&&a.tracks.filter(t=>t.readyState==='live').length===1;},finalGrantCalls,{timeout:15000});
+ await hold();await writeFile(path.join(directory,'native-1.private.log'),await readCreateWorkerLog(first.profile),{mode:0o600});await page.locator('#leave').click();await page.keyboard.up('t');await page.waitForFunction(()=>!window.__overte.connected&&document.querySelector('#microphone').getAttribute('aria-pressed')==='false'&&window.__pttAudit.tracks.every(t=>t.readyState==='ended'),undefined,{timeout:15000});await checkpoint('leave-releases-held-microphone');
+ await waitFor(async()=>{try{await lstat(first.profile);return false;}catch(e){if(e.code==='ENOENT')return true;throw e;}},'First exact owned worker removed',12000);
+ const beforeCalls=await page.evaluate(()=>window.__pttAudit.getUserMediaCalls),second=await join();report.runtimeCaptureSHA256.push(second.captureSHA);assert.equal(await page.locator('#microphone').evaluate(el=>el.getAttribute('aria-pressed')),'false');assert.equal(await page.evaluate(()=>window.__pttAudit.getUserMediaCalls),beforeCalls);const beforePcm=await page.evaluate(()=>window.__pttAudit.outgoing);await delay(1000);assert.equal(await page.evaluate(()=>window.__pttAudit.outgoing),beforePcm);await checkpoint('fresh-session-authority-requires-new-explicit-grant',{scope:'Fresh authority, not an in-domain permission-revision change'});
+ assert.deepEqual(await page.evaluate(()=>window.__pttAudit.errors),[]);assert.deepEqual(baselineIdentity(await page.evaluate(()=>[...window.__pttAudit.entities.values()])),baseline);
+ report.completed=true;
+}catch(error){report.completed=false;report.failure={phase:report.steps.at(-1)?.name||'setup',category:'acceptance-refused'};await mkdir(directory,{recursive:true,mode:0o700});await writeFile(path.join(directory,'failure.private.txt'),String(error?.stack||error).slice(0,16384),{mode:0o600});process.exitCode=1;
+}finally{
+ if(page)try{const d=await page.evaluate(()=>({trusted:window.__pttAudit?.trusted?.diagnostics(),keyDownSnapshots:window.__pttAudit?.keyDownSnapshots??[]}));report.trustedInputDiagnostics=d.trusted;report.trustedKeyDownSnapshots=validatePttKeyDownSnapshots(d.keyDownSnapshots);}catch{report.trustedDiagnosticUnavailable=true;}
+ if(nativeAuthor)try{await nativeAuthor.restore();report.nativeAuthor.mutedRestored=true;}catch{report.nativeAuthor.mutedRestored=false;report.completed=false;process.exitCode=1;}finally{try{await nativeAuthor.close();report.nativeAuthor.guardClosed=true;}catch{report.nativeAuthor.guardClosed=false;report.completed=false;process.exitCode=1;}}
+ try{await flushControlProofs();}catch{report.privateControlEvidenceFailed=true;report.completed=false;process.exitCode=1;}
+ for(const child of children)try{await child.stop();}catch{report.completed=false;report.audioCleanupFailed=true;process.exitCode=1;}
+ if(page)try{await page.keyboard.up('t');if(await page.evaluate(()=>window.__overte?.connected)){if(await page.evaluate(()=>window.__overte?.tabletVisible))await page.getByRole('button',{name:'Close tablet',exact:true}).click();if(baseline)assert.deepEqual(baselineIdentity(await page.evaluate(()=>[...window.__pttAudit.entities.values()])),baseline);await page.locator('#leave').click();await page.waitForFunction(()=>!window.__overte.connected,undefined,{timeout:15000});}}catch{report.completed=false;report.leaveFailed=true;process.exitCode=1;}
+ for(let i=0;i<profiles.length;i++)try{if(i===0)try{await lstat(path.join(directory,'native-1.private.log'));continue;}catch(e){if(e.code!=='ENOENT')throw e;}await writeFile(path.join(directory,'native-'+(i+1)+'.private.log'),await readCreateWorkerLog(profiles[i]),{mode:0o600});}catch{report.nativeLogAvailable=false;}
+ try{if(page)await page.evaluate(()=>(window.__pttAudit?.trusted?.retire(),window.__pttAudit?.proofs?.retire()));}catch{report.controlProofRetirementFailed=true;report.completed=false;process.exitCode=1;}
+ try{for(const c of contexts)try{await c.close();}catch{report.contextCleanupFailed=true;report.completed=false;process.exitCode=1;}}finally{try{await browser?.close();report.browserClosed=!!browser;}catch{report.browserClosed=false;report.completed=false;process.exitCode=1;}finally{if(actualChromium)report.browserFocusCleanup=actualChromium.readOwnership();}}
+ try{await waitFor(async()=>{for(const profile of profiles)try{await lstat(profile);return false;}catch(e){if(e.code!=='ENOENT')throw e;}return true;},'Exact owned native profiles removed',12000);report.cleanupVerified=profiles.length===2&&report.browserClosed===true;if(!report.cleanupVerified){report.completed=false;process.exitCode=1;}}catch{report.cleanupVerified=false;report.completed=false;process.exitCode=1;}
+ try{report.endSourceSHA256=await hashes();report.sourceCoherent=JSON.stringify(start)===JSON.stringify(report.endSourceSHA256);if(!report.sourceCoherent){report.completed=false;process.exitCode=1;}}catch{report.sourceCoherent=false;report.completed=false;process.exitCode=1;}
+ report.finishedAt=new Date().toISOString();await mkdir(directory,{recursive:true,mode:0o700});await writeFile(path.join(directory,'report.private.json'),JSON.stringify(report,null,2)+'\n',{mode:0o600});console.log(JSON.stringify({completed:report.completed,cleanupVerified:report.cleanupVerified,sourceCoherent:report.sourceCoherent,syntheticMicrophone:true,inDomainRevisionChangeProved:false,reportSHA256:sha(JSON.stringify(report))}));
+}

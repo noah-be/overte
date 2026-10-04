@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-02",
+  "substantialAiAssistance": true,
+  "scope": "Genuine owned native Emote control attempts; no completed Sit/Stop qualification or entity writes.",
+  "attempts": [
+    {
+      "engine": "chromium",
+      "browserVersion": "154.0.8037.57",
+      "durationSeconds": 36.722,
+      "rawReportSHA256": "29459eefa9461bc7636fe89b681164549918d5065bc1882f4ad317f9023e35ed",
+      "completed": false,
+      "cleanupVerified": true,
+      "sourceCoherent": false,
+      "baselineUnchanged": true,
+      "step": "join-isolated",
+      "failureCategory": "source-expression-parser-and-generated-cache-refusal",
+      "microphoneEnabled": false,
+      "ownedCopiedGatewayStopped": true,
+      "originalServiceIdentitiesPreserved": true
+    },
+    {
+      "engine": "chromium",
+      "browserVersion": "154.0.8037.57",
+      "durationSeconds": 38.432,
+      "rawReportSHA256": "dae26f52c0870b6b9e485822ab4a68066d31a37b8f05a60502d2d6afb1068073",
+      "completed": false,
+      "cleanupVerified": true,
+      "sourceCoherent": true,
+      "baselineUnchanged": true,
+      "step": "genuine-Sit",
+      "failureCategory": "dual-native-log-route-count-refusal",
+      "microphoneEnabled": false,
+      "ownedCopiedGatewayStopped": true,
+      "originalServiceIdentitiesPreserved": true
+    },
+    {
+      "engine": "firefox",
+      "browserVersion": "firefox/156.0",
+      "durationSeconds": 42.687,
+      "rawReportSHA256": "1bc4dd947a4a40662bc50658ef5eb91ed94408f204116cce6394389b19316fd3",
+      "completed": false,
+      "cleanupVerified": true,
+      "sourceCoherent": true,
+      "baselineUnchanged": true,
+      "step": "genuine-Sit",
+      "failureCategory": "dual-native-log-route-count-refusal",
+      "microphoneEnabled": false,
+      "ownedCopiedGatewayStopped": true,
+      "originalServiceIdentitiesPreserved": true
+    }
+  ],
+  "limits": [
+    "The first attempt stopped before controls because source literals were parsed as events and copied valid Python cache timestamps were reset. All actual source files stayed unchanged; the two changed compiled cache bytes correctly refused coherence.",
+    "Both following engines reached a genuine Sit click but counted the same print from two native log routes; no pose/Stop success is claimed.",
+    "All browser/profile/copied-gateway cleanup and the original seven-entity baseline gates pass in the following pair.",
+    "The next canonical-route parser retains the original single-invocation assertion without JSON deduplication; its genuine retry is pending.",
+    "All earlier negative evidence is retained."
+  ]
+}

@@ -1,0 +1,605 @@
+{
+  "scope": "Actual local native/browser cull, blend, mask and depth comparison; channel dominance only",
+  "publicWorldWrites": 0,
+  "microphoneRequested": false,
+  "transparentColorParity": false,
+  "limitation": "The native renderer blends linear values before final sRGB output; the current browser canvas blends already encoded values. Absolute transparent RGB parity is pending a linear presentation pipeline.",
+  "runs": [
+    {
+      "startedAt": "2026-10-01T06:44:31.441Z",
+      "finishedAt": "2026-10-01T06:45:26.623Z",
+      "nativeVersion": "2026.04.1",
+      "nativeBinarySHA256": "91f3e10c42c1e35d5c8265e9b0007e925844d9bee61a26807118dde6e527887c",
+      "browserVersion": "154.0.8037.57",
+      "completed": true,
+      "cleanupRequested": true,
+      "cleanupVerified": true,
+      "preservedBaselineCount": 7,
+      "ownedFixtureCount": 4,
+      "sourceCoherent": true,
+      "generatedAssetSHA256": {
+        "gltf": "c14e01cee2c29add115d7c5b117b270334d8f315c2aa1a3d0f94d5f326b57f06",
+        "mask": "d5a51b6aed15684ec8c123e30fe5703155359d6543b6d7b47cb5766ef44939de",
+        "nativeScript": "e169e20313bececa760757d8e9ec4410d1abbd2e4e9b36cc199828c7fcd73621"
+      },
+      "startSourceSHA256": {
+        "browser-client/tests/integration/native-render-state.mjs": "05986590b23a989ec224fb3aabf0adb99e8f1a162f4b2a90f1f5baea73dcf5c6",
+        "browser-client/tests/integration/native-render-fixture.js": "76a7aeaff63496e7f15aa793c810ef453db420d467d549617a17cf7719952355",
+        "browser-client/tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "browser-client/src/world.ts": "b47b3cb725faa126beb9b74c257e15d46433c57305604b5ccc5c03349910d357",
+        "browser-client/src/native-render-state.ts": "ebd076e5d6720c9390576212830932d40dbde8e03ac3278ba096b669f28b703a",
+        "browser-client/src/native-alpha-material.ts": "9041f5f8e874f392c6b1ff3b8a9bed2ab768344d2bfbbd3adf1ffca51066e964"
+      },
+      "sourceSHA256": {
+        "browser-client/tests/integration/native-render-state.mjs": "05986590b23a989ec224fb3aabf0adb99e8f1a162f4b2a90f1f5baea73dcf5c6",
+        "browser-client/tests/integration/native-render-fixture.js": "76a7aeaff63496e7f15aa793c810ef453db420d467d549617a17cf7719952355",
+        "browser-client/tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "browser-client/src/world.ts": "b47b3cb725faa126beb9b74c257e15d46433c57305604b5ccc5c03349910d357",
+        "browser-client/src/native-render-state.ts": "ebd076e5d6720c9390576212830932d40dbde8e03ac3278ba096b669f28b703a",
+        "browser-client/src/native-alpha-material.ts": "9041f5f8e874f392c6b1ff3b8a9bed2ab768344d2bfbbd3adf1ffca51066e964"
+      },
+      "nativeModelReady": true,
+      "nativeMeshCounts": [
+        {
+          "numVertices": 6,
+          "numIndices": 6,
+          "numParts": 1
+        }
+      ],
+      "observerAvatarRendering": false,
+      "entityRendering": true,
+      "cases": [
+        {
+          "name": "no-cull-blend",
+          "cull": "CULL_NONE",
+          "mode": "blend",
+          "nativePixels": {
+            "width": 1024,
+            "height": 745,
+            "region": {
+              "x": 504,
+              "y": 364,
+              "width": 16,
+              "height": 16
+            },
+            "rgba": [
+              136.4140625,
+              187,
+              0,
+              255
+            ]
+          },
+          "browserPixels": {
+            "width": 1024,
+            "height": 768,
+            "region": {
+              "x": 504,
+              "y": 376,
+              "width": 16,
+              "height": 16
+            },
+            "rgba": [
+              64,
+              127,
+              0,
+              255
+            ]
+          },
+          "browserMaterialStates": [
+            {
+              "side": 2,
+              "transparent": true,
+              "depthWrite": false,
+              "forceSinglePass": true,
+              "opacity": 0.5
+            }
+          ],
+          "browserDrawCalls": 2,
+          "expectedDominant": "green",
+          "nativePNG_SHA256": "54befbc6ef8043d9b5f50caa8a619d100fa7dd55dd36ed14191a9f71254e77d2",
+          "browserPNG_SHA256": "f95832e5101d9c7b4581564e1c5a3ec37946d15365a3865b5042cbeff35a9c0a"
+        },
+        {
+          "name": "cull-back-blend",
+          "cull": "CULL_BACK",
+          "mode": "blend",
+          "nativePixels": {
+            "width": 1024,
+            "height": 745,
+            "region": {
+              "x": 504,
+              "y": 364,
+              "width": 16,
+              "height": 16
+            },
+            "rgba": [
+              187,
+              0,
+              0,
+              255
+            ]
+          },
+          "browserPixels": {
+            "width": 1024,
+            "height": 768,
+            "region": {
+              "x": 504,
+              "y": 376,
+              "width": 16,
+              "height": 16
+            },
+            "rgba": [
+              127,
+              0,
+              0,
+              255
+            ]
+          },
+          "browserMaterialStates": [
+            {
+              "side": 0,
+              "transparent": true,
+              "depthWrite": false,
+              "forceSinglePass": false,
+              "opacity": 0.5
+            }
+          ],
+          "browserDrawCalls": 2,
+          "expectedDominant": "red",
+          "nativePNG_SHA256": "75635ad03b7470aa1bbe46cc288d3b178a5d55ba36eb103b7d134c3e085ebbee",
+          "browserPNG_SHA256": "59a5e7a580f483ed9f5fd58e9f89a77aac0997e8f3741173a159b4be0181b625"
+        },
+        {
+          "name": "cull-front-blend",
+          "cull": "CULL_FRONT",
+          "mode": "blend",
+          "nativePixels": {
+            "width": 1024,
+            "height": 745,
+            "region": {
+              "x": 504,
+              "y": 364,
+              "width": 16,
+              "height": 16
+            },
+            "rgba": [
+              0,
+              187,
+              0,
+              255
+            ]
+          },
+          "browserPixels": {
+            "width": 1024,
+            "height": 768,
+            "region": {
+              "x": 504,
+              "y": 376,
+              "width": 16,
+              "height": 16
+            },
+            "rgba": [
+              0,
+              127,
+              0,
+              255
+            ]
+          },
+          "browserMaterialStates": [
+            {
+              "side": 1,
+              "transparent": true,
+              "depthWrite": false,
+              "forceSinglePass": false,
+              "opacity": 0.5
+            }
+          ],
+          "browserDrawCalls": 2,
+          "expectedDominant": "green",
+          "nativePNG_SHA256": "0d6d4f1c51788f6003b0c353679284b3375883f05da4660be53774abaa60553e",
+          "browserPNG_SHA256": "f2fbe7324b6e4703117dd90f58d7d30786ad1259fd176681ec9ce20631e9483f"
+        },
+        {
+          "name": "no-cull-mask-depth",
+          "cull": "CULL_NONE",
+          "mode": "mask",
+          "nativePixels": {
+            "width": 1024,
+            "height": 745,
+            "region": {
+              "x": 504,
+              "y": 364,
+              "width": 16,
+              "height": 16
+            },
+            "rgba": [
+              255,
+              0,
+              0,
+              255
+            ]
+          },
+          "browserPixels": {
+            "width": 1024,
+            "height": 768,
+            "region": {
+              "x": 504,
+              "y": 376,
+              "width": 16,
+              "height": 16
+            },
+            "rgba": [
+              255,
+              0,
+              0,
+              255
+            ]
+          },
+          "browserMaterialStates": [
+            {
+              "side": 2,
+              "transparent": false,
+              "depthWrite": true,
+              "forceSinglePass": true,
+              "opacity": 1
+            }
+          ],
+          "browserDrawCalls": 2,
+          "expectedDominant": "red",
+          "nativePNG_SHA256": "52782ab955f3bb586042b1069cab4d74428217a5e6c1dd9c585d32ee8cbe583b",
+          "browserPNG_SHA256": "8590df93cb6bf28f12430a4235c2014e696ba12fd3af23b2761fcde8c736ba58"
+        },
+        {
+          "name": "no-cull-opaque-depth",
+          "cull": "CULL_NONE",
+          "mode": "opaque",
+          "nativePixels": {
+            "width": 1024,
+            "height": 745,
+            "region": {
+              "x": 504,
+              "y": 364,
+              "width": 16,
+              "height": 16
+            },
+            "rgba": [
+              255,
+              0,
+              0,
+              255
+            ]
+          },
+          "browserPixels": {
+            "width": 1024,
+            "height": 768,
+            "region": {
+              "x": 504,
+              "y": 376,
+              "width": 16,
+              "height": 16
+            },
+            "rgba": [
+              255,
+              0,
+              0,
+              255
+            ]
+          },
+          "browserMaterialStates": [
+            {
+              "side": 2,
+              "transparent": false,
+              "depthWrite": true,
+              "forceSinglePass": true,
+              "opacity": 1
+            }
+          ],
+          "browserDrawCalls": 2,
+          "expectedDominant": "red",
+          "nativePNG_SHA256": "52782ab955f3bb586042b1069cab4d74428217a5e6c1dd9c585d32ee8cbe583b",
+          "browserPNG_SHA256": "8590df93cb6bf28f12430a4235c2014e696ba12fd3af23b2761fcde8c736ba58"
+        }
+      ]
+    },
+    {
+      "startedAt": "2026-10-01T06:50:25.513Z",
+      "finishedAt": "2026-10-01T06:51:25.665Z",
+      "nativeVersion": "2026.04.1",
+      "nativeBinarySHA256": "91f3e10c42c1e35d5c8265e9b0007e925844d9bee61a26807118dde6e527887c",
+      "browserVersion": "firefox/156.0",
+      "completed": true,
+      "cleanupRequested": true,
+      "cleanupVerified": true,
+      "preservedBaselineCount": 7,
+      "ownedFixtureCount": 4,
+      "sourceCoherent": true,
+      "generatedAssetSHA256": {
+        "gltf": "c14e01cee2c29add115d7c5b117b270334d8f315c2aa1a3d0f94d5f326b57f06",
+        "mask": "d5a51b6aed15684ec8c123e30fe5703155359d6543b6d7b47cb5766ef44939de",
+        "nativeScript": "add06267eaabfd27cf6aca1f141cdbf7e0b21d9b2122b9bf31296a679414118e"
+      },
+      "startSourceSHA256": {
+        "browser-client/tests/integration/native-render-state.mjs": "52e53a5c85f0826b703109f0bd9522cb6e8fc2f65a60b50765fc713aa9baaa82",
+        "browser-client/tests/integration/native-render-fixture.js": "78f77e0158dd002251ffc5b08b644beb79dd8fcc61e3fdf4a384f06334527df4",
+        "browser-client/tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "browser-client/src/world.ts": "b47b3cb725faa126beb9b74c257e15d46433c57305604b5ccc5c03349910d357",
+        "browser-client/src/native-render-state.ts": "ebd076e5d6720c9390576212830932d40dbde8e03ac3278ba096b669f28b703a",
+        "browser-client/src/native-alpha-material.ts": "9041f5f8e874f392c6b1ff3b8a9bed2ab768344d2bfbbd3adf1ffca51066e964"
+      },
+      "sourceSHA256": {
+        "browser-client/tests/integration/native-render-state.mjs": "52e53a5c85f0826b703109f0bd9522cb6e8fc2f65a60b50765fc713aa9baaa82",
+        "browser-client/tests/integration/native-render-fixture.js": "78f77e0158dd002251ffc5b08b644beb79dd8fcc61e3fdf4a384f06334527df4",
+        "browser-client/tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "browser-client/src/world.ts": "b47b3cb725faa126beb9b74c257e15d46433c57305604b5ccc5c03349910d357",
+        "browser-client/src/native-render-state.ts": "ebd076e5d6720c9390576212830932d40dbde8e03ac3278ba096b669f28b703a",
+        "browser-client/src/native-alpha-material.ts": "9041f5f8e874f392c6b1ff3b8a9bed2ab768344d2bfbbd3adf1ffca51066e964"
+      },
+      "nativeModelReady": true,
+      "nativeMeshCounts": [
+        {
+          "numVertices": 6,
+          "numIndices": 6,
+          "numParts": 1
+        }
+      ],
+      "observerAvatarRendering": false,
+      "entityRendering": true,
+      "cases": [
+        {
+          "name": "no-cull-blend",
+          "cull": "CULL_NONE",
+          "mode": "blend",
+          "nativePixels": {
+            "width": 1024,
+            "height": 745,
+            "region": {
+              "x": 504,
+              "y": 364,
+              "width": 16,
+              "height": 16
+            },
+            "rgba": [
+              136.4140625,
+              187,
+              0,
+              255
+            ]
+          },
+          "browserPixels": {
+            "width": 1024,
+            "height": 768,
+            "region": {
+              "x": 504,
+              "y": 376,
+              "width": 16,
+              "height": 16
+            },
+            "rgba": [
+              64,
+              127,
+              0,
+              255
+            ]
+          },
+          "browserMaterialStates": [
+            {
+              "side": 2,
+              "transparent": true,
+              "depthWrite": false,
+              "forceSinglePass": true,
+              "opacity": 0.5
+            }
+          ],
+          "browserDrawCalls": 2,
+          "expectedDominant": "green",
+          "nativePNG_SHA256": "54befbc6ef8043d9b5f50caa8a619d100fa7dd55dd36ed14191a9f71254e77d2",
+          "browserPNG_SHA256": "31a0eb51fd2ccc51ae1ddae9038f5aeb5198a0af85e9cc69afc09455d824801a"
+        },
+        {
+          "name": "cull-back-blend",
+          "cull": "CULL_BACK",
+          "mode": "blend",
+          "nativePixels": {
+            "width": 1024,
+            "height": 745,
+            "region": {
+              "x": 504,
+              "y": 364,
+              "width": 16,
+              "height": 16
+            },
+            "rgba": [
+              187,
+              0,
+              0,
+              255
+            ]
+          },
+          "browserPixels": {
+            "width": 1024,
+            "height": 768,
+            "region": {
+              "x": 504,
+              "y": 376,
+              "width": 16,
+              "height": 16
+            },
+            "rgba": [
+              127,
+              0,
+              0,
+              255
+            ]
+          },
+          "browserMaterialStates": [
+            {
+              "side": 0,
+              "transparent": true,
+              "depthWrite": false,
+              "forceSinglePass": false,
+              "opacity": 0.5
+            }
+          ],
+          "browserDrawCalls": 2,
+          "expectedDominant": "red",
+          "nativePNG_SHA256": "75635ad03b7470aa1bbe46cc288d3b178a5d55ba36eb103b7d134c3e085ebbee",
+          "browserPNG_SHA256": "fcd4dcf2598fcdd00e6227633a92c94efb682ebf4e8c28b69190c0d94769c651"
+        },
+        {
+          "name": "cull-front-blend",
+          "cull": "CULL_FRONT",
+          "mode": "blend",
+          "nativePixels": {
+            "width": 1024,
+            "height": 745,
+            "region": {
+              "x": 504,
+              "y": 364,
+              "width": 16,
+              "height": 16
+            },
+            "rgba": [
+              0,
+              187,
+              0,
+              255
+            ]
+          },
+          "browserPixels": {
+            "width": 1024,
+            "height": 768,
+            "region": {
+              "x": 504,
+              "y": 376,
+              "width": 16,
+              "height": 16
+            },
+            "rgba": [
+              0,
+              127,
+              0,
+              255
+            ]
+          },
+          "browserMaterialStates": [
+            {
+              "side": 1,
+              "transparent": true,
+              "depthWrite": false,
+              "forceSinglePass": false,
+              "opacity": 0.5
+            }
+          ],
+          "browserDrawCalls": 2,
+          "expectedDominant": "green",
+          "nativePNG_SHA256": "0d6d4f1c51788f6003b0c353679284b3375883f05da4660be53774abaa60553e",
+          "browserPNG_SHA256": "3084f5a60c7e52d6036eb3b070e15a4f77e300f2011123e988513d0c9de3f09e"
+        },
+        {
+          "name": "no-cull-mask-depth",
+          "cull": "CULL_NONE",
+          "mode": "mask",
+          "nativePixels": {
+            "width": 1024,
+            "height": 745,
+            "region": {
+              "x": 504,
+              "y": 364,
+              "width": 16,
+              "height": 16
+            },
+            "rgba": [
+              255,
+              0,
+              0,
+              255
+            ]
+          },
+          "browserPixels": {
+            "width": 1024,
+            "height": 768,
+            "region": {
+              "x": 504,
+              "y": 376,
+              "width": 16,
+              "height": 16
+            },
+            "rgba": [
+              255,
+              0,
+              0,
+              255
+            ]
+          },
+          "browserMaterialStates": [
+            {
+              "side": 2,
+              "transparent": false,
+              "depthWrite": true,
+              "forceSinglePass": true,
+              "opacity": 1
+            }
+          ],
+          "browserDrawCalls": 2,
+          "expectedDominant": "red",
+          "nativePNG_SHA256": "52782ab955f3bb586042b1069cab4d74428217a5e6c1dd9c585d32ee8cbe583b",
+          "browserPNG_SHA256": "a14f830e8f501f15549c5560f5b9925bd85c729b313f520e6f0dffce1a991212"
+        },
+        {
+          "name": "no-cull-opaque-depth",
+          "cull": "CULL_NONE",
+          "mode": "opaque",
+          "nativePixels": {
+            "width": 1024,
+            "height": 745,
+            "region": {
+              "x": 504,
+              "y": 364,
+              "width": 16,
+              "height": 16
+            },
+            "rgba": [
+              255,
+              0,
+              0,
+              255
+            ]
+          },
+          "browserPixels": {
+            "width": 1024,
+            "height": 768,
+            "region": {
+              "x": 504,
+              "y": 376,
+              "width": 16,
+              "height": 16
+            },
+            "rgba": [
+              255,
+              0,
+              0,
+              255
+            ]
+          },
+          "browserMaterialStates": [
+            {
+              "side": 2,
+              "transparent": false,
+              "depthWrite": true,
+              "forceSinglePass": true,
+              "opacity": 1
+            }
+          ],
+          "browserDrawCalls": 2,
+          "expectedDominant": "red",
+          "nativePNG_SHA256": "52782ab955f3bb586042b1069cab4d74428217a5e6c1dd9c585d32ee8cbe583b",
+          "browserPNG_SHA256": "a14f830e8f501f15549c5560f5b9925bd85c729b313f520e6f0dffce1a991212"
+        }
+      ],
+      "browserWindowViewport": {
+        "width": 1280,
+        "height": 800
+      }
+    }
+  ]
+}

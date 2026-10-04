@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "startedAt": "2026-09-30T22:44:37.752Z",
+  "finishedAt": "2026-09-30T22:49:50.246Z",
+  "completed": true,
+  "browserVersion": "154.0.8037.57",
+  "nativeVersion": "2026.04.1",
+  "nativeArtifactSHA256": "dc39f5b4694a1c48cfb1454a8922f6a25fa4db5820bf937113ebf4086aa99145",
+  "nativeProtocolSignature": "ViLohxhZMTalcuUKwgs63g==",
+  "qtInputRuntimeVersion": "5.15.3",
+  "publicMicrophoneEnabled": false,
+  "publicEntityOrAssetMutations": 0,
+  "command": "OVERTE_LAB_CHROMIUM=<installed stock Chromium 154> OVERTE_LAB_CHROMIUM_LIBRARY_PATH=<its runtime libraries> OVERTE_LAB_BROWSER_DISPLAY=:0 node tests/integration/tablet-places.mjs",
+  "freshNativeWorkerHandoffs": 7,
+  "assertions": [
+    "Genuine Places address bar admits a finite managed viewpoint into a fresh synchronized worker",
+    "The real Bookmark dialog saves a bookmark and its card opens a fresh worker",
+    "Restored native Bookmark remains clickable across fresh session profiles and Home is retained in visitor browser storage",
+    "Genuine native Back and Forward controls restore committed browser history through new native workers",
+    "Actual Directory IP/port/viewpoint typed into the native Places GUI maps to enabled Hub and receives fresh normal-guest admission",
+    "Genuine Home in a public worker returns through fresh admission to the stored managed viewpoint"
+  ],
+  "steps": [
+    {
+      "type": "navigation",
+      "domain": "overte://127.0.0.2:45102/5,1.5,3/0,0,0,1",
+      "nativePoseDifferenceMeters": 0.002798978000000396,
+      "at": "2026-09-30T22:45:30.238Z"
+    },
+    {
+      "type": "navigation",
+      "domain": "overte://127.0.0.2:45102/5.00012,-0.163307,2.99988/0,0,0,1",
+      "nativePoseDifferenceMeters": 9.071569404915135e-07,
+      "at": "2026-09-30T22:46:14.936Z"
+    },
+    {
+      "type": "navigation",
+      "domain": "overte://127.0.0.2:45102/5.00012,-0.163307,2.99988/0,0,0,1",
+      "nativePoseDifferenceMeters": 5.144323177571936e-07,
+      "at": "2026-09-30T22:46:54.255Z"
+    },
+    {
+      "type": "navigationHistory",
+      "direction": "back",
+      "nativePoseDifferenceMeters": 0.07886824716451679,
+      "at": "2026-09-30T22:47:34.895Z"
+    },
+    {
+      "type": "navigationHistory",
+      "direction": "forward",
+      "nativePoseDifferenceMeters": 1.693812679491987e-06,
+      "at": "2026-09-30T22:48:15.544Z"
+    },
+    {
+      "type": "navigation",
+      "domain": "overte://overte_hub/154.69,-98.296,-397.899/0,0.996917,0,0.0784577",
+      "nativePoseDifferenceMeters": 0,
+      "at": "2026-09-30T22:48:57.977Z"
+    },
+    {
+      "type": "navigation",
+      "domain": "overte://127.0.0.2:45102/5.00013,-0.163307,2.99987/0,0,0,1",
+      "nativePoseDifferenceMeters": 3.8748679701883855e-07,
+      "at": "2026-09-30T22:49:44.056Z"
+    }
+  ],
+  "pageErrors": 0,
+  "unexpectedBrowserExit": false,
+  "ownedBrowserExitCode": 0,
+  "sourceUnchanged": true,
+  "sourceSHA256": {
+    "gateway/server.mjs": "9e9816acfa1c2fb41af1c34e5b1b1580052c2b12f3785848657cd0d6f4482337",
+    "gateway/native-bridge.js": "718e6a394560b8103540568c36c11902ebbebc61a9717b3b96ce26bd65877aac",
+    "gateway/native-visitor-preferences.js": "e8cd93618546de6d644742bc254dca47fb900060591f5ae3773bc24bca8d79a9",
+    "gateway/navigation.mjs": "c7d4414bbc513155110d7782bbd85a20b4150da39eb73ad74c6ae876ade392c5",
+    "gateway/places-override.mjs": "21be8c579d7770efd641aaeb21161089f55f100307d05b39b1feacd16fa20dcd",
+    "gateway/worker-sandbox.mjs": "ccd365f442d09002d8dc39b0f9505ee2be83a45a99159eb173e7c9a39fecd477",
+    "shared/visitor-preferences.mjs": "05f3b2b0a9b30fd0ecb11556cc426e98b8efd6690d6d726ef4acc2f7716d0b58",
+    "dist/index.html": "c785a7fe4f4fa50f5913c247fd5757924f117ea19e104738915a1d8c7e7e1edc"
+  },
+  "evidenceScope": "Real installed native Places GUI input and displayed frames; fresh normal-guest admission, visitor browser storage and LocationBookmarks restoration. No account or Qt profile copying. The operator-managed laboratory and actual public Hub were both used. No endurance test or physical microphone claim.",
+  "images": {
+    "places-bookmark-created.png": "633fdd0f8ccc9ab0fb73172c2c4bde1e5be83687c1180af5c1947a090426b455",
+    "places-bookmark-restored.png": "0540efd0ddc21314c8d2bccc03d04d2e7d7e1dc6757199cf1237e62b8468bfb8",
+    "places-public-bookmarks-restored.png": "014396abe7a9fba45b88e7e4526e3f82f5379ef322f301a03f935e92802f002b"
+  }
+}
