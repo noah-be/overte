@@ -15,7 +15,7 @@ SOURCE_FILES={f'browser-client/{name}' for name in (
  'gateway/server.mjs','gateway/avatar-snapshot-sender.mjs','gateway/native-bridge.js','gateway/native-avatar-sample-diagnostics.js',
  'gateway/native-avatar-stdout-projection.mjs','gateway/process-lifecycle.mjs',
  'gateway/validation.mjs','gateway/permission-policy.mjs','dist/index.html',
- 'tests/integration/real-session.mjs','tests/integration/system-firefox.mjs',
+ 'tests/software-graphics.mjs','tests/integration/real-session.mjs','tests/integration/system-firefox.mjs',
  'tests/integration/owned-audio-process.mjs','tests/integration/native-peer-diagnostic.mjs',
  'lab/native-participant.js','lab/manage.py','package-lock.json')}
 TIMESTAMP=re.compile(r'^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,6})?Z$')

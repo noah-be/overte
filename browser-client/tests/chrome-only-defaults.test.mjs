@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
-// No browser is launched: these are actual configuration and launch-selection controls.
+// Retained V30 launch controls; current launcher coverage is in software-graphics.test.mjs.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFile} from 'node:fs/promises';
+import {readFile as readPhysicalFile} from 'node:fs/promises';
 import vm from 'node:vm';
 import {execFileSync} from 'node:child_process';
+import {recoverCaptureV30Input} from './integration/capture-software-graphics-source-fixture.mjs';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+const readFile=async(input,options)=>{const bytes=await readPhysicalFile(input),file=input instanceof URL?fileURLToPath(input):path.resolve(input),relative=path.relative(fileURLToPath(new URL('../../',import.meta.url)),file),recovered=await recoverCaptureV30Input(relative,bytes);return typeof options==='string'?recovered.toString(options):recovered;};
 const defaultEnvironment={...process.env};delete defaultEnvironment.OVERTE_BROWSER_CHROME_EXECUTABLE;
 const {config,chromeDefaults}=JSON.parse(execFileSync(process.execPath,['--input-type=module','-e',"import config from './playwright.config.ts';import {googleChromeLaunchOptions} from './tests/google-chrome-selection.mjs';console.log(JSON.stringify({config,chromeDefaults:googleChromeLaunchOptions()}))"],{cwd:new URL('..',import.meta.url),env:defaultEnvironment,encoding:'utf8',timeout:10000}));
 
