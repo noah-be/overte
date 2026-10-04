@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "domain": "overte://127.0.0.3:46102",
+  "ports": {
+    "domainHTTP": 46100,
+    "domainHTTPS": 46101,
+    "domainUDP": 46102,
+    "domainDTLS": 46103,
+    "signaling": 46104,
+    "browserHTTP": 46106,
+    "assignmentUDPFirst": 46110,
+    "assignmentUDPLast": 46115,
+    "nativeVisitorUDP": 46116,
+    "fixturesHTTP": 46119,
+    "assignmentMonitor": 46120,
+    "iceUDPFirst": 46130,
+    "iceUDPLast": 46229
+  },
+  "softwareDisplays": [104, 105],
+  "stateDirectory": "build/browser-direct/lab",
+  "externalReadOnlyWorkspace": "/home/user/Documents/github/overte-browser-client",
+  "hardwareGraphics": "Refuse while external native/browser owners are active. A local-only lock cannot establish an external-session lease.",
+  "softwareGraphics": "Dedicated Xvfb displays; force llvmpipe/SwiftShader and deny access to /dev/dri and /dev/nvidia*."
+}

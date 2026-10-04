@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Modified in 2026 for direct browser transport routing and build coverage.
 """Behavioral regressions for native routing, CMake dependency selection, and gates."""
 import copy
 import importlib.util
@@ -164,8 +165,25 @@ class RoutingTests(unittest.TestCase):
                 if source.stem.endswith(('Test', 'Tests')):
                     candidates.add(cmake.parent.name + '-' + source.stem)
         covered = SELECT.configured_test_names(config, ROOT, 'full')
+        covered.update(SELECT.separately_qualified_names(config, ROOT))
         covered.update(name for name in candidates if any(name == excluded or name.startswith(excluded + '-') for excluded in config['excluded']))
         self.assertEqual(candidates, covered, 'Every native executable needs an explicit CI disposition')
+
+    def test_optional_transport_lanes_have_executable_fail_closed_ownership(self):
+        config = json.loads((ROOT / '.github/native-tests.json').read_text())
+        names = SELECT.separately_qualified_names(config, ROOT)
+        self.assertIn('browser-direct-transport-WebRTCTransportTests', names)
+        self.assertFalse(names & SELECT.configured_test_names(config, ROOT, 'full'))
+        for field, value in (('workflow', 'missing.yml'), ('job', 'missing'),
+                             ('cmake_option', 'OVERTE_MISSING'), ('driver', '../outside.py')):
+            wrong = copy.deepcopy(config)
+            wrong['separate_lanes']['browser-direct'][field] = value
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                SELECT.separately_qualified_names(wrong, ROOT)
+        wrong = copy.deepcopy(config)
+        wrong['separate_lanes']['browser-direct']['tests']['shared-AABoxTests'] = []
+        with self.assertRaises(ValueError):
+            SELECT.separately_qualified_names(wrong, ROOT)
 
     def test_known_descendant_programs_are_required_whenever_their_source_exists(self):
         policy = {'tests': {'shared-RequiredTests': []},
