@@ -349,6 +349,7 @@ jobs:
             --work-root "$QT_WORK_ROOT" \
             --install-root "$QT_INSTALL_ROOT" \
             --target-sdk "$OVERTE_TARGET_SDK" \
+            --jobs 2 \
             --stage source
 
       - name: Save digest-verified Qt source artifact
@@ -419,6 +420,7 @@ jobs:
             --work-root "$QT_WORK_ROOT" \
             --install-root "$QT_INSTALL_ROOT" \
             --target-sdk "$OVERTE_TARGET_SDK" \
+            --jobs 2 \
             --stage host
 
       - name: Validate Qt host tools
@@ -462,6 +464,7 @@ jobs:
             --work-root "$QT_WORK_ROOT" \
             --install-root "$QT_INSTALL_ROOT" \
             --target-sdk "$OVERTE_TARGET_SDK" \
+            --jobs 2 \
             --stage ios
 
       - name: Validate restored or built Qt

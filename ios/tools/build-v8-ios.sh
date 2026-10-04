@@ -37,6 +37,11 @@ die() {
     exit 1
 }
 
+if [[ "${OVERTE_IOS_V8_BUILD_JOBS+x}" == x ]]; then
+    [[ "$OVERTE_IOS_V8_BUILD_JOBS" =~ ^[1-9][0-9]*$ ]] \
+        || die "OVERTE_IOS_V8_BUILD_JOBS must be a positive integer"
+fi
+
 phase_start() {
     v8_phase_name="$1"
     v8_phase_started_at="$(date +%s)"
@@ -252,7 +257,11 @@ phase_start gn-configure
 phase_finish
 
 phase_start compile-v8-monolith
-(cd "$source_root" && autoninja -C "$output_dir" v8_monolith)
+build_arguments=(autoninja -C "$output_dir")
+if [[ "${OVERTE_IOS_V8_BUILD_JOBS+x}" == x ]]; then
+    build_arguments+=(-j "$OVERTE_IOS_V8_BUILD_JOBS")
+fi
+(cd "$source_root" && "${build_arguments[@]}" v8_monolith)
 phase_finish
 
 phase_start package-output

@@ -17,6 +17,20 @@ Run build commands from the repository root on macOS. Start with the complete
 The bootstrap deliberately avoids Qt so Xcode, bundle, lifecycle, signing, and
 Metal failures remain separate from the Overte migration.
 
+## Build concurrency
+
+Set `OVERTE_IOS_BUILD_JOBS` to a positive integer to bound bootstrap CMake
+builds and Conan package builds in both the host and build contexts. For
+example, `OVERTE_IOS_BUILD_JOBS=2 ./ios/build-ios.sh deps --platform device`
+limits dependency compilation to two jobs. Without this override, the CLI
+uses the detected host CPU count.
+
+The static V8 source helper accepts `OVERTE_IOS_V8_BUILD_JOBS` with the same
+positive-integer requirement and passes it to Autoninja's `-j` option. Invalid
+overrides fail before dependency provisioning. The integrated iOS workflows
+limit Qt, V8, Conan and the full client to two build jobs; this changes resource
+use, not the compiler, signing policy or required qualification gates.
+
 ## Integrated client
 
 The integrated client is pinned to Qt 6.11.1. Host tools and target libraries
