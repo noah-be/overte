@@ -84,8 +84,9 @@ client_graph=0
 e2e_test_build=0
 world_observations=0
 compiler_launcher="${OVERTE_IOS_COMPILER_LAUNCHER:-}"
-build_jobs="$(sysctl -n hw.logicalcpu 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
-[[ "$build_jobs" =~ ^[1-9][0-9]*$ ]] || build_jobs=4
+build_jobs="${OVERTE_IOS_BUILD_JOBS-2}"
+[[ "$build_jobs" =~ ^[1-9][0-9]*$ ]] \
+    || fail "OVERTE_IOS_BUILD_JOBS must be a positive integer"
 
 while (($#)); do
     case "$1" in
@@ -392,6 +393,7 @@ resolve_dependencies() {
         --profile:host="$conan_profile" \
         --profile:build="$script_dir/conan/profiles/macos-arm64" \
         --build=missing \
+        --conf:all="tools.build:jobs=$build_jobs" \
         --options="overte-ios-dependencies/*:with_graphics_toolchain=$with_graphics_toolchain" \
         --output-folder="$conan_output" \
         --format=json > "$conan_output/graph.json"

@@ -11,6 +11,8 @@
 //
 
 #include "FBXSerializer.h"
+#include <cmath>
+#include <limits>
 
 #include <QBuffer>
 #include <QRegularExpression>
@@ -444,7 +446,8 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
 #if defined(DEBUG_FBXSERIALIZER)
     int unknown = 0;
 #endif
-    HFMModel* hfmModelPtr = new HFMModel;
+    // Release ownership only after validation; rejection must free the partial model.
+    auto hfmModelPtr = std::make_unique<HFMModel>();
     HFMModel& hfmModel = *hfmModelPtr;
 
     hfmModel.originalURL = url;
@@ -1082,17 +1085,40 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
                         Cluster cluster;
                         foreach (const FBXNode& subobject, object.children) {
                             if (subobject.name == "Indexes") {
-                                cluster.indices = getIntVector(subobject);
+                                if (!getClusterIndexVector(subobject, cluster.indices)) {
+                                    qCWarning(modelformat) << "Rejecting FBX: invalid or unrepresentable cluster source vertex index";
+                                    return nullptr;
+                                }
 
                             } else if (subobject.name == "Weights") {
                                 cluster.weights = getDoubleVector(subobject);
 
                             } else if (subobject.name == "TransformLink") {
                                 QVector<double> values = getDoubleVector(subobject);
+                                if (values.size() != 16) {
+                                    qCWarning(modelformat) << "Rejecting FBX: invalid cluster bind matrix cardinality";
+                                    return nullptr;
+                                }
+                                for (double value : values) {
+                                    if (!std::isfinite(value) || std::abs(value) > double(std::numeric_limits<float>::max())) {
+                                        qCWarning(modelformat) << "Rejecting FBX: nonfinite or unrepresentable cluster bind matrix";
+                                        return nullptr;
+                                    }
+                                }
                                 cluster.transformLink = createMat4(values);
                             }
                         }
 
+                        if (cluster.indices.size() != cluster.weights.size()) {
+                            qCWarning(modelformat) << "Rejecting FBX: cluster index/weight cardinality mismatch";
+                            return nullptr;
+                        }
+                        for (int lane = 0; lane < cluster.weights.size(); ++lane) {
+                            if (!std::isfinite(cluster.weights[lane]) || cluster.weights[lane] < 0.0 || cluster.indices[lane] < 0) {
+                                qCWarning(modelformat) << "Rejecting FBX: invalid cluster influence";
+                                return nullptr;
+                            }
+                        }
                         // skip empty clusters
                         if (cluster.indices.size() > 0 && cluster.weights.size() > 0) {
                             clusters.insert(getID(object.properties), cluster);
@@ -1441,6 +1467,8 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
 
     for (QMap<QString, ExtractedMesh>::iterator it = meshes.begin(); it != meshes.end(); it++) {
         ExtractedMesh& extracted = it.value();
+        QVector<size_t> previousShapeSizes;
+        for (const auto& points : hfmModel.shapeVertices) { previousShapeSizes.append(points.size()); }
 
         extracted.mesh.meshExtents.reset();
 
@@ -1512,8 +1540,8 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
                 QString jointID = _connectionChildMap.value(clusterID);
                 hfmCluster.jointIndex = modelIDs.indexOf(jointID);
                 if (hfmCluster.jointIndex == -1) {
-                    qCDebug(modelformat) << "Joint not in model list: " << jointID;
-                    hfmCluster.jointIndex = 0;
+                    qCWarning(modelformat) << "Rejecting FBX: cluster joint is not in the model skeleton";
+                    return nullptr;
                 }
 
                 hfmCluster.inverseBindMatrix = glm::inverse(cluster.transformLink) * modelTransform;
@@ -1546,20 +1574,29 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
             HFMCluster cluster;
             cluster.jointIndex = modelIDs.indexOf(modelID);
             if (cluster.jointIndex == -1) {
-                qCDebug(modelformat) << "Model not in model list: " << modelID;
-                cluster.jointIndex = 0;
+                qCWarning(modelformat) << "Rejecting FBX: root cluster is not in the model skeleton";
+                return nullptr;
             }
             extracted.mesh.clusters.append(cluster);
         }
 
-        // whether we're skinned depends on how many clusters are attached
-        if (clusterIDs.size() > 1) {
+        if (extracted.mesh.clusters.size() > int(UINT16_MAX) + 1) {
+            qCWarning(modelformat) << "Rejecting FBX: cluster indices cannot be represented";
+            return nullptr;
+        }
+        // A single weighted joint still needs weights (partial/unpainted vertices).
+        if (!clusterIDs.isEmpty()) {
             // this is a multi-mesh joint
             const int WEIGHTS_PER_VERTEX = 4;
+            if (extracted.mesh.vertices.size() > std::numeric_limits<int>::max() / WEIGHTS_PER_VERTEX) {
+                qCWarning(modelformat) << "Rejecting FBX: skin influence array exceeds representable size";
+                return nullptr;
+            }
             int numClusterIndices = extracted.mesh.vertices.size() * WEIGHTS_PER_VERTEX;
             extracted.mesh.clusterIndices.fill(extracted.mesh.clusters.size() - 1, numClusterIndices);
-            QVector<float> weightAccumulators;
-            weightAccumulators.fill(0.0f, numClusterIndices);
+            QVector<double> weightAccumulators;
+            weightAccumulators.fill(0.0, numClusterIndices);
+            QVector<int> influenceCounts(extracted.mesh.vertices.size(), 0);
 
             for (int i = 0; i < clusterIDs.size(); i++) {
                 QString clusterID = clusterIDs.at(i);
@@ -1573,46 +1610,38 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
 
                 for (int j = 0; j < cluster.indices.size(); j++) {
                     int oldIndex = cluster.indices.at(j);
-                    float weight = cluster.weights.at(j);
+                    if (extracted.sourceVertexCount >= 0 && oldIndex >= extracted.sourceVertexCount) {
+                        qCWarning(modelformat) << "Rejecting FBX: cluster influence vertex is outside source geometry";
+                        return nullptr;
+                    }
+                    double weight = cluster.weights.at(j);
                     for (QMultiHash<int, int>::const_iterator it = extracted.newIndices.constFind(oldIndex);
                             it != extracted.newIndices.end() && it.key() == oldIndex; it++) {
                         int newIndex = it.value();
+                        if (weight == 0.0) { continue; }
+                        if (++influenceCounts[newIndex] > WEIGHTS_PER_VERTEX) {
+                            qCWarning(modelformat) << "Rejecting FBX: more than four active influences per vertex";
+                            return nullptr;
+                        }
 
                         // remember vertices with at least 1/4 weight
                         // FIXME: vertices with no weightpainting won't get recorded here
-                        const float EXPANSION_WEIGHT_THRESHOLD = 0.25f;
+                        const double EXPANSION_WEIGHT_THRESHOLD = 0.25;
                         if (weight >= EXPANSION_WEIGHT_THRESHOLD) {
                             // transform to joint-frame and save for later
                             const glm::mat4 vertexTransform = meshToJoint * glm::translate(extracted.mesh.vertices.at(newIndex));
                             points.push_back(extractTranslation(vertexTransform));
                         }
 
-                        // look for an unused slot in the weights vector
-                        int weightIndex = newIndex * WEIGHTS_PER_VERTEX;
-                        int lowestIndex = -1;
-                        float lowestWeight = FLT_MAX;
-                        int k = 0;
-                        for (; k < WEIGHTS_PER_VERTEX; k++) {
-                            if (weightAccumulators[weightIndex + k] == 0.0f) {
-                                extracted.mesh.clusterIndices[weightIndex + k] = i;
-                                weightAccumulators[weightIndex + k] = weight;
-                                break;
-                            }
-                            if (weightAccumulators[weightIndex + k] < lowestWeight) {
-                                lowestIndex = k;
-                                lowestWeight = weightAccumulators[weightIndex + k];
-                            }
-                        }
-                        if (k == WEIGHTS_PER_VERTEX && weight > lowestWeight) {
-                            // no space for an additional weight; we must replace the lowest
-                            weightAccumulators[weightIndex + lowestIndex] = weight;
-                            extracted.mesh.clusterIndices[weightIndex + lowestIndex] = i;
-                        }
+                        // Cardinality was checked above; retain every active influence.
+                        const int weightIndex = newIndex * WEIGHTS_PER_VERTEX + influenceCounts[newIndex] - 1;
+                        extracted.mesh.clusterIndices[weightIndex] = i;
+                        weightAccumulators[weightIndex] = weight;
                     }
                 }
             }
 
-            // now that we've accumulated the most relevant weights for each vertex
+            // now that we have accumulated all supported influences for each vertex
             // normalize and compress to 16-bits
             extracted.mesh.clusterWeights.fill(0, numClusterIndices);
             int numVertices = extracted.mesh.vertices.size();
@@ -1620,19 +1649,25 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
                 int j = i * WEIGHTS_PER_VERTEX;
 
                 // normalize weights into uint16_t
-                float totalWeight = 0.0f;
+                double maxWeight = 0.0;
                 for (int k = j; k < j + WEIGHTS_PER_VERTEX; ++k) {
-                    totalWeight += weightAccumulators[k];
+                    maxWeight = std::max(maxWeight, weightAccumulators[k]);
+                }
+                double totalWeight = 0.0;
+                if (maxWeight > 0.0) {
+                    for (int k = j; k < j + WEIGHTS_PER_VERTEX; ++k) {
+                        totalWeight += weightAccumulators[k] / maxWeight;
+                    }
                 }
 
-                const float ALMOST_HALF = 0.499f;
-                if (totalWeight > 0.0f) {
-                    float weightScalingFactor = (float)(UINT16_MAX) / totalWeight;
+                const double ALMOST_HALF = 0.499;
+                if (totalWeight > 0.0) {
+                    double weightScalingFactor = double(UINT16_MAX) / totalWeight;
                     for (int k = j; k < j + WEIGHTS_PER_VERTEX; ++k) {
-                        extracted.mesh.clusterWeights[k] = (uint16_t)(weightScalingFactor * weightAccumulators[k] + ALMOST_HALF);
+                        extracted.mesh.clusterWeights[k] = (uint16_t)(weightScalingFactor * (weightAccumulators[k] / maxWeight) + ALMOST_HALF);
                     }
                 } else {
-                    extracted.mesh.clusterWeights[j] = (uint16_t)((float)(UINT16_MAX) + ALMOST_HALF);
+                    extracted.mesh.clusterWeights[j] = UINT16_MAX;
                 }
             }
         } else {
@@ -1658,6 +1693,14 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
             }
         }
 
+        QString skinningError;
+        if (!extracted.mesh.prepareSkinningPalette(hfmModel.joints.size(), skinningError)) {
+            qCWarning(modelformat) << "Rejecting FBX mesh skinning:" << skinningError;
+            ++hfmModel.loadErrorCount;
+            for (int joint = 0; joint < previousShapeSizes.size(); ++joint) {
+                hfmModel.shapeVertices[joint].resize(previousShapeSizes[joint]);
+            }
+        }
         hfmModel.meshes.append(extracted.mesh);
         int meshIndex = hfmModel.meshes.size() - 1;
         meshIDsToMeshIndices.insert(it.key(), meshIndex);
@@ -1687,7 +1730,7 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
             mesh.meshExtents.transform(glm::mat4_cast(upAxisZRotation));
         }
     }
-    return hfmModelPtr;
+    return hfmModelPtr.release();
 }
 
 MediaType FBXSerializer::getMediaType() const {

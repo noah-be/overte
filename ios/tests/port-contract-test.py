@@ -1955,7 +1955,9 @@ def test_ci_contract() -> None:
     require_text(integrated, r"deps --platform device --graphics-toolchain", "dependency stage must resolve the device graph")
     require_text(integrated, r"configure --platform device --client-graph", "configure stage must select the full client graph")
     require_text(integrated, r"cmake --build build-ios/device --config Release.*--target Overte", "integrated CI must build the real client target with the Conan dependency configuration")
-    require_text(integrated, r"--parallel.*sysctl -n hw\.logicalcpu", "integrated Xcode build must use all runner CPUs")
+    require_text(integrated, r'ci-build-budget\.py --jobs 2 --github-env "\$GITHUB_ENV"', "integrated CI must initialize the shared compiler budget")
+    require_text(integrated, r'--parallel "\$OVERTE_IOS_BUILD_JOBS"', "integrated Xcode build must use the declared compiler budget")
+    assert integrated_text.count('ci-build-budget.py --jobs 2 --github-env "$GITHUB_ENV"') == 2, "V8 and client jobs must each initialize the shared budget"
     require_text(integrated, r"package-client --platform device --configuration Release", "integrated CI must package the matching Release client IPA")
     require_text(integrated, r"LATEST-OverteIOSClient\.json", "integrated CI must upload VM transfer metadata")
     require_text(integrated, r"check-release-readiness\.py build-ios/artifacts", "integrated CI must run the read-only readiness aggregator")
