@@ -5,6 +5,26 @@ import os
 from pathlib import Path
 
 
+def post_source(conanfile):
+    # Fresh source-only submission caches run this hook for each recipe before
+    # build(). Apply exactly the cleanup performed in the prebuild scanner view,
+    # rather than restoring the rejected bundled blobs from the original archive.
+    if os.environ.get('OVERTE_FDROID_STANDARD_TOOLCHAIN') != '1':
+        return
+    policy_path = os.environ.get('OVERTE_FDROID_SCAN_POLICY')
+    if not policy_path:
+        raise ValueError('source scan policy is required for the submission build')
+    import importlib.util
+    helper = Path(policy_path).with_name('scan_sources.py')
+    spec = importlib.util.spec_from_file_location('overte_source_cleanup', helper)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    policy = module.load_policy(Path(policy_path))
+    reference = str(conanfile.ref).split('#', 1)[0]
+    removed = module.clean_compiler_sources(Path(conanfile.source_folder), reference, policy)
+    conanfile.output.info('Applied source-scan cleanup: %d excluded files' % removed)
+
+
 def identity(recipe):
     return '/usr/src/overte-dependencies/' + str(recipe.ref).replace('@', '/').replace('#', '/')
 

@@ -23,3 +23,10 @@ The submission regression suite checks the Phone resource references and the
 vector's source geometry/color. Review the rendered PNG when changing this
 artwork. A resource compilation check with Android SDK `aapt2` validates the
 Android XML. This change is confined to Android Phone branding and store assets.
+
+On 2026-10-04, the maintainer confirmed permission to use an Overte-supplied
+logo for this Android client and the name "Overte Mobile (Unofficial)". The
+maintainer clarified that the existing Navy icon was already correct and must
+be retained. This records the maintainer's statement, not an independently
+verified public permission document or a general trademark license. No private
+correspondence is included.

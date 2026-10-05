@@ -1,0 +1,2 @@
+Fixes microphone capture with an empty/default saved input-device selection and clears native editor focus when an editor closes.
+Known issues: one intermittent Qt/QML crash during a Go To keyboard Back gesture remains under investigation (#933). Restart the app after regranting microphone permission in Android Settings.
