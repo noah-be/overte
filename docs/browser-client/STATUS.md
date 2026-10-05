@@ -1,6 +1,85 @@
 # Browser client status
 
-## Current application-consumption checkpoint, 2026-10-04
+## Current delivery and remaining work, 2026-10-04
+
+[PR #1023](https://github.com/noah-be/overte/pull/1023) merged into `main` at
+15:28:40 UTC on 2026-10-04. Its final feature source is
+`ee477a960d7e82920e785930647d2f6f105750d7`; the integration commit is
+`b796cd49f1cdf9d811de544c9ae40fb86c0bf59d`.
+The merged first version has a passing real-domain core journey. The expanded
+browser-client assignment remains incomplete.
+
+### Implemented and demonstrated
+
+| Area | Completed scope and evidence |
+| --- | --- |
+| Build and distribution | Production browser build, self-hosted gateway and reproducible isolated-domain launcher. Commands and hosting prerequisites are in the [client guide](README.md). |
+| Domain and world | Domain selection/admission/leave, actual entity and asset rendering, approved HTTPS and `atp:` asset paths. The latest Core journey joins a real seven-entity representative domain; renderer/asset contracts cover additional content. |
+| Movement and participants | Keyboard movement, mouse look, basic collision, browser/native visibility and position synchronization in both directions. The latest Core journey passes the original movement assertions. [Keyboard transitions now share the simulation clock](MOVEMENT_INPUT.md). |
+| Interaction | The browser's basic object interaction is observed by the independent native participant in the actual domain. This does not cover every native interaction or script. |
+| Audio transport | Browser-to-native and native-to-browser signals are measured at actual outputs. These inputs are synthetic; this is not a physical-microphone test. |
+| Session lifecycle | Clean leave, native observation of departure, rejoin and movement after reconnect pass in the same real journey. Owned stop and evidence curation pass. |
+| Chrome and checks | The complete hosted Browser and Native jobs, current required repository checks and fresh CodeQL pass for the final feature source. Chrome is the current browser qualification target. |
+
+The exact-source [Browser run 37211555779](https://github.com/noah-be/overte/actions/runs/37211555779)
+passes both jobs and **all 18 original Core checkpoints**, including collision,
+interaction, both audio directions and reconnect. The tested GitHub virtual merge
+is `69614c9f13704ad8b13772bb011f1f1177c4fb4c`, with parents
+`db0ba6e05c507e943b05abd5fdd9ae976b18b9e8` and the final feature source above.
+Independent readback verifies all 16 tracked source hashes in the curated Core
+artifact. Its 25 built-file hashes are reported by the artifact; they were not
+independently compared with the separate unpublished local candidate.
+[Repository checks](https://github.com/noah-be/overte/actions/runs/37212721758)
+and [CodeQL](https://github.com/noah-be/overte/actions/runs/37211555807) also pass
+at that feature SHA. These results belong to that tested cohort, rather than a
+new runtime test of this documentation or the merge commit.
+
+**Fluid rendering is still unproved.** The Core movement sample measures
+0.700005 m of travel but only 6.977 FPS, 166.8 ms p95 frame time and a 3583.2 ms
+maximum frame time. This isolated scene and software-rendered test do not
+establish smooth public-Hub movement or acceptable loading performance.
+
+### Remaining acceptance and development
+
+| Priority | What remains |
+| --- | --- |
+| World and texture loading | Measure the current source in actual `overte_hub`, identify admission/download/decode/upload stalls and demonstrate faster visible world and texture loading. Existing caches/workers and private CPU prototypes do not establish a current Hub speedup. This remains the user's immediate optimization priority. |
+| Online-world fluidity | Repeat actual Hub join, walking, native position synchronization and reconnect in Chrome, with frame-time and loading evidence. Earlier Hub cohorts remain historical; the isolated Core pass does not qualify the current public Hub. |
+| Complete Tablet | The genuine per-session native Tablet, input relay and selected app flows exist. Complete the remaining app actions, editing, input/focus, permission and leave/rejoin journeys; do not describe the whole Tablet as accepted yet. |
+| Physical voice | Test a real microphone with permission approval/refusal, mute/unmute, playback and the native participant. Keep synthetic-input evidence separate. |
+| Native feature parity | Continue the implemented/tested/unsupported inventory in [FEATURE_PARITY.md](FEATURE_PARITY.md) and verify remaining client features under the expanded user scope. |
+| Graphics through the Tablet | Selected controls and percentage-resolution changes have historical runtime evidence. Complete acceptance of every effective browser-supported option, useful profiles, percentage resolution and environment-based recommendations. Context restoration and stale recommendation controls do not complete this broader requirement. |
+| Stability and further optimization | Run short actual Hub journeys, fix measured lag, crashes, resource/lifecycle faults and then improve texture loading and rendering with before/after measurements. The user cancelled the 30-minute/endurance test; it is not a remaining gate. |
+
+### Pending local fixes and deployment boundary
+
+A separate startup interleaving still reproduces against the final feature
+source: native permission/connected events can precede a late initial connecting
+announcement. The relocation-only correction and regression are prepared but
+not included in the merged source. Local commit
+`2648f3ff234c48bb4fc0fe7a84140f72f89fe646` passes 3104 product cases, four
+distribution/fixture builds and all 34 repository suites; those results qualify
+that separate candidate's source checks, not its hosted runtime. Reconcile its
+narrow correction with current `main` before integration. A test-only isolation
+of inherited `LIBGL_ALWAYS_SOFTWARE` also remains a prepared, unintegrated fix.
+
+The **self-hosted gateway remains required** for this implementation. It uses
+one isolated native Interface per visitor while the browser renders the world.
+Managed domains and explicitly enabled compatible public guest domains have
+different admission paths. Authenticated/restricted domains, arbitrary public
+compatibility and a gateway-free browser transport are not demonstrated by this
+release. See the [hosting and access boundaries](README.md#hosting-and-access-boundaries).
+
+The [current plan](PLAN.md#current-follow-up-plan-2026-10-04) sets the next steps.
+Material implementation and documentation assistance: OpenAI Codex.
+
+## Preserved implementation history
+
+Everything below records earlier checkpoints and their then-current next steps.
+Older failures and pending-publication statements are preserved as historical
+evidence; they do not replace the current result and remaining-work list above.
+
+## Historical application-consumption checkpoint, 2026-10-04
 
 Published `24a52bb1687354fffd6e193373e187173f1d1d0a` passes all four required
 repository checks and fresh CodeQL. Automatic Browser 37197722428 passes
