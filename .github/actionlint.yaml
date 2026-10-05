@@ -25,3 +25,5 @@ self-hosted-runner:
     - overte-pico4-device
     # Dedicated protected runner with one paired physical iPad.
     - overte-ios-ipad
+    # Dedicated private runner for dispatch-only iOS prerelease inspections.
+    - ios-release-check
