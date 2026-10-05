@@ -480,6 +480,154 @@ class GithubActivityTests(unittest.TestCase):
                         self.github.verify_owner()
 
 
+class GithubReleaseReferenceTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.module = load_cleanup()
+
+    def setUp(self):
+        self.github = self.module.Github()
+        self.policy = json.loads(POLICY_PATH.read_text(encoding="utf-8"))
+        self.candidate = {"branch": "task/main/100-integrated", "sha": "a" * 40,
+                          "base": "main", "base_sha": "b" * 40}
+        self.release = {"target_commitish": self.candidate["sha"], "tag_name": "release-v1+2"}
+        self.reference = {"ref": "refs/tags/release-v1+2",
+                          "object": {"type": "commit", "sha": self.candidate["sha"]}}
+        self.annotations = {}
+        self.deployments = []
+
+    def response(self, suffix="", paginate=False):
+        if suffix == "releases?per_page=100":
+            return [self.release]
+        if suffix == "deployments?per_page=100":
+            return self.deployments
+        if suffix == "git/ref/tags/release-v1%2B2":
+            return self.reference
+        if suffix.startswith("git/tags/"):
+            return self.annotations[suffix.removeprefix("git/tags/")]
+        if suffix.startswith("git/"):
+            raise AssertionError("unexpected Git object endpoint")
+        return GithubActivityTests.inactive_responses(self, suffix, paginate)
+
+    def holds(self):
+        with mock.patch.object(self.github, "get", side_effect=self.response):
+            return self.github.activity_holds([self.candidate], self.policy)
+
+    def assert_release_hold(self):
+        self.assertIn("release_reference", self.holds()[self.candidate["branch"]])
+
+    def test_lightweight_release_tag_retains_the_exact_integrated_commit(self):
+        self.assertEqual(self.holds(), {})
+
+    def test_annotated_and_nested_tags_use_only_fork_object_endpoints(self):
+        first, second = "c" * 40, "d" * 40
+        self.reference["object"] = {"type": "tag", "sha": first,
+                                    "url": "https://api.github.com/repos/overte-org/overte/git/tags/" + first}
+        self.annotations[first] = {"sha": first, "object": {"type": "tag", "sha": second}}
+        self.annotations[second] = {"sha": second, "object": {"type": "commit", "sha": self.candidate["sha"]}}
+        with mock.patch.object(self.github, "get", side_effect=self.response) as get:
+            self.assertEqual(self.github.activity_holds([self.candidate], self.policy), {})
+        object_calls = [call.args[0] for call in get.call_args_list if call.args[0].startswith("git/")]
+        self.assertEqual(object_calls, ["git/ref/tags/release-v1%2B2", "git/tags/" + first, "git/tags/" + second])
+
+    def test_different_tag_commit_keeps_release_hold(self):
+        self.reference["object"]["sha"] = "c" * 40
+        self.assert_release_hold()
+
+    def test_named_branch_release_keeps_hold_without_tag_lookup(self):
+        for target in (self.candidate["branch"], "refs/heads/" + self.candidate["branch"]):
+            with self.subTest(target=target):
+                self.release["target_commitish"] = target
+                with mock.patch.object(self.github, "release_tag_commit") as resolve:
+                    self.assert_release_hold()
+                resolve.assert_not_called()
+
+    def test_deployment_hold_is_not_removed_by_release_tag_evidence(self):
+        self.deployments = [{"ref": self.candidate["sha"]}]
+        self.assertEqual(self.holds(), {self.candidate["branch"]: ["deployment_reference"]})
+
+    def test_missing_or_invalid_tag_names_keep_hold_without_api_lookup(self):
+        for name in (None, "", "../other", "bad name", "refs/../other", 42):
+            with self.subTest(name=name):
+                self.release["tag_name"] = name
+                with mock.patch.object(self.github, "get", side_effect=self.response) as get:
+                    holds = self.github.activity_holds([self.candidate], self.policy)
+                self.assertIn("release_reference", holds[self.candidate["branch"]])
+                self.assertFalse(any(call.args[0].startswith("git/") for call in get.call_args_list))
+
+    def test_unavailable_tag_api_aborts_assessment(self):
+        def response(suffix="", paginate=False):
+            if suffix.startswith("git/"):
+                raise self.module.CleanupError("tag API unavailable")
+            return self.response(suffix, paginate)
+        with mock.patch.object(self.github, "get", side_effect=response):
+            with self.assertRaises(self.module.CleanupError):
+                self.github.activity_holds([self.candidate], self.policy)
+
+    def test_malformed_or_mismatched_tag_metadata_keeps_hold(self):
+        cases = (
+            None, [], {},
+            {"ref": "refs/tags/another", "object": {"type": "commit", "sha": self.candidate["sha"]}},
+            {"ref": "refs/tags/release-v1+2", "object": None},
+            {"ref": "refs/tags/release-v1+2", "object": {"type": "blob", "sha": self.candidate["sha"]}},
+            {"ref": "refs/tags/release-v1+2", "object": {"type": "commit", "sha": "invalid"}},
+        )
+        for reference in cases:
+            with self.subTest(reference=reference):
+                self.reference = reference
+                self.assert_release_hold()
+
+    def test_annotation_identity_must_match_requested_object(self):
+        oid = "c" * 40
+        self.reference["object"] = {"type": "tag", "sha": oid}
+        self.annotations[oid] = {"sha": "d" * 40, "object": {"type": "commit", "sha": self.candidate["sha"]}}
+        self.assert_release_hold()
+
+    def test_annotation_cycles_and_excessive_depth_keep_hold(self):
+        first = "c" * 40
+        self.reference["object"] = {"type": "tag", "sha": first}
+        self.annotations[first] = {"sha": first, "object": {"type": "tag", "sha": first}}
+        self.assert_release_hold()
+        oids = [f"{index:040x}" for index in range(1, 10)]
+        self.reference["object"] = {"type": "tag", "sha": oids[0]}
+        self.annotations = {oid: {"sha": oid, "object": {"type": "tag", "sha": next_oid}}
+                            for oid, next_oid in zip(oids, oids[1:])}
+        with mock.patch.object(self.github, "get", side_effect=self.response) as get:
+            holds = self.github.activity_holds([self.candidate], self.policy)
+        self.assertIn("release_reference", holds[self.candidate["branch"]])
+        self.assertEqual(sum(call.args[0].startswith("git/tags/") for call in get.call_args_list), 8)
+
+    def test_moved_tag_is_rechecked_on_next_assessment(self):
+        self.assertEqual(self.holds(), {})
+        self.reference["object"]["sha"] = "c" * 40
+        self.assert_release_hold()
+
+    def test_release_exception_still_requires_full_ancestry_and_target_history_protection(self):
+        branches = [{"name": name, "sha": self.candidate["base_sha"], "protected": True}
+                    for name in sorted(PERMANENT)]
+        branches.append({"name": self.candidate["branch"], "sha": self.candidate["sha"], "protected": False})
+        comparison = {"status": "ahead", "behind_by": 0,
+                      "merge_base_commit": {"sha": self.candidate["sha"]}}
+        rules = [{"type": "deletion"}, {"type": "non_fast_forward"}]
+
+        def response(suffix="", paginate=False):
+            return rules if suffix == "rules/branches/main" else self.response(suffix, paginate)
+
+        with mock.patch.object(self.github, "verify_owner"), \
+                mock.patch.object(self.github, "branches", return_value=branches), \
+                mock.patch.object(self.github, "comparisons", return_value={self.candidate["branch"]: comparison}), \
+                mock.patch.object(self.github, "workflow_holds", return_value={}), \
+                mock.patch.object(self.github, "get", side_effect=response):
+            self.assertEqual(self.module.make_plan(self.github, self.policy)["candidate_count"], 1)
+            for incomplete in ([], [{"type": "deletion"}], [{"type": "non_fast_forward"}]):
+                rules = incomplete
+                with self.assertRaisesRegex(self.module.CleanupError, "target_history_not_protected"):
+                    self.module.make_plan(self.github, self.policy)
+            rules = [{"type": "deletion"}, {"type": "non_fast_forward"}]
+            comparison["merge_base_commit"] = {"sha": "c" * 40}
+            self.assertEqual(self.module.make_plan(self.github, self.policy)["candidate_count"], 0)
+
+
 class GithubWorkflowReferenceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
