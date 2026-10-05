@@ -97,13 +97,13 @@
             friendsWindow.raise();
         }
         if (event.type === "jump-to") {
-            if (typeof event.data.username !== undefined) {
+            if (typeof event.data.username !== "undefined") {
                 // teleport to selected user from the online users list
                 location.goToUser(event.data.username);
             }
         }
         if (event.type === "toggle-visibility") {
-            if (typeof event.data.visibility !== undefined) {
+            if (typeof event.data.visibility !== "undefined") {
                 // update your visibility (all, friends, or none)
                 myVisibility = event.data.visibility;
                 GlobalServices.findableBy = myVisibility;
