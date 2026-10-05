@@ -3,17 +3,19 @@
 // Shipping V32 source gates and exact historical V31 tests are separate.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFile,writeFile,mkdtemp,mkdir,rm,lstat,realpath,unlink,symlink} from 'node:fs/promises';
+import {readFile as readPhysicalFile,writeFile,mkdtemp,mkdir,rm,lstat,realpath,unlink,symlink} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {tmpdir} from 'node:os';
 import {createHash} from 'node:crypto';
 import {recoverCaptureV31Input,readCaptureV31Source,decodeCaptureV31History} from './integration/capture-movement-input-source-fixture.mjs';
 
+import {normalizeStartupIntegrationInput,readStartupIntegrationParentSource} from './integration/capture-startup-integration-source-fixture.mjs';
+const readFile=async(input,options)=>{const bytes=await readPhysicalFile(input),file=input instanceof URL?fileURLToPath(input):path.resolve(input),relative=path.relative(fileURLToPath(new URL('../../',import.meta.url)),file),recovered=normalizeStartupIntegrationInput('movement',relative,bytes);return typeof options==='string'?recovered.toString(options):recovered;};
 const root=fileURLToPath(new URL('../../',import.meta.url)),sha=bytes=>createHash('sha256').update(bytes).digest('hex');
 const bytes=await readFile(new URL('./fixtures/capture-movement-input-v32-complete-source-manifest.json',import.meta.url)),m=JSON.parse(bytes);
 const oldBytes=await readFile(new URL('./fixtures/capture-software-graphics-v31-complete-source-manifest.json',import.meta.url)),old=JSON.parse(oldBytes),d=m.movementInputDerivation;
-const prep=await readFile(new URL('./integration/prepare-tablet-capture-acceptance.mjs',import.meta.url),'utf8');
+const prep=readStartupIntegrationParentSource('movement','browser-client/tests/integration/prepare-tablet-capture-acceptance.mjs');
 const start=prep.indexOf('const manifestBytes=await readFile(proposal);'),end=prep.indexOf('const directory=await mkdtemp(',start);
 assert(start>=0 && end>start);
 const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;

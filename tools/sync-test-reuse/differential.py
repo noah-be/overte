@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import argparse
 import json
+import importlib.util
 import re
 import subprocess
 import sys
@@ -14,6 +15,7 @@ import sys
 
 PROFILES = {
     "documentation": (),
+    "tool-dependencies": (),
     "android-family": ("android", "interface", "libraries"),
     "android-phone": ("android/phone", "android/common"),
     "android-vr": ("android/vr", "android/common"),
@@ -122,6 +124,15 @@ def required_roots(root: Path, profile: str, changed: list[str]) -> None:
     if profile == "documentation":
         if any(not path.endswith(".md") for path in changed):
             raise ValueError("documentation profile received a non-documentation change")
+        return
+    if profile == "tool-dependencies":
+        spec = importlib.util.spec_from_file_location(
+            "differential_tool_dependencies", Path(__file__).resolve().parents[2]
+            / "tools/repository-checks/tool_dependencies.py")
+        tools = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(tools)
+        if not tools.affected_projects(changed):
+            raise ValueError("tool dependency profile received an unrelated change")
         return
     for relative in PROFILES[profile]:
         if not safe_candidate(root, relative).exists():
