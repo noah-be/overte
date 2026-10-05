@@ -1,5 +1,43 @@
 # Browser client status
 
+## Startup integration candidate, 2026-10-05
+
+The reviewed local startup correction is composed with the published software
+graphics and movement fixes. The merged V33 capture gate checks physical source;
+both parent CPU cohorts retain their original assertions and complete source
+history. See [the integration boundary](STARTUP_INTEGRATION.md).
+
+All 3130 product tests pass without skips, together with the production and
+three fixture builds and all 34 repository quick groups. These are source
+checks. Actual Chrome/native Core results belong to the exact integration
+pull-request runs; no wider product requirement is declared complete here.
+The original local source checkpoint below remains separate.
+
+## Reviewed startup correction and bounded observations, 2026-10-04
+
+The startup correction and finite V31 source closure are installed on the topic
+branch. The initial connecting announcement now precedes native creation, so
+later permission/connected events cannot be overwritten by that announcement.
+All 3104 product cases pass with zero skips; production, both embedded fixtures
+and the native-ignored FBX fixture build, plus all 34 repository suites pass.
+The source and existing lifecycle state remain unchanged throughout these gates.
+The [source evidence](evidence/startup-runtime-source-checks-20261004.json)
+records exact commands, source identities, inverses and limits.
+
+X11 setup observations retain the original five-second readiness and three-second
+positive-authentication deadlines. The GPU fixture adds two context-state reads
+and at most eight trusted own-canvas context events, preserving every original
+render/error read and pixel assertion. These bounded observations do not establish
+the old timeout or context-loss cause. Actual Chrome/native qualification remains
+pending for this new source; the complete earlier failures below remain preserved.
+
+Next: publish this exact checked source, qualify automatic Chrome/native gates,
+and choose any further repair from their fixed measurements. Optional application-
+credit telemetry and the FST comparison remain separate and uninstalled. Full
+Tablet, Hub fluidity/loading, physical voice and native parity remain open.
+
+
+
 ## Current delivery and remaining work, 2026-10-04
 
 [PR #1023](https://github.com/noah-be/overte/pull/1023) merged into `main` at

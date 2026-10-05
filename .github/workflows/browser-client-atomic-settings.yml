@@ -1,7 +1,7 @@
 name: Owned atomic settings diagnostic
 on:
   push:
-    branches: ['feature/main/browser-client']
+    branches: ['main']
     paths:
       - '.github/workflows/browser-client-atomic-settings.yml'
       - 'browser-client/lab/atomic-provisioning/**'

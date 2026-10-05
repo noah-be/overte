@@ -17,11 +17,20 @@ import assert from 'node:assert/strict';
 // BEGIN fixed native-ignored GPU read consumer.
 function validateNativeIgnoredGpuDiagnostic(value){
  assert(value&&typeof value==='object'&&!Array.isArray(value));
- assert.deepEqual(Object.keys(value).sort(),['records','refused','version']);assert.equal(value.version,1);assert.equal(typeof value.refused,'boolean');
+ assert.deepEqual(Object.keys(value).sort(),['contextEvents','contextStates','records','refused','version']);assert.equal(value.version,2);assert.equal(typeof value.refused,'boolean');
  assert(Array.isArray(value.records)&&value.records.length<=22);
  for(let i=0;i<value.records.length;i++){
   const row=value.records[i];assert(Array.isArray(row)&&row.length===3);assert.equal(row[0],i);assert.equal(row[1],i===0?0:i===1?1:2);
   if(row[2]===null)assert.equal(value.refused,true);else assert(Number.isSafeInteger(row[2])&&row[2]>=0&&row[2]<=65535);
+ }
+ assert(Array.isArray(value.contextStates)&&value.contextStates.length<=2);
+ for(let i=0;i<value.contextStates.length;i++){
+  const row=value.contextStates[i];assert(Array.isArray(row)&&row.length===3);assert.equal(row[0],i);assert.equal(row[1],i===0?0:5);
+  if(row[2]===null)assert.equal(value.refused,true);else assert(row[2]===0||row[2]===1);
+ }
+ assert(Array.isArray(value.contextEvents)&&value.contextEvents.length<=8);
+ for(let i=0;i<value.contextEvents.length;i++){
+  const row=value.contextEvents[i];assert(Array.isArray(row)&&row.length===3);assert.equal(row[0],i);assert(row[1]===0||row[1]===1);assert(Number.isSafeInteger(row[2])&&row[2]>=0&&row[2]<=8);
  }
  return value;
 }

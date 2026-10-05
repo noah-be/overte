@@ -10,7 +10,7 @@ import path from 'node:path';
 
 const run = promisify(execFile);
 const displays = new Set();
-function privateX11Ready(display, cookie, signal, timeoutMs) {
+function privateX11Ready(display, cookie, signal, timeoutMs, observe) {
     if (!Number.isSafeInteger(display) || display < 1200 || display >= 60000
         || !Buffer.isBuffer(cookie) || cookie.length !== 16
         || !Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 5000) {
@@ -23,11 +23,16 @@ function privateX11Ready(display, cookie, signal, timeoutMs) {
     request.write('MIT-MAGIC-COOKIE-1', 12); cookie.copy(request, 32);
     return new Promise(resolve => {
         let socket, timer, settled = false, response = Buffer.alloc(0);
+        let connectReached = false, writeInvoked = false, validatedExpectedBytes = null;
         const cancel = () => finish('cancelled');
         function finish(kind) {
             if (settled) return;
             settled = true; clearTimeout(timer); signal.removeEventListener('abort', cancel);
-            socket?.destroy(); resolve(kind);
+            socket?.destroy();
+            // Fixed setup state only; no cookie, display, response payload or new clock/query.
+            if (typeof observe === 'function') observe(Object.freeze({connectReached, writeInvoked,
+                responseBytes: response.length, validatedExpectedBytes}));
+            resolve(kind);
         }
         timer = setTimeout(() => finish('timeout'), timeoutMs);
         signal.addEventListener('abort', cancel, { once: true });
@@ -35,7 +40,7 @@ function privateX11Ready(display, cookie, signal, timeoutMs) {
         catch { finish('socket-error'); return; }
         socket.on('error', () => finish('socket-error'));
         socket.on('close', () => finish('closed'));
-        socket.on('connect', () => socket.write(request));
+        socket.on('connect', () => { connectReached = true; writeInvoked = true; socket.write(request); });
         socket.on('data', bytes => {
             if (settled) return;
             if (response.length + bytes.length > 65536) { finish('invalid-setup'); return; }
@@ -46,6 +51,7 @@ function privateX11Ready(display, cookie, signal, timeoutMs) {
             if (response.readUInt16LE(2) !== 11 || response.readUInt16LE(4) !== 0 || size < 40 || size > 65536) {
                 finish('invalid-setup'); return;
             }
+            validatedExpectedBytes = size;
             if (response.length >= size) finish('authenticated');
         });
     });
@@ -184,8 +190,13 @@ export async function prepareWorker({ directory, executable, sourceEnvironment, 
             // must complete inside the same original five-second startup bound.
             const remaining = Math.floor(deadline - performance.now());
             if (remaining < 1) break;
-            const result = await privateX11Ready(display, cookie, signal, remaining);
-            if (result !== 'authenticated') throw Error('The private Xvfb display did not authenticate: ' + result);
+            let diagnostic;
+            const result = await privateX11Ready(display, cookie, signal, remaining, value => { diagnostic = value; });
+            if (result !== 'authenticated') {
+                const error = Error('The private Xvfb display did not authenticate: ' + result);
+                error.x11ReadinessDiagnostic = diagnostic;
+                throw error;
+            }
             ready = true; break;
         }
         if (signal.aborted) throw Error('Session cancelled.');
