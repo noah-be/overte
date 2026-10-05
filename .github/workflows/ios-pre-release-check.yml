@@ -33,10 +33,28 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  inspect:
+  configuration:
     if: github.repository == 'noah-be/overte'
-    # Dedicated, trusted macOS runner; do not attach this label to Android/Pico jobs.
-    runs-on: [self-hosted, ios-release-check]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require a dedicated private macOS pool and configuration
+        env:
+          RELEASE_RUNNER_LABEL: ${{ vars.IOS_RELEASE_CHECK_RUNNER_LABEL }}
+          OVERTE_IOS_RELEASE_CONFIG: ${{ vars.IOS_RELEASE_CONFIG_PATH }}
+        run: |
+          set -euo pipefail
+          test -n "$OVERTE_IOS_RELEASE_CONFIG"
+          [[ "$RELEASE_RUNNER_LABEL" =~ ^[a-z0-9]+(-[a-z0-9]+)+$ ]]
+          case "$RELEASE_RUNNER_LABEL" in
+            self-hosted|overte-android-*|overte-pico*) exit 1 ;;
+          esac
+
+  inspect:
+    needs: configuration
+    if: github.repository == 'noah-be/overte'
+    # Select a dedicated private macOS pool through repository configuration.
+    runs-on: [self-hosted, macOS, "${{ vars.IOS_RELEASE_CHECK_RUNNER_LABEL }}"]
     timeout-minutes: 240
     steps:
       - name: Check out selected source and reachable history
@@ -47,9 +65,11 @@ jobs:
       - name: Evaluate private release inputs
         env:
           RELEASE_GROUP: ${{ inputs.group }}
+          RELEASE_RUNNER_LABEL: ${{ vars.IOS_RELEASE_CHECK_RUNNER_LABEL }}
           OVERTE_IOS_RELEASE_CONFIG: ${{ vars.IOS_RELEASE_CONFIG_PATH }}
         run: |
           set -euo pipefail
+          test -n "$RELEASE_RUNNER_LABEL"
           test -n "$OVERTE_IOS_RELEASE_CONFIG"
           python3 ios/release-check/run.py "$RELEASE_GROUP" \
             --output "$RUNNER_TEMP/ios-release-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"

@@ -23,10 +23,13 @@ behavior regression also runs in the shared JavaScript suite. They are forwarded
 through `apple-main` before this product integration; no product branch is
 merged into a parent or sibling.
 
-The dispatch-only inspector's `ios-release-check` runner label is registered
-in the canonical Actionlint inventory on `main` and forwarded through
-`apple-main`. Registration does not provision a runner or dispatch an
-inspection. The existing workflow lint and security checks remain enabled.
+The dispatch-only inspector selects its dedicated private macOS pool through
+the repository variable `IOS_RELEASE_CHECK_RUNNER_LABEL`. A short configuration
+job rejects missing private configuration, generic labels and Android/Pico
+pool labels before inspection. No runner is provisioned or inspection
+dispatched during integration. The canonical Actionlint inventory and existing
+workflow lint and security checks remain unchanged; broad parent synchronization
+is unnecessary for this product-specific runner selection.
 
 ## Historical failed builds
 

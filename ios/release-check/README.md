@@ -337,10 +337,13 @@ local retention policy after preserving reviewed minimal release evidence.
 ## CI integration and extension
 
 [The manual workflow](../../.github/workflows/ios-pre-release-check.yml) runs only
-by dispatch in `noah-be/overte` on a dedicated `ios-release-check` self-hosted
-runner. Provision `IOS_RELEASE_CONFIG_PATH` as a repository variable containing
-only the private file path, install the reviewed tools and retain outputs on
-that runner. It does not trigger on pushes/PRs, touch other platform jobs, invoke
+by dispatch in `noah-be/overte` on a dedicated private macOS self-hosted
+runner. Set `IOS_RELEASE_CHECK_RUNNER_LABEL` to that pool's distinct label
+(for example `ios-release-check`) and `IOS_RELEASE_CONFIG_PATH` to the private
+file path as repository variables. Missing configuration, generic labels and
+Android/Pico pool labels fail the configuration job before private inspection.
+Install the reviewed tools and retain outputs on that runner. The workflow
+does not trigger on pushes/PRs, touch other platform jobs, invoke
 build/device execution flags or upload reports. No Jenkins job is modified.
 The same local command can be called from an existing authorized laboratory job.
 
