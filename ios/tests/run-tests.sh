@@ -5,6 +5,8 @@
 set -euo pipefail
 
 readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+python3 -B -m unittest discover -s "$script_dir/../release-check" -p 'test_*.py'
+node "$script_dir/../release-check/test_tablet_users.cjs"
 python3 "$script_dir/port-contract-test.py"
 python3 "$script_dir/performance/memory-pressure-policy-test.py"
 if pkg-config --exists Qt6Gui; then

@@ -18,6 +18,10 @@ dependency systems, existing checks and known platform limitations.
 
 ## One command
 
+The [integration record](INTEGRATION.md) explains how the retained tooling is
+qualified on the maintained product baseline and which release evidence remains
+open. Historical records below retain their original revision and scope.
+
 After preparing the private release configuration and evidence:
 
 ```bash
