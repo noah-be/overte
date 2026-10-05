@@ -23,6 +23,11 @@ behavior regression also runs in the shared JavaScript suite. They are forwarded
 through `apple-main` before this product integration; no product branch is
 merged into a parent or sibling.
 
+The dispatch-only inspector's `ios-release-check` runner label is registered
+in the canonical Actionlint inventory on `main` and forwarded through
+`apple-main`. Registration does not provision a runner or dispatch an
+inspection. The existing workflow lint and security checks remain enabled.
+
 ## Historical failed builds
 
 The first hosted attempt,
