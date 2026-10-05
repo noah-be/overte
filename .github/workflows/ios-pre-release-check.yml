@@ -1,0 +1,57 @@
+name: iOS pre-release quality gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      group:
+        description: Inspection group; all consumes existing build/device evidence
+        type: choice
+        default: static-only
+        options:
+          - static-only
+          - all
+          - secrets
+          - hygiene
+          - licenses
+          - dependencies
+          - static
+          - configuration
+          - permissions
+          - signing
+          - build
+          - artifact
+          - functional
+          - robustness
+          - long-running
+          - distribution
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-pre-release-private-runner
+  cancel-in-progress: false
+
+jobs:
+  inspect:
+    if: github.repository == 'noah-be/overte'
+    # Dedicated, trusted macOS runner; do not attach this label to Android/Pico jobs.
+    runs-on: [self-hosted, ios-release-check]
+    timeout-minutes: 240
+    steps:
+      - name: Check out selected source and reachable history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1; same reviewed pin as ios-integrated
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Evaluate private release inputs
+        env:
+          RELEASE_GROUP: ${{ inputs.group }}
+          OVERTE_IOS_RELEASE_CONFIG: ${{ vars.IOS_RELEASE_CONFIG_PATH }}
+        run: |
+          set -euo pipefail
+          test -n "$OVERTE_IOS_RELEASE_CONFIG"
+          python3 ios/release-check/run.py "$RELEASE_GROUP" \
+            --output "$RUNNER_TEMP/ios-release-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+      # Deliberately no upload-artifact, release, signing, installation or Apple step.
+      # Findings/logs stay in the private runner directory; inspect and remove locally.

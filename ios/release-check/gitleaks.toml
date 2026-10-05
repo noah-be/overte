@@ -1,0 +1,23 @@
+title = "Overte iOS release gate — upstream detectors without implicit exclusions"
+[extend]
+useDefault = true
+
+[[rules]]
+id = "ios-private-path"
+description = "Local developer path in reachable iOS history"
+regex = '''(?:/Users/[^/\s]+|/home/[^/\s]+|[A-Za-z]:\\Users\\[^\\\s]+)'''
+
+[[rules]]
+id = "ios-private-address"
+description = "Private IP or internal hostname candidate"
+regex = '''\b(?:10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2}|[a-zA-Z0-9.-]+\.(?:local|internal|lan|corp))\b'''
+
+[[rules]]
+id = "ios-private-email"
+description = "Embedded email candidate; preserve legitimate copyright attribution"
+regex = '''\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b'''
+
+[[rules]]
+id = "ios-private-mac"
+description = "MAC address candidate"
+regex = '''(?i)\b(?:[0-9a-f]{2}:){5}[0-9a-f]{2}\b'''
