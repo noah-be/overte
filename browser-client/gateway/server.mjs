@@ -393,6 +393,7 @@ class Session extends SharedTeardown {
         const args = ['--allowMultipleInstances', '--no-updater', '--no-launcher', '--no-login-suggestion',
             '--suppress-settings-reset', '--disableDisplayPlugins', 'OpenXR,OpenVR', '--cache', path.join(this.directory, 'cache'),
             '--defaultScriptsOverride', script, '--url', nativeDomain, '--displayName', visitorDisplayName || 'Browser visitor'];
+        send(this.browser, { type: 'state', state: 'connecting', sessionId: this.id, ...(this.avatarConsumption==='ack-v1'?{avatarConsumption:'ack-v1',avatarEpoch:this.avatarSender.epoch}:{}), message: 'Starting your isolated native connection…' });
         if (this.worker) {
             this.network = await launchNativeNetwork({ directory: this.directory, command: launchCommand,
                 args: [...launchPrefix, ...args], env: launchEnv, hostPort: port, nativePath: '/native',
@@ -421,7 +422,6 @@ class Session extends SharedTeardown {
             '-f', 'pulse', '-device', this.input, 'Browser microphone'], mediaEnv, 'Audio playback');
         this.playback.stdin.on('error', () => {});
         this.timeout = setTimeout(() => { if (!this.native) { send(this.browser, { type: 'state', state: 'error', message: 'The native gateway did not start its bridge within 90 seconds.' }); this.close(false); } }, 90000);
-        send(this.browser, { type: 'state', state: 'connecting', sessionId: this.id, ...(this.avatarConsumption==='ack-v1'?{avatarConsumption:'ack-v1',avatarEpoch:this.avatarSender.epoch}:{}), message: 'Starting your isolated native connection…' });
     }
     process(command, args, env, label, options) {
         const stdio = ['pipe', 'pipe', 'pipe'];

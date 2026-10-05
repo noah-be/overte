@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
+import {readFileSync as readCurrentFileSync} from 'node:fs';
+import {prepareStartupV30HistoryReaders} from './integration/capture-startup-runtime-source-fixture.mjs';
+const {readFileSync}=await prepareStartupV30HistoryReaders(import.meta.url,readCurrentFileSync);
 import vm from 'node:vm';
 const fixture=readFileSync(new URL('./fixtures/native-ignored-fbx-pixels.ts',import.meta.url),'utf8');
 const runner=readFileSync(new URL('./integration/native-ignored-fbx-pixels.mjs',import.meta.url),'utf8');
