@@ -30,6 +30,6 @@ export async function readCurrentAvatarConsumptionSource(relative,input){
  const h=await open(file,constants.O_RDONLY|constants.O_NOFOLLOW|constants.O_NONBLOCK);
  try{const a=await h.stat();if(!a.isFile()||a.uid!==process.getuid()||a.nlink!==1||(a.mode&0o022)||!Number.isSafeInteger(a.size)||a.size<1||a.size>262144)refuse();
  const b=Buffer.alloc(262145);let n=0;while(n<b.length){const r=await h.read(b,n,b.length-n,n);if(!r.bytesRead)break;n+=r.bytesRead;}
- const z=await h.stat();if(n!==a.size||n>262144||!['dev','ino','size','uid','mode','nlink','mtimeMs','ctimeMs'].every(k=>a[k]===z[k])||sha(b.subarray(0,n))!==expected)refuse();return b.subarray(0,n);
+ const z=await h.stat();if(n!==a.size||n>262144||!['dev','ino','size','uid','mode','nlink','mtimeMs','ctimeMs'].every(k=>a[k]===z[k]))refuse();const recovered=await recoverCaptureV30Input(relative,b.subarray(0,n));if(sha(recovered)!==expected)refuse();return recovered;
  }finally{await h.close();}
 }
