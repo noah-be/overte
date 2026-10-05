@@ -14,7 +14,7 @@ on:
       - '.github/native-tests.json'
       - 'tools/native-tests/select.py'
   push:
-    branches: ['feature/main/browser-direct-client', 'main']
+    branches: ['main']
     paths:
       - 'browser-direct-client/**'
       - 'libraries/networking/**'
