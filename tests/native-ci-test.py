@@ -68,6 +68,14 @@ class RoutingTests(unittest.TestCase):
         for path in ('tests/shared/src/AABoxTests.cpp', 'tools/native-tests/check.py', 'tools/native-tests/run.py'):
             self.assertEqual(POLICY.plan([path])['mode'], 'core')
 
+    def test_jsdoc_dependency_manifests_skip_native_but_build_and_unknown_paths_do_not(self):
+        for path in ('tools/jsdoc/package.json', 'tools/jsdoc/package-lock.json'):
+            self.assertEqual(POLICY.plan([path])['mode'], 'skip')
+            self.assertEqual(POLICY.plan([path], regular=False)['mode'], 'full')
+            for native in ('tools/jsdoc/CMakeLists.txt', 'tools/jsdoc/new.cpp',
+                           'tools/jsdoc/unknown.json', 'libraries/shared/src/AABox.cpp'):
+                self.assertEqual(POLICY.plan([path, native])['mode'], 'full')
+
     def test_production_dependency_and_unknown_changes_are_conservative(self):
         for path in ('libraries/shared/src/AABox.cpp', 'libraries/shared/src/AABox.h',
                      'libraries/new/src/new.cpp', 'interface/src/Application.cpp', 'unknown.data',

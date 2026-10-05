@@ -15,7 +15,15 @@ import sys
 
 
 ROOT = Path(__file__).resolve().parents[2]
-MODES = {"full", "documentation", "delegated-sync"}
+MODES = {"full", "documentation", "tool-dependencies", "delegated-sync"}
+
+
+def tool_dependency_projects(paths: list[str], regular: bool) -> tuple[str, ...]:
+    spec = importlib.util.spec_from_file_location(
+        "tool_dependencies", ROOT / "tools/repository-checks/tool_dependencies.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.affected_projects(paths, regular)
 
 
 def configuration(root: Path = ROOT) -> tuple[dict, dict]:
@@ -40,12 +48,15 @@ def configuration(root: Path = ROOT) -> tuple[dict, dict]:
 
 def plan(event: dict, paths: list[str], config: dict, branches: dict,
          documentation_safe: bool = True) -> dict[str, str]:
-    """Unknown paths receive full validation; only explicit Markdown is lighter."""
+    """Unknown paths receive full validation; bounded tool manifests get tool checks."""
     if any(not isinstance(path, str) or not path or "\x00" in path
-           or PurePosixPath(path).is_absolute() or ".." in PurePosixPath(path).parts
+           or "\\" in path or PurePosixPath(path).is_absolute() or ".." in PurePosixPath(path).parts
            for path in paths):
         raise ValueError("invalid changed path")
     mode = "full"
+    projects = tool_dependency_projects(paths, documentation_safe)
+    if projects:
+        mode = "tool-dependencies"
     if documentation_safe and paths and all(PurePosixPath(path).suffix in config["documentation_suffixes"] for path in paths):
         mode = "documentation"
     security = not paths or any(fnmatch.fnmatchcase(path, pattern)
@@ -70,7 +81,10 @@ def plan(event: dict, paths: list[str], config: dict, branches: dict,
                 # Direction, exact ancestry, current refs and actual candidate tests
                 # are enforced by the independently required trusted sync gate.
                 mode = "delegated-sync"
-    return {"mode": mode, "security": str(security).lower()}
+    result = {"mode": mode, "security": str(security).lower()}
+    if mode == "tool-dependencies":
+        result["tool_projects"] = ",".join(projects)
+    return result
 
 
 def changed_paths(candidate: Path, event: dict, expected_sha: str, *,
@@ -154,7 +168,7 @@ def verify(needs: dict, require_native: bool = True) -> dict:
         raise ValueError("missing or invalid native route")
     required = {"native": "skipped" if native == "skip" else "success",
                 "documentation": "success",
-                "project": "success" if mode == "full" else "skipped",
+                "project": "success" if mode in {"full", "tool-dependencies"} else "skipped",
                 "workflow-security": "success" if security == "true" else "skipped"}
     for job, conclusion in required.items():
         if needs[job].get("result") != conclusion:

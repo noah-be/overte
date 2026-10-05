@@ -2,6 +2,11 @@ name: Shared project CI
 
 on:
   workflow_call:
+    inputs:
+      dependency_projects:
+        type: string
+        default: ""
+        description: Exact tool projects selected by the trusted repository router
   push:
     # Parent pushes run these checks in parent-qualification.yml, where the same
     # successful execution also produces evidence for downstream syncs.
@@ -28,6 +33,7 @@ defaults:
 
 jobs:
   project-tests:
+    if: inputs.dependency_projects == ''
     runs-on: ubuntu-24.04
     env:
       OVERTE_QML_TEST_RUNNER: /usr/lib/qt6/bin/qmltestrunner
@@ -110,3 +116,23 @@ jobs:
             build/test-results/device-self-tests.json
           if-no-files-found: warn
           retention-days: 7
+
+  tool-dependencies:
+    if: inputs.dependency_projects != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out source without credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "22"
+      - name: Check affected tool dependencies and behavior
+        env:
+          DEPENDENCY_PROJECTS: ${{ inputs.dependency_projects }}
+          GH_TOKEN: ""
+          GITHUB_TOKEN: ""
+        run: python3 tools/repository-checks/tool_dependencies.py --projects "$DEPENDENCY_PROJECTS"

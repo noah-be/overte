@@ -564,6 +564,20 @@ class ArchivedRefRetirementContracts(unittest.TestCase):
         self.assertEqual([source for batch in batches for source in batch], sources)
 
 class ProjectWorkflowContracts(unittest.TestCase):
+    def test_tool_dependency_lane_is_bounded_and_selected_by_the_trusted_router(self):
+        source = WORKFLOW.read_text()
+        light = source.split("  tool-dependencies:\n", 1)[1]
+        self.assertIn("if: inputs.dependency_projects == ''", source)
+        self.assertIn("if: inputs.dependency_projects != ''", light)
+        self.assertIn("persist-credentials: false", light)
+        self.assertIn('tool_dependencies.py --projects "$DEPENDENCY_PROJECTS"', light)
+        self.assertIn('GH_TOKEN: ""', light)
+        self.assertNotIn("apt-get", light)
+        self.assertNotIn("tests/run-project-tests.py", light)
+        aggregate = (WORKFLOW_DIRECTORY / "repository-checks.yml").read_text()
+        self.assertIn("needs.route.outputs.mode == 'tool-dependencies'", aggregate)
+        self.assertIn("dependency_projects: ${{ needs.route.outputs.tool_projects }}", aggregate)
+
     @classmethod
     def setUpClass(cls):
         cls.source = WORKFLOW.read_text(encoding="utf-8")

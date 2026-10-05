@@ -6,6 +6,18 @@ layer. Physical-device acceptance has separate commands and evidence requirement
 
 ## Host prerequisites
 
+Pull requests changing only the regular `package.json` / `package-lock.json`
+files in `tools/jsdoc` or `server-console` (optionally with Markdown) select
+bounded tool checks instead of the full host suite and native client build.
+The required repository gate still verifies successful dependency installation,
+an audit of all dependency severities, and behavior of each affected tool:
+JSDoc generation, or console tests and the packager entry point. Run them locally
+with `python3 tools/repository-checks/tool_dependencies.py --projects tools/jsdoc,server-console`.
+Installation scripts are disabled; this lane does not claim GUI or complete
+distributable-packaging coverage. Mixed source/build changes, unknown paths,
+and nonregular files retain the existing broader checks. Synchronization PRs
+continue to use the independently required exact-parent reuse gate.
+
 Use a Linux host for the documented common test path. The runner uses Bash and
 POSIX process groups; native Windows application builds follow
 [BUILD_WIN.md](../BUILD_WIN.md) instead. The GitHub-hosted reference environment
