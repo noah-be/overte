@@ -31,7 +31,13 @@ jobs:
         env:
           PARENT_BRANCH: ${{ github.ref_name }}
         run: git fetch --no-tags origin "+refs/heads/$PARENT_BRANCH:refs/remotes/origin/$PARENT_BRANCH"
+      - name: Select bounded tool checks or complete parent qualification
+        id: route
+        run: >-
+          python3 tools/repository-checks/tool_dependencies.py
+          --event "$GITHUB_EVENT_PATH" --output "$GITHUB_OUTPUT"
       - name: Set up Python
+        if: steps.route.outputs.projects == ''
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.12"
@@ -40,11 +46,13 @@ jobs:
         with:
           node-version: "22"
       - name: Set up Java
+        if: steps.route.outputs.projects == ''
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         with:
           distribution: temurin
           java-version: "17"
       - name: Verify runner prerequisites
+        if: steps.route.outputs.projects == ''
         run: |
           set -euo pipefail
           command -v bash
@@ -55,6 +63,7 @@ jobs:
           node --version
           java -version
       - name: Install QML and portable C++ contract prerequisites
+        if: steps.route.outputs.projects == ''
         run: |
           set -euo pipefail
           sudo apt-get -o Acquire::Retries=4 update
@@ -66,6 +75,7 @@ jobs:
             qml6-module-qtquick-templates qml6-module-qtquick-window \
             qml6-module-qt-labs-settings qml6-module-qtquick-dialogs qml6-module-qttest
       - name: Prepare isolated host evidence validators
+        if: steps.route.outputs.projects == ''
         run: |
           # Ubuntu 24.04 restricts user namespaces through AppArmor. Permit
           # offline test sandboxes only on this disposable GitHub-hosted VM.
@@ -76,11 +86,13 @@ jobs:
           python3 -m venv build/host-tests-env
           build/host-tests-env/bin/python -m pip install --disable-pip-version-check -r tests/requirements-host.txt
       - name: Run complete host qualification
+        if: steps.route.outputs.projects == ''
         run: >-
           build/host-tests-env/bin/python tests/run-project-tests.py
           --profile host --timeout 240 --host-timeout 900
           --junit build/test-results/parent-project-tests.xml
       - name: Create content-addressed qualification evidence
+        if: steps.route.outputs.projects == ''
         env:
           PARENT_BRANCH: ${{ github.ref_name }}
           PARENT_COMMIT: ${{ github.sha }}
@@ -95,6 +107,7 @@ jobs:
           --run-id "$RUN_ID" --run-attempt "$RUN_ATTEMPT"
           --output build/parent-qualification/qualification.json
       - name: Upload immutable qualification evidence
+        if: steps.route.outputs.projects == ''
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: parent-qualification-${{ github.sha }}
@@ -102,10 +115,17 @@ jobs:
           if-no-files-found: error
           retention-days: 4
       - name: Upload qualification test reports
-        if: always()
+        if: always() && steps.route.outputs.projects == ''
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: parent-qualification-reports-${{ github.sha }}-${{ github.run_attempt }}
           path: build/test-results/
           if-no-files-found: warn
           retention-days: 7
+      - name: Check only affected tool dependencies and behavior
+        if: steps.route.outputs.projects != ''
+        env:
+          DEPENDENCY_PROJECTS: ${{ steps.route.outputs.projects }}
+          GH_TOKEN: ""
+          GITHUB_TOKEN: ""
+        run: python3 tools/repository-checks/tool_dependencies.py --projects "$DEPENDENCY_PROJECTS"
