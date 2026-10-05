@@ -359,6 +359,29 @@ class TopologyContracts(unittest.TestCase):
                 with self.subTest(base=base, head=head):
                     self.assertIsNone(gate.classify_event(self.event(base, head), config(), MappingApi()))
 
+    def test_only_regular_tool_manifests_receive_bounded_sync_checks(self):
+        manifest = 'tools/jsdoc/package-lock.json'
+        cases = [(manifest, None, '100644', 'tool-dependencies'),
+                 (manifest, None, '120000', 'android-family'),
+                 (manifest, 'native.cpp', '100644', 'android-family'),
+                 ('tools/jsdoc/CMakeLists.txt', None, '100644', 'android-family')]
+        for filename, previous, mode, profile in cases:
+            change = {'filename': filename}
+            if previous:
+                change['previous_filename'] = previous
+            paths = {filename, previous} - {None}
+            tree = {filename: {**entry(filename), 'mode': mode}}
+            with self.subTest(change=change, mode=mode), \
+                 mock.patch.object(gate, 'branch_sha', side_effect=[BASE, PARENT] * 3), \
+                 mock.patch.object(gate, 'commit', side_effect=[{'sha': PARENT}, {'sha': MERGE, 'parents': [{'sha': BASE}, {'sha': PARENT}]}]), \
+                 mock.patch.object(gate, 'compare_merge_base', return_value=HEAD), \
+                 mock.patch.object(gate, 'compare_files', return_value=(HEAD, paths)), \
+                 mock.patch.object(gate, 'paginate_pull_files', return_value=[change]), \
+                 mock.patch.object(gate, 'recursive_tree', return_value=(TREE, tree)):
+                api = MappingApi({f'repos/{REPOSITORY}/pulls/610': {'state': 'open', 'mergeable': True, 'merge_commit_sha': MERGE}})
+                result = gate.classify_event(self.event('android-main', 'main'), config(), api)
+                self.assertEqual(result.profile, profile)
+
     def test_executable_docs_and_code_renames_keep_full_qualification(self):
         for change in ({"filename": "docs/helper.py"},
                        {"filename": "docs/helper.md", "previous_filename": "tools/helper.py"}):
@@ -675,6 +698,13 @@ class InspectionContracts(unittest.TestCase):
         self.assertEqual(calls, 1)
         self.assertEqual(result["mode"], "fallback")
 
+    def test_tool_sync_checks_the_tools_without_claiming_complete_host_qualification(self):
+        calls, result = self.inspect_request(replace(request(), profile='tool-dependencies',
+                    changed_paths=('tools/jsdoc/package-lock.json',)))
+        self.assertEqual(calls, 0)
+        self.assertEqual(result['mode'], 'reuse')
+        self.assertEqual(result['evidence_run_id'], '')
+
 
 class DifferentialContracts(unittest.TestCase):
     def test_retired_desktop_differential_profiles_are_rejected(self):
@@ -691,11 +721,20 @@ class DifferentialContracts(unittest.TestCase):
             differential.required_roots(Path("."), "documentation", ["docs/helper.py"])
 
     def test_each_non_documentation_profile_has_a_minimal_owned_root(self):
-        self.assertEqual(set(differential.PROFILES) - {"documentation"}, {
+        self.assertEqual(set(differential.PROFILES) - {"documentation", "tool-dependencies"}, {
             "android-family", "android-phone", "android-vr", "android-pico",
             "apple-family", "apple-ios",
         })
-        self.assertTrue(all(differential.PROFILES[name] for name in differential.PROFILES if name != "documentation"))
+        self.assertTrue(all(differential.PROFILES[name] for name in differential.PROFILES
+                            if name not in {"documentation", "tool-dependencies"}))
+
+    def test_tool_profile_rejects_mixed_changes_and_empty_tool_inventory(self):
+        valid = ['tools/jsdoc/package-lock.json']
+        differential.required_roots(Path('.'), 'tool-dependencies', valid)
+        for paths in ([], ['docs/a.md'], valid + ['libraries/shared/src/AABox.cpp'],
+                      valid + ['tools/jsdoc/CMakeLists.txt']):
+            with self.assertRaises(ValueError):
+                differential.required_roots(Path('.'), 'tool-dependencies', paths)
 
 
 class DispatchContracts(unittest.TestCase):

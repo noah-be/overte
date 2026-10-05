@@ -231,6 +231,45 @@ class AggregateTests(unittest.TestCase):
 
 
 class ToolDependencyTests(unittest.TestCase):
+    def test_push_inventory_uses_both_sides_and_exact_commit_identity(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            def git(*args):
+                return subprocess.check_output(['git', '-c', 'core.hooksPath=/dev/null',
+                                                '-c', 'commit.gpgsign=false', *args], cwd=root, text=True).strip()
+            git('init', '-q', '--initial-branch=main')
+            git('config', 'user.name', 'Fixture')
+            git('config', 'user.email', 'fixture@example.invalid')
+            (root / 'tools/jsdoc').mkdir(parents=True)
+            manifest = root / 'tools/jsdoc/package-lock.json'
+            manifest.write_text('{}')
+            (root / 'native.cpp').write_text('initial source')
+            git('add', '.')
+            git('commit', '-qm', 'Base')
+            base = git('rev-parse', 'HEAD')
+            manifest.write_text('{"updated":true}')
+            git('commit', '-qam', 'Tool update')
+            updated = git('rev-parse', 'HEAD')
+            payload = {'repository': event()['repository'], 'before': base, 'after': updated}
+            self.assertEqual(TOOLS.push_projects(root, payload), ('tools/jsdoc',))
+            self.assertEqual(TOOLS.push_projects(root, {**payload, 'before': '9' * 40}), ())
+            with self.assertRaises(ValueError):
+                TOOLS.push_projects(root, {**payload, 'after': base})
+            with self.assertRaises(ValueError):
+                TOOLS.push_projects(root, {**payload, 'repository': {'full_name': 'overte-org/overte', 'id': 1}})
+            manifest.chmod(0o755)
+            git('commit', '-qam', 'Executable manifest')
+            self.assertEqual(TOOLS.push_projects(root, {**payload, 'after': git('rev-parse', 'HEAD')}), ())
+            manifest.chmod(0o644)
+            (root / 'native.cpp').write_text('source')
+            git('add', '.')
+            git('commit', '-qm', 'Mixed source update')
+            self.assertEqual(TOOLS.push_projects(root, {**payload, 'after': git('rev-parse', 'HEAD')}), ())
+            git('mv', 'native.cpp', 'server-console-package-lock.md')
+            git('commit', '-qm', 'Rename source to Markdown')
+            self.assertEqual(TOOLS.push_projects(root, {**payload, 'after': git('rev-parse', 'HEAD')}), ())
+            self.assertEqual(TOOLS.push_projects(root, {}), ())
+
     def test_unknown_duplicate_and_empty_projects_are_rejected_before_execution(self):
         with patch.object(TOOLS.subprocess, "run") as run:
             for projects in ([], ["browser-client"], ["tools/jsdoc", "tools/jsdoc"], ["../tools/jsdoc"]):

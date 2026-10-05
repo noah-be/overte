@@ -15,8 +15,12 @@ JSDoc generation, or console tests and the packager entry point. Run them locall
 with `python3 tools/repository-checks/tool_dependencies.py --projects tools/jsdoc,server-console`.
 Installation scripts are disabled; this lane does not claim GUI or complete
 distributable-packaging coverage. Mixed source/build changes, unknown paths,
-and nonregular files retain the existing broader checks. Synchronization PRs
-continue to use the independently required exact-parent reuse gate.
+and nonregular files retain the existing broader checks. Protected pushes use
+the exact before/after commit inventory to select the same bounded tool lane.
+They do not publish complete host-qualification evidence for partial tool checks.
+Synchronization PRs continue to use the independently required topology gate;
+a regular tool-only delta selects the affected tool checks directly, while
+mixed source changes retain exact-parent host evidence reuse or the full fallback.
 
 Use a Linux host for the documented common test path. The runner uses Bash and
 POSIX process groups; native Windows application builds follow
