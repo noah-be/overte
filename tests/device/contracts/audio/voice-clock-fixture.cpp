@@ -72,11 +72,7 @@ public:
  float loudnessToLevel(float value){return value;}
  void emitAudioPacket(const char* bytes,int size,int,bool,Transform,int,int,PacketType type,QString){packets.emplace_back(bytes,size);packetTypes.push_back(type);}
  VOICE_MEMBERS
- bool prepareVoiceTest();
- bool sendVoiceTest(const std::array<int,12>&);
- void resetVoiceTest();
- void touchVoiceTest();
- QVariantMap voiceTestStatus()const;
+ VOICE_DECLARATIONS
  void handleAudioInput(QByteArray&);
  void refreshIOSAudioInput();
  void setMuted(bool,bool emitSignal=true);
