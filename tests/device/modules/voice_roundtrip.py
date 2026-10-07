@@ -17,11 +17,23 @@ from voice_peer.fixture import invoke as peer
 from voice_peer.voice_signal import analyze
 
 
+def native_status(value: dict) -> dict:
+    keys = ("commandId", "sampleEpochMs", "sending", "frames", "sourceEnabled", "sourceClockActive",
+            "sourceError", "nativeMuted", "audioLifecycleRunning", "audioPaused", "testCallbacks",
+            "inputCallbacks", "dummyCallbacks", "inputPresent", "inputState", "inputError",
+            "dummyTimerActive", "iosPermission", "iosOutcome", "iosForeground", "iosInterrupted", "iosCaptureAllowed")
+    return {key: value[key] for key in keys if key in value}
+
+
 def exchange(action: str, **fields) -> dict:
     value = {"schemaVersion": 1, "commandId": "voice-" + secrets.token_hex(16), "action": action, **fields}
     result = contract_operation("voice.exchange", value)
     if result["commandId"] != value["commandId"]:
         raise InfrastructureError("voice transport returned another command's result")
+    if action in {"prepare", "send", "status"}:
+        write_json("voice-native-status.json", native_status(result))
+    if result.get("sourceError"):
+        fail("device voice source stopped: " + result["sourceError"])
     if not result["ok"]:
         raise InfrastructureError("native voice test hook rejected the command")
     if action != "reset" and (result.get("localEcho") is not False or result.get("serverEcho") is not False):
@@ -46,6 +58,8 @@ def wait_send(identity: str) -> dict:
     while time.monotonic() < deadline:
         assert_process(identity, "voice send")
         result = exchange("status")
+        if result.get("sourceError"):
+            fail("device voice source stopped: " + result["sourceError"])
         if result.get("sending") is False:
             if result.get("frames") != 116160:
                 fail("device did not process the complete microphone challenge")
@@ -107,7 +121,7 @@ def run_roundtrip(state: Path, identity: str, domain_id: str) -> dict:
             if measured.get("challenge") != challenge or measured.get("expected") != ("absent" if muted else "present"):
                 raise InfrastructureError("PC returned another challenge or expectation")
         leg = {"direction": "device-to-pc", "muted": muted, "measurement": measured,
-               "deviceVersion": device.get("version")}
+               "deviceVersion": device.get("version"), "nativeStatus": native_status(device)}
         evidence["legs"].append(leg)
         write_json("voice-roundtrip.json", evidence)
         if not measured.get("passed"):

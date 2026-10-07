@@ -59,6 +59,19 @@ def result(value: object) -> dict:
         raise ValueError("voice frame counter is invalid")
     if "sending" in value and type(value["sending"]) is not bool:
         raise ValueError("voice sending state is invalid")
+    for key in ("sourceEnabled", "sourceClockActive", "nativeMuted", "audioLifecycleRunning", "audioPaused",
+                "inputPresent", "dummyTimerActive", "iosForeground", "iosInterrupted", "iosCaptureAllowed"):
+        if key in value and type(value[key]) is not bool:
+            raise ValueError("voice diagnostic boolean is invalid")
+    for key in ("testCallbacks", "inputCallbacks", "dummyCallbacks"):
+        if key in value and (type(value[key]) is not int or not 0 <= value[key] < 2**53):
+            raise ValueError("voice diagnostic counter is invalid")
+    for key, low, high in (("inputState", -1, 3), ("inputError", -1, 4), ("iosPermission", 0, 3), ("iosOutcome", 0, 6)):
+        if key in value and (type(value[key]) is not int or not low <= value[key] <= high):
+            raise ValueError("voice diagnostic enum is invalid")
+    if "sourceError" in value and value["sourceError"] not in (
+            "", "voice-source-lease-expired", "voice-source-lifecycle-stopped", "voice-source-clock-late"):
+        raise ValueError("voice source error is invalid")
     return value
 
 

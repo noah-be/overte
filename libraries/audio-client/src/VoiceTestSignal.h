@@ -15,6 +15,8 @@ public:
     static constexpr int FRAMES = 116160; // 0.5 + 12 * (0.24 + 0.08) + 0.5
     void enable() { _enabled = true; _frame = FRAMES; }
     void reset() { _enabled = false; _frame = FRAMES; }
+    // Preserve incomplete progress when a lifecycle or clock failure cancels a send.
+    void cancel() { _enabled = false; }
     void send(const std::array<int, 12>& symbols) {
         for (int symbol : symbols) {
             if (symbol < 0 || symbol > 7) { throw std::invalid_argument("voice symbol"); }

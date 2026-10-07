@@ -61,13 +61,21 @@ QVariantMap TestScriptingInterface::voiceTest(const QVariantMap& command) {
         if (QThread::currentThread() == audio->thread()) { callback(); }
         else { QMetaObject::invokeMethod(audio.data(), callback, Qt::BlockingQueuedConnection); }
     };
+    const auto appendAudioStatus = [&] {
+        onAudio([&] {
+            const auto status = audio->voiceTestStatus();
+            for (auto it = status.cbegin(); it != status.cend(); ++it) { result[it.key()] = it.value(); }
+        });
+    };
     const QString action = command.value("action").toString();
     if (action == "prepare") {
         if (audio->getRecording() || !_voiceCapturePath.isEmpty()) {
             result["error"] = "voice-recording-busy";
             return result;
         }
-        onAudio([&] { audio->voiceTestSignal().enable(); });
+        bool prepared = false;
+        onAudio([&] { prepared = audio->prepareVoiceTest(); });
+        if (!prepared) { result["error"] = "voice-source-unavailable"; appendAudioStatus(); return result; }
     } else if (action == "send") {
         const QString challenge = command.value("challenge").toString();
         if (!QRegularExpression("^[0-9a-f]{32}$").match(challenge).hasMatch()) {
@@ -78,12 +86,9 @@ QVariantMap TestScriptingInterface::voiceTest(const QVariantMap& command) {
         std::array<int, 12> symbols;
         symbols[0] = static_cast<unsigned char>(digest[0]) % 8;
         for (int i = 1; i < 12; ++i) { symbols[i] = (symbols[i - 1] + 1 + static_cast<unsigned char>(digest[i]) % 7) % 8; }
-        bool busy = false;
-        onAudio([&] {
-            busy = audio->voiceTestSignal().active();
-            if (!busy) { audio->voiceTestSignal().send(symbols); }
-        });
-        if (busy) { result["error"] = "voice-send-busy"; return result; }
+        bool sent = false;
+        onAudio([&] { sent = audio->sendVoiceTest(symbols); });
+        if (!sent) { result["error"] = "voice-send-unavailable"; appendAudioStatus(); return result; }
     } else if (action == "capture-start") {
         const int seconds = command.value("seconds").toInt();
         if (seconds < 6 || seconds > 10 || audio->getRecording() || !_voiceCapturePath.isEmpty()) {
@@ -129,17 +134,15 @@ QVariantMap TestScriptingInterface::voiceTest(const QVariantMap& command) {
         ++_voiceCaptureGeneration;
         return result;
     } else if (action == "reset") {
-        onAudio([&] { audio->voiceTestSignal().reset(); });
+        onAudio([&] { audio->resetVoiceTest(); });
         if (!_voiceCapturePath.isEmpty()) { audio->stopRecording(); QFile::remove(_voiceCapturePath); _voiceCapturePath.clear(); }
         ++_voiceCaptureGeneration;
     } else if (action != "status") {
         result["error"] = "voice-invalid-action";
         return result;
     }
-    onAudio([&] {
-        result["sending"] = audio->voiceTestSignal().active();
-        result["frames"] = audio->voiceTestSignal().frames();
-    });
+    onAudio([&] { audio->touchVoiceTest(); });
+    appendAudioStatus();
     result["ok"] = true;
     return result;
 }
