@@ -357,6 +357,8 @@ android {
     }
     buildTypes {
         debug {
+            externalNativeBuild.cmake.arguments '-DOVERTE_E2E_VOICE_TESTS=' +
+                (providers.gradleProperty('overteVoiceTests').orNull == 'true' ? 'ON' : 'OFF')
             enableUnitTestCoverage true
             enableAndroidTestCoverage true
             buildConfigField 'String', 'BACKTRACE_URL', '""'
@@ -367,6 +369,7 @@ android {
         }
         emulator {
             initWith debug
+            externalNativeBuild.cmake.arguments '-DOVERTE_E2E_VOICE_TESTS=OFF'
             // The x86_64 smoke APK does not package JaCoCo's offline runtime.
             // Inheriting debug coverage instruments QtApplication and crashes
             // the process before AndroidJUnitRunner can start.
@@ -375,6 +378,8 @@ android {
             matchingFallbacks = ['debug']
         }
         release {
+            // Synthetic sources and PCM capture are restricted to dedicated debug builds.
+            externalNativeBuild.cmake.arguments '-DOVERTE_E2E_VOICE_TESTS=OFF'
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'),
                 'proguard-rules.pro'

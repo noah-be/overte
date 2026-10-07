@@ -519,6 +519,9 @@ class AppiumAdapter:
             values.append("telemetry.snapshot")
         if cls.controlled_android_client(target):
             values += ["asset.load", "navigation.enter-domain", "sound.play"]
+            if (os.environ.get("OVERTE_E2E_VOICE_TESTS") == "1"
+                    and target.get("appId") == "io.github.noah_be.overte.phone"):
+                values.append("voice.exchange")
         controls = target.get("controls", {})
         if target.get("scene"):
             values.append("scene.load")
@@ -1187,6 +1190,19 @@ class AppiumAdapter:
                 and arguments["direction"] not in target.get("controls", {}).get("move", {})):
             fail("requested movement direction is not configured")
         client, session, state = self.ensure_session(selector)
+        if operation == "voice.exchange":
+            from adapters.voice_transport import exchange
+            from adb_transport import AdbTransport
+            identity = self.android_client_identity(client, session, target)
+            device = target["process"].get("selector") or target["capabilities"].get("appium:udid")
+            adb = AdbTransport()
+            def check():
+                if self.android_client_identity(client, session, target) != identity:
+                    fail("voice test Android process changed")
+            return exchange(arguments,
+                lambda payload: self.write_android_client_command(client, session, target, payload, identity),
+                lambda: adb.read_debug_app_file(device, target["appId"],
+                    "files/overte-e2e/voice-result.json", attempts=1), check)
         if operation in {"navigation.enter-domain", "asset.load", "sound.play"}:
             if self.platform != "android" or not self.controlled_android_client(target):
                 fail("Appium target has no controlled client channel for this operation")

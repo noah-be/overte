@@ -132,6 +132,8 @@ class AndroidAdapter:
                 "asset.load", "navigation.enter-domain", "probe.snapshot",
                 "scene.load", "setting.set", "sound.play",
             ]
+        if self.kind == "phone" and os.environ.get("OVERTE_ANDROID_E2E_DEBUG") == "1" and os.environ.get("OVERTE_E2E_VOICE_TESTS") == "1":
+            values.append("voice.exchange")
         if self.upgrade_configuration_available():
             values.append("app.upgrade")
         if self.kind == "pico" and os.environ.get("OVERTE_PICO_OPENXR_INPUT") == "1":
@@ -621,6 +623,15 @@ class AndroidAdapter:
         else:
             self.require(target)
         package = self.profile["package"]
+        if operation == "voice.exchange":
+            if operation not in self.capabilities(target):
+                fail("voice test requires an explicitly enabled debug test build")
+            from adapters.voice_transport import exchange
+            identity = self.require_controlled_debug_identity(target)
+            return exchange(values,
+                lambda payload: self.write_control_command(target, identity, operation, payload),
+                lambda: self.adb.read_debug_app_file(target, package, "files/overte-e2e/voice-result.json", attempts=1),
+                lambda: self.require_same_process(target, identity, operation))
         if operation in {"navigation.enter-domain", "asset.load", "sound.play"}:
             try:
                 values = validate_operation_arguments(operation, values)

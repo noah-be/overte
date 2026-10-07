@@ -727,6 +727,16 @@ Run the secret-free static release check with:
 ./tests/phone-release-config-test.sh
 ```
 
+## Dedicated voice test build
+
+The optional [synthetic voice roundtrip](../../../tests/device/VOICE_ROUNDTRIP.md)
+uses the verified Phone dependencies and existing debug E2E Activity. Enable
+its native hook with `-PoverteVoiceTests=true` on `:phoneInterface:assembleDebug`.
+Ordinary debug builds leave it disabled; release and emulator variants force
+it off. The test requires the exact installed debug candidate, an owned PC peer
+and the controlled domain fixture. Follow the linked guide for launch,
+private target configuration and evidence boundaries.
+
 ## Troubleshooting
 
 ### Android dependencies are missing
