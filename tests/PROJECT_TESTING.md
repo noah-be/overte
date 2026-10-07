@@ -1,5 +1,9 @@
 # Project testing
 
+For a task-oriented entry point, use the
+[automated testing portal](../docs/portal/testing/index.md). This page remains
+the authoritative guide for project-runner commands and prerequisites.
+
 Run commands from the repository root. The shared runner provides repository
 checks, a complete portable host profile, and an optional configured native
 layer. Physical-device acceptance has separate commands and evidence requirements.
