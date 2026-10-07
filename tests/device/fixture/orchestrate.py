@@ -106,6 +106,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--bind", default="127.0.0.1")
     parser.add_argument("--public-host")
     parser.add_argument("--fixture-port", type=int, default=0)
+    parser.add_argument("--voice-peer-config", type=Path)
     parser.add_argument("--scene-only", action="store_true")
     parser.add_argument("--domain-server")
     parser.add_argument("--assignment-client")
@@ -146,6 +147,7 @@ def main() -> int:
     os.chmod(output, 0o700)
     log = (output / "orchestrator.log").open("w", encoding="utf-8")
     scene_process = domain_process = None
+    voice_peer = None
     stopping = False
 
     def request_stop(_signal=None, _frame=None) -> None:
@@ -200,6 +202,13 @@ def main() -> int:
                                args.startup_timeout_seconds, "domain fixture")
         env_path = output / "environment.json"
         values = environment(scene, domain)
+        if args.voice_peer_config:
+            if domain is None:
+                raise ValueError("voice peer fixture requires the owned domain")
+            sys.path.insert(0, str(DEVICE_ROOT))
+            from voice_peer.fixture import VoicePeerFixture
+            voice_peer = VoicePeerFixture(args.voice_peer_config, domain["domainUrl"])
+            values.update(voice_peer.start(lambda: stopping))
         atomic_json(env_path, {"schemaVersion": 1, "environment": values})
         ready = {
             "schemaVersion": 1,
@@ -217,9 +226,13 @@ def main() -> int:
                 raise RuntimeError("domain fixture exited while active")
             time.sleep(0.2)
     finally:
-        stop(domain_process)
-        stop(scene_process)
-        log.close()
+        try:
+            if voice_peer is not None:
+                voice_peer.close()
+        finally:
+            stop(domain_process)
+            stop(scene_process)
+            log.close()
     return 0
 
 

@@ -14,6 +14,7 @@
 
 #include <functional>
 #include <QtCore/QObject>
+#include <QtCore/QVariantMap>
 #include <ScriptValue.h>
 
 class TestScriptingInterface : public QObject {
@@ -143,6 +144,9 @@ public slots:
     * @param {string} filename - Name of file to save to
     */
     void saveObject(QVariant v, const QString& filename);
+#if defined(OVERTE_E2E_VOICE_TESTS)
+    Q_INVOKABLE QVariantMap voiceTest(const QVariantMap& command);
+#endif
 
     /*@jsdoc
     * Maximizes the window
@@ -181,6 +185,10 @@ public slots:
 private:
     bool waitForCondition(qint64 maxWaitMs, std::function<bool()> condition);
     QString _testResultsLocation;
+#if defined(OVERTE_E2E_VOICE_TESTS)
+    QString _voiceCapturePath;
+    quint64 _voiceCaptureGeneration { 0 };
+#endif
 };
 
 #endif  // hifi_TestScriptingInterface_h

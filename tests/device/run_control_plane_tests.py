@@ -78,7 +78,7 @@ def commands(profile: str, self_test_jobs: int | None = None) -> list[tuple[str,
         patterns = [
             "test_common_contracts.py", "test_governance_and_frontier.py",
             "test_execution_plan_pipeline.py", "test_harness.py",
-            "test_matrix_evaluator.py",
+            "test_matrix_evaluator.py", "test_voice_peer.py", "test_voice_roundtrip.py",
         ]
         stability = ROOT / "self_tests/test_stability_campaign.py"
         if stability.is_file():
