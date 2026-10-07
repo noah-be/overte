@@ -30,7 +30,7 @@ T glmFromJson(const QJsonValue& json) {
     T result;
     if (json.isArray()) {
         QJsonArray array = json.toArray();
-        auto length = std::min(array.size(), static_cast<qsizetype>(result.length()));
+        auto length = std::min(array.size(), static_cast<decltype(array.size())>(result.length()));
         for (auto i = 0; i < length; ++i) {
             result[i] = (float)array[i].toDouble();
         }
