@@ -1,0 +1,285 @@
+{
+  "date": "2026-10-01",
+  "materialAssistance": "OpenAI Codex",
+  "scope": "Actual full canonical native Create workflow in stock Chromium154 and Firefox156, isolated local domain; private guarded Qt WebEngine IME experiment. Not shipping-integrated.",
+  "experimentManifestSHA256": "1165c18dca8edc8f13115960d02916797b170ea8a1f6dd2be1eda125cd1d20a7",
+  "testsPassed": 2,
+  "testsFailed": 0,
+  "microphoneRequested": false,
+  "publicWorldWrites": 0,
+  "nativeQtBuildAndExistingInputGrabTests": "Passed against actual packaged Qt5.15.3 runtime. Separate actual own-window IME ownership/query/Unicode/refusal/reentrant guard fixture also passed.",
+  "cohorts": [
+    {
+      "startedAt": "2026-10-01T21:15:06.464Z",
+      "finishedAt": "2026-10-01T21:16:17.474Z",
+      "completed": true,
+      "functionalAcceptance": true,
+      "browserVersion": "154.0.8037.57",
+      "nativeVersion": "2026.04.1",
+      "cleanupVerified": true,
+      "sourceCoherent": true,
+      "shippingSourceCoherent": true,
+      "runtimeAuditCaptureSHA256": "deaf963435a24b76db3018d01fd0e4f84792af4ceb6b63da8f8f64eea4a482cc",
+      "nativeBinarySHA256": "91f3e10c42c1e35d5c8265e9b0007e925844d9bee61a26807118dde6e527887c",
+      "nativeCreateScriptsSHA256": {
+        "system/create/qml/EditTabView.qml": "4895d0f72d438829b4e15626b0dbb719c734e4486a74d175ac3de1a8d15d2621",
+        "system/create/entityProperties/html/js/entityProperties.js": "5e31fbdc3e577dd13663c0d9ee429f7c816bf1c7c91f45ea62438a6b575e08d5",
+        "system/create/entityList/html/js/entityList.js": "1a398a1ab644af6714c16c8a3e00191dd1b861f8fbdd75e78ceb71de6494ecf1",
+        "system/create/edit.js": "c7e20e8a23b7657608da533c35850668558a356d96b515e6eee477858a905a3d"
+      },
+      "ownedFixtureCount": 1,
+      "privateNativePlugin": {
+        "sourceSHA256": "462cd5a0868f9de0feca7afb4b35bb1819c06a6b6a0d68b81a8389fd0a494518",
+        "librarySHA256": "1e725b63a9822985ac90ac246dcf3951f072cb80f2668dc59fdf3d4bc3789ee3",
+        "artifactsSHA256": "dce2c1af159a6c5431d054d1f735b2293bda23fe944f04b26f71e48177c71bc0"
+      },
+      "sourceHashes": {
+        "start": {
+          "tests/integration/tablet-create.mjs": "2582110840444dc68ff118f7bedb7dcf1adc7d2a964bcaca26bc842cb75ba7c8",
+          "tests/integration/tablet-create-readiness.mjs": "48908f84778e5e864b92488a0d4ed72365de21b88b40a00498d263ca011960cd",
+          "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+          "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+          "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+          "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+          "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+          "gateway/tablet-capture.qml": "deaf963435a24b76db3018d01fd0e4f84792af4ceb6b63da8f8f64eea4a482cc",
+          "gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+          "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+          "src/world.ts": "3504f471ac26a590ed8ded270d12011d52a4a4f9e8d7c888c3f9379b402342cb",
+          "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+          "gateway/tablet.mjs": "8642ccb83ad35e946607acab6b49cd9c728ad7958dcfdb88879773724d737f9c",
+          "src/tablet.ts": "17dd1e5ca3c0a0beb0f8c0e5f2b6a93c6f1aed9465bd88b62f02ce39cd8778a2",
+          "native-input/native-input.cpp": "462cd5a0868f9de0feca7afb4b35bb1819c06a6b6a0d68b81a8389fd0a494518",
+          "gateway/server.mjs": "f8399c1015cb85ada0da613b9278b8a90dca0660d2478b8810d43161b1ed237c",
+          "tests/integration/tablet-native-web-ime-override.mjs": "aa53f21ad0e5f5d233c43ce11c3646f320aa6b9216ca2813d015673d0394a739"
+        },
+        "end": {
+          "tests/integration/tablet-create.mjs": "2582110840444dc68ff118f7bedb7dcf1adc7d2a964bcaca26bc842cb75ba7c8",
+          "tests/integration/tablet-create-readiness.mjs": "48908f84778e5e864b92488a0d4ed72365de21b88b40a00498d263ca011960cd",
+          "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+          "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+          "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+          "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+          "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+          "gateway/tablet-capture.qml": "deaf963435a24b76db3018d01fd0e4f84792af4ceb6b63da8f8f64eea4a482cc",
+          "gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+          "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+          "src/world.ts": "3504f471ac26a590ed8ded270d12011d52a4a4f9e8d7c888c3f9379b402342cb",
+          "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+          "gateway/tablet.mjs": "8642ccb83ad35e946607acab6b49cd9c728ad7958dcfdb88879773724d737f9c",
+          "src/tablet.ts": "17dd1e5ca3c0a0beb0f8c0e5f2b6a93c6f1aed9465bd88b62f02ce39cd8778a2",
+          "native-input/native-input.cpp": "462cd5a0868f9de0feca7afb4b35bb1819c06a6b6a0d68b81a8389fd0a494518",
+          "gateway/server.mjs": "f8399c1015cb85ada0da613b9278b8a90dca0660d2478b8810d43161b1ed237c",
+          "tests/integration/tablet-native-web-ime-override.mjs": "aa53f21ad0e5f5d233c43ce11c3646f320aa6b9216ca2813d015673d0394a739"
+        }
+      },
+      "shippingSourceHashes": {
+        "start": {
+          "tests/integration/tablet-create.mjs": "022c05b9f446b08b604c72bc1222f8ad5db92f550475a5ee419703284042185c",
+          "tests/integration/tablet-create-readiness.mjs": "ca5dbc144ed49153a11baed470f0ffa4aebe6db730ca36a5114bf5b41f8ae649",
+          "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+          "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+          "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+          "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+          "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+          "gateway/tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+          "gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+          "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+          "src/world.ts": "3504f471ac26a590ed8ded270d12011d52a4a4f9e8d7c888c3f9379b402342cb",
+          "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+          "gateway/tablet.mjs": "8642ccb83ad35e946607acab6b49cd9c728ad7958dcfdb88879773724d737f9c",
+          "src/tablet.ts": "17dd1e5ca3c0a0beb0f8c0e5f2b6a93c6f1aed9465bd88b62f02ce39cd8778a2",
+          "native-input/native-input.cpp": "c6ec527b810dec4d179526c2b3ef41b9e45c367063d8a29d67273d765d2eb063",
+          "src/main.ts": "dbbabcf3a92d9cdf994a824d1698703d74bf7ba3918c315c23ec478ab3570800",
+          "gateway/server.mjs": "f8399c1015cb85ada0da613b9278b8a90dca0660d2478b8810d43161b1ed237c",
+          "gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60"
+        },
+        "end": {
+          "tests/integration/tablet-create.mjs": "022c05b9f446b08b604c72bc1222f8ad5db92f550475a5ee419703284042185c",
+          "tests/integration/tablet-create-readiness.mjs": "ca5dbc144ed49153a11baed470f0ffa4aebe6db730ca36a5114bf5b41f8ae649",
+          "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+          "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+          "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+          "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+          "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+          "gateway/tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+          "gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+          "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+          "src/world.ts": "3504f471ac26a590ed8ded270d12011d52a4a4f9e8d7c888c3f9379b402342cb",
+          "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+          "gateway/tablet.mjs": "8642ccb83ad35e946607acab6b49cd9c728ad7958dcfdb88879773724d737f9c",
+          "src/tablet.ts": "17dd1e5ca3c0a0beb0f8c0e5f2b6a93c6f1aed9465bd88b62f02ce39cd8778a2",
+          "native-input/native-input.cpp": "c6ec527b810dec4d179526c2b3ef41b9e45c367063d8a29d67273d765d2eb063",
+          "src/main.ts": "dbbabcf3a92d9cdf994a824d1698703d74bf7ba3918c315c23ec478ab3570800",
+          "gateway/server.mjs": "f8399c1015cb85ada0da613b9278b8a90dca0660d2478b8810d43161b1ed237c",
+          "gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60"
+        }
+      },
+      "warningCount": 0,
+      "engine": "chromium",
+      "rawCaptureSHA256": "5b527025031da552bc25d5dd1738dd6ce598ad048aaef019c2a7bd230a7afec5",
+      "logSHA256": "9fbe06c508fdbd4cf1ffeb24a51f32b872048e0de53a2da9b3fdcf13b7b67665",
+      "editedProperties": {
+        "color": {
+          "red": 30,
+          "green": 170,
+          "blue": 220
+        },
+        "dimensions": {
+          "x": 0.699999988079071,
+          "y": 0.8999999761581421,
+          "z": 1.100000023841858
+        }
+      },
+      "originalBaselineEntitiesPreserved": 7,
+      "nativeRoute": "One normal QInputMethodEvent after the same bounded readonly native-document callback; no JavaScript editing or double-insertion fallback."
+    },
+    {
+      "startedAt": "2026-10-01T21:17:10.392Z",
+      "finishedAt": "2026-10-01T21:18:37.140Z",
+      "completed": true,
+      "functionalAcceptance": true,
+      "browserVersion": "firefox/156.0",
+      "nativeVersion": "2026.04.1",
+      "cleanupVerified": true,
+      "sourceCoherent": true,
+      "shippingSourceCoherent": true,
+      "runtimeAuditCaptureSHA256": "deaf963435a24b76db3018d01fd0e4f84792af4ceb6b63da8f8f64eea4a482cc",
+      "nativeBinarySHA256": "91f3e10c42c1e35d5c8265e9b0007e925844d9bee61a26807118dde6e527887c",
+      "nativeCreateScriptsSHA256": {
+        "system/create/qml/EditTabView.qml": "4895d0f72d438829b4e15626b0dbb719c734e4486a74d175ac3de1a8d15d2621",
+        "system/create/entityProperties/html/js/entityProperties.js": "5e31fbdc3e577dd13663c0d9ee429f7c816bf1c7c91f45ea62438a6b575e08d5",
+        "system/create/entityList/html/js/entityList.js": "1a398a1ab644af6714c16c8a3e00191dd1b861f8fbdd75e78ceb71de6494ecf1",
+        "system/create/edit.js": "c7e20e8a23b7657608da533c35850668558a356d96b515e6eee477858a905a3d"
+      },
+      "ownedFixtureCount": 1,
+      "privateNativePlugin": {
+        "sourceSHA256": "462cd5a0868f9de0feca7afb4b35bb1819c06a6b6a0d68b81a8389fd0a494518",
+        "librarySHA256": "1e725b63a9822985ac90ac246dcf3951f072cb80f2668dc59fdf3d4bc3789ee3",
+        "artifactsSHA256": "dce2c1af159a6c5431d054d1f735b2293bda23fe944f04b26f71e48177c71bc0"
+      },
+      "sourceHashes": {
+        "start": {
+          "tests/integration/tablet-create.mjs": "2582110840444dc68ff118f7bedb7dcf1adc7d2a964bcaca26bc842cb75ba7c8",
+          "tests/integration/tablet-create-readiness.mjs": "48908f84778e5e864b92488a0d4ed72365de21b88b40a00498d263ca011960cd",
+          "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+          "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+          "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+          "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+          "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+          "gateway/tablet-capture.qml": "deaf963435a24b76db3018d01fd0e4f84792af4ceb6b63da8f8f64eea4a482cc",
+          "gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+          "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+          "src/world.ts": "3504f471ac26a590ed8ded270d12011d52a4a4f9e8d7c888c3f9379b402342cb",
+          "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+          "gateway/tablet.mjs": "8642ccb83ad35e946607acab6b49cd9c728ad7958dcfdb88879773724d737f9c",
+          "src/tablet.ts": "17dd1e5ca3c0a0beb0f8c0e5f2b6a93c6f1aed9465bd88b62f02ce39cd8778a2",
+          "native-input/native-input.cpp": "462cd5a0868f9de0feca7afb4b35bb1819c06a6b6a0d68b81a8389fd0a494518",
+          "gateway/server.mjs": "f8399c1015cb85ada0da613b9278b8a90dca0660d2478b8810d43161b1ed237c",
+          "tests/integration/tablet-native-web-ime-override.mjs": "aa53f21ad0e5f5d233c43ce11c3646f320aa6b9216ca2813d015673d0394a739"
+        },
+        "end": {
+          "tests/integration/tablet-create.mjs": "2582110840444dc68ff118f7bedb7dcf1adc7d2a964bcaca26bc842cb75ba7c8",
+          "tests/integration/tablet-create-readiness.mjs": "48908f84778e5e864b92488a0d4ed72365de21b88b40a00498d263ca011960cd",
+          "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+          "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+          "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+          "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+          "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+          "gateway/tablet-capture.qml": "deaf963435a24b76db3018d01fd0e4f84792af4ceb6b63da8f8f64eea4a482cc",
+          "gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+          "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+          "src/world.ts": "3504f471ac26a590ed8ded270d12011d52a4a4f9e8d7c888c3f9379b402342cb",
+          "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+          "gateway/tablet.mjs": "8642ccb83ad35e946607acab6b49cd9c728ad7958dcfdb88879773724d737f9c",
+          "src/tablet.ts": "17dd1e5ca3c0a0beb0f8c0e5f2b6a93c6f1aed9465bd88b62f02ce39cd8778a2",
+          "native-input/native-input.cpp": "462cd5a0868f9de0feca7afb4b35bb1819c06a6b6a0d68b81a8389fd0a494518",
+          "gateway/server.mjs": "f8399c1015cb85ada0da613b9278b8a90dca0660d2478b8810d43161b1ed237c",
+          "tests/integration/tablet-native-web-ime-override.mjs": "aa53f21ad0e5f5d233c43ce11c3646f320aa6b9216ca2813d015673d0394a739"
+        }
+      },
+      "shippingSourceHashes": {
+        "start": {
+          "tests/integration/tablet-create.mjs": "022c05b9f446b08b604c72bc1222f8ad5db92f550475a5ee419703284042185c",
+          "tests/integration/tablet-create-readiness.mjs": "ca5dbc144ed49153a11baed470f0ffa4aebe6db730ca36a5114bf5b41f8ae649",
+          "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+          "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+          "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+          "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+          "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+          "gateway/tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+          "gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+          "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+          "src/world.ts": "3504f471ac26a590ed8ded270d12011d52a4a4f9e8d7c888c3f9379b402342cb",
+          "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+          "gateway/tablet.mjs": "8642ccb83ad35e946607acab6b49cd9c728ad7958dcfdb88879773724d737f9c",
+          "src/tablet.ts": "17dd1e5ca3c0a0beb0f8c0e5f2b6a93c6f1aed9465bd88b62f02ce39cd8778a2",
+          "native-input/native-input.cpp": "c6ec527b810dec4d179526c2b3ef41b9e45c367063d8a29d67273d765d2eb063",
+          "src/main.ts": "dbbabcf3a92d9cdf994a824d1698703d74bf7ba3918c315c23ec478ab3570800",
+          "gateway/server.mjs": "f8399c1015cb85ada0da613b9278b8a90dca0660d2478b8810d43161b1ed237c",
+          "gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60"
+        },
+        "end": {
+          "tests/integration/tablet-create.mjs": "022c05b9f446b08b604c72bc1222f8ad5db92f550475a5ee419703284042185c",
+          "tests/integration/tablet-create-readiness.mjs": "ca5dbc144ed49153a11baed470f0ffa4aebe6db730ca36a5114bf5b41f8ae649",
+          "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+          "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+          "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+          "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+          "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+          "gateway/tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+          "gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+          "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+          "src/world.ts": "3504f471ac26a590ed8ded270d12011d52a4a4f9e8d7c888c3f9379b402342cb",
+          "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+          "gateway/tablet.mjs": "8642ccb83ad35e946607acab6b49cd9c728ad7958dcfdb88879773724d737f9c",
+          "src/tablet.ts": "17dd1e5ca3c0a0beb0f8c0e5f2b6a93c6f1aed9465bd88b62f02ce39cd8778a2",
+          "native-input/native-input.cpp": "c6ec527b810dec4d179526c2b3ef41b9e45c367063d8a29d67273d765d2eb063",
+          "src/main.ts": "dbbabcf3a92d9cdf994a824d1698703d74bf7ba3918c315c23ec478ab3570800",
+          "gateway/server.mjs": "f8399c1015cb85ada0da613b9278b8a90dca0660d2478b8810d43161b1ed237c",
+          "gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60"
+        }
+      },
+      "warningCount": 0,
+      "engine": "firefox",
+      "rawCaptureSHA256": "5c01c3283b648e04b03f659c5f31b05925f7da52e50dd5c28bd42368f8a51592",
+      "logSHA256": "ac3956fb5e40eb859d612381edb01bb750d7399f6791bcd590dab4a580b973b9",
+      "editedProperties": {
+        "color": {
+          "red": 30,
+          "green": 170,
+          "blue": 220
+        },
+        "dimensions": {
+          "x": 0.699999988079071,
+          "y": 0.8999999761581421,
+          "z": 1.100000023841858
+        }
+      },
+      "originalBaselineEntitiesPreserved": 7,
+      "nativeRoute": "One normal QInputMethodEvent after the same bounded readonly native-document callback; no JavaScript editing or double-insertion fallback."
+    }
+  ],
+  "limitations": [
+    "The native dispatch Boolean acknowledges submission, not a DOM value acknowledgement. Full final native property/List/deletion predicates are the acceptance evidence.",
+    "WebEngine password editors are refused by this private IME route; retaining and testing their genuine editing route is required before complete Tablet activation.",
+    "Broader textarea/contenteditable/Unicode/undo/navigation/editor-switch coverage and ordinary shipping reliability are pending.",
+    "No performance, complete Tablet parity or endurance pass is claimed."
+  ],
+  "ownedWindowGuardProof": {
+    "startedAt": "2026-10-01T21:30:26.188946+00:00",
+    "sourceSHA256": "462cd5a0868f9de0feca7afb4b35bb1819c06a6b6a0d68b81a8389fd0a494518",
+    "fixtureSHA256": "fa2a3e4b7b8de3d72e3e42c354c8a901341228dba4c93f322f374d9c602d5889",
+    "qtSDKVersion": "5.15.3",
+    "qtRuntimeVersion": "5.15.3",
+    "completed": true,
+    "scope": "Actual Qt ownership/query/event guards only; WebEngine renderer acceptance remains separate",
+    "compileWerror": true,
+    "nativeExitCode": 0,
+    "guardAssertionsPassed": true,
+    "ownedDisplayStopped": true,
+    "finishedAt": "2026-10-01T21:30:29.539700+00:00",
+    "rawCaptureSHA256": "004fc2c536e7875fd0f7e30ee4b2a4be1c9c3ab5e9f83f07dfe4475820d65dac",
+    "runnerManifestSHA256": "4a4620f221e9f8d31864467403118c4185ba673b5e4322558cdb9485c5273ec7"
+  }
+}

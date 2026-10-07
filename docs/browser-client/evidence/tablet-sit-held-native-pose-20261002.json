@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-02",
+  "scope": "Actual genuine native Sit and real browser skeletal application; ordinary key Stop remains failed.",
+  "substantialAiAssistance": true,
+  "cohorts": [
+    {
+      "engine": "chromium",
+      "browserVersion": "154.0.8037.57",
+      "durationSeconds": 56.816,
+      "rawReportSHA256": "1e63c2f997f08289d5373377526065424a3646e0a3930699334160ce620216a4",
+      "selectedNativeVariant": "Sit2",
+      "actualNativeFrameCount": 367,
+      "fps": 60,
+      "genuineNativeSitAndHeldPosePassed": true,
+      "exactAppliedBrowserHipAndLegJointCount": 7,
+      "nativeBrowserAgreementTolerance": 1e-06,
+      "holdMilliseconds": 500,
+      "originalHipsDropGatePassed": true,
+      "originalThighRotationGatePassed": true,
+      "genuineKeyStopPassed": false,
+      "failureCategory": "original-native-restore-control-returned-deadline",
+      "completed": false,
+      "cleanupVerified": true,
+      "sourceCoherent": true,
+      "baselineUnchanged": true,
+      "microphoneEnabled": false
+    },
+    {
+      "engine": "firefox",
+      "browserVersion": "firefox/156.0",
+      "durationSeconds": 60.738,
+      "rawReportSHA256": "5c43f069720b53d5439d1719e1fba2c8e3716fd9d7a3d98982cecebf9aba019c",
+      "selectedNativeVariant": "Sit1",
+      "actualNativeFrameCount": 365,
+      "fps": 60,
+      "genuineNativeSitAndHeldPosePassed": true,
+      "exactAppliedBrowserHipAndLegJointCount": 7,
+      "nativeBrowserAgreementTolerance": 1e-06,
+      "holdMilliseconds": 500,
+      "originalHipsDropGatePassed": true,
+      "originalThighRotationGatePassed": true,
+      "genuineKeyStopPassed": false,
+      "failureCategory": "original-native-restore-control-returned-deadline",
+      "completed": false,
+      "cleanupVerified": true,
+      "sourceCoherent": true,
+      "baselineUnchanged": true,
+      "microphoneEnabled": false
+    }
+  ],
+  "ownedCopiedGatewayStopped": true,
+  "originalServiceIdentitiesPreserved": true,
+  "limits": [
+    "Only the actual selected random Sit variant is qualified in each engine.",
+    "The original ordinary X key restore deadline fails in both; no complete Sit/Stop or native key delivery success.",
+    "No avatar/entity setters, fake bones, mic request or entity writes.",
+    "No fluidness, public-world, material optimization or complete Tablet claim.",
+    "Earlier parser and duplicate-print negative cohorts are retained."
+  ]
+}

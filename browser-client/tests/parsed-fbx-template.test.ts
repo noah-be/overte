@@ -1,0 +1,99 @@
+// Copyright 2026 Overte contributors
+// SPDX-License-Identifier: Apache-2.0
+import test from 'node:test';import assert from 'node:assert/strict';
+import {Object3D,AnimationClip,BufferGeometry,Float32BufferAttribute,Mesh,MeshPhongMaterial,SkinnedMesh,Texture,NumberKeyframeTrack} from 'three';
+import {FBXLoader} from 'three/addons/loaders/FBXLoader.js';
+import {replacementMaterialFbx} from './fixtures/parsed-template-fbx';
+import {cloneParsedFbxTemplate,inspectParsedFbxTemplate,disposeParsedFbxGraph,ParsedFbxTemplates,ParsedFbxTemplateRefusal} from '../src/parsed-fbx-template';
+const parse=(skin=false)=>new FBXLoader().parse(replacementMaterialFbx({skin,vertexColors:true,withoutOriginalTextures:true}),'');
+const meshes=(root:Object3D)=>{const list:Mesh[]=[];root.traverse(node=>{if(node instanceof Mesh)list.push(node);});return list;};
+const later=()=>new Promise<void>(resolve=>setImmediate(resolve));
+test('actual FBXLoader geometry, vertex colors, groups and two material slots are preserved with independent arrays/materials',()=>{
+ const root=parse(),a=cloneParsedFbxTemplate(root),b=cloneParsedFbxTemplate(root);try{const [source]=meshes(root),[first]=meshes(a),[second]=meshes(b);assert(first&&second);assert.deepEqual(first.geometry.attributes.position.array,source.geometry.attributes.position.array);assert.deepEqual(first.geometry.attributes.color.array,source.geometry.attributes.color.array);assert.deepEqual(first.geometry.groups,source.geometry.groups);assert.notEqual(first.geometry,source.geometry);assert.notEqual(first.geometry,second.geometry);assert.notEqual(first.geometry.attributes.position.array,second.geometry.attributes.position.array);assert.notEqual(first.material,source.material);assert.notEqual((first.material as MeshPhongMaterial[])[0],(second.material as MeshPhongMaterial[])[0]);(first.geometry.attributes.position.array as Float32Array)[0]=123;assert.notEqual(second.geometry.attributes.position.array[0],123);(first.material as MeshPhongMaterial[])[0].opacity=.125;assert.notEqual((second.material as MeshPhongMaterial[])[0].opacity,.125);}finally{disposeParsedFbxGraph(root);disposeParsedFbxGraph(a);disposeParsedFbxGraph(b);}
+});
+test('actual FBXLoader skin produces owner-local bones, inverse matrices and bone matrices without cross-owner updates',()=>{
+ const root=parse(true),a=cloneParsedFbxTemplate(root),b=cloneParsedFbxTemplate(root);try{const source=meshes(root)[0]as SkinnedMesh,first=meshes(a)[0]as SkinnedMesh,second=meshes(b)[0]as SkinnedMesh;assert(source.isSkinnedMesh&&first.isSkinnedMesh&&second.isSkinnedMesh);assert.notEqual(first.skeleton,source.skeleton);assert.notEqual(first.skeleton.bones[0],source.skeleton.bones[0]);assert.notEqual(first.skeleton.bones[0],second.skeleton.bones[0]);assert.notEqual(first.skeleton.boneInverses[0],second.skeleton.boneInverses[0]);first.skeleton.bones[0].position.y=7;assert.notEqual(second.skeleton.bones[0].position.y,7);first.skeleton.boneInverses[0].elements[0]=8;assert.notEqual(second.skeleton.boneInverses[0].elements[0],8);}finally{disposeParsedFbxGraph(root);disposeParsedFbxGraph(a);disposeParsedFbxGraph(b);}
+});
+test('morph influence arrays and animation clips/tracks are local mutable owner state',()=>{
+ const root=parse(),mesh=meshes(root)[0];mesh.geometry.morphAttributes.position=[new Float32BufferAttribute(Array(mesh.geometry.attributes.position.count*3).fill(0),3)];mesh.updateMorphTargets();root.animations=[new AnimationClip('fixture',1,[new NumberKeyframeTrack('.position[y]',[0,1],[0,1])])];const a=cloneParsedFbxTemplate(root),b=cloneParsedFbxTemplate(root);try{const x=meshes(a)[0],y=meshes(b)[0];assert.notEqual(x.morphTargetInfluences,y.morphTargetInfluences);x.morphTargetInfluences![0]=1;assert.equal(y.morphTargetInfluences![0],0);assert.notEqual(a.animations[0],b.animations[0]);assert.notEqual(a.animations[0].tracks[0].values,b.animations[0].tracks[0].values);a.animations[0].tracks[0].values[0]=12;assert.notEqual(b.animations[0].tracks[0].values[0],12);}finally{disposeParsedFbxGraph(root);disposeParsedFbxGraph(a);disposeParsedFbxGraph(b);}
+});
+test('cache coalesces exact prepared identity+texture base but per-owner FST metadata and material changes do not affect other consumers',async()=>{
+ const world=new AbortController(),cache=new ParsedFbxTemplates(world.signal),buffer=replacementMaterialFbx({withoutOriginalTextures:true});let producers=0;const producer=async()=>{producers++;return parse();};let root:Object3D;
+ const a=await cache.get(buffer,'authorized-A/base-one',()=>{},producer),b=await cache.get(buffer,'authorized-A/base-one',()=>{},producer);a.userData.avatarMapping={scale:2};meshes(a)[0].material=new MeshPhongMaterial({color:0xff0000});assert.equal(b.userData.avatarMapping,undefined);assert.equal(producers,1);assert.equal(cache.statistics.hits,1);root=await cache.get(buffer.slice(0),'authorized-A/base-one',()=>{},producer);const c=await cache.get(buffer,'authorized-A/base-two',()=>{},producer);assert.equal(producers,3);disposeParsedFbxGraph(a);disposeParsedFbxGraph(b);disposeParsedFbxGraph(root);disposeParsedFbxGraph(c);cache.dispose();assert.equal(cache.statistics.bytes,0);
+});
+test('one pending reader cannot cancel another; last pending reader cancels producer and late root is disposed once',async()=>{
+ const world=new AbortController(),cache=new ParsedFbxTemplates(world.signal),buffer=new ArrayBuffer(1),one=new AbortController(),two=new AbortController();let finish!:(root:ReturnType<typeof parse>)=>void,signal!:AbortSignal;const producer=(s:AbortSignal)=>{signal=s;return new Promise<ReturnType<typeof parse>>(resolve=>finish=resolve);};
+ const a=cache.get(buffer,'base',()=>{},producer,one.signal),b=cache.get(buffer,'base',()=>{},producer,two.signal);const rejectA=assert.rejects(a,{name:'AbortError'});await later();one.abort();await rejectA;assert.equal(signal.aborted,false);const root=parse();finish(root);const clone=await b;assert.equal(cache.statistics.cloned,1);disposeParsedFbxGraph(clone);
+ let late!:(root:ReturnType<typeof parse>)=>void;const reader=new AbortController(),pending=cache.get(new ArrayBuffer(2),'late',()=>{},s=>{signal=s;return new Promise(resolve=>late=resolve);},reader.signal);const rejected=assert.rejects(pending,{name:'AbortError'});await later();reader.abort();await rejected;assert(signal.aborted);let disposed=0;const abandoned=parse();meshes(abandoned)[0].geometry.addEventListener('dispose',()=>disposed++);late(abandoned);await later();assert.equal(disposed,1);cache.dispose();
+});
+test('world revocation promptly rejects never-settling readers and does not release active producer capacity before work settles',async()=>{
+ const world=new AbortController(),cache=new ParsedFbxTemplates(world.signal),pending=cache.get(new ArrayBuffer(1),'a',()=>{},()=>new Promise(()=>{}));const rejected=assert.rejects(pending,{name:'AbortError'});await later();world.abort();await rejected;assert.equal(cache.statistics.readers,0);assert.equal(cache.statistics.pending,1);await assert.rejects(cache.get(new ArrayBuffer(1),'a',()=>{},async()=>parse()),{name:'AbortError'});
+});
+test('each joined reader independently validates current authority immediately before publication',async()=>{
+ const world=new AbortController(),cache=new ParsedFbxTemplates(world.signal),buffer=new ArrayBuffer(1);let finish!:(root:ReturnType<typeof parse>)=>void,valid=true;
+ const a=cache.get(buffer,'a',()=>{},()=>new Promise(resolve=>finish=resolve)),b=cache.get(buffer,'a',()=>{if(!valid)throw new DOMException('revoked','AbortError');},async()=>parse());const rejected=assert.rejects(b,{name:'AbortError'});await later();valid=false;finish(parse());const first=await a;await rejected;assert.equal(cache.statistics.cloned,1);disposeParsedFbxGraph(first);cache.dispose();
+});
+test('arbitrary parser errors remain original failures, while optional cache capacity and foreign hooks have typed refusal',async()=>{
+ const world=new AbortController(),cache=new ParsedFbxTemplates(world.signal),error=Error('original-parser-failure');await assert.rejects(cache.get(new ArrayBuffer(1),'a',()=>{},async()=>{throw error;}),e=>e===error);const root=parse(),material=(meshes(root)[0].material as MeshPhongMaterial[])[0];material.onBeforeCompile=()=>{};assert.throws(()=>inspectParsedFbxTemplate(root),ParsedFbxTemplateRefusal);material.onBeforeCompile=MeshPhongMaterial.prototype.onBeforeCompile;Object.defineProperty(material,'customProperty',{get(){throw Error('getter must not run');}});assert.throws(()=>inspectParsedFbxTemplate(root),ParsedFbxTemplateRefusal);disposeParsedFbxGraph(root);cache.dispose();
+});
+test('non-HTML image/bitmap/source variants fail optional admission, never pretend a textureless fixture proves real image readiness',()=>{
+ const root=parse(),material=(meshes(root)[0].material as MeshPhongMaterial[])[0];material.map=new Texture({data:new Uint8Array(4),width:1,height:1});assert.throws(()=>inspectParsedFbxTemplate(root),ParsedFbxTemplateRefusal);disposeParsedFbxGraph(root);
+});
+test('eviction disposes only cache template, retains consumer geometry/material and exact bounded entry accounting',async()=>{
+ const world=new AbortController(),cache=new ParsedFbxTemplates(world.signal);let templateDisposals=0,consumerDisposals=0;const roots=[];
+ for(let i=0;i<34;i++){const root=await cache.get(new ArrayBuffer(1),'a',()=>{},async()=>{const root=parse();meshes(root)[0].geometry.addEventListener('dispose',()=>templateDisposals++);return root;});meshes(root)[0].geometry.addEventListener('dispose',()=>consumerDisposals++);roots.push(root);}
+ assert.equal(cache.statistics.ready,32);assert.equal(cache.statistics.evicted,2);assert.equal(templateDisposals,2);assert.equal(consumerDisposals,0);cache.dispose();cache.dispose();assert.equal(templateDisposals,34);assert.equal(consumerDisposals,0);for(const root of roots)disposeParsedFbxGraph(root);assert.equal(consumerDisposals,34);
+});
+test('the unchanged 30 second readiness deadline rejects without publishing late producer output or swallowing late rejection',async t=>{
+ t.mock.timers.enable({apis:['setTimeout']});const world=new AbortController(),cache=new ParsedFbxTemplates(world.signal);let finish!:(root:ReturnType<typeof parse>)=>void,producerSignal!:AbortSignal;
+ try{const pending=cache.get(new ArrayBuffer(1),'base',()=>{},signal=>{producerSignal=signal;return new Promise(resolve=>finish=resolve);});const failed=assert.rejects(pending,/30 second readiness/);await later();t.mock.timers.tick(30000);await failed;assert(producerSignal.aborted);assert.equal(cache.statistics.readers,0);assert.equal(cache.statistics.ready,0);assert.equal(cache.statistics.pending,1);const root=parse();let disposals=0;meshes(root)[0].geometry.addEventListener('dispose',()=>disposals++);finish(root);await later();assert.equal(disposals,1);assert.equal(cache.statistics.pending,0);assert.equal(cache.statistics.cloned,0);}finally{cache.dispose();t.mock.timers.reset();}
+});
+test('capacity never starts an extra producer and never treats an arbitrary parser error as optional fallback',async()=>{
+ const world=new AbortController(),cache=new ParsedFbxTemplates(world.signal),finish:((root:ReturnType<typeof parse>)=>void)[]=[],promises:Promise<Object3D>[]=[];
+ try{for(let i=0;i<6;i++)promises.push(cache.get(new ArrayBuffer(1),'base',()=>{},()=>new Promise(resolve=>finish.push(resolve))));await later();await assert.rejects(cache.get(new ArrayBuffer(1),'base',()=>{},async()=>{assert.fail('Seventh producer cannot start');}),e=>e instanceof ParsedFbxTemplateRefusal&&e.reason==='capacity');assert.equal(cache.statistics.producers,6);for(const resolve of finish)resolve(parse());for(const p of promises)disposeParsedFbxGraph(await p);}finally{cache.dispose();}
+});
+test('cached hit must reject revoked current authority and never expose the owned template itself',async()=>{
+ const world=new AbortController(),cache=new ParsedFbxTemplates(world.signal),buffer=new ArrayBuffer(1),original=parse();let valid=true;const gate=()=>{if(!valid)throw new DOMException('revoked','AbortError');};
+ try{const first=await cache.get(buffer,'base',gate,async()=>original);assert.notEqual(first,original);valid=false;await assert.rejects(cache.get(buffer,'base',gate,async()=>{assert.fail('No stale reload');return parse();}),{name:'AbortError'});assert.equal(cache.statistics.cloned,1);disposeParsedFbxGraph(first);}finally{cache.dispose();}
+});
+test('cold and coalesced owner geometry callbacks occur before producer image readiness, each clone remains the same graph at final publication',async()=>{
+ const world=new AbortController(),cache=new ParsedFbxTemplates(world.signal),buffer=new ArrayBuffer(1),staged:Object3D[]=[];let finish!:(root:ReturnType<typeof parse>)=>void,parsed!:(root:ReturnType<typeof parse>)=>void;
+ const first=cache.get(buffer,'base',()=>{},async(_signal,onParsed)=>{parsed=onParsed;return new Promise(resolve=>finish=resolve);},undefined,root=>staged.push(root));await later();const raw=parse();parsed(raw);assert.equal(staged.length,1);assert.equal(cache.statistics.ready,0);
+ const second=cache.get(buffer,'base',()=>{},async()=>{assert.fail('Coalesced reader cannot parse twice');return parse();},undefined,root=>staged.push(root));assert.equal(staged.length,2);assert.notEqual(staged[0],staged[1]);assert.notEqual(staged[0],raw);staged[0].userData.avatarMapping={scale:2};staged[0].position.x=8;assert.equal(staged[1].position.x,0);finish(raw);
+ const a=await first,b=await second;assert.equal(a,staged[0]);assert.equal(b,staged[1]);assert.deepEqual(a.userData.avatarMapping,{scale:2});assert.equal(cache.statistics.cloned,2);disposeParsedFbxGraph(a);disposeParsedFbxGraph(b);cache.dispose();
+});
+test('one failed geometry callback only rejects/disposes its owner clone while another current reader and private producer remain alive',async()=>{
+ const world=new AbortController(),cache=new ParsedFbxTemplates(world.signal),buffer=new ArrayBuffer(1);let parsed!:(root:ReturnType<typeof parse>)=>void,finish!:(root:ReturnType<typeof parse>)=>void,cloneDisposals=0;
+ const a=cache.get(buffer,'base',()=>{},async(_signal,onParsed)=>{parsed=onParsed;return new Promise(resolve=>finish=resolve);},undefined,root=>{meshes(root)[0].geometry.addEventListener('dispose',()=>cloneDisposals++);throw Error('owner geometry refused');});const rejected=assert.rejects(a,/owner geometry refused/);
+ const b=cache.get(buffer,'base',()=>{},async()=>parse(),undefined,()=>{});await later();const raw=parse();let rawDisposals=0;meshes(raw)[0].geometry.addEventListener('dispose',()=>rawDisposals++);parsed(raw);await rejected;assert.equal(cloneDisposals,1);assert.equal(rawDisposals,0);finish(raw);const clone=await b;assert.equal(rawDisposals,0);disposeParsedFbxGraph(clone);cache.dispose();assert.equal(rawDisposals,1);
+});
+test('abort after provisional geometry cleans only owner clone; failed original producer owns its own once-only canonical cleanup',async()=>{
+ const world=new AbortController(),cache=new ParsedFbxTemplates(world.signal),buffer=new ArrayBuffer(1),reader=new AbortController();let parsed!:(root:ReturnType<typeof parse>)=>void,reject!:(error:Error)=>void,cloneDisposals=0;
+ const pending=cache.get(buffer,'base',()=>{},async(_signal,onParsed)=>{parsed=onParsed;return new Promise((_resolve,no)=>reject=no);},reader.signal,clone=>meshes(clone)[0].geometry.addEventListener('dispose',()=>cloneDisposals++));const failed=assert.rejects(pending,{name:'AbortError'});await later();const raw=parse();let originalDisposals=0;meshes(raw)[0].geometry.addEventListener('dispose',()=>originalDisposals++);parsed(raw);reader.abort();await failed;assert.equal(cloneDisposals,1);assert.equal(originalDisposals,0);disposeParsedFbxGraph(raw);reject(Error('Original parse manager cancellation'));await later();assert.equal(originalDisposals,1);assert.equal(cache.statistics.pending,0);cache.dispose();assert.equal(originalDisposals,1);
+});
+test('foreign geometry attribute clone and own constructors are refused without executing mutation callbacks',()=>{
+ const root=parse(),mesh=meshes(root)[0],attribute=mesh.geometry.attributes.position;let calls=0;(attribute as unknown as{clone():unknown}).clone=()=>{calls++;return attribute;};assert.throws(()=>inspectParsedFbxTemplate(root),ParsedFbxTemplateRefusal);assert.equal(calls,0);delete(attribute as unknown as Record<string,unknown>).clone;
+ Object.defineProperty(root,'constructor',{value:()=>{calls++;}});assert.throws(()=>inspectParsedFbxTemplate(root),ParsedFbxTemplateRefusal);assert.equal(calls,0);disposeParsedFbxGraph(root);
+});
+test('whole cache disposal during a ready hit geometry callback rejects and cleans the owner graph instead of reinserting a disposed entry',async()=>{
+ const owner=new AbortController(),cache=new ParsedFbxTemplates(owner.signal),buffer=new ArrayBuffer(1),first=await cache.get(buffer,'base',()=>{},async()=>parse());let count=0;
+ await assert.rejects(cache.get(buffer,'base',()=>{},async()=>parse(),undefined,root=>{meshes(root)[0].geometry.addEventListener('dispose',()=>count++);cache.dispose();}),{name:'AbortError'});assert.equal(count,1);assert.equal(cache.statistics.ready,0);assert.equal(cache.statistics.bytes,0);disposeParsedFbxGraph(first);
+});
+test('inspection authority is private, bound to the exact root and cannot be fabricated or reused for another graph',()=>{
+ const a=parse(),b=parse(),proof=inspectParsedFbxTemplate(a);try{assert(Object.isFrozen(proof));assert.deepEqual(Object.keys(proof),['bytes']);assert.throws(()=>cloneParsedFbxTemplate(a,{bytes:1}),ParsedFbxTemplateRefusal);assert.throws(()=>cloneParsedFbxTemplate(b,proof),ParsedFbxTemplateRefusal);}finally{disposeParsedFbxGraph(a);disposeParsedFbxGraph(b);}
+});
+test('foreign skeleton and animation clone callbacks are refused without execution',()=>{
+ const root=parse(true),mesh=meshes(root)[0]as SkinnedMesh;let calls=0;mesh.skeleton.clone=()=>{calls++;return mesh.skeleton;};assert.throws(()=>inspectParsedFbxTemplate(root),ParsedFbxTemplateRefusal);assert.equal(calls,0);delete(mesh.skeleton as unknown as Record<string,unknown>).clone;
+ root.animations=[new AnimationClip('owned',1,[new NumberKeyframeTrack('.position[y]',[0,1],[0,1])])];root.animations[0].clone=()=>{calls++;return root.animations[0];};assert.throws(()=>inspectParsedFbxTemplate(root),ParsedFbxTemplateRefusal);assert.equal(calls,0);disposeParsedFbxGraph(root);
+});
+test('late valid decoded-image memory beyond optional cache budget keeps the original staged clone and remains uncached',async()=>{
+ // Fault-shape control only; real HTML/image pixels remain browser qualification.
+ const before=Object.getOwnPropertyDescriptor(globalThis,'HTMLImageElement');
+ class ImageShape{complete=true;naturalWidth=8192;naturalHeight=4096;src='owned-test-image';currentSrc=this.src;}
+ Object.defineProperty(globalThis,'HTMLImageElement',{configurable:true,value:ImageShape});
+ const world=new AbortController(),cache=new ParsedFbxTemplates(world.signal),buffer=new ArrayBuffer(1);let staged:Object3D|undefined;
+ try{const raw=parse(),material=(meshes(raw)[0].material as MeshPhongMaterial[])[0],texture=new Texture<HTMLImageElement>();material.map=texture;
+ const root=await cache.get(buffer,'base',()=>{},async(_signal,onParsed)=>{onParsed(raw);texture.source.data=new ImageShape()as unknown as HTMLImageElement;texture.source.needsUpdate=true;return raw;},undefined,root=>staged=root);
+ assert.equal(root,staged);assert.equal(cache.statistics.ready,0);assert.equal(cache.statistics.bytes,0);assert.equal(cache.statistics.transient,1);assert.equal((meshes(root)[0].material as MeshPhongMaterial[])[0].map!.image,texture.image);disposeParsedFbxGraph(root);
+ }finally{cache.dispose();if(before)Object.defineProperty(globalThis,'HTMLImageElement',before);else delete (globalThis as {HTMLImageElement?:unknown}).HTMLImageElement;}
+});

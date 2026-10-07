@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "materialAIAssistance": true,
+  "dateUTC": "2026-10-03",
+  "scope": "Actual 129 current authored Google Chrome source cases on owned Xvfb/SwiftShader; exact separately built34-file distribution retained; not native/public-domain/hardware acceptance",
+  "chromeVersion": "Google Chrome 154.0.8037.97",
+  "chromeExecutableSHA256": "6c792041b07547a662e1b17974d1dc34a3db630379b45d9d89ddd7e3e68cc587",
+  "xvfbExecutableSHA256": "743d451bafa4ebd6b4ad6302c66aa4c655d245bd2c3ba1b48092857421f8e145",
+  "command": [
+    "node",
+    "node_modules/@playwright/test/cli.js",
+    "test",
+    "--project=google-chrome",
+    "--headed",
+    "--reporter=json"
+  ],
+  "sourceInventorySHA256": "b3f9971e0a4c114536962a156b75738f0376e4b600ffad661d06988d8769b97b",
+  "productionReceiptSHA256": "ad0fb92bc6c9b03812698b3a9421c1c2dd9391fc1c832639a19a3558359bf49a",
+  "tests": {
+    "total": 129,
+    "pass": 128,
+    "fail": 1,
+    "skip": 0
+  },
+  "seconds": 491.716,
+  "failedCase": {
+    "test": "model-parse-turn.browser.spec.ts",
+    "error": "Serialized direct FBX loader import leaves bare three package specifier; Chrome cannot resolve it.",
+    "causeQualification": "Import failure measured; exact server transform path under investigation. HMR not established."
+  },
+  "reportSHA256": "f912d5c10112da09f7c0b82a8beef80d773a30dd362b971f4c70ec6351876d61",
+  "cleanup": {
+    "ownedProcessCleanup": true,
+    "ownedXvfbClosed": true,
+    "privateAuthorityRemoved": true,
+    "ownedProfilesClosed": true,
+    "ownedViteClosed": true,
+    "sourceCoherent": true,
+    "observedChromeProcesses": 356,
+    "observedOwnedBirths": 369
+  },
+  "limits": [
+    "Not final acceptance.",
+    "SwiftShader authored browser cases, not native/public Hub/device or hardware performance.",
+    "Current whole unit/build/34quick pass; browser gate retains this failure."
+  ],
+  "firefoxLaunched": false
+}

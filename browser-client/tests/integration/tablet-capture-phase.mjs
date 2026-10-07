@@ -1,0 +1,75 @@
+// Copyright 2026 Overte contributors
+// SPDX-License-Identifier: Apache-2.0
+// Appended to the exact unchanged full12 PTT body in a separately owned copy.
+import assert from 'node:assert/strict';
+import {writeFile} from 'node:fs/promises';
+import path from 'node:path';
+import {parseCaptureAudit,encodeCaptureRecords} from './tablet-capture-audit.mjs';
+import {realTrackReadback} from './tablet-capture-browser.mjs';
+import {assertPaintedPttControl} from './tablet-ptt-audit.mjs';
+import {attestCaptureWorker} from './tablet-capture-worker.mjs';
+export function retainCaptureProof(proofs,sample){
+ assert(proofs instanceof Map&&sample&&Number.isSafeInteger(sample.proofOrdinal)&&sample.proofOrdinal>=1&&sample.proofOrdinal<=1000000);
+ const owned={proofOrdinal:sample.proofOrdinal,frame:{...sample.frame},canvas:{...sample.canvas},image:{...sample.image}};
+ if(proofs.has(sample.proofOrdinal)){assert.deepEqual(proofs.get(sample.proofOrdinal),owned);return;}
+ assert(proofs.size<16);proofs.set(sample.proofOrdinal,owned);
+}
+export async function persistCaptureProofs({page,directory,proofs}){
+ const events=await page.evaluate(()=>window.__captureAudit.trusted.readProofMetadata());assert(Array.isArray(events)&&events.length<=16);
+ for(const sample of events)retainCaptureProof(proofs,sample);
+ const metadata=await page.evaluate(()=>window.__captureAudit.proofs.metadata());assert.deepEqual(metadata.ordinals,[...proofs.keys()].sort((a,b)=>a-b),'Every allocated capture proof must have an exact preparation or event owner');assert.equal(metadata.count,proofs.size);assert(metadata.count<=16&&metadata.bytes<=32*1024*1024);
+ for(const id of metadata.ordinals){const m=proofs.get(id),full=await page.evaluate(id=>window.__captureAudit.proofs.read(id),id);assert.equal(full.proofOrdinal,id);assert.deepEqual(full.frame,m.frame);assert.deepEqual(full.canvas,m.canvas);assert.equal(full.image.width,m.image.width);assert.equal(full.image.height,m.image.height);assertPaintedPttControl(full.image.rgba,full.image.width,full.image.height);const png=Buffer.from(full.nativePNG,'base64');assert(png.length>0&&png.length<=2*1024*1024);await writeFile(path.join(directory,'capture-control-'+id+'.png'),png,{mode:0o600,flag:'wx'});await page.evaluate(id=>{window.__captureAudit.proofs.release(id);window.__captureAudit.trusted.forgetProof(id);},id);proofs.delete(id);}
+ const empty=await page.evaluate(()=>window.__captureAudit.proofs.metadata());assert.equal(empty.count,0);assert.equal(empty.bytes,0);assert.equal(proofs.size,0);
+}
+export async function finishCaptureEvidence({report,directory,primaryFailed,saveProofs,retire}){
+ const failures=[];try{await saveProofs();}catch(error){failures.push(error);}
+ try{await retire();report.captureObserverRetired=true;}catch(error){failures.push(error);report.captureObserverRetired=false;}
+ if(failures.length){report.captureCleanupFailed=true;report.captureCleanupFailureCount=failures.length;report.capturePrimaryFailurePreserved=primaryFailed;
+  try{const text=failures.map((error,index)=>'CLEANUP_'+index+'\n'+String(error?.stack||error).slice(0,16384)).join('\n');await writeFile(path.join(directory,'capture-cleanup-failure.private.txt'),text,{mode:0o600,flag:'wx'});}catch{report.captureCleanupDiagnosticUnavailable=true;}
+  if(!primaryFailed)throw failures[0];
+ }
+}
+export function captureRecordMatches(record,frame,expected={},tab='browser'){
+ if(!record||!frame||!['browser','native'].includes(tab)||record.sequence!==frame.sequence||record.revision!==frame.revision||record.navigationSequence!==frame.navigationSequence||record.rootCount!==1||!Number.isInteger(record.uiEpoch)||record.uiEpoch<1||record.truncated||!record.ready||record.awaiting||!record.state||!Array.isArray(record.controls)||record.controls.length>12)return false;
+ const browser=record.controls.filter(v=>v.kind==='browser-tab'),native=record.controls.filter(v=>v.kind==='native-tab');
+ if(browser.length!==1||native.length!==1||browser[0].checked!==(tab==='browser')||native[0].checked!==(tab==='native'))return false;
+ return Object.entries(expected).every(([key,value])=>record.state.settings[key]===value);
+}
+export async function runCapturePhase({page,report,profile,directory,readLog,waitFor,capture,nativePulse,checkpoint,openAudioHomeOnly}){
+ const latestRequest=()=>page.evaluate(()=>window.__captureAudit.requests.at(-1)?.requestId||0);
+ const read=()=>page.evaluate(realTrackReadback);
+ const rows=async()=>encodeCaptureRecords(parseCaptureAudit(await readLog(profile)));
+ const ledger=[],proofs=new Map();let primaryFailed=false;
+ await page.evaluate(()=>{window.__captureAudit.trusted=window.__captureFactory();});
+ const saveProofs=()=>persistCaptureProofs({page,directory,proofs});
+ async function click(kind,expected){
+  const text=await waitFor(async()=>{const s=await rows();const v=await page.evaluate(({s,kind,expected})=>window.__captureAudit.trusted.prepare({kind,expected},s),{s,kind,expected});if(v.refusal)return null;retainCaptureProof(proofs,v.sample);return{s,v};},'Current painted native capture '+kind,30000);
+  const armed=await page.evaluate(({kind,expected,s,p})=>window.__captureAudit.trusted.arm({kind,expected},s,p),{kind,expected,s:await rows(),p:text.v.point});assert.equal(armed.refusal,null);
+  await page.mouse.click(armed.x,armed.y);const proof=await page.evaluate(id=>window.__captureAudit.trusted.complete(id),armed.intentOrdinal);assert.equal(proof.kind,kind);assert.equal(proof.press.eventOrdinal,proof.release.eventOrdinal);assert.equal(proof.press.proofOrdinal,proof.release.proofOrdinal);assert.equal(proof.press.frame.revision,proof.release.frame.revision);assert.equal(proof.press.frame.navigationSequence,proof.release.frame.navigationSequence);await saveProofs();return proof;
+ }
+ async function nativeRecord(expected={},tab='browser'){return waitFor(async()=>{const r=parseCaptureAudit(await readLog(profile)),f=await page.evaluate(()=>window.__pttAudit.frame);return r.findLast(v=>captureRecordMatches(v,f,expected,tab));},'Fresh displayed native capture readback',15000);}
+ // The original12 ended in a fresh joined/muted session, with no implicit grant.
+ const worker=await attestCaptureWorker(profile);report.captureWorker={start:worker};
+ const before=await read();assert.equal(before.active,false);const grantBefore=before.getUserMediaCalls;
+ try{
+  // Caller opens genuine AUDIO using the unchanged original Home audit/click.
+  assert(await page.evaluate(()=>window.__overte.connected&&window.__overte.tabletVisible));
+  await click('browser-tab',false);let r=await nativeRecord();assert.equal(r.state.active,false);assert(Object.values(r.state.controls).every(v=>v===false));assert.equal((await read()).getUserMediaCalls,grantBefore);await checkpoint('capture-page-alone-does-not-grant-microphone');
+  await page.getByRole('button',{name:'Close tablet',exact:true}).click();await page.locator('#microphone').click();await page.waitForFunction(c=>{const m=document.querySelector('#microphone'),t=window.__pttAudit.tracks.filter(t=>t.readyState==='live');return !m.disabled&&m.getAttribute('aria-pressed')==='true'&&window.__pttAudit.getUserMediaCalls===c+1&&t.length===1;},grantBefore,{timeout:15000});
+  await openAudioHomeOnly();await click('browser-tab',false);r=await nativeRecord();assert.equal(r.state.active,true);const actual=await read();for(const f of ['echoCancellation','noiseSuppression','autoGainControl'])assert.equal(r.state.settings[f],actual[f]);
+  report.captureControls={supported:{...r.state.controls},effective:{...r.state.settings},hardwareEfficacy:false};
+  for(const field of ['echoCancellation','noiseSuppression','autoGainControl']){
+   r=await nativeRecord();const control=r.controls.filter(v=>v.kind===field);assert.equal(control.length,1);assert.equal(control[0].enabled,r.state.controls[field]);
+   if(!r.state.controls[field]){ledger.push({field,outcome:'unsupported-disabled'});continue;}
+   const previous=r.state.settings[field];assert.equal(typeof previous,'boolean');const latest=await latestRequest();
+   const physical=await click(field,previous);
+   await page.waitForFunction(({field,value,latest})=>{const a=window.__captureAudit,q=a.requests.findLast(v=>v.requestId>latest&&v.operation==='change'&&v.field===field&&v.value===value);return q&&a.results.some(v=>v.requestId===q.requestId&&v.revision===q.revision&&v.navigationSequence===q.navigationSequence&&v.accepted&&v.state.settings[field]===value);},{field,value:!previous,latest},{timeout:15000});
+   r=await nativeRecord({[field]:!previous});assert.equal(r.state.settings[field],!previous);assert.equal((await read())[field],!previous);assert.equal((await read()).getUserMediaCalls,grantBefore+1);ledger.push({field,outcome:'real-readback-confirmed',physical,changed:!previous});
+   await click(field,!previous);await page.waitForFunction(({field,previous})=>{const s=window.__pttAudit.tracks.filter(t=>t.readyState==='live')[0]?.getSettings();return s?.[field]===previous;},{field,previous},{timeout:15000});r=await nativeRecord({[field]:previous});assert.equal(r.state.settings[field],previous);
+  }
+  async function gain(value,old){const latest=await latestRequest();await click('inputGainPercent-'+value,old);await page.waitForFunction(({value,latest})=>{const a=window.__captureAudit,q=a.requests.findLast(v=>v.requestId>latest&&v.operation==='change'&&v.field==='inputGainPercent'&&v.value===value);return q&&a.results.some(v=>v.requestId===q.requestId&&v.revision===q.revision&&v.navigationSequence===q.navigationSequence&&v.accepted&&v.state.settings.inputGainPercent===value);},{value,latest},{timeout:15000});return nativeRecord({inputGainPercent:value});}
+  async function rms(){await page.evaluate(()=>{window.__captureAudit.pcm=[];window.__captureAudit.samplePCM=true;});try{const output=await capture(nativePulse,'lab_output.monitor','capture-gain-'+Date.now());const pcm=await page.evaluate(()=>window.__captureAudit.pcm.slice());assert(pcm.length>=32&&pcm.length<=128);assert(pcm.every(v=>Number.isFinite(v)&&v>=0&&v<=1));assert(output.rms>.001);return{wireRms:Math.sqrt(pcm.reduce((s,v)=>s+v*v,0)/pcm.length),nativeOutput:output};}finally{await page.evaluate(()=>{window.__captureAudit.samplePCM=false;});}}
+  r=await nativeRecord();assert.equal(r.state.settings.inputGainPercent,100);assert.equal(r.state.settings.inputGain,1);const initial=await rms();r=await gain(50,100);assert.equal(r.state.settings.inputGainPercent,50);assert.equal(r.state.settings.inputGain,.5);const half=await rms();const ratio=half.wireRms/initial.wireRms;assert(ratio>=.45&&ratio<=.55,'Actual signed-PCM capture gain must halve the synthetic source');assert(half.nativeOutput.rms<initial.nativeOutput.rms);r=await gain(100,50);assert.equal(r.state.settings.inputGain,1);const restored=await rms();assert(restored.wireRms/initial.wireRms>=.9&&restored.wireRms/initial.wireRms<=1.1);report.captureGain={initial,half,restored,ratio};
+  await click('native-tab',false);r=await nativeRecord({},'native');assert(r.controls.some(v=>v.kind==='native-tab'&&v.checked));assert.equal((await read()).liveTrackCount,1);await page.getByRole('button',{name:'Close tablet',exact:true}).click();assert.equal((await read()).liveTrackCount,1);await page.locator('#microphone').click();await page.waitForFunction(()=>window.__pttAudit.tracks.every(t=>t.readyState==='ended'),undefined,{timeout:15000});assert.equal((await read()).active,false);report.captureWorker.end=await attestCaptureWorker(profile);assert.deepEqual(report.captureWorker.end,worker);report.captureEffects=ledger;await checkpoint('visitor-capture-real-controls-and-readback-complete');
+ }catch(error){primaryFailed=true;throw error;}finally{await finishCaptureEvidence({report,directory,primaryFailed,saveProofs,retire:()=>page.evaluate(()=>{window.__captureAudit.samplePCM=false;try{window.__captureAudit.trusted?.retire();}finally{window.__captureAudit.proofs?.retire();}})});}
+}

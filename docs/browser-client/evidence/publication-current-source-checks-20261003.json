@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "scope": "Final publication source replay after reviewed editor-only cleanup and permanent CPU tests; existing production renderer/build and129-case Chrome source unchanged",
+  "completed": true,
+  "sourceInventorySHA256": "4687b2f2a5faba30cb7bca6b62196bb800f06896fcbdcf4a2209218a2257ccee",
+  "checks": [
+    {
+      "label": "product-unit-suite",
+      "command": [
+        "npm",
+        "test"
+      ],
+      "exitCode": 0,
+      "seconds": 27.583,
+      "logSHA256": "ed99296d572ab1e573e202b9889cce3d0147306c9554002f592d1a4b2a0776ab",
+      "counts": {
+        "tests": 2609,
+        "pass": 2609,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "sourceCoherent": true
+    },
+    {
+      "label": "repository-quick",
+      "command": [
+        "python3",
+        "tests/run-project-tests.py",
+        "--profile",
+        "quick",
+        "--timeout",
+        "240"
+      ],
+      "exitCode": 0,
+      "seconds": 157.537,
+      "logSHA256": "d0c3d9524e60f58ef085f0058462302a12005397cc7ed2465b9f3a2c9e850638",
+      "counts": {},
+      "sourceCoherent": true
+    }
+  ],
+  "requiredRepositorySuiteCount": 34,
+  "allRequiredRepositorySuitesPassed": true,
+  "actualFrontendProof": "shipping-v14-current-google-chrome-checks-20261003.json",
+  "actualQtProof": "native-web-editor-owned-cleanup-current-qt-20261003.json",
+  "changesSinceFrontendProof": [
+    "browser-client/gateway/native-web-editor-registration.test.mjs",
+    "browser-client/native-input/README.md",
+    "browser-client/native-input/web-editor/run.py",
+    "browser-client/native-input/web-editor/test-owned-reaping.py",
+    "docs/browser-client/PLAN.md",
+    "docs/browser-client/STATUS.md",
+    "docs/browser-client/evidence/native-web-editor-owned-cleanup-current-qt-20261003.json",
+    "docs/browser-client/evidence/native-web-editor-owned-cleanup-negative-qt-20261003.json",
+    "docs/browser-client/evidence/shipping-v14-current-google-chrome-checks-20261003.json"
+  ],
+  "limitations": [
+    "Does not replace pending exact integrated hosted Browser/CodeQL checks.",
+    "Actual Qt fixture is distinct from complete native Tablet/public Hub/hardware acceptance.",
+    "Sanitized evidence documentation is appended after this immutable source replay; no production source changed."
+  ],
+  "postReplayFormattingOnly": {
+    "fixture": {
+      "path": "browser-client/tests/fixtures/world-graph-disposal-original.ts",
+      "beforeSHA256": "9703d493e77fa6c42438b136ea27e523f8a195a296c01bc9c06c01af496b6a81",
+      "afterSHA256": "ff8f91ef4a1c95aea95b0930c7b9e7773579c29ef47d8459c12eca3659dcbc1c",
+      "onlyTrailingEmptyLineRemoved": true,
+      "bodyAndAssertionsUnchanged": true,
+      "codeEquivalentBytePrefix": true
+    },
+    "focusedCommand": "node_modules/.bin/tsx --test tests/world-graph-disposal.test.ts",
+    "focusedPassed": 6,
+    "focusedSkipped": 0,
+    "shippingCodeChanged": false,
+    "originalAssertionsRetained": true
+  }
+}

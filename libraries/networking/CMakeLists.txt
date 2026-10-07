@@ -1,3 +1,4 @@
+# Modified in 2026 for the optional direct browser transport.
 set(TARGET_NAME networking)
 setup_hifi_library(Network WebSockets)
 link_hifi_libraries(shared platform)
@@ -6,6 +7,11 @@ target_openssl()
 target_tbb()
 add_crashpad()
 target_breakpad()
+
+option(OVERTE_BROWSER_TRANSPORT "Enable direct browser DataChannels on domain and assignment servers" OFF)
+if (OVERTE_BROWSER_TRANSPORT)
+    target_datachannel()
+endif ()
 
 if (WIN32 OR (UNIX AND NOT APPLE))
     if (NOT DISABLE_WEBRTC )

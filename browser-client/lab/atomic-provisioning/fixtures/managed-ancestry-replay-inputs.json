@@ -1,0 +1,353 @@
+{
+  "schemaVersion": 1,
+  "inputs": {
+    ".github/workflows/browser-client-atomic-settings.yml": {
+      "sha256": "c27cd756c320c1467a89886c92080d3a0dcd32318a55ff7962e4d675b5b1375f",
+      "bytes": 5623
+    },
+    "browser-client/lab/README.md": {
+      "sha256": "4d3b41b34f70c1158e135b3bbce98b911136e54d376078144020516fab49ec86",
+      "bytes": 10924
+    },
+    "browser-client/lab/atomic-provisioning/README.md": {
+      "sha256": "e6611bc84d4bcb0cd20a46a5fa35befc07a1167d5e02a1a1fb106805538da612",
+      "bytes": 14565
+    },
+    "browser-client/lab/atomic-provisioning/audit_projection.py": {
+      "sha256": "408c11ab6f7d85d88c10bed658e610fe10af7ab4eb2721b77d463b9b9817c62c",
+      "bytes": 2967
+    },
+    "browser-client/lab/atomic-provisioning/confined_launch.py": {
+      "sha256": "8b9871904214b49c9b6b4b932ee1116e82c107a1da71d5c09f906d28e867341d",
+      "bytes": 619
+    },
+    "browser-client/lab/atomic-provisioning/curate.py": {
+      "sha256": "a85cbd826fdb0335dd4a8ea6e402af0840e9810e361dd99106cb59668fd5e703",
+      "bytes": 12537
+    },
+    "browser-client/lab/atomic-provisioning/dependency.json": {
+      "sha256": "6e45542ec24df577a1fa4bc8a7d8d7e080bdaf5ce3d4ae3cebc0d72cd091bae7",
+      "bytes": 948
+    },
+    "browser-client/lab/atomic-provisioning/fixtures/managed-seven-manage-recovery.json": {
+      "sha256": "e471f11465d9575c316decd0c6e9d91c5200d05de6531474c590993501e79109",
+      "bytes": 15217
+    },
+    "browser-client/lab/atomic-provisioning/fixtures/managed-seven-probe-recovery.json": {
+      "sha256": "edba682698f108fe9918266b16fff5eb217046c057ce6cd3580e9358c6fa178f",
+      "bytes": 15525
+    },
+    "browser-client/lab/atomic-provisioning/fixtures/preflight-original-functions.py.txt": {
+      "sha256": "2d2912688d4e595f02011ee24dbc3bc3a955bdfc622bd6e8662a8a3114d59ca8",
+      "bytes": 4797
+    },
+    "browser-client/lab/atomic-provisioning/fixtures/probe-six-chrome-before.py.txt": {
+      "sha256": "faeb7e42e10e99ee63d5adfa9b4a2e5f41618fe4abb3f128472080221fff1db8",
+      "bytes": 15619
+    },
+    "browser-client/lab/atomic-provisioning/fixtures/probe-source-before.py.txt": {
+      "sha256": "5dd51d5409d2b52358333494163294454a1fbf6e013214be94a5a347e6a20c87",
+      "bytes": 12804
+    },
+    "browser-client/lab/atomic-provisioning/fixtures/source-coherence-six-chrome-before.py.txt": {
+      "sha256": "d050eb6471051e390b8868d4608a09ebe75309f747b6f93cb7ff0d905bf98579",
+      "bytes": 15319
+    },
+    "browser-client/lab/atomic-provisioning/fixtures/source-pins-six-chrome-before.json": {
+      "sha256": "c9cc718ee08c7a1db6e3aeb4715a0eaba3e7eeac82cdf0bdddf724dff8fa3d83",
+      "bytes": 548
+    },
+    "browser-client/lab/atomic-provisioning/kernel_audit.py": {
+      "sha256": "de5c972e503b34c4c50524439dda202e797a46bbf223dd598c344e5219ddc407",
+      "bytes": 13065
+    },
+    "browser-client/lab/atomic-provisioning/keyring-bootstrap.json": {
+      "sha256": "21b3404740928ad1babf925a882d68f7abf139d20593875d427e74a85bdc81df",
+      "bytes": 581
+    },
+    "browser-client/lab/atomic-provisioning/native-pins.json": {
+      "sha256": "f721a6b6be6551f7acabc3b45a1d5e7e3643dccca49405286c65bef39b77bb8d",
+      "bytes": 186
+    },
+    "browser-client/lab/atomic-provisioning/observer.py": {
+      "sha256": "78d05dd05696541f400160eafc65030c250bbdf5444f0147f085e0f37c68b49a",
+      "bytes": 17581
+    },
+    "browser-client/lab/atomic-provisioning/operational-gate-source.json": {
+      "sha256": "097c1b194ee4a839752cd60dc6d6b448d1b4dfdcebe78b30573d3a54de209ace",
+      "bytes": 1419
+    },
+    "browser-client/lab/atomic-provisioning/operational_contracts.py": {
+      "sha256": "8bde12363cc30aa0347acd0b560244a825e95dcf21063a06ed141835ddb0e8ad",
+      "bytes": 4751
+    },
+    "browser-client/lab/atomic-provisioning/preflight_diagnostics.py": {
+      "sha256": "17963ba5554925be3453b274eb37b75f20eddd17252bf2d1393d784b4c3f0240",
+      "bytes": 12678
+    },
+    "browser-client/lab/atomic-provisioning/probe.py": {
+      "sha256": "67d90f5598f05ef50af1098d33854cb64165b315874aa449003119adc03364e1",
+      "bytes": 16772
+    },
+    "browser-client/lab/atomic-provisioning/read_private_preflight.py": {
+      "sha256": "c5197b6d72a6bbc8439c8de65bf541fa91a148fb5143c368f9cbb424b96c6571",
+      "bytes": 2805
+    },
+    "browser-client/lab/atomic-provisioning/source-pins.json": {
+      "sha256": "709fafd17508b5a275a82a78f13f58f57b07686746c2cc453635d4a70db808b9",
+      "bytes": 638
+    },
+    "browser-client/lab/atomic-provisioning/stage.py": {
+      "sha256": "f94c7d23de598f4f66c8aa472706a28e652d9f47abf5a8a4451ecbf086c300df",
+      "bytes": 13201
+    },
+    "browser-client/lab/atomic-provisioning/target_projection.py": {
+      "sha256": "7bebab5637ae98c5ef91646316110b8adb31961ba743fc3f74bb703bef361e9d",
+      "bytes": 2875
+    },
+    "browser-client/lab/atomic-provisioning/test_confined_boundary.py": {
+      "sha256": "a49175f324e8724209f93f98c803021855bff8c9a644819cce67d68969f90a59",
+      "bytes": 6165
+    },
+    "browser-client/lab/atomic-provisioning/test_confined_launch.py": {
+      "sha256": "c621791ace64bda3feeb842e5ada78f59f54d7c7649c4cb04b2d0001005e69d2",
+      "bytes": 9820
+    },
+    "browser-client/lab/atomic-provisioning/test_curate_observer.py": {
+      "sha256": "8d073ab9b4f8bca5b02f0e91e612a7bbacb136efb7cb85827b9b2e1cade36a3b",
+      "bytes": 3449
+    },
+    "browser-client/lab/atomic-provisioning/test_environment_bound.py": {
+      "sha256": "fc2701e8189492549f83904a9e635b95601bec0c0cb69f6f53db079fa9b505b2",
+      "bytes": 3641
+    },
+    "browser-client/lab/atomic-provisioning/test_kernel_audit.py": {
+      "sha256": "8b6c3377bde5df1f4c298e6fda8e887fe2eb82bcf41f956b4f941edf0c32204a",
+      "bytes": 11256
+    },
+    "browser-client/lab/atomic-provisioning/test_kernel_audit_integration.py": {
+      "sha256": "d3104d922a1f0241c9e8caa4575c305d028c3e3a54d624265aa66d42ffedcf96",
+      "bytes": 12007
+    },
+    "browser-client/lab/atomic-provisioning/test_managed_composition.py": {
+      "sha256": "31c587e7ba721c3d6e083a77daa7ab5c70591b56b019b5283aefd61abbb63fb3",
+      "bytes": 5018
+    },
+    "browser-client/lab/atomic-provisioning/test_managed_seven.py": {
+      "sha256": "dac02f86a9316efd8a40e849fcda45f7148f10e860f0f10709956296fd6dce28",
+      "bytes": 9623
+    },
+    "browser-client/lab/atomic-provisioning/test_observer.py": {
+      "sha256": "fe28b0a4ec461d6fb383da85796ebd53220961d34038af58bde9222e7b47b4b7",
+      "bytes": 20232
+    },
+    "browser-client/lab/atomic-provisioning/test_operational_migration.py": {
+      "sha256": "5e2ca4295629a831c4b4b57d532cb97d064c13191a3d120da1eac002667338b0",
+      "bytes": 5565
+    },
+    "browser-client/lab/atomic-provisioning/test_preflight_diagnostics.py": {
+      "sha256": "99357ea4ed6ff9602cdcba53c3fcf751a71d3afd10a372605005d59b24e1efdd",
+      "bytes": 25670
+    },
+    "browser-client/lab/atomic-provisioning/test_probe_credentials.py": {
+      "sha256": "8bed8bd8f14b448c27c1899c89652d1e578bb8f53c9acc0b9725080db2572377",
+      "bytes": 6127
+    },
+    "browser-client/lab/atomic-provisioning/test_projection.py": {
+      "sha256": "ad1ce174e91ca9f9a7dfd05603ab2b365b1d623a6dfbae12290327b24cd4fc40",
+      "bytes": 3782
+    },
+    "browser-client/lab/atomic-provisioning/test_read_private_preflight.py": {
+      "sha256": "4ee55363279f28579cc30797148dcc0fa5c374c8e95e5d836d2dd16ae0ba1810",
+      "bytes": 4684
+    },
+    "browser-client/lab/atomic-provisioning/test_source_coherence.py": {
+      "sha256": "bfe7bd09afaee29c91d52e28fb3fbaba396b9c2ace3841e4cfdefacdd3f9fdd3",
+      "bytes": 15916
+    },
+    "browser-client/lab/atomic-provisioning/test_stage_curate.py": {
+      "sha256": "6546ee374b7bfec75c03721889a009f44d0b4220d1b5ad136d7cabc4e7464dbd",
+      "bytes": 4347
+    },
+    "browser-client/lab/atomic-provisioning/test_stage_failure.py": {
+      "sha256": "8e9416f610019fc4ebf8772e31dde6a9cc2f49db1fffebfbcf671ff54964505a",
+      "bytes": 18042
+    },
+    "browser-client/lab/atomic-provisioning/test_tmpfile_contract.py": {
+      "sha256": "1fc2c6560851fe3a2590ec995b97481c37fc4bef5ebf983c8b8115fe46e52f98",
+      "bytes": 10889
+    },
+    "browser-client/lab/atomic-provisioning/test_trusted_keyring.py": {
+      "sha256": "e2dece18a029c157a582ba8a97671677d0b996991fef3f3c5758775858cced50",
+      "bytes": 10499
+    },
+    "browser-client/lab/atomic-provisioning/trusted_keyring.py": {
+      "sha256": "e99458f05c11feae3bc0dcb7afe737d8fff4f92a44f86750b61f2f92a7203ee1",
+      "bytes": 10117
+    },
+    "browser-client/lab/audit-default-avatar.cpp": {
+      "sha256": "2eb0b49693c66eec752610cbbfb3f010277bab6c80d9949b2924060236882317",
+      "bytes": 1467
+    },
+    "browser-client/lab/audit-native-fbx.cpp": {
+      "sha256": "3a33d4dda82c448fe92c505ce964f3c0c23d71a69cdb9f2a1a11aa937b55fefe",
+      "bytes": 2982
+    },
+    "browser-client/lab/audit-native-fbx.py": {
+      "sha256": "a7e19781d79f7f68afc25bf3f83312e7986f594c731b25029be6d1c384122e9a",
+      "bytes": 13285
+    },
+    "browser-client/lab/audit-native-ktx.mjs": {
+      "sha256": "5a15109e992467172243241066e3b6775080d476900b7ed4eba0e4f3e752ce81",
+      "bytes": 1165
+    },
+    "browser-client/lab/audit-native-ktx.test.mjs": {
+      "sha256": "c41dbedeee4ed8bdda4c9262c7f8249603742a2620baf07caf6d8b0a6d0b5a1b",
+      "bytes": 3851
+    },
+    "browser-client/lab/checker.png": {
+      "sha256": "18e1d2c0906dacb97f5f2bee825f1b5714c481c299e9401261ac21c0cf7b903c",
+      "bytes": 79
+    },
+    "browser-client/lab/chrome_browser.py": {
+      "sha256": "4220e1c5d656d95c93d68e649eeffef086bff6ab6a894435c47b0ef354408d21",
+      "bytes": 2078
+    },
+    "browser-client/lab/create-assets.py": {
+      "sha256": "7bc1e32a3ccf41c3118d7cae101a90275ffbdd997dc9ec7f339cd6b941821479",
+      "bytes": 2658
+    },
+    "browser-client/lab/fixtures/managed-lifetime-original-bodies.json": {
+      "sha256": "ee651a7635212d434db3143df7869b47b22dcfc37e6aa8da6467070c97d750bc",
+      "bytes": 2860
+    },
+    "browser-client/lab/fixtures/native-launch-original-fda.py": {
+      "sha256": "c7bd9635f970e4b936231fb76d4b526e4b4fc11a8b591f6c44afb78833d2a3bd",
+      "bytes": 20941
+    },
+    "browser-client/lab/guest_permissions.py": {
+      "sha256": "363d3108ebc80ef7d1e82ac3460382db621bf8499b260019e7286bf9a6872026",
+      "bytes": 2027
+    },
+    "browser-client/lab/host_tools.py": {
+      "sha256": "34e02d857d3c35b53b165e2d3b4ee63e30f4a417054cf0141758306ab25dc14a",
+      "bytes": 15062
+    },
+    "browser-client/lab/hub-observer.js": {
+      "sha256": "1304cbc66fe1c1df11989efa960150c92bd915543d857354e55a950ac8441dd9",
+      "bytes": 2675
+    },
+    "browser-client/lab/manage.py": {
+      "sha256": "53cd7fcce5887c993bc724ce3e391c4c7d0975f338ed1c96a1adfdbe7c9bdb95",
+      "bytes": 35781
+    },
+    "browser-client/lab/native-admin.d.mts": {
+      "sha256": "998584444b6a5bf237fbe08afc685aa48d10b0442d0ade8eedc89d7ec392a54d",
+      "bytes": 476
+    },
+    "browser-client/lab/native-admin.mjs": {
+      "sha256": "0dc0de7249e1616de98a7a1f49379c05fb30f0265a9997a5d2f5b0ef829d1d7c",
+      "bytes": 640
+    },
+    "browser-client/lab/native-participant.js": {
+      "sha256": "735a5ee9b4327963ea7fb2ebec5e2159c1196aa99d8b6e7fd996809f521b7ede",
+      "bytes": 7670
+    },
+    "browser-client/lab/native_admin.py": {
+      "sha256": "fe4b96615a984d8cdf98e7b7fe45cb999a6b6ce158ecc2a13b8d441e9b366bc6",
+      "bytes": 557
+    },
+    "browser-client/lab/native_launch.py": {
+      "sha256": "5358a62e101c2fc8fc94063b6ec617a9a221b93b6778f59fc80cac2171ccc581",
+      "bytes": 34430
+    },
+    "browser-client/lab/provisioning_diagnostics.py": {
+      "sha256": "0a9ba0e7f4164afa64dd10b97f443af14a85b03321d803641dcf1ceb3f884555",
+      "bytes": 11022
+    },
+    "browser-client/lab/public-interface.sh": {
+      "sha256": "cd7eb3fdb40de7167a03b4fa4deb94fd199711717dd5dc2e9d8cea1342e0a40c",
+      "bytes": 1342
+    },
+    "browser-client/lab/pulseaudio-local.sh": {
+      "sha256": "a24eaf28701f873e3442b6fcc843f1eb205c79dcdc91d52bb1f56e3c7af73d82",
+      "bytes": 413
+    },
+    "browser-client/lab/run-core-journey.sh": {
+      "sha256": "9693ae82a858752909988534251b28c81bbc9a7c199328fc63915e77f84e25e4",
+      "bytes": 305
+    },
+    "browser-client/lab/run-embedded-journey.sh": {
+      "sha256": "dcef1408c231efdc040eefc3dbc54dcf12c9db1a5d56561cdb13a7011db09a1c",
+      "bytes": 346
+    },
+    "browser-client/lab/run-native-ignored-fbx-journey.sh": {
+      "sha256": "026609d3a0fa0a82f9f13b327af67d3f110ba57d1be252b7de687f67c2f1e66b",
+      "bytes": 370
+    },
+    "browser-client/lab/test_chrome_browser.py": {
+      "sha256": "559836a509878b8b8203501531fdc73578330afc6d0fb02733806bf04ee2bda4",
+      "bytes": 5064
+    },
+    "browser-client/lab/test_curate_core_journey.py": {
+      "sha256": "2d683c04843846199d81566da419ec0f5398a0deb8c5745dc66bce58e39321ca",
+      "bytes": 9484
+    },
+    "browser-client/lab/test_guest_permissions.py": {
+      "sha256": "71b2afaf0d190c7a52beb55a5a6f8f3419a079af5a8e6cc6e212295bf622004f",
+      "bytes": 2180
+    },
+    "browser-client/lab/test_host_tools.py": {
+      "sha256": "998084dede746364829989e12de7473279f38d2c1d8d4c4489ed1e6684d66314",
+      "bytes": 10405
+    },
+    "browser-client/lab/test_manage_state.py": {
+      "sha256": "103ee00b456fefeb262b5cce7a4b9738dab219077bb4d62aa5b1cf3a102c46c2",
+      "bytes": 9204
+    },
+    "browser-client/lab/test_managed_owned_cpu.py": {
+      "sha256": "e15c2b5eb6390193479f54bc8c0d3eda6e0b4c5c6bf70be7cbc8996bfb931e48",
+      "bytes": 7948
+    },
+    "browser-client/lab/test_managed_parent_guard.py": {
+      "sha256": "eb36ac426b8dbc58f8252641143580a3f0881943ad8d509ea1901453151ddd3d",
+      "bytes": 8800
+    },
+    "browser-client/lab/test_managed_parent_owned_cpu.py": {
+      "sha256": "5b19e8bc488c4e8c34f5829cd96ba4ef04f917e03b84534060aa937e9bbc2e0e",
+      "bytes": 5629
+    },
+    "browser-client/lab/test_managed_python_boundary.py": {
+      "sha256": "7c3fac97e1a469fa0ed0bd72504ddb978666782f6f3812d6faf4c8fe7d446819",
+      "bytes": 4075
+    },
+    "browser-client/lab/test_managed_registered_wrapper.py": {
+      "sha256": "485ab6012f8bf6835a4f51935a2341d9368b7e7d1b24bad2701059207d4b023e",
+      "bytes": 5131
+    },
+    "browser-client/lab/test_managed_stop.py": {
+      "sha256": "92d9ce454fb707073bcd7da37d4d9f3b91e8e5f671d9902011a2442c173e54a3",
+      "bytes": 8553
+    },
+    "browser-client/lab/test_native_launch.py": {
+      "sha256": "11aea0f61c502e3244835d813c163f4336de28374d6e8cd83c9318efdc81a4f0",
+      "bytes": 10759
+    },
+    "browser-client/lab/test_provisioning_diagnostics.py": {
+      "sha256": "28f9c2928af762b9c1ac5900f3259f399163b5315c7f459699f53f24d5a04b4f",
+      "bytes": 15479
+    },
+    "browser-client/lab/textured-cube.gltf": {
+      "sha256": "b1193d45a74443fcf07c695ddd8ee4c4b737ff7d276af79d539ef82f61655ab3",
+      "bytes": 2191
+    },
+    "browser-client/lab/test_managed_ancestry.py": {
+      "sha256": "6959505a9b12f4b9ce296a5947e9ec96841fc729db7d6a3de77c0139bcad0d06",
+      "bytes": 6649
+    },
+    "browser-client/lab/test_managed_ancestry_owned_cpu.py": {
+      "sha256": "fc2c695eaa4be889ed19e72e1e8dc92212f4402487fa3ad1566906a5bac6df85",
+      "bytes": 14738
+    }
+  }
+}

@@ -1,0 +1,393 @@
+{
+  "schema": 1,
+  "scope": "Four short actual stock overte_hub fluid/native/rejoin journeys on current Audio v2 and unnamed-FBX source; optional parsed templates remain default off",
+  "materialAssistance": "OpenAI Codex",
+  "summarySHA256": "9ee67e58492586e1f0e5c42ed4134531f08ed1c987370417f8f3c7e5f86c1e7c",
+  "allOriginalFunctionalGatesPreserved": true,
+  "worldLoadingImprovementProved": false,
+  "wholeHubPixelsQualified": false,
+  "hardwareMicrophone": false,
+  "microphoneRequested": false,
+  "publicWorldInteractionSent": false,
+  "cohorts": [
+    {
+      "engine": "chromium",
+      "mode": "baseline",
+      "completed": true,
+      "fluidPassed": true,
+      "browserVersion": "154.0.8037.57",
+      "sourceUnchanged": true,
+      "distributionUnchanged": true,
+      "rawSHA256": "fecc9cbad5bdf88aaa52f35a136058eb00f2b8eba1d273f3910dcce6a3f7e45a",
+      "durationSeconds": 97.488,
+      "stockExecutableObserved": true,
+      "ownedBrowserClosed": true,
+      "gatewayChildrenReturnedToBaseline": true,
+      "nineManagedServicesUnchanged": true,
+      "retainedReformattedCopySHA256": "4aa4dddcfd17b4bc5ad634749a0d58edf5026bc58617bbe8a5e44f02618ef88b",
+      "originalSerializationRecoveredByteExact": true,
+      "originalFluidGates": {
+        "steadyFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "walkFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedSteadyFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedWalkFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        }
+      },
+      "nativePoseDifferenceMeters": 0.0003090164107994575,
+      "reconnectedNativeDifferenceMeters": 0.0009681813014627974,
+      "firstObservedSettledCounts": {
+        "loadedModels": 296,
+        "entities": 517,
+        "meshColliders": 75
+      },
+      "parsedFbxTemplates": {
+        "enabled": false,
+        "fallbacks": 0,
+        "cache": null
+      },
+      "observedFbxParse": {
+        "count": 295,
+        "totalMs": 4038.0999997258186,
+        "maxMs": 358.80000001192093
+      }
+    },
+    {
+      "engine": "chromium",
+      "mode": "templates",
+      "completed": true,
+      "fluidPassed": true,
+      "browserVersion": "154.0.8037.57",
+      "sourceUnchanged": true,
+      "distributionUnchanged": true,
+      "rawSHA256": "dd259b5e331653db6e65ff5778f7fe94037182e83f85b058c3577e800615d909",
+      "durationSeconds": 103.41,
+      "stockExecutableObserved": true,
+      "ownedBrowserClosed": true,
+      "gatewayChildrenReturnedToBaseline": true,
+      "nineManagedServicesUnchanged": true,
+      "retainedReformattedCopySHA256": "642184a078884d844e1a56886281a95301a3e271725564e92d27ead29c8ae766",
+      "originalSerializationRecoveredByteExact": true,
+      "originalFluidGates": {
+        "steadyFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "walkFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedSteadyFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedWalkFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        }
+      },
+      "nativePoseDifferenceMeters": 0.0006334695916688017,
+      "reconnectedNativeDifferenceMeters": 0.0005994088904698672,
+      "firstObservedSettledCounts": {
+        "loadedModels": 295,
+        "entities": 516,
+        "meshColliders": 75
+      },
+      "parsedFbxTemplates": {
+        "enabled": true,
+        "fallbacks": 218,
+        "cache": {
+          "admissionEvidence": {
+            "schema": 1,
+            "producerStarts": 245,
+            "producerFailures": 201,
+            "repeatProducerStarts": 124,
+            "repeatAfterTypedRefusal": 124,
+            "repeatAfterGraphRefusal": 124,
+            "identityCharges": 121,
+            "keyBytesCharged": 67208,
+            "maximumIdentityCharges": 512,
+            "maximumKeyBytesCharged": 1048576,
+            "censored": false,
+            "closed": false,
+            "reasons": {
+              "graph": 201,
+              "image": 0,
+              "capacity": 0,
+              "changed": 0,
+              "abort": 0,
+              "other": 0
+            },
+            "stages": {
+              "nodes": 201,
+              "geometry": 0,
+              "materials": 0,
+              "textures": 0,
+              "skeleton": 0,
+              "budget": 0,
+              "image-stamp": 0,
+              "unspecified": 0
+            },
+            "locations": {
+              "provisional-inspection": 201,
+              "ready-inspection": 0,
+              "producer-rejection": 0
+            },
+            "scope": "Per-World exact prepared-buffer/route-base producer starts. Fixed failure aggregates counted once per producer; no immutable eligibility or live-GC claim."
+          },
+          "producers": 245,
+          "hits": 25,
+          "joined": 23,
+          "cloned": 75,
+          "evicted": 11,
+          "refused": 0,
+          "transient": 1,
+          "ready": 32,
+          "pending": 0,
+          "readers": 0,
+          "bytes": 30219229
+        }
+      },
+      "observedFbxParse": {
+        "count": 464,
+        "totalMs": 5100.399999767542,
+        "maxMs": 332
+      }
+    },
+    {
+      "engine": "firefox",
+      "mode": "baseline",
+      "completed": true,
+      "fluidPassed": true,
+      "browserVersion": "firefox/156.0",
+      "sourceUnchanged": true,
+      "distributionUnchanged": true,
+      "rawSHA256": "83d90e139457a37bcf7fe38c2714f614ab5931192f3fbfe79404cdbe6780decb",
+      "durationSeconds": 105.975,
+      "stockExecutableObserved": true,
+      "ownedBrowserClosed": true,
+      "gatewayChildrenReturnedToBaseline": true,
+      "nineManagedServicesUnchanged": true,
+      "retainedReformattedCopySHA256": "3bfa234039f76dca80cf50b6c0c1a2e77515b35255d1003becf8dabd304340a9",
+      "originalSerializationRecoveredByteExact": true,
+      "originalFluidGates": {
+        "steadyFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "walkFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedSteadyFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedWalkFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        }
+      },
+      "nativePoseDifferenceMeters": 0.00021953352620318343,
+      "reconnectedNativeDifferenceMeters": 0.0007315556386242165,
+      "firstObservedSettledCounts": {
+        "loadedModels": 295,
+        "entities": 516,
+        "meshColliders": 75
+      },
+      "parsedFbxTemplates": {
+        "enabled": false,
+        "fallbacks": 0,
+        "cache": null
+      },
+      "observedFbxParse": {
+        "count": 294,
+        "totalMs": 4340,
+        "maxMs": 202
+      }
+    },
+    {
+      "engine": "firefox",
+      "mode": "templates",
+      "completed": true,
+      "fluidPassed": true,
+      "browserVersion": "firefox/156.0",
+      "sourceUnchanged": true,
+      "distributionUnchanged": true,
+      "rawSHA256": "1570336b34db9decd120c43f45d08c3df0bf2c6dff2a728a9fbc2b8561018066",
+      "durationSeconds": 107.831,
+      "stockExecutableObserved": true,
+      "ownedBrowserClosed": true,
+      "gatewayChildrenReturnedToBaseline": true,
+      "nineManagedServicesUnchanged": true,
+      "retainedReformattedCopySHA256": "7a6877e0b4f33ef6eaea6196146f436f48ad0becec24181ca91e6f1ce2531081",
+      "originalSerializationRecoveredByteExact": true,
+      "originalFluidGates": {
+        "steadyFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "walkFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedSteadyFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedWalkFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        }
+      },
+      "nativePoseDifferenceMeters": 0.000006127892822754432,
+      "reconnectedNativeDifferenceMeters": 0.0008443433874339879,
+      "firstObservedSettledCounts": {
+        "loadedModels": 296,
+        "entities": 517,
+        "meshColliders": 75
+      },
+      "parsedFbxTemplates": {
+        "enabled": true,
+        "fallbacks": 219,
+        "cache": {
+          "admissionEvidence": {
+            "schema": 1,
+            "producerStarts": 245,
+            "producerFailures": 201,
+            "repeatProducerStarts": 124,
+            "repeatAfterTypedRefusal": 124,
+            "repeatAfterGraphRefusal": 124,
+            "identityCharges": 121,
+            "keyBytesCharged": 67208,
+            "maximumIdentityCharges": 512,
+            "maximumKeyBytesCharged": 1048576,
+            "censored": false,
+            "closed": false,
+            "reasons": {
+              "graph": 201,
+              "image": 0,
+              "capacity": 0,
+              "changed": 0,
+              "abort": 0,
+              "other": 0
+            },
+            "stages": {
+              "nodes": 201,
+              "geometry": 0,
+              "materials": 0,
+              "textures": 0,
+              "skeleton": 0,
+              "budget": 0,
+              "image-stamp": 0,
+              "unspecified": 0
+            },
+            "locations": {
+              "provisional-inspection": 201,
+              "ready-inspection": 0,
+              "producer-rejection": 0
+            },
+            "scope": "Per-World exact prepared-buffer/route-base producer starts. Fixed failure aggregates counted once per producer; no immutable eligibility or live-GC claim."
+          },
+          "producers": 245,
+          "hits": 27,
+          "joined": 22,
+          "cloned": 75,
+          "evicted": 11,
+          "refused": 0,
+          "transient": 1,
+          "ready": 32,
+          "pending": 0,
+          "readers": 0,
+          "bytes": 30219229
+        }
+      },
+      "observedFbxParse": {
+        "count": 465,
+        "totalMs": 5759,
+        "maxMs": 204
+      }
+    }
+  ],
+  "interpretation": "Whole journey durations and overlapping phase totals are not world loading times. Both pairs have different actual scene counts. Structural refusals and repeated parsing remain unresolved.",
+  "comparisons": {
+    "chromium": {
+      "schema": 1,
+      "status": "refused",
+      "reason": "scene-count-mismatch"
+    },
+    "firefox": {
+      "schema": 1,
+      "status": "refused",
+      "reason": "scene-count-mismatch"
+    }
+  },
+  "comparisonSourceSHA256": "ef41d97a9f7a9fab0f4f094925cebc14cce3bca89fe2605bc5e4299ba9b216ed",
+  "currentSourcePins": {
+    "src/main.ts": "f33b27cab252aff9f194fc64d9a9b4ae942ec77f79e04f91d1597b61afe55324",
+    "src/audio.ts": "8e60d96fb9d9ead5ea840b4a27ac1d363f0166090ddcc66fec375e3737dd6303",
+    "src/tablet.ts": "04e91da914725e290d56dbeb2b5e837a2d7f9233d455eda88e4ca30e21c9e92e",
+    "src/world.ts": "66fd95766c79f4deb78400e342fd19cbc19d55a127b75c53f00da09061d660da",
+    "src/parsed-fbx-template.ts": "42c5cb26b05d1087e1c8b223ebc1e8419c70dd289b015ad460fef4ef9558a46a",
+    "gateway/server.mjs": "fa16513f98327619bea099778500b297f2ddcf6d0f897c98fb3a0b9dcacfe2b2",
+    "gateway/native-tablet.js": "0c90732c34a8b06dc5ce1112697ac1a4f6f88a5a20754d21a71a42ee7f3b8eb4"
+  }
+}

@@ -1,0 +1,229 @@
+{
+  "schemaVersion": 1,
+  "recordedAtUTC": "2026-10-04T11:06:28.235539+00:00",
+  "repository": "noah-be/overte",
+  "basedOnPublishedCommit": "39ff99ac902b22eb84b732b2cba2ae61e47ab9e5",
+  "scope": "Default-off transport and same-query pruning diagnostics with complete local code gates. No native movement or GL repair or actual new-source browser acceptance claimed.",
+  "sourceSHA256": {
+    "browser-client/gateway/avatar-flow.test.mjs": "0f83bbeb6d1e95227d7279a8160ee8caf3142ab446fe2026f76f790f5d12053c",
+    "browser-client/gateway/native-avatar-stdout-projection.mjs": "b705c89fadda9d978c1323c5b264196cab2a1f3e70d3f9fea182f991d2bd702c",
+    "browser-client/gateway/server.mjs": "ee69773f46915d97bbf3055657fbf2f00ee7f7136273b62c3a9a2b99ea3b00fc",
+    "browser-client/gateway/avatar-flight-transport-diagnostics.test.mjs": "403c7874eadf5f9fb5a6ca8612d9a625bdeaba90263953ad807fae44f95d0f07",
+    "browser-client/tests/tablet-capture-avatar-flow-manifest.test.mjs": "1ec7f49c056793c90fbd3d79a4d21a8af95d48fb5b6cd532df11376086cb7469",
+    "browser-client/tests/native-ignored-fbx-diagnostics.test.mjs": "3796ff6c019e6d46886ba9f85c4aecdb5ac4bacaff90a810513861ccb2490f82",
+    "browser-client/tests/tablet-capture-pruning-flight-manifest.test.mjs": "e66cb8d675663f780c223184e536f153f0bb4edc931e2e03f7d3a70e683067d1",
+    "browser-client/tests/fixtures/native-ignored-fbx-pixels.ts": "7c6e055d18afbcbde751647b9778768410ebc8543e5d0bdbbc9fe2b09c714e55",
+    "browser-client/tests/fixtures/capture-v28-pruning-flight-before.json.gz": "0730ae2d8908ad8d4b074d65fcc489309a24bb3dca1890ede85ab188d6306270",
+    "browser-client/tests/fixtures/capture-pruning-flight-v29-complete-source-manifest.json": "0e3ac94a9d3e4b8271c356b5752c38439f183a146561b6bfde2c256efcbfb489",
+    "browser-client/tests/integration/capture-avatar-flow-source-fixture.mjs": "518616598b8f6001ecfe1d6169589de2644ac3c66ca2035c6cf3162357348b79",
+    "browser-client/tests/integration/native-ignored-fbx-pixels.mjs": "c5c1e0a8617d44bb6e7151b759450ddae8b083f0458a7917a9ec0087925a5d2a",
+    "browser-client/tests/integration/prepare-tablet-capture-acceptance.mjs": "a680c2475870639967f0a71b11a6cdba5b5784d6858f089060664c84b24e61d5",
+    "browser-client/tests/integration/capture-pruning-flight-source-fixture.mjs": "677a649aa392d23eacfc48c2ee94b24a1e2c831a823639e6e833ff9702c5bb0b"
+  },
+  "unchangedSourceSHA256": {
+    "browser-client/gateway/avatar-snapshot-sender.mjs": "f42328972ccaff3a52736771f377380bc96c81c388353842c7fe386052cc188d",
+    "browser-client/tools/curate-avatar-samples.mjs": "e44d28ab00f51b7d16950cab0d6e5dbd08c2e6f32c473918db555d9868144c10",
+    "browser-client/gateway/native-bridge.js": "0ddc1fe1a664f9fc4b46ee85bb283d537c321285cee2b95f983a6d6ca7d536e9",
+    "browser-client/gateway/native-avatar-sample-diagnostics.js": "d59ff56f281fe91c19a16ff36686dcb29767405943023b11a76daa2c5a6a651e",
+    "browser-client/tests/integration/real-session.mjs": "ec4ac0fb187acbcd650c10295c5c5364a00687c3abab1e24f395934d3a3460a7",
+    "browser-client/lab/manage.py": "53cd7fcce5887c993bc724ce3e391c4c7d0975f338ed1c96a1adfdbe7c9bdb95",
+    "browser-client/lab/native_launch.py": "5358a62e101c2fc8fc94063b6ec617a9a221b93b6778f59fc80cac2171ccc581",
+    "browser-client/lab/atomic-provisioning/probe.py": "67d90f5598f05ef50af1098d33854cb64165b315874aa449003119adc03364e1",
+    ".github/workflows/browser-client.yml": "5ef53a7c48d502b8c64d0d22042a50a5ac37c15c35b55fde9149deaa2e768a20",
+    "browser-client/src/world.ts": "609378a10d67dcd89f3e581b972986425a61ba77720d131eb27ee193c815be3a"
+  },
+  "sourceInventorySHA256": "4a2c7368334271c2377b3993575269e77d3adb2d12f47c4920e120c679138bf2",
+  "sourceFiles": 9874,
+  "closure": {
+    "version": 29,
+    "manifestSHA256": "0e3ac94a9d3e4b8271c356b5752c38439f183a146561b6bfde2c256efcbfb489",
+    "rows": 256,
+    "inheritedRowsRetained": 249,
+    "explicitMigrations": 5,
+    "honestAdmissions": 7,
+    "historyInputs": 14,
+    "inflatedBytes": 496441,
+    "gzipBytes": 109840,
+    "inflatedCapUnchanged": 524288,
+    "gzipCapUnchanged": 131072,
+    "specFilesUnchanged": 49,
+    "chromeEnvironmentPins": 20,
+    "onlyChromePinMigration": "pruning fixture runner",
+    "productionPreparer": "One digest literal only; no runtime history import/fallback"
+  },
+  "reviews": {
+    "transportManifestSHA256": "fd2700286dd6ad48194e0f1b13959f0fd24524ddb48a0d46fafcd804196fd51b",
+    "transportRootReceiptSHA256": "b03b919bb369966bebe7a64b40aba3cd48231380393d121820d9dbe2169be9f9",
+    "transportIndependentReceiptSHA256": "f9b782d7536e0af7cfb7cf3c49289e447954b6796197cde6869554c5a3248d70",
+    "transportCurrentControls": 91,
+    "wholeBeforeControls": 55,
+    "desiredCurrentControls": 2,
+    "desiredBeforeFailuresRetained": 2,
+    "oldGetterCostCurrentNegativeRetained": "23/24 before finite historical setup; original zero-getter assertion preserved",
+    "glManifestSHA256": "332d33d193b3906a2541f83a82c54559bb1214b8819e0b5f79ec9d4563ecd9b3",
+    "glRootAndIndependentControlsEach": 10,
+    "glIndependentReceiptSHA256": "cb256c1589699c4b1a1dbf279499ed08e23f102329e25c447fc73a27f3de99d9",
+    "compositionManifestSHA256": "cc6e1209fd765b095c1d30f509082c40db9a4eec114860b5466f34a29bb07407",
+    "compositionRootControls": 632,
+    "compositionRootReceiptSHA256": "51a749cc425ff5e815514897adadfad378e3631e11a3e3e72707f0d424e5d7d1",
+    "compositionIndependentSourceReceiptSHA256": "644a8936359523af432b1b72ec56b4e1ba8683f74a11f9eee5b7835fa7d12de2",
+    "compositionIndependentControls": 68,
+    "compositionIndependentReceiptSHA256": "126218742269d1680245cf75c53fe2ee5f85e6600ef36648f08e665ba352d69e",
+    "independentCensus": "24 current flight +24 original historical flow +11 original V28 +9 current V29 guards",
+    "wholeInstallReversals": 14,
+    "countsOverlapNotAdded": true
+  },
+  "checks": [
+    {
+      "label": "product-unit-suite",
+      "command": [
+        "npm",
+        "test"
+      ],
+      "exitCode": 0,
+      "seconds": 38.178,
+      "logSHA256": "f8879e46a208a4db8dd269c18149d90afca05c548d0dd6366419c3a63ada1da6",
+      "counts": {
+        "tests": 3015,
+        "pass": 3015,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "sourceCoherent": true,
+      "scope": "Independent code gates only; original Native-liveness preflight remains failed; eight existing births and one missing row unchanged"
+    },
+    {
+      "label": "production-build",
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "exitCode": 0,
+      "seconds": 5.969,
+      "logSHA256": "342ef74b0eaba1414d27d55e0c8520d642a74e63e116b6d916dcc1977255300f",
+      "counts": {},
+      "sourceCoherent": true,
+      "scope": "Independent code gates only; original Native-liveness preflight remains failed; eight existing births and one missing row unchanged"
+    },
+    {
+      "label": "embedded-fixture-build",
+      "command": [
+        "node",
+        "node_modules/vite/bin/vite.js",
+        "build",
+        "--config",
+        "vite.embedded.config.mjs",
+        "--configLoader",
+        "native"
+      ],
+      "exitCode": 0,
+      "seconds": 1.955,
+      "logSHA256": "414cbfe6959e4a0367f2ac569a2917dc21bc2781d738fe381bb4c6cfb2928454",
+      "counts": {},
+      "sourceCoherent": true,
+      "scope": "Independent code gates only; original Native-liveness preflight remains failed; eight existing births and one missing row unchanged"
+    },
+    {
+      "label": "embedded-world-build",
+      "command": [
+        "node",
+        "node_modules/vite/bin/vite.js",
+        "build",
+        "--config",
+        "vite.embedded-world.config.mjs",
+        "--configLoader",
+        "native"
+      ],
+      "exitCode": 0,
+      "seconds": 2.2,
+      "logSHA256": "e22f9636b322661aac08eb9f7a7c325b8d30b8797da64333bb3275eca8b65188",
+      "counts": {},
+      "sourceCoherent": true,
+      "scope": "Independent code gates only; original Native-liveness preflight remains failed; eight existing births and one missing row unchanged"
+    },
+    {
+      "label": "repository-quick",
+      "command": [
+        "python3",
+        "tests/run-project-tests.py",
+        "--profile",
+        "quick",
+        "--timeout",
+        "240"
+      ],
+      "exitCode": 0,
+      "seconds": 132.363,
+      "logSHA256": "d2b07a76d82466f19100cc182bc14bf5adac37c5a5290d90db222529a902f154",
+      "counts": {},
+      "sourceCoherent": true,
+      "scope": "Independent code gates only; original Native-liveness preflight remains failed; eight existing births and one missing row unchanged"
+    }
+  ],
+  "repositoryQuickCounts": {
+    "pass": 34,
+    "fail": 0,
+    "suiteSeconds": 130.93,
+    "parentWallSeconds": 132.363
+  },
+  "distribution": {
+    "files": 34,
+    "freshReceiptSHA256": "55e5549544f18293badedb3ae7cd73c309f84f9068cab8ff1b72898e597bf429",
+    "priorLocalReceiptSHA256": "aa8bfc70c43ccc3de012fe41c112fbb190d3f383204763744bfa68911b10861d",
+    "byteIdenticalToPrior": true,
+    "sameLocalToolchainOnly": true,
+    "hostedProvenanceClaimed": false
+  },
+  "toolchain": {
+    "node": "24.21.0",
+    "python": "3.14.7",
+    "scopedTypeScript": "7.0.2 source/package/platform executable bound; noEmit passed",
+    "actualCurrentChrome": "pending fresh hosted execution"
+  },
+  "safeguards": {
+    "sourceAndIndexCoherentDuringGates": true,
+    "registeredLifecycle": "Eight matching births and registered Native missing, unchanged; original live preflight failed",
+    "liveServicesModified": false,
+    "registryModified": false,
+    "heavyLock": "Existing global heavy-build lock acquired; no bypass",
+    "transportAdmissionBytes": 4194304,
+    "coreMovementWaitMs": 2800,
+    "pruningWorkDeadlineMs": 30000,
+    "outputCapBytes": 1048576
+  },
+  "documentationFollowup": {
+    "onlyGuidesAndSafeProofsChangedAfterCodeChecks": true,
+    "requiredChecks": "documentation-contracts, documentation, workflow-action-pins; configured actionlint. Results recorded before normal commit.",
+    "results": {
+      "documentation-contracts": "passed",
+      "documentation": "passed",
+      "workflow-action-pins": "passed",
+      "pass": 3,
+      "fail": 0,
+      "suiteSeconds": 0.97
+    },
+    "actionlint": {
+      "version": "1.7.12",
+      "exitCode": 0,
+      "externalShellcheckAndPyflakes": "notrun; explicit empty flags per existing repository practice"
+    },
+    "diffCheckExitCode": 0
+  },
+  "retainedNegatives": [
+    "Exact39ff automatic/manual native movement and pruning GL failures in hosted-v28-avatar-flow-boundaries-20261004.json",
+    "First20 composition14pass/6missing-doc failures; exact same39ff doc added without guard change",
+    "Original verifier172b source-map-shape refusal; verifier-only sibling with code/patch/test/replay unchanged",
+    "Old currentgetter-cost23/24 before finite historical setup and old desired2RED",
+    "Independent normal30s lock refusal before tests; testsRun0; queued68 laterpass",
+    "Owner receipt locator assertion failed before any write; corrected exact sampler filename, no source/test/gate change"
+  ],
+  "limitations": [
+    "Same-flight socket property pair is sequential, not atomic kernel state or remote ACK.",
+    "Generic last-write owner is diagnostic socket binding, not original caller authority; timestamp is capturednative-message time, not actualsend/callback. PCM excluded; byte scan precedes sizecap, no fixed extra CPU-work cap.",
+    "GL code locates an existing read, not initiatingoperation; bounded failure-only secondary RPC has explicit observer cost.",
+    "Fresh actual Chrome/Core, Tablet, Hub fluidness, physical microphone and native parity remain open. Canceled30-minute requirement is not reinstated."
+  ],
+  "aiAssistance": "Implementation and evidence substantially assisted by Codex; explicit owner and independent source-bound reviews."
+}

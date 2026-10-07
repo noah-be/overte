@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "scope": "Private fresh native input module and fourteen authored Qt WebEngine editor cases; no live plugin replacement, public/native-domain journey or physical device acceptance",
+  "completed": true,
+  "versions": {
+    "qtSDK": "5.15.3",
+    "qtRuntime": "5.15.3"
+  },
+  "commands": [
+    "python3 -B browser-client/tools/build-native-input.py --output <exclusive-private-output> --qt-libraries <reviewed-native-release>/usr/lib --test --test-web-editors"
+  ],
+  "runnerSourceSHA256": "63ef8585e7e32118bdef8885021759ac39c2341c3d6b396fbb09b008073a01aa",
+  "nativeInputSourceSHA256": "e8326d2571327b435318f256e70eba9c53d393ccac31130f941ab48b5f4cf5df",
+  "artifactsSHA256": "73cbd3cc85147bfbd781a94f5120ab00ff9012e93a32784c057e70184ea166e2",
+  "privateEditorReportSHA256": "ca06640e04dba3b9d1dbe9bb2105749bd8e6829acbd090584a91400f989f3f1e",
+  "privateBuildLogSHA256": "4cffbc4cc74323dd059bc02c27ace3da8f87c4cb62cf120ed637122a4031791e",
+  "cases": [
+    {
+      "kind": "unicode-text",
+      "passed": true
+    },
+    {
+      "kind": "native-number",
+      "passed": true
+    },
+    {
+      "kind": "textarea",
+      "passed": true
+    },
+    {
+      "kind": "literal-contenteditable",
+      "passed": true
+    },
+    {
+      "kind": "password-unicode",
+      "passed": true
+    },
+    {
+      "kind": "password-native-undo",
+      "passed": true
+    },
+    {
+      "kind": "password-native-redo",
+      "passed": true
+    },
+    {
+      "kind": "password-native-maxlength",
+      "passed": true
+    },
+    {
+      "kind": "readonly",
+      "passed": true
+    },
+    {
+      "kind": "disabled",
+      "passed": true
+    },
+    {
+      "kind": "immediate-cancel",
+      "passed": true
+    },
+    {
+      "kind": "navigation-cancel",
+      "passed": true
+    },
+    {
+      "kind": "password-immediate-cancel",
+      "passed": true
+    },
+    {
+      "kind": "password-navigation-cancel",
+      "passed": true
+    }
+  ],
+  "editorCompleted": true,
+  "rendererGroupStopped": true,
+  "nativeExitCode": 0,
+  "outputTruncated": false,
+  "compileWerror": true,
+  "qtLibraryPathsMatched": true,
+  "ownedOuterProcesses": {
+    "observedBirths": 50,
+    "allRetired": true
+  },
+  "sourceAndNineManagedServicesUnchanged": true,
+  "failureCategory": null,
+  "limitations": [
+    "Authored Qt editors establish the listed input/guard cases, not complete native Tablet behavior.",
+    "The original failed inner-retirement observation is retained; no specific original zombie state was captured.",
+    "The outer subreaper remains enabled as independent timeout/ownership cleanup."
+  ]
+}
