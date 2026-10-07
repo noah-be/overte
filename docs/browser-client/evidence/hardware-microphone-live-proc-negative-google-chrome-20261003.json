@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-03",
+  "scope": "Actual current V9 hardware attempt with strict proc-lifetime correction; original hardware report not retained",
+  "manifestSHA256": "25acef430d464c7f3d8b4d9783221834cc30226e0dd586cac261442a90b15b54",
+  "summarySHA256": "026ce28f205eee26cef4a5f6a13b683c05356c738d890e2f2fb72d09cac6323a",
+  "preparationSHA256": "245d895e1d9e7fb129b13becbaab3138982c751ec2c8875bf35db9da6e212734",
+  "failureLogSHA256": "1578ac2c6d179f5ac49139fe08a56d8fd41e52e5c1b11dafb7b779ab63ebe5fc",
+  "startupAuthoritySHA256": "e5fb729ef8a3579dcf2100007dd18d2f0bdfa830680d1b7cafab4d6b1304b748",
+  "outcome": {
+    "actualGoogleChromeObserved": true,
+    "completed": false,
+    "exceptionType": "AssertionError",
+    "failureCategory": "owned-hardware-qualification-refused",
+    "failureCount": 0,
+    "failurePhase": "runner",
+    "hardwareMicrophone": false,
+    "hardwareMicrophoneRequested": true,
+    "hardwareProcessingProved": false,
+    "humanAudibilityProved": false,
+    "noFakeMediaArgumentsObserved": true,
+    "ownedCleanupPassed": true,
+    "ownedGoogleChromeClosed": true,
+    "ownedNativeClosed": true,
+    "privateCookieRetired": true,
+    "qualifiedNativeModuleObserved": true,
+    "sourceOwnedStartupAuthorityAuthenticated": true,
+    "syntheticMicrophone": false
+  },
+  "tunnelReadinessObservation": {
+    "version": 1,
+    "metadataStage": "readiness",
+    "attempts": 2,
+    "attemptsCensored": false,
+    "readiness": {
+      "version": 1,
+      "sourcesBounded": true,
+      "modulesBounded": true,
+      "sourceRows": 2,
+      "moduleRows": 3,
+      "selectedSourceCount": 1,
+      "selectedTunnelModuleCount": 1,
+      "sourceOwnerIndexKnown": true,
+      "moduleIndexKnown": true,
+      "ownerIndexMatches": true,
+      "argumentsMatch": true,
+      "ready": true
+    },
+    "lastHandledExceptionType": "none"
+  },
+  "processObservation": {
+    "records": 12,
+    "classificationCounts": {
+      "current": 6,
+      "gone": 5,
+      "unreadable-live": 1
+    },
+    "failedOrdinal": 10,
+    "failedSameBirthObserved": true,
+    "failedExecutableReadable": false,
+    "failedArgumentsReadable": false,
+    "failedProcessStateRetained": false,
+    "failedExecutableErrorClassRetained": false,
+    "fakeFlagObserved": false,
+    "failedAssertion": "owned-chrome-live-proc-refused",
+    "actualRetirementCauseEstablished": false
+  },
+  "hardwareAcceptanceProved": false,
+  "humanAudibilityProved": false,
+  "sourcesAndGuardsWeakened": false
+}

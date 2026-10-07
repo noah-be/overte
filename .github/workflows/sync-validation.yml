@@ -78,7 +78,7 @@ jobs:
         with:
           node-version: "22"
       - name: Install candidate host prerequisites
-        if: inputs.mode == 'fallback' || inputs.profile != 'documentation'
+        if: inputs.mode == 'fallback' || (inputs.profile != 'documentation' && inputs.profile != 'tool-dependencies')
         run: |
           sudo apt-get -o Acquire::Retries=4 update
           sudo apt-get -o Acquire::Retries=4 install --no-install-recommends -y \
@@ -89,7 +89,7 @@ jobs:
             qml6-module-qtquick-templates qml6-module-qtquick-window \
             qml6-module-qt-labs-settings qml6-module-qtquick-dialogs qml6-module-qttest
       - name: Run product suites not covered by shared parent qualification
-        if: inputs.mode == 'reuse' && inputs.profile != 'documentation'
+        if: inputs.mode == 'reuse' && inputs.profile != 'documentation' && inputs.profile != 'tool-dependencies'
         working-directory: candidate
         env:
           GH_TOKEN: ""
@@ -97,6 +97,14 @@ jobs:
         run: >-
           python3 tests/run-project-tests.py --platform-only --timeout 240
           --junit build/test-results/sync-platform-tests.xml
+      - name: Check only affected tool dependencies and behavior
+        if: inputs.mode == 'reuse' && inputs.profile == 'tool-dependencies'
+        env:
+          GH_TOKEN: ""
+          GITHUB_TOKEN: ""
+        run: >-
+          python3 trusted/tools/repository-checks/tool_dependencies.py
+          --root candidate --changed-files changed-files.json
       - name: Run the complete common fallback
         if: inputs.mode == 'fallback'
         working-directory: candidate

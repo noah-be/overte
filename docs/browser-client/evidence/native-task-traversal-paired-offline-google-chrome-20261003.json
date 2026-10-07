@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "kind": "strict-offline-f91-paired-task-wrapper-observation",
+  "originalAudioAcceptanceCompleted": false,
+  "originalAudioCleanupVerified": true,
+  "sourceCoherent": true,
+  "originalCensoredOutputsPreserved": true,
+  "rawReportSHA256": "0ccddfaec1727c489a37b6e77de38600b17e2a204d998be4154cb0947a8c6a7e",
+  "pairing": "exactly-one-each-admitted-category-and-byte-identical-JSON",
+  "workers": [
+    {
+      "workerOrdinal": 1,
+      "pairedRouteRows": 20,
+      "qualifiedUniqueRows": 10,
+      "pendingRows": 9,
+      "callbackRows": 1,
+      "invalidRows": 0,
+      "censored": false,
+      "initialSevenPendingBothCountsZero": true,
+      "observedTaskWrapperTraversal": true,
+      "maximumObservedTaskWrapperCounts": [
+        102,
+        102
+      ],
+      "projectionSHA256": "4d391675aff784d280afc00f0095ef0db4e3e4b1084da7c1dcd3368ab640ad11",
+      "nativeLogSHA256": "916cd53d39a8fab02fae4c839686d4d026bf2ee313d9e65da09724b1468dad9a",
+      "originalCensoredProjectionSHA256": "a1945516ff48850f1fb73451e09bec58531142a6824aeeb3194d84b8b64eeb97"
+    },
+    {
+      "workerOrdinal": 2,
+      "pairedRouteRows": 20,
+      "qualifiedUniqueRows": 10,
+      "pendingRows": 9,
+      "callbackRows": 1,
+      "invalidRows": 0,
+      "censored": false,
+      "initialSevenPendingBothCountsZero": true,
+      "observedTaskWrapperTraversal": true,
+      "maximumObservedTaskWrapperCounts": [
+        39,
+        39
+      ],
+      "projectionSHA256": "ef5aa030aee7f9cc2b178ad92d80ccb8c0d3a848c47b8f5302923a2247cf9249",
+      "nativeLogSHA256": "e7ece44a55bd1863e4a23a7e12a8665b881787f19bf8e7e51c24324dc1f3e8ac",
+      "originalCensoredProjectionSHA256": "6ef23c6e37d7f93c2a89c26ce90b1ee7463a8881d2020185eb5164a65b0e57c5"
+    }
+  ],
+  "meaning": {
+    "positive": "observed task-wrapper traversal only",
+    "childWorkProved": false,
+    "shaderCompletionProved": false,
+    "textureConsumptionProved": false,
+    "coldLoadCauseProved": false,
+    "historicalRenderAbsenceProved": false,
+    "counterReadsAreCoherentSnapshot": false,
+    "scope": "since-signal-registration"
+  }
+}

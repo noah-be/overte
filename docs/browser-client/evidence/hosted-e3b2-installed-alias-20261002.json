@@ -1,0 +1,62 @@
+{
+  "schema": 1,
+  "scope": "Actual hosted installed metadata only; no admission or signed installed-byte qualification",
+  "head": "e3b2c841ff0e1a8fa60edce07185166d2cd59f92",
+  "repository": "noah-be/overte",
+  "browserRun": 37008913734,
+  "browserConclusion": "failure",
+  "privateBrowserLogSHA256": "ac4af2e76bf9b596a986cd5754c58bfa0e01d6ab62ca009ae75db8e628d6a584",
+  "equivalentAliasObservations": 3,
+  "aliasProjection": {
+    "actualMappedDependencyObserved": false,
+    "admissionChanged": false,
+    "canonicalClass": {
+      "directoryClass": "usr-library-directory",
+      "nameClass": "python312-shared-library-name"
+    },
+    "canonicalPackage": {
+      "name": "libpython3.12t64",
+      "status": "installed-metadata-only",
+      "version": "3.12.3-1ubuntu0.17"
+    },
+    "interpreterElf": {
+      "canonicalLibraryNameNeeded": false,
+      "neededCount": 4,
+      "readBytes": 43049,
+      "rpathPresent": false,
+      "runpathPresent": false,
+      "status": "elf-direct-dependency-only"
+    },
+    "lexicalClass": {
+      "directoryClass": "python312-config-directory",
+      "nameClass": "python312-shared-link-name"
+    },
+    "lexicalPackage": {
+      "name": "libpython3.12t64",
+      "status": "installed-metadata-only",
+      "version": "3.12.3-1ubuntu0.17"
+    },
+    "packageSignatureVerified": false,
+    "schema": 1,
+    "scope": "failure-only-installed-alias-provenance",
+    "status": "observed-metadata-only",
+    "target": {
+      "generalAliasSizeWithinBound": false,
+      "groupOtherWritable": false,
+      "regular": true,
+      "rootOwned": true,
+      "status": "immutable-metadata-only"
+    }
+  },
+  "writableUTCRefusalPresent": false,
+  "hostedTrustedResult": "93 attempted tests; three errors from oversized alias qualification",
+  "knownRemainingAtomicCategory": "capability-action-refused",
+  "atomicSuboperationKnown": false,
+  "generalAliasBytesMaximumUnchanged": 4194304,
+  "installedSignedMemberEqualityProved": false,
+  "limits": [
+    "Installed package metadata is not authenticated installed content.",
+    "No direct ELF dependency does not prove absence of indirect loading.",
+    "Hosted namespace/native journeys have not run."
+  ]
+}

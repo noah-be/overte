@@ -1,0 +1,143 @@
+{
+  "schemaVersion": 1,
+  "materialAssistance": "OpenAI Codex",
+  "date": "2026-10-03",
+  "scope": "Final managed-launch, authenticated-X11 and hosted-prerequisite integration: complete local source/product/build/repository checks; fresh final-source hosted native and Browser acceptance remains required",
+  "completedLocalSourceChecks": true,
+  "baseCommit": "96d4e6d51bee318b8bf1c0ade286b1a6687f1c8c",
+  "sourceFiles": 9764,
+  "sourceInventorySHA256": "cf3bda9e81bef0e7bff57538d070722346393ed6275db2f10112cd51e80f84d5",
+  "checks": [
+    {
+      "label": "product-unit-suite",
+      "command": [
+        "npm",
+        "test"
+      ],
+      "exitCode": 0,
+      "seconds": 31.61,
+      "logSHA256": "6dc17dec372790502c990b7f5c40c1594f5a3db6288d572b02f7fc8751611519",
+      "counts": {
+        "tests": 2640,
+        "pass": 2640,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "sourceCoherent": true
+    },
+    {
+      "label": "production-build",
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "exitCode": 0,
+      "seconds": 5.329,
+      "logSHA256": "1498be5f1a487e8d1ea13a49da6ee3f7da3eed6e49b185d8a758c33f843ba7c5",
+      "counts": {},
+      "sourceCoherent": true
+    },
+    {
+      "label": "repository-quick",
+      "command": [
+        "python3",
+        "tests/run-project-tests.py",
+        "--profile",
+        "quick",
+        "--timeout",
+        "240"
+      ],
+      "exitCode": 0,
+      "seconds": 162.883,
+      "logSHA256": "9723fe2a10f6d434354bed2c5995b0ae36227635b2a3a9b7d634cfb9a9c48574",
+      "counts": {},
+      "sourceCoherent": true
+    }
+  ],
+  "requiredRepositorySuiteCount": 34,
+  "allRequiredRepositorySuitesPassed": true,
+  "production": {
+    "receiptSHA256": "329505b9068f6b5db0daf0635ee3a9153d7ec6939e20841c13cb8476b67c8bdf",
+    "files": 34,
+    "allDistributionBytesIdenticalToEarlierChromeBuild": true,
+    "earlierReceiptSHA256": "358fe6b186309fe988dda1d2fe657474c0719af463925a19a9d2f81d985370cf",
+    "earlierActualChromeProof": "shipping-v14-current-google-chrome-checks-20261003.json"
+  },
+  "localHost": {
+    "command": [
+      "python3",
+      "-B",
+      "-m",
+      "unittest",
+      "-v",
+      "test_manage_state.py"
+    ],
+    "pass": 84,
+    "fail": 0,
+    "skip": 0,
+    "seconds": 6.826,
+    "logSHA256": "3f40aac9621e62deaa456ca1272dcd237f86e3d6e7086ad8f85af04c76ebbff9",
+    "includesOriginalOwnedBubblewrapShutdownDeadlineSeconds": 2.5,
+    "scope": "Fedora own CPU/process lifecycle only; no NativeDomain/browser/services/device acceptance"
+  },
+  "reviewedSource": {
+    "browser-client/lab/manage.py": "84b4426187e078515b77984a3581a63130d2dbc0c5edf4230a66a17ecdbf8e66",
+    "browser-client/lab/native_launch.py": "5358a62e101c2fc8fc94063b6ec617a9a221b93b6778f59fc80cac2171ccc581",
+    "browser-client/lab/atomic-provisioning/probe.py": "67d90f5598f05ef50af1098d33854cb64165b315874aa449003119adc03364e1",
+    "browser-client/lab/atomic-provisioning/source-pins.json": "7b54a00eb198b88db7981dffaabad74b4144cc0f188aefd9f5214e9afba61a38",
+    "browser-client/gateway/worker-sandbox.mjs": "8a936adad775e1b422fdb50390391336afe640843662d606af675952e780130f",
+    "browser-client/gateway/places-override.mjs": "5e31560f6077e1fbbe15436678c219571cb117b553a5545539678bb69a77edf2",
+    ".github/workflows/browser-client.yml": "1c35849c3a5dd71bccc7bd90125c12d5df7a1cb805e474be9174f87309cdd8ef",
+    ".github/workflows/browser-client-atomic-settings.yml": "c27cd756c320c1467a89886c92080d3a0dcd32318a55ff7962e4d675b5b1375f",
+    "browser-client/tests/integration/prepare-tablet-capture-acceptance.mjs": "858c4dd12e75adf875a39b8a686dc25cc2d8a7b4197d90d24e614ed68ca5f8d3",
+    "browser-client/tests/fixtures/capture-chrome-readme-v16-complete-source-manifest.json": "2015b1a74bbc53ad5b1c51f91cd25b59a6f0dafbd3f5da8bc265d002851e25e9"
+  },
+  "reviewedCompositionManifestSHA256": "723944bc8c783aaa76440d7fa861f39cf3714d0d708732c29535bf129c33e8c2",
+  "captureSourceRows": 157,
+  "allOriginalBrowserSpecificationFilesUnchanged": 49,
+  "retainedNegatives": [
+    {
+      "scope": "First complete stabilization source",
+      "tests": 2633,
+      "pass": 2630,
+      "fail": 3,
+      "skip": 0,
+      "logSHA256": "b8d76ed8f766107288b67cba9643713b117c892f79ad38e44c44f70611d35075",
+      "cause": "Older Chrome README metadata fixture refused the explicitly reviewed current managed-launch README; exact CPU-only normalization now retains original assertions and source histories"
+    },
+    {
+      "runId": 37137981342,
+      "scope": "Original supervisor and own-Xvfb counterexamples; native startup not run after failed CPU prerequisite",
+      "originalSupervisorDeadlineSeconds": 2.5,
+      "originalXvfbTestDeadlineSeconds": 3
+    },
+    {
+      "runId": 37139289353,
+      "scope": "Isolated X11 protocol1572/1572 success with separate unchanged supervisor33/34 failure; not composed final-source qualification"
+    }
+  ],
+  "preservedBoundaries": {
+    "existingNineManagedBirths": true,
+    "existingIndexDuringReplay": true,
+    "liveFrontendNativePluginServicesUnchanged": true,
+    "heavyBuildLockRespected": true,
+    "historicalSourceAndFailureRecordsUnchanged": true,
+    "noDeadlineIncreaseOrSkip": true
+  },
+  "postReplayDocumentationOnly": [
+    "docs/browser-client/PLAN.md",
+    "docs/browser-client/STATUS.md",
+    "docs/browser-client/evidence/managed-stabilization-source-checks-20261003.json"
+  ],
+  "limitations": [
+    "Final hosted Native all-thread confinement, retirement and stored readback, full Browser and fresh CodeQL remain pending at this local-source checkpoint.",
+    "Earlier isolated Ubuntu native atomic rename/readback success does not qualify this final integration; aggregate fdatasync was not attributed to the exact settings descriptor.",
+    "Native PR_GET_PDEATHSIG is not measured directly; post-exec helper binding and nonprivileged ELF inheritance assumptions require final runtime checks.",
+    "The fixed seven-file source boundary does not authenticate the system Python standard library or every pre-imported caller module.",
+    "Full Tablet/public overte_hub fluidness, physical microphone signal and native feature parity remain open.",
+    "Production-only source is unchanged after these immutable gates; three explicitly named sanitized documentation files are updated afterward."
+  ]
+}

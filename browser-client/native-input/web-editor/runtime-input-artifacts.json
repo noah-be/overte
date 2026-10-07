@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "scope": "Fixed mandatory public runtime inputs of the reviewed pinned AppImage; paths relative to package usr",
+  "files": {
+    "libexec/QtWebEngineProcess": {
+      "bytes": 18352,
+      "sha256": "9f6fa064f84e73c469e3d3908d2e74b8a25addec367112a6e285dd4557290130"
+    },
+    "resources/qtwebengine_resources.pak": {
+      "bytes": 2564986,
+      "sha256": "2a2e0939ab91db42928c777d2033dcb1105e267895d32c5979c94a33a38336af"
+    },
+    "resources/qtwebengine_resources_100p.pak": {
+      "bytes": 197667,
+      "sha256": "c700713b0104aeedc32a45fbfb150a6f38e0f71606cf3a2e4f646e8d09e4a689"
+    },
+    "resources/qtwebengine_resources_200p.pak": {
+      "bytes": 259941,
+      "sha256": "b7e049935bc7b99cdb9b7df12c4ee17a181e86ddfe56d479b7180ff6dcd9504c"
+    },
+    "resources/qtwebengine_devtools_resources.pak": {
+      "bytes": 1873201,
+      "sha256": "c916656c06fbf2008fc807ac56ad3a124dca6d6fc646cf76ce5a07f598676d2e"
+    },
+    "translations/qtwebengine_locales/en-US.pak": {
+      "bytes": 246582,
+      "sha256": "30d13499e8334dc857f88a75cc1b9761d742f9f27ff8ba258b6642015d7354d2"
+    },
+    "qml/QtWebEngine/qmldir": {
+      "bytes": 98,
+      "sha256": "78c1044e6bd1b673bac0122e2ae1330116afdbfe23ff766d2cb35f32a25ad4d8"
+    },
+    "qml/QtWebEngine/libqtwebengineplugin.so": {
+      "bytes": 126048,
+      "sha256": "512e59cef79c29e6e68bac689f9f7ab6a86d0ed5c464d98f1d463fa65c13a5ea"
+    },
+    "bin/qt.conf": {
+      "bytes": 108,
+      "sha256": "9f262a8b1e5f80e4c129634c5f8f437a677a5111f5110701c5f668c01f44cc79"
+    }
+  }
+}

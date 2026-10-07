@@ -1,0 +1,132 @@
+{
+  "scope": "Merged browser startup source qualification; hosted runtime results remain separate and no physical-device or wider product acceptance is inferred",
+  "local_parent": "2648f3ff234c48bb4fc0fe7a84140f72f89fe646",
+  "published_parent": "ee477a960d7e82920e785930647d2f6f105750d7",
+  "main_base": "f6f7f98ee76d58c1b1347e50ee2f0e88987b1f2a",
+  "source_checks": {
+    "capture_cases_passed": 275,
+    "product_cases_passed": 3130,
+    "product_cases_failed": 0,
+    "product_cases_skipped": 0,
+    "product_seconds": 82.198,
+    "repository_quick_groups_passed": 34,
+    "repository_quick_seconds": 126.06,
+    "builds": [
+      "production-typecheck-and-notices",
+      "embedded",
+      "embedded-world",
+      "native-ignored-fbx"
+    ]
+  },
+  "environment_correction": {
+    "initial_product_passed": 3126,
+    "initial_product_failed": 4,
+    "cause": "Missing Xvfb and slirp4netns in the isolated worktree",
+    "action": "Copied existing laboratory tool packages into this worktree; source, isolation policy and original assertions unchanged",
+    "focused_isolation_passed": 8
+  },
+  "log_sha256": {
+    "capture-tests": "de6ab5ae92f3c988a60d24c6ff2b027f3f5691813b1e9e089c04807dde4a44ad",
+    "product-tests": "ba7bcb9dec5ace10a92a35f9726ddca414d5e8f7501c96f56ccb4277f02280a5",
+    "product-tests-with-tools": "c0b7a95fa0b32ea640b5b26e4ca98e7df8e80be14c9385942bc5fe1a3c216255",
+    "isolation-tests": "451ab1f9f19b829354b70c4e9bd97b8c0542ce42c462e3e8cac253cf276a5a6f",
+    "production-build": "354cbcf1009e76db6a56930beba2a85ed4bddc715a967d2df4348ca5add82af3",
+    "embedded-build": "3cc0513ec380f05fdfa80767de1b74d06f242df9671e9041f13ad5a3d308136e",
+    "embedded-world-build": "62401a1d25bdea294e678b2e14b941f53f03ebd403880f8097d7f5b5824b17a2",
+    "native-ignored-build": "acd1d06cc0f45abca3303d6f279212c1d905ac50886f58a0a289dee83e53535c",
+    "quick-tests": "8aff207edb10c7ec7c18daabb0de157df4fadb84e91e95212fdbadb6f5e362ea"
+  },
+  "source_files": [
+    {
+      "path": ".github/workflows/browser-client-atomic-settings.yml",
+      "sha256": "8543dee78d52f4d3df6dc6a8c7a7795779075d5edac96baf16f77c182269469e"
+    },
+    {
+      "path": "browser-client/gateway/server.mjs",
+      "sha256": "79dde3d420fb6c21687437930751017e4872a813ced6d1a5e77afffd24cd6576"
+    },
+    {
+      "path": "browser-client/gateway/session-launch-order.test.mjs",
+      "sha256": "3fad3c5e15d1ac297b5e0de8e9dafcd03b75ec9c3499f6c7de6c21a70778f752"
+    },
+    {
+      "path": "browser-client/gateway/worker-sandbox.mjs",
+      "sha256": "e7450d00ea046eba01e792ce5aa1bbe44655943ccaee528dd132e01006b4137a"
+    },
+    {
+      "path": "browser-client/gateway/worker-sandbox.test.mjs",
+      "sha256": "890336032ab241b16f6b80f2dd5c00bc210f7e35a5abdd69f8696792dc240618"
+    },
+    {
+      "path": "browser-client/gateway/x11-readiness-stage.cpu.test.mjs",
+      "sha256": "4a718db5b29833fb31b07631fe5cd2d9a2276018aa6fe87092dbb71d1eea53e6"
+    },
+    {
+      "path": "browser-client/tests/fixtures/capture-startup-integration-parents.json.gz",
+      "sha256": "2b8d7eb9b8a8283c558d58e74a5fa78b5e1c0d5094bd3b3027ef13835a84d9ac"
+    },
+    {
+      "path": "browser-client/tests/fixtures/capture-startup-integration-v33-complete-source-manifest.json",
+      "sha256": "e019911f723c5ffe0bfed76ec7fcf48be9677849a0cfa283bafbc1a9fcd9fcfb"
+    },
+    {
+      "path": "browser-client/tests/fixtures/capture-startup-runtime-v31-complete-source-manifest.json",
+      "sha256": "189a84148689f2a6342155457078255c8cb8f13bb7cc2632bdf1459de4067d7c"
+    },
+    {
+      "path": "browser-client/tests/fixtures/capture-v30-startup-runtime-before.json.gz",
+      "sha256": "0639d013e67225cfc90404e3c4d36d11ebc473a8ba95fc5d25e183b60b48f0d5"
+    },
+    {
+      "path": "browser-client/tests/fixtures/native-ignored-fbx-pixels.ts",
+      "sha256": "2584429dfda183804772c567b9623ff3c9433af1db8bad24dbaad52b6963d1b8"
+    },
+    {
+      "path": "browser-client/tests/integration/capture-avatar-consumption-source-fixture.mjs",
+      "sha256": "a6041ec631a69ee40859a16f7835e291d13cc4d9660cf9ae65609db9a013954b"
+    },
+    {
+      "path": "browser-client/tests/integration/capture-movement-input-source-fixture.mjs",
+      "sha256": "f26be9ec9759b3c617880918e2173c52c6f2d6f97ce5771ba668d1b5ef348f47"
+    },
+    {
+      "path": "browser-client/tests/integration/capture-startup-integration-source-fixture.mjs",
+      "sha256": "bca1bb868167257e97b149de868a27742e0baf1bbe200a7f76e3834d67adc934"
+    },
+    {
+      "path": "browser-client/tests/integration/capture-startup-runtime-source-fixture.mjs",
+      "sha256": "77a72199f7c512233eaef8e413340369c1db36a01fc4b9fd13a7925ef64f79db"
+    },
+    {
+      "path": "browser-client/tests/integration/native-ignored-fbx-pixels.mjs",
+      "sha256": "1fbdc8c2fb066a9c19bec6fa9eba9ef6b996c32b94783e38781cd0d7cd8abd01"
+    },
+    {
+      "path": "browser-client/tests/integration/prepare-tablet-capture-acceptance.mjs",
+      "sha256": "55b02bfb628278b0947c2af06c298e6a9688ab3836710244ae57ea8cbbba5c15"
+    },
+    {
+      "path": "browser-client/tests/native-ignored-fbx-context-diagnostics.test.mjs",
+      "sha256": "f07623298966fadb5a787cd963ed0fc199f78e73a0d65f22fe03d8c0fbb6c627"
+    },
+    {
+      "path": "browser-client/tests/native-ignored-fbx-diagnostics.test.mjs",
+      "sha256": "76968e586122bb4e2bc7083d94bcc3f36edd8f87330fcc2f858bffc7d7d85381"
+    },
+    {
+      "path": "browser-client/tests/tablet-capture-movement-input-manifest.test.mjs",
+      "sha256": "e15241cd9c49e3b0c8e6edde566367e62bba7cf8653a5cad0ddb26d72edb1dac"
+    },
+    {
+      "path": "browser-client/tests/tablet-capture-startup-integration-manifest.test.mjs",
+      "sha256": "64b35fbf6a9028738329bcdd02d3ed28780a90a4989da18d2e9376108ecaef6c"
+    },
+    {
+      "path": "browser-client/tests/tablet-capture-startup-runtime-manifest.test.mjs",
+      "sha256": "eb99c581b596f9113e1296561794b2248b2c27db340fcfd1803e7c3c17fe8222"
+    }
+  ],
+  "actual_runtime_acceptance_at_source_checkpoint": false,
+  "production_history_fallback": false,
+  "earlier_runtime_failures_retained": true
+}

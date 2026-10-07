@@ -1,0 +1,238 @@
+{
+  "schema": 1,
+  "scope": "Current exact unnamed-model optional parsed-cache compatibility: original registered parser/World GPU controls and separate authentic unnamed-image cases on actual stock Chromium154/Firefox156. No default activation, microphone/native-domain qualification or real Hub speed claim.",
+  "sourceTemplateSHA256": "42c5cb26b05d1087e1c8b223ebc1e8419c70dd289b015ad460fef4ef9558a46a",
+  "sourceEvidenceHelperUnchangedSHA256": "48aaac71626dcdbe8059a3562ff3c87f6da86a0a60a5e4c3bb67581ec4cc0e15",
+  "originalRegisteredSpecUnchangedSHA256": "4bc7bfc8400ca025e812ca05f22a4ba008a87c093b6a08675b537bc8d1674b67",
+  "authenticUnnamedSpecSHA256": "b289040cf7478ecf1824d1fa61e100ad0404f56e6e56caeffecdb781be5d33c2",
+  "runtimeManifestSHA256": "6fd028dd7da6ebc3b57ceac4829462e0fe1351a34b612d4fadaf6cf6dc3a05c8",
+  "fixtureFollowupManifestSHA256": "2b2c684ba7c8bbab44ccb8431b221f63e6f4af0101ae79aa1a35843c30fdff21",
+  "focusedCPU": {
+    "cases": 40,
+    "passed": 40,
+    "skipped": 0,
+    "durationMs": 598.609311
+  },
+  "registeredGPUCasesPassed": 20,
+  "series": [
+    {
+      "kind": "original-parsed-template",
+      "cohorts": [
+        {
+          "engine": "chromium",
+          "browserVersion": "154.0.8037.57",
+          "seconds": 5.877,
+          "rawReportSHA256": "3007a5c7f110091342fcaa00c256dd4cdcb3b7e343c05f68a9689d35f03ac3f2",
+          "stockExecutableObserved": true,
+          "ownedBrowserClosed": true,
+          "cleanupVerified": true,
+          "sourceAttestation": true,
+          "registeredCases": 3,
+          "results": [
+            {
+              "variant": "plain",
+              "fourFullFrameRowsEqual": true,
+              "actualLoadedImagesAndSamplers": true,
+              "independentResources": true,
+              "stagedBeforeImageReadiness": true,
+              "cacheProducers": 1,
+              "cacheHits": 1,
+              "cleanup": true
+            },
+            {
+              "variant": "skin",
+              "fourFullFrameRowsEqual": true,
+              "actualLoadedImagesAndSamplers": true,
+              "independentResources": true,
+              "stagedBeforeImageReadiness": true,
+              "cacheProducers": 1,
+              "cacheHits": 1,
+              "cleanup": true
+            },
+            {
+              "variant": "morph",
+              "fourFullFrameRowsEqual": true,
+              "actualLoadedImagesAndSamplers": true,
+              "independentResources": true,
+              "stagedBeforeImageReadiness": true,
+              "cacheProducers": 1,
+              "cacheHits": 1,
+              "cleanup": true
+            }
+          ]
+        },
+        {
+          "engine": "firefox",
+          "browserVersion": "firefox/156.0",
+          "seconds": 8.271,
+          "rawReportSHA256": "3647b2c5eaeff112a94817996c6dde90e176b54072088f2d093d650f03f06c59",
+          "stockExecutableObserved": true,
+          "ownedBrowserClosed": true,
+          "cleanupVerified": true,
+          "sourceAttestation": true,
+          "registeredCases": 3,
+          "results": [
+            {
+              "variant": "plain",
+              "fourFullFrameRowsEqual": true,
+              "actualLoadedImagesAndSamplers": true,
+              "independentResources": true,
+              "stagedBeforeImageReadiness": true,
+              "cacheProducers": 1,
+              "cacheHits": 1,
+              "cleanup": true
+            },
+            {
+              "variant": "skin",
+              "fourFullFrameRowsEqual": true,
+              "actualLoadedImagesAndSamplers": true,
+              "independentResources": true,
+              "stagedBeforeImageReadiness": true,
+              "cacheProducers": 1,
+              "cacheHits": 1,
+              "cleanup": true
+            },
+            {
+              "variant": "morph",
+              "fourFullFrameRowsEqual": true,
+              "actualLoadedImagesAndSamplers": true,
+              "independentResources": true,
+              "stagedBeforeImageReadiness": true,
+              "cacheProducers": 1,
+              "cacheHits": 1,
+              "cleanup": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "original-world-cache-lifetime",
+      "cohorts": [
+        {
+          "engine": "chromium",
+          "browserVersion": "154.0.8037.57",
+          "seconds": 25.148,
+          "rawReportSHA256": "1ea3151f2c2d59cb831326be0e3f7ff320f37517c077ff5e2d186028fc7df56c",
+          "stockExecutableObserved": true,
+          "ownedBrowserClosed": true,
+          "cleanupVerified": true,
+          "sourceAttestation": true,
+          "registeredCases": 4
+        },
+        {
+          "engine": "firefox",
+          "browserVersion": "firefox/156.0",
+          "seconds": 30.945,
+          "rawReportSHA256": "3ddd2ab712ca119ae43efa297b2124a136ede77071e253c09b46582ae1e04a93",
+          "stockExecutableObserved": true,
+          "ownedBrowserClosed": true,
+          "cleanupVerified": true,
+          "sourceAttestation": true,
+          "registeredCases": 4
+        }
+      ]
+    },
+    {
+      "kind": "authentic-unnamed-binary-image",
+      "cohorts": [
+        {
+          "engine": "chromium",
+          "browserVersion": "154.0.8037.57",
+          "seconds": 5.671,
+          "rawReportSHA256": "356f755b2dca8c474ff50777ec7f089d8cbb336b6183c10a24b85f2b2ba3a3cc",
+          "stockExecutableObserved": true,
+          "ownedBrowserClosed": true,
+          "cleanupVerified": true,
+          "sourceAttestation": true,
+          "registeredCases": 3,
+          "results": [
+            {
+              "variant": "plain",
+              "fourFullFrameRowsEqual": true,
+              "actualLoadedImagesAndSamplers": true,
+              "independentResources": true,
+              "stagedBeforeImageReadiness": true,
+              "cacheProducers": 1,
+              "cacheHits": 1,
+              "cleanup": true,
+              "authenticOwnUndefinedDescriptorAndPrivateMetadata": true
+            },
+            {
+              "variant": "skin",
+              "fourFullFrameRowsEqual": true,
+              "actualLoadedImagesAndSamplers": true,
+              "independentResources": true,
+              "stagedBeforeImageReadiness": true,
+              "cacheProducers": 1,
+              "cacheHits": 1,
+              "cleanup": true,
+              "authenticOwnUndefinedDescriptorAndPrivateMetadata": true
+            },
+            {
+              "variant": "morph",
+              "fourFullFrameRowsEqual": true,
+              "actualLoadedImagesAndSamplers": true,
+              "independentResources": true,
+              "stagedBeforeImageReadiness": true,
+              "cacheProducers": 1,
+              "cacheHits": 1,
+              "cleanup": true,
+              "authenticOwnUndefinedDescriptorAndPrivateMetadata": true
+            }
+          ]
+        },
+        {
+          "engine": "firefox",
+          "browserVersion": "firefox/156.0",
+          "seconds": 8.676,
+          "rawReportSHA256": "f9b79b609cb5571378d421e82502427c56e287e4e81736e84d5737b22ac09d44",
+          "stockExecutableObserved": true,
+          "ownedBrowserClosed": true,
+          "cleanupVerified": true,
+          "sourceAttestation": true,
+          "registeredCases": 3,
+          "results": [
+            {
+              "variant": "plain",
+              "fourFullFrameRowsEqual": true,
+              "actualLoadedImagesAndSamplers": true,
+              "independentResources": true,
+              "stagedBeforeImageReadiness": true,
+              "cacheProducers": 1,
+              "cacheHits": 1,
+              "cleanup": true,
+              "authenticOwnUndefinedDescriptorAndPrivateMetadata": true
+            },
+            {
+              "variant": "skin",
+              "fourFullFrameRowsEqual": true,
+              "actualLoadedImagesAndSamplers": true,
+              "independentResources": true,
+              "stagedBeforeImageReadiness": true,
+              "cacheProducers": 1,
+              "cacheHits": 1,
+              "cleanup": true,
+              "authenticOwnUndefinedDescriptorAndPrivateMetadata": true
+            },
+            {
+              "variant": "morph",
+              "fourFullFrameRowsEqual": true,
+              "actualLoadedImagesAndSamplers": true,
+              "independentResources": true,
+              "stagedBeforeImageReadiness": true,
+              "cacheProducers": 1,
+              "cacheHits": 1,
+              "cleanup": true,
+              "authenticOwnUndefinedDescriptorAndPrivateMetadata": true
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "allNineManagedServicesPreserved": true,
+  "rawPixelsLogsIdentifiersPublished": false,
+  "defaultEnabled": false,
+  "realHubGain": "not-established"
+}

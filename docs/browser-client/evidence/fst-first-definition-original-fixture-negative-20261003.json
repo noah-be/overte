@@ -1,0 +1,45 @@
+{
+  "schema": 1,
+  "scope": "automated-google-chrome-fst-first-definition-fixture-negative",
+  "completed": false,
+  "durationSeconds": 9.698,
+  "stage": "first-original-control-reader-disposal-assertion",
+  "observed": {
+    "originalVariant": 0,
+    "expectedReaders": 0,
+    "receivedType": "undefined",
+    "modelReaderStorage": "WeakMap",
+    "sizePropertyExists": false,
+    "oxcAssertionLine": 238
+  },
+  "source": {
+    "manifestSHA256": "8147b5b785f45ace2ba034db126b235d2e850c0b038bcc5746826b23f4dbfe23",
+    "rawSHA256": "8288e8f605e8f5d3c7d0695d583992c662c8ef46e4aa3a963b90dd07f63ad6f4",
+    "summarySHA256": "66459fb73286dfb5556105902ec2f49aa72d63d3bc12ac7990165824922c88b9",
+    "driverSHA256": "ed127876c92a25680ad020c7cf16d898a8fd150c5b2d9e24df584eea1910fb19",
+    "ownerSHA256": "c7aec9a0c33d0fba3e3de9edf9dfc164d7c33495774512867eb3ed7cb773ac1a",
+    "specSHA256": "e98979a1a8815657a0fdc1cad41f300455ead3baf1ad27a6495d5d811c52c3a3",
+    "worldSHA256": "0fab4e4763d47f08c30f480f282e2a9487c359815a1120bfd2a8e6ad4a383a8a",
+    "oxcLine238": "expect(proof.readers).toBe(0);",
+    "actualSourceExcerpt": "private readonly modelReaders = new WeakMap<THREE.Group,AbortController>();"
+  },
+  "ownership": {
+    "actualChromeObserved": true,
+    "ownedBrowserClosed": true,
+    "ownedContextsClosed": 1,
+    "ownedViteClosed": true,
+    "managedBirthCount": 9,
+    "managedBirthsUnchanged": true,
+    "sourceBeforeAfterEqual": true
+  },
+  "limits": {
+    "completeOriginalPixelCasePassed": false,
+    "candidatePixelComparisonReached": false,
+    "lateHttpCancellationCaseReached": false,
+    "runtimeDefectEstablished": false,
+    "loadingGainEstablished": false,
+    "defaultActivation": false,
+    "privateErrorPublished": false,
+    "priorFailuresPreserved": true
+  }
+}

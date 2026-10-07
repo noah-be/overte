@@ -1,0 +1,209 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-03T22:59:34.834740+00:00",
+  "featureSHA": "6a613eeda62688e3e33bd381292410fba6957a14",
+  "reviewedForkMainSHA": "db0ba6e05c507e943b05abd5fdd9ae976b18b9e8",
+  "automaticTestedVirtualMerge": {
+    "sha": "a688828042c20266794a78afbb2b5d3938cd8494",
+    "verifiedForkParents": [
+      "db0ba6e05c507e943b05abd5fdd9ae976b18b9e8",
+      "6a613eeda62688e3e33bd381292410fba6957a14"
+    ]
+  },
+  "scope": "Exact hosted original-gate negatives; no public-world, physical microphone or feature completion claim",
+  "gpu": [
+    {
+      "run": 37158620294,
+      "job": 111307146034,
+      "url": "https://github.com/noah-be/overte/actions/runs/37158620294",
+      "status": "original-gate-failure",
+      "trackedSourceHashesAuthenticated": 13,
+      "browserVersion": "154.0.8037.97",
+      "upstreamRequests": 1,
+      "decodedRGBA": [
+        255,
+        0,
+        0,
+        255
+      ],
+      "firstPixelUploadDrawRow": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        1,
+        1,
+        0
+      ],
+      "firstContextRow": [
+        0,
+        0,
+        0,
+        1,
+        1
+      ],
+      "privateLogSHA256": "ae85d93ca2fb4f2308c5aa1842e585f45d2cc96771c11b236b9faa0873cb1da9",
+      "productTests": {
+        "tests": 2732,
+        "pass": 2732,
+        "fail": 0,
+        "skipped": 0
+      },
+      "originalNetworkControls": {
+        "tests": 3,
+        "pass": 3,
+        "fail": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "run": 37158851212,
+      "job": 111307833820,
+      "url": "https://github.com/noah-be/overte/actions/runs/37158851212",
+      "status": "original-gate-failure",
+      "trackedSourceHashesAuthenticated": 13,
+      "browserVersion": "154.0.8037.97",
+      "upstreamRequests": 1,
+      "decodedRGBA": [
+        255,
+        0,
+        0,
+        255
+      ],
+      "firstPixelUploadDrawRow": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        1,
+        1,
+        0
+      ],
+      "firstContextRow": [
+        0,
+        0,
+        0,
+        1,
+        1
+      ],
+      "privateLogSHA256": "eb35e3ec58404f0a37c9f710c79b36860940df7ca670d11e587c26b59f2a6f23",
+      "productTests": {
+        "tests": 2732,
+        "pass": 2732,
+        "fail": 0,
+        "skipped": 0
+      },
+      "originalNetworkControls": {
+        "tests": 3,
+        "pass": 3,
+        "fail": 0,
+        "skipped": 0
+      }
+    }
+  ],
+  "nativeManual": {
+    "run": 37158851212,
+    "job": 111307833994,
+    "testedCommitSHA": "6a613eeda62688e3e33bd381292410fba6957a14",
+    "coreArtifactSHA256": "9e6cb57643e6f62626f1d3ef154959c952d12a1999ad8743b61f722b408f776e",
+    "avatarArtifactSHA256": "a58d0e1ae2f78377be35407e9895747d8bdd8d240b753da8096178ad753f374f",
+    "completed": false,
+    "commandSequenceMatched": true,
+    "commandTargetDistance": 0,
+    "nativeObservationTargetDistance": 4.768371586472142e-08,
+    "browserTargetDistance": 1.4142135623730958,
+    "browserSnapshotAgeMs": 1,
+    "postCommandPeerSamples": [
+      {
+        "afterCommandMs": 194,
+        "packetRateHz": 1.909999966621399,
+        "globalPositionRateHz": 1.909999966621399,
+        "simulationRateHz": 1.899999976158142,
+        "publishedPoseAgeMs": 10,
+        "postPublicationPoseDeltaMeters": 0
+      },
+      {
+        "afterCommandMs": 689,
+        "packetRateHz": 1.909999966621399,
+        "globalPositionRateHz": 1.909999966621399,
+        "simulationRateHz": 1.899999976158142,
+        "publishedPoseAgeMs": 3,
+        "postPublicationPoseDeltaMeters": 0
+      },
+      {
+        "afterCommandMs": 1196,
+        "packetRateHz": 1,
+        "globalPositionRateHz": 1,
+        "simulationRateHz": 3.940000057220459,
+        "publishedPoseAgeMs": 6,
+        "postPublicationPoseDeltaMeters": 0
+      },
+      {
+        "afterCommandMs": 1697,
+        "packetRateHz": 1,
+        "globalPositionRateHz": 1,
+        "simulationRateHz": 3.940000057220459,
+        "publishedPoseAgeMs": 12,
+        "postPublicationPoseDeltaMeters": 0
+      },
+      {
+        "afterCommandMs": 2192,
+        "packetRateHz": 1,
+        "globalPositionRateHz": 1,
+        "simulationRateHz": 3.940000057220459,
+        "publishedPoseAgeMs": 5,
+        "postPublicationPoseDeltaMeters": 0
+      },
+      {
+        "afterCommandMs": 2745,
+        "packetRateHz": 1.6399999856948853,
+        "globalPositionRateHz": 1.6399999856948853,
+        "simulationRateHz": 2.8299999237060547,
+        "publishedPoseAgeMs": 9,
+        "postPublicationPoseDeltaMeters": 0
+      }
+    ],
+    "postCommandAuthorGlobalPositionEncodingKbps": [
+      0.14856000244617462,
+      0.1711999922990799,
+      0.1696000099182129,
+      0.260640025138855,
+      0.5239199995994568
+    ],
+    "rows": {
+      "native": 34,
+      "gateway": 120,
+      "truncated": false,
+      "rejected": 0,
+      "budgetCensored": false
+    },
+    "ownedStopAndCuration": "success"
+  },
+  "independentArtifactReview": {
+    "manifestSHA256": "c78f284751c4b372fe9e4586bd29a1db7dfe3e99eaf25d3e29c528c812cd4389",
+    "exactNonDistributionSourcePins": 14,
+    "exactExecutableAndOtherNonMapAssetPins": 16,
+    "retainedDistributionFilesAuthenticated": 34,
+    "manualAutomaticSourcePinsIdentical": 39,
+    "strictCuratedRowsAccepted": 154,
+    "hostedSourceMapsMatchingFedoraBuild": 2,
+    "hostedSourceMapsDifferentFromFedoraBuild": 7,
+    "sourceMapDifferenceCause": "not-established; hosted map bytes unavailable"
+  },
+  "interpretation": [
+    "WebGL context already lost before first render; reset trigger/backend cause not established",
+    "Positive averaged simulation and encoding rates do not establish receipt/application of the commanded coordinates",
+    "Fresh snapshot arrival does not establish fresh native pose",
+    "Both actual failures retained; no timeout, threshold, quality, backend or assertion changes",
+    "Required Repository replacement native build still running at checkpoint; current CodeQL and policy checks successful",
+    "Wider Tablet, fluid Hub, physical microphone and native parity acceptance remain open"
+  ]
+}

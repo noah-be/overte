@@ -1,0 +1,151 @@
+{
+  "description": "Measured native public-world geometry optimization. Only compatible opaque groups sharing the exact native material object merge; transparent groups keep their original Mesh ID, transform, materials, ordering and full collision vertex/index data. Source geometry is restored by reference before material edits/disposal.",
+  "asset": {
+    "filename": "Small-Island-v4l.baked.fbx",
+    "sha256": "1b2053e7ed90d2a2ea4811c1a8938602e7e9a876edbc2c9fc1a369b728894ef9",
+    "downloadedBytes": 1668682
+  },
+  "focusedNativeAssetTests": [
+    {
+      "startedAt": "2026-09-30T22:23:11.112Z",
+      "finishedAt": "2026-09-30T22:23:13.449Z",
+      "browserVersion": "153.0.8010.12",
+      "completed": true,
+      "actualNativeAsset": true,
+      "domainConnected": false,
+      "diagnosticTexture": true,
+      "result": {
+        "before": {
+          "draws": 1190,
+          "triangles": 53836
+        },
+        "after": {
+          "draws": 62,
+          "triangles": 53836
+        },
+        "saved": 1128,
+        "generatedBytes": 10273728,
+        "different": 3,
+        "visible": 59257,
+        "residualGroups": [
+          {
+            "idUnchanged": true,
+            "groups": 33,
+            "sourceGroups": 1189
+          }
+        ],
+        "materialsUnchanged": true,
+        "originalGeometryRestored": true,
+        "restoredDifferences": 0,
+        "diagnosticTexture": true
+      }
+    },
+    {
+      "startedAt": "2026-09-30T22:23:14.026Z",
+      "finishedAt": "2026-09-30T22:23:18.632Z",
+      "browserVersion": "155.0",
+      "completed": true,
+      "actualNativeAsset": true,
+      "domainConnected": false,
+      "diagnosticTexture": true,
+      "result": {
+        "before": {
+          "draws": 1190,
+          "triangles": 53836
+        },
+        "after": {
+          "draws": 62,
+          "triangles": 53836
+        },
+        "saved": 1128,
+        "generatedBytes": 10273728,
+        "different": 1,
+        "visible": 59266,
+        "residualGroups": [
+          {
+            "idUnchanged": true,
+            "groups": 33,
+            "sourceGroups": 1189
+          }
+        ],
+        "materialsUnchanged": true,
+        "originalGeometryRestored": true,
+        "restoredDifferences": 0,
+        "diagnosticTexture": true
+      }
+    }
+  ],
+  "syntheticTransparentTieTest": {
+    "engines": [
+      "Chromium",
+      "Firefox"
+    ],
+    "passed": true,
+    "beforeDrawCalls": 6,
+    "afterDrawCalls": 5,
+    "triangles": 12,
+    "changedPixels": 0,
+    "restoredChangedPixels": 0,
+    "originalMeshIDPreserved": true,
+    "note": "Synthetic overlapping geometry validates exact equal-depth transparent sorting; it is distinct from the actual native FBX and live-domain proofs."
+  },
+  "realNativeTextureTest": {
+    "asset": "Packaged native default mannequin FBX and embedded PNG textures",
+    "engines": [
+      "Chromium",
+      "Firefox"
+    ],
+    "passed": true,
+    "sourceVertices": 39552,
+    "beforeDrawCalls": 3,
+    "afterDrawCalls": 1,
+    "originalMaterialIdentityPreserved": true,
+    "visiblePixelsGreaterThan": 10000,
+    "maximumAllowedEdgePixelDifferences": 12,
+    "restoredChangedPixels": 0,
+    "note": "The captured native body geometry is frozen as three static meshes for this batching-only test; this does not claim an avatar/world session."
+  },
+  "unitRegressions": {
+    "passed": 10,
+    "coverage": [
+      "world-oriented winding/UV/normal preservation",
+      "exact material identity and layout exclusion",
+      "skin/morph/animation/mirror/custom callback exclusions",
+      "finite geometry failure rollback",
+      "read-only inspection parity",
+      "native material groups/drawRange/normalized UV2/tangent handedness",
+      "InstancedMesh/BatchedMesh preservation",
+      "mixed transparency original Mesh and geometry restore",
+      "residual clone failure disposal/rollback",
+      "mixed custom shader/alpha hash/transmission exclusion"
+    ]
+  },
+  "commands": [
+    "node browser-client/node_modules/tsx/dist/cli.mjs --test browser-client/tests/static-model-batch.test.ts",
+    "npm --prefix browser-client run test:browser -- --workers=1 tests/static-model-batch.browser.spec.ts",
+    "node browser-client/tests/integration/static-model-batch-native.mjs",
+    "OVERTE_LAB_BROWSER=firefox node browser-client/tests/integration/static-model-batch-native.mjs"
+  ],
+  "sourceSHA256": {
+    "browser-client/src/static-model-batch.ts": "860843f97c7309d87280af1a157f2e11d149513c3a425f2b3deaa328b344ac30"
+  },
+  "liveFirefoxFluidnessAfterThisChange": "Passed all strict loaded-world, keyboard walking and fully loaded rejoin gates in stock Firefox156 and Chromium154; see public-hub-fluid.json for exact measurements, native agreement and runtime attestation.",
+  "trustedAlphaSandboxContinuation": {
+    "recordedAt": "2026-09-30T23:52:09.333188+00:00",
+    "sourceSHA256": {
+      "browser-client/src/static-model-batch.ts": "9ee7b8b1adda8e143ccad2476ddcddf4a5a4d46c452e2d55e68339106e44347b",
+      "browser-client/src/native-alpha-material.ts": "a4c396526a92bf72933a205c025f9868cefca46ac7b5a2436e866579cdfa8882",
+      "browser-client/tests/static-model-batch.test.ts": "e94ed7c18c8e41d790e3769f49d6837b5d2c71ca75d14226591fc9395fd82267"
+    },
+    "testsPassed": 13,
+    "testsFailed": 0,
+    "command": "node --import tsx --test --test-isolation=none tests/static-model-batch.test.ts",
+    "regressions": [
+      "Registered native mask callbacks and their actual helper-created clones preserve exact oriented corners/material identity and same-material draw saving.",
+      "Fractional-alpha residual groups retain the original Mesh identity, complete collision indices, material selectors and exact restoration while opaque groups batch.",
+      "Forged nativeAlpha userData and copied callback pairs on unregistered materials remain rejected. Modifying either callback of registered materials invalidates the exception."
+    ],
+    "currentTrustedAlphaBatchingBrowserProof": false,
+    "reason": "Browser/localhost process operations are denied with EPERM in the current platform sandbox. Earlier actual native-asset pixel/performance runs apply to their recorded original hashes."
+  }
+}

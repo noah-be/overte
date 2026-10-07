@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 1,
+  "scope": "Actual isolated native Qt Create failure retained; browser component widget passes do not replace entity editing acceptance",
+  "startedAt": "2026-10-01T18:03:24.551Z",
+  "finishedAt": "2026-10-01T18:04:47.981Z",
+  "browserVersion": "154.0.8037.57",
+  "nativeVersion": "2026.04.1",
+  "completed": false,
+  "functionalAcceptance": false,
+  "sourceCoherent": true,
+  "sourceHashes": {
+    "start": {
+      "tests/integration/tablet-create.mjs": "022c05b9f446b08b604c72bc1222f8ad5db92f550475a5ee419703284042185c",
+      "tests/integration/tablet-create-readiness.mjs": "ca5dbc144ed49153a11baed470f0ffa4aebe6db730ca36a5114bf5b41f8ae649",
+      "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+      "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+      "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+      "tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+      "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+      "gateway/tablet-capture.qml": "0d6fc2e721894cb849feefa6442de20dbcb39b8498fb9887ea3b2ec2e74e580c",
+      "gateway/native-bridge.js": "44ecbdf489bc54c4f73d9dddb2a6bf3a8f1d281c0c7daf3e8d73a6ab6472dcd4",
+      "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+      "src/world.ts": "cdea6c0797fef9c1eb3c219003475b7ea7ab8dc882cc3bb0680021231db55a6c",
+      "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd"
+    },
+    "end": {
+      "tests/integration/tablet-create.mjs": "022c05b9f446b08b604c72bc1222f8ad5db92f550475a5ee419703284042185c",
+      "tests/integration/tablet-create-readiness.mjs": "ca5dbc144ed49153a11baed470f0ffa4aebe6db730ca36a5114bf5b41f8ae649",
+      "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+      "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+      "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+      "tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+      "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+      "gateway/tablet-capture.qml": "0d6fc2e721894cb849feefa6442de20dbcb39b8498fb9887ea3b2ec2e74e580c",
+      "gateway/native-bridge.js": "44ecbdf489bc54c4f73d9dddb2a6bf3a8f1d281c0c7daf3e8d73a6ab6472dcd4",
+      "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+      "src/world.ts": "cdea6c0797fef9c1eb3c219003475b7ea7ab8dc882cc3bb0680021231db55a6c",
+      "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd"
+    }
+  },
+  "nativeBinarySHA256": "91f3e10c42c1e35d5c8265e9b0007e925844d9bee61a26807118dde6e527887c",
+  "nativeCreateScriptsSHA256": {
+    "system/create/qml/EditTabView.qml": "4895d0f72d438829b4e15626b0dbb719c734e4486a74d175ac3de1a8d15d2621",
+    "system/create/entityProperties/html/js/entityProperties.js": "5e31fbdc3e577dd13663c0d9ee429f7c816bf1c7c91f45ea62438a6b575e08d5",
+    "system/create/entityList/html/js/entityList.js": "1a398a1ab644af6714c16c8a3e00191dd1b861f8fbdd75e78ceb71de6494ecf1",
+    "system/create/edit.js": "c7e20e8a23b7657608da533c35850668558a356d96b515e6eee477858a905a3d"
+  },
+  "runtimeAuditCaptureSHA256": "a3117dd216cb8840d2842186995538ade2394e664e7637222dd00b22ef2655a4",
+  "ownedFixtureCount": 1,
+  "cleanupVerified": true,
+  "baselineEntitiesPreserved": 7,
+  "emergencyCleanup": true,
+  "assertions": [
+    "Native Shape button created exactly one domain Cube and its actual domain properties reached the browser"
+  ],
+  "error": "Genuine native Name edit exceeded 20000 milliseconds",
+  "tabletErrorsObserved": 0,
+  "warningsObserved": 0,
+  "nameControl": {
+    "enabled": true,
+    "height": 28,
+    "visible": true,
+    "width": 428,
+    "x": 16,
+    "y": 78
+  },
+  "nativeWebGeometry": {
+    "x": 0,
+    "y": 40,
+    "width": 480,
+    "height": 666,
+    "loading": false
+  },
+  "nativeDOMViewport": {
+    "height": 666,
+    "width": 480
+  },
+  "capturedScreens": [
+    {
+      "label": "home",
+      "pngSHA256": "54f29118acd55c561abacee4f39f6eefe79d79969664f5277ee067a84ae430d0",
+      "width": 480,
+      "height": 706
+    },
+    {
+      "label": "create",
+      "pngSHA256": "9cfd7fca4752322f81dfe528221e669ba4789cd34d5552583466721a3b7eae66",
+      "width": 480,
+      "height": 706
+    },
+    {
+      "label": "properties-initial",
+      "pngSHA256": "e3ee4b829b8357deb4a9bb82486bf1514d4b7951c84e5d8cf91142590d911d5b",
+      "width": 480,
+      "height": 706
+    }
+  ],
+  "rawReportSHA256": "e83ec2e5bdd8ec1678a805edb49f4d8cbbbd6e91128d145e5749ea6778a083b7",
+  "interpretation": "Genuine GUI rez reached native and browser, but Name did not commit. A possible asynchronous WebEngine insertText/Tab race is under source review; no cause correction is yet proved. No public entity mutation or microphone test."
+}

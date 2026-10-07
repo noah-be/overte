@@ -1,0 +1,37 @@
+{
+  "status": "candidate-not-integrated",
+  "files": {
+    "lab/manage.py": {
+      "sha256": "d90d9357d55b5807b425d498517a02830fbe7eeab6feca4a80eb19fe6b4575ad",
+      "baseSHA256": "305b346f0df0c2cf0ab43f7462c2f4c698425c110ac2126b7186b0672bb36f45"
+    },
+    "lab/host_tools.py": {
+      "sha256": "34e02d857d3c35b53b165e2d3b4ee63e30f4a417054cf0141758306ab25dc14a",
+      "baseSHA256": null
+    },
+    "lab/pulseaudio-local.sh": {
+      "sha256": "a24eaf28701f873e3442b6fcc843f1eb205c79dcdc91d52bb1f56e3c7af73d82",
+      "baseSHA256": "0147c0717c3f7208c0ebcf769ede5561fea4f25466c4eb4cea3f281c138811ce"
+    },
+    "lab/test_host_tools.py": {
+      "sha256": "998084dede746364829989e12de7473279f38d2c1d8d4c4489ed1e6684d66314",
+      "baseSHA256": null
+    }
+  },
+  "patches": {
+    "manage.py.system-host-tools.patch": "276c14143b94103e30b364944bbf9925d608fee63c772f90265f11fd029a971e",
+    "pulseaudio-local.sh.system-host-tools.patch": "d081a7219d0f9a96ff4813a744a6c9bb34862cb7866a05acbb33f9f823904f29"
+  },
+  "verification": {
+    "pythonPathCLIAndNegativePreflightContracts": {
+      "passed": 12,
+      "failed": 0
+    },
+    "pythonCompile": "passed",
+    "shellSyntax": "passed",
+    "actualHostAudioOrNamespaces": "not-executed",
+    "UbuntuNativeDependencyClosure": "not-proven",
+    "UbuntuNativeGUIAndSharedJourney": "not-proven"
+  },
+  "boundary": "No existing native/gateway/domain/audio services or host security policy changed. No workflow or GitHub resource changed."
+}

@@ -1,0 +1,5 @@
+# Trusted tablet observer installation after join
+
+The real People and PTT runners attempted to bind the production tablet canvas before joining. Main creates that canvas during join. This followup retains proof-queue initialization and prior-observer retirement before join, then attaches the trusted physical-event observer after the unchanged connected/seven-entity 90-second gate. PTT also retains its peer and PTT-state predicates. Rejoin retires the previous observer and binds the newly constructed canvas. No input, DOM, focus, permission, PCM or native-state behavior is changed.
+
+Run `node --test tests/tablet-trusted-binding-lifecycle.test.mjs`. The ordinary `tests/*.test.mjs` suite discovers these eight tests. They execute the actual extracted runner join bodies, model the production canvas appearing during join, retain the original early-binding negative control, and check gate refusal, replacement, observer ownership and zero microphone requests. They do not qualify a real browser or audio journey. Root must rerun both stock-engine People/PTT journeys with the existing original assertions and cleanup.

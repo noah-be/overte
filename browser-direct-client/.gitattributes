@@ -1,0 +1,4 @@
+# Preserve byte-exact imported SDK sources, including their upstream CRLF.
+src/protocol/vircadia/domain/avatars/ClientTraitsHandler.ts -text whitespace=cr-at-eol
+src/protocol/vircadia/domain/networking/packets/EntityQuery.ts -text whitespace=cr-at-eol
+src/protocol/vircadia/domain/octree/OctreeConstants.ts -text whitespace=cr-at-eol

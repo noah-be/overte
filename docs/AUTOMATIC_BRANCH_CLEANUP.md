@@ -26,8 +26,16 @@ are always excluded:
 A working branch must be fully contained in a permanent branch. A merged PR by
 itself is insufficient: later commits on its source branch must also be
 integrated. Protected branches, configuration holds, PR keep requests, open PR
-relationships, active GitHub Actions runs on the candidate or its target, and deployment or release references
-prevent deletion. The cleanup also checks open issue descriptions, comments on
+relationships, active GitHub Actions runs on the candidate or its target, and deployment references
+prevent deletion. A release naming the candidate branch also prevents deletion.
+A release referring to the exact candidate commit does not require the branch
+when its existing release tag resolves to that same commit. Lightweight and
+annotated tags are verified through read-only fork Git APIs, with bounded
+annotation traversal. Missing or mismatched tag evidence keeps the release hold;
+an unavailable API stops cleanup. Full ancestry and permanent-target
+deletion/non-fast-forward protection remain mandatory. Releases, tags, and assets
+are never changed by this assessment.
+The cleanup also checks open issue descriptions, comments on
 explicitly active issues, and the GitHub workflow YAML files at the seven permanent
 branch commits for branch references. Workflow reads use those exact commits;
 plain and URL-encoded branch names are recognized. Even a historical mention in a

@@ -1,0 +1,58 @@
+{
+  "schema": 1,
+  "scope": "Source-bound failed baseline; first-definition candidate was not executed. No loading-gain or parser/prefetch cause claim.",
+  "sourceReceipt": {
+    "recipeManifestSHA256": "3c9f0fd1d8776836ed10c2038d127465a1e629f9cb47cca9a29aec28a9f34d67",
+    "rawReportSHA256": "f519b3b71ba19c77f09d0572cf48f7544c53370a967ba7cc24640773c7a29a32",
+    "qualificationSHA256": "c8fb18cbd71c33e2ae83a397b01b49095fcc57f52dd80df6b4d9e3b466007086",
+    "originalPublicHubSHA256": "883c4f95ce01e7ae0ae4b249ad5c55a8a997bff88797b2d09d18035685e26114",
+    "rawSourceCoherent": true,
+    "rawDistributionCoherent": true,
+    "rootSourceAndDistributionUnchanged": true,
+    "privateSourceAndDistributionUnchanged": true,
+    "managedBirthsUnchanged": true
+  },
+  "outcome": {
+    "completed": false,
+    "candidateNotRun": true,
+    "initialSamples": 12,
+    "initialSteadyFluidPassed": false,
+    "initialWalkingFluidPassed": false,
+    "originalRejoinReadinessTimeoutMs": 90000,
+    "primaryPreReadinessEvent": "native-domain-bridge-disconnected",
+    "disconnectAfterRejoinConnectedMs": 19619,
+    "pageErrors": 0,
+    "finalConnected": false,
+    "finalEntityCount": 0,
+    "finalAvatarCount": 0,
+    "finalPerformancePresent": false,
+    "rejoinedFinalSamplesPresent": false,
+    "assetSessionOrdinals": [
+      1
+    ],
+    "secondaryWrapperRefusal": "first-definition-mode",
+    "wrapperCohortRows": 0,
+    "cleanup": true,
+    "previewClosed": true
+  },
+  "initialScene": {
+    "entities": 516,
+    "models": 295,
+    "colliders": 75,
+    "prefetch": {
+      "enabled": false,
+      "started": 0,
+      "consumed": 0,
+      "capacityFallback": 0
+    }
+  },
+  "causeStatus": {
+    "nativeWebSocketClosureProven": true,
+    "nativeClosureTriggerKnown": false,
+    "invalidBridgeDataBranchObserved": false,
+    "sixtySecondIdleRefusalObserved": false,
+    "mereTextureSlownessEstablished": false,
+    "prefetchEnabled": false,
+    "newSourceFixJustified": false
+  }
+}

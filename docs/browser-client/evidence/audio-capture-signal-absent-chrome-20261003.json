@@ -1,0 +1,280 @@
+{
+  "version": 1,
+  "scope": "Retained actual Google Chrome signal observer41093; first processing ACK remains failed",
+  "engine": "Google Chrome",
+  "browserVersion": "154.0.8037.97",
+  "bindings": {
+    "originalRawReportSHA256": "ef4a0add082da0c1230338c04b158027593a15b57dfe8f87824bd0046f222477",
+    "parentReserializedReportSHA256": "8858b2048ea5c8de7a4124fce2b7ad0d73360eb7c49b64411dd1d47bc0d048e4",
+    "parsedReportJSONEqual": true,
+    "preparedReceiptSHA256": "730ecfa64aba9e6fbb6c5dbc9389ab7927a49dc643d19b51870181fc5ea2df97",
+    "summarySHA256": "faf2fde67ad15a19a4f6f9653ce000f357b2f8a27520e5cf686776ac81cf5059",
+    "projectionSHA256": "f56dc1bb1ba8ab6b2b1886f5a3a4330e88791fbcaa7d3aac12d669011b362253",
+    "nativeLogSHA256": "2370b1c34330ddaf0fc37361594c024edc151625bf3669f0393f87a1243bde27",
+    "captureFailureDiagnosticSHA256": "a0cf593a7ff45dec852de39d0651e221ae19ae276d7c3c2a3f8c881431d1af23",
+    "observerManifestSHA256": "48e5527b6c3784f2afb5f2dd6280cc40e9970dc8e80dde6656719cc70e09b7e0",
+    "complete84SHA256": "a823a0e90c8a6cc3f25601982527fdfe194f9a1484ca9a6867c58596a67db901",
+    "copiedFactorySHA256": "5e034bc022df723ef6dcfba780edb5c2d00bed12fc280b49a2dbf6272d5b0fcb",
+    "copiedLocalHelperSHA256": "578a4e9d61e87cc81eae66e57bbb698350c38d5bc2cb08a27afdbe91c1cd24c9",
+    "nativeModuleSHA256": "cb7b3c3b61cc68fda81275196d07282685c75a88e91bdb0fbf4fabdc4a77531f",
+    "nativeArtifactsSHA256": "6f1ffd9f0017ece44734c9ab675763f842b91faadf49f40534f5b7782ecabb36"
+  },
+  "outcome": {
+    "completed": false,
+    "stage": "echoCancellation-change-ack",
+    "original12Completed": true,
+    "noGrantCheckpointCompleted": true,
+    "processingAndGainQualified": false,
+    "sourceCoherent": true,
+    "cleanupVerified": true,
+    "actualChromeObserved": true,
+    "actualChromeProcessCount": 16,
+    "actualChromeProcessesClosed": true,
+    "ownedGatewayStopped": true,
+    "actualSourceCount": 404,
+    "wholeTestCount": 439,
+    "distCount": 34,
+    "changeRequestCount": 0,
+    "requestCount": 30,
+    "resultCount": 30,
+    "wireErrors": 0
+  },
+  "signalObservation": {
+    "records": 37,
+    "rejectedRecords": 0,
+    "totalRecordCapReached": false,
+    "stageCounts": {
+      "qml-effective": 25,
+      "qml-change-entered": 6,
+      "qml-change-refused": 6
+    },
+    "qmlContextSegmentsObserved": 2,
+    "qmlContextSegments": [
+      {
+        "effectiveRecords": 9,
+        "changeEntries": 0,
+        "changeRefusals": 0,
+        "maximumOrdinal": 9
+      },
+      {
+        "effectiveRecords": 16,
+        "changeEntries": 6,
+        "changeRefusals": 6,
+        "maximumOrdinal": 28
+      }
+    ],
+    "effectiveSampling": {
+      "maximumPerQmlContext": 16,
+      "aggregateEffectiveRecords": 25,
+      "oneContextReachedSamplingLimit": true,
+      "additionalEffectiveDeliveryCountUnknown": true,
+      "aggregateGreaterThan16IsNotCapViolation": true
+    },
+    "changes": {
+      "bindingInitializationTrueEntries": 3,
+      "bindingTeardownFalseEntries": 3,
+      "acceptedQmlChangesObserved": 0,
+      "audioForwardingStagesObserved": 0,
+      "bridgeForwardingStagesObserved": 0,
+      "firstPhysicalFalseEchoChangeObservedBeforeTeardown": false
+    }
+  },
+  "coldCapture": {
+    "recordCount": 24,
+    "rejectedRecords": 0,
+    "recordCap": 32,
+    "sourceSequenceCap": 4,
+    "sequences": [
+      {
+        "sequence": 1,
+        "eventCount": 6,
+        "eventCounts": {
+          "capture-entered": 1,
+          "grab-requested": 1,
+          "grab-accepted": 1,
+          "callback-before-save": 1,
+          "save-stage-returned": 1,
+          "frame-queue-returned": 1
+        },
+        "callbackCurrent": true,
+        "saveAttempted": true,
+        "saved": true,
+        "requestToCallback": {
+          "displayedSeconds": 23,
+          "quantizationSeconds": [
+            1,
+            1
+          ],
+          "elapsedLowerBoundSeconds": 22,
+          "elapsedUpperBoundSeconds": 24,
+          "upperBoundExclusive": true
+        },
+        "callbackToSave": {
+          "displayedSeconds": 0,
+          "quantizationSeconds": [
+            1,
+            1
+          ],
+          "elapsedLowerBoundSeconds": 0,
+          "elapsedUpperBoundSeconds": 1,
+          "upperBoundExclusive": true
+        },
+        "saveToQueued": {
+          "displayedSeconds": 0,
+          "quantizationSeconds": [
+            1,
+            1
+          ],
+          "elapsedLowerBoundSeconds": 0,
+          "elapsedUpperBoundSeconds": 1,
+          "upperBoundExclusive": true
+        }
+      },
+      {
+        "sequence": 2,
+        "eventCount": 6,
+        "eventCounts": {
+          "capture-entered": 1,
+          "grab-requested": 1,
+          "grab-accepted": 1,
+          "callback-before-save": 1,
+          "save-stage-returned": 1,
+          "frame-queue-returned": 1
+        },
+        "callbackCurrent": true,
+        "saveAttempted": true,
+        "saved": true,
+        "requestToCallback": {
+          "displayedSeconds": 1,
+          "quantizationSeconds": [
+            1,
+            1
+          ],
+          "elapsedLowerBoundSeconds": 0,
+          "elapsedUpperBoundSeconds": 2,
+          "upperBoundExclusive": true
+        },
+        "callbackToSave": {
+          "displayedSeconds": 0,
+          "quantizationSeconds": [
+            1,
+            1
+          ],
+          "elapsedLowerBoundSeconds": 0,
+          "elapsedUpperBoundSeconds": 1,
+          "upperBoundExclusive": true
+        },
+        "saveToQueued": {
+          "displayedSeconds": 0,
+          "quantizationSeconds": [
+            1,
+            1
+          ],
+          "elapsedLowerBoundSeconds": 0,
+          "elapsedUpperBoundSeconds": 1,
+          "upperBoundExclusive": true
+        }
+      },
+      {
+        "sequence": 3,
+        "eventCount": 6,
+        "eventCounts": {
+          "capture-entered": 1,
+          "grab-requested": 1,
+          "grab-accepted": 1,
+          "callback-before-save": 1,
+          "save-stage-returned": 1,
+          "frame-queue-returned": 1
+        },
+        "callbackCurrent": true,
+        "saveAttempted": true,
+        "saved": true,
+        "requestToCallback": {
+          "displayedSeconds": 1,
+          "quantizationSeconds": [
+            1,
+            1
+          ],
+          "elapsedLowerBoundSeconds": 0,
+          "elapsedUpperBoundSeconds": 2,
+          "upperBoundExclusive": true
+        },
+        "callbackToSave": {
+          "displayedSeconds": 0,
+          "quantizationSeconds": [
+            1,
+            1
+          ],
+          "elapsedLowerBoundSeconds": 0,
+          "elapsedUpperBoundSeconds": 1,
+          "upperBoundExclusive": true
+        },
+        "saveToQueued": {
+          "displayedSeconds": 0,
+          "quantizationSeconds": [
+            1,
+            1
+          ],
+          "elapsedLowerBoundSeconds": 0,
+          "elapsedUpperBoundSeconds": 1,
+          "upperBoundExclusive": true
+        }
+      },
+      {
+        "sequence": 4,
+        "eventCount": 6,
+        "eventCounts": {
+          "capture-entered": 1,
+          "grab-requested": 1,
+          "grab-accepted": 1,
+          "callback-before-save": 1,
+          "save-stage-returned": 1,
+          "frame-queue-returned": 1
+        },
+        "callbackCurrent": true,
+        "saveAttempted": true,
+        "saved": true,
+        "requestToCallback": {
+          "displayedSeconds": 1,
+          "quantizationSeconds": [
+            1,
+            1
+          ],
+          "elapsedLowerBoundSeconds": 0,
+          "elapsedUpperBoundSeconds": 2,
+          "upperBoundExclusive": true
+        },
+        "callbackToSave": {
+          "displayedSeconds": 0,
+          "quantizationSeconds": [
+            1,
+            1
+          ],
+          "elapsedLowerBoundSeconds": 0,
+          "elapsedUpperBoundSeconds": 1,
+          "upperBoundExclusive": true
+        },
+        "saveToQueued": {
+          "displayedSeconds": 0,
+          "quantizationSeconds": [
+            1,
+            1
+          ],
+          "elapsedLowerBoundSeconds": 0,
+          "elapsedUpperBoundSeconds": 1,
+          "upperBoundExclusive": true
+        }
+      }
+    ],
+    "interpretation": "Callback entry separates native grab completion from existing save/queue operations; logger quantization prevents exact millisecond attribution."
+  },
+  "limits": [
+    "The25 effective records are aggregated across two observed QML ordinal segments,9+16. The16 limit applies separately to each QML context; this is not a bound violation.",
+    "Effective delivery is sampled. Later busy/ready transitions are unknown; total/change logger capacity was not exhausted.",
+    "The recorded changes were initialization/teardown binding notifications, all refused while ready=false. No first physical false-EC callback or later forwarding stage was observed.",
+    "The genuine browser event/wire/pixel qualification does not establish Qt switch handler invocation. Missing callback is observed; pointer delivery, disabled-during-press or signal routing causes remain unproved.",
+    "Cold first callback interval is22–24 seconds at whole-second precision. Save/queue each occur in the same displayed second and are not measured as exact0ms.",
+    "All original12 and no-grant gates remain distinct from unqualified processing/gain. No retry, deadline, permission or paint threshold change is implied.",
+    "Raw logs, screenshots, URLs, coordinates, device identifiers and participant identities are private and excluded."
+  ]
+}

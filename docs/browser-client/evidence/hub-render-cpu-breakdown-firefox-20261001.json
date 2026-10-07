@@ -1,0 +1,4432 @@
+{
+  "startedAt": "2026-10-01T20:21:22.109Z",
+  "finishedAt": "2026-10-01T20:23:02.003Z",
+  "completed": false,
+  "browserVersion": "firefox/156.0",
+  "place": "overte_hub",
+  "microphoneRequested": false,
+  "worldInteractionsSent": 0,
+  "cpuFrameTimingRequested": true,
+  "renderCpuTimingRequested": true,
+  "shaderWarmupRequested": false,
+  "texturePreparationRequested": false,
+  "viewport": {
+    "width": 1280,
+    "height": 800,
+    "devicePixelRatio": 1.6666666666666667,
+    "visibility": "visible"
+  },
+  "fluidMovementAcceptancePassed": false,
+  "error": "Actual loaded-world, walking and reconnect measurements must meet30FPS, p95<=66.7ms and no steady stall>250ms",
+  "nativePoseDifferenceMeters": 0.0004149982567428057,
+  "reconnectedNativeDifferenceMeters": 0.0004970489571876156,
+  "movementMeters": 4.431396557380984,
+  "reconnectedMovementMeters": 2.9561650916980593,
+  "steadyFluidPerformance": {
+    "passed": false,
+    "validMeasurements": true,
+    "minimumFPS": 30,
+    "maximumP95FrameMs": 66.66666666666667,
+    "maximumStallMs": 250
+  },
+  "walkFluidPerformance": {
+    "passed": false,
+    "validMeasurements": true,
+    "minimumFPS": 30,
+    "maximumP95FrameMs": 66.66666666666667,
+    "maximumStallMs": 250
+  },
+  "reconnectedSteadyFluidPerformance": {
+    "passed": false,
+    "validMeasurements": true,
+    "minimumFPS": 30,
+    "maximumP95FrameMs": 66.66666666666667,
+    "maximumStallMs": 250
+  },
+  "reconnectedWalkFluidPerformance": {
+    "passed": false,
+    "validMeasurements": true,
+    "minimumFPS": 30,
+    "maximumP95FrameMs": 66.66666666666667,
+    "maximumStallMs": 250
+  },
+  "startSourceSHA256": {
+    "browser-client/gateway/server.mjs": "f8399c1015cb85ada0da613b9278b8a90dca0660d2478b8810d43161b1ed237c",
+    "browser-client/gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+    "browser-client/gateway/native-world.js": "bec2f02313446afde7a0be20899358a082b41c6c6c5d745ec67a24809e2b7ddb",
+    "browser-client/gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60",
+    "browser-client/gateway/public-places.mjs": "cbac3df2ecf7071da6e77df8d58b09be194afa184cfb0c37f6015f9f1f570471",
+    "browser-client/gateway/validation.mjs": "65eba4a66c76d4bfc0dbd18e172def64f43b37cca0db2301da5bf4d18645de79",
+    "browser-client/gateway/worker-sandbox.mjs": "0f676af4e006de48a0aeb32185ea37eb9500d1a7c65d064a5a16a27024c268a1",
+    "browser-client/gateway/network-sandbox.mjs": "3fd278b91a6ea383ddf816753d9eee870736b295ecd945714e827d794c8016d9",
+    "browser-client/gateway/network_udp.py": "378f7159b1456ab5a0e25d2f933f35106344106625cef0ce0d589de3d1e45eca",
+    "browser-client/gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+    "browser-client/gateway/tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+    "browser-client/gateway/process-lifecycle.mjs": "e8d7e021a8b934b271910883e27c2a1109aedd22e12044b763d4bf8acc274eaf",
+    "browser-client/shared/fluid-performance.mjs": "44e5262f62785e3a9ba4a96c275f5f0bf3a93c27e1d44fdad3bdbec739deebe2",
+    "browser-client/gateway/session-assets.mjs": "68542cb352ccad1bdc23a65ae34ab19d4abc2b02e1f81dec3f529d525ab84bf4",
+    "browser-client/gateway/asset-download.mjs": "4718cfe223afa884ab4f5890b6dc093303a70b864917fe5d85dc5cc2b8568357",
+    "browser-client/src/main.ts": "dbbabcf3a92d9cdf994a824d1698703d74bf7ba3918c315c23ec478ab3570800",
+    "browser-client/src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+    "browser-client/src/compressed-color-session.ts": "e18af74fe59593bf9f1aee0ce7a91f0e6910ed5e903868f646f1311d61c42fcf",
+    "browser-client/src/native-compressed-color.ts": "5439b334331980b43f8d7a0d1ea4750d58eec20ae0542a7296288192714e0467",
+    "browser-client/src/color-texture-metadata.ts": "1a4053acae0e7fd47076c0472598cf09b4da6ae178bd0563fa81857477c3d785",
+    "browser-client/src/initial-surface-wait.ts": "70c5a8c833eb2d7f71f21be0602e8e8a93aaa9e6452e9a942b02cfead61f4e47",
+    "browser-client/src/mesh-collision.ts": "2fa7aded6c11e1defb9dd87d2963abd0212ab9a4243eb3089aa01073d5b3e4a6",
+    "browser-client/src/simulation-clock.ts": "263fffd2b448c01fd25dc6f2adeceacf5cc28c2550d3dc249c07d915737bc7f5",
+    "browser-client/src/world.ts": "c0b3ef80c74b330575e4bf5e417b6a77cf5f6dd158ecaf5186fa9e62021bf69c",
+    "browser-client/src/fst-graph-cache.ts": "3a97e6dfcff1afaf1919b766ba38370befcb740e36f54662d8c9a4769c157230",
+    "browser-client/src/fst-texture-admission.ts": "385f257d5f60ea60ab26af0df1d1f77186e836ba64e33640012349786244a5d5",
+    "browser-client/src/compressed-color-capabilities.ts": "9e0536d5b2c82dee198b4e952b8b4f92bce8c49011ec5972b53608e94583d9fe",
+    "browser-client/src/graphics-warmup.ts": "878c32f9d7503cd334f66e348e10670f73c8c077373906c979523d75884a93e6",
+    "browser-client/src/graphics-warmup-owner.ts": "e09c8bfbfb71dadbe838413551cce82a6b689967237e355cd4a787a9da0050d4",
+    "browser-client/src/gpu-time-observer.ts": "6431fd2ee12ed93a19c98abba26e895b82598da94f2c12f227c2b0a649d0fed3",
+    "browser-client/src/world-gpu-timing.ts": "f20d8edec0b0666e88fb7a60cc2b5dae35ae02d5c6e6b44bc2ae86810beccd46",
+    "browser-client/src/world-image-cache.ts": "ba45a6125087f8b275c939a5e9e36dadac6879a37cb0fbe50d8c19dd9f1c6af9",
+    "browser-client/src/world-source-text-cache.ts": "57ccb98bed54e788ed0e2f263e8362ae505f4b3073648dc08c311925e21116b1",
+    "browser-client/src/embedded-fbx-images.ts": "790210b1205de5a26798e59c428da4bfff94ace0357374b6c370d53a42009e66",
+    "browser-client/src/embedded-content-counts.ts": "99fdefbe880cc81f8871565875fd95620211cbbc7a64ff3cfb6a5ee601d33864",
+    "browser-client/src/embedded-fbx-protocol.ts": "381179c36c71ab04bd0214fde9d2da4afa2a04f7f52dcbadc526b9eb2dd0c1db",
+    "browser-client/src/native-zero-lights.ts": "db505e6dbbfa856f3f5a5cb7d2c38768ab47f68e545a44d2281589613e151659",
+    "browser-client/src/static-model-batch.ts": "e14251976cfbc726dc8758759d13b0318b5bd08bec47499f64083b7e9ff44b8a",
+    "browser-client/src/native-render-state.ts": "af31a1e01576c233c1f7e8a8231dd5c2cc5871cb58b5783bf01f788da70d01df",
+    "browser-client/src/native-alpha-material.ts": "a3515894f69f078222c7e2b543c46ce22f7bd05b58e12f3eaa14aa0a638dcfbb",
+    "browser-client/src/model-resources.ts": "f05d539e19554cfa49ed35ce8fc6ec1c92f6c985c3b1d1f90849df9b558628ca",
+    "browser-client/src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+    "browser-client/src/worker-task-yield.ts": "6fdfa71526163386c9e041b74a533b2ff50c52f533145bfc2facb213d4333cc8",
+    "browser-client/src/prepared-fbx-cache.ts": "d4fe5ef8699e329094f4c4e99b0a8baa9da29739ee5b3dd6f28ff756b6466579",
+    "browser-client/src/model-load-scheduler.ts": "5b0f79beda5b11ba85dff0c34fbd4e091e5f21a0130efa78022d7eef9f453290",
+    "browser-client/src/model-geometry-stage.ts": "d940a9180cbb26f50a2fe8a712e6f8d9d30a2d31ec2b6dd5551b6ee6b83d34a3",
+    "browser-client/src/model-fbx-pool.ts": "76234b181e0cdded5d4e65350386bc62bf393802266e5614d825b57308e5b902",
+    "browser-client/src/model-fbx-decoder.ts": "5b80bced09705301a14574c8082a946dd3fd32f2ef1a9d1ce08ca7f30dd19ead",
+    "browser-client/src/model-fbx-decoder-memory.ts": "0f209e406a3571af97e78bf12471d7ea6a788cec26adbef733dc353b864cdc68",
+    "browser-client/src/model-fbx-worker.ts": "e418b09a7a3771bcb2cd52c130cc9ee01fcbfbca2ad5828df9c307adec9502f5",
+    "browser-client/src/model-textures.ts": "6de3ec3be2ce235642209ffab87295e52198e4fbebc12559c712ba6283e889bb",
+    "browser-client/src/texture-alpha.ts": "af9b46d9c56a156febaff92db76fe06b38dd4fa2ba7943ddfd4bbeaa47024ebe",
+    "browser-client/src/texture-alpha-worker.ts": "68cc81f419ed2373cfe18e9efd950222452479a7a742c5e10b8d965264d91761",
+    "browser-client/src/baked-fbx.ts": "eaa429192150981bb8c894ec77140a829a9430264652f0321dd41fc1486c0d00",
+    "browser-client/src/baked-draco.ts": "7e4426363fd8809df02d4f6c79d2b2fb899ae56ed663f839ffeb297e2a7d7844",
+    "browser-client/src/baked-draco-legacy.ts": "ba30ca915fcb85f5915fd5ef08f01745c13d3c9c7412c8dcefecb504c89a0a71",
+    "browser-client/dist/index.html": "0909fe4e6373236727d0f7f5e02b10676cc2e51f228fad258bd87f4bc7a12cfb",
+    "browser-client/tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+    "browser-client/tests/integration/public-hub-metrics.mjs": "18c9ed36feb60ddadbc5b3a73dcc73e2caa8561ab26cd672d8882de2bd25c789",
+    "browser-client/tests/integration/public-hub.mjs": "767e65fdcb79609a7fe6d6c58eee2a4db3d8ec799e9dcefb44c5ac693578846c",
+    "browser-client/src/world-texture-preparation.ts": "9bbe55c2b77a6df70b393cc139a35a34eb0d72b2f1f71d2b3f459dcb90a81be6",
+    "browser-client/src/foreground-texture-plan.ts": "9e986216767c9d65070e337e672c1f5bede40d5fd222d0191f715abba8c899c2",
+    "browser-client/src/world-cpu-frame-timing.ts": "579a99969dd17e1ec9d3cd93701817597aa2741ee6d531d0f99aa8df84490b36",
+    "browser-client/src/render-cpu-breakdown.ts": "19a7c3b5add363fbffbfb5b5dbb863054447ac50a5ac5312c722a984a715eeb3",
+    "browser-client/tests/integration/hub-upload-profile.mjs": "d16dfd152f78b6b6294d9f0791b44670562c9eee41014ede5c82e2a14f99e8ea"
+  },
+  "sourceSHA256": {
+    "browser-client/gateway/server.mjs": "f8399c1015cb85ada0da613b9278b8a90dca0660d2478b8810d43161b1ed237c",
+    "browser-client/gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+    "browser-client/gateway/native-world.js": "bec2f02313446afde7a0be20899358a082b41c6c6c5d745ec67a24809e2b7ddb",
+    "browser-client/gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60",
+    "browser-client/gateway/public-places.mjs": "cbac3df2ecf7071da6e77df8d58b09be194afa184cfb0c37f6015f9f1f570471",
+    "browser-client/gateway/validation.mjs": "65eba4a66c76d4bfc0dbd18e172def64f43b37cca0db2301da5bf4d18645de79",
+    "browser-client/gateway/worker-sandbox.mjs": "0f676af4e006de48a0aeb32185ea37eb9500d1a7c65d064a5a16a27024c268a1",
+    "browser-client/gateway/network-sandbox.mjs": "3fd278b91a6ea383ddf816753d9eee870736b295ecd945714e827d794c8016d9",
+    "browser-client/gateway/network_udp.py": "378f7159b1456ab5a0e25d2f933f35106344106625cef0ce0d589de3d1e45eca",
+    "browser-client/gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+    "browser-client/gateway/tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+    "browser-client/gateway/process-lifecycle.mjs": "e8d7e021a8b934b271910883e27c2a1109aedd22e12044b763d4bf8acc274eaf",
+    "browser-client/shared/fluid-performance.mjs": "44e5262f62785e3a9ba4a96c275f5f0bf3a93c27e1d44fdad3bdbec739deebe2",
+    "browser-client/gateway/session-assets.mjs": "68542cb352ccad1bdc23a65ae34ab19d4abc2b02e1f81dec3f529d525ab84bf4",
+    "browser-client/gateway/asset-download.mjs": "4718cfe223afa884ab4f5890b6dc093303a70b864917fe5d85dc5cc2b8568357",
+    "browser-client/src/main.ts": "dbbabcf3a92d9cdf994a824d1698703d74bf7ba3918c315c23ec478ab3570800",
+    "browser-client/src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+    "browser-client/src/compressed-color-session.ts": "e18af74fe59593bf9f1aee0ce7a91f0e6910ed5e903868f646f1311d61c42fcf",
+    "browser-client/src/native-compressed-color.ts": "5439b334331980b43f8d7a0d1ea4750d58eec20ae0542a7296288192714e0467",
+    "browser-client/src/color-texture-metadata.ts": "1a4053acae0e7fd47076c0472598cf09b4da6ae178bd0563fa81857477c3d785",
+    "browser-client/src/initial-surface-wait.ts": "70c5a8c833eb2d7f71f21be0602e8e8a93aaa9e6452e9a942b02cfead61f4e47",
+    "browser-client/src/mesh-collision.ts": "2fa7aded6c11e1defb9dd87d2963abd0212ab9a4243eb3089aa01073d5b3e4a6",
+    "browser-client/src/simulation-clock.ts": "263fffd2b448c01fd25dc6f2adeceacf5cc28c2550d3dc249c07d915737bc7f5",
+    "browser-client/src/world.ts": "c0b3ef80c74b330575e4bf5e417b6a77cf5f6dd158ecaf5186fa9e62021bf69c",
+    "browser-client/src/fst-graph-cache.ts": "3a97e6dfcff1afaf1919b766ba38370befcb740e36f54662d8c9a4769c157230",
+    "browser-client/src/fst-texture-admission.ts": "385f257d5f60ea60ab26af0df1d1f77186e836ba64e33640012349786244a5d5",
+    "browser-client/src/compressed-color-capabilities.ts": "9e0536d5b2c82dee198b4e952b8b4f92bce8c49011ec5972b53608e94583d9fe",
+    "browser-client/src/graphics-warmup.ts": "878c32f9d7503cd334f66e348e10670f73c8c077373906c979523d75884a93e6",
+    "browser-client/src/graphics-warmup-owner.ts": "e09c8bfbfb71dadbe838413551cce82a6b689967237e355cd4a787a9da0050d4",
+    "browser-client/src/gpu-time-observer.ts": "6431fd2ee12ed93a19c98abba26e895b82598da94f2c12f227c2b0a649d0fed3",
+    "browser-client/src/world-gpu-timing.ts": "f20d8edec0b0666e88fb7a60cc2b5dae35ae02d5c6e6b44bc2ae86810beccd46",
+    "browser-client/src/world-image-cache.ts": "ba45a6125087f8b275c939a5e9e36dadac6879a37cb0fbe50d8c19dd9f1c6af9",
+    "browser-client/src/world-source-text-cache.ts": "57ccb98bed54e788ed0e2f263e8362ae505f4b3073648dc08c311925e21116b1",
+    "browser-client/src/embedded-fbx-images.ts": "790210b1205de5a26798e59c428da4bfff94ace0357374b6c370d53a42009e66",
+    "browser-client/src/embedded-content-counts.ts": "99fdefbe880cc81f8871565875fd95620211cbbc7a64ff3cfb6a5ee601d33864",
+    "browser-client/src/embedded-fbx-protocol.ts": "381179c36c71ab04bd0214fde9d2da4afa2a04f7f52dcbadc526b9eb2dd0c1db",
+    "browser-client/src/native-zero-lights.ts": "db505e6dbbfa856f3f5a5cb7d2c38768ab47f68e545a44d2281589613e151659",
+    "browser-client/src/static-model-batch.ts": "e14251976cfbc726dc8758759d13b0318b5bd08bec47499f64083b7e9ff44b8a",
+    "browser-client/src/native-render-state.ts": "af31a1e01576c233c1f7e8a8231dd5c2cc5871cb58b5783bf01f788da70d01df",
+    "browser-client/src/native-alpha-material.ts": "a3515894f69f078222c7e2b543c46ce22f7bd05b58e12f3eaa14aa0a638dcfbb",
+    "browser-client/src/model-resources.ts": "f05d539e19554cfa49ed35ce8fc6ec1c92f6c985c3b1d1f90849df9b558628ca",
+    "browser-client/src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+    "browser-client/src/worker-task-yield.ts": "6fdfa71526163386c9e041b74a533b2ff50c52f533145bfc2facb213d4333cc8",
+    "browser-client/src/prepared-fbx-cache.ts": "d4fe5ef8699e329094f4c4e99b0a8baa9da29739ee5b3dd6f28ff756b6466579",
+    "browser-client/src/model-load-scheduler.ts": "5b0f79beda5b11ba85dff0c34fbd4e091e5f21a0130efa78022d7eef9f453290",
+    "browser-client/src/model-geometry-stage.ts": "d940a9180cbb26f50a2fe8a712e6f8d9d30a2d31ec2b6dd5551b6ee6b83d34a3",
+    "browser-client/src/model-fbx-pool.ts": "76234b181e0cdded5d4e65350386bc62bf393802266e5614d825b57308e5b902",
+    "browser-client/src/model-fbx-decoder.ts": "5b80bced09705301a14574c8082a946dd3fd32f2ef1a9d1ce08ca7f30dd19ead",
+    "browser-client/src/model-fbx-decoder-memory.ts": "0f209e406a3571af97e78bf12471d7ea6a788cec26adbef733dc353b864cdc68",
+    "browser-client/src/model-fbx-worker.ts": "e418b09a7a3771bcb2cd52c130cc9ee01fcbfbca2ad5828df9c307adec9502f5",
+    "browser-client/src/model-textures.ts": "6de3ec3be2ce235642209ffab87295e52198e4fbebc12559c712ba6283e889bb",
+    "browser-client/src/texture-alpha.ts": "af9b46d9c56a156febaff92db76fe06b38dd4fa2ba7943ddfd4bbeaa47024ebe",
+    "browser-client/src/texture-alpha-worker.ts": "68cc81f419ed2373cfe18e9efd950222452479a7a742c5e10b8d965264d91761",
+    "browser-client/src/baked-fbx.ts": "eaa429192150981bb8c894ec77140a829a9430264652f0321dd41fc1486c0d00",
+    "browser-client/src/baked-draco.ts": "7e4426363fd8809df02d4f6c79d2b2fb899ae56ed663f839ffeb297e2a7d7844",
+    "browser-client/src/baked-draco-legacy.ts": "ba30ca915fcb85f5915fd5ef08f01745c13d3c9c7412c8dcefecb504c89a0a71",
+    "browser-client/dist/index.html": "0909fe4e6373236727d0f7f5e02b10676cc2e51f228fad258bd87f4bc7a12cfb",
+    "browser-client/tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+    "browser-client/tests/integration/public-hub-metrics.mjs": "18c9ed36feb60ddadbc5b3a73dcc73e2caa8561ab26cd672d8882de2bd25c789",
+    "browser-client/tests/integration/public-hub.mjs": "767e65fdcb79609a7fe6d6c58eee2a4db3d8ec799e9dcefb44c5ac693578846c",
+    "browser-client/src/world-texture-preparation.ts": "9bbe55c2b77a6df70b393cc139a35a34eb0d72b2f1f71d2b3f459dcb90a81be6",
+    "browser-client/src/foreground-texture-plan.ts": "9e986216767c9d65070e337e672c1f5bede40d5fd222d0191f715abba8c899c2",
+    "browser-client/src/world-cpu-frame-timing.ts": "579a99969dd17e1ec9d3cd93701817597aa2741ee6d531d0f99aa8df84490b36",
+    "browser-client/src/render-cpu-breakdown.ts": "19a7c3b5add363fbffbfb5b5dbb863054447ac50a5ac5312c722a984a715eeb3",
+    "browser-client/tests/integration/hub-upload-profile.mjs": "d16dfd152f78b6b6294d9f0791b44670562c9eee41014ede5c82e2a14f99e8ea"
+  },
+  "startDistributionManifest": {
+    "assets/baked-draco-DOQBkCJV.js": {
+      "sha256": "3c0410f6ce9f8547b0ee37c9d9d6093239fae203f583388931b640353e712963",
+      "bytes": 125046
+    },
+    "assets/baked-draco-legacy-CMhlgON6.js": {
+      "sha256": "eb84ebc5eff49c7b0593382b07b23010897080f46b779ececdd515efcfb482d4",
+      "bytes": 816324
+    },
+    "assets/draco_decoder-C32yEggz.wasm": {
+      "sha256": "c55a594e8ffd18426d36b27fea9618af3df5e173640a3e56d46f09d76f0574f2",
+      "bytes": 285747
+    },
+    "assets/draco_decoder-fzg4nYZr.js": {
+      "sha256": "30e4d486fa020737af10e3c56197693e5b904bdc05b8bfa5d7b06751dec6da04",
+      "bytes": 719410
+    },
+    "assets/draco_decoder-Z1_iN-Ht.wasm": {
+      "sha256": "a680d927bed9cb864ddbd63521868891af2bfbe755092761b4837487618df8ac",
+      "bytes": 192420
+    },
+    "assets/draco_wasm_wrapper-DxJM36Ib.js": {
+      "sha256": "e8049906ef3f8f75d3456c22a3f31bfdfe5b5b5bd09ccdec613b9e9a49d554d8",
+      "bytes": 58763
+    },
+    "assets/draco_wasm_wrapper-fZCQGLGb.js": {
+      "sha256": "8bb2952d2ba7d67e1414f8df819410cb0434a666be53f671fff75f68843d76f6",
+      "bytes": 58456
+    },
+    "assets/FBXLoader-CFUV6RGT.js": {
+      "sha256": "a433f0ab988e8887191fa5447fafdd6ce85a265b52d8947d201cb776f6ff77d1",
+      "bytes": 49922
+    },
+    "assets/GLTFLoader-DaisFDfu.js": {
+      "sha256": "11943b3c957813d4cff2d026efcf08f4baf0aa851844a5d7d0465419f4f3839e",
+      "bytes": 44308
+    },
+    "assets/index-B2mAMfm4.css": {
+      "sha256": "cbf321b921d05ff91c3020a6ccffc91385eeebf223ea6ec0577c6354df12a521",
+      "bytes": 5451
+    },
+    "assets/index-Bn7x1f1D.js": {
+      "sha256": "41eeabaa9da87a593d8e4928d83367b8db223d69ab97aa4ee4d4051213ba13e8",
+      "bytes": 872586
+    },
+    "assets/model-fbx-worker-clQkD4aL.js": {
+      "sha256": "33867fd105c4dcb50cda9b23ccbc1d8b4ff077dda5d0eb6eef9aa1f2946be3ab",
+      "bytes": 825453
+    },
+    "assets/OBJLoader-B5opnNZG.js": {
+      "sha256": "417858be9e4ee4daa67983467a9cc63c098b7d7e3618b51e0c8b34c02cb92b22",
+      "bytes": 8633
+    },
+    "assets/tablet-gif.worker-DACjp6Cn.js": {
+      "sha256": "78ebb1c3db4d062dd4119c2cd86d201b7df2757fedf22a8993dd460fbb1057c8",
+      "bytes": 10409
+    },
+    "assets/texture-alpha-worker-CBG2kYQR.js": {
+      "sha256": "f04f415ff39370ae4ab0268903ffaf6c86b9a7addeb0aed95d4a7948ee803485",
+      "bytes": 2417
+    }
+  },
+  "distributionManifest": {
+    "assets/baked-draco-DOQBkCJV.js": {
+      "sha256": "3c0410f6ce9f8547b0ee37c9d9d6093239fae203f583388931b640353e712963",
+      "bytes": 125046
+    },
+    "assets/baked-draco-legacy-CMhlgON6.js": {
+      "sha256": "eb84ebc5eff49c7b0593382b07b23010897080f46b779ececdd515efcfb482d4",
+      "bytes": 816324
+    },
+    "assets/draco_decoder-C32yEggz.wasm": {
+      "sha256": "c55a594e8ffd18426d36b27fea9618af3df5e173640a3e56d46f09d76f0574f2",
+      "bytes": 285747
+    },
+    "assets/draco_decoder-fzg4nYZr.js": {
+      "sha256": "30e4d486fa020737af10e3c56197693e5b904bdc05b8bfa5d7b06751dec6da04",
+      "bytes": 719410
+    },
+    "assets/draco_decoder-Z1_iN-Ht.wasm": {
+      "sha256": "a680d927bed9cb864ddbd63521868891af2bfbe755092761b4837487618df8ac",
+      "bytes": 192420
+    },
+    "assets/draco_wasm_wrapper-DxJM36Ib.js": {
+      "sha256": "e8049906ef3f8f75d3456c22a3f31bfdfe5b5b5bd09ccdec613b9e9a49d554d8",
+      "bytes": 58763
+    },
+    "assets/draco_wasm_wrapper-fZCQGLGb.js": {
+      "sha256": "8bb2952d2ba7d67e1414f8df819410cb0434a666be53f671fff75f68843d76f6",
+      "bytes": 58456
+    },
+    "assets/FBXLoader-CFUV6RGT.js": {
+      "sha256": "a433f0ab988e8887191fa5447fafdd6ce85a265b52d8947d201cb776f6ff77d1",
+      "bytes": 49922
+    },
+    "assets/GLTFLoader-DaisFDfu.js": {
+      "sha256": "11943b3c957813d4cff2d026efcf08f4baf0aa851844a5d7d0465419f4f3839e",
+      "bytes": 44308
+    },
+    "assets/index-B2mAMfm4.css": {
+      "sha256": "cbf321b921d05ff91c3020a6ccffc91385eeebf223ea6ec0577c6354df12a521",
+      "bytes": 5451
+    },
+    "assets/index-Bn7x1f1D.js": {
+      "sha256": "41eeabaa9da87a593d8e4928d83367b8db223d69ab97aa4ee4d4051213ba13e8",
+      "bytes": 872586
+    },
+    "assets/model-fbx-worker-clQkD4aL.js": {
+      "sha256": "33867fd105c4dcb50cda9b23ccbc1d8b4ff077dda5d0eb6eef9aa1f2946be3ab",
+      "bytes": 825453
+    },
+    "assets/OBJLoader-B5opnNZG.js": {
+      "sha256": "417858be9e4ee4daa67983467a9cc63c098b7d7e3618b51e0c8b34c02cb92b22",
+      "bytes": 8633
+    },
+    "assets/tablet-gif.worker-DACjp6Cn.js": {
+      "sha256": "78ebb1c3db4d062dd4119c2cd86d201b7df2757fedf22a8993dd460fbb1057c8",
+      "bytes": 10409
+    },
+    "assets/texture-alpha-worker-CBG2kYQR.js": {
+      "sha256": "f04f415ff39370ae4ab0268903ffaf6c86b9a7addeb0aed95d4a7948ee803485",
+      "bytes": 2417
+    }
+  },
+  "runtimeHelperSHA256": {
+    "native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+    "tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+    "bridge.js": "eee0a0e57c35ba4ba082d8b3ad8d39b7762f583f5b2543b404a6bef838ce52f7"
+  },
+  "reconnectedRuntimeHelperSHA256": {
+    "native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+    "tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+    "bridge.js": "c66864f26599173c21b75f4fd2c1676dcaa94547bcd83e47fc2af60ea7138e8b"
+  },
+  "schemaVersion": 1,
+  "rawCaptureSHA256": "ba0b0b0b167d29be60a9a8f4eb7e1ffcce0eeebbbb6298cc82f2439c0be9e8d0",
+  "startEndSourcesEqual": true,
+  "startEndDistributionEqual": true,
+  "renderSamples": {
+    "after": {
+      "renderCpuTiming": {
+        "enabled": true,
+        "status": "sampling",
+        "sampleEveryFrames": 8,
+        "maximumSamples": 2048,
+        "maximumObservedFrames": 16384,
+        "maximumBoundaryCallsPerSample": 4096,
+        "maximumFrameMs": 5000,
+        "active": false,
+        "observedFrames": 1588,
+        "scheduledFrames": 199,
+        "completedFrames": 199,
+        "failedRenders": 0,
+        "invalidFrames": 0,
+        "capacitySkippedFrames": 0,
+        "reentrantFrames": 0,
+        "installationRefusals": 0,
+        "foreignHookChanges": 0,
+        "histogramUpperBoundsMs": [
+          0.25,
+          0.5,
+          1,
+          2,
+          4,
+          8,
+          16,
+          32,
+          64,
+          128,
+          256,
+          512,
+          1000,
+          5000
+        ],
+        "populations": {
+          "emptyScene": {
+            "samples": 94,
+            "phases": {
+              "sceneMatrices": {
+                "count": 94,
+                "totalMs": 5,
+                "maxMs": 2,
+                "histogram": [
+                  90,
+                  0,
+                  3,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0.05319148936170213
+              },
+              "cameraMatrices": {
+                "count": 94,
+                "totalMs": 2,
+                "maxMs": 1,
+                "histogram": [
+                  92,
+                  0,
+                  2,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0.02127659574468085
+              },
+              "sceneBeforeHook": {
+                "count": 94,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  94,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0
+              },
+              "drawDispatch": {
+                "count": 94,
+                "totalMs": 2,
+                "maxMs": 2,
+                "histogram": [
+                  93,
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0.02127659574468085
+              },
+              "renderRemainder": {
+                "count": 94,
+                "totalMs": 14,
+                "maxMs": 1,
+                "histogram": [
+                  80,
+                  0,
+                  14,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0.14893617021276595
+              },
+              "total": {
+                "count": 94,
+                "totalMs": 23,
+                "maxMs": 2,
+                "histogram": [
+                  74,
+                  0,
+                  17,
+                  3,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0.24468085106382978
+              }
+            },
+            "drawDispatchCalls": {
+              "samples": 94,
+              "totalCalls": 6,
+              "maxCalls": 3,
+              "meanCalls": 0.06382978723404255
+            },
+            "reportedDrawCalls": {
+              "samples": 94,
+              "totalCalls": 6,
+              "maxCalls": 3,
+              "meanCalls": 0.06382978723404255
+            },
+            "reportedTriangles": {
+              "samples": 94,
+              "totalTriangles": 1140,
+              "maxTriangles": 570,
+              "meanTriangles": 12.127659574468085
+            },
+            "afterSceneHookToFirstDispatch": {
+              "count": 2,
+              "totalMs": 0,
+              "maxMs": 0,
+              "histogram": [
+                2,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "meanMs": 0
+            },
+            "firstDispatchObserved": 2,
+            "clockCalls": 764
+          },
+          "loading": {
+            "samples": 51,
+            "phases": {
+              "sceneMatrices": {
+                "count": 51,
+                "totalMs": 94,
+                "maxMs": 4,
+                "histogram": [
+                  9,
+                  0,
+                  13,
+                  12,
+                  17,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 1.8431372549019607
+              },
+              "cameraMatrices": {
+                "count": 51,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  51,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0
+              },
+              "sceneBeforeHook": {
+                "count": 51,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  51,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0
+              },
+              "drawDispatch": {
+                "count": 51,
+                "totalMs": 841,
+                "maxMs": 426,
+                "histogram": [
+                  3,
+                  0,
+                  7,
+                  2,
+                  3,
+                  10,
+                  22,
+                  3,
+                  0,
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 16.49019607843137
+              },
+              "renderRemainder": {
+                "count": 51,
+                "totalMs": 160,
+                "maxMs": 19,
+                "histogram": [
+                  14,
+                  0,
+                  9,
+                  5,
+                  9,
+                  10,
+                  3,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 3.1372549019607843
+              },
+              "total": {
+                "count": 51,
+                "totalMs": 1095,
+                "maxMs": 439,
+                "histogram": [
+                  1,
+                  0,
+                  4,
+                  4,
+                  4,
+                  4,
+                  14,
+                  19,
+                  0,
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 21.470588235294116
+              }
+            },
+            "drawDispatchCalls": {
+              "samples": 51,
+              "totalCalls": 15575,
+              "maxCalls": 665,
+              "meanCalls": 305.3921568627451
+            },
+            "reportedDrawCalls": {
+              "samples": 51,
+              "totalCalls": 15575,
+              "maxCalls": 665,
+              "meanCalls": 305.3921568627451
+            },
+            "reportedTriangles": {
+              "samples": 51,
+              "totalTriangles": 11411439,
+              "maxTriangles": 546452,
+              "meanTriangles": 223753.70588235295
+            },
+            "afterSceneHookToFirstDispatch": {
+              "count": 50,
+              "totalMs": 135,
+              "maxMs": 19,
+              "histogram": [
+                14,
+                0,
+                14,
+                3,
+                8,
+                7,
+                3,
+                1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "meanMs": 2.7
+            },
+            "firstDispatchObserved": 50,
+            "clockCalls": 31558
+          },
+          "modelJobsIdle": {
+            "samples": 54,
+            "phases": {
+              "sceneMatrices": {
+                "count": 54,
+                "totalMs": 281,
+                "maxMs": 15,
+                "histogram": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  22,
+                  30,
+                  2,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 5.203703703703703
+              },
+              "cameraMatrices": {
+                "count": 54,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  54,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0
+              },
+              "sceneBeforeHook": {
+                "count": 54,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  54,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0
+              },
+              "drawDispatch": {
+                "count": 54,
+                "totalMs": 859,
+                "maxMs": 32,
+                "histogram": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  34,
+                  20,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 15.907407407407407
+              },
+              "renderRemainder": {
+                "count": 54,
+                "totalMs": 268,
+                "maxMs": 10,
+                "histogram": [
+                  0,
+                  0,
+                  0,
+                  2,
+                  30,
+                  17,
+                  5,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 4.962962962962963
+              },
+              "total": {
+                "count": 54,
+                "totalMs": 1408,
+                "maxMs": 45,
+                "histogram": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  48,
+                  6,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 26.074074074074073
+              }
+            },
+            "drawDispatchCalls": {
+              "samples": 54,
+              "totalCalls": 35928,
+              "maxCalls": 670,
+              "meanCalls": 665.3333333333334
+            },
+            "reportedDrawCalls": {
+              "samples": 54,
+              "totalCalls": 35928,
+              "maxCalls": 670,
+              "meanCalls": 665.3333333333334
+            },
+            "reportedTriangles": {
+              "samples": 54,
+              "totalTriangles": 29375037,
+              "maxTriangles": 548806,
+              "meanTriangles": 543982.1666666666
+            },
+            "afterSceneHookToFirstDispatch": {
+              "count": 54,
+              "totalMs": 188,
+              "maxMs": 9,
+              "histogram": [
+                0,
+                0,
+                0,
+                11,
+                34,
+                8,
+                1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "meanMs": 3.4814814814814814
+            },
+            "firstDispatchObserved": 54,
+            "clockCalls": 72288
+          }
+        }
+      },
+      "cpuFrameTiming": {
+        "enabled": true,
+        "status": "sampling",
+        "sampleEveryFrames": 8,
+        "maximumSamples": 2048,
+        "maximumObservedFrames": 16384,
+        "maximumFrameMs": 5000,
+        "active": false,
+        "observedFrames": 1588,
+        "sampledFrames": 199,
+        "completedFrames": 199,
+        "failedFrames": 0,
+        "invalidFrames": 0,
+        "orphanedFrames": 0,
+        "histogramUpperBoundsMs": [
+          0.25,
+          0.5,
+          1,
+          2,
+          4,
+          8,
+          16,
+          32,
+          64,
+          128,
+          256,
+          512,
+          1000,
+          5000
+        ],
+        "populations": {
+          "emptyScene": {
+            "samples": 94,
+            "total": {
+              "count": 94,
+              "totalMs": 38,
+              "maxMs": 3,
+              "histogram": [
+                63,
+                0,
+                26,
+                3,
+                2,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "meanMs": 0.40425531914893614
+            },
+            "segments": {
+              "setup": {
+                "count": 94,
+                "totalMs": 4,
+                "maxMs": 2,
+                "histogram": [
+                  91,
+                  0,
+                  2,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0.0425531914893617
+              },
+              "physicsPose": {
+                "count": 94,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  94,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0
+              },
+              "avatarCamera": {
+                "count": 94,
+                "totalMs": 8,
+                "maxMs": 3,
+                "histogram": [
+                  88,
+                  0,
+                  5,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0.0851063829787234
+              },
+              "localLights": {
+                "count": 94,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  94,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0
+              },
+              "renderSubmission": {
+                "count": 94,
+                "totalMs": 26,
+                "maxMs": 2,
+                "histogram": [
+                  71,
+                  0,
+                  20,
+                  3,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0.2765957446808511
+              },
+              "diagnostics": {
+                "count": 94,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  94,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0
+              }
+            }
+          },
+          "loading": {
+            "samples": 51,
+            "total": {
+              "count": 51,
+              "totalMs": 1129,
+              "maxMs": 439,
+              "histogram": [
+                0,
+                0,
+                4,
+                4,
+                5,
+                3,
+                15,
+                19,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0
+              ],
+              "meanMs": 22.137254901960784
+            },
+            "segments": {
+              "setup": {
+                "count": 51,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  51,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0
+              },
+              "physicsPose": {
+                "count": 51,
+                "totalMs": 26,
+                "maxMs": 3,
+                "histogram": [
+                  31,
+                  0,
+                  16,
+                  2,
+                  2,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0.5098039215686274
+              },
+              "avatarCamera": {
+                "count": 51,
+                "totalMs": 3,
+                "maxMs": 1,
+                "histogram": [
+                  48,
+                  0,
+                  3,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0.058823529411764705
+              },
+              "localLights": {
+                "count": 51,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  51,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0
+              },
+              "renderSubmission": {
+                "count": 51,
+                "totalMs": 1100,
+                "maxMs": 439,
+                "histogram": [
+                  1,
+                  0,
+                  4,
+                  4,
+                  4,
+                  4,
+                  14,
+                  19,
+                  0,
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 21.568627450980394
+              },
+              "diagnostics": {
+                "count": 51,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  51,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0
+              }
+            }
+          },
+          "modelJobsIdle": {
+            "samples": 54,
+            "total": {
+              "count": 54,
+              "totalMs": 1442,
+              "maxMs": 45,
+              "histogram": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                47,
+                7,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "meanMs": 26.703703703703702
+            },
+            "segments": {
+              "setup": {
+                "count": 54,
+                "totalMs": 3,
+                "maxMs": 1,
+                "histogram": [
+                  51,
+                  0,
+                  3,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0.05555555555555555
+              },
+              "physicsPose": {
+                "count": 54,
+                "totalMs": 23,
+                "maxMs": 3,
+                "histogram": [
+                  37,
+                  0,
+                  12,
+                  4,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0.42592592592592593
+              },
+              "avatarCamera": {
+                "count": 54,
+                "totalMs": 1,
+                "maxMs": 1,
+                "histogram": [
+                  53,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0.018518518518518517
+              },
+              "localLights": {
+                "count": 54,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  54,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0
+              },
+              "renderSubmission": {
+                "count": 54,
+                "totalMs": 1414,
+                "maxMs": 45,
+                "histogram": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  48,
+                  6,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 26.185185185185187
+              },
+              "diagnostics": {
+                "count": 54,
+                "totalMs": 1,
+                "maxMs": 1,
+                "histogram": [
+                  53,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0.018518518518518517
+              }
+            }
+          },
+          "paused": {
+            "samples": 0,
+            "total": {
+              "count": 0,
+              "totalMs": 0,
+              "maxMs": 0,
+              "histogram": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "meanMs": null
+            },
+            "segments": {
+              "setup": {
+                "count": 0,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": null
+              },
+              "physicsPose": {
+                "count": 0,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": null
+              },
+              "avatarCamera": {
+                "count": 0,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": null
+              },
+              "localLights": {
+                "count": 0,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": null
+              },
+              "renderSubmission": {
+                "count": 0,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": null
+              },
+              "diagnostics": {
+                "count": 0,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": null
+              }
+            }
+          }
+        }
+      },
+      "drawCalls": 625,
+      "triangles": 501943,
+      "modelLoads": null,
+      "loadPhases": {
+        "graphicsSubmit": {
+          "count": 1588,
+          "totalMs": 17340,
+          "maxMs": 439
+        },
+        "shaderPrepare": {
+          "count": 500,
+          "totalMs": 20381,
+          "maxMs": 138
+        },
+        "fbxMaterialBindings": {
+          "count": 130,
+          "totalMs": 345,
+          "maxMs": 44
+        },
+        "fbxDecode": {
+          "count": 130,
+          "totalMs": 2901,
+          "maxMs": 397
+        },
+        "fbxPrepareWait": {
+          "count": 293,
+          "totalMs": 24934,
+          "maxMs": 1370
+        },
+        "fbxParse": {
+          "count": 293,
+          "totalMs": 4309,
+          "maxMs": 214
+        },
+        "entityUpdate": {
+          "count": 12,
+          "totalMs": 129,
+          "maxMs": 54
+        },
+        "fbxTextures": {
+          "count": 293,
+          "totalMs": 3887,
+          "maxMs": 460
+        },
+        "textureAlpha": {
+          "count": 844,
+          "totalMs": 3325,
+          "maxMs": 735
+        },
+        "fstGraphPreflight": {
+          "count": 242,
+          "totalMs": 81,
+          "maxMs": 9
+        },
+        "colliderBuild": {
+          "count": 76,
+          "totalMs": 274,
+          "maxMs": 66
+        },
+        "compressedColor": {
+          "count": 232,
+          "totalMs": 20747,
+          "maxMs": 698
+        },
+        "modelBatch": {
+          "count": 6,
+          "totalMs": 178,
+          "maxMs": 118
+        }
+      },
+      "preparedFbx": null,
+      "imageCache": null
+    },
+    "reconnected": {
+      "renderCpuTiming": {
+        "enabled": true,
+        "status": "sampling",
+        "sampleEveryFrames": 8,
+        "maximumSamples": 2048,
+        "maximumObservedFrames": 16384,
+        "maximumBoundaryCallsPerSample": 4096,
+        "maximumFrameMs": 5000,
+        "active": false,
+        "observedFrames": 1510,
+        "scheduledFrames": 189,
+        "completedFrames": 189,
+        "failedRenders": 0,
+        "invalidFrames": 0,
+        "capacitySkippedFrames": 0,
+        "reentrantFrames": 0,
+        "installationRefusals": 0,
+        "foreignHookChanges": 0,
+        "histogramUpperBoundsMs": [
+          0.25,
+          0.5,
+          1,
+          2,
+          4,
+          8,
+          16,
+          32,
+          64,
+          128,
+          256,
+          512,
+          1000,
+          5000
+        ],
+        "populations": {
+          "emptyScene": {
+            "samples": 98,
+            "phases": {
+              "sceneMatrices": {
+                "count": 98,
+                "totalMs": 4,
+                "maxMs": 1,
+                "histogram": [
+                  94,
+                  0,
+                  4,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0.04081632653061224
+              },
+              "cameraMatrices": {
+                "count": 98,
+                "totalMs": 1,
+                "maxMs": 1,
+                "histogram": [
+                  97,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0.01020408163265306
+              },
+              "sceneBeforeHook": {
+                "count": 98,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  98,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0
+              },
+              "drawDispatch": {
+                "count": 98,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  98,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0
+              },
+              "renderRemainder": {
+                "count": 98,
+                "totalMs": 23,
+                "maxMs": 6,
+                "histogram": [
+                  80,
+                  0,
+                  17,
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0.23469387755102042
+              },
+              "total": {
+                "count": 98,
+                "totalMs": 28,
+                "maxMs": 6,
+                "histogram": [
+                  75,
+                  0,
+                  22,
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0.2857142857142857
+              }
+            },
+            "drawDispatchCalls": {
+              "samples": 98,
+              "totalCalls": 12,
+              "maxCalls": 3,
+              "meanCalls": 0.12244897959183673
+            },
+            "reportedDrawCalls": {
+              "samples": 98,
+              "totalCalls": 12,
+              "maxCalls": 3,
+              "meanCalls": 0.12244897959183673
+            },
+            "reportedTriangles": {
+              "samples": 98,
+              "totalTriangles": 2280,
+              "maxTriangles": 570,
+              "meanTriangles": 23.26530612244898
+            },
+            "afterSceneHookToFirstDispatch": {
+              "count": 4,
+              "totalMs": 1,
+              "maxMs": 1,
+              "histogram": [
+                3,
+                0,
+                1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "meanMs": 0.25
+            },
+            "firstDispatchObserved": 4,
+            "clockCalls": 808
+          },
+          "loading": {
+            "samples": 48,
+            "phases": {
+              "sceneMatrices": {
+                "count": 48,
+                "totalMs": 107,
+                "maxMs": 5,
+                "histogram": [
+                  8,
+                  0,
+                  8,
+                  8,
+                  20,
+                  4,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 2.2291666666666665
+              },
+              "cameraMatrices": {
+                "count": 48,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  48,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0
+              },
+              "sceneBeforeHook": {
+                "count": 48,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  48,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0
+              },
+              "drawDispatch": {
+                "count": 48,
+                "totalMs": 395,
+                "maxMs": 59,
+                "histogram": [
+                  5,
+                  0,
+                  6,
+                  2,
+                  1,
+                  11,
+                  22,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 8.229166666666666
+              },
+              "renderRemainder": {
+                "count": 48,
+                "totalMs": 134,
+                "maxMs": 12,
+                "histogram": [
+                  6,
+                  0,
+                  17,
+                  4,
+                  10,
+                  9,
+                  2,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 2.7916666666666665
+              },
+              "total": {
+                "count": 48,
+                "totalMs": 636,
+                "maxMs": 62,
+                "histogram": [
+                  2,
+                  0,
+                  3,
+                  2,
+                  5,
+                  5,
+                  12,
+                  18,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 13.25
+              }
+            },
+            "drawDispatchCalls": {
+              "samples": 48,
+              "totalCalls": 15018,
+              "maxCalls": 674,
+              "meanCalls": 312.875
+            },
+            "reportedDrawCalls": {
+              "samples": 48,
+              "totalCalls": 15018,
+              "maxCalls": 674,
+              "meanCalls": 312.875
+            },
+            "reportedTriangles": {
+              "samples": 48,
+              "totalTriangles": 11165907,
+              "maxTriangles": 548945,
+              "meanTriangles": 232623.0625
+            },
+            "afterSceneHookToFirstDispatch": {
+              "count": 47,
+              "totalMs": 102,
+              "maxMs": 12,
+              "histogram": [
+                8,
+                0,
+                19,
+                4,
+                12,
+                2,
+                2,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "meanMs": 2.1702127659574466
+            },
+            "firstDispatchObserved": 47,
+            "clockCalls": 30420
+          },
+          "modelJobsIdle": {
+            "samples": 43,
+            "phases": {
+              "sceneMatrices": {
+                "count": 43,
+                "totalMs": 232,
+                "maxMs": 13,
+                "histogram": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  14,
+                  27,
+                  2,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 5.395348837209302
+              },
+              "cameraMatrices": {
+                "count": 43,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  43,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0
+              },
+              "sceneBeforeHook": {
+                "count": 43,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  43,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0
+              },
+              "drawDispatch": {
+                "count": 43,
+                "totalMs": 693,
+                "maxMs": 40,
+                "histogram": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  27,
+                  15,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 16.11627906976744
+              },
+              "renderRemainder": {
+                "count": 43,
+                "totalMs": 225,
+                "maxMs": 17,
+                "histogram": [
+                  0,
+                  0,
+                  0,
+                  3,
+                  19,
+                  19,
+                  1,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 5.232558139534884
+              },
+              "total": {
+                "count": 43,
+                "totalMs": 1150,
+                "maxMs": 60,
+                "histogram": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  38,
+                  5,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 26.74418604651163
+              }
+            },
+            "drawDispatchCalls": {
+              "samples": 43,
+              "totalCalls": 29082,
+              "maxCalls": 678,
+              "meanCalls": 676.3255813953489
+            },
+            "reportedDrawCalls": {
+              "samples": 43,
+              "totalCalls": 29082,
+              "maxCalls": 678,
+              "meanCalls": 676.3255813953489
+            },
+            "reportedTriangles": {
+              "samples": 43,
+              "totalTriangles": 23764997,
+              "maxTriangles": 552987,
+              "meanTriangles": 552674.3488372093
+            },
+            "afterSceneHookToFirstDispatch": {
+              "count": 43,
+              "totalMs": 168,
+              "maxMs": 16,
+              "histogram": [
+                0,
+                0,
+                0,
+                4,
+                32,
+                6,
+                1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "meanMs": 3.9069767441860463
+            },
+            "firstDispatchObserved": 43,
+            "clockCalls": 58508
+          }
+        }
+      },
+      "cpuFrameTiming": {
+        "enabled": true,
+        "status": "sampling",
+        "sampleEveryFrames": 8,
+        "maximumSamples": 2048,
+        "maximumObservedFrames": 16384,
+        "maximumFrameMs": 5000,
+        "active": false,
+        "observedFrames": 1510,
+        "sampledFrames": 189,
+        "completedFrames": 189,
+        "failedFrames": 0,
+        "invalidFrames": 0,
+        "orphanedFrames": 0,
+        "histogramUpperBoundsMs": [
+          0.25,
+          0.5,
+          1,
+          2,
+          4,
+          8,
+          16,
+          32,
+          64,
+          128,
+          256,
+          512,
+          1000,
+          5000
+        ],
+        "populations": {
+          "emptyScene": {
+            "samples": 98,
+            "total": {
+              "count": 98,
+              "totalMs": 41,
+              "maxMs": 6,
+              "histogram": [
+                66,
+                0,
+                28,
+                2,
+                1,
+                1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "meanMs": 0.41836734693877553
+            },
+            "segments": {
+              "setup": {
+                "count": 98,
+                "totalMs": 2,
+                "maxMs": 2,
+                "histogram": [
+                  97,
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0.02040816326530612
+              },
+              "physicsPose": {
+                "count": 98,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  98,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0
+              },
+              "avatarCamera": {
+                "count": 98,
+                "totalMs": 2,
+                "maxMs": 1,
+                "histogram": [
+                  96,
+                  0,
+                  2,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0.02040816326530612
+              },
+              "localLights": {
+                "count": 98,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  98,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0
+              },
+              "renderSubmission": {
+                "count": 98,
+                "totalMs": 37,
+                "maxMs": 6,
+                "histogram": [
+                  68,
+                  0,
+                  28,
+                  0,
+                  1,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0.37755102040816324
+              },
+              "diagnostics": {
+                "count": 98,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  98,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0
+              }
+            }
+          },
+          "loading": {
+            "samples": 48,
+            "total": {
+              "count": 48,
+              "totalMs": 672,
+              "maxMs": 63,
+              "histogram": [
+                0,
+                0,
+                3,
+                2,
+                6,
+                4,
+                14,
+                18,
+                1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "meanMs": 14
+            },
+            "segments": {
+              "setup": {
+                "count": 48,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  48,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0
+              },
+              "physicsPose": {
+                "count": 48,
+                "totalMs": 19,
+                "maxMs": 3,
+                "histogram": [
+                  32,
+                  0,
+                  14,
+                  1,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0.3958333333333333
+              },
+              "avatarCamera": {
+                "count": 48,
+                "totalMs": 4,
+                "maxMs": 2,
+                "histogram": [
+                  45,
+                  0,
+                  2,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0.08333333333333333
+              },
+              "localLights": {
+                "count": 48,
+                "totalMs": 1,
+                "maxMs": 1,
+                "histogram": [
+                  47,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0.020833333333333332
+              },
+              "renderSubmission": {
+                "count": 48,
+                "totalMs": 646,
+                "maxMs": 63,
+                "histogram": [
+                  1,
+                  0,
+                  4,
+                  2,
+                  4,
+                  6,
+                  12,
+                  18,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 13.458333333333334
+              },
+              "diagnostics": {
+                "count": 48,
+                "totalMs": 2,
+                "maxMs": 1,
+                "histogram": [
+                  46,
+                  0,
+                  2,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0.041666666666666664
+              }
+            }
+          },
+          "modelJobsIdle": {
+            "samples": 43,
+            "total": {
+              "count": 43,
+              "totalMs": 1177,
+              "maxMs": 61,
+              "histogram": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                38,
+                5,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "meanMs": 27.372093023255815
+            },
+            "segments": {
+              "setup": {
+                "count": 43,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  43,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0
+              },
+              "physicsPose": {
+                "count": 43,
+                "totalMs": 19,
+                "maxMs": 2,
+                "histogram": [
+                  25,
+                  0,
+                  17,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0.4418604651162791
+              },
+              "avatarCamera": {
+                "count": 43,
+                "totalMs": 2,
+                "maxMs": 1,
+                "histogram": [
+                  41,
+                  0,
+                  2,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0.046511627906976744
+              },
+              "localLights": {
+                "count": 43,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  43,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0
+              },
+              "renderSubmission": {
+                "count": 43,
+                "totalMs": 1156,
+                "maxMs": 61,
+                "histogram": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  38,
+                  5,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 26.88372093023256
+              },
+              "diagnostics": {
+                "count": 43,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  43,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0
+              }
+            }
+          },
+          "paused": {
+            "samples": 0,
+            "total": {
+              "count": 0,
+              "totalMs": 0,
+              "maxMs": 0,
+              "histogram": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "meanMs": null
+            },
+            "segments": {
+              "setup": {
+                "count": 0,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": null
+              },
+              "physicsPose": {
+                "count": 0,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": null
+              },
+              "avatarCamera": {
+                "count": 0,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": null
+              },
+              "localLights": {
+                "count": 0,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": null
+              },
+              "renderSubmission": {
+                "count": 0,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": null
+              },
+              "diagnostics": {
+                "count": 0,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": null
+              }
+            }
+          }
+        }
+      },
+      "drawCalls": 676,
+      "triangles": 552617,
+      "modelLoads": null,
+      "loadPhases": {
+        "graphicsSubmit": {
+          "count": 1510,
+          "totalMs": 15397,
+          "maxMs": 384
+        },
+        "shaderPrepare": {
+          "count": 500,
+          "totalMs": 20455,
+          "maxMs": 312
+        },
+        "fbxMaterialBindings": {
+          "count": 129,
+          "totalMs": 275,
+          "maxMs": 50
+        },
+        "fbxDecode": {
+          "count": 129,
+          "totalMs": 2762,
+          "maxMs": 461
+        },
+        "fbxPrepareWait": {
+          "count": 292,
+          "totalMs": 26262,
+          "maxMs": 1214
+        },
+        "fbxParse": {
+          "count": 292,
+          "totalMs": 4230,
+          "maxMs": 254
+        },
+        "fbxTextures": {
+          "count": 292,
+          "totalMs": 2418,
+          "maxMs": 294
+        },
+        "textureAlpha": {
+          "count": 843,
+          "totalMs": 3158,
+          "maxMs": 839
+        },
+        "entityUpdate": {
+          "count": 11,
+          "totalMs": 127,
+          "maxMs": 64
+        },
+        "fstGraphPreflight": {
+          "count": 241,
+          "totalMs": 78,
+          "maxMs": 7
+        },
+        "colliderBuild": {
+          "count": 76,
+          "totalMs": 260,
+          "maxMs": 63
+        },
+        "compressedColor": {
+          "count": 231,
+          "totalMs": 21592,
+          "maxMs": 1216
+        },
+        "modelBatch": {
+          "count": 6,
+          "totalMs": 169,
+          "maxMs": 90
+        }
+      },
+      "preparedFbx": null,
+      "imageCache": null
+    },
+    "reconnectedAfterMovement": {
+      "renderCpuTiming": {
+        "enabled": true,
+        "status": "sampling",
+        "sampleEveryFrames": 8,
+        "maximumSamples": 2048,
+        "maximumObservedFrames": 16384,
+        "maximumBoundaryCallsPerSample": 4096,
+        "maximumFrameMs": 5000,
+        "active": false,
+        "observedFrames": 1555,
+        "scheduledFrames": 195,
+        "completedFrames": 195,
+        "failedRenders": 0,
+        "invalidFrames": 0,
+        "capacitySkippedFrames": 0,
+        "reentrantFrames": 0,
+        "installationRefusals": 0,
+        "foreignHookChanges": 0,
+        "histogramUpperBoundsMs": [
+          0.25,
+          0.5,
+          1,
+          2,
+          4,
+          8,
+          16,
+          32,
+          64,
+          128,
+          256,
+          512,
+          1000,
+          5000
+        ],
+        "populations": {
+          "emptyScene": {
+            "samples": 98,
+            "phases": {
+              "sceneMatrices": {
+                "count": 98,
+                "totalMs": 4,
+                "maxMs": 1,
+                "histogram": [
+                  94,
+                  0,
+                  4,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0.04081632653061224
+              },
+              "cameraMatrices": {
+                "count": 98,
+                "totalMs": 1,
+                "maxMs": 1,
+                "histogram": [
+                  97,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0.01020408163265306
+              },
+              "sceneBeforeHook": {
+                "count": 98,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  98,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0
+              },
+              "drawDispatch": {
+                "count": 98,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  98,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0
+              },
+              "renderRemainder": {
+                "count": 98,
+                "totalMs": 23,
+                "maxMs": 6,
+                "histogram": [
+                  80,
+                  0,
+                  17,
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0.23469387755102042
+              },
+              "total": {
+                "count": 98,
+                "totalMs": 28,
+                "maxMs": 6,
+                "histogram": [
+                  75,
+                  0,
+                  22,
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0.2857142857142857
+              }
+            },
+            "drawDispatchCalls": {
+              "samples": 98,
+              "totalCalls": 12,
+              "maxCalls": 3,
+              "meanCalls": 0.12244897959183673
+            },
+            "reportedDrawCalls": {
+              "samples": 98,
+              "totalCalls": 12,
+              "maxCalls": 3,
+              "meanCalls": 0.12244897959183673
+            },
+            "reportedTriangles": {
+              "samples": 98,
+              "totalTriangles": 2280,
+              "maxTriangles": 570,
+              "meanTriangles": 23.26530612244898
+            },
+            "afterSceneHookToFirstDispatch": {
+              "count": 4,
+              "totalMs": 1,
+              "maxMs": 1,
+              "histogram": [
+                3,
+                0,
+                1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "meanMs": 0.25
+            },
+            "firstDispatchObserved": 4,
+            "clockCalls": 808
+          },
+          "loading": {
+            "samples": 48,
+            "phases": {
+              "sceneMatrices": {
+                "count": 48,
+                "totalMs": 107,
+                "maxMs": 5,
+                "histogram": [
+                  8,
+                  0,
+                  8,
+                  8,
+                  20,
+                  4,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 2.2291666666666665
+              },
+              "cameraMatrices": {
+                "count": 48,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  48,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0
+              },
+              "sceneBeforeHook": {
+                "count": 48,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  48,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0
+              },
+              "drawDispatch": {
+                "count": 48,
+                "totalMs": 395,
+                "maxMs": 59,
+                "histogram": [
+                  5,
+                  0,
+                  6,
+                  2,
+                  1,
+                  11,
+                  22,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 8.229166666666666
+              },
+              "renderRemainder": {
+                "count": 48,
+                "totalMs": 134,
+                "maxMs": 12,
+                "histogram": [
+                  6,
+                  0,
+                  17,
+                  4,
+                  10,
+                  9,
+                  2,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 2.7916666666666665
+              },
+              "total": {
+                "count": 48,
+                "totalMs": 636,
+                "maxMs": 62,
+                "histogram": [
+                  2,
+                  0,
+                  3,
+                  2,
+                  5,
+                  5,
+                  12,
+                  18,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 13.25
+              }
+            },
+            "drawDispatchCalls": {
+              "samples": 48,
+              "totalCalls": 15018,
+              "maxCalls": 674,
+              "meanCalls": 312.875
+            },
+            "reportedDrawCalls": {
+              "samples": 48,
+              "totalCalls": 15018,
+              "maxCalls": 674,
+              "meanCalls": 312.875
+            },
+            "reportedTriangles": {
+              "samples": 48,
+              "totalTriangles": 11165907,
+              "maxTriangles": 548945,
+              "meanTriangles": 232623.0625
+            },
+            "afterSceneHookToFirstDispatch": {
+              "count": 47,
+              "totalMs": 102,
+              "maxMs": 12,
+              "histogram": [
+                8,
+                0,
+                19,
+                4,
+                12,
+                2,
+                2,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "meanMs": 2.1702127659574466
+            },
+            "firstDispatchObserved": 47,
+            "clockCalls": 30420
+          },
+          "modelJobsIdle": {
+            "samples": 49,
+            "phases": {
+              "sceneMatrices": {
+                "count": 49,
+                "totalMs": 257,
+                "maxMs": 13,
+                "histogram": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  18,
+                  29,
+                  2,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 5.244897959183674
+              },
+              "cameraMatrices": {
+                "count": 49,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  49,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0
+              },
+              "sceneBeforeHook": {
+                "count": 49,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  49,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0
+              },
+              "drawDispatch": {
+                "count": 49,
+                "totalMs": 768,
+                "maxMs": 40,
+                "histogram": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  33,
+                  15,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 15.673469387755102
+              },
+              "renderRemainder": {
+                "count": 49,
+                "totalMs": 255,
+                "maxMs": 17,
+                "histogram": [
+                  0,
+                  0,
+                  0,
+                  3,
+                  21,
+                  23,
+                  1,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 5.204081632653061
+              },
+              "total": {
+                "count": 49,
+                "totalMs": 1280,
+                "maxMs": 60,
+                "histogram": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  44,
+                  5,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 26.122448979591837
+              }
+            },
+            "drawDispatchCalls": {
+              "samples": 49,
+              "totalCalls": 33080,
+              "maxCalls": 678,
+              "meanCalls": 675.1020408163265
+            },
+            "reportedDrawCalls": {
+              "samples": 49,
+              "totalCalls": 33080,
+              "maxCalls": 678,
+              "meanCalls": 675.1020408163265
+            },
+            "reportedTriangles": {
+              "samples": 49,
+              "totalTriangles": 27020879,
+              "maxTriangles": 552987,
+              "meanTriangles": 551446.5102040817
+            },
+            "afterSceneHookToFirstDispatch": {
+              "count": 49,
+              "totalMs": 188,
+              "maxMs": 16,
+              "histogram": [
+                0,
+                0,
+                0,
+                5,
+                37,
+                6,
+                1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "meanMs": 3.836734693877551
+            },
+            "firstDispatchObserved": 49,
+            "clockCalls": 66552
+          }
+        }
+      },
+      "cpuFrameTiming": {
+        "enabled": true,
+        "status": "sampling",
+        "sampleEveryFrames": 8,
+        "maximumSamples": 2048,
+        "maximumObservedFrames": 16384,
+        "maximumFrameMs": 5000,
+        "active": false,
+        "observedFrames": 1555,
+        "sampledFrames": 195,
+        "completedFrames": 195,
+        "failedFrames": 0,
+        "invalidFrames": 0,
+        "orphanedFrames": 0,
+        "histogramUpperBoundsMs": [
+          0.25,
+          0.5,
+          1,
+          2,
+          4,
+          8,
+          16,
+          32,
+          64,
+          128,
+          256,
+          512,
+          1000,
+          5000
+        ],
+        "populations": {
+          "emptyScene": {
+            "samples": 98,
+            "total": {
+              "count": 98,
+              "totalMs": 41,
+              "maxMs": 6,
+              "histogram": [
+                66,
+                0,
+                28,
+                2,
+                1,
+                1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "meanMs": 0.41836734693877553
+            },
+            "segments": {
+              "setup": {
+                "count": 98,
+                "totalMs": 2,
+                "maxMs": 2,
+                "histogram": [
+                  97,
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0.02040816326530612
+              },
+              "physicsPose": {
+                "count": 98,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  98,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0
+              },
+              "avatarCamera": {
+                "count": 98,
+                "totalMs": 2,
+                "maxMs": 1,
+                "histogram": [
+                  96,
+                  0,
+                  2,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0.02040816326530612
+              },
+              "localLights": {
+                "count": 98,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  98,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0
+              },
+              "renderSubmission": {
+                "count": 98,
+                "totalMs": 37,
+                "maxMs": 6,
+                "histogram": [
+                  68,
+                  0,
+                  28,
+                  0,
+                  1,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0.37755102040816324
+              },
+              "diagnostics": {
+                "count": 98,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  98,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0
+              }
+            }
+          },
+          "loading": {
+            "samples": 48,
+            "total": {
+              "count": 48,
+              "totalMs": 672,
+              "maxMs": 63,
+              "histogram": [
+                0,
+                0,
+                3,
+                2,
+                6,
+                4,
+                14,
+                18,
+                1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "meanMs": 14
+            },
+            "segments": {
+              "setup": {
+                "count": 48,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  48,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0
+              },
+              "physicsPose": {
+                "count": 48,
+                "totalMs": 19,
+                "maxMs": 3,
+                "histogram": [
+                  32,
+                  0,
+                  14,
+                  1,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0.3958333333333333
+              },
+              "avatarCamera": {
+                "count": 48,
+                "totalMs": 4,
+                "maxMs": 2,
+                "histogram": [
+                  45,
+                  0,
+                  2,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0.08333333333333333
+              },
+              "localLights": {
+                "count": 48,
+                "totalMs": 1,
+                "maxMs": 1,
+                "histogram": [
+                  47,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0.020833333333333332
+              },
+              "renderSubmission": {
+                "count": 48,
+                "totalMs": 646,
+                "maxMs": 63,
+                "histogram": [
+                  1,
+                  0,
+                  4,
+                  2,
+                  4,
+                  6,
+                  12,
+                  18,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 13.458333333333334
+              },
+              "diagnostics": {
+                "count": 48,
+                "totalMs": 2,
+                "maxMs": 1,
+                "histogram": [
+                  46,
+                  0,
+                  2,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0.041666666666666664
+              }
+            }
+          },
+          "modelJobsIdle": {
+            "samples": 49,
+            "total": {
+              "count": 49,
+              "totalMs": 1319,
+              "maxMs": 61,
+              "histogram": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                43,
+                6,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "meanMs": 26.918367346938776
+            },
+            "segments": {
+              "setup": {
+                "count": 49,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  49,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0
+              },
+              "physicsPose": {
+                "count": 49,
+                "totalMs": 29,
+                "maxMs": 5,
+                "histogram": [
+                  27,
+                  0,
+                  19,
+                  1,
+                  1,
+                  1,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0.5918367346938775
+              },
+              "avatarCamera": {
+                "count": 49,
+                "totalMs": 2,
+                "maxMs": 1,
+                "histogram": [
+                  47,
+                  0,
+                  2,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0.04081632653061224
+              },
+              "localLights": {
+                "count": 49,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  49,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0
+              },
+              "renderSubmission": {
+                "count": 49,
+                "totalMs": 1288,
+                "maxMs": 61,
+                "histogram": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  44,
+                  5,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 26.285714285714285
+              },
+              "diagnostics": {
+                "count": 49,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  49,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": 0
+              }
+            }
+          },
+          "paused": {
+            "samples": 0,
+            "total": {
+              "count": 0,
+              "totalMs": 0,
+              "maxMs": 0,
+              "histogram": [
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+              ],
+              "meanMs": null
+            },
+            "segments": {
+              "setup": {
+                "count": 0,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": null
+              },
+              "physicsPose": {
+                "count": 0,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": null
+              },
+              "avatarCamera": {
+                "count": 0,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": null
+              },
+              "localLights": {
+                "count": 0,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": null
+              },
+              "renderSubmission": {
+                "count": 0,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": null
+              },
+              "diagnostics": {
+                "count": 0,
+                "totalMs": 0,
+                "maxMs": 0,
+                "histogram": [
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "meanMs": null
+              }
+            }
+          }
+        }
+      },
+      "drawCalls": 655,
+      "triangles": 531286,
+      "modelLoads": null,
+      "loadPhases": {
+        "graphicsSubmit": {
+          "count": 1555,
+          "totalMs": 16517,
+          "maxMs": 384
+        },
+        "shaderPrepare": {
+          "count": 500,
+          "totalMs": 20455,
+          "maxMs": 312
+        },
+        "fbxMaterialBindings": {
+          "count": 129,
+          "totalMs": 275,
+          "maxMs": 50
+        },
+        "fbxDecode": {
+          "count": 129,
+          "totalMs": 2762,
+          "maxMs": 461
+        },
+        "fbxPrepareWait": {
+          "count": 292,
+          "totalMs": 26262,
+          "maxMs": 1214
+        },
+        "fbxParse": {
+          "count": 292,
+          "totalMs": 4230,
+          "maxMs": 254
+        },
+        "fbxTextures": {
+          "count": 292,
+          "totalMs": 2418,
+          "maxMs": 294
+        },
+        "textureAlpha": {
+          "count": 843,
+          "totalMs": 3158,
+          "maxMs": 839
+        },
+        "entityUpdate": {
+          "count": 12,
+          "totalMs": 141,
+          "maxMs": 64
+        },
+        "fstGraphPreflight": {
+          "count": 241,
+          "totalMs": 78,
+          "maxMs": 7
+        },
+        "colliderBuild": {
+          "count": 76,
+          "totalMs": 260,
+          "maxMs": 63
+        },
+        "compressedColor": {
+          "count": 231,
+          "totalMs": 21592,
+          "maxMs": 1216
+        },
+        "modelBatch": {
+          "count": 6,
+          "totalMs": 169,
+          "maxMs": 90
+        }
+      },
+      "preparedFbx": null,
+      "imageCache": null
+    }
+  },
+  "limits": [
+    "Public Hub muted readonly short journey; no public edits or microphone request.",
+    "Sampled synchronous public method spans include wrapper/clock/driver scheduling cost, not pure JavaScript self time or GPU time.",
+    "Cumulative populations are not independent samples/sessions.",
+    "afterSceneHookToFirstDispatch is a nonadditive setup bracket, not isolated projectObject timing.",
+    "No default quality/DPR reduction or optimization gain is claimed; all four original fluid gates still fail."
+  ]
+}

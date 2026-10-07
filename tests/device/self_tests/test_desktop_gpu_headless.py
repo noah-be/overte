@@ -385,6 +385,34 @@ class GpuHeadlessLifecycleTest(unittest.TestCase):
         self.lifecycle._save_state(state)
         self.assertTrue(self.lifecycle.cleanup())
 
+    def test_member_exit_during_cleanup_never_authorizes_a_group_signal(self) -> None:
+        root = {"pid": 991991, "processGroup": 991991, "processToken": "100"}
+        details = ("100", 991991, 1, "/owned/image", ("/owned/image",))
+        with patch.object(self.lifecycle, "_group_exists", return_value=True), \
+                patch.object(GPU, "_process_details", side_effect=[details, None]), \
+                patch.object(self.lifecycle, "_component_owned", return_value=False), \
+                patch.object(GPU, "_group_processes", return_value=[]), \
+                patch.object(self.lifecycle, "_reap_if_child") as reap, \
+                patch.object(GPU.os, "killpg") as kill:
+            self.lifecycle._cleanup_state({"lifecycleRoot": root})
+            kill.assert_not_called()
+            reap.assert_called_once_with(root["pid"])
+
+    def test_live_mismatch_or_reused_group_after_member_exit_still_refuses(self) -> None:
+        root = {"pid": 991991, "processGroup": 991991, "processToken": "100"}
+        original = ("100", 991991, 1, "/owned/image", ("/owned/image",))
+        reused = ("101", 991991, 1, "/foreign/image", ("/foreign/image",))
+        for after, members in ((reused, []), (None, [(991992, reused)])):
+            with self.subTest(live_mismatch=after is not None), \
+                    patch.object(self.lifecycle, "_group_exists", return_value=True), \
+                    patch.object(GPU, "_process_details", side_effect=[original, after]), \
+                    patch.object(self.lifecycle, "_component_owned", return_value=False), \
+                    patch.object(GPU, "_group_processes", return_value=members), \
+                    patch.object(GPU.os, "killpg") as kill:
+                with self.assertRaisesRegex(RuntimeError, "mismatched identity|losing its ownership anchor"):
+                    self.lifecycle._cleanup_state({"lifecycleRoot": root})
+                kill.assert_not_called()
+
     def test_dead_owned_group_is_recovered_and_restarted(self) -> None:
         self.lifecycle.ensure_started(self.base)
         state = self.lifecycle._read_state()
