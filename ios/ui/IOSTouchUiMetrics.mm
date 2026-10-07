@@ -3,6 +3,7 @@
 
 #include "../../interface/src/IOSTouchUiMetrics.h"
 #include "KeyboardGeometry.h"
+#include "IPadLandscapePolicy.h"
 
 #import <UIKit/UIKit.h>
 
@@ -491,6 +492,8 @@ void IOSTouchUiMetrics::refresh(void* keyboardNotification) {
         if (hadMetrics) { emit metricsChanged(); }
         return;
     }
+
+    applyIPadLandscapePolicy(window);
 
     UIEdgeInsets insets = window.safeAreaInsets;
     CGRect bounds = window.bounds;

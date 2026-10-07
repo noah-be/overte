@@ -38,6 +38,10 @@ def valid_info() -> dict:
         "LSRequiresIPhoneOS": True,
         "MinimumOSVersion": "17.0",
         "UIDeviceFamily": [1, 2],
+        "UIRequiresFullScreen": True,
+        "UISupportedInterfaceOrientations~ipad": [
+            "UIInterfaceOrientationLandscapeLeft", "UIInterfaceOrientationLandscapeRight"
+        ],
         "UIRequiredDeviceCapabilities": ["arm64"],
         "CFBundleURLTypes": [{"CFBundleURLSchemes": ["hifi", "hifiapp"]}],
     }
@@ -98,6 +102,9 @@ def main() -> None:
         expect_failure(validator, app, "Overte product")
 
         cases = (
+            ("UIRequiresFullScreen", False, "landscape policy"),
+            ("UISupportedInterfaceOrientations~ipad", None, "landscape policy"),
+            ("UISupportedInterfaceOrientations~ipad", ["UIInterfaceOrientationPortrait"], "landscape policy"),
             ("CFBundleIdentifier", None, "bundle identifier"),
             ("CFBundleShortVersionString", None, "CFBundleShortVersionString"),
             ("CFBundleVersion", None, "CFBundleVersion"),

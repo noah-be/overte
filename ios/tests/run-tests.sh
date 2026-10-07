@@ -6,6 +6,8 @@ set -euo pipefail
 
 readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 python3 "$script_dir/port-contract-test.py"
+python3 "$script_dir/foreground-watchdog-test.py"
+python3 "$script_dir/application-background-transition-test.py"
 python3 "$script_dir/performance/memory-pressure-policy-test.py"
 if pkg-config --exists Qt6Gui; then
     python3 "$script_dir/performance/full-client-memory-guard-test.py"

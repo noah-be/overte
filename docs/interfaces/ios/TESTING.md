@@ -10,6 +10,23 @@ python3 -m py_compile ios/tools/*.py ios/tests/*.py ios/conanfile.py
 bash -n ios/build-ios.sh ios/ci/*.sh ios/tests/run-tests.sh
 ```
 
+`foreground-watchdog-test.py` exercises the production suspension gate with a
+controlled clock and a concurrent resume/check interleaving. The watchdog remains
+active for genuine foreground timeouts and independent graphics pause/resume
+cannot override the background gate. This host check must be followed by real
+short and greater-than-120-second background/foreground and lock/unlock trials.
+
+`application-background-transition-test.py` executes the actual Qt state handler
+with resource-operation spies. It covers Active -> Inactive -> Hidden/Suspended,
+repeated notifications, temporary inactivity without background entry, startup
+completion while hidden, and shutdown. Visibility and completed resource pause
+are tracked independently so each stop has exactly one matching restart.
+
+The Full Client bundle validator also rejects missing or portrait-enabled iPad
+orientation declarations. On-device tests must launch while held upright, rotate
+with the tablet and keyboard visible, and return from background: the client
+must retain landscape geometry and usable controls.
+
 These checks do not prove an Apple build or launch.
 
 ## Simulator
