@@ -1,0 +1,31 @@
+{
+  "scope": "Actual WebGL2 pixels and production Three/BrowserWorld parser at immutable-byte preflight revision. This fixture uses authored HTTP data and is not a native-domain/Hub latency proof.",
+  "sourceHashes": {
+    "src/world.ts": "04a24e856d8664c3a71dfac5be2e5048ac4e7fb3f11bf6b4a2ab2857b64088a0",
+    "src/baked-fbx.ts": "eaa429192150981bb8c894ec77140a829a9430264652f0321dd41fc1486c0d00",
+    "src/fst-texture-admission.ts": "bcbc3d3e88d7bf21864130921c362b539803240a4a6ccfbdc0626a6e366c3f1a",
+    "tests/fst-texture-admission.browser.spec.ts": "df7ed9a3ccf5dc7a2b13fd9c703e665a0db83e26046608bae08f073ff31234e2",
+    "tests/world-fst-texture-admission.browser.spec.ts": "d1c08947d9c922ae16d6a33179cc2d0976a203191b1daca8c1386e9fd91cd9da",
+    "tests/fst-texture-admission-fixture.ts": "0f521aab3417e3d447535cc2bd916e48e1477f7328d08234ffd25b22410fc0bd",
+    "tests/fixtures/fst-texture-admission.ts": "4d70922234732074b3b2c29bf67655968f6577ba8bcb25ef6254737684429716"
+  },
+  "command": "npm run test:browser -- fst-texture-admission.browser.spec.ts world-fst-texture-admission.browser.spec.ts --workers=1",
+  "passedCases": 8,
+  "engines": [
+    "Chromium Playwright",
+    "Firefox Playwright"
+  ],
+  "durationSeconds": 23.2,
+  "assertions": [
+    "Actual original/replacement HTTP image request elimination only for eligible all/partial mappings",
+    "All final baseline/candidate RGBA components match",
+    "Same geometry/groups/material names, actual source green and rendered green",
+    "World fixed pose and camera preserved; disable immediately after synchronous capture",
+    "Both genuine WebGL2 backends; source input unchanged and independent image samplers",
+    "No domain permissions, session graphics quality or native processes modified"
+  ],
+  "nativeAcceptance": false,
+  "hubSpeedClaim": false,
+  "logSHA256": "d4cef9c8135b34de1e51ea43c30c64d6cf535014500297eb902d859feacd2a9d",
+  "completedLogWrittenAt": "2026-10-01T14:45:59.010768+00:00"
+}

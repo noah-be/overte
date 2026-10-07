@@ -1,0 +1,82 @@
+{
+  "tests/tablet-capture-style.test.mjs": [
+    [
+      "buildBrowserCaptureUI,AUDIO_SCRIPT_SHA256,AUDIO_RCC_SHA256} from '../gateway/browser-capture-overrides.mjs'",
+      "buildBrowserCaptureUI,AUDIO_SCRIPT_SHA256,AUDIO_RCC_SHA256,readCaptureV7Source} from './integration/capture-readback-source-fixture.mjs'"
+    ],
+    [
+      "await readFile(new URL('../gateway/browser-capture-overrides.mjs',import.meta.url),'utf8')",
+      "await readCaptureV7Source('gateway/browser-capture-overrides.mjs')"
+    ]
+  ],
+  "tests/tablet-capture-switch-width.test.mjs": [
+    [
+      "buildBrowserCaptureUI,AUDIO_SCRIPT_SHA256} from '../gateway/browser-capture-overrides.mjs'",
+      "buildBrowserCaptureUI,AUDIO_SCRIPT_SHA256,readCaptureV7Source} from './integration/capture-readback-source-fixture.mjs'"
+    ],
+    [
+      "await read('../gateway/browser-capture-overrides.mjs')",
+      "await readCaptureV7Source('gateway/browser-capture-overrides.mjs')"
+    ]
+  ],
+  "tests/integration/capture-source-fixture.mjs": [
+    [
+      "9a41d28676ada36d6a54bec5186214963d9864f6cad8c79e7abe666f9d36d7fe",
+      "38aa8a75aeca858af220f98a020fc6ab806b5611a28c6d3da1ea377b0e6f40bc"
+    ],
+    [
+      "26184206a3f39e42bcae68eff06cbe985cd412f8122deb08fd7f813ea2f35fef",
+      "235979f6d71c0b042bff5b44027d36f4ebbdc83427ddd5b8e4973cc96abd7783"
+    ],
+    [
+      "2ccb87e96756e48a6619a74fd7b5a488c399e63578ca1c072e885d71f307bc3d",
+      "9065766ffc07415bd3650e9ce98b238f0e5087075a6f829b9ef9a6cbe7109303"
+    ],
+    [
+      "export async function copyCaptureFixtureRow({client,relative,dest,expectedSHA256,version}){",
+      "export async function copyCaptureFixtureRow({client,relative,dest,expectedSHA256,version}){\n if([4,5].includes(version)&&['gateway/native-browser-capture.js','gateway/browser-capture.test.mjs'].includes(relative))return(await import('./capture-readback-source-fixture.mjs')).copyCaptureFixtureRow({client,relative,dest,expectedSHA256,version});"
+    ]
+  ],
+  "tests/tablet-capture-fst-escape-manifest.test.mjs": [
+    [
+      "from './integration/capture-lookahead-source-fixture.mjs'",
+      "from './integration/capture-readback-source-fixture.mjs'"
+    ],
+    [
+      "readCaptureV6History,decodeCaptureV6History}",
+      "readCaptureV6History,decodeCaptureV6History,readCaptureV7Source}"
+    ],
+    [
+      "prep=await readFile(new URL('./integration/prepare-tablet-capture-acceptance.mjs',import.meta.url),'utf8')",
+      "prep=await readCaptureHistoricalPreparer(7)"
+    ],
+    [
+      "await writeFile(dest,await readFile(path.join(client,relative)))",
+      "await copyCaptureFixtureRow({client,relative,dest,expectedSHA256:row.afterSHA256,version:7})"
+    ],
+    [
+      "current=await readFile(new URL('./tablet-capture-world-key-manifest.test.mjs',import.meta.url),'utf8')",
+      "current=await readCaptureV7Source('tests/tablet-capture-world-key-manifest.test.mjs')"
+    ],
+    [
+      "newCore=await readFile(new URL('./integration/capture-source-fixture.mjs',import.meta.url),'utf8')",
+      "newCore=await readCaptureV7Source('tests/integration/capture-source-fixture.mjs')"
+    ]
+  ],
+  "tests/tablet-capture-world-key-manifest.test.mjs": [
+    [
+      "./integration/capture-lookahead-source-fixture.mjs",
+      "./integration/capture-readback-source-fixture.mjs"
+    ]
+  ],
+  "tests/integration/capture-lookahead-source-fixture.mjs": [
+    [
+      "518b2bee68d61396a968a2754fb2e5e9e7bd5868b8ee562cdd0f1236e1369664",
+      "eb4dc8764b9db77cec674710c67504ff9df3f04e43aadf2bcfd086a8136a4ca1"
+    ],
+    [
+      "f761e5b2d30c86202b6187ce41c703a89cc67fe28e11ae9dc721b65b61e50661",
+      "39110eefee67b787eaf92ab08dd815af720eeeabc5553db4e27b49185283de12"
+    ]
+  ]
+}

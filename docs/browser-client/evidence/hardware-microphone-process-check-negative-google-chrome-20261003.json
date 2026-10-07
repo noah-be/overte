@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-03",
+  "scope": "Actual short-private-path physical-input qualification; original hardware report not retained",
+  "summarySHA256": "033b6476b9850b154bcf810b43bf050c80e05cbbf1466dc68cf8901a5f898e65",
+  "preparationSHA256": "35a0f1f02eb591417f67a1da5cf4d3e83a893b779ff81098181350e3055b6103",
+  "failureLogSHA256": "b19d820d15e4f7a9e616ec0893e3c7a53810af11b450d4ce6caf21f128b5721d",
+  "pulseLogSHA256": "59050b55fc3e70928e64b6a54299b5bc1abaaa8a4286f94f88371313b5d99382",
+  "startupAuthoritySHA256": "7f6da28f3a7b97d34150ea75e1104d902ad569c0d0fcbb3ce95b1b7cb05f70bd",
+  "outcome": {
+    "actualGoogleChromeObserved": true,
+    "completed": false,
+    "exceptionType": "AssertionError",
+    "failureCategory": "owned-hardware-qualification-refused",
+    "failureCount": 0,
+    "failurePhase": "runner",
+    "hardwareMicrophone": false,
+    "hardwareMicrophoneRequested": true,
+    "hardwareProcessingProved": false,
+    "humanAudibilityProved": false,
+    "noFakeMediaArgumentsObserved": true,
+    "ownedCleanupPassed": true,
+    "ownedGoogleChromeClosed": true,
+    "ownedNativeClosed": true,
+    "privateCookieRetired": true,
+    "qualifiedNativeModuleObserved": true,
+    "sourceOwnedStartupAuthorityAuthenticated": true,
+    "syntheticMicrophone": false
+  },
+  "tunnelReadinessObservation": {
+    "version": 1,
+    "metadataStage": "readiness",
+    "attempts": 2,
+    "attemptsCensored": false,
+    "readiness": {
+      "version": 1,
+      "sourcesBounded": true,
+      "modulesBounded": true,
+      "sourceRows": 2,
+      "moduleRows": 3,
+      "selectedSourceCount": 1,
+      "selectedTunnelModuleCount": 1,
+      "sourceOwnerIndexKnown": true,
+      "moduleIndexKnown": true,
+      "ownerIndexMatches": true,
+      "argumentsMatch": true,
+      "ready": true
+    },
+    "lastHandledExceptionType": "none"
+  },
+  "processObservation": {
+    "records": 12,
+    "allObservedCurrentOwnedELF": true,
+    "fakeFlagObserved": false,
+    "argv0IsExecutableAuthority": false,
+    "failedProcessIdentityRetained": false,
+    "failedAssertion": "Executable-path equality read uses non-strict Path.resolve",
+    "actualCauseEstablished": false
+  },
+  "hardwareAcceptanceProved": false,
+  "humanAudibilityProved": false
+}

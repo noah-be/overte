@@ -1,0 +1,94 @@
+{
+  "date": "2026-10-02",
+  "materialAssistance": "OpenAI Codex",
+  "scope": "Narrow isolated CI preparation, executable resolution, owned PID1 descendant reaping and bounded fixed-enum failure diagnostics. Exact-source complete native CI remains pending.",
+  "baseCommit": "bc46623554c716d462b78a61f08e91f68459a3a4",
+  "sourceSHA256": {
+    "ci/jenkins/gates.py": "e46c150608775d3cb5d685620e7a96467694bec9f37ba87d6fa9bd3a0e2cfd1e",
+    "ci/jenkins/namespace-owner.py": "b73c00cbbca864039a830bf35366a48d59df86f4bf67ac72851c0af9982f6ead",
+    "ci/jenkins/test_namespace_reaping.py": "b50ef6a0c48c70901ba6b474ffe64b7fbc2e67d6c374fb1f945b86bc5e047a15",
+    "ci/jenkins/test_runner.py": "3e07b51488b5171ca1be40de8fa9eb7fdfbca276202c3ba1f3eb2993047d4db8",
+    "gateway/network-sandbox.mjs": "b63bd39424077a476424b3b1ac59232f366bb4f72375a29bd33edb6451b7d113",
+    "gateway/network-sandbox.test.mjs": "cd39f763ba45f03db6ecdb004d4c339ed4c503e9588ab3161f7a0e09b0a65e7f",
+    "gateway/preparation-diagnostics.mjs": "6676df5f0efe8e42be373d33fc68d40f2d12613ebad49dc4dae88a21d13cc509",
+    "gateway/preparation-diagnostics.test.mjs": "5b53b1b061ac1464d693043e910ecaac1fc6fa5aadd86975b12bd73a7420e326",
+    "gateway/worker-sandbox.test.mjs": "e417789d4fd005204340c8ddbaecc4dfc946114c85cc221287f9b77e8c5fcbaf",
+    "gateway/worker-process-diagnostics.mjs": "fac955491a66cdb77cd3c345b613f56ec8e8d9e738dde3156c0453e1515777ac",
+    "gateway/worker-process-diagnostics.test.mjs": "9d8a4f1bfab05b1c0e20d779303f9195c983beddb47d24ea2e6b6fc856e2d460",
+    "lab/manage.py": "4030db98f013146b2f96684f42642855439540fdda52bacb53d72c56864ad422",
+    "lab/guest_permissions.py": "363d3108ebc80ef7d1e82ac3460382db621bf8499b260019e7286bf9a6872026",
+    "lab/test_guest_permissions.py": "71b2afaf0d190c7a52beb55a5a6f8f3419a079af5a8e6cc6e212295bf622004f",
+    "lab/test_manage_state.py": "ffc6ace0a15464819fdf9887067900563a1dd2fb702b51b7a11d760f3b33f509"
+  },
+  "localVerification": {
+    "componentTests": {
+      "passed": 1040,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 10778.244626
+    },
+    "productionBuild": {
+      "passed": true
+    },
+    "requiredRepositorySuites": {
+      "passed": 34,
+      "failed": 0,
+      "durationSeconds": 167.07
+    }
+  },
+  "logSHA256": {
+    "components": "56079ce298cdac4dbb32c55edd3ed0858aa0eb4977a9f402796874a99935685f",
+    "production": "cea8ee89bc8836975ea7e0bc8e24b9decef199a9babaa8b871382f1bdc07d5a7",
+    "repository": "af963f3f833e4b8c3636b349792006e772a381284b92a74ff1f3555fdd322035"
+  },
+  "actualLocalCIBaseResult": {
+    "sourceCommit": "bc46623554c716d462b78a61f08e91f68459a3a4",
+    "build": 3,
+    "productionBuildPassed": true,
+    "componentsPassed": 1026,
+    "componentsFailed": 4,
+    "passedBoundaryAssertions": "Host files, sibling environment and read-only Xauthority remain protected; the descendant-removal assertion fails.",
+    "realNativeJourneys": "not-run",
+    "cleanupPassed": true
+  },
+  "causeEvidence": {
+    "actualOuterCapabilitySetsZero": 5,
+    "freshSubordinateNamespaceSetupSucceeded": true,
+    "bareSlirpHelperFailure": "ENOENT",
+    "absoluteReviewedHelperStartedActualNestedWorker": true,
+    "supervisorPATHChanged": false,
+    "outerBoundingZeroAloneRefutedAsLocalCause": true,
+    "hostedAppArmorCause": "separate-unresolved"
+  },
+  "adoptedChildReaping": {
+    "actualSubreaperRegressionsPassed": 2,
+    "preservesDirectPopenExitStatus": true,
+    "signalsLiveChildren": false,
+    "globalWaitpidUsed": false,
+    "historicalFailedCIZombieState": "not-captured"
+  },
+  "guestReadback": {
+    "strictKnownRowsAndBooleanFlags": true,
+    "capturedHostedSavedFlagDifferences": "pending",
+    "rightsRelaxed": false
+  },
+  "diagnostics": {
+    "boundedFixedEnumsOnly": true,
+    "rawStderrPublished": false,
+    "helperObservationsCapturedBeforeCleanup": true,
+    "productionErrorMessagesUnchanged": true
+  },
+  "unchangedAcceptance": {
+    "nativeStagesRequired": 19,
+    "capabilitiesRestoredToUntrustedGateProcess": false,
+    "AppArmorProfilesChanged": false,
+    "routesOrNetworkBoundaryChanged": false,
+    "deadlinesOrPredicatesWeakened": false
+  },
+  "limitations": [
+    "Host CPU tests and standalone nested-helper probes do not replace an actual complete new-commit Jenkins or hosted native run.",
+    "The reaper handles only owned adopted children and excludes the direct gate process; the prior descendant failure was not accompanied by a captured actual zombie state.",
+    "Hosted permission differences and any Ubuntu helper capability refusal require actual fixed-enum readback on the next source.",
+    "Thirty-minute and endurance testing remain cancelled at the user instruction."
+  ]
+}

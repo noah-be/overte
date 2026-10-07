@@ -1,3 +1,4 @@
+// Modified in 2026 for the optional direct browser transport.
 //
 //  DomainGatekeeper.cpp
 //  domain-server/src
@@ -26,6 +27,7 @@
 
 #include "DomainServer.h"
 #include "DomainServerNodeData.h"
+#include "LocalUserPolicy.h"
 #include "WarningsSuppression.h"
 
 using SharedAssignmentPointer = QSharedPointer<Assignment>;
@@ -65,6 +67,11 @@ void DomainGatekeeper::processConnectRequestPacket(QSharedPointer<ReceivedMessag
 
     // read a NodeConnectionData object from the packet so we can pass around this data while we're inspecting it
     NodeConnectionData nodeConnection = NodeConnectionData::fromDataStream(packetStream, message->getSenderSockAddr());
+
+    if (!isNodeConnectTransportAllowed(nodeConnection.senderSockAddr, nodeConnection.nodeType)) {
+        qWarning() << "Rejected connect request for a node role unavailable on its transport.";
+        return;
+    }
 
     QByteArray myProtocolVersion = protocolVersionsSignature();
     if (nodeConnection.protocolVersion != myProtocolVersion) {
@@ -348,10 +355,9 @@ void DomainGatekeeper::updateNodePermissions() {
             if (nodeData) {
                 machineFingerprint = nodeData->getMachineFingerprint();
 
-                auto sendingAddress = nodeData->getSendingSockAddr().getAddress();
                 auto nodeList = limitedNodeListWeak.lock();
-                isLocalUser = ((nodeList && sendingAddress == nodeList->getLocalSockAddr().getAddress()) ||
-                               sendingAddress == QHostAddress::LocalHost);
+                isLocalUser = isLocalUserConnection(nodeData->getSendingSockAddr(),
+                    nodeList ? nodeList->getLocalSockAddr().getAddress() : QHostAddress());
             }
 
             userPerms = setPermissionsForUser(isLocalUser, verifiedUsername, verifiedDomainUserName,
@@ -453,8 +459,8 @@ SharedNodePointer DomainGatekeeper::processAgentConnectRequest(const NodeConnect
 
     // check if this user is on our local machine - if this is true set permissions to those for a "localhost" connection
     QHostAddress senderHostAddress = nodeConnection.senderSockAddr.getAddress();
-    bool isLocalUser =
-        (senderHostAddress == limitedNodeList->getLocalSockAddr().getAddress() || senderHostAddress == QHostAddress::LocalHost);
+    bool isLocalUser = isLocalUserConnection(nodeConnection.senderSockAddr,
+        limitedNodeList->getLocalSockAddr().getAddress());
 
     QString verifiedUsername; // if this remains empty, consider this an anonymous connection attempt
     if (!username.isEmpty()) {

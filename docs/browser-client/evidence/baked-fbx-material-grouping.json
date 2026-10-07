@@ -1,0 +1,58 @@
+{
+  "startedAt": "2026-09-30T20:11:45.102Z",
+  "finishedAt": "2026-09-30T20:11:48.274Z",
+  "completed": true,
+  "assetSHA256": "42adcf63e1dfe594b6b1d5a8c98b87c95dd4f70232479d2424a1b1f747f5d103",
+  "inputBytes": 75122,
+  "browserVersion": "153.0.8010.12",
+  "geometry": {
+    "meshes": 1,
+    "vertices": 22284,
+    "uvs": 22284,
+    "groups": 2,
+    "materialIndices": [
+      1,
+      0
+    ],
+    "restoredBytes": 714092,
+    "decodeAndParseMilliseconds": 413.69999999552965,
+    "materialGrouping": {
+      "before": {
+        "triangles": 7428,
+        "groups": 3,
+        "materialStates": [
+          {
+            "opacity": 1,
+            "transparent": false
+          },
+          {
+            "opacity": 1,
+            "transparent": false
+          }
+        ],
+        "sha256": "1734d1b4c90d877e139c2e0524fc75c87f5c712fccc7fe9eac0c272b5d707eb1"
+      },
+      "after": {
+        "triangles": 7428,
+        "groups": 2,
+        "materialStates": [
+          {
+            "opacity": 1,
+            "transparent": false
+          },
+          {
+            "opacity": 1,
+            "transparent": false
+          }
+        ],
+        "sha256": "1734d1b4c90d877e139c2e0524fc75c87f5c712fccc7fe9eac0c272b5d707eb1"
+      },
+      "beforeDrawCalls": 3,
+      "afterDrawCalls": 2,
+      "pixelDifferences": 0,
+      "visiblePixels": 8831,
+      "diagnosticMaterialColors": true
+    }
+  },
+  "scope": "Focused real native baked Cabana mesh: exact oriented triangle/normal/UV/material membership and diagnostic textured WebGL pixels before versus after opaque material grouping. This is independent of public-world acceptance."
+}

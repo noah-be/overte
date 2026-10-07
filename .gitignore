@@ -170,3 +170,4 @@ $RECYCLE.BIN/
 # Native CI caches (contain generated binaries, never test-result evidence).
 /.native-conan/
 /.native-ccache/
+/.native-direct-ccache/

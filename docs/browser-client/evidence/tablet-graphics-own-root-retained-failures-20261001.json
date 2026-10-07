@@ -1,0 +1,35 @@
+{
+  "scope": "Retained earlier negative attempts; not passing results",
+  "runs": [
+    {
+      "startedAt": "2026-10-01T15:21:43.272Z",
+      "finishedAt": "2026-10-01T15:23:12.729Z",
+      "completed": false,
+      "controlEffectCount": 9,
+      "failureCategory": "native-popup-capture",
+      "diagnosis": "Native profile popup lacked a QML engine for the former QML capture path; the popup was open but no stable row was captured.",
+      "diagnosisProvenance": "Parent-owned passive native/Qt observations and documented source diagnosis; the join report itself records timeout.",
+      "rawReportSHA256": "0b40bbff03c16c47bf3d62c81c7f15e0c3cba58e6959139b2b7c6a78280fb6d0"
+    },
+    {
+      "startedAt": "2026-10-01T15:41:13.057Z",
+      "finishedAt": "2026-10-01T15:42:47.381Z",
+      "completed": false,
+      "controlEffectCount": 9,
+      "failureCategory": "native-popup-capture",
+      "diagnosis": "The previous QML popup capture still failed; no successful profile selection was claimed.",
+      "diagnosisProvenance": "Parent-owned passive native/Qt observations and documented source diagnosis; the join report itself records timeout.",
+      "rawReportSHA256": "3b7b7e35dfb52e2d1be1dc3c0db1c327bd3277d2312d9435a13f645f8c4fec2f"
+    },
+    {
+      "startedAt": "2026-10-01T16:56:43.788Z",
+      "finishedAt": "2026-10-01T16:58:16.796Z",
+      "completed": false,
+      "controlEffectCount": 0,
+      "failureCategory": "join-refusal",
+      "diagnosis": "Join was refused by the exact worker override guard: responsive Create HTML was not yet admitted. The guard remained fail-closed; no setting effect occurred.",
+      "diagnosisProvenance": "Parent-owned passive native/Qt observations and documented source diagnosis; the join report itself records timeout.",
+      "rawReportSHA256": "a15424272761a313107a937b2db2a2ad3b5ff4bd12a30b6e3c86b6e60d1ddfd5"
+    }
+  ]
+}

@@ -1,0 +1,264 @@
+{
+  "schemaVersion": 1,
+  "scope": "Exact V28 integrated code checks; fresh hosted Chrome/Core and actual envelope-flow measurement remain pending",
+  "testedGitBase": "1f7950b2cd127a664fcb6d940961285ae1690a11",
+  "testedSourceInventorySHA256": "560866096c52c056cd9af62cbd2144b68c4d15566a75fb702368e5a1dafbb95a",
+  "sourceFiles": 9866,
+  "currentSourceAfterSHA256": {
+    "browser-client/gateway/server.mjs": "a9697929f62e58274f9753c774b2f5b80c4e32d1f3c87a9909aa21e84ddd9119",
+    "browser-client/gateway/avatar-snapshot-sender.mjs": "f42328972ccaff3a52736771f377380bc96c81c388353842c7fe386052cc188d",
+    "browser-client/gateway/native-avatar-stdout-projection.mjs": "f8ea6848bda41398b9e3d13b8139e872370cbaecb75a163f2c6a3dab6b3fff40",
+    "browser-client/tools/curate-avatar-samples.mjs": "e44d28ab00f51b7d16950cab0d6e5dbd08c2e6f32c473918db555d9868144c10",
+    "browser-client/gateway/native-avatar-delivery.test.mjs": "4e404e0bdf93a6059fe9f9c9f9abec7bb0f73f72e30489172fd0455b696a1eb9",
+    "browser-client/gateway/native-avatar-stdout-projection.test.mjs": "240cdcc05839442717a9df9fe8c9b63da05a4a7e5a4d89c7b74405ecbbe58a48",
+    "browser-client/tests/render-cpu-breakdown-fixture.ts": "dc901481b121b0b900af8394073f218cf2d13cb4b5a6ee6b1e957fb98856433f",
+    "browser-client/tests/render-dispatch-attribution.browser.spec.ts": "d074591e7646c5591e180dab8b40f2ed3cbf03a6ee19f66440ad7ff32def6292",
+    "browser-client/tests/integration/capture-software-managed-source-fixture.mjs": "200a426f6c76a6cd379ee7505906753c8dd7a0d67fc255fda67a3b77821809f2",
+    "browser-client/tests/tablet-capture-software-managed-manifest.test.mjs": "6e9143b348733d407fd2b34bbdb0f632f4d74de55489d3a2e4c0b49311f10b02",
+    "browser-client/tests/native-avatar-curation.test.mjs": "14b9029c936f6248b7f1e8e84e96b62b4bab35a3f9ac9b92aa5485740217fc22",
+    "browser-client/tests/avatar-delivery-source-fixture.test.mjs": "f140826bffbb18ed51aa31e34deb3437425c57b16b865edd37e6a488f26bdd0f",
+    "browser-client/gateway/avatar-flow.test.mjs": "3e924b19c559ef8d1d23372b00cbff6bd6c51961c078c9b1dfd2b61342a39588",
+    "browser-client/tests/render-dispatch-fixture-clock.test.ts": "c2c87a65b5eb9254301feb4aef16eceeac2f1e5ffdb529d3e185552fd65a619e",
+    "browser-client/tests/integration/capture-avatar-flow-source-fixture.mjs": "4f2d66c2ba0b71b090a88e9e44a3427d45ca6c85ace9f325e6132fa31bec87fc",
+    "browser-client/tests/fixtures/capture-v27-avatar-flow-before.json.gz": "f9b277c463a4b8bd705b44e883897322384fe75a5022c52967ad516a1523102a",
+    "browser-client/tests/tablet-capture-avatar-flow-manifest.test.mjs": "fb051eeef350fd250c29f89c9ca7bd6b4db406aa923416c2b67f61c5023a75e1",
+    "browser-client/tests/fixtures/capture-software-managed-v27-complete-source-manifest.json": "cea7ea30a934b4b2af6e96f8ab6f769dd81e094199cb14003419d4230cfa236c",
+    "browser-client/tests/fixtures/capture-avatar-flow-v28-complete-source-manifest.json": "fea03ac81a676cb02128b6ab13ec5047be98007b09429e369418b4cf47ad3aca",
+    "browser-client/tests/integration/prepare-tablet-capture-acceptance.mjs": "5bb4c29f0b84fc01852fdb4030bb46d24d499f598f4a557529debc31f5cb4a19",
+    "browser-client/gateway/clipboard-wire.test.mjs": "47bbbbc6165930e2da19b05f5c44aaa85601e189437b5983a55114e5ae32b65c",
+    "browser-client/gateway/push-to-talk-wire.test.mjs": "f9554c4cbddf11b465c4c2216991a0ac294aba796042cb7baa499fc8db3eabc4",
+    "browser-client/gateway/session-races.test.mjs": "1ea97d58a74f0900abcac9aaa17a68012cd7f4de96f3fec22a8fc1b5b36fc02c",
+    "browser-client/gateway/session-admission.test.mjs": "a9b5670193f6459d0e5a5375d358cbbf0444c67206f16b0e692ade4fa8d2b3d8",
+    "browser-client/gateway/native-navigation-admission.test.mjs": "1c6faf1bb6e1979cb94868340cebb1b996ee831eb8acbb3815d1b68631b1b208"
+  },
+  "sourceClosure": {
+    "manifestSHA256": "fea03ac81a676cb02128b6ab13ec5047be98007b09429e369418b4cf47ad3aca",
+    "rows": 249,
+    "inheritedRows": 241,
+    "migrations": 10,
+    "admissions": 8,
+    "wholeBeforeInputs": 14,
+    "wholeBeforeInflatedBytes": 443178,
+    "wholeBeforeCompressedBytes": 98923,
+    "inflatedByteLimit": 524288,
+    "compressedByteLimit": 131072,
+    "wholeBeforeAbsenceRecoveries": 20,
+    "managedHistorySeparate": true
+  },
+  "checks": [
+    {
+      "label": "product-unit-suite",
+      "command": [
+        "npm",
+        "test"
+      ],
+      "exitCode": 0,
+      "seconds": 26.723,
+      "logSHA256": "3edf23f7d9899dd652b46a8c45560860e093a097edd86ef8455e6b36e8218909",
+      "counts": {
+        "tests": 2972,
+        "pass": 2972,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "sourceCoherent": true,
+      "scope": "Independent code gates only; original Native-liveness preflight remains failed; eight existing births and one missing row unchanged"
+    },
+    {
+      "label": "production-build",
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "exitCode": 0,
+      "seconds": 4.58,
+      "logSHA256": "c578d9754c8232c2ca682dbd65a35fb9769a7f6173d0e4e8cc5e671f87c3421b",
+      "counts": {},
+      "sourceCoherent": true,
+      "scope": "Independent code gates only; original Native-liveness preflight remains failed; eight existing births and one missing row unchanged"
+    },
+    {
+      "label": "embedded-fixture-build",
+      "command": [
+        "node",
+        "node_modules/vite/bin/vite.js",
+        "build",
+        "--config",
+        "vite.embedded.config.mjs",
+        "--configLoader",
+        "native"
+      ],
+      "exitCode": 0,
+      "seconds": 2.033,
+      "logSHA256": "a4ebfce8a5d5d99914a8d26bad904b1a368faa7d5e08eb965408824b401a9006",
+      "counts": {},
+      "sourceCoherent": true,
+      "scope": "Independent code gates only; original Native-liveness preflight remains failed; eight existing births and one missing row unchanged"
+    },
+    {
+      "label": "embedded-world-build",
+      "command": [
+        "node",
+        "node_modules/vite/bin/vite.js",
+        "build",
+        "--config",
+        "vite.embedded-world.config.mjs",
+        "--configLoader",
+        "native"
+      ],
+      "exitCode": 0,
+      "seconds": 2.383,
+      "logSHA256": "774ba17e32b6ee6c49ef4353eefa6839bfa5105fbf9aef5f7ec3f05bd7caa90f",
+      "counts": {},
+      "sourceCoherent": true,
+      "scope": "Independent code gates only; original Native-liveness preflight remains failed; eight existing births and one missing row unchanged"
+    },
+    {
+      "label": "repository-quick",
+      "command": [
+        "python3",
+        "tests/run-project-tests.py",
+        "--profile",
+        "quick",
+        "--timeout",
+        "240"
+      ],
+      "exitCode": 0,
+      "seconds": 121.33,
+      "logSHA256": "bc53b36ccb4eaa712dd24af4755cef25c4a41b1378f208df8f63b3ea1d22c609",
+      "counts": {},
+      "sourceCoherent": true,
+      "scope": "Independent code gates only; original Native-liveness preflight remains failed; eight existing births and one missing row unchanged"
+    }
+  ],
+  "repositorySuites": {
+    "pass": 34,
+    "fail": 0,
+    "suiteSeconds": 120.02,
+    "wallSeconds": 121.33
+  },
+  "distribution": {
+    "sameToolchainLocalDistributionEquality": true,
+    "oldFiles": 34,
+    "newFiles": 34,
+    "oldReceiptSHA256": "8b749e9990c5d64eab647855811f71ed6be29d9a3df8e2e174ef8cc30be86615",
+    "newReceiptSHA256": "aa8bfc70c43ccc3de012fe41c112fbb190d3f383204763744bfa68911b10861d",
+    "scope": "Local exact build equality only; no hosted distribution or GPU/native acceptance inferred"
+  },
+  "review": {
+    "rootV28": {
+      "pass": 589,
+      "skip": 0,
+      "receiptSHA256": "4c3be35360242cf9db4ebf4b2347b72ca6001aded34c1c05b02d986a614a2563"
+    },
+    "independentV28": {
+      "pass": 40,
+      "skip": 0,
+      "sourceReceiptSHA256": "4d67e311105988e1888140624f4ed8cca67ffc4668dbd9d5ceb0b21d9726656c",
+      "cpuReceiptSHA256": "9f95189748decde7d1e670be332f4b75a2336664f65428b2332cc9d35d2c2ba6"
+    },
+    "flow": {
+      "root": 85,
+      "independent": 85,
+      "desiredOriginal": "three RED",
+      "desiredCorrected": "three GREEN",
+      "wholeSourceInverses": 6,
+      "finalReadonlyPackagingReceiptSHA256": "b11632beb16622fae66ca07b0e00c2e0103fb1e50312ce099471475aa6ac9fcb"
+    },
+    "clock": {
+      "root": 46,
+      "independent": 46,
+      "desiredOriginal": "RED",
+      "desiredCorrected": "GREEN",
+      "meaning": "Synthetic functional fixture clock, not host CPU performance",
+      "productionLimitsChanged": false
+    },
+    "fiveFixtureBindings": {
+      "root": 18,
+      "independent": 18,
+      "independentReceiptSHA256": "14606a0f83c00e8c8c47022a0d8f291ae522233d6ea927cf98dc22d7c9299431",
+      "originalTargeted": {
+        "command": [
+          "flock",
+          "-w",
+          "30",
+          "/home/user/Documents/github/overte-autonomous-20261001/control/heavy-build.lock",
+          "node",
+          "--test",
+          "gateway/clipboard-wire.test.mjs",
+          "gateway/native-navigation-admission.test.mjs",
+          "gateway/push-to-talk-wire.test.mjs",
+          "gateway/session-admission.test.mjs",
+          "gateway/session-races.test.mjs"
+        ],
+        "exitCode": 0,
+        "tests": 47,
+        "pass": 47,
+        "fail": 0,
+        "cancelled": 0,
+        "skip": 0,
+        "durationMs": 548.054273,
+        "originalAssertionsChanged": false,
+        "realWebSocketCases": true,
+        "nativeBrowserServices": false,
+        "stdoutFileSaved": false,
+        "resultBasis": "Actual tool execution output; complete rerun will retain its own log"
+      }
+    },
+    "countsOverlapAndAreNotAdded": true
+  },
+  "retainedNegative": {
+    "firstFullUnit": {
+      "exitCode": 1,
+      "tests": 2973,
+      "pass": 2932,
+      "fail": 40,
+      "cancelled": 1,
+      "skip": 0,
+      "seconds": 466.839,
+      "logSHA256": "2e53adefaabef8093e371e07d2f9688250384979aeb776d86a13c905936a1c1e",
+      "ownedRunnerInterrupted": true,
+      "buildAndQuickStarted": false,
+      "fixedCause": "Five extracted VM fixtures omitted process.env and two omitted the actual avatarFlowEnabled helper. Clipboard kept an active handle after the configuration exception."
+    },
+    "sourceAssertionsAndDeadlinesPreserved": true,
+    "readonlyRecovery": "Earlier verifier refused before tests because owned copied directories were read-only; corrected verifier normalizes only its own stage permissions. Production sources unchanged."
+  },
+  "originalLivePreflight": {
+    "status": "FAILED before commands",
+    "category": "registered-native-birth-missing",
+    "otherMatchingBirths": 8,
+    "registryUnchanged": true,
+    "sourceAndIndexUnchangedDuringCodeGates": true,
+    "causeEstablished": false,
+    "serviceRestartOrRegistryRepair": false
+  },
+  "documentationFollowup": {
+    "onlyGuidesAndSafeProofsChangedAfterCodeChecks": true,
+    "requiredChecks": "documentation-contracts, documentation, workflow-action-pins; exact follow-up recorded before ordinary commit",
+    "results": {
+      "documentation-contracts": "passed",
+      "documentation": "passed",
+      "workflow-action-pins": "passed",
+      "pass": 3,
+      "fail": 0,
+      "seconds": 0.95
+    },
+    "actionlint": {
+      "version": "1.7.12",
+      "exitCode": 0,
+      "externalShellcheckAndPyflakes": "notrun; explicit empty flags in existing repository practice"
+    }
+  },
+  "limits": [
+    "Flow is default-off observation; no native-to-browser movement repair claimed.",
+    "Physical channel counters and retained sample rows do not prove same-envelope delivery, callback remote receipt, per-generation conservation or clock alignment.",
+    "Automatic 1f Chrome130 success and opt-in 129/130 censor failure both remain. Corrected synthetic-clock fixture still requires actual Chrome qualification.",
+    "The original 2800 ms movement wait, 4 MiB buffer threshold and all diagnostic byte/row limits remain.",
+    "Physical microphone, full Tablet, public Hub fluidness and native parity remain unfinished.",
+    "The user cancelled the 30-minute endurance requirement; no such session is claimed."
+  ]
+}

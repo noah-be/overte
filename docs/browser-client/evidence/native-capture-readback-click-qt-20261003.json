@@ -1,0 +1,164 @@
+{
+  "version": 1,
+  "scope": "Automated original Qt5.15.3 native Switch readback/click counterfactual and lifetime controls; isolated software Qt",
+  "sourcePacketManifestSHA256": "a65f3bc175f4a86cc3acfcc77179254d8e866f95b5787dcb5fc4e4236465f9a4",
+  "actualRawReportSHA256": "59c078eb08084f1afb9924427f36b2d08cee4f73504e87fe72009fa337c97174",
+  "sourceChanges": [
+    {
+      "path": "browser-client/gateway/native-browser-capture.js",
+      "beforeSHA256": "1d258ce76705033598e3f5decbe084e746feb2bcd19ba30f8b0c1afa416d6f2f",
+      "afterSHA256": "ba6d32f99acc960a9539c19faba5cdc8d6ad005f73f927b49a0941df247979c3",
+      "bytes": 5798
+    },
+    {
+      "path": "browser-client/gateway/browser-capture-overrides.mjs",
+      "beforeSHA256": "9a41d28676ada36d6a54bec5186214963d9864f6cad8c79e7abe666f9d36d7fe",
+      "afterSHA256": "38aa8a75aeca858af220f98a020fc6ab806b5611a28c6d3da1ea377b0e6f40bc",
+      "bytes": 13857
+    },
+    {
+      "path": "browser-client/gateway/browser-capture.test.mjs",
+      "beforeSHA256": "0cda7142dd4dc51dd188ff78a13aacdcf8367905028b6c5e9fc802c46816be6c",
+      "afterSHA256": "aea4777a77ec45521113d0b0420e189fe59c09427ffb928de1a73b8d1fce9190",
+      "bytes": 25607
+    },
+    {
+      "path": "browser-client/gateway/fixtures/native-browser-capture-readback-before.js.gz",
+      "beforeSHA256": null,
+      "afterSHA256": "3c152e1257a04e4afbfd5e1ed2ebf905a197839828ddef1c164aeaf84219467c",
+      "bytes": 2075
+    },
+    {
+      "path": "browser-client/gateway/fixtures/native-browser-capture-readback-before.qml.gz",
+      "beforeSHA256": null,
+      "afterSHA256": "922e1c9e585030edd48b6dfd049299b8fc74c30bf8efbf330cf5b1a84f45b716",
+      "bytes": 1822
+    }
+  ],
+  "qualification": {
+    "completed": true,
+    "sourceCoherent": true,
+    "managedRegistryUnchanged": true,
+    "ownedDisplayClosed": true,
+    "ownedQtClosed": true,
+    "hardwareOpened": false,
+    "ChromeLaunched": false,
+    "softwareQt": true,
+    "rows": [
+      {
+        "variant": "before",
+        "boundary": "unchanged-ready",
+        "pressedRetained": false,
+        "checkedChanged": false,
+        "requestCount": 0,
+        "pressCount": 1,
+        "releaseCount": 0,
+        "cancelCount": 1,
+        "clickCount": 0
+      },
+      {
+        "variant": "after",
+        "boundary": "unchanged-ready",
+        "pressedRetained": true,
+        "checkedChanged": true,
+        "requestCount": 1,
+        "pressCount": 1,
+        "releaseCount": 1,
+        "cancelCount": 0,
+        "clickCount": 0
+      },
+      {
+        "variant": "before",
+        "boundary": "pending-readback",
+        "pressedRetained": false,
+        "checkedChanged": false,
+        "requestCount": 0,
+        "pressCount": 1,
+        "releaseCount": 0,
+        "cancelCount": 1,
+        "clickCount": 0
+      },
+      {
+        "variant": "after",
+        "boundary": "pending-readback",
+        "pressedRetained": true,
+        "checkedChanged": true,
+        "requestCount": 1,
+        "pressCount": 1,
+        "releaseCount": 1,
+        "cancelCount": 0,
+        "clickCount": 0
+      },
+      {
+        "variant": "after",
+        "boundary": "programmatic-no-echo",
+        "requestCount": 0,
+        "pressCount": 0,
+        "releaseCount": 0,
+        "cancelCount": 0,
+        "applyingState": false
+      },
+      {
+        "variant": "after",
+        "boundary": "pending-change",
+        "requestCount": 0,
+        "pressCount": 1,
+        "releaseCount": 0,
+        "cancelCount": 1,
+        "applyingState": false
+      },
+      {
+        "variant": "after",
+        "boundary": "scope-revocation",
+        "requestCount": 0,
+        "pressCount": 1,
+        "releaseCount": 0,
+        "cancelCount": 1,
+        "applyingState": false
+      },
+      {
+        "variant": "after",
+        "boundary": "capture-ended",
+        "requestCount": 0,
+        "pressCount": 1,
+        "releaseCount": 0,
+        "cancelCount": 1,
+        "applyingState": false
+      },
+      {
+        "variant": "after",
+        "boundary": "stale-epoch",
+        "requestCount": 1,
+        "pressCount": 1,
+        "releaseCount": 1,
+        "cancelCount": 0,
+        "applyingState": false
+      },
+      {
+        "variant": "after",
+        "boundary": "change-refused",
+        "requestCount": 1,
+        "pressCount": 1,
+        "releaseCount": 1,
+        "cancelCount": 0,
+        "applyingState": false
+      }
+    ],
+    "exit": 0,
+    "originalReportSHA256": "59c078eb08084f1afb9924427f36b2d08cee4f73504e87fe72009fa337c97174",
+    "cpu": {
+      "tests": 29,
+      "passed": 29,
+      "skipped": 0,
+      "durationMs": 235.416243
+    }
+  },
+  "limits": {
+    "fullChromeAudioAcceptanceClaimed": false,
+    "hardwareMicrophoneTested": false,
+    "processingEfficacyProved": false,
+    "humanAudibilityProved": false,
+    "allPreviousClickFailuresAttributedToThisCause": false,
+    "RootShippingRuntimeAlreadyIntegrated": false
+  }
+}

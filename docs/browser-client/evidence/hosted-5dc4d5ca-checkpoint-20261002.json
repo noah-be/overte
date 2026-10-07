@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "scope": "Exact authorized-fork hosted workflow failures; cause distinguished from observation",
+  "runs": [
+    {
+      "runId": 36980752327,
+      "workflow": "Owned atomic settings diagnostic",
+      "sourceCommit": "5dc4d5caf27e82e0e10e0d0eda4007407a17d48a",
+      "conclusion": "failure",
+      "rawLogSHA256": "2bd866c581270a482e5b49975332ac346296b29235e2cca28d8848f5ace0037f",
+      "keyringBootstrapAndSignedStagingPassed": true,
+      "fullContracts": 67,
+      "failedContracts": 1,
+      "failureGate": "test_zero_cap_own_child_and_same_namespace_user_ipc_launch_preflight",
+      "outerReturnCode": 127,
+      "expectedReturnCode": 0,
+      "nativeProbeReached": false,
+      "failureCauseKnown": false
+    },
+    {
+      "runId": 36980752351,
+      "workflow": "Browser client",
+      "sourceCommit": "5dc4d5caf27e82e0e10e0d0eda4007407a17d48a",
+      "conclusion": "failure",
+      "rawLogSHA256": "6bf1233bb757b3b47b7823c445074baafa98f003c1d788dfe2a59e51c2cd1289",
+      "fixedRefusals": [
+        "python-import-alias-target-untrusted",
+        "runtime-package-path-not-root-trusted"
+      ],
+      "actualTargetKnown": false,
+      "nativeNamespaceQualificationReached": false,
+      "rightsOrReadOnlyGatesRelaxed": false
+    },
+    {
+      "runId": 36980757596,
+      "workflow": "Browser client",
+      "sourceCommit": "5dc4d5caf27e82e0e10e0d0eda4007407a17d48a",
+      "conclusion": "failure",
+      "rawLogSHA256": "099a0a0e46b554c9d0e7a0617a22adccc1c2040b8c11e64fa74dd09cb94c14f0",
+      "fixedRefusals": [
+        "python-import-alias-target-untrusted",
+        "runtime-package-path-not-root-trusted"
+      ],
+      "actualTargetKnown": false,
+      "nativeNamespaceQualificationReached": false,
+      "rightsOrReadOnlyGatesRelaxed": false
+    }
+  ],
+  "nextSteps": [
+    "Add fixed bounded ordinal/metadata/hash failure projection for interpreter inventory; retain immutable root ownership and readonly ancestry.",
+    "Observe the original outer unshare/setpriv preflight failure through fixed enums before changing prerequisites or policy."
+  ]
+}

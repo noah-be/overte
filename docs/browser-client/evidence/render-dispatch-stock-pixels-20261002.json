@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "scope": "Original registered authored World fixture; no domain/native/microphone or Hub performance claim",
+  "cohorts": [
+    {
+      "engine": "system-chromium",
+      "browserVersion": "154.0.8037.57",
+      "startedAt": "2026-10-02T07:21:54.856Z",
+      "finishedAt": "2026-10-02T07:21:57.396Z",
+      "completed": true,
+      "exactFullFramePixelHash": "6258e81c9188a7dcbe8eaca98ae6a1566e5809e79e0a8da54836f263628e6958",
+      "exactPixelsEqual": true,
+      "centersEqual": true,
+      "worldMatricesEqual": true,
+      "drawCallsEqual": true,
+      "methodIdentitiesUnchanged": true,
+      "programMethodUnchanged": true,
+      "originalRegisteredAssertionsPassed": true,
+      "completeAttributionSamples": 2,
+      "censoredAttributionSamples": 0,
+      "sourceSHA256": {
+        "src/world.ts": "33ab2d9e0daf8980688ee4565aea6160df92bbd7878039f762b4485fb29de653",
+        "src/main.ts": "dddf66df8e96a1387f1a094766384d08d17b10a27f65013521781548966a0f48",
+        "src/render-cpu-breakdown.ts": "4a327df415854057ba7300e5ed29f9be7dedeb54269a7c2e6c9eeb872b1d6914",
+        "src/render-dispatch-attribution.ts": "708246ebc09e15388d412204bfa9f68f5068477fc70e7e7eba129caacdcacb57",
+        "tests/render-cpu-breakdown-fixture.ts": "a17d3ac4900df27744d0b2925e7e3b521a0ccdf49fa6e75e3ab208776cf20837",
+        "tests/render-dispatch-attribution.browser.spec.ts": "67d79e424c40131e85f3033151570e5861c45a085b1de1d512dc1a5ff39a016b",
+        "tests/integration/render-dispatch-pixels.mjs": "cbbe0296fe37026d14df5b8d258fd8fb6bd0faa4ce11a0f1e35087434b414d58",
+        "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+        "package-lock.json": "76330fced87d7da3b6e550f9656bcb45da07fed560cc46d50a546b589d2dc695"
+      },
+      "sourceCoherent": true,
+      "ownedBrowserClosed": true,
+      "ownedDevelopmentServerClosed": true,
+      "rawReportSHA256": "a263dbd2520630abdaa17b97022cd85ab6129aada0ddbaf0f37cb0b78fa37b80"
+    },
+    {
+      "engine": "system-firefox",
+      "browserVersion": "firefox/156.0",
+      "startedAt": "2026-10-02T07:31:06.749Z",
+      "finishedAt": "2026-10-02T07:31:11.798Z",
+      "completed": true,
+      "exactFullFramePixelHash": "6258e81c9188a7dcbe8eaca98ae6a1566e5809e79e0a8da54836f263628e6958",
+      "exactPixelsEqual": true,
+      "centersEqual": true,
+      "worldMatricesEqual": true,
+      "drawCallsEqual": true,
+      "methodIdentitiesUnchanged": true,
+      "programMethodUnchanged": true,
+      "originalRegisteredAssertionsPassed": true,
+      "completeAttributionSamples": 2,
+      "censoredAttributionSamples": 0,
+      "sourceSHA256": {
+        "src/world.ts": "33ab2d9e0daf8980688ee4565aea6160df92bbd7878039f762b4485fb29de653",
+        "src/main.ts": "dddf66df8e96a1387f1a094766384d08d17b10a27f65013521781548966a0f48",
+        "src/render-cpu-breakdown.ts": "4a327df415854057ba7300e5ed29f9be7dedeb54269a7c2e6c9eeb872b1d6914",
+        "src/render-dispatch-attribution.ts": "708246ebc09e15388d412204bfa9f68f5068477fc70e7e7eba129caacdcacb57",
+        "tests/render-cpu-breakdown-fixture.ts": "a17d3ac4900df27744d0b2925e7e3b521a0ccdf49fa6e75e3ab208776cf20837",
+        "tests/render-dispatch-attribution.browser.spec.ts": "67d79e424c40131e85f3033151570e5861c45a085b1de1d512dc1a5ff39a016b",
+        "tests/integration/render-dispatch-pixels.mjs": "cbbe0296fe37026d14df5b8d258fd8fb6bd0faa4ce11a0f1e35087434b414d58",
+        "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+        "package-lock.json": "76330fced87d7da3b6e550f9656bcb45da07fed560cc46d50a546b589d2dc695"
+      },
+      "sourceCoherent": true,
+      "ownedBrowserClosed": true,
+      "ownedDevelopmentServerClosed": true,
+      "rawReportSHA256": "ce88f7d4a2314199f65239669617cb5a6a382f431fbc66922ec935ddc2ccd9ce"
+    }
+  ],
+  "limitations": [
+    "Default-off diagnostic only; observer overhead in overte_hub remains unmeasured.",
+    "The fixture uses actual WebGL2 rendering of two authored primitives, not full Hub content."
+  ]
+}

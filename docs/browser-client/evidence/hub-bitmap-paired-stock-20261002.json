@@ -1,0 +1,571 @@
+{
+  "schemaVersion": 1,
+  "materialAIAssistance": "OpenAI Codex",
+  "scope": "Four sequential short genuine overte_hub stock-browser baseline/bitmap journeys at unchanged default graphics quality, real native avatar synchronization and rejoin",
+  "publishedCheckpoint": "9939ba65a7342620c19ff04ef4d742a24880c67b",
+  "qualificationWorldSHA256": "65e22cc16ef843c2ac96e280a31c59e189cef9ba380a56f33382592293320e4a",
+  "microphoneRequested": false,
+  "publicWorldInteractionsSent": 0,
+  "sourcePinCount": 91,
+  "comparisons": [
+    {
+      "engine": "chromium",
+      "schema": 1,
+      "sourceMatched": true,
+      "distributionMatched": true,
+      "browserVersionMatched": true,
+      "viewportAndDensityMatched": true,
+      "drawingBuffersMatched": true,
+      "baselineGates": {
+        "steady": true,
+        "walk": true,
+        "reconnectedSteady": true,
+        "reconnectedWalk": true
+      },
+      "candidateGates": {
+        "steady": true,
+        "walk": true,
+        "reconnectedSteady": true,
+        "reconnectedWalk": true
+      },
+      "bothOriginalJourneysCompleted": true,
+      "bothFluidAcceptance": true,
+      "causalLoadingGain": false,
+      "wholeHubPixelEquivalence": false
+    },
+    {
+      "engine": "firefox",
+      "schema": 1,
+      "sourceMatched": true,
+      "distributionMatched": true,
+      "browserVersionMatched": true,
+      "viewportAndDensityMatched": true,
+      "drawingBuffersMatched": true,
+      "baselineGates": {
+        "steady": true,
+        "walk": true,
+        "reconnectedSteady": true,
+        "reconnectedWalk": true
+      },
+      "candidateGates": {
+        "steady": true,
+        "walk": true,
+        "reconnectedSteady": true,
+        "reconnectedWalk": true
+      },
+      "bothOriginalJourneysCompleted": true,
+      "bothFluidAcceptance": true,
+      "causalLoadingGain": false,
+      "wholeHubPixelEquivalence": false
+    }
+  ],
+  "cohorts": [
+    {
+      "engine": "chromium",
+      "mode": "baseline",
+      "exitCode": 0,
+      "completed": true,
+      "fluidPassed": true,
+      "browserVersion": "154.0.8037.57",
+      "sourceUnchanged": true,
+      "distributionUnchanged": true,
+      "rawSHA256": "31763b0e7efc802e01e43806056d9282caa3fed3589b172b34623f099026fa88",
+      "durationSeconds": 91.145,
+      "errorCategory": "none",
+      "sampleCount": 2,
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "devicePixelRatio": 1.000000015894571,
+        "visibility": "visible"
+      },
+      "sourceManifestSHA256": "5929507d182e7834ea1decae6b640a59544806b61a6452d08aaf8b62a3c13ebd",
+      "distributionManifestSHA256": "a9d3affe840933f7505e56bb38cbcad6a368da30447debef70774e88047d88a3",
+      "firstObservedWorldReadyAfterConnectedMs": 16757.0,
+      "firstReadyLoadedModels": 295,
+      "imageCounts": {
+        "requests": 115,
+        "uniqueImages": 71,
+        "cacheHits": 44,
+        "completed": 63,
+        "failed": 8,
+        "cancelled": 0
+      },
+      "fluidGates": {
+        "steadyFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "walkFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedSteadyFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedWalkFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        }
+      },
+      "bitmapSamples": [
+        {
+          "admissionOrdinal": 1,
+          "mode": "baseline",
+          "bindingCounters": {
+            "roots": 0,
+            "converted": 0,
+            "fallbacks": 0,
+            "unsupported": 0,
+            "capacityFallbacks": 0,
+            "activeRoots": 0,
+            "peakRoots": 0
+          },
+          "owner": null,
+          "drawingBuffer": {
+            "width": 1280,
+            "height": 800
+          },
+          "scope": "Existing loaded-world sample; live sampler bytes are not released-cache bytes or actual HTTP bytes"
+        },
+        {
+          "admissionOrdinal": 2,
+          "mode": "baseline",
+          "bindingCounters": {
+            "roots": 0,
+            "converted": 0,
+            "fallbacks": 0,
+            "unsupported": 0,
+            "capacityFallbacks": 0,
+            "activeRoots": 0,
+            "peakRoots": 0
+          },
+          "owner": null,
+          "drawingBuffer": {
+            "width": 1280,
+            "height": 800
+          },
+          "scope": "Existing loaded-world sample; live sampler bytes are not released-cache bytes or actual HTTP bytes"
+        }
+      ],
+      "nativeMovementVerified": true,
+      "browserCloseAwaited": true,
+      "managedServiceIdentitiesPreserved": true
+    },
+    {
+      "engine": "chromium",
+      "mode": "bitmap",
+      "exitCode": 0,
+      "completed": true,
+      "fluidPassed": true,
+      "browserVersion": "154.0.8037.57",
+      "sourceUnchanged": true,
+      "distributionUnchanged": true,
+      "rawSHA256": "08aba8df9757d93d7df1dd2343a31dfba5195991e8fae2517b04fb8574cd2d06",
+      "durationSeconds": 91.488,
+      "errorCategory": "none",
+      "sampleCount": 2,
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "devicePixelRatio": 1.000000015894571,
+        "visibility": "visible"
+      },
+      "sourceManifestSHA256": "5929507d182e7834ea1decae6b640a59544806b61a6452d08aaf8b62a3c13ebd",
+      "distributionManifestSHA256": "a9d3affe840933f7505e56bb38cbcad6a368da30447debef70774e88047d88a3",
+      "firstObservedWorldReadyAfterConnectedMs": 17203.0,
+      "firstReadyLoadedModels": 295,
+      "imageCounts": {
+        "requests": 115,
+        "uniqueImages": 71,
+        "cacheHits": 44,
+        "completed": 63,
+        "failed": 8,
+        "cancelled": 0
+      },
+      "fluidGates": {
+        "steadyFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "walkFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedSteadyFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedWalkFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        }
+      },
+      "bitmapSamples": [
+        {
+          "admissionOrdinal": 1,
+          "mode": "bitmap",
+          "bindingCounters": {
+            "roots": 405,
+            "converted": 50,
+            "fallbacks": 4,
+            "unsupported": 307,
+            "capacityFallbacks": 92,
+            "activeRoots": 0,
+            "peakRoots": 16
+          },
+          "owner": {
+            "requests": 54,
+            "hits": 17,
+            "created": 33,
+            "closed": 0,
+            "evictions": 33,
+            "cancelled": 0,
+            "failed": 0,
+            "closeFailures": 0,
+            "peakActive": 2,
+            "invalidations": 1,
+            "active": 0,
+            "pending": 0,
+            "readers": 0,
+            "retainedEntries": 0,
+            "liveEntries": 33,
+            "bytes": 133648948,
+            "leases": 50
+          },
+          "drawingBuffer": {
+            "width": 1280,
+            "height": 800
+          },
+          "scope": "Existing loaded-world sample; live sampler bytes are not released-cache bytes or actual HTTP bytes"
+        },
+        {
+          "admissionOrdinal": 2,
+          "mode": "bitmap",
+          "bindingCounters": {
+            "roots": 374,
+            "converted": 50,
+            "fallbacks": 4,
+            "unsupported": 307,
+            "capacityFallbacks": 123,
+            "activeRoots": 0,
+            "peakRoots": 16
+          },
+          "owner": {
+            "requests": 54,
+            "hits": 17,
+            "created": 33,
+            "closed": 0,
+            "evictions": 33,
+            "cancelled": 0,
+            "failed": 0,
+            "closeFailures": 0,
+            "peakActive": 2,
+            "invalidations": 1,
+            "active": 0,
+            "pending": 0,
+            "readers": 0,
+            "retainedEntries": 0,
+            "liveEntries": 33,
+            "bytes": 133648948,
+            "leases": 50
+          },
+          "drawingBuffer": {
+            "width": 1280,
+            "height": 800
+          },
+          "scope": "Existing loaded-world sample; live sampler bytes are not released-cache bytes or actual HTTP bytes"
+        }
+      ],
+      "nativeMovementVerified": true,
+      "browserCloseAwaited": true,
+      "managedServiceIdentitiesPreserved": true
+    },
+    {
+      "engine": "firefox",
+      "mode": "baseline",
+      "exitCode": 0,
+      "completed": true,
+      "fluidPassed": true,
+      "browserVersion": "firefox/156.0",
+      "sourceUnchanged": true,
+      "distributionUnchanged": true,
+      "rawSHA256": "793a6eaddc780e6a006bc8dd5ef7a3e6165677258521e36c4854659c87d0f095",
+      "durationSeconds": 99.732,
+      "errorCategory": "none",
+      "sampleCount": 2,
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "devicePixelRatio": 1.6666666666666667,
+        "visibility": "visible"
+      },
+      "sourceManifestSHA256": "5929507d182e7834ea1decae6b640a59544806b61a6452d08aaf8b62a3c13ebd",
+      "distributionManifestSHA256": "a9d3affe840933f7505e56bb38cbcad6a368da30447debef70774e88047d88a3",
+      "firstObservedWorldReadyAfterConnectedMs": 17526.0,
+      "firstReadyLoadedModels": 295,
+      "imageCounts": {
+        "requests": 115,
+        "uniqueImages": 71,
+        "cacheHits": 44,
+        "completed": 63,
+        "failed": 8,
+        "cancelled": 0
+      },
+      "fluidGates": {
+        "steadyFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "walkFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedSteadyFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedWalkFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        }
+      },
+      "bitmapSamples": [
+        {
+          "admissionOrdinal": 1,
+          "mode": "baseline",
+          "bindingCounters": {
+            "roots": 0,
+            "converted": 0,
+            "fallbacks": 0,
+            "unsupported": 0,
+            "capacityFallbacks": 0,
+            "activeRoots": 0,
+            "peakRoots": 0
+          },
+          "owner": null,
+          "drawingBuffer": {
+            "width": 2133,
+            "height": 1333
+          },
+          "scope": "Existing loaded-world sample; live sampler bytes are not released-cache bytes or actual HTTP bytes"
+        },
+        {
+          "admissionOrdinal": 2,
+          "mode": "baseline",
+          "bindingCounters": {
+            "roots": 0,
+            "converted": 0,
+            "fallbacks": 0,
+            "unsupported": 0,
+            "capacityFallbacks": 0,
+            "activeRoots": 0,
+            "peakRoots": 0
+          },
+          "owner": null,
+          "drawingBuffer": {
+            "width": 2133,
+            "height": 1333
+          },
+          "scope": "Existing loaded-world sample; live sampler bytes are not released-cache bytes or actual HTTP bytes"
+        }
+      ],
+      "nativeMovementVerified": true,
+      "browserCloseAwaited": true,
+      "managedServiceIdentitiesPreserved": true
+    },
+    {
+      "engine": "firefox",
+      "mode": "bitmap",
+      "exitCode": 0,
+      "completed": true,
+      "fluidPassed": true,
+      "browserVersion": "firefox/156.0",
+      "sourceUnchanged": true,
+      "distributionUnchanged": true,
+      "rawSHA256": "528ba0c68964321f13ec4a253a15555ec5ce4d964574da82f6ece0e79303ecd4",
+      "durationSeconds": 100.435,
+      "errorCategory": "none",
+      "sampleCount": 2,
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "devicePixelRatio": 1.6666666666666667,
+        "visibility": "visible"
+      },
+      "sourceManifestSHA256": "5929507d182e7834ea1decae6b640a59544806b61a6452d08aaf8b62a3c13ebd",
+      "distributionManifestSHA256": "a9d3affe840933f7505e56bb38cbcad6a368da30447debef70774e88047d88a3",
+      "firstObservedWorldReadyAfterConnectedMs": 17686.0,
+      "firstReadyLoadedModels": 295,
+      "imageCounts": {
+        "requests": 115,
+        "uniqueImages": 71,
+        "cacheHits": 44,
+        "completed": 63,
+        "failed": 8,
+        "cancelled": 0
+      },
+      "fluidGates": {
+        "steadyFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "walkFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedSteadyFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedWalkFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        }
+      },
+      "bitmapSamples": [
+        {
+          "admissionOrdinal": 1,
+          "mode": "bitmap",
+          "bindingCounters": {
+            "roots": 497,
+            "converted": 50,
+            "fallbacks": 4,
+            "unsupported": 315,
+            "capacityFallbacks": 0,
+            "activeRoots": 0,
+            "peakRoots": 3
+          },
+          "owner": {
+            "requests": 54,
+            "hits": 17,
+            "created": 33,
+            "closed": 0,
+            "evictions": 33,
+            "cancelled": 0,
+            "failed": 0,
+            "closeFailures": 0,
+            "peakActive": 2,
+            "invalidations": 1,
+            "active": 0,
+            "pending": 0,
+            "readers": 0,
+            "retainedEntries": 0,
+            "liveEntries": 33,
+            "bytes": 133648948,
+            "leases": 50
+          },
+          "drawingBuffer": {
+            "width": 2133,
+            "height": 1333
+          },
+          "scope": "Existing loaded-world sample; live sampler bytes are not released-cache bytes or actual HTTP bytes"
+        },
+        {
+          "admissionOrdinal": 2,
+          "mode": "bitmap",
+          "bindingCounters": {
+            "roots": 497,
+            "converted": 50,
+            "fallbacks": 4,
+            "unsupported": 315,
+            "capacityFallbacks": 0,
+            "activeRoots": 0,
+            "peakRoots": 2
+          },
+          "owner": {
+            "requests": 54,
+            "hits": 17,
+            "created": 33,
+            "closed": 0,
+            "evictions": 33,
+            "cancelled": 0,
+            "failed": 0,
+            "closeFailures": 0,
+            "peakActive": 2,
+            "invalidations": 1,
+            "active": 0,
+            "pending": 0,
+            "readers": 0,
+            "retainedEntries": 0,
+            "liveEntries": 33,
+            "bytes": 133648948,
+            "leases": 50
+          },
+          "drawingBuffer": {
+            "width": 2133,
+            "height": 1333
+          },
+          "scope": "Existing loaded-world sample; live sampler bytes are not released-cache bytes or actual HTTP bytes"
+        }
+      ],
+      "nativeMovementVerified": true,
+      "browserCloseAwaited": true,
+      "managedServiceIdentitiesPreserved": true
+    }
+  ],
+  "claims": {
+    "bothEnginesAllFourOriginalFluidGatesPassed": true,
+    "generalLoadingSpeedGainEstablished": false,
+    "wholeHubPixelEquivalenceEstablished": false,
+    "bitmapEnabledByDefault": false,
+    "physicalMicrophoneTested": false,
+    "enduranceTestPerformed": false
+  },
+  "limits": [
+    "One short ordered baseline/candidate pair per engine; live online scene and network conditions vary",
+    "Readiness is sampled every three seconds after connection; overlapping phase durations are not isolated CPU/GPU timings",
+    "Bitmap exact pixels were separately proved on authored literal variants and actual World Image, not every Hub asset",
+    "Additional rendering diagnostics and unrelated default-off experiments were disabled in both cohorts",
+    "User canceled thirty-minute and endurance tests; none were performed"
+  ]
+}

@@ -1,0 +1,154 @@
+{
+  "schemaVersion": 1,
+  "browser": "firefox",
+  "status": "passed",
+  "completed": true,
+  "scope": "Real local managed-domain core journey; no public-world fluidness claim",
+  "audio": "Synthetic signals at actual browser/native outputs; no physical microphone claim",
+  "endurance": "Omitted at the user\u2019s explicit instruction",
+  "checkpoints": [
+    {
+      "name": "actual-domain-joined",
+      "at": "2026-10-02T01:24:44.474Z",
+      "entityCount": 7,
+      "avatarCount": 1
+    },
+    {
+      "name": "native-sees-browser",
+      "at": "2026-10-02T01:24:44.760Z",
+      "nativeOtherParticipants": 1
+    },
+    {
+      "name": "movement-measured",
+      "at": "2026-10-02T01:24:49.074Z",
+      "distanceMeters": 0.7000164492428623,
+      "renderPerformance": {
+        "fps": 21.42838010374907,
+        "p95FrameMs": 134.8199999999997,
+        "maximumFrameMs": 1221.119999999999,
+        "drawCalls": 7,
+        "triangles": 782
+      }
+    },
+    {
+      "name": "browser-movement-synchronized",
+      "at": "2026-10-02T01:24:49.092Z",
+      "distanceMeters": 0.7000164492428623
+    },
+    {
+      "name": "native-movement-synchronized",
+      "at": "2026-10-02T01:24:51.964Z"
+    },
+    {
+      "name": "actual-world-collision",
+      "at": "2026-10-02T01:24:53.983Z"
+    },
+    {
+      "name": "interaction-measured",
+      "at": "2026-10-02T01:24:55.727Z"
+    },
+    {
+      "name": "interaction-observed-by-native",
+      "at": "2026-10-02T01:24:55.733Z"
+    },
+    {
+      "name": "browser-to-native-audio",
+      "at": "2026-10-02T01:25:02.641Z",
+      "nativeOutput": {
+        "rms": 0.00823729630275502,
+        "peak": 0.020172119140625,
+        "bytes": 955248,
+        "tone440Amplitude": 1.1253120605558399e-07,
+        "tone997Amplitude": 6.727539761830135e-06
+      }
+    },
+    {
+      "name": "native-to-browser-audio",
+      "at": "2026-10-02T01:25:17.032Z",
+      "browserOutput": {
+        "rms": 0.011445066807265508,
+        "peak": 0.02484130859375,
+        "bytes": 957712,
+        "tone440Amplitude": 3.777897272918627e-07,
+        "tone997Amplitude": 0.009457839472451693
+      }
+    },
+    {
+      "name": "stable-real-connection",
+      "at": "2026-10-02T01:25:17.040Z",
+      "connectedSeconds": 33.441
+    },
+    {
+      "name": "native-observed-clean-leave",
+      "at": "2026-10-02T01:25:19.566Z"
+    },
+    {
+      "name": "reconnected-to-actual-domain",
+      "at": "2026-10-02T01:25:36.164Z"
+    },
+    {
+      "name": "reconnection-movement-observed",
+      "at": "2026-10-02T01:25:37.440Z"
+    },
+    {
+      "name": "reconnection-movement",
+      "at": "2026-10-02T01:25:37.445Z",
+      "distanceMeters": 1.306671346776551
+    },
+    {
+      "name": "mouse-look",
+      "at": "2026-10-02T01:25:38.241Z"
+    },
+    {
+      "name": "final-view",
+      "at": "2026-10-02T01:25:38.789Z"
+    },
+    {
+      "name": "all-real-session-assertions-passed",
+      "at": "2026-10-02T01:25:42.404Z"
+    }
+  ],
+  "sourceSHA256": {
+    "browser-client/gateway/server.mjs": "f8399c1015cb85ada0da613b9278b8a90dca0660d2478b8810d43161b1ed237c",
+    "browser-client/gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+    "browser-client/gateway/process-lifecycle.mjs": "e8d7e021a8b934b271910883e27c2a1109aedd22e12044b763d4bf8acc274eaf",
+    "browser-client/gateway/validation.mjs": "65eba4a66c76d4bfc0dbd18e172def64f43b37cca0db2301da5bf4d18645de79",
+    "browser-client/gateway/permission-policy.mjs": "1547f4106e4b4fb72701a434a4afb57907f3af9797e4daf4c8793e034587d591",
+    "browser-client/dist/index.html": "a8179eb2b735f87673c8e3a77c1ba8324a07ca9e8897a6ac621c0dd17e40e2fc",
+    "browser-client/tests/integration/real-session.mjs": "54ee21258fc18391d4bece4d57c9dbf2e22ecaf276b2a3a915e060b645b693a8",
+    "browser-client/tests/integration/owned-audio-process.mjs": "0f4ed9d41c59e5af93a7bc5451ab09d10c15ce05dbd440f5551b3d79974867a8",
+    "browser-client/tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+    "browser-client/package-lock.json": "76330fced87d7da3b6e550f9656bcb45da07fed560cc46d50a546b589d2dc695",
+    "browser-client/dist/assets/FBXLoader-BRIjXSLO.js": "43668e3a0eff19a33034fa8134c1eefea3b9eacf267280997676a5c0415545cc",
+    "browser-client/dist/assets/FBXLoader-BRIjXSLO.js.map": "4e9b2caf22c417bdb01709571936d28c193f1a8e86fd957b93de68e684cd444c",
+    "browser-client/dist/assets/GLTFLoader-xoLET5tc.js": "333b01c0fe1b6d4bf3cdebd90b02c89b672b6be67c0032470ac9ef81fc042651",
+    "browser-client/dist/assets/GLTFLoader-xoLET5tc.js.map": "467e2b039a3c286a25ec7788170b54dbecb2a3a6ff2faa33910b502e450e6e18",
+    "browser-client/dist/assets/OBJLoader-DmtQcgYj.js": "a952b30c953d727012e92011320fce8ee45966ea829a0b55fc76f355a691db51",
+    "browser-client/dist/assets/OBJLoader-DmtQcgYj.js.map": "d732d75a155cfa7e53d9e280268625ba88d0980d469053c449415ed630279fd2",
+    "browser-client/dist/assets/baked-draco-C2cWfkC-.js": "ed0221d1c121e2e4166afbdcc721be7c46246fedf72aa85116c61e3e6fc0a698",
+    "browser-client/dist/assets/baked-draco-C2cWfkC-.js.map": "f367909f2b809bf011d1595eb8c7a6d6f06163ed823839378054a5b77c39a1df",
+    "browser-client/dist/assets/baked-draco-legacy-CMhlgON6.js": "eb84ebc5eff49c7b0593382b07b23010897080f46b779ececdd515efcfb482d4",
+    "browser-client/dist/assets/baked-draco-legacy-CMhlgON6.js.map": "463d7b6f8dd5f569f2c0f68934aba0d1fba6c59745cf939732702f0e905afddb",
+    "browser-client/dist/assets/draco_decoder-C32yEggz.wasm": "c55a594e8ffd18426d36b27fea9618af3df5e173640a3e56d46f09d76f0574f2",
+    "browser-client/dist/assets/draco_decoder-Z1_iN-Ht.wasm": "a680d927bed9cb864ddbd63521868891af2bfbe755092761b4837487618df8ac",
+    "browser-client/dist/assets/draco_decoder-fzg4nYZr.js": "30e4d486fa020737af10e3c56197693e5b904bdc05b8bfa5d7b06751dec6da04",
+    "browser-client/dist/assets/draco_wasm_wrapper-DxJM36Ib.js": "e8049906ef3f8f75d3456c22a3f31bfdfe5b5b5bd09ccdec613b9e9a49d554d8",
+    "browser-client/dist/assets/draco_wasm_wrapper-fZCQGLGb.js": "8bb2952d2ba7d67e1414f8df819410cb0434a666be53f671fff75f68843d76f6",
+    "browser-client/dist/assets/index-B2mAMfm4.css": "cbf321b921d05ff91c3020a6ccffc91385eeebf223ea6ec0577c6354df12a521",
+    "browser-client/dist/assets/index-ClktCGMW.js": "f6ccd6f25bbe1b76d8336d11c1d2770f19bf15b90f9fc09cb927f7ddf160b5e1",
+    "browser-client/dist/assets/index-ClktCGMW.js.map": "e258ef2580c6ec25a8090d94389efd607da16af1ce63d299d556219ecfae42af",
+    "browser-client/dist/assets/model-fbx-worker-IRDjibFR.js": "0f8e47ffa43d75c813c4c46122239587c22580214653735d9f4ebffdf94bc485",
+    "browser-client/dist/assets/model-fbx-worker-IRDjibFR.js.map": "e9e9d2c463bbd78300b68419db88b953b7aa027c3ee51bbe33193f2a5ac117fd",
+    "browser-client/dist/assets/tablet-gif.worker-DACjp6Cn.js": "78ebb1c3db4d062dd4119c2cd86d201b7df2757fedf22a8993dd460fbb1057c8",
+    "browser-client/dist/assets/tablet-gif.worker-DACjp6Cn.js.map": "0d3741b166327d49c79829e03bc313c6ac33ad62ed758a1e59877e19a40c5264",
+    "browser-client/dist/assets/texture-alpha-worker-CBG2kYQR.js": "f04f415ff39370ae4ab0268903ffaf6c86b9a7addeb0aed95d4a7948ee803485",
+    "browser-client/dist/assets/texture-alpha-worker-CBG2kYQR.js.map": "f48e806d67a554aba1960a23ab434a093c5ac7f00540615cf23ed1fff0586aeb"
+  },
+  "startedAt": "2026-10-02T01:24:26.869Z",
+  "finishedAt": "2026-10-02T01:25:42.404Z",
+  "browserVersion": "155.0",
+  "nativeVersion": "2026.04.1",
+  "journeySeconds": 75.535,
+  "continuousSharedSessionSeconds": 0,
+  "testedCommitSHA": "09c062bf5a371df78b01014dccfdbc4c37febcb9"
+}

@@ -1,0 +1,279 @@
+{
+  "schemaVersion": 1,
+  "scope": "Actual standalone Firefox156 public geometry/viewport API diagnostics, no domain/browser-feature acceptance or physical microphone test",
+  "materialAssistance": "OpenAI Codex",
+  "records": [
+    {
+      "startedAt": "2026-10-01T18:56:27.524Z",
+      "requested": {
+        "width": 1280,
+        "height": 900
+      },
+      "browserVersion": "firefox/156.0",
+      "error": "Waiting failed: 10000ms exceeded",
+      "exact": false,
+      "actual": {
+        "width": 1280,
+        "height": 899,
+        "outerWidth": 1332,
+        "outerHeight": 1036,
+        "density": 1.6666666666666667,
+        "screenWidth": 2304,
+        "screenHeight": 1296,
+        "availableWidth": 2304,
+        "availableHeight": 1296
+      },
+      "bounds": {
+        "left": 0,
+        "top": 0,
+        "width": 1332,
+        "height": 1036,
+        "windowState": "normal"
+      },
+      "finishedAt": "2026-10-01T18:56:41.828Z",
+      "rawSHA256": "59791cbf6d22c2df50eb51546390b9f0bc9aa3bc2d09b3fd60a4e215963b2ce8",
+      "label": "current-firefox-window-diagnostic"
+    },
+    {
+      "startedAt": "2026-10-01T18:58:44.059Z",
+      "requested": {
+        "width": 1280,
+        "height": 900
+      },
+      "browserVersion": "firefox/156.0",
+      "error": "Waiting failed: 8288ms exceeded",
+      "exact": false,
+      "actual": {
+        "width": 1280,
+        "height": 899,
+        "outerWidth": 1332,
+        "outerHeight": 1036,
+        "density": 1.6666666666666667
+      },
+      "bounds": {
+        "left": 0,
+        "top": 0,
+        "width": 1332,
+        "height": 1036,
+        "windowState": "normal"
+      },
+      "finishedAt": "2026-10-01T18:58:58.276Z",
+      "rawSHA256": "f60aa9fed053d2706c98be4eee8c121b2d7b9462b3e25714ed654a95d44205db",
+      "label": "current-firefox-window-corrected"
+    },
+    {
+      "startedAt": "2026-10-01T19:00:55.402Z",
+      "requested": {
+        "width": 1280,
+        "height": 900
+      },
+      "browserVersion": "firefox/156.0",
+      "error": "Waiting failed: 8268ms exceeded",
+      "exact": false,
+      "actual": {
+        "width": 1280,
+        "height": 899,
+        "outerWidth": 1332,
+        "outerHeight": 1036,
+        "density": 1.6666666666666667
+      },
+      "bounds": {
+        "left": 0,
+        "top": 0,
+        "width": 1332,
+        "height": 1036,
+        "windowState": "normal"
+      },
+      "finishedAt": "2026-10-01T19:01:09.365Z",
+      "rawSHA256": "705eb5541be324c59f6e733c5df1192cd1f77847cf8acd176043e3c569fb0290",
+      "label": "current-firefox-window-corrected-rounded"
+    },
+    {
+      "startedAt": "2026-10-01T19:03:06.424Z",
+      "samples": [
+        {
+          "requested": {
+            "width": 1332,
+            "height": 1036
+          },
+          "actual": {
+            "width": 1280,
+            "height": 899,
+            "outerWidth": 1332,
+            "outerHeight": 1036,
+            "density": 1.6666666666666667
+          },
+          "bounds": {
+            "left": 0,
+            "top": 0,
+            "width": 1332,
+            "height": 1036,
+            "windowState": "normal"
+          }
+        },
+        {
+          "requested": {
+            "width": 1332,
+            "height": 1037
+          },
+          "actual": {
+            "width": 1280,
+            "height": 901,
+            "outerWidth": 1332,
+            "outerHeight": 1037,
+            "density": 1.6666666666666667
+          },
+          "bounds": {
+            "left": 0,
+            "top": 0,
+            "width": 1332,
+            "height": 1037,
+            "windowState": "normal"
+          }
+        },
+        {
+          "requested": {
+            "width": 1332,
+            "height": 1038
+          },
+          "actual": {
+            "width": 1280,
+            "height": 902,
+            "outerWidth": 1332,
+            "outerHeight": 1038,
+            "density": 1.6666666666666667
+          },
+          "bounds": {
+            "left": 0,
+            "top": 0,
+            "width": 1332,
+            "height": 1038,
+            "windowState": "normal"
+          }
+        },
+        {
+          "requested": {
+            "width": 1332,
+            "height": 1039
+          },
+          "actual": {
+            "width": 1280,
+            "height": 902,
+            "outerWidth": 1332,
+            "outerHeight": 1039,
+            "density": 1.6666666666666667
+          },
+          "bounds": {
+            "left": 0,
+            "top": 0,
+            "width": 1332,
+            "height": 1039,
+            "windowState": "normal"
+          }
+        },
+        {
+          "requested": {
+            "width": 1332,
+            "height": 1040
+          },
+          "actual": {
+            "width": 1280,
+            "height": 904,
+            "outerWidth": 1332,
+            "outerHeight": 1040,
+            "density": 1.6666666666666667
+          },
+          "bounds": {
+            "left": 0,
+            "top": 0,
+            "width": 1332,
+            "height": 1040,
+            "windowState": "normal"
+          }
+        },
+        {
+          "requested": {
+            "width": 1332,
+            "height": 1042
+          },
+          "actual": {
+            "width": 1280,
+            "height": 905,
+            "outerWidth": 1332,
+            "outerHeight": 1042,
+            "density": 1.6666666666666667
+          },
+          "bounds": {
+            "left": 0,
+            "top": 0,
+            "width": 1332,
+            "height": 1042,
+            "windowState": "normal"
+          }
+        },
+        {
+          "requested": {
+            "width": 1332,
+            "height": 1045
+          },
+          "actual": {
+            "width": 1280,
+            "height": 908,
+            "outerWidth": 1332,
+            "outerHeight": 1045,
+            "density": 1.6666666666666667
+          },
+          "bounds": {
+            "left": 0,
+            "top": 0,
+            "width": 1332,
+            "height": 1045,
+            "windowState": "normal"
+          }
+        }
+      ],
+      "initial": {
+        "left": 0,
+        "top": 0,
+        "width": 1332,
+        "height": 1092,
+        "windowState": "normal"
+      },
+      "finishedAt": "2026-10-01T19:03:11.122Z",
+      "rawSHA256": "9437033c8b984214a966f030055dbf8877592a85f4b9ff99733652f96b679283",
+      "label": "current-firefox-window-sweep"
+    },
+    {
+      "startedAt": "2026-10-01T19:04:13.344Z",
+      "before": {
+        "width": 1280,
+        "height": 956,
+        "density": 1.6666666666666667
+      },
+      "error": "browsingContext.setViewport timed out. Increase the 'protocolTimeout' setting in launch/connect calls for a higher timeout if needed.",
+      "after": {
+        "width": 1280,
+        "height": 900,
+        "density": 1.6666666666666667
+      },
+      "bounds": {
+        "left": 0,
+        "top": 0,
+        "width": 1332,
+        "height": 1092,
+        "windowState": "normal"
+      },
+      "finishedAt": "2026-10-01T19:04:32.917Z",
+      "rawSHA256": "2b8d3a0e4509c81eea1f5fc254055cb0e828ca567f58250641fb8db80ae14e48",
+      "label": "current-firefox-viewport-api-probe"
+    }
+  ],
+  "limitations": [
+    "Original900CSS target became899at nativeDPR1.6667 through public WM sizing.",
+    "Three-correction and carry-correction attempts both failed and were removed from shipping tools.",
+    "Actual WM sweep produced899/901nearest heights; no tested integer outer height produced900.",
+    "The viewport API independently produced actual1280x900at unchanged DPR, but its acknowledgement timed out.",
+    "No actual bounded fallback or native Create/Firefox acceptance is established by this standalone geometry evidence.",
+    "All probe-owned browsers closed; no operator profile or desktop-density setting changed."
+  ]
+}

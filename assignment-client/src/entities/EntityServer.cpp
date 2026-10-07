@@ -1,3 +1,4 @@
+// Modified in 2026 for the optional direct browser transport.
 //
 //  EntityServer.cpp
 //  assignment-client/src/entities
@@ -32,6 +33,7 @@
 #include "EntityNodeData.h"
 #include "EntityServerConsts.h"
 #include "EntityTreeSendThread.h"
+#include "BrowserEntityProjection.h"
 
 const char* MODEL_SERVER_NAME = "Entity";
 const char* MODEL_SERVER_LOGGING_TARGET_NAME = "entity-server";
@@ -61,6 +63,10 @@ EntityServer::EntityServer(ReceivedMessage& message) :
         PacketType::EntityErase,
         PacketType::EntityPhysics },
         PacketReceiver::makeSourcedListenerReference<EntityServer>(this, &EntityServer::handleEntityPacket));
+    packetReceiver.registerListener(PacketType::BrowserEntityQuery,
+        PacketReceiver::makeSourcedListenerReference<EntityServer>(this, &EntityServer::handleBrowserEntityQuery));
+    connect(DependencyManager::get<NodeList>().data(), &NodeList::nodeKilled, this,
+        [this](const SharedNodePointer& node) { _browserQueryTimes.remove(node->getUUID()); });
 }
 
 EntityServer::~EntityServer() {
@@ -87,6 +93,55 @@ void EntityServer::handleEntityPacket(QSharedPointer<ReceivedMessage> message, S
     if (_octreeInboundPacketProcessor) {
         _octreeInboundPacketProcessor->queueReceivedPacket(message, senderNode);
     }
+}
+
+void EntityServer::handleBrowserEntityQuery(QSharedPointer<ReceivedMessage> message, SharedNodePointer senderNode) {
+    // PacketReceiver has already required a known node, current packet version,
+    // and its connection-secret HMAC. No anonymous HTTP export or admission bypass.
+    if (!senderNode || senderNode->getType() != NodeType::Agent || !senderNode->getActiveSocket()
+        || message->getSize() > 1024 || !_tree || !isInitialLoadComplete()) {
+        return;
+    }
+    const auto now = usecTimestampNow();
+    const auto previous = _browserQueryTimes.value(senderNode->getUUID(), 0);
+    if (now - previous < 500000) {
+        return;
+    }
+    _browserQueryTimes.insert(senderNode->getUUID(), now);
+    QJsonParseError parseError;
+    const auto request = QJsonDocument::fromJson(message->readAll(), &parseError).object();
+    if (parseError.error != QJsonParseError::NoError || request.value("version").toInt() != 1
+        || request.value("revision").toString().size() > 64) {
+        return;
+    }
+
+    // Share one short-lived canonical snapshot across visitors. Serialization
+    // cost must not grow with every admitted browser's poll in the same window.
+    if (_browserSnapshotTime == 0 || now - _browserSnapshotTime >= 500000) {
+        QVariantMap description;
+        auto tree = std::static_pointer_cast<EntityTree>(_tree);
+        tree->writeToMap(description, OctreeElementPointer(), true, false);
+        const auto entities = browserEntityProjection(QJsonArray::fromVariantList(description.value("Entities").toList()));
+        const auto serialized = QJsonDocument(entities).toJson(QJsonDocument::Compact);
+        _browserSnapshot = QJsonObject{{"version", 1}};
+        // Bound a reliable message before queuing it; never truncate a world.
+        constexpr int MAX_BROWSER_SNAPSHOT_BYTES = 16 * 1024 * 1024;
+        if (serialized.size() > MAX_BROWSER_SNAPSHOT_BYTES) {
+            _browserSnapshot.insert("error", "The entity snapshot exceeds this server's browser limit.");
+        } else {
+            _browserSnapshot.insert("revision", QString::fromLatin1(
+                QCryptographicHash::hash(serialized, QCryptographicHash::Sha256).toHex()));
+            _browserSnapshot.insert("entities", entities);
+        }
+        _browserSnapshotTime = now;
+    }
+    auto response = _browserSnapshot;
+    if (response.value("revision").toString() == request.value("revision").toString()) {
+        response.remove("entities");
+    }
+    auto reply = NLPacketList::create(PacketType::BrowserEntityData, QByteArray(), true, true);
+    reply->write(QJsonDocument(response).toJson(QJsonDocument::Compact));
+    DependencyManager::get<NodeList>()->sendPacketList(std::move(reply), *senderNode);
 }
 
 std::unique_ptr<OctreeQueryNode> EntityServer::createOctreeQueryNode() {
