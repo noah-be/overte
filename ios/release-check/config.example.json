@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "distribution": "sideload-unsigned",
+  "bundleIdentifier": "org.overte.interface.dev",
+  "marketingVersion": "0.1.0",
+  "buildNumber": "1",
+  "previousBuildNumber": "0",
+  "artifact": "/private/release-input/candidate.ipa",
+  "artifactSha256": "REPLACE_WITH_SHA256",
+  "conanGraph": "/private/release-input/conan/graph.json",
+  "completeSbom": "/private/release-input/complete-sbom.cdx.json",
+  "cleanBuildReceipt": "/private/release-input/clean-build-receipt.json",
+  "cleanBuild": {
+    "conanLock": "/private/release-input/conan.lock",
+    "conanLockSha256": "REPLACE_WITH_SHA256",
+    "jobs": 4,
+    "inputs": {
+      "qt-ios": {"archive": "/private/release-input/qt-ios.zip", "sha256": "REPLACE_WITH_SHA256", "root": "."},
+      "qt-host": {"archive": "/private/release-input/qt-host.zip", "sha256": "REPLACE_WITH_SHA256", "root": "."},
+      "v8": {"archive": "/private/release-input/v8.zip", "sha256": "REPLACE_WITH_SHA256", "root": "."},
+      "moltenvk": {"archive": "/private/release-input/moltenvk.zip", "sha256": "REPLACE_WITH_SHA256", "root": "."}
+    }
+  },
+  "toolLocks": {},
+  "reviews": {},
+  "deviceTargets": [
+    {"formFactor": "iphone", "targetConfig": "/private/release-input/iphone-target.json", "e2eArtifact": "/private/release-input/e2e.ipa", "e2eSha256": "REPLACE_WITH_SHA256", "results": {}, "longRunningResults": [], "metrics": "/private/release-input/iphone-metrics.json"},
+    {"formFactor": "ipad", "targetConfig": "/private/release-input/ipad-target.json", "e2eArtifact": "/private/release-input/e2e.ipa", "e2eSha256": "REPLACE_WITH_SHA256", "results": {}, "longRunningResults": [], "metrics": "/private/release-input/ipad-metrics.json"}
+  ]
+}
