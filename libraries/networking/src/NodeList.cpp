@@ -1,3 +1,4 @@
+// Modified in 2026 for the optional direct browser transport.
 //
 //  NodeList.cpp
 //  libraries/networking/src
@@ -11,6 +12,7 @@
 //
 
 #include "NodeList.h"
+#include "ObservedLoopbackSocketPolicy.h"
 #include "../../../security/redaction/SafeDiagnostics.h"
 
 #include <chrono>
@@ -960,9 +962,26 @@ void NodeList::activateSocketFromNodeCommunication(ReceivedMessage& message, con
     quint8 pingType;
     packetStream >> pingType;
 
+    const SockAddr* advertisedSocket = nullptr;
+    if (pingType == PingType::Local) {
+        advertisedSocket = &sendingNode->getLocalSocket();
+    } else if (pingType == PingType::Public) {
+        advertisedSocket = &sendingNode->getPublicSocket();
+    } else if (pingType == PingType::Symmetric) {
+        advertisedSocket = &sendingNode->getSymmetricSocket();
+    }
+    const auto& senderSocket = message.getSenderSockAddr();
+    const bool useObservedLoopbackSocket = advertisedSocket
+        && message.getSourceID() == sendingNode->getLocalID()
+        && nodeWithUUID(sendingNode->getUUID()) == sendingNode
+        && shouldUseObservedNativeLoopbackSocket(_nodeSocket.udpBindAddress(), senderSocket,
+                                                sendingNode.data(), *advertisedSocket);
+
     // if this is a local or public ping then we can activate a socket
     // we do nothing with agnostic pings, those are simply for timing
-    if (pingType == PingType::Local && sendingNode->getActiveSocket() != &sendingNode->getLocalSocket()) {
+    if (useObservedLoopbackSocket) {
+        sendingNode->activateMatchingOrNewSymmetricSocket(senderSocket);
+    } else if (pingType == PingType::Local && sendingNode->getActiveSocket() != &sendingNode->getLocalSocket()) {
         sendingNode->activateLocalSocket();
     } else if (pingType == PingType::Public && !sendingNode->getActiveSocket()) {
         sendingNode->activatePublicSocket();

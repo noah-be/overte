@@ -1,0 +1,408 @@
+{
+  "description": "Actual public overte_hub, visitor-device WebGL, keyboard walking, real model mesh collisions, current native avatar agreement, clean leave and fully loaded rejoin. Always-muted normal guest sessions; no public entity/asset edits. No endurance test.",
+  "acceptance": {
+    "minimumFPS": 30,
+    "maximumP95FrameMilliseconds": 66.66666666666667,
+    "maximumSteadyStallMilliseconds": 250,
+    "minimumActualIntervalsPerMeasurement": 120
+  },
+  "scope": "Measured desktop GPU/browser sessions, not a promise for every device or public domain. The inspected world still reports unavailable asset dependencies; screenshots retain the warning. Leaf alpha/native visual comparison remains separate.",
+  "commands": {
+    "firefox": "OVERTE_LAB_URL=http://127.0.0.1:8095 OVERTE_LAB_BROWSER=system-firefox OVERTE_LAB_BROWSER_DISPLAY=:0 OVERTE_LAB_RECONNECT=1 OVERTE_LAB_REQUIRE_FLUID=1 node browser-client/tests/integration/public-hub.mjs",
+    "chromium": "OVERTE_LAB_URL=http://127.0.0.1:8095 OVERTE_LAB_BROWSER_DISPLAY=:0 OVERTE_LAB_CHROMIUM=<installed-current-Chromium> OVERTE_LAB_CHROMIUM_LIBRARY_PATH=<its-library-directory> OVERTE_LAB_RECONNECT=1 OVERTE_LAB_REQUIRE_FLUID=1 node browser-client/tests/integration/public-hub.mjs"
+  },
+  "runs": [
+    {
+      "startedAt": "2026-09-30T23:03:11.047Z",
+      "finishedAt": "2026-09-30T23:05:19.346Z",
+      "completed": true,
+      "browserVersion": "154.0.8037.57",
+      "place": "overte_hub",
+      "microphoneRequested": false,
+      "worldInteractionsSent": 0,
+      "movementMeters": 4.2507274147830385,
+      "nativePoseDifferenceMeters": 0.0009611483617314899,
+      "reconnectedMovementMeters": 2.9551715293202956,
+      "reconnectedNativeDifferenceMeters": 0.0009282783023878647,
+      "fluidMovementAcceptancePassed": true,
+      "steadyFluidPerformance": {
+        "passed": true,
+        "validMeasurements": true,
+        "minimumFPS": 30,
+        "maximumP95FrameMs": 66.66666666666667,
+        "maximumStallMs": 250
+      },
+      "walkFluidPerformance": {
+        "passed": true,
+        "validMeasurements": true,
+        "minimumFPS": 30,
+        "maximumP95FrameMs": 66.66666666666667,
+        "maximumStallMs": 250
+      },
+      "reconnectedSteadyFluidPerformance": {
+        "passed": true,
+        "validMeasurements": true,
+        "minimumFPS": 30,
+        "maximumP95FrameMs": 66.66666666666667,
+        "maximumStallMs": 250
+      },
+      "reconnectedWalkFluidPerformance": {
+        "passed": true,
+        "validMeasurements": true,
+        "minimumFPS": 30,
+        "maximumP95FrameMs": 66.66666666666667,
+        "maximumStallMs": 250
+      },
+      "pageErrors": [],
+      "webGL": {
+        "vendor": "Google Inc. (NVIDIA Corporation)",
+        "renderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce GTX 1080 Ti/PCIe/SSE2, OpenGL ES 3.2)"
+      },
+      "loadedWorldMeasurements": [
+        {
+          "fps": 48.97659326979985,
+          "medianFrameMs": 16.69999999999709,
+          "p95FrameMs": 33.400000000001455,
+          "maximumFrameMs": 50,
+          "samples": 240,
+          "drawCalls": 638,
+          "triangles": 577915,
+          "loadedModels": 297,
+          "loadedAvatars": 1,
+          "meshColliders": 75,
+          "loadingModels": 0,
+          "queuedModels": 0,
+          "compilingGraphics": 0,
+          "parallelShaderCompile": true
+        },
+        {
+          "fps": 46.001686728513405,
+          "medianFrameMs": 16.69999999999709,
+          "p95FrameMs": 33.400000000001455,
+          "maximumFrameMs": 100,
+          "samples": 240,
+          "drawCalls": 638,
+          "triangles": 577915,
+          "loadedModels": 297,
+          "loadedAvatars": 1,
+          "meshColliders": 75,
+          "loadingModels": 0,
+          "queuedModels": 0,
+          "compilingGraphics": 0,
+          "parallelShaderCompile": true
+        }
+      ],
+      "walkingMeasurement": {
+        "fps": 46.297189374795025,
+        "medianFrameMs": 16.69999999999709,
+        "p95FrameMs": 33.400000000001455,
+        "maximumFrameMs": 100,
+        "samples": 240,
+        "drawCalls": 608,
+        "triangles": 544974,
+        "loadedModels": 297,
+        "loadedAvatars": 1,
+        "meshColliders": 75,
+        "loadingModels": 0,
+        "queuedModels": 0,
+        "compilingGraphics": 0,
+        "parallelShaderCompile": true
+      },
+      "rejoinedMeasurement": {
+        "fps": 45.56500607533417,
+        "medianFrameMs": 16.69999999999709,
+        "p95FrameMs": 33.40000000000873,
+        "maximumFrameMs": 116.69999999999709,
+        "samples": 240,
+        "drawCalls": 639,
+        "triangles": 578142,
+        "loadedModels": 297,
+        "loadedAvatars": 1,
+        "meshColliders": 75,
+        "loadingModels": 0,
+        "queuedModels": 0,
+        "compilingGraphics": 0,
+        "parallelShaderCompile": true
+      },
+      "rejoinedWalkingMeasurement": {
+        "fps": 45.85578356070157,
+        "medianFrameMs": 16.69999999999709,
+        "p95FrameMs": 33.40000000000873,
+        "maximumFrameMs": 66.59999999999127,
+        "samples": 240,
+        "drawCalls": 615,
+        "triangles": 552583,
+        "loadedModels": 297,
+        "loadedAvatars": 1,
+        "meshColliders": 75,
+        "loadingModels": 0,
+        "queuedModels": 0,
+        "compilingGraphics": 0,
+        "parallelShaderCompile": true
+      },
+      "domainEntities": {
+        "domain": 517
+      },
+      "clientOnlyEntities": 0,
+      "sourceSHA256AtStart": {
+        "browser-client/gateway/server.mjs": "9e9816acfa1c2fb41af1c34e5b1b1580052c2b12f3785848657cd0d6f4482337",
+        "browser-client/gateway/native-bridge.js": "718e6a394560b8103540568c36c11902ebbebc61a9717b3b96ce26bd65877aac",
+        "browser-client/gateway/native-world.js": "bec2f02313446afde7a0be20899358a082b41c6c6c5d745ec67a24809e2b7ddb",
+        "browser-client/gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60",
+        "browser-client/gateway/public-places.mjs": "cbac3df2ecf7071da6e77df8d58b09be194afa184cfb0c37f6015f9f1f570471",
+        "browser-client/gateway/validation.mjs": "65eba4a66c76d4bfc0dbd18e172def64f43b37cca0db2301da5bf4d18645de79",
+        "browser-client/gateway/worker-sandbox.mjs": "d4748e8d64f2ad5c633854b7ff9e07758a574086205470b32570fd485b9f4c5d",
+        "browser-client/gateway/network-sandbox.mjs": "3fd278b91a6ea383ddf816753d9eee870736b295ecd945714e827d794c8016d9",
+        "browser-client/gateway/network_udp.py": "378f7159b1456ab5a0e25d2f933f35106344106625cef0ce0d589de3d1e45eca",
+        "browser-client/gateway/native-tablet.js": "527e106866462d1dea2834978250ecb6fa3ee6b8e99b5b2129b21e521e4995a2",
+        "browser-client/gateway/tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+        "browser-client/gateway/process-lifecycle.mjs": "e8d7e021a8b934b271910883e27c2a1109aedd22e12044b763d4bf8acc274eaf",
+        "browser-client/shared/fluid-performance.mjs": "44e5262f62785e3a9ba4a96c275f5f0bf3a93c27e1d44fdad3bdbec739deebe2",
+        "browser-client/dist/index.html": "59d19f93e80fcff5779975259b5904a38c66e95e76a4f500c9416f28115b3a8b"
+      },
+      "sourceSHA256AtEnd": {
+        "browser-client/gateway/server.mjs": "9e9816acfa1c2fb41af1c34e5b1b1580052c2b12f3785848657cd0d6f4482337",
+        "browser-client/gateway/native-bridge.js": "718e6a394560b8103540568c36c11902ebbebc61a9717b3b96ce26bd65877aac",
+        "browser-client/gateway/native-world.js": "bec2f02313446afde7a0be20899358a082b41c6c6c5d745ec67a24809e2b7ddb",
+        "browser-client/gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60",
+        "browser-client/gateway/public-places.mjs": "cbac3df2ecf7071da6e77df8d58b09be194afa184cfb0c37f6015f9f1f570471",
+        "browser-client/gateway/validation.mjs": "65eba4a66c76d4bfc0dbd18e172def64f43b37cca0db2301da5bf4d18645de79",
+        "browser-client/gateway/worker-sandbox.mjs": "d4748e8d64f2ad5c633854b7ff9e07758a574086205470b32570fd485b9f4c5d",
+        "browser-client/gateway/network-sandbox.mjs": "3fd278b91a6ea383ddf816753d9eee870736b295ecd945714e827d794c8016d9",
+        "browser-client/gateway/network_udp.py": "378f7159b1456ab5a0e25d2f933f35106344106625cef0ce0d589de3d1e45eca",
+        "browser-client/gateway/native-tablet.js": "527e106866462d1dea2834978250ecb6fa3ee6b8e99b5b2129b21e521e4995a2",
+        "browser-client/gateway/tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+        "browser-client/gateway/process-lifecycle.mjs": "e8d7e021a8b934b271910883e27c2a1109aedd22e12044b763d4bf8acc274eaf",
+        "browser-client/shared/fluid-performance.mjs": "44e5262f62785e3a9ba4a96c275f5f0bf3a93c27e1d44fdad3bdbec739deebe2",
+        "browser-client/dist/index.html": "59d19f93e80fcff5779975259b5904a38c66e95e76a4f500c9416f28115b3a8b"
+      },
+      "runtimeGatewayWorkerSandboxSHA256": "ccd365f442d09002d8dc39b0f9505ee2be83a45a99159eb173e7c9a39fecd477",
+      "runtimeAttestationNote": "The gateway had cached the preceding worker-sandbox module. During these runs an independent canonical-symlink package-path guard was added on disk. The native/browser renderer and actual approved package paths did not change. A separate fresh-worker proof verifies the guard after the gateway restart.",
+      "nativeRuntimeHelperSHA256": {
+        "native-tablet.js": "527e106866462d1dea2834978250ecb6fa3ee6b8e99b5b2129b21e521e4995a2",
+        "tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+        "bridge.js": "9dbb032e048a01e2376cb66a239491d0574a5afc94a32be7eabc599b3953f264"
+      },
+      "rejoinedNativeRuntimeHelperSHA256": {
+        "native-tablet.js": "527e106866462d1dea2834978250ecb6fa3ee6b8e99b5b2129b21e521e4995a2",
+        "tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+        "bridge.js": "615d9fa4648e992c2792a70a247644ac728c70ac43228fc95e81ab35cbd47917"
+      },
+      "screenshot": "public-hub-fluid-chromium.png"
+    },
+    {
+      "startedAt": "2026-09-30T22:59:10.245Z",
+      "finishedAt": "2026-09-30T23:01:16.435Z",
+      "completed": true,
+      "browserVersion": "firefox/156.0",
+      "place": "overte_hub",
+      "microphoneRequested": false,
+      "worldInteractionsSent": 0,
+      "movementMeters": 4.350649610762121,
+      "nativePoseDifferenceMeters": 0.0005563870599635262,
+      "reconnectedMovementMeters": 2.9779365694650948,
+      "reconnectedNativeDifferenceMeters": 0.0009089179871381129,
+      "fluidMovementAcceptancePassed": true,
+      "steadyFluidPerformance": {
+        "passed": true,
+        "validMeasurements": true,
+        "minimumFPS": 30,
+        "maximumP95FrameMs": 66.66666666666667,
+        "maximumStallMs": 250
+      },
+      "walkFluidPerformance": {
+        "passed": true,
+        "validMeasurements": true,
+        "minimumFPS": 30,
+        "maximumP95FrameMs": 66.66666666666667,
+        "maximumStallMs": 250
+      },
+      "reconnectedSteadyFluidPerformance": {
+        "passed": true,
+        "validMeasurements": true,
+        "minimumFPS": 30,
+        "maximumP95FrameMs": 66.66666666666667,
+        "maximumStallMs": 250
+      },
+      "reconnectedWalkFluidPerformance": {
+        "passed": true,
+        "validMeasurements": true,
+        "minimumFPS": 30,
+        "maximumP95FrameMs": 66.66666666666667,
+        "maximumStallMs": 250
+      },
+      "pageErrors": [],
+      "webGL": {
+        "vendor": "NVIDIA Corporation",
+        "renderer": "NVIDIA GeForce GTX 980, or similar"
+      },
+      "loadedWorldMeasurements": [
+        {
+          "fps": 31.475409836065573,
+          "medianFrameMs": 31,
+          "p95FrameMs": 55,
+          "maximumFrameMs": 72,
+          "samples": 240,
+          "drawCalls": 639,
+          "triangles": 578142,
+          "loadedModels": 298,
+          "loadedAvatars": 1,
+          "meshColliders": 75,
+          "loadingModels": 0,
+          "queuedModels": 0,
+          "compilingGraphics": 0,
+          "parallelShaderCompile": false
+        },
+        {
+          "fps": 31.323414252153484,
+          "medianFrameMs": 31,
+          "p95FrameMs": 58,
+          "maximumFrameMs": 85,
+          "samples": 240,
+          "drawCalls": 639,
+          "triangles": 578142,
+          "loadedModels": 298,
+          "loadedAvatars": 1,
+          "meshColliders": 75,
+          "loadingModels": 0,
+          "queuedModels": 0,
+          "compilingGraphics": 0,
+          "parallelShaderCompile": false
+        }
+      ],
+      "walkingMeasurement": {
+        "fps": 30.832476875642342,
+        "medianFrameMs": 31,
+        "p95FrameMs": 59,
+        "maximumFrameMs": 173,
+        "samples": 240,
+        "drawCalls": 607,
+        "triangles": 542557,
+        "loadedModels": 298,
+        "loadedAvatars": 1,
+        "meshColliders": 75,
+        "loadingModels": 0,
+        "queuedModels": 0,
+        "compilingGraphics": 0,
+        "parallelShaderCompile": false
+      },
+      "rejoinedMeasurement": {
+        "fps": 30.620056136769584,
+        "medianFrameMs": 30,
+        "p95FrameMs": 61,
+        "maximumFrameMs": 177,
+        "samples": 240,
+        "drawCalls": 637,
+        "triangles": 577819,
+        "loadedModels": 297,
+        "loadedAvatars": 1,
+        "meshColliders": 75,
+        "loadingModels": 0,
+        "queuedModels": 0,
+        "compilingGraphics": 0,
+        "parallelShaderCompile": false
+      },
+      "rejoinedWalkingMeasurement": {
+        "fps": 30.643513789581206,
+        "medianFrameMs": 31,
+        "p95FrameMs": 59,
+        "maximumFrameMs": 177,
+        "samples": 240,
+        "drawCalls": 614,
+        "triangles": 552356,
+        "loadedModels": 297,
+        "loadedAvatars": 1,
+        "meshColliders": 75,
+        "loadingModels": 0,
+        "queuedModels": 0,
+        "compilingGraphics": 0,
+        "parallelShaderCompile": false
+      },
+      "domainEntities": {
+        "domain": 518
+      },
+      "clientOnlyEntities": 0,
+      "sourceSHA256AtStart": {
+        "browser-client/gateway/server.mjs": "9e9816acfa1c2fb41af1c34e5b1b1580052c2b12f3785848657cd0d6f4482337",
+        "browser-client/gateway/native-bridge.js": "718e6a394560b8103540568c36c11902ebbebc61a9717b3b96ce26bd65877aac",
+        "browser-client/gateway/native-world.js": "bec2f02313446afde7a0be20899358a082b41c6c6c5d745ec67a24809e2b7ddb",
+        "browser-client/gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60",
+        "browser-client/gateway/public-places.mjs": "cbac3df2ecf7071da6e77df8d58b09be194afa184cfb0c37f6015f9f1f570471",
+        "browser-client/gateway/validation.mjs": "65eba4a66c76d4bfc0dbd18e172def64f43b37cca0db2301da5bf4d18645de79",
+        "browser-client/gateway/worker-sandbox.mjs": "ccd365f442d09002d8dc39b0f9505ee2be83a45a99159eb173e7c9a39fecd477",
+        "browser-client/gateway/network-sandbox.mjs": "3fd278b91a6ea383ddf816753d9eee870736b295ecd945714e827d794c8016d9",
+        "browser-client/gateway/network_udp.py": "378f7159b1456ab5a0e25d2f933f35106344106625cef0ce0d589de3d1e45eca",
+        "browser-client/gateway/native-tablet.js": "527e106866462d1dea2834978250ecb6fa3ee6b8e99b5b2129b21e521e4995a2",
+        "browser-client/gateway/tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+        "browser-client/gateway/process-lifecycle.mjs": "e8d7e021a8b934b271910883e27c2a1109aedd22e12044b763d4bf8acc274eaf",
+        "browser-client/shared/fluid-performance.mjs": "44e5262f62785e3a9ba4a96c275f5f0bf3a93c27e1d44fdad3bdbec739deebe2",
+        "browser-client/dist/index.html": "59d19f93e80fcff5779975259b5904a38c66e95e76a4f500c9416f28115b3a8b"
+      },
+      "sourceSHA256AtEnd": {
+        "browser-client/gateway/server.mjs": "9e9816acfa1c2fb41af1c34e5b1b1580052c2b12f3785848657cd0d6f4482337",
+        "browser-client/gateway/native-bridge.js": "718e6a394560b8103540568c36c11902ebbebc61a9717b3b96ce26bd65877aac",
+        "browser-client/gateway/native-world.js": "bec2f02313446afde7a0be20899358a082b41c6c6c5d745ec67a24809e2b7ddb",
+        "browser-client/gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60",
+        "browser-client/gateway/public-places.mjs": "cbac3df2ecf7071da6e77df8d58b09be194afa184cfb0c37f6015f9f1f570471",
+        "browser-client/gateway/validation.mjs": "65eba4a66c76d4bfc0dbd18e172def64f43b37cca0db2301da5bf4d18645de79",
+        "browser-client/gateway/worker-sandbox.mjs": "d4748e8d64f2ad5c633854b7ff9e07758a574086205470b32570fd485b9f4c5d",
+        "browser-client/gateway/network-sandbox.mjs": "3fd278b91a6ea383ddf816753d9eee870736b295ecd945714e827d794c8016d9",
+        "browser-client/gateway/network_udp.py": "378f7159b1456ab5a0e25d2f933f35106344106625cef0ce0d589de3d1e45eca",
+        "browser-client/gateway/native-tablet.js": "527e106866462d1dea2834978250ecb6fa3ee6b8e99b5b2129b21e521e4995a2",
+        "browser-client/gateway/tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+        "browser-client/gateway/process-lifecycle.mjs": "e8d7e021a8b934b271910883e27c2a1109aedd22e12044b763d4bf8acc274eaf",
+        "browser-client/shared/fluid-performance.mjs": "44e5262f62785e3a9ba4a96c275f5f0bf3a93c27e1d44fdad3bdbec739deebe2",
+        "browser-client/dist/index.html": "59d19f93e80fcff5779975259b5904a38c66e95e76a4f500c9416f28115b3a8b"
+      },
+      "runtimeGatewayWorkerSandboxSHA256": "ccd365f442d09002d8dc39b0f9505ee2be83a45a99159eb173e7c9a39fecd477",
+      "runtimeAttestationNote": "The gateway had cached the preceding worker-sandbox module. During these runs an independent canonical-symlink package-path guard was added on disk. The native/browser renderer and actual approved package paths did not change. A separate fresh-worker proof verifies the guard after the gateway restart.",
+      "nativeRuntimeHelperSHA256": {
+        "native-tablet.js": "527e106866462d1dea2834978250ecb6fa3ee6b8e99b5b2129b21e521e4995a2",
+        "tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+        "bridge.js": "ba8995a49f5cc398b959054a6855f17d91dfb2ddbddfe9053a640478fcf042f1"
+      },
+      "rejoinedNativeRuntimeHelperSHA256": {
+        "native-tablet.js": "527e106866462d1dea2834978250ecb6fa3ee6b8e99b5b2129b21e521e4995a2",
+        "tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+        "bridge.js": "b733a7d52ce5173eecf4b7485154928952877e3a5a1ac992f835757adc6f445c"
+      },
+      "screenshot": "public-hub-fluid-firefox.png"
+    }
+  ],
+  "retainedEarlierFailedGate": {
+    "startedAt": "2026-09-30T22:52:46.419Z",
+    "finishedAt": "2026-09-30T22:54:52.910Z",
+    "completed": false,
+    "error": "Actual loaded-world, walking and reconnect measurements must meet30FPS, p95<=66.7ms and no steady stall>250ms",
+    "fluidMovementAcceptancePassed": false,
+    "steadyFluidPerformance": {
+      "passed": false,
+      "validMeasurements": true,
+      "minimumFPS": 30,
+      "maximumP95FrameMs": 66.66666666666667,
+      "maximumStallMs": 250
+    },
+    "walkFluidPerformance": {
+      "passed": false,
+      "validMeasurements": true,
+      "minimumFPS": 30,
+      "maximumP95FrameMs": 66.66666666666667,
+      "maximumStallMs": 250
+    },
+    "reconnectedSteadyFluidPerformance": {
+      "passed": true,
+      "validMeasurements": true,
+      "minimumFPS": 30,
+      "maximumP95FrameMs": 66.66666666666667,
+      "maximumStallMs": 250
+    },
+    "reconnectedWalkFluidPerformance": {
+      "passed": false,
+      "validMeasurements": true,
+      "minimumFPS": 30,
+      "maximumP95FrameMs": 66.66666666666667,
+      "maximumStallMs": 250
+    }
+  },
+  "nativePackageGuardFreshWorkerProof": "Pending the next owned gateway restart and short real join/leave inventory."
+}

@@ -1,0 +1,87 @@
+{
+  "packetString": {
+    "text": "/scene/Visitor \u03a9 \ud83c\udf0d.fbx",
+    "hex": "1a0000002f7363656e652f56697369746f7220cea920f09f8c8d2e666278"
+  },
+  "assetGet": {
+    "id": 16909060,
+    "hash": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "hex": "04030201000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f00000000000000000000000000000000"
+  },
+  "avatarIdentity": {
+    "uuid": "00112233-4455-6677-8899-aabbccddeeff",
+    "sequence": 16909060,
+    "displayName": "Visitor \u03a9 \ud83c\udf0d",
+    "sessionDisplayName": "Visitor_1",
+    "hex": "00112233445566778899aabbccddeeff010203040000001800560069007300690074006f0072002003a90020d83cdf0d0000001200560069007300690074006f0072005f003100000000"
+  },
+  "domainList": {
+    "domainLocalID": 258,
+    "domainUUID": "10213243-5465-7687-98a9-bacbdcedfe0f",
+    "headerHex": "102132435465768798a9bacbdcedfe0f010200112233445566778899aabbccddeeff0304000010010101020304050607081112131415161718212223242526272801",
+    "newLocalID": 772,
+    "newUUID": "00112233-4455-6677-8899-aabbccddeeff"
+  },
+  "nodeRecords": [
+    {
+      "hex": "6f00112233445566778899aabbccddeeff01ffb42101007f000003b42100001001000201ffeeddccbbaa99887766554433221100",
+      "local": "127.0.0.3",
+      "localID": 513,
+      "name": "stun-fallback",
+      "permissions": 4097,
+      "port": 46113,
+      "public": "null",
+      "secret": "ffeeddcc-bbaa-9988-7766-554433221100",
+      "type": "o",
+      "uuid": "00112233-4455-6677-8899-aabbccddeeff"
+    },
+    {
+      "hex": "6f00112233445566778899aabbccddeeff0100c0000205b42101007f000003b42100001001000201ffeeddccbbaa99887766554433221100",
+      "local": "127.0.0.3",
+      "localID": 513,
+      "name": "ipv4",
+      "permissions": 4097,
+      "port": 46113,
+      "public": "192.0.2.5",
+      "secret": "ffeeddcc-bbaa-9988-7766-554433221100",
+      "type": "o",
+      "uuid": "00112233-4455-6677-8899-aabbccddeeff"
+    },
+    {
+      "hex": "6f00112233445566778899aabbccddeeff0100c0000205b42101ffb42100001001000201ffeeddccbbaa99887766554433221100",
+      "local": "null",
+      "localID": 513,
+      "name": "null-local",
+      "permissions": 4097,
+      "port": 46113,
+      "public": "192.0.2.5",
+      "secret": "ffeeddcc-bbaa-9988-7766-554433221100",
+      "type": "o",
+      "uuid": "00112233-4455-6677-8899-aabbccddeeff"
+    },
+    {
+      "hex": "6f00112233445566778899aabbccddeeff0102b42101007f000003b42100001001000201ffeeddccbbaa99887766554433221100",
+      "local": "127.0.0.3",
+      "localID": 513,
+      "name": "any-public",
+      "permissions": 4097,
+      "port": 46113,
+      "public": "any",
+      "secret": "ffeeddcc-bbaa-9988-7766-554433221100",
+      "type": "o",
+      "uuid": "00112233-4455-6677-8899-aabbccddeeff"
+    },
+    {
+      "hex": "6f00112233445566778899aabbccddeeff010120010db8000000000000000000000001ffffffffb42101007f000003b42100001001000201ffeeddccbbaa99887766554433221100",
+      "local": "127.0.0.3",
+      "localID": 513,
+      "name": "ipv6-public",
+      "permissions": 4097,
+      "port": 46113,
+      "public": "2001:db8::1",
+      "secret": "ffeeddcc-bbaa-9988-7766-554433221100",
+      "type": "o",
+      "uuid": "00112233-4455-6677-8899-aabbccddeeff"
+    }
+  ]
+}

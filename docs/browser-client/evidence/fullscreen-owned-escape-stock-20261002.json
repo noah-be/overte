@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "materialAssistance": "OpenAI Codex",
+  "scope": "Four registered Chromium fullscreen bodies and four equivalent stock Firefox bodies on an authored native Tablet fixture; no actual domain/native-app acceptance claim.",
+  "productionFullscreenSHA256": "a311c55214699670c6cacd7bdbba0fec024d0ef50e69f90f2c28db6e3357715e",
+  "activeBrowserSpecSHA256": "ddaf2bc6ff709c302476b8f63581176684d738b71d076783c94edfcaa77915c2",
+  "livePinManifestSHA256": "9819988a8befb808405287fa8fb6fb435d2d5a3f3ca391c5ed4357ca0e5c1ded",
+  "parentSummarySHA256": "af6dfaa4985ff13dd6455c41bbb5d45d14ee9e2cb8c1d0411fe17d93e78bb087",
+  "cohorts": [
+    {
+      "engine": "chromium",
+      "exitCode": 0,
+      "seconds": 8.759,
+      "stockVersion": "Chromium 154.0.8037.57",
+      "stockExecutableSHA256": "513aa7ba1c0add78f3df3f9b852f9cf197fe093682eef4337efad581bca4846b",
+      "completed": true,
+      "cases": {
+        "passed": 4,
+        "failed": 0,
+        "skipped": 0,
+        "flaky": 0
+      },
+      "rawReportSHA256": "b38d3a261a175a67bc7647c59374d3986dc9dd5152281f62d8e4e42ce2d5a5ee",
+      "driverSourceCoherent": true,
+      "driverCleanupVerified": null,
+      "actualStockExecutableObserved": true,
+      "ownedStockProcessesClosed": true,
+      "sourceAndDistributionUnchanged": true,
+      "nineManagedServicesUnchanged": true
+    },
+    {
+      "engine": "firefox",
+      "exitCode": 0,
+      "seconds": 17.062,
+      "stockVersion": "Mozilla Firefox 156.0",
+      "stockExecutableSHA256": "d6780a2411a4087d87ff96edde54c6d509b2c096262e17531677ff252fe989bf",
+      "completed": true,
+      "cases": [
+        {
+          "kind": "trusted-fullscreen-input-escape-leave-rejoin",
+          "passed": true,
+          "failureCategory": null
+        },
+        {
+          "kind": "small-toolbar-original-aspect",
+          "passed": true,
+          "failureCategory": null
+        },
+        {
+          "kind": "actual-cross-origin-no-delegation-denial",
+          "passed": true,
+          "failureCategory": null
+        },
+        {
+          "kind": "same-target-replacement-owned-cleanup",
+          "passed": true,
+          "failureCategory": null
+        }
+      ],
+      "rawReportSHA256": "9d3d7b6dffedf49f69cf82a6ae207069c5f3a168da439a3f3ad67c6b8335e82b",
+      "driverSourceCoherent": true,
+      "driverCleanupVerified": true,
+      "actualStockExecutableObserved": true,
+      "ownedStockProcessesClosed": true,
+      "sourceAndDistributionUnchanged": true,
+      "nineManagedServicesUnchanged": true
+    }
+  ],
+  "ownedSourceServerClosed": true,
+  "ownedDriverClosed": true,
+  "rootSourcesUnchanged": true,
+  "candidateUnchanged": true,
+  "nineManagedServicesUnchanged": true,
+  "historicalFailuresRetained": true,
+  "exactViewportGeometryMaintained": true,
+  "actualScreenshotColorProfileMaintained": true,
+  "registeredActionsAndAssertionsUnchanged": true
+}

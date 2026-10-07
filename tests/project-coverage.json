@@ -101,6 +101,7 @@
       ],
       "native": [
         "networking",
+        "browser-direct-transport",
         "jitter",
         "octree",
         "embedded-webserver"

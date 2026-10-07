@@ -1,0 +1,97 @@
+{
+  "scope": "Exact authorized-fork hosted failure diagnostics, original gates remain enforced; no Ubuntu runtime qualification",
+  "sourceSHA": "d71c0652d24028d01426a55003e43bca86f7da4c",
+  "runs": [
+    {
+      "run": 36969247663,
+      "sourceSHA": "d71c0652d24028d01426a55003e43bca86f7da4c",
+      "conclusion": "failure",
+      "url": "https://github.com/noah-be/overte/actions/runs/36969247663",
+      "jobs": [
+        {
+          "name": "Actual native and browser core journeys",
+          "conclusion": "failure",
+          "failedSteps": [
+            "Start actual domain, assignment servers, independent native and gateway"
+          ],
+          "skippedStepCount": 3
+        },
+        {
+          "name": "browser",
+          "conclusion": "failure",
+          "failedSteps": [
+            "Test protocol, collision, audio and worker isolation contracts"
+          ],
+          "skippedStepCount": 5
+        }
+      ],
+      "rawFailedLogSHA256": "d52dd9848101080898ba56d035d3cc18d7b074ff3e6e8c34cb585bfefd5e8a57",
+      "actualNetworkFailures": {
+        "count": 3,
+        "phase": "python-image",
+        "errnoObserved": 13,
+        "interpretation": "EACCES captured at original rootfile/binary-hash/import-root validation; exact suboperation unknown",
+        "routeSetupReached": false,
+        "nativeCoreJourneysRan": false
+      }
+    },
+    {
+      "run": 36969243463,
+      "sourceSHA": "d71c0652d24028d01426a55003e43bca86f7da4c",
+      "conclusion": "failure",
+      "url": "https://github.com/noah-be/overte/actions/runs/36969243463",
+      "jobs": [
+        {
+          "name": "browser",
+          "conclusion": "failure",
+          "failedSteps": [
+            "Test protocol, collision, audio and worker isolation contracts"
+          ],
+          "skippedStepCount": 5
+        },
+        {
+          "name": "Actual native and browser core journeys",
+          "conclusion": "failure",
+          "failedSteps": [
+            "Start actual domain, assignment servers, independent native and gateway"
+          ],
+          "skippedStepCount": 3
+        }
+      ],
+      "rawFailedLogSHA256": "fe3171a078d3a33eb5bc4a0775ebf7a8e99298cfd585110086dad060ee34bffd",
+      "actualNetworkFailures": {
+        "count": 3,
+        "phase": "python-image",
+        "errnoObserved": 13,
+        "interpretation": "EACCES captured at original rootfile/binary-hash/import-root validation; exact suboperation unknown",
+        "routeSetupReached": false,
+        "nativeCoreJourneysRan": false
+      }
+    },
+    {
+      "run": 36969243461,
+      "sourceSHA": "d71c0652d24028d01426a55003e43bca86f7da4c",
+      "conclusion": "failure",
+      "url": "https://github.com/noah-be/overte/actions/runs/36969243461",
+      "jobs": [
+        {
+          "name": "atomic-settings",
+          "conclusion": "failure",
+          "failedSteps": [
+            "Stage the reviewed private diagnostic and verify signed Noble dependency",
+            "Validate fixed enum summary for artifact publication"
+          ],
+          "skippedStepCount": 3
+        }
+      ],
+      "rawFailedLogSHA256": "994accd7b66dbd07d734e73747700b015585a9e144303c758eba3a2f643525d3",
+      "atomicDependencyFailure": {
+        "completed": false,
+        "phase": "keyring-read",
+        "failureCategory": "validation-refused",
+        "exactRejectedProperty": "unknown; original ownership/write-permissions/bounded-regular validation remains intact",
+        "nativeProbeRan": false
+      }
+    }
+  ]
+}

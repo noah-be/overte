@@ -1,0 +1,42 @@
+{
+  "scope": "Previously saved actual native/browser opaque screenshots; deterministic CPU weighted-area sampling, no new native/GPU run",
+  "sourcePNG_SHA256": "0087b3a3a9c9347b3a592db7b7e4f88fe333aedb7c6bd6aae48ed664c3f98739",
+  "native": {
+    "comparison": {
+      "rgbMAE": 1.8242452090277756,
+      "correlation": 0.9389902913492263,
+      "maskMismatch": 0
+    },
+    "negativeUVCorrelations": {
+      "H": 0.16950310183916864,
+      "V": -0.07395400295168986,
+      "HV": -0.1968710017019748
+    },
+    "inputPNG_SHA256": "67320d3b8fa0bada1b47ad92fad5b5bcae179316c12f5a51f7ec980f50c61674",
+    "crop": {
+      "x": 334,
+      "y": 195,
+      "width": 355,
+      "height": 354
+    }
+  },
+  "browser": {
+    "comparison": {
+      "rgbMAE": 0.7050312774347152,
+      "correlation": 0.9926050803334365,
+      "maskMismatch": 0
+    },
+    "negativeUVCorrelations": {
+      "H": 0.1440774538573081,
+      "V": -0.06661577103490376,
+      "HV": -0.16018486835308776
+    },
+    "inputPNG_SHA256": "90daf06dbc56d8f4894ce97c668bd9938f9c59e19440914a36cf23ed240a0bf6",
+    "crop": {
+      "x": 329,
+      "y": 201,
+      "width": 365,
+      "height": 365
+    }
+  }
+}

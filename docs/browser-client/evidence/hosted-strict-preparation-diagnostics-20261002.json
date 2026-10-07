@@ -1,0 +1,79 @@
+{
+  "date": "2026-10-02",
+  "materialAssistance": "OpenAI Codex",
+  "scope": "Strict owned-native settings provisioning and fixed RTNETLINK refusal diagnostics. Causes remain pending actual hosted execution.",
+  "baseCommit": "10b7655d3aea6dd052cd7062a95987c25e7d900b",
+  "frozenManifestSHA256": "c952feb7eccab24e7f311d23521d2f6b3d384f0eeb651d5328a16b6593669236",
+  "sourceSHA256": {
+    "browser-client/lab/manage.py": "9a6ef696b232992dded26490bd03135d846554160c5d9e8c025948df85e7bb0f",
+    "browser-client/lab/test_manage_state.py": "d59a709aa88f95edffa0bcd5299e78856ecf85869fd94fb6edb0b12ce8696010",
+    "browser-client/gateway/network-owner.py": "2b1c7969560adbe06eefa2d394810b8b4a8efa2842fe7e68109de71c2399e814",
+    "browser-client/gateway/preparation-diagnostics.mjs": "92ca7594e2a221ce766d44edf19455947106708a97cd2ff565ede4b904146e95",
+    "browser-client/gateway/preparation-diagnostics.test.mjs": "76fa89857c78a04837f4784e50ff7020841b60a721fc4034e2f121e0a541aa79",
+    "browser-client/lab/provisioning_diagnostics.py": "47cdeefe86178486cb2106d4825972ad931181ed292b6b98fd4d720fa5b555ae",
+    "browser-client/lab/test_provisioning_diagnostics.py": "51bad9e56ff75a8a38b0a9e37a43c30d88051cc24fd5d6db21264788ef5790c9",
+    "browser-client/gateway/network_route_diagnostics.py": "1188c2aa7a36d2c4e1d2d2c1feebde81f3f600ef86864ae89598f36c5ec1f1bc"
+  },
+  "nativeSourceCommit": "f91d15a08587dcd37c642234424b3215dd331724",
+  "checks": {
+    "components": {
+      "passed": 1141,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 10469.670925
+    },
+    "repository": {
+      "passed": 34,
+      "failed": 0,
+      "durationSeconds": 163.97
+    },
+    "ownedState": {
+      "passed": 24,
+      "failed": 0
+    },
+    "networkPreparation": {
+      "passed": 11,
+      "failed": 0
+    },
+    "syntax": true,
+    "diffCheck": true
+  },
+  "logSHA256": {
+    "components": "c5aeb90a14762e3dd388a77d542e6ac17cbf5f95772aabdf92fd13faeade9e8a",
+    "repository": "71e021733622a551758395abd587dba5b37e3bf68153531175a05b8ae7ea3096",
+    "state": "a80148a79e47b1c228ba33652820ebbc5ec7223fb519ecdc42106780a908cc8b",
+    "network": "700b4a6ae1b61e502a271565e950ef9a700dc03879ba0a0db605e3fff8f7bb4d"
+  },
+  "settings": {
+    "strictPackagedSchemaVersion": "2.7",
+    "requiredRecognizedPostingKeys": true,
+    "exactNonredirectingNonproxyLoopbackEndpoint": true,
+    "authorizationOrSettingsPublished": false,
+    "HTTPResponseBytes": 4096,
+    "schemaOrConfigurationBytes": 1048576,
+    "heldOriginalLogFDObservationBytes": 65536,
+    "HTTPTimeoutSeconds": 10,
+    "strictSavedGuestRowsRequired": true,
+    "HTTP200AloneEstablishesPersistence": false
+  },
+  "network": {
+    "originalDeniedRoutes": 12,
+    "sameRouteCommandsAndFailureIdentity": true,
+    "stderrProjectionBytes": 4096,
+    "fixedCategoriesOnly": true
+  },
+  "unchangedAcceptance": {
+    "guestFlagsLoweredFurther": false,
+    "routesModified": false,
+    "inheritedCapabilitiesRestored": false,
+    "AppArmorProfilesChanged": false,
+    "existingReadinessDeadlinesExtended": false,
+    "nativeStagesRequired": 19
+  },
+  "limitations": [
+    "Fixed route permission-denied alone cannot identify the responsible LSM profile or namespace owner.",
+    "No observed log failure and an HTTP success do not prove saved settings; exact saved-row readback stays mandatory.",
+    "The new timeout bounds the previously unbounded POST; it does not extend readiness.",
+    "Actual exact-source hosted/local CI remains required."
+  ]
+}

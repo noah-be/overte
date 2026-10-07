@@ -1,0 +1,341 @@
+{
+  "schemaVersion": 1,
+  "methods": {
+    "browser-client/lab/test_manage_state.py::ManagedState.test_missing_registry_stop_is_a_non_mutating_noop": {
+      "sha256": "4cc9bae5294be028ece5f5b224a73cd5940d25bba83e1da140e17a70a7dc3f91",
+      "bytes": 336
+    },
+    "browser-client/lab/test_manage_state.py::ManagedState.test_existing_empty_registry_bytes_are_preserved": {
+      "sha256": "cf50b06d6d23e3dd17f3142e4a074eac282af155a982fb8f253ab3c4568f4fe4",
+      "bytes": 254
+    },
+    "browser-client/lab/test_manage_state.py::ManagedState.test_malformed_registry_is_not_converted_to_missing": {
+      "sha256": "6592555cc955d032c6d7c0b3d6b1b20fc998f1dc9e80e10295f15d865afff635",
+      "bytes": 286
+    },
+    "browser-client/lab/test_manage_state.py::ManagedState.test_invalid_identities_fail_before_any_process_is_inspected": {
+      "sha256": "9af2667dbce8dc0e3c479244996e126f6a62a1d0c22e4234582407584c5b4f7e",
+      "bytes": 926
+    },
+    "browser-client/lab/test_manage_state.py::ManagedState.test_permission_error_remains_an_error": {
+      "sha256": "2ba24d90f7e3e0ca6f7923ab4a1e723ac09df119e53dc98278b4f3adb57836e0",
+      "bytes": 222
+    },
+    "browser-client/lab/test_manage_state.py::ManagedState.test_dangling_registry_symlink_is_rejected": {
+      "sha256": "4b78823b1f7603d5cb34dc8b0dd6f20f67db8b4de4e1110c3da325a8b5f27dfb",
+      "bytes": 292
+    },
+    "browser-client/lab/test_manage_state.py::ManagedState.test_existing_registry_symlink_is_rejected": {
+      "sha256": "48c411e2f6c43f25272256474b3704276055194f09ce055fde1a8183f244f5ca",
+      "bytes": 343
+    },
+    "browser-client/lab/test_manage_state.py::ManagedState.test_valid_dead_process_can_be_removed_without_signalling": {
+      "sha256": "e4a7ba0996f5ef1aaa8f7fd8f14d34a783d42cc4ac7b164a80bef1793de63a14",
+      "bytes": 365
+    },
+    "browser-client/lab/test_manage_state.py::ManagedState.test_reused_pid_is_refused_without_killing_or_changing_state": {
+      "sha256": "e66c841084fc503c28660bf5e54d76894e7679bb7c22391d8718697239158cbf",
+      "bytes": 689
+    },
+    "browser-client/lab/test_manage_state.py::ManagedState.test_changed_process_group_is_refused": {
+      "sha256": "d95772c8ba3fd8e03f084ba9e4b03400f1daf4dc938b62887d3fc465c63f86a8",
+      "bytes": 737
+    },
+    "browser-client/lab/test_manage_state.py::ManagedState.test_real_cli_stop_before_prepare_is_successful_and_creates_nothing": {
+      "sha256": "42b3e93ba7db3b28242c4cbe71062133fa01c7ee87e9e7148cd8b8baafdaa64b",
+      "bytes": 512
+    },
+    "browser-client/lab/test_manage_state.py::ManagedState.test_start_keeps_administration_token_out_of_persistent_files": {
+      "sha256": "f3c65808a9e4b9df55fb14a7df4a8398c2af4fa2e95ac101a791e59e09a41e68",
+      "bytes": 1563
+    },
+    "browser-client/lab/test_guest_permissions.py::GuestReadback.test_exact_rows_any_order": {
+      "sha256": "7045ff2f25e7ecadc1d45de5e31a02b8027c648d300928c9cf4916e790b6249a",
+      "bytes": 131
+    },
+    "browser-client/lab/test_guest_permissions.py::GuestReadback.test_actual_flag_mismatch_is_fixed_safe_data": {
+      "sha256": "48413bfb0807100d6a4b04bbd5b4aa96a94e8695d307972e8a7981155ecc237e",
+      "bytes": 324
+    },
+    "browser-client/lab/test_guest_permissions.py::GuestReadback.test_missing_empty_and_duplicate_refused": {
+      "sha256": "d807a87bc143b52a493f53bb7db3dfc824c37a0d0ec7788429fae269fc3443c8",
+      "bytes": 205
+    },
+    "browser-client/lab/test_guest_permissions.py::GuestReadback.test_nonboolean_false_not_accepted_and_secret_not_exported": {
+      "sha256": "8a6864227093bea5d8fe2760947a11961f1fe6883e4a00a5804555b4abd3f170",
+      "bytes": 391
+    },
+    "browser-client/lab/test_guest_permissions.py::GuestReadback.test_unknown_group_and_bad_row_never_export_strings": {
+      "sha256": "a3e0895273f02404b5a0d5a6780c124cb7768b3eeec7bb7f45ddbb829edd3cfd",
+      "bytes": 416
+    },
+    "browser-client/lab/test_guest_permissions.py::GuestReadback.test_rows_limit_and_bad_baseline": {
+      "sha256": "b93401f6f02c24a8378b6309d1e972ff99f528cd27cc18a07360c40aa7c82d21",
+      "bytes": 221
+    },
+    "browser-client/lab/test_provisioning_diagnostics.py::ProvisioningDiagnostics.test_schema_requires_actual_version_domain_keys_and_all_boolean_columns": {
+      "sha256": "2edfae1e10247d5633a9e5f6773637ec38b55703fddb22162116140012fae399",
+      "bytes": 1043
+    },
+    "browser-client/lab/test_provisioning_diagnostics.py::ProvisioningDiagnostics.test_response_requires_exact_endpoint_json_success_and_original_bounded_body": {
+      "sha256": "1a6fa766f6e1288a28a4434d367e937d76f09570b15c24ae24fbce8ce61545fa",
+      "bytes": 975
+    },
+    "browser-client/lab/test_provisioning_diagnostics.py::ProvisioningDiagnostics.test_actual_post_constructs_security_only_payload_and_auth_but_exports_only_safe_effects": {
+      "sha256": "41d0e4ef366f9de78ddcd9996f936f2505a81a86c2beedd58c889dfda59b3b32",
+      "bytes": 1888
+    },
+    "browser-client/lab/test_provisioning_diagnostics.py::ProvisioningDiagnostics.test_post_failure_preserves_strict_refusal_and_observes_real_append_before_cleanup": {
+      "sha256": "4c81605add8af3b80d16fe8f25ce3115c705de7012c8560ccac80d3f159455f6",
+      "bytes": 1115
+    },
+    "browser-client/lab/test_provisioning_diagnostics.py::ProvisioningDiagnostics.test_held_log_identity_ignores_old_errors_and_rejects_fifo_or_symlink_without_blocking": {
+      "sha256": "df48b2f88ab4df7a8b8203d314627295cdea8124e135d5b98d067446137d5228",
+      "bytes": 1052
+    },
+    "browser-client/lab/test_provisioning_diagnostics.py::ProvisioningDiagnostics.test_log_limit_and_truncate_are_explicit_not_saved_success": {
+      "sha256": "229693686fc9a935d73ed750dc1f89587ed90def5855ad647edac765498f4f8d",
+      "bytes": 604
+    },
+    "browser-client/lab/test_provisioning_diagnostics.py::ProvisioningDiagnostics.test_invalid_schema_or_configuration_prevents_any_post": {
+      "sha256": "f6d81a607fc3568514df34c95fe4196c845162130a9c4440415a054c73e77869",
+      "bytes": 810
+    },
+    "browser-client/lab/test_provisioning_diagnostics.py::ProvisioningDiagnostics.test_true_unknown_untyped_or_duplicate_stored_oauth_never_posts": {
+      "sha256": "0e8f0b05dcde0cd65770bbf452de4342bd0eaaf6cc5ba090d6e924b486c2723a",
+      "bytes": 1343
+    },
+    "browser-client/lab/test_provisioning_diagnostics.py::ProvisioningDiagnostics.test_any_auth_or_nonsecurity_post_group_and_invalid_guest_policy_never_posts": {
+      "sha256": "a8def94ef3aa444b0df5620d28fed8a1791059ed8d840eba5ea10f20c9715777",
+      "bytes": 1933
+    },
+    "browser-client/lab/test_provisioning_diagnostics.py::ProvisioningDiagnostics.test_actual_after_read_requires_disabled_oauth_even_when_http_succeeded": {
+      "sha256": "7bfa635b30752da839216407e3d40fa11794403fbb187081d4633c3e77247f64",
+      "bytes": 1188
+    },
+    "browser-client/lab/test_provisioning_diagnostics.py::ProvisioningDiagnostics.test_before_and_after_config_symlink_fifo_refused_without_following_or_blocking": {
+      "sha256": "46256802f1194a5d1e37a83b4c00d662da89760f76ae45833c7dfc3d09d5711c",
+      "bytes": 1679
+    },
+    "browser-client/lab/test_native_launch.py::ManagedLaunchRecords.test_native_environment_is_sealed_and_never_enters_host_argv_environment_or_disk": {
+      "sha256": "d12ee963268d0f1c49e8ad626d9d8e4b22b7ec352629cf57376949f657673b93",
+      "bytes": 1078
+    },
+    "browser-client/lab/test_native_launch.py::ManagedLaunchRecords.test_changed_native_loader_override_home_and_aggregate_overflow_refuse": {
+      "sha256": "78cdf53122024d9f0403754acb7635323c6bda1262324e34c23bc2db7a65fc49",
+      "bytes": 1024
+    },
+    "browser-client/lab/test_native_launch.py::ManagedLaunchRecords.test_duplicate_record_unknown_field_and_unsealed_descriptor_refuse": {
+      "sha256": "b5451c59f1d8a059e47dc6e2c37c9fb324cecd12bb402658a96e32e9ebd0582d",
+      "bytes": 489
+    },
+    "browser-client/lab/test_native_launch.py::ManagedLaunchRecords.test_kernel_policy_mode_never_admits_an_unknown_profile": {
+      "sha256": "ef0975c2e9b494d21e1931c33390daf1585c16f879cafe5d85495221419ea16f",
+      "bytes": 956
+    },
+    "browser-client/lab/test_native_launch.py::OwnedSupervisor.test_controller_exit_preserves_service_and_registered_group_death_stops_every_owned_child": {
+      "sha256": "d6ad8dd8e8c2f3c49aa6101ffb2fe2ce1f9b8de83ff0840c0ec1aa3f4ff647c7",
+      "bytes": 5835
+    },
+    "browser-client/lab/test_managed_stop.py::StopContracts.test_reused_after_term_never_receives_kill_registry_retained": {
+      "sha256": "2812bbe7d49c885eaab1fa1d2992d37184f9b056e67b5de7451c317d508a7802",
+      "bytes": 303
+    },
+    "browser-client/lab/test_managed_stop.py::StopContracts.test_unconfirmed_retirement_retains_registry_original_budget": {
+      "sha256": "45bbd658e268e9efa31ebdde6f7551ad5e2ed31fbafec2004a67b57fb7e623c9",
+      "bytes": 265
+    },
+    "browser-client/lab/test_managed_stop.py::StopContracts.test_known_descendant_escaped_original_group_retired_by_its_pidfd": {
+      "sha256": "2eb50b7ac88d2079c80649036bfe4c11abc2b7e40c8d06370b80ee1bb5dc3d25",
+      "bytes": 318
+    },
+    "browser-client/lab/test_managed_stop.py::StopContracts.test_unknown_original_group_survivor_retains_registry": {
+      "sha256": "32d14f32b36d8c0355aca0a34e491746d1b3cd9477a7944e1b32cf1e3acb41ca",
+      "bytes": 268
+    },
+    "browser-client/lab/test_managed_stop.py::StopContracts.test_uid_change_refuses_before_any_signal": {
+      "sha256": "efe663ad23092cc62e85d8807013b516c8317a1216845c85e87ba468505f1dea",
+      "bytes": 288
+    },
+    "browser-client/lab/test_managed_stop.py::StopContracts.test_changed_group_during_escalation_refuses_no_numeric_signal": {
+      "sha256": "5ba2932b816a12a27958f0d2c868172641b60f138af04fbb0e231a7cef79cb55",
+      "bytes": 429
+    },
+    "browser-client/lab/test_managed_stop.py::StopContracts.test_signal_permission_error_keeps_registry_and_closes_descriptors": {
+      "sha256": "f490325da82402c8fb444d2a0069d3697e33a19b8de18e44b08ab74731bfb951",
+      "bytes": 295
+    },
+    "browser-client/lab/test_managed_stop.py::StopContracts.test_descendant_bound_fails_closed": {
+      "sha256": "9d873397aca2e037094ca958cf37d7199e37bcf830cefc17cb0cfec6fefe971d",
+      "bytes": 263
+    },
+    "browser-client/lab/test_managed_stop.py::StopContracts.test_reverse_order_selected_retirement_preserves_other_rows": {
+      "sha256": "42601cc18c78207afb1199f9dace9393b9d525179911c9e9ceb3367a9776a899",
+      "bytes": 670
+    },
+    "browser-client/lab/test_managed_stop.py::StopContracts.test_dead_managed_supervisor_never_discards_unobserved_split_payload": {
+      "sha256": "37ecf0dcdc6d9ea3b443b934d265fccaad318c49c83bb7dcc038abb1079ae591",
+      "bytes": 487
+    },
+    "browser-client/lab/test_managed_stop.py::StopContracts.test_initial_leader_loss_refuses_before_payload_attribution": {
+      "sha256": "37815e8accf27e0e21b513271636c5729d59dacc778b33302adcea6fb6ba6f36",
+      "bytes": 259
+    },
+    "browser-client/lab/test_managed_stop.py::StopContracts.test_missing_state_is_noop": {
+      "sha256": "edc7f8b8254960a7faab27318b92a7487f3071c82c932c7c87a5d619340abe1c",
+      "bytes": 180
+    },
+    "browser-client/lab/test_managed_stop.py::SessionBoundary.test_only_prefix_new_session_removed_payload_and_other_flags_exact": {
+      "sha256": "acdc7c4f23eab6a432c5ad049af3c7150f54cde0723699abb6265b2cbd80c807",
+      "bytes": 480
+    },
+    "browser-client/lab/test_managed_stop.py::SessionBoundary.test_missing_duplicate_or_no_delimiter_refuses_before_process": {
+      "sha256": "05259de8110b6e8bd8552c64c4737ff989bbf8e970c532f6cf9451d71f7a0394",
+      "bytes": 378
+    },
+    "browser-client/lab/test_managed_parent_guard.py::ParentGuards.test_actual_set_get_and_descriptor_retirement": {
+      "sha256": "2965ed3226cfcc8c8257dae340dfe6c1dce8385c69b50231e909341457193cea",
+      "bytes": 159
+    },
+    "browser-client/lab/test_managed_parent_guard.py::ParentGuards.test_wrong_readback_or_prctl_failure_refuses": {
+      "sha256": "009b369913fd904dd3acee318682c7047365c928a72df7543ca563974335e92f",
+      "bytes": 227
+    },
+    "browser-client/lab/test_managed_parent_guard.py::ParentGuards.test_parent_death_ready_before_or_after_setting_refuses": {
+      "sha256": "59992cfe9967a4baf3d8d3f3ed6d9918f913eca94587c6567f8db92d720dd5c9",
+      "bytes": 189
+    },
+    "browser-client/lab/test_managed_parent_guard.py::ParentGuards.test_setup_reparent_reuse_or_uid_change_refuses": {
+      "sha256": "0161c580960f920448689aebe94a9f6b1a340ffb3c98894f2b29343ce02f9120",
+      "bytes": 355
+    },
+    "browser-client/lab/test_managed_parent_guard.py::ParentGuards.test_partial_pidfd_open_failure_closes_first_descriptor": {
+      "sha256": "248ef9135cb476164c31c885f876f048b59077db9e7235907173e645cebb3b96",
+      "bytes": 377
+    },
+    "browser-client/lab/test_managed_parent_guard.py::ParentGuards.test_ancestry_reaches_only_exact_sealed_supervisor": {
+      "sha256": "5dce84e3c3d74b9db32dcfd0cf30c67fe808e52dce85fea5b23e6ae2e228fcf8",
+      "bytes": 251
+    },
+    "browser-client/lab/test_managed_parent_guard.py::ParentGuards.test_same_uid_adopter_outside_expected_chain_refuses": {
+      "sha256": "237a6b6cccee42ffdd33c9cc00135e2d08ccda3cbacf6196cb9af2201994599d",
+      "bytes": 301
+    },
+    "browser-client/lab/test_managed_parent_guard.py::ParentGuards.test_expected_supervisor_reuse_refuses": {
+      "sha256": "a02cc1daffa03c3838e98db1869859cd1b61b40c77ba2a173991f2e4ba2eab35",
+      "bytes": 295
+    },
+    "browser-client/lab/test_managed_parent_guard.py::ParentGuards.test_unbounded_loop_unknown_or_pid_one_refuses": {
+      "sha256": "0e18b1c8adf84c231d40b6acc095849101a50ce324583ec9b62454a2ed34e970",
+      "bytes": 301
+    },
+    "browser-client/lab/test_managed_parent_guard.py::ParentGuards.test_final_record_strict_extra_field_and_duplicates": {
+      "sha256": "3e054ec927ae0bc67878033d46aa4bc89bcb66a42dae268afedc1a7c8d8b4e63",
+      "bytes": 875
+    },
+    "browser-client/lab/test_managed_parent_guard.py::ParentGuards.test_final_producer_sealed_fd_actual_consumer": {
+      "sha256": "b82978aa217f8d9ba12c98dfdbb59929eb1de25f2621c97a073e29e208073c30",
+      "bytes": 1119
+    },
+    "browser-client/lab/test_managed_parent_guard.py::NativePrivilege.test_exact_regular_nonprivileged_owned_nnp_one_passes": {
+      "sha256": "f2349420ef080321945cfd2a77a3913ea875bfbe06eaebc2fecafe7f00c07b1f",
+      "bytes": 77
+    },
+    "browser-client/lab/test_managed_parent_guard.py::NativePrivilege.test_setuid_setgid_or_nonregular_refuses": {
+      "sha256": "0a850cd84efa6808aa097dbd4067ed426d89417f84e5d5155daba95119d470ad",
+      "bytes": 172
+    },
+    "browser-client/lab/test_managed_parent_guard.py::NativePrivilege.test_present_capability_or_unknown_xattr_error_refuses": {
+      "sha256": "1f46f2e2796e400be7b632b575f1b896a46072d79e718749c723987a34991d2e",
+      "bytes": 257
+    },
+    "browser-client/lab/test_managed_parent_guard.py::NativePrivilege.test_missing_false_duplicate_or_unbounded_nnp_refuses": {
+      "sha256": "c1aa7f86614aed7259f6848c825ae6505853a543a2b6b445f627c2f6bb0733f6",
+      "bytes": 213
+    },
+    "browser-client/lab/test_managed_parent_guard.py::AdmitRetirement.test_actual_admit_identity_exception_retires_opened_fd": {
+      "sha256": "04e1ce5e677f55f1d82f7eb62a26f7061b8f3e365b473fdeb57433ecea72ade3",
+      "bytes": 834
+    },
+    "browser-client/lab/test_managed_registered_wrapper.py::Registered.test_live_recorded_wrapper_and_only_owned_native_pass": {
+      "sha256": "ef7e6008b9301251de0da57b1568d6dbd2ba8511638e7e87240bf99a37988378",
+      "bytes": 153
+    },
+    "browser-client/lab/test_managed_registered_wrapper.py::Registered.test_no_missing_none_bool_or_wrong_recorded_birth_bypass": {
+      "sha256": "5129430e2faa19cb9ea3850fc934438fea2dcdf77be215ac9bff8f368ef269d7",
+      "bytes": 258
+    },
+    "browser-client/lab/test_managed_registered_wrapper.py::Registered.test_reuse_before_discovery_refuses_without_any_pidfd_signal": {
+      "sha256": "bc19ce8601e44fc8f37deac9d8b4892ec88679f73a86dc2d6d517d860fe3c1c1",
+      "bytes": 171
+    },
+    "browser-client/lab/test_managed_registered_wrapper.py::Registered.test_reuse_after_endpoint_native_readback_refuses_and_closes_all": {
+      "sha256": "35cb64d991a786ba292b942a7763836eae8db16274305b91426c50caa271a9fd",
+      "bytes": 184
+    },
+    "browser-client/lab/test_managed_registered_wrapper.py::Registered.test_changed_group_or_session_refuses_before_discovery": {
+      "sha256": "75472465ce214ad26aaf3ff0c1299be6b9215e212e50f5435b4a26f66842c744",
+      "bytes": 204
+    },
+    "browser-client/lab/test_managed_registered_wrapper.py::Registered.test_unowned_child_ancestry_refuses": {
+      "sha256": "c8986d76ef323dbe80f5a6c4dbfab656e02d543ee8a13cc4fbeb50a1bde38241",
+      "bytes": 180
+    },
+    "browser-client/lab/test_managed_registered_wrapper.py::Registered.test_endpoint_refusal_closes_all_descriptors": {
+      "sha256": "17bdc4a07f04433544771a30d89b0aeb214b94f2ca62f43d73b46bb7b33e898b",
+      "bytes": 176
+    },
+    "browser-client/lab/test_managed_registered_wrapper.py::Registered.test_snapshot_exception_after_open_closes_every_admitted_fd": {
+      "sha256": "2a4ce7152babab0240cece65cd742162683a306422261211ba2350acb15caa19",
+      "bytes": 400
+    },
+    "browser-client/lab/test_managed_registered_wrapper.py::Registered.test_tree_bound_cycle_refuses_and_retires_fds": {
+      "sha256": "bebc2c9f84b1c0593d46fa93760d6f1978ccd56be867209d3c103158097df816",
+      "bytes": 537
+    },
+    "browser-client/lab/test_managed_registered_wrapper.py::Registered.test_exact_callers_pass_the_original_stored_birth": {
+      "sha256": "9c555f7930f91e23ae3ed4fe15fe63c901de2ee4b290cdae747887c5dfa96379",
+      "bytes": 463
+    },
+    "browser-client/lab/test_managed_registered_wrapper.py::Registered.test_legacy_unregistered_discovery_body_byte_exact": {
+      "sha256": "cb625607b8c1e9dc3946c55f59c2088b51869b7b8635fdbd422e3c85043ddedd",
+      "bytes": 373
+    },
+    "browser-client/lab/test_managed_python_boundary.py::PythonBoundary.test_actual_entry_and_final_commands_use_exact_isolation_flags": {
+      "sha256": "896afe8e13121fc4223a1a504a4ae3950c90ac0fb5251ffb4ad96d6b83a49a7c",
+      "bytes": 1096
+    },
+    "browser-client/lab/test_managed_python_boundary.py::PythonBoundary.test_controlled_ctypes_sibling_old_executes_isolated_does_not": {
+      "sha256": "d1e4b419d8c8975318645f1d8657b7064fc322cdece17689d449353413ce8f06",
+      "bytes": 1110
+    },
+    "browser-client/lab/test_managed_python_boundary.py::PythonBoundary.test_pythonpath_user_site_and_global_site_startup_disabled": {
+      "sha256": "d8b59af764b718fa81d58697c60e0c259e9661ad9e4e27d276a30e5b7ce6b532",
+      "bytes": 859
+    },
+    "browser-client/lab/test_managed_python_boundary.py::PythonBoundary.test_nonroot_writable_nonregular_or_privileged_interpreter_refuses": {
+      "sha256": "9a57912bf4d13f7016494bc6170c1bde869c94568f95e8b1652b53506b1a7837",
+      "bytes": 473
+    },
+    "browser-client/lab/test_managed_owned_cpu.py::OwnedCPU.test_exact_old_session_split_with_cleared_pdeath_retains_cpu_payload": {
+      "sha256": "12f381c0b6d4198c4cadd276808fd269267e4e839208ff8df9707a8c5569ef2f",
+      "bytes": 342
+    },
+    "browser-client/lab/test_managed_owned_cpu.py::OwnedCPU.test_exact_corrected_supervise_same_group_all_cpu_payloads_retire": {
+      "sha256": "fac395bad9c6d76a81e2b2b0cf5075b7e66b47c16d991d91c656600e2f608019",
+      "bytes": 321
+    },
+    "browser-client/lab/test_managed_owned_cpu.py::OwnedCPU.test_actual_corrected_stop_retires_own_escaped_cpu_descendant": {
+      "sha256": "040977e6bf283c1ac13d6efedb913208fd5382a362fd29590f1acef764beef4c",
+      "bytes": 882
+    },
+    "browser-client/lab/test_managed_parent_owned_cpu.py::RealParent.test_after_exec_real_set_get_binding_parent_death_retires_child": {
+      "sha256": "fb2aecb17efd58f3d06baf24a374848c5143718734d3412e566a630e96f85a29",
+      "bytes": 259
+    },
+    "browser-client/lab/test_managed_parent_owned_cpu.py::RealParent.test_same_uid_subreaper_adoption_before_capture_is_refused": {
+      "sha256": "d81463368177fbf199526025124a905bc1124a8be96417c125fa41b383f31974",
+      "bytes": 460
+    }
+  }
+}

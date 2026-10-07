@@ -1,0 +1,254 @@
+{
+  "version": 1,
+  "scope": "Retained actual Google Chrome Audio86150 failure; no retry or production change",
+  "engine": "Google Chrome",
+  "browserVersion": "154.0.8037.97",
+  "sourceBindings": {
+    "summarySHA256": "83a9fa5bbf7b0d1e7c835d1c628d6298e90c1b5f55c4a019e3125a4a0e273da9",
+    "captureFailureDiagnosticSHA256": "815b28cac1ea568c8966e60335af49b69852c1f97ffdec9641a48c379f2bfba1",
+    "nativeLogSHA256": "8c3ea4ef86f42f4b383110a6fba5efa8d1fe7fccefcfbda956fb74516ee80ce6",
+    "complete84SHA256": "a823a0e90c8a6cc3f25601982527fdfe194f9a1484ca9a6867c58596a67db901",
+    "nativeModuleSHA256": "cb7b3c3b61cc68fda81275196d07282685c75a88e91bdb0fbf4fabdc4a77531f",
+    "nativeArtifactsSHA256": "6f1ffd9f0017ece44734c9ab675763f842b91faadf49f40534f5b7782ecabb36",
+    "shippingFactorySHA256": "9a41d28676ada36d6a54bec5186214963d9864f6cad8c79e7abe666f9d36d7fe",
+    "shippingLocalHelperSHA256": "1d258ce76705033598e3f5decbe084e746feb2bcd19ba30f8b0c1afa416d6f2f",
+    "originalRawReportSHA256": "3cc673c9edd5d77c7fd4a0bfc7587c82eff1f1dcd943d235b543a46f261b89ba",
+    "parentReserializedReportSHA256": "a240a3457a99eecb2e677f2873f3d329e4c941cfa45655f1aa6bf967f73e6041",
+    "independentParsedJSONEquality": true,
+    "previousSafeArtifactSHA256": "a3a87c05cab883cfc68dd9fd4cf9713c6fc8d511ba786f6cdcae67f628ffc544"
+  },
+  "outcome": {
+    "completed": false,
+    "cleanupVerified": true,
+    "sourceCoherent": true,
+    "stage": "echoCancellation-change-ack",
+    "original12StepsCompleted": true,
+    "noGrantCheckpointCompleted": true,
+    "processingQualified": false,
+    "gainQualified": false,
+    "requestCount": 32,
+    "changeRequestCount": 0,
+    "readbackRequestCount": 32,
+    "resultCount": 32,
+    "acceptedReadbackCount": 32,
+    "activeReadbackCount": 19,
+    "inactiveReadbackCount": 13,
+    "wireErrors": 0,
+    "allCurrentFinalProcessingSettingsTrue": true,
+    "currentGainPercent": 100
+  },
+  "nativeAudit": {
+    "rawRecordCount": 50,
+    "activeCount": 43,
+    "readyCount": 49,
+    "awaitingCount": 0,
+    "parserOriginalRetainedRowCap": 32,
+    "rawRowsUsedForThisAggregate": true
+  },
+  "coldCapture": {
+    "recordCount": 24,
+    "rejectedRecords": 0,
+    "recordCap": 32,
+    "sourceSequenceCap": 4,
+    "sequences": [
+      {
+        "sequence": 1,
+        "eventCount": 6,
+        "eventCounts": {
+          "capture-entered": 1,
+          "grab-requested": 1,
+          "grab-accepted": 1,
+          "callback-before-save": 1,
+          "save-stage-returned": 1,
+          "frame-queue-returned": 1
+        },
+        "callbackCurrent": true,
+        "saveAttempted": true,
+        "saved": true,
+        "requestToCallback": {
+          "displayedSeconds": 25,
+          "quantizationSeconds": [
+            1,
+            1
+          ],
+          "elapsedLowerBoundSeconds": 24,
+          "elapsedUpperBoundSeconds": 26,
+          "upperBoundExclusive": true
+        },
+        "callbackToSave": {
+          "displayedSeconds": 0,
+          "quantizationSeconds": [
+            1,
+            1
+          ],
+          "elapsedLowerBoundSeconds": 0,
+          "elapsedUpperBoundSeconds": 1,
+          "upperBoundExclusive": true
+        },
+        "saveToQueued": {
+          "displayedSeconds": 0,
+          "quantizationSeconds": [
+            1,
+            1
+          ],
+          "elapsedLowerBoundSeconds": 0,
+          "elapsedUpperBoundSeconds": 1,
+          "upperBoundExclusive": true
+        }
+      },
+      {
+        "sequence": 2,
+        "eventCount": 6,
+        "eventCounts": {
+          "capture-entered": 1,
+          "grab-requested": 1,
+          "grab-accepted": 1,
+          "callback-before-save": 1,
+          "save-stage-returned": 1,
+          "frame-queue-returned": 1
+        },
+        "callbackCurrent": false,
+        "saveAttempted": false,
+        "saved": false,
+        "requestToCallback": {
+          "displayedSeconds": 0,
+          "quantizationSeconds": [
+            1,
+            1
+          ],
+          "elapsedLowerBoundSeconds": 0,
+          "elapsedUpperBoundSeconds": 1,
+          "upperBoundExclusive": true
+        },
+        "callbackToSave": {
+          "displayedSeconds": 0,
+          "quantizationSeconds": [
+            1,
+            1
+          ],
+          "elapsedLowerBoundSeconds": 0,
+          "elapsedUpperBoundSeconds": 1,
+          "upperBoundExclusive": true
+        },
+        "saveToQueued": {
+          "displayedSeconds": 0,
+          "quantizationSeconds": [
+            1,
+            1
+          ],
+          "elapsedLowerBoundSeconds": 0,
+          "elapsedUpperBoundSeconds": 1,
+          "upperBoundExclusive": true
+        }
+      },
+      {
+        "sequence": 3,
+        "eventCount": 6,
+        "eventCounts": {
+          "capture-entered": 1,
+          "grab-requested": 1,
+          "grab-accepted": 1,
+          "callback-before-save": 1,
+          "save-stage-returned": 1,
+          "frame-queue-returned": 1
+        },
+        "callbackCurrent": true,
+        "saveAttempted": true,
+        "saved": true,
+        "requestToCallback": {
+          "displayedSeconds": 1,
+          "quantizationSeconds": [
+            1,
+            1
+          ],
+          "elapsedLowerBoundSeconds": 0,
+          "elapsedUpperBoundSeconds": 2,
+          "upperBoundExclusive": true
+        },
+        "callbackToSave": {
+          "displayedSeconds": 0,
+          "quantizationSeconds": [
+            1,
+            1
+          ],
+          "elapsedLowerBoundSeconds": 0,
+          "elapsedUpperBoundSeconds": 1,
+          "upperBoundExclusive": true
+        },
+        "saveToQueued": {
+          "displayedSeconds": 0,
+          "quantizationSeconds": [
+            1,
+            1
+          ],
+          "elapsedLowerBoundSeconds": 0,
+          "elapsedUpperBoundSeconds": 1,
+          "upperBoundExclusive": true
+        }
+      },
+      {
+        "sequence": 4,
+        "eventCount": 6,
+        "eventCounts": {
+          "capture-entered": 1,
+          "grab-requested": 1,
+          "grab-accepted": 1,
+          "callback-before-save": 1,
+          "save-stage-returned": 1,
+          "frame-queue-returned": 1
+        },
+        "callbackCurrent": true,
+        "saveAttempted": true,
+        "saved": true,
+        "requestToCallback": {
+          "displayedSeconds": 1,
+          "quantizationSeconds": [
+            1,
+            1
+          ],
+          "elapsedLowerBoundSeconds": 0,
+          "elapsedUpperBoundSeconds": 2,
+          "upperBoundExclusive": true
+        },
+        "callbackToSave": {
+          "displayedSeconds": 0,
+          "quantizationSeconds": [
+            1,
+            1
+          ],
+          "elapsedLowerBoundSeconds": 0,
+          "elapsedUpperBoundSeconds": 1,
+          "upperBoundExclusive": true
+        },
+        "saveToQueued": {
+          "displayedSeconds": 0,
+          "quantizationSeconds": [
+            1,
+            1
+          ],
+          "elapsedLowerBoundSeconds": 0,
+          "elapsedUpperBoundSeconds": 1,
+          "upperBoundExclusive": true
+        }
+      }
+    ],
+    "interpretation": "Callback entry separates native grab completion from existing save/queue operations; logger quantization prevents exact millisecond attribution."
+  },
+  "limits": [
+    "All accepted capture DTOs in the retained bounded observer are readbacks. A genuine physical press/release completed, but Qt change-callback dispatch is not established.",
+    "The three native signal-path callbacks were not instrumented in this retained run; no suppression stage or periodic-readback cause is proven.",
+    "First cold capture waits before callback entry. Logger whole-second precision gives24–26s; same-second save/queue intervals are strictly less than1s, not exact0ms.",
+    "A cancelled second capture and current=false after activeCapture clears are preserved observations, not save failure.",
+    "Cold instrumentation is intentionally limited to first4 sequences. Later native grab timing and root cause remain unknown.",
+    "No processing reacquisition or gain effect is qualified by this failure. Earlier completed six-toggle evidence remains distinct.",
+    "Private logs, screenshots, coordinates, profile paths, device identifiers and participant identifiers are excluded.",
+    "The previous safe artifact called the parent reserialization reportSHA256. This derivative labels original raw and reserialized bytes separately; the old frozen artifact is retained unchanged."
+  ],
+  "reportByteProvenance": {
+    "originalRawBytes": 30173,
+    "parentReserializedBytes": 30174,
+    "bytesEqual": false,
+    "parsedJSONEqual": true,
+    "interpretation": "Original owned runner report and parent JSON reserialization have different byte hashes and independently equal parsed JSON. The original raw SHA binds the actual run."
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "scope": "CPU-historical-original-assertion-bodies-not-runtime-admission",
+  "originalHostMethods": {
+    "ManagedState.test_missing_registry_stop_is_a_non_mutating_noop": "eecc40e84c7e5e75b58aeb495dbd2c7dcb99d1b1c6dd2199c9460ff83285084d",
+    "ManagedState.test_existing_empty_registry_bytes_are_preserved": "00c544134478e719c789f50e1df419ee4d70cc4bd81ae4e59e44c1ed568b2b0d",
+    "ManagedState.test_malformed_registry_is_not_converted_to_missing": "ed8b768f0bc7b941a2b19cdb10cb9147a4a9f32fe70760b490465d071837d79f",
+    "ManagedState.test_invalid_identities_fail_before_any_process_is_inspected": "70eb727c24c9eae0e44fb481e76d4d78aee9a3f975ccdfdb91ad21ebca23ae3a",
+    "ManagedState.test_permission_error_remains_an_error": "9511879d5670b131a0d505187f5f2bd69169fc54b90ad020eaa1edb139bdb7ee",
+    "ManagedState.test_dangling_registry_symlink_is_rejected": "baaa9a5a887084e21f03150a7c4a8f2571d7b8bb29c6e330dfc6bbb82178d681",
+    "ManagedState.test_existing_registry_symlink_is_rejected": "7dcb926e629012fcf0f227f8a844ba62caccc2eba860b252538d68f16ef7d82b",
+    "ManagedState.test_valid_dead_process_can_be_removed_without_signalling": "02f3b7dd97aafa8c99d4ce49ec1772527f4040bc90cf619fc94da7964afe2f2a",
+    "ManagedState.test_reused_pid_is_refused_without_killing_or_changing_state": "7900913ae445e7a9c8c366426dde2df2b13da2afde828ac3b9236241854101de",
+    "ManagedState.test_changed_process_group_is_refused": "7b9b68ddb77dda2089f7f7cc9808a1cdbb8aa8bdad28c2bc2f0beefb68349df4",
+    "ManagedState.test_real_cli_stop_before_prepare_is_successful_and_creates_nothing": "16c93218f8aef0d405661c3d221f28999072dca9b0a2d8bcd5c23ad14c476f11",
+    "ManagedState.test_start_keeps_administration_token_out_of_persistent_files": "548e2ed28d82b381db11e7041dee0ec2f63db054b0ab4a2dc057bff491b013be"
+  },
+  "originalNativeMethods": {
+    "ManagedLaunchRecords.test_native_environment_is_sealed_and_never_enters_host_argv_environment_or_disk": "8c4634555b69f4e5f1d83de09d63394b991fee6e7f3133a0839b57d471b9e1af",
+    "ManagedLaunchRecords.test_changed_native_loader_override_home_and_aggregate_overflow_refuse": "c8047efddad8886dfaeff59b6695c564c08cc20ae6a7bf388463dd165f1cc748",
+    "ManagedLaunchRecords.test_duplicate_record_unknown_field_and_unsealed_descriptor_refuse": "00ea54a492836f5bf2b2f0cc44a98836313572573b078eb04f0783ef513f0d05",
+    "ManagedLaunchRecords.test_kernel_policy_mode_never_admits_an_unknown_profile": "ba586ed8d6303d113f1f006e1b1b2f4a446045f13e58eeadb60224eb22c7b8df",
+    "OwnedSupervisor.test_controller_exit_preserves_service_and_registered_group_death_stops_every_owned_child": "80404c60e24a0a3516c851f04e62829a6cced484cdc00e71ef1b0c67a2dca454"
+  },
+  "historicalHelperSHA256": "c7bd9635f970e4b936231fb76d4b526e4b4fc11a8b591f6c44afb78833d2a3bd",
+  "requiredHostCases": 84,
+  "originalHostCases": 34,
+  "addedHostCases": 50
+}

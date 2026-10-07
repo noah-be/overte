@@ -1,0 +1,2897 @@
+{
+  "schemaVersion": 1,
+  "materialAssistance": "OpenAI Codex",
+  "scope": "Short real online overte_hub with isolated native guest workers; read-only and muted. FST graph memo and current renderer capability caches enabled; shader/texture-preparation experiments off.",
+  "limits": [
+    "No 30-minute or endurance run.",
+    "Different live domain snapshots; these cohorts do not establish an isolated causal speedup.",
+    "Phase counts are invocations; overlapping phase totals are not elapsed time or unique GPU uploads.",
+    "The single-session diagnostic does not verify reconnect and is not strict fluid acceptance.",
+    "Both strict cohorts complete functional native movement and reconnect, but fail the unchanged fluid acceptance.",
+    "Firefox and Chromium retain their actual initial device density; drawing buffers differ."
+  ],
+  "cohorts": [
+    {
+      "label": "firefox-single-session-diagnostic",
+      "startedAt": "2026-10-01T16:04:04.480Z",
+      "finishedAt": "2026-10-01T16:05:07.589Z",
+      "rawSHA256": "3fb9d5653fc62fc366d503c001dd90ad974d53fb280e0a937a09600135829ae7",
+      "rawPrivateReport": "build/browser-hub-lab/browser/system-firefox/public-hub-2026-10-01T16-04-04-480Z.json",
+      "browserVersion": "firefox/156.0",
+      "webGL": {
+        "vendor": "NVIDIA Corporation",
+        "renderer": "NVIDIA GeForce GTX 980, or similar"
+      },
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "devicePixelRatio": 1.6666666666666667,
+        "visibility": "visible"
+      },
+      "reconnectRequested": false,
+      "strictFluidRequested": false,
+      "completed": true,
+      "error": null,
+      "sourceCoherent": true,
+      "distributionCoherent": true,
+      "microphoneRequested": false,
+      "worldInteractionsSent": 0,
+      "firstObservedTaskReadinessMs": 25106,
+      "readinessSamplingIntervalMs": 3000,
+      "movementMeters": 4.300361732806352,
+      "nativePoseDifferenceMeters": 0.0007498467559987897,
+      "reconnectedMovementMeters": null,
+      "reconnectedNativeDifferenceMeters": null,
+      "fluidMovementAcceptancePassed": false,
+      "fluidGates": {
+        "steadyFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "walkFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        }
+      },
+      "samples": [
+        {
+          "stage": "loaded-steady",
+          "fps": 22.707919386886175,
+          "medianFrameMs": 39,
+          "p95FrameMs": 90,
+          "maximumFrameMs": 134,
+          "drawingBufferWidth": 2133,
+          "drawingBufferHeight": 1333,
+          "drawCalls": 671,
+          "triangles": 549126,
+          "geometries": 423,
+          "textures": 213,
+          "entities": 518,
+          "loadedModels": 294,
+          "loadedAvatars": 1,
+          "meshColliders": 73,
+          "imageLoading": {
+            "requests": 114,
+            "uniqueImages": 71,
+            "cacheHits": 43,
+            "completed": 65,
+            "failed": 6,
+            "cancelled": 0,
+            "evictions": 0,
+            "peakActive": 6,
+            "sourceKinds": {
+              "http": {
+                "requests": 38,
+                "uniqueImages": 27,
+                "cacheHits": 11,
+                "completed": 21,
+                "failed": 6,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "https": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "data": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "blob": {
+                "requests": 76,
+                "uniqueImages": 44,
+                "cacheHits": 32,
+                "completed": 44,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "other": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              }
+            },
+            "active": 0,
+            "queued": 0,
+            "pending": 0,
+            "retainedEntries": 65,
+            "retainedPixels": 66714765,
+            "retainedKeyBytes": 14450,
+            "pendingKeyBytes": 0,
+            "phases": {
+              "imageLoad": {
+                "count": 65,
+                "totalMs": 8549,
+                "maxMs": 658
+              },
+              "imageDecode": {
+                "count": 65,
+                "totalMs": 3621,
+                "maxMs": 385
+              }
+            }
+          },
+          "embeddedImages": {
+            "createdURLs": 44,
+            "reusedURLs": 32,
+            "revokedURLs": 0,
+            "bytes": 9958709,
+            "entries": 44,
+            "scopes": 0,
+            "distinctContents": 40,
+            "repeatedContentEntries": 4,
+            "distinctContentBytes": 8787830,
+            "repeatedContentBytes": 1170879,
+            "preparations": 131,
+            "convertedImages": 45,
+            "extractedBytes": 9958709,
+            "skippedOversize": 0,
+            "skippedUnsupported": 3
+          },
+          "fbxPreparation": {
+            "active": 0,
+            "queued": 0,
+            "outstanding": 0,
+            "inputBytes": 0,
+            "workers": 1,
+            "completed": 131,
+            "cancelled": 0,
+            "failed": 4,
+            "disposed": false
+          },
+          "sourceTextLoading": {
+            "hits": 536,
+            "misses": 320,
+            "bytes": 389582,
+            "ready": 319,
+            "active": 0,
+            "readers": 0,
+            "evictions": 0,
+            "disposed": false
+          },
+          "preparedFbxCache": {
+            "hits": 162,
+            "misses": 135,
+            "bytes": 11238883,
+            "ready": 64,
+            "active": 0,
+            "readers": 0,
+            "evictions": 67,
+            "disposed": false
+          },
+          "fstGraphCache": {
+            "inspections": 100,
+            "hits": 142,
+            "zeroResults": 100,
+            "unknownResults": 0,
+            "positiveResults": 0,
+            "positiveReinspections": 0,
+            "disposed": false
+          },
+          "shaderWarmup": {
+            "enabled": false,
+            "roots": 0,
+            "bindings": 0,
+            "batches": 0,
+            "yielded": 0,
+            "smallRoots": 0,
+            "conservativeFallbacks": 0
+          },
+          "loadPhases": {
+            "graphicsSubmit": {
+              "count": 1529,
+              "totalMs": 19614,
+              "maxMs": 692
+            },
+            "shaderPrepare": {
+              "count": 501,
+              "totalMs": 24685,
+              "maxMs": 721
+            },
+            "fbxMaterialBindings": {
+              "count": 131,
+              "totalMs": 447,
+              "maxMs": 42
+            },
+            "fbxDecode": {
+              "count": 131,
+              "totalMs": 3461,
+              "maxMs": 447
+            },
+            "fbxPrepareWait": {
+              "count": 293,
+              "totalMs": 33668,
+              "maxMs": 1243
+            },
+            "fbxParse": {
+              "count": 293,
+              "totalMs": 5285,
+              "maxMs": 259
+            },
+            "fbxTextures": {
+              "count": 293,
+              "totalMs": 4938,
+              "maxMs": 458
+            },
+            "textureAlpha": {
+              "count": 845,
+              "totalMs": 5505,
+              "maxMs": 1001
+            },
+            "entityUpdate": {
+              "count": 10,
+              "totalMs": 169,
+              "maxMs": 72
+            },
+            "fstGraphPreflight": {
+              "count": 242,
+              "totalMs": 103,
+              "maxMs": 18
+            },
+            "colliderBuild": {
+              "count": 76,
+              "totalMs": 292,
+              "maxMs": 61
+            },
+            "compressedColor": {
+              "count": 232,
+              "totalMs": 26103,
+              "maxMs": 1017
+            },
+            "modelBatch": {
+              "count": 6,
+              "totalMs": 167,
+              "maxMs": 96
+            }
+          }
+        },
+        {
+          "stage": "walking",
+          "fps": 23.710729104919977,
+          "medianFrameMs": 37,
+          "p95FrameMs": 82,
+          "maximumFrameMs": 132,
+          "drawingBufferWidth": 2133,
+          "drawingBufferHeight": 1333,
+          "drawCalls": 633,
+          "triangles": 507073,
+          "geometries": 423,
+          "textures": 213,
+          "entities": 518,
+          "loadedModels": 294,
+          "loadedAvatars": 1,
+          "meshColliders": 73,
+          "imageLoading": {
+            "requests": 114,
+            "uniqueImages": 71,
+            "cacheHits": 43,
+            "completed": 65,
+            "failed": 6,
+            "cancelled": 0,
+            "evictions": 0,
+            "peakActive": 6,
+            "sourceKinds": {
+              "http": {
+                "requests": 38,
+                "uniqueImages": 27,
+                "cacheHits": 11,
+                "completed": 21,
+                "failed": 6,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "https": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "data": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "blob": {
+                "requests": 76,
+                "uniqueImages": 44,
+                "cacheHits": 32,
+                "completed": 44,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "other": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              }
+            },
+            "active": 0,
+            "queued": 0,
+            "pending": 0,
+            "retainedEntries": 65,
+            "retainedPixels": 66714765,
+            "retainedKeyBytes": 14450,
+            "pendingKeyBytes": 0,
+            "phases": {
+              "imageLoad": {
+                "count": 65,
+                "totalMs": 8549,
+                "maxMs": 658
+              },
+              "imageDecode": {
+                "count": 65,
+                "totalMs": 3621,
+                "maxMs": 385
+              }
+            }
+          },
+          "embeddedImages": {
+            "createdURLs": 44,
+            "reusedURLs": 32,
+            "revokedURLs": 0,
+            "bytes": 9958709,
+            "entries": 44,
+            "scopes": 0,
+            "distinctContents": 40,
+            "repeatedContentEntries": 4,
+            "distinctContentBytes": 8787830,
+            "repeatedContentBytes": 1170879,
+            "preparations": 131,
+            "convertedImages": 45,
+            "extractedBytes": 9958709,
+            "skippedOversize": 0,
+            "skippedUnsupported": 3
+          },
+          "fbxPreparation": {
+            "active": 0,
+            "queued": 0,
+            "outstanding": 0,
+            "inputBytes": 0,
+            "workers": 1,
+            "completed": 131,
+            "cancelled": 0,
+            "failed": 4,
+            "disposed": false
+          },
+          "sourceTextLoading": {
+            "hits": 536,
+            "misses": 320,
+            "bytes": 389582,
+            "ready": 319,
+            "active": 0,
+            "readers": 0,
+            "evictions": 0,
+            "disposed": false
+          },
+          "preparedFbxCache": {
+            "hits": 162,
+            "misses": 135,
+            "bytes": 11238883,
+            "ready": 64,
+            "active": 0,
+            "readers": 0,
+            "evictions": 67,
+            "disposed": false
+          },
+          "fstGraphCache": {
+            "inspections": 100,
+            "hits": 142,
+            "zeroResults": 100,
+            "unknownResults": 0,
+            "positiveResults": 0,
+            "positiveReinspections": 0,
+            "disposed": false
+          },
+          "shaderWarmup": {
+            "enabled": false,
+            "roots": 0,
+            "bindings": 0,
+            "batches": 0,
+            "yielded": 0,
+            "smallRoots": 0,
+            "conservativeFallbacks": 0
+          },
+          "loadPhases": {
+            "graphicsSubmit": {
+              "count": 1585,
+              "totalMs": 21321,
+              "maxMs": 692
+            },
+            "shaderPrepare": {
+              "count": 501,
+              "totalMs": 24685,
+              "maxMs": 721
+            },
+            "fbxMaterialBindings": {
+              "count": 131,
+              "totalMs": 447,
+              "maxMs": 42
+            },
+            "fbxDecode": {
+              "count": 131,
+              "totalMs": 3461,
+              "maxMs": 447
+            },
+            "fbxPrepareWait": {
+              "count": 293,
+              "totalMs": 33668,
+              "maxMs": 1243
+            },
+            "fbxParse": {
+              "count": 293,
+              "totalMs": 5285,
+              "maxMs": 259
+            },
+            "fbxTextures": {
+              "count": 293,
+              "totalMs": 4938,
+              "maxMs": 458
+            },
+            "textureAlpha": {
+              "count": 845,
+              "totalMs": 5505,
+              "maxMs": 1001
+            },
+            "entityUpdate": {
+              "count": 11,
+              "totalMs": 177,
+              "maxMs": 72
+            },
+            "fstGraphPreflight": {
+              "count": 242,
+              "totalMs": 103,
+              "maxMs": 18
+            },
+            "colliderBuild": {
+              "count": 76,
+              "totalMs": 292,
+              "maxMs": 61
+            },
+            "compressedColor": {
+              "count": 232,
+              "totalMs": 26103,
+              "maxMs": 1017
+            },
+            "modelBatch": {
+              "count": 6,
+              "totalMs": 167,
+              "maxMs": 96
+            }
+          }
+        }
+      ],
+      "sourceSHA256": {
+        "browser-client/gateway/server.mjs": "dbba6b07c63fc3d3f65851945c05e67d22404ba081382c4d8f29924477b44444",
+        "browser-client/gateway/native-bridge.js": "44ecbdf489bc54c4f73d9dddb2a6bf3a8f1d281c0c7daf3e8d73a6ab6472dcd4",
+        "browser-client/gateway/native-world.js": "bec2f02313446afde7a0be20899358a082b41c6c6c5d745ec67a24809e2b7ddb",
+        "browser-client/gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60",
+        "browser-client/gateway/public-places.mjs": "cbac3df2ecf7071da6e77df8d58b09be194afa184cfb0c37f6015f9f1f570471",
+        "browser-client/gateway/validation.mjs": "65eba4a66c76d4bfc0dbd18e172def64f43b37cca0db2301da5bf4d18645de79",
+        "browser-client/gateway/worker-sandbox.mjs": "48f9feb93bf60dac1f1e6f745dafec5502b12606e34d45845efb0b82e3a501d5",
+        "browser-client/gateway/network-sandbox.mjs": "3fd278b91a6ea383ddf816753d9eee870736b295ecd945714e827d794c8016d9",
+        "browser-client/gateway/network_udp.py": "378f7159b1456ab5a0e25d2f933f35106344106625cef0ce0d589de3d1e45eca",
+        "browser-client/gateway/native-tablet.js": "f3bec60250387570610b7908eab9904b70b71d291de81ce3d42511e1453ae8f2",
+        "browser-client/gateway/tablet-capture.qml": "8e5658bf0d887b5a5ab3181fffb25f42e4dc86131f52088d60c4d218f8d2bc76",
+        "browser-client/gateway/process-lifecycle.mjs": "e8d7e021a8b934b271910883e27c2a1109aedd22e12044b763d4bf8acc274eaf",
+        "browser-client/shared/fluid-performance.mjs": "44e5262f62785e3a9ba4a96c275f5f0bf3a93c27e1d44fdad3bdbec739deebe2",
+        "browser-client/gateway/session-assets.mjs": "68542cb352ccad1bdc23a65ae34ab19d4abc2b02e1f81dec3f529d525ab84bf4",
+        "browser-client/gateway/asset-download.mjs": "4718cfe223afa884ab4f5890b6dc093303a70b864917fe5d85dc5cc2b8568357",
+        "browser-client/src/main.ts": "a49da7f26e01f7550c7e1a77ccd0451d416d27d8bf41ad4b816f9b75734a39d5",
+        "browser-client/src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+        "browser-client/src/compressed-color-session.ts": "e18af74fe59593bf9f1aee0ce7a91f0e6910ed5e903868f646f1311d61c42fcf",
+        "browser-client/src/native-compressed-color.ts": "5439b334331980b43f8d7a0d1ea4750d58eec20ae0542a7296288192714e0467",
+        "browser-client/src/color-texture-metadata.ts": "1a4053acae0e7fd47076c0472598cf09b4da6ae178bd0563fa81857477c3d785",
+        "browser-client/src/initial-surface-wait.ts": "70c5a8c833eb2d7f71f21be0602e8e8a93aaa9e6452e9a942b02cfead61f4e47",
+        "browser-client/src/mesh-collision.ts": "2fa7aded6c11e1defb9dd87d2963abd0212ab9a4243eb3089aa01073d5b3e4a6",
+        "browser-client/src/simulation-clock.ts": "263fffd2b448c01fd25dc6f2adeceacf5cc28c2550d3dc249c07d915737bc7f5",
+        "browser-client/src/world.ts": "88d3b361810fcace58116bfdfad8ee8b5cd2ef8d89e29d3d1fcb59376591e4c6",
+        "browser-client/src/fst-graph-cache.ts": "3a97e6dfcff1afaf1919b766ba38370befcb740e36f54662d8c9a4769c157230",
+        "browser-client/src/fst-texture-admission.ts": "385f257d5f60ea60ab26af0df1d1f77186e836ba64e33640012349786244a5d5",
+        "browser-client/src/compressed-color-capabilities.ts": "9e0536d5b2c82dee198b4e952b8b4f92bce8c49011ec5972b53608e94583d9fe",
+        "browser-client/src/graphics-warmup.ts": "e5b8dec4e448da880603e6594cf2b71888e1db16b9ddc4370a3ee2c93d899f2f",
+        "browser-client/src/graphics-warmup-owner.ts": "e09c8bfbfb71dadbe838413551cce82a6b689967237e355cd4a787a9da0050d4",
+        "browser-client/src/gpu-time-observer.ts": "6431fd2ee12ed93a19c98abba26e895b82598da94f2c12f227c2b0a649d0fed3",
+        "browser-client/src/world-gpu-timing.ts": "f20d8edec0b0666e88fb7a60cc2b5dae35ae02d5c6e6b44bc2ae86810beccd46",
+        "browser-client/src/world-image-cache.ts": "ba45a6125087f8b275c939a5e9e36dadac6879a37cb0fbe50d8c19dd9f1c6af9",
+        "browser-client/src/world-source-text-cache.ts": "57ccb98bed54e788ed0e2f263e8362ae505f4b3073648dc08c311925e21116b1",
+        "browser-client/src/embedded-fbx-images.ts": "790210b1205de5a26798e59c428da4bfff94ace0357374b6c370d53a42009e66",
+        "browser-client/src/embedded-content-counts.ts": "99fdefbe880cc81f8871565875fd95620211cbbc7a64ff3cfb6a5ee601d33864",
+        "browser-client/src/embedded-fbx-protocol.ts": "381179c36c71ab04bd0214fde9d2da4afa2a04f7f52dcbadc526b9eb2dd0c1db",
+        "browser-client/src/native-zero-lights.ts": "db505e6dbbfa856f3f5a5cb7d2c38768ab47f68e545a44d2281589613e151659",
+        "browser-client/src/static-model-batch.ts": "e14251976cfbc726dc8758759d13b0318b5bd08bec47499f64083b7e9ff44b8a",
+        "browser-client/src/native-render-state.ts": "af31a1e01576c233c1f7e8a8231dd5c2cc5871cb58b5783bf01f788da70d01df",
+        "browser-client/src/native-alpha-material.ts": "a3515894f69f078222c7e2b543c46ce22f7bd05b58e12f3eaa14aa0a638dcfbb",
+        "browser-client/src/model-resources.ts": "f05d539e19554cfa49ed35ce8fc6ec1c92f6c985c3b1d1f90849df9b558628ca",
+        "browser-client/src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+        "browser-client/src/worker-task-yield.ts": "6fdfa71526163386c9e041b74a533b2ff50c52f533145bfc2facb213d4333cc8",
+        "browser-client/src/prepared-fbx-cache.ts": "d4fe5ef8699e329094f4c4e99b0a8baa9da29739ee5b3dd6f28ff756b6466579",
+        "browser-client/src/model-load-scheduler.ts": "5b0f79beda5b11ba85dff0c34fbd4e091e5f21a0130efa78022d7eef9f453290",
+        "browser-client/src/model-geometry-stage.ts": "d940a9180cbb26f50a2fe8a712e6f8d9d30a2d31ec2b6dd5551b6ee6b83d34a3",
+        "browser-client/src/model-fbx-pool.ts": "76234b181e0cdded5d4e65350386bc62bf393802266e5614d825b57308e5b902",
+        "browser-client/src/model-fbx-decoder.ts": "5b80bced09705301a14574c8082a946dd3fd32f2ef1a9d1ce08ca7f30dd19ead",
+        "browser-client/src/model-fbx-decoder-memory.ts": "0f209e406a3571af97e78bf12471d7ea6a788cec26adbef733dc353b864cdc68",
+        "browser-client/src/model-fbx-worker.ts": "e418b09a7a3771bcb2cd52c130cc9ee01fcbfbca2ad5828df9c307adec9502f5",
+        "browser-client/src/model-textures.ts": "6de3ec3be2ce235642209ffab87295e52198e4fbebc12559c712ba6283e889bb",
+        "browser-client/src/texture-alpha.ts": "af9b46d9c56a156febaff92db76fe06b38dd4fa2ba7943ddfd4bbeaa47024ebe",
+        "browser-client/src/texture-alpha-worker.ts": "68cc81f419ed2373cfe18e9efd950222452479a7a742c5e10b8d965264d91761",
+        "browser-client/src/baked-fbx.ts": "eaa429192150981bb8c894ec77140a829a9430264652f0321dd41fc1486c0d00",
+        "browser-client/src/baked-draco.ts": "7e4426363fd8809df02d4f6c79d2b2fb899ae56ed663f839ffeb297e2a7d7844",
+        "browser-client/src/baked-draco-legacy.ts": "ba30ca915fcb85f5915fd5ef08f01745c13d3c9c7412c8dcefecb504c89a0a71",
+        "browser-client/dist/index.html": "73556e2a742df46a5173386b0167eefe00c040f924bf176448b9b6f0abe00307",
+        "browser-client/tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "browser-client/tests/integration/public-hub-metrics.mjs": "18c9ed36feb60ddadbc5b3a73dcc73e2caa8561ab26cd672d8882de2bd25c789",
+        "browser-client/tests/integration/public-hub.mjs": "9460c7cae7cf00c47c1acf278652cf9b956a33e32a384236b2a19c5241e44d6e"
+      },
+      "runtimeHelperSHA256": {
+        "native-tablet.js": "f3bec60250387570610b7908eab9904b70b71d291de81ce3d42511e1453ae8f2",
+        "tablet-capture.qml": "8e5658bf0d887b5a5ab3181fffb25f42e4dc86131f52088d60c4d218f8d2bc76",
+        "bridge.js": "3ef47a5fa0a286e0916a74bb92a65e3f191b6cc16049323b2ac9965d53569de7"
+      },
+      "assetCategories": {
+        "FBX": {
+          "uniqueURLs": 122,
+          "requests": 134,
+          "duplicateRequests": 12,
+          "knownBytes": 21116427,
+          "unknownByteResponses": 0,
+          "sources": {
+            "download": 130,
+            "shared": 0,
+            "memory": 4,
+            "unknown": 0
+          }
+        },
+        "FST": {
+          "uniqueURLs": 95,
+          "requests": 95,
+          "duplicateRequests": 0,
+          "knownBytes": 20846,
+          "unknownByteResponses": 1,
+          "sources": {
+            "download": 94,
+            "shared": 0,
+            "memory": 0,
+            "unknown": 1
+          }
+        },
+        "texmeta": {
+          "uniqueURLs": 133,
+          "requests": 133,
+          "duplicateRequests": 0,
+          "knownBytes": 41365,
+          "unknownByteResponses": 0,
+          "sources": {
+            "download": 133,
+            "shared": 0,
+            "memory": 0,
+            "unknown": 0
+          }
+        },
+        "JSON": {
+          "uniqueURLs": 91,
+          "requests": 91,
+          "duplicateRequests": 0,
+          "knownBytes": 60756,
+          "unknownByteResponses": 0,
+          "sources": {
+            "download": 91,
+            "shared": 0,
+            "memory": 0,
+            "unknown": 0
+          }
+        },
+        "image": {
+          "uniqueURLs": 147,
+          "requests": 150,
+          "duplicateRequests": 3,
+          "knownBytes": 92553884,
+          "unknownByteResponses": 10,
+          "sources": {
+            "download": 139,
+            "shared": 0,
+            "memory": 1,
+            "unknown": 10
+          }
+        },
+        "other": {
+          "uniqueURLs": 12,
+          "requests": 13,
+          "duplicateRequests": 1,
+          "knownBytes": 5785808,
+          "unknownByteResponses": 5,
+          "sources": {
+            "download": 8,
+            "shared": 0,
+            "memory": 0,
+            "unknown": 5
+          }
+        }
+      }
+    },
+    {
+      "label": "firefox-strict-shared-reconnect",
+      "startedAt": "2026-10-01T16:06:04.766Z",
+      "finishedAt": "2026-10-01T16:08:02.388Z",
+      "rawSHA256": "102ff2f83de35195051926ec9135e4325a9423eff4b6ca912d08c458bce201f2",
+      "rawPrivateReport": "build/browser-hub-lab/browser/system-firefox/public-hub-2026-10-01T16-06-04-766Z.json",
+      "browserVersion": "firefox/156.0",
+      "webGL": {
+        "vendor": "NVIDIA Corporation",
+        "renderer": "NVIDIA GeForce GTX 980, or similar"
+      },
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "devicePixelRatio": 1.6666666666666667,
+        "visibility": "visible"
+      },
+      "reconnectRequested": true,
+      "strictFluidRequested": true,
+      "completed": false,
+      "error": "Actual loaded-world, walking and reconnect measurements must meet30FPS, p95<=66.7ms and no steady stall>250ms",
+      "sourceCoherent": true,
+      "distributionCoherent": true,
+      "microphoneRequested": false,
+      "worldInteractionsSent": 0,
+      "firstObservedTaskReadinessMs": 22725,
+      "readinessSamplingIntervalMs": 3000,
+      "movementMeters": 4.386123529257225,
+      "nativePoseDifferenceMeters": 0.0006275520334214846,
+      "reconnectedMovementMeters": 3.0023145855844935,
+      "reconnectedNativeDifferenceMeters": 0.0002365823131848716,
+      "fluidMovementAcceptancePassed": false,
+      "fluidGates": {
+        "steadyFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "walkFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedSteadyFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedWalkFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        }
+      },
+      "samples": [
+        {
+          "stage": "loaded-steady",
+          "fps": 24.405125076266017,
+          "medianFrameMs": 38,
+          "p95FrameMs": 76,
+          "maximumFrameMs": 108,
+          "drawingBufferWidth": 2133,
+          "drawingBufferHeight": 1333,
+          "drawCalls": 671,
+          "triangles": 549399,
+          "geometries": 423,
+          "textures": 215,
+          "entities": 517,
+          "loadedModels": 293,
+          "loadedAvatars": 1,
+          "meshColliders": 73,
+          "imageLoading": {
+            "requests": 115,
+            "uniqueImages": 73,
+            "cacheHits": 42,
+            "completed": 65,
+            "failed": 8,
+            "cancelled": 0,
+            "evictions": 0,
+            "peakActive": 6,
+            "sourceKinds": {
+              "http": {
+                "requests": 39,
+                "uniqueImages": 29,
+                "cacheHits": 10,
+                "completed": 21,
+                "failed": 8,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "https": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "data": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "blob": {
+                "requests": 76,
+                "uniqueImages": 44,
+                "cacheHits": 32,
+                "completed": 44,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "other": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              }
+            },
+            "active": 0,
+            "queued": 0,
+            "pending": 0,
+            "retainedEntries": 65,
+            "retainedPixels": 66714765,
+            "retainedKeyBytes": 14450,
+            "pendingKeyBytes": 0,
+            "phases": {
+              "imageLoad": {
+                "count": 65,
+                "totalMs": 7813,
+                "maxMs": 679
+              },
+              "imageDecode": {
+                "count": 65,
+                "totalMs": 2153,
+                "maxMs": 289
+              }
+            }
+          },
+          "embeddedImages": {
+            "createdURLs": 44,
+            "reusedURLs": 32,
+            "revokedURLs": 0,
+            "bytes": 9958709,
+            "entries": 44,
+            "scopes": 0,
+            "distinctContents": 40,
+            "repeatedContentEntries": 4,
+            "distinctContentBytes": 8787830,
+            "repeatedContentBytes": 1170879,
+            "preparations": 128,
+            "convertedImages": 45,
+            "extractedBytes": 9958709,
+            "skippedOversize": 0,
+            "skippedUnsupported": 3
+          },
+          "fbxPreparation": {
+            "active": 0,
+            "queued": 0,
+            "outstanding": 0,
+            "inputBytes": 0,
+            "workers": 1,
+            "completed": 128,
+            "cancelled": 0,
+            "failed": 4,
+            "disposed": false
+          },
+          "sourceTextLoading": {
+            "hits": 532,
+            "misses": 320,
+            "bytes": 389582,
+            "ready": 319,
+            "active": 0,
+            "readers": 0,
+            "evictions": 0,
+            "disposed": false
+          },
+          "preparedFbxCache": {
+            "hits": 164,
+            "misses": 132,
+            "bytes": 10206172,
+            "ready": 64,
+            "active": 0,
+            "readers": 0,
+            "evictions": 64,
+            "disposed": false
+          },
+          "fstGraphCache": {
+            "inspections": 97,
+            "hits": 144,
+            "zeroResults": 97,
+            "unknownResults": 0,
+            "positiveResults": 0,
+            "positiveReinspections": 0,
+            "disposed": false
+          },
+          "shaderWarmup": {
+            "enabled": false,
+            "roots": 0,
+            "bindings": 0,
+            "batches": 0,
+            "yielded": 0,
+            "smallRoots": 0,
+            "conservativeFallbacks": 0
+          },
+          "loadPhases": {
+            "graphicsSubmit": {
+              "count": 1622,
+              "totalMs": 17863,
+              "maxMs": 443
+            },
+            "shaderPrepare": {
+              "count": 500,
+              "totalMs": 34959,
+              "maxMs": 521
+            },
+            "fbxMaterialBindings": {
+              "count": 128,
+              "totalMs": 399,
+              "maxMs": 48
+            },
+            "fbxDecode": {
+              "count": 128,
+              "totalMs": 3573,
+              "maxMs": 441
+            },
+            "fbxPrepareWait": {
+              "count": 292,
+              "totalMs": 30789,
+              "maxMs": 1206
+            },
+            "fbxParse": {
+              "count": 292,
+              "totalMs": 4946,
+              "maxMs": 320
+            },
+            "fbxTextures": {
+              "count": 292,
+              "totalMs": 3744,
+              "maxMs": 408
+            },
+            "textureAlpha": {
+              "count": 843,
+              "totalMs": 3785,
+              "maxMs": 834
+            },
+            "entityUpdate": {
+              "count": 10,
+              "totalMs": 137,
+              "maxMs": 56
+            },
+            "fstGraphPreflight": {
+              "count": 241,
+              "totalMs": 65,
+              "maxMs": 7
+            },
+            "colliderBuild": {
+              "count": 76,
+              "totalMs": 298,
+              "maxMs": 57
+            },
+            "compressedColor": {
+              "count": 231,
+              "totalMs": 25670,
+              "maxMs": 807
+            },
+            "modelBatch": {
+              "count": 6,
+              "totalMs": 146,
+              "maxMs": 87
+            }
+          }
+        },
+        {
+          "stage": "walking",
+          "fps": 25.545502927088876,
+          "medianFrameMs": 36,
+          "p95FrameMs": 70,
+          "maximumFrameMs": 108,
+          "drawingBufferWidth": 2133,
+          "drawingBufferHeight": 1333,
+          "drawCalls": 630,
+          "triangles": 506097,
+          "geometries": 423,
+          "textures": 215,
+          "entities": 517,
+          "loadedModels": 293,
+          "loadedAvatars": 1,
+          "meshColliders": 73,
+          "imageLoading": {
+            "requests": 115,
+            "uniqueImages": 73,
+            "cacheHits": 42,
+            "completed": 65,
+            "failed": 8,
+            "cancelled": 0,
+            "evictions": 0,
+            "peakActive": 6,
+            "sourceKinds": {
+              "http": {
+                "requests": 39,
+                "uniqueImages": 29,
+                "cacheHits": 10,
+                "completed": 21,
+                "failed": 8,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "https": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "data": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "blob": {
+                "requests": 76,
+                "uniqueImages": 44,
+                "cacheHits": 32,
+                "completed": 44,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "other": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              }
+            },
+            "active": 0,
+            "queued": 0,
+            "pending": 0,
+            "retainedEntries": 65,
+            "retainedPixels": 66714765,
+            "retainedKeyBytes": 14450,
+            "pendingKeyBytes": 0,
+            "phases": {
+              "imageLoad": {
+                "count": 65,
+                "totalMs": 7813,
+                "maxMs": 679
+              },
+              "imageDecode": {
+                "count": 65,
+                "totalMs": 2153,
+                "maxMs": 289
+              }
+            }
+          },
+          "embeddedImages": {
+            "createdURLs": 44,
+            "reusedURLs": 32,
+            "revokedURLs": 0,
+            "bytes": 9958709,
+            "entries": 44,
+            "scopes": 0,
+            "distinctContents": 40,
+            "repeatedContentEntries": 4,
+            "distinctContentBytes": 8787830,
+            "repeatedContentBytes": 1170879,
+            "preparations": 128,
+            "convertedImages": 45,
+            "extractedBytes": 9958709,
+            "skippedOversize": 0,
+            "skippedUnsupported": 3
+          },
+          "fbxPreparation": {
+            "active": 0,
+            "queued": 0,
+            "outstanding": 0,
+            "inputBytes": 0,
+            "workers": 1,
+            "completed": 128,
+            "cancelled": 0,
+            "failed": 4,
+            "disposed": false
+          },
+          "sourceTextLoading": {
+            "hits": 532,
+            "misses": 320,
+            "bytes": 389582,
+            "ready": 319,
+            "active": 0,
+            "readers": 0,
+            "evictions": 0,
+            "disposed": false
+          },
+          "preparedFbxCache": {
+            "hits": 164,
+            "misses": 132,
+            "bytes": 10206172,
+            "ready": 64,
+            "active": 0,
+            "readers": 0,
+            "evictions": 64,
+            "disposed": false
+          },
+          "fstGraphCache": {
+            "inspections": 97,
+            "hits": 144,
+            "zeroResults": 97,
+            "unknownResults": 0,
+            "positiveResults": 0,
+            "positiveReinspections": 0,
+            "disposed": false
+          },
+          "shaderWarmup": {
+            "enabled": false,
+            "roots": 0,
+            "bindings": 0,
+            "batches": 0,
+            "yielded": 0,
+            "smallRoots": 0,
+            "conservativeFallbacks": 0
+          },
+          "loadPhases": {
+            "graphicsSubmit": {
+              "count": 1683,
+              "totalMs": 19521,
+              "maxMs": 443
+            },
+            "shaderPrepare": {
+              "count": 500,
+              "totalMs": 34959,
+              "maxMs": 521
+            },
+            "fbxMaterialBindings": {
+              "count": 128,
+              "totalMs": 399,
+              "maxMs": 48
+            },
+            "fbxDecode": {
+              "count": 128,
+              "totalMs": 3573,
+              "maxMs": 441
+            },
+            "fbxPrepareWait": {
+              "count": 292,
+              "totalMs": 30789,
+              "maxMs": 1206
+            },
+            "fbxParse": {
+              "count": 292,
+              "totalMs": 4946,
+              "maxMs": 320
+            },
+            "fbxTextures": {
+              "count": 292,
+              "totalMs": 3744,
+              "maxMs": 408
+            },
+            "textureAlpha": {
+              "count": 843,
+              "totalMs": 3785,
+              "maxMs": 834
+            },
+            "entityUpdate": {
+              "count": 11,
+              "totalMs": 145,
+              "maxMs": 56
+            },
+            "fstGraphPreflight": {
+              "count": 241,
+              "totalMs": 65,
+              "maxMs": 7
+            },
+            "colliderBuild": {
+              "count": 76,
+              "totalMs": 298,
+              "maxMs": 57
+            },
+            "compressedColor": {
+              "count": 231,
+              "totalMs": 25670,
+              "maxMs": 807
+            },
+            "modelBatch": {
+              "count": 6,
+              "totalMs": 146,
+              "maxMs": 87
+            }
+          }
+        },
+        {
+          "stage": "rejoined-steady",
+          "fps": 23.840270189728816,
+          "medianFrameMs": 37,
+          "p95FrameMs": 81,
+          "maximumFrameMs": 207,
+          "drawingBufferWidth": 2133,
+          "drawingBufferHeight": 1333,
+          "drawCalls": 676,
+          "triangles": 552172,
+          "geometries": 428,
+          "textures": 216,
+          "entities": 518,
+          "loadedModels": 294,
+          "loadedAvatars": 1,
+          "meshColliders": 73,
+          "imageLoading": {
+            "requests": 116,
+            "uniqueImages": 73,
+            "cacheHits": 43,
+            "completed": 65,
+            "failed": 8,
+            "cancelled": 0,
+            "evictions": 0,
+            "peakActive": 6,
+            "sourceKinds": {
+              "http": {
+                "requests": 40,
+                "uniqueImages": 29,
+                "cacheHits": 11,
+                "completed": 21,
+                "failed": 8,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "https": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "data": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "blob": {
+                "requests": 76,
+                "uniqueImages": 44,
+                "cacheHits": 32,
+                "completed": 44,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "other": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              }
+            },
+            "active": 0,
+            "queued": 0,
+            "pending": 0,
+            "retainedEntries": 65,
+            "retainedPixels": 66714765,
+            "retainedKeyBytes": 14450,
+            "pendingKeyBytes": 0,
+            "phases": {
+              "imageLoad": {
+                "count": 65,
+                "totalMs": 7156,
+                "maxMs": 534
+              },
+              "imageDecode": {
+                "count": 65,
+                "totalMs": 2109,
+                "maxMs": 315
+              }
+            }
+          },
+          "embeddedImages": {
+            "createdURLs": 44,
+            "reusedURLs": 32,
+            "revokedURLs": 0,
+            "bytes": 9958709,
+            "entries": 44,
+            "scopes": 0,
+            "distinctContents": 40,
+            "repeatedContentEntries": 4,
+            "distinctContentBytes": 8787830,
+            "repeatedContentBytes": 1170879,
+            "preparations": 129,
+            "convertedImages": 45,
+            "extractedBytes": 9958709,
+            "skippedOversize": 0,
+            "skippedUnsupported": 3
+          },
+          "fbxPreparation": {
+            "active": 0,
+            "queued": 0,
+            "outstanding": 0,
+            "inputBytes": 0,
+            "workers": 1,
+            "completed": 129,
+            "cancelled": 0,
+            "failed": 4,
+            "disposed": false
+          },
+          "sourceTextLoading": {
+            "hits": 536,
+            "misses": 320,
+            "bytes": 389582,
+            "ready": 319,
+            "active": 0,
+            "readers": 0,
+            "evictions": 0,
+            "disposed": false
+          },
+          "preparedFbxCache": {
+            "hits": 164,
+            "misses": 133,
+            "bytes": 11238883,
+            "ready": 64,
+            "active": 0,
+            "readers": 0,
+            "evictions": 65,
+            "disposed": false
+          },
+          "fstGraphCache": {
+            "inspections": 98,
+            "hits": 144,
+            "zeroResults": 98,
+            "unknownResults": 0,
+            "positiveResults": 0,
+            "positiveReinspections": 0,
+            "disposed": false
+          },
+          "shaderWarmup": {
+            "enabled": false,
+            "roots": 0,
+            "bindings": 0,
+            "batches": 0,
+            "yielded": 0,
+            "smallRoots": 0,
+            "conservativeFallbacks": 0
+          },
+          "loadPhases": {
+            "graphicsSubmit": {
+              "count": 1677,
+              "totalMs": 17890,
+              "maxMs": 439
+            },
+            "shaderPrepare": {
+              "count": 501,
+              "totalMs": 27820,
+              "maxMs": 494
+            },
+            "fbxMaterialBindings": {
+              "count": 129,
+              "totalMs": 357,
+              "maxMs": 45
+            },
+            "fbxDecode": {
+              "count": 129,
+              "totalMs": 3558,
+              "maxMs": 493
+            },
+            "fbxPrepareWait": {
+              "count": 293,
+              "totalMs": 30159,
+              "maxMs": 1458
+            },
+            "fbxParse": {
+              "count": 293,
+              "totalMs": 4909,
+              "maxMs": 260
+            },
+            "fbxTextures": {
+              "count": 293,
+              "totalMs": 3765,
+              "maxMs": 331
+            },
+            "textureAlpha": {
+              "count": 845,
+              "totalMs": 4703,
+              "maxMs": 1158
+            },
+            "entityUpdate": {
+              "count": 10,
+              "totalMs": 139,
+              "maxMs": 66
+            },
+            "compressedColor": {
+              "count": 232,
+              "totalMs": 23877,
+              "maxMs": 1286
+            },
+            "fstGraphPreflight": {
+              "count": 242,
+              "totalMs": 93,
+              "maxMs": 9
+            },
+            "colliderBuild": {
+              "count": 76,
+              "totalMs": 297,
+              "maxMs": 69
+            },
+            "modelBatch": {
+              "count": 6,
+              "totalMs": 146,
+              "maxMs": 87
+            }
+          }
+        },
+        {
+          "stage": "rejoined-walking",
+          "fps": 24.444897127724587,
+          "medianFrameMs": 38,
+          "p95FrameMs": 70,
+          "maximumFrameMs": 207,
+          "drawingBufferWidth": 2133,
+          "drawingBufferHeight": 1333,
+          "drawCalls": 652,
+          "triangles": 529351,
+          "geometries": 428,
+          "textures": 216,
+          "entities": 518,
+          "loadedModels": 294,
+          "loadedAvatars": 1,
+          "meshColliders": 73,
+          "imageLoading": {
+            "requests": 116,
+            "uniqueImages": 73,
+            "cacheHits": 43,
+            "completed": 65,
+            "failed": 8,
+            "cancelled": 0,
+            "evictions": 0,
+            "peakActive": 6,
+            "sourceKinds": {
+              "http": {
+                "requests": 40,
+                "uniqueImages": 29,
+                "cacheHits": 11,
+                "completed": 21,
+                "failed": 8,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "https": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "data": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "blob": {
+                "requests": 76,
+                "uniqueImages": 44,
+                "cacheHits": 32,
+                "completed": 44,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "other": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              }
+            },
+            "active": 0,
+            "queued": 0,
+            "pending": 0,
+            "retainedEntries": 65,
+            "retainedPixels": 66714765,
+            "retainedKeyBytes": 14450,
+            "pendingKeyBytes": 0,
+            "phases": {
+              "imageLoad": {
+                "count": 65,
+                "totalMs": 7156,
+                "maxMs": 534
+              },
+              "imageDecode": {
+                "count": 65,
+                "totalMs": 2109,
+                "maxMs": 315
+              }
+            }
+          },
+          "embeddedImages": {
+            "createdURLs": 44,
+            "reusedURLs": 32,
+            "revokedURLs": 0,
+            "bytes": 9958709,
+            "entries": 44,
+            "scopes": 0,
+            "distinctContents": 40,
+            "repeatedContentEntries": 4,
+            "distinctContentBytes": 8787830,
+            "repeatedContentBytes": 1170879,
+            "preparations": 129,
+            "convertedImages": 45,
+            "extractedBytes": 9958709,
+            "skippedOversize": 0,
+            "skippedUnsupported": 3
+          },
+          "fbxPreparation": {
+            "active": 0,
+            "queued": 0,
+            "outstanding": 0,
+            "inputBytes": 0,
+            "workers": 1,
+            "completed": 129,
+            "cancelled": 0,
+            "failed": 4,
+            "disposed": false
+          },
+          "sourceTextLoading": {
+            "hits": 536,
+            "misses": 320,
+            "bytes": 389582,
+            "ready": 319,
+            "active": 0,
+            "readers": 0,
+            "evictions": 0,
+            "disposed": false
+          },
+          "preparedFbxCache": {
+            "hits": 164,
+            "misses": 133,
+            "bytes": 11238883,
+            "ready": 64,
+            "active": 0,
+            "readers": 0,
+            "evictions": 65,
+            "disposed": false
+          },
+          "fstGraphCache": {
+            "inspections": 98,
+            "hits": 144,
+            "zeroResults": 98,
+            "unknownResults": 0,
+            "positiveResults": 0,
+            "positiveReinspections": 0,
+            "disposed": false
+          },
+          "shaderWarmup": {
+            "enabled": false,
+            "roots": 0,
+            "bindings": 0,
+            "batches": 0,
+            "yielded": 0,
+            "smallRoots": 0,
+            "conservativeFallbacks": 0
+          },
+          "loadPhases": {
+            "graphicsSubmit": {
+              "count": 1716,
+              "totalMs": 19143,
+              "maxMs": 439
+            },
+            "shaderPrepare": {
+              "count": 501,
+              "totalMs": 27820,
+              "maxMs": 494
+            },
+            "fbxMaterialBindings": {
+              "count": 129,
+              "totalMs": 357,
+              "maxMs": 45
+            },
+            "fbxDecode": {
+              "count": 129,
+              "totalMs": 3558,
+              "maxMs": 493
+            },
+            "fbxPrepareWait": {
+              "count": 293,
+              "totalMs": 30159,
+              "maxMs": 1458
+            },
+            "fbxParse": {
+              "count": 293,
+              "totalMs": 4909,
+              "maxMs": 260
+            },
+            "fbxTextures": {
+              "count": 293,
+              "totalMs": 3765,
+              "maxMs": 331
+            },
+            "textureAlpha": {
+              "count": 845,
+              "totalMs": 4703,
+              "maxMs": 1158
+            },
+            "entityUpdate": {
+              "count": 11,
+              "totalMs": 148,
+              "maxMs": 66
+            },
+            "compressedColor": {
+              "count": 232,
+              "totalMs": 23877,
+              "maxMs": 1286
+            },
+            "fstGraphPreflight": {
+              "count": 242,
+              "totalMs": 93,
+              "maxMs": 9
+            },
+            "colliderBuild": {
+              "count": 76,
+              "totalMs": 297,
+              "maxMs": 69
+            },
+            "modelBatch": {
+              "count": 6,
+              "totalMs": 146,
+              "maxMs": 87
+            }
+          }
+        }
+      ],
+      "sourceSHA256": {
+        "browser-client/gateway/server.mjs": "dbba6b07c63fc3d3f65851945c05e67d22404ba081382c4d8f29924477b44444",
+        "browser-client/gateway/native-bridge.js": "44ecbdf489bc54c4f73d9dddb2a6bf3a8f1d281c0c7daf3e8d73a6ab6472dcd4",
+        "browser-client/gateway/native-world.js": "bec2f02313446afde7a0be20899358a082b41c6c6c5d745ec67a24809e2b7ddb",
+        "browser-client/gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60",
+        "browser-client/gateway/public-places.mjs": "cbac3df2ecf7071da6e77df8d58b09be194afa184cfb0c37f6015f9f1f570471",
+        "browser-client/gateway/validation.mjs": "65eba4a66c76d4bfc0dbd18e172def64f43b37cca0db2301da5bf4d18645de79",
+        "browser-client/gateway/worker-sandbox.mjs": "48f9feb93bf60dac1f1e6f745dafec5502b12606e34d45845efb0b82e3a501d5",
+        "browser-client/gateway/network-sandbox.mjs": "3fd278b91a6ea383ddf816753d9eee870736b295ecd945714e827d794c8016d9",
+        "browser-client/gateway/network_udp.py": "378f7159b1456ab5a0e25d2f933f35106344106625cef0ce0d589de3d1e45eca",
+        "browser-client/gateway/native-tablet.js": "f3bec60250387570610b7908eab9904b70b71d291de81ce3d42511e1453ae8f2",
+        "browser-client/gateway/tablet-capture.qml": "8e5658bf0d887b5a5ab3181fffb25f42e4dc86131f52088d60c4d218f8d2bc76",
+        "browser-client/gateway/process-lifecycle.mjs": "e8d7e021a8b934b271910883e27c2a1109aedd22e12044b763d4bf8acc274eaf",
+        "browser-client/shared/fluid-performance.mjs": "44e5262f62785e3a9ba4a96c275f5f0bf3a93c27e1d44fdad3bdbec739deebe2",
+        "browser-client/gateway/session-assets.mjs": "68542cb352ccad1bdc23a65ae34ab19d4abc2b02e1f81dec3f529d525ab84bf4",
+        "browser-client/gateway/asset-download.mjs": "4718cfe223afa884ab4f5890b6dc093303a70b864917fe5d85dc5cc2b8568357",
+        "browser-client/src/main.ts": "a49da7f26e01f7550c7e1a77ccd0451d416d27d8bf41ad4b816f9b75734a39d5",
+        "browser-client/src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+        "browser-client/src/compressed-color-session.ts": "e18af74fe59593bf9f1aee0ce7a91f0e6910ed5e903868f646f1311d61c42fcf",
+        "browser-client/src/native-compressed-color.ts": "5439b334331980b43f8d7a0d1ea4750d58eec20ae0542a7296288192714e0467",
+        "browser-client/src/color-texture-metadata.ts": "1a4053acae0e7fd47076c0472598cf09b4da6ae178bd0563fa81857477c3d785",
+        "browser-client/src/initial-surface-wait.ts": "70c5a8c833eb2d7f71f21be0602e8e8a93aaa9e6452e9a942b02cfead61f4e47",
+        "browser-client/src/mesh-collision.ts": "2fa7aded6c11e1defb9dd87d2963abd0212ab9a4243eb3089aa01073d5b3e4a6",
+        "browser-client/src/simulation-clock.ts": "263fffd2b448c01fd25dc6f2adeceacf5cc28c2550d3dc249c07d915737bc7f5",
+        "browser-client/src/world.ts": "88d3b361810fcace58116bfdfad8ee8b5cd2ef8d89e29d3d1fcb59376591e4c6",
+        "browser-client/src/fst-graph-cache.ts": "3a97e6dfcff1afaf1919b766ba38370befcb740e36f54662d8c9a4769c157230",
+        "browser-client/src/fst-texture-admission.ts": "385f257d5f60ea60ab26af0df1d1f77186e836ba64e33640012349786244a5d5",
+        "browser-client/src/compressed-color-capabilities.ts": "9e0536d5b2c82dee198b4e952b8b4f92bce8c49011ec5972b53608e94583d9fe",
+        "browser-client/src/graphics-warmup.ts": "e5b8dec4e448da880603e6594cf2b71888e1db16b9ddc4370a3ee2c93d899f2f",
+        "browser-client/src/graphics-warmup-owner.ts": "e09c8bfbfb71dadbe838413551cce82a6b689967237e355cd4a787a9da0050d4",
+        "browser-client/src/gpu-time-observer.ts": "6431fd2ee12ed93a19c98abba26e895b82598da94f2c12f227c2b0a649d0fed3",
+        "browser-client/src/world-gpu-timing.ts": "f20d8edec0b0666e88fb7a60cc2b5dae35ae02d5c6e6b44bc2ae86810beccd46",
+        "browser-client/src/world-image-cache.ts": "ba45a6125087f8b275c939a5e9e36dadac6879a37cb0fbe50d8c19dd9f1c6af9",
+        "browser-client/src/world-source-text-cache.ts": "57ccb98bed54e788ed0e2f263e8362ae505f4b3073648dc08c311925e21116b1",
+        "browser-client/src/embedded-fbx-images.ts": "790210b1205de5a26798e59c428da4bfff94ace0357374b6c370d53a42009e66",
+        "browser-client/src/embedded-content-counts.ts": "99fdefbe880cc81f8871565875fd95620211cbbc7a64ff3cfb6a5ee601d33864",
+        "browser-client/src/embedded-fbx-protocol.ts": "381179c36c71ab04bd0214fde9d2da4afa2a04f7f52dcbadc526b9eb2dd0c1db",
+        "browser-client/src/native-zero-lights.ts": "db505e6dbbfa856f3f5a5cb7d2c38768ab47f68e545a44d2281589613e151659",
+        "browser-client/src/static-model-batch.ts": "e14251976cfbc726dc8758759d13b0318b5bd08bec47499f64083b7e9ff44b8a",
+        "browser-client/src/native-render-state.ts": "af31a1e01576c233c1f7e8a8231dd5c2cc5871cb58b5783bf01f788da70d01df",
+        "browser-client/src/native-alpha-material.ts": "a3515894f69f078222c7e2b543c46ce22f7bd05b58e12f3eaa14aa0a638dcfbb",
+        "browser-client/src/model-resources.ts": "f05d539e19554cfa49ed35ce8fc6ec1c92f6c985c3b1d1f90849df9b558628ca",
+        "browser-client/src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+        "browser-client/src/worker-task-yield.ts": "6fdfa71526163386c9e041b74a533b2ff50c52f533145bfc2facb213d4333cc8",
+        "browser-client/src/prepared-fbx-cache.ts": "d4fe5ef8699e329094f4c4e99b0a8baa9da29739ee5b3dd6f28ff756b6466579",
+        "browser-client/src/model-load-scheduler.ts": "5b0f79beda5b11ba85dff0c34fbd4e091e5f21a0130efa78022d7eef9f453290",
+        "browser-client/src/model-geometry-stage.ts": "d940a9180cbb26f50a2fe8a712e6f8d9d30a2d31ec2b6dd5551b6ee6b83d34a3",
+        "browser-client/src/model-fbx-pool.ts": "76234b181e0cdded5d4e65350386bc62bf393802266e5614d825b57308e5b902",
+        "browser-client/src/model-fbx-decoder.ts": "5b80bced09705301a14574c8082a946dd3fd32f2ef1a9d1ce08ca7f30dd19ead",
+        "browser-client/src/model-fbx-decoder-memory.ts": "0f209e406a3571af97e78bf12471d7ea6a788cec26adbef733dc353b864cdc68",
+        "browser-client/src/model-fbx-worker.ts": "e418b09a7a3771bcb2cd52c130cc9ee01fcbfbca2ad5828df9c307adec9502f5",
+        "browser-client/src/model-textures.ts": "6de3ec3be2ce235642209ffab87295e52198e4fbebc12559c712ba6283e889bb",
+        "browser-client/src/texture-alpha.ts": "af9b46d9c56a156febaff92db76fe06b38dd4fa2ba7943ddfd4bbeaa47024ebe",
+        "browser-client/src/texture-alpha-worker.ts": "68cc81f419ed2373cfe18e9efd950222452479a7a742c5e10b8d965264d91761",
+        "browser-client/src/baked-fbx.ts": "eaa429192150981bb8c894ec77140a829a9430264652f0321dd41fc1486c0d00",
+        "browser-client/src/baked-draco.ts": "7e4426363fd8809df02d4f6c79d2b2fb899ae56ed663f839ffeb297e2a7d7844",
+        "browser-client/src/baked-draco-legacy.ts": "ba30ca915fcb85f5915fd5ef08f01745c13d3c9c7412c8dcefecb504c89a0a71",
+        "browser-client/dist/index.html": "73556e2a742df46a5173386b0167eefe00c040f924bf176448b9b6f0abe00307",
+        "browser-client/tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "browser-client/tests/integration/public-hub-metrics.mjs": "18c9ed36feb60ddadbc5b3a73dcc73e2caa8561ab26cd672d8882de2bd25c789",
+        "browser-client/tests/integration/public-hub.mjs": "9460c7cae7cf00c47c1acf278652cf9b956a33e32a384236b2a19c5241e44d6e"
+      },
+      "runtimeHelperSHA256": {
+        "native-tablet.js": "f3bec60250387570610b7908eab9904b70b71d291de81ce3d42511e1453ae8f2",
+        "tablet-capture.qml": "8e5658bf0d887b5a5ab3181fffb25f42e4dc86131f52088d60c4d218f8d2bc76",
+        "bridge.js": "a5ec7dc374372187396ab7bbe885e567baf55e3503d2fd7c591fe5c9a3076d0c"
+      },
+      "assetCategories": {
+        "FBX": {
+          "uniqueURLs": 122,
+          "requests": 263,
+          "duplicateRequests": 141,
+          "knownBytes": 42069221,
+          "unknownByteResponses": 0,
+          "sources": {
+            "download": 258,
+            "shared": 0,
+            "memory": 5,
+            "unknown": 0
+          }
+        },
+        "FST": {
+          "uniqueURLs": 95,
+          "requests": 190,
+          "duplicateRequests": 95,
+          "knownBytes": 41692,
+          "unknownByteResponses": 2,
+          "sources": {
+            "download": 188,
+            "shared": 0,
+            "memory": 0,
+            "unknown": 2
+          }
+        },
+        "texmeta": {
+          "uniqueURLs": 133,
+          "requests": 266,
+          "duplicateRequests": 133,
+          "knownBytes": 82730,
+          "unknownByteResponses": 0,
+          "sources": {
+            "download": 266,
+            "shared": 0,
+            "memory": 0,
+            "unknown": 0
+          }
+        },
+        "JSON": {
+          "uniqueURLs": 91,
+          "requests": 182,
+          "duplicateRequests": 91,
+          "knownBytes": 121512,
+          "unknownByteResponses": 0,
+          "sources": {
+            "download": 182,
+            "shared": 0,
+            "memory": 0,
+            "unknown": 0
+          }
+        },
+        "image": {
+          "uniqueURLs": 147,
+          "requests": 303,
+          "duplicateRequests": 156,
+          "knownBytes": 196993576,
+          "unknownByteResponses": 20,
+          "sources": {
+            "download": 279,
+            "shared": 0,
+            "memory": 4,
+            "unknown": 20
+          }
+        },
+        "other": {
+          "uniqueURLs": 12,
+          "requests": 27,
+          "duplicateRequests": 15,
+          "knownBytes": 11911564,
+          "unknownByteResponses": 10,
+          "sources": {
+            "download": 16,
+            "shared": 0,
+            "memory": 1,
+            "unknown": 10
+          }
+        }
+      }
+    },
+    {
+      "label": "chromium-strict-shared-reconnect",
+      "startedAt": "2026-10-01T16:14:29.296Z",
+      "finishedAt": "2026-10-01T16:16:17.083Z",
+      "rawSHA256": "98e2df1fb48eef079f6b1c50d4932af327234c7ee649837fa8d834507d6f4a85",
+      "rawPrivateReport": "build/browser-hub-lab/browser/public-hub-2026-10-01T16-14-29-296Z.json",
+      "browserVersion": "154.0.8037.57",
+      "webGL": {
+        "vendor": "Google Inc. (NVIDIA Corporation)",
+        "renderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce GTX 1080 Ti/PCIe/SSE2, OpenGL ES 3.2)"
+      },
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "devicePixelRatio": 1.000000015894571,
+        "visibility": "visible"
+      },
+      "reconnectRequested": true,
+      "strictFluidRequested": true,
+      "completed": false,
+      "error": "Actual loaded-world, walking and reconnect measurements must meet30FPS, p95<=66.7ms and no steady stall>250ms",
+      "sourceCoherent": true,
+      "distributionCoherent": true,
+      "microphoneRequested": false,
+      "worldInteractionsSent": 0,
+      "firstObservedTaskReadinessMs": 23776,
+      "readinessSamplingIntervalMs": 3000,
+      "movementMeters": 4.250207152505141,
+      "nativePoseDifferenceMeters": 0.0004372834649456131,
+      "reconnectedMovementMeters": 2.814894278179947,
+      "reconnectedNativeDifferenceMeters": 0.002975295272891902,
+      "fluidMovementAcceptancePassed": false,
+      "fluidGates": {
+        "steadyFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "walkFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedSteadyFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedWalkFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        }
+      },
+      "samples": [
+        {
+          "stage": "loaded-steady",
+          "fps": 35.20403672954498,
+          "medianFrameMs": 33.200000000004366,
+          "p95FrameMs": 50,
+          "maximumFrameMs": 67.19999999999709,
+          "drawingBufferWidth": 1280,
+          "drawingBufferHeight": 800,
+          "drawCalls": 673,
+          "triangles": 551847,
+          "geometries": 423,
+          "textures": 216,
+          "entities": 517,
+          "loadedModels": 293,
+          "loadedAvatars": 1,
+          "meshColliders": 73,
+          "imageLoading": {
+            "requests": 115,
+            "uniqueImages": 73,
+            "cacheHits": 42,
+            "completed": 65,
+            "failed": 8,
+            "cancelled": 0,
+            "evictions": 0,
+            "peakActive": 6,
+            "sourceKinds": {
+              "http": {
+                "requests": 39,
+                "uniqueImages": 29,
+                "cacheHits": 10,
+                "completed": 21,
+                "failed": 8,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "https": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "data": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "blob": {
+                "requests": 76,
+                "uniqueImages": 44,
+                "cacheHits": 32,
+                "completed": 44,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "other": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              }
+            },
+            "active": 0,
+            "queued": 0,
+            "pending": 0,
+            "retainedEntries": 65,
+            "retainedPixels": 66714765,
+            "retainedKeyBytes": 14450,
+            "pendingKeyBytes": 0,
+            "phases": {
+              "imageLoad": {
+                "count": 65,
+                "totalMs": 7379.800000011921,
+                "maxMs": 570.9000000059605
+              },
+              "imageDecode": {
+                "count": 65,
+                "totalMs": 3903.4999999701977,
+                "maxMs": 232.29999999701977
+              }
+            }
+          },
+          "embeddedImages": {
+            "createdURLs": 44,
+            "reusedURLs": 32,
+            "revokedURLs": 0,
+            "bytes": 9958709,
+            "entries": 44,
+            "scopes": 0,
+            "distinctContents": 40,
+            "repeatedContentEntries": 4,
+            "distinctContentBytes": 8787830,
+            "repeatedContentBytes": 1170879,
+            "preparations": 128,
+            "convertedImages": 45,
+            "extractedBytes": 9958709,
+            "skippedOversize": 0,
+            "skippedUnsupported": 3
+          },
+          "fbxPreparation": {
+            "active": 0,
+            "queued": 0,
+            "outstanding": 0,
+            "inputBytes": 0,
+            "workers": 1,
+            "completed": 128,
+            "cancelled": 0,
+            "failed": 4,
+            "disposed": false
+          },
+          "sourceTextLoading": {
+            "hits": 532,
+            "misses": 320,
+            "bytes": 389582,
+            "ready": 319,
+            "active": 0,
+            "readers": 0,
+            "evictions": 0,
+            "disposed": false
+          },
+          "preparedFbxCache": {
+            "hits": 164,
+            "misses": 132,
+            "bytes": 10206172,
+            "ready": 64,
+            "active": 0,
+            "readers": 0,
+            "evictions": 64,
+            "disposed": false
+          },
+          "fstGraphCache": {
+            "inspections": 97,
+            "hits": 144,
+            "zeroResults": 97,
+            "unknownResults": 0,
+            "positiveResults": 0,
+            "positiveReinspections": 0,
+            "disposed": false
+          },
+          "shaderWarmup": {
+            "enabled": false,
+            "roots": 0,
+            "bindings": 0,
+            "batches": 0,
+            "yielded": 0,
+            "smallRoots": 0,
+            "conservativeFallbacks": 0
+          },
+          "loadPhases": {
+            "graphicsSubmit": {
+              "count": 1947,
+              "totalMs": 21169.30000011623,
+              "maxMs": 521.7999999970198
+            },
+            "shaderPrepare": {
+              "count": 500,
+              "totalMs": 16373.100000217557,
+              "maxMs": 281.90000000596046
+            },
+            "fbxMaterialBindings": {
+              "count": 128,
+              "totalMs": 413.89999997615814,
+              "maxMs": 53.1000000089407
+            },
+            "fbxDecode": {
+              "count": 128,
+              "totalMs": 3889.3000000417233,
+              "maxMs": 798.5999999940395
+            },
+            "fbxPrepareWait": {
+              "count": 292,
+              "totalMs": 34168.89999985695,
+              "maxMs": 1253.3999999910593
+            },
+            "fbxParse": {
+              "count": 292,
+              "totalMs": 4980.100000187755,
+              "maxMs": 456.20000000298023
+            },
+            "entityUpdate": {
+              "count": 11,
+              "totalMs": 191.90000002086163,
+              "maxMs": 109.70000000298023
+            },
+            "fbxTextures": {
+              "count": 292,
+              "totalMs": 3867.4999998807907,
+              "maxMs": 400.5
+            },
+            "textureAlpha": {
+              "count": 843,
+              "totalMs": 1313.5999999195337,
+              "maxMs": 168.1000000089407
+            },
+            "fstGraphPreflight": {
+              "count": 241,
+              "totalMs": 103.69999992847443,
+              "maxMs": 12.099999994039536
+            },
+            "colliderBuild": {
+              "count": 76,
+              "totalMs": 331.90000005066395,
+              "maxMs": 98.29999999701977
+            },
+            "compressedColor": {
+              "count": 231,
+              "totalMs": 19523.100000023842,
+              "maxMs": 881
+            },
+            "modelBatch": {
+              "count": 6,
+              "totalMs": 142.3000000268221,
+              "maxMs": 68.30000001192093
+            }
+          }
+        },
+        {
+          "stage": "walking",
+          "fps": 35.90825440998247,
+          "medianFrameMs": 33.19999999999709,
+          "p95FrameMs": 50,
+          "maximumFrameMs": 67.19999999999709,
+          "drawingBufferWidth": 1280,
+          "drawingBufferHeight": 800,
+          "drawCalls": 635,
+          "triangles": 508878,
+          "geometries": 423,
+          "textures": 216,
+          "entities": 517,
+          "loadedModels": 293,
+          "loadedAvatars": 1,
+          "meshColliders": 73,
+          "imageLoading": {
+            "requests": 115,
+            "uniqueImages": 73,
+            "cacheHits": 42,
+            "completed": 65,
+            "failed": 8,
+            "cancelled": 0,
+            "evictions": 0,
+            "peakActive": 6,
+            "sourceKinds": {
+              "http": {
+                "requests": 39,
+                "uniqueImages": 29,
+                "cacheHits": 10,
+                "completed": 21,
+                "failed": 8,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "https": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "data": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "blob": {
+                "requests": 76,
+                "uniqueImages": 44,
+                "cacheHits": 32,
+                "completed": 44,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "other": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              }
+            },
+            "active": 0,
+            "queued": 0,
+            "pending": 0,
+            "retainedEntries": 65,
+            "retainedPixels": 66714765,
+            "retainedKeyBytes": 14450,
+            "pendingKeyBytes": 0,
+            "phases": {
+              "imageLoad": {
+                "count": 65,
+                "totalMs": 7379.800000011921,
+                "maxMs": 570.9000000059605
+              },
+              "imageDecode": {
+                "count": 65,
+                "totalMs": 3903.4999999701977,
+                "maxMs": 232.29999999701977
+              }
+            }
+          },
+          "embeddedImages": {
+            "createdURLs": 44,
+            "reusedURLs": 32,
+            "revokedURLs": 0,
+            "bytes": 9958709,
+            "entries": 44,
+            "scopes": 0,
+            "distinctContents": 40,
+            "repeatedContentEntries": 4,
+            "distinctContentBytes": 8787830,
+            "repeatedContentBytes": 1170879,
+            "preparations": 128,
+            "convertedImages": 45,
+            "extractedBytes": 9958709,
+            "skippedOversize": 0,
+            "skippedUnsupported": 3
+          },
+          "fbxPreparation": {
+            "active": 0,
+            "queued": 0,
+            "outstanding": 0,
+            "inputBytes": 0,
+            "workers": 1,
+            "completed": 128,
+            "cancelled": 0,
+            "failed": 4,
+            "disposed": false
+          },
+          "sourceTextLoading": {
+            "hits": 532,
+            "misses": 320,
+            "bytes": 389582,
+            "ready": 319,
+            "active": 0,
+            "readers": 0,
+            "evictions": 0,
+            "disposed": false
+          },
+          "preparedFbxCache": {
+            "hits": 164,
+            "misses": 132,
+            "bytes": 10206172,
+            "ready": 64,
+            "active": 0,
+            "readers": 0,
+            "evictions": 64,
+            "disposed": false
+          },
+          "fstGraphCache": {
+            "inspections": 97,
+            "hits": 144,
+            "zeroResults": 97,
+            "unknownResults": 0,
+            "positiveResults": 0,
+            "positiveReinspections": 0,
+            "disposed": false
+          },
+          "shaderWarmup": {
+            "enabled": false,
+            "roots": 0,
+            "bindings": 0,
+            "batches": 0,
+            "yielded": 0,
+            "smallRoots": 0,
+            "conservativeFallbacks": 0
+          },
+          "loadPhases": {
+            "graphicsSubmit": {
+              "count": 2023,
+              "totalMs": 23043.700000092387,
+              "maxMs": 521.7999999970198
+            },
+            "shaderPrepare": {
+              "count": 500,
+              "totalMs": 16373.100000217557,
+              "maxMs": 281.90000000596046
+            },
+            "fbxMaterialBindings": {
+              "count": 128,
+              "totalMs": 413.89999997615814,
+              "maxMs": 53.1000000089407
+            },
+            "fbxDecode": {
+              "count": 128,
+              "totalMs": 3889.3000000417233,
+              "maxMs": 798.5999999940395
+            },
+            "fbxPrepareWait": {
+              "count": 292,
+              "totalMs": 34168.89999985695,
+              "maxMs": 1253.3999999910593
+            },
+            "fbxParse": {
+              "count": 292,
+              "totalMs": 4980.100000187755,
+              "maxMs": 456.20000000298023
+            },
+            "entityUpdate": {
+              "count": 11,
+              "totalMs": 191.90000002086163,
+              "maxMs": 109.70000000298023
+            },
+            "fbxTextures": {
+              "count": 292,
+              "totalMs": 3867.4999998807907,
+              "maxMs": 400.5
+            },
+            "textureAlpha": {
+              "count": 843,
+              "totalMs": 1313.5999999195337,
+              "maxMs": 168.1000000089407
+            },
+            "fstGraphPreflight": {
+              "count": 241,
+              "totalMs": 103.69999992847443,
+              "maxMs": 12.099999994039536
+            },
+            "colliderBuild": {
+              "count": 76,
+              "totalMs": 331.90000005066395,
+              "maxMs": 98.29999999701977
+            },
+            "compressedColor": {
+              "count": 231,
+              "totalMs": 19523.100000023842,
+              "maxMs": 881
+            },
+            "modelBatch": {
+              "count": 6,
+              "totalMs": 142.3000000268221,
+              "maxMs": 68.30000001192093
+            }
+          }
+        },
+        {
+          "stage": "rejoined-steady",
+          "fps": 33.722073907545315,
+          "medianFrameMs": 33.30000000000291,
+          "p95FrameMs": 50.09999999999127,
+          "maximumFrameMs": 149.89999999999418,
+          "drawingBufferWidth": 1280,
+          "drawingBufferHeight": 800,
+          "drawCalls": 677,
+          "triangles": 552844,
+          "geometries": 428,
+          "textures": 216,
+          "entities": 517,
+          "loadedModels": 293,
+          "loadedAvatars": 1,
+          "meshColliders": 73,
+          "imageLoading": {
+            "requests": 113,
+            "uniqueImages": 71,
+            "cacheHits": 42,
+            "completed": 65,
+            "failed": 6,
+            "cancelled": 0,
+            "evictions": 0,
+            "peakActive": 6,
+            "sourceKinds": {
+              "http": {
+                "requests": 37,
+                "uniqueImages": 27,
+                "cacheHits": 10,
+                "completed": 21,
+                "failed": 6,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "https": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "data": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "blob": {
+                "requests": 76,
+                "uniqueImages": 44,
+                "cacheHits": 32,
+                "completed": 44,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "other": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              }
+            },
+            "active": 0,
+            "queued": 0,
+            "pending": 0,
+            "retainedEntries": 65,
+            "retainedPixels": 66714765,
+            "retainedKeyBytes": 14450,
+            "pendingKeyBytes": 0,
+            "phases": {
+              "imageLoad": {
+                "count": 65,
+                "totalMs": 5727.999999940395,
+                "maxMs": 513.3999999910593
+              },
+              "imageDecode": {
+                "count": 65,
+                "totalMs": 3537.7000000178814,
+                "maxMs": 556.9000000059605
+              }
+            }
+          },
+          "embeddedImages": {
+            "createdURLs": 44,
+            "reusedURLs": 32,
+            "revokedURLs": 0,
+            "bytes": 9958709,
+            "entries": 44,
+            "scopes": 0,
+            "distinctContents": 40,
+            "repeatedContentEntries": 4,
+            "distinctContentBytes": 8787830,
+            "repeatedContentBytes": 1170879,
+            "preparations": 128,
+            "convertedImages": 45,
+            "extractedBytes": 9958709,
+            "skippedOversize": 0,
+            "skippedUnsupported": 3
+          },
+          "fbxPreparation": {
+            "active": 0,
+            "queued": 0,
+            "outstanding": 0,
+            "inputBytes": 0,
+            "workers": 1,
+            "completed": 128,
+            "cancelled": 0,
+            "failed": 3,
+            "disposed": false
+          },
+          "sourceTextLoading": {
+            "hits": 532,
+            "misses": 320,
+            "bytes": 389582,
+            "ready": 319,
+            "active": 0,
+            "readers": 0,
+            "evictions": 0,
+            "disposed": false
+          },
+          "preparedFbxCache": {
+            "hits": 165,
+            "misses": 131,
+            "bytes": 10206172,
+            "ready": 64,
+            "active": 0,
+            "readers": 0,
+            "evictions": 64,
+            "disposed": false
+          },
+          "fstGraphCache": {
+            "inspections": 97,
+            "hits": 144,
+            "zeroResults": 97,
+            "unknownResults": 0,
+            "positiveResults": 0,
+            "positiveReinspections": 0,
+            "disposed": false
+          },
+          "shaderWarmup": {
+            "enabled": false,
+            "roots": 0,
+            "bindings": 0,
+            "batches": 0,
+            "yielded": 0,
+            "smallRoots": 0,
+            "conservativeFallbacks": 0
+          },
+          "loadPhases": {
+            "graphicsSubmit": {
+              "count": 1887,
+              "totalMs": 18623.39999961853,
+              "maxMs": 545.8000000119209
+            },
+            "shaderPrepare": {
+              "count": 500,
+              "totalMs": 7662.900000616908,
+              "maxMs": 203.29999999701977
+            },
+            "fbxMaterialBindings": {
+              "count": 128,
+              "totalMs": 337.9000000655651,
+              "maxMs": 48.1000000089407
+            },
+            "fbxDecode": {
+              "count": 128,
+              "totalMs": 3118.4999999552965,
+              "maxMs": 719.5
+            },
+            "fbxPrepareWait": {
+              "count": 292,
+              "totalMs": 27109.399999901652,
+              "maxMs": 1082.2999999970198
+            },
+            "fbxParse": {
+              "count": 292,
+              "totalMs": 4201.700000062585,
+              "maxMs": 246.20000000298023
+            },
+            "fbxTextures": {
+              "count": 292,
+              "totalMs": 5189.799999982119,
+              "maxMs": 594.8999999910593
+            },
+            "textureAlpha": {
+              "count": 843,
+              "totalMs": 1226.699999988079,
+              "maxMs": 172.79999999701977
+            },
+            "entityUpdate": {
+              "count": 10,
+              "totalMs": 127.2000000178814,
+              "maxMs": 84.29999999701977
+            },
+            "fstGraphPreflight": {
+              "count": 241,
+              "totalMs": 62.000000074505806,
+              "maxMs": 4.5
+            },
+            "colliderBuild": {
+              "count": 76,
+              "totalMs": 226.4000000357628,
+              "maxMs": 47.29999999701977
+            },
+            "compressedColor": {
+              "count": 231,
+              "totalMs": 16149.400000020862,
+              "maxMs": 504.5
+            },
+            "modelBatch": {
+              "count": 6,
+              "totalMs": 102.3999999910593,
+              "maxMs": 57.8999999910593
+            }
+          }
+        },
+        {
+          "stage": "rejoined-walking",
+          "fps": 30.377055197640725,
+          "medianFrameMs": 33.30000000000291,
+          "p95FrameMs": 66.09999999999127,
+          "maximumFrameMs": 250.1999999999971,
+          "drawingBufferWidth": 1280,
+          "drawingBufferHeight": 800,
+          "drawCalls": 658,
+          "triangles": 532983,
+          "geometries": 428,
+          "textures": 216,
+          "entities": 517,
+          "loadedModels": 293,
+          "loadedAvatars": 1,
+          "meshColliders": 73,
+          "imageLoading": {
+            "requests": 113,
+            "uniqueImages": 71,
+            "cacheHits": 42,
+            "completed": 65,
+            "failed": 6,
+            "cancelled": 0,
+            "evictions": 0,
+            "peakActive": 6,
+            "sourceKinds": {
+              "http": {
+                "requests": 37,
+                "uniqueImages": 27,
+                "cacheHits": 10,
+                "completed": 21,
+                "failed": 6,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "https": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "data": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "blob": {
+                "requests": 76,
+                "uniqueImages": 44,
+                "cacheHits": 32,
+                "completed": 44,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "other": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              }
+            },
+            "active": 0,
+            "queued": 0,
+            "pending": 0,
+            "retainedEntries": 65,
+            "retainedPixels": 66714765,
+            "retainedKeyBytes": 14450,
+            "pendingKeyBytes": 0,
+            "phases": {
+              "imageLoad": {
+                "count": 65,
+                "totalMs": 5727.999999940395,
+                "maxMs": 513.3999999910593
+              },
+              "imageDecode": {
+                "count": 65,
+                "totalMs": 3537.7000000178814,
+                "maxMs": 556.9000000059605
+              }
+            }
+          },
+          "embeddedImages": {
+            "createdURLs": 44,
+            "reusedURLs": 32,
+            "revokedURLs": 0,
+            "bytes": 9958709,
+            "entries": 44,
+            "scopes": 0,
+            "distinctContents": 40,
+            "repeatedContentEntries": 4,
+            "distinctContentBytes": 8787830,
+            "repeatedContentBytes": 1170879,
+            "preparations": 128,
+            "convertedImages": 45,
+            "extractedBytes": 9958709,
+            "skippedOversize": 0,
+            "skippedUnsupported": 3
+          },
+          "fbxPreparation": {
+            "active": 0,
+            "queued": 0,
+            "outstanding": 0,
+            "inputBytes": 0,
+            "workers": 1,
+            "completed": 128,
+            "cancelled": 0,
+            "failed": 3,
+            "disposed": false
+          },
+          "sourceTextLoading": {
+            "hits": 532,
+            "misses": 320,
+            "bytes": 389582,
+            "ready": 319,
+            "active": 0,
+            "readers": 0,
+            "evictions": 0,
+            "disposed": false
+          },
+          "preparedFbxCache": {
+            "hits": 165,
+            "misses": 131,
+            "bytes": 10206172,
+            "ready": 64,
+            "active": 0,
+            "readers": 0,
+            "evictions": 64,
+            "disposed": false
+          },
+          "fstGraphCache": {
+            "inspections": 97,
+            "hits": 144,
+            "zeroResults": 97,
+            "unknownResults": 0,
+            "positiveResults": 0,
+            "positiveReinspections": 0,
+            "disposed": false
+          },
+          "shaderWarmup": {
+            "enabled": false,
+            "roots": 0,
+            "bindings": 0,
+            "batches": 0,
+            "yielded": 0,
+            "smallRoots": 0,
+            "conservativeFallbacks": 0
+          },
+          "loadPhases": {
+            "graphicsSubmit": {
+              "count": 1916,
+              "totalMs": 20122.79999960959,
+              "maxMs": 545.8000000119209
+            },
+            "shaderPrepare": {
+              "count": 500,
+              "totalMs": 7662.900000616908,
+              "maxMs": 203.29999999701977
+            },
+            "fbxMaterialBindings": {
+              "count": 128,
+              "totalMs": 337.9000000655651,
+              "maxMs": 48.1000000089407
+            },
+            "fbxDecode": {
+              "count": 128,
+              "totalMs": 3118.4999999552965,
+              "maxMs": 719.5
+            },
+            "fbxPrepareWait": {
+              "count": 292,
+              "totalMs": 27109.399999901652,
+              "maxMs": 1082.2999999970198
+            },
+            "fbxParse": {
+              "count": 292,
+              "totalMs": 4201.700000062585,
+              "maxMs": 246.20000000298023
+            },
+            "fbxTextures": {
+              "count": 292,
+              "totalMs": 5189.799999982119,
+              "maxMs": 594.8999999910593
+            },
+            "textureAlpha": {
+              "count": 843,
+              "totalMs": 1226.699999988079,
+              "maxMs": 172.79999999701977
+            },
+            "entityUpdate": {
+              "count": 10,
+              "totalMs": 127.2000000178814,
+              "maxMs": 84.29999999701977
+            },
+            "fstGraphPreflight": {
+              "count": 241,
+              "totalMs": 62.000000074505806,
+              "maxMs": 4.5
+            },
+            "colliderBuild": {
+              "count": 76,
+              "totalMs": 226.4000000357628,
+              "maxMs": 47.29999999701977
+            },
+            "compressedColor": {
+              "count": 231,
+              "totalMs": 16149.400000020862,
+              "maxMs": 504.5
+            },
+            "modelBatch": {
+              "count": 6,
+              "totalMs": 102.3999999910593,
+              "maxMs": 57.8999999910593
+            }
+          }
+        }
+      ],
+      "sourceSHA256": {
+        "browser-client/gateway/server.mjs": "dbba6b07c63fc3d3f65851945c05e67d22404ba081382c4d8f29924477b44444",
+        "browser-client/gateway/native-bridge.js": "44ecbdf489bc54c4f73d9dddb2a6bf3a8f1d281c0c7daf3e8d73a6ab6472dcd4",
+        "browser-client/gateway/native-world.js": "bec2f02313446afde7a0be20899358a082b41c6c6c5d745ec67a24809e2b7ddb",
+        "browser-client/gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60",
+        "browser-client/gateway/public-places.mjs": "cbac3df2ecf7071da6e77df8d58b09be194afa184cfb0c37f6015f9f1f570471",
+        "browser-client/gateway/validation.mjs": "65eba4a66c76d4bfc0dbd18e172def64f43b37cca0db2301da5bf4d18645de79",
+        "browser-client/gateway/worker-sandbox.mjs": "48f9feb93bf60dac1f1e6f745dafec5502b12606e34d45845efb0b82e3a501d5",
+        "browser-client/gateway/network-sandbox.mjs": "3fd278b91a6ea383ddf816753d9eee870736b295ecd945714e827d794c8016d9",
+        "browser-client/gateway/network_udp.py": "378f7159b1456ab5a0e25d2f933f35106344106625cef0ce0d589de3d1e45eca",
+        "browser-client/gateway/native-tablet.js": "f3bec60250387570610b7908eab9904b70b71d291de81ce3d42511e1453ae8f2",
+        "browser-client/gateway/tablet-capture.qml": "8e5658bf0d887b5a5ab3181fffb25f42e4dc86131f52088d60c4d218f8d2bc76",
+        "browser-client/gateway/process-lifecycle.mjs": "e8d7e021a8b934b271910883e27c2a1109aedd22e12044b763d4bf8acc274eaf",
+        "browser-client/shared/fluid-performance.mjs": "44e5262f62785e3a9ba4a96c275f5f0bf3a93c27e1d44fdad3bdbec739deebe2",
+        "browser-client/gateway/session-assets.mjs": "68542cb352ccad1bdc23a65ae34ab19d4abc2b02e1f81dec3f529d525ab84bf4",
+        "browser-client/gateway/asset-download.mjs": "4718cfe223afa884ab4f5890b6dc093303a70b864917fe5d85dc5cc2b8568357",
+        "browser-client/src/main.ts": "a49da7f26e01f7550c7e1a77ccd0451d416d27d8bf41ad4b816f9b75734a39d5",
+        "browser-client/src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+        "browser-client/src/compressed-color-session.ts": "e18af74fe59593bf9f1aee0ce7a91f0e6910ed5e903868f646f1311d61c42fcf",
+        "browser-client/src/native-compressed-color.ts": "5439b334331980b43f8d7a0d1ea4750d58eec20ae0542a7296288192714e0467",
+        "browser-client/src/color-texture-metadata.ts": "1a4053acae0e7fd47076c0472598cf09b4da6ae178bd0563fa81857477c3d785",
+        "browser-client/src/initial-surface-wait.ts": "70c5a8c833eb2d7f71f21be0602e8e8a93aaa9e6452e9a942b02cfead61f4e47",
+        "browser-client/src/mesh-collision.ts": "2fa7aded6c11e1defb9dd87d2963abd0212ab9a4243eb3089aa01073d5b3e4a6",
+        "browser-client/src/simulation-clock.ts": "263fffd2b448c01fd25dc6f2adeceacf5cc28c2550d3dc249c07d915737bc7f5",
+        "browser-client/src/world.ts": "88d3b361810fcace58116bfdfad8ee8b5cd2ef8d89e29d3d1fcb59376591e4c6",
+        "browser-client/src/fst-graph-cache.ts": "3a97e6dfcff1afaf1919b766ba38370befcb740e36f54662d8c9a4769c157230",
+        "browser-client/src/fst-texture-admission.ts": "385f257d5f60ea60ab26af0df1d1f77186e836ba64e33640012349786244a5d5",
+        "browser-client/src/compressed-color-capabilities.ts": "9e0536d5b2c82dee198b4e952b8b4f92bce8c49011ec5972b53608e94583d9fe",
+        "browser-client/src/graphics-warmup.ts": "e5b8dec4e448da880603e6594cf2b71888e1db16b9ddc4370a3ee2c93d899f2f",
+        "browser-client/src/graphics-warmup-owner.ts": "e09c8bfbfb71dadbe838413551cce82a6b689967237e355cd4a787a9da0050d4",
+        "browser-client/src/gpu-time-observer.ts": "6431fd2ee12ed93a19c98abba26e895b82598da94f2c12f227c2b0a649d0fed3",
+        "browser-client/src/world-gpu-timing.ts": "f20d8edec0b0666e88fb7a60cc2b5dae35ae02d5c6e6b44bc2ae86810beccd46",
+        "browser-client/src/world-image-cache.ts": "ba45a6125087f8b275c939a5e9e36dadac6879a37cb0fbe50d8c19dd9f1c6af9",
+        "browser-client/src/world-source-text-cache.ts": "57ccb98bed54e788ed0e2f263e8362ae505f4b3073648dc08c311925e21116b1",
+        "browser-client/src/embedded-fbx-images.ts": "790210b1205de5a26798e59c428da4bfff94ace0357374b6c370d53a42009e66",
+        "browser-client/src/embedded-content-counts.ts": "99fdefbe880cc81f8871565875fd95620211cbbc7a64ff3cfb6a5ee601d33864",
+        "browser-client/src/embedded-fbx-protocol.ts": "381179c36c71ab04bd0214fde9d2da4afa2a04f7f52dcbadc526b9eb2dd0c1db",
+        "browser-client/src/native-zero-lights.ts": "db505e6dbbfa856f3f5a5cb7d2c38768ab47f68e545a44d2281589613e151659",
+        "browser-client/src/static-model-batch.ts": "e14251976cfbc726dc8758759d13b0318b5bd08bec47499f64083b7e9ff44b8a",
+        "browser-client/src/native-render-state.ts": "af31a1e01576c233c1f7e8a8231dd5c2cc5871cb58b5783bf01f788da70d01df",
+        "browser-client/src/native-alpha-material.ts": "a3515894f69f078222c7e2b543c46ce22f7bd05b58e12f3eaa14aa0a638dcfbb",
+        "browser-client/src/model-resources.ts": "f05d539e19554cfa49ed35ce8fc6ec1c92f6c985c3b1d1f90849df9b558628ca",
+        "browser-client/src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+        "browser-client/src/worker-task-yield.ts": "6fdfa71526163386c9e041b74a533b2ff50c52f533145bfc2facb213d4333cc8",
+        "browser-client/src/prepared-fbx-cache.ts": "d4fe5ef8699e329094f4c4e99b0a8baa9da29739ee5b3dd6f28ff756b6466579",
+        "browser-client/src/model-load-scheduler.ts": "5b0f79beda5b11ba85dff0c34fbd4e091e5f21a0130efa78022d7eef9f453290",
+        "browser-client/src/model-geometry-stage.ts": "d940a9180cbb26f50a2fe8a712e6f8d9d30a2d31ec2b6dd5551b6ee6b83d34a3",
+        "browser-client/src/model-fbx-pool.ts": "76234b181e0cdded5d4e65350386bc62bf393802266e5614d825b57308e5b902",
+        "browser-client/src/model-fbx-decoder.ts": "5b80bced09705301a14574c8082a946dd3fd32f2ef1a9d1ce08ca7f30dd19ead",
+        "browser-client/src/model-fbx-decoder-memory.ts": "0f209e406a3571af97e78bf12471d7ea6a788cec26adbef733dc353b864cdc68",
+        "browser-client/src/model-fbx-worker.ts": "e418b09a7a3771bcb2cd52c130cc9ee01fcbfbca2ad5828df9c307adec9502f5",
+        "browser-client/src/model-textures.ts": "6de3ec3be2ce235642209ffab87295e52198e4fbebc12559c712ba6283e889bb",
+        "browser-client/src/texture-alpha.ts": "af9b46d9c56a156febaff92db76fe06b38dd4fa2ba7943ddfd4bbeaa47024ebe",
+        "browser-client/src/texture-alpha-worker.ts": "68cc81f419ed2373cfe18e9efd950222452479a7a742c5e10b8d965264d91761",
+        "browser-client/src/baked-fbx.ts": "eaa429192150981bb8c894ec77140a829a9430264652f0321dd41fc1486c0d00",
+        "browser-client/src/baked-draco.ts": "7e4426363fd8809df02d4f6c79d2b2fb899ae56ed663f839ffeb297e2a7d7844",
+        "browser-client/src/baked-draco-legacy.ts": "ba30ca915fcb85f5915fd5ef08f01745c13d3c9c7412c8dcefecb504c89a0a71",
+        "browser-client/dist/index.html": "73556e2a742df46a5173386b0167eefe00c040f924bf176448b9b6f0abe00307",
+        "browser-client/tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "browser-client/tests/integration/public-hub-metrics.mjs": "18c9ed36feb60ddadbc5b3a73dcc73e2caa8561ab26cd672d8882de2bd25c789",
+        "browser-client/tests/integration/public-hub.mjs": "9460c7cae7cf00c47c1acf278652cf9b956a33e32a384236b2a19c5241e44d6e"
+      },
+      "runtimeHelperSHA256": {
+        "native-tablet.js": "f3bec60250387570610b7908eab9904b70b71d291de81ce3d42511e1453ae8f2",
+        "tablet-capture.qml": "8e5658bf0d887b5a5ab3181fffb25f42e4dc86131f52088d60c4d218f8d2bc76",
+        "bridge.js": "b09e140be7965801dff7271bc80b88b9ff12643b35b2d1672d603a44fbb77d44"
+      },
+      "assetCategories": {
+        "FBX": {
+          "uniqueURLs": 122,
+          "requests": 261,
+          "duplicateRequests": 139,
+          "knownBytes": 42012067,
+          "unknownByteResponses": 0,
+          "sources": {
+            "download": 258,
+            "shared": 0,
+            "memory": 3,
+            "unknown": 0
+          }
+        },
+        "FST": {
+          "uniqueURLs": 95,
+          "requests": 186,
+          "duplicateRequests": 91,
+          "knownBytes": 38918,
+          "unknownByteResponses": 2,
+          "sources": {
+            "download": 184,
+            "shared": 0,
+            "memory": 0,
+            "unknown": 2
+          }
+        },
+        "texmeta": {
+          "uniqueURLs": 133,
+          "requests": 260,
+          "duplicateRequests": 127,
+          "knownBytes": 80789,
+          "unknownByteResponses": 0,
+          "sources": {
+            "download": 260,
+            "shared": 0,
+            "memory": 0,
+            "unknown": 0
+          }
+        },
+        "JSON": {
+          "uniqueURLs": 91,
+          "requests": 180,
+          "duplicateRequests": 89,
+          "knownBytes": 121048,
+          "unknownByteResponses": 0,
+          "sources": {
+            "download": 180,
+            "shared": 0,
+            "memory": 0,
+            "unknown": 0
+          }
+        },
+        "image": {
+          "uniqueURLs": 146,
+          "requests": 283,
+          "duplicateRequests": 137,
+          "knownBytes": 153642038,
+          "unknownByteResponses": 20,
+          "sources": {
+            "download": 259,
+            "shared": 0,
+            "memory": 4,
+            "unknown": 20
+          }
+        },
+        "other": {
+          "uniqueURLs": 8,
+          "requests": 18,
+          "duplicateRequests": 10,
+          "knownBytes": 12251512,
+          "unknownByteResponses": 0,
+          "sources": {
+            "download": 16,
+            "shared": 0,
+            "memory": 2,
+            "unknown": 0
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,489 @@
+{
+  "schema": 1,
+  "scope": "exact authorized hosted logs plus repository/official image source; no hosted fix",
+  "hosted": {
+    "browser": {
+      "privateSourceSHA256": "2e546984d41c61459b6db5b081ca4e9885e14162693fa958af1de7fdab3ebc71",
+      "privateSourceBytes": 720412,
+      "image": "ubuntu-24.04",
+      "imageVersion": "20260927.320.1",
+      "failures": [
+        {
+          "test": "test_actual_root_owned_public_descriptor_hash_and_size_match_independent_digest",
+          "fixedRefusals": [
+            {
+              "category": "runtime-package-path-not-root-trusted",
+              "entryKind": "runtime-package",
+              "entryOrdinal": 0,
+              "ancestorOrdinal": 0,
+              "metadata": {
+                "aliasSizeWithinBound": true,
+                "boundedBytes": 114,
+                "fileType": "regular",
+                "groupOrOtherWritable": true,
+                "permissions": 511,
+                "rootOwned": true,
+                "sizeTruncated": false
+              }
+            }
+          ],
+          "repositoryTracebackReferences": [
+            {
+              "file": "tests/test_import_alias_policy.py",
+              "line": 164,
+              "function": "test_actual_root_owned_public_descriptor_hash_and_size_match_independent_digest"
+            },
+            {
+              "file": "tools/trusted-network/workflow/build.py",
+              "line": 125,
+              "function": "alias_record"
+            },
+            {
+              "file": "tools/trusted-network/workflow/build.py",
+              "line": 91,
+              "function": "rooted"
+            }
+          ]
+        },
+        {
+          "test": "test_installer_recomputes_inventory_and_hashes_before_mutation",
+          "fixedRefusals": [
+            {
+              "category": "python-import-alias-target-untrusted",
+              "entryKind": "import-alias",
+              "entryOrdinal": 3,
+              "ancestorOrdinal": 0,
+              "metadata": {
+                "aliasSizeWithinBound": false,
+                "boundedBytes": 4194305,
+                "fileType": "regular",
+                "groupOrOtherWritable": false,
+                "permissions": 420,
+                "rootOwned": true,
+                "sizeTruncated": true
+              },
+              "aliasTargetClass": {
+                "directoryClass": "usr-library-directory",
+                "evidence": "canonical-name-only-no-byte-read",
+                "nameClass": "python312-shared-library-name"
+              }
+            }
+          ],
+          "repositoryTracebackReferences": [
+            {
+              "file": "tests/test_import_alias_policy.py",
+              "line": 204,
+              "function": "test_installer_recomputes_inventory_and_hashes_before_mutation"
+            },
+            {
+              "file": "tools/trusted-network/workflow/build.py",
+              "line": 188,
+              "function": "trusted_import_paths"
+            },
+            {
+              "file": "tools/trusted-network/workflow/build.py",
+              "line": 128,
+              "function": "alias_record"
+            }
+          ]
+        },
+        {
+          "test": "test_real_build_nonzero_inventory_binds_exact_profile_manifest_header_and_static_binary",
+          "fixedRefusals": [
+            {
+              "category": "runtime-package-path-not-root-trusted",
+              "entryKind": "runtime-package",
+              "entryOrdinal": 0,
+              "ancestorOrdinal": 0,
+              "metadata": {
+                "aliasSizeWithinBound": true,
+                "boundedBytes": 114,
+                "fileType": "regular",
+                "groupOrOtherWritable": true,
+                "permissions": 511,
+                "rootOwned": true,
+                "sizeTruncated": false
+              }
+            }
+          ],
+          "repositoryTracebackReferences": [
+            {
+              "file": "tests/test_import_alias_policy.py",
+              "line": 227,
+              "function": "test_real_build_nonzero_inventory_binds_exact_profile_manifest_header_and_static_binary"
+            },
+            {
+              "file": "tools/trusted-network/workflow/build.py",
+              "line": 125,
+              "function": "alias_record"
+            },
+            {
+              "file": "tools/trusted-network/workflow/build.py",
+              "line": 91,
+              "function": "rooted"
+            }
+          ]
+        },
+        {
+          "test": "setUpClass",
+          "fixedRefusals": [
+            {
+              "category": "python-import-alias-target-untrusted",
+              "entryKind": "import-alias",
+              "entryOrdinal": 3,
+              "ancestorOrdinal": 0,
+              "metadata": {
+                "aliasSizeWithinBound": false,
+                "boundedBytes": 4194305,
+                "fileType": "regular",
+                "groupOrOtherWritable": false,
+                "permissions": 420,
+                "rootOwned": true,
+                "sizeTruncated": true
+              },
+              "aliasTargetClass": {
+                "directoryClass": "usr-library-directory",
+                "evidence": "canonical-name-only-no-byte-read",
+                "nameClass": "python312-shared-library-name"
+              }
+            }
+          ],
+          "repositoryTracebackReferences": [
+            {
+              "file": "tests/test_workflow.py",
+              "line": 26,
+              "function": "setUpClass"
+            },
+            {
+              "file": "tools/trusted-network/workflow/build.py",
+              "line": 219,
+              "function": "build"
+            },
+            {
+              "file": "tools/trusted-network/workflow/build.py",
+              "line": 188,
+              "function": "trusted_import_paths"
+            },
+            {
+              "file": "tools/trusted-network/workflow/build.py",
+              "line": 128,
+              "function": "alias_record"
+            }
+          ]
+        },
+        {
+          "test": "test_descriptor_metadata_mutation_refuses_and_owned_fd_closes",
+          "fixedRefusals": [
+            {
+              "category": "runtime-package-path-not-root-trusted",
+              "entryKind": "runtime-package",
+              "entryOrdinal": 0,
+              "ancestorOrdinal": 0,
+              "metadata": {
+                "aliasSizeWithinBound": true,
+                "boundedBytes": 114,
+                "fileType": "regular",
+                "groupOrOtherWritable": true,
+                "permissions": 511,
+                "rootOwned": true,
+                "sizeTruncated": false
+              }
+            }
+          ],
+          "repositoryTracebackReferences": [
+            {
+              "file": "tests/test_import_alias_policy.py",
+              "line": 195,
+              "function": "test_descriptor_metadata_mutation_refuses_and_owned_fd_closes"
+            }
+          ]
+        },
+        {
+          "test": "test_actual_c_descriptor_hash_accepts_matching_reviewed_bytes",
+          "fixedRefusals": [],
+          "repositoryTracebackReferences": [
+            {
+              "file": "tests/test_import_alias_policy.py",
+              "line": 326,
+              "function": "test_actual_c_descriptor_hash_accepts_matching_reviewed_bytes"
+            }
+          ]
+        },
+        {
+          "test": "test_actual_c_read_count_and_total_bytes_are_bounded",
+          "fixedRefusals": [],
+          "repositoryTracebackReferences": [
+            {
+              "file": "tests/test_import_alias_policy.py",
+              "line": 344,
+              "function": "test_actual_c_read_count_and_total_bytes_are_bounded"
+            }
+          ]
+        }
+      ]
+    },
+    "browser-pr": {
+      "privateSourceSHA256": "16783444e8b078b848bc6d806ceded6468d2e9ef125de65ee528457235feebb3",
+      "privateSourceBytes": 722369,
+      "image": "ubuntu-24.04",
+      "imageVersion": "20260927.320.1",
+      "failures": [
+        {
+          "test": "test_actual_root_owned_public_descriptor_hash_and_size_match_independent_digest",
+          "fixedRefusals": [
+            {
+              "category": "runtime-package-path-not-root-trusted",
+              "entryKind": "runtime-package",
+              "entryOrdinal": 0,
+              "ancestorOrdinal": 0,
+              "metadata": {
+                "aliasSizeWithinBound": true,
+                "boundedBytes": 114,
+                "fileType": "regular",
+                "groupOrOtherWritable": true,
+                "permissions": 511,
+                "rootOwned": true,
+                "sizeTruncated": false
+              }
+            }
+          ],
+          "repositoryTracebackReferences": [
+            {
+              "file": "tests/test_import_alias_policy.py",
+              "line": 164,
+              "function": "test_actual_root_owned_public_descriptor_hash_and_size_match_independent_digest"
+            },
+            {
+              "file": "tools/trusted-network/workflow/build.py",
+              "line": 125,
+              "function": "alias_record"
+            },
+            {
+              "file": "tools/trusted-network/workflow/build.py",
+              "line": 91,
+              "function": "rooted"
+            }
+          ]
+        },
+        {
+          "test": "test_installer_recomputes_inventory_and_hashes_before_mutation",
+          "fixedRefusals": [
+            {
+              "category": "python-import-alias-target-untrusted",
+              "entryKind": "import-alias",
+              "entryOrdinal": 3,
+              "ancestorOrdinal": 0,
+              "metadata": {
+                "aliasSizeWithinBound": false,
+                "boundedBytes": 4194305,
+                "fileType": "regular",
+                "groupOrOtherWritable": false,
+                "permissions": 420,
+                "rootOwned": true,
+                "sizeTruncated": true
+              },
+              "aliasTargetClass": {
+                "directoryClass": "usr-library-directory",
+                "evidence": "canonical-name-only-no-byte-read",
+                "nameClass": "python312-shared-library-name"
+              }
+            }
+          ],
+          "repositoryTracebackReferences": [
+            {
+              "file": "tests/test_import_alias_policy.py",
+              "line": 204,
+              "function": "test_installer_recomputes_inventory_and_hashes_before_mutation"
+            },
+            {
+              "file": "tools/trusted-network/workflow/build.py",
+              "line": 188,
+              "function": "trusted_import_paths"
+            },
+            {
+              "file": "tools/trusted-network/workflow/build.py",
+              "line": 128,
+              "function": "alias_record"
+            }
+          ]
+        },
+        {
+          "test": "test_real_build_nonzero_inventory_binds_exact_profile_manifest_header_and_static_binary",
+          "fixedRefusals": [
+            {
+              "category": "runtime-package-path-not-root-trusted",
+              "entryKind": "runtime-package",
+              "entryOrdinal": 0,
+              "ancestorOrdinal": 0,
+              "metadata": {
+                "aliasSizeWithinBound": true,
+                "boundedBytes": 114,
+                "fileType": "regular",
+                "groupOrOtherWritable": true,
+                "permissions": 511,
+                "rootOwned": true,
+                "sizeTruncated": false
+              }
+            }
+          ],
+          "repositoryTracebackReferences": [
+            {
+              "file": "tests/test_import_alias_policy.py",
+              "line": 227,
+              "function": "test_real_build_nonzero_inventory_binds_exact_profile_manifest_header_and_static_binary"
+            },
+            {
+              "file": "tools/trusted-network/workflow/build.py",
+              "line": 125,
+              "function": "alias_record"
+            },
+            {
+              "file": "tools/trusted-network/workflow/build.py",
+              "line": 91,
+              "function": "rooted"
+            }
+          ]
+        },
+        {
+          "test": "setUpClass",
+          "fixedRefusals": [
+            {
+              "category": "python-import-alias-target-untrusted",
+              "entryKind": "import-alias",
+              "entryOrdinal": 3,
+              "ancestorOrdinal": 0,
+              "metadata": {
+                "aliasSizeWithinBound": false,
+                "boundedBytes": 4194305,
+                "fileType": "regular",
+                "groupOrOtherWritable": false,
+                "permissions": 420,
+                "rootOwned": true,
+                "sizeTruncated": true
+              },
+              "aliasTargetClass": {
+                "directoryClass": "usr-library-directory",
+                "evidence": "canonical-name-only-no-byte-read",
+                "nameClass": "python312-shared-library-name"
+              }
+            }
+          ],
+          "repositoryTracebackReferences": [
+            {
+              "file": "tests/test_workflow.py",
+              "line": 26,
+              "function": "setUpClass"
+            },
+            {
+              "file": "tools/trusted-network/workflow/build.py",
+              "line": 219,
+              "function": "build"
+            },
+            {
+              "file": "tools/trusted-network/workflow/build.py",
+              "line": 188,
+              "function": "trusted_import_paths"
+            },
+            {
+              "file": "tools/trusted-network/workflow/build.py",
+              "line": 128,
+              "function": "alias_record"
+            }
+          ]
+        },
+        {
+          "test": "test_descriptor_metadata_mutation_refuses_and_owned_fd_closes",
+          "fixedRefusals": [
+            {
+              "category": "runtime-package-path-not-root-trusted",
+              "entryKind": "runtime-package",
+              "entryOrdinal": 0,
+              "ancestorOrdinal": 0,
+              "metadata": {
+                "aliasSizeWithinBound": true,
+                "boundedBytes": 114,
+                "fileType": "regular",
+                "groupOrOtherWritable": true,
+                "permissions": 511,
+                "rootOwned": true,
+                "sizeTruncated": false
+              }
+            }
+          ],
+          "repositoryTracebackReferences": [
+            {
+              "file": "tests/test_import_alias_policy.py",
+              "line": 195,
+              "function": "test_descriptor_metadata_mutation_refuses_and_owned_fd_closes"
+            }
+          ]
+        },
+        {
+          "test": "test_actual_c_descriptor_hash_accepts_matching_reviewed_bytes",
+          "fixedRefusals": [],
+          "repositoryTracebackReferences": [
+            {
+              "file": "tests/test_import_alias_policy.py",
+              "line": 326,
+              "function": "test_actual_c_descriptor_hash_accepts_matching_reviewed_bytes"
+            }
+          ]
+        },
+        {
+          "test": "test_actual_c_read_count_and_total_bytes_are_bounded",
+          "fixedRefusals": [],
+          "repositoryTracebackReferences": [
+            {
+              "file": "tests/test_import_alias_policy.py",
+              "line": 344,
+              "function": "test_actual_c_read_count_and_total_bytes_are_bounded"
+            }
+          ]
+        }
+      ]
+    },
+    "atomic": {
+      "privateSourceSHA256": "c7d23c9f6a94b4d8a7284a678cdae370fb3cafa051d388bf5ca548e87bcc26ce",
+      "privateSourceBytes": 289369,
+      "image": "ubuntu-24.04",
+      "imageVersion": "20260927.320.1",
+      "failures": [
+        {
+          "test": "test_zero_cap_own_child_and_same_namespace_user_ipc_launch_preflight",
+          "fixedRefusals": [],
+          "repositoryTracebackReferences": [
+            {
+              "file": "lab/atomic-provisioning/test_observer.py",
+              "line": 175,
+              "function": "test_zero_cap_own_child_and_same_namespace_user_ipc_launch_preflight"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "officialImage": {
+    "tag": "ubuntu24/20260927.320",
+    "commit": "1275e33f5019b02660b81ecc5622fe196211fa89",
+    "version": "20260927.320.1",
+    "configurePath": "images/ubuntu/scripts/build/configure-system.sh",
+    "configurationLines": [
+      10,
+      11
+    ],
+    "configuration": "recursive0777-under-usr-share"
+  },
+  "sourceSHA256": {
+    "tools/trusted-network/workflow/build.py": "4c70c198a90d8b6ed69c7e6f9464a8ac6d6b783cd5542e0a924a6a3f96ddd609",
+    "tools/trusted-network/workflow/install.py": "e1f65937c6635c1490f5d6576dfde2cc7799b1746a13a16ebdb577a9bb955ff7",
+    "tools/trusted-network/tests/test_import_alias_policy.py": "8ff691d5757ef7dbd27c2d17873d50f4743733141f7b68c11d238a62bfa1b18c",
+    "tools/trusted-network/tests/test_workflow.py": "a306843b026ba4b8c808bf178422317556bc656fbf6804ebdf008a301ec5ba2d",
+    "lab/atomic-provisioning/stage.py": "a61f3b556c8fae822b19c55675ffb190d3b9e4be0521a8b033e4e21fcf646572",
+    "lab/atomic-provisioning/trusted_keyring.py": "e99458f05c11feae3bc0dcb7afe737d8fff4f92a44f86750b61f2f92a7203ee1",
+    "lab/atomic-provisioning/test_observer.py": "09d65bc45851972a4bb01a8cb6de2265a66d435c7f56561707b332ead1057e77"
+  },
+  "atomicCause": "not-established",
+  "sharedLibraryLexicalAliasAndLoaderIdentity": "not-established",
+  "packageContentAuthenticationExecuted": false,
+  "originalGuardsChanged": false
+}

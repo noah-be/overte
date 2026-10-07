@@ -1,0 +1,181 @@
+{
+  "version": 1,
+  "scope": "Genuine authored native Sit, close and owned world X/standing journey with ordinary Escape/Leave cleanup; exact current source",
+  "browser": {
+    "product": "Google Chrome",
+    "reportedVersion": "154.0.8037.97",
+    "inputTransport": "automated Puppeteer CDP",
+    "legacyHarnessEngineLabel": "chromium"
+  },
+  "outcome": "failed",
+  "completed": false,
+  "terminalAccepted": false,
+  "exitCode": 1,
+  "durationSeconds": 56.353,
+  "stage": "join-isolated",
+  "fixedFailureCategory": "initial-tablet-acknowledged-frame-rectangle-deadline",
+  "nativeSitOverride": null,
+  "observedPoseDifferences": {
+    "sitDifference": null,
+    "closedRetainedSitDifference": null,
+    "restoredDifference": null
+  },
+  "appliedJointCount": null,
+  "persistedJourneyFrameCount": 0,
+  "tabletErrorCount": 0,
+  "leaveObservation": {
+    "phase": "leave-state-confirmed",
+    "escapeSent": false,
+    "beforeEscape": {
+      "pointerLocked": false,
+      "pointerLockOwnedWorld": false,
+      "documentHidden": false,
+      "documentFocused": true,
+      "connected": true,
+      "tabletVisible": false
+    },
+    "preLeave": {
+      "pointerLocked": false,
+      "pointerLockOwnedWorld": false,
+      "documentHidden": false,
+      "documentFocused": true,
+      "connected": true,
+      "tabletVisible": false
+    },
+    "afterLeave": {
+      "pointerLocked": false,
+      "pointerLockOwnedWorld": false,
+      "documentHidden": false,
+      "documentFocused": true,
+      "connected": false,
+      "tabletVisible": false
+    }
+  },
+  "cleanupAndOwnership": {
+    "cleanupVerified": true,
+    "sourceCoherent": true,
+    "baselineUnchanged": true,
+    "browserClosed": true,
+    "ownedMappedModuleQualified": true,
+    "ownedNativeClosed": true,
+    "actualGoogleChromeObserved": true,
+    "ownedGoogleChromeClosed": true,
+    "ownedGatewayStopped": true,
+    "sourceAndDistributionUnchanged": true,
+    "preservedServiceIdentities": true,
+    "observedGoogleChromeProcessCount": 10,
+    "leaveFailed": null
+  },
+  "sourceMaps": {
+    "SourceSHA256": {
+      "observed": true,
+      "equal": true,
+      "startCount": 60,
+      "endCount": 60,
+      "startMapSHA256": "4c5032a200ff987d35bb472ef14f810fdc6f6d82d0f552999c3d0fc1cf77636e",
+      "endMapSHA256": "4c5032a200ff987d35bb472ef14f810fdc6f6d82d0f552999c3d0fc1cf77636e"
+    },
+    "CopiedSourceSHA256": {
+      "observed": true,
+      "equal": true,
+      "startCount": 154,
+      "endCount": 154,
+      "startMapSHA256": "61332bf59e6a7197b0f051699dae8fec6bab7324fb5ac7dbb90bf5f3b4bdef70",
+      "endMapSHA256": "61332bf59e6a7197b0f051699dae8fec6bab7324fb5ac7dbb90bf5f3b4bdef70"
+    },
+    "ShippingSnapshotSHA256": {
+      "observed": true,
+      "equal": true,
+      "startCount": 154,
+      "endCount": 154,
+      "startMapSHA256": "64d7566e0c3c1ef9ebc83324d851feff34aedd5b3cabe4239f695e018a4de581",
+      "endMapSHA256": "64d7566e0c3c1ef9ebc83324d851feff34aedd5b3cabe4239f695e018a4de581"
+    }
+  },
+  "limits": {
+    "originalActionsAndDeadlinesUnchanged": true,
+    "automatedEscapeOnly": true,
+    "humanOSDefaultEscapeTested": false,
+    "fullTabletAcceptanceClaimed": false,
+    "microphoneTested": false,
+    "causeBeyondFailedPredicateEstablished": false,
+    "noPerformanceGainClaim": true,
+    "fullNativeJointPoseSamplesPersisted": false,
+    "boundedOriginalPredicateObservationPersisted": false,
+    "nativeReadinessCauseEstablished": false,
+    "renderStarvationCauseEstablished": false
+  },
+  "failureBoundary": {
+    "fixedSourceFile": "tablet-sit-world-stop-session.mjs",
+    "privateDriverSHA256": "30109df70d1ff417a0c7bbec85281395a763b49c04859146888b22970935b1e6",
+    "firstFramePredicateLine": 70,
+    "originalFirstFrameDeadlineMs": 30000,
+    "uniqueThirtySecondPredicate": true,
+    "connectedBaselineAndAvatarGatePrecedesOpen": true,
+    "actualErrorStackPersisted": false,
+    "actualRetainedErrorClass": "wait-for-function-timeout",
+    "actualRetainedTimeoutMs": 30000,
+    "lastAcknowledgedFrameRectangleQualified": false,
+    "calibrationReached": false,
+    "sitReached": false,
+    "closeJourneyReached": false,
+    "worldKeyReached": false,
+    "cleanupLeaveConfirmed": true,
+    "nativeGrabCallbackOutcome": "unobserved",
+    "nativeFrameFileOutcome": "unobserved",
+    "gatewayFrameReceiveOutcome": "unobserved",
+    "browserDecodeOutcome": "unobserved",
+    "browserFrameAcknowledgementOutcome": "unobserved"
+  },
+  "worldReadyObservation": {
+    "predicateEvaluations": 0,
+    "sampleCensorCount": 0,
+    "nativeArms": 0,
+    "nativeCancels": 0,
+    "nativeAcknowledgements": 0,
+    "readinessAndFocusConditions": "unobserved"
+  },
+  "bindings": {
+    "actualRawReportSHA256": "b6277e3e9dfb71eae71091f818daa907c9cc1df73bcf1247278309837de28fd1",
+    "parentCopySHA256": "b6277e3e9dfb71eae71091f818daa907c9cc1df73bcf1247278309837de28fd1",
+    "independentParsedJSONEquality": true,
+    "actualSummarySHA256": "4de0a348dd6e2c810cbb45fbe73d06328e6917de50f07198c57cb535e0b28450",
+    "nativeWorkerLogSHA256": "872ca90dda9cf188d5938c1f0cf4d806fd1e75b9546bd300a92a52b292d4fdcc",
+    "nativeWorkerLogBytes": 263033,
+    "qualificationManifestSHA256": "86cb2f68306afb7ab771ac134bf672ff2952a3907af4a3853bbe2a2d929636db",
+    "completeSourceManifestSHA256": "66c7ce8e7723cfff9ba1c88a0d59730214c896def3fe9597db98d777d790db31",
+    "productionReceiptSHA256": "19e2e42305f6a800c38342d86b17a14ad133305de2d496adfd586ecbddb0a405",
+    "distributionFiles": 34,
+    "declaredSourceRows": 104,
+    "runtimeClientRows": 103,
+    "moduleSHA256": "cb7b3c3b61cc68fda81275196d07282685c75a88e91bdb0fbf4fabdc4a77531f",
+    "artifactsSHA256": "6f1ffd9f0017ece44734c9ab675763f842b91faadf49f40534f5b7782ecabb36"
+  },
+  "retainedPreviousFailures": [
+    {
+      "rawReportSHA256": "c58482731f3b6b868aad01ce2ed928850b5b7b019aa98bff1885629060af0ece",
+      "overallPassed": false,
+      "fixedStage": "native-browser-sit-predicate"
+    },
+    {
+      "rawReportSHA256": "8a865d090ee9dfda908976866a18780f8a4f8fc978897016ceda1db3f9b0e6bf",
+      "overallPassed": false,
+      "fixedStage": "post-close-readiness-and-focus-predicate"
+    },
+    {
+      "rawReportSHA256": "f5a8887a48ea35511a677f8e1a2c414432a1313d2afccc75c145ccf35810a364",
+      "overallPassed": false,
+      "fixedStage": "close-before-world-key"
+    },
+    {
+      "rawReportSHA256": "12b7e289d225afac21d6ad92769e74dd07221d1df666ce4483480a23083936b6",
+      "overallPassed": false,
+      "fixedStage": "leave-cleanup"
+    },
+    {
+      "rawReportSHA256": "3b88e69dd3be314f6b1de7f7f04f4b6aafa14863149dcd993b17754cf799b5dd",
+      "overallPassed": false,
+      "fixedStage": "leave-cleanup"
+    }
+  ]
+}

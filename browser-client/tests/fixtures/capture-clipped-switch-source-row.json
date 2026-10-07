@@ -1,0 +1,113 @@
+{
+  "version": 1,
+  "sequence": 97,
+  "revision": 1,
+  "navigationSequence": 25,
+  "scope": "visitor-capture-controls",
+  "nodes": 731,
+  "truncated": false,
+  "rootCount": 1,
+  "uiEpoch": 9,
+  "ready": true,
+  "awaiting": false,
+  "state": {
+    "active": true,
+    "controls": {
+      "autoGainControl": true,
+      "echoCancellation": true,
+      "inputGainPercent": true,
+      "noiseSuppression": true
+    },
+    "settings": {
+      "autoGainControl": true,
+      "echoCancellation": true,
+      "inputGain": 1,
+      "inputGainPercent": 100,
+      "noiseSuppression": true
+    },
+    "version": 1
+  },
+  "controls": [
+    {
+      "kind": "native-tab",
+      "enabled": true,
+      "checked": false,
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "width": 239.5,
+        "height": 40
+      }
+    },
+    {
+      "kind": "browser-tab",
+      "enabled": true,
+      "checked": true,
+      "rect": {
+        "x": 240.5,
+        "y": 0,
+        "width": 239.5,
+        "height": 40
+      }
+    },
+    {
+      "kind": "echoCancellation",
+      "enabled": true,
+      "checked": true,
+      "rect": {
+        "x": -20,
+        "y": 48,
+        "width": 54,
+        "height": 44
+      }
+    },
+    {
+      "kind": "noiseSuppression",
+      "enabled": true,
+      "checked": true,
+      "rect": {
+        "x": -20,
+        "y": 48,
+        "width": 54,
+        "height": 44
+      }
+    },
+    {
+      "kind": "autoGainControl",
+      "enabled": true,
+      "checked": true,
+      "rect": {
+        "x": -20,
+        "y": 48,
+        "width": 54,
+        "height": 44
+      }
+    },
+    {
+      "kind": "inputGainPercent",
+      "enabled": true,
+      "checked": null,
+      "value": 100,
+      "rect": {
+        "x": 6,
+        "y": 199,
+        "width": 468,
+        "height": 6
+      },
+      "slider": {
+        "rect": {
+          "x": 0,
+          "y": 182,
+          "width": 480,
+          "height": 40
+        },
+        "availableWidth": 468,
+        "leftPadding": 6,
+        "rightPadding": 6,
+        "handleWidth": 28,
+        "mirrored": false,
+        "horizontal": true
+      }
+    }
+  ]
+}

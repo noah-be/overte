@@ -1,0 +1,108 @@
+{
+  "schemaVersion": 1,
+  "productionBaseSHA": "aeb585ee332fec6c20866b0ce128b3ab038bc772",
+  "scope": "Complete integrated diagnostic source unit/build/repository gates; hosted GPU and native-peer failure causes remain unestablished.",
+  "sourceInventorySHA256": "b5a304f8e38b085e43d672212c03fdebe6c5db3a0d9c491f9368397874250420",
+  "sourceCount": 9778,
+  "checks": [
+    {
+      "label": "product-unit-suite",
+      "command": [
+        "npm",
+        "test"
+      ],
+      "exitCode": 0,
+      "seconds": 29.995,
+      "logSHA256": "ba4a679b843d7a8bd5cc04aabdb59210a9c40cc6f633599c8d28cfe37c780271",
+      "counts": {
+        "tests": 2679,
+        "pass": 2679,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "sourceCoherent": true
+    },
+    {
+      "label": "production-build",
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "exitCode": 0,
+      "seconds": 5.778,
+      "logSHA256": "e8353066eea8c0f71b84751a5b4e21a74e7dbce320bac67ceecd656664ad7558",
+      "counts": {},
+      "sourceCoherent": true
+    },
+    {
+      "label": "repository-quick",
+      "command": [
+        "python3",
+        "tests/run-project-tests.py",
+        "--profile",
+        "quick",
+        "--timeout",
+        "240"
+      ],
+      "exitCode": 0,
+      "seconds": 164.395,
+      "logSHA256": "05e1cea7a8daa98d6714ca3ca88a6d74bc0924359171a7dcf9982293b4b3600c",
+      "counts": {},
+      "sourceCoherent": true
+    }
+  ],
+  "repositoryQuickCounts": {
+    "passed": 34,
+    "failed": 0
+  },
+  "productionDistribution": {
+    "files": 34,
+    "receiptSHA256": "48678287a337a1479e6ae96f6152df85e4edff089f29a4e66bab593b127309a0",
+    "byteIdenticalToPriorTestedDistribution": true
+  },
+  "explicitSourceClosure": {
+    "version": 18,
+    "rows": 170,
+    "manifestSHA256": "1b8744996e85866a5288389838afe3967f6c5eab55b79222ebd3a6a2976ee6b1",
+    "preparerSHA256": "9a9dfdc94d2281e13c7db475235cf9d06c405e8e6c006749eaecbd58d65cd04e",
+    "productionHistoryFallback": false,
+    "originalChrome20AssertionBodyUnchanged": true,
+    "newActualCurrentSourceRefusals": true
+  },
+  "preservedPriorNegative": {
+    "tests": 2669,
+    "passed": 2668,
+    "failed": 1,
+    "skipped": 0,
+    "failure": "Original Chrome environment source check refused the new embedded launcher before explicit migration.",
+    "logSHA256": "1a4dcce297afffcd49e3e388f0b1f605696a97e0baae0282c55ebc895ffff09d",
+    "buildAndRepositoryChecksRunAfterFailure": false
+  },
+  "postGateDocumentationDelta": [
+    "docs/browser-client/STATUS.md",
+    "docs/browser-client/evidence/hosted-diagnostic-source-checks-20261003.json"
+  ],
+  "independentReviews": {
+    "V18CPU": {
+      "passed": 218,
+      "skipped": 0,
+      "receiptManifestSHA256": "7c98d39624761b2794d8c681eae82a37dca23295956df075ace799c926bb245b"
+    },
+    "boundedPixelCPU": {
+      "passed": 7,
+      "skipped": 0,
+      "receiptManifestSHA256": "8216c78e802229e8f17db7c2a0dcb76462abbeb17d73f13b8cd6e84b9b85f016"
+    },
+    "manualWorkflowAndDocsSource": "6c3be1af4869985c6153b3de5c0c58256b5c9cf236d7c551f2459e55da8486c7"
+  },
+  "limits": [
+    "Independent focus counts overlap; they are not added to the full product total.",
+    "Manual sampling has observer overhead and does not establish Stats freshness or packet delivery.",
+    "Local NVIDIA authored fixture pass does not replace the retained Ubuntu pixel failure.",
+    "No full Native, Hub, physical microphone, Tablet parity or graphics acceptance is inferred."
+  ],
+  "materialAIAssistance": true
+}

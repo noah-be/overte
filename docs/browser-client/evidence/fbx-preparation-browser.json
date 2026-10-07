@@ -1,0 +1,408 @@
+{
+  "scope": "Production-built browser FBX preparation workers; CPU decoding and lifecycle proof, not rendered GPU or world performance acceptance",
+  "sourceSHA256": {
+    "src/model-fbx-pool.ts": "8394ecc9fba692c900e85cd8b4a6ed3511661065e8d4f4f46727a8e4d331f98c",
+    "src/model-fbx-worker.ts": "75881e694db86f070e85ea44a41c04e572347c9a09944f42b4a879cb1a0e40ea",
+    "src/model-fbx-decoder.ts": "5b80bced09705301a14574c8082a946dd3fd32f2ef1a9d1ce08ca7f30dd19ead",
+    "src/model-fbx-decoder-memory.ts": "0f209e406a3571af97e78bf12471d7ea6a788cec26adbef733dc353b864cdc68",
+    "src/draco-factories.d.ts": "665a8b42ae35c4de9ec4d0cd8509cdd3b5e981f64e582b363a69cd95e71a43d7",
+    "tests/model-fbx-pool.test.ts": "ec1864ff387631304daed8c6221b453fbf0c58c527053f8d3ddf8dae7fa1a60b",
+    "tests/integration/model-fbx-pool-entry.ts": "e23483b3556cfd4d95803a96c52df8d2573516b405cf5e07b633e9446b691ffc",
+    "tests/integration/model-fbx-pool-proof.mjs": "9b01276c45bab64a3400e40892f02a571b43a49796404af1fc74c86ca5d53869"
+  },
+  "records": [
+    {
+      "startedAt": "2026-10-01T05:02:31.987Z",
+      "finishedAt": "2026-10-01T05:02:39.757Z",
+      "completed": true,
+      "browserKind": "chromium",
+      "browserVersion": "153.0.8010.12",
+      "pageErrors": 0,
+      "automationDistribution": "Playwright packaged browser",
+      "gpuContextRequired": false,
+      "domainJoined": false,
+      "fixtureRecords": [
+        {
+          "fixture": "Packaged native mannequin",
+          "inputBytes": 3655100,
+          "inputSHA256": "e247f3342ff109e17f7ae90916f81935d17ff4f51f60c60908094bb4f38db7da",
+          "preparedGeometry": {
+            "sha256": "21ea5bb66808e04f727548fef374d1223b321e3879b6bd2e532b24d47f158848",
+            "bytes": 3655214,
+            "meshes": 2,
+            "vertices": 44244,
+            "triangles": 14748,
+            "groups": 0,
+            "bones": 73,
+            "materialIndices": []
+          },
+          "baselineExactlyEqual": true,
+          "workerPhaseMilliseconds": {
+            "materialBindingsMs": 70.70000000298023,
+            "decodeMs": 13.200000002980232
+          }
+        },
+        {
+          "fixture": "Native Kim avatar",
+          "inputBytes": 3062028,
+          "inputSHA256": "9234bbeaa13b09bdeafb3e0b811da7427d245f278a50470b01af569adb56670f",
+          "preparedGeometry": {
+            "sha256": "2d22ebe130a783967bccecac5d29ab3496442484cd6c771c4f0cd95b4f2962b9",
+            "bytes": 3062004,
+            "meshes": 12,
+            "vertices": 157593,
+            "triangles": 52531,
+            "groups": 0,
+            "bones": 696,
+            "materialIndices": []
+          },
+          "baselineExactlyEqual": true,
+          "workerPhaseMilliseconds": {
+            "materialBindingsMs": 64.59999999403954,
+            "decodeMs": 11.300000011920929
+          }
+        },
+        {
+          "fixture": "Public Hub wooden bridge",
+          "inputBytes": 57455,
+          "inputSHA256": "3c4726906a028de458ca10306887e26978a061f56f00e0a381e1a4d539bd71ad",
+          "preparedGeometry": {
+            "sha256": "63b1896027131b836fe7448c0e20536f9e2586dbf2480ce88f0d68b00ef492e2",
+            "bytes": 381878,
+            "meshes": 1,
+            "vertices": 11760,
+            "triangles": 3920,
+            "groups": 1,
+            "bones": 0,
+            "materialIndices": [
+              0
+            ]
+          },
+          "baselineExactlyEqual": true,
+          "workerPhaseMilliseconds": {
+            "materialBindingsMs": 3.4000000059604645,
+            "decodeMs": 72.5
+          }
+        },
+        {
+          "fixture": "Public Hub Cabana",
+          "inputBytes": 75122,
+          "inputSHA256": "42adcf63e1dfe594b6b1d5a8c98b87c95dd4f70232479d2424a1b1f747f5d103",
+          "preparedGeometry": {
+            "sha256": "8afb9b9969b188472bc51feb70cb966b561aa7957fa9edd661ad7f273f349f75",
+            "bytes": 714092,
+            "meshes": 1,
+            "vertices": 22284,
+            "triangles": 7428,
+            "groups": 2,
+            "bones": 0,
+            "materialIndices": [
+              0,
+              1
+            ]
+          },
+          "baselineExactlyEqual": true,
+          "workerPhaseMilliseconds": {
+            "materialBindingsMs": 3.4000000059604645,
+            "decodeMs": 286.8999999910593
+          }
+        },
+        {
+          "fixture": "Public Hub Small Island",
+          "inputBytes": 1668682,
+          "inputSHA256": "1b2053e7ed90d2a2ea4811c1a8938602e7e9a876edbc2c9fc1a369b728894ef9",
+          "preparedGeometry": {
+            "sha256": "1c925caffefad821663c18c83c707b65f1fb6575a87d0f15dedb707e859e5356",
+            "bytes": 5879234,
+            "meshes": 2,
+            "vertices": 161508,
+            "triangles": 53836,
+            "groups": 1190,
+            "bones": 0,
+            "materialIndices": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              23,
+              24,
+              25,
+              26,
+              27,
+              29,
+              30,
+              31,
+              32,
+              33
+            ]
+          },
+          "baselineExactlyEqual": true,
+          "workerPhaseMilliseconds": {
+            "materialBindingsMs": 5.5,
+            "decodeMs": 458.80000001192093
+          }
+        }
+      ],
+      "pool": {
+        "initial": {
+          "active": 2,
+          "queued": 3,
+          "outstanding": 5,
+          "inputBytes": 8518387,
+          "workers": 2,
+          "completed": 0,
+          "cancelled": 0,
+          "failed": 0,
+          "disposed": false
+        },
+        "counters": {
+          "active": 0,
+          "queued": 0,
+          "outstanding": 0,
+          "inputBytes": 0,
+          "workers": 2,
+          "completed": 5,
+          "cancelled": 0,
+          "failed": 0,
+          "disposed": false
+        },
+        "ownWorkers": 2,
+        "poolCleanup": true,
+        "activeDetached": true,
+        "elapsed": 780.7000000029802,
+        "ticks": 48,
+        "maxGap": 23.200000002980232
+      },
+      "genuineStalledWorker": {
+        "deadlineError": "FBX preparation exceeded its bounded deadline",
+        "deadlineElapsed": 75.79999999701977,
+        "deadlineCounters": {
+          "active": 0,
+          "queued": 0,
+          "outstanding": 0,
+          "inputBytes": 0,
+          "workers": 0,
+          "completed": 0,
+          "cancelled": 0,
+          "failed": 1,
+          "disposed": false
+        }
+      }
+    },
+    {
+      "startedAt": "2026-10-01T05:03:30.213Z",
+      "finishedAt": "2026-10-01T05:03:40.011Z",
+      "completed": true,
+      "browserKind": "firefox",
+      "browserVersion": "155.0",
+      "pageErrors": 0,
+      "automationDistribution": "Playwright packaged browser",
+      "gpuContextRequired": false,
+      "domainJoined": false,
+      "fixtureRecords": [
+        {
+          "fixture": "Packaged native mannequin",
+          "inputBytes": 3655100,
+          "inputSHA256": "e247f3342ff109e17f7ae90916f81935d17ff4f51f60c60908094bb4f38db7da",
+          "preparedGeometry": {
+            "sha256": "21ea5bb66808e04f727548fef374d1223b321e3879b6bd2e532b24d47f158848",
+            "bytes": 3655214,
+            "meshes": 2,
+            "vertices": 44244,
+            "triangles": 14748,
+            "groups": 0,
+            "bones": 73,
+            "materialIndices": []
+          },
+          "baselineExactlyEqual": true,
+          "workerPhaseMilliseconds": {
+            "materialBindingsMs": 43,
+            "decodeMs": 11
+          }
+        },
+        {
+          "fixture": "Native Kim avatar",
+          "inputBytes": 3062028,
+          "inputSHA256": "9234bbeaa13b09bdeafb3e0b811da7427d245f278a50470b01af569adb56670f",
+          "preparedGeometry": {
+            "sha256": "2d22ebe130a783967bccecac5d29ab3496442484cd6c771c4f0cd95b4f2962b9",
+            "bytes": 3062004,
+            "meshes": 12,
+            "vertices": 157593,
+            "triangles": 52531,
+            "groups": 0,
+            "bones": 696,
+            "materialIndices": []
+          },
+          "baselineExactlyEqual": true,
+          "workerPhaseMilliseconds": {
+            "materialBindingsMs": 44,
+            "decodeMs": 17
+          }
+        },
+        {
+          "fixture": "Public Hub wooden bridge",
+          "inputBytes": 57455,
+          "inputSHA256": "3c4726906a028de458ca10306887e26978a061f56f00e0a381e1a4d539bd71ad",
+          "preparedGeometry": {
+            "sha256": "63b1896027131b836fe7448c0e20536f9e2586dbf2480ce88f0d68b00ef492e2",
+            "bytes": 381878,
+            "meshes": 1,
+            "vertices": 11760,
+            "triangles": 3920,
+            "groups": 1,
+            "bones": 0,
+            "materialIndices": [
+              0
+            ]
+          },
+          "baselineExactlyEqual": true,
+          "workerPhaseMilliseconds": {
+            "materialBindingsMs": 1,
+            "decodeMs": 67
+          }
+        },
+        {
+          "fixture": "Public Hub Cabana",
+          "inputBytes": 75122,
+          "inputSHA256": "42adcf63e1dfe594b6b1d5a8c98b87c95dd4f70232479d2424a1b1f747f5d103",
+          "preparedGeometry": {
+            "sha256": "8afb9b9969b188472bc51feb70cb966b561aa7957fa9edd661ad7f273f349f75",
+            "bytes": 714092,
+            "meshes": 1,
+            "vertices": 22284,
+            "triangles": 7428,
+            "groups": 2,
+            "bones": 0,
+            "materialIndices": [
+              0,
+              1
+            ]
+          },
+          "baselineExactlyEqual": true,
+          "workerPhaseMilliseconds": {
+            "materialBindingsMs": 1,
+            "decodeMs": 210
+          }
+        },
+        {
+          "fixture": "Public Hub Small Island",
+          "inputBytes": 1668682,
+          "inputSHA256": "1b2053e7ed90d2a2ea4811c1a8938602e7e9a876edbc2c9fc1a369b728894ef9",
+          "preparedGeometry": {
+            "sha256": "1c925caffefad821663c18c83c707b65f1fb6575a87d0f15dedb707e859e5356",
+            "bytes": 5879234,
+            "meshes": 2,
+            "vertices": 161508,
+            "triangles": 53836,
+            "groups": 1190,
+            "bones": 0,
+            "materialIndices": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15,
+              16,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              23,
+              24,
+              25,
+              26,
+              27,
+              29,
+              30,
+              31,
+              32,
+              33
+            ]
+          },
+          "baselineExactlyEqual": true,
+          "workerPhaseMilliseconds": {
+            "materialBindingsMs": 7,
+            "decodeMs": 357
+          }
+        }
+      ],
+      "pool": {
+        "initial": {
+          "active": 2,
+          "queued": 3,
+          "outstanding": 5,
+          "inputBytes": 8518387,
+          "workers": 2,
+          "completed": 0,
+          "cancelled": 0,
+          "failed": 0,
+          "disposed": false
+        },
+        "counters": {
+          "active": 0,
+          "queued": 0,
+          "outstanding": 0,
+          "inputBytes": 0,
+          "workers": 2,
+          "completed": 5,
+          "cancelled": 0,
+          "failed": 0,
+          "disposed": false
+        },
+        "ownWorkers": 2,
+        "poolCleanup": true,
+        "activeDetached": true,
+        "elapsed": 579,
+        "ticks": 34,
+        "maxGap": 20
+      },
+      "genuineStalledWorker": {
+        "deadlineError": "FBX preparation exceeded its bounded deadline",
+        "deadlineElapsed": 77,
+        "deadlineCounters": {
+          "active": 0,
+          "queued": 0,
+          "outstanding": 0,
+          "inputBytes": 0,
+          "workers": 0,
+          "completed": 0,
+          "cancelled": 0,
+          "failed": 1,
+          "disposed": false
+        }
+      }
+    }
+  ],
+  "ownershipNote": "The instrumented count covers outer workers created by the page. Current-thread decoder factory code contains no nested Worker creation; recursive child termination is not assumed."
+}

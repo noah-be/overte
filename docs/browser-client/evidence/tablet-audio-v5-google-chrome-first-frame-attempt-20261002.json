@@ -1,0 +1,52 @@
+{
+  "schema": 1,
+  "scope": "Actual integrated Chrome v5 original first-frame failure; additional processing not reached",
+  "date": "2026-10-02",
+  "materialAssistance": "OpenAI Codex",
+  "browser": "Google Chrome",
+  "browserVersion": "154.0.8037.97",
+  "officialELFSHA256": "6c792041b07547a662e1b17974d1dc34a3db630379b45d9d89ddd7e3e68cc587",
+  "completeManifestSHA256": "0c8b85887e17f4655f00cc38f56fef2ed7c378c5c951d3581be0c05ce90eef27",
+  "preparedRecordSHA256": "f711ee0822e0df1568d52db8de11acad72bfb45aef0f6f67647dce14d79870a8",
+  "rawReportSHA256": "3860b373e0196d0a6fc2390bebd68cfb17637905c551e8b57e427bd2f026a6ab",
+  "wrapperSummarySHA256": "4279dc13f0a3d671fc58d96572b97550565f1b5d83820cf96e219c369a587f46",
+  "result": {
+    "completed": false,
+    "childExitCode": 1,
+    "durationSeconds": 59.162,
+    "originalStagesPassed": [
+      "joined-muted"
+    ],
+    "entityCount": 7,
+    "failure": "original-initial-acknowledged-tablet-frame-timeout",
+    "originalDeadlineMs": 30000,
+    "processingOperationsReached": 0,
+    "gainEffectQualified": false,
+    "physicalMicrophoneQualified": false,
+    "syntheticFixtureConfigured": true,
+    "microphoneGrantReached": false
+  },
+  "source": {
+    "shippingCopiedRows": 381,
+    "wholeTestFiles": 428,
+    "configurationFiles": 5,
+    "distributionFiles": 34,
+    "chromeEnvironmentRows": 20,
+    "coherent": true
+  },
+  "cleanup": {
+    "originalAcceptanceCleanupPredicate": false,
+    "reason": "only-one-of-two-required-admissions-reached",
+    "actualChromeObserved": true,
+    "actualChromeProcessCount": 12,
+    "actualChromeClosed": true,
+    "ownedRunnerStopped": true,
+    "ownedGatewayStopped": true,
+    "nineManagedBirthsPreserved": true
+  },
+  "limits": [
+    "No relaxed deadline",
+    "No completed original full12 or additional processing/gain claim",
+    "The original cleanup predicate does not establish a process leak"
+  ]
+}
