@@ -1,0 +1,42 @@
+// SPDX-License-Identifier: Apache-2.0
+// Trusted new-job definition; the private label is substituted off-console.
+properties([disableConcurrentBuilds(), parameters([
+    string(name: 'SOURCE_SHA', defaultValue: '', description: 'Exact reviewed noah-be/overte topic commit')
+])])
+if (!(params.SOURCE_SHA ==~ /^[0-9a-f]{40}$/)) {
+    error('An exact lowercase 40-hex source commit is required')
+}
+node(@PRIVATE_AGENT_LABEL@) {
+    timeout(time: 60, unit: 'MINUTES') {
+        // This is only the new job's allocated workspace, never another job.
+        deleteDir()
+        checkout([$class: 'GitSCM', branches: [[name: params.SOURCE_SHA]],
+            userRemoteConfigs: [[url: 'https://github.com/noah-be/overte',
+                refspec: '+refs/heads/feature/main/browser-client:refs/remotes/origin/browser-ci-topic']],
+            extensions: [[$class: 'CloneOption', noTags: true, shallow: false, honorRefspec: true]]])
+        withEnv(["OVERTE_CI_SOURCE_SHA=${params.SOURCE_SHA}", 'OVERTE_LAB_DURATION_SECONDS=0']) {
+            try {
+                stage('Verify authorized exact source') {
+                    sh '''
+                        set -eu
+                        test "$(git rev-parse HEAD)" = "$OVERTE_CI_SOURCE_SHA"
+                        test "$(git remote get-url origin)" = 'https://github.com/noah-be/overte'
+                        git merge-base --is-ancestor "$OVERTE_CI_SOURCE_SHA" refs/remotes/origin/browser-ci-topic
+                        git remote set-url --push origin DISABLED
+                    '''
+                }
+                stage('Prepare reproducible non-root dependencies') {
+                    sh 'python3 browser-client/ci/jenkins/prepare.py --repo "$WORKSPACE" --source-sha "$OVERTE_CI_SOURCE_SHA"'
+                }
+                stage('Complete isolated browser and real-native gates') {
+                    sh 'python3 browser-client/ci/jenkins/run.py --repo "$WORKSPACE" --source-sha "$OVERTE_CI_SOURCE_SHA"'
+                }
+            } finally {
+                // Logs, profiles, credentials, recordings and selectors stay
+                // private and are deliberately excluded from artifacts.
+                archiveArtifacts(artifacts: 'build/jenkins-browser-ci/curated-core/*.json,build/jenkins-browser-ci/gate-summary.json,build/jenkins-browser-ci/prepare-summary.json',
+                    allowEmptyArchive: false, onlyIfSuccessful: false)
+            }
+        }
+    }
+}

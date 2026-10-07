@@ -1,0 +1,210 @@
+{
+  "date": "2026-10-02",
+  "materialAssistance": "OpenAI Codex",
+  "scope": "Complete nineteen-stage exact-source local native CI; original failing Chromium predicate retained. No endurance test.",
+  "repository": "noah-be/overte",
+  "job": "overte-browser-native-ci",
+  "build": 6,
+  "sourceSHA": "09c062bf5a371df78b01014dccfdbc4c37febcb9",
+  "terminalResult": "FAILURE",
+  "gateCount": 19,
+  "passedGates": 18,
+  "failedGates": 1,
+  "stages": [
+    {
+      "stage": "production-build",
+      "passed": true,
+      "durationSeconds": 3.622,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "unit-isolation-contracts",
+      "passed": true,
+      "durationSeconds": 11.75,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "actual-qt-input",
+      "passed": true,
+      "durationSeconds": 7.633,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "fbx-worker-chromium",
+      "passed": true,
+      "durationSeconds": 3.725,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "fbx-worker-firefox",
+      "passed": true,
+      "durationSeconds": 4.719,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "vite-embedded-config-mjs",
+      "passed": true,
+      "durationSeconds": 1.217,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "vite-embedded-world-config-mjs",
+      "passed": true,
+      "durationSeconds": 1.606,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "embedded-world",
+      "passed": true,
+      "durationSeconds": 7.134,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "browser-renderer",
+      "passed": true,
+      "durationSeconds": 424.19,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "test_host_tools-py",
+      "passed": true,
+      "durationSeconds": 0.705,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "test_curate_core_journey-py",
+      "passed": true,
+      "durationSeconds": 0.101,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "test_manage_state-py",
+      "passed": true,
+      "durationSeconds": 0.302,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "normal-native-preflight",
+      "passed": true,
+      "durationSeconds": 0.706,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "start-real-domain-native-gateway",
+      "passed": true,
+      "durationSeconds": 19.876,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "native-core-chromium",
+      "passed": false,
+      "durationSeconds": 28.669,
+      "exitCode": 1,
+      "failureCategory": null
+    },
+    {
+      "stage": "native-core-firefox",
+      "passed": true,
+      "durationSeconds": 77.617,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "source-immutability",
+      "passed": true,
+      "durationSeconds": 0.102,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "owned-lab-cleanup",
+      "passed": true,
+      "durationSeconds": 10.368,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "curate-native-core",
+      "passed": true,
+      "durationSeconds": 0.101,
+      "exitCode": 0,
+      "failureCategory": null
+    }
+  ],
+  "sourcePins": {
+    "browser-client/ci/jenkins/run.py": "4c96051dedbc09e61c85fcb2d20ca0e9b246d10fab0fc689e3055ef17b62402b",
+    "browser-client/ci/jenkins/namespace-owner.py": "b73c00cbbca864039a830bf35366a48d59df86f4bf67ac72851c0af9982f6ead",
+    "browser-client/ci/jenkins/gates.py": "e46c150608775d3cb5d685620e7a96467694bec9f37ba87d6fa9bd3a0e2cfd1e",
+    "browser-client/ci/jenkins/prepare.py": "546c8cfcf91dc8c34a6cb018eda2be0d95aa081224191ac1431d55302b84ce5a",
+    "browser-client/ci/jenkins/probe.py": "0db958e08754617d93cbbe8fbb443e4deea82e29e2f22928126efa3124d241cc",
+    "browser-client/ci/jenkins/owned-exec.py": "306175442cb5910f812c8c51fc0283f1e8ef30802849a20dbd1f5898a2ede47a",
+    "browser-client/ci/jenkins/owned-xvfb.py": "0d515f061e436d2ba53292cac27244f42586baad3d8ed20e26df167b1f30ba13"
+  },
+  "allSevenSourcePinsMatchCommittedBytes": true,
+  "privateRawSHA256": {
+    "native-core-chromium-private.log": "25e1ec12df3f57b4cb6f851e1a4a701d599222e4f934d24c82f1d7f221ede20a",
+    "native-core-firefox-private.log": "2a87d6d24e7238f8e388c248862a6de4e6dd1b8037d1a778cdf109daae614782",
+    "browser-renderer-private.log": "71c52672e62488b692b6b846e75eb4e0661627cb3a693c31f5659879176f6803",
+    "start-real-domain-native-gateway-private.log": "9506f84d657d39048bf34591c52dc0fb05fee1bd7a30af164f24739669ef4948",
+    "owned-lab-cleanup-private.log": "edaeab1cbc259bae380c486767d2730cac5031ff9822e908bb25cc096838f285"
+  },
+  "browserRenderer": {
+    "passed": 194,
+    "skipped": 0,
+    "durationSeconds": 424.19
+  },
+  "registeredComponents": {
+    "passed": 1233,
+    "skipped": 0
+  },
+  "managedScene": {
+    "guestConfigurationPersisted": true,
+    "actualATPSceneProvisioned": true,
+    "initialSevenEntityJoinBothEngines": true,
+    "avoidAuthenticationGroupRestartCorrectionQualified": true
+  },
+  "nativeCore": {
+    "firefox": {
+      "completed": true,
+      "passedCheckpoints": 18,
+      "curatedEvidenceSHA256": "350a803936b260b9465ce4f581f556520731fde07a60405ef9c5411e0faebb3f",
+      "syntheticAudio": true,
+      "physicalMicrophone": false
+    },
+    "chromium": {
+      "completed": false,
+      "passedCheckpoints": 4,
+      "failure": "Browser receives second native participant movement",
+      "unchangedCommandWaitMilliseconds": 2800,
+      "independentNativeCommandAppliedBeforeAssertion": true,
+      "independentNativeTargetPositionObservedBeforeAssertion": true,
+      "followingChecks": "not-run"
+    }
+  },
+  "cleanup": {
+    "ownedLabStagePassed": true,
+    "registryEmpty": true,
+    "exactWorkspaceProcessMatches": 0,
+    "workspaceSHA256": "40aa798bbdf97b90cbb43adff2ac0eb328935c3fd50e240a72e5ea13125c4a9c"
+  },
+  "limitations": [
+    "The security-only guest provisioning avoids the previous assignment restart and both engines join the seven-entity scene; hosted atomic settings persistence remains a separate failure.",
+    "Chromium fails the original raw incoming peer-avatar predicate after its unchanged2800ms command wait. Its preserved report does not distinguish delayed fixture identity, native reception or delayed snapshot output. No timeout/gate changes or causal fix are claimed.",
+    "Firefox completes the genuine short shared-domain journey including native/browser motion, real geometry/interaction, bidirectional synthetic audio, clean leave, reconnection and mouse look. It does not prove physical microphone conversation or stock online-Hub fluidness.",
+    "The full job result remains FAILURE despite eighteen passing stages. All own services and process groups are cleaned."
+  ]
+}

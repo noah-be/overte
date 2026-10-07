@@ -1,0 +1,19 @@
+{
+  "sourceFiles": {
+    "interface/src/RefreshRateManager.h": "7827bcf6a55f4e07076855dd62450c5a012554edd428b860b1d1dccf79f3959d",
+    "interface/src/RefreshRateManager.cpp": "8929bc1275b62da3bc378832b35806cce81274a2a788caafc4ee10e1836f5175",
+    "interface/src/PerformanceManager.h": "73f3f164caaad218ec16d66260fc8d25d972f7fb91a6a6ddfd1b7dddaab4d980",
+    "interface/src/PerformanceManager.cpp": "140fdcb46d57af6be4688c7f08231ce93c457d553a6a3bbb8eef33777128fffa",
+    "interface/src/Application.cpp": "6688ae6f32d0490449a35846232f63e8d637956958f947936793ef002253f0ac",
+    "interface/src/Application_Events.cpp": "03afcaca804a792ee1e0150c225de83e88baeaa262f9bb412297b8a89bbffd5c",
+    "interface/src/scripting/PerformanceScriptingInterface.h": "510a5d27008948109592f5a4e309240774945a653b97c6b70659a2ee4b2b768a",
+    "interface/src/scripting/PerformanceScriptingInterface.cpp": "497b1151d07594a0610a2d0726621f956b2fdefb1dc58884710530ab7ca54277",
+    "libraries/script-engine/src/ScriptEngineCast.h": "10f21b14f3de1cd1982ae0fa38eb71154b6d56b1aaa339b81d63652ec2b7ddf4",
+    "libraries/display-plugins/src/display-plugins/OpenGLDisplayPlugin.cpp": "cc23ea30e5437fc0789bd475642b0f7f06b14dcbd04024412c6acda76631b27d",
+    "libraries/display-plugins/src/display-plugins/RefreshRateController.cpp": "c52050e1d5d001145efad379e003c948fc11a40b470112a94b50ef0460aa82d0"
+  },
+  "runtimeProof": "pending pinned f91 native API/target and real journeys",
+  "visitorQualityChanges": false,
+  "existingProcessesChanged": false,
+  "cpuTestsPassed": 5
+}

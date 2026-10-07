@@ -1,0 +1,15 @@
+{
+  "startedAt": "2026-09-30T14:14:48.821Z",
+  "browser": "system-firefox",
+  "syntheticMicrophone": false,
+  "speechTest": false,
+  "completed": true,
+  "hardwareDefaultSource": true,
+  "browserVersion": "firefox/156.0",
+  "liveAudioTracks": 1,
+  "captureFrames": 52,
+  "sampleRate": 48000,
+  "muteReleasedHardware": true,
+  "finishedAt": "2026-09-30T14:15:04.551Z",
+  "interpretation": "Non-fake physical ALSA capture-device permission, frame-send and mute-release proof. No plugged-in microphone or acoustic speech input was confirmed; the host input ports report unavailable."
+}

@@ -1,3 +1,4 @@
+// Modified in 2026 for the optional direct browser transport.
 //
 //  WebRTCSocket.h
 //  libraries/networking/src/webrtc
@@ -16,6 +17,8 @@
 #include <QAbstractSocket>
 #include <QObject>
 #include <QQueue>
+#include <QMutex>
+#include <atomic>
 
 #include "WebRTCDataChannels.h"
 
@@ -36,6 +39,7 @@ public:
     /// @brief Constructs a new WebRTCSocket object.
     /// @param parent Qt parent object.
     WebRTCSocket(QObject* parent);
+    ~WebRTCSocket() override;
 
 
     /// @brief Nominally sets the value of a socket option.
@@ -90,6 +94,17 @@ public:
     /// @param destination The destination WebRTC data channel address.
     /// @return The number of bytes if successfully sent, otherwise <code>-1</code>.
     qint64 writeDatagram(const QByteArray& datagram, const SockAddr& destination);
+
+    /// Whether the current peer's actual data channel can accept datagrams.
+    bool isPeerOpen(const SockAddr& destination) const {
+        return _isBound.load() && _dataChannels.isPeerOpen(destination);
+    }
+
+    /// Immutable generation of the currently open native RTC connection.
+    /// A queued reliable write must retain and match this token at execution.
+    QString peerGeneration(const SockAddr& destination) const {
+        return _isBound.load() ? _dataChannels.peerGeneration(destination) : QString();
+    }
 
     /// @brief Gets the number of bytes waiting to be written.
     /// @param destination The destination WebRTC data channel address.
@@ -147,6 +162,9 @@ signals:
     /// @param json The signaling message.
     void sendSignalingMessage(const QJsonObject& message);
 
+    /// Emitted after a peer closes and its queued datagrams have been removed.
+    void peerClosed(const SockAddr& address);
+
 
 private:
 
@@ -155,12 +173,14 @@ private:
 
     WebRTCDataChannels _dataChannels;
 
-    bool _isBound { false };
+    std::atomic<bool> _isBound { false };
 
     QQueue<QPair<SockAddr, QByteArray>> _receivedQueue;  // Messages received are queued for reading from the "socket".
+    qint64 _receivedBytes { 0 };
 
     QAbstractSocket::SocketError _lastErrorType { QAbstractSocket::UnknownSocketError };
     QString _lastErrorString;
+    mutable QMutex _errorMutex;
 };
 
 

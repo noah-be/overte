@@ -1,0 +1,503 @@
+{
+  "schemaVersion": 1,
+  "scope": "Controlled authored fixture through actual integrated BrowserWorld.loadModel, production preparation worker, real image decoding and GPU; no domain or whole-Hub speed claim",
+  "reports": [
+    {
+      "startedAt": "2026-10-01T09:16:12.762Z",
+      "completed": true,
+      "engine": "system-chromium",
+      "domainConnected": false,
+      "microphoneRequested": false,
+      "worldInteractionsSent": 0,
+      "scope": "Actual BrowserWorld.loadModel, production-built worker and ordinary embedded PNG fixture; no public/native whole-world or speed claim",
+      "requests": 1,
+      "assetSHA256": "2015bff41bae04c899687eec97ee71e750ef1a97b52bf77b3919eb26bab8048e",
+      "browserVersion": "154.0.8037.57",
+      "world": {
+        "completed": true,
+        "imagePixel": [
+          255,
+          0,
+          0,
+          255
+        ],
+        "gpuPixel": [
+          255,
+          0,
+          0,
+          255
+        ],
+        "uploads": 1,
+        "frames": 20,
+        "independentSamplers": true,
+        "realModelCancellation": true,
+        "prepared": {
+          "hits": 1,
+          "misses": 1,
+          "bytes": 1498,
+          "ready": 1,
+          "active": 0,
+          "readers": 0,
+          "evictions": 0,
+          "disposed": false
+        },
+        "imageLoading": {
+          "requests": 2,
+          "uniqueImages": 1,
+          "cacheHits": 1,
+          "completed": 1,
+          "failed": 0,
+          "cancelled": 0,
+          "evictions": 0,
+          "peakActive": 1,
+          "sourceKinds": {
+            "http": {
+              "requests": 0,
+              "uniqueImages": 0,
+              "cacheHits": 0,
+              "completed": 0,
+              "failed": 0,
+              "cancelled": 0,
+              "evictions": 0
+            },
+            "https": {
+              "requests": 0,
+              "uniqueImages": 0,
+              "cacheHits": 0,
+              "completed": 0,
+              "failed": 0,
+              "cancelled": 0,
+              "evictions": 0
+            },
+            "data": {
+              "requests": 0,
+              "uniqueImages": 0,
+              "cacheHits": 0,
+              "completed": 0,
+              "failed": 0,
+              "cancelled": 0,
+              "evictions": 0
+            },
+            "blob": {
+              "requests": 2,
+              "uniqueImages": 1,
+              "cacheHits": 1,
+              "completed": 1,
+              "failed": 0,
+              "cancelled": 0,
+              "evictions": 0
+            },
+            "other": {
+              "requests": 0,
+              "uniqueImages": 0,
+              "cacheHits": 0,
+              "completed": 0,
+              "failed": 0,
+              "cancelled": 0,
+              "evictions": 0
+            }
+          },
+          "active": 0,
+          "queued": 0,
+          "pending": 0,
+          "retainedEntries": 1,
+          "retainedPixels": 1,
+          "retainedKeyBytes": 126,
+          "pendingKeyBytes": 0,
+          "phases": {
+            "imageLoad": {
+              "count": 1,
+              "totalMs": 5.899999991059303,
+              "maxMs": 5.899999991059303
+            },
+            "imageDecode": {
+              "count": 1,
+              "totalMs": 0.9000000059604645,
+              "maxMs": 0.9000000059604645
+            }
+          }
+        },
+        "embeddedImages": {
+          "createdURLs": 1,
+          "reusedURLs": 1,
+          "revokedURLs": 0,
+          "bytes": 70,
+          "entries": 1,
+          "scopes": 0,
+          "distinctContents": 1,
+          "repeatedContentEntries": 0,
+          "distinctContentBytes": 70,
+          "repeatedContentBytes": 0,
+          "preparations": 1,
+          "convertedImages": 1,
+          "extractedBytes": 70,
+          "skippedOversize": 0,
+          "skippedUnsupported": 0
+        },
+        "textureObjectsAdded": 0,
+        "gpu": {
+          "version": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+          "renderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce GTX 1080 Ti/PCIe/SSE2, OpenGL ES 3.2)"
+        },
+        "warnings": []
+      },
+      "finishedAt": "2026-10-01T09:16:15.168Z",
+      "sourceSHA256": {
+        "tests/integration/embedded-world.mjs": "b193cada5d37e847d48fd7aad7cb356eccf61142d096bd2b00ef98d279984b3d",
+        "tests/fixtures/embedded-world.ts": "9020a650627d452dc3662ea2827eab0803623a761a2294b095c1872d1d80617e",
+        "vite.embedded-world.config.mjs": "7b36f179631d0009f9a640e78c7841b7f8dfaa21562f2ab4c8962de00ac80d0e",
+        "package-lock.json": "76330fced87d7da3b6e550f9656bcb45da07fed560cc46d50a546b589d2dc695",
+        "src/world.ts": "a215db89fd52e66ed4802f48ccfdd94128aae77dff0fe711ea29541b3cbf145c",
+        "src/baked-fbx.ts": "736618f9434c239dfc57e3b0f9638393832841a3e2627d43993dbbf4b3697850",
+        "src/model-fbx-worker.ts": "e418b09a7a3771bcb2cd52c130cc9ee01fcbfbca2ad5828df9c307adec9502f5",
+        "src/model-fbx-pool.ts": "76234b181e0cdded5d4e65350386bc62bf393802266e5614d825b57308e5b902",
+        "src/prepared-fbx-cache.ts": "d4fe5ef8699e329094f4c4e99b0a8baa9da29739ee5b3dd6f28ff756b6466579",
+        "src/embedded-fbx-images.ts": "790210b1205de5a26798e59c428da4bfff94ace0357374b6c370d53a42009e66",
+        "src/embedded-fbx-protocol.ts": "381179c36c71ab04bd0214fde9d2da4afa2a04f7f52dcbadc526b9eb2dd0c1db",
+        "src/world-image-cache.ts": "ba45a6125087f8b275c939a5e9e36dadac6879a37cb0fbe50d8c19dd9f1c6af9"
+      },
+      "bundleSHA256": {
+        "BufferGeometryUtils-DkAeXLqI.js": "6d6f06dc01bbc070909acf291596897ebbe7718830c9ea992dfd9c9ab9710a32",
+        "FBXLoader-BYK-bnBi.js": "fdcd222325608e358f76c662027586fa1b22d9542df10315e65c95e7014d7e6c",
+        "GLTFLoader-DFET3YMq.js": "7e254cff27ce68228645cdc6e851718154a6ca40e31541b40926eb43fc398a54",
+        "OBJLoader-ppFNh0Em.js": "83fe050444766e68ffd5c97a0f08b4b61ef2c58e5a7fdfd4bf2ae63abd4cdc13",
+        "entry.js": "09e656160a089cb6b655bdc3b3868a0bcb485044fd629e896a08e9eef3707123",
+        "three.core-BxmuF1zJ.js": "1edab2955b7f630d09af397170fc161bfb478e5f1c74e09b39c3099a89a1cc7a",
+        "assets/baked-draco-BuKUWQSz.js": "788a4f75c0b6470fd3aef78aadd12afa1481f4ed121dd0e96b8193ccf432072d",
+        "assets/baked-draco-legacy-CMhlgON6.js": "d15334574481d9c4397f4b07bbdfbe102fc7b699718c4592d2fb540a9d77df59",
+        "assets/model-fbx-worker--j5Vb3FB.js": "c7761d15ae0f664cd8e94e9f6502a58753f9cd84200e8548a0fcf15407b1bf02",
+        "assets/texture-alpha-worker-CBG2kYQR.js": "0f256f1a830ea3fe7a62ab789c8bfefa8721444f46520a2e417c114bd60be156"
+      }
+    },
+    {
+      "startedAt": "2026-10-01T09:16:15.895Z",
+      "completed": true,
+      "engine": "system-firefox",
+      "domainConnected": false,
+      "microphoneRequested": false,
+      "worldInteractionsSent": 0,
+      "scope": "Actual BrowserWorld.loadModel, production-built worker and ordinary embedded PNG fixture; no public/native whole-world or speed claim",
+      "requests": 1,
+      "assetSHA256": "2015bff41bae04c899687eec97ee71e750ef1a97b52bf77b3919eb26bab8048e",
+      "browserVersion": "firefox/156.0",
+      "world": {
+        "completed": true,
+        "imagePixel": [
+          255,
+          0,
+          0,
+          255
+        ],
+        "gpuPixel": [
+          255,
+          0,
+          0,
+          255
+        ],
+        "uploads": 1,
+        "frames": 20,
+        "independentSamplers": true,
+        "realModelCancellation": true,
+        "prepared": {
+          "hits": 1,
+          "misses": 1,
+          "bytes": 1498,
+          "ready": 1,
+          "active": 0,
+          "readers": 0,
+          "evictions": 0,
+          "disposed": false
+        },
+        "imageLoading": {
+          "requests": 2,
+          "uniqueImages": 1,
+          "cacheHits": 1,
+          "completed": 1,
+          "failed": 0,
+          "cancelled": 0,
+          "evictions": 0,
+          "peakActive": 1,
+          "sourceKinds": {
+            "http": {
+              "requests": 0,
+              "uniqueImages": 0,
+              "cacheHits": 0,
+              "completed": 0,
+              "failed": 0,
+              "cancelled": 0,
+              "evictions": 0
+            },
+            "https": {
+              "requests": 0,
+              "uniqueImages": 0,
+              "cacheHits": 0,
+              "completed": 0,
+              "failed": 0,
+              "cancelled": 0,
+              "evictions": 0
+            },
+            "data": {
+              "requests": 0,
+              "uniqueImages": 0,
+              "cacheHits": 0,
+              "completed": 0,
+              "failed": 0,
+              "cancelled": 0,
+              "evictions": 0
+            },
+            "blob": {
+              "requests": 2,
+              "uniqueImages": 1,
+              "cacheHits": 1,
+              "completed": 1,
+              "failed": 0,
+              "cancelled": 0,
+              "evictions": 0
+            },
+            "other": {
+              "requests": 0,
+              "uniqueImages": 0,
+              "cacheHits": 0,
+              "completed": 0,
+              "failed": 0,
+              "cancelled": 0,
+              "evictions": 0
+            }
+          },
+          "active": 0,
+          "queued": 0,
+          "pending": 0,
+          "retainedEntries": 1,
+          "retainedPixels": 1,
+          "retainedKeyBytes": 126,
+          "pendingKeyBytes": 0,
+          "phases": {
+            "imageLoad": {
+              "count": 1,
+              "totalMs": 3,
+              "maxMs": 3
+            },
+            "imageDecode": {
+              "count": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            }
+          }
+        },
+        "embeddedImages": {
+          "createdURLs": 1,
+          "reusedURLs": 1,
+          "revokedURLs": 0,
+          "bytes": 70,
+          "entries": 1,
+          "scopes": 0,
+          "distinctContents": 1,
+          "repeatedContentEntries": 0,
+          "distinctContentBytes": 70,
+          "repeatedContentBytes": 0,
+          "preparations": 1,
+          "convertedImages": 1,
+          "extractedBytes": 70,
+          "skippedOversize": 0,
+          "skippedUnsupported": 0
+        },
+        "textureObjectsAdded": 0,
+        "gpu": {
+          "version": "WebGL 2.0",
+          "renderer": "NVIDIA GeForce GTX 980, or similar"
+        },
+        "warnings": []
+      },
+      "finishedAt": "2026-10-01T09:16:21.250Z",
+      "sourceSHA256": {
+        "tests/integration/embedded-world.mjs": "b193cada5d37e847d48fd7aad7cb356eccf61142d096bd2b00ef98d279984b3d",
+        "tests/fixtures/embedded-world.ts": "9020a650627d452dc3662ea2827eab0803623a761a2294b095c1872d1d80617e",
+        "vite.embedded-world.config.mjs": "7b36f179631d0009f9a640e78c7841b7f8dfaa21562f2ab4c8962de00ac80d0e",
+        "package-lock.json": "76330fced87d7da3b6e550f9656bcb45da07fed560cc46d50a546b589d2dc695",
+        "src/world.ts": "a215db89fd52e66ed4802f48ccfdd94128aae77dff0fe711ea29541b3cbf145c",
+        "src/baked-fbx.ts": "736618f9434c239dfc57e3b0f9638393832841a3e2627d43993dbbf4b3697850",
+        "src/model-fbx-worker.ts": "e418b09a7a3771bcb2cd52c130cc9ee01fcbfbca2ad5828df9c307adec9502f5",
+        "src/model-fbx-pool.ts": "76234b181e0cdded5d4e65350386bc62bf393802266e5614d825b57308e5b902",
+        "src/prepared-fbx-cache.ts": "d4fe5ef8699e329094f4c4e99b0a8baa9da29739ee5b3dd6f28ff756b6466579",
+        "src/embedded-fbx-images.ts": "790210b1205de5a26798e59c428da4bfff94ace0357374b6c370d53a42009e66",
+        "src/embedded-fbx-protocol.ts": "381179c36c71ab04bd0214fde9d2da4afa2a04f7f52dcbadc526b9eb2dd0c1db",
+        "src/world-image-cache.ts": "ba45a6125087f8b275c939a5e9e36dadac6879a37cb0fbe50d8c19dd9f1c6af9"
+      },
+      "bundleSHA256": {
+        "BufferGeometryUtils-DkAeXLqI.js": "6d6f06dc01bbc070909acf291596897ebbe7718830c9ea992dfd9c9ab9710a32",
+        "FBXLoader-BYK-bnBi.js": "fdcd222325608e358f76c662027586fa1b22d9542df10315e65c95e7014d7e6c",
+        "GLTFLoader-DFET3YMq.js": "7e254cff27ce68228645cdc6e851718154a6ca40e31541b40926eb43fc398a54",
+        "OBJLoader-ppFNh0Em.js": "83fe050444766e68ffd5c97a0f08b4b61ef2c58e5a7fdfd4bf2ae63abd4cdc13",
+        "entry.js": "09e656160a089cb6b655bdc3b3868a0bcb485044fd629e896a08e9eef3707123",
+        "three.core-BxmuF1zJ.js": "1edab2955b7f630d09af397170fc161bfb478e5f1c74e09b39c3099a89a1cc7a",
+        "assets/baked-draco-BuKUWQSz.js": "788a4f75c0b6470fd3aef78aadd12afa1481f4ed121dd0e96b8193ccf432072d",
+        "assets/baked-draco-legacy-CMhlgON6.js": "d15334574481d9c4397f4b07bbdfbe102fc7b699718c4592d2fb540a9d77df59",
+        "assets/model-fbx-worker--j5Vb3FB.js": "c7761d15ae0f664cd8e94e9f6502a58753f9cd84200e8548a0fcf15407b1bf02",
+        "assets/texture-alpha-worker-CBG2kYQR.js": "0f256f1a830ea3fe7a62ab789c8bfefa8721444f46520a2e417c114bd60be156"
+      }
+    }
+  ],
+  "earlierFailures": [
+    {
+      "startedAt": "2026-10-01T09:01:46.030Z",
+      "finishedAt": "2026-10-01T09:01:48.414Z",
+      "engine": "system-chromium",
+      "completed": false,
+      "error": "page.evaluate: TypeError: Failed to construct 'URL': Invalid base URL\n    at Wi (http://127.0.0.1:5192/build-embedded-world/entry.js:6073:9)\n    at http://127.0.0.1:5192/build-embedded-world/entry.js:10152:38\n    at http://127.0.0.1:5192/build-embedded-world/entry.js:10197:13\n    at Tc (http://127.0.0.1:5192/build-embedded-world/entry.js:8200:8)\n    at Cl.parseTexturedModel (http://127.0.0.1:5192/build-embedded-world/entry.js:10196:17)\n    at Cl.loadModel (http://127.0.0.1:5192/build-embedded-world/entry.js:10149:24)\n    at async Promise.all (index 0)\n    at async El (http://127.0.0.1:5192/build-embedded-world/entry.js:10506:70)\n    at async <anonymous>:337:30",
+      "sourceSHA256": {
+        "tests/integration/embedded-world.mjs": "4d0e46504225b5e339b2edb568efc279952d099d8dac78e74e3c9c0ebad0b33b",
+        "tests/fixtures/embedded-world.ts": "9c950d08b85f946ec49e05eae3cd0ffb463178bcc878f98154d6531d22054234",
+        "src/world.ts": "745576f8e039a6568092a36071eed17997ba62923dcd3a98911f0f5b388fd29a",
+        "src/baked-fbx.ts": "736618f9434c239dfc57e3b0f9638393832841a3e2627d43993dbbf4b3697850",
+        "src/model-fbx-worker.ts": "e418b09a7a3771bcb2cd52c130cc9ee01fcbfbca2ad5828df9c307adec9502f5",
+        "src/model-fbx-pool.ts": "76234b181e0cdded5d4e65350386bc62bf393802266e5614d825b57308e5b902",
+        "src/prepared-fbx-cache.ts": "d4fe5ef8699e329094f4c4e99b0a8baa9da29739ee5b3dd6f28ff756b6466579",
+        "src/embedded-fbx-images.ts": "70c12972191318ca54471e68e20a59c0a5b692adcd51a53050e1f23fe61e3af9",
+        "src/embedded-fbx-protocol.ts": "381179c36c71ab04bd0214fde9d2da4afa2a04f7f52dcbadc526b9eb2dd0c1db",
+        "src/world-image-cache.ts": "1433220139bd814e8b150aa62087d04343d9f3d7a9b94c220ff425e713d5737b"
+      },
+      "bundleSHA256": {
+        "BufferGeometryUtils-Di7mzBwb.js": "ab6215848f234bb4fcf68532eb970108aa4fe23964a710d1730d4ce80ba27513",
+        "FBXLoader-D2Rm9XHV.js": "c7cf77869fa1a18f8c927fabba239a4b5e5221ff2f6876d2531aff0a7eadb4c6",
+        "GLTFLoader-BybEAuwY.js": "e9dfe7b8704775116e84521ad03a015d84c16ed699a0599a73f594431a5afd76",
+        "OBJLoader-DqwZN72Y.js": "66c4b96e13ad16855fd5077018522665e0b096a49976d5d69a92c3f4f3d5e402",
+        "entry.js": "65767156666f47f3aac04eb1293c12bf5e6bf41c1e09991886c34a132b9cc2fb",
+        "three.core-BxmuF1zJ.js": "1edab2955b7f630d09af397170fc161bfb478e5f1c74e09b39c3099a89a1cc7a",
+        "assets/baked-draco-BuKUWQSz.js": "788a4f75c0b6470fd3aef78aadd12afa1481f4ed121dd0e96b8193ccf432072d",
+        "assets/baked-draco-legacy-CMhlgON6.js": "d15334574481d9c4397f4b07bbdfbe102fc7b699718c4592d2fb540a9d77df59",
+        "assets/model-fbx-worker--j5Vb3FB.js": "c7761d15ae0f664cd8e94e9f6502a58753f9cd84200e8548a0fcf15407b1bf02",
+        "assets/texture-alpha-worker-CBG2kYQR.js": "0f256f1a830ea3fe7a62ab789c8bfefa8721444f46520a2e417c114bd60be156"
+      }
+    },
+    {
+      "startedAt": "2026-10-01T08:59:43.904Z",
+      "finishedAt": "2026-10-01T08:59:45.826Z",
+      "engine": "system-chromium",
+      "completed": false,
+      "error": "page.evaluate: Error: FBX preparation worker failed\n    at e.worker.onerror (http://127.0.0.1:5192/build-embedded-world/entry.js:8758:38)",
+      "sourceSHA256": {
+        "tests/integration/embedded-world.mjs": "4d0e46504225b5e339b2edb568efc279952d099d8dac78e74e3c9c0ebad0b33b",
+        "tests/fixtures/embedded-world.ts": "9c950d08b85f946ec49e05eae3cd0ffb463178bcc878f98154d6531d22054234",
+        "src/world.ts": "745576f8e039a6568092a36071eed17997ba62923dcd3a98911f0f5b388fd29a",
+        "src/baked-fbx.ts": "736618f9434c239dfc57e3b0f9638393832841a3e2627d43993dbbf4b3697850",
+        "src/model-fbx-worker.ts": "e418b09a7a3771bcb2cd52c130cc9ee01fcbfbca2ad5828df9c307adec9502f5",
+        "src/model-fbx-pool.ts": "76234b181e0cdded5d4e65350386bc62bf393802266e5614d825b57308e5b902",
+        "src/prepared-fbx-cache.ts": "d4fe5ef8699e329094f4c4e99b0a8baa9da29739ee5b3dd6f28ff756b6466579",
+        "src/embedded-fbx-images.ts": "70c12972191318ca54471e68e20a59c0a5b692adcd51a53050e1f23fe61e3af9",
+        "src/embedded-fbx-protocol.ts": "381179c36c71ab04bd0214fde9d2da4afa2a04f7f52dcbadc526b9eb2dd0c1db",
+        "src/world-image-cache.ts": "1433220139bd814e8b150aa62087d04343d9f3d7a9b94c220ff425e713d5737b"
+      },
+      "bundleSHA256": {
+        "BufferGeometryUtils-Di7mzBwb.js": "ab6215848f234bb4fcf68532eb970108aa4fe23964a710d1730d4ce80ba27513",
+        "FBXLoader-D2Rm9XHV.js": "c7cf77869fa1a18f8c927fabba239a4b5e5221ff2f6876d2531aff0a7eadb4c6",
+        "GLTFLoader-BybEAuwY.js": "e9dfe7b8704775116e84521ad03a015d84c16ed699a0599a73f594431a5afd76",
+        "OBJLoader-DqwZN72Y.js": "66c4b96e13ad16855fd5077018522665e0b096a49976d5d69a92c3f4f3d5e402",
+        "entry.js": "8ac6610eeb6f361367088d64767ed91da3d39b2328f3350c64b53f4e294ca145",
+        "three.core-BxmuF1zJ.js": "1edab2955b7f630d09af397170fc161bfb478e5f1c74e09b39c3099a89a1cc7a",
+        "assets/baked-draco-BuKUWQSz.js": "788a4f75c0b6470fd3aef78aadd12afa1481f4ed121dd0e96b8193ccf432072d",
+        "assets/baked-draco-legacy-CMhlgON6.js": "d15334574481d9c4397f4b07bbdfbe102fc7b699718c4592d2fb540a9d77df59",
+        "assets/model-fbx-worker--j5Vb3FB.js": "c7761d15ae0f664cd8e94e9f6502a58753f9cd84200e8548a0fcf15407b1bf02",
+        "assets/texture-alpha-worker-CBG2kYQR.js": "0f256f1a830ea3fe7a62ab789c8bfefa8721444f46520a2e417c114bd60be156"
+      }
+    },
+    {
+      "startedAt": "2026-10-01T09:02:27.151Z",
+      "finishedAt": "2026-10-01T09:02:32.453Z",
+      "engine": "system-firefox",
+      "completed": false,
+      "error": "Protocol error (script.callFunction): unknown error Error: Missing stack, unable to build exceptionDetails for exception: TypeError: URL constructor: /__embedded/model.fbx is not a valid URL. #buildExceptionDetails@chrome://remote/content/webdriver-bidi/modules/windowglobal/script.sys.mjs:49:13\n#buildReturnValue@chrome://remote/content/webdriver-bidi/modules/windowglobal/script.sys.mjs:151:54\n",
+      "sourceSHA256": {
+        "tests/integration/embedded-world.mjs": "4d0e46504225b5e339b2edb568efc279952d099d8dac78e74e3c9c0ebad0b33b",
+        "tests/fixtures/embedded-world.ts": "9c950d08b85f946ec49e05eae3cd0ffb463178bcc878f98154d6531d22054234",
+        "src/world.ts": "745576f8e039a6568092a36071eed17997ba62923dcd3a98911f0f5b388fd29a",
+        "src/baked-fbx.ts": "736618f9434c239dfc57e3b0f9638393832841a3e2627d43993dbbf4b3697850",
+        "src/model-fbx-worker.ts": "e418b09a7a3771bcb2cd52c130cc9ee01fcbfbca2ad5828df9c307adec9502f5",
+        "src/model-fbx-pool.ts": "76234b181e0cdded5d4e65350386bc62bf393802266e5614d825b57308e5b902",
+        "src/prepared-fbx-cache.ts": "d4fe5ef8699e329094f4c4e99b0a8baa9da29739ee5b3dd6f28ff756b6466579",
+        "src/embedded-fbx-images.ts": "70c12972191318ca54471e68e20a59c0a5b692adcd51a53050e1f23fe61e3af9",
+        "src/embedded-fbx-protocol.ts": "381179c36c71ab04bd0214fde9d2da4afa2a04f7f52dcbadc526b9eb2dd0c1db",
+        "src/world-image-cache.ts": "1433220139bd814e8b150aa62087d04343d9f3d7a9b94c220ff425e713d5737b"
+      },
+      "bundleSHA256": {
+        "BufferGeometryUtils-Di7mzBwb.js": "ab6215848f234bb4fcf68532eb970108aa4fe23964a710d1730d4ce80ba27513",
+        "FBXLoader-D2Rm9XHV.js": "c7cf77869fa1a18f8c927fabba239a4b5e5221ff2f6876d2531aff0a7eadb4c6",
+        "GLTFLoader-BybEAuwY.js": "e9dfe7b8704775116e84521ad03a015d84c16ed699a0599a73f594431a5afd76",
+        "OBJLoader-DqwZN72Y.js": "66c4b96e13ad16855fd5077018522665e0b096a49976d5d69a92c3f4f3d5e402",
+        "entry.js": "65767156666f47f3aac04eb1293c12bf5e6bf41c1e09991886c34a132b9cc2fb",
+        "three.core-BxmuF1zJ.js": "1edab2955b7f630d09af397170fc161bfb478e5f1c74e09b39c3099a89a1cc7a",
+        "assets/baked-draco-BuKUWQSz.js": "788a4f75c0b6470fd3aef78aadd12afa1481f4ed121dd0e96b8193ccf432072d",
+        "assets/baked-draco-legacy-CMhlgON6.js": "d15334574481d9c4397f4b07bbdfbe102fc7b699718c4592d2fb540a9d77df59",
+        "assets/model-fbx-worker--j5Vb3FB.js": "c7761d15ae0f664cd8e94e9f6502a58753f9cd84200e8548a0fcf15407b1bf02",
+        "assets/texture-alpha-worker-CBG2kYQR.js": "0f256f1a830ea3fe7a62ab789c8bfefa8721444f46520a2e417c114bd60be156"
+      }
+    },
+    {
+      "startedAt": "2026-10-01T09:08:00.364Z",
+      "finishedAt": "2026-10-01T09:08:00.365Z",
+      "engine": "system-chromium",
+      "completed": false,
+      "error": "Cannot find module '/home/user/Documents/github/overte-browser-client/browser-client/build-embedded/entry.js' imported from /home/user/Documents/github/overte-browser-client/browser-client/tests/integration/embedded-world.mjs",
+      "sourceSHA256": {
+        "tests/integration/embedded-world.mjs": "b193cada5d37e847d48fd7aad7cb356eccf61142d096bd2b00ef98d279984b3d",
+        "tests/fixtures/embedded-world.ts": "9020a650627d452dc3662ea2827eab0803623a761a2294b095c1872d1d80617e",
+        "vite.embedded-world.config.mjs": "7b36f179631d0009f9a640e78c7841b7f8dfaa21562f2ab4c8962de00ac80d0e",
+        "package-lock.json": "76330fced87d7da3b6e550f9656bcb45da07fed560cc46d50a546b589d2dc695",
+        "src/world.ts": "a215db89fd52e66ed4802f48ccfdd94128aae77dff0fe711ea29541b3cbf145c",
+        "src/baked-fbx.ts": "736618f9434c239dfc57e3b0f9638393832841a3e2627d43993dbbf4b3697850",
+        "src/model-fbx-worker.ts": "e418b09a7a3771bcb2cd52c130cc9ee01fcbfbca2ad5828df9c307adec9502f5",
+        "src/model-fbx-pool.ts": "76234b181e0cdded5d4e65350386bc62bf393802266e5614d825b57308e5b902",
+        "src/prepared-fbx-cache.ts": "d4fe5ef8699e329094f4c4e99b0a8baa9da29739ee5b3dd6f28ff756b6466579",
+        "src/embedded-fbx-images.ts": "70c12972191318ca54471e68e20a59c0a5b692adcd51a53050e1f23fe61e3af9",
+        "src/embedded-fbx-protocol.ts": "381179c36c71ab04bd0214fde9d2da4afa2a04f7f52dcbadc526b9eb2dd0c1db",
+        "src/world-image-cache.ts": "ba45a6125087f8b275c939a5e9e36dadac6879a37cb0fbe50d8c19dd9f1c6af9"
+      },
+      "bundleSHA256": {
+        "BufferGeometryUtils-DkAeXLqI.js": "6d6f06dc01bbc070909acf291596897ebbe7718830c9ea992dfd9c9ab9710a32",
+        "FBXLoader-BYK-bnBi.js": "fdcd222325608e358f76c662027586fa1b22d9542df10315e65c95e7014d7e6c",
+        "GLTFLoader-DFET3YMq.js": "7e254cff27ce68228645cdc6e851718154a6ca40e31541b40926eb43fc398a54",
+        "OBJLoader-ppFNh0Em.js": "83fe050444766e68ffd5c97a0f08b4b61ef2c58e5a7fdfd4bf2ae63abd4cdc13",
+        "entry.js": "2ea91676d9bc322e53822385b3ab1eced3905bedc037664098b8836f1f75c239",
+        "three.core-BxmuF1zJ.js": "1edab2955b7f630d09af397170fc161bfb478e5f1c74e09b39c3099a89a1cc7a",
+        "assets/baked-draco-BuKUWQSz.js": "788a4f75c0b6470fd3aef78aadd12afa1481f4ed121dd0e96b8193ccf432072d",
+        "assets/baked-draco-legacy-CMhlgON6.js": "d15334574481d9c4397f4b07bbdfbe102fc7b699718c4592d2fb540a9d77df59",
+        "assets/model-fbx-worker--j5Vb3FB.js": "c7761d15ae0f664cd8e94e9f6502a58753f9cd84200e8548a0fcf15407b1bf02",
+        "assets/texture-alpha-worker-CBG2kYQR.js": "0f256f1a830ea3fe7a62ab789c8bfefa8721444f46520a2e417c114bd60be156"
+      }
+    },
+    {
+      "startedAt": "2026-10-01T09:08:01.084Z",
+      "finishedAt": "2026-10-01T09:08:01.085Z",
+      "engine": "system-firefox",
+      "completed": false,
+      "error": "Cannot find module '/home/user/Documents/github/overte-browser-client/browser-client/build-embedded/entry.js' imported from /home/user/Documents/github/overte-browser-client/browser-client/tests/integration/embedded-world.mjs",
+      "sourceSHA256": {
+        "tests/integration/embedded-world.mjs": "b193cada5d37e847d48fd7aad7cb356eccf61142d096bd2b00ef98d279984b3d",
+        "tests/fixtures/embedded-world.ts": "9020a650627d452dc3662ea2827eab0803623a761a2294b095c1872d1d80617e",
+        "vite.embedded-world.config.mjs": "7b36f179631d0009f9a640e78c7841b7f8dfaa21562f2ab4c8962de00ac80d0e",
+        "package-lock.json": "76330fced87d7da3b6e550f9656bcb45da07fed560cc46d50a546b589d2dc695",
+        "src/world.ts": "a215db89fd52e66ed4802f48ccfdd94128aae77dff0fe711ea29541b3cbf145c",
+        "src/baked-fbx.ts": "736618f9434c239dfc57e3b0f9638393832841a3e2627d43993dbbf4b3697850",
+        "src/model-fbx-worker.ts": "e418b09a7a3771bcb2cd52c130cc9ee01fcbfbca2ad5828df9c307adec9502f5",
+        "src/model-fbx-pool.ts": "76234b181e0cdded5d4e65350386bc62bf393802266e5614d825b57308e5b902",
+        "src/prepared-fbx-cache.ts": "d4fe5ef8699e329094f4c4e99b0a8baa9da29739ee5b3dd6f28ff756b6466579",
+        "src/embedded-fbx-images.ts": "70c12972191318ca54471e68e20a59c0a5b692adcd51a53050e1f23fe61e3af9",
+        "src/embedded-fbx-protocol.ts": "381179c36c71ab04bd0214fde9d2da4afa2a04f7f52dcbadc526b9eb2dd0c1db",
+        "src/world-image-cache.ts": "ba45a6125087f8b275c939a5e9e36dadac6879a37cb0fbe50d8c19dd9f1c6af9"
+      },
+      "bundleSHA256": {
+        "BufferGeometryUtils-DkAeXLqI.js": "6d6f06dc01bbc070909acf291596897ebbe7718830c9ea992dfd9c9ab9710a32",
+        "FBXLoader-BYK-bnBi.js": "fdcd222325608e358f76c662027586fa1b22d9542df10315e65c95e7014d7e6c",
+        "GLTFLoader-DFET3YMq.js": "7e254cff27ce68228645cdc6e851718154a6ca40e31541b40926eb43fc398a54",
+        "OBJLoader-ppFNh0Em.js": "83fe050444766e68ffd5c97a0f08b4b61ef2c58e5a7fdfd4bf2ae63abd4cdc13",
+        "entry.js": "2ea91676d9bc322e53822385b3ab1eced3905bedc037664098b8836f1f75c239",
+        "three.core-BxmuF1zJ.js": "1edab2955b7f630d09af397170fc161bfb478e5f1c74e09b39c3099a89a1cc7a",
+        "assets/baked-draco-BuKUWQSz.js": "788a4f75c0b6470fd3aef78aadd12afa1481f4ed121dd0e96b8193ccf432072d",
+        "assets/baked-draco-legacy-CMhlgON6.js": "d15334574481d9c4397f4b07bbdfbe102fc7b699718c4592d2fb540a9d77df59",
+        "assets/model-fbx-worker--j5Vb3FB.js": "c7761d15ae0f664cd8e94e9f6502a58753f9cd84200e8548a0fcf15407b1bf02",
+        "assets/texture-alpha-worker-CBG2kYQR.js": "0f256f1a830ea3fe7a62ab789c8bfefa8721444f46520a2e417c114bd60be156"
+      }
+    }
+  ],
+  "interpretation": "Both installed browsers decoded exact red PNG bytes, rendered20 exact frames and uploaded one shared HTML source for independent samplers. Prepared cache fetched the model once. Immediate model cancellation preserved its neighbor, emitted no asset warning, and disposed World readers/URLs. Initial fixture path/address/missing-build failures were corrected, not hidden.",
+  "observerScope": "Integrated four bounded numeric content-identity counters; no cross-model image sharing"
+}

@@ -1,0 +1,15 @@
+# Optional compressed color World integration
+
+The reviewed proposal was rebased onto the fixed-step movement and initial-support runtime, then integrated into `main.ts` through `CompressedColorSession` on 2026-10-01. Source-specific actual Hub measurements are recorded separately; integration alone does not prove faster loading.
+
+`WorldOptions.compressedColors(capabilities, worldSignal)` is optional. Callers without this factory retain the original-image path. The application provides `(capabilities, signal) => session.compressedColors(capabilities, signal)` using the authority-aware session adapter. The World does not fabricate a session ID or permission revision. The adapter grants access only from the current connected state and revokes cache/readers synchronously before departure, refusal, reconnect, or app callbacks.
+
+Only explicitly identified albedo/emissive references in native Material/FST mappings and albedo entity overrides select an audited sRGB S3TC entry from version-1 `.texmeta.json`. Image entities and normal, roughness, and metallic maps retain the original-image path. Unmodified embedded FBX/glTF image loaders also retain that path; this proposal does not guess compressed URLs for images lacking native metadata.
+
+Metadata is limited to 64 KiB, and references are bounded. The strict shared KTX parser verifies actual byte structure and native color usage. A codec mismatch, malformed KTX, permission failure, canceled reader, or expired request is an error. Missing supported metadata codecs, unsupported GPU extensions, and the prototype's explicit unsupported color-format/role error allow the approved original-image fallback. Both paths retain and recheck the admission that began metadata acquisition before releasing a texture. Per-model cancellation reaches metadata, compressed requests, and original-image loading; successful sibling maps are released when material creation fails.
+
+Albedo alpha first respects explicit native opacity modes. Otherwise eligible compressed albedo textures use the loader-owned WeakMap classification before canvas inspection. Neither userData nor a cloned or replaced Texture source can claim it. Existing native shader ownership, cull/depth state, FST resource ledger, image cache, FBX preparation, staged model publication, and existing phase measurements are preserved. A new `compressedColor` phase records attempted compressed loads.
+
+The standalone stock Chromium 154 and Firefox 156 GPU fixtures passed orientation, mask coverage, sRGB colors, mip completeness, and actual compressed upload checks. Those tests are separate from World/domain integration. The tested opaque and masked KTX files were **larger over the network** than their original PNGs (393,432/349,744 versus 372,063/94,618 bytes). This proposal targets GPU upload/mipmap and classification work; it does not claim shorter whole-domain readiness. The production World switch and isolated whole-Hub before/after measurements remain pending.
+
+AI assistance: this implementation and its tests were substantially developed with Codex and require normal review and verification.

@@ -1,0 +1,52 @@
+{
+  "startedAt": "2026-10-01T09:11:12.240Z",
+  "completed": true,
+  "scope": "Existing dedicated public Hub observer cache: exact public Hub content path or direct actual Entity model URL; no fresh network, browser, GPU or speed proof",
+  "limits": {
+    "fileBytes": 33554432,
+    "totalFBXBytes": 134217728,
+    "files": 5000,
+    "models": 256,
+    "distinctEmbeddedContents": 8192
+  },
+  "cacheFilesExamined": 1991,
+  "rawBinaryCandidates": 124,
+  "excludedUnverified": 6,
+  "excludedOversized": 3,
+  "duplicateModelBodies": 0,
+  "verifiedModelBodies": 118,
+  "verifiedInputBytes": 16561828,
+  "parsedModelBodies": 116,
+  "failedModelBodies": 2,
+  "modelsWithEligibleEmbedded": 21,
+  "modelsWithNoEligibleEmbedded": 95,
+  "eligibleVideoContents": 27,
+  "ownerContentEntries": 26,
+  "ownerContentBytes": 6091462,
+  "skippedOversize": 0,
+  "skippedUnsupported": 0,
+  "distinctContents": 22,
+  "repeatedContentEntries": 4,
+  "distinctContentBytes": 5162676,
+  "repeatedContentBytes": 928786,
+  "byMIME": {
+    "image/png": {
+      "entries": 21,
+      "distinctContents": 17,
+      "bytes": 5706450,
+      "distinctBytes": 4777664
+    },
+    "image/jpeg": {
+      "entries": 5,
+      "distinctContents": 5,
+      "bytes": 385012,
+      "distinctBytes": 385012
+    }
+  },
+  "datasetSHA256": "fb8d4be73e1576197c206a2fa11e5304ace9b339d2d4d5d67ca1ca1adb979f40",
+  "sourceSHA256": {
+    "audit": "869afe71405015bd98efdc3874c290375b1b834c10efdcd79ae19e18d6f94cd3",
+    "frozenProducer": "736618f9434c239dfc57e3b0f9638393832841a3e2627d43993dbbf4b3697850"
+  },
+  "finishedAt": "2026-10-01T09:11:14.641Z"
+}

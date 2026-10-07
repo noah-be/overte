@@ -1,0 +1,419 @@
+{
+  "schemaVersion": 1,
+  "scope": "read-only authorized fork hosted CI; fixed labels and aggregate diagnostics only",
+  "repository": "noah-be/overte",
+  "runs": [
+    {
+      "runId": 36942472420,
+      "event": "push",
+      "url": "https://github.com/noah-be/overte/actions/runs/36942472420",
+      "headSHA": "0d09473978f2cb5a8d7dc0e738a5dc104d8a26a5",
+      "actualCheckoutSHA": "0d09473978f2cb5a8d7dc0e738a5dc104d8a26a5",
+      "result": "failure",
+      "unit": {
+        "tests": 1141,
+        "passed": 1137,
+        "failed": 4,
+        "skipped": 0,
+        "failedTests": [
+          "actual nested native network denies host/LAN routes and route tampering while its scoped bridge works",
+          "abrupt gateway death also removes the actual network owner, helper and native PID namespace",
+          "real managed UDP route forwards only fixed domain/mixer ports from the isolated native network",
+          "actual isolated worker cannot read host files, sibling profiles, host process environment or shared X credentials"
+        ]
+      },
+      "networkFailures": {
+        "count": 3,
+        "phase": "native-started",
+        "category": "deny-route-command-failed",
+        "observedBytes": 229,
+        "truncated": false,
+        "exitCode": 1,
+        "signal": null,
+        "routeFailure": {
+          "category": "permission-denied",
+          "stderrBytes": 43,
+          "truncated": false,
+          "exitCode": 2
+        }
+      },
+      "workerFailure": {
+        "assertion": "own-private-Xvfb-authentication",
+        "source": "browser-client/gateway/worker-sandbox.test.mjs",
+        "line": 141,
+        "expected": true,
+        "actual": false,
+        "descendantCleanupFailure": false
+      },
+      "provisioning": {
+        "configurationChanged": false,
+        "kind": "settings-provisioning",
+        "persistence": {
+          "observedBytes": 378,
+          "outcome": "commit-failed",
+          "truncated": false
+        },
+        "response": {
+          "body": "success",
+          "contentType": "application/json",
+          "endpoint": "expected-settings-endpoint",
+          "status": "200"
+        },
+        "schema": {
+          "postingKeys": "recognized-domain-settings",
+          "version": "2.7"
+        }
+      },
+      "guestReadback": {
+        "differences": [
+          {
+            "actual": false,
+            "expected": true,
+            "flag": "id_can_connect",
+            "group": "anonymous"
+          },
+          {
+            "actual": "missing-or-non-boolean",
+            "expected": true,
+            "flag": "id_can_rez_avatar_entities",
+            "group": "anonymous"
+          },
+          {
+            "actual": "missing-or-non-boolean",
+            "expected": false,
+            "flag": "id_can_adjust_locks",
+            "group": "anonymous"
+          },
+          {
+            "actual": "missing-or-non-boolean",
+            "expected": true,
+            "flag": "id_can_rez",
+            "group": "anonymous"
+          },
+          {
+            "actual": "missing-or-non-boolean",
+            "expected": false,
+            "flag": "id_can_rez_tmp",
+            "group": "anonymous"
+          },
+          {
+            "actual": "missing-or-non-boolean",
+            "expected": false,
+            "flag": "id_can_write_to_asset_server",
+            "group": "anonymous"
+          },
+          {
+            "actual": "missing-or-non-boolean",
+            "expected": false,
+            "flag": "id_can_connect_past_max_capacity",
+            "group": "anonymous"
+          },
+          {
+            "actual": "missing-or-non-boolean",
+            "expected": false,
+            "flag": "id_can_kick",
+            "group": "anonymous"
+          },
+          {
+            "actual": "missing-or-non-boolean",
+            "expected": false,
+            "flag": "id_can_replace_content",
+            "group": "anonymous"
+          },
+          {
+            "actual": "missing-or-non-boolean",
+            "expected": false,
+            "flag": "id_can_get_and_set_private_user_data",
+            "group": "anonymous"
+          },
+          {
+            "actual": "missing-or-non-boolean",
+            "expected": true,
+            "flag": "id_can_view_asset_urls",
+            "group": "anonymous"
+          },
+          {
+            "actual": true,
+            "expected": false,
+            "flag": "id_can_adjust_locks",
+            "group": "localhost"
+          },
+          {
+            "actual": true,
+            "expected": false,
+            "flag": "id_can_rez_tmp",
+            "group": "localhost"
+          },
+          {
+            "actual": true,
+            "expected": false,
+            "flag": "id_can_write_to_asset_server",
+            "group": "localhost"
+          },
+          {
+            "actual": true,
+            "expected": false,
+            "flag": "id_can_connect_past_max_capacity",
+            "group": "localhost"
+          },
+          {
+            "actual": true,
+            "expected": false,
+            "flag": "id_can_kick",
+            "group": "localhost"
+          },
+          {
+            "actual": true,
+            "expected": false,
+            "flag": "id_can_replace_content",
+            "group": "localhost"
+          },
+          {
+            "actual": true,
+            "expected": false,
+            "flag": "id_can_get_and_set_private_user_data",
+            "group": "localhost"
+          }
+        ],
+        "duplicateRows": 0,
+        "kind": "guest-permission-readback",
+        "missingRows": [
+          "logged-in",
+          "friends"
+        ],
+        "passed": false,
+        "shape": "valid",
+        "unknownRows": 0
+      },
+      "journeys": [
+        {
+          "browser": "firefox",
+          "status": "not-run",
+          "completed": false
+        },
+        {
+          "browser": "chromium",
+          "status": "not-run",
+          "completed": false
+        }
+      ],
+      "rawSourceSHA256": {
+        "failed.log": "ea8b7a1cab351506916f280f1d64d19ec1b882514f7888b3d25ab34d0c7ffd89",
+        "full.log": "8df07737001e247ee50a8d38987f786f43a9859e88c2357ff48a79fac200885e",
+        "jobs.json": "3f3d1c854f4484e3988846cfb5ee117abad29feb0c205c6c8dc22af8e8a2b195",
+        "artifacts.json": "c59399835ea58871e714468f6bd6cfeb645e720104557ccb48f16de5865ab14b"
+      }
+    },
+    {
+      "runId": 36942477182,
+      "event": "pull_request",
+      "url": "https://github.com/noah-be/overte/actions/runs/36942477182",
+      "headSHA": "0d09473978f2cb5a8d7dc0e738a5dc104d8a26a5",
+      "actualCheckoutSHA": "a56aa62228a0eafd1cd182f2cb6bae08963cc104",
+      "result": "failure",
+      "unit": {
+        "tests": 1141,
+        "passed": 1137,
+        "failed": 4,
+        "skipped": 0,
+        "failedTests": [
+          "actual nested native network denies host/LAN routes and route tampering while its scoped bridge works",
+          "abrupt gateway death also removes the actual network owner, helper and native PID namespace",
+          "real managed UDP route forwards only fixed domain/mixer ports from the isolated native network",
+          "actual isolated worker cannot read host files, sibling profiles, host process environment or shared X credentials"
+        ]
+      },
+      "networkFailures": {
+        "count": 3,
+        "phase": "native-started",
+        "category": "deny-route-command-failed",
+        "observedBytes": 229,
+        "truncated": false,
+        "exitCode": 1,
+        "signal": null,
+        "routeFailure": {
+          "category": "permission-denied",
+          "stderrBytes": 43,
+          "truncated": false,
+          "exitCode": 2
+        }
+      },
+      "workerFailure": {
+        "assertion": "own-private-Xvfb-authentication",
+        "source": "browser-client/gateway/worker-sandbox.test.mjs",
+        "line": 141,
+        "expected": true,
+        "actual": false,
+        "descendantCleanupFailure": false
+      },
+      "provisioning": {
+        "configurationChanged": false,
+        "kind": "settings-provisioning",
+        "persistence": {
+          "observedBytes": 378,
+          "outcome": "commit-failed",
+          "truncated": false
+        },
+        "response": {
+          "body": "success",
+          "contentType": "application/json",
+          "endpoint": "expected-settings-endpoint",
+          "status": "200"
+        },
+        "schema": {
+          "postingKeys": "recognized-domain-settings",
+          "version": "2.7"
+        }
+      },
+      "guestReadback": {
+        "differences": [
+          {
+            "actual": false,
+            "expected": true,
+            "flag": "id_can_connect",
+            "group": "anonymous"
+          },
+          {
+            "actual": "missing-or-non-boolean",
+            "expected": true,
+            "flag": "id_can_rez_avatar_entities",
+            "group": "anonymous"
+          },
+          {
+            "actual": "missing-or-non-boolean",
+            "expected": false,
+            "flag": "id_can_adjust_locks",
+            "group": "anonymous"
+          },
+          {
+            "actual": "missing-or-non-boolean",
+            "expected": true,
+            "flag": "id_can_rez",
+            "group": "anonymous"
+          },
+          {
+            "actual": "missing-or-non-boolean",
+            "expected": false,
+            "flag": "id_can_rez_tmp",
+            "group": "anonymous"
+          },
+          {
+            "actual": "missing-or-non-boolean",
+            "expected": false,
+            "flag": "id_can_write_to_asset_server",
+            "group": "anonymous"
+          },
+          {
+            "actual": "missing-or-non-boolean",
+            "expected": false,
+            "flag": "id_can_connect_past_max_capacity",
+            "group": "anonymous"
+          },
+          {
+            "actual": "missing-or-non-boolean",
+            "expected": false,
+            "flag": "id_can_kick",
+            "group": "anonymous"
+          },
+          {
+            "actual": "missing-or-non-boolean",
+            "expected": false,
+            "flag": "id_can_replace_content",
+            "group": "anonymous"
+          },
+          {
+            "actual": "missing-or-non-boolean",
+            "expected": false,
+            "flag": "id_can_get_and_set_private_user_data",
+            "group": "anonymous"
+          },
+          {
+            "actual": "missing-or-non-boolean",
+            "expected": true,
+            "flag": "id_can_view_asset_urls",
+            "group": "anonymous"
+          },
+          {
+            "actual": true,
+            "expected": false,
+            "flag": "id_can_adjust_locks",
+            "group": "localhost"
+          },
+          {
+            "actual": true,
+            "expected": false,
+            "flag": "id_can_rez_tmp",
+            "group": "localhost"
+          },
+          {
+            "actual": true,
+            "expected": false,
+            "flag": "id_can_write_to_asset_server",
+            "group": "localhost"
+          },
+          {
+            "actual": true,
+            "expected": false,
+            "flag": "id_can_connect_past_max_capacity",
+            "group": "localhost"
+          },
+          {
+            "actual": true,
+            "expected": false,
+            "flag": "id_can_kick",
+            "group": "localhost"
+          },
+          {
+            "actual": true,
+            "expected": false,
+            "flag": "id_can_replace_content",
+            "group": "localhost"
+          },
+          {
+            "actual": true,
+            "expected": false,
+            "flag": "id_can_get_and_set_private_user_data",
+            "group": "localhost"
+          }
+        ],
+        "duplicateRows": 0,
+        "kind": "guest-permission-readback",
+        "missingRows": [
+          "logged-in",
+          "friends"
+        ],
+        "passed": false,
+        "shape": "valid",
+        "unknownRows": 0
+      },
+      "journeys": [
+        {
+          "browser": "firefox",
+          "status": "not-run",
+          "completed": false
+        },
+        {
+          "browser": "chromium",
+          "status": "not-run",
+          "completed": false
+        }
+      ],
+      "rawSourceSHA256": {
+        "failed.log": "d931168373a79e157a3124582e6730a0c7c1c1ffb6cd027fc3d798ecd05c6519",
+        "full.log": "04cd49019d67196fb7659875c92a9f84a436fe52d8d667074e4b89d85b283a95",
+        "jobs.json": "fd052214583ca026d7516ddabd1ff4a5273254a5319ae83a8f366144e41f9462",
+        "artifacts.json": "f659f7d451a6d96b7337d3eb18d4690f947be6ff9a2b90f570cf146b0092703b"
+      }
+    }
+  ],
+  "mergeParents": [
+    "d569930678d2edb61330a96bcdcab17ee68a732f",
+    "0d09473978f2cb5a8d7dc0e738a5dc104d8a26a5"
+  ],
+  "limits": [
+    "Route permission refusal is observed; attributing it to a particular Linux capability or LSM policy requires additional source/host evidence.",
+    "Own Xvfb authentication assertion is the failing worker boundary; it is not a survivor cleanup failure.",
+    "HTTP 200 is not persistence success: native commit failure and unchanged saved configuration are independently observed.",
+    "No stock native/browser journey, new rerun, policy change or Jenkins trigger occurred in this audit."
+  ]
+}

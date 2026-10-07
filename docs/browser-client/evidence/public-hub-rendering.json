@@ -1,0 +1,200 @@
+{
+  "scope": "Actual public overte_hub browser rendering, movement, native synchronization, clean leave and fully loaded rejoin. Tablet interaction and public voice conversation were not tested in this run.",
+  "startedAt": "2026-09-30T20:39:49.275Z",
+  "finishedAt": "2026-09-30T20:42:03.357Z",
+  "passed": true,
+  "browser": {
+    "version": "154.0.8037.57",
+    "mode": "headed desktop",
+    "graphics": {
+      "vendor": "Google Inc. (NVIDIA Corporation)",
+      "renderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce GTX 1080 Ti/PCIe/SSE2, OpenGL ES 3.2)"
+    },
+    "viewportCSS": [
+      1280,
+      800
+    ],
+    "renderedScreenshotPixels": [
+      1920,
+      1200
+    ]
+  },
+  "native": {
+    "version": "2026.04.1",
+    "artifactSHA256": "dc39f5b4694a1c48cfb1454a8922f6a25fa4db5820bf937113ebf4086aa99145",
+    "protocol": "ViLohxhZMTalcuUKwgs63g=="
+  },
+  "isolation": {
+    "privateProfile": true,
+    "privatePulseAudio": true,
+    "authenticatedPrivateNativeDisplay": true,
+    "filesystemPIDNamespaces": true,
+    "kernelNetworkSandbox": true,
+    "maxSessions": 1
+  },
+  "publicSafety": {
+    "microphoneRequested": false,
+    "microphoneFramesSent": 0,
+    "entityOrAssetWritesSent": 0,
+    "browserHardwarePlaybackDisabled": true,
+    "noRawAudioRetained": true,
+    "noParticipantIdentitiesPublished": true
+  },
+  "world": {
+    "entitiesFirstSession": 517,
+    "entitiesRejoinedSession": 518,
+    "entityHostCountsFirstSession": {
+      "domain": 517
+    },
+    "clientOnlyEntities": 0,
+    "allModelQueuesDrained": true,
+    "sharedWorldWasNotModified": true
+  },
+  "movement": {
+    "firstSessionMeters": 4.213137977541174,
+    "firstNativePositionDifferenceMeters": 0.00043620256466797255,
+    "rejoinedSessionMeters": 2.9027164873675573,
+    "rejoinedNativePositionDifferenceMeters": 0.0007463374276196769,
+    "rejoinedVerticalChangeMeters": -0.15990126567963614,
+    "grounding": "Actual loaded model triangle collision meshes; loading movement waits for nearby collision data."
+  },
+  "postLoadSamples": [
+    {
+      "fps": 33.176207130119856,
+      "medianFrameMs": 17.19999999999709,
+      "p95FrameMs": 50,
+      "maximumFrameMs": 1050.1000000000058,
+      "drawCalls": 1920,
+      "triangles": 578275,
+      "loadedModels": 297,
+      "loadingModels": 0,
+      "queuedModels": 0,
+      "compilingGraphics": 0,
+      "meshColliders": 75,
+      "entities": 517
+    },
+    {
+      "fps": 42.474117334749195,
+      "medianFrameMs": 16.700000000004366,
+      "p95FrameMs": 33.700000000004366,
+      "maximumFrameMs": 69,
+      "drawCalls": 1920,
+      "triangles": 578275,
+      "loadedModels": 297,
+      "loadingModels": 0,
+      "queuedModels": 0,
+      "compilingGraphics": 0,
+      "meshColliders": 75,
+      "entities": 517
+    },
+    {
+      "fps": 42.98071240530816,
+      "medianFrameMs": 16.700000000004366,
+      "p95FrameMs": 33.5,
+      "maximumFrameMs": 50.10000000000582,
+      "drawCalls": 1920,
+      "triangles": 578275,
+      "loadedModels": 297,
+      "loadingModels": 0,
+      "queuedModels": 0,
+      "compilingGraphics": 0,
+      "meshColliders": 75,
+      "entities": 517
+    },
+    {
+      "fps": 43.36826888326708,
+      "medianFrameMs": 16.70000000001164,
+      "p95FrameMs": 33.40000000000873,
+      "maximumFrameMs": 50.09999999999127,
+      "drawCalls": 1920,
+      "triangles": 578275,
+      "loadedModels": 297,
+      "loadingModels": 0,
+      "queuedModels": 0,
+      "compilingGraphics": 0,
+      "meshColliders": 75,
+      "entities": 517
+    }
+  ],
+  "firstSessionWalking": {
+    "fps": 44.440329599111195,
+    "medianFrameMs": 16.70000000001164,
+    "p95FrameMs": 33.40000000000873,
+    "maximumFrameMs": 50.09999999999127,
+    "drawCalls": 1878,
+    "triangles": 544154,
+    "loadedModels": 297,
+    "loadingModels": 0,
+    "queuedModels": 0,
+    "compilingGraphics": 0,
+    "meshColliders": 75,
+    "entities": 517
+  },
+  "rejoinedWalking": {
+    "fps": 38.91555324944862,
+    "medianFrameMs": 17.099999999976717,
+    "p95FrameMs": 34.90000000000873,
+    "maximumFrameMs": 83.30000000000291,
+    "drawCalls": 1893,
+    "triangles": 554647,
+    "loadedModels": 298,
+    "loadingModels": 0,
+    "queuedModels": 0,
+    "compilingGraphics": 0,
+    "meshColliders": 75,
+    "entities": 518
+  },
+  "coldStartup": {
+    "maximumGraphicsSubmissionMs": 1043.7000000029802,
+    "note": "The first post-load sliding-window sample still includes a startup texture/geometry upload stall. Later steady samples and walking are reported separately; cold startup is not asserted stall-free."
+  },
+  "pageErrors": [],
+  "reproduce": {
+    "command": "OVERTE_LAB_URL=http://127.0.0.1:8095 OVERTE_LAB_BROWSER_DISPLAY=:0 OVERTE_LAB_PROFILE=1 OVERTE_LAB_LOADING_TIMEOUT=90 OVERTE_LAB_RECONNECT=1 node browser-client/tests/integration/public-hub.mjs",
+    "requirements": "Owned gateway8095 with configured public overte_hub and approved asset origins; OVERTE_LAB_CHROMIUM and optional OVERTE_LAB_CHROMIUM_LIBRARY_PATH select the tested stock Chromium154 executable. Native and browser remain muted."
+  },
+  "testedRuntimeSourceSHA256": {
+    "browser-client/gateway/server.mjs": "f65bcbc253a3f17838c8a96509a067a5c25e6e50662fb83bcfbfd02b622f3cf7",
+    "browser-client/gateway/native-bridge.js": "acc39debbc5a3be7c63af9423d0d29df57d93e7480d3d211a9fdeab84f340c04",
+    "browser-client/gateway/native-world.js": "bec2f02313446afde7a0be20899358a082b41c6c6c5d745ec67a24809e2b7ddb",
+    "browser-client/gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60",
+    "browser-client/gateway/public-places.mjs": "5a7107a48037489708e677759bec3f8246d418bb7d3d89709484ff439b8a933c",
+    "browser-client/gateway/validation.mjs": "65eba4a66c76d4bfc0dbd18e172def64f43b37cca0db2301da5bf4d18645de79",
+    "browser-client/gateway/worker-sandbox.mjs": "202ddaebd3ba465a1cce8c81d672745f58d19f069be49bee4a3c76c1b3289f43",
+    "browser-client/gateway/network-sandbox.mjs": "3fd278b91a6ea383ddf816753d9eee870736b295ecd945714e827d794c8016d9",
+    "browser-client/gateway/network_udp.py": "378f7159b1456ab5a0e25d2f933f35106344106625cef0ce0d589de3d1e45eca",
+    "browser-client/gateway/native-tablet.js": "25efc74fe4c967ab8370272eabc32db02fbf17db1610d861f3aa862de4a997ae",
+    "browser-client/gateway/process-lifecycle.mjs": "e8d7e021a8b934b271910883e27c2a1109aedd22e12044b763d4bf8acc274eaf",
+    "browser-client/dist/index.html": "7703b4e7bedfeb03020b35137677e625c401f5b3ff1f11ed5970d42bb27a9072"
+  },
+  "generatedNativeHelperSHA256": {
+    "native-tablet.js": "25efc74fe4c967ab8370272eabc32db02fbf17db1610d861f3aa862de4a997ae",
+    "tablet-capture.qml": "51b009f1170abdd7ff7f1701dc93ed271239f6585e65491dcc5ce1e52e873e6b"
+  },
+  "rejoinedGeneratedNativeHelperSHA256": {
+    "native-tablet.js": "25efc74fe4c967ab8370272eabc32db02fbf17db1610d861f3aa862de4a997ae",
+    "tablet-capture.qml": "51b009f1170abdd7ff7f1701dc93ed271239f6585e65491dcc5ce1e52e873e6b"
+  },
+  "sourceFilesChangedDuringRun": [],
+  "knownContentLimitations": [
+    "Some model or texture dependencies failed; the browser displayed an explicit incomplete-content warning.",
+    "Leaf alpha appearance is under investigation; no fabricated alpha masks were introduced.",
+    "This run does not prove complete native visual or tablet feature parity."
+  ],
+  "endurance": "No30-minute test; omitted at the user's instruction.",
+  "productionAssetsSHA256": {
+    "browser-client/dist/assets/FBXLoader-VZoCGU-E.js": "ae44b7c169538ce0ba7e5209f4ffcc6d058cf7eb4f2970679103c5942295ab32",
+    "browser-client/dist/assets/GLTFLoader-F0Lrn_Zr.js": "88aa5dc63ba649e024e55c89b62af78f8ed58c14039f3916ae03199590877041",
+    "browser-client/dist/assets/OBJLoader-D1Z5RB50.js": "41849b9c3299ddb9b0cacebe4b37aabb28a725666dd92d734cec4a58ff98e148",
+    "browser-client/dist/assets/baked-draco-D7gdO_m4.js": "943564d4352a9a4fbc3eb0c0bb054178017e5777db76489458925a678ea8e0a0",
+    "browser-client/dist/assets/baked-draco-legacy-DYNOozou.js": "beaa6ae38d350dd50c3cff4de6469695b50f1360b7261df21028f08f8c896b01",
+    "browser-client/dist/assets/baked-fbx-TPLDgPHN.js": "2e081a0bebf836fc15675d4b5ea4dcf633ff8547ea1b69a23dc4df61c9ebef4e",
+    "browser-client/dist/assets/draco_decoder-C32yEggz.wasm": "c55a594e8ffd18426d36b27fea9618af3df5e173640a3e56d46f09d76f0574f2",
+    "browser-client/dist/assets/draco_decoder-Z1_iN-Ht.wasm": "a680d927bed9cb864ddbd63521868891af2bfbe755092761b4837487618df8ac",
+    "browser-client/dist/assets/draco_decoder-fzg4nYZr.js": "30e4d486fa020737af10e3c56197693e5b904bdc05b8bfa5d7b06751dec6da04",
+    "browser-client/dist/assets/draco_wasm_wrapper-DxJM36Ib.js": "e8049906ef3f8f75d3456c22a3f31bfdfe5b5b5bd09ccdec613b9e9a49d554d8",
+    "browser-client/dist/assets/draco_wasm_wrapper-fZCQGLGb.js": "8bb2952d2ba7d67e1414f8df819410cb0434a666be53f671fff75f68843d76f6",
+    "browser-client/dist/assets/index-BsIUVVHD.js": "4891859d87e0149d336a5c013ff84a884676d7c15e4a164076c5fbcff69b94f3",
+    "browser-client/dist/assets/tablet-gif.worker-BoWsndeM.js": "406c790ab0be5a1b0a3f869ecba554e09481fe4c2bedf77a013f8b3041031b32"
+  }
+}

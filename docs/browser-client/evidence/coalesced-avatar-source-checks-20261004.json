@@ -1,0 +1,242 @@
+{
+  "schemaVersion": 1,
+  "scope": "Exact integrated source checks; actual new hosted Browser/Core/ownedstop remains pending",
+  "testedGitBase": "9e5e020210d312407fd67514d2a2811039eb675d",
+  "testedSourceInventorySHA256": "674db34b32e8365d5f29b01309b1d35d5aa4654ec1be9e4a1295451c33ff2d6e",
+  "sourceFiles": 9857,
+  "currentSourceAfterSHA256": {
+    ".github/workflows/browser-client.yml": "5ef53a7c48d502b8c64d0d22042a50a5ac37c15c35b55fde9149deaa2e768a20",
+    "browser-client/tests/embedded-world-angle-request.test.mjs": "e1d7d93dff0313afa884420d3b77f1a4b8bc10524ca669a2a6111413f2fb834e",
+    "browser-client/tests/integration/capture-delivery-angle-source-fixture.mjs": "2e60df8e99cb6dfe0a1dbc634c0b40f2ea7b28e477c86fe777e0e8d2c332a16d",
+    "browser-client/tests/tablet-capture-delivery-angle-manifest.test.mjs": "fde35997bde0c71e13a623a51ffcc081dd2e67eb94a9def2dc458265729c21d3",
+    "browser-client/lab/manage.py": "53cd7fcce5887c993bc724ce3e391c4c7d0975f338ed1c96a1adfdbe7c9bdb95",
+    "browser-client/tests/native-avatar-curation.test.mjs": "d04e832c93d14282b3a1ce3283dfe33dd27ddb7dcd5cb54792e4d3f4e7916b9f",
+    "browser-client/lab/atomic-provisioning/fixtures/managed-seven-manage-recovery.json": "e471f11465d9575c316decd0c6e9d91c5200d05de6531474c590993501e79109",
+    "browser-client/lab/atomic-provisioning/source-pins.json": "709fafd17508b5a275a82a78f13f58f57b07686746c2cc453635d4a70db808b9",
+    "browser-client/lab/atomic-provisioning/test_managed_composition.py": "31c587e7ba721c3d6e083a77daa7ab5c70591b56b019b5283aefd61abbb63fb3",
+    "browser-client/lab/test_manage_state.py": "103ee00b456fefeb262b5cce7a4b9738dab219077bb4d62aa5b1cf3a102c46c2",
+    "browser-client/gateway/server.mjs": "116c45aae6ca9587b546e92bb88b4bd5472ff5100226994b0fced3c80263f45f",
+    "browser-client/tests/integration/real-session.mjs": "ec4ac0fb187acbcd650c10295c5c5364a00687c3abab1e24f395934d3a3460a7",
+    "browser-client/lab/curate-core-journey.py": "915a9d02a812aad92192cf650c3899dd27b1fcb22537f3edf60bd1e2f846da81",
+    "browser-client/gateway/native-avatar-delivery.test.mjs": "f5321d7dc990a771a3ad30d0547089cd7248c0b6a2575e5037c7e32a085425cd",
+    "browser-client/tests/avatar-delivery-source-fixture.test.mjs": "d6e2709189ef03e55ab7bff06e0e4b1f42ce89b43d27af4b141aed254857db79",
+    "browser-client/tests/fixtures/capture-delivery-angle-v26-complete-source-manifest.json": "a366564b2ec15d802d0981e67327e1bb702212dc2c1ee1472371bc59f2ee7c3d",
+    "browser-client/tests/integration/capture-software-managed-source-fixture.mjs": "6864c76bd4da2e850d84edc9890fa08b6992a303c748845d02e962ed32d7f1ab",
+    "browser-client/tests/tablet-capture-software-managed-manifest.test.mjs": "fc1f9b8aeac8fb8ce02516a4b81c20680673fa7229d528e2bca87fe97107f369",
+    "browser-client/tests/fixtures/capture-v26-software-managed-before.json.gz": "7ba538ec0cc6c4ce352ac670e8b4c926cd9cc0fcc5f49c2aa30f49831e286271",
+    "browser-client/tests/embedded-world-software-ci.test.mjs": "721087f99954e684204025eb53e822930e9b05af9745d543555b3883a7281d94",
+    "browser-client/lab/atomic-provisioning/fixtures/managed-ancestry-before.json.gz": "5b1870bc3583da9bca904e1c76fdd900f11ee02f569eb9a7b93395b8b1b9302c",
+    "browser-client/lab/atomic-provisioning/fixtures/managed-ancestry-original84-bodies.json": "cf9a324b544cd6ef005cbcb52a8829641ecaca7b3ba07e5b881e1eba1ffa77b7",
+    "browser-client/lab/atomic-provisioning/fixtures/managed-ancestry-replay-inputs.json": "10b719060a9b66d3b7328dea403aa11803e46d21788b1bb0b36875f3ef7264d6",
+    "browser-client/lab/atomic-provisioning/managed_ancestry_history.py": "3a496328a4cb17a74833c451f05f1ffa51c91149ec3965a7e9f92777fd81bdf2",
+    "browser-client/lab/atomic-provisioning/test_managed_ancestry_history.py": "b51ff02b440a723f80b1d7d6f7be0e91282a9c4af326cddf076cd97159746de1",
+    "browser-client/lab/test_managed_ancestry.py": "6959505a9b12f4b9ce296a5947e9ec96841fc729db7d6a3de77c0139bcad0d06",
+    "browser-client/lab/test_managed_ancestry_owned_cpu.py": "fc2c695eaa4be889ed19e72e1e8dc92212f4402487fa3ad1566906a5bac6df85",
+    "browser-client/gateway/avatar-snapshot-sender.mjs": "026274463190fe6f2d25d6e900713cee55e4520f9d3595dccabd35eab361699f",
+    "browser-client/gateway/avatar-snapshot-fixture.mjs": "3da2c839179251fefc37e1f50b42885d4ff9421e8e3f81e9d4dd057ae739f19e",
+    "browser-client/gateway/avatar-snapshot-sender.test.mjs": "95ce63bb0701c8dd9a4a3e213482cae9ec199c6c48af90945a5a995b5f10b39d",
+    "browser-client/gateway/avatar-snapshot-sender-wire.test.mjs": "06795e971356048a265ba87f34c15ceff203ccf2ceda7a9b5d2d8bfb565c730d",
+    "browser-client/gateway/avatar-snapshot-lifecycle.test.mjs": "0373756dbfa6f7aa639ac40dcef9e578fa9ee9a3a69d2e3c773709fb35edc861",
+    "browser-client/gateway/avatar-snapshot-metadata.test.mjs": "d5757ac5574c8c57362b61541bf31e630bbfc88f2da303f95bb520084fa82127",
+    "browser-client/tests/fixtures/capture-software-managed-v27-complete-source-manifest.json": "cea7ea30a934b4b2af6e96f8ab6f769dd81e094199cb14003419d4230cfa236c",
+    "browser-client/tests/integration/prepare-tablet-capture-acceptance.mjs": "6a3fbdd6ca77bef490c679f48b00892f55a18e8188a4cb0d2ce4c100ca768493",
+    "browser-client/gateway/push-to-talk-wire.test.mjs": "ee78826b9a965ca10bb61baeb918ad21e1fbdf0637297fbb30b3e645979f5dd4",
+    "browser-client/gateway/clipboard-wire.test.mjs": "751bc855c653525878b76682839e8488dcf3a1a9f65523496e643a1479d349af",
+    "browser-client/gateway/session-races.test.mjs": "cb4ddf64b5c72339659c6449b677812429006393a1afd217ff0aa991f632a360",
+    "browser-client/gateway/session-admission.test.mjs": "a5a98b76085410985d2af018b7a3da587a7c25b6a05923267dee872768a9ae95"
+  },
+  "sourceClosure": {
+    "manifestSHA256": "cea7ea30a934b4b2af6e96f8ab6f769dd81e094199cb14003419d4230cfa236c",
+    "rows": 241,
+    "inheritedRows": 230,
+    "migrations": 8,
+    "admissions": 11,
+    "wholeBeforeInputs": 14,
+    "wholeBeforeInflatedBytes": 478855,
+    "wholeBeforeByteLimit": 524288,
+    "managedHistorySeparate": true
+  },
+  "checks": [
+    {
+      "label": "product-unit-suite",
+      "command": [
+        "npm",
+        "test"
+      ],
+      "exitCode": 0,
+      "seconds": 26.259,
+      "logSHA256": "bfe5c0b7c67afda552cfe8ae8ad75f20359ef854310d99b8ecdef2cfc782b0db",
+      "counts": {
+        "tests": 2930,
+        "pass": 2930,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "sourceCoherent": true
+    },
+    {
+      "label": "production-build",
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "exitCode": 0,
+      "seconds": 4.289,
+      "logSHA256": "e191ab17a7dbd166fbed291ded78739aa83d57c34857477af5508ad572a1ab5c",
+      "counts": {},
+      "sourceCoherent": true
+    },
+    {
+      "label": "embedded-fixture-build",
+      "command": [
+        "node",
+        "node_modules/vite/bin/vite.js",
+        "build",
+        "--config",
+        "vite.embedded.config.mjs",
+        "--configLoader",
+        "native"
+      ],
+      "exitCode": 0,
+      "seconds": 1.984,
+      "logSHA256": "7e0230a08fbde0821b552dae2732a103ccacd536744ba730e6f4015e3e0288fb",
+      "counts": {},
+      "sourceCoherent": true
+    },
+    {
+      "label": "embedded-world-build",
+      "command": [
+        "node",
+        "node_modules/vite/bin/vite.js",
+        "build",
+        "--config",
+        "vite.embedded-world.config.mjs",
+        "--configLoader",
+        "native"
+      ],
+      "exitCode": 0,
+      "seconds": 2.41,
+      "logSHA256": "967f0b20f6b22ce5b6a7457ec61e9a22e7b89fe0d3f62460ef5d2467aff60451",
+      "counts": {},
+      "sourceCoherent": true
+    },
+    {
+      "label": "repository-quick",
+      "command": [
+        "python3",
+        "tests/run-project-tests.py",
+        "--profile",
+        "quick",
+        "--timeout",
+        "240"
+      ],
+      "exitCode": 0,
+      "seconds": 121.522,
+      "logSHA256": "f0d04805bd00bf0e9a6ff89be348af195f88da92ffbf64c577d980901807f587",
+      "counts": {},
+      "sourceCoherent": true
+    }
+  ],
+  "repositorySuites": {
+    "tests": 34,
+    "pass": 34,
+    "fail": 0,
+    "wallSeconds": 121.522
+  },
+  "managedControls": {
+    "tests": 94,
+    "pass": 94,
+    "fail": 0,
+    "skip": 0,
+    "originalControls": 84,
+    "newPureAncestry": 9,
+    "newActualOwnedPython": 1,
+    "seconds": 6.776,
+    "command": "python3 -B browser-client/lab/test_manage_state.py (under shared heavy-build lock)",
+    "logSHA256": "79346271ae934247dacc62f8dd1f5d140db47fa2ae23366d16bdb616cd89d81e"
+  },
+  "distribution": {
+    "sameToolchainLocalDistributionEquality": true,
+    "oldFiles": 34,
+    "newFiles": 34,
+    "oldReceiptSHA256": "91f6d2e1ee846d46cf6106460de40857bb4330f279e92cfad503f0416dc64be2",
+    "newReceiptSHA256": "8b749e9990c5d64eab647855811f71ed6be29d9a3df8e2e174ef8cc30be86615",
+    "scope": "Local exact34 build equality only; no compiled hosted/GPU/native provenance"
+  },
+  "review": {
+    "rootPortable": {
+      "node": 525,
+      "managedSourcePure": 38,
+      "nestedOriginalComposition": 7,
+      "skip": 0
+    },
+    "independentV27": {
+      "node": 508,
+      "managedSourcePure": 38,
+      "nestedOriginalComposition": 7,
+      "omitted": "16 FIFO/proc plus one own-WebSocket; no runtime inference",
+      "skip": 0,
+      "receiptSHA256": "8c966a5ec39b1bec3de8b6494c6225a4682bd45f2d575ff6df5ce68f9f4bcca0"
+    },
+    "fourFixtureRoot": {
+      "tests": 16,
+      "skip": 0,
+      "receiptSHA256": "775612f41866921947be17f2978cc05a421a83931dbf11f0b302b03bcee835a0"
+    },
+    "fourFixtureIndependent": {
+      "tests": 16,
+      "skip": 0,
+      "receiptSHA256": "dff82b30da0ae593285690d92be1625eeeef6c8d58d8a3c58a9ae75eaabce73a"
+    },
+    "countsOverlapAndAreNotAdded": true
+  },
+  "retainedNegative": {
+    "firstFullUnit": "STOPPED-INCOMPLETE by Root exit130; no terminalcounts; build andquick notstarted",
+    "sourceInventorySHA256": "bb478a8ddea5494740cc082bf01b1ed4eefeb666a3e34e0027ffe4f7127d2af5",
+    "episodeSHA256": "c6c99d26ef32525718bc4b762aa2467a6c72e851b48d9e16b07b001f32343d1a",
+    "targetedBefore": "11 tests2PASS9FAIL missing actualsenderbinding; corrected11PASS, originalactions/assertions preserved"
+  },
+  "originalLivePreflight": {
+    "status": "FAILED before commands",
+    "category": "registered-native-birth-missing",
+    "otherMatchingBirths": 8,
+    "registryUnchanged": true,
+    "sourceAndIndexUnchangedDuringCodeGates": true,
+    "causeEstablished": false,
+    "serviceRestartOrRegistryRepair": false
+  },
+  "documentationFollowup": {
+    "onlyGuidesAndSafeProofsChangedAfterCodeChecks": true,
+    "requiredChecks": "documentation-contracts, documentation, workflow-action-pins; exact results recorded separately before commit",
+    "results": {
+      "documentation-contracts": "passed",
+      "documentation": "passed",
+      "workflow-action-pins": "passed",
+      "tests": 3,
+      "pass": 3,
+      "fail": 0,
+      "seconds": 0.92
+    },
+    "actionlint": {
+      "version": "1.7.12",
+      "exitCode": 0,
+      "externalShellcheckAndPyflakes": "notrun; repo configured explicit empty flags"
+    },
+    "onlyChangedSourceInventoryPaths": [
+      "docs/browser-client/PLAN.md",
+      "docs/browser-client/STATUS.md",
+      "docs/browser-client/GPU_DIAGNOSTICS.md",
+      "docs/browser-client/NATIVE_AVATAR_DIAGNOSTICS.md"
+    ]
+  },
+  "limits": [
+    "Source/loopback/controlled process checks do not establish a hosted Core repair or full native retirement.",
+    "Local distribution equality uses the same toolchain only; compiled hosted provenance is not inferred.",
+    "Original9e GPU/Core/managedstop negatives remain; initialbufferorigin and hostedparenttopology remain unknown.",
+    "Physical microphone, full Tablet, public Hub fluidness and nativeclientparity remain unfinished.",
+    "The user cancelled the 30-minute endurance requirement; no such session is claimed."
+  ]
+}

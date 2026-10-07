@@ -1,0 +1,151 @@
+{
+  "startedAt": "2026-10-01T11:26:17.899Z",
+  "completed": true,
+  "scope": "Actual fresh standalone f91 private native process with the production gateway settings payload; not an actual sandboxed gateway worker or proof of Tablet/audio/pose regressions",
+  "entityWrites": 0,
+  "microphoneRequested": false,
+  "experimentalRefreshQoSOptIn": true,
+  "productionDefaultEnabled": false,
+  "records": [
+    {
+      "at": 1790853987935,
+      "connected": true,
+      "performancePreset": 5,
+      "refreshRateProfile": 3,
+      "regime": 0,
+      "targetHz": 10,
+      "customHz": [
+        10,
+        10,
+        10,
+        2,
+        10,
+        30
+      ],
+      "applied": true
+    },
+    {
+      "at": 1790853988885,
+      "connected": true,
+      "performancePreset": 5,
+      "refreshRateProfile": 3,
+      "regime": 0,
+      "targetHz": 10,
+      "customHz": [
+        10,
+        10,
+        10,
+        2,
+        10,
+        30
+      ],
+      "applied": true
+    },
+    {
+      "at": 1790853989883,
+      "connected": true,
+      "performancePreset": 5,
+      "refreshRateProfile": 3,
+      "regime": 0,
+      "targetHz": 10,
+      "customHz": [
+        10,
+        10,
+        10,
+        2,
+        10,
+        30
+      ],
+      "applied": true
+    },
+    {
+      "at": 1790853990884,
+      "connected": true,
+      "performancePreset": 5,
+      "refreshRateProfile": 3,
+      "regime": 0,
+      "targetHz": 10,
+      "customHz": [
+        10,
+        10,
+        10,
+        2,
+        10,
+        30
+      ],
+      "applied": true
+    },
+    {
+      "at": 1790853991884,
+      "connected": true,
+      "performancePreset": 5,
+      "refreshRateProfile": 3,
+      "regime": 0,
+      "targetHz": 10,
+      "customHz": [
+        10,
+        10,
+        10,
+        2,
+        10,
+        30
+      ],
+      "applied": true
+    },
+    {
+      "at": 1790853992883,
+      "connected": true,
+      "performancePreset": 5,
+      "refreshRateProfile": 3,
+      "regime": 0,
+      "targetHz": 10,
+      "customHz": [
+        10,
+        10,
+        10,
+        2,
+        10,
+        30
+      ],
+      "applied": true
+    }
+  ],
+  "startSourceSHA256": {
+    "gateway/server.mjs": "dbba6b07c63fc3d3f65851945c05e67d22404ba081382c4d8f29924477b44444",
+    "gateway/native-worker-refresh-readback.js": "a703b627786a3f2660a4f478ad3776c53ae9c28d7aba85f62823048bcb360d10",
+    "gateway/native-worker-refresh-probe.js": "7513a1a873444b7514f913057f5fa99d09f32b84ce2f47526a7d75326b2d0893",
+    "tests/integration/native-refresh.mjs": "952db5d2947cefdbfc8a24438b69b1996f70ceea3371d00c6b0806be403ae488"
+  },
+  "productionSettingsSHA256": "7a95ba4d42b6d74479f7ad184a11b9b9c9f7f16050c3a71cbe4c05605cef8109",
+  "trustedScriptSHA256": "e478c378fb44f767c2d44a935e10a2712fb17e0d5e4b451c84be0797dc7565b9",
+  "nativeBinarySHA256": "91f3e10c42c1e35d5c8265e9b0007e925844d9bee61a26807118dde6e527887c",
+  "launchedAt": "2026-10-01T11:26:17.986Z",
+  "cpuStartedAt": "2026-10-01T11:26:27.949Z",
+  "cpuFinishedAt": "2026-10-01T11:26:30.949Z",
+  "cpuSample": {
+    "seconds": 3.000727614,
+    "processCpuSeconds": 4.41,
+    "meanProcessCores": 1.469643555591314,
+    "scope": "Owned Interface process only; no descendant sums or before/after gain claim"
+  },
+  "processCleanup": {
+    "started": true,
+    "processExited": true,
+    "groupExited": true,
+    "identityGuarded": true,
+    "exit": {
+      "code": null,
+      "signal": "SIGKILL"
+    }
+  },
+  "privateProfileRemoved": true,
+  "sourceSHA256": {
+    "gateway/server.mjs": "dbba6b07c63fc3d3f65851945c05e67d22404ba081382c4d8f29924477b44444",
+    "gateway/native-worker-refresh-readback.js": "a703b627786a3f2660a4f478ad3776c53ae9c28d7aba85f62823048bcb360d10",
+    "gateway/native-worker-refresh-probe.js": "7513a1a873444b7514f913057f5fa99d09f32b84ce2f47526a7d75326b2d0893",
+    "tests/integration/native-refresh.mjs": "952db5d2947cefdbfc8a24438b69b1996f70ceea3371d00c6b0806be403ae488"
+  },
+  "sourceCoherent": true,
+  "finishedAt": "2026-10-01T11:26:36.768Z",
+  "rawSHA256": "402e85c9ea44d02054fbf98ff01925c295cc38beece0affa1175aae7a6751cc1"
+}

@@ -1,0 +1,98 @@
+{
+  "gateway/browser-capture-overrides.mjs": [
+    [
+      "    Text{width:parent.width;wrapMode:Text.Wrap;color:'#cccccc';text:!root.browserReady?",
+      "    Text{id:captureStatus;width:parent.width;height:captureStatusReserve.height;wrapMode:Text.Wrap;color:'#cccccc';text:!root.browserReady?"
+    ],
+    [
+      "Native mixer gains and device choices are separate.'}\n    HifiControlsUit.Switch",
+      "Native mixer gains and device choices are separate.'\n     // Stable status region: measure every existing finite message with the same font and width.\n     Item{id:captureStatusReserve;visible:false;width:captureStatus.width;height:Math.max(captureStatusSize0.implicitHeight,captureStatusSize1.implicitHeight,captureStatusSize2.implicitHeight,captureStatusSize3.implicitHeight,captureStatusSize4.implicitHeight,captureStatusSize5.implicitHeight,captureStatusSize6.implicitHeight,captureStatusSize7.implicitHeight,captureStatusSize8.implicitHeight,captureStatusSize9.implicitHeight,captureStatusSize10.implicitHeight,captureStatusSize11.implicitHeight);\n      Text{id:captureStatusSize0;width:parent.width;font:captureStatus.font;wrapMode:Text.Wrap;text:\"Waiting for browser readback\u2026\"}\n      Text{id:captureStatusSize1;width:parent.width;font:captureStatus.font;wrapMode:Text.Wrap;text:\"Enable your microphone in the browser to inspect and change capture settings.\"}\n      Text{id:captureStatusSize2;width:parent.width;font:captureStatus.font;wrapMode:Text.Wrap;text:\"Applying capture settings\u2026\"}\n      Text{id:captureStatusSize3;width:parent.width;font:captureStatus.font;wrapMode:Text.Wrap;text:\"Inspecting current capture settings\u2026\"}\n      Text{id:captureStatusSize4;width:parent.width;font:captureStatus.font;wrapMode:Text.Wrap;text:\"These controls affect your local browser microphone. Native mixer gains and device choices are separate.\"}\n      Text{id:captureStatusSize5;width:parent.width;font:captureStatus.font;wrapMode:Text.Wrap;text:\"The browser did not apply this change (inactive).\"}\n      Text{id:captureStatusSize6;width:parent.width;font:captureStatus.font;wrapMode:Text.Wrap;text:\"The browser did not apply this change (unsupported).\"}\n      Text{id:captureStatusSize7;width:parent.width;font:captureStatus.font;wrapMode:Text.Wrap;text:\"The browser did not apply this change (apply-refused).\"}\n      Text{id:captureStatusSize8;width:parent.width;font:captureStatus.font;wrapMode:Text.Wrap;text:\"The browser did not apply this change (readback-mismatch).\"}\n      Text{id:captureStatusSize9;width:parent.width;font:captureStatus.font;wrapMode:Text.Wrap;text:\"The browser did not apply this change (rollback-refused).\"}\n      Text{id:captureStatusSize10;width:parent.width;font:captureStatus.font;wrapMode:Text.Wrap;text:\"The browser did not apply this change (deadline).\"}\n      Text{id:captureStatusSize11;width:parent.width;font:captureStatus.font;wrapMode:Text.Wrap;text:\"The browser did not apply this change (cancelled).\"}\n     }\n    }\n    HifiControlsUit.Switch"
+    ]
+  ],
+  "tests/integration/tablet-sit-world-stop-session.mjs": [
+    [
+      "// Copyright 2026 Overte contributors\n",
+      "// Copyright 2026 Overte contributors\nimport {selectGoogleChromeJourney} from './chrome-journey-selection.mjs';\n"
+    ],
+    [
+      " browser=process.env.OVERTE_LAB_BROWSER==='system-firefox'?await launchSystemFirefox({headless:!display,env,syntheticMicrophone:false}):await chromium.launch({headless:!display,executablePath:process.env.OVERTE_LAB_CHROMIUM,env:{...env,...(process.env.OVERTE_LAB_CHROMIUM_LIBRARY_PATH?{LD_LIBRARY_PATH:process.env.OVERTE_LAB_CHROMIUM_LIBRARY_PATH}:{})},args:[...(!display?['--use-angle=swiftshader']:[]),'--mute-audio']});",
+      " browser=await chromium.launch({headless:!display,...selectGoogleChromeJourney(process.env),env:{...env,...(process.env.OVERTE_LAB_CHROMIUM_LIBRARY_PATH?{LD_LIBRARY_PATH:process.env.OVERTE_LAB_CHROMIUM_LIBRARY_PATH}:{})},args:[...(!display?['--use-angle=swiftshader']:[]),'--mute-audio']});"
+    ],
+    [
+      "const sources=[",
+      "const sources=['tests/integration/chrome-journey-selection.mjs','tests/google-chrome-selection.mjs',"
+    ]
+  ],
+  "tests/integration/public-hub.mjs": [
+    [
+      "// SPDX-License-Identifier: Apache-2.0\n",
+      "// SPDX-License-Identifier: Apache-2.0\nimport {selectGoogleChromeJourney} from './chrome-journey-selection.mjs';\n"
+    ],
+    [
+      "const firefox=process.env.OVERTE_LAB_BROWSER==='system-firefox';",
+      "const firefox=false; // Historical compatibility branches remain source evidence; current journeys select Google Chrome."
+    ],
+    [
+      "browser=firefox?await launchSystemFirefox({executablePath:process.env.OVERTE_LAB_FIREFOX||'/usr/bin/firefox',env,headless:!process.env.OVERTE_LAB_BROWSER_DISPLAY,syntheticMicrophone:false}):await chromium.launch({headless:!process.env.OVERTE_LAB_BROWSER_DISPLAY,args,env,\n    ...(process.env.OVERTE_LAB_CHROMIUM?{executablePath:process.env.OVERTE_LAB_CHROMIUM}:{})});",
+      "browser=await chromium.launch({headless:!process.env.OVERTE_LAB_BROWSER_DISPLAY,args,env,...selectGoogleChromeJourney(process.env)});"
+    ],
+    [
+      "const sourceFiles=[",
+      "const sourceFiles=['browser-client/tests/integration/chrome-journey-selection.mjs','browser-client/tests/google-chrome-selection.mjs',"
+    ]
+  ],
+  "tests/integration/capture-source-fixture.mjs": [
+    [
+      "import {open,realpath,writeFile} from 'node:fs/promises';import {constants} from 'node:fs';import path from 'node:path';import {fileURLToPath} from 'node:url';import {createHash} from 'node:crypto';import {gunzipSync} from 'node:zlib';\n",
+      "import {recoverCaptureV8Input} from './capture-status-source-fixture.mjs';\nimport {open,realpath,writeFile} from 'node:fs/promises';import {constants} from 'node:fs';import path from 'node:path';import {fileURLToPath} from 'node:url';import {createHash} from 'node:crypto';import {gunzipSync} from 'node:zlib';\n"
+    ],
+    [
+      "return bytes.subarray(0,count);",
+      "return recoverCaptureV8Input(path.relative(fileURLToPath(new URL('../../',import.meta.url)),file),bytes.subarray(0,count));"
+    ]
+  ],
+  "tests/integration/capture-lookahead-source-fixture.mjs": [
+    [
+      "import {open,realpath,writeFile} from 'node:fs/promises';import {constants} from 'node:fs';import path from 'node:path';import {fileURLToPath} from 'node:url';import {createHash} from 'node:crypto';import {gunzipSync} from 'node:zlib';\n",
+      "import {recoverCaptureV8Input} from './capture-status-source-fixture.mjs';\nimport {open,realpath,writeFile} from 'node:fs/promises';import {constants} from 'node:fs';import path from 'node:path';import {fileURLToPath} from 'node:url';import {createHash} from 'node:crypto';import {gunzipSync} from 'node:zlib';\n"
+    ],
+    [
+      "return b.subarray(0,n);",
+      "return recoverCaptureV8Input(path.relative(fileURLToPath(new URL('../../',import.meta.url)),file),b.subarray(0,n));"
+    ]
+  ],
+  "tests/integration/capture-readback-source-fixture.mjs": [
+    [
+      "import {open,realpath,writeFile} from 'node:fs/promises';import {constants} from 'node:fs';import path from 'node:path';import {fileURLToPath} from 'node:url';import {createHash} from 'node:crypto';import {gunzipSync} from 'node:zlib';\n",
+      "import {recoverCaptureV8Input} from './capture-status-source-fixture.mjs';\nimport {open,realpath,writeFile} from 'node:fs/promises';import {constants} from 'node:fs';import path from 'node:path';import {fileURLToPath} from 'node:url';import {createHash} from 'node:crypto';import {gunzipSync} from 'node:zlib';\n"
+    ],
+    [
+      "return b.subarray(0,n);",
+      "return recoverCaptureV8Input(path.relative(fileURLToPath(new URL('../../',import.meta.url)),file),b.subarray(0,n));"
+    ]
+  ],
+  "tests/tablet-capture-readback-manifest.test.mjs": [
+    [
+      "import {readCaptureV7History,",
+      "import {readCaptureV8Source,recoverCaptureV8Input} from './integration/capture-status-source-fixture.mjs';\nimport {readCaptureV7History,"
+    ],
+    [
+      "prep=await readFile(new URL('./integration/prepare-tablet-capture-acceptance.mjs',import.meta.url),'utf8');",
+      "prep=await readCaptureV8Source('tests/integration/prepare-tablet-capture-acceptance.mjs');"
+    ],
+    [
+      "await writeFile(dest,await readFile(path.join(client,relative)))",
+      "await writeFile(dest,await recoverCaptureV8Input(relative,await readFile(path.join(client,relative))))"
+    ],
+    [
+      "let s=await readFile(path.join(client,relative),'utf8');",
+      "let s=(await recoverCaptureV8Input(relative,await readFile(path.join(client,relative)))).toString('utf8');"
+    ]
+  ],
+  "gateway/server.mjs": [
+    [
+      "        sessions.delete(this.id);\n        if (this.directory) await rm(this.directory, { recursive: true, force: true }).catch(() => {});\n",
+      "        if (this.directory) await rm(this.directory, { recursive: true, force: true }).catch(() => {});\n        sessions.delete(this.id);\n"
+    ]
+  ]
+}

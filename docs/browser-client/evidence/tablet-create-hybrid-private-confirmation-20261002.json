@@ -1,0 +1,448 @@
+{
+  "date": "2026-10-02",
+  "materialAssistance": "OpenAI Codex",
+  "scope": "Two genuine full native Qt Create workflows in stock browsers on the isolated seven-entity local domain, using a private copied hybrid IME experiment. Separate authored-editor counterexamples remain unresolved.",
+  "shippingIntegrated": false,
+  "publicWorldWrites": 0,
+  "microphoneRequested": false,
+  "fullCreateTestsPassed": 2,
+  "fullCreateTestsFailed": 0,
+  "cohorts": [
+    {
+      "engine": "chromium",
+      "rawCaptureSHA256": "16c5571b90483baea69a63117ace245a34e6f16a9d04aa38c28b2564a1c4df67",
+      "startedAt": "2026-10-01T22:35:13.400Z",
+      "finishedAt": "2026-10-01T22:36:29.452Z",
+      "browserVersion": "154.0.8037.57",
+      "nativeVersion": "2026.04.1",
+      "completed": true,
+      "functionalAcceptance": true,
+      "cleanupVerified": true,
+      "sourceCoherent": true,
+      "shippingSourceCoherent": true,
+      "nativeBinarySHA256": "91f3e10c42c1e35d5c8265e9b0007e925844d9bee61a26807118dde6e527887c",
+      "nativeCreateScriptsSHA256": {
+        "system/create/qml/EditTabView.qml": "4895d0f72d438829b4e15626b0dbb719c734e4486a74d175ac3de1a8d15d2621",
+        "system/create/entityProperties/html/js/entityProperties.js": "5e31fbdc3e577dd13663c0d9ee429f7c816bf1c7c91f45ea62438a6b575e08d5",
+        "system/create/entityList/html/js/entityList.js": "1a398a1ab644af6714c16c8a3e00191dd1b861f8fbdd75e78ceb71de6494ecf1",
+        "system/create/edit.js": "c7e20e8a23b7657608da533c35850668558a356d96b515e6eee477858a905a3d"
+      },
+      "privateNativePlugin": {
+        "sourceSHA256": "462cd5a0868f9de0feca7afb4b35bb1819c06a6b6a0d68b81a8389fd0a494518",
+        "librarySHA256": "e56bc1273d000784522a7cd63b4439768b08aad939c0529590d865f9c8e141f3",
+        "artifactsSHA256": "dce2c1af159a6c5431d054d1f735b2293bda23fe944f04b26f71e48177c71bc0"
+      },
+      "runtimeAuditCaptureSHA256": "e4c168a967a407dbbae2329e764cf7b55da9a98a12a0d9a995f6753047d59787",
+      "warningCount": 0,
+      "ownedFixtureCount": 1,
+      "shippingSourcesUnchangedDuringRun": true,
+      "copiedSourcesUnchangedDuringRun": true,
+      "originalBaselineEntitiesPreserved": 7,
+      "ownFilteredRows": 1,
+      "nameEditVerifiedByNativeAndBrowser": true,
+      "editedProperties": {
+        "color": {
+          "red": 30,
+          "green": 170,
+          "blue": 220
+        },
+        "dimensions": {
+          "x": 0.699999988079071,
+          "y": 0.8999999761581421,
+          "z": 1.100000023841858
+        }
+      },
+      "nativePaintedCaptureCount": 10,
+      "nativePaintedCaptureSHA256": [
+        "7a903b34e8bad086760544c2c0e3f6a372b0e944dbfa9a25906c9017d192e78a",
+        "1fc4ae79fd52a2cbdec7d357091e51e09f7b36017020ad22c104667680dfe60f",
+        "509c984a3941408702561d75076e5828f9df0f46aec486d25efa6ad99f0767d7",
+        "043bc97baf7b597e949c362f77180e68ce0b55b510ecb0071bd7286e379399b3",
+        "5336e2b43a2305cdad2818166fee0b1975f6d18ff84b4fc8d366d79ba2702fa6",
+        "b8861473b5dff7a3c512d24179f4cfe3857eaf9c224546da67a135006d8ca987",
+        "bb7d723629b570e7e2ae11e44a125dfddfdd0e53d8f37b401628daa770cbb784",
+        "ddfb91b4301420469f65f9d2233018295ab6ebb28528b21b9cd402670ea6ea9b",
+        "ddfb91b4301420469f65f9d2233018295ab6ebb28528b21b9cd402670ea6ea9b",
+        "4e4a31953560096f3b6ebc5e163c194ac1b6be1c57cea96fa1d501261a208472"
+      ]
+    },
+    {
+      "engine": "firefox",
+      "rawCaptureSHA256": "dd60e2e232f844086947c9bf86c97b3c6d2eef40c3e9e6efa3adb28e2b6c1ab4",
+      "startedAt": "2026-10-01T22:37:14.145Z",
+      "finishedAt": "2026-10-01T22:38:40.480Z",
+      "browserVersion": "firefox/156.0",
+      "nativeVersion": "2026.04.1",
+      "completed": true,
+      "functionalAcceptance": true,
+      "cleanupVerified": true,
+      "sourceCoherent": true,
+      "shippingSourceCoherent": true,
+      "nativeBinarySHA256": "91f3e10c42c1e35d5c8265e9b0007e925844d9bee61a26807118dde6e527887c",
+      "nativeCreateScriptsSHA256": {
+        "system/create/qml/EditTabView.qml": "4895d0f72d438829b4e15626b0dbb719c734e4486a74d175ac3de1a8d15d2621",
+        "system/create/entityProperties/html/js/entityProperties.js": "5e31fbdc3e577dd13663c0d9ee429f7c816bf1c7c91f45ea62438a6b575e08d5",
+        "system/create/entityList/html/js/entityList.js": "1a398a1ab644af6714c16c8a3e00191dd1b861f8fbdd75e78ceb71de6494ecf1",
+        "system/create/edit.js": "c7e20e8a23b7657608da533c35850668558a356d96b515e6eee477858a905a3d"
+      },
+      "privateNativePlugin": {
+        "sourceSHA256": "462cd5a0868f9de0feca7afb4b35bb1819c06a6b6a0d68b81a8389fd0a494518",
+        "librarySHA256": "e56bc1273d000784522a7cd63b4439768b08aad939c0529590d865f9c8e141f3",
+        "artifactsSHA256": "dce2c1af159a6c5431d054d1f735b2293bda23fe944f04b26f71e48177c71bc0"
+      },
+      "runtimeAuditCaptureSHA256": "e4c168a967a407dbbae2329e764cf7b55da9a98a12a0d9a995f6753047d59787",
+      "warningCount": 0,
+      "ownedFixtureCount": 1,
+      "shippingSourcesUnchangedDuringRun": true,
+      "copiedSourcesUnchangedDuringRun": true,
+      "originalBaselineEntitiesPreserved": 7,
+      "ownFilteredRows": 1,
+      "nameEditVerifiedByNativeAndBrowser": true,
+      "editedProperties": {
+        "color": {
+          "red": 30,
+          "green": 170,
+          "blue": 220
+        },
+        "dimensions": {
+          "x": 0.699999988079071,
+          "y": 0.8999999761581421,
+          "z": 1.100000023841858
+        }
+      },
+      "nativePaintedCaptureCount": 10,
+      "nativePaintedCaptureSHA256": [
+        "59170afa4fd273733c03a26ea0f1021efd9e044dc5c2f432426f70ae265fb4d0",
+        "2a53115ade0a924590e3fb67b0d32aeb40f32d3d8af3baae51efda84f02b8388",
+        "e3ee4b829b8357deb4a9bb82486bf1514d4b7951c84e5d8cf91142590d911d5b",
+        "cb43444bc99fe3947ed438a00f1c4c24027b9189d87bcca27a5ab86678b7fbb0",
+        "730c8fb9e57fc4980d7eb4c9fc50f68067f3b86a128334485f621f112322ffba",
+        "18c0456632a098f44145426ecc05a42243550e6365b5ef22b957f728d6db025a",
+        "bd06811849da143a2513c1548fa78901ee95ee6c46ec0ad5a7eb608d48801d63",
+        "d986dccf5d60e2037794a3e049c1adbd92a2da55a755f80168db42af46b7db3c",
+        "a5c20b1b934393842722321179c3fd7f97acf8c882a6de2c98c2d517f8bd8ec8",
+        "f89153b3cff54372ef47060bd9c769005998de8b23b2d8cf3b556942888f4c8a"
+      ]
+    }
+  ],
+  "shippingSourceHashes": {
+    "tests/integration/tablet-create.mjs": "022c05b9f446b08b604c72bc1222f8ad5db92f550475a5ee419703284042185c",
+    "tests/integration/tablet-create-readiness.mjs": "ca5dbc144ed49153a11baed470f0ffa4aebe6db730ca36a5114bf5b41f8ae649",
+    "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+    "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+    "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+    "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+    "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+    "gateway/tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+    "gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+    "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+    "src/world.ts": "23138c29b063dabddc7a68e43979dcf9bea7f3e9d13665aaaeec13247b458e16",
+    "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+    "gateway/tablet.mjs": "8642ccb83ad35e946607acab6b49cd9c728ad7958dcfdb88879773724d737f9c",
+    "src/tablet.ts": "17dd1e5ca3c0a0beb0f8c0e5f2b6a93c6f1aed9465bd88b62f02ce39cd8778a2",
+    "native-input/native-input.cpp": "c6ec527b810dec4d179526c2b3ef41b9e45c367063d8a29d67273d765d2eb063",
+    "src/main.ts": "1a60e855a84c2f4fed03d3c5d994e6f065fab8f8f035f83397bf500370a833da",
+    "src/model-resources.ts": "23e551d60f53e02e2a9d28573df47e0bc7710fc499d1f05aeca88daa89703949",
+    "dist/index.html": "7799589d4580b2b5f49a9b7a500799da7d33fb7b6c1599c357a116ae220c4618",
+    "gateway/server.mjs": "f8399c1015cb85ada0da613b9278b8a90dca0660d2478b8810d43161b1ed237c",
+    "gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60"
+  },
+  "copiedSourceHashes": {
+    "tests/integration/tablet-create.mjs": "82cec7feb34d84f29ec4dbbdabf64dc8d054ffbb3fd675830f71ea1f16bbe3fb",
+    "tests/integration/tablet-create-readiness.mjs": "48908f84778e5e864b92488a0d4ed72365de21b88b40a00498d263ca011960cd",
+    "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+    "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+    "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+    "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+    "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+    "gateway/tablet-capture.qml": "e4c168a967a407dbbae2329e764cf7b55da9a98a12a0d9a995f6753047d59787",
+    "gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+    "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+    "src/world.ts": "23138c29b063dabddc7a68e43979dcf9bea7f3e9d13665aaaeec13247b458e16",
+    "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+    "gateway/tablet.mjs": "8642ccb83ad35e946607acab6b49cd9c728ad7958dcfdb88879773724d737f9c",
+    "src/tablet.ts": "17dd1e5ca3c0a0beb0f8c0e5f2b6a93c6f1aed9465bd88b62f02ce39cd8778a2",
+    "native-input/native-input.cpp": "462cd5a0868f9de0feca7afb4b35bb1819c06a6b6a0d68b81a8389fd0a494518",
+    "gateway/server.mjs": "f8399c1015cb85ada0da613b9278b8a90dca0660d2478b8810d43161b1ed237c",
+    "tests/integration/tablet-native-web-ime-override.mjs": "aa53f21ad0e5f5d233c43ce11c3646f320aa6b9216ca2813d015673d0394a739"
+  },
+  "sourceDifferenceBoundary": "The copied runner/readiness observer, native capture QML and plugin differ from shipping. Start/end attestations are exact for both source sets. These successes do not establish acceptance of the unchanged shipping editing route.",
+  "authoredEditorComparisons": [
+    {
+      "variant": "resource-followup",
+      "rawCaptureSHA256": "ba01608139bac3ffebbdf7aac3aaaaca0c814916c4841533b68c7958a02c0c22",
+      "startedAt": "2026-10-01T22:20:55.074305+00:00",
+      "finishedAt": "2026-10-01T22:20:58.054300+00:00",
+      "completed": false,
+      "nativeExitCode": 1,
+      "qtLibraryPathsMatched": true,
+      "sourceSHA256": "462cd5a0868f9de0feca7afb4b35bb1819c06a6b6a0d68b81a8389fd0a494518",
+      "candidateQmlSHA256": "7e1bad393586c02a07ff5cc5a9b7cc29ec94a2f6770525d6ee8a498052108dff",
+      "pluginLibrarySHA256": "1e725b63a9822985ac90ac246dcf3951f072cb80f2668dc59fdf3d4bc3789ee3",
+      "pluginArtifactsSHA256": "dce2c1af159a6c5431d054d1f735b2293bda23fe944f04b26f71e48177c71bc0",
+      "pluginInputAttestationSHA256": "335d0f69482b29378db47578066f20c7ca739b7021b5349d9b3eae20562bbfb9",
+      "fixtureSHA256": "ae3e639a9d19bd9a619d58abaeb4c7bddb3a48baed4cb8ac14ef7f1122b6c91b",
+      "qmlSHA256": "dbb964ceb11ecffb71d315b0936e824ab4d589baecbd82bca7a6eba66907c32f",
+      "htmlSHA256": "e4ae28bd68df4be9914069b19461d83aa4d75eb7cb330f0bdd570d7a9ade83cb",
+      "qtSDKVersion": "5.15.3",
+      "qtRuntimeVersion": "5.15.3",
+      "runtimeInputArtifactsSHA256": "f5de345beada983ff7a05b2a5866e1c53acfe685e0875d7ca5a6b432a3753010",
+      "mandatoryRuntimeHashes": {
+        "libexec/QtWebEngineProcess": "9f6fa064f84e73c469e3d3908d2e74b8a25addec367112a6e285dd4557290130",
+        "resources/qtwebengine_resources.pak": "2a2e0939ab91db42928c777d2033dcb1105e267895d32c5979c94a33a38336af",
+        "resources/qtwebengine_resources_100p.pak": "c700713b0104aeedc32a45fbfb150a6f38e0f71606cf3a2e4f646e8d09e4a689",
+        "resources/qtwebengine_resources_200p.pak": "b7e049935bc7b99cdb9b7df12c4ee17a181e86ddfe56d479b7180ff6dcd9504c",
+        "resources/qtwebengine_devtools_resources.pak": "c916656c06fbf2008fc807ac56ad3a124dca6d6fc646cf76ce5a07f598676d2e",
+        "translations/qtwebengine_locales/en-US.pak": "30d13499e8334dc857f88a75cc1b9761d742f9f27ff8ba258b6642015d7354d2",
+        "qml/QtWebEngine/qmldir": "78c1044e6bd1b673bac0122e2ae1330116afdbfe23ff766d2cb35f32a25ad4d8",
+        "qml/QtWebEngine/libqtwebengineplugin.so": "512e59cef79c29e6e68bac689f9f7ab6a86d0ed5c464d98f1d463fa65c13a5ea",
+        "bin/qt.conf": "9f262a8b1e5f80e4c129634c5f8f437a677a5111f5110701c5f668c01f44cc79"
+      },
+      "ownedRendererGroupStopped": true,
+      "ownedDisplayStopped": true,
+      "passwordCancellationVerified": false,
+      "passedCases": 0,
+      "failedCases": 1,
+      "cases": [
+        {
+          "kind": "unicode-text",
+          "passed": false
+        }
+      ],
+      "failureCategory": "actual-qt-guard-or-runtime-refused"
+    },
+    {
+      "variant": "resource-followup confirmation",
+      "rawCaptureSHA256": "c32f8161afb939e5658b31718b5475c0b0fd0b49662eb683463800374909c773",
+      "startedAt": "2026-10-01T22:40:30.347476+00:00",
+      "finishedAt": "2026-10-01T22:40:33.338324+00:00",
+      "completed": false,
+      "nativeExitCode": 1,
+      "qtLibraryPathsMatched": true,
+      "sourceSHA256": "462cd5a0868f9de0feca7afb4b35bb1819c06a6b6a0d68b81a8389fd0a494518",
+      "candidateQmlSHA256": "7e1bad393586c02a07ff5cc5a9b7cc29ec94a2f6770525d6ee8a498052108dff",
+      "pluginLibrarySHA256": "1e725b63a9822985ac90ac246dcf3951f072cb80f2668dc59fdf3d4bc3789ee3",
+      "pluginArtifactsSHA256": "dce2c1af159a6c5431d054d1f735b2293bda23fe944f04b26f71e48177c71bc0",
+      "pluginInputAttestationSHA256": "335d0f69482b29378db47578066f20c7ca739b7021b5349d9b3eae20562bbfb9",
+      "fixtureSHA256": "ae3e639a9d19bd9a619d58abaeb4c7bddb3a48baed4cb8ac14ef7f1122b6c91b",
+      "qmlSHA256": "dbb964ceb11ecffb71d315b0936e824ab4d589baecbd82bca7a6eba66907c32f",
+      "htmlSHA256": "e4ae28bd68df4be9914069b19461d83aa4d75eb7cb330f0bdd570d7a9ade83cb",
+      "qtSDKVersion": "5.15.3",
+      "qtRuntimeVersion": "5.15.3",
+      "runtimeInputArtifactsSHA256": "f5de345beada983ff7a05b2a5866e1c53acfe685e0875d7ca5a6b432a3753010",
+      "mandatoryRuntimeHashes": {
+        "libexec/QtWebEngineProcess": "9f6fa064f84e73c469e3d3908d2e74b8a25addec367112a6e285dd4557290130",
+        "resources/qtwebengine_resources.pak": "2a2e0939ab91db42928c777d2033dcb1105e267895d32c5979c94a33a38336af",
+        "resources/qtwebengine_resources_100p.pak": "c700713b0104aeedc32a45fbfb150a6f38e0f71606cf3a2e4f646e8d09e4a689",
+        "resources/qtwebengine_resources_200p.pak": "b7e049935bc7b99cdb9b7df12c4ee17a181e86ddfe56d479b7180ff6dcd9504c",
+        "resources/qtwebengine_devtools_resources.pak": "c916656c06fbf2008fc807ac56ad3a124dca6d6fc646cf76ce5a07f598676d2e",
+        "translations/qtwebengine_locales/en-US.pak": "30d13499e8334dc857f88a75cc1b9761d742f9f27ff8ba258b6642015d7354d2",
+        "qml/QtWebEngine/qmldir": "78c1044e6bd1b673bac0122e2ae1330116afdbfe23ff766d2cb35f32a25ad4d8",
+        "qml/QtWebEngine/libqtwebengineplugin.so": "512e59cef79c29e6e68bac689f9f7ab6a86d0ed5c464d98f1d463fa65c13a5ea",
+        "bin/qt.conf": "9f262a8b1e5f80e4c129634c5f8f437a677a5111f5110701c5f668c01f44cc79"
+      },
+      "ownedRendererGroupStopped": true,
+      "ownedDisplayStopped": true,
+      "passwordCancellationVerified": false,
+      "passedCases": 0,
+      "failedCases": 1,
+      "cases": [
+        {
+          "kind": "unicode-text",
+          "passed": false
+        }
+      ],
+      "failureCategory": "actual-qt-guard-or-runtime-refused"
+    },
+    {
+      "variant": "stage-diagnostic",
+      "rawCaptureSHA256": "cb9af303855b5dc725bd4adc2b43cc8c110ff6b9b052af4211268edfa7d8d74a",
+      "startedAt": "2026-10-01T22:39:20.931325+00:00",
+      "finishedAt": "2026-10-01T22:39:24.636978+00:00",
+      "completed": true,
+      "nativeExitCode": 0,
+      "qtLibraryPathsMatched": true,
+      "sourceSHA256": "462cd5a0868f9de0feca7afb4b35bb1819c06a6b6a0d68b81a8389fd0a494518",
+      "candidateQmlSHA256": "7e1bad393586c02a07ff5cc5a9b7cc29ec94a2f6770525d6ee8a498052108dff",
+      "pluginLibrarySHA256": "1e725b63a9822985ac90ac246dcf3951f072cb80f2668dc59fdf3d4bc3789ee3",
+      "pluginArtifactsSHA256": "dce2c1af159a6c5431d054d1f735b2293bda23fe944f04b26f71e48177c71bc0",
+      "pluginInputAttestationSHA256": "335d0f69482b29378db47578066f20c7ca739b7021b5349d9b3eae20562bbfb9",
+      "fixtureSHA256": "7f3892a16e77cfda93546ffbf8984aa4935e125562e78c15fa6a13507c81dc11",
+      "qmlSHA256": "322371b614df7c5869320369e6f6af75eaa03c67b00c4ca78d8e90f69a854e1b",
+      "htmlSHA256": "e4ae28bd68df4be9914069b19461d83aa4d75eb7cb330f0bdd570d7a9ade83cb",
+      "qtSDKVersion": "5.15.3",
+      "qtRuntimeVersion": "5.15.3",
+      "runtimeInputArtifactsSHA256": "f5de345beada983ff7a05b2a5866e1c53acfe685e0875d7ca5a6b432a3753010",
+      "mandatoryRuntimeHashes": {
+        "libexec/QtWebEngineProcess": "9f6fa064f84e73c469e3d3908d2e74b8a25addec367112a6e285dd4557290130",
+        "resources/qtwebengine_resources.pak": "2a2e0939ab91db42928c777d2033dcb1105e267895d32c5979c94a33a38336af",
+        "resources/qtwebengine_resources_100p.pak": "c700713b0104aeedc32a45fbfb150a6f38e0f71606cf3a2e4f646e8d09e4a689",
+        "resources/qtwebengine_resources_200p.pak": "b7e049935bc7b99cdb9b7df12c4ee17a181e86ddfe56d479b7180ff6dcd9504c",
+        "resources/qtwebengine_devtools_resources.pak": "c916656c06fbf2008fc807ac56ad3a124dca6d6fc646cf76ce5a07f598676d2e",
+        "translations/qtwebengine_locales/en-US.pak": "30d13499e8334dc857f88a75cc1b9761d742f9f27ff8ba258b6642015d7354d2",
+        "qml/QtWebEngine/qmldir": "78c1044e6bd1b673bac0122e2ae1330116afdbfe23ff766d2cb35f32a25ad4d8",
+        "qml/QtWebEngine/libqtwebengineplugin.so": "512e59cef79c29e6e68bac689f9f7ab6a86d0ed5c464d98f1d463fa65c13a5ea",
+        "bin/qt.conf": "9f262a8b1e5f80e4c129634c5f8f437a677a5111f5110701c5f668c01f44cc79"
+      },
+      "ownedRendererGroupStopped": true,
+      "ownedDisplayStopped": true,
+      "passwordCancellationVerified": false,
+      "passedCases": 12,
+      "failedCases": 0,
+      "cases": [
+        {
+          "kind": "unicode-text",
+          "passed": true,
+          "stage": "verify-value",
+          "errorCategory": "none"
+        },
+        {
+          "kind": "native-number",
+          "passed": true,
+          "stage": "verify-value",
+          "errorCategory": "none"
+        },
+        {
+          "kind": "textarea",
+          "passed": true,
+          "stage": "verify-value",
+          "errorCategory": "none"
+        },
+        {
+          "kind": "literal-contenteditable",
+          "passed": true,
+          "stage": "verify-value",
+          "errorCategory": "none"
+        },
+        {
+          "kind": "password-unicode",
+          "passed": true,
+          "stage": "verify-value",
+          "errorCategory": "none"
+        },
+        {
+          "kind": "password-native-undo",
+          "passed": true,
+          "stage": "verify-value",
+          "errorCategory": "none"
+        },
+        {
+          "kind": "password-native-redo",
+          "passed": true,
+          "stage": "verify-value",
+          "errorCategory": "none"
+        },
+        {
+          "kind": "password-native-maxlength",
+          "passed": true,
+          "stage": "verify-value",
+          "errorCategory": "none"
+        },
+        {
+          "kind": "readonly",
+          "passed": true,
+          "stage": "verify-value",
+          "errorCategory": "focused-field-refused"
+        },
+        {
+          "kind": "disabled",
+          "passed": true,
+          "stage": "verify-value",
+          "errorCategory": "focused-field-refused"
+        },
+        {
+          "kind": "immediate-cancel",
+          "passed": true,
+          "stage": "verify-value",
+          "errorCategory": "none"
+        },
+        {
+          "kind": "navigation-cancel",
+          "passed": true,
+          "stage": "verify-value",
+          "errorCategory": "none"
+        }
+      ]
+    },
+    {
+      "variant": "active-readiness",
+      "rawCaptureSHA256": "a6205f723e5c491098a38f4e859bd14998b44b99c9d98c2ced535e4218da3741",
+      "startedAt": "2026-10-01T22:43:56.816315+00:00",
+      "finishedAt": "2026-10-01T22:44:04.915562+00:00",
+      "completed": false,
+      "nativeExitCode": 1,
+      "qtLibraryPathsMatched": true,
+      "sourceSHA256": "462cd5a0868f9de0feca7afb4b35bb1819c06a6b6a0d68b81a8389fd0a494518",
+      "candidateQmlSHA256": "7e1bad393586c02a07ff5cc5a9b7cc29ec94a2f6770525d6ee8a498052108dff",
+      "pluginLibrarySHA256": "1e725b63a9822985ac90ac246dcf3951f072cb80f2668dc59fdf3d4bc3789ee3",
+      "pluginArtifactsSHA256": "dce2c1af159a6c5431d054d1f735b2293bda23fe944f04b26f71e48177c71bc0",
+      "pluginInputAttestationSHA256": "335d0f69482b29378db47578066f20c7ca739b7021b5349d9b3eae20562bbfb9",
+      "fixtureSHA256": "ae3e639a9d19bd9a619d58abaeb4c7bddb3a48baed4cb8ac14ef7f1122b6c91b",
+      "qmlSHA256": "c27474ff07f9cc409f99368407a98f6f4338ea1cac26a11fcbc0fb9626ea79e1",
+      "htmlSHA256": "e4ae28bd68df4be9914069b19461d83aa4d75eb7cb330f0bdd570d7a9ade83cb",
+      "qtSDKVersion": "5.15.3",
+      "qtRuntimeVersion": "5.15.3",
+      "runtimeInputArtifactsSHA256": "f5de345beada983ff7a05b2a5866e1c53acfe685e0875d7ca5a6b432a3753010",
+      "mandatoryRuntimeHashes": {
+        "libexec/QtWebEngineProcess": "9f6fa064f84e73c469e3d3908d2e74b8a25addec367112a6e285dd4557290130",
+        "resources/qtwebengine_resources.pak": "2a2e0939ab91db42928c777d2033dcb1105e267895d32c5979c94a33a38336af",
+        "resources/qtwebengine_resources_100p.pak": "c700713b0104aeedc32a45fbfb150a6f38e0f71606cf3a2e4f646e8d09e4a689",
+        "resources/qtwebengine_resources_200p.pak": "b7e049935bc7b99cdb9b7df12c4ee17a181e86ddfe56d479b7180ff6dcd9504c",
+        "resources/qtwebengine_devtools_resources.pak": "c916656c06fbf2008fc807ac56ad3a124dca6d6fc646cf76ce5a07f598676d2e",
+        "translations/qtwebengine_locales/en-US.pak": "30d13499e8334dc857f88a75cc1b9761d742f9f27ff8ba258b6642015d7354d2",
+        "qml/QtWebEngine/qmldir": "78c1044e6bd1b673bac0122e2ae1330116afdbfe23ff766d2cb35f32a25ad4d8",
+        "qml/QtWebEngine/libqtwebengineplugin.so": "512e59cef79c29e6e68bac689f9f7ab6a86d0ed5c464d98f1d463fa65c13a5ea",
+        "bin/qt.conf": "9f262a8b1e5f80e4c129634c5f8f437a677a5111f5110701c5f668c01f44cc79"
+      },
+      "ownedRendererGroupStopped": true,
+      "ownedDisplayStopped": true,
+      "passwordCancellationVerified": false,
+      "passedCases": 7,
+      "failedCases": 1,
+      "cases": [
+        {
+          "kind": "unicode-text",
+          "passed": true
+        },
+        {
+          "kind": "native-number",
+          "passed": true
+        },
+        {
+          "kind": "textarea",
+          "passed": true
+        },
+        {
+          "kind": "literal-contenteditable",
+          "passed": true
+        },
+        {
+          "kind": "password-unicode",
+          "passed": true
+        },
+        {
+          "kind": "password-native-undo",
+          "passed": true
+        },
+        {
+          "kind": "password-native-redo",
+          "passed": true
+        },
+        {
+          "kind": "password-native-maxlength",
+          "passed": false
+        }
+      ],
+      "failureCategory": "actual-qt-guard-or-runtime-refused"
+    }
+  ],
+  "nativeEditingContract": "Ordinary text is committed once by a guarded native QInputMethodEvent after the fixed readonly document callback. Password fields preserve the original native WebEngine editing route; the fixture uses authored literal input values, not account secrets.",
+  "limitations": [
+    "Only two full Create runs are recorded; no general shipping stability or completion claim follows.",
+    "The uninstrumented authored-editor fixture failed first Unicode input twice; adding stage-only diagnostics passed all twelve cases, which is not a causal or scheduling fix.",
+    "The explicit Window-active/WebEngine-loaded readiness fixture passed seven cases and failed password-native-maxlength.",
+    "Password cancellation and autonomous same-page focus switching remain unverified. Already dispatched password renderer JavaScript cannot be cancelled by later QML callback invalidation.",
+    "Finally-only deletion is limited to the one independently latched own entity; successful deletion was performed by the actual native List UI. No public scene or other domain entities were changed.",
+    "No latency, GPU performance, hardware microphone, account isolation or nineteen-stage CI acceptance claim is made by these reports."
+  ]
+}

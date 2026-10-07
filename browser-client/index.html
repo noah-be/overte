@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#102127">
+  <title>Overte · Browser</title>
+</head>
+<body>
+  <main id="app">
+    <div id="world" aria-label="Interactive Overte world"></div>
+    <span id="aim" aria-hidden="true" hidden>+</span>
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Overte browser home"><span class="mark">O</span> OVERTE <span class="edition">BROWSER</span></a>
+      <span id="connection" role="status"><i></i> Disconnected</span>
+    </header>
+    <section id="welcome" class="panel" aria-labelledby="welcome-title">
+      <div class="eyebrow">A shared world, in your browser</div>
+      <h1 id="welcome-title">Step into Overte.</h1>
+      <p>Explore a domain, meet other participants, and talk together.</p>
+      <form id="join-form">
+        <label for="domain">Domain</label>
+        <select id="places" aria-label="Available domains"><option value="">Enter an address</option></select>
+        <input id="domain" name="domain" placeholder="overte://domain.example" autocomplete="off" required maxlength="255">
+        <label for="name">Your name</label>
+        <input id="name" name="name" value="Browser visitor" autocomplete="nickname" required maxlength="256">
+        <button id="join" class="primary" type="submit">Join world <span aria-hidden="true">→</span></button>
+      </form>
+      <p class="hint">Your microphone starts off. You choose when to enable it.</p>
+    </section>
+    <aside id="session-panel" class="session-panel" hidden>
+      <div class="eyebrow">You are visiting</div>
+      <strong id="domain-name"></strong>
+      <div id="stats" aria-live="polite">Loading world…</div>
+      <div class="session-buttons">
+        <button id="microphone" type="button" aria-pressed="false">Enable microphone</button>
+        <button id="sound" type="button" aria-pressed="true">Sound on</button>
+        <button id="tablet" type="button" aria-pressed="false" disabled>Tablet</button>
+        <button id="leave" type="button">Leave</button>
+      </div>
+    </aside>
+    <div id="notice" class="notice" role="status" hidden></div>
+    <details id="diagnostics" class="diagnostics"><summary>Session details</summary><ul id="events"></ul></details>
+    <div id="help" class="help" hidden><strong>Click the world to look around</strong><span>W A S D · move &nbsp; Mouse · look &nbsp; Space · jump &nbsp; E · interact &nbsp; V · avatar view &nbsp; T · tablet &nbsp; Esc · release mouse</span></div>
+    <div id="loading" class="loading" hidden><span class="spinner"></span><strong id="loading-text">Connecting to domain…</strong></div>
+  </main>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
