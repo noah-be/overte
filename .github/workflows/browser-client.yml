@@ -1,0 +1,235 @@
+name: Browser client
+
+on:
+  pull_request:
+    paths:
+      - 'browser-client/**'
+      - '.github/workflows/browser-client.yml'
+  workflow_dispatch:
+    inputs:
+      startup_diagnostics:
+        description: 'Run unchanged startup/isolation checks only; browser journeys remain not-run'
+        type: boolean
+        default: false
+      embedded_default_angle_control:
+        description: 'Run the unchanged embedded GPU proof with the original default ANGLE selection instead of the software-fixture driver request'
+        type: boolean
+        default: false
+      avatar_sample_diagnostics:
+        description: 'Collect bounded opt-in native avatar diagnostics during the unchanged full journey'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: browser-client-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  browser:
+    name: ${{ inputs.startup_diagnostics && 'Protocol and network startup diagnostics' || 'browser' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: browser-client
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: browser-client/package-lock.json
+      - name: Install reproducible dependencies
+        run: npm ci
+      - name: Build browser distribution
+        run: npm run build
+      - name: Install Google Chrome
+        run: npx playwright install --with-deps chrome
+      - name: Install software graphics and isolated audio backends
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg libgl1-mesa-dri libglx-mesa0 mesa-utils pulseaudio xvfb xauth bubblewrap slirp4netns iproute2 python3 gcc libc6-dev libssl-dev g++ gpgv zstd qtbase5-dev qtdeclarative5-dev qml-module-qtquick2 qml-module-qtquick-window2 apparmor-profiles
+          task_runtime_dir="$(mktemp -d "${RUNNER_TEMP}/overte-browser-runtime.XXXXXX")"
+          chmod 700 "$task_runtime_dir"
+          export XDG_RUNTIME_DIR="$task_runtime_dir"
+          pulseaudio --start --exit-idle-time=-1 --log-target="file:${RUNNER_TEMP}/overte-browser-pulseaudio.log"
+          pactl load-module module-null-sink sink_name=overte_ci rate=48000 channels=2
+          pactl set-default-sink overte_ci
+          echo "XDG_RUNTIME_DIR=$task_runtime_dir" >> "$GITHUB_ENV"
+          echo "PULSE_SERVER=unix:$task_runtime_dir/pulse/native" >> "$GITHUB_ENV"
+      - name: Preserve existing AppArmor policy and prepare exact shipped namespace profiles
+        run: |
+          python3 tools/test_prepare_apparmor_userns.py
+          sudo python3 tools/apparmor-diagnostic.py
+          sudo python3 tools/prepare-apparmor-userns.py
+          sudo python3 tools/apparmor-diagnostic.py
+      - name: Qualify reviewed dedicated network setup entrypoint
+        env:
+          OVERTE_TRUSTED_ALIAS_DIAGNOSTICS: '1'
+        run: |
+          task_network_dir="$(mktemp -d "${RUNNER_TEMP}/overte-trusted-network.XXXXXX")"
+          chmod 700 "$task_network_dir"
+          python3 tools/trusted-network/workflow/prepare_signed_library.py --output "$task_network_dir/signed-cache"
+          export OVERTE_SIGNED_LIBRARY_CACHE="$task_network_dir/signed-cache"
+          export OVERTE_SIGNED_LIBRARY_KEYRING="$task_network_dir/signed-cache/archive-keyring.gpg"
+          python3 -m unittest discover -s tools/trusted-network/tests -p 'test_*.py'
+          node --test tools/trusted-network/tests/trusted-entry.test.mjs
+          python3 tools/trusted-network/workflow/policy.py --output "$task_network_dir/policy.json"
+          python3 tools/trusted-network/workflow/build.py --policy "$task_network_dir/policy.json" --stage "$task_network_dir/stage" \
+            --signed-library-cache "$OVERTE_SIGNED_LIBRARY_CACHE" --signed-library-keyring "$OVERTE_SIGNED_LIBRARY_KEYRING"
+          task_network_hash="$(sha256sum "$task_network_dir/stage/manifest.json" | cut -d ' ' -f1)"
+          sudo python3 tools/trusted-network/workflow/prepare_signed_library.py \
+            --source-cache "$OVERTE_SIGNED_LIBRARY_CACHE" --keyring "$OVERTE_SIGNED_LIBRARY_KEYRING" --output "$task_network_dir/root-signed-cache"
+          sudo python3 tools/trusted-network/workflow/install.py --bundle "$task_network_dir/stage" --manifest-sha256 "$task_network_hash" \
+            --signed-library-cache "$task_network_dir/root-signed-cache" --signed-library-keyring "$task_network_dir/root-signed-cache/archive-keyring.gpg"
+          echo "OVERTE_GATEWAY_TRUSTED_NETWORK_SETUP=1" >> "$GITHUB_ENV"
+      - name: Test protocol, collision, audio and worker isolation contracts
+        run: npm test
+      - name: Build and test actual Qt Tablet composition and clipboard input
+        if: ${{ !inputs.startup_diagnostics }}
+        run: |
+          python3 tools/build-native-input.py --test --output "$RUNNER_TEMP/overte-native-input" \
+            --qt-libraries /usr/lib/x86_64-linux-gnu \
+            --qt-plugins /usr/lib/x86_64-linux-gnu/qt5/plugins \
+            --qt-qml /usr/lib/x86_64-linux-gnu/qt5/qml
+      - name: Prove production FBX workers with actual native and authored Draco assets
+        if: ${{ !inputs.startup_diagnostics }}
+        run: |
+          for engine in chrome; do
+            OVERTE_FBX_POOL_BROWSER="$engine" \
+            OVERTE_FBX_POOL_EVIDENCE="$RUNNER_TEMP/overte-fbx-pool-$engine.json" \
+              node tests/integration/model-fbx-pool-proof.mjs
+          done
+      - name: Prove embedded FBX decoding, shared GPU upload and actual World cancellation
+        if: ${{ !inputs.startup_diagnostics }}
+        env:
+          OVERTE_EMBEDDED_USE_SWANGLE: ${{ github.event_name == 'workflow_dispatch' && inputs.embedded_default_angle_control && '0' || '1' }}
+          LIBGL_ALWAYS_SOFTWARE: 'true'
+          GALLIUM_DRIVER: llvmpipe
+        run: |
+          npx vite build --config vite.embedded.config.mjs --configLoader native
+          npx vite build --config vite.embedded-world.config.mjs --configLoader native
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
+            bash ../browser-client/lab/run-embedded-journey.sh
+      - name: Prove native-ignored FBX pruning preserves actual production-worker pixels
+        if: ${{ !inputs.startup_diagnostics }}
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 'true'
+          OVERTE_IGNORED_FBX_EVIDENCE: '${{ runner.temp }}/overte-native-ignored-fbx-evidence'
+        run: |
+          npx vite build --config vite.native-ignored-fbx.config.mjs
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
+            bash lab/run-native-ignored-fbx-journey.sh
+      - name: Test Google Chrome user interface and renderer
+        if: ${{ !inputs.startup_diagnostics }}
+        # The null audio sink exercises real Web Audio without requiring host hardware.
+        env:
+          LIBGL_ALWAYS_SOFTWARE: 'true'
+          GALLIUM_DRIVER: llvmpipe
+        run: xvfb-run --auto-servernum --server-args='-screen 0 1280x720x24' npm run test:browser -- --headed
+
+  native-journey:
+    name: ${{ inputs.startup_diagnostics && 'Native startup diagnostics (journeys not-run)' || 'Actual native and browser core journeys' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      OVERTE_LAB_DURATION_SECONDS: '0'
+      OVERTE_LAB_AVATAR_SAMPLE_DIAGNOSTICS: ${{ github.event_name == 'workflow_dispatch' && inputs.avatar_sample_diagnostics && !inputs.startup_diagnostics && '1' || '' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: browser-client/package-lock.json
+      - name: Install signed host dependencies for the native laboratory
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends python3 gcc libc6-dev libssl-dev g++ gpgv binutils rpm2cpio cpio zstd \
+            ffmpeg pulseaudio pulseaudio-utils xvfb xauth bubblewrap slirp4netns iproute2 apparmor-profiles \
+            ca-certificates libstdc++6 libgl-dev libgl1 libglx-mesa0 libegl1 libopengl0 libgl1-mesa-dri \
+            libnss3 libasound2t64 libxcomposite1 libxdamage1 libxrandr2 libxtst6 libxss1 \
+            libxcb-xinerama0 libxcb-cursor0 libxkbcommon-x11-0
+      - name: Preserve existing AppArmor policy and prepare exact shipped namespace profiles
+        run: |
+          python3 browser-client/tools/test_prepare_apparmor_userns.py
+          sudo python3 browser-client/tools/apparmor-diagnostic.py
+          sudo python3 browser-client/tools/prepare-apparmor-userns.py
+          sudo python3 browser-client/tools/apparmor-diagnostic.py
+      - name: Build the reproducible production browser client
+        working-directory: browser-client
+        run: |
+          npm ci
+          npm run build
+          npx playwright install --with-deps chrome
+      - name: Verify host tool and safe evidence contracts
+        run: |
+          python3 browser-client/lab/test_host_tools.py
+          python3 browser-client/lab/test_manage_state.py
+          python3 browser-client/lab/test_curate_core_journey.py
+      - name: Prepare pinned native artifacts and require real isolation/audio preflight
+        run: |
+          python3 browser-client/lab/manage.py prepare --host-tools system
+      - name: Qualify reviewed entrypoint with exact prepared native packages
+        run: |
+          task_network_dir="$(mktemp -d "${RUNNER_TEMP}/overte-native-network.XXXXXX")"
+          chmod 700 "$task_network_dir"
+          python3 browser-client/tools/trusted-network/workflow/prepare_signed_library.py --output "$task_network_dir/signed-cache"
+          python3 browser-client/tools/trusted-network/workflow/policy.py --output "$task_network_dir/policy.json" \
+            --native-root "$(realpath build/browser-lab/appimage/squashfs-root)" \
+            --qt-root "$(realpath build/browser-lab/qt-tablet/usr/lib/x86_64-linux-gnu)" \
+            --input-root "$(realpath build/browser-lab/native-input/qml)"
+          python3 browser-client/tools/trusted-network/workflow/build.py --policy "$task_network_dir/policy.json" --stage "$task_network_dir/stage" \
+            --signed-library-cache "$task_network_dir/signed-cache" --signed-library-keyring "$task_network_dir/signed-cache/archive-keyring.gpg"
+          task_network_hash="$(sha256sum "$task_network_dir/stage/manifest.json" | cut -d ' ' -f1)"
+          sudo python3 browser-client/tools/trusted-network/workflow/prepare_signed_library.py \
+            --source-cache "$task_network_dir/signed-cache" --keyring "$task_network_dir/signed-cache/archive-keyring.gpg" --output "$task_network_dir/root-signed-cache"
+          sudo python3 browser-client/tools/trusted-network/workflow/install.py --bundle "$task_network_dir/stage" --manifest-sha256 "$task_network_hash" \
+            --signed-library-cache "$task_network_dir/root-signed-cache" --signed-library-keyring "$task_network_dir/root-signed-cache/archive-keyring.gpg"
+          echo "OVERTE_GATEWAY_TRUSTED_NETWORK_SETUP=1" >> "$GITHUB_ENV"
+      - name: Require unchanged actual isolation and audio preflight
+        env:
+          OVERTE_GATEWAY_TRUSTED_NETWORK_SETUP: '1'
+        run: python3 browser-client/lab/manage.py preflight
+      - name: Start actual domain, assignment servers, independent native and gateway
+        id: start
+        run: python3 browser-client/lab/manage.py start --gateway
+      - name: Actual Google Chrome world, native movement, interaction, voice and reconnect
+        if: ${{ !cancelled() && !inputs.startup_diagnostics && steps.start.outcome == 'success' }}
+        env:
+          OVERTE_LAB_BROWSER: chrome
+          LIBGL_ALWAYS_SOFTWARE: 'true'
+          GALLIUM_DRIVER: llvmpipe
+        run: |
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
+            bash browser-client/lab/run-core-journey.sh \
+            > build/browser-lab/logs/core-chrome.log 2>&1
+      - name: Stop only recorded owned laboratory process groups
+        if: always()
+        run: python3 browser-client/lab/manage.py stop
+      - name: Curate aggregate evidence without profiles, credentials, logs or audio
+        if: always()
+        run: |
+          python3 browser-client/lab/curate-core-journey.py \
+            --input build/browser-lab/evidence --output "$RUNNER_TEMP/overte-native-core-evidence" \
+            --commit-sha "$GITHUB_SHA" --browser chrome
+      - name: Collect bounded opt-in native avatar diagnostics
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.avatar_sample_diagnostics && !inputs.startup_diagnostics }}
+        run: |
+          node browser-client/tools/curate-avatar-samples.mjs \
+            --output "$RUNNER_TEMP/overte-native-core-evidence" --commit-sha "$GITHUB_SHA"
+      - name: Preserve only curated native core evidence
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: native-core-journey-evidence
+          path: ${{ runner.temp }}/overte-native-core-evidence/*.json
+          if-no-files-found: error
+          retention-days: 7

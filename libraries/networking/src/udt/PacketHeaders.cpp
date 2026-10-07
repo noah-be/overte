@@ -1,3 +1,4 @@
+// Modified in 2026 for the optional direct browser transport.
 //
 //  PacketHeaders.cpp
 //  libraries/networking/src

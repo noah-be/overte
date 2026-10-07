@@ -1,0 +1,92 @@
+name: Direct browser client
+
+on:
+  pull_request:
+    paths:
+      - 'browser-direct-client/**'
+      - 'libraries/networking/**'
+      - 'libraries/shared/src/shared/WebRTC.h'
+      - 'assignment-client/**'
+      - 'domain-server/**'
+      - 'cmake/macros/TargetDataChannel.cmake'
+      - 'tests/browser-direct-transport/**'
+      - '.github/workflows/browser-direct-client.yml'
+      - '.github/native-tests.json'
+      - 'tools/native-tests/select.py'
+  push:
+    branches: ['main']
+    paths:
+      - 'browser-direct-client/**'
+      - 'libraries/networking/**'
+      - 'libraries/shared/src/shared/WebRTC.h'
+      - 'assignment-client/**'
+      - 'domain-server/**'
+      - 'cmake/macros/TargetDataChannel.cmake'
+      - 'tests/browser-direct-transport/**'
+      - '.github/workflows/browser-direct-client.yml'
+      - '.github/native-tests.json'
+      - 'tools/native-tests/select.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: '24'
+      - name: Install production protocol-check prerequisites
+        run: sudo apt-get update && sudo apt-get install -y qt6-base-dev qt6-base-dev-tools libglm-dev python3-xlib python3-pil
+      - name: Check native packet table and signature
+        run: python3 browser-direct-client/tools/generate-protocol.py --check
+      - name: Verify source provenance, browser behavior, types, and production build
+        working-directory: browser-direct-client
+        run: |
+          npm ci
+          npm run verify:reuse
+          npm run verify:sdk
+          npm test
+          python3 e2e/run-control.test.py
+          python3 e2e/native-host-actions.test.py
+          python3 e2e/native-visitor-qualification.test.py
+          python3 e2e/native-build-evidence.test.py
+          python3 e2e/chrome-permission-ui.test.py
+          python3 e2e/https-fixtures.test.py
+          npm run build
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: direct-browser-production
+          path: browser-direct-client/dist
+          if-no-files-found: error
+          retention-days: 7
+
+  native:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    container:
+      image: ghcr.io/noah-be/overte/native-dependencies@sha256:a692b477cd2efdfc1f3d0f059a8eebba4852d37509a2efa945937ef2fe073373
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build actual server components and run bounded native transport tests
+        run: python3 browser-direct-client/tools/ci-native.py
+      - name: Retain exact native test evidence
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: direct-browser-native-results
+          path: build/browser-direct-ci/native-results.xml
+          if-no-files-found: error
+          retention-days: 7

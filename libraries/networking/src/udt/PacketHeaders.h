@@ -1,3 +1,4 @@
+// Modified in 2026 for the optional direct browser transport.
 //
 //  PacketHeaders.h
 //  libraries/networking/src
@@ -132,9 +133,9 @@ public:
         ReplicatedKillAvatar,
         ReplicatedBulkAvatarData,
         DomainContentReplacementFromUrl,
-        DropOnNextProtocolChange_1,
+        BrowserEntityQuery,             // Former unused slot 91; version and signature are unchanged.
         EntityScriptCallMethod,
-        DropOnNextProtocolChange_2,
+        BrowserEntityData,              // Former unused slot 93; version and signature are unchanged.
         DropOnNextProtocolChange_3,
         OctreeDataFileRequest,
         OctreeDataFileReply,

@@ -1,0 +1,400 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-03T22:27:15.086180+00:00",
+  "scope": "Complete local current-source product, standard production build and required repository gates; new hosted Native/GPU acceptance remains pending. Material AI assistance: OpenAI Codex implementation/investigation/review.",
+  "branch": "feature/main/browser-client",
+  "sourceParentSHA": "92e4c29f76fdea2921898df1bbf8e352e6797f1a",
+  "reviewedForkMainSHA": "db0ba6e05c507e943b05abd5fdd9ae976b18b9e8",
+  "previousPublishedSHA": "6746424ca05185efeebd16fcd1d838c67b3af4e9",
+  "sourceInventory": {
+    "files": 9803,
+    "sha256": "cd1cb997603e14dad894213231be5abad9f24ba9dfb230694c9491cf1afc572a"
+  },
+  "checks": [
+    {
+      "label": "product-unit-suite",
+      "command": [
+        "npm",
+        "test"
+      ],
+      "exitCode": 0,
+      "seconds": 29.893,
+      "logSHA256": "dd6f999fc84bc95634564c20462bc3d61738feede31826c363e3b007707a35e4",
+      "counts": {
+        "tests": 2732,
+        "pass": 2732,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "sourceCoherent": true,
+      "cwd": "browser-client"
+    },
+    {
+      "label": "production-build",
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "exitCode": 0,
+      "seconds": 5.387,
+      "logSHA256": "e7667efc8a7ff6b4600e982c17802bab755c428e1a201eaf62fcf6429e1ff562",
+      "counts": {},
+      "sourceCoherent": true,
+      "cwd": "browser-client"
+    },
+    {
+      "label": "repository-quick",
+      "command": [
+        "python3",
+        "tests/run-project-tests.py",
+        "--profile",
+        "quick",
+        "--timeout",
+        "240"
+      ],
+      "exitCode": 0,
+      "seconds": 155.607,
+      "logSHA256": "d0aa88201f273eba5a59b1620bd974380120121e8bb6730c2b6731f057fbc7ef",
+      "counts": {},
+      "sourceCoherent": true,
+      "cwd": "."
+    }
+  ],
+  "repositoryQuick": {
+    "passed": 34,
+    "failed": 0,
+    "suiteSeconds": 154.03
+  },
+  "production": {
+    "files": 34,
+    "receiptSHA256": "0e0d77c65e34d7da1f3d973d8859049338bed6c3aa65b71a4f42d5a344c9cfad",
+    "byteIdenticalToPreviousPublishedAnd129ChromeBuild": true,
+    "distribution": {
+      "dist/THIRD_PARTY_NOTICES.txt": {
+        "bytes": 20987,
+        "sha256": "5f3c7f3e6c5ff655fff812bad4c01699cd99cff693b215528c226c214e1b579a"
+      },
+      "dist/assets/FBXLoader-CHIjagQw.js": {
+        "bytes": 49918,
+        "sha256": "dc6cde2b4e5e34c2db14b4ee50c5ab6e1506c8178d57b710948e96fb7fb59e31"
+      },
+      "dist/assets/FBXLoader-CHIjagQw.js.map": {
+        "bytes": 313206,
+        "sha256": "6d84e8a14269211f596cb669642fcb63cf6d8b9497ade028856e6c955ce0b6ac"
+      },
+      "dist/assets/GLTFLoader-C26kItyf.js": {
+        "bytes": 43877,
+        "sha256": "094c99e355bbfe09606b36ff62334caa22f21dba972c65bcae4586a986702c45"
+      },
+      "dist/assets/GLTFLoader-C26kItyf.js.map": {
+        "bytes": 190241,
+        "sha256": "2071d742e38aa520fd371feea594757e14c402be2ed5dc616768637cc2a23683"
+      },
+      "dist/assets/OBJLoader-BN0MSaxv.js": {
+        "bytes": 8638,
+        "sha256": "f84a051dda4f50e9a566d7e12e9a7f75fc14ae224ecec3a6402a1dee417b81ff"
+      },
+      "dist/assets/OBJLoader-BN0MSaxv.js.map": {
+        "bytes": 39306,
+        "sha256": "086b0e39974078b56039780783f2c09d973320bc857a25190d78e9833fb9a694"
+      },
+      "dist/assets/baked-draco-CTQGIgxv.js": {
+        "bytes": 125046,
+        "sha256": "c5f667faeb4a88fb9b1ee2b0919afdff21aa56bf1df5cadfe12fe392ed57ebfd"
+      },
+      "dist/assets/baked-draco-CTQGIgxv.js.map": {
+        "bytes": 1796272,
+        "sha256": "3b3c70a54b1db84c4aaa032fdb5f338a21af1a59ca18613d261766a286aa9f46"
+      },
+      "dist/assets/baked-draco-legacy-CMhlgON6.js": {
+        "bytes": 816324,
+        "sha256": "eb84ebc5eff49c7b0593382b07b23010897080f46b779ececdd515efcfb482d4"
+      },
+      "dist/assets/baked-draco-legacy-CMhlgON6.js.map": {
+        "bytes": 12654,
+        "sha256": "463d7b6f8dd5f569f2c0f68934aba0d1fba6c59745cf939732702f0e905afddb"
+      },
+      "dist/assets/draco_decoder-C32yEggz.wasm": {
+        "bytes": 285747,
+        "sha256": "c55a594e8ffd18426d36b27fea9618af3df5e173640a3e56d46f09d76f0574f2"
+      },
+      "dist/assets/draco_decoder-Z1_iN-Ht.wasm": {
+        "bytes": 192420,
+        "sha256": "a680d927bed9cb864ddbd63521868891af2bfbe755092761b4837487618df8ac"
+      },
+      "dist/assets/draco_decoder-fzg4nYZr.js": {
+        "bytes": 719410,
+        "sha256": "30e4d486fa020737af10e3c56197693e5b904bdc05b8bfa5d7b06751dec6da04"
+      },
+      "dist/assets/draco_wasm_wrapper-DxJM36Ib.js": {
+        "bytes": 58763,
+        "sha256": "e8049906ef3f8f75d3456c22a3f31bfdfe5b5b5bd09ccdec613b9e9a49d554d8"
+      },
+      "dist/assets/draco_wasm_wrapper-fZCQGLGb.js": {
+        "bytes": 58456,
+        "sha256": "8bb2952d2ba7d67e1414f8df819410cb0434a666be53f671fff75f68843d76f6"
+      },
+      "dist/assets/index-B2mAMfm4.css": {
+        "bytes": 5451,
+        "sha256": "cbf321b921d05ff91c3020a6ccffc91385eeebf223ea6ec0577c6354df12a521"
+      },
+      "dist/assets/index-sCq7H87y.js": {
+        "bytes": 1071318,
+        "sha256": "95ac201af2f1f2572d4feeffd6c776927d46e45d29392052ba32b48e61407692"
+      },
+      "dist/assets/index-sCq7H87y.js.map": {
+        "bytes": 4560382,
+        "sha256": "b22f5de03c509e9bf343e42ad84483be3e24b6f8f81a4f4af8f206cf1984ef47"
+      },
+      "dist/assets/model-fbx-worker-BovrE8QR.js": {
+        "bytes": 828322,
+        "sha256": "ceb605678670c961bcfd13de192d2b9339363e242d526353e07bd8daf476fea9"
+      },
+      "dist/assets/model-fbx-worker-BovrE8QR.js.map": {
+        "bytes": 2558568,
+        "sha256": "ce1622036eda648b095c989dac04a6a4e4755d117836729b6857fb6625de67ce"
+      },
+      "dist/assets/tablet-gif.worker-DACjp6Cn.js": {
+        "bytes": 10409,
+        "sha256": "78ebb1c3db4d062dd4119c2cd86d201b7df2757fedf22a8993dd460fbb1057c8"
+      },
+      "dist/assets/tablet-gif.worker-DACjp6Cn.js.map": {
+        "bytes": 46076,
+        "sha256": "aaf983d36eb885c3b74db4bd97b83fef26bc21ae2203a77781389781141ddf8a"
+      },
+      "dist/assets/texture-alpha-worker-CBG2kYQR.js": {
+        "bytes": 2417,
+        "sha256": "f04f415ff39370ae4ab0268903ffaf6c86b9a7addeb0aed95d4a7948ee803485"
+      },
+      "dist/assets/texture-alpha-worker-CBG2kYQR.js.map": {
+        "bytes": 7635,
+        "sha256": "f48e806d67a554aba1960a23ab434a093c5ac7f00540615cf23ed1fff0586aeb"
+      },
+      "dist/default-avatar/LICENSE.txt": {
+        "bytes": 11201,
+        "sha256": "5ad0325b8da49619962642b1fbb20e35836343d6d568aa158e6723d5f5c38092"
+      },
+      "dist/default-avatar/defaultAvatar_full.fst": {
+        "bytes": 2544,
+        "sha256": "0519e02f2f3d6afe19f680dd824a29f14a3baa65acb06b87ace33b1836717c50"
+      },
+      "dist/default-avatar/manifest.json": {
+        "bytes": 1152,
+        "sha256": "b04f293cc0b79edf32c1c243f17f394e952ac5886b64913534a80a5a685de9d4"
+      },
+      "dist/default-avatar/mannequin/Eyes.png": {
+        "bytes": 22414,
+        "sha256": "e8be0da314bfa0e3ad7e0f9d2315dddc38f39510dd421c9edbafc5406086700d"
+      },
+      "dist/default-avatar/mannequin/lambert1_Base_Color.png": {
+        "bytes": 1229369,
+        "sha256": "70b544b69ea325ee03f726694d9392ea8a12ddc66d47559382d142da12b9bdc6"
+      },
+      "dist/default-avatar/mannequin/lambert1_Normal_OpenGL.png": {
+        "bytes": 1177174,
+        "sha256": "ead05dbdca83bc70c7546a3bd88ab2d58ccea85fed8f9f19b845cbfcd7b1fc05"
+      },
+      "dist/default-avatar/mannequin/lambert1_Roughness.png": {
+        "bytes": 522873,
+        "sha256": "2f3c696977e1a8bf888b107f4935c0b3e0dca1bee2540cec8f780228468771a8"
+      },
+      "dist/default-avatar/mannequin/mannequin.fbx": {
+        "bytes": 3655100,
+        "sha256": "e247f3342ff109e17f7ae90916f81935d17ff4f51f60c60908094bb4f38db7da"
+      },
+      "dist/index.html": {
+        "bytes": 2916,
+        "sha256": "c39551fbe0edebf52bc36482f2c2b234ef2adda179eb5e4e7a5cfe40570fa863"
+      }
+    }
+  },
+  "changedTestedBrowserSource": {
+    "browser-client/gateway/native-avatar-passive-integration.test.mjs": {
+      "bytes": 4432,
+      "sha256": "898932e035450eb58181603ed90496f078c4f2d3536ab94ef4160a73347d3b02"
+    },
+    "browser-client/gateway/native-avatar-rate-discriminator.test.mjs": {
+      "bytes": 8622,
+      "sha256": "d65c9c63e337e80b6bda2cb4d46d8d24ef1f9a65d486c2adbe14d13ff63dbd25"
+    },
+    "browser-client/gateway/native-avatar-sample-diagnostics.js": {
+      "bytes": 7924,
+      "sha256": "1c386213ac2ddb89ae313db55a6df4df2ecd0a38a1d6be93ef545384bc4299fd"
+    },
+    "browser-client/gateway/native-avatar-stdout-projection.mjs": {
+      "bytes": 4398,
+      "sha256": "e2d1a517165c17543cbc03df8bf1241861e974a690b32fba74ecfabe1edc309e"
+    },
+    "browser-client/gateway/native-avatar-stdout-projection.test.mjs": {
+      "bytes": 10132,
+      "sha256": "9a7957eef31cbeb58937901c08db68b497e9d4a79c369973ff15cfe50577a3ab"
+    },
+    "browser-client/lab/native-participant.js": {
+      "bytes": 7670,
+      "sha256": "735a5ee9b4327963ea7fb2ebec5e2159c1196aa99d8b6e7fd996809f521b7ede"
+    },
+    "browser-client/tests/embedded-world-context-diagnostics.test.mjs": {
+      "bytes": 7139,
+      "sha256": "3cb7e75195522e940dcba4afe835f55b0eb645fae15bdc6343504a306515724a"
+    },
+    "browser-client/tests/embedded-world-diagnostics.test.mjs": {
+      "bytes": 6351,
+      "sha256": "1062dad9f5da9d0735cebafc2753be65ed2a337148095364273e0877b2d111a3"
+    },
+    "browser-client/tests/fixtures/capture-context-diagnostic-v19-complete-source-manifest.json": {
+      "bytes": 146579,
+      "sha256": "71ec9ab7653018e8ec3c3443887dfb9ba422370b92c5d3da4644d1298672f5c1"
+    },
+    "browser-client/tests/fixtures/capture-context-type-v21-complete-source-manifest.json": {
+      "bytes": 170194,
+      "sha256": "c36030749adcea7cd48789ba2d7a5f0c3aeb69683a2b20c147f3b99dfeee3b17"
+    },
+    "browser-client/tests/fixtures/capture-native-author-v20-complete-source-manifest.json": {
+      "bytes": 158784,
+      "sha256": "7dc96c6a3398480454c0d8658e96a1efc6104732b0bd10c7d75325456e212ff1"
+    },
+    "browser-client/tests/fixtures/capture-v18-embedded-context-before.json.gz": {
+      "bytes": 56886,
+      "sha256": "c45428db32d968bb938ae041b545d8c28df67344630a2e076e97ea61878cc47a"
+    },
+    "browser-client/tests/fixtures/capture-v19-native-author-before.json.gz": {
+      "bytes": 47530,
+      "sha256": "89a0fbf8dc642b3fd15bd02a5b371a00299d097d856c01aa22abee88a56ea8a1"
+    },
+    "browser-client/tests/fixtures/capture-v20-context-type-before.json.gz": {
+      "bytes": 48440,
+      "sha256": "fbcab7588e2fc92899595c1f3ac8d8409b45bcbd2b8a6414c14ca4b9d89541c8"
+    },
+    "browser-client/tests/fixtures/embedded-world.ts": {
+      "bytes": 8592,
+      "sha256": "7f14c6b4ea8c66db331f4cae71534d84a4be469efb6b0c47904c97344972d5ed"
+    },
+    "browser-client/tests/integration/capture-embedded-context-source-fixture.mjs": {
+      "bytes": 5643,
+      "sha256": "4278e23ba7b7291971c48e11e3857f44b71f57dc7476565588cf82b9df4488de"
+    },
+    "browser-client/tests/integration/capture-embedded-context-type-source-fixture.mjs": {
+      "bytes": 3922,
+      "sha256": "729c238b760c60419e26f523323a60be3c294adc7909dd4434aa11fdb1494af8"
+    },
+    "browser-client/tests/integration/capture-embedded-diagnostic-source-fixture.mjs": {
+      "bytes": 4140,
+      "sha256": "7d18e1eab7c0bf6955787ba9f2605378f5cd8a62f5a4f73271344e04ff7a7c7b"
+    },
+    "browser-client/tests/integration/capture-native-author-source-fixture.mjs": {
+      "bytes": 3630,
+      "sha256": "4fe518c7f63a5e5eb5072e621c2ef20111eecbc04cad3ae5027a88700c902852"
+    },
+    "browser-client/tests/integration/embedded-world.mjs": {
+      "bytes": 7420,
+      "sha256": "9b9ab5c430a62b174a33ab487e713c4b3f243467939212c8749842d4b1447059"
+    },
+    "browser-client/tests/integration/prepare-tablet-capture-acceptance.mjs": {
+      "bytes": 4597,
+      "sha256": "0d0fa0e646412708fc29999c022f49e73372a43728f90963a82e67114f4ed4d9"
+    },
+    "browser-client/tests/integration/tablet-ptt-native-peer.mjs": {
+      "bytes": 14021,
+      "sha256": "e01522fb0b4f6d95514351923bf2b0a920bdb02796e5241889ec50d4cbbb8c9a"
+    },
+    "browser-client/tests/native-avatar-curation.test.mjs": {
+      "bytes": 14223,
+      "sha256": "b44d3b48e009db72684da636628f28e66e1559ff79fd2a28f8ef272ca0b5c192"
+    },
+    "browser-client/tests/tablet-capture-context-diagnostic-manifest.test.mjs": {
+      "bytes": 10773,
+      "sha256": "c6ed3a734ee1ddf51d28de4fb284ee58793700628ac89ddfffd3d6d61419554a"
+    },
+    "browser-client/tests/tablet-capture-context-type-manifest.test.mjs": {
+      "bytes": 9357,
+      "sha256": "680d1463844363b7d72ff0ea35f9ef5473b82855bc546ece006650151572dfa1"
+    },
+    "browser-client/tests/tablet-capture-embedded-diagnostic-manifest.test.mjs": {
+      "bytes": 10840,
+      "sha256": "334fb53aed5ff3e4d49330b5dfb1b37e78e1ff85100f48656b81f43cef8c64b0"
+    },
+    "browser-client/tests/tablet-capture-native-author-manifest.test.mjs": {
+      "bytes": 9380,
+      "sha256": "3d26389f565ad64459e6bd1c9823aa159206832029df399bf4e269ee8b9a505f"
+    },
+    "browser-client/tests/tablet-ptt-author-registration.test.mjs": {
+      "bytes": 6424,
+      "sha256": "a26aedd05e0038551d773a117a6222bd434273820bb38e35ccca1946f4f27515"
+    }
+  },
+  "focusedSourceReview": {
+    "controls": 308,
+    "failed": 0,
+    "skipped": 0,
+    "independentRepeat": true,
+    "manifestSHA256": "d9fd64d3d7d29a63002ff9838e1a21703142180015cdf7c5122be7d74bc21f53",
+    "ownerReviewReceiptSHA256": "42a7a49a4f7bb0a10939d1e1b62aced2096adf5fa56b5acf69cf44c8ea02dade",
+    "independentReviewManifestSHA256": "539f934e543e19932b11a8b966f24c6abc3cbc7e794163c07a20d38b2010a124",
+    "currentManifestRows": 190,
+    "fixtureTypeCorrectionEmittedJSIdenticalSHA256": "7f05086f316c7bfc17d9931cb19a2760727c5a973724a1e92ce43623cfd5d82d"
+  },
+  "retainedLocalNegatives": [
+    {
+      "scope": "V19 complete product",
+      "tests": 2709,
+      "passed": 2706,
+      "failed": 3,
+      "skipped": 0,
+      "logSHA256": "101724cbfb2f60746474033db9b544074a5047705f0e4ab8e9f584535c7cc71a",
+      "failures": [
+        "passive factory VM omitted MyAvatar",
+        "exact current native-audio author admission refused changed source",
+        "exact current native-audio author admission refused changed diagnostics"
+      ]
+    },
+    {
+      "scope": "V20 complete product then standard build",
+      "productTests": 2723,
+      "productPassed": 2723,
+      "productFailed": 0,
+      "skipped": 0,
+      "productLogSHA256": "1209fb498042017a7fef447e5da2cefdae39c7c5daaf4531a73c9ec2b230e7b2",
+      "buildExitCode": 1,
+      "buildLogSHA256": "7f7ab9ea4d04f65c82c7c92b83a3ec7073a14a9e6cc2781fd50fc132492c9ae9",
+      "buildFailure": "TS2345 new diagnostic WebGL2-only parameter versus renderer WebGL1/2 union",
+      "repositoryQuick": "not-run after build failure"
+    }
+  ],
+  "unchangedRuntime": {
+    "managedServiceRegistrySHA256": "1e4c4a39b8d9035d8673b87aeece42dc2375466f0aacb6901bc0a063ef65abf7",
+    "stableOwnedBirths": 9,
+    "servicesRestarted": false,
+    "productionRendererAndNativeLaunchChanged": false
+  },
+  "hostedPrevious674": {
+    "normalBrowserRun": 37152499835,
+    "productTests": 2679,
+    "actualChromeUICases": 129,
+    "browserJob": "success",
+    "nativeCoreJob": "failure",
+    "manualDiagnosticRun": 37152626982,
+    "manualEmbeddedGPU": "failure",
+    "manualNativeCore": "failure",
+    "requiredRepositoryRun": 37152966025,
+    "requiredRepository": "success",
+    "codeQLRun": 37152499836,
+    "codeQL": "success",
+    "newSourceResults": "pending"
+  },
+  "limitations": [
+    "No new native/GPU/Hub/physical-microphone acceptance is inferred.",
+    "Original movement/pixel assertions and deadlines are unchanged.",
+    "The old same-source positive and negative GPU outcomes remain distinct.",
+    "Simulation rate zero also permits absent lookup, rate-window, mute and scheduling alternatives.",
+    "Thirty-minute/endurance testing was cancelled by the user."
+  ],
+  "postRunDocumentationDelta": [
+    "docs/browser-client/STATUS.md",
+    "docs/browser-client/PLAN.md",
+    "docs/browser-client/README.md",
+    "docs/browser-client/evidence/context-avatar-diagnostics-source-checks-20261004.json"
+  ]
+}

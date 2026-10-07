@@ -1,0 +1,38 @@
+{
+  "date": "2026-10-01",
+  "materialAssistance": "OpenAI Codex",
+  "scope": "Actual BrowserWorld Image material and effect framebuffer/ownership tests in bundled Chromium and Firefox. Not stock-native cross-renderer lighting parity or a performance improvement.",
+  "command": "npx playwright test tests/native-image-material.browser.spec.ts tests/native-image-effects.browser.spec.ts --workers=1 --output=../build/current-native-image-disposal-browser-results",
+  "testsPassed": 12,
+  "testsFailed": 0,
+  "elapsedSeconds": 21.3,
+  "logSHA256": "7edb77c1f7134b5176c322f9534b22c346202d17c669361e672333f927eb0223",
+  "sourceSHA256": {
+    "browser-client/src/world.ts": "3504f471ac26a590ed8ded270d12011d52a4a4f9e8d7c888c3f9379b402342cb",
+    "browser-client/src/native-image-material.ts": "53b2f6c9785611b3be7e50441feb317a854753dd9422f1152e88c19ca5818784",
+    "browser-client/src/native-image-effects.ts": "71146573d8ea9ee836119302b09c4af48a0c9e987ee5196fd32b59fceeab8d97",
+    "browser-client/src/native-compressed-color.ts": "312e6beac3a95b16f0ad3675d9789270eec69a6cdf808b66ce23da007c22aa56",
+    "browser-client/shared/native-ktx.mjs": "586f3dc1abe490d324c1737a1a1835f211ff2bba00fb61a5cfa243cd0e66aa0f",
+    "browser-client/tests/native-image-material.browser.spec.ts": "d1fb6778b59a6a9ca7385e4b0780fd3d77bf1377ea0a03d4076f6e08416f44ca",
+    "browser-client/tests/native-image-effects.browser.spec.ts": "30939862770b6e0523316c7ace6bdd78cc97290970ef9f51040ecef4f9436414",
+    "browser-client/tests/world-disposal.test.ts": "27e3fea61102057be4124a4479d79a84dc868bf7428e6c5856bc13e843ea5f4f"
+  },
+  "covered": [
+    "Emissive and default lit material response to a genuine local Three.js Light",
+    "Authored tint and blended alpha without model mask cutoff",
+    "Native aspect/crop/sampler owned UV and source-clone independence",
+    "Native pulse fixture clock and ownership release",
+    "Approved KTX v2 original dimensions and orientation",
+    "Actual real-bitmap cancellation after Image removal and complete World disposal"
+  ],
+  "retainedNegativeEvidence": {
+    "initialTestsPassed": 10,
+    "initialTestsFailed": 2,
+    "cause": "World disposal retained graph references and did not abort individual readers; corrected production disposal without changing the assertions.",
+    "logSHA256": "6af3a0978442e869ab3edbc1cc95689d45891c7aac04aba36d64ed18418622d1"
+  },
+  "limitations": [
+    "Borrowed global Three.js DFG texture remains owned by Three.js. The tests allow its existing one-context allocation; zero total GPU residency is not claimed.",
+    "Visitor/native pulse clock synchronization and complete native lighting/environment parity remain unproven."
+  ]
+}

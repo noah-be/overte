@@ -1,0 +1,857 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-03",
+  "scope": "Actual current V9 Google Chrome online overte_hub with CPU/render timing only",
+  "completed": false,
+  "cleanupPassed": true,
+  "qualificationSHA256": "f5c459b64bdba1a8c9c07e251d20ab0c704de87d55485a51b5caaee7ef206a16",
+  "originalReportSHA256": "0c1f13245cbad3bfbb2288676e06e49c6d95d7ae6ba31d1a8b6ca55cc2c9cf44",
+  "nativeClosureSHA256": "3b0b9a536a5dc12763daba862285945b6867366f329571a3ba2274d5576e0a0f",
+  "preparationSHA256": "4f6f15fbb2cdb44daa61f561abc41f043d49f9b3e850664efe25ef0b7bcb60ed",
+  "productionReceiptSHA256": "20cedb53d46a8b8b123b82bb385b6b380458c08cdaaa98256d506e97f0fc0212",
+  "browserVersion": "154.0.8037.97",
+  "webGL": {
+    "vendor": "Google Inc. (NVIDIA Corporation)",
+    "renderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce GTX 1080 Ti/PCIe/SSE2, OpenGL ES 3.2)"
+  },
+  "startedAt": "2026-10-03T07:28:53.574Z",
+  "finishedAt": "2026-10-03T07:31:07.543Z",
+  "entityCount": 516,
+  "movementMeters": 4.2042285566421445,
+  "nativePoseDifferenceMeters": 0.001809253388968984,
+  "reconnectedMovementMeters": 2.81528171119224,
+  "reconnectedNativeDifferenceMeters": 0.0006215255230734653,
+  "worldInteractionsSent": 0,
+  "microphoneRequested": false,
+  "pageErrorCount": 0,
+  "stages": [
+    {
+      "stage": "initial-steady",
+      "gate": {
+        "passed": true,
+        "validMeasurements": true,
+        "minimumFPS": 30,
+        "maximumP95FrameMs": 66.66666666666667,
+        "maximumStallMs": 250
+      },
+      "measurements": {
+        "fps": 31.726307718746295,
+        "p95FrameMs": 66.19999999999709,
+        "maximumFrameMs": 166.70000000000437,
+        "loadedModels": 295,
+        "queuedModels": 0,
+        "loadingModels": 0,
+        "compilingGraphics": 0,
+        "drawCalls": 676,
+        "triangles": 556725
+      }
+    },
+    {
+      "stage": "initial-walk",
+      "gate": {
+        "passed": false,
+        "validMeasurements": true,
+        "minimumFPS": 30,
+        "maximumP95FrameMs": 66.66666666666667,
+        "maximumStallMs": 250
+      },
+      "measurements": {
+        "fps": 29.030033989331454,
+        "p95FrameMs": 67.29999999999563,
+        "maximumFrameMs": 166.70000000000437,
+        "loadedModels": 295,
+        "queuedModels": 0,
+        "loadingModels": 0,
+        "compilingGraphics": 0,
+        "drawCalls": 638,
+        "triangles": 513756
+      }
+    },
+    {
+      "stage": "rejoin-steady",
+      "gate": {
+        "passed": false,
+        "validMeasurements": true,
+        "minimumFPS": 30,
+        "maximumP95FrameMs": 66.66666666666667,
+        "maximumStallMs": 250
+      },
+      "measurements": {
+        "fps": 29.626703535453277,
+        "p95FrameMs": 83.19999999999709,
+        "maximumFrameMs": 133.3000000000029,
+        "loadedModels": 295,
+        "queuedModels": 0,
+        "loadingModels": 0,
+        "compilingGraphics": 0,
+        "drawCalls": 677,
+        "triangles": 556821
+      }
+    },
+    {
+      "stage": "rejoin-walk",
+      "gate": {
+        "passed": false,
+        "validMeasurements": true,
+        "minimumFPS": 30,
+        "maximumP95FrameMs": 66.66666666666667,
+        "maximumStallMs": 250
+      },
+      "measurements": {
+        "fps": 30.89717677047261,
+        "p95FrameMs": 66.80000000000291,
+        "maximumFrameMs": 133.3000000000029,
+        "loadedModels": 295,
+        "queuedModels": 0,
+        "loadingModels": 0,
+        "compilingGraphics": 0,
+        "drawCalls": 654,
+        "triangles": 534002
+      }
+    }
+  ],
+  "cpuObservations": [
+    {
+      "stage": "after",
+      "scope": "Cumulative sampled modelJobsIdle population at publication; not exact walking-only attribution",
+      "sampleEveryFrames": 8,
+      "cpuFramePopulation": {
+        "samples": 67,
+        "total": {
+          "count": 67,
+          "totalMs": 1701.800000011921,
+          "maxMs": 81.69999998807907,
+          "histogram": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            3,
+            56,
+            6,
+            2,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "meanMs": 25.400000000177926
+        },
+        "segments": {
+          "setup": {
+            "count": 67,
+            "totalMs": 0.9999999701976776,
+            "maxMs": 0.10000002384185791,
+            "histogram": [
+              67,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "meanMs": 0.014925372689517576
+          },
+          "physicsPose": {
+            "count": 67,
+            "totalMs": 19.099999964237213,
+            "maxMs": 1.899999976158142,
+            "histogram": [
+              45,
+              17,
+              4,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "meanMs": 0.28507462633189873
+          },
+          "avatarCamera": {
+            "count": 67,
+            "totalMs": 2.600000113248825,
+            "maxMs": 0.7999999821186066,
+            "histogram": [
+              65,
+              1,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "meanMs": 0.0388059718395347
+          },
+          "localLights": {
+            "count": 67,
+            "totalMs": 0.5999999642372131,
+            "maxMs": 0.19999998807907104,
+            "histogram": [
+              67,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "meanMs": 0.008955223346824076
+          },
+          "renderSubmission": {
+            "count": 67,
+            "totalMs": 1673.0999999642372,
+            "maxMs": 81.40000000596046,
+            "histogram": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              5,
+              55,
+              5,
+              2,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "meanMs": 24.971641790511004
+          },
+          "diagnostics": {
+            "count": 67,
+            "totalMs": 5.400000035762787,
+            "maxMs": 2.4000000059604645,
+            "histogram": [
+              63,
+              3,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "meanMs": 0.08059701545914608
+          }
+        }
+      },
+      "renderCpuPopulation": {
+        "samples": 67,
+        "phases": {
+          "sceneMatrices": {
+            "count": 67,
+            "totalMs": 227.49999994039536,
+            "maxMs": 9.600000023841858,
+            "histogram": [
+              0,
+              0,
+              0,
+              0,
+              53,
+              13,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "meanMs": 3.39552238717008
+          },
+          "cameraMatrices": {
+            "count": 67,
+            "totalMs": 0.19999998807907104,
+            "maxMs": 0.09999999403953552,
+            "histogram": [
+              67,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "meanMs": 0.002985074448941359
+          },
+          "sceneBeforeHook": {
+            "count": 67,
+            "totalMs": 0.09999999403953552,
+            "maxMs": 0.09999999403953552,
+            "histogram": [
+              67,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "meanMs": 0.0014925372244706794
+          },
+          "drawDispatch": {
+            "count": 67,
+            "totalMs": 1169.999999910593,
+            "maxMs": 76.40000000596046,
+            "histogram": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              47,
+              15,
+              4,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "meanMs": 17.462686565829745
+          },
+          "renderRemainder": {
+            "count": 67,
+            "totalMs": 271.6000000834465,
+            "maxMs": 17.899999976158142,
+            "histogram": [
+              0,
+              0,
+              0,
+              0,
+              48,
+              14,
+              4,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "meanMs": 4.053731344529052
+          },
+          "total": {
+            "count": 67,
+            "totalMs": 1669.3999999165535,
+            "maxMs": 81.2999999821186,
+            "histogram": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              5,
+              55,
+              5,
+              2,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "meanMs": 24.91641790920229
+          }
+        },
+        "drawDispatchCalls": {
+          "samples": 67,
+          "totalCalls": 45161,
+          "maxCalls": 677,
+          "meanCalls": 674.044776119403
+        },
+        "reportedDrawCalls": {
+          "samples": 67,
+          "totalCalls": 45161,
+          "maxCalls": 677,
+          "meanCalls": 674.044776119403
+        },
+        "reportedTriangles": {
+          "samples": 67,
+          "totalTriangles": 37139288,
+          "maxTriangles": 556821,
+          "meanTriangles": 554317.7313432836
+        },
+        "afterSceneHookToFirstDispatch": {
+          "count": 67,
+          "totalMs": 190.4000000357628,
+          "maxMs": 13.5,
+          "histogram": [
+            0,
+            0,
+            0,
+            27,
+            32,
+            5,
+            3,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "meanMs": 2.8417910453098925
+        },
+        "firstDispatchObserved": 67,
+        "clockCalls": 90858
+      },
+      "confirmedGPUCause": false
+    },
+    {
+      "stage": "reconnectedAfterMovement",
+      "scope": "Cumulative sampled modelJobsIdle population at publication; not exact walking-only attribution",
+      "sampleEveryFrames": 8,
+      "cpuFramePopulation": {
+        "samples": 57,
+        "total": {
+          "count": 57,
+          "totalMs": 1615.7999999821186,
+          "maxMs": 75,
+          "histogram": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            3,
+            41,
+            9,
+            4,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "meanMs": 28.347368420738924
+        },
+        "segments": {
+          "setup": {
+            "count": 57,
+            "totalMs": 0.29999998211860657,
+            "maxMs": 0.09999999403953552,
+            "histogram": [
+              57,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "meanMs": 0.005263157581028186
+          },
+          "physicsPose": {
+            "count": 57,
+            "totalMs": 17.80000004172325,
+            "maxMs": 2.5,
+            "histogram": [
+              32,
+              21,
+              2,
+              0,
+              2,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "meanMs": 0.31228070248637285
+          },
+          "avatarCamera": {
+            "count": 57,
+            "totalMs": 0.9000000059604645,
+            "maxMs": 0.10000002384185791,
+            "histogram": [
+              57,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "meanMs": 0.015789473788780078
+          },
+          "localLights": {
+            "count": 57,
+            "totalMs": 0.5999999642372131,
+            "maxMs": 0.19999998807907104,
+            "histogram": [
+              57,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "meanMs": 0.010526315162056371
+          },
+          "renderSubmission": {
+            "count": 57,
+            "totalMs": 1594.1999999582767,
+            "maxMs": 74.69999998807907,
+            "histogram": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              4,
+              41,
+              8,
+              4,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "meanMs": 27.968421051899593
+          },
+          "diagnostics": {
+            "count": 57,
+            "totalMs": 2.0000000298023224,
+            "maxMs": 0.20000001788139343,
+            "histogram": [
+              57,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "meanMs": 0.03508771982109338
+          }
+        }
+      },
+      "renderCpuPopulation": {
+        "samples": 57,
+        "phases": {
+          "sceneMatrices": {
+            "count": 57,
+            "totalMs": 236.4000000357628,
+            "maxMs": 14.5,
+            "histogram": [
+              0,
+              0,
+              0,
+              0,
+              42,
+              11,
+              4,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "meanMs": 4.147368421680049
+          },
+          "cameraMatrices": {
+            "count": 57,
+            "totalMs": 0.19999998807907104,
+            "maxMs": 0.09999999403953552,
+            "histogram": [
+              57,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "meanMs": 0.003508771720685457
+          },
+          "sceneBeforeHook": {
+            "count": 57,
+            "totalMs": 0.09999999403953552,
+            "maxMs": 0.09999999403953552,
+            "histogram": [
+              57,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "meanMs": 0.0017543858603427285
+          },
+          "drawDispatch": {
+            "count": 57,
+            "totalMs": 1137.4999996423721,
+            "maxMs": 63.39999994635582,
+            "histogram": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              30,
+              19,
+              8,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "meanMs": 19.95614034460302
+          },
+          "renderRemainder": {
+            "count": 57,
+            "totalMs": 217.10000029206276,
+            "maxMs": 25.900000005960464,
+            "histogram": [
+              0,
+              0,
+              0,
+              7,
+              38,
+              9,
+              2,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "meanMs": 3.8087719349484694
+          },
+          "total": {
+            "count": 57,
+            "totalMs": 1591.2999999523163,
+            "maxMs": 74.69999998807907,
+            "histogram": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              5,
+              40,
+              8,
+              4,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "meanMs": 27.917543858812568
+          }
+        },
+        "drawDispatchCalls": {
+          "samples": 57,
+          "totalCalls": 38540,
+          "maxCalls": 678,
+          "meanCalls": 676.140350877193
+        },
+        "reportedDrawCalls": {
+          "samples": 57,
+          "totalCalls": 38540,
+          "maxCalls": 678,
+          "meanCalls": 676.140350877193
+        },
+        "reportedTriangles": {
+          "samples": 57,
+          "totalTriangles": 31673782,
+          "maxTriangles": 557493,
+          "meanTriangles": 555680.3859649122
+        },
+        "afterSceneHookToFirstDispatch": {
+          "count": 57,
+          "totalMs": 156.69999998807907,
+          "maxMs": 25.099999994039536,
+          "histogram": [
+            0,
+            0,
+            0,
+            28,
+            25,
+            3,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "meanMs": 2.749122806808405
+        },
+        "firstDispatchObserved": 57,
+        "clockCalls": 77536
+      },
+      "confirmedGPUCause": false
+    }
+  ],
+  "nativeClosure": {
+    "records": 14,
+    "sessionOrdinalsObserved": 2,
+    "events": {
+      "attached": 2,
+      "challenge": 4,
+      "challenge-expired": 0,
+      "message-idle": 0,
+      "pong-accepted": 4,
+      "pong-rejected": 0,
+      "process-exit": 2,
+      "socket-closed": 2
+    },
+    "invalidClockRecords": 0,
+    "censoredRecords": 0,
+    "completeLifetimeCoverageClaim": false,
+    "causeEstablished": false
+  },
+  "ownedSessionAndBrowserProfilesRemaining": 0,
+  "allOwnedProcessTreesRetired": true,
+  "canonical119AndProductionUnchanged": true,
+  "managedNineBirthsUnchanged": true,
+  "gainClaim": false,
+  "perWorkerMappedNativeModuleClaim": false,
+  "diagnosticOverheadPresent": true,
+  "enduranceTestPerformed": false
+}

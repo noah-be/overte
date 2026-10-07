@@ -1,3 +1,4 @@
+// Modified in 2026 for the optional direct browser transport.
 //
 //  WebRTCSocket.cpp
 //  libraries/networking/src/webrtc
@@ -26,6 +27,24 @@ WebRTCSocket::WebRTCSocket(QObject* parent) :
 
     // Route received data channel messages.
     connect(&_dataChannels, &WebRTCDataChannels::dataMessage, this, &WebRTCSocket::onDataChannelReceivedMessage);
+    connect(&_dataChannels, &WebRTCDataChannels::peerClosed, this, [this](const SockAddr& address) {
+        for (auto it = _receivedQueue.begin(); it != _receivedQueue.end();) {
+            if (it->first == address) {
+                _receivedBytes -= it->second.size();
+                it = _receivedQueue.erase(it);
+            } else {
+                ++it;
+            }
+        }
+        emit peerClosed(address);
+    });
+}
+
+WebRTCSocket::~WebRTCSocket() {
+    // Member destruction would otherwise close peers after the receive queue
+    // and error state have already been destroyed, while signals still target us.
+    disconnect(&_dataChannels, nullptr, this, nullptr);
+    _dataChannels.reset();
 }
 
 void WebRTCSocket::setSocketOption(QAbstractSocket::SocketOption option, const QVariant& value) {
@@ -61,9 +80,8 @@ QVariant WebRTCSocket::socketOption(QAbstractSocket::SocketOption option) {
 
 bool WebRTCSocket::bind(const QHostAddress& address, quint16 port, QAbstractSocket::BindMode mode) {
     // WebRTC data channels aren't bound to ports so just treat this as a successful operation.
-    auto wasBound = _isBound;
-    _isBound = true;
-    if (_isBound != wasBound) {
+    auto wasBound = _isBound.exchange(true);
+    if (!wasBound) {
         emit stateChanged(_isBound ? QAbstractSocket::BoundState : QAbstractSocket::UnconnectedState);
     }
     return _isBound;
@@ -75,6 +93,11 @@ QAbstractSocket::SocketState WebRTCSocket::state() const {
 
 void WebRTCSocket::abort() {
     _dataChannels.reset();
+    _receivedQueue.clear();
+    _receivedBytes = 0;
+    if (_isBound.exchange(false)) {
+        emit stateChanged(QAbstractSocket::UnconnectedState);
+    }
 }
 
 
@@ -105,8 +128,13 @@ qint64 WebRTCSocket::pendingDatagramSize() const {
 
 qint64 WebRTCSocket::readDatagram(char* data, qint64 maxSize, QHostAddress* address, quint16* port) {
     clearError();
+    if (maxSize < 0) {
+        setError(QAbstractSocket::SocketError::UnsupportedSocketOperationError, "Invalid datagram buffer size");
+        return -1;
+    }
     if (_receivedQueue.length() > 0) {
         auto datagram = _receivedQueue.dequeue();
+        _receivedBytes -= datagram.second.size();
         auto length = std::min((qint64)datagram.second.length(), maxSize);
 
         if (data) {
@@ -129,26 +157,36 @@ qint64 WebRTCSocket::readDatagram(char* data, qint64 maxSize, QHostAddress* addr
 
 
 QAbstractSocket::SocketError WebRTCSocket::error() const {
+    QMutexLocker lock(&_errorMutex);
     return _lastErrorType;
 }
 
 QString WebRTCSocket::errorString() const {
+    QMutexLocker lock(&_errorMutex);
     return _lastErrorString;
 }
 
 
 void WebRTCSocket::setError(QAbstractSocket::SocketError errorType, QString errorString) {
+    QMutexLocker lock(&_errorMutex);
     _lastErrorType = errorType;
+    _lastErrorString = errorString;
 }
 
 void WebRTCSocket::clearError() {
+    QMutexLocker lock(&_errorMutex);
     _lastErrorType = QAbstractSocket::SocketError();
     _lastErrorString = QString();
 }
 
 
 void WebRTCSocket::onDataChannelReceivedMessage(const SockAddr& source, const QByteArray& message) {
+    if (!_isBound || message.isEmpty() || message.size() > udt::MAX_PACKET_SIZE ||
+        _receivedQueue.size() >= 4096 || _receivedBytes + message.size() > udt::WEBRTC_RECEIVE_BUFFER_SIZE_BYTES) {
+        return;
+    }
     _receivedQueue.enqueue(QPair<SockAddr, QByteArray>(source, message));
+    _receivedBytes += message.size();
     emit readyRead();
 }
 

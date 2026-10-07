@@ -1,0 +1,73 @@
+// Copyright 2026 Overte contributors
+// SPDX-License-Identifier: Apache-2.0
+import {test,expect,type Page} from '@playwright/test';
+test.afterEach(async({page})=>{
+    await page.evaluate(()=>(window as any).__fullscreenTablet?.tablet.dispose());
+    await expect.poll(()=>page.evaluate(()=>document.fullscreenElement===null)).toBe(true);
+});
+async function install(page:Page,path='/'){
+    await page.goto(path);
+    await page.evaluate(async()=>{
+        const path='/src/tablet.ts';const {BrowserTablet}=await import(path);
+        const host=document.createElement('div');host.id='fullscreen-tablet-owner';Object.assign(host.style,{position:'fixed',inset:'0',zIndex:'100'});document.body.append(host);
+        const sent:Record<string,unknown>[]=[],statuses:string[]=[];
+        const tablet=new BrowserTablet(host,{send:(value:Record<string,unknown>)=>sent.push(value),onStatus:(value:string)=>statuses.push(value),onVisibility(){}});
+        function join(){tablet.setConnected(true);tablet.open();tablet.receive({type:'tablet',kind:'state',revision:1,visible:true,loading:false,screen:'Authored fullscreen fixture'});
+            const image=document.createElement('canvas');image.width=480;image.height=706;const ctx=image.getContext('2d')!;ctx.fillStyle='#285064';ctx.fillRect(0,0,480,706);
+            const sequence=Number([...sent].reverse().find(value=>value.action==='open')?.sequence);
+            tablet.receive({type:'tablet',kind:'frame',navigationSequence:sequence,revision:1,sequence:1,width:480,height:706,mime:'image/png',surface:'tablet',data:image.toDataURL().split(',')[1]});}
+        join();(window as any).__fullscreenTablet={tablet,host,sent,statuses,join};
+    });
+    await expect.poll(()=>page.evaluate(()=>(window as any).__fullscreenTablet.sent.some((value:any)=>value.action==='frameAck'&&value.displayed===true))).toBe(true);
+}
+async function proof(page:Page){return page.evaluate(()=>{
+    const p=(window as any).__fullscreenTablet,canvas=p.host.querySelector('canvas') as HTMLCanvasElement,rect=canvas.getBoundingClientRect();
+    return {owner:document.fullscreenElement===p.host,none:document.fullscreenElement===null,pixel:[...canvas.getContext('2d')!.getImageData(40,40,1,1).data],ratio:rect.width/rect.height,
+        warnings:p.statuses,inputs:p.sent.filter((value:any)=>value.action==='input'),width:p.host.getBoundingClientRect().width,height:p.host.getBoundingClientRect().height,innerWidth,innerHeight};
+});}
+test('trusted visible Tablet fullscreen control enters/exits real API, preserves painted canvas/input and survives leave/rejoin',async({page})=>{
+    await install(page);const button=page.getByRole('button',{name:'Fullscreen',exact:true});const before=await proof(page);
+    expect(before.none).toBe(true);await expect(button).toBeEnabled();await button.click();
+    await expect.poll(()=>page.evaluate(()=>document.fullscreenElement?.id)).toBe('fullscreen-tablet-owner');
+    await expect(page.getByRole('button',{name:'Exit fullscreen',exact:true})).toHaveAttribute('aria-pressed','true');
+    const during=await proof(page);expect(during.pixel).toEqual([40,80,100,255]);expect(during.pixel).toEqual(before.pixel);expect(during.ratio).toBeCloseTo(480/706,3);expect(during.width).toBe(during.innerWidth);expect(during.height).toBe(during.innerHeight);
+    expect(during.inputs).toEqual([]); // The browser control sends no native input.
+    const canvas=page.getByLabel('Native tablet apps and dialogs'),bounds=await canvas.boundingBox();expect(bounds).not.toBeNull();
+    await page.mouse.click(bounds!.x+bounds!.width/2,bounds!.y+bounds!.height/2);
+    const press=(await proof(page)).inputs.find((value:any)=>value.event==='press');expect(press).toMatchObject({revision:1,frameSequence:1,button:0});expect(Math.abs(Number(press.x)-.5)*bounds!.width).toBeLessThanOrEqual(1);expect(Math.abs(Number(press.y)-.5)*bounds!.height).toBeLessThanOrEqual(1);
+    await page.getByRole('button',{name:'Exit fullscreen',exact:true}).click();await expect.poll(()=>page.evaluate(()=>document.fullscreenElement===null)).toBe(true);
+    await button.click();await expect.poll(()=>page.evaluate(()=>document.fullscreenElement?.id)).toBe('fullscreen-tablet-owner');
+    await page.keyboard.press('Escape');await expect.poll(()=>page.evaluate(()=>document.fullscreenElement===null)).toBe(true);await expect(button).toHaveAttribute('aria-pressed','false');
+    await button.click();await expect.poll(()=>page.evaluate(()=>document.fullscreenElement?.id)).toBe('fullscreen-tablet-owner');
+    await page.evaluate(()=>(window as any).__fullscreenTablet.tablet.setConnected(false));await expect.poll(()=>page.evaluate(()=>document.fullscreenElement===null)).toBe(true);await expect(canvas).toBeHidden();
+    await page.evaluate(()=>(window as any).__fullscreenTablet.join());await expect(button).toBeVisible();await expect(button).toBeEnabled();expect((await proof(page)).pixel).toEqual([40,80,100,255]);
+    await button.click();await expect.poll(()=>page.evaluate(()=>document.fullscreenElement?.id)).toBe('fullscreen-tablet-owner');await page.evaluate(()=>(window as any).__fullscreenTablet.tablet.dispose());await expect.poll(()=>page.evaluate(()=>document.fullscreenElement===null)).toBe(true);
+    expect((await page.evaluate(()=>(window as any).__fullscreenTablet.statuses))).toEqual([]);
+});
+test('small Tablet toolbar keeps real fullscreen and all navigation controls accessible without changing canvas aspect',async({page})=>{
+    await page.setViewportSize({width:360,height:560});await install(page);
+    for(const name of ['Back','Home','Close tablet','Fullscreen']){const button=page.getByRole('button',{name,exact:true});await expect(button).toBeVisible();const rect=await button.boundingBox();expect(rect).not.toBeNull();expect(rect!.x).toBeGreaterThanOrEqual(0);expect(rect!.y).toBeGreaterThanOrEqual(0);expect(rect!.x+rect!.width).toBeLessThanOrEqual(360);expect(rect!.y+rect!.height).toBeLessThanOrEqual(560);}
+    expect((await proof(page)).ratio).toBeCloseTo(480/706,3);await page.evaluate(()=>(window as any).__fullscreenTablet.tablet.dispose());
+});
+
+test('actual fullscreen Permissions Policy disables only the browser control and keeps painted native input usable',async({page})=>{
+    await page.route('**/fullscreen-policy-disabled.html',route=>route.fulfill({status:200,contentType:'text/html',headers:{'Permissions-Policy':'fullscreen=()'},body:'<!doctype html><html><body></body></html>'}));
+    await install(page,'/fullscreen-policy-disabled.html');expect(await page.evaluate(()=>document.fullscreenEnabled)).toBe(false);
+    await expect(page.getByRole('button',{name:'Fullscreen',exact:true})).toBeDisabled();await expect(page.getByText('Fullscreen is unavailable in this browser or embedding.',{exact:true})).toBeVisible();
+    const canvas=page.getByLabel('Native tablet apps and dialogs');expect((await proof(page)).pixel).toEqual([40,80,100,255]);await canvas.click();expect((await proof(page)).inputs.some((value:any)=>value.event==='press')).toBe(true);
+    expect((await proof(page)).none).toBe(true);await page.evaluate(()=>(window as any).__fullscreenTablet.tablet.dispose());
+});
+
+test('same-container Tablet replacement inherits owned fullscreen cleanup without retiring the live replacement view',async({page})=>{
+    await install(page);await page.getByRole('button',{name:'Fullscreen',exact:true}).click();
+    await expect.poll(()=>page.evaluate(()=>document.fullscreenElement?.id)).toBe('fullscreen-tablet-owner');
+    await page.evaluate(async()=>{
+        const path='/src/tablet.ts';const {BrowserTablet}=await import(path),p=(window as any).__fullscreenTablet,old=p.tablet;
+        const replacement=new BrowserTablet(p.host,{send:(value:Record<string,unknown>)=>p.sent.push(value),onStatus:(value:string)=>p.statuses.push(value),onVisibility(){}});
+        p.tablet=replacement;replacement.setConnected(true);old.dispose();
+    });
+    expect((await proof(page)).owner).toBe(true);
+    await page.evaluate(()=>(window as any).__fullscreenTablet.tablet.setConnected(false));
+    await expect.poll(()=>page.evaluate(()=>document.fullscreenElement===null)).toBe(true);
+    expect(await page.evaluate(()=>(window as any).__fullscreenTablet.statuses)).toEqual([]);
+});

@@ -1,0 +1,195 @@
+{
+  "schema": 1,
+  "status": "diagnostic-completed",
+  "attestation": {
+    "sourceCoherent": true,
+    "distributionCoherent": true,
+    "requiredHelperPresentBoth": true,
+    "sourcePins": 98,
+    "sourceMapSHA256": "937e1aa260b3aa0a7a6e684d3e2044f06a2bd3d022bd450f3f854bfef8aad92a",
+    "distributionManifestSHA256": "56f41927a4ee2504de83bd562b9dff4a3e07ce616157b2ca543613744584b922"
+  },
+  "browserVersion": "154.0.8037.57",
+  "viewport": {
+    "width": 1280,
+    "height": 800,
+    "devicePixelRatio": 1.000000015894571
+  },
+  "original": {
+    "completed": true,
+    "allFourGatesRecorded": true,
+    "gates": [
+      {
+        "passed": true,
+        "validMeasurements": true
+      },
+      {
+        "passed": true,
+        "validMeasurements": true
+      },
+      {
+        "passed": true,
+        "validMeasurements": true
+      },
+      {
+        "passed": true,
+        "validMeasurements": true
+      }
+    ],
+    "pageErrors": {
+      "collected": true,
+      "count": 0
+    },
+    "failure": null
+  },
+  "generations": [
+    {
+      "generation": 1,
+      "settled": true,
+      "producerEvidence": {
+        "producerStarts": 238,
+        "producerFailures": 194,
+        "repeatProducerStarts": 117,
+        "repeatAfterTypedRefusal": 117,
+        "repeatAfterGraphRefusal": 117
+      },
+      "reasons": {
+        "graph": 194,
+        "image": 0,
+        "capacity": 0,
+        "changed": 0,
+        "abort": 0,
+        "other": 0
+      },
+      "sections": {
+        "nodes": 194,
+        "geometry": 0,
+        "materials": 0,
+        "textures": 0,
+        "skeleton": 0,
+        "budget": 0,
+        "image-stamp": 0,
+        "unspecified": 0
+      },
+      "locations": {
+        "provisional-inspection": 194,
+        "ready-inspection": 0,
+        "producer-rejection": 0
+      },
+      "metadata": {
+        "identityCharges": 121,
+        "keyBytesCharged": 67208,
+        "censored": false,
+        "closed": false
+      },
+      "consumerFallbacks": 219,
+      "cacheLifetime": {
+        "producers": 238,
+        "hits": 26,
+        "joined": 30,
+        "cloned": 75,
+        "evicted": 11,
+        "refused": 0,
+        "transient": 1,
+        "ready": 32,
+        "pending": 0,
+        "readers": 0,
+        "bytes": 30219229
+      },
+      "globalFbxParse": {
+        "count": 458,
+        "synchronousSpanSumMs": 5030.499999821186,
+        "maximumSynchronousSpanMs": 317.69999998807907
+      },
+      "observations": {
+        "preStageRefusalObserved": true,
+        "repeatedGraphRefusalProducerStartObserved": true,
+        "evidenceCompleteForTrackedProducerScope": true
+      },
+      "scope": "Producer events only. Reason/section/location marginals are not a joint causal classification. Consumer fallback and global parse counts have distinct scopes; no memo, rescue, quality, elapsed-critical-path or gain claim."
+    },
+    {
+      "generation": 2,
+      "settled": true,
+      "producerEvidence": {
+        "producerStarts": 241,
+        "producerFailures": 197,
+        "repeatProducerStarts": 120,
+        "repeatAfterTypedRefusal": 120,
+        "repeatAfterGraphRefusal": 120
+      },
+      "reasons": {
+        "graph": 197,
+        "image": 0,
+        "capacity": 0,
+        "changed": 0,
+        "abort": 0,
+        "other": 0
+      },
+      "sections": {
+        "nodes": 197,
+        "geometry": 0,
+        "materials": 0,
+        "textures": 0,
+        "skeleton": 0,
+        "budget": 0,
+        "image-stamp": 0,
+        "unspecified": 0
+      },
+      "locations": {
+        "provisional-inspection": 197,
+        "ready-inspection": 0,
+        "producer-rejection": 0
+      },
+      "metadata": {
+        "identityCharges": 121,
+        "keyBytesCharged": 67208,
+        "censored": false,
+        "closed": false
+      },
+      "consumerFallbacks": 219,
+      "cacheLifetime": {
+        "producers": 241,
+        "hits": 26,
+        "joined": 27,
+        "cloned": 75,
+        "evicted": 11,
+        "refused": 0,
+        "transient": 1,
+        "ready": 32,
+        "pending": 0,
+        "readers": 0,
+        "bytes": 30219229
+      },
+      "globalFbxParse": {
+        "count": 461,
+        "synchronousSpanSumMs": 4939.500000178814,
+        "maximumSynchronousSpanMs": 251.89999997615814
+      },
+      "observations": {
+        "preStageRefusalObserved": true,
+        "repeatedGraphRefusalProducerStartObserved": true,
+        "evidenceCompleteForTrackedProducerScope": true
+      },
+      "scope": "Producer events only. Reason/section/location marginals are not a joint causal classification. Consumer fallback and global parse counts have distinct scopes; no memo, rescue, quality, elapsed-critical-path or gain claim."
+    }
+  ],
+  "conclusion": {
+    "actionableRefusalSubsetEstablished": false,
+    "eligibilityExpanded": false,
+    "loadingGainClaim": false,
+    "repeatObservationNeedsNarrowPredicateProof": true
+  },
+  "inputSHA256": "d0530802de6e58c90161b0781c3de2009402f15bfa47460e49cfaff1c2cf8911",
+  "parentQualification": {
+    "durationSeconds": 103.15,
+    "recipeExitCode": 0,
+    "stockExecutableSHA256": "513aa7ba1c0add78f3df3f9b852f9cf197fe093682eef4337efad581bca4846b",
+    "actualStockExecutableObserved": true,
+    "ownedBrowserClosed": true,
+    "gatewayChildrenReturnedToBaseline": true,
+    "nineManagedServicesUnchanged": true,
+    "sourceAndDistributionUnchanged": true,
+    "receiptSHA256": "f97e566791bd2e66ea99f02eb9b803e37bb7577a6a18abc77a712083d8b57f2f"
+  }
+}

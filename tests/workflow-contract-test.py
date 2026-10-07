@@ -376,7 +376,9 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
         source = WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("workflow_call:", source)
         self.assertNotIn("run_full", source)
-        self.assertNotIn("needs: route", source)
+        self.assertIn("needs: route", source)
+        self.assertIn('--event "$GITHUB_EVENT_PATH"', source)
+        self.assertNotIn("pull_request:", source)
         aggregate = (WORKFLOW_DIRECTORY / "repository-checks.yml").read_text()
         self.assertIn("if: needs.route.outputs.mode == 'full'", aggregate)
         pull_request = aggregate.split("  pull_request:", 1)[1].split("  workflow_dispatch:", 1)[0]
@@ -564,6 +566,20 @@ class ArchivedRefRetirementContracts(unittest.TestCase):
         self.assertEqual([source for batch in batches for source in batch], sources)
 
 class ProjectWorkflowContracts(unittest.TestCase):
+    def test_tool_dependency_lane_is_bounded_and_selected_by_the_trusted_router(self):
+        source = WORKFLOW.read_text()
+        light = source.split("  tool-dependencies:\n", 1)[1]
+        self.assertIn("if: needs.route.outputs.projects == ''", source)
+        self.assertIn("if: needs.route.outputs.projects != ''", light)
+        self.assertIn("persist-credentials: false", light)
+        self.assertIn('tool_dependencies.py --projects "$DEPENDENCY_PROJECTS"', light)
+        self.assertIn('GH_TOKEN: ""', light)
+        self.assertNotIn("apt-get", light)
+        self.assertNotIn("tests/run-project-tests.py", light)
+        aggregate = (WORKFLOW_DIRECTORY / "repository-checks.yml").read_text()
+        self.assertIn("needs.route.outputs.mode == 'tool-dependencies'", aggregate)
+        self.assertIn("dependency_projects: ${{ needs.route.outputs.tool_projects }}", aggregate)
+
     @classmethod
     def setUpClass(cls):
         cls.source = WORKFLOW.read_text(encoding="utf-8")
@@ -718,7 +734,7 @@ class HostWorkflowRoutingContracts(unittest.TestCase):
                     if 'apt-get' in step.get('run', '') and 'install' in step['run']]
         self.assertEqual(len(installs), 1, 'Both paths must share one prerequisite installation')
         index, install = installs[0]
-        self.assertEqual(install['if'], "inputs.mode == 'fallback' || inputs.profile != 'documentation'")
+        self.assertEqual(install['if'], "inputs.mode == 'fallback' || (inputs.profile != 'documentation' && inputs.profile != 'tool-dependencies')")
         for package in ('qt6-base-dev', 'qt6-base-dev-tools', 'pkg-config',
                         'qml-module-qttest', 'qtdeclarative5-dev-tools'):
             self.assertIn(package, install['run'].split())
@@ -736,10 +752,20 @@ class HostWorkflowRoutingContracts(unittest.TestCase):
         self.assertLess(source.index("tests/run-project-tests.py"), source.index("qualification.py"))
         evidence = source.split("      - name: Create content-addressed qualification evidence\n", 1)[1]
         evidence = evidence.split("      - name: Upload qualification test reports\n", 1)[0]
-        self.assertNotIn("if:", evidence)
+        self.assertEqual(evidence.count("if: steps.route.outputs.projects == ''"), 2)
+        self.assertIn("Check only affected tool dependencies and behavior", source)
         self.assertNotIn("continue-on-error:", source)
         self.assertIn("name: parent-qualification-${{ github.sha }}", evidence)
         self.assertIn("if-no-files-found: error", evidence)
+
+    def test_bounded_tool_sync_skips_product_and_host_prerequisites(self):
+        import yaml
+        steps = yaml.safe_load(SYNC_VALIDATION_WORKFLOW.read_text())['jobs']['validate']['steps']
+        tools = next(step for step in steps if step['name'] == 'Check only affected tool dependencies and behavior')
+        self.assertEqual(tools['if'], "inputs.mode == 'reuse' && inputs.profile == 'tool-dependencies'")
+        self.assertIn('trusted/tools/repository-checks/tool_dependencies.py', tools['run'])
+        product = next(step for step in steps if step['name'].startswith('Run product suites'))
+        self.assertIn("inputs.profile != 'tool-dependencies'", product['if'])
 
 
 

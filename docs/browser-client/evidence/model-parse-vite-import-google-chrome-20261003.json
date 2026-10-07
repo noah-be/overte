@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "scope": "One genuine authored Google Chrome FBX parse-task regression; source fixtures, not native or public-world acceptance",
+  "materialAssistance": "OpenAI Codex",
+  "date": "2026-10-03",
+  "sourceBaseCommit": "905e1a5239a1a2dcba03a799ef167a896911373e",
+  "uncommittedSourceInventorySHA256": "4cfbc2badbb55990ec0d1ea87f6a267bdf74dfb02b14b11773ae86919e7d82a8",
+  "fixtureCorrectionManifestSHA256": "bd82973f9d1d5425ad4d6ef80fc25c1a9d603cc38f203267e885011c2f9192cc",
+  "changedSource": {
+    "tests/model-parse-turn.browser.spec.ts": "c0ef90e486d56e1a8f2c2eb65e2efdf091697c95c42162775aca006ab177d456",
+    "tests/model-parse-turn-modules.ts": "ec6203bf8870f9fbef5bce9188b29bfbeb0fc089d7adc7bcd6bc1bb22778de44"
+  },
+  "command": [
+    "node",
+    "node_modules/@playwright/test/cli.js",
+    "test",
+    "tests/model-parse-turn.browser.spec.ts",
+    "--project=google-chrome",
+    "--headed",
+    "--reporter=json"
+  ],
+  "browser": {
+    "version": "Google Chrome 154.0.8037.97",
+    "executableSHA256": "6c792041b07547a662e1b17974d1dc34a3db630379b45d9d89ddd7e3e68cc587",
+    "backend": "Authored SwiftShader fixture on a private authenticated Xvfb display",
+    "firefoxLaunched": false
+  },
+  "result": {
+    "pass": 1,
+    "fail": 0,
+    "skipped": 0,
+    "flaky": 0,
+    "durationMs": 3872.598,
+    "reportSHA256": "245247c1c7158dda8e3f426ef7a58c20cdb153719111536852f1b7fd10ab025b",
+    "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "originalChecksRetained": [
+    "All geometry and material attributes",
+    "Twelve genuine image loads",
+    "Actual triangle collision support",
+    "Queued authority revocation and original resource disposal"
+  ],
+  "cleanup": {
+    "ownedProcessCleanup": true,
+    "ownedXvfbClosed": true,
+    "privateAuthorityRemoved": true,
+    "ownedProfilesClosed": true,
+    "ownedViteClosed": true,
+    "sourceCoherent": true,
+    "observedChromeProcesses": 4,
+    "observedOwnedBirths": 13
+  },
+  "retainedNegatives": {
+    "originalFull129": "128 passes and one bare three import failure; unchanged original report retained",
+    "firstCorrectedSingleParent": "Case passed, but final raw free-port bind failed on a retired TCP connection; complete parent lifecycle was not qualified",
+    "correctedVacancyControl": "SO_REUSEADDR bind plus listen admits absent listener and refuses an actual listener; no REUSEPORT, no changed test assertion"
+  },
+  "limitations": [
+    "Fresh full2606 product suite currently2605pass1global-FD-countfailure; actual operation-owned leak not observed",
+    "Fresh production build/repository/full129 gates pending for corrected source",
+    "No native, public-domain, hardware audio, loading-performance or feature-completion acceptance"
+  ]
+}

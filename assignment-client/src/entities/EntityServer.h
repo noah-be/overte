@@ -1,3 +1,4 @@
+// Modified in 2026 for the optional direct browser transport.
 //
 //  EntityServer.h
 //  assignment-client/src/entities
@@ -73,9 +74,13 @@ protected:
 
 private slots:
     void handleEntityPacket(QSharedPointer<ReceivedMessage> message, SharedNodePointer senderNode);
+    void handleBrowserEntityQuery(QSharedPointer<ReceivedMessage> message, SharedNodePointer senderNode);
     void domainSettingsRequestFailed();
 
 private:
+    QHash<QUuid, quint64> _browserQueryTimes;
+    quint64 _browserSnapshotTime { 0 };
+    QJsonObject _browserSnapshot;
     SimpleEntitySimulationPointer _entitySimulation;
     QTimer* _pruneDeletedEntitiesTimer = nullptr;
 

@@ -1,3 +1,4 @@
+// Modified in 2026 for the optional direct browser transport.
 //
 //  LimitedNodeList.cpp
 //  libraries/networking/src
@@ -34,8 +35,10 @@
 #include "AccountManager.h"
 #include "AssetClient.h"
 #include "Assignment.h"
+#include "BrowserPacketPolicy.h"
 #include "SockAddr.h"
 #include "NetworkLogging.h"
+#include "NodeSocketAddress.h"
 #include "udt/Packet.h"
 #include "HMACAuth.h"
 
@@ -56,8 +59,16 @@ LimitedNodeList::LimitedNodeList(int socketListenPort, int dtlsListenPort) :
 {
     qRegisterMetaType<ConnectionStep>("ConnectionStep");
     auto port = (socketListenPort != INVALID_PORT) ? socketListenPort : LIMITED_NODELIST_LOCAL_PORT.get();
-    _nodeSocket.bind(SocketType::UDP, QHostAddress::AnyIPv4, port);
+    const auto udpAddressSetting = qEnvironmentVariable("OVERTE_NODE_UDP_ADDRESS");
+    const auto udpAddress = nodeUdpBindAddress(udpAddressSetting);
+    if (udpAddress.isNull()) {
+        qFatal("OVERTE_NODE_UDP_ADDRESS must be an IPv4 address or empty");
+    }
+    _nodeSocket.bind(SocketType::UDP, udpAddress, port);
     quint16 assignedPort = _nodeSocket.localPort(SocketType::UDP);
+    if (!udpAddressSetting.isEmpty() && assignedPort == 0) {
+        qFatal("Unable to bind the configured native node UDP address");
+    }
     if (socketListenPort != INVALID_PORT && socketListenPort != 0 && socketListenPort != assignedPort) {
         qCCritical(networking) << "PAGE: NodeList is unable to assign requested UDP port of" << socketListenPort;
     }
@@ -75,6 +86,37 @@ LimitedNodeList::LimitedNodeList(int socketListenPort, int dtlsListenPort) :
     }
 
     _nodeSocket.bind(SocketType::WebRTC, QHostAddress::AnyIPv4);
+
+#if defined(WEBRTC_DATA_CHANNELS)
+    connect(_nodeSocket.getWebRTCSocket(), &WebRTCSocket::peerClosed, this,
+        [this](const SockAddr& address) {
+            // RTC callbacks and this signal run on the owning Qt thread.
+            // Handle the closed generation before another peer can reuse its
+            // signaling address; never queue an address-only node removal.
+            Q_ASSERT(QThread::currentThread() == thread());
+            if (address.getType() != SocketType::WebRTC) {
+                return;
+            }
+            // Transport closure retires this exact generation's reliable
+            // state even if domain removal already erased its inactive node.
+            _nodeSocket.cleanupConnection(address);
+            auto node = nodeMatchingPredicate([&address](const SharedNodePointer& candidate) {
+                if (candidate->getType() != NodeType::Agent) {
+                    return false;
+                }
+                if (auto active = candidate->getActiveSocket()) {
+                    return active->getType() == SocketType::WebRTC && *active == address;
+                }
+                return candidate->getPublicSocket().getType() == SocketType::WebRTC
+                    && candidate->getPublicSocket() == address;
+            });
+            if (node) {
+                // Normal node removal handles mixer state and IDs. A browser
+                // transport closure still cannot remove a native/server node.
+                killNodeWithUUID(node->getUUID());
+            }
+        }, Qt::DirectConnection);
+#endif
 
     // check for local socket updates every so often
     const int LOCAL_SOCKET_UPDATE_INTERVAL_MSECS = 5 * 1000;
@@ -205,14 +247,18 @@ void LimitedNodeList::setPermissions(const NodePermissions& newPermissions) {
 
 void LimitedNodeList::setSocketLocalPort(SocketType socketType, quint16 socketLocalPort) {
     if (QThread::currentThread() != thread()) {
-        QMetaObject::invokeMethod(this, "setSocketLocalPort", Qt::QueuedConnection,
-                                  Q_ARG(quint16, socketLocalPort));
+        QMetaObject::invokeMethod(this, [this, socketType, socketLocalPort] {
+            setSocketLocalPort(socketType, socketLocalPort);
+        }, Qt::QueuedConnection);
         return;
     }
     if (_nodeSocket.localPort(socketType) != socketLocalPort) {
         _nodeSocket.rebind(socketType, socketLocalPort);
         if (socketType == SocketType::UDP) {
             LIMITED_NODELIST_LOCAL_PORT.set(socketLocalPort);
+            const auto address = _nodeSocket.udpBindAddress() == QHostAddress::AnyIPv4
+                ? _localSockAddr.getAddress() : _nodeSocket.udpBindAddress();
+            setLocalSocket(SockAddr(SocketType::UDP, address, _nodeSocket.localPort(SocketType::UDP)));
         } else {
             // WEBRTC TODO: Add WebRTC equivalent?
             qCWarning(networking_webrtc) << "LIMITED_NODELIST_LOCAL_PORT not set for WebRTC socket";
@@ -244,6 +290,23 @@ const WebRTCSocket* LimitedNodeList::getWebRTCSocket() {
 #endif
 
 bool LimitedNodeList::isPacketVerifiedWithSource(const udt::Packet& packet, Node* sourceNode) {
+    const auto headerType = NLPacket::typeInHeader(packet);
+    const auto& sender = packet.getSenderSockAddr();
+    if (!isPacketTransportAllowed(sender, headerType)) {
+        return false;
+    }
+    SharedNodePointer browserSource;
+    if (!PacketTypeEnum::getNonSourcedPackets().contains(headerType)) {
+        const auto sourceID = NLPacket::sourceIDInHeader(packet);
+        if (!sourceNode) {
+            browserSource = nodeWithLocalID(sourceID);
+            sourceNode = browserSource.data();
+        }
+        if ((sender.getType() == SocketType::WebRTC || isBrowserPacketSourceNode(sourceNode))
+            && (!isBrowserAgentPacketSource(sender, sourceNode) || sourceNode->getLocalID() != sourceID)) {
+            return false;
+        }
+    }
     // We track bandwidth when doing packet verification to avoid needing to do a node lookup
     // later when we already do it in packetSourceAndHashMatchAndTrackBandwidth. A node lookup
     // incurs a lock, so it is ideal to avoid needing to do it 2+ times for each packet
@@ -416,11 +479,20 @@ static const qint64 ERROR_SENDING_PACKET_BYTES = -1;
 qint64 LimitedNodeList::sendUnreliablePacket(const NLPacket& packet, const Node& destinationNode) {
     Q_ASSERT(!packet.isPartOfMessage());
 
-    if (!destinationNode.getActiveSocket()) {
+    auto activeSocket = destinationNode.getActiveSocket();
+    if (!activeSocket) {
         return 0;
     }
 
-    return sendUnreliablePacket(packet, *destinationNode.getActiveSocket(), destinationNode.getAuthenticateHash());
+#if defined(WEBRTC_DATA_CHANNELS)
+    // An asset/mixer worker can retain a removed node after a new RTC session
+    // opens at its address. Hold current node authority through send/enqueue.
+    QReadLocker currentNodeLocker(activeSocket->getType() == SocketType::WebRTC ? &_nodeMutex : nullptr);
+    if (activeSocket->getType() == SocketType::WebRTC && nodeWithUUID(destinationNode.getUUID()).data() != &destinationNode) {
+        return ERROR_SENDING_PACKET_BYTES;
+    }
+#endif
+    return sendUnreliablePacket(packet, *activeSocket, destinationNode.getAuthenticateHash());
 }
 
 qint64 LimitedNodeList::sendUnreliablePacket(const NLPacket& packet, const SockAddr& sockAddr,
@@ -449,6 +521,12 @@ qint64 LimitedNodeList::sendPacket(std::unique_ptr<NLPacket> packet, const Node&
     auto activeSocket = destinationNode.getActiveSocket();
 
     if (activeSocket) {
+#if defined(WEBRTC_DATA_CHANNELS)
+        QReadLocker currentNodeLocker(activeSocket->getType() == SocketType::WebRTC ? &_nodeMutex : nullptr);
+        if (activeSocket->getType() == SocketType::WebRTC && nodeWithUUID(destinationNode.getUUID()).data() != &destinationNode) {
+            return ERROR_SENDING_PACKET_BYTES;
+        }
+#endif
         return sendPacket(std::move(packet), *activeSocket, destinationNode.getAuthenticateHash());
     } else {
         qCDebug(networking) << "LimitedNodeList::sendPacket called without active socket for node" << destinationNode << "- not sending";
@@ -489,6 +567,12 @@ qint64 LimitedNodeList::sendUnreliableUnorderedPacketList(NLPacketList& packetLi
     auto activeSocket = destinationNode.getActiveSocket();
 
     if (activeSocket) {
+#if defined(WEBRTC_DATA_CHANNELS)
+        QReadLocker currentNodeLocker(activeSocket->getType() == SocketType::WebRTC ? &_nodeMutex : nullptr);
+        if (activeSocket->getType() == SocketType::WebRTC && nodeWithUUID(destinationNode.getUUID()).data() != &destinationNode) {
+            return ERROR_SENDING_PACKET_BYTES;
+        }
+#endif
         qint64 bytesSent = 0;
         auto connectionHash = destinationNode.getAuthenticateHash();
 
@@ -536,6 +620,12 @@ qint64 LimitedNodeList::sendPacketList(std::unique_ptr<NLPacketList> packetList,
 qint64 LimitedNodeList::sendPacketList(std::unique_ptr<NLPacketList> packetList, const Node& destinationNode) {
     auto activeSocket = destinationNode.getActiveSocket();
     if (activeSocket) {
+#if defined(WEBRTC_DATA_CHANNELS)
+        QReadLocker currentNodeLocker(activeSocket->getType() == SocketType::WebRTC ? &_nodeMutex : nullptr);
+        if (activeSocket->getType() == SocketType::WebRTC && nodeWithUUID(destinationNode.getUUID()).data() != &destinationNode) {
+            return ERROR_SENDING_PACKET_BYTES;
+        }
+#endif
         // close the last packet in the list
         packetList->closeCurrentPacket();
 
@@ -564,6 +654,12 @@ qint64 LimitedNodeList::sendPacket(std::unique_ptr<NLPacket> packet, const Node&
     auto& destinationSockAddr = (overridenSockAddr.isNull()) ? *destinationNode.getActiveSocket()
                                                              : overridenSockAddr;
 
+#if defined(WEBRTC_DATA_CHANNELS)
+    QReadLocker currentNodeLocker(destinationSockAddr.getType() == SocketType::WebRTC ? &_nodeMutex : nullptr);
+    if (destinationSockAddr.getType() == SocketType::WebRTC && nodeWithUUID(destinationNode.getUUID()).data() != &destinationNode) {
+        return ERROR_SENDING_PACKET_BYTES;
+    }
+#endif
     return sendPacket(std::move(packet), destinationSockAddr, destinationNode.getAuthenticateHash());
 }
 
@@ -1229,6 +1325,14 @@ void LimitedNodeList::stopInitialSTUNUpdate(bool success) {
 }
 
 void LimitedNodeList::updateLocalSocket() {
+    // An explicitly bound interface determines both the source and advertised
+    // address. Route probing could otherwise advertise an unusable interface
+    // and break reliable replies to a loopback alias.
+    if (_nodeSocket.udpBindAddress() != QHostAddress::AnyIPv4) {
+        setLocalSocket(SockAddr { SocketType::UDP, _nodeSocket.udpBindAddress(),
+            _nodeSocket.localPort(SocketType::UDP) });
+        return;
+    }
     // when update is called, if the local socket is empty then start with the guessed local socket
     if (_localSockAddr.isNull()) {
         setLocalSocket(SockAddr { SocketType::UDP, getGuessedLocalAddress(), _nodeSocket.localPort(SocketType::UDP) });
@@ -1280,6 +1384,12 @@ void LimitedNodeList::errorTestingLocalSocket() {
 }
 
 void LimitedNodeList::setLocalSocket(const SockAddr& sockAddr) {
+    if (sockAddr.getAddress() == _localSockAddr.getAddress()
+        && sockAddr.getPort() != _localSockAddr.getPort()) {
+        _localSockAddr = sockAddr;
+        emit localSockAddrChanged(_localSockAddr);
+        return;
+    }
     if (sockAddr.getAddress() != _localSockAddr.getAddress()) {
 
         if (_localSockAddr.isNull()) {

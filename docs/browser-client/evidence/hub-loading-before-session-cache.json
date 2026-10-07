@@ -1,0 +1,1339 @@
+{
+  "schemaVersion": 1,
+  "stage": "before-visitor-asset-dedup",
+  "startedAt": "2026-10-01T04:30:56.434Z",
+  "finishedAt": "2026-10-01T04:32:08.199Z",
+  "connectedAt": "2026-10-01T04:31:10.188Z",
+  "place": "overte_hub",
+  "browserVersion": "154.0.8037.57",
+  "webGL": {
+    "vendor": "Google Inc. (NVIDIA Corporation)",
+    "renderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce GTX 1080 Ti/PCIe/SSE2, OpenGL ES 3.2)"
+  },
+  "microphoneRequested": false,
+  "worldInteractionsSent": 0,
+  "fluidMovementAcceptancePassed": true,
+  "pageErrors": [],
+  "originalReportSHA256": "478d99f5eacaa5d38442e3dd1611bf62e011457904922b56540dc75ebd207cf1",
+  "sourceSHA256": {
+    "browser-client/gateway/server.mjs": "153754df85a6b112a55ae4d721042518cc2072de7366f5b040a82e37882cc56e",
+    "browser-client/gateway/native-bridge.js": "f76bedb62cd3ad7e29b383bf16fb0f6d80cf7263de34c467bdba9c001b7354dd",
+    "browser-client/gateway/native-world.js": "bec2f02313446afde7a0be20899358a082b41c6c6c5d745ec67a24809e2b7ddb",
+    "browser-client/gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60",
+    "browser-client/gateway/public-places.mjs": "cbac3df2ecf7071da6e77df8d58b09be194afa184cfb0c37f6015f9f1f570471",
+    "browser-client/gateway/validation.mjs": "65eba4a66c76d4bfc0dbd18e172def64f43b37cca0db2301da5bf4d18645de79",
+    "browser-client/gateway/worker-sandbox.mjs": "d4748e8d64f2ad5c633854b7ff9e07758a574086205470b32570fd485b9f4c5d",
+    "browser-client/gateway/network-sandbox.mjs": "3fd278b91a6ea383ddf816753d9eee870736b295ecd945714e827d794c8016d9",
+    "browser-client/gateway/network_udp.py": "378f7159b1456ab5a0e25d2f933f35106344106625cef0ce0d589de3d1e45eca",
+    "browser-client/gateway/native-tablet.js": "527e106866462d1dea2834978250ecb6fa3ee6b8e99b5b2129b21e521e4995a2",
+    "browser-client/gateway/tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+    "browser-client/gateway/process-lifecycle.mjs": "e8d7e021a8b934b271910883e27c2a1109aedd22e12044b763d4bf8acc274eaf",
+    "browser-client/shared/fluid-performance.mjs": "44e5262f62785e3a9ba4a96c275f5f0bf3a93c27e1d44fdad3bdbec739deebe2",
+    "browser-client/dist/index.html": "80ef5f1c7eb938352abd994c4614e8e3dfa1030e728563045a9a38c7ed1bbfb4"
+  },
+  "assetTransfers": {
+    "uniqueURLs": 664,
+    "requests": 1303,
+    "knownBytes": 0,
+    "unknownByteResponses": 1303,
+    "duplicateRequests": 639
+  },
+  "performance": [
+    {
+      "at": 1790829074182,
+      "frames": 852,
+      "samples": 240,
+      "fps": 41.97859091863149,
+      "medianFrameMs": 16.69999999999891,
+      "p95FrameMs": 49.30000000000109,
+      "maximumFrameMs": 349.89999999999964,
+      "drawCalls": 59,
+      "triangles": 42209,
+      "geometries": 48,
+      "textures": 27,
+      "entities": 517,
+      "loadedAvatars": 1,
+      "loadedModels": 30,
+      "loadingModels": 6,
+      "queuedModels": 272,
+      "compilingGraphics": 62,
+      "parallelShaderCompile": true,
+      "meshColliders": 10,
+      "graphicsActive": true,
+      "loadPhases": {
+        "graphicsSubmit": {
+          "count": 853,
+          "totalMs": 937.8999999761581,
+          "maxMs": 150.70000000298023
+        },
+        "shaderPrepare": {
+          "count": 169,
+          "totalMs": 8048.500000149012,
+          "maxMs": 289.8999999910593
+        },
+        "fbxMaterialBindings": {
+          "count": 35,
+          "totalMs": 94.19999995827675,
+          "maxMs": 49.20000000298023
+        },
+        "fbxDecode": {
+          "count": 35,
+          "totalMs": 2328.5999999940395,
+          "maxMs": 800.6000000089407
+        },
+        "fbxParse": {
+          "count": 35,
+          "totalMs": 901.0000000447035,
+          "maxMs": 282.29999999701977
+        },
+        "fbxTextures": {
+          "count": 35,
+          "totalMs": 223.20000000298023,
+          "maxMs": 170.09999999403954
+        },
+        "textureAlpha": {
+          "count": 209,
+          "totalMs": 308.8999999910593,
+          "maxMs": 73.79999999701977
+        },
+        "entityUpdate": {
+          "count": 2,
+          "totalMs": 85.6000000089407,
+          "maxMs": 75.20000000298023
+        },
+        "colliderBuild": {
+          "count": 10,
+          "totalMs": 53.79999999701977,
+          "maxMs": 34.1000000089407
+        }
+      },
+      "renderedFrames": 853,
+      "entityCount": 517
+    },
+    {
+      "at": 1790829078565,
+      "frames": 1031,
+      "samples": 240,
+      "fps": 36.36198354620245,
+      "medianFrameMs": 16.700000000000728,
+      "p95FrameMs": 66.60000000000218,
+      "maximumFrameMs": 266.90000000000146,
+      "drawCalls": 236,
+      "triangles": 152386,
+      "geometries": 158,
+      "textures": 75,
+      "entities": 517,
+      "loadedAvatars": 1,
+      "loadedModels": 76,
+      "loadingModels": 6,
+      "queuedModels": 220,
+      "compilingGraphics": 0,
+      "parallelShaderCompile": true,
+      "meshColliders": 28,
+      "graphicsActive": true,
+      "loadPhases": {
+        "graphicsSubmit": {
+          "count": 1032,
+          "totalMs": 3245.299999937415,
+          "maxMs": 150.70000000298023
+        },
+        "shaderPrepare": {
+          "count": 282,
+          "totalMs": 15513.80000013113,
+          "maxMs": 514.4000000059605
+        },
+        "fbxMaterialBindings": {
+          "count": 76,
+          "totalMs": 124.79999992251396,
+          "maxMs": 49.20000000298023
+        },
+        "fbxDecode": {
+          "count": 74,
+          "totalMs": 3178.800000011921,
+          "maxMs": 800.6000000089407
+        },
+        "fbxParse": {
+          "count": 74,
+          "totalMs": 1275.400000065565,
+          "maxMs": 282.29999999701977
+        },
+        "fbxTextures": {
+          "count": 74,
+          "totalMs": 626.0000000149012,
+          "maxMs": 170.09999999403954
+        },
+        "textureAlpha": {
+          "count": 304,
+          "totalMs": 802.5999999791384,
+          "maxMs": 96
+        },
+        "entityUpdate": {
+          "count": 3,
+          "totalMs": 90.1000000089407,
+          "maxMs": 75.20000000298023
+        },
+        "colliderBuild": {
+          "count": 28,
+          "totalMs": 114.09999999403954,
+          "maxMs": 34.1000000089407
+        },
+        "modelBatch": {
+          "count": 3,
+          "totalMs": 44.80000001192093,
+          "maxMs": 29.600000008940697
+        }
+      },
+      "renderedFrames": 1032,
+      "entityCount": 517
+    },
+    {
+      "at": 1790829081787,
+      "frames": 1129,
+      "samples": 240,
+      "fps": 39.453568082063406,
+      "medianFrameMs": 16.700000000000728,
+      "p95FrameMs": 50.70000000000073,
+      "maximumFrameMs": 199.90000000000146,
+      "drawCalls": 317,
+      "triangles": 260239,
+      "geometries": 214,
+      "textures": 134,
+      "entities": 517,
+      "loadedAvatars": 1,
+      "loadedModels": 99,
+      "loadingModels": 6,
+      "queuedModels": 196,
+      "compilingGraphics": 0,
+      "parallelShaderCompile": true,
+      "meshColliders": 34,
+      "graphicsActive": true,
+      "loadPhases": {
+        "graphicsSubmit": {
+          "count": 1130,
+          "totalMs": 5370.899999886751,
+          "maxMs": 606
+        },
+        "shaderPrepare": {
+          "count": 304,
+          "totalMs": 15612.20000012219,
+          "maxMs": 514.4000000059605
+        },
+        "fbxMaterialBindings": {
+          "count": 95,
+          "totalMs": 139.99999991059303,
+          "maxMs": 49.20000000298023
+        },
+        "fbxDecode": {
+          "count": 93,
+          "totalMs": 4251.600000038743,
+          "maxMs": 800.6000000089407
+        },
+        "fbxParse": {
+          "count": 93,
+          "totalMs": 1492.5000000596046,
+          "maxMs": 282.29999999701977
+        },
+        "fbxTextures": {
+          "count": 93,
+          "totalMs": 1157.1000000238419,
+          "maxMs": 422.1000000089407
+        },
+        "textureAlpha": {
+          "count": 363,
+          "totalMs": 1064.9999999701977,
+          "maxMs": 119.70000000298023
+        },
+        "entityUpdate": {
+          "count": 4,
+          "totalMs": 96.40000000596046,
+          "maxMs": 75.20000000298023
+        },
+        "colliderBuild": {
+          "count": 34,
+          "totalMs": 196.40000002086163,
+          "maxMs": 75.5
+        },
+        "modelBatch": {
+          "count": 4,
+          "totalMs": 104.80000001192093,
+          "maxMs": 60
+        }
+      },
+      "renderedFrames": 1130,
+      "entityCount": 517
+    },
+    {
+      "at": 1790829084802,
+      "frames": 1237,
+      "samples": 240,
+      "fps": 34.85940041831281,
+      "medianFrameMs": 16.700000000000728,
+      "p95FrameMs": 50.400000000001455,
+      "maximumFrameMs": 616.7000000000007,
+      "drawCalls": 496,
+      "triangles": 306458,
+      "geometries": 243,
+      "textures": 162,
+      "entities": 517,
+      "loadedAvatars": 1,
+      "loadedModels": 127,
+      "loadingModels": 6,
+      "queuedModels": 168,
+      "compilingGraphics": 0,
+      "parallelShaderCompile": true,
+      "meshColliders": 42,
+      "graphicsActive": true,
+      "loadPhases": {
+        "graphicsSubmit": {
+          "count": 1238,
+          "totalMs": 7418.599999859929,
+          "maxMs": 606
+        },
+        "shaderPrepare": {
+          "count": 332,
+          "totalMs": 15680.600000143051,
+          "maxMs": 514.4000000059605
+        },
+        "fbxMaterialBindings": {
+          "count": 123,
+          "totalMs": 160.29999992251396,
+          "maxMs": 49.20000000298023
+        },
+        "fbxDecode": {
+          "count": 123,
+          "totalMs": 7919.700000047684,
+          "maxMs": 897.5
+        },
+        "fbxParse": {
+          "count": 123,
+          "totalMs": 1711.600000038743,
+          "maxMs": 282.29999999701977
+        },
+        "fbxTextures": {
+          "count": 123,
+          "totalMs": 1195.0999999940395,
+          "maxMs": 422.1000000089407
+        },
+        "textureAlpha": {
+          "count": 433,
+          "totalMs": 1270.2999999523163,
+          "maxMs": 119.70000000298023
+        },
+        "entityUpdate": {
+          "count": 6,
+          "totalMs": 108.69999998807907,
+          "maxMs": 75.20000000298023
+        },
+        "colliderBuild": {
+          "count": 42,
+          "totalMs": 209.70000000298023,
+          "maxMs": 75.5
+        },
+        "modelBatch": {
+          "count": 4,
+          "totalMs": 104.80000001192093,
+          "maxMs": 60
+        }
+      },
+      "renderedFrames": 1238,
+      "entityCount": 517
+    },
+    {
+      "at": 1790829087829,
+      "frames": 1328,
+      "samples": 240,
+      "fps": 30.12350637614218,
+      "medianFrameMs": 32.70000000000073,
+      "p95FrameMs": 66.79999999999927,
+      "maximumFrameMs": 616.7000000000007,
+      "drawCalls": 524,
+      "triangles": 338003,
+      "geometries": 265,
+      "textures": 185,
+      "entities": 517,
+      "loadedAvatars": 1,
+      "loadedModels": 150,
+      "loadingModels": 6,
+      "queuedModels": 144,
+      "compilingGraphics": 0,
+      "parallelShaderCompile": true,
+      "meshColliders": 47,
+      "graphicsActive": true,
+      "loadPhases": {
+        "graphicsSubmit": {
+          "count": 1329,
+          "totalMs": 9467.399999886751,
+          "maxMs": 606
+        },
+        "shaderPrepare": {
+          "count": 355,
+          "totalMs": 15796.70000013709,
+          "maxMs": 514.4000000059605
+        },
+        "fbxMaterialBindings": {
+          "count": 150,
+          "totalMs": 181.3999999165535,
+          "maxMs": 49.20000000298023
+        },
+        "fbxDecode": {
+          "count": 149,
+          "totalMs": 10063.500000029802,
+          "maxMs": 897.5
+        },
+        "fbxParse": {
+          "count": 149,
+          "totalMs": 2031.2000000476837,
+          "maxMs": 282.29999999701977
+        },
+        "fbxTextures": {
+          "count": 149,
+          "totalMs": 1287.1000000238419,
+          "maxMs": 422.1000000089407
+        },
+        "textureAlpha": {
+          "count": 490,
+          "totalMs": 1327.4999999403954,
+          "maxMs": 119.70000000298023
+        },
+        "entityUpdate": {
+          "count": 7,
+          "totalMs": 114.49999998509884,
+          "maxMs": 75.20000000298023
+        },
+        "colliderBuild": {
+          "count": 47,
+          "totalMs": 227.29999999701977,
+          "maxMs": 75.5
+        },
+        "modelBatch": {
+          "count": 4,
+          "totalMs": 104.80000001192093,
+          "maxMs": 60
+        }
+      },
+      "renderedFrames": 1329,
+      "entityCount": 517
+    },
+    {
+      "at": 1790829090856,
+      "frames": 1410,
+      "samples": 240,
+      "fps": 29.447491441822805,
+      "medianFrameMs": 33.29999999999927,
+      "p95FrameMs": 83.30000000000291,
+      "maximumFrameMs": 166.70000000000073,
+      "drawCalls": 560,
+      "triangles": 413950,
+      "geometries": 293,
+      "textures": 215,
+      "entities": 517,
+      "loadedAvatars": 1,
+      "loadedModels": 175,
+      "loadingModels": 6,
+      "queuedModels": 119,
+      "compilingGraphics": 0,
+      "parallelShaderCompile": true,
+      "meshColliders": 51,
+      "graphicsActive": true,
+      "loadPhases": {
+        "graphicsSubmit": {
+          "count": 1411,
+          "totalMs": 11590.099999815226,
+          "maxMs": 606
+        },
+        "shaderPrepare": {
+          "count": 380,
+          "totalMs": 15983.800000146031,
+          "maxMs": 514.4000000059605
+        },
+        "fbxMaterialBindings": {
+          "count": 173,
+          "totalMs": 203.8999999165535,
+          "maxMs": 49.20000000298023
+        },
+        "fbxDecode": {
+          "count": 173,
+          "totalMs": 11960.300000011921,
+          "maxMs": 897.5
+        },
+        "fbxParse": {
+          "count": 173,
+          "totalMs": 2279.6000000089407,
+          "maxMs": 282.29999999701977
+        },
+        "fbxTextures": {
+          "count": 173,
+          "totalMs": 1676.700000077486,
+          "maxMs": 422.1000000089407
+        },
+        "textureAlpha": {
+          "count": 539,
+          "totalMs": 1682.8999999761581,
+          "maxMs": 119.70000000298023
+        },
+        "entityUpdate": {
+          "count": 8,
+          "totalMs": 117.69999998807907,
+          "maxMs": 75.20000000298023
+        },
+        "colliderBuild": {
+          "count": 51,
+          "totalMs": 234.59999999403954,
+          "maxMs": 75.5
+        },
+        "modelBatch": {
+          "count": 4,
+          "totalMs": 104.80000001192093,
+          "maxMs": 60
+        }
+      },
+      "renderedFrames": 1411,
+      "entityCount": 517
+    },
+    {
+      "at": 1790829093903,
+      "frames": 1489,
+      "samples": 240,
+      "fps": 28.291210863824983,
+      "medianFrameMs": 33.29999999999927,
+      "p95FrameMs": 83.09999999999854,
+      "maximumFrameMs": 249.8000000000029,
+      "drawCalls": 596,
+      "triangles": 449205,
+      "geometries": 316,
+      "textures": 234,
+      "entities": 517,
+      "loadedAvatars": 1,
+      "loadedModels": 197,
+      "loadingModels": 6,
+      "queuedModels": 97,
+      "compilingGraphics": 0,
+      "parallelShaderCompile": true,
+      "meshColliders": 57,
+      "graphicsActive": true,
+      "loadPhases": {
+        "graphicsSubmit": {
+          "count": 1490,
+          "totalMs": 13743.899999901652,
+          "maxMs": 606
+        },
+        "shaderPrepare": {
+          "count": 402,
+          "totalMs": 16007.70000013709,
+          "maxMs": 514.4000000059605
+        },
+        "fbxMaterialBindings": {
+          "count": 196,
+          "totalMs": 231.19999991357327,
+          "maxMs": 49.20000000298023
+        },
+        "fbxDecode": {
+          "count": 196,
+          "totalMs": 14307.500000029802,
+          "maxMs": 897.5
+        },
+        "fbxParse": {
+          "count": 196,
+          "totalMs": 2461.4000000059605,
+          "maxMs": 282.29999999701977
+        },
+        "fbxTextures": {
+          "count": 196,
+          "totalMs": 1772.8000000566244,
+          "maxMs": 422.1000000089407
+        },
+        "textureAlpha": {
+          "count": 602,
+          "totalMs": 2164.2999999672174,
+          "maxMs": 445.20000000298023
+        },
+        "entityUpdate": {
+          "count": 9,
+          "totalMs": 121.59999997913837,
+          "maxMs": 75.20000000298023
+        },
+        "colliderBuild": {
+          "count": 57,
+          "totalMs": 247.8999999910593,
+          "maxMs": 75.5
+        },
+        "modelBatch": {
+          "count": 4,
+          "totalMs": 104.80000001192093,
+          "maxMs": 60
+        }
+      },
+      "renderedFrames": 1490,
+      "entityCount": 517
+    },
+    {
+      "at": 1790829096950,
+      "frames": 1570,
+      "samples": 240,
+      "fps": 26.56630506973656,
+      "medianFrameMs": 33.30000000000291,
+      "p95FrameMs": 84,
+      "maximumFrameMs": 249.8000000000029,
+      "drawCalls": 622,
+      "triangles": 479533,
+      "geometries": 339,
+      "textures": 256,
+      "entities": 517,
+      "loadedAvatars": 1,
+      "loadedModels": 219,
+      "loadingModels": 6,
+      "queuedModels": 74,
+      "compilingGraphics": 0,
+      "parallelShaderCompile": true,
+      "meshColliders": 64,
+      "graphicsActive": true,
+      "loadPhases": {
+        "graphicsSubmit": {
+          "count": 1571,
+          "totalMs": 16093.799999848008,
+          "maxMs": 606
+        },
+        "shaderPrepare": {
+          "count": 424,
+          "totalMs": 16037.800000146031,
+          "maxMs": 514.4000000059605
+        },
+        "fbxMaterialBindings": {
+          "count": 220,
+          "totalMs": 246.39999988675117,
+          "maxMs": 49.20000000298023
+        },
+        "fbxDecode": {
+          "count": 217,
+          "totalMs": 16270.200000047684,
+          "maxMs": 897.5
+        },
+        "fbxParse": {
+          "count": 217,
+          "totalMs": 2596.000000014901,
+          "maxMs": 282.29999999701977
+        },
+        "fbxTextures": {
+          "count": 217,
+          "totalMs": 1864.400000050664,
+          "maxMs": 422.1000000089407
+        },
+        "textureAlpha": {
+          "count": 653,
+          "totalMs": 2165.2000000029802,
+          "maxMs": 445.20000000298023
+        },
+        "entityUpdate": {
+          "count": 10,
+          "totalMs": 127.09999997913837,
+          "maxMs": 75.20000000298023
+        },
+        "colliderBuild": {
+          "count": 64,
+          "totalMs": 255.29999999701977,
+          "maxMs": 75.5
+        },
+        "modelBatch": {
+          "count": 4,
+          "totalMs": 104.80000001192093,
+          "maxMs": 60
+        }
+      },
+      "renderedFrames": 1571,
+      "entityCount": 517
+    },
+    {
+      "at": 1790829100015,
+      "frames": 1653,
+      "samples": 240,
+      "fps": 27.014250016883913,
+      "medianFrameMs": 33.30000000000291,
+      "p95FrameMs": 66.70000000000437,
+      "maximumFrameMs": 249.8000000000029,
+      "drawCalls": 662,
+      "triangles": 520685,
+      "geometries": 362,
+      "textures": 277,
+      "entities": 517,
+      "loadedAvatars": 1,
+      "loadedModels": 242,
+      "loadingModels": 6,
+      "queuedModels": 50,
+      "compilingGraphics": 0,
+      "parallelShaderCompile": true,
+      "meshColliders": 65,
+      "graphicsActive": true,
+      "loadPhases": {
+        "graphicsSubmit": {
+          "count": 1654,
+          "totalMs": 18255.199999809265,
+          "maxMs": 606
+        },
+        "shaderPrepare": {
+          "count": 447,
+          "totalMs": 16065.200000092387,
+          "maxMs": 514.4000000059605
+        },
+        "fbxMaterialBindings": {
+          "count": 243,
+          "totalMs": 261.9999998956919,
+          "maxMs": 49.20000000298023
+        },
+        "fbxDecode": {
+          "count": 240,
+          "totalMs": 19163.500000044703,
+          "maxMs": 897.5
+        },
+        "fbxParse": {
+          "count": 240,
+          "totalMs": 2803.0000000596046,
+          "maxMs": 282.29999999701977
+        },
+        "fbxTextures": {
+          "count": 240,
+          "totalMs": 1891.100000038743,
+          "maxMs": 422.1000000089407
+        },
+        "textureAlpha": {
+          "count": 726,
+          "totalMs": 2246.4999999701977,
+          "maxMs": 445.20000000298023
+        },
+        "entityUpdate": {
+          "count": 11,
+          "totalMs": 132.99999997019768,
+          "maxMs": 75.20000000298023
+        },
+        "colliderBuild": {
+          "count": 65,
+          "totalMs": 255.79999999701977,
+          "maxMs": 75.5
+        },
+        "modelBatch": {
+          "count": 4,
+          "totalMs": 104.80000001192093,
+          "maxMs": 60
+        }
+      },
+      "renderedFrames": 1654,
+      "entityCount": 517
+    },
+    {
+      "at": 1790829103199,
+      "frames": 1718,
+      "samples": 240,
+      "fps": 25.174385063198194,
+      "medianFrameMs": 33.39999999999418,
+      "p95FrameMs": 83.30000000000291,
+      "maximumFrameMs": 183.40000000000146,
+      "drawCalls": 689,
+      "triangles": 540338,
+      "geometries": 383,
+      "textures": 303,
+      "entities": 517,
+      "loadedAvatars": 1,
+      "loadedModels": 263,
+      "loadingModels": 6,
+      "queuedModels": 29,
+      "compilingGraphics": 0,
+      "parallelShaderCompile": true,
+      "meshColliders": 69,
+      "graphicsActive": true,
+      "loadPhases": {
+        "graphicsSubmit": {
+          "count": 1719,
+          "totalMs": 20048.89999988675,
+          "maxMs": 606
+        },
+        "shaderPrepare": {
+          "count": 467,
+          "totalMs": 16158.600000068545,
+          "maxMs": 514.4000000059605
+        },
+        "fbxMaterialBindings": {
+          "count": 263,
+          "totalMs": 311.4999999552965,
+          "maxMs": 49.20000000298023
+        },
+        "fbxDecode": {
+          "count": 261,
+          "totalMs": 20807.600000038743,
+          "maxMs": 897.5
+        },
+        "fbxParse": {
+          "count": 261,
+          "totalMs": 3434.0000000447035,
+          "maxMs": 282.29999999701977
+        },
+        "fbxTextures": {
+          "count": 260,
+          "totalMs": 2615.600000023842,
+          "maxMs": 422.1000000089407
+        },
+        "textureAlpha": {
+          "count": 770,
+          "totalMs": 3462.5999999195337,
+          "maxMs": 445.20000000298023
+        },
+        "entityUpdate": {
+          "count": 12,
+          "totalMs": 136.89999996125698,
+          "maxMs": 75.20000000298023
+        },
+        "colliderBuild": {
+          "count": 69,
+          "totalMs": 263.40000000596046,
+          "maxMs": 75.5
+        },
+        "modelBatch": {
+          "count": 4,
+          "totalMs": 104.80000001192093,
+          "maxMs": 60
+        }
+      },
+      "renderedFrames": 1719,
+      "entityCount": 517
+    },
+    {
+      "at": 1790829106258,
+      "frames": 1801,
+      "samples": 240,
+      "fps": 24.911253658840387,
+      "medianFrameMs": 33.39999999999418,
+      "p95FrameMs": 83.29999999999563,
+      "maximumFrameMs": 183.40000000000146,
+      "drawCalls": 713,
+      "triangles": 553938,
+      "geometries": 404,
+      "textures": 326,
+      "entities": 517,
+      "loadedAvatars": 1,
+      "loadedModels": 284,
+      "loadingModels": 6,
+      "queuedModels": 8,
+      "compilingGraphics": 0,
+      "parallelShaderCompile": true,
+      "meshColliders": 73,
+      "graphicsActive": true,
+      "loadPhases": {
+        "graphicsSubmit": {
+          "count": 1802,
+          "totalMs": 22141.79999987781,
+          "maxMs": 606
+        },
+        "shaderPrepare": {
+          "count": 488,
+          "totalMs": 16183.700000077486,
+          "maxMs": 514.4000000059605
+        },
+        "fbxMaterialBindings": {
+          "count": 283,
+          "totalMs": 326.4999999552965,
+          "maxMs": 49.20000000298023
+        },
+        "fbxDecode": {
+          "count": 281,
+          "totalMs": 22457.400000050664,
+          "maxMs": 897.5
+        },
+        "fbxParse": {
+          "count": 281,
+          "totalMs": 3599.0000000298023,
+          "maxMs": 282.29999999701977
+        },
+        "fbxTextures": {
+          "count": 281,
+          "totalMs": 2794.300000026822,
+          "maxMs": 422.1000000089407
+        },
+        "textureAlpha": {
+          "count": 820,
+          "totalMs": 5745.599999934435,
+          "maxMs": 1701.2000000029802
+        },
+        "entityUpdate": {
+          "count": 13,
+          "totalMs": 141.69999995827675,
+          "maxMs": 75.20000000298023
+        },
+        "colliderBuild": {
+          "count": 73,
+          "totalMs": 268.00000001490116,
+          "maxMs": 75.5
+        },
+        "modelBatch": {
+          "count": 4,
+          "totalMs": 104.80000001192093,
+          "maxMs": 60
+        }
+      },
+      "renderedFrames": 1802,
+      "entityCount": 517
+    },
+    {
+      "at": 1790829109272,
+      "frames": 1849,
+      "samples": 240,
+      "fps": 22.016328777176405,
+      "medianFrameMs": 33.39999999999418,
+      "p95FrameMs": 83.40000000000146,
+      "maximumFrameMs": 1066.699999999997,
+      "drawCalls": 778,
+      "triangles": 572563,
+      "geometries": 418,
+      "textures": 354,
+      "entities": 517,
+      "loadedAvatars": 1,
+      "loadedModels": 294,
+      "loadingModels": 3,
+      "queuedModels": 0,
+      "compilingGraphics": 0,
+      "parallelShaderCompile": true,
+      "meshColliders": 75,
+      "graphicsActive": true,
+      "loadPhases": {
+        "graphicsSubmit": {
+          "count": 1850,
+          "totalMs": 24443.09999987483,
+          "maxMs": 1052.5
+        },
+        "shaderPrepare": {
+          "count": 498,
+          "totalMs": 16595.800000056624,
+          "maxMs": 514.4000000059605
+        },
+        "fbxMaterialBindings": {
+          "count": 294,
+          "totalMs": 344.399999961257,
+          "maxMs": 49.20000000298023
+        },
+        "fbxDecode": {
+          "count": 292,
+          "totalMs": 24464.800000041723,
+          "maxMs": 1128.5999999940395
+        },
+        "fbxParse": {
+          "count": 292,
+          "totalMs": 3784.5000000596046,
+          "maxMs": 282.29999999701977
+        },
+        "fbxTextures": {
+          "count": 292,
+          "totalMs": 3100.900000035763,
+          "maxMs": 422.1000000089407
+        },
+        "textureAlpha": {
+          "count": 840,
+          "totalMs": 6623.999999910593,
+          "maxMs": 1701.2000000029802
+        },
+        "entityUpdate": {
+          "count": 14,
+          "totalMs": 145.59999994933605,
+          "maxMs": 75.20000000298023
+        },
+        "colliderBuild": {
+          "count": 75,
+          "totalMs": 281.8000000268221,
+          "maxMs": 75.5
+        },
+        "modelBatch": {
+          "count": 5,
+          "totalMs": 123.00000001490116,
+          "maxMs": 60
+        }
+      },
+      "renderedFrames": 1850,
+      "entityCount": 517
+    },
+    {
+      "at": 1790829112313,
+      "frames": 1958,
+      "samples": 240,
+      "fps": 25.89695171297545,
+      "medianFrameMs": 33.30000000000291,
+      "p95FrameMs": 66.59999999999854,
+      "maximumFrameMs": 1066.699999999997,
+      "drawCalls": 782,
+      "triangles": 587925,
+      "geometries": 420,
+      "textures": 356,
+      "entities": 517,
+      "loadedAvatars": 1,
+      "loadedModels": 297,
+      "loadingModels": 0,
+      "queuedModels": 0,
+      "compilingGraphics": 0,
+      "parallelShaderCompile": true,
+      "meshColliders": 75,
+      "graphicsActive": true,
+      "loadPhases": {
+        "graphicsSubmit": {
+          "count": 1959,
+          "totalMs": 27162.099999934435,
+          "maxMs": 1052.5
+        },
+        "shaderPrepare": {
+          "count": 501,
+          "totalMs": 16599.000000044703,
+          "maxMs": 514.4000000059605
+        },
+        "fbxMaterialBindings": {
+          "count": 294,
+          "totalMs": 344.399999961257,
+          "maxMs": 49.20000000298023
+        },
+        "fbxDecode": {
+          "count": 292,
+          "totalMs": 24464.800000041723,
+          "maxMs": 1128.5999999940395
+        },
+        "fbxParse": {
+          "count": 292,
+          "totalMs": 3784.5000000596046,
+          "maxMs": 282.29999999701977
+        },
+        "fbxTextures": {
+          "count": 292,
+          "totalMs": 3100.900000035763,
+          "maxMs": 422.1000000089407
+        },
+        "textureAlpha": {
+          "count": 843,
+          "totalMs": 6649.599999904633,
+          "maxMs": 1701.2000000029802
+        },
+        "entityUpdate": {
+          "count": 16,
+          "totalMs": 153.39999994635582,
+          "maxMs": 75.20000000298023
+        },
+        "colliderBuild": {
+          "count": 75,
+          "totalMs": 281.8000000268221,
+          "maxMs": 75.5
+        },
+        "modelBatch": {
+          "count": 5,
+          "totalMs": 123.00000001490116,
+          "maxMs": 60
+        }
+      },
+      "renderedFrames": 1959,
+      "entityCount": 517
+    },
+    {
+      "at": 1790829115335,
+      "frames": 2069,
+      "samples": 240,
+      "fps": 29.810331764150586,
+      "medianFrameMs": 33.299999999995634,
+      "p95FrameMs": 50,
+      "maximumFrameMs": 1066.699999999997,
+      "drawCalls": 782,
+      "triangles": 587925,
+      "geometries": 420,
+      "textures": 356,
+      "entities": 517,
+      "loadedAvatars": 1,
+      "loadedModels": 297,
+      "loadingModels": 0,
+      "queuedModels": 0,
+      "compilingGraphics": 0,
+      "parallelShaderCompile": true,
+      "meshColliders": 75,
+      "graphicsActive": true,
+      "loadPhases": {
+        "graphicsSubmit": {
+          "count": 2070,
+          "totalMs": 29886.799999818206,
+          "maxMs": 1052.5
+        },
+        "shaderPrepare": {
+          "count": 501,
+          "totalMs": 16599.000000044703,
+          "maxMs": 514.4000000059605
+        },
+        "fbxMaterialBindings": {
+          "count": 294,
+          "totalMs": 344.399999961257,
+          "maxMs": 49.20000000298023
+        },
+        "fbxDecode": {
+          "count": 292,
+          "totalMs": 24464.800000041723,
+          "maxMs": 1128.5999999940395
+        },
+        "fbxParse": {
+          "count": 292,
+          "totalMs": 3784.5000000596046,
+          "maxMs": 282.29999999701977
+        },
+        "fbxTextures": {
+          "count": 292,
+          "totalMs": 3100.900000035763,
+          "maxMs": 422.1000000089407
+        },
+        "textureAlpha": {
+          "count": 843,
+          "totalMs": 6649.599999904633,
+          "maxMs": 1701.2000000029802
+        },
+        "entityUpdate": {
+          "count": 17,
+          "totalMs": 156.5999999344349,
+          "maxMs": 75.20000000298023
+        },
+        "colliderBuild": {
+          "count": 75,
+          "totalMs": 281.8000000268221,
+          "maxMs": 75.5
+        },
+        "modelBatch": {
+          "count": 5,
+          "totalMs": 123.00000001490116,
+          "maxMs": 60
+        }
+      },
+      "renderedFrames": 2070,
+      "entityCount": 517
+    },
+    {
+      "at": 1790829118360,
+      "frames": 2181,
+      "samples": 240,
+      "fps": 36.54247301186109,
+      "medianFrameMs": 33.200000000004366,
+      "p95FrameMs": 34,
+      "maximumFrameMs": 66.59999999999854,
+      "drawCalls": 782,
+      "triangles": 587925,
+      "geometries": 420,
+      "textures": 356,
+      "entities": 517,
+      "loadedAvatars": 1,
+      "loadedModels": 297,
+      "loadingModels": 0,
+      "queuedModels": 0,
+      "compilingGraphics": 0,
+      "parallelShaderCompile": true,
+      "meshColliders": 75,
+      "graphicsActive": true,
+      "loadPhases": {
+        "graphicsSubmit": {
+          "count": 2182,
+          "totalMs": 32615.09999988973,
+          "maxMs": 1052.5
+        },
+        "shaderPrepare": {
+          "count": 501,
+          "totalMs": 16599.000000044703,
+          "maxMs": 514.4000000059605
+        },
+        "fbxMaterialBindings": {
+          "count": 294,
+          "totalMs": 344.399999961257,
+          "maxMs": 49.20000000298023
+        },
+        "fbxDecode": {
+          "count": 292,
+          "totalMs": 24464.800000041723,
+          "maxMs": 1128.5999999940395
+        },
+        "fbxParse": {
+          "count": 292,
+          "totalMs": 3784.5000000596046,
+          "maxMs": 282.29999999701977
+        },
+        "fbxTextures": {
+          "count": 292,
+          "totalMs": 3100.900000035763,
+          "maxMs": 422.1000000089407
+        },
+        "textureAlpha": {
+          "count": 843,
+          "totalMs": 6649.599999904633,
+          "maxMs": 1701.2000000029802
+        },
+        "entityUpdate": {
+          "count": 18,
+          "totalMs": 159.39999993145466,
+          "maxMs": 75.20000000298023
+        },
+        "colliderBuild": {
+          "count": 75,
+          "totalMs": 281.8000000268221,
+          "maxMs": 75.5
+        },
+        "modelBatch": {
+          "count": 5,
+          "totalMs": 123.00000001490116,
+          "maxMs": 60
+        }
+      },
+      "renderedFrames": 2182,
+      "entityCount": 517
+    },
+    {
+      "at": 1790829121370,
+      "frames": 2291,
+      "samples": 240,
+      "fps": 36.82563063892471,
+      "medianFrameMs": 33.200000000004366,
+      "p95FrameMs": 35,
+      "maximumFrameMs": 50.60000000000582,
+      "drawCalls": 782,
+      "triangles": 587925,
+      "geometries": 420,
+      "textures": 356,
+      "entities": 517,
+      "loadedAvatars": 1,
+      "loadedModels": 297,
+      "loadingModels": 0,
+      "queuedModels": 0,
+      "compilingGraphics": 0,
+      "parallelShaderCompile": true,
+      "meshColliders": 75,
+      "graphicsActive": true,
+      "loadPhases": {
+        "graphicsSubmit": {
+          "count": 2292,
+          "totalMs": 35309.59999985993,
+          "maxMs": 1052.5
+        },
+        "shaderPrepare": {
+          "count": 501,
+          "totalMs": 16599.000000044703,
+          "maxMs": 514.4000000059605
+        },
+        "fbxMaterialBindings": {
+          "count": 294,
+          "totalMs": 344.399999961257,
+          "maxMs": 49.20000000298023
+        },
+        "fbxDecode": {
+          "count": 292,
+          "totalMs": 24464.800000041723,
+          "maxMs": 1128.5999999940395
+        },
+        "fbxParse": {
+          "count": 292,
+          "totalMs": 3784.5000000596046,
+          "maxMs": 282.29999999701977
+        },
+        "fbxTextures": {
+          "count": 292,
+          "totalMs": 3100.900000035763,
+          "maxMs": 422.1000000089407
+        },
+        "textureAlpha": {
+          "count": 843,
+          "totalMs": 6649.599999904633,
+          "maxMs": 1701.2000000029802
+        },
+        "entityUpdate": {
+          "count": 19,
+          "totalMs": 163.0999999344349,
+          "maxMs": 75.20000000298023
+        },
+        "colliderBuild": {
+          "count": 75,
+          "totalMs": 281.8000000268221,
+          "maxMs": 75.5
+        },
+        "modelBatch": {
+          "count": 5,
+          "totalMs": 123.00000001490116,
+          "maxMs": 60
+        }
+      },
+      "renderedFrames": 2292,
+      "entityCount": 517
+    },
+    {
+      "at": 1790829124385,
+      "frames": 2406,
+      "samples": 240,
+      "fps": 37.2954577240447,
+      "medianFrameMs": 33.200000000004366,
+      "p95FrameMs": 34,
+      "maximumFrameMs": 50.299999999995634,
+      "drawCalls": 782,
+      "triangles": 587925,
+      "geometries": 420,
+      "textures": 356,
+      "entities": 517,
+      "loadedAvatars": 1,
+      "loadedModels": 297,
+      "loadingModels": 0,
+      "queuedModels": 0,
+      "compilingGraphics": 0,
+      "parallelShaderCompile": true,
+      "meshColliders": 75,
+      "graphicsActive": true,
+      "loadPhases": {
+        "graphicsSubmit": {
+          "count": 2407,
+          "totalMs": 38024.999999806285,
+          "maxMs": 1052.5
+        },
+        "shaderPrepare": {
+          "count": 501,
+          "totalMs": 16599.000000044703,
+          "maxMs": 514.4000000059605
+        },
+        "fbxMaterialBindings": {
+          "count": 294,
+          "totalMs": 344.399999961257,
+          "maxMs": 49.20000000298023
+        },
+        "fbxDecode": {
+          "count": 292,
+          "totalMs": 24464.800000041723,
+          "maxMs": 1128.5999999940395
+        },
+        "fbxParse": {
+          "count": 292,
+          "totalMs": 3784.5000000596046,
+          "maxMs": 282.29999999701977
+        },
+        "fbxTextures": {
+          "count": 292,
+          "totalMs": 3100.900000035763,
+          "maxMs": 422.1000000089407
+        },
+        "textureAlpha": {
+          "count": 843,
+          "totalMs": 6649.599999904633,
+          "maxMs": 1701.2000000029802
+        },
+        "entityUpdate": {
+          "count": 20,
+          "totalMs": 169.0999999344349,
+          "maxMs": 75.20000000298023
+        },
+        "colliderBuild": {
+          "count": 75,
+          "totalMs": 281.8000000268221,
+          "maxMs": 75.5
+        },
+        "modelBatch": {
+          "count": 5,
+          "totalMs": 123.00000001490116,
+          "maxMs": 60
+        }
+      },
+      "renderedFrames": 2407,
+      "entityCount": 517
+    }
+  ],
+  "notes": [
+    "Actual public overte_hub read-only visitor session; no microphone input or world edits.",
+    "Asset request count is browser-to-gateway HTTP traffic; upstream response sizes were unknown because content-length was absent.",
+    "No participant names, identifiers or source asset addresses are included."
+  ],
+  "failedResourceStatusCounts": {
+    "502": 17,
+    "request-failed": 1
+  }
+}

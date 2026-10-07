@@ -1,0 +1,338 @@
+{
+  "schemaVersion": 1,
+  "scope": "Independent container namespace/null-audio/native QtGUI diagnostic; no domain or hosted-runner acceptance",
+  "startedAt": "2026-10-01T09:54:13Z",
+  "nonRootUser": true,
+  "securityOverrides": "none",
+  "network": "Container must be launched with network=none and no port publication",
+  "probes": {
+    "unshare": {
+      "passed": false,
+      "exitCode": 1,
+      "category": "permission-denied"
+    },
+    "bubblewrap": {
+      "passed": false,
+      "exitCode": 1,
+      "category": "permission-denied"
+    },
+    "privatePulse": {
+      "passed": true,
+      "physicalDevices": "not-used"
+    },
+    "privateXvfb": {
+      "passed": true,
+      "authenticated": true,
+      "tcpListening": false
+    },
+    "nativeProtocol": {
+      "passed": true,
+      "exitCode": 0,
+      "qtPluginDiagnostic": {
+        "missingDynamicSONAMEs": [],
+        "missingSymbolVersions": [],
+        "xcbPluginMetadataSeen": true,
+        "xcbPluginLoaded": true,
+        "displayConnectionFailed": false,
+        "displayAuthorizationFailed": false,
+        "qtPluginIncompatible": false,
+        "qtPlatformPluginUnavailable": false
+      },
+      "signature": "ViLohxhZMTalcuUKwgs63g=="
+    },
+    "nativeGui": {
+      "passed": true,
+      "scriptReady": true,
+      "domain": "No server exists at container-local test address; no domain joined",
+      "microphone": "Muted; only private synthetic null-source is available"
+    },
+    "frameCapture": {
+      "passed": true,
+      "width": 800,
+      "height": 600,
+      "sha256": "6b10fb92cb3e307fb3ebeb2c4be750844a94c770d205060b6b3980fb8241c591",
+      "worldRendering": "not-tested"
+    }
+  },
+  "sourceSHA256": "e3aaeb90d8b69b346320a04688c2890d38cb1d366134bf202898d37ccab6c982",
+  "seccompMode": 2,
+  "nativeBinarySHA256": "91f3e10c42c1e35d5c8265e9b0007e925844d9bee61a26807118dde6e527887c",
+  "finishedAt": "2026-10-01T09:54:30Z",
+  "completeNativePreflightPassed": false,
+  "hostedRunnerOrSharedDomainJourney": "not-tested",
+  "correctedSourceSHA256": "d9da890bde62fe0a860407344b169795e23aebb2bc2a75b3f03937da1014ecb7",
+  "debugSourceSHA256": "1f95a6368d32cad27be432093c2b8fe7b82f7b1cc53736d433c8bec121c0a9ec",
+  "harnessCorrection": "Use --disableDisplayPlugins OpenXR,OpenVR; retain the authenticated X display from DISPLAY",
+  "nativeArgumentCorrectionsApplied": [
+    "native-protocol-command",
+    "native-gui-launch"
+  ],
+  "qtPluginDependencyInventory": {
+    "count": 37,
+    "limit": 128,
+    "targets": [
+      {
+        "plugin": "libhifiSdl2.so",
+        "sha256": "71c1b116a764fb25b79354ada6a34e72f13eb8d15cc6caf9362781a0d4606d76",
+        "passed": true,
+        "missingDynamicSONAMEs": [],
+        "missingSymbolVersions": []
+      },
+      {
+        "plugin": "libopenvr.so",
+        "sha256": "258ee45365ff197d16ea3d6b9cbe5ad24679763a7258ef0f75ba5ed4797dbeb0",
+        "passed": true,
+        "missingDynamicSONAMEs": [],
+        "missingSymbolVersions": []
+      },
+      {
+        "plugin": "libopenxr.so",
+        "sha256": "45f28ad76df0453eb191c4a5dd86e42f812a90ac3388c40ef53f99384ab02e2f",
+        "passed": true,
+        "missingDynamicSONAMEs": [],
+        "missingSymbolVersions": []
+      },
+      {
+        "plugin": "libopusCodec.so",
+        "sha256": "ed67313c947c5eb4295f898842add15552fcccb69261da50e95e1943e6bf15f9",
+        "passed": true,
+        "missingDynamicSONAMEs": [],
+        "missingSymbolVersions": []
+      },
+      {
+        "plugin": "libpcmCodec.so",
+        "sha256": "2f6102f71d0af9a9ab49b62157498842fb8b3c4817950601ce6a62f66a7fb94f",
+        "passed": true,
+        "missingDynamicSONAMEs": [],
+        "missingSymbolVersions": []
+      },
+      {
+        "plugin": "libsteamClient.so",
+        "sha256": "eccdca4cae22b22c7a7a107ea0a754d371732ea7111b428170e55746ec58a6d6",
+        "passed": true,
+        "missingDynamicSONAMEs": [],
+        "missingSymbolVersions": []
+      },
+      {
+        "plugin": "libJSAPIExample.so",
+        "sha256": "142fc737cb53985b2d195cb278473dc0e4f1fb6ce7c108099528433085f28f03",
+        "passed": true,
+        "missingDynamicSONAMEs": [],
+        "missingSymbolVersions": []
+      },
+      {
+        "plugin": "libqtaudio_alsa.so",
+        "sha256": "f2d52a2f45505b03c1896771a320b475c725f05d55cbad999b65fefdbd7f7c7f",
+        "passed": true,
+        "missingDynamicSONAMEs": [],
+        "missingSymbolVersions": []
+      },
+      {
+        "plugin": "libqtmedia_pulse.so",
+        "sha256": "53a1e2bd7471ddcc3f83d74d3a213ca82267e2b251df3f905072fe8194dacc2e",
+        "passed": true,
+        "missingDynamicSONAMEs": [],
+        "missingSymbolVersions": []
+      },
+      {
+        "plugin": "libqconnmanbearer.so",
+        "sha256": "c6f936f1a27ecff9b415c7ee1c7e7853ad3858801d47a7c09637f616f88b23f8",
+        "passed": true,
+        "missingDynamicSONAMEs": [],
+        "missingSymbolVersions": []
+      },
+      {
+        "plugin": "libqgenericbearer.so",
+        "sha256": "f268a1ac76f749b2666b8ca7623458a9a0f2cd5fd531ee26078bc8cd6aad4c3c",
+        "passed": true,
+        "missingDynamicSONAMEs": [],
+        "missingSymbolVersions": []
+      },
+      {
+        "plugin": "libqnmbearer.so",
+        "sha256": "fcd5b1a1eeeca9c40151d68df50f9b0db7135e295b286bdbe5813fab45a04d47",
+        "passed": true,
+        "missingDynamicSONAMEs": [],
+        "missingSymbolVersions": []
+      },
+      {
+        "plugin": "libqgif.so",
+        "sha256": "67ed3d6997a98017c021c07b2263a1d9195f7cc1d448371634ef6a28d2cfcd1a",
+        "passed": true,
+        "missingDynamicSONAMEs": [],
+        "missingSymbolVersions": []
+      },
+      {
+        "plugin": "libqicns.so",
+        "sha256": "83b9f2fd6ebbdb336d8b7fb129e965753e4f0e2529b9cb2a2719977b39487fec",
+        "passed": true,
+        "missingDynamicSONAMEs": [],
+        "missingSymbolVersions": []
+      },
+      {
+        "plugin": "libqico.so",
+        "sha256": "3f0238db4d58f054bc75b0bb009590cf5f97a84d8f0b9b56cfaa41e603f56b43",
+        "passed": true,
+        "missingDynamicSONAMEs": [],
+        "missingSymbolVersions": []
+      },
+      {
+        "plugin": "libqjpeg.so",
+        "sha256": "c26665ebe13bb05fbbd72a06d2f939bc11afcfe973828358e4dabda6d30aba88",
+        "passed": true,
+        "missingDynamicSONAMEs": [],
+        "missingSymbolVersions": []
+      },
+      {
+        "plugin": "libqmng.so",
+        "sha256": "6ef7f2464f23a06f059e166d4c5e534daa23ec91be14fac46cfc306a29589f70",
+        "passed": true,
+        "missingDynamicSONAMEs": [],
+        "missingSymbolVersions": []
+      },
+      {
+        "plugin": "libqsvg.so",
+        "sha256": "5b0fe3be6963f176195cb05861f846a5f486cd810f5d15d211ab7dbc941fa575",
+        "passed": true,
+        "missingDynamicSONAMEs": [],
+        "missingSymbolVersions": []
+      },
+      {
+        "plugin": "libqtga.so",
+        "sha256": "366c46cd64d008cd9547caf6bad2f8a4dd87b7f6395db5c86145398fa09a0a80",
+        "passed": true,
+        "missingDynamicSONAMEs": [],
+        "missingSymbolVersions": []
+      },
+      {
+        "plugin": "libqtiff.so",
+        "sha256": "bcc19a98e5d6b7fcdef52c9db6968710479bd1d6263f18c7aa0205a15d268fa1",
+        "passed": true,
+        "missingDynamicSONAMEs": [],
+        "missingSymbolVersions": []
+      },
+      {
+        "plugin": "libqwbmp.so",
+        "sha256": "f044e554dc213babf66984e9964d9e56f2dfe35290de9f86d680b773ee8b9412",
+        "passed": true,
+        "missingDynamicSONAMEs": [],
+        "missingSymbolVersions": []
+      },
+      {
+        "plugin": "libqwebp.so",
+        "sha256": "22f5b254f3bace2311ecb0a05378402241fb5ac507b381cfb854d8d2441e8e92",
+        "passed": true,
+        "missingDynamicSONAMEs": [],
+        "missingSymbolVersions": []
+      },
+      {
+        "plugin": "libgstaudiodecoder.so",
+        "sha256": "671d32bd650d7856848bf89be9bc58d1eb3cf6d0eaa2c4f9b0cd6ca09d1acafb",
+        "passed": true,
+        "missingDynamicSONAMEs": [],
+        "missingSymbolVersions": []
+      },
+      {
+        "plugin": "libgstcamerabin.so",
+        "sha256": "1fe0e053af55694287f455bc68c1345e51d3ad5923e94003ef654d8bd787f63d",
+        "passed": true,
+        "missingDynamicSONAMEs": [],
+        "missingSymbolVersions": []
+      },
+      {
+        "plugin": "libgstmediacapture.so",
+        "sha256": "e3489b8233405bbcb2e99d2a68150921729b01c0b591baffb79988e1a6891d66",
+        "passed": true,
+        "missingDynamicSONAMEs": [],
+        "missingSymbolVersions": []
+      },
+      {
+        "plugin": "libgstmediaplayer.so",
+        "sha256": "1797c04003693e45fb385c59c882cae483f1d2f970b5230998a0d363df46d29b",
+        "passed": true,
+        "missingDynamicSONAMEs": [],
+        "missingSymbolVersions": []
+      },
+      {
+        "plugin": "libcomposeplatforminputcontextplugin.so",
+        "sha256": "74b21ab8eb7cc955e2caa3fed3dd77f595c0bd58490a725546f255d9c00db6cf",
+        "passed": true,
+        "missingDynamicSONAMEs": [],
+        "missingSymbolVersions": []
+      },
+      {
+        "plugin": "libfcitx5platforminputcontextplugin.so",
+        "sha256": "a8ff2d79396d9139ba0f7bb16d889503f83e077a5f71db3b1eab759f00c8bef8",
+        "passed": true,
+        "missingDynamicSONAMEs": [],
+        "missingSymbolVersions": []
+      },
+      {
+        "plugin": "libfcitxplatforminputcontextplugin.so",
+        "sha256": "d2a35d1ee6caaf3d10c9e0477289860cac8ae2bd105bc3d86f352b18af0a89b2",
+        "passed": true,
+        "missingDynamicSONAMEs": [],
+        "missingSymbolVersions": []
+      },
+      {
+        "plugin": "libibusplatforminputcontextplugin.so",
+        "sha256": "3ceb5f177efc0c4438cced4c7d36d959cc6caf3f1c61abe99ffeea74fe74fb04",
+        "passed": true,
+        "missingDynamicSONAMEs": [],
+        "missingSymbolVersions": []
+      },
+      {
+        "plugin": "libqxcb.so",
+        "sha256": "61b1dc8cff8db81646c93e83ab7d1989db7701b8619f1167896f6fa4c9fd1f9b",
+        "passed": true,
+        "missingDynamicSONAMEs": [],
+        "missingSymbolVersions": []
+      },
+      {
+        "plugin": "libqtposition_geoclue.so",
+        "sha256": "c44757bee3d98432cc40159751f7083fd1ff66bc129534312069a5a4510ff5bd",
+        "passed": true,
+        "missingDynamicSONAMEs": [],
+        "missingSymbolVersions": []
+      },
+      {
+        "plugin": "libqtposition_geoclue2.so",
+        "sha256": "8804233cffd6931d1dd4682ccfb4f72239e8579a5b94fd02ac55bc9a91f2e1c9",
+        "passed": true,
+        "missingDynamicSONAMEs": [],
+        "missingSymbolVersions": []
+      },
+      {
+        "plugin": "libqtposition_positionpoll.so",
+        "sha256": "1a7cc7550d434ee0e6f29ed7b8d2aa39e3d8ed279af19abea2ab8b26e3088cbd",
+        "passed": true,
+        "missingDynamicSONAMEs": [],
+        "missingSymbolVersions": []
+      },
+      {
+        "plugin": "libcupsprintersupport.so",
+        "sha256": "5388ca730c33fb10d0702c053d7761bd6c568816bec634a70254fa85857d2652",
+        "passed": true,
+        "missingDynamicSONAMEs": [],
+        "missingSymbolVersions": []
+      },
+      {
+        "plugin": "libqxcb-egl-integration.so",
+        "sha256": "fa080e02aade0e3e7659406a6e08ee6f145bb9eac0d470c3058e841bf91b9047",
+        "passed": true,
+        "missingDynamicSONAMEs": [],
+        "missingSymbolVersions": []
+      },
+      {
+        "plugin": "libqxcb-glx-integration.so",
+        "sha256": "78ea8bd4fd4d29d84137cb14c57cba55d01815a755663cb4a9e17e23e2f3f869",
+        "passed": true,
+        "missingDynamicSONAMEs": [],
+        "missingSymbolVersions": []
+      }
+    ],
+    "complete": true,
+    "passed": true
+  },
+  "securityOverride": "none; all original normal kernel/native/container checks retained"
+}

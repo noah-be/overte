@@ -1,3 +1,4 @@
+// Modified in 2026 for the optional direct browser transport.
 //
 //  DomainServer.cpp
 //  domain-server/src
@@ -36,6 +37,7 @@
 #include <BuildInfo.h>
 #include <CrashAnnotations.h>
 #include <DependencyManager.h>
+#include <BrowserPacketPolicy.h>
 #include <HifiConfigVariantMap.h>
 #include <HTTPConnection.h>
 #include <LogUtils.h>
@@ -56,6 +58,7 @@
 #include "ContentSettingsBackupHandler.h"
 #include "DomainServerNodeData.h"
 #include "EntitiesBackupHandler.h"
+#include "LocalUserPolicy.h"
 #include "NodeConnectionData.h"
 
 #include <Gzip.h>
@@ -199,7 +202,7 @@ bool DomainServer::forwardMetaverseAPIRequest(HTTPConnection* connection,
 DomainServer::DomainServer(int argc, char* argv[]) :
     QCoreApplication(argc, argv),
     _gatekeeper(this),
-    _httpManager(QHostAddress::AnyIPv4, DOMAIN_SERVER_HTTP_PORT,
+    _httpManager(QHostAddress(qEnvironmentVariable("OVERTE_DOMAIN_SERVER_HTTP_ADDRESS", "0.0.0.0")), DOMAIN_SERVER_HTTP_PORT,
         QString("%1/resources/web/").arg(QCoreApplication::applicationDirPath()), this)
 {
     static const QString CRASH_REPORTER = "crash_reporting.enable_crash_reporter";
@@ -735,6 +738,9 @@ const QString DISABLED_AUTOMATIC_NETWORKING_VALUE = "disabled";
 
 bool DomainServer::isPacketVerified(const udt::Packet& packet) {
     PacketType headerType = NLPacket::typeInHeader(packet);
+    if (!isPacketTransportAllowed(packet.getSenderSockAddr(), headerType)) {
+        return false;
+    }
     PacketVersion headerVersion = NLPacket::versionInHeader(packet);
 
     auto nodeList = DependencyManager::get<LimitedNodeList>();
@@ -757,11 +763,7 @@ bool DomainServer::isPacketVerified(const udt::Packet& packet) {
 
             DomainServerNodeData* nodeData = static_cast<DomainServerNodeData*>(sourceNode->getLinkedData());
 
-            bool exactAddressMatch = nodeData->getSendingSockAddr() == packet.getSenderSockAddr();
-            bool bothPrivateAddresses = nodeData->getSendingSockAddr().hasPrivateAddress()
-                && packet.getSenderSockAddr().hasPrivateAddress();
-
-            if (nodeData && (exactAddressMatch || bothPrivateAddresses)) {
+            if (nodeData && isPacketSourceAddressAllowed(nodeData->getSendingSockAddr(), packet.getSenderSockAddr())) {
                 // to the best of our ability we've verified that this packet comes from the right place
                 // let the NodeList do its checks now (but pass it the sourceNode so it doesn't need to look it up again)
                 return nodeList->isPacketVerifiedWithSource(packet, sourceNode.data());
@@ -931,7 +933,21 @@ void DomainServer::setupNodeListAndAssignments() {
 // Sets up the WebRTC signaling server that's hosted by the domain server.
 void DomainServer::setUpWebRTCSignalingServer() {
     // Bind the WebRTC signaling server's WebSocket to its port.
-    bool isBound = _webrtcSignalingServer->bind(QHostAddress::AnyIPv4, DEFAULT_DOMAIN_SERVER_WS_PORT);
+    bool validPort = false;
+    const auto portSetting = _settingsManager.valueForKeyPath("webrtc.signaling_port");
+    const int configuredPort = (portSetting.isValid() ? portSetting : QVariant(DEFAULT_DOMAIN_SERVER_WS_PORT))
+        .toInt(&validPort);
+    if (!validPort || configuredPort < 1 || configuredPort > 65535) {
+        qWarning() << "Invalid WebRTC signaling port; browser transport is disabled.";
+        return;
+    }
+    const auto addressSetting = _settingsManager.valueForKeyPath("webrtc.signaling_address");
+    const auto bindAddress = QHostAddress(addressSetting.isValid() ? addressSetting.toString() : QStringLiteral("0.0.0.0"));
+    if (bindAddress.isNull()) {
+        qWarning() << "Invalid WebRTC signaling bind address; browser transport is disabled.";
+        return;
+    }
+    bool isBound = _webrtcSignalingServer->bind(bindAddress, static_cast<quint16>(configuredPort));
     if (!isBound) {
         qWarning() << "WebRTC signaling server not bound to port. WebRTC connections are not supported.";
         return;
@@ -948,6 +964,15 @@ void DomainServer::setUpWebRTCSignalingServer() {
     connect(this, &DomainServer::webrtcSignalingMessageForDomainServer, webrtcSocket, &WebRTCSocket::onSignalingMessage);
     connect(webrtcSocket, &WebRTCSocket::sendSignalingMessage,
         _webrtcSignalingServer.get(), &WebRTCSignalingServer::sendMessage);
+
+    connect(_webrtcSignalingServer.get(), &WebRTCSignalingServer::sessionClosed, this,
+        [this, limitedNodeList](const SockAddr& address) {
+            auto node = limitedNodeList->findNodeWithAddr(address);
+            if (node && node->getType() == NodeType::Agent
+                && address.getType() == SocketType::WebRTC) {
+                limitedNodeList->killNodeWithUUID(node->getUUID());
+            }
+        });
 
     // Forward signaling messages received from assignment clients to user client.
     PacketReceiver& packetReceiver = limitedNodeList->getPacketReceiver();
@@ -969,7 +994,11 @@ void DomainServer::routeWebRTCSignalingMessage(const QJsonObject& json) {
 
 // Sends a WebRTC signaling message to the target AC contained in the message.
 void DomainServer::sendWebRTCSignalingMessageToAssignmentClient(const QJsonObject& json) {
-    NodeType_t destinationNodeType = NodeType::fromChar(json.value("to").toString().at(0));
+    const auto destination = json.value("to").toString();
+    if (destination.size() != 1) {
+        return;
+    }
+    NodeType_t destinationNodeType = NodeType::fromChar(destination.at(0));
     auto limitedNodeList = DependencyManager::get<LimitedNodeList>();
     auto destinationNode = limitedNodeList->soloNodeOfType(destinationNodeType);
     if (!destinationNode) {
@@ -984,8 +1013,18 @@ void DomainServer::sendWebRTCSignalingMessageToAssignmentClient(const QJsonObjec
 
 // Forwards a WebRTC signaling message received from an assignment client to the relevant user client.
 void DomainServer::forwardAssignmentClientSignalingMessageToUserClient(QSharedPointer<ReceivedMessage> message) {
+    if (message->getSize() > 1024 * 1024) {
+        return;
+    }
+    const auto sender = DependencyManager::get<LimitedNodeList>()->findNodeWithAddr(message->getSenderSockAddr());
+    if (!sender || sender->getType() == NodeType::Agent) {
+        return;
+    }
     auto messageString = message->readString();
     auto json = QJsonDocument::fromJson(messageString.toUtf8()).object();
+    if (json.value("from").toString() != QString(QChar(sender->getType()))) {
+        return;
+    }
     emit webrtcSignalingMessageForUserClient(json);
 }
 
@@ -1493,6 +1532,10 @@ void DomainServer::broadcastNewNode(const SharedNodePointer& addedNode) {
 }
 
 void DomainServer::processRequestAssignmentPacket(QSharedPointer<ReceivedMessage> message) {
+    if (!isNativeAssignmentTransport(message->getSenderSockAddr())) {
+        return;
+    }
+
     // construct the requested assignment from the packet data
     Assignment requestAssignment(*message);
 
@@ -1892,6 +1935,9 @@ void DomainServer::nodePingMonitor() {
 }
 
 void DomainServer::processOctreeDataPersistMessage(QSharedPointer<ReceivedMessage> message) {
+    if (!isNativeAssignmentTransport(message->getSenderSockAddr())) {
+        return;
+    }
     auto data = message->readAll();
     qDebug() << "Received octree data persist message" << (data.size() / 1000) << "kbytes.";
     auto filePath = getEntitiesFilePath();
@@ -1937,6 +1983,9 @@ QString DomainServer::getEntitiesReplacementFilePath() {
 }
 
 void DomainServer::processOctreeDataRequestMessage(QSharedPointer<ReceivedMessage> message) {
+    if (!isNativeAssignmentTransport(message->getSenderSockAddr())) {
+        return;
+    }
     qDebug() << "Got request for octree data from " << message->getSenderSockAddr();
 
     maybeHandleReplacementEntityFile();

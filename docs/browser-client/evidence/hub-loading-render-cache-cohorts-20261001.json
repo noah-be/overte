@@ -1,0 +1,3964 @@
+{
+  "scope": "Short actual read-only always-muted overte_hub journeys; source-frozen component cohorts, no endurance requirement",
+  "thresholds": {
+    "minimumFPS": 30,
+    "maximumP95FrameMs": 66.66666666666667,
+    "maximumSteadyStallMs": 250
+  },
+  "claimLimit": "Individual sampled before/after observations, not statistical speed guarantees or complete texture success. Firefox remains below the unchanged fluid threshold.",
+  "runs": [
+    {
+      "startedAt": "2026-10-01T06:54:35.184Z",
+      "finishedAt": "2026-10-01T06:56:34.264Z",
+      "completed": true,
+      "error": null,
+      "browserVersion": "154.0.8037.57",
+      "connectedAt": "2026-10-01T06:54:49.143Z",
+      "webGL": {
+        "vendor": "Google Inc. (NVIDIA Corporation)",
+        "renderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce GTX 1080 Ti/PCIe/SSE2, OpenGL ES 3.2)"
+      },
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "devicePixelRatio": 1.000000015894571,
+        "visibility": "visible"
+      },
+      "fluidMovementAcceptancePassed": true,
+      "nativePoseDifferenceMeters": 0.000747499918280542,
+      "reconnectedNativeDifferenceMeters": 0.0010086981618703643,
+      "movementMeters": 4.249702339617999,
+      "reconnectedMovementMeters": 2.9067664199311958,
+      "runtimeHelperSHA256": {},
+      "reconnectedRuntimeHelperSHA256": {},
+      "startSourceSHA256": {
+        "browser-client/gateway/server.mjs": "e268d609756eb19d95034058db9d7c0ce13a4a7d9db8a7afc8ecaa6cbff69175",
+        "browser-client/gateway/native-bridge.js": "f76bedb62cd3ad7e29b383bf16fb0f6d80cf7263de34c467bdba9c001b7354dd",
+        "browser-client/gateway/native-world.js": "bec2f02313446afde7a0be20899358a082b41c6c6c5d745ec67a24809e2b7ddb",
+        "browser-client/gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60",
+        "browser-client/gateway/public-places.mjs": "cbac3df2ecf7071da6e77df8d58b09be194afa184cfb0c37f6015f9f1f570471",
+        "browser-client/gateway/validation.mjs": "65eba4a66c76d4bfc0dbd18e172def64f43b37cca0db2301da5bf4d18645de79",
+        "browser-client/gateway/worker-sandbox.mjs": "d4748e8d64f2ad5c633854b7ff9e07758a574086205470b32570fd485b9f4c5d",
+        "browser-client/gateway/network-sandbox.mjs": "3fd278b91a6ea383ddf816753d9eee870736b295ecd945714e827d794c8016d9",
+        "browser-client/gateway/network_udp.py": "378f7159b1456ab5a0e25d2f933f35106344106625cef0ce0d589de3d1e45eca",
+        "browser-client/gateway/native-tablet.js": "527e106866462d1dea2834978250ecb6fa3ee6b8e99b5b2129b21e521e4995a2",
+        "browser-client/gateway/tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+        "browser-client/gateway/process-lifecycle.mjs": "e8d7e021a8b934b271910883e27c2a1109aedd22e12044b763d4bf8acc274eaf",
+        "browser-client/shared/fluid-performance.mjs": "44e5262f62785e3a9ba4a96c275f5f0bf3a93c27e1d44fdad3bdbec739deebe2",
+        "browser-client/gateway/session-assets.mjs": "68542cb352ccad1bdc23a65ae34ab19d4abc2b02e1f81dec3f529d525ab84bf4",
+        "browser-client/gateway/asset-download.mjs": "4718cfe223afa884ab4f5890b6dc093303a70b864917fe5d85dc5cc2b8568357",
+        "browser-client/src/main.ts": "1a2159c0a082a7c77575802e930947d25c21c8a88d947bc673d9205862a23c09",
+        "browser-client/src/world.ts": "b47b3cb725faa126beb9b74c257e15d46433c57305604b5ccc5c03349910d357",
+        "browser-client/src/world-image-cache.ts": "da776c919bf4e666270dd2251c6dd63e98ad52ea8c4e713ce4ff3087bf87cb3f",
+        "browser-client/src/native-render-state.ts": "ebd076e5d6720c9390576212830932d40dbde8e03ac3278ba096b669f28b703a",
+        "browser-client/src/native-alpha-material.ts": "9041f5f8e874f392c6b1ff3b8a9bed2ab768344d2bfbbd3adf1ffca51066e964",
+        "browser-client/src/model-resources.ts": "f05d539e19554cfa49ed35ce8fc6ec1c92f6c985c3b1d1f90849df9b558628ca",
+        "browser-client/src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+        "browser-client/src/worker-task-yield.ts": "6fdfa71526163386c9e041b74a533b2ff50c52f533145bfc2facb213d4333cc8",
+        "browser-client/src/model-fbx-pool.ts": "8394ecc9fba692c900e85cd8b4a6ed3511661065e8d4f4f46727a8e4d331f98c",
+        "browser-client/src/model-fbx-decoder.ts": "5b80bced09705301a14574c8082a946dd3fd32f2ef1a9d1ce08ca7f30dd19ead",
+        "browser-client/src/model-fbx-decoder-memory.ts": "0f209e406a3571af97e78bf12471d7ea6a788cec26adbef733dc353b864cdc68",
+        "browser-client/src/model-fbx-worker.ts": "75881e694db86f070e85ea44a41c04e572347c9a09944f42b4a879cb1a0e40ea",
+        "browser-client/src/model-textures.ts": "6de3ec3be2ce235642209ffab87295e52198e4fbebc12559c712ba6283e889bb",
+        "browser-client/src/texture-alpha.ts": "af9b46d9c56a156febaff92db76fe06b38dd4fa2ba7943ddfd4bbeaa47024ebe",
+        "browser-client/src/texture-alpha-worker.ts": "68cc81f419ed2373cfe18e9efd950222452479a7a742c5e10b8d965264d91761",
+        "browser-client/src/baked-fbx.ts": "a4b9d77136c5beed3dc24bc84f684fb41fdae704ad996ff0dce60b8c265712a3",
+        "browser-client/src/baked-draco.ts": "7e4426363fd8809df02d4f6c79d2b2fb899ae56ed663f839ffeb297e2a7d7844",
+        "browser-client/src/baked-draco-legacy.ts": "ba30ca915fcb85f5915fd5ef08f01745c13d3c9c7412c8dcefecb504c89a0a71",
+        "browser-client/dist/index.html": "b6630b1a1bf2fd1b95b29b7a6b496c030a815bc27957c965e5605351001beaa9",
+        "browser-client/tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "browser-client/tests/integration/public-hub-metrics.mjs": "18c9ed36feb60ddadbc5b3a73dcc73e2caa8561ab26cd672d8882de2bd25c789",
+        "browser-client/tests/integration/public-hub.mjs": "d35241b585f1e35b583b9e3ae26ba758918c76a2ebe1adb9bb966cc5bbacb81c"
+      },
+      "sourceSHA256": {
+        "browser-client/gateway/server.mjs": "e268d609756eb19d95034058db9d7c0ce13a4a7d9db8a7afc8ecaa6cbff69175",
+        "browser-client/gateway/native-bridge.js": "f76bedb62cd3ad7e29b383bf16fb0f6d80cf7263de34c467bdba9c001b7354dd",
+        "browser-client/gateway/native-world.js": "bec2f02313446afde7a0be20899358a082b41c6c6c5d745ec67a24809e2b7ddb",
+        "browser-client/gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60",
+        "browser-client/gateway/public-places.mjs": "cbac3df2ecf7071da6e77df8d58b09be194afa184cfb0c37f6015f9f1f570471",
+        "browser-client/gateway/validation.mjs": "65eba4a66c76d4bfc0dbd18e172def64f43b37cca0db2301da5bf4d18645de79",
+        "browser-client/gateway/worker-sandbox.mjs": "d4748e8d64f2ad5c633854b7ff9e07758a574086205470b32570fd485b9f4c5d",
+        "browser-client/gateway/network-sandbox.mjs": "3fd278b91a6ea383ddf816753d9eee870736b295ecd945714e827d794c8016d9",
+        "browser-client/gateway/network_udp.py": "378f7159b1456ab5a0e25d2f933f35106344106625cef0ce0d589de3d1e45eca",
+        "browser-client/gateway/native-tablet.js": "527e106866462d1dea2834978250ecb6fa3ee6b8e99b5b2129b21e521e4995a2",
+        "browser-client/gateway/tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+        "browser-client/gateway/process-lifecycle.mjs": "e8d7e021a8b934b271910883e27c2a1109aedd22e12044b763d4bf8acc274eaf",
+        "browser-client/shared/fluid-performance.mjs": "44e5262f62785e3a9ba4a96c275f5f0bf3a93c27e1d44fdad3bdbec739deebe2",
+        "browser-client/gateway/session-assets.mjs": "68542cb352ccad1bdc23a65ae34ab19d4abc2b02e1f81dec3f529d525ab84bf4",
+        "browser-client/gateway/asset-download.mjs": "4718cfe223afa884ab4f5890b6dc093303a70b864917fe5d85dc5cc2b8568357",
+        "browser-client/src/main.ts": "1a2159c0a082a7c77575802e930947d25c21c8a88d947bc673d9205862a23c09",
+        "browser-client/src/world.ts": "b47b3cb725faa126beb9b74c257e15d46433c57305604b5ccc5c03349910d357",
+        "browser-client/src/world-image-cache.ts": "da776c919bf4e666270dd2251c6dd63e98ad52ea8c4e713ce4ff3087bf87cb3f",
+        "browser-client/src/native-render-state.ts": "ebd076e5d6720c9390576212830932d40dbde8e03ac3278ba096b669f28b703a",
+        "browser-client/src/native-alpha-material.ts": "9041f5f8e874f392c6b1ff3b8a9bed2ab768344d2bfbbd3adf1ffca51066e964",
+        "browser-client/src/model-resources.ts": "f05d539e19554cfa49ed35ce8fc6ec1c92f6c985c3b1d1f90849df9b558628ca",
+        "browser-client/src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+        "browser-client/src/worker-task-yield.ts": "6fdfa71526163386c9e041b74a533b2ff50c52f533145bfc2facb213d4333cc8",
+        "browser-client/src/model-fbx-pool.ts": "8394ecc9fba692c900e85cd8b4a6ed3511661065e8d4f4f46727a8e4d331f98c",
+        "browser-client/src/model-fbx-decoder.ts": "5b80bced09705301a14574c8082a946dd3fd32f2ef1a9d1ce08ca7f30dd19ead",
+        "browser-client/src/model-fbx-decoder-memory.ts": "0f209e406a3571af97e78bf12471d7ea6a788cec26adbef733dc353b864cdc68",
+        "browser-client/src/model-fbx-worker.ts": "75881e694db86f070e85ea44a41c04e572347c9a09944f42b4a879cb1a0e40ea",
+        "browser-client/src/model-textures.ts": "6de3ec3be2ce235642209ffab87295e52198e4fbebc12559c712ba6283e889bb",
+        "browser-client/src/texture-alpha.ts": "af9b46d9c56a156febaff92db76fe06b38dd4fa2ba7943ddfd4bbeaa47024ebe",
+        "browser-client/src/texture-alpha-worker.ts": "68cc81f419ed2373cfe18e9efd950222452479a7a742c5e10b8d965264d91761",
+        "browser-client/src/baked-fbx.ts": "a4b9d77136c5beed3dc24bc84f684fb41fdae704ad996ff0dce60b8c265712a3",
+        "browser-client/src/baked-draco.ts": "7e4426363fd8809df02d4f6c79d2b2fb899ae56ed663f839ffeb297e2a7d7844",
+        "browser-client/src/baked-draco-legacy.ts": "ba30ca915fcb85f5915fd5ef08f01745c13d3c9c7412c8dcefecb504c89a0a71",
+        "browser-client/dist/index.html": "b6630b1a1bf2fd1b95b29b7a6b496c030a815bc27957c965e5605351001beaa9",
+        "browser-client/tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "browser-client/tests/integration/public-hub-metrics.mjs": "18c9ed36feb60ddadbc5b3a73dcc73e2caa8561ab26cd672d8882de2bd25c789",
+        "browser-client/tests/integration/public-hub.mjs": "d35241b585f1e35b583b9e3ae26ba758918c76a2ebe1adb9bb966cc5bbacb81c"
+      },
+      "startDistributionManifest": {
+        "assets/baked-draco-legacy-CMhlgON6.js": {
+          "sha256": "eb84ebc5eff49c7b0593382b07b23010897080f46b779ececdd515efcfb482d4",
+          "bytes": 816324
+        },
+        "assets/baked-draco-nPAk-sFt.js": {
+          "sha256": "e4f957ed3009c746afacf8a77ee91626feb6dde4b45a0a1cc17743e6b2f379ff",
+          "bytes": 125046
+        },
+        "assets/draco_decoder-C32yEggz.wasm": {
+          "sha256": "c55a594e8ffd18426d36b27fea9618af3df5e173640a3e56d46f09d76f0574f2",
+          "bytes": 285747
+        },
+        "assets/draco_decoder-fzg4nYZr.js": {
+          "sha256": "30e4d486fa020737af10e3c56197693e5b904bdc05b8bfa5d7b06751dec6da04",
+          "bytes": 719410
+        },
+        "assets/draco_decoder-Z1_iN-Ht.wasm": {
+          "sha256": "a680d927bed9cb864ddbd63521868891af2bfbe755092761b4837487618df8ac",
+          "bytes": 192420
+        },
+        "assets/draco_wasm_wrapper-DxJM36Ib.js": {
+          "sha256": "e8049906ef3f8f75d3456c22a3f31bfdfe5b5b5bd09ccdec613b9e9a49d554d8",
+          "bytes": 58763
+        },
+        "assets/draco_wasm_wrapper-fZCQGLGb.js": {
+          "sha256": "8bb2952d2ba7d67e1414f8df819410cb0434a666be53f671fff75f68843d76f6",
+          "bytes": 58456
+        },
+        "assets/FBXLoader-CHCvNWru.js": {
+          "sha256": "232cf06f128fe5f1a7383dd5cf4dde0e7c1d4645b674e5e03a24faec6e38e80f",
+          "bytes": 49922
+        },
+        "assets/GLTFLoader-CD5sHG0A.js": {
+          "sha256": "ae4be7c478969bc74b6b4fece2d6beeab95f2f88ad27f6a5c037b18882f1ce4e",
+          "bytes": 44308
+        },
+        "assets/index-B2mAMfm4.css": {
+          "sha256": "cbf321b921d05ff91c3020a6ccffc91385eeebf223ea6ec0577c6354df12a521",
+          "bytes": 5451
+        },
+        "assets/index-Cn9AzKSH.js": {
+          "sha256": "cbeaf923b4dba9c5f84ea2ec9b32ebc9652fe16392838af89368b1b6007913fc",
+          "bytes": 764099
+        },
+        "assets/model-fbx-worker-mCScXMXp.js": {
+          "sha256": "54cc66200e506deb7e541a5baf66a3dcf952c866527977b7d964f528670b2c39",
+          "bytes": 823946
+        },
+        "assets/OBJLoader-CgKX7yJZ.js": {
+          "sha256": "7de59c909a2c3bdad5edcfc85a42abc2711e619f077d2e2b7745f98f56f30feb",
+          "bytes": 8633
+        },
+        "assets/tablet-gif.worker-DACjp6Cn.js": {
+          "sha256": "78ebb1c3db4d062dd4119c2cd86d201b7df2757fedf22a8993dd460fbb1057c8",
+          "bytes": 10409
+        },
+        "assets/texture-alpha-worker-CBG2kYQR.js": {
+          "sha256": "f04f415ff39370ae4ab0268903ffaf6c86b9a7addeb0aed95d4a7948ee803485",
+          "bytes": 2417
+        }
+      },
+      "distributionManifest": {
+        "assets/baked-draco-legacy-CMhlgON6.js": {
+          "sha256": "eb84ebc5eff49c7b0593382b07b23010897080f46b779ececdd515efcfb482d4",
+          "bytes": 816324
+        },
+        "assets/baked-draco-nPAk-sFt.js": {
+          "sha256": "e4f957ed3009c746afacf8a77ee91626feb6dde4b45a0a1cc17743e6b2f379ff",
+          "bytes": 125046
+        },
+        "assets/draco_decoder-C32yEggz.wasm": {
+          "sha256": "c55a594e8ffd18426d36b27fea9618af3df5e173640a3e56d46f09d76f0574f2",
+          "bytes": 285747
+        },
+        "assets/draco_decoder-fzg4nYZr.js": {
+          "sha256": "30e4d486fa020737af10e3c56197693e5b904bdc05b8bfa5d7b06751dec6da04",
+          "bytes": 719410
+        },
+        "assets/draco_decoder-Z1_iN-Ht.wasm": {
+          "sha256": "a680d927bed9cb864ddbd63521868891af2bfbe755092761b4837487618df8ac",
+          "bytes": 192420
+        },
+        "assets/draco_wasm_wrapper-DxJM36Ib.js": {
+          "sha256": "e8049906ef3f8f75d3456c22a3f31bfdfe5b5b5bd09ccdec613b9e9a49d554d8",
+          "bytes": 58763
+        },
+        "assets/draco_wasm_wrapper-fZCQGLGb.js": {
+          "sha256": "8bb2952d2ba7d67e1414f8df819410cb0434a666be53f671fff75f68843d76f6",
+          "bytes": 58456
+        },
+        "assets/FBXLoader-CHCvNWru.js": {
+          "sha256": "232cf06f128fe5f1a7383dd5cf4dde0e7c1d4645b674e5e03a24faec6e38e80f",
+          "bytes": 49922
+        },
+        "assets/GLTFLoader-CD5sHG0A.js": {
+          "sha256": "ae4be7c478969bc74b6b4fece2d6beeab95f2f88ad27f6a5c037b18882f1ce4e",
+          "bytes": 44308
+        },
+        "assets/index-B2mAMfm4.css": {
+          "sha256": "cbf321b921d05ff91c3020a6ccffc91385eeebf223ea6ec0577c6354df12a521",
+          "bytes": 5451
+        },
+        "assets/index-Cn9AzKSH.js": {
+          "sha256": "cbeaf923b4dba9c5f84ea2ec9b32ebc9652fe16392838af89368b1b6007913fc",
+          "bytes": 764099
+        },
+        "assets/model-fbx-worker-mCScXMXp.js": {
+          "sha256": "54cc66200e506deb7e541a5baf66a3dcf952c866527977b7d964f528670b2c39",
+          "bytes": 823946
+        },
+        "assets/OBJLoader-CgKX7yJZ.js": {
+          "sha256": "7de59c909a2c3bdad5edcfc85a42abc2711e619f077d2e2b7745f98f56f30feb",
+          "bytes": 8633
+        },
+        "assets/tablet-gif.worker-DACjp6Cn.js": {
+          "sha256": "78ebb1c3db4d062dd4119c2cd86d201b7df2757fedf22a8993dd460fbb1057c8",
+          "bytes": 10409
+        },
+        "assets/texture-alpha-worker-CBG2kYQR.js": {
+          "sha256": "f04f415ff39370ae4ab0268903ffaf6c86b9a7addeb0aed95d4a7948ee803485",
+          "bytes": 2417
+        }
+      },
+      "cohort": "native-render-state",
+      "engine": "chromium",
+      "microphoneRequested": false,
+      "worldInteractionsSent": 0,
+      "sourceCoherent": true,
+      "distributionCoherent": true,
+      "modelReadySeconds": 29.796,
+      "readyPerformance": {
+        "at": 1790837718939,
+        "frames": 1743,
+        "samples": 240,
+        "fps": 25.304977699988413,
+        "medianFrameMs": 33.30000000000291,
+        "p95FrameMs": 66.59999999999854,
+        "maximumFrameMs": 1016.5,
+        "drawCalls": 669,
+        "triangles": 552079,
+        "geometries": 420,
+        "textures": 241,
+        "entities": 518,
+        "loadedAvatars": 1,
+        "loadedModels": 298,
+        "loadingModels": 0,
+        "queuedModels": 0,
+        "compilingGraphics": 0,
+        "parallelShaderCompile": true,
+        "meshColliders": 75,
+        "graphicsActive": true,
+        "imageLoading": {
+          "requests": 351,
+          "uniqueImages": 220,
+          "cacheHits": 131,
+          "completed": 211,
+          "failed": 9,
+          "cancelled": 0,
+          "evictions": 65,
+          "peakActive": 6,
+          "active": 0,
+          "queued": 0,
+          "pending": 0,
+          "retainedEntries": 146,
+          "retainedPixels": 134176584,
+          "retainedKeyBytes": 46710,
+          "pendingKeyBytes": 0,
+          "phases": {
+            "imageLoad": {
+              "count": 211,
+              "totalMs": 17888.000000059605,
+              "maxMs": 479.29999999701977
+            },
+            "imageDecode": {
+              "count": 211,
+              "totalMs": 10275.500000014901,
+              "maxMs": 309.30000001192093
+            }
+          }
+        },
+        "fbxPreparation": {
+          "active": 0,
+          "queued": 0,
+          "outstanding": 0,
+          "inputBytes": 0,
+          "workers": 2,
+          "completed": 293,
+          "cancelled": 0,
+          "failed": 4,
+          "disposed": false
+        },
+        "loadPhases": {
+          "graphicsSubmit": {
+            "count": 1744,
+            "totalMs": 16185.900000318885,
+            "maxMs": 999.4000000059605
+          },
+          "shaderPrepare": {
+            "count": 503,
+            "totalMs": 16968.699999719858,
+            "maxMs": 416.5
+          },
+          "fbxPrepareWait": {
+            "count": 293,
+            "totalMs": 14294.800000175834,
+            "maxMs": 1011.2000000029802
+          },
+          "fbxMaterialBindings": {
+            "count": 293,
+            "totalMs": 567.5000000298023,
+            "maxMs": 55
+          },
+          "fbxDecode": {
+            "count": 293,
+            "totalMs": 3861.300000011921,
+            "maxMs": 579.0999999940395
+          },
+          "fbxParse": {
+            "count": 293,
+            "totalMs": 4101.900000110269,
+            "maxMs": 350.59999999403954
+          },
+          "fbxTextures": {
+            "count": 293,
+            "totalMs": 4339.29999999702,
+            "maxMs": 232.29999999701977
+          },
+          "textureAlpha": {
+            "count": 846,
+            "totalMs": 2925.999999985099,
+            "maxMs": 343.79999999701977
+          },
+          "entityUpdate": {
+            "count": 11,
+            "totalMs": 135.6999999731779,
+            "maxMs": 86.29999999701977
+          },
+          "colliderBuild": {
+            "count": 75,
+            "totalMs": 247.69999995827675,
+            "maxMs": 67.80000001192093
+          },
+          "modelBatch": {
+            "count": 5,
+            "totalMs": 157.20000000298023,
+            "maxMs": 69.3999999910593
+          }
+        },
+        "renderedFrames": 1744,
+        "entityCount": 518
+      },
+      "steadySamples": [
+        {
+          "fps": 46.90523188774017,
+          "p95FrameMs": 33.5,
+          "maximumFrameMs": 50.5,
+          "samples": 240,
+          "drawCalls": 669,
+          "triangles": 552079
+        },
+        {
+          "fps": 48.975593829075166,
+          "p95FrameMs": 33.400000000001455,
+          "maximumFrameMs": 50,
+          "samples": 240,
+          "drawCalls": 669,
+          "triangles": 552079
+        }
+      ],
+      "fluidGates": {
+        "steadyFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "walkFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedSteadyFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedWalkFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        }
+      },
+      "assetTransfers": {
+        "categories": {
+          "FBX": {
+            "uniqueURLs": 122,
+            "requests": 591,
+            "duplicateRequests": 469,
+            "knownBytes": 60840850,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 282,
+              "shared": 0,
+              "memory": 309,
+              "unknown": 0
+            }
+          },
+          "FST": {
+            "uniqueURLs": 95,
+            "requests": 493,
+            "duplicateRequests": 398,
+            "knownBytes": 93849,
+            "unknownByteResponses": 2,
+            "sources": {
+              "download": 219,
+              "shared": 0,
+              "memory": 272,
+              "unknown": 2
+            }
+          },
+          "texmeta": {
+            "uniqueURLs": 133,
+            "requests": 526,
+            "duplicateRequests": 393,
+            "knownBytes": 164485,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 293,
+              "shared": 0,
+              "memory": 233,
+              "unknown": 0
+            }
+          },
+          "JSON": {
+            "uniqueURLs": 160,
+            "requests": 685,
+            "duplicateRequests": 525,
+            "knownBytes": 1161977,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 213,
+              "shared": 0,
+              "memory": 472,
+              "unknown": 0
+            }
+          },
+          "image": {
+            "uniqueURLs": 148,
+            "requests": 304,
+            "duplicateRequests": 156,
+            "knownBytes": 137392576,
+            "unknownByteResponses": 22,
+            "sources": {
+              "download": 278,
+              "shared": 0,
+              "memory": 4,
+              "unknown": 22
+            }
+          },
+          "other": {
+            "uniqueURLs": 8,
+            "requests": 17,
+            "duplicateRequests": 9,
+            "knownBytes": 11911564,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 16,
+              "shared": 0,
+              "memory": 1,
+              "unknown": 0
+            }
+          }
+        },
+        "uniqueURLs": 666,
+        "requests": 2616,
+        "knownBytes": 211565301,
+        "unknownByteResponses": 24,
+        "duplicateRequests": 1950,
+        "sources": {
+          "download": 1301,
+          "shared": 0,
+          "memory": 1291,
+          "unknown": 24
+        },
+        "sessions": [
+          {
+            "ordinal": 1,
+            "uniqueURLs": 666,
+            "requests": 1310,
+            "duplicateRequests": 644,
+            "knownBytes": 105628395,
+            "unknownByteResponses": 12,
+            "totalRequestMs": 98980.94783299998,
+            "maximumRequestMs": 2564.488835,
+            "sources": {
+              "download": 649,
+              "shared": 0,
+              "memory": 649,
+              "unknown": 12
+            },
+            "categories": {
+              "FBX": {
+                "uniqueURLs": 122,
+                "requests": 296,
+                "duplicateRequests": 174,
+                "knownBytes": 30435476,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 141,
+                  "shared": 0,
+                  "memory": 155,
+                  "unknown": 0
+                }
+              },
+              "FST": {
+                "uniqueURLs": 95,
+                "requests": 247,
+                "duplicateRequests": 152,
+                "knownBytes": 46999,
+                "unknownByteResponses": 1,
+                "sources": {
+                  "download": 109,
+                  "shared": 0,
+                  "memory": 137,
+                  "unknown": 1
+                }
+              },
+              "texmeta": {
+                "uniqueURLs": 133,
+                "requests": 264,
+                "duplicateRequests": 131,
+                "knownBytes": 82543,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 146,
+                  "shared": 0,
+                  "memory": 118,
+                  "unknown": 0
+                }
+              },
+              "JSON": {
+                "uniqueURLs": 160,
+                "requests": 343,
+                "duplicateRequests": 183,
+                "knownBytes": 581281,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 106,
+                  "shared": 0,
+                  "memory": 237,
+                  "unknown": 0
+                }
+              },
+              "image": {
+                "uniqueURLs": 148,
+                "requests": 152,
+                "duplicateRequests": 4,
+                "knownBytes": 68696288,
+                "unknownByteResponses": 11,
+                "sources": {
+                  "download": 139,
+                  "shared": 0,
+                  "memory": 2,
+                  "unknown": 11
+                }
+              },
+              "other": {
+                "uniqueURLs": 8,
+                "requests": 8,
+                "duplicateRequests": 0,
+                "knownBytes": 5785808,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 8,
+                  "shared": 0,
+                  "memory": 0,
+                  "unknown": 0
+                }
+              }
+            },
+            "entryCount": 666,
+            "entrySHA256": "1d3c8256b0b8f569297addf2a71ebb7b2b9f4ca4cecee1412f583ed43da5d518",
+            "entryDigestEncoding": "Compact UTF-8 JSON, sorted keys; complete per-asset records retained in ignored local source reports"
+          },
+          {
+            "ordinal": 2,
+            "uniqueURLs": 666,
+            "requests": 1306,
+            "duplicateRequests": 640,
+            "knownBytes": 105936906,
+            "unknownByteResponses": 12,
+            "totalRequestMs": 96646.82484000012,
+            "maximumRequestMs": 1659.3189259999926,
+            "sources": {
+              "download": 652,
+              "shared": 0,
+              "memory": 642,
+              "unknown": 12
+            },
+            "categories": {
+              "FBX": {
+                "uniqueURLs": 122,
+                "requests": 295,
+                "duplicateRequests": 173,
+                "knownBytes": 30405374,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 141,
+                  "shared": 0,
+                  "memory": 154,
+                  "unknown": 0
+                }
+              },
+              "FST": {
+                "uniqueURLs": 95,
+                "requests": 246,
+                "duplicateRequests": 151,
+                "knownBytes": 46850,
+                "unknownByteResponses": 1,
+                "sources": {
+                  "download": 110,
+                  "shared": 0,
+                  "memory": 135,
+                  "unknown": 1
+                }
+              },
+              "texmeta": {
+                "uniqueURLs": 133,
+                "requests": 262,
+                "duplicateRequests": 129,
+                "knownBytes": 81942,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 147,
+                  "shared": 0,
+                  "memory": 115,
+                  "unknown": 0
+                }
+              },
+              "JSON": {
+                "uniqueURLs": 160,
+                "requests": 342,
+                "duplicateRequests": 182,
+                "knownBytes": 580696,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 107,
+                  "shared": 0,
+                  "memory": 235,
+                  "unknown": 0
+                }
+              },
+              "image": {
+                "uniqueURLs": 148,
+                "requests": 152,
+                "duplicateRequests": 4,
+                "knownBytes": 68696288,
+                "unknownByteResponses": 11,
+                "sources": {
+                  "download": 139,
+                  "shared": 0,
+                  "memory": 2,
+                  "unknown": 11
+                }
+              },
+              "other": {
+                "uniqueURLs": 8,
+                "requests": 9,
+                "duplicateRequests": 1,
+                "knownBytes": 6125756,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 8,
+                  "shared": 0,
+                  "memory": 1,
+                  "unknown": 0
+                }
+              }
+            },
+            "entryCount": 666,
+            "entrySHA256": "cbc8246761542d870a7521db271cf7974ecba6a1ff1faf568622be421b787c1f",
+            "entryDigestEncoding": "Compact UTF-8 JSON, sorted keys; complete per-asset records retained in ignored local source reports"
+          }
+        ],
+        "entryCount": 666,
+        "entrySHA256": "ffaebef0c061a5e7040b7be32cbd8cb1fa1e0722a0204301d354af153d862649",
+        "entryDigestEncoding": "Compact UTF-8 JSON, sorted keys; complete per-asset records retained in ignored local source reports"
+      },
+      "pageErrorCount": 0,
+      "failedStatusCounts": {
+        "502": 34
+      },
+      "earlyMovementMeters": 0.0
+    },
+    {
+      "startedAt": "2026-10-01T06:52:11.748Z",
+      "finishedAt": "2026-10-01T06:54:17.424Z",
+      "completed": false,
+      "error": "Actual loaded-world, walking and reconnect measurements must meet30FPS, p95<=66.7ms and no steady stall>250ms",
+      "browserVersion": "firefox/156.0",
+      "connectedAt": "2026-10-01T06:52:29.539Z",
+      "webGL": {
+        "vendor": "NVIDIA Corporation",
+        "renderer": "NVIDIA GeForce GTX 980, or similar"
+      },
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "devicePixelRatio": 1.6666666666666667,
+        "visibility": "visible"
+      },
+      "fluidMovementAcceptancePassed": false,
+      "nativePoseDifferenceMeters": 0.0004103835647616785,
+      "reconnectedNativeDifferenceMeters": 0.004162349283450485,
+      "movementMeters": 4.252705750795282,
+      "reconnectedMovementMeters": 2.7762468334678694,
+      "runtimeHelperSHA256": {},
+      "reconnectedRuntimeHelperSHA256": {},
+      "startSourceSHA256": {
+        "browser-client/gateway/server.mjs": "e268d609756eb19d95034058db9d7c0ce13a4a7d9db8a7afc8ecaa6cbff69175",
+        "browser-client/gateway/native-bridge.js": "f76bedb62cd3ad7e29b383bf16fb0f6d80cf7263de34c467bdba9c001b7354dd",
+        "browser-client/gateway/native-world.js": "bec2f02313446afde7a0be20899358a082b41c6c6c5d745ec67a24809e2b7ddb",
+        "browser-client/gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60",
+        "browser-client/gateway/public-places.mjs": "cbac3df2ecf7071da6e77df8d58b09be194afa184cfb0c37f6015f9f1f570471",
+        "browser-client/gateway/validation.mjs": "65eba4a66c76d4bfc0dbd18e172def64f43b37cca0db2301da5bf4d18645de79",
+        "browser-client/gateway/worker-sandbox.mjs": "d4748e8d64f2ad5c633854b7ff9e07758a574086205470b32570fd485b9f4c5d",
+        "browser-client/gateway/network-sandbox.mjs": "3fd278b91a6ea383ddf816753d9eee870736b295ecd945714e827d794c8016d9",
+        "browser-client/gateway/network_udp.py": "378f7159b1456ab5a0e25d2f933f35106344106625cef0ce0d589de3d1e45eca",
+        "browser-client/gateway/native-tablet.js": "527e106866462d1dea2834978250ecb6fa3ee6b8e99b5b2129b21e521e4995a2",
+        "browser-client/gateway/tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+        "browser-client/gateway/process-lifecycle.mjs": "e8d7e021a8b934b271910883e27c2a1109aedd22e12044b763d4bf8acc274eaf",
+        "browser-client/shared/fluid-performance.mjs": "44e5262f62785e3a9ba4a96c275f5f0bf3a93c27e1d44fdad3bdbec739deebe2",
+        "browser-client/gateway/session-assets.mjs": "68542cb352ccad1bdc23a65ae34ab19d4abc2b02e1f81dec3f529d525ab84bf4",
+        "browser-client/gateway/asset-download.mjs": "4718cfe223afa884ab4f5890b6dc093303a70b864917fe5d85dc5cc2b8568357",
+        "browser-client/src/main.ts": "1a2159c0a082a7c77575802e930947d25c21c8a88d947bc673d9205862a23c09",
+        "browser-client/src/world.ts": "b47b3cb725faa126beb9b74c257e15d46433c57305604b5ccc5c03349910d357",
+        "browser-client/src/world-image-cache.ts": "da776c919bf4e666270dd2251c6dd63e98ad52ea8c4e713ce4ff3087bf87cb3f",
+        "browser-client/src/native-render-state.ts": "ebd076e5d6720c9390576212830932d40dbde8e03ac3278ba096b669f28b703a",
+        "browser-client/src/native-alpha-material.ts": "9041f5f8e874f392c6b1ff3b8a9bed2ab768344d2bfbbd3adf1ffca51066e964",
+        "browser-client/src/model-resources.ts": "f05d539e19554cfa49ed35ce8fc6ec1c92f6c985c3b1d1f90849df9b558628ca",
+        "browser-client/src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+        "browser-client/src/worker-task-yield.ts": "6fdfa71526163386c9e041b74a533b2ff50c52f533145bfc2facb213d4333cc8",
+        "browser-client/src/model-fbx-pool.ts": "8394ecc9fba692c900e85cd8b4a6ed3511661065e8d4f4f46727a8e4d331f98c",
+        "browser-client/src/model-fbx-decoder.ts": "5b80bced09705301a14574c8082a946dd3fd32f2ef1a9d1ce08ca7f30dd19ead",
+        "browser-client/src/model-fbx-decoder-memory.ts": "0f209e406a3571af97e78bf12471d7ea6a788cec26adbef733dc353b864cdc68",
+        "browser-client/src/model-fbx-worker.ts": "75881e694db86f070e85ea44a41c04e572347c9a09944f42b4a879cb1a0e40ea",
+        "browser-client/src/model-textures.ts": "6de3ec3be2ce235642209ffab87295e52198e4fbebc12559c712ba6283e889bb",
+        "browser-client/src/texture-alpha.ts": "af9b46d9c56a156febaff92db76fe06b38dd4fa2ba7943ddfd4bbeaa47024ebe",
+        "browser-client/src/texture-alpha-worker.ts": "68cc81f419ed2373cfe18e9efd950222452479a7a742c5e10b8d965264d91761",
+        "browser-client/src/baked-fbx.ts": "a4b9d77136c5beed3dc24bc84f684fb41fdae704ad996ff0dce60b8c265712a3",
+        "browser-client/src/baked-draco.ts": "7e4426363fd8809df02d4f6c79d2b2fb899ae56ed663f839ffeb297e2a7d7844",
+        "browser-client/src/baked-draco-legacy.ts": "ba30ca915fcb85f5915fd5ef08f01745c13d3c9c7412c8dcefecb504c89a0a71",
+        "browser-client/dist/index.html": "b6630b1a1bf2fd1b95b29b7a6b496c030a815bc27957c965e5605351001beaa9",
+        "browser-client/tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "browser-client/tests/integration/public-hub-metrics.mjs": "18c9ed36feb60ddadbc5b3a73dcc73e2caa8561ab26cd672d8882de2bd25c789",
+        "browser-client/tests/integration/public-hub.mjs": "d35241b585f1e35b583b9e3ae26ba758918c76a2ebe1adb9bb966cc5bbacb81c"
+      },
+      "sourceSHA256": {
+        "browser-client/gateway/server.mjs": "e268d609756eb19d95034058db9d7c0ce13a4a7d9db8a7afc8ecaa6cbff69175",
+        "browser-client/gateway/native-bridge.js": "f76bedb62cd3ad7e29b383bf16fb0f6d80cf7263de34c467bdba9c001b7354dd",
+        "browser-client/gateway/native-world.js": "bec2f02313446afde7a0be20899358a082b41c6c6c5d745ec67a24809e2b7ddb",
+        "browser-client/gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60",
+        "browser-client/gateway/public-places.mjs": "cbac3df2ecf7071da6e77df8d58b09be194afa184cfb0c37f6015f9f1f570471",
+        "browser-client/gateway/validation.mjs": "65eba4a66c76d4bfc0dbd18e172def64f43b37cca0db2301da5bf4d18645de79",
+        "browser-client/gateway/worker-sandbox.mjs": "d4748e8d64f2ad5c633854b7ff9e07758a574086205470b32570fd485b9f4c5d",
+        "browser-client/gateway/network-sandbox.mjs": "3fd278b91a6ea383ddf816753d9eee870736b295ecd945714e827d794c8016d9",
+        "browser-client/gateway/network_udp.py": "378f7159b1456ab5a0e25d2f933f35106344106625cef0ce0d589de3d1e45eca",
+        "browser-client/gateway/native-tablet.js": "527e106866462d1dea2834978250ecb6fa3ee6b8e99b5b2129b21e521e4995a2",
+        "browser-client/gateway/tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+        "browser-client/gateway/process-lifecycle.mjs": "e8d7e021a8b934b271910883e27c2a1109aedd22e12044b763d4bf8acc274eaf",
+        "browser-client/shared/fluid-performance.mjs": "44e5262f62785e3a9ba4a96c275f5f0bf3a93c27e1d44fdad3bdbec739deebe2",
+        "browser-client/gateway/session-assets.mjs": "68542cb352ccad1bdc23a65ae34ab19d4abc2b02e1f81dec3f529d525ab84bf4",
+        "browser-client/gateway/asset-download.mjs": "4718cfe223afa884ab4f5890b6dc093303a70b864917fe5d85dc5cc2b8568357",
+        "browser-client/src/main.ts": "1a2159c0a082a7c77575802e930947d25c21c8a88d947bc673d9205862a23c09",
+        "browser-client/src/world.ts": "b47b3cb725faa126beb9b74c257e15d46433c57305604b5ccc5c03349910d357",
+        "browser-client/src/world-image-cache.ts": "da776c919bf4e666270dd2251c6dd63e98ad52ea8c4e713ce4ff3087bf87cb3f",
+        "browser-client/src/native-render-state.ts": "ebd076e5d6720c9390576212830932d40dbde8e03ac3278ba096b669f28b703a",
+        "browser-client/src/native-alpha-material.ts": "9041f5f8e874f392c6b1ff3b8a9bed2ab768344d2bfbbd3adf1ffca51066e964",
+        "browser-client/src/model-resources.ts": "f05d539e19554cfa49ed35ce8fc6ec1c92f6c985c3b1d1f90849df9b558628ca",
+        "browser-client/src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+        "browser-client/src/worker-task-yield.ts": "6fdfa71526163386c9e041b74a533b2ff50c52f533145bfc2facb213d4333cc8",
+        "browser-client/src/model-fbx-pool.ts": "8394ecc9fba692c900e85cd8b4a6ed3511661065e8d4f4f46727a8e4d331f98c",
+        "browser-client/src/model-fbx-decoder.ts": "5b80bced09705301a14574c8082a946dd3fd32f2ef1a9d1ce08ca7f30dd19ead",
+        "browser-client/src/model-fbx-decoder-memory.ts": "0f209e406a3571af97e78bf12471d7ea6a788cec26adbef733dc353b864cdc68",
+        "browser-client/src/model-fbx-worker.ts": "75881e694db86f070e85ea44a41c04e572347c9a09944f42b4a879cb1a0e40ea",
+        "browser-client/src/model-textures.ts": "6de3ec3be2ce235642209ffab87295e52198e4fbebc12559c712ba6283e889bb",
+        "browser-client/src/texture-alpha.ts": "af9b46d9c56a156febaff92db76fe06b38dd4fa2ba7943ddfd4bbeaa47024ebe",
+        "browser-client/src/texture-alpha-worker.ts": "68cc81f419ed2373cfe18e9efd950222452479a7a742c5e10b8d965264d91761",
+        "browser-client/src/baked-fbx.ts": "a4b9d77136c5beed3dc24bc84f684fb41fdae704ad996ff0dce60b8c265712a3",
+        "browser-client/src/baked-draco.ts": "7e4426363fd8809df02d4f6c79d2b2fb899ae56ed663f839ffeb297e2a7d7844",
+        "browser-client/src/baked-draco-legacy.ts": "ba30ca915fcb85f5915fd5ef08f01745c13d3c9c7412c8dcefecb504c89a0a71",
+        "browser-client/dist/index.html": "b6630b1a1bf2fd1b95b29b7a6b496c030a815bc27957c965e5605351001beaa9",
+        "browser-client/tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "browser-client/tests/integration/public-hub-metrics.mjs": "18c9ed36feb60ddadbc5b3a73dcc73e2caa8561ab26cd672d8882de2bd25c789",
+        "browser-client/tests/integration/public-hub.mjs": "d35241b585f1e35b583b9e3ae26ba758918c76a2ebe1adb9bb966cc5bbacb81c"
+      },
+      "startDistributionManifest": {
+        "assets/baked-draco-legacy-CMhlgON6.js": {
+          "sha256": "eb84ebc5eff49c7b0593382b07b23010897080f46b779ececdd515efcfb482d4",
+          "bytes": 816324
+        },
+        "assets/baked-draco-nPAk-sFt.js": {
+          "sha256": "e4f957ed3009c746afacf8a77ee91626feb6dde4b45a0a1cc17743e6b2f379ff",
+          "bytes": 125046
+        },
+        "assets/draco_decoder-C32yEggz.wasm": {
+          "sha256": "c55a594e8ffd18426d36b27fea9618af3df5e173640a3e56d46f09d76f0574f2",
+          "bytes": 285747
+        },
+        "assets/draco_decoder-fzg4nYZr.js": {
+          "sha256": "30e4d486fa020737af10e3c56197693e5b904bdc05b8bfa5d7b06751dec6da04",
+          "bytes": 719410
+        },
+        "assets/draco_decoder-Z1_iN-Ht.wasm": {
+          "sha256": "a680d927bed9cb864ddbd63521868891af2bfbe755092761b4837487618df8ac",
+          "bytes": 192420
+        },
+        "assets/draco_wasm_wrapper-DxJM36Ib.js": {
+          "sha256": "e8049906ef3f8f75d3456c22a3f31bfdfe5b5b5bd09ccdec613b9e9a49d554d8",
+          "bytes": 58763
+        },
+        "assets/draco_wasm_wrapper-fZCQGLGb.js": {
+          "sha256": "8bb2952d2ba7d67e1414f8df819410cb0434a666be53f671fff75f68843d76f6",
+          "bytes": 58456
+        },
+        "assets/FBXLoader-CHCvNWru.js": {
+          "sha256": "232cf06f128fe5f1a7383dd5cf4dde0e7c1d4645b674e5e03a24faec6e38e80f",
+          "bytes": 49922
+        },
+        "assets/GLTFLoader-CD5sHG0A.js": {
+          "sha256": "ae4be7c478969bc74b6b4fece2d6beeab95f2f88ad27f6a5c037b18882f1ce4e",
+          "bytes": 44308
+        },
+        "assets/index-B2mAMfm4.css": {
+          "sha256": "cbf321b921d05ff91c3020a6ccffc91385eeebf223ea6ec0577c6354df12a521",
+          "bytes": 5451
+        },
+        "assets/index-Cn9AzKSH.js": {
+          "sha256": "cbeaf923b4dba9c5f84ea2ec9b32ebc9652fe16392838af89368b1b6007913fc",
+          "bytes": 764099
+        },
+        "assets/model-fbx-worker-mCScXMXp.js": {
+          "sha256": "54cc66200e506deb7e541a5baf66a3dcf952c866527977b7d964f528670b2c39",
+          "bytes": 823946
+        },
+        "assets/OBJLoader-CgKX7yJZ.js": {
+          "sha256": "7de59c909a2c3bdad5edcfc85a42abc2711e619f077d2e2b7745f98f56f30feb",
+          "bytes": 8633
+        },
+        "assets/tablet-gif.worker-DACjp6Cn.js": {
+          "sha256": "78ebb1c3db4d062dd4119c2cd86d201b7df2757fedf22a8993dd460fbb1057c8",
+          "bytes": 10409
+        },
+        "assets/texture-alpha-worker-CBG2kYQR.js": {
+          "sha256": "f04f415ff39370ae4ab0268903ffaf6c86b9a7addeb0aed95d4a7948ee803485",
+          "bytes": 2417
+        }
+      },
+      "distributionManifest": {
+        "assets/baked-draco-legacy-CMhlgON6.js": {
+          "sha256": "eb84ebc5eff49c7b0593382b07b23010897080f46b779ececdd515efcfb482d4",
+          "bytes": 816324
+        },
+        "assets/baked-draco-nPAk-sFt.js": {
+          "sha256": "e4f957ed3009c746afacf8a77ee91626feb6dde4b45a0a1cc17743e6b2f379ff",
+          "bytes": 125046
+        },
+        "assets/draco_decoder-C32yEggz.wasm": {
+          "sha256": "c55a594e8ffd18426d36b27fea9618af3df5e173640a3e56d46f09d76f0574f2",
+          "bytes": 285747
+        },
+        "assets/draco_decoder-fzg4nYZr.js": {
+          "sha256": "30e4d486fa020737af10e3c56197693e5b904bdc05b8bfa5d7b06751dec6da04",
+          "bytes": 719410
+        },
+        "assets/draco_decoder-Z1_iN-Ht.wasm": {
+          "sha256": "a680d927bed9cb864ddbd63521868891af2bfbe755092761b4837487618df8ac",
+          "bytes": 192420
+        },
+        "assets/draco_wasm_wrapper-DxJM36Ib.js": {
+          "sha256": "e8049906ef3f8f75d3456c22a3f31bfdfe5b5b5bd09ccdec613b9e9a49d554d8",
+          "bytes": 58763
+        },
+        "assets/draco_wasm_wrapper-fZCQGLGb.js": {
+          "sha256": "8bb2952d2ba7d67e1414f8df819410cb0434a666be53f671fff75f68843d76f6",
+          "bytes": 58456
+        },
+        "assets/FBXLoader-CHCvNWru.js": {
+          "sha256": "232cf06f128fe5f1a7383dd5cf4dde0e7c1d4645b674e5e03a24faec6e38e80f",
+          "bytes": 49922
+        },
+        "assets/GLTFLoader-CD5sHG0A.js": {
+          "sha256": "ae4be7c478969bc74b6b4fece2d6beeab95f2f88ad27f6a5c037b18882f1ce4e",
+          "bytes": 44308
+        },
+        "assets/index-B2mAMfm4.css": {
+          "sha256": "cbf321b921d05ff91c3020a6ccffc91385eeebf223ea6ec0577c6354df12a521",
+          "bytes": 5451
+        },
+        "assets/index-Cn9AzKSH.js": {
+          "sha256": "cbeaf923b4dba9c5f84ea2ec9b32ebc9652fe16392838af89368b1b6007913fc",
+          "bytes": 764099
+        },
+        "assets/model-fbx-worker-mCScXMXp.js": {
+          "sha256": "54cc66200e506deb7e541a5baf66a3dcf952c866527977b7d964f528670b2c39",
+          "bytes": 823946
+        },
+        "assets/OBJLoader-CgKX7yJZ.js": {
+          "sha256": "7de59c909a2c3bdad5edcfc85a42abc2711e619f077d2e2b7745f98f56f30feb",
+          "bytes": 8633
+        },
+        "assets/tablet-gif.worker-DACjp6Cn.js": {
+          "sha256": "78ebb1c3db4d062dd4119c2cd86d201b7df2757fedf22a8993dd460fbb1057c8",
+          "bytes": 10409
+        },
+        "assets/texture-alpha-worker-CBG2kYQR.js": {
+          "sha256": "f04f415ff39370ae4ab0268903ffaf6c86b9a7addeb0aed95d4a7948ee803485",
+          "bytes": 2417
+        }
+      },
+      "cohort": "native-render-state",
+      "engine": "firefox",
+      "microphoneRequested": false,
+      "worldInteractionsSent": 0,
+      "sourceCoherent": true,
+      "distributionCoherent": true,
+      "modelReadySeconds": 31.38,
+      "readyPerformance": {
+        "at": 1790837580919,
+        "frames": 1403,
+        "samples": 240,
+        "fps": 21.110036062978274,
+        "medianFrameMs": 38,
+        "p95FrameMs": 85,
+        "maximumFrameMs": 769,
+        "drawCalls": 669,
+        "triangles": 552079,
+        "geometries": 420,
+        "textures": 241,
+        "entities": 517,
+        "loadedAvatars": 1,
+        "loadedModels": 297,
+        "loadingModels": 0,
+        "queuedModels": 0,
+        "compilingGraphics": 0,
+        "parallelShaderCompile": false,
+        "meshColliders": 75,
+        "graphicsActive": true,
+        "imageLoading": {
+          "requests": 349,
+          "uniqueImages": 218,
+          "cacheHits": 131,
+          "completed": 209,
+          "failed": 9,
+          "cancelled": 0,
+          "evictions": 58,
+          "peakActive": 6,
+          "active": 0,
+          "queued": 0,
+          "pending": 0,
+          "retainedEntries": 151,
+          "retainedPixels": 134078408,
+          "retainedKeyBytes": 49890,
+          "pendingKeyBytes": 0,
+          "phases": {
+            "imageLoad": {
+              "count": 209,
+              "totalMs": 23868,
+              "maxMs": 1152
+            },
+            "imageDecode": {
+              "count": 209,
+              "totalMs": 8141,
+              "maxMs": 461
+            }
+          }
+        },
+        "fbxPreparation": {
+          "active": 0,
+          "queued": 0,
+          "outstanding": 0,
+          "inputBytes": 0,
+          "workers": 2,
+          "completed": 292,
+          "cancelled": 0,
+          "failed": 4,
+          "disposed": false
+        },
+        "loadPhases": {
+          "graphicsSubmit": {
+            "count": 1404,
+            "totalMs": 16586,
+            "maxMs": 1059
+          },
+          "shaderPrepare": {
+            "count": 501,
+            "totalMs": 20372,
+            "maxMs": 1099
+          },
+          "fbxPrepareWait": {
+            "count": 292,
+            "totalMs": 13392,
+            "maxMs": 1089
+          },
+          "fbxMaterialBindings": {
+            "count": 292,
+            "totalMs": 744,
+            "maxMs": 46
+          },
+          "fbxDecode": {
+            "count": 292,
+            "totalMs": 4361,
+            "maxMs": 391
+          },
+          "fbxParse": {
+            "count": 292,
+            "totalMs": 4157,
+            "maxMs": 191
+          },
+          "fbxTextures": {
+            "count": 292,
+            "totalMs": 3827,
+            "maxMs": 488
+          },
+          "textureAlpha": {
+            "count": 843,
+            "totalMs": 22235,
+            "maxMs": 1756
+          },
+          "entityUpdate": {
+            "count": 11,
+            "totalMs": 147,
+            "maxMs": 51
+          },
+          "colliderBuild": {
+            "count": 75,
+            "totalMs": 278,
+            "maxMs": 73
+          },
+          "modelBatch": {
+            "count": 5,
+            "totalMs": 138,
+            "maxMs": 84
+          }
+        },
+        "renderedFrames": 1404,
+        "entityCount": 517
+      },
+      "steadySamples": [
+        {
+          "fps": 28.328611898016998,
+          "p95FrameMs": 67,
+          "maximumFrameMs": 93,
+          "samples": 240,
+          "drawCalls": 668,
+          "triangles": 551983
+        },
+        {
+          "fps": 28.34868887313962,
+          "p95FrameMs": 67,
+          "maximumFrameMs": 196,
+          "samples": 240,
+          "drawCalls": 668,
+          "triangles": 551983
+        }
+      ],
+      "fluidGates": {
+        "steadyFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "walkFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedSteadyFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedWalkFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        }
+      },
+      "assetTransfers": {
+        "categories": {
+          "FBX": {
+            "uniqueURLs": 122,
+            "requests": 591,
+            "duplicateRequests": 469,
+            "knownBytes": 60840850,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 283,
+              "shared": 0,
+              "memory": 308,
+              "unknown": 0
+            }
+          },
+          "FST": {
+            "uniqueURLs": 95,
+            "requests": 493,
+            "duplicateRequests": 398,
+            "knownBytes": 93849,
+            "unknownByteResponses": 2,
+            "sources": {
+              "download": 220,
+              "shared": 0,
+              "memory": 271,
+              "unknown": 2
+            }
+          },
+          "texmeta": {
+            "uniqueURLs": 133,
+            "requests": 526,
+            "duplicateRequests": 393,
+            "knownBytes": 164485,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 293,
+              "shared": 0,
+              "memory": 233,
+              "unknown": 0
+            }
+          },
+          "JSON": {
+            "uniqueURLs": 160,
+            "requests": 685,
+            "duplicateRequests": 525,
+            "knownBytes": 1161977,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 215,
+              "shared": 0,
+              "memory": 470,
+              "unknown": 0
+            }
+          },
+          "image": {
+            "uniqueURLs": 148,
+            "requests": 304,
+            "duplicateRequests": 156,
+            "knownBytes": 137392576,
+            "unknownByteResponses": 22,
+            "sources": {
+              "download": 278,
+              "shared": 0,
+              "memory": 4,
+              "unknown": 22
+            }
+          },
+          "other": {
+            "uniqueURLs": 12,
+            "requests": 27,
+            "duplicateRequests": 15,
+            "knownBytes": 11911564,
+            "unknownByteResponses": 10,
+            "sources": {
+              "download": 16,
+              "shared": 0,
+              "memory": 1,
+              "unknown": 10
+            }
+          }
+        },
+        "uniqueURLs": 670,
+        "requests": 2626,
+        "knownBytes": 211565301,
+        "unknownByteResponses": 34,
+        "duplicateRequests": 1956,
+        "sources": {
+          "download": 1305,
+          "shared": 0,
+          "memory": 1287,
+          "unknown": 34
+        },
+        "sessions": [
+          {
+            "ordinal": 1,
+            "uniqueURLs": 670,
+            "requests": 1311,
+            "duplicateRequests": 641,
+            "knownBytes": 105936906,
+            "unknownByteResponses": 17,
+            "totalRequestMs": 53374.085900000005,
+            "maximumRequestMs": 2576.163046999998,
+            "sources": {
+              "download": 652,
+              "shared": 0,
+              "memory": 642,
+              "unknown": 17
+            },
+            "categories": {
+              "FBX": {
+                "uniqueURLs": 122,
+                "requests": 295,
+                "duplicateRequests": 173,
+                "knownBytes": 30405374,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 142,
+                  "shared": 0,
+                  "memory": 153,
+                  "unknown": 0
+                }
+              },
+              "FST": {
+                "uniqueURLs": 95,
+                "requests": 246,
+                "duplicateRequests": 151,
+                "knownBytes": 46850,
+                "unknownByteResponses": 1,
+                "sources": {
+                  "download": 110,
+                  "shared": 0,
+                  "memory": 135,
+                  "unknown": 1
+                }
+              },
+              "texmeta": {
+                "uniqueURLs": 133,
+                "requests": 262,
+                "duplicateRequests": 129,
+                "knownBytes": 81942,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 146,
+                  "shared": 0,
+                  "memory": 116,
+                  "unknown": 0
+                }
+              },
+              "JSON": {
+                "uniqueURLs": 160,
+                "requests": 342,
+                "duplicateRequests": 182,
+                "knownBytes": 580696,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 107,
+                  "shared": 0,
+                  "memory": 235,
+                  "unknown": 0
+                }
+              },
+              "image": {
+                "uniqueURLs": 148,
+                "requests": 152,
+                "duplicateRequests": 4,
+                "knownBytes": 68696288,
+                "unknownByteResponses": 11,
+                "sources": {
+                  "download": 139,
+                  "shared": 0,
+                  "memory": 2,
+                  "unknown": 11
+                }
+              },
+              "other": {
+                "uniqueURLs": 12,
+                "requests": 14,
+                "duplicateRequests": 2,
+                "knownBytes": 6125756,
+                "unknownByteResponses": 5,
+                "sources": {
+                  "download": 8,
+                  "shared": 0,
+                  "memory": 1,
+                  "unknown": 5
+                }
+              }
+            },
+            "entryCount": 670,
+            "entrySHA256": "41acd882bb642d7d4f716da17484680fab7c4db01f979f497139cd42767fc099",
+            "entryDigestEncoding": "Compact UTF-8 JSON, sorted keys; complete per-asset records retained in ignored local source reports"
+          },
+          {
+            "ordinal": 2,
+            "uniqueURLs": 670,
+            "requests": 1315,
+            "duplicateRequests": 645,
+            "knownBytes": 105628395,
+            "unknownByteResponses": 17,
+            "totalRequestMs": 42483.52735700019,
+            "maximumRequestMs": 2261.7345519999944,
+            "sources": {
+              "download": 653,
+              "shared": 0,
+              "memory": 645,
+              "unknown": 17
+            },
+            "categories": {
+              "FBX": {
+                "uniqueURLs": 122,
+                "requests": 296,
+                "duplicateRequests": 174,
+                "knownBytes": 30435476,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 141,
+                  "shared": 0,
+                  "memory": 155,
+                  "unknown": 0
+                }
+              },
+              "FST": {
+                "uniqueURLs": 95,
+                "requests": 247,
+                "duplicateRequests": 152,
+                "knownBytes": 46999,
+                "unknownByteResponses": 1,
+                "sources": {
+                  "download": 110,
+                  "shared": 0,
+                  "memory": 136,
+                  "unknown": 1
+                }
+              },
+              "texmeta": {
+                "uniqueURLs": 133,
+                "requests": 264,
+                "duplicateRequests": 131,
+                "knownBytes": 82543,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 147,
+                  "shared": 0,
+                  "memory": 117,
+                  "unknown": 0
+                }
+              },
+              "JSON": {
+                "uniqueURLs": 160,
+                "requests": 343,
+                "duplicateRequests": 183,
+                "knownBytes": 581281,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 108,
+                  "shared": 0,
+                  "memory": 235,
+                  "unknown": 0
+                }
+              },
+              "image": {
+                "uniqueURLs": 148,
+                "requests": 152,
+                "duplicateRequests": 4,
+                "knownBytes": 68696288,
+                "unknownByteResponses": 11,
+                "sources": {
+                  "download": 139,
+                  "shared": 0,
+                  "memory": 2,
+                  "unknown": 11
+                }
+              },
+              "other": {
+                "uniqueURLs": 12,
+                "requests": 13,
+                "duplicateRequests": 1,
+                "knownBytes": 5785808,
+                "unknownByteResponses": 5,
+                "sources": {
+                  "download": 8,
+                  "shared": 0,
+                  "memory": 0,
+                  "unknown": 5
+                }
+              }
+            },
+            "entryCount": 670,
+            "entrySHA256": "98eacb69bcb0b6b28d162c63ddebeb63ef5bae3ac08ee73472c42df1a62aa61d",
+            "entryDigestEncoding": "Compact UTF-8 JSON, sorted keys; complete per-asset records retained in ignored local source reports"
+          }
+        ],
+        "entryCount": 670,
+        "entrySHA256": "ebf4eb15c50dfcf0a1708c0bdbb317164f45a3e1314fc04f32f0fb80e6aeee58",
+        "entryDigestEncoding": "Compact UTF-8 JSON, sorted keys; complete per-asset records retained in ignored local source reports"
+      },
+      "pageErrorCount": 0,
+      "failedStatusCounts": {
+        "404": 1,
+        "502": 34
+      },
+      "earlyMovementMeters": 0.0
+    },
+    {
+      "startedAt": "2026-10-01T07:09:25.351Z",
+      "finishedAt": "2026-10-01T07:11:19.216Z",
+      "completed": true,
+      "error": null,
+      "browserVersion": "154.0.8037.57",
+      "connectedAt": "2026-10-01T07:09:40.176Z",
+      "webGL": {
+        "vendor": "Google Inc. (NVIDIA Corporation)",
+        "renderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce GTX 1080 Ti/PCIe/SSE2, OpenGL ES 3.2)"
+      },
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "devicePixelRatio": 1.000000015894571,
+        "visibility": "visible"
+      },
+      "fluidMovementAcceptancePassed": true,
+      "nativePoseDifferenceMeters": 0.0004946558919951127,
+      "reconnectedNativeDifferenceMeters": 0.00027997441771907304,
+      "movementMeters": 4.248823621377141,
+      "reconnectedMovementMeters": 2.857587029739832,
+      "runtimeHelperSHA256": {
+        "native-tablet.js": "527e106866462d1dea2834978250ecb6fa3ee6b8e99b5b2129b21e521e4995a2",
+        "tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+        "bridge.js": "6cfe5df1c896469fc56de99ddf99651536efa7f4e58d66f7abcb568951585b22"
+      },
+      "reconnectedRuntimeHelperSHA256": {
+        "native-tablet.js": "527e106866462d1dea2834978250ecb6fa3ee6b8e99b5b2129b21e521e4995a2",
+        "tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+        "bridge.js": "4a916b16cead6abc16b0c51f78cb3897414bc43f93edb2fd83672cf14435acf6"
+      },
+      "startSourceSHA256": {
+        "browser-client/gateway/server.mjs": "e268d609756eb19d95034058db9d7c0ce13a4a7d9db8a7afc8ecaa6cbff69175",
+        "browser-client/gateway/native-bridge.js": "f76bedb62cd3ad7e29b383bf16fb0f6d80cf7263de34c467bdba9c001b7354dd",
+        "browser-client/gateway/native-world.js": "bec2f02313446afde7a0be20899358a082b41c6c6c5d745ec67a24809e2b7ddb",
+        "browser-client/gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60",
+        "browser-client/gateway/public-places.mjs": "cbac3df2ecf7071da6e77df8d58b09be194afa184cfb0c37f6015f9f1f570471",
+        "browser-client/gateway/validation.mjs": "65eba4a66c76d4bfc0dbd18e172def64f43b37cca0db2301da5bf4d18645de79",
+        "browser-client/gateway/worker-sandbox.mjs": "d4748e8d64f2ad5c633854b7ff9e07758a574086205470b32570fd485b9f4c5d",
+        "browser-client/gateway/network-sandbox.mjs": "3fd278b91a6ea383ddf816753d9eee870736b295ecd945714e827d794c8016d9",
+        "browser-client/gateway/network_udp.py": "378f7159b1456ab5a0e25d2f933f35106344106625cef0ce0d589de3d1e45eca",
+        "browser-client/gateway/native-tablet.js": "527e106866462d1dea2834978250ecb6fa3ee6b8e99b5b2129b21e521e4995a2",
+        "browser-client/gateway/tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+        "browser-client/gateway/process-lifecycle.mjs": "e8d7e021a8b934b271910883e27c2a1109aedd22e12044b763d4bf8acc274eaf",
+        "browser-client/shared/fluid-performance.mjs": "44e5262f62785e3a9ba4a96c275f5f0bf3a93c27e1d44fdad3bdbec739deebe2",
+        "browser-client/gateway/session-assets.mjs": "68542cb352ccad1bdc23a65ae34ab19d4abc2b02e1f81dec3f529d525ab84bf4",
+        "browser-client/gateway/asset-download.mjs": "4718cfe223afa884ab4f5890b6dc093303a70b864917fe5d85dc5cc2b8568357",
+        "browser-client/src/main.ts": "1a2159c0a082a7c77575802e930947d25c21c8a88d947bc673d9205862a23c09",
+        "browser-client/src/world.ts": "d4e47f99a3ff465f71a74ef2cda9304248d4afa404633e966429c0d4fc3c0ea8",
+        "browser-client/src/world-image-cache.ts": "da776c919bf4e666270dd2251c6dd63e98ad52ea8c4e713ce4ff3087bf87cb3f",
+        "browser-client/src/native-render-state.ts": "ebd076e5d6720c9390576212830932d40dbde8e03ac3278ba096b669f28b703a",
+        "browser-client/src/native-alpha-material.ts": "9041f5f8e874f392c6b1ff3b8a9bed2ab768344d2bfbbd3adf1ffca51066e964",
+        "browser-client/src/model-resources.ts": "f05d539e19554cfa49ed35ce8fc6ec1c92f6c985c3b1d1f90849df9b558628ca",
+        "browser-client/src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+        "browser-client/src/worker-task-yield.ts": "6fdfa71526163386c9e041b74a533b2ff50c52f533145bfc2facb213d4333cc8",
+        "browser-client/src/prepared-fbx-cache.ts": "955d8d608f69104608c43bcecf46ea3eb1bc4d01c7e18d6395784b472d7de0e3",
+        "browser-client/src/model-load-scheduler.ts": "5b0f79beda5b11ba85dff0c34fbd4e091e5f21a0130efa78022d7eef9f453290",
+        "browser-client/src/model-fbx-pool.ts": "8394ecc9fba692c900e85cd8b4a6ed3511661065e8d4f4f46727a8e4d331f98c",
+        "browser-client/src/model-fbx-decoder.ts": "5b80bced09705301a14574c8082a946dd3fd32f2ef1a9d1ce08ca7f30dd19ead",
+        "browser-client/src/model-fbx-decoder-memory.ts": "0f209e406a3571af97e78bf12471d7ea6a788cec26adbef733dc353b864cdc68",
+        "browser-client/src/model-fbx-worker.ts": "75881e694db86f070e85ea44a41c04e572347c9a09944f42b4a879cb1a0e40ea",
+        "browser-client/src/model-textures.ts": "6de3ec3be2ce235642209ffab87295e52198e4fbebc12559c712ba6283e889bb",
+        "browser-client/src/texture-alpha.ts": "af9b46d9c56a156febaff92db76fe06b38dd4fa2ba7943ddfd4bbeaa47024ebe",
+        "browser-client/src/texture-alpha-worker.ts": "68cc81f419ed2373cfe18e9efd950222452479a7a742c5e10b8d965264d91761",
+        "browser-client/src/baked-fbx.ts": "a4b9d77136c5beed3dc24bc84f684fb41fdae704ad996ff0dce60b8c265712a3",
+        "browser-client/src/baked-draco.ts": "7e4426363fd8809df02d4f6c79d2b2fb899ae56ed663f839ffeb297e2a7d7844",
+        "browser-client/src/baked-draco-legacy.ts": "ba30ca915fcb85f5915fd5ef08f01745c13d3c9c7412c8dcefecb504c89a0a71",
+        "browser-client/dist/index.html": "37779886b2b331c590a53a5bb2e9e14efe0618275276d33d8cc60f566462dc4f",
+        "browser-client/tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "browser-client/tests/integration/public-hub-metrics.mjs": "18c9ed36feb60ddadbc5b3a73dcc73e2caa8561ab26cd672d8882de2bd25c789",
+        "browser-client/tests/integration/public-hub.mjs": "d010924bc3cc9a6c12a918abf4211eed625331a9425895acf635beb9f09928f4"
+      },
+      "sourceSHA256": {
+        "browser-client/gateway/server.mjs": "e268d609756eb19d95034058db9d7c0ce13a4a7d9db8a7afc8ecaa6cbff69175",
+        "browser-client/gateway/native-bridge.js": "f76bedb62cd3ad7e29b383bf16fb0f6d80cf7263de34c467bdba9c001b7354dd",
+        "browser-client/gateway/native-world.js": "bec2f02313446afde7a0be20899358a082b41c6c6c5d745ec67a24809e2b7ddb",
+        "browser-client/gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60",
+        "browser-client/gateway/public-places.mjs": "cbac3df2ecf7071da6e77df8d58b09be194afa184cfb0c37f6015f9f1f570471",
+        "browser-client/gateway/validation.mjs": "65eba4a66c76d4bfc0dbd18e172def64f43b37cca0db2301da5bf4d18645de79",
+        "browser-client/gateway/worker-sandbox.mjs": "d4748e8d64f2ad5c633854b7ff9e07758a574086205470b32570fd485b9f4c5d",
+        "browser-client/gateway/network-sandbox.mjs": "3fd278b91a6ea383ddf816753d9eee870736b295ecd945714e827d794c8016d9",
+        "browser-client/gateway/network_udp.py": "378f7159b1456ab5a0e25d2f933f35106344106625cef0ce0d589de3d1e45eca",
+        "browser-client/gateway/native-tablet.js": "527e106866462d1dea2834978250ecb6fa3ee6b8e99b5b2129b21e521e4995a2",
+        "browser-client/gateway/tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+        "browser-client/gateway/process-lifecycle.mjs": "e8d7e021a8b934b271910883e27c2a1109aedd22e12044b763d4bf8acc274eaf",
+        "browser-client/shared/fluid-performance.mjs": "44e5262f62785e3a9ba4a96c275f5f0bf3a93c27e1d44fdad3bdbec739deebe2",
+        "browser-client/gateway/session-assets.mjs": "68542cb352ccad1bdc23a65ae34ab19d4abc2b02e1f81dec3f529d525ab84bf4",
+        "browser-client/gateway/asset-download.mjs": "4718cfe223afa884ab4f5890b6dc093303a70b864917fe5d85dc5cc2b8568357",
+        "browser-client/src/main.ts": "1a2159c0a082a7c77575802e930947d25c21c8a88d947bc673d9205862a23c09",
+        "browser-client/src/world.ts": "d4e47f99a3ff465f71a74ef2cda9304248d4afa404633e966429c0d4fc3c0ea8",
+        "browser-client/src/world-image-cache.ts": "da776c919bf4e666270dd2251c6dd63e98ad52ea8c4e713ce4ff3087bf87cb3f",
+        "browser-client/src/native-render-state.ts": "ebd076e5d6720c9390576212830932d40dbde8e03ac3278ba096b669f28b703a",
+        "browser-client/src/native-alpha-material.ts": "9041f5f8e874f392c6b1ff3b8a9bed2ab768344d2bfbbd3adf1ffca51066e964",
+        "browser-client/src/model-resources.ts": "f05d539e19554cfa49ed35ce8fc6ec1c92f6c985c3b1d1f90849df9b558628ca",
+        "browser-client/src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+        "browser-client/src/worker-task-yield.ts": "6fdfa71526163386c9e041b74a533b2ff50c52f533145bfc2facb213d4333cc8",
+        "browser-client/src/prepared-fbx-cache.ts": "955d8d608f69104608c43bcecf46ea3eb1bc4d01c7e18d6395784b472d7de0e3",
+        "browser-client/src/model-load-scheduler.ts": "5b0f79beda5b11ba85dff0c34fbd4e091e5f21a0130efa78022d7eef9f453290",
+        "browser-client/src/model-fbx-pool.ts": "8394ecc9fba692c900e85cd8b4a6ed3511661065e8d4f4f46727a8e4d331f98c",
+        "browser-client/src/model-fbx-decoder.ts": "5b80bced09705301a14574c8082a946dd3fd32f2ef1a9d1ce08ca7f30dd19ead",
+        "browser-client/src/model-fbx-decoder-memory.ts": "0f209e406a3571af97e78bf12471d7ea6a788cec26adbef733dc353b864cdc68",
+        "browser-client/src/model-fbx-worker.ts": "75881e694db86f070e85ea44a41c04e572347c9a09944f42b4a879cb1a0e40ea",
+        "browser-client/src/model-textures.ts": "6de3ec3be2ce235642209ffab87295e52198e4fbebc12559c712ba6283e889bb",
+        "browser-client/src/texture-alpha.ts": "af9b46d9c56a156febaff92db76fe06b38dd4fa2ba7943ddfd4bbeaa47024ebe",
+        "browser-client/src/texture-alpha-worker.ts": "68cc81f419ed2373cfe18e9efd950222452479a7a742c5e10b8d965264d91761",
+        "browser-client/src/baked-fbx.ts": "a4b9d77136c5beed3dc24bc84f684fb41fdae704ad996ff0dce60b8c265712a3",
+        "browser-client/src/baked-draco.ts": "7e4426363fd8809df02d4f6c79d2b2fb899ae56ed663f839ffeb297e2a7d7844",
+        "browser-client/src/baked-draco-legacy.ts": "ba30ca915fcb85f5915fd5ef08f01745c13d3c9c7412c8dcefecb504c89a0a71",
+        "browser-client/dist/index.html": "37779886b2b331c590a53a5bb2e9e14efe0618275276d33d8cc60f566462dc4f",
+        "browser-client/tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "browser-client/tests/integration/public-hub-metrics.mjs": "18c9ed36feb60ddadbc5b3a73dcc73e2caa8561ab26cd672d8882de2bd25c789",
+        "browser-client/tests/integration/public-hub.mjs": "d010924bc3cc9a6c12a918abf4211eed625331a9425895acf635beb9f09928f4"
+      },
+      "startDistributionManifest": {
+        "assets/baked-draco-legacy-CMhlgON6.js": {
+          "sha256": "eb84ebc5eff49c7b0593382b07b23010897080f46b779ececdd515efcfb482d4",
+          "bytes": 816324
+        },
+        "assets/baked-draco-nPAk-sFt.js": {
+          "sha256": "e4f957ed3009c746afacf8a77ee91626feb6dde4b45a0a1cc17743e6b2f379ff",
+          "bytes": 125046
+        },
+        "assets/draco_decoder-C32yEggz.wasm": {
+          "sha256": "c55a594e8ffd18426d36b27fea9618af3df5e173640a3e56d46f09d76f0574f2",
+          "bytes": 285747
+        },
+        "assets/draco_decoder-fzg4nYZr.js": {
+          "sha256": "30e4d486fa020737af10e3c56197693e5b904bdc05b8bfa5d7b06751dec6da04",
+          "bytes": 719410
+        },
+        "assets/draco_decoder-Z1_iN-Ht.wasm": {
+          "sha256": "a680d927bed9cb864ddbd63521868891af2bfbe755092761b4837487618df8ac",
+          "bytes": 192420
+        },
+        "assets/draco_wasm_wrapper-DxJM36Ib.js": {
+          "sha256": "e8049906ef3f8f75d3456c22a3f31bfdfe5b5b5bd09ccdec613b9e9a49d554d8",
+          "bytes": 58763
+        },
+        "assets/draco_wasm_wrapper-fZCQGLGb.js": {
+          "sha256": "8bb2952d2ba7d67e1414f8df819410cb0434a666be53f671fff75f68843d76f6",
+          "bytes": 58456
+        },
+        "assets/FBXLoader-puUKxnx9.js": {
+          "sha256": "17a3a1c6d71b2369741b3fa1a7331ce0a81e71d4d446b03e328633b8f28f4ebe",
+          "bytes": 49922
+        },
+        "assets/GLTFLoader-C8FuGDxW.js": {
+          "sha256": "b503288825c72e5505c36581c88872b0ca3255e1068f2ae13daf06a15eeda8fa",
+          "bytes": 44308
+        },
+        "assets/index-B2mAMfm4.css": {
+          "sha256": "cbf321b921d05ff91c3020a6ccffc91385eeebf223ea6ec0577c6354df12a521",
+          "bytes": 5451
+        },
+        "assets/index-D-aS3xUY.js": {
+          "sha256": "1766afee73cc235e97ebc077da9163cf81a4e694ca06780b8f73df7eb7efe473",
+          "bytes": 770878
+        },
+        "assets/model-fbx-worker-mCScXMXp.js": {
+          "sha256": "54cc66200e506deb7e541a5baf66a3dcf952c866527977b7d964f528670b2c39",
+          "bytes": 823946
+        },
+        "assets/OBJLoader-CYwXuYJt.js": {
+          "sha256": "bc1efe0d892354d115e49504247e13a10bc1bf7930dcda3cb1025783e2e5e6f0",
+          "bytes": 8633
+        },
+        "assets/tablet-gif.worker-DACjp6Cn.js": {
+          "sha256": "78ebb1c3db4d062dd4119c2cd86d201b7df2757fedf22a8993dd460fbb1057c8",
+          "bytes": 10409
+        },
+        "assets/texture-alpha-worker-CBG2kYQR.js": {
+          "sha256": "f04f415ff39370ae4ab0268903ffaf6c86b9a7addeb0aed95d4a7948ee803485",
+          "bytes": 2417
+        }
+      },
+      "distributionManifest": {
+        "assets/baked-draco-legacy-CMhlgON6.js": {
+          "sha256": "eb84ebc5eff49c7b0593382b07b23010897080f46b779ececdd515efcfb482d4",
+          "bytes": 816324
+        },
+        "assets/baked-draco-nPAk-sFt.js": {
+          "sha256": "e4f957ed3009c746afacf8a77ee91626feb6dde4b45a0a1cc17743e6b2f379ff",
+          "bytes": 125046
+        },
+        "assets/draco_decoder-C32yEggz.wasm": {
+          "sha256": "c55a594e8ffd18426d36b27fea9618af3df5e173640a3e56d46f09d76f0574f2",
+          "bytes": 285747
+        },
+        "assets/draco_decoder-fzg4nYZr.js": {
+          "sha256": "30e4d486fa020737af10e3c56197693e5b904bdc05b8bfa5d7b06751dec6da04",
+          "bytes": 719410
+        },
+        "assets/draco_decoder-Z1_iN-Ht.wasm": {
+          "sha256": "a680d927bed9cb864ddbd63521868891af2bfbe755092761b4837487618df8ac",
+          "bytes": 192420
+        },
+        "assets/draco_wasm_wrapper-DxJM36Ib.js": {
+          "sha256": "e8049906ef3f8f75d3456c22a3f31bfdfe5b5b5bd09ccdec613b9e9a49d554d8",
+          "bytes": 58763
+        },
+        "assets/draco_wasm_wrapper-fZCQGLGb.js": {
+          "sha256": "8bb2952d2ba7d67e1414f8df819410cb0434a666be53f671fff75f68843d76f6",
+          "bytes": 58456
+        },
+        "assets/FBXLoader-puUKxnx9.js": {
+          "sha256": "17a3a1c6d71b2369741b3fa1a7331ce0a81e71d4d446b03e328633b8f28f4ebe",
+          "bytes": 49922
+        },
+        "assets/GLTFLoader-C8FuGDxW.js": {
+          "sha256": "b503288825c72e5505c36581c88872b0ca3255e1068f2ae13daf06a15eeda8fa",
+          "bytes": 44308
+        },
+        "assets/index-B2mAMfm4.css": {
+          "sha256": "cbf321b921d05ff91c3020a6ccffc91385eeebf223ea6ec0577c6354df12a521",
+          "bytes": 5451
+        },
+        "assets/index-D-aS3xUY.js": {
+          "sha256": "1766afee73cc235e97ebc077da9163cf81a4e694ca06780b8f73df7eb7efe473",
+          "bytes": 770878
+        },
+        "assets/model-fbx-worker-mCScXMXp.js": {
+          "sha256": "54cc66200e506deb7e541a5baf66a3dcf952c866527977b7d964f528670b2c39",
+          "bytes": 823946
+        },
+        "assets/OBJLoader-CYwXuYJt.js": {
+          "sha256": "bc1efe0d892354d115e49504247e13a10bc1bf7930dcda3cb1025783e2e5e6f0",
+          "bytes": 8633
+        },
+        "assets/tablet-gif.worker-DACjp6Cn.js": {
+          "sha256": "78ebb1c3db4d062dd4119c2cd86d201b7df2757fedf22a8993dd460fbb1057c8",
+          "bytes": 10409
+        },
+        "assets/texture-alpha-worker-CBG2kYQR.js": {
+          "sha256": "f04f415ff39370ae4ab0268903ffaf6c86b9a7addeb0aed95d4a7948ee803485",
+          "bytes": 2417
+        }
+      },
+      "cohort": "prepared-cache-queue",
+      "engine": "chromium",
+      "microphoneRequested": false,
+      "worldInteractionsSent": 0,
+      "sourceCoherent": true,
+      "distributionCoherent": true,
+      "modelReadySeconds": 27.083,
+      "readyPerformance": {
+        "at": 1790838607259,
+        "frames": 1659,
+        "samples": 240,
+        "fps": 31.856010831043676,
+        "medianFrameMs": 33.299999999995634,
+        "p95FrameMs": 66.59999999999854,
+        "maximumFrameMs": 134,
+        "drawCalls": 670,
+        "triangles": 552081,
+        "geometries": 420,
+        "textures": 243,
+        "entities": 517,
+        "loadedAvatars": 1,
+        "loadedModels": 297,
+        "loadingModels": 0,
+        "queuedModels": 0,
+        "compilingGraphics": 0,
+        "parallelShaderCompile": true,
+        "meshColliders": 75,
+        "graphicsActive": true,
+        "imageLoading": {
+          "requests": 349,
+          "uniqueImages": 220,
+          "cacheHits": 129,
+          "completed": 211,
+          "failed": 9,
+          "cancelled": 0,
+          "evictions": 71,
+          "peakActive": 6,
+          "active": 0,
+          "queued": 0,
+          "pending": 0,
+          "retainedEntries": 140,
+          "retainedPixels": 134041416,
+          "retainedKeyBytes": 45616,
+          "pendingKeyBytes": 0,
+          "phases": {
+            "imageLoad": {
+              "count": 211,
+              "totalMs": 21090.499999970198,
+              "maxMs": 992.5
+            },
+            "imageDecode": {
+              "count": 211,
+              "totalMs": 12341.79999999702,
+              "maxMs": 567.2000000029802
+            }
+          }
+        },
+        "fbxPreparation": {
+          "active": 0,
+          "queued": 0,
+          "outstanding": 0,
+          "inputBytes": 0,
+          "workers": 1,
+          "completed": 127,
+          "cancelled": 0,
+          "failed": 4,
+          "disposed": false
+        },
+        "preparedFbxCache": {
+          "hits": 165,
+          "misses": 131,
+          "bytes": 9860845,
+          "ready": 64,
+          "active": 0,
+          "readers": 0,
+          "evictions": 63,
+          "disposed": false
+        },
+        "modelScheduling": {
+          "active": 0,
+          "queued": 0,
+          "dispatches": 310,
+          "priorityPasses": 294,
+          "disposed": false
+        },
+        "loadPhases": {
+          "graphicsSubmit": {
+            "count": 1660,
+            "totalMs": 14732.500000327826,
+            "maxMs": 926.9000000059605
+          },
+          "shaderPrepare": {
+            "count": 502,
+            "totalMs": 12530.299999713898,
+            "maxMs": 586.6000000089407
+          },
+          "fbxMaterialBindings": {
+            "count": 127,
+            "totalMs": 329.5,
+            "maxMs": 50.1000000089407
+          },
+          "fbxDecode": {
+            "count": 127,
+            "totalMs": 2757.8000001460314,
+            "maxMs": 584.5999999940395
+          },
+          "fbxPrepareWait": {
+            "count": 292,
+            "totalMs": 24978.200000032783,
+            "maxMs": 1042.2000000029802
+          },
+          "fbxParse": {
+            "count": 292,
+            "totalMs": 3901.2999999821186,
+            "maxMs": 335.5
+          },
+          "entityUpdate": {
+            "count": 10,
+            "totalMs": 151.50000001490116,
+            "maxMs": 96.40000000596046
+          },
+          "fbxTextures": {
+            "count": 292,
+            "totalMs": 6164.100000038743,
+            "maxMs": 789.3000000119209
+          },
+          "textureAlpha": {
+            "count": 844,
+            "totalMs": 2876.300000011921,
+            "maxMs": 313.40000000596046
+          },
+          "colliderBuild": {
+            "count": 75,
+            "totalMs": 251.49999995529652,
+            "maxMs": 73.70000000298023
+          },
+          "modelBatch": {
+            "count": 5,
+            "totalMs": 147.30000001192093,
+            "maxMs": 75.80000001192093
+          }
+        },
+        "renderedFrames": 1660,
+        "entityCount": 517
+      },
+      "steadySamples": [
+        {
+          "fps": 46.59108557229386,
+          "p95FrameMs": 33.599999999998545,
+          "maximumFrameMs": 133.3000000000029,
+          "samples": 240,
+          "drawCalls": 669,
+          "triangles": 552079
+        },
+        {
+          "fps": 50.698155854580776,
+          "p95FrameMs": 33.400000000001455,
+          "maximumFrameMs": 50.400000000001455,
+          "samples": 240,
+          "drawCalls": 669,
+          "triangles": 552079
+        }
+      ],
+      "fluidGates": {
+        "steadyFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "walkFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedSteadyFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedWalkFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        }
+      },
+      "assetTransfers": {
+        "categories": {
+          "FBX": {
+            "uniqueURLs": 122,
+            "requests": 264,
+            "duplicateRequests": 142,
+            "knownBytes": 42115853,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 262,
+              "shared": 0,
+              "memory": 2,
+              "unknown": 0
+            }
+          },
+          "FST": {
+            "uniqueURLs": 95,
+            "requests": 492,
+            "duplicateRequests": 397,
+            "knownBytes": 93700,
+            "unknownByteResponses": 2,
+            "sources": {
+              "download": 213,
+              "shared": 0,
+              "memory": 277,
+              "unknown": 2
+            }
+          },
+          "texmeta": {
+            "uniqueURLs": 133,
+            "requests": 524,
+            "duplicateRequests": 391,
+            "knownBytes": 163884,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 287,
+              "shared": 0,
+              "memory": 237,
+              "unknown": 0
+            }
+          },
+          "JSON": {
+            "uniqueURLs": 160,
+            "requests": 684,
+            "duplicateRequests": 524,
+            "knownBytes": 1161392,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 206,
+              "shared": 0,
+              "memory": 478,
+              "unknown": 0
+            }
+          },
+          "image": {
+            "uniqueURLs": 148,
+            "requests": 304,
+            "duplicateRequests": 156,
+            "knownBytes": 137392576,
+            "unknownByteResponses": 22,
+            "sources": {
+              "download": 276,
+              "shared": 0,
+              "memory": 6,
+              "unknown": 22
+            }
+          },
+          "other": {
+            "uniqueURLs": 8,
+            "requests": 18,
+            "duplicateRequests": 10,
+            "knownBytes": 12251512,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 16,
+              "shared": 0,
+              "memory": 2,
+              "unknown": 0
+            }
+          }
+        },
+        "uniqueURLs": 666,
+        "requests": 2286,
+        "knownBytes": 193178917,
+        "unknownByteResponses": 24,
+        "duplicateRequests": 1620,
+        "sources": {
+          "download": 1260,
+          "shared": 0,
+          "memory": 1002,
+          "unknown": 24
+        },
+        "sessions": [
+          {
+            "ordinal": 1,
+            "uniqueURLs": 666,
+            "requests": 1141,
+            "duplicateRequests": 475,
+            "knownBytes": 96530958,
+            "unknownByteResponses": 12,
+            "totalRequestMs": 91017.34957599986,
+            "maximumRequestMs": 2007.6629259999972,
+            "sources": {
+              "download": 628,
+              "shared": 0,
+              "memory": 501,
+              "unknown": 12
+            },
+            "categories": {
+              "FBX": {
+                "uniqueURLs": 122,
+                "requests": 130,
+                "duplicateRequests": 8,
+                "knownBytes": 20999426,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 129,
+                  "shared": 0,
+                  "memory": 1,
+                  "unknown": 0
+                }
+              },
+              "FST": {
+                "uniqueURLs": 95,
+                "requests": 246,
+                "duplicateRequests": 151,
+                "knownBytes": 46850,
+                "unknownByteResponses": 1,
+                "sources": {
+                  "download": 106,
+                  "shared": 0,
+                  "memory": 139,
+                  "unknown": 1
+                }
+              },
+              "texmeta": {
+                "uniqueURLs": 133,
+                "requests": 262,
+                "duplicateRequests": 129,
+                "knownBytes": 81942,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 144,
+                  "shared": 0,
+                  "memory": 118,
+                  "unknown": 0
+                }
+              },
+              "JSON": {
+                "uniqueURLs": 160,
+                "requests": 342,
+                "duplicateRequests": 182,
+                "knownBytes": 580696,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 103,
+                  "shared": 0,
+                  "memory": 239,
+                  "unknown": 0
+                }
+              },
+              "image": {
+                "uniqueURLs": 148,
+                "requests": 152,
+                "duplicateRequests": 4,
+                "knownBytes": 68696288,
+                "unknownByteResponses": 11,
+                "sources": {
+                  "download": 138,
+                  "shared": 0,
+                  "memory": 3,
+                  "unknown": 11
+                }
+              },
+              "other": {
+                "uniqueURLs": 8,
+                "requests": 9,
+                "duplicateRequests": 1,
+                "knownBytes": 6125756,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 8,
+                  "shared": 0,
+                  "memory": 1,
+                  "unknown": 0
+                }
+              }
+            },
+            "entryCount": 666,
+            "entrySHA256": "3e7caa0ab37ef44d513e80ff2bead7e14b25791d424b12542d0175403f5cc3d2",
+            "entryDigestEncoding": "Compact UTF-8 JSON, sorted keys; complete per-asset records retained in ignored local source reports"
+          },
+          {
+            "ordinal": 2,
+            "uniqueURLs": 666,
+            "requests": 1145,
+            "duplicateRequests": 479,
+            "knownBytes": 96647959,
+            "unknownByteResponses": 12,
+            "totalRequestMs": 89941.74250800021,
+            "maximumRequestMs": 1917.2277089999989,
+            "sources": {
+              "download": 632,
+              "shared": 0,
+              "memory": 501,
+              "unknown": 12
+            },
+            "categories": {
+              "FBX": {
+                "uniqueURLs": 122,
+                "requests": 134,
+                "duplicateRequests": 12,
+                "knownBytes": 21116427,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 133,
+                  "shared": 0,
+                  "memory": 1,
+                  "unknown": 0
+                }
+              },
+              "FST": {
+                "uniqueURLs": 95,
+                "requests": 246,
+                "duplicateRequests": 151,
+                "knownBytes": 46850,
+                "unknownByteResponses": 1,
+                "sources": {
+                  "download": 107,
+                  "shared": 0,
+                  "memory": 138,
+                  "unknown": 1
+                }
+              },
+              "texmeta": {
+                "uniqueURLs": 133,
+                "requests": 262,
+                "duplicateRequests": 129,
+                "knownBytes": 81942,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 143,
+                  "shared": 0,
+                  "memory": 119,
+                  "unknown": 0
+                }
+              },
+              "JSON": {
+                "uniqueURLs": 160,
+                "requests": 342,
+                "duplicateRequests": 182,
+                "knownBytes": 580696,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 103,
+                  "shared": 0,
+                  "memory": 239,
+                  "unknown": 0
+                }
+              },
+              "image": {
+                "uniqueURLs": 148,
+                "requests": 152,
+                "duplicateRequests": 4,
+                "knownBytes": 68696288,
+                "unknownByteResponses": 11,
+                "sources": {
+                  "download": 138,
+                  "shared": 0,
+                  "memory": 3,
+                  "unknown": 11
+                }
+              },
+              "other": {
+                "uniqueURLs": 8,
+                "requests": 9,
+                "duplicateRequests": 1,
+                "knownBytes": 6125756,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 8,
+                  "shared": 0,
+                  "memory": 1,
+                  "unknown": 0
+                }
+              }
+            },
+            "entryCount": 666,
+            "entrySHA256": "179d69d1ff27732bd12fdf0070b74c494c50c66aba0654b9111b6d89bdb270f3",
+            "entryDigestEncoding": "Compact UTF-8 JSON, sorted keys; complete per-asset records retained in ignored local source reports"
+          }
+        ],
+        "entryCount": 666,
+        "entrySHA256": "9a94ac03813b8fb16fe522f468b97a60f7e8a7eddb67f4113d94658cc6fa68f3",
+        "entryDigestEncoding": "Compact UTF-8 JSON, sorted keys; complete per-asset records retained in ignored local source reports"
+      },
+      "pageErrorCount": 0,
+      "failedStatusCounts": {
+        "502": 34
+      },
+      "earlyMovementMeters": 0.0
+    },
+    {
+      "startedAt": "2026-10-01T07:05:54.506Z",
+      "finishedAt": "2026-10-01T07:07:55.825Z",
+      "completed": false,
+      "error": "Actual loaded-world, walking and reconnect measurements must meet30FPS, p95<=66.7ms and no steady stall>250ms",
+      "browserVersion": "firefox/156.0",
+      "connectedAt": "2026-10-01T07:06:12.102Z",
+      "webGL": {
+        "vendor": "NVIDIA Corporation",
+        "renderer": "NVIDIA GeForce GTX 980, or similar"
+      },
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "devicePixelRatio": 1.6666666666666667,
+        "visibility": "visible"
+      },
+      "fluidMovementAcceptancePassed": false,
+      "nativePoseDifferenceMeters": 0.0008011011217388578,
+      "reconnectedNativeDifferenceMeters": 0.0011027345394263898,
+      "movementMeters": 3.962965851249951,
+      "reconnectedMovementMeters": 2.333554728643117,
+      "runtimeHelperSHA256": {
+        "native-tablet.js": "527e106866462d1dea2834978250ecb6fa3ee6b8e99b5b2129b21e521e4995a2",
+        "tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+        "bridge.js": "d1ea02fa505a37aad4cec5dc9259fff0fbbae5c72e19727cbb1e1c3a3fb2fd43"
+      },
+      "reconnectedRuntimeHelperSHA256": {
+        "native-tablet.js": "527e106866462d1dea2834978250ecb6fa3ee6b8e99b5b2129b21e521e4995a2",
+        "tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+        "bridge.js": "20571267ff48dca8e6ce879bdb11aa115bc92b172c94dd72dee00e282217463c"
+      },
+      "startSourceSHA256": {
+        "browser-client/gateway/server.mjs": "e268d609756eb19d95034058db9d7c0ce13a4a7d9db8a7afc8ecaa6cbff69175",
+        "browser-client/gateway/native-bridge.js": "f76bedb62cd3ad7e29b383bf16fb0f6d80cf7263de34c467bdba9c001b7354dd",
+        "browser-client/gateway/native-world.js": "bec2f02313446afde7a0be20899358a082b41c6c6c5d745ec67a24809e2b7ddb",
+        "browser-client/gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60",
+        "browser-client/gateway/public-places.mjs": "cbac3df2ecf7071da6e77df8d58b09be194afa184cfb0c37f6015f9f1f570471",
+        "browser-client/gateway/validation.mjs": "65eba4a66c76d4bfc0dbd18e172def64f43b37cca0db2301da5bf4d18645de79",
+        "browser-client/gateway/worker-sandbox.mjs": "d4748e8d64f2ad5c633854b7ff9e07758a574086205470b32570fd485b9f4c5d",
+        "browser-client/gateway/network-sandbox.mjs": "3fd278b91a6ea383ddf816753d9eee870736b295ecd945714e827d794c8016d9",
+        "browser-client/gateway/network_udp.py": "378f7159b1456ab5a0e25d2f933f35106344106625cef0ce0d589de3d1e45eca",
+        "browser-client/gateway/native-tablet.js": "527e106866462d1dea2834978250ecb6fa3ee6b8e99b5b2129b21e521e4995a2",
+        "browser-client/gateway/tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+        "browser-client/gateway/process-lifecycle.mjs": "e8d7e021a8b934b271910883e27c2a1109aedd22e12044b763d4bf8acc274eaf",
+        "browser-client/shared/fluid-performance.mjs": "44e5262f62785e3a9ba4a96c275f5f0bf3a93c27e1d44fdad3bdbec739deebe2",
+        "browser-client/gateway/session-assets.mjs": "68542cb352ccad1bdc23a65ae34ab19d4abc2b02e1f81dec3f529d525ab84bf4",
+        "browser-client/gateway/asset-download.mjs": "4718cfe223afa884ab4f5890b6dc093303a70b864917fe5d85dc5cc2b8568357",
+        "browser-client/src/main.ts": "1a2159c0a082a7c77575802e930947d25c21c8a88d947bc673d9205862a23c09",
+        "browser-client/src/world.ts": "d4e47f99a3ff465f71a74ef2cda9304248d4afa404633e966429c0d4fc3c0ea8",
+        "browser-client/src/world-image-cache.ts": "da776c919bf4e666270dd2251c6dd63e98ad52ea8c4e713ce4ff3087bf87cb3f",
+        "browser-client/src/native-render-state.ts": "ebd076e5d6720c9390576212830932d40dbde8e03ac3278ba096b669f28b703a",
+        "browser-client/src/native-alpha-material.ts": "9041f5f8e874f392c6b1ff3b8a9bed2ab768344d2bfbbd3adf1ffca51066e964",
+        "browser-client/src/model-resources.ts": "f05d539e19554cfa49ed35ce8fc6ec1c92f6c985c3b1d1f90849df9b558628ca",
+        "browser-client/src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+        "browser-client/src/worker-task-yield.ts": "6fdfa71526163386c9e041b74a533b2ff50c52f533145bfc2facb213d4333cc8",
+        "browser-client/src/prepared-fbx-cache.ts": "955d8d608f69104608c43bcecf46ea3eb1bc4d01c7e18d6395784b472d7de0e3",
+        "browser-client/src/model-load-scheduler.ts": "5b0f79beda5b11ba85dff0c34fbd4e091e5f21a0130efa78022d7eef9f453290",
+        "browser-client/src/model-fbx-pool.ts": "8394ecc9fba692c900e85cd8b4a6ed3511661065e8d4f4f46727a8e4d331f98c",
+        "browser-client/src/model-fbx-decoder.ts": "5b80bced09705301a14574c8082a946dd3fd32f2ef1a9d1ce08ca7f30dd19ead",
+        "browser-client/src/model-fbx-decoder-memory.ts": "0f209e406a3571af97e78bf12471d7ea6a788cec26adbef733dc353b864cdc68",
+        "browser-client/src/model-fbx-worker.ts": "75881e694db86f070e85ea44a41c04e572347c9a09944f42b4a879cb1a0e40ea",
+        "browser-client/src/model-textures.ts": "6de3ec3be2ce235642209ffab87295e52198e4fbebc12559c712ba6283e889bb",
+        "browser-client/src/texture-alpha.ts": "af9b46d9c56a156febaff92db76fe06b38dd4fa2ba7943ddfd4bbeaa47024ebe",
+        "browser-client/src/texture-alpha-worker.ts": "68cc81f419ed2373cfe18e9efd950222452479a7a742c5e10b8d965264d91761",
+        "browser-client/src/baked-fbx.ts": "a4b9d77136c5beed3dc24bc84f684fb41fdae704ad996ff0dce60b8c265712a3",
+        "browser-client/src/baked-draco.ts": "7e4426363fd8809df02d4f6c79d2b2fb899ae56ed663f839ffeb297e2a7d7844",
+        "browser-client/src/baked-draco-legacy.ts": "ba30ca915fcb85f5915fd5ef08f01745c13d3c9c7412c8dcefecb504c89a0a71",
+        "browser-client/dist/index.html": "37779886b2b331c590a53a5bb2e9e14efe0618275276d33d8cc60f566462dc4f",
+        "browser-client/tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "browser-client/tests/integration/public-hub-metrics.mjs": "18c9ed36feb60ddadbc5b3a73dcc73e2caa8561ab26cd672d8882de2bd25c789",
+        "browser-client/tests/integration/public-hub.mjs": "d010924bc3cc9a6c12a918abf4211eed625331a9425895acf635beb9f09928f4"
+      },
+      "sourceSHA256": {
+        "browser-client/gateway/server.mjs": "e268d609756eb19d95034058db9d7c0ce13a4a7d9db8a7afc8ecaa6cbff69175",
+        "browser-client/gateway/native-bridge.js": "f76bedb62cd3ad7e29b383bf16fb0f6d80cf7263de34c467bdba9c001b7354dd",
+        "browser-client/gateway/native-world.js": "bec2f02313446afde7a0be20899358a082b41c6c6c5d745ec67a24809e2b7ddb",
+        "browser-client/gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60",
+        "browser-client/gateway/public-places.mjs": "cbac3df2ecf7071da6e77df8d58b09be194afa184cfb0c37f6015f9f1f570471",
+        "browser-client/gateway/validation.mjs": "65eba4a66c76d4bfc0dbd18e172def64f43b37cca0db2301da5bf4d18645de79",
+        "browser-client/gateway/worker-sandbox.mjs": "d4748e8d64f2ad5c633854b7ff9e07758a574086205470b32570fd485b9f4c5d",
+        "browser-client/gateway/network-sandbox.mjs": "3fd278b91a6ea383ddf816753d9eee870736b295ecd945714e827d794c8016d9",
+        "browser-client/gateway/network_udp.py": "378f7159b1456ab5a0e25d2f933f35106344106625cef0ce0d589de3d1e45eca",
+        "browser-client/gateway/native-tablet.js": "527e106866462d1dea2834978250ecb6fa3ee6b8e99b5b2129b21e521e4995a2",
+        "browser-client/gateway/tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+        "browser-client/gateway/process-lifecycle.mjs": "e8d7e021a8b934b271910883e27c2a1109aedd22e12044b763d4bf8acc274eaf",
+        "browser-client/shared/fluid-performance.mjs": "44e5262f62785e3a9ba4a96c275f5f0bf3a93c27e1d44fdad3bdbec739deebe2",
+        "browser-client/gateway/session-assets.mjs": "68542cb352ccad1bdc23a65ae34ab19d4abc2b02e1f81dec3f529d525ab84bf4",
+        "browser-client/gateway/asset-download.mjs": "4718cfe223afa884ab4f5890b6dc093303a70b864917fe5d85dc5cc2b8568357",
+        "browser-client/src/main.ts": "1a2159c0a082a7c77575802e930947d25c21c8a88d947bc673d9205862a23c09",
+        "browser-client/src/world.ts": "d4e47f99a3ff465f71a74ef2cda9304248d4afa404633e966429c0d4fc3c0ea8",
+        "browser-client/src/world-image-cache.ts": "da776c919bf4e666270dd2251c6dd63e98ad52ea8c4e713ce4ff3087bf87cb3f",
+        "browser-client/src/native-render-state.ts": "ebd076e5d6720c9390576212830932d40dbde8e03ac3278ba096b669f28b703a",
+        "browser-client/src/native-alpha-material.ts": "9041f5f8e874f392c6b1ff3b8a9bed2ab768344d2bfbbd3adf1ffca51066e964",
+        "browser-client/src/model-resources.ts": "f05d539e19554cfa49ed35ce8fc6ec1c92f6c985c3b1d1f90849df9b558628ca",
+        "browser-client/src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+        "browser-client/src/worker-task-yield.ts": "6fdfa71526163386c9e041b74a533b2ff50c52f533145bfc2facb213d4333cc8",
+        "browser-client/src/prepared-fbx-cache.ts": "955d8d608f69104608c43bcecf46ea3eb1bc4d01c7e18d6395784b472d7de0e3",
+        "browser-client/src/model-load-scheduler.ts": "5b0f79beda5b11ba85dff0c34fbd4e091e5f21a0130efa78022d7eef9f453290",
+        "browser-client/src/model-fbx-pool.ts": "8394ecc9fba692c900e85cd8b4a6ed3511661065e8d4f4f46727a8e4d331f98c",
+        "browser-client/src/model-fbx-decoder.ts": "5b80bced09705301a14574c8082a946dd3fd32f2ef1a9d1ce08ca7f30dd19ead",
+        "browser-client/src/model-fbx-decoder-memory.ts": "0f209e406a3571af97e78bf12471d7ea6a788cec26adbef733dc353b864cdc68",
+        "browser-client/src/model-fbx-worker.ts": "75881e694db86f070e85ea44a41c04e572347c9a09944f42b4a879cb1a0e40ea",
+        "browser-client/src/model-textures.ts": "6de3ec3be2ce235642209ffab87295e52198e4fbebc12559c712ba6283e889bb",
+        "browser-client/src/texture-alpha.ts": "af9b46d9c56a156febaff92db76fe06b38dd4fa2ba7943ddfd4bbeaa47024ebe",
+        "browser-client/src/texture-alpha-worker.ts": "68cc81f419ed2373cfe18e9efd950222452479a7a742c5e10b8d965264d91761",
+        "browser-client/src/baked-fbx.ts": "a4b9d77136c5beed3dc24bc84f684fb41fdae704ad996ff0dce60b8c265712a3",
+        "browser-client/src/baked-draco.ts": "7e4426363fd8809df02d4f6c79d2b2fb899ae56ed663f839ffeb297e2a7d7844",
+        "browser-client/src/baked-draco-legacy.ts": "ba30ca915fcb85f5915fd5ef08f01745c13d3c9c7412c8dcefecb504c89a0a71",
+        "browser-client/dist/index.html": "37779886b2b331c590a53a5bb2e9e14efe0618275276d33d8cc60f566462dc4f",
+        "browser-client/tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "browser-client/tests/integration/public-hub-metrics.mjs": "18c9ed36feb60ddadbc5b3a73dcc73e2caa8561ab26cd672d8882de2bd25c789",
+        "browser-client/tests/integration/public-hub.mjs": "d010924bc3cc9a6c12a918abf4211eed625331a9425895acf635beb9f09928f4"
+      },
+      "startDistributionManifest": {
+        "assets/baked-draco-legacy-CMhlgON6.js": {
+          "sha256": "eb84ebc5eff49c7b0593382b07b23010897080f46b779ececdd515efcfb482d4",
+          "bytes": 816324
+        },
+        "assets/baked-draco-nPAk-sFt.js": {
+          "sha256": "e4f957ed3009c746afacf8a77ee91626feb6dde4b45a0a1cc17743e6b2f379ff",
+          "bytes": 125046
+        },
+        "assets/draco_decoder-C32yEggz.wasm": {
+          "sha256": "c55a594e8ffd18426d36b27fea9618af3df5e173640a3e56d46f09d76f0574f2",
+          "bytes": 285747
+        },
+        "assets/draco_decoder-fzg4nYZr.js": {
+          "sha256": "30e4d486fa020737af10e3c56197693e5b904bdc05b8bfa5d7b06751dec6da04",
+          "bytes": 719410
+        },
+        "assets/draco_decoder-Z1_iN-Ht.wasm": {
+          "sha256": "a680d927bed9cb864ddbd63521868891af2bfbe755092761b4837487618df8ac",
+          "bytes": 192420
+        },
+        "assets/draco_wasm_wrapper-DxJM36Ib.js": {
+          "sha256": "e8049906ef3f8f75d3456c22a3f31bfdfe5b5b5bd09ccdec613b9e9a49d554d8",
+          "bytes": 58763
+        },
+        "assets/draco_wasm_wrapper-fZCQGLGb.js": {
+          "sha256": "8bb2952d2ba7d67e1414f8df819410cb0434a666be53f671fff75f68843d76f6",
+          "bytes": 58456
+        },
+        "assets/FBXLoader-puUKxnx9.js": {
+          "sha256": "17a3a1c6d71b2369741b3fa1a7331ce0a81e71d4d446b03e328633b8f28f4ebe",
+          "bytes": 49922
+        },
+        "assets/GLTFLoader-C8FuGDxW.js": {
+          "sha256": "b503288825c72e5505c36581c88872b0ca3255e1068f2ae13daf06a15eeda8fa",
+          "bytes": 44308
+        },
+        "assets/index-B2mAMfm4.css": {
+          "sha256": "cbf321b921d05ff91c3020a6ccffc91385eeebf223ea6ec0577c6354df12a521",
+          "bytes": 5451
+        },
+        "assets/index-D-aS3xUY.js": {
+          "sha256": "1766afee73cc235e97ebc077da9163cf81a4e694ca06780b8f73df7eb7efe473",
+          "bytes": 770878
+        },
+        "assets/model-fbx-worker-mCScXMXp.js": {
+          "sha256": "54cc66200e506deb7e541a5baf66a3dcf952c866527977b7d964f528670b2c39",
+          "bytes": 823946
+        },
+        "assets/OBJLoader-CYwXuYJt.js": {
+          "sha256": "bc1efe0d892354d115e49504247e13a10bc1bf7930dcda3cb1025783e2e5e6f0",
+          "bytes": 8633
+        },
+        "assets/tablet-gif.worker-DACjp6Cn.js": {
+          "sha256": "78ebb1c3db4d062dd4119c2cd86d201b7df2757fedf22a8993dd460fbb1057c8",
+          "bytes": 10409
+        },
+        "assets/texture-alpha-worker-CBG2kYQR.js": {
+          "sha256": "f04f415ff39370ae4ab0268903ffaf6c86b9a7addeb0aed95d4a7948ee803485",
+          "bytes": 2417
+        }
+      },
+      "distributionManifest": {
+        "assets/baked-draco-legacy-CMhlgON6.js": {
+          "sha256": "eb84ebc5eff49c7b0593382b07b23010897080f46b779ececdd515efcfb482d4",
+          "bytes": 816324
+        },
+        "assets/baked-draco-nPAk-sFt.js": {
+          "sha256": "e4f957ed3009c746afacf8a77ee91626feb6dde4b45a0a1cc17743e6b2f379ff",
+          "bytes": 125046
+        },
+        "assets/draco_decoder-C32yEggz.wasm": {
+          "sha256": "c55a594e8ffd18426d36b27fea9618af3df5e173640a3e56d46f09d76f0574f2",
+          "bytes": 285747
+        },
+        "assets/draco_decoder-fzg4nYZr.js": {
+          "sha256": "30e4d486fa020737af10e3c56197693e5b904bdc05b8bfa5d7b06751dec6da04",
+          "bytes": 719410
+        },
+        "assets/draco_decoder-Z1_iN-Ht.wasm": {
+          "sha256": "a680d927bed9cb864ddbd63521868891af2bfbe755092761b4837487618df8ac",
+          "bytes": 192420
+        },
+        "assets/draco_wasm_wrapper-DxJM36Ib.js": {
+          "sha256": "e8049906ef3f8f75d3456c22a3f31bfdfe5b5b5bd09ccdec613b9e9a49d554d8",
+          "bytes": 58763
+        },
+        "assets/draco_wasm_wrapper-fZCQGLGb.js": {
+          "sha256": "8bb2952d2ba7d67e1414f8df819410cb0434a666be53f671fff75f68843d76f6",
+          "bytes": 58456
+        },
+        "assets/FBXLoader-puUKxnx9.js": {
+          "sha256": "17a3a1c6d71b2369741b3fa1a7331ce0a81e71d4d446b03e328633b8f28f4ebe",
+          "bytes": 49922
+        },
+        "assets/GLTFLoader-C8FuGDxW.js": {
+          "sha256": "b503288825c72e5505c36581c88872b0ca3255e1068f2ae13daf06a15eeda8fa",
+          "bytes": 44308
+        },
+        "assets/index-B2mAMfm4.css": {
+          "sha256": "cbf321b921d05ff91c3020a6ccffc91385eeebf223ea6ec0577c6354df12a521",
+          "bytes": 5451
+        },
+        "assets/index-D-aS3xUY.js": {
+          "sha256": "1766afee73cc235e97ebc077da9163cf81a4e694ca06780b8f73df7eb7efe473",
+          "bytes": 770878
+        },
+        "assets/model-fbx-worker-mCScXMXp.js": {
+          "sha256": "54cc66200e506deb7e541a5baf66a3dcf952c866527977b7d964f528670b2c39",
+          "bytes": 823946
+        },
+        "assets/OBJLoader-CYwXuYJt.js": {
+          "sha256": "bc1efe0d892354d115e49504247e13a10bc1bf7930dcda3cb1025783e2e5e6f0",
+          "bytes": 8633
+        },
+        "assets/tablet-gif.worker-DACjp6Cn.js": {
+          "sha256": "78ebb1c3db4d062dd4119c2cd86d201b7df2757fedf22a8993dd460fbb1057c8",
+          "bytes": 10409
+        },
+        "assets/texture-alpha-worker-CBG2kYQR.js": {
+          "sha256": "f04f415ff39370ae4ab0268903ffaf6c86b9a7addeb0aed95d4a7948ee803485",
+          "bytes": 2417
+        }
+      },
+      "cohort": "prepared-cache-queue",
+      "engine": "firefox",
+      "microphoneRequested": false,
+      "worldInteractionsSent": 0,
+      "sourceCoherent": true,
+      "distributionCoherent": true,
+      "modelReadySeconds": 27.321,
+      "readyPerformance": {
+        "at": 1790838399423,
+        "frames": 1217,
+        "samples": 240,
+        "fps": 19.819968618383026,
+        "medianFrameMs": 43,
+        "p95FrameMs": 93,
+        "maximumFrameMs": 833,
+        "drawCalls": 670,
+        "triangles": 552306,
+        "geometries": 421,
+        "textures": 243,
+        "entities": 518,
+        "loadedAvatars": 1,
+        "loadedModels": 298,
+        "loadingModels": 0,
+        "queuedModels": 0,
+        "compilingGraphics": 0,
+        "parallelShaderCompile": false,
+        "meshColliders": 75,
+        "graphicsActive": true,
+        "imageLoading": {
+          "requests": 351,
+          "uniqueImages": 220,
+          "cacheHits": 131,
+          "completed": 211,
+          "failed": 9,
+          "cancelled": 0,
+          "evictions": 65,
+          "peakActive": 6,
+          "active": 0,
+          "queued": 0,
+          "pending": 0,
+          "retainedEntries": 146,
+          "retainedPixels": 134188872,
+          "retainedKeyBytes": 46368,
+          "pendingKeyBytes": 0,
+          "phases": {
+            "imageLoad": {
+              "count": 211,
+              "totalMs": 21889,
+              "maxMs": 964
+            },
+            "imageDecode": {
+              "count": 211,
+              "totalMs": 12817,
+              "maxMs": 1215
+            }
+          }
+        },
+        "fbxPreparation": {
+          "active": 0,
+          "queued": 0,
+          "outstanding": 0,
+          "inputBytes": 0,
+          "workers": 1,
+          "completed": 130,
+          "cancelled": 0,
+          "failed": 4,
+          "disposed": false
+        },
+        "preparedFbxCache": {
+          "hits": 163,
+          "misses": 134,
+          "bytes": 11242844,
+          "ready": 64,
+          "active": 0,
+          "readers": 0,
+          "evictions": 66,
+          "disposed": false
+        },
+        "modelScheduling": {
+          "active": 0,
+          "queued": 0,
+          "dispatches": 311,
+          "priorityPasses": 299,
+          "disposed": false
+        },
+        "loadPhases": {
+          "graphicsSubmit": {
+            "count": 1218,
+            "totalMs": 14024,
+            "maxMs": 1148
+          },
+          "shaderPrepare": {
+            "count": 502,
+            "totalMs": 19523,
+            "maxMs": 325
+          },
+          "fbxMaterialBindings": {
+            "count": 130,
+            "totalMs": 393,
+            "maxMs": 55
+          },
+          "fbxDecode": {
+            "count": 130,
+            "totalMs": 2839,
+            "maxMs": 451
+          },
+          "fbxPrepareWait": {
+            "count": 293,
+            "totalMs": 27201,
+            "maxMs": 1500
+          },
+          "fbxParse": {
+            "count": 293,
+            "totalMs": 4210,
+            "maxMs": 226
+          },
+          "fbxTextures": {
+            "count": 293,
+            "totalMs": 7410,
+            "maxMs": 1244
+          },
+          "textureAlpha": {
+            "count": 845,
+            "totalMs": 22218,
+            "maxMs": 3279
+          },
+          "entityUpdate": {
+            "count": 10,
+            "totalMs": 117,
+            "maxMs": 45
+          },
+          "colliderBuild": {
+            "count": 75,
+            "totalMs": 293,
+            "maxMs": 73
+          },
+          "modelBatch": {
+            "count": 5,
+            "totalMs": 131,
+            "maxMs": 73
+          }
+        },
+        "renderedFrames": 1218,
+        "entityCount": 518
+      },
+      "steadySamples": [
+        {
+          "fps": 27.548209366391184,
+          "p95FrameMs": 68,
+          "maximumFrameMs": 83,
+          "samples": 240,
+          "drawCalls": 669,
+          "triangles": 552210
+        },
+        {
+          "fps": 28.568027615760027,
+          "p95FrameMs": 67,
+          "maximumFrameMs": 82,
+          "samples": 240,
+          "drawCalls": 669,
+          "triangles": 552210
+        }
+      ],
+      "fluidGates": {
+        "steadyFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "walkFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedSteadyFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedWalkFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        }
+      },
+      "assetTransfers": {
+        "categories": {
+          "FBX": {
+            "uniqueURLs": 122,
+            "requests": 264,
+            "duplicateRequests": 142,
+            "knownBytes": 42091340,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 261,
+              "shared": 0,
+              "memory": 3,
+              "unknown": 0
+            }
+          },
+          "FST": {
+            "uniqueURLs": 95,
+            "requests": 493,
+            "duplicateRequests": 398,
+            "knownBytes": 93849,
+            "unknownByteResponses": 2,
+            "sources": {
+              "download": 215,
+              "shared": 0,
+              "memory": 276,
+              "unknown": 2
+            }
+          },
+          "texmeta": {
+            "uniqueURLs": 133,
+            "requests": 526,
+            "duplicateRequests": 393,
+            "knownBytes": 164485,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 288,
+              "shared": 0,
+              "memory": 238,
+              "unknown": 0
+            }
+          },
+          "JSON": {
+            "uniqueURLs": 160,
+            "requests": 685,
+            "duplicateRequests": 525,
+            "knownBytes": 1161977,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 206,
+              "shared": 0,
+              "memory": 479,
+              "unknown": 0
+            }
+          },
+          "image": {
+            "uniqueURLs": 148,
+            "requests": 307,
+            "duplicateRequests": 159,
+            "knownBytes": 137669128,
+            "unknownByteResponses": 22,
+            "sources": {
+              "download": 278,
+              "shared": 0,
+              "memory": 3,
+              "unknown": 26
+            }
+          },
+          "other": {
+            "uniqueURLs": 12,
+            "requests": 27,
+            "duplicateRequests": 15,
+            "knownBytes": 11911564,
+            "unknownByteResponses": 10,
+            "sources": {
+              "download": 16,
+              "shared": 0,
+              "memory": 1,
+              "unknown": 10
+            }
+          }
+        },
+        "uniqueURLs": 670,
+        "requests": 2302,
+        "knownBytes": 193092343,
+        "unknownByteResponses": 34,
+        "duplicateRequests": 1632,
+        "sources": {
+          "download": 1264,
+          "shared": 0,
+          "memory": 1000,
+          "unknown": 38
+        },
+        "sessions": [
+          {
+            "ordinal": 1,
+            "uniqueURLs": 670,
+            "requests": 1154,
+            "duplicateRequests": 484,
+            "knownBytes": 96597712,
+            "unknownByteResponses": 17,
+            "totalRequestMs": 44949.48970600002,
+            "maximumRequestMs": 1685.3823889999985,
+            "sources": {
+              "download": 635,
+              "shared": 0,
+              "memory": 500,
+              "unknown": 19
+            },
+            "categories": {
+              "FBX": {
+                "uniqueURLs": 122,
+                "requests": 133,
+                "duplicateRequests": 11,
+                "knownBytes": 21069801,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 131,
+                  "shared": 0,
+                  "memory": 2,
+                  "unknown": 0
+                }
+              },
+              "FST": {
+                "uniqueURLs": 95,
+                "requests": 247,
+                "duplicateRequests": 152,
+                "knownBytes": 46999,
+                "unknownByteResponses": 1,
+                "sources": {
+                  "download": 109,
+                  "shared": 0,
+                  "memory": 137,
+                  "unknown": 1
+                }
+              },
+              "texmeta": {
+                "uniqueURLs": 133,
+                "requests": 264,
+                "duplicateRequests": 131,
+                "knownBytes": 82543,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 145,
+                  "shared": 0,
+                  "memory": 119,
+                  "unknown": 0
+                }
+              },
+              "JSON": {
+                "uniqueURLs": 160,
+                "requests": 343,
+                "duplicateRequests": 183,
+                "knownBytes": 581281,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 104,
+                  "shared": 0,
+                  "memory": 239,
+                  "unknown": 0
+                }
+              },
+              "image": {
+                "uniqueURLs": 148,
+                "requests": 154,
+                "duplicateRequests": 6,
+                "knownBytes": 69031280,
+                "unknownByteResponses": 11,
+                "sources": {
+                  "download": 138,
+                  "shared": 0,
+                  "memory": 3,
+                  "unknown": 13
+                }
+              },
+              "other": {
+                "uniqueURLs": 12,
+                "requests": 13,
+                "duplicateRequests": 1,
+                "knownBytes": 5785808,
+                "unknownByteResponses": 5,
+                "sources": {
+                  "download": 8,
+                  "shared": 0,
+                  "memory": 0,
+                  "unknown": 5
+                }
+              }
+            },
+            "entryCount": 670,
+            "entrySHA256": "03522bb28099cb24248c2c0972871ac12778a953b3775fc991ce181837834997",
+            "entryDigestEncoding": "Compact UTF-8 JSON, sorted keys; complete per-asset records retained in ignored local source reports"
+          },
+          {
+            "ordinal": 2,
+            "uniqueURLs": 670,
+            "requests": 1148,
+            "duplicateRequests": 478,
+            "knownBytes": 96494631,
+            "unknownByteResponses": 17,
+            "totalRequestMs": 44692.66054999981,
+            "maximumRequestMs": 3164.000304999994,
+            "sources": {
+              "download": 629,
+              "shared": 0,
+              "memory": 500,
+              "unknown": 19
+            },
+            "categories": {
+              "FBX": {
+                "uniqueURLs": 122,
+                "requests": 131,
+                "duplicateRequests": 9,
+                "knownBytes": 21021539,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 130,
+                  "shared": 0,
+                  "memory": 1,
+                  "unknown": 0
+                }
+              },
+              "FST": {
+                "uniqueURLs": 95,
+                "requests": 246,
+                "duplicateRequests": 151,
+                "knownBytes": 46850,
+                "unknownByteResponses": 1,
+                "sources": {
+                  "download": 106,
+                  "shared": 0,
+                  "memory": 139,
+                  "unknown": 1
+                }
+              },
+              "texmeta": {
+                "uniqueURLs": 133,
+                "requests": 262,
+                "duplicateRequests": 129,
+                "knownBytes": 81942,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 143,
+                  "shared": 0,
+                  "memory": 119,
+                  "unknown": 0
+                }
+              },
+              "JSON": {
+                "uniqueURLs": 160,
+                "requests": 342,
+                "duplicateRequests": 182,
+                "knownBytes": 580696,
+                "unknownByteResponses": 0,
+                "sources": {
+                  "download": 102,
+                  "shared": 0,
+                  "memory": 240,
+                  "unknown": 0
+                }
+              },
+              "image": {
+                "uniqueURLs": 148,
+                "requests": 153,
+                "duplicateRequests": 5,
+                "knownBytes": 68637848,
+                "unknownByteResponses": 11,
+                "sources": {
+                  "download": 140,
+                  "shared": 0,
+                  "memory": 0,
+                  "unknown": 13
+                }
+              },
+              "other": {
+                "uniqueURLs": 12,
+                "requests": 14,
+                "duplicateRequests": 2,
+                "knownBytes": 6125756,
+                "unknownByteResponses": 5,
+                "sources": {
+                  "download": 8,
+                  "shared": 0,
+                  "memory": 1,
+                  "unknown": 5
+                }
+              }
+            },
+            "entryCount": 670,
+            "entrySHA256": "2525e666dc520a154f197178c7c7b29194223cf3f50aa990455d957390d0a51c",
+            "entryDigestEncoding": "Compact UTF-8 JSON, sorted keys; complete per-asset records retained in ignored local source reports"
+          }
+        ],
+        "entryCount": 670,
+        "entrySHA256": "98b78360647fea4b425988e5672c4b3292b2192ee4abe8497691cbbbd0e326f7",
+        "entryDigestEncoding": "Compact UTF-8 JSON, sorted keys; complete per-asset records retained in ignored local source reports"
+      },
+      "pageErrorCount": 0,
+      "failedStatusCounts": {
+        "404": 1,
+        "502": 34
+      },
+      "earlyMovementMeters": 0.0
+    },
+    {
+      "startedAt": "2026-10-01T07:39:51.517Z",
+      "finishedAt": "2026-10-01T07:41:47.861Z",
+      "completed": true,
+      "browserVersion": "154.0.8037.57",
+      "connectedAt": "2026-10-01T07:40:05.004Z",
+      "webGL": {
+        "vendor": "Google Inc. (NVIDIA Corporation)",
+        "renderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce GTX 1080 Ti/PCIe/SSE2, OpenGL ES 3.2)"
+      },
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "devicePixelRatio": 1.000000015894571,
+        "visibility": "visible"
+      },
+      "fluidMovementAcceptancePassed": true,
+      "nativePoseDifferenceMeters": 0.00031725769297684826,
+      "reconnectedNativeDifferenceMeters": 0.0016227790555013069,
+      "movementMeters": 4.20433839426181,
+      "reconnectedMovementMeters": 2.8152214711066943,
+      "runtimeHelperSHA256": {
+        "native-tablet.js": "527e106866462d1dea2834978250ecb6fa3ee6b8e99b5b2129b21e521e4995a2",
+        "tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+        "bridge.js": "da3ba465c17213026f0e8b4061f1602b9f01cd9d5814d42cb91c8fde55457e1b"
+      },
+      "reconnectedRuntimeHelperSHA256": {
+        "native-tablet.js": "527e106866462d1dea2834978250ecb6fa3ee6b8e99b5b2129b21e521e4995a2",
+        "tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+        "bridge.js": "979bc7203ab2f793bff6a29fbe1d65c67adbb4ce0c8e79e0e21fc20ac55d3e12"
+      },
+      "startSourceSHA256": {
+        "browser-client/gateway/server.mjs": "e268d609756eb19d95034058db9d7c0ce13a4a7d9db8a7afc8ecaa6cbff69175",
+        "browser-client/gateway/native-bridge.js": "f76bedb62cd3ad7e29b383bf16fb0f6d80cf7263de34c467bdba9c001b7354dd",
+        "browser-client/gateway/native-world.js": "bec2f02313446afde7a0be20899358a082b41c6c6c5d745ec67a24809e2b7ddb",
+        "browser-client/gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60",
+        "browser-client/gateway/public-places.mjs": "cbac3df2ecf7071da6e77df8d58b09be194afa184cfb0c37f6015f9f1f570471",
+        "browser-client/gateway/validation.mjs": "65eba4a66c76d4bfc0dbd18e172def64f43b37cca0db2301da5bf4d18645de79",
+        "browser-client/gateway/worker-sandbox.mjs": "d4748e8d64f2ad5c633854b7ff9e07758a574086205470b32570fd485b9f4c5d",
+        "browser-client/gateway/network-sandbox.mjs": "3fd278b91a6ea383ddf816753d9eee870736b295ecd945714e827d794c8016d9",
+        "browser-client/gateway/network_udp.py": "378f7159b1456ab5a0e25d2f933f35106344106625cef0ce0d589de3d1e45eca",
+        "browser-client/gateway/native-tablet.js": "527e106866462d1dea2834978250ecb6fa3ee6b8e99b5b2129b21e521e4995a2",
+        "browser-client/gateway/tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+        "browser-client/gateway/process-lifecycle.mjs": "e8d7e021a8b934b271910883e27c2a1109aedd22e12044b763d4bf8acc274eaf",
+        "browser-client/shared/fluid-performance.mjs": "44e5262f62785e3a9ba4a96c275f5f0bf3a93c27e1d44fdad3bdbec739deebe2",
+        "browser-client/gateway/session-assets.mjs": "68542cb352ccad1bdc23a65ae34ab19d4abc2b02e1f81dec3f529d525ab84bf4",
+        "browser-client/gateway/asset-download.mjs": "4718cfe223afa884ab4f5890b6dc093303a70b864917fe5d85dc5cc2b8568357",
+        "browser-client/src/main.ts": "1a2159c0a082a7c77575802e930947d25c21c8a88d947bc673d9205862a23c09",
+        "browser-client/src/world.ts": "6d962c98f12a36250b68b3213a781e31e4b0e78a29e94b1ea1d4dfb6bad0cfec",
+        "browser-client/src/world-image-cache.ts": "da776c919bf4e666270dd2251c6dd63e98ad52ea8c4e713ce4ff3087bf87cb3f",
+        "browser-client/src/native-render-state.ts": "ebd076e5d6720c9390576212830932d40dbde8e03ac3278ba096b669f28b703a",
+        "browser-client/src/native-alpha-material.ts": "9041f5f8e874f392c6b1ff3b8a9bed2ab768344d2bfbbd3adf1ffca51066e964",
+        "browser-client/src/model-resources.ts": "f05d539e19554cfa49ed35ce8fc6ec1c92f6c985c3b1d1f90849df9b558628ca",
+        "browser-client/src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+        "browser-client/src/worker-task-yield.ts": "6fdfa71526163386c9e041b74a533b2ff50c52f533145bfc2facb213d4333cc8",
+        "browser-client/src/prepared-fbx-cache.ts": "955d8d608f69104608c43bcecf46ea3eb1bc4d01c7e18d6395784b472d7de0e3",
+        "browser-client/src/model-load-scheduler.ts": "5b0f79beda5b11ba85dff0c34fbd4e091e5f21a0130efa78022d7eef9f453290",
+        "browser-client/src/model-geometry-stage.ts": "d940a9180cbb26f50a2fe8a712e6f8d9d30a2d31ec2b6dd5551b6ee6b83d34a3",
+        "browser-client/src/model-fbx-pool.ts": "8394ecc9fba692c900e85cd8b4a6ed3511661065e8d4f4f46727a8e4d331f98c",
+        "browser-client/src/model-fbx-decoder.ts": "5b80bced09705301a14574c8082a946dd3fd32f2ef1a9d1ce08ca7f30dd19ead",
+        "browser-client/src/model-fbx-decoder-memory.ts": "0f209e406a3571af97e78bf12471d7ea6a788cec26adbef733dc353b864cdc68",
+        "browser-client/src/model-fbx-worker.ts": "75881e694db86f070e85ea44a41c04e572347c9a09944f42b4a879cb1a0e40ea",
+        "browser-client/src/model-textures.ts": "6de3ec3be2ce235642209ffab87295e52198e4fbebc12559c712ba6283e889bb",
+        "browser-client/src/texture-alpha.ts": "af9b46d9c56a156febaff92db76fe06b38dd4fa2ba7943ddfd4bbeaa47024ebe",
+        "browser-client/src/texture-alpha-worker.ts": "68cc81f419ed2373cfe18e9efd950222452479a7a742c5e10b8d965264d91761",
+        "browser-client/src/baked-fbx.ts": "a4b9d77136c5beed3dc24bc84f684fb41fdae704ad996ff0dce60b8c265712a3",
+        "browser-client/src/baked-draco.ts": "7e4426363fd8809df02d4f6c79d2b2fb899ae56ed663f839ffeb297e2a7d7844",
+        "browser-client/src/baked-draco-legacy.ts": "ba30ca915fcb85f5915fd5ef08f01745c13d3c9c7412c8dcefecb504c89a0a71",
+        "browser-client/dist/index.html": "9a8b21d66e505845299fa1d8a5299a3b138064b5f21fe19dc58f11eff1396108",
+        "browser-client/tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "browser-client/tests/integration/public-hub-metrics.mjs": "18c9ed36feb60ddadbc5b3a73dcc73e2caa8561ab26cd672d8882de2bd25c789",
+        "browser-client/tests/integration/public-hub.mjs": "fe8295eb19e663fad13b361d3d48a093ef9e1d1209c24de2600b4786c2da1921"
+      },
+      "sourceSHA256": {
+        "browser-client/gateway/server.mjs": "e268d609756eb19d95034058db9d7c0ce13a4a7d9db8a7afc8ecaa6cbff69175",
+        "browser-client/gateway/native-bridge.js": "f76bedb62cd3ad7e29b383bf16fb0f6d80cf7263de34c467bdba9c001b7354dd",
+        "browser-client/gateway/native-world.js": "bec2f02313446afde7a0be20899358a082b41c6c6c5d745ec67a24809e2b7ddb",
+        "browser-client/gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60",
+        "browser-client/gateway/public-places.mjs": "cbac3df2ecf7071da6e77df8d58b09be194afa184cfb0c37f6015f9f1f570471",
+        "browser-client/gateway/validation.mjs": "65eba4a66c76d4bfc0dbd18e172def64f43b37cca0db2301da5bf4d18645de79",
+        "browser-client/gateway/worker-sandbox.mjs": "d4748e8d64f2ad5c633854b7ff9e07758a574086205470b32570fd485b9f4c5d",
+        "browser-client/gateway/network-sandbox.mjs": "3fd278b91a6ea383ddf816753d9eee870736b295ecd945714e827d794c8016d9",
+        "browser-client/gateway/network_udp.py": "378f7159b1456ab5a0e25d2f933f35106344106625cef0ce0d589de3d1e45eca",
+        "browser-client/gateway/native-tablet.js": "527e106866462d1dea2834978250ecb6fa3ee6b8e99b5b2129b21e521e4995a2",
+        "browser-client/gateway/tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+        "browser-client/gateway/process-lifecycle.mjs": "e8d7e021a8b934b271910883e27c2a1109aedd22e12044b763d4bf8acc274eaf",
+        "browser-client/shared/fluid-performance.mjs": "44e5262f62785e3a9ba4a96c275f5f0bf3a93c27e1d44fdad3bdbec739deebe2",
+        "browser-client/gateway/session-assets.mjs": "68542cb352ccad1bdc23a65ae34ab19d4abc2b02e1f81dec3f529d525ab84bf4",
+        "browser-client/gateway/asset-download.mjs": "4718cfe223afa884ab4f5890b6dc093303a70b864917fe5d85dc5cc2b8568357",
+        "browser-client/src/main.ts": "1a2159c0a082a7c77575802e930947d25c21c8a88d947bc673d9205862a23c09",
+        "browser-client/src/world.ts": "6d962c98f12a36250b68b3213a781e31e4b0e78a29e94b1ea1d4dfb6bad0cfec",
+        "browser-client/src/world-image-cache.ts": "da776c919bf4e666270dd2251c6dd63e98ad52ea8c4e713ce4ff3087bf87cb3f",
+        "browser-client/src/native-render-state.ts": "ebd076e5d6720c9390576212830932d40dbde8e03ac3278ba096b669f28b703a",
+        "browser-client/src/native-alpha-material.ts": "9041f5f8e874f392c6b1ff3b8a9bed2ab768344d2bfbbd3adf1ffca51066e964",
+        "browser-client/src/model-resources.ts": "f05d539e19554cfa49ed35ce8fc6ec1c92f6c985c3b1d1f90849df9b558628ca",
+        "browser-client/src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+        "browser-client/src/worker-task-yield.ts": "6fdfa71526163386c9e041b74a533b2ff50c52f533145bfc2facb213d4333cc8",
+        "browser-client/src/prepared-fbx-cache.ts": "955d8d608f69104608c43bcecf46ea3eb1bc4d01c7e18d6395784b472d7de0e3",
+        "browser-client/src/model-load-scheduler.ts": "5b0f79beda5b11ba85dff0c34fbd4e091e5f21a0130efa78022d7eef9f453290",
+        "browser-client/src/model-geometry-stage.ts": "d940a9180cbb26f50a2fe8a712e6f8d9d30a2d31ec2b6dd5551b6ee6b83d34a3",
+        "browser-client/src/model-fbx-pool.ts": "8394ecc9fba692c900e85cd8b4a6ed3511661065e8d4f4f46727a8e4d331f98c",
+        "browser-client/src/model-fbx-decoder.ts": "5b80bced09705301a14574c8082a946dd3fd32f2ef1a9d1ce08ca7f30dd19ead",
+        "browser-client/src/model-fbx-decoder-memory.ts": "0f209e406a3571af97e78bf12471d7ea6a788cec26adbef733dc353b864cdc68",
+        "browser-client/src/model-fbx-worker.ts": "75881e694db86f070e85ea44a41c04e572347c9a09944f42b4a879cb1a0e40ea",
+        "browser-client/src/model-textures.ts": "6de3ec3be2ce235642209ffab87295e52198e4fbebc12559c712ba6283e889bb",
+        "browser-client/src/texture-alpha.ts": "af9b46d9c56a156febaff92db76fe06b38dd4fa2ba7943ddfd4bbeaa47024ebe",
+        "browser-client/src/texture-alpha-worker.ts": "68cc81f419ed2373cfe18e9efd950222452479a7a742c5e10b8d965264d91761",
+        "browser-client/src/baked-fbx.ts": "a4b9d77136c5beed3dc24bc84f684fb41fdae704ad996ff0dce60b8c265712a3",
+        "browser-client/src/baked-draco.ts": "7e4426363fd8809df02d4f6c79d2b2fb899ae56ed663f839ffeb297e2a7d7844",
+        "browser-client/src/baked-draco-legacy.ts": "ba30ca915fcb85f5915fd5ef08f01745c13d3c9c7412c8dcefecb504c89a0a71",
+        "browser-client/dist/index.html": "9a8b21d66e505845299fa1d8a5299a3b138064b5f21fe19dc58f11eff1396108",
+        "browser-client/tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "browser-client/tests/integration/public-hub-metrics.mjs": "18c9ed36feb60ddadbc5b3a73dcc73e2caa8561ab26cd672d8882de2bd25c789",
+        "browser-client/tests/integration/public-hub.mjs": "fe8295eb19e663fad13b361d3d48a093ef9e1d1209c24de2600b4786c2da1921"
+      },
+      "startDistributionManifest": {
+        "assets/baked-draco-legacy-CMhlgON6.js": {
+          "sha256": "eb84ebc5eff49c7b0593382b07b23010897080f46b779ececdd515efcfb482d4",
+          "bytes": 816324
+        },
+        "assets/baked-draco-nPAk-sFt.js": {
+          "sha256": "e4f957ed3009c746afacf8a77ee91626feb6dde4b45a0a1cc17743e6b2f379ff",
+          "bytes": 125046
+        },
+        "assets/draco_decoder-C32yEggz.wasm": {
+          "sha256": "c55a594e8ffd18426d36b27fea9618af3df5e173640a3e56d46f09d76f0574f2",
+          "bytes": 285747
+        },
+        "assets/draco_decoder-fzg4nYZr.js": {
+          "sha256": "30e4d486fa020737af10e3c56197693e5b904bdc05b8bfa5d7b06751dec6da04",
+          "bytes": 719410
+        },
+        "assets/draco_decoder-Z1_iN-Ht.wasm": {
+          "sha256": "a680d927bed9cb864ddbd63521868891af2bfbe755092761b4837487618df8ac",
+          "bytes": 192420
+        },
+        "assets/draco_wasm_wrapper-DxJM36Ib.js": {
+          "sha256": "e8049906ef3f8f75d3456c22a3f31bfdfe5b5b5bd09ccdec613b9e9a49d554d8",
+          "bytes": 58763
+        },
+        "assets/draco_wasm_wrapper-fZCQGLGb.js": {
+          "sha256": "8bb2952d2ba7d67e1414f8df819410cb0434a666be53f671fff75f68843d76f6",
+          "bytes": 58456
+        },
+        "assets/FBXLoader-Bc0Y1P5o.js": {
+          "sha256": "701bd8856ce05cbb6c09af11d05f9e0f5f36bf4349fcc5f106b960d63a90101b",
+          "bytes": 49922
+        },
+        "assets/GLTFLoader-DSCU38Qv.js": {
+          "sha256": "6bd81ffbad97cc62a0715086679fa5628fe58ac62f9b5f0e737c8f884c6a5ec2",
+          "bytes": 44308
+        },
+        "assets/index-B2mAMfm4.css": {
+          "sha256": "cbf321b921d05ff91c3020a6ccffc91385eeebf223ea6ec0577c6354df12a521",
+          "bytes": 5451
+        },
+        "assets/index-D-mHaAe0.js": {
+          "sha256": "0c388c76bfb959a4f9a3e8dd39b2721ce7a41f8a8ef4fca78a524a1ff89d1852",
+          "bytes": 774198
+        },
+        "assets/model-fbx-worker-mCScXMXp.js": {
+          "sha256": "54cc66200e506deb7e541a5baf66a3dcf952c866527977b7d964f528670b2c39",
+          "bytes": 823946
+        },
+        "assets/OBJLoader-CdtoAUgo.js": {
+          "sha256": "48b82e8bbdb62e8b8f9faa5067d1f7546e0d79dd55e812b1e829450f4b056c1e",
+          "bytes": 8633
+        },
+        "assets/tablet-gif.worker-DACjp6Cn.js": {
+          "sha256": "78ebb1c3db4d062dd4119c2cd86d201b7df2757fedf22a8993dd460fbb1057c8",
+          "bytes": 10409
+        },
+        "assets/texture-alpha-worker-CBG2kYQR.js": {
+          "sha256": "f04f415ff39370ae4ab0268903ffaf6c86b9a7addeb0aed95d4a7948ee803485",
+          "bytes": 2417
+        }
+      },
+      "distributionManifest": {
+        "assets/baked-draco-legacy-CMhlgON6.js": {
+          "sha256": "eb84ebc5eff49c7b0593382b07b23010897080f46b779ececdd515efcfb482d4",
+          "bytes": 816324
+        },
+        "assets/baked-draco-nPAk-sFt.js": {
+          "sha256": "e4f957ed3009c746afacf8a77ee91626feb6dde4b45a0a1cc17743e6b2f379ff",
+          "bytes": 125046
+        },
+        "assets/draco_decoder-C32yEggz.wasm": {
+          "sha256": "c55a594e8ffd18426d36b27fea9618af3df5e173640a3e56d46f09d76f0574f2",
+          "bytes": 285747
+        },
+        "assets/draco_decoder-fzg4nYZr.js": {
+          "sha256": "30e4d486fa020737af10e3c56197693e5b904bdc05b8bfa5d7b06751dec6da04",
+          "bytes": 719410
+        },
+        "assets/draco_decoder-Z1_iN-Ht.wasm": {
+          "sha256": "a680d927bed9cb864ddbd63521868891af2bfbe755092761b4837487618df8ac",
+          "bytes": 192420
+        },
+        "assets/draco_wasm_wrapper-DxJM36Ib.js": {
+          "sha256": "e8049906ef3f8f75d3456c22a3f31bfdfe5b5b5bd09ccdec613b9e9a49d554d8",
+          "bytes": 58763
+        },
+        "assets/draco_wasm_wrapper-fZCQGLGb.js": {
+          "sha256": "8bb2952d2ba7d67e1414f8df819410cb0434a666be53f671fff75f68843d76f6",
+          "bytes": 58456
+        },
+        "assets/FBXLoader-Bc0Y1P5o.js": {
+          "sha256": "701bd8856ce05cbb6c09af11d05f9e0f5f36bf4349fcc5f106b960d63a90101b",
+          "bytes": 49922
+        },
+        "assets/GLTFLoader-DSCU38Qv.js": {
+          "sha256": "6bd81ffbad97cc62a0715086679fa5628fe58ac62f9b5f0e737c8f884c6a5ec2",
+          "bytes": 44308
+        },
+        "assets/index-B2mAMfm4.css": {
+          "sha256": "cbf321b921d05ff91c3020a6ccffc91385eeebf223ea6ec0577c6354df12a521",
+          "bytes": 5451
+        },
+        "assets/index-D-mHaAe0.js": {
+          "sha256": "0c388c76bfb959a4f9a3e8dd39b2721ce7a41f8a8ef4fca78a524a1ff89d1852",
+          "bytes": 774198
+        },
+        "assets/model-fbx-worker-mCScXMXp.js": {
+          "sha256": "54cc66200e506deb7e541a5baf66a3dcf952c866527977b7d964f528670b2c39",
+          "bytes": 823946
+        },
+        "assets/OBJLoader-CdtoAUgo.js": {
+          "sha256": "48b82e8bbdb62e8b8f9faa5067d1f7546e0d79dd55e812b1e829450f4b056c1e",
+          "bytes": 8633
+        },
+        "assets/tablet-gif.worker-DACjp6Cn.js": {
+          "sha256": "78ebb1c3db4d062dd4119c2cd86d201b7df2757fedf22a8993dd460fbb1057c8",
+          "bytes": 10409
+        },
+        "assets/texture-alpha-worker-CBG2kYQR.js": {
+          "sha256": "f04f415ff39370ae4ab0268903ffaf6c86b9a7addeb0aed95d4a7948ee803485",
+          "bytes": 2417
+        }
+      },
+      "microphoneRequested": false,
+      "worldInteractionsSent": 0,
+      "assetTransfers": {
+        "categories": {
+          "FBX": {
+            "uniqueURLs": 122,
+            "requests": 265,
+            "duplicateRequests": 143,
+            "knownBytes": 42117483,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 262,
+              "shared": 0,
+              "memory": 3,
+              "unknown": 0
+            }
+          },
+          "FST": {
+            "uniqueURLs": 95,
+            "requests": 493,
+            "duplicateRequests": 398,
+            "knownBytes": 93849,
+            "unknownByteResponses": 2,
+            "sources": {
+              "download": 217,
+              "shared": 0,
+              "memory": 274,
+              "unknown": 2
+            }
+          },
+          "texmeta": {
+            "uniqueURLs": 133,
+            "requests": 526,
+            "duplicateRequests": 393,
+            "knownBytes": 164485,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 290,
+              "shared": 0,
+              "memory": 236,
+              "unknown": 0
+            }
+          },
+          "JSON": {
+            "uniqueURLs": 160,
+            "requests": 685,
+            "duplicateRequests": 525,
+            "knownBytes": 1161977,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 207,
+              "shared": 0,
+              "memory": 478,
+              "unknown": 0
+            }
+          },
+          "image": {
+            "uniqueURLs": 148,
+            "requests": 304,
+            "duplicateRequests": 156,
+            "knownBytes": 137392576,
+            "unknownByteResponses": 22,
+            "sources": {
+              "download": 276,
+              "shared": 0,
+              "memory": 6,
+              "unknown": 22
+            }
+          },
+          "other": {
+            "uniqueURLs": 8,
+            "requests": 18,
+            "duplicateRequests": 10,
+            "knownBytes": 12251512,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 16,
+              "shared": 0,
+              "memory": 2,
+              "unknown": 0
+            }
+          }
+        },
+        "uniqueURLs": 666,
+        "requests": 2291,
+        "knownBytes": 193181882,
+        "unknownByteResponses": 24,
+        "duplicateRequests": 1625,
+        "sources": {
+          "download": 1268,
+          "shared": 0,
+          "memory": 999,
+          "unknown": 24
+        },
+        "entryCount": 666,
+        "entrySHA256": "0a25b825fb13c829b4d51e8a0863de5b6a350286facc62dcab8094984084af19",
+        "entryDigestEncoding": "Compact UTF-8 JSON, sorted keys; complete per-asset records retained in ignored local source reports"
+      },
+      "cohort": "Progressive geometry after prepared-cache/queue; detached actual collision BVH before texture completion",
+      "coherenceVerified": true,
+      "engine": "chromium",
+      "sourceCoherent": true,
+      "distributionCoherent": true,
+      "modelReadySeconds": 30.072,
+      "readyPerformance": {
+        "at": 1790840435076,
+        "frames": 1719,
+        "samples": 240,
+        "fps": 31.301353783551132,
+        "medianFrameMs": 33.299999999995634,
+        "p95FrameMs": 66.69999999999709,
+        "maximumFrameMs": 117.20000000000437,
+        "drawCalls": 667,
+        "triangles": 551259,
+        "geometries": 416,
+        "textures": 239,
+        "entities": 517,
+        "loadedAvatars": 1,
+        "loadedModels": 295,
+        "loadingModels": 0,
+        "queuedModels": 0,
+        "compilingGraphics": 0,
+        "parallelShaderCompile": true,
+        "meshColliders": 75,
+        "graphicsActive": true,
+        "imageLoading": {
+          "requests": 349,
+          "uniqueImages": 220,
+          "cacheHits": 129,
+          "completed": 211,
+          "failed": 9,
+          "cancelled": 0,
+          "evictions": 67,
+          "peakActive": 6,
+          "active": 0,
+          "queued": 0,
+          "pending": 0,
+          "retainedEntries": 144,
+          "retainedPixels": 133367624,
+          "retainedKeyBytes": 44520,
+          "pendingKeyBytes": 0,
+          "phases": {
+            "imageLoad": {
+              "count": 211,
+              "totalMs": 18520.4999999851,
+              "maxMs": 434.70000000298023
+            },
+            "imageDecode": {
+              "count": 211,
+              "totalMs": 11280.899999931455,
+              "maxMs": 381.40000000596046
+            }
+          }
+        },
+        "fbxPreparation": {
+          "active": 0,
+          "queued": 0,
+          "outstanding": 0,
+          "inputBytes": 0,
+          "workers": 1,
+          "completed": 130,
+          "cancelled": 0,
+          "failed": 4,
+          "disposed": false
+        },
+        "preparedFbxCache": {
+          "hits": 162,
+          "misses": 134,
+          "bytes": 11242844,
+          "ready": 64,
+          "active": 0,
+          "readers": 0,
+          "evictions": 66,
+          "disposed": false
+        },
+        "modelScheduling": {
+          "active": 0,
+          "queued": 0,
+          "dispatches": 310,
+          "priorityPasses": 294,
+          "disposed": false
+        },
+        "loadPhases": {
+          "graphicsSubmit": {
+            "count": 1720,
+            "totalMs": 16585.300000056624,
+            "maxMs": 964
+          },
+          "shaderPrepare": {
+            "count": 501,
+            "totalMs": 12296.699999958277,
+            "maxMs": 215.40000000596046
+          },
+          "fbxMaterialBindings": {
+            "count": 130,
+            "totalMs": 335.19999998807907,
+            "maxMs": 45.400000005960464
+          },
+          "fbxDecode": {
+            "count": 130,
+            "totalMs": 2626.200000062585,
+            "maxMs": 566.6999999880791
+          },
+          "fbxPrepareWait": {
+            "count": 292,
+            "totalMs": 29858.200000032783,
+            "maxMs": 2533.5999999940395
+          },
+          "fbxParse": {
+            "count": 292,
+            "totalMs": 4379.999999910593,
+            "maxMs": 341.40000000596046
+          },
+          "fbxTextures": {
+            "count": 292,
+            "totalMs": 5910.000000059605,
+            "maxMs": 1345.6000000089407
+          },
+          "textureAlpha": {
+            "count": 843,
+            "totalMs": 2893.000000074506,
+            "maxMs": 375.3999999910593
+          },
+          "entityUpdate": {
+            "count": 11,
+            "totalMs": 126.50000001490116,
+            "maxMs": 76.90000000596046
+          },
+          "colliderBuild": {
+            "count": 76,
+            "totalMs": 259.8999999165535,
+            "maxMs": 66.09999999403954
+          },
+          "modelBatch": {
+            "count": 5,
+            "totalMs": 144.3999999910593,
+            "maxMs": 76.3999999910593
+          }
+        },
+        "renderedFrames": 1720,
+        "entityCount": 517,
+        "position": {
+          "x": 154.6074478937192,
+          "y": -97.64132605809455,
+          "z": -396.6630752416887
+        }
+      },
+      "steadySamples": [
+        {
+          "fps": 48.154093097913325,
+          "p95FrameMs": 33.599999999998545,
+          "maximumFrameMs": 50.599999999998545,
+          "samples": 240,
+          "drawCalls": 667,
+          "triangles": 551259
+        },
+        {
+          "fps": 49.14004914004914,
+          "p95FrameMs": 33.5,
+          "maximumFrameMs": 50.599999999998545,
+          "samples": 240,
+          "drawCalls": 667,
+          "triangles": 551259
+        }
+      ],
+      "fluidGates": {
+        "steadyFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "walkFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedSteadyFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedWalkFluidPerformance": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        }
+      },
+      "pageErrorCount": 0,
+      "earlyMovementMeters": 0.5452462192456425,
+      "earlyMovementMetric": "Horizontal x/z displacement; vertical floor settling excluded"
+    },
+    {
+      "startedAt": "2026-10-01T07:44:07.422Z",
+      "finishedAt": "2026-10-01T07:46:08.225Z",
+      "completed": false,
+      "browserVersion": "firefox/156.0",
+      "connectedAt": "2026-10-01T07:44:24.759Z",
+      "webGL": {
+        "vendor": "NVIDIA Corporation",
+        "renderer": "NVIDIA GeForce GTX 980, or similar"
+      },
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "devicePixelRatio": 1.6666666666666667,
+        "visibility": "visible"
+      },
+      "fluidMovementAcceptancePassed": false,
+      "nativePoseDifferenceMeters": 0.0014593123084392506,
+      "reconnectedNativeDifferenceMeters": 0.0005326883306808866,
+      "movementMeters": 4.0458940380089565,
+      "reconnectedMovementMeters": 2.7060830450417566,
+      "runtimeHelperSHA256": {
+        "native-tablet.js": "527e106866462d1dea2834978250ecb6fa3ee6b8e99b5b2129b21e521e4995a2",
+        "tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+        "bridge.js": "23c2be0dacaa255d689d236606ddd99090444af02d3762923729deed3ed535e9"
+      },
+      "reconnectedRuntimeHelperSHA256": {
+        "native-tablet.js": "527e106866462d1dea2834978250ecb6fa3ee6b8e99b5b2129b21e521e4995a2",
+        "tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+        "bridge.js": "fce1ee7215aae8858a213285d11c36ef08d1220e0bf20c550701284568b13ab0"
+      },
+      "startSourceSHA256": {
+        "browser-client/gateway/server.mjs": "e268d609756eb19d95034058db9d7c0ce13a4a7d9db8a7afc8ecaa6cbff69175",
+        "browser-client/gateway/native-bridge.js": "f76bedb62cd3ad7e29b383bf16fb0f6d80cf7263de34c467bdba9c001b7354dd",
+        "browser-client/gateway/native-world.js": "bec2f02313446afde7a0be20899358a082b41c6c6c5d745ec67a24809e2b7ddb",
+        "browser-client/gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60",
+        "browser-client/gateway/public-places.mjs": "cbac3df2ecf7071da6e77df8d58b09be194afa184cfb0c37f6015f9f1f570471",
+        "browser-client/gateway/validation.mjs": "65eba4a66c76d4bfc0dbd18e172def64f43b37cca0db2301da5bf4d18645de79",
+        "browser-client/gateway/worker-sandbox.mjs": "d4748e8d64f2ad5c633854b7ff9e07758a574086205470b32570fd485b9f4c5d",
+        "browser-client/gateway/network-sandbox.mjs": "3fd278b91a6ea383ddf816753d9eee870736b295ecd945714e827d794c8016d9",
+        "browser-client/gateway/network_udp.py": "378f7159b1456ab5a0e25d2f933f35106344106625cef0ce0d589de3d1e45eca",
+        "browser-client/gateway/native-tablet.js": "527e106866462d1dea2834978250ecb6fa3ee6b8e99b5b2129b21e521e4995a2",
+        "browser-client/gateway/tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+        "browser-client/gateway/process-lifecycle.mjs": "e8d7e021a8b934b271910883e27c2a1109aedd22e12044b763d4bf8acc274eaf",
+        "browser-client/shared/fluid-performance.mjs": "44e5262f62785e3a9ba4a96c275f5f0bf3a93c27e1d44fdad3bdbec739deebe2",
+        "browser-client/gateway/session-assets.mjs": "68542cb352ccad1bdc23a65ae34ab19d4abc2b02e1f81dec3f529d525ab84bf4",
+        "browser-client/gateway/asset-download.mjs": "4718cfe223afa884ab4f5890b6dc093303a70b864917fe5d85dc5cc2b8568357",
+        "browser-client/src/main.ts": "1a2159c0a082a7c77575802e930947d25c21c8a88d947bc673d9205862a23c09",
+        "browser-client/src/world.ts": "6d962c98f12a36250b68b3213a781e31e4b0e78a29e94b1ea1d4dfb6bad0cfec",
+        "browser-client/src/world-image-cache.ts": "da776c919bf4e666270dd2251c6dd63e98ad52ea8c4e713ce4ff3087bf87cb3f",
+        "browser-client/src/native-render-state.ts": "ebd076e5d6720c9390576212830932d40dbde8e03ac3278ba096b669f28b703a",
+        "browser-client/src/native-alpha-material.ts": "9041f5f8e874f392c6b1ff3b8a9bed2ab768344d2bfbbd3adf1ffca51066e964",
+        "browser-client/src/model-resources.ts": "f05d539e19554cfa49ed35ce8fc6ec1c92f6c985c3b1d1f90849df9b558628ca",
+        "browser-client/src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+        "browser-client/src/worker-task-yield.ts": "6fdfa71526163386c9e041b74a533b2ff50c52f533145bfc2facb213d4333cc8",
+        "browser-client/src/prepared-fbx-cache.ts": "955d8d608f69104608c43bcecf46ea3eb1bc4d01c7e18d6395784b472d7de0e3",
+        "browser-client/src/model-load-scheduler.ts": "5b0f79beda5b11ba85dff0c34fbd4e091e5f21a0130efa78022d7eef9f453290",
+        "browser-client/src/model-geometry-stage.ts": "d940a9180cbb26f50a2fe8a712e6f8d9d30a2d31ec2b6dd5551b6ee6b83d34a3",
+        "browser-client/src/model-fbx-pool.ts": "8394ecc9fba692c900e85cd8b4a6ed3511661065e8d4f4f46727a8e4d331f98c",
+        "browser-client/src/model-fbx-decoder.ts": "5b80bced09705301a14574c8082a946dd3fd32f2ef1a9d1ce08ca7f30dd19ead",
+        "browser-client/src/model-fbx-decoder-memory.ts": "0f209e406a3571af97e78bf12471d7ea6a788cec26adbef733dc353b864cdc68",
+        "browser-client/src/model-fbx-worker.ts": "75881e694db86f070e85ea44a41c04e572347c9a09944f42b4a879cb1a0e40ea",
+        "browser-client/src/model-textures.ts": "6de3ec3be2ce235642209ffab87295e52198e4fbebc12559c712ba6283e889bb",
+        "browser-client/src/texture-alpha.ts": "af9b46d9c56a156febaff92db76fe06b38dd4fa2ba7943ddfd4bbeaa47024ebe",
+        "browser-client/src/texture-alpha-worker.ts": "68cc81f419ed2373cfe18e9efd950222452479a7a742c5e10b8d965264d91761",
+        "browser-client/src/baked-fbx.ts": "a4b9d77136c5beed3dc24bc84f684fb41fdae704ad996ff0dce60b8c265712a3",
+        "browser-client/src/baked-draco.ts": "7e4426363fd8809df02d4f6c79d2b2fb899ae56ed663f839ffeb297e2a7d7844",
+        "browser-client/src/baked-draco-legacy.ts": "ba30ca915fcb85f5915fd5ef08f01745c13d3c9c7412c8dcefecb504c89a0a71",
+        "browser-client/dist/index.html": "9a8b21d66e505845299fa1d8a5299a3b138064b5f21fe19dc58f11eff1396108",
+        "browser-client/tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "browser-client/tests/integration/public-hub-metrics.mjs": "18c9ed36feb60ddadbc5b3a73dcc73e2caa8561ab26cd672d8882de2bd25c789",
+        "browser-client/tests/integration/public-hub.mjs": "fe8295eb19e663fad13b361d3d48a093ef9e1d1209c24de2600b4786c2da1921"
+      },
+      "sourceSHA256": {
+        "browser-client/gateway/server.mjs": "e268d609756eb19d95034058db9d7c0ce13a4a7d9db8a7afc8ecaa6cbff69175",
+        "browser-client/gateway/native-bridge.js": "f76bedb62cd3ad7e29b383bf16fb0f6d80cf7263de34c467bdba9c001b7354dd",
+        "browser-client/gateway/native-world.js": "bec2f02313446afde7a0be20899358a082b41c6c6c5d745ec67a24809e2b7ddb",
+        "browser-client/gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60",
+        "browser-client/gateway/public-places.mjs": "cbac3df2ecf7071da6e77df8d58b09be194afa184cfb0c37f6015f9f1f570471",
+        "browser-client/gateway/validation.mjs": "65eba4a66c76d4bfc0dbd18e172def64f43b37cca0db2301da5bf4d18645de79",
+        "browser-client/gateway/worker-sandbox.mjs": "d4748e8d64f2ad5c633854b7ff9e07758a574086205470b32570fd485b9f4c5d",
+        "browser-client/gateway/network-sandbox.mjs": "3fd278b91a6ea383ddf816753d9eee870736b295ecd945714e827d794c8016d9",
+        "browser-client/gateway/network_udp.py": "378f7159b1456ab5a0e25d2f933f35106344106625cef0ce0d589de3d1e45eca",
+        "browser-client/gateway/native-tablet.js": "527e106866462d1dea2834978250ecb6fa3ee6b8e99b5b2129b21e521e4995a2",
+        "browser-client/gateway/tablet-capture.qml": "2867c8962a7795171ca62b97e7c37cf8f063bd6b61eba9c81c88b89c351ae9d8",
+        "browser-client/gateway/process-lifecycle.mjs": "e8d7e021a8b934b271910883e27c2a1109aedd22e12044b763d4bf8acc274eaf",
+        "browser-client/shared/fluid-performance.mjs": "44e5262f62785e3a9ba4a96c275f5f0bf3a93c27e1d44fdad3bdbec739deebe2",
+        "browser-client/gateway/session-assets.mjs": "68542cb352ccad1bdc23a65ae34ab19d4abc2b02e1f81dec3f529d525ab84bf4",
+        "browser-client/gateway/asset-download.mjs": "4718cfe223afa884ab4f5890b6dc093303a70b864917fe5d85dc5cc2b8568357",
+        "browser-client/src/main.ts": "1a2159c0a082a7c77575802e930947d25c21c8a88d947bc673d9205862a23c09",
+        "browser-client/src/world.ts": "6d962c98f12a36250b68b3213a781e31e4b0e78a29e94b1ea1d4dfb6bad0cfec",
+        "browser-client/src/world-image-cache.ts": "da776c919bf4e666270dd2251c6dd63e98ad52ea8c4e713ce4ff3087bf87cb3f",
+        "browser-client/src/native-render-state.ts": "ebd076e5d6720c9390576212830932d40dbde8e03ac3278ba096b669f28b703a",
+        "browser-client/src/native-alpha-material.ts": "9041f5f8e874f392c6b1ff3b8a9bed2ab768344d2bfbbd3adf1ffca51066e964",
+        "browser-client/src/model-resources.ts": "f05d539e19554cfa49ed35ce8fc6ec1c92f6c985c3b1d1f90849df9b558628ca",
+        "browser-client/src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+        "browser-client/src/worker-task-yield.ts": "6fdfa71526163386c9e041b74a533b2ff50c52f533145bfc2facb213d4333cc8",
+        "browser-client/src/prepared-fbx-cache.ts": "955d8d608f69104608c43bcecf46ea3eb1bc4d01c7e18d6395784b472d7de0e3",
+        "browser-client/src/model-load-scheduler.ts": "5b0f79beda5b11ba85dff0c34fbd4e091e5f21a0130efa78022d7eef9f453290",
+        "browser-client/src/model-geometry-stage.ts": "d940a9180cbb26f50a2fe8a712e6f8d9d30a2d31ec2b6dd5551b6ee6b83d34a3",
+        "browser-client/src/model-fbx-pool.ts": "8394ecc9fba692c900e85cd8b4a6ed3511661065e8d4f4f46727a8e4d331f98c",
+        "browser-client/src/model-fbx-decoder.ts": "5b80bced09705301a14574c8082a946dd3fd32f2ef1a9d1ce08ca7f30dd19ead",
+        "browser-client/src/model-fbx-decoder-memory.ts": "0f209e406a3571af97e78bf12471d7ea6a788cec26adbef733dc353b864cdc68",
+        "browser-client/src/model-fbx-worker.ts": "75881e694db86f070e85ea44a41c04e572347c9a09944f42b4a879cb1a0e40ea",
+        "browser-client/src/model-textures.ts": "6de3ec3be2ce235642209ffab87295e52198e4fbebc12559c712ba6283e889bb",
+        "browser-client/src/texture-alpha.ts": "af9b46d9c56a156febaff92db76fe06b38dd4fa2ba7943ddfd4bbeaa47024ebe",
+        "browser-client/src/texture-alpha-worker.ts": "68cc81f419ed2373cfe18e9efd950222452479a7a742c5e10b8d965264d91761",
+        "browser-client/src/baked-fbx.ts": "a4b9d77136c5beed3dc24bc84f684fb41fdae704ad996ff0dce60b8c265712a3",
+        "browser-client/src/baked-draco.ts": "7e4426363fd8809df02d4f6c79d2b2fb899ae56ed663f839ffeb297e2a7d7844",
+        "browser-client/src/baked-draco-legacy.ts": "ba30ca915fcb85f5915fd5ef08f01745c13d3c9c7412c8dcefecb504c89a0a71",
+        "browser-client/dist/index.html": "9a8b21d66e505845299fa1d8a5299a3b138064b5f21fe19dc58f11eff1396108",
+        "browser-client/tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "browser-client/tests/integration/public-hub-metrics.mjs": "18c9ed36feb60ddadbc5b3a73dcc73e2caa8561ab26cd672d8882de2bd25c789",
+        "browser-client/tests/integration/public-hub.mjs": "fe8295eb19e663fad13b361d3d48a093ef9e1d1209c24de2600b4786c2da1921"
+      },
+      "startDistributionManifest": {
+        "assets/baked-draco-legacy-CMhlgON6.js": {
+          "sha256": "eb84ebc5eff49c7b0593382b07b23010897080f46b779ececdd515efcfb482d4",
+          "bytes": 816324
+        },
+        "assets/baked-draco-nPAk-sFt.js": {
+          "sha256": "e4f957ed3009c746afacf8a77ee91626feb6dde4b45a0a1cc17743e6b2f379ff",
+          "bytes": 125046
+        },
+        "assets/draco_decoder-C32yEggz.wasm": {
+          "sha256": "c55a594e8ffd18426d36b27fea9618af3df5e173640a3e56d46f09d76f0574f2",
+          "bytes": 285747
+        },
+        "assets/draco_decoder-fzg4nYZr.js": {
+          "sha256": "30e4d486fa020737af10e3c56197693e5b904bdc05b8bfa5d7b06751dec6da04",
+          "bytes": 719410
+        },
+        "assets/draco_decoder-Z1_iN-Ht.wasm": {
+          "sha256": "a680d927bed9cb864ddbd63521868891af2bfbe755092761b4837487618df8ac",
+          "bytes": 192420
+        },
+        "assets/draco_wasm_wrapper-DxJM36Ib.js": {
+          "sha256": "e8049906ef3f8f75d3456c22a3f31bfdfe5b5b5bd09ccdec613b9e9a49d554d8",
+          "bytes": 58763
+        },
+        "assets/draco_wasm_wrapper-fZCQGLGb.js": {
+          "sha256": "8bb2952d2ba7d67e1414f8df819410cb0434a666be53f671fff75f68843d76f6",
+          "bytes": 58456
+        },
+        "assets/FBXLoader-Bc0Y1P5o.js": {
+          "sha256": "701bd8856ce05cbb6c09af11d05f9e0f5f36bf4349fcc5f106b960d63a90101b",
+          "bytes": 49922
+        },
+        "assets/GLTFLoader-DSCU38Qv.js": {
+          "sha256": "6bd81ffbad97cc62a0715086679fa5628fe58ac62f9b5f0e737c8f884c6a5ec2",
+          "bytes": 44308
+        },
+        "assets/index-B2mAMfm4.css": {
+          "sha256": "cbf321b921d05ff91c3020a6ccffc91385eeebf223ea6ec0577c6354df12a521",
+          "bytes": 5451
+        },
+        "assets/index-D-mHaAe0.js": {
+          "sha256": "0c388c76bfb959a4f9a3e8dd39b2721ce7a41f8a8ef4fca78a524a1ff89d1852",
+          "bytes": 774198
+        },
+        "assets/model-fbx-worker-mCScXMXp.js": {
+          "sha256": "54cc66200e506deb7e541a5baf66a3dcf952c866527977b7d964f528670b2c39",
+          "bytes": 823946
+        },
+        "assets/OBJLoader-CdtoAUgo.js": {
+          "sha256": "48b82e8bbdb62e8b8f9faa5067d1f7546e0d79dd55e812b1e829450f4b056c1e",
+          "bytes": 8633
+        },
+        "assets/tablet-gif.worker-DACjp6Cn.js": {
+          "sha256": "78ebb1c3db4d062dd4119c2cd86d201b7df2757fedf22a8993dd460fbb1057c8",
+          "bytes": 10409
+        },
+        "assets/texture-alpha-worker-CBG2kYQR.js": {
+          "sha256": "f04f415ff39370ae4ab0268903ffaf6c86b9a7addeb0aed95d4a7948ee803485",
+          "bytes": 2417
+        }
+      },
+      "distributionManifest": {
+        "assets/baked-draco-legacy-CMhlgON6.js": {
+          "sha256": "eb84ebc5eff49c7b0593382b07b23010897080f46b779ececdd515efcfb482d4",
+          "bytes": 816324
+        },
+        "assets/baked-draco-nPAk-sFt.js": {
+          "sha256": "e4f957ed3009c746afacf8a77ee91626feb6dde4b45a0a1cc17743e6b2f379ff",
+          "bytes": 125046
+        },
+        "assets/draco_decoder-C32yEggz.wasm": {
+          "sha256": "c55a594e8ffd18426d36b27fea9618af3df5e173640a3e56d46f09d76f0574f2",
+          "bytes": 285747
+        },
+        "assets/draco_decoder-fzg4nYZr.js": {
+          "sha256": "30e4d486fa020737af10e3c56197693e5b904bdc05b8bfa5d7b06751dec6da04",
+          "bytes": 719410
+        },
+        "assets/draco_decoder-Z1_iN-Ht.wasm": {
+          "sha256": "a680d927bed9cb864ddbd63521868891af2bfbe755092761b4837487618df8ac",
+          "bytes": 192420
+        },
+        "assets/draco_wasm_wrapper-DxJM36Ib.js": {
+          "sha256": "e8049906ef3f8f75d3456c22a3f31bfdfe5b5b5bd09ccdec613b9e9a49d554d8",
+          "bytes": 58763
+        },
+        "assets/draco_wasm_wrapper-fZCQGLGb.js": {
+          "sha256": "8bb2952d2ba7d67e1414f8df819410cb0434a666be53f671fff75f68843d76f6",
+          "bytes": 58456
+        },
+        "assets/FBXLoader-Bc0Y1P5o.js": {
+          "sha256": "701bd8856ce05cbb6c09af11d05f9e0f5f36bf4349fcc5f106b960d63a90101b",
+          "bytes": 49922
+        },
+        "assets/GLTFLoader-DSCU38Qv.js": {
+          "sha256": "6bd81ffbad97cc62a0715086679fa5628fe58ac62f9b5f0e737c8f884c6a5ec2",
+          "bytes": 44308
+        },
+        "assets/index-B2mAMfm4.css": {
+          "sha256": "cbf321b921d05ff91c3020a6ccffc91385eeebf223ea6ec0577c6354df12a521",
+          "bytes": 5451
+        },
+        "assets/index-D-mHaAe0.js": {
+          "sha256": "0c388c76bfb959a4f9a3e8dd39b2721ce7a41f8a8ef4fca78a524a1ff89d1852",
+          "bytes": 774198
+        },
+        "assets/model-fbx-worker-mCScXMXp.js": {
+          "sha256": "54cc66200e506deb7e541a5baf66a3dcf952c866527977b7d964f528670b2c39",
+          "bytes": 823946
+        },
+        "assets/OBJLoader-CdtoAUgo.js": {
+          "sha256": "48b82e8bbdb62e8b8f9faa5067d1f7546e0d79dd55e812b1e829450f4b056c1e",
+          "bytes": 8633
+        },
+        "assets/tablet-gif.worker-DACjp6Cn.js": {
+          "sha256": "78ebb1c3db4d062dd4119c2cd86d201b7df2757fedf22a8993dd460fbb1057c8",
+          "bytes": 10409
+        },
+        "assets/texture-alpha-worker-CBG2kYQR.js": {
+          "sha256": "f04f415ff39370ae4ab0268903ffaf6c86b9a7addeb0aed95d4a7948ee803485",
+          "bytes": 2417
+        }
+      },
+      "microphoneRequested": false,
+      "worldInteractionsSent": 0,
+      "assetTransfers": {
+        "categories": {
+          "FBX": {
+            "uniqueURLs": 122,
+            "requests": 268,
+            "duplicateRequests": 146,
+            "knownBytes": 42203489,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 266,
+              "shared": 0,
+              "memory": 2,
+              "unknown": 0
+            }
+          },
+          "FST": {
+            "uniqueURLs": 95,
+            "requests": 493,
+            "duplicateRequests": 398,
+            "knownBytes": 93849,
+            "unknownByteResponses": 2,
+            "sources": {
+              "download": 219,
+              "shared": 0,
+              "memory": 272,
+              "unknown": 2
+            }
+          },
+          "texmeta": {
+            "uniqueURLs": 133,
+            "requests": 526,
+            "duplicateRequests": 393,
+            "knownBytes": 164485,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 291,
+              "shared": 0,
+              "memory": 235,
+              "unknown": 0
+            }
+          },
+          "JSON": {
+            "uniqueURLs": 160,
+            "requests": 685,
+            "duplicateRequests": 525,
+            "knownBytes": 1161977,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 209,
+              "shared": 0,
+              "memory": 476,
+              "unknown": 0
+            }
+          },
+          "image": {
+            "uniqueURLs": 148,
+            "requests": 308,
+            "duplicateRequests": 160,
+            "knownBytes": 138062560,
+            "unknownByteResponses": 22,
+            "sources": {
+              "download": 276,
+              "shared": 0,
+              "memory": 6,
+              "unknown": 26
+            }
+          },
+          "other": {
+            "uniqueURLs": 12,
+            "requests": 27,
+            "duplicateRequests": 15,
+            "knownBytes": 11911564,
+            "unknownByteResponses": 10,
+            "sources": {
+              "download": 16,
+              "shared": 0,
+              "memory": 1,
+              "unknown": 10
+            }
+          }
+        },
+        "uniqueURLs": 670,
+        "requests": 2307,
+        "knownBytes": 193597924,
+        "unknownByteResponses": 34,
+        "duplicateRequests": 1637,
+        "sources": {
+          "download": 1277,
+          "shared": 0,
+          "memory": 992,
+          "unknown": 38
+        },
+        "entryCount": 670,
+        "entrySHA256": "76ebb7f994d8b71234ea354e56b3eee6a9a98b00a5129ff6aff02dbd32362c95",
+        "entryDigestEncoding": "Compact UTF-8 JSON, sorted keys; complete per-asset records retained in ignored local source reports"
+      },
+      "cohort": "Progressive geometry after prepared-cache/queue; detached actual collision BVH before texture completion",
+      "coherenceVerified": true,
+      "engine": "firefox",
+      "sourceCoherent": true,
+      "distributionCoherent": true,
+      "modelReadySeconds": 28.941,
+      "readyPerformance": {
+        "at": 1790840693700,
+        "frames": 1289,
+        "samples": 240,
+        "fps": 20.147750167897918,
+        "medianFrameMs": 42,
+        "p95FrameMs": 91,
+        "maximumFrameMs": 772,
+        "drawCalls": 668,
+        "triangles": 550082,
+        "geometries": 419,
+        "textures": 243,
+        "entities": 518,
+        "loadedAvatars": 1,
+        "loadedModels": 296,
+        "loadingModels": 0,
+        "queuedModels": 0,
+        "compilingGraphics": 0,
+        "parallelShaderCompile": false,
+        "meshColliders": 75,
+        "graphicsActive": true,
+        "imageLoading": {
+          "requests": 351,
+          "uniqueImages": 220,
+          "cacheHits": 131,
+          "completed": 211,
+          "failed": 9,
+          "cancelled": 0,
+          "evictions": 65,
+          "peakActive": 6,
+          "active": 0,
+          "queued": 0,
+          "pending": 0,
+          "retainedEntries": 146,
+          "retainedPixels": 134188872,
+          "retainedKeyBytes": 46368,
+          "pendingKeyBytes": 0,
+          "phases": {
+            "imageLoad": {
+              "count": 211,
+              "totalMs": 23803,
+              "maxMs": 1307
+            },
+            "imageDecode": {
+              "count": 211,
+              "totalMs": 8827,
+              "maxMs": 520
+            }
+          }
+        },
+        "fbxPreparation": {
+          "active": 0,
+          "queued": 0,
+          "outstanding": 0,
+          "inputBytes": 0,
+          "workers": 1,
+          "completed": 130,
+          "cancelled": 0,
+          "failed": 4,
+          "disposed": false
+        },
+        "preparedFbxCache": {
+          "hits": 163,
+          "misses": 134,
+          "bytes": 11242844,
+          "ready": 64,
+          "active": 0,
+          "readers": 0,
+          "evictions": 66,
+          "disposed": false
+        },
+        "modelScheduling": {
+          "active": 0,
+          "queued": 0,
+          "dispatches": 311,
+          "priorityPasses": 295,
+          "disposed": false
+        },
+        "loadPhases": {
+          "graphicsSubmit": {
+            "count": 1290,
+            "totalMs": 14707,
+            "maxMs": 1057
+          },
+          "shaderPrepare": {
+            "count": 502,
+            "totalMs": 63709,
+            "maxMs": 791
+          },
+          "fbxMaterialBindings": {
+            "count": 130,
+            "totalMs": 390,
+            "maxMs": 45
+          },
+          "fbxDecode": {
+            "count": 130,
+            "totalMs": 2951,
+            "maxMs": 432
+          },
+          "fbxPrepareWait": {
+            "count": 293,
+            "totalMs": 27129,
+            "maxMs": 1423
+          },
+          "fbxParse": {
+            "count": 293,
+            "totalMs": 4782,
+            "maxMs": 231
+          },
+          "fbxTextures": {
+            "count": 293,
+            "totalMs": 5644,
+            "maxMs": 1190
+          },
+          "textureAlpha": {
+            "count": 845,
+            "totalMs": 21438,
+            "maxMs": 3998
+          },
+          "entityUpdate": {
+            "count": 10,
+            "totalMs": 138,
+            "maxMs": 71
+          },
+          "colliderBuild": {
+            "count": 76,
+            "totalMs": 276,
+            "maxMs": 63
+          },
+          "modelBatch": {
+            "count": 5,
+            "totalMs": 152,
+            "maxMs": 93
+          }
+        },
+        "renderedFrames": 1290,
+        "entityCount": 518,
+        "position": {
+          "x": 154.5801478826576,
+          "y": -97.71346946142907,
+          "z": -396.1309919672113
+        }
+      },
+      "steadySamples": [
+        {
+          "fps": 27.675276752767527,
+          "p95FrameMs": 67,
+          "maximumFrameMs": 88,
+          "samples": 240,
+          "drawCalls": 665,
+          "triangles": 539594
+        },
+        {
+          "fps": 28.832292167227294,
+          "p95FrameMs": 67,
+          "maximumFrameMs": 118,
+          "samples": 240,
+          "drawCalls": 664,
+          "triangles": 539592
+        }
+      ],
+      "fluidGates": {
+        "steadyFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "walkFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedSteadyFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "reconnectedWalkFluidPerformance": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        }
+      },
+      "pageErrorCount": 0,
+      "earlyMovementMeters": 0.6329273838989387,
+      "earlyMovementMetric": "Horizontal x/z displacement; vertical floor settling excluded"
+    }
+  ],
+  "assetEvidenceScope": "Published aggregate totals, categories, source/version hashes and per-asset entry digests. Complete per-asset records remain in ignored local raw reports; no test result or failure removed."
+}
