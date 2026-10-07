@@ -585,7 +585,86 @@
         return true;
     }
 
+    var voiceOriginal = null;
+    var voiceWatchdog = null;
+    var voiceLocalEcho = false;
+    var voiceServerEcho = false;
+    function restoreVoice() {
+        if (typeof Test.voiceTest === "function") {
+            Test.voiceTest({ schemaVersion: 1, commandId: "voice-watchdog-reset", action: "reset" });
+            Test.saveObject({ schemaVersion: 1, commandId: "voice-watchdog-reset", ok: true }, "voice-result.json");
+        }
+        if (voiceOriginal) {
+            Object.keys(voiceOriginal).forEach(function (key) { Audio[key] = voiceOriginal[key]; });
+            voiceOriginal = null;
+            Audio.setLocalEcho(voiceLocalEcho);
+            Audio.setServerEcho(voiceServerEcho);
+        }
+        if (voiceWatchdog !== null) { Script.clearTimeout(voiceWatchdog); voiceWatchdog = null; }
+    }
+    function applyVoice(command) {
+        if (!command || command.schemaVersion !== 1
+                || !objectKeysMatch(command, ["schemaVersion", "commandId", "action", "request"])
+                || command.action !== "voice-test" || !command.commandId
+                || command.commandId === lastClientCommandId) { return false; }
+        lastClientCommandId = String(command.commandId);
+        var request = command.request;
+        var result = { schemaVersion: 1, commandId: command.commandId, ok: false,
+            error: "voice-test-not-enabled" };
+        if (typeof Test.voiceTest === "function" && request && request.commandId === command.commandId) {
+            if (request.action === "prepare") {
+                if (voiceOriginal !== null) {
+                    result.error = "voice-session-busy";
+                    Test.saveObject(result, "voice-result.json");
+                    return true;
+                }
+                result = Test.voiceTest(request);
+                if (result.ok) {
+                    voiceOriginal = {};
+                    voiceLocalEcho = Boolean(Audio.getLocalEcho());
+                    voiceServerEcho = Boolean(Audio.getServerEcho());
+                    ["muted", "pushToTalk", "noiseReduction", "acousticEchoCancellation", "avatarGain",
+                        "serverInjectorGain", "localInjectorGain", "systemInjectorGain"].forEach(function (key) {
+                        voiceOriginal[key] = Audio[key];
+                    });
+                    Audio.muted = true;
+                    Audio.pushToTalk = false;
+                    Audio.noiseReduction = false;
+                    Audio.acousticEchoCancellation = false;
+                    Audio.avatarGain = 0;
+                    Audio.serverInjectorGain = -96;
+                    Audio.localInjectorGain = -96;
+                    Audio.systemInjectorGain = -96;
+                    Audio.setLocalEcho(false);
+                    Audio.setServerEcho(false);
+                    location.handleLookupString(request.domainUrl);
+                }
+            } else if (request.action === "reset") {
+                restoreVoice();
+                result = Test.voiceTest(request);
+            } else if (voiceOriginal !== null) {
+                if (request.action === "send") { Audio.muted = request.muted; }
+                result = Test.voiceTest(request);
+            } else { result.error = "voice-session-unprepared"; }
+            if (voiceOriginal !== null) {
+                if (voiceWatchdog !== null) { Script.clearTimeout(voiceWatchdog); }
+                voiceWatchdog = Script.setTimeout(restoreVoice, 120000);
+            }
+        }
+        result.sampleEpochMs = Date.now();
+        result.position = MyAvatar.position;
+        result.connected = Boolean(location.isConnected);
+        result.domainId = String(location.domainID);
+        result.version = String(About.buildVersion);
+        result.muted = Boolean(Audio.muted);
+        result.localEcho = Boolean(Audio.getLocalEcho());
+        result.serverEcho = Boolean(Audio.getServerEcho());
+        Test.saveObject(result, "voice-result.json");
+        return true;
+    }
+
     function applyClientCommand(command) {
+        if (applyVoice(command)) { return; }
         if (!command || command.schemaVersion !== 1 || !command.commandId
                 || command.commandId === lastClientCommandId) {
             return;
@@ -706,6 +785,7 @@
     }
 
     function applyAndroidControlCommand(command) {
+        if (applyVoice(command)) { return; }
         if (!command || command.schemaVersion !== 1 || !command.commandId
                 || command.commandId === lastAndroidControlCommandId) {
             return;
@@ -1197,6 +1277,7 @@
     Script.update.connect(updateProbe);
     Script.scriptEnding.connect(function () {
         Script.update.disconnect(updateProbe);
+        restoreVoice();
         releaseControlledKey(controlledKeyCommandId);
         Controller.disableMapping(controlledInputMappingName);
         Entities.mousePressOnEntity.disconnect(observePrimaryInteraction);

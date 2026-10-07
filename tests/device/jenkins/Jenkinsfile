@@ -141,6 +141,13 @@ def runDeviceSuite(String suite, int timeoutMinutes, String resultName = '') {
             "OVERTE_ANDROID_JOB_TARGET_CONFIG=${env.OVERTE_ANDROID_JOB_TARGET_CONFIG}"
         )
     }
+    if (suite == 'voice-roundtrip') {
+        if (!params.VOICE_PEER_CONFIG?.trim()) {
+            error('VOICE_PEER_CONFIG must name a private PC fixture configuration')
+        }
+        configuration.add("OVERTE_E2E_VOICE_PEER_CONFIG=${params.VOICE_PEER_CONFIG.trim()}")
+        configuration.add('OVERTE_E2E_VOICE_TESTS=1')
+    }
     if (suite == 'accessibility') {
         configuration.add('OVERTE_E2E_TABLET_OPEN_ACCESSIBILITY_ID=OverteTabletOpen')
         configuration.add('OVERTE_E2E_TABLET_CLOSE_ACCESSIBILITY_ID=OverteTabletClose')
@@ -359,6 +366,10 @@ pipeline {
             defaultValue: false,
             description: 'Run the deeper platform tablet product contract after portable smoke.'
         )
+        booleanParam(name: 'RUN_VOICE_ROUNDTRIP', defaultValue: false,
+                     description: 'Run received-PCM voice assertions in both directions using a dedicated test build and owned Linux PC peer.')
+        string(name: 'VOICE_PEER_CONFIG', defaultValue: '',
+               description: 'Absolute external mode-0600 PC peer launch configuration on the Linux device-lab agent.')
         booleanParam(
             name: 'RUN_DOMAIN_SMOKE',
             defaultValue: false,
@@ -470,7 +481,7 @@ pipeline {
                     }
                     adapterManifest(profile)
                     agentLabel(profile)
-                    if (params.RUN_DOMAIN_SMOKE &&
+                    if ((params.RUN_DOMAIN_SMOKE || params.RUN_VOICE_ROUNDTRIP) &&
                             (!params.DOMAIN_SERVER_EXECUTABLE.trim() ||
                              !params.ASSIGNMENT_CLIENT_EXECUTABLE.trim())) {
                         error('real domain-server and assignment-client binaries are required')
@@ -648,6 +659,22 @@ pipeline {
             } }
             steps {
                 script { runDeviceSuite('tablet-e2e', 20) }
+            }
+        }
+
+        stage('Voice roundtrip') {
+            when { expression { params.RUN_VOICE_ROUNDTRIP } }
+            steps {
+                script {
+                    if (!(resolvedProfile() in ['appium-ios', 'appium-android', 'android-pico-adb'])) {
+                        error('Voice roundtrip currently requires a mobile target and a Linux PC fixture agent')
+                    }
+                    // Global order: PC audio, profile, then device. The host fixture
+                    // also locks its resource, including non-Jenkins consumers.
+                    lock(resource: 'overte-e2e-voice-pc', inversePrecedence: true) {
+                        runDeviceSuite('voice-roundtrip', 15)
+                    }
+                }
             }
         }
 

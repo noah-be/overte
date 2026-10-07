@@ -519,6 +519,11 @@ class AppiumAdapter:
             values.append("telemetry.snapshot")
         if cls.controlled_android_client(target):
             values += ["asset.load", "navigation.enter-domain", "sound.play"]
+        if os.environ.get("OVERTE_E2E_VOICE_TESTS") == "1" and (
+                cls.controlled_android_client(target) or (
+                    target.get("platform") == "ios" and target.get("testBuild")
+                    and target.get("probe") == {"kind": "ios-documents"})):
+            values.append("voice.exchange")
         controls = target.get("controls", {})
         if target.get("scene"):
             values.append("scene.load")
@@ -1185,6 +1190,25 @@ class AppiumAdapter:
                 and arguments["direction"] not in target.get("controls", {}).get("move", {})):
             fail("requested movement direction is not configured")
         client, session, state = self.ensure_session(selector)
+        if operation == "voice.exchange":
+            from adapters.voice_transport import appium_read, exchange, fixture_command
+            identity = self.process_state(selector, client, session, state, target)
+            def check():
+                if self.query_app_state(client, session, target) != 4 or self.process_state(selector, client, session, state, target) != identity:
+                    fail("voice test application process changed or left the foreground")
+            if self.platform == "android":
+                from adb_transport import AdbTransport
+                adb = AdbTransport()
+                device = target["process"].get("selector") or target["capabilities"].get("appium:udid")
+                deliver = lambda payload: self.write_android_client_command(client, session, target, payload, identity)
+                read = lambda: adb.read_debug_app_file(device, target["appId"], "files/overte-e2e/voice-result.json", attempts=1)
+            else:
+                contract = target["testBuild"]
+                url = contract["fixtureOrigin"] + "/e2e-client-command.json"
+                deliver = lambda payload: fixture_command(url, payload["request"])
+                remote = f"@{target['appId']}:documents/{contract['resultsDirectory']}/voice-result.json"
+                read = lambda: appium_read(client, session, remote)
+            return exchange(arguments, deliver, read, check)
         if operation in {"navigation.enter-domain", "asset.load", "sound.play"}:
             if self.platform != "android" or not self.controlled_android_client(target):
                 fail("Appium target has no controlled client channel for this operation")

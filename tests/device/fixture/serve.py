@@ -411,7 +411,14 @@ class FixtureState:
                 or not CLIENT_COMMAND_ID.fullmatch(command["commandId"])):
             raise ValueError("invalid client command envelope")
         action = command.get("action")
-        if action == "scene-load":
+        if action == "voice-test":
+            sys.path.insert(0, str(ROOT.parent))
+            from voice_contract import command as validate_voice_command
+            valid = set(command) == {"schemaVersion", "commandId", "action", "request"}
+            if valid:
+                request = validate_voice_command(command["request"])
+                valid = request["commandId"] == command["commandId"]
+        elif action == "scene-load":
             valid = (set(command) == {"schemaVersion", "commandId", "action", "url"}
                      and self._web_url(command.get("url")))
         elif action == "navigate":

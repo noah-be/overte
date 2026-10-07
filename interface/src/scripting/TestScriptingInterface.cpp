@@ -26,12 +26,124 @@
 #include "Application.h"
 #include "NetworkingConstants.h"
 
+#if defined(OVERTE_E2E_VOICE_TESTS)
+#include <AudioClient.h>
+#include <QCryptographicHash>
+#include <QRegularExpression>
+#include <QTimer>
+#endif
+
 Q_LOGGING_CATEGORY(trace_test, "trace.test")
 
 TestScriptingInterface* TestScriptingInterface::getInstance() {
     static TestScriptingInterface sharedInstance;
     return &sharedInstance;
 }
+
+#if defined(OVERTE_E2E_VOICE_TESTS)
+QVariantMap TestScriptingInterface::voiceTest(const QVariantMap& command) {
+    if (QThread::currentThread() != thread()) {
+        QVariantMap result;
+        QMetaObject::invokeMethod(this, [&] { result = voiceTest(command); }, Qt::BlockingQueuedConnection);
+        return result;
+    }
+    const QString id = command.value("commandId").toString();
+    QVariantMap result { { "schemaVersion", 1 }, { "commandId", id }, { "ok", false } };
+    // Both an explicit test build and an active test-script launch are required.
+    if (_testResultsLocation.isEmpty() || !QCoreApplication::arguments().contains("--testScript") ||
+        command.value("schemaVersion").toInt() != 1 ||
+        !QRegularExpression("^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$").match(id).hasMatch()) {
+        result["error"] = "voice-test-not-enabled";
+        return result;
+    }
+    auto audio = DependencyManager::get<AudioClient>();
+    const auto onAudio = [&](const std::function<void()>& callback) {
+        if (QThread::currentThread() == audio->thread()) { callback(); }
+        else { QMetaObject::invokeMethod(audio.data(), callback, Qt::BlockingQueuedConnection); }
+    };
+    const QString action = command.value("action").toString();
+    if (action == "prepare") {
+        if (audio->getRecording() || !_voiceCapturePath.isEmpty()) {
+            result["error"] = "voice-recording-busy";
+            return result;
+        }
+        onAudio([&] { audio->voiceTestSignal().enable(); });
+    } else if (action == "send") {
+        const QString challenge = command.value("challenge").toString();
+        if (!QRegularExpression("^[0-9a-f]{32}$").match(challenge).hasMatch()) {
+            result["error"] = "voice-invalid-challenge";
+            return result;
+        }
+        const QByteArray digest = QCryptographicHash::hash("overte-voice-v1:" + challenge.toLatin1(), QCryptographicHash::Sha256);
+        std::array<int, 12> symbols;
+        symbols[0] = static_cast<unsigned char>(digest[0]) % 8;
+        for (int i = 1; i < 12; ++i) { symbols[i] = (symbols[i - 1] + 1 + static_cast<unsigned char>(digest[i]) % 7) % 8; }
+        bool busy = false;
+        onAudio([&] {
+            busy = audio->voiceTestSignal().active();
+            if (!busy) { audio->voiceTestSignal().send(symbols); }
+        });
+        if (busy) { result["error"] = "voice-send-busy"; return result; }
+    } else if (action == "capture-start") {
+        const int seconds = command.value("seconds").toInt();
+        if (seconds < 6 || seconds > 10 || audio->getRecording() || !_voiceCapturePath.isEmpty()) {
+            result["error"] = "voice-invalid-capture";
+            return result;
+        }
+        QDir directory(_testResultsLocation);
+        if (!directory.exists()) { result["error"] = "voice-results-unavailable"; return result; }
+        _voiceCapturePath = directory.absoluteFilePath("voice-" + id + ".wav");
+        // Never overwrite an unrelated or stale recording.
+        if (QFile::exists(_voiceCapturePath) || !audio->startRecording(_voiceCapturePath)) {
+            _voiceCapturePath.clear();
+            result["error"] = "voice-capture-unavailable";
+            return result;
+        }
+        QFile::setPermissions(_voiceCapturePath, QFile::ReadOwner | QFile::WriteOwner);
+        const quint64 generation = ++_voiceCaptureGeneration;
+        QTimer::singleShot(seconds * 1000, this, [this, audio, generation] {
+            if (_voiceCaptureGeneration == generation && !_voiceCapturePath.isEmpty()) { audio->stopRecording(); }
+        });
+        QTimer::singleShot((seconds + 30) * 1000, this, [this, audio, generation] {
+            if (_voiceCaptureGeneration == generation && !_voiceCapturePath.isEmpty()) {
+                audio->stopRecording();
+                QFile::remove(_voiceCapturePath);
+                _voiceCapturePath.clear();
+            }
+        });
+    } else if (action == "capture-stop") {
+        if (_voiceCapturePath.isEmpty()) { result["error"] = "voice-no-capture"; return result; }
+        audio->stopRecording();
+        QFile capture(_voiceCapturePath);
+        if (!capture.open(QIODevice::ReadOnly) || capture.size() > 5 * 1024 * 1024) {
+            result["error"] = "voice-capture-invalid";
+        } else {
+            const QByteArray wav = capture.readAll();
+            result["wavBase64"] = QString::fromLatin1(wav.toBase64());
+            result["sha256"] = QString::fromLatin1(QCryptographicHash::hash(wav, QCryptographicHash::Sha256).toHex());
+            result["ok"] = true;
+        }
+        capture.close();
+        QFile::remove(_voiceCapturePath);
+        _voiceCapturePath.clear();
+        ++_voiceCaptureGeneration;
+        return result;
+    } else if (action == "reset") {
+        onAudio([&] { audio->voiceTestSignal().reset(); });
+        if (!_voiceCapturePath.isEmpty()) { audio->stopRecording(); QFile::remove(_voiceCapturePath); _voiceCapturePath.clear(); }
+        ++_voiceCaptureGeneration;
+    } else if (action != "status") {
+        result["error"] = "voice-invalid-action";
+        return result;
+    }
+    onAudio([&] {
+        result["sending"] = audio->voiceTestSignal().active();
+        result["frames"] = audio->voiceTestSignal().frames();
+    });
+    result["ok"] = true;
+    return result;
+}
+#endif
 
 void TestScriptingInterface::quit() {
     qApp->quit();

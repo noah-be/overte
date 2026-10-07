@@ -123,6 +123,8 @@ android {
             externalNativeBuild {
                 cmake {
                     arguments '-DOVERTE_PICO_E2E_OPENXR_INPUT=ON'
+                    arguments '-DOVERTE_E2E_VOICE_TESTS=' +
+                        (project.findProperty('overteVoiceTests') == 'true' ? 'ON' : 'OFF')
                 }
             }
             buildConfigField 'String', 'BACKTRACE_URL', '""'
@@ -135,6 +137,7 @@ android {
             externalNativeBuild {
                 cmake {
                     arguments '-DOVERTE_PICO_E2E_OPENXR_INPUT=OFF'
+                    arguments '-DOVERTE_E2E_VOICE_TESTS=OFF'
                 }
             }
             minifyEnabled false
