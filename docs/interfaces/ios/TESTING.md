@@ -66,3 +66,12 @@ methods are exercised with real Qt queued delivery and an explicit script-value
 copy seam, both outside and inside an existing engine scope. The full portable
 device control-plane gate includes this regression. It does not replace native
 V8 or physical iPad background/foreground tests.
+
+### Local-world background recovery
+
+Run `python3 ios/tests/serverless-background-test.py` to exercise the actual
+mobile preparation, pause and resume methods. On iOS, a loaded serverless scene
+and its session must survive backgrounding: there is no domain server to rebuild
+an erased tree. Domain check-ins remain disabled on resume. Online scenes retain
+the existing reset/reconnect path; both paths still pause/resume audio and display.
+Test the bundled tutorial and an online world separately on the physical iPad.
