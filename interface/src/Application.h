@@ -844,6 +844,10 @@ private:
     bool _resumeAfterLoginDialogActionTaken_Completed { false };
 
     bool _isForeground { true }; // starts out assumed to be in foreground
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+    // Inactive is an intermediate visibility state, not a completed shutdown.
+    bool _iosBackgrounded { false };
+#endif
 
     Setting::Handle<float> _hmdTabletScale;
     Setting::Handle<float> _desktopTabletScale;

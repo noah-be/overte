@@ -25,6 +25,10 @@
 #include "InterfaceLogging.h"
 #include "SimpleMovingAverage.h"
 
+#if defined(Q_OS_IOS)
+#include "../../ios/lifecycle/ForegroundWatchdog.h"
+#endif
+
 class DeadlockWatchdogThread : public QThread {
 public:
     static const unsigned long HEARTBEAT_UPDATE_INTERVAL_SECS = 1;
@@ -78,9 +82,23 @@ public:
         _paused = false;
     }
 
+#if defined(Q_OS_IOS)
+    static void setApplicationActive(bool active) {
+        _iosLifecycle.observeActive(active, [] { updateHeartbeat(); });
+    }
+#endif
+
     void run() override {
         while (!_quit) {
             QThread::sleep(HEARTBEAT_UPDATE_INTERVAL_SECS);
+#if defined(Q_OS_IOS)
+            // Hold eligibility through the timeout decision: a resumed GUI
+            // timer must not race a pre-suspension heartbeat sample.
+            auto lifecycleCheck = _iosLifecycle.acquireCheck();
+            if (!lifecycleCheck.active()) {
+                continue;
+            }
+#endif
             // Don't do heartbeat detection under nsight
             if (_paused) {
                 continue;
@@ -154,6 +172,11 @@ public:
     bool _quit { false };
 
     Qt::HANDLE _mainThreadID = nullptr;
+
+#if defined(Q_OS_IOS)
+private:
+    static inline overte::ios::ForegroundWatchdog _iosLifecycle;
+#endif
 };
 
 #endif  // hifi_DeadlockWatchdog_h

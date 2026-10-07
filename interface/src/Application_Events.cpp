@@ -392,7 +392,8 @@ void Application::activeChanged(Qt::ApplicationState state) {
     switch (state) {
         case Qt::ApplicationActive:
 #if defined(Q_OS_IOS) || defined(OVERTE_IOS)
-            if (!_isForeground && !_aboutToQuit && _startUpFinished) {
+            if (_iosBackgrounded && !_aboutToQuit && _startUpFinished) {
+                _iosBackgrounded = false;
                 enterForeground();
             }
 #endif
@@ -408,7 +409,8 @@ void Application::activeChanged(Qt::ApplicationState state) {
             // leaving the app. Do not keep reporting the client as foreground
             // merely because neither state enters the switch default.
 #if defined(Q_OS_IOS) || defined(OVERTE_IOS)
-            if (_isForeground && !_aboutToQuit && _startUpFinished) {
+            if (!_iosBackgrounded && !_aboutToQuit && _startUpFinished) {
+                _iosBackgrounded = true;
                 beforeEnterBackground();
                 enterBackground();
             }

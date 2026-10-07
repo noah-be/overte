@@ -210,14 +210,16 @@ def test_plists() -> None:
     assert set(interface_schemes) == {"hifi", "hifiapp"}
     assert "NSBonjourServices" not in interface_info
     assert interface_info["UILaunchScreen"] == {"UIColorName": "AccentColor"}
-    assert interface_info["UIRequiresFullScreen"] is False
+    assert interface_info["UIRequiresFullScreen"] is True
     assert interface_info["UIRequiredDeviceCapabilities"] == ["arm64"]
     assert set(interface_info["UISupportedInterfaceOrientations~ipad"]) == {
-        "UIInterfaceOrientationPortrait",
-        "UIInterfaceOrientationPortraitUpsideDown",
         "UIInterfaceOrientationLandscapeLeft",
         "UIInterfaceOrientationLandscapeRight",
     }
+
+    e2e_info = plistlib.loads((IOS_ROOT / "resources/InterfaceE2EInfo.plist.in").read_bytes())
+    for key in ("UIRequiresFullScreen", "UISupportedInterfaceOrientations~ipad"):
+        assert e2e_info[key] == interface_info[key], key
 
     privacy_path = IOS_ROOT / "resources" / "PrivacyInfo.xcprivacy"
     with privacy_path.open("rb") as stream:
@@ -1828,12 +1830,12 @@ def test_scope_contract() -> None:
     )
     require_text(
         application_events,
-        r"case Qt::ApplicationSuspended:\s+case Qt::ApplicationHidden:[\s\S]*?if \(_isForeground && !_aboutToQuit && _startUpFinished\) \{\s+beforeEnterBackground\(\);\s+enterBackground\(\);",
+        r"case Qt::ApplicationSuspended:\s+case Qt::ApplicationHidden:[\s\S]*?if \(!_iosBackgrounded && !_aboutToQuit && _startUpFinished\) \{\s+_iosBackgrounded = true;\s+beforeEnterBackground\(\);\s+enterBackground\(\);",
         "an actual iOS background transition must pause networking and the display plugin exactly once",
     )
     require_text(
         application_events,
-        r"case Qt::ApplicationActive:[\s\S]*?if \(!_isForeground && !_aboutToQuit && _startUpFinished\) \{\s+enterForeground\(\);",
+        r"case Qt::ApplicationActive:[\s\S]*?if \(_iosBackgrounded && !_aboutToQuit && _startUpFinished\) \{\s+_iosBackgrounded = false;\s+enterForeground\(\);",
         "iOS foreground re-entry must reactivate the production display and network path",
     )
     require_text(
