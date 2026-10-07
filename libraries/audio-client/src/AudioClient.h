@@ -16,6 +16,7 @@
 
 #if defined(OVERTE_E2E_VOICE_TESTS)
 #include "VoiceTestSignal.h"
+#include <QVariantMap>
 #endif
 
 #include <fstream>
@@ -202,6 +203,11 @@ public:
 #if defined(OVERTE_E2E_VOICE_TESTS)
     // Called only on the audio thread by the gated Test interface.
     VoiceTestSignal& voiceTestSignal() { return _voiceTestSignal; }
+    bool prepareVoiceTest();
+    bool sendVoiceTest(const std::array<int, 12>& symbols);
+    void resetVoiceTest(bool restoreInput = true);
+    void touchVoiceTest();
+    QVariantMap voiceTestStatus() const;
 #endif
     bool startRecording(const QString& filename);
     void stopRecording();
@@ -565,6 +571,18 @@ private:
 
 #if defined(OVERTE_E2E_VOICE_TESTS)
     VoiceTestSignal _voiceTestSignal;
+    void handleVoiceTestInput();
+    void stopVoiceTestInput(const QString& error);
+    bool voiceTestLifecycleAllowed() const;
+    QTimer* _voiceTestInputTimer { nullptr };
+    QTimer* _voiceTestLeaseTimer { nullptr };
+    QElapsedTimer _voiceTestElapsed;
+    quint64 _voiceTestPackets { 0 };
+    int _voiceTestChannels { 0 };
+    quint64 _voiceTestCallbacks { 0 }, _voiceTestMicCallbacks { 0 }, _voiceTestDummyCallbacks { 0 };
+    bool _voiceTestInputEnabled { false }, _voiceTestDelivering { false };
+    QString _voiceTestSourceError;
+    std::unique_ptr<AudioGate> _voiceTestGate;
 #endif
     bool _isPlayingBackRecording { false };
     bool _audioPaused { false };

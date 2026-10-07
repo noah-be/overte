@@ -49,6 +49,17 @@ class VoiceContractTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 command({"schemaVersion": 1, "commandId": "fresh", "action": "prepare", "domainUrl": url})
 
+    def test_native_diagnostics_reject_unknown_errors_and_invalid_types(self):
+        valid = {"schemaVersion": 1, "commandId": "fresh", "ok": True,
+                 "sourceClockActive": True, "sourceError": "", "testCallbacks": 480,
+                 "iosPermission": 1, "iosOutcome": 3, "inputState": -1, "inputError": -1}
+        self.assertEqual(result(valid), valid)
+        for fields in ({"sourceClockActive": 1}, {"testCallbacks": -1}, {"testCallbacks": True},
+                       {"iosPermission": 4}, {"iosOutcome": 7}, {"inputState": 4},
+                       {"sourceError": "arbitrary native message"}, {"sourceError": []}):
+            with self.subTest(fields=fields), self.assertRaises(ValueError):
+                result(dict(valid, **fields))
+
     def test_pcm_digest_and_encoding_are_verified_before_analysis(self):
         data = b"received PCM"
         value = {"schemaVersion": 1, "commandId": "fresh", "ok": True,
@@ -126,6 +137,11 @@ class AdapterVoiceTests(unittest.TestCase):
 
 
 class NativeVoiceSignalTests(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("c++") and shutil.which("pkg-config"), "native clock check requires a C++ compiler and Qt6 pkg-config")
+    def test_actual_clock_survives_input_shutdown_and_cancels_on_lifecycle_loss(self):
+        subprocess.run([sys.executable, str(ROOT / "contracts/audio/test_voice_clock.py")],
+                       check=True, timeout=65)
+
     @unittest.skipUnless(shutil.which("node"), "probe execution requires Node.js")
     def test_actual_probe_restores_audio_state_and_rejects_release_client(self):
         source = (ROOT / "probe/overte_e2e_probe.js").read_text()
@@ -200,6 +216,19 @@ public:
     VoiceTestSignal signal;
     VoiceTestSignal& _voiceTestSignal = signal;
     bool _isStereoInput = false, _isMuted = false;
+    bool _voiceTestInputEnabled = false, _voiceTestDelivering = false;
+    bool prepared = false;
+    bool prepareVoiceTest() {
+        if (prepared) { return false; }
+        signal.enable(); prepared = true; return true;
+    }
+    bool sendVoiceTest(const std::array<int, 12>& symbols) {
+        if (!prepared || signal.active()) { return false; }
+        signal.send(symbols); return true;
+    }
+    void resetVoiceTest() { signal.reset(); prepared = false; }
+    void touchVoiceTest() {}
+    QVariantMap voiceTestStatus() const { return {{"sending", signal.active()}, {"frames", signal.frames()}}; }
     void handleAudioInput(QByteArray& audioBuffer) { INPUT_HOOK }
     bool getRecording() { return recording; }
     VoiceTestSignal& voiceTestSignal() { return signal; }
@@ -247,6 +276,9 @@ int main(int argc, char** argv) {
     command["action"] = "reset";
     assert(test.voiceTest(command).value("ok").toBool());
     assert(!DependencyManager::get<AudioClient>()->signal.active());
+    command["action"] = "send";
+    assert(!test.voiceTest(command).value("ok").toBool()); // send requires an owned clock
+    command["action"] = "reset";
     auto audio = DependencyManager::get<AudioClient>();
     audio->signal.send({0,1,2,3,4,5,6,7,0,1,2,3});
     QByteArray pcm(480, '\0');
@@ -311,6 +343,21 @@ int main() {
 
 
 class VoiceModuleTests(unittest.TestCase):
+    def test_native_clock_failure_is_saved_and_cannot_pass_with_complete_frames(self):
+        def response(_, request):
+            return {"schemaVersion": 1, "commandId": request["commandId"], "ok": False,
+                    "frames": 116160, "sending": False, "sourceError": "voice-source-clock-late",
+                    "sourceClockActive": False, "nativeMuted": True, "iosPermission": 1,
+                    "routeName": "private-test-route", "wavBase64": "private-audio"}
+        with patch.object(MODULE, "contract_operation", side_effect=response), patch.object(MODULE, "write_json") as saved:
+            with self.assertRaisesRegex(MODULE.fail.__globals__["AssertionFailure"], "voice-source-clock-late"):
+                MODULE.exchange("send", challenge=CHALLENGE, muted=False)
+        name, evidence = saved.call_args.args
+        self.assertEqual(name, "voice-native-status.json")
+        self.assertEqual(evidence["sourceError"], "voice-source-clock-late")
+        self.assertNotIn("routeName", evidence)
+        self.assertNotIn("wavBase64", evidence)
+
     def test_cleanup_preserves_a_product_failure_classification(self):
         calls = []
         def exchange(action, **_):

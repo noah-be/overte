@@ -30,12 +30,23 @@ Use the existing signed E2E build, installation, Appium and installed-candidate
 binding workflows. This feature does not substitute a runtime version string
 for an installed artifact's cryptographic identity.
 
-The synthetic source replaces network-rate microphone PCM immediately before
-the ordinary mute, noise-gate, encoder and packet path. The probe disables
+The synthetic source has its own precise timer on the audio thread and feeds
+240-frame network PCM packets through the ordinary mute, noise-gate, encoder
+and packet path. Physical/dummy/recorded input callbacks cannot advance the
+challenge or send a duplicate stream while test mode owns that clock. A
+separate audio gate survives iOS microphone shutdown. The probe disables
 noise reduction/AEC, echo and unrelated injectors during this deterministic
 test and restores their previous state afterward. Capture uses Interface's
 existing final output recording path. Native recording is limited to 6–10
 seconds and a watchdog finalizes it independently of the host command channel.
+
+The clock follows monotonic time with at most 100 ms of catch-up. Longer stalls
+fail with `voice-source-clock-late`; incomplete progress is retained. Stop,
+pause and iOS foreground loss/interruption cancel the source. A native 120-second
+lease bounds abandoned test mode, independently of the script watchdog. Valid
+commands renew that lease. Failure also mutes physical input until the probe
+restores the saved settings. Reset stops the test clock without changing the
+ordinary user audio lifecycle.
 
 This checks the digital voice path and mute behavior. Physical microphones,
 loudspeakers, OS permission recovery, AEC and noise suppression need their own
@@ -89,6 +100,17 @@ overwrites the private device result, deletes the WAV and restores audio state.
 Probe/native watchdogs bound abandoned test state and captures. Process death
 is handled by the existing runner/fixture lifecycle.
 
+`voice-native-status.json` retains the latest bounded native status even when a
+send fails. Each completed device-to-PC leg also records that status. It includes
+clock activity/error, real/dummy/test callback counts, Qt input state/error and
+lifecycle/mute observations. iOS adds OS permission separately from capture
+eligibility, foreground/interruption and lifecycle outcome. Permission values
+are `0=unknown, 1=granted, 2=denied, 3=revoked`; outcomes are `0=stopped,
+1=playback-only, 2=capturing, 3=muted, 4=suspended, 5=interrupted, 6=failed`.
+Missing Qt input is represented by `-1`. These observations contain no route,
+device identifier or free-form native error message. They do not establish a
+working physical microphone or repair a native capture failure.
+
 One host lock serializes all owned PC fixtures, including direct local runs.
 Jenkins's optional `RUN_VOICE_ROUNDTRIP` stage also holds
 `overte-e2e-voice-pc`; lock order is PC audio, profile, device. Supply the private
@@ -108,3 +130,8 @@ audio seam, compare its PCM with the Python reference, execute the actual probe
 voice handler, exercise each adapter transport, and reject silent receivers,
 stale results, wrong domains and corrupt captures. They do not qualify a mobile
 product build or a physical device.
+The production clock regression also executes complete muted/unmuted challenges
+after actual input shutdown, rejects duplicate physical callbacks and verifies
+foreground cancellation, reset, lease expiry and late-clock failure. On the iOS
+branch it uses the actual native adapter and Shared bridge with OS calls replaced
+by fixtures; on other branches it substitutes the unavailable native owner.

@@ -58,3 +58,10 @@ std::uint64_t overteIOSAudioOutputRevision() {
     auto value = std::atomic_load(&adapter);
     return value ? value->outputRevision() : 0;
 }
+
+#if defined(OVERTE_E2E_VOICE_TESTS)
+overte::audio::IOSVoiceTestState overteIOSVoiceTestState() {
+    auto value = std::atomic_load(&adapter);
+    return value ? value->voiceTestState() : overte::audio::IOSVoiceTestState {};
+}
+#endif
