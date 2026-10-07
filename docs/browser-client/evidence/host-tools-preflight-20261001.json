@@ -1,0 +1,15 @@
+{
+  "hostToolsMode": "fedora",
+  "pulseAudioVersion": "W: [pulseaudio] main.c: Couldn't canonicalize binary path, cannot self execute.\npulseaudio 17.0",
+  "elfDependencyTargets": 10,
+  "kernelNamespaces": "passed",
+  "bubblewrapNamespaces": "passed",
+  "privatePulseModules": "passed",
+  "physicalAudioDevices": "not-used",
+  "nativeGuiAndDomainJourney": "not-tested-by-preflight",
+  "sourceSHA256": {
+    "browser-client/lab/manage.py": "d90d9357d55b5807b425d498517a02830fbe7eeab6feca4a80eb19fe6b4575ad",
+    "browser-client/lab/host_tools.py": "34e02d857d3c35b53b165e2d3b4ee63e30f4a417054cf0141758306ab25dc14a",
+    "browser-client/lab/pulseaudio-local.sh": "a24eaf28701f873e3442b6fcc843f1eb205c79dcdc91d52bb1f56e3c7af73d82"
+  }
+}

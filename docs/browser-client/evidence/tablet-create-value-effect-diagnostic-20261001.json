@@ -1,0 +1,251 @@
+{
+  "date": "2026-10-01",
+  "materialAssistance": "OpenAI Codex",
+  "scope": "Private same-call value-effect diagnostic, full unchanged native Create workflow in actual stock Chromium154 and Firefox156. Shipping editing behavior remains unchanged; diagnostic timing may affect the intermittent failure.",
+  "publicWorldWrites": 0,
+  "microphoneRequested": false,
+  "shippingFix": false,
+  "diagnosticManifestSHA256": "9d187b2f21b0ae94566b871da9502be6b755d7368faff3553c0945c1599e5378",
+  "cohorts": [
+    {
+      "startedAt": "2026-10-01T21:07:09.353Z",
+      "finishedAt": "2026-10-01T21:08:19.335Z",
+      "completed": true,
+      "functionalAcceptance": true,
+      "browserVersion": "154.0.8037.57",
+      "nativeVersion": "2026.04.1",
+      "cleanupVerified": true,
+      "sourceCoherent": true,
+      "shippingSourceCoherent": true,
+      "runtimeAuditCaptureSHA256": "00473f324a523b1ec1dfe7e9dcfe0cedea1bead1a574a73a560c753a03c2141a",
+      "nativeBinarySHA256": "91f3e10c42c1e35d5c8265e9b0007e925844d9bee61a26807118dde6e527887c",
+      "nativeCreateScriptsSHA256": {
+        "system/create/qml/EditTabView.qml": "4895d0f72d438829b4e15626b0dbb719c734e4486a74d175ac3de1a8d15d2621",
+        "system/create/entityProperties/html/js/entityProperties.js": "5e31fbdc3e577dd13663c0d9ee429f7c816bf1c7c91f45ea62438a6b575e08d5",
+        "system/create/entityList/html/js/entityList.js": "1a398a1ab644af6714c16c8a3e00191dd1b861f8fbdd75e78ceb71de6494ecf1",
+        "system/create/edit.js": "c7e20e8a23b7657608da533c35850668558a356d96b515e6eee477858a905a3d"
+      },
+      "ownedFixtureCount": 1,
+      "editedProperties": {
+        "color": {
+          "red": 30,
+          "green": 170,
+          "blue": 220
+        },
+        "dimensions": {
+          "x": 0.699999988079071,
+          "y": 0.8999999761581421,
+          "z": 1.100000023841858
+        }
+      },
+      "warningCount": 0,
+      "engine": "chromium",
+      "rawCaptureSHA256": "27b7b17e9a61c72e455bbdae20a3c0dc479ad24e528f5b422b941d8dd3a8eb21",
+      "logSHA256": "afe94df70e6dfb7b3a53b9ad677f53801dc68b7e08599b0c95f5e06b80f01eb2",
+      "sourceHashes": {
+        "start": {
+          "tests/integration/tablet-create.mjs": "fb06b687b6351668ab13c81471d01aaafaaeaa396fc5ee742d0d78c202c8f5c7",
+          "tests/integration/tablet-create-readiness.mjs": "7d5636c2611e096e1f4b2a61a8f0303ea1a57145269c118d3d71d7acdf87586c",
+          "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+          "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+          "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+          "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+          "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+          "gateway/tablet-capture.qml": "00473f324a523b1ec1dfe7e9dcfe0cedea1bead1a574a73a560c753a03c2141a",
+          "gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+          "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+          "src/world.ts": "3504f471ac26a590ed8ded270d12011d52a4a4f9e8d7c888c3f9379b402342cb",
+          "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+          "gateway/tablet.mjs": "8642ccb83ad35e946607acab6b49cd9c728ad7958dcfdb88879773724d737f9c",
+          "src/tablet.ts": "17dd1e5ca3c0a0beb0f8c0e5f2b6a93c6f1aed9465bd88b62f02ce39cd8778a2",
+          "gateway/server.mjs": "f8399c1015cb85ada0da613b9278b8a90dca0660d2478b8810d43161b1ed237c",
+          "tests/integration/tablet-web-commit-phase-audit.mjs": "b4935510f1b91dd4f365be21d03be6548674019ba939a9baceb980b9551649e2"
+        },
+        "end": {
+          "tests/integration/tablet-create.mjs": "fb06b687b6351668ab13c81471d01aaafaaeaa396fc5ee742d0d78c202c8f5c7",
+          "tests/integration/tablet-create-readiness.mjs": "7d5636c2611e096e1f4b2a61a8f0303ea1a57145269c118d3d71d7acdf87586c",
+          "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+          "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+          "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+          "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+          "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+          "gateway/tablet-capture.qml": "00473f324a523b1ec1dfe7e9dcfe0cedea1bead1a574a73a560c753a03c2141a",
+          "gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+          "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+          "src/world.ts": "3504f471ac26a590ed8ded270d12011d52a4a4f9e8d7c888c3f9379b402342cb",
+          "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+          "gateway/tablet.mjs": "8642ccb83ad35e946607acab6b49cd9c728ad7958dcfdb88879773724d737f9c",
+          "src/tablet.ts": "17dd1e5ca3c0a0beb0f8c0e5f2b6a93c6f1aed9465bd88b62f02ce39cd8778a2",
+          "gateway/server.mjs": "f8399c1015cb85ada0da613b9278b8a90dca0660d2478b8810d43161b1ed237c",
+          "tests/integration/tablet-web-commit-phase-audit.mjs": "b4935510f1b91dd4f365be21d03be6548674019ba939a9baceb980b9551649e2"
+        }
+      },
+      "shippingSourceHashes": {
+        "start": {
+          "tests/integration/tablet-create.mjs": "022c05b9f446b08b604c72bc1222f8ad5db92f550475a5ee419703284042185c",
+          "tests/integration/tablet-create-readiness.mjs": "ca5dbc144ed49153a11baed470f0ffa4aebe6db730ca36a5114bf5b41f8ae649",
+          "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+          "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+          "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+          "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+          "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+          "gateway/tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+          "gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+          "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+          "src/world.ts": "3504f471ac26a590ed8ded270d12011d52a4a4f9e8d7c888c3f9379b402342cb",
+          "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+          "gateway/tablet.mjs": "8642ccb83ad35e946607acab6b49cd9c728ad7958dcfdb88879773724d737f9c",
+          "src/tablet.ts": "17dd1e5ca3c0a0beb0f8c0e5f2b6a93c6f1aed9465bd88b62f02ce39cd8778a2",
+          "src/main.ts": "dbbabcf3a92d9cdf994a824d1698703d74bf7ba3918c315c23ec478ab3570800",
+          "gateway/server.mjs": "f8399c1015cb85ada0da613b9278b8a90dca0660d2478b8810d43161b1ed237c",
+          "gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60"
+        },
+        "end": {
+          "tests/integration/tablet-create.mjs": "022c05b9f446b08b604c72bc1222f8ad5db92f550475a5ee419703284042185c",
+          "tests/integration/tablet-create-readiness.mjs": "ca5dbc144ed49153a11baed470f0ffa4aebe6db730ca36a5114bf5b41f8ae649",
+          "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+          "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+          "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+          "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+          "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+          "gateway/tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+          "gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+          "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+          "src/world.ts": "3504f471ac26a590ed8ded270d12011d52a4a4f9e8d7c888c3f9379b402342cb",
+          "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+          "gateway/tablet.mjs": "8642ccb83ad35e946607acab6b49cd9c728ad7958dcfdb88879773724d737f9c",
+          "src/tablet.ts": "17dd1e5ca3c0a0beb0f8c0e5f2b6a93c6f1aed9465bd88b62f02ce39cd8778a2",
+          "src/main.ts": "dbbabcf3a92d9cdf994a824d1698703d74bf7ba3918c315c23ec478ab3570800",
+          "gateway/server.mjs": "f8399c1015cb85ada0da613b9278b8a90dca0660d2478b8810d43161b1ed237c",
+          "gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60"
+        }
+      },
+      "workerLogCaptured": false,
+      "sameCallRecords": [],
+      "workerLogLimitation": "The unchanged canonical successful harness path does not capture the worker log; logging is performed only in its failure catch. No scalar value-effect results are claimed."
+    },
+    {
+      "startedAt": "2026-10-01T21:09:10.006Z",
+      "finishedAt": "2026-10-01T21:10:34.901Z",
+      "completed": true,
+      "functionalAcceptance": true,
+      "browserVersion": "firefox/156.0",
+      "nativeVersion": "2026.04.1",
+      "cleanupVerified": true,
+      "sourceCoherent": true,
+      "shippingSourceCoherent": true,
+      "runtimeAuditCaptureSHA256": "00473f324a523b1ec1dfe7e9dcfe0cedea1bead1a574a73a560c753a03c2141a",
+      "nativeBinarySHA256": "91f3e10c42c1e35d5c8265e9b0007e925844d9bee61a26807118dde6e527887c",
+      "nativeCreateScriptsSHA256": {
+        "system/create/qml/EditTabView.qml": "4895d0f72d438829b4e15626b0dbb719c734e4486a74d175ac3de1a8d15d2621",
+        "system/create/entityProperties/html/js/entityProperties.js": "5e31fbdc3e577dd13663c0d9ee429f7c816bf1c7c91f45ea62438a6b575e08d5",
+        "system/create/entityList/html/js/entityList.js": "1a398a1ab644af6714c16c8a3e00191dd1b861f8fbdd75e78ceb71de6494ecf1",
+        "system/create/edit.js": "c7e20e8a23b7657608da533c35850668558a356d96b515e6eee477858a905a3d"
+      },
+      "ownedFixtureCount": 1,
+      "editedProperties": {
+        "color": {
+          "red": 30,
+          "green": 170,
+          "blue": 220
+        },
+        "dimensions": {
+          "x": 0.699999988079071,
+          "y": 0.8999999761581421,
+          "z": 1.100000023841858
+        }
+      },
+      "warningCount": 0,
+      "engine": "firefox",
+      "rawCaptureSHA256": "6e3e9fdfcfe9ea3997139e76f4423be1be1a877d9e7fdcd395bc6ea9c89cfd09",
+      "logSHA256": "223f8ac886e2b9597473db3845be15113e08c95e71de3fd589dcc7e90000abf3",
+      "sourceHashes": {
+        "start": {
+          "tests/integration/tablet-create.mjs": "fb06b687b6351668ab13c81471d01aaafaaeaa396fc5ee742d0d78c202c8f5c7",
+          "tests/integration/tablet-create-readiness.mjs": "7d5636c2611e096e1f4b2a61a8f0303ea1a57145269c118d3d71d7acdf87586c",
+          "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+          "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+          "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+          "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+          "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+          "gateway/tablet-capture.qml": "00473f324a523b1ec1dfe7e9dcfe0cedea1bead1a574a73a560c753a03c2141a",
+          "gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+          "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+          "src/world.ts": "3504f471ac26a590ed8ded270d12011d52a4a4f9e8d7c888c3f9379b402342cb",
+          "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+          "gateway/tablet.mjs": "8642ccb83ad35e946607acab6b49cd9c728ad7958dcfdb88879773724d737f9c",
+          "src/tablet.ts": "17dd1e5ca3c0a0beb0f8c0e5f2b6a93c6f1aed9465bd88b62f02ce39cd8778a2",
+          "gateway/server.mjs": "f8399c1015cb85ada0da613b9278b8a90dca0660d2478b8810d43161b1ed237c",
+          "tests/integration/tablet-web-commit-phase-audit.mjs": "b4935510f1b91dd4f365be21d03be6548674019ba939a9baceb980b9551649e2"
+        },
+        "end": {
+          "tests/integration/tablet-create.mjs": "fb06b687b6351668ab13c81471d01aaafaaeaa396fc5ee742d0d78c202c8f5c7",
+          "tests/integration/tablet-create-readiness.mjs": "7d5636c2611e096e1f4b2a61a8f0303ea1a57145269c118d3d71d7acdf87586c",
+          "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+          "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+          "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+          "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+          "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+          "gateway/tablet-capture.qml": "00473f324a523b1ec1dfe7e9dcfe0cedea1bead1a574a73a560c753a03c2141a",
+          "gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+          "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+          "src/world.ts": "3504f471ac26a590ed8ded270d12011d52a4a4f9e8d7c888c3f9379b402342cb",
+          "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+          "gateway/tablet.mjs": "8642ccb83ad35e946607acab6b49cd9c728ad7958dcfdb88879773724d737f9c",
+          "src/tablet.ts": "17dd1e5ca3c0a0beb0f8c0e5f2b6a93c6f1aed9465bd88b62f02ce39cd8778a2",
+          "gateway/server.mjs": "f8399c1015cb85ada0da613b9278b8a90dca0660d2478b8810d43161b1ed237c",
+          "tests/integration/tablet-web-commit-phase-audit.mjs": "b4935510f1b91dd4f365be21d03be6548674019ba939a9baceb980b9551649e2"
+        }
+      },
+      "shippingSourceHashes": {
+        "start": {
+          "tests/integration/tablet-create.mjs": "022c05b9f446b08b604c72bc1222f8ad5db92f550475a5ee419703284042185c",
+          "tests/integration/tablet-create-readiness.mjs": "ca5dbc144ed49153a11baed470f0ffa4aebe6db730ca36a5114bf5b41f8ae649",
+          "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+          "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+          "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+          "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+          "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+          "gateway/tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+          "gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+          "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+          "src/world.ts": "3504f471ac26a590ed8ded270d12011d52a4a4f9e8d7c888c3f9379b402342cb",
+          "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+          "gateway/tablet.mjs": "8642ccb83ad35e946607acab6b49cd9c728ad7958dcfdb88879773724d737f9c",
+          "src/tablet.ts": "17dd1e5ca3c0a0beb0f8c0e5f2b6a93c6f1aed9465bd88b62f02ce39cd8778a2",
+          "src/main.ts": "dbbabcf3a92d9cdf994a824d1698703d74bf7ba3918c315c23ec478ab3570800",
+          "gateway/server.mjs": "f8399c1015cb85ada0da613b9278b8a90dca0660d2478b8810d43161b1ed237c",
+          "gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60"
+        },
+        "end": {
+          "tests/integration/tablet-create.mjs": "022c05b9f446b08b604c72bc1222f8ad5db92f550475a5ee419703284042185c",
+          "tests/integration/tablet-create-readiness.mjs": "ca5dbc144ed49153a11baed470f0ffa4aebe6db730ca36a5114bf5b41f8ae649",
+          "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+          "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+          "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+          "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+          "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+          "gateway/tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+          "gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+          "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+          "src/world.ts": "3504f471ac26a590ed8ded270d12011d52a4a4f9e8d7c888c3f9379b402342cb",
+          "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+          "gateway/tablet.mjs": "8642ccb83ad35e946607acab6b49cd9c728ad7958dcfdb88879773724d737f9c",
+          "src/tablet.ts": "17dd1e5ca3c0a0beb0f8c0e5f2b6a93c6f1aed9465bd88b62f02ce39cd8778a2",
+          "src/main.ts": "dbbabcf3a92d9cdf994a824d1698703d74bf7ba3918c315c23ec478ab3570800",
+          "gateway/server.mjs": "f8399c1015cb85ada0da613b9278b8a90dca0660d2478b8810d43161b1ed237c",
+          "gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60"
+        }
+      },
+      "workerLogCaptured": false,
+      "sameCallRecords": [],
+      "workerLogLimitation": "The unchanged canonical successful harness path does not capture the worker log; logging is performed only in its failure catch. No scalar value-effect results are claimed."
+    }
+  ],
+  "limitations": [
+    "Both complete genuine Name/RGB/XYZ/List selection/deletion and exact baseline restoration pass in this diagnostic copy.",
+    "Successful command dispatch alone does not prove reliable native property change. Earlier unchanged shipping cohorts failed and remain retained.",
+    "Same-call fixed metadata is not captured on the successful canonical path; valueChanged/control-category results are unproven.",
+    "A guarded native Qt WebEngine IME alternative is a separate pending experiment."
+  ]
+}

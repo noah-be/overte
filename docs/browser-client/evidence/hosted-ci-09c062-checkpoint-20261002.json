@@ -1,0 +1,224 @@
+{
+  "kind": "hosted-Ubuntu-fixed-confinement-review",
+  "repository": "noah-be/overte",
+  "headSHA": "09c062bf5a371df78b01014dccfdbc4c37febcb9",
+  "runs": [
+    {
+      "runId": 36949818610,
+      "event": "push",
+      "headSHA": "09c062bf5a371df78b01014dccfdbc4c37febcb9",
+      "actualCheckoutSHA": "09c062bf5a371df78b01014dccfdbc4c37febcb9",
+      "result": "failure",
+      "unit": {
+        "tests": 1233,
+        "pass": 1230,
+        "fail": 3,
+        "skipped": 0,
+        "failedTests": [
+          "actual nested native network denies host/LAN routes and route tampering while its scoped bridge works",
+          "abrupt gateway death also removes the actual network owner, helper and native PID namespace",
+          "real managed UDP route forwards only fixed domain/mixer ports from the isolated native network"
+        ]
+      },
+      "routeFailure": {
+        "count": 2,
+        "phase": "native-started",
+        "category": "deny-route-command-failed",
+        "permission": "permission-denied",
+        "stderrBytes": 43,
+        "ipExitCode": 2,
+        "ownerProfile": "unshare-unpriv",
+        "netAdmin": {
+          "permitted": "present",
+          "effective": "present",
+          "bounding": "present"
+        },
+        "capabilitySets": {
+          "inheritable": "zero",
+          "permitted": "nonzero",
+          "effective": "nonzero",
+          "bounding": "nonzero",
+          "ambient": "zero"
+        },
+        "namespaceRelations": {
+          "user": "unavailable",
+          "net": "unavailable"
+        }
+      },
+      "privateXAuthentication": {
+        "test": "passed",
+        "firstReplyErrorDiagnostic": "not emitted on successful assertion"
+      },
+      "provisioning": {
+        "configurationChanged": false,
+        "oauthBefore": "disabled",
+        "oauthAfter": "disabled",
+        "persistence": {
+          "outcome": "commit-failed",
+          "observedBytes": 566,
+          "truncated": false
+        },
+        "response": {
+          "status": "200",
+          "body": "success",
+          "endpoint": "expected-settings-endpoint",
+          "contentType": "application/json"
+        },
+        "schema": {
+          "postingKeys": "recognized-domain-settings",
+          "version": "2.7"
+        }
+      },
+      "guestReadback": {
+        "passed": false,
+        "shape": "valid",
+        "duplicateRows": 0,
+        "unknownRows": 0,
+        "missingRows": [
+          "logged-in",
+          "friends"
+        ],
+        "differenceCount": 18,
+        "anonymousConnect": false
+      },
+      "journeys": [
+        {
+          "browser": "firefox",
+          "status": "not-run",
+          "completed": false
+        },
+        {
+          "browser": "chromium",
+          "status": "not-run",
+          "completed": false
+        }
+      ],
+      "rawSourceSHA256": {
+        "36949818610-artifacts.json": "e3c735d7b64ee327f9b3f2e384ede482391af6a3dc621fdf8b60a0151513cee4",
+        "36949818610-full.log": "766df8d5ccb45453fea62e35b060c46fc0d68eddc8657928d676996cb6088a22",
+        "36949818610-failed.log": "008bc1b626e71d6cfed340d1da2d26650694e6aca440ed1e452b8a2df50b54b6",
+        "36949818610-metadata.json": "42828e5776a59582223ba7be9db9e8de70b7d8041f842888977cde3fc42ce994"
+      }
+    },
+    {
+      "runId": 36949822731,
+      "event": "pull_request",
+      "headSHA": "09c062bf5a371df78b01014dccfdbc4c37febcb9",
+      "actualCheckoutSHA": "dcae154f727d9d11bff7b634b625bb9b8200bf25",
+      "result": "failure",
+      "unit": {
+        "tests": 1233,
+        "pass": 1230,
+        "fail": 3,
+        "skipped": 0,
+        "failedTests": [
+          "actual nested native network denies host/LAN routes and route tampering while its scoped bridge works",
+          "abrupt gateway death also removes the actual network owner, helper and native PID namespace",
+          "real managed UDP route forwards only fixed domain/mixer ports from the isolated native network"
+        ]
+      },
+      "routeFailure": {
+        "count": 2,
+        "phase": "native-started",
+        "category": "deny-route-command-failed",
+        "permission": "permission-denied",
+        "stderrBytes": 43,
+        "ipExitCode": 2,
+        "ownerProfile": "unshare-unpriv",
+        "netAdmin": {
+          "permitted": "present",
+          "effective": "present",
+          "bounding": "present"
+        },
+        "capabilitySets": {
+          "inheritable": "zero",
+          "permitted": "nonzero",
+          "effective": "nonzero",
+          "bounding": "nonzero",
+          "ambient": "zero"
+        },
+        "namespaceRelations": {
+          "user": "unavailable",
+          "net": "unavailable"
+        }
+      },
+      "privateXAuthentication": {
+        "test": "passed",
+        "firstReplyErrorDiagnostic": "not emitted on successful assertion"
+      },
+      "provisioning": {
+        "configurationChanged": false,
+        "oauthBefore": "disabled",
+        "oauthAfter": "disabled",
+        "persistence": {
+          "outcome": "commit-failed",
+          "observedBytes": 566,
+          "truncated": false
+        },
+        "response": {
+          "status": "200",
+          "body": "success",
+          "endpoint": "expected-settings-endpoint",
+          "contentType": "application/json"
+        },
+        "schema": {
+          "postingKeys": "recognized-domain-settings",
+          "version": "2.7"
+        }
+      },
+      "guestReadback": {
+        "passed": false,
+        "shape": "valid",
+        "duplicateRows": 0,
+        "unknownRows": 0,
+        "missingRows": [
+          "logged-in",
+          "friends"
+        ],
+        "differenceCount": 18,
+        "anonymousConnect": false
+      },
+      "journeys": [
+        {
+          "browser": "firefox",
+          "status": "not-run",
+          "completed": false
+        },
+        {
+          "browser": "chromium",
+          "status": "not-run",
+          "completed": false
+        }
+      ],
+      "rawSourceSHA256": {
+        "36949822731-artifacts.json": "e73a6cc6e5fff6f4e3ced35955e386661506818146ee7f0f52c93b47c01891a7",
+        "36949822731-full.log": "e4e83582e9a749eb45c8ff8e3d536104a50707a42526919ba9033e853e9cd015",
+        "36949822731-failed.log": "6e10f7d3ae48b9bab793947c6e9371cec88020440ba4bdf78f36d2ccd2abf434",
+        "36949822731-metadata.json": "8f5618ea3f7fcecb85d9aaeae08122a801ccb45d8b28b03d94537c01025b73c2"
+      }
+    }
+  ],
+  "mergeParents": [
+    {
+      "sha": "d569930678d2edb61330a96bcdcab17ee68a732f",
+      "url": "https://api.github.com/repos/noah-be/overte/commits/d569930678d2edb61330a96bcdcab17ee68a732f",
+      "html_url": "https://github.com/noah-be/overte/commit/d569930678d2edb61330a96bcdcab17ee68a732f"
+    },
+    {
+      "sha": "09c062bf5a371df78b01014dccfdbc4c37febcb9",
+      "url": "https://api.github.com/repos/noah-be/overte/commits/09c062bf5a371df78b01014dccfdbc4c37febcb9",
+      "html_url": "https://github.com/noah-be/overte/commit/09c062bf5a371df78b01014dccfdbc4c37febcb9"
+    }
+  ],
+  "primaryProfileHashes": {
+    "unshare": "183fec116144311da39c9e8dcfa8646751f9539ac9953be7d586f3775d1f1d9b",
+    "bwrap": "11d39094f044f0cda0febb3ad517b830301da6b2ce929664af09ee9e4dd264f9"
+  },
+  "findings": [
+    "Verified Noble child profile denies capabilities while NET_ADMIN is present; route setup is incompatible with the current unshare exec transition.",
+    "Private X authentication now passes; earlier failure must not be carried forward.",
+    "OAuth already disabled both before and after; saved domain guest policy fails because atomic persistence still failed, not an OAuth enabled-state refusal.",
+    "Core Chromium/Firefox journeys did not execute; no runtime completion claim.",
+    "No profile mutation, rerun, root source write or service launch occurred."
+  ]
+}

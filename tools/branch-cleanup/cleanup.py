@@ -168,6 +168,30 @@ class Github:
                     held.setdefault(ref["ref"], []).append("open_pull_request_" + side)
         return held
 
+    def release_tag_commit(self, name):
+        """Resolve an existing release tag without following foreign object URLs."""
+        if (not isinstance(name, str) or not name
+                or run(["git", "check-ref-format", "refs/tags/" + name], check=False).returncode):
+            return None
+        reference = self.get("git/ref/tags/" + urllib.parse.quote(name, safe=""))
+        if not isinstance(reference, dict) or reference.get("ref") != "refs/tags/" + name:
+            return None
+        obj, seen = reference.get("object"), set()
+        for depth in range(9):
+            if not isinstance(obj, dict) or not isinstance(obj.get("sha"), str) or not SHA.fullmatch(obj["sha"]):
+                return None
+            oid = obj["sha"]
+            if obj.get("type") == "commit":
+                return oid
+            if obj.get("type") != "tag" or oid in seen or depth == 8:
+                return None
+            seen.add(oid)
+            annotation = self.get("git/tags/" + oid)
+            if not isinstance(annotation, dict) or annotation.get("sha") != oid:
+                return None
+            obj = annotation.get("object")
+        return None
+
     def activity_holds(self, candidates, policy):
         names = {r["branch"] for r in candidates}
         held = self.open_pr_holds(names)
@@ -206,13 +230,23 @@ class Github:
             prs = self.get("pulls?state=all&head=" + head + "&per_page=100", paginate=True)
             if any(policy["keep_label"] in {label["name"] for label in pr.get("labels", [])} for pr in prs):
                 held.setdefault(row["branch"], []).append("keep_branch_label")
-        for endpoint, field, reason in [("deployments?per_page=100", "ref", "deployment_reference"),
-                                         ("releases?per_page=100", "target_commitish", "release_reference")]:
-            for entry in self.get(endpoint, paginate=True):
-                value = entry.get(field, "")
-                for row in candidates:
-                    if value in {row["branch"], "refs/heads/" + row["branch"], row["sha"]}:
-                        held.setdefault(row["branch"], []).append(reason)
+        for entry in self.get("deployments?per_page=100", paginate=True):
+            value = entry.get("ref", "")
+            for row in candidates:
+                if value in {row["branch"], "refs/heads/" + row["branch"], row["sha"]}:
+                    held.setdefault(row["branch"], []).append("deployment_reference")
+        for entry in self.get("releases?per_page=100", paginate=True):
+            value = entry.get("target_commitish", "")
+            # Candidates already have complete ancestry proof. make_plan still
+            # requires deletion/non-fast-forward protection on their targets.
+            # A named branch consumer remains a hold; only an exact commit also
+            # retained by its actual release tag can be independent of the ref.
+            tagged_commit = (self.release_tag_commit(entry.get("tag_name"))
+                             if value in {row["sha"] for row in candidates} else None)
+            for row in candidates:
+                if (value in {row["branch"], "refs/heads/" + row["branch"], row["sha"]}
+                        and not (value == row["sha"] == tagged_commit)):
+                    held.setdefault(row["branch"], []).append("release_reference")
         # Open task descriptions are part of the repository's ownership record.
         # Comments are inspected only for explicitly active tasks; a keep-branch
         # label or policy hold is the durable way to reserve work outside GitHub.

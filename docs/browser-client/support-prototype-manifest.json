@@ -1,0 +1,47 @@
+{
+  "status": "runtime-integrated",
+  "baseWorldSHA256": "5699ce0cb732d056c83906b80e86f08f014238d0762d6ce8a1cb5b6a0fc7cdd8",
+  "supportedWorldSHA256": "d64ca887de20ac2d6bc9d40ec5daa92d725530330b6678f58e4cd0c420c44d72",
+  "files": {
+    "meshCollision": {
+      "path": "src/mesh-collision.ts",
+      "sha256": "2fa7aded6c11e1defb9dd87d2963abd0212ab9a4243eb3089aa01073d5b3e4a6"
+    },
+    "episode": {
+      "path": "src/initial-surface-wait.ts",
+      "sha256": "70c5a8c833eb2d7f71f21be0602e8e8a93aaa9e6452e9a942b02cfead61f4e47"
+    },
+    "cpuTests": {
+      "path": "tests/mesh-support.test.ts",
+      "sha256": "226ff2fc736e1de7fde3d8c8d295275f16911919b9216a511678975c5ac0d82e"
+    },
+    "browserTests": {
+      "path": "tests/initial-surface.browser.spec.ts",
+      "sha256": "ea18ac9d06e7d53358176f048c3a24519769d63e1eac3ada44c17cb12167dd23"
+    },
+    "actualWorldCpuTests": {
+      "path": "tests/world-ground-support.test.ts",
+      "sha256": "c3e9ac2c2b64396167a05b709d055b13346604615385e8fd72fdf2fac5c6f30b"
+    }
+  },
+  "patches": {
+    "mesh-support.patch": "245ac7079af4fc4132988a75b0845cd553dba07083d231dd4e0d0abacfc4d400",
+    "initial-ground-support.patch": "2974e7006406a584d087526efc098505daeb93331270c8212485be052d4603ca"
+  },
+  "verification": {
+    "typecheck": "passed",
+    "cpuRegressions": {
+      "passed": 24,
+      "failed": 0
+    },
+    "realBrowser": "Both engines passed actual staged FBX floor and unrelated huge bounds, jumping, landing and authoritative reposition (4focusedcases total with geometry)",
+    "nativeDomain": "pending",
+    "publicHubFluidness": "pending",
+    "simulationCompatibility": {
+      "passed": 4,
+      "failed": 0
+    },
+    "rootActualWorldAndGeometryTests": 24
+  },
+  "clockPreservation": "Rebased on stable root5699ce0c, preserving fixed-step simulation and its reset semantics. Explicit expiry disables repeated BVH/bounds scans; automatic fall-to-spawn starts a fresh episode via setSpawn."
+}

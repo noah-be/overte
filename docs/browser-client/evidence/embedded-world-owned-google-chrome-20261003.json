@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "scope": "Owned authored embedded World fixture with original exact assertions. No public domain/native/microphone/full-browser or performance acceptance.",
+  "publishedProductionBaseSHA": "aeb585ee332fec6c20866b0ce128b3ab038bc772",
+  "productionWorldSHA256": "fd86e005c4b24c055da051a0a38385b8f02b25b0945d001bfed9ac577578e4d0",
+  "diagnosticOverlay": {
+    "tests/fixtures/embedded-world.ts": "42a5df3dc25191a04a79da33a488dd8afd249893d5c17dd77ca0f0655a2088df",
+    "tests/integration/embedded-world.mjs": "0963fb2d8d5eec98e47000c1a50402483d392c71953a9799a2f96e8b6e03ff52"
+  },
+  "actualStartUTC": "2026-10-03T20:12:05.259Z",
+  "actualEndUTC": "2026-10-03T20:12:07.645Z",
+  "platform": "Fedora 44",
+  "browser": {
+    "engine": "chrome",
+    "version": "154.0.8037.97",
+    "headed": true,
+    "display": "Own authenticated Xvfb",
+    "gpuBackend": "ANGLE (NVIDIA Corporation, NVIDIA GeForce GTX 1080 Ti/PCIe/SSE2, OpenGL ES 3.2)"
+  },
+  "commands": [
+    "node node_modules/vite/bin/vite.js build --config vite.embedded.config.mjs --configLoader native",
+    "node node_modules/vite/bin/vite.js build --config vite.embedded-world.config.mjs --configLoader native",
+    "bash lab/run-embedded-journey.sh"
+  ],
+  "result": {
+    "exitCode": 0,
+    "completed": true,
+    "RGBA": [
+      255,
+      0,
+      0,
+      255
+    ],
+    "decodedRGBA": [
+      255,
+      0,
+      0,
+      255
+    ],
+    "frames": 20,
+    "uploads": 1,
+    "upstreamModelRequests": 1,
+    "independentSamplers": true,
+    "actualModelCancellation": true,
+    "observedChromeBirths": 9,
+    "ownedCleanupVerified": true,
+    "sourceIndexAndNineManagedBirthsCoherent": true,
+    "privateAuthorityRemoved": true,
+    "seconds": 12.887
+  },
+  "evidenceSHA256": {
+    "fixtureReport": "c63dd5b6fe3c4907428bb24a6027ae3a671b82466dc28986f89fac3560b36e8d",
+    "executorSummary": "cb13cea3ad4c68abfc428515d4de1f9269371e54f68c0d64a2e7abc771ff48be"
+  },
+  "priorAttempt": {
+    "phase": "Chrome launch before page/GPU",
+    "result": "Refused: owned nested scratch path exceeded Unix socket pathname limit",
+    "originalNegativeRetained": true,
+    "ownedCleanupAndCoherenceVerified": true,
+    "correction": "Fresh owned shorter task path, same source and unchanged original fixture assertions/deadlines"
+  },
+  "limitations": [
+    "Local NVIDIA backend pass does not explain or qualify the original Ubuntu GPU pixel failure.",
+    "Bounded own-child observation is not global proof of every deliberately escaped unknown descendant.",
+    "ObserverStopped in separate atomic evidence is not full Native lifetime proof.",
+    "All broader Tablet, Hub fluidity, physical microphone and native parity acceptance remains separate."
+  ],
+  "materialAIAssistance": true
+}

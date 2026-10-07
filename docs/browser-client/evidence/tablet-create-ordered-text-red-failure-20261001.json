@@ -1,0 +1,100 @@
+{
+  "startedAt": "2026-10-01T18:47:16.782Z",
+  "finishedAt": "2026-10-01T18:48:50.856Z",
+  "browserVersion": "154.0.8037.57",
+  "completed": false,
+  "functionalAcceptance": false,
+  "discovery": false,
+  "scope": "Genuine native Qt Create on the isolated seven-entity local domain. No public writes, audio, direct property edits or scene provisioning.",
+  "assertions": [
+    "Native Shape button created exactly one domain Cube and its actual domain properties reached the browser"
+  ],
+  "cleanupVerified": true,
+  "sourceHashes": {
+    "start": {
+      "tests/integration/tablet-create.mjs": "022c05b9f446b08b604c72bc1222f8ad5db92f550475a5ee419703284042185c",
+      "tests/integration/tablet-create-readiness.mjs": "ca5dbc144ed49153a11baed470f0ffa4aebe6db730ca36a5114bf5b41f8ae649",
+      "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+      "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+      "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+      "tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+      "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+      "gateway/tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+      "gateway/native-bridge.js": "f005d61aaa8f2a7b24d68c9062bde4e7d06035e3148b595f0ed7d2a62462158e",
+      "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+      "src/world.ts": "cdea6c0797fef9c1eb3c219003475b7ea7ab8dc882cc3bb0680021231db55a6c",
+      "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd"
+    },
+    "end": {
+      "tests/integration/tablet-create.mjs": "022c05b9f446b08b604c72bc1222f8ad5db92f550475a5ee419703284042185c",
+      "tests/integration/tablet-create-readiness.mjs": "ca5dbc144ed49153a11baed470f0ffa4aebe6db730ca36a5114bf5b41f8ae649",
+      "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+      "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+      "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+      "tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+      "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+      "gateway/tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+      "gateway/native-bridge.js": "f005d61aaa8f2a7b24d68c9062bde4e7d06035e3148b595f0ed7d2a62462158e",
+      "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+      "src/world.ts": "cdea6c0797fef9c1eb3c219003475b7ea7ab8dc882cc3bb0680021231db55a6c",
+      "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd"
+    }
+  },
+  "sourceCoherent": true,
+  "nativeBinarySHA256": "91f3e10c42c1e35d5c8265e9b0007e925844d9bee61a26807118dde6e527887c",
+  "nativeCreateScriptsSHA256": {
+    "system/create/qml/EditTabView.qml": "4895d0f72d438829b4e15626b0dbb719c734e4486a74d175ac3de1a8d15d2621",
+    "system/create/entityProperties/html/js/entityProperties.js": "5e31fbdc3e577dd13663c0d9ee429f7c816bf1c7c91f45ea62438a6b575e08d5",
+    "system/create/entityList/html/js/entityList.js": "1a398a1ab644af6714c16c8a3e00191dd1b861f8fbdd75e78ceb71de6494ecf1",
+    "system/create/edit.js": "c7e20e8a23b7657608da533c35850668558a356d96b515e6eee477858a905a3d"
+  },
+  "observerScriptSHA256": "2d416e908639ccc843c6f19bc4cc4e28157cc52732cdc03a9b8977b4214822f8",
+  "nativeVersion": "2026.04.1",
+  "baselineIdentitySHA256": "8f52882ae70f9e6ec2759e217807b9167e379d8c5b3a1400cea093b1c7936661",
+  "ownedEntitySHA256": "8460d00c435df6ad55687a38bf570206a92f8acaf493c9b3bb7d11ef987da6e4",
+  "ownedFixtureCount": 1,
+  "emergencyCleanup": true,
+  "runtimeAuditCaptureSHA256": "05507eef88fc4c13f611e060f6ced98e14a73c89c93d7f133292af730ac5d338",
+  "error": "Actual native Name/Color/Dimensions exceeded 20000 milliseconds",
+  "warningCount": 0,
+  "tabletErrorMessages": [
+    "The native tablet could not commit text to its focused field."
+  ],
+  "schemaVersion": 1,
+  "rawReportLogSHA256": "a6e16f1edb3331ba5062ac51ba663edc0a3ec9bbb3e40a681933d7172fce7828",
+  "observedOwnNativeChanges": [
+    {
+      "nameChanged": true
+    },
+    {
+      "green": 170
+    },
+    {
+      "blue": 220
+    },
+    {
+      "dimensions": {
+        "x": 0.699999988079071,
+        "y": 0.8999999761581421,
+        "z": 1.100000023841858
+      }
+    }
+  ],
+  "nativeColorBeforeCleanup": {
+    "red": 0,
+    "green": 170,
+    "blue": 220
+  },
+  "expectedColor": {
+    "red": 30,
+    "green": 170,
+    "blue": 220
+  },
+  "limitations": [
+    "Exact ordinary Name blur now reached the independent native domain observer; failure progressed to one rejected first Red field text commit.",
+    "Remaining RGB and all dimensions reached independent native observations, but complete editing/deletion acceptance failed.",
+    "No delayed retry, direct property setter or synthetic change bypass used.",
+    "Seven baseline entities were verified unchanged after finally deletion of the single owned Cube.",
+    "Default-off loading experiments and full Hub fluidness are independent evidence."
+  ]
+}

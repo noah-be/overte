@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "scope": "Actual authored FST rendering/admission proof after per-World exact-buffer graph memoization; no native/public-Hub speed claim",
+  "completedLogWrittenAt": "2026-10-01T15:21:29.238655+00:00",
+  "commands": [
+    "npm test",
+    "npm run build",
+    "npm run test:browser -- fst-texture-admission.browser.spec.ts world-fst-texture-admission.browser.spec.ts --workers=1"
+  ],
+  "componentCasesPassed": 729,
+  "componentSkipped": 0,
+  "gpuCasesPassed": 8,
+  "gpuElapsedSeconds": 22.4,
+  "engines": [
+    "Playwright Chromium",
+    "Playwright Firefox"
+  ],
+  "exactFinalRGBA": true,
+  "sharedPreparedBytesImmutable": true,
+  "currentAuthorityPerConsumer": true,
+  "independentGeometryMaterials": true,
+  "sourceSHA256": {
+    "src/world.ts": "f2275202aa982c05ddcde53f48590692d456d7a41dfea7e2cf3822d3f2698813",
+    "src/fst-graph-cache.ts": "3a97e6dfcff1afaf1919b766ba38370befcb740e36f54662d8c9a4769c157230",
+    "src/fst-texture-admission.ts": "385f257d5f60ea60ab26af0df1d1f77186e836ba64e33640012349786244a5d5",
+    "src/baked-fbx.ts": "eaa429192150981bb8c894ec77140a829a9430264652f0321dd41fc1486c0d00",
+    "tests/fst-graph-cache.test.ts": "d6719dab7d10d70366f9843edec59e789d1cf59fe02a54158d99fe4c5bbccf45",
+    "tests/world-fst-graph-cache.test.ts": "e77411e7c95859b2729ada79c76940b5353a251895651be7a7fb17988e770bed",
+    "dist/index.html": "f702f4e425bdd0a8f2ed6dcce162a48a6dcebf08b4107e06f1bab314b6035647"
+  },
+  "limitations": [
+    "Real Hub contains zero original Texture nodes in 92 supported cached FBX graphs; no original image omission benefit there.",
+    "Graph-inspection reduction is a source/fixture result until current-source Hub counters are recorded.",
+    "Browser engine versions follow installed Playwright dependencies; native parity is separate."
+  ]
+}

@@ -1,0 +1,401 @@
+{
+  "repository": "noah-be/overte",
+  "sourceSHA": "9f8dc66e8751bb7c17f4c5f7a2123d10efba1938",
+  "runID": 36918201489,
+  "jobIDs": [
+    110557357175,
+    110557357778
+  ],
+  "failedStep": "Preserve existing AppArmor policy and prepare exact shipped namespace profiles",
+  "rawLogSHA256": "472430e6ce386f7bb3ae69fb4dc0cd24cd231a2ca0447c1e041e81d753b23a6b",
+  "cause": "root-owned canonical /usr/share is mode0777; unchanged trusted_file rejects writable ancestry",
+  "rawPrivateLogPublished": false,
+  "fixedDistroDiagnostics": [
+    {
+      "diagnosticOrdinal": 1,
+      "apparmorEnabled": "Y",
+      "restrictUnprivilegedUserns": "1",
+      "packageVersions": {
+        "apparmor": "4.0.1really4.0.1-0ubuntu0.24.04.8",
+        "apparmor-profiles": "4.0.1really4.0.1-0ubuntu0.24.04.8",
+        "bubblewrap": "0.9.0-1ubuntu0.3",
+        "util-linux": "2.39.3-9ubuntu6.6"
+      },
+      "profiles": {
+        "bwrap-userns-restrict": {
+          "present": true,
+          "disabledMarkerPresent": false,
+          "expectedPackageOwnsFile": true,
+          "matchesRecordedPackageFile": true,
+          "expectedMainProfileDeclared": true,
+          "sha256": "11d39094f044f0cda0febb3ad517b830301da6b2ce929664af09ee9e4dd264f9",
+          "pathAuthority": [
+            {
+              "path": "/usr/share/apparmor/extra-profiles/bwrap-userns-restrict",
+              "canonical": true,
+              "ownerIsRoot": true,
+              "mode": "0644",
+              "writableByGroupOrOther": false
+            },
+            {
+              "path": "/usr/share/apparmor/extra-profiles",
+              "canonical": true,
+              "ownerIsRoot": true,
+              "mode": "0755",
+              "writableByGroupOrOther": false
+            },
+            {
+              "path": "/usr/share/apparmor",
+              "canonical": true,
+              "ownerIsRoot": true,
+              "mode": "0755",
+              "writableByGroupOrOther": false
+            },
+            {
+              "path": "/usr/share",
+              "canonical": true,
+              "ownerIsRoot": true,
+              "mode": "0777",
+              "writableByGroupOrOther": true
+            },
+            {
+              "path": "/usr",
+              "canonical": true,
+              "ownerIsRoot": true,
+              "mode": "0755",
+              "writableByGroupOrOther": false
+            },
+            {
+              "path": "/",
+              "canonical": true,
+              "ownerIsRoot": true,
+              "mode": "0755",
+              "writableByGroupOrOther": false
+            }
+          ]
+        },
+        "unshare-userns-restrict": {
+          "present": true,
+          "disabledMarkerPresent": false,
+          "expectedPackageOwnsFile": true,
+          "matchesRecordedPackageFile": true,
+          "expectedMainProfileDeclared": true,
+          "sha256": "183fec116144311da39c9e8dcfa8646751f9539ac9953be7d586f3775d1f1d9b",
+          "pathAuthority": [
+            {
+              "path": "/usr/share/apparmor/extra-profiles/unshare-userns-restrict",
+              "canonical": true,
+              "ownerIsRoot": true,
+              "mode": "0644",
+              "writableByGroupOrOther": false
+            },
+            {
+              "path": "/usr/share/apparmor/extra-profiles",
+              "canonical": true,
+              "ownerIsRoot": true,
+              "mode": "0755",
+              "writableByGroupOrOther": false
+            },
+            {
+              "path": "/usr/share/apparmor",
+              "canonical": true,
+              "ownerIsRoot": true,
+              "mode": "0755",
+              "writableByGroupOrOther": false
+            },
+            {
+              "path": "/usr/share",
+              "canonical": true,
+              "ownerIsRoot": true,
+              "mode": "0777",
+              "writableByGroupOrOther": true
+            },
+            {
+              "path": "/usr",
+              "canonical": true,
+              "ownerIsRoot": true,
+              "mode": "0755",
+              "writableByGroupOrOther": false
+            },
+            {
+              "path": "/",
+              "canonical": true,
+              "ownerIsRoot": true,
+              "mode": "0755",
+              "writableByGroupOrOther": false
+            }
+          ]
+        }
+      },
+      "distroPathAuthority": {
+        "/usr/sbin/apparmor_parser": [
+          {
+            "path": "/usr/sbin/apparmor_parser",
+            "canonical": true,
+            "ownerIsRoot": true,
+            "mode": "0755",
+            "writableByGroupOrOther": false
+          },
+          {
+            "path": "/usr/sbin",
+            "canonical": true,
+            "ownerIsRoot": true,
+            "mode": "0755",
+            "writableByGroupOrOther": false
+          },
+          {
+            "path": "/usr",
+            "canonical": true,
+            "ownerIsRoot": true,
+            "mode": "0755",
+            "writableByGroupOrOther": false
+          },
+          {
+            "path": "/",
+            "canonical": true,
+            "ownerIsRoot": true,
+            "mode": "0755",
+            "writableByGroupOrOther": false
+          }
+        ],
+        "/var/lib/dpkg/info/apparmor-profiles.md5sums": [
+          {
+            "path": "/var/lib/dpkg/info/apparmor-profiles.md5sums",
+            "canonical": true,
+            "ownerIsRoot": true,
+            "mode": "0644",
+            "writableByGroupOrOther": false
+          },
+          {
+            "path": "/var/lib/dpkg/info",
+            "canonical": true,
+            "ownerIsRoot": true,
+            "mode": "0755",
+            "writableByGroupOrOther": false
+          },
+          {
+            "path": "/var/lib/dpkg",
+            "canonical": true,
+            "ownerIsRoot": true,
+            "mode": "0755",
+            "writableByGroupOrOther": false
+          },
+          {
+            "path": "/var/lib",
+            "canonical": true,
+            "ownerIsRoot": true,
+            "mode": "0755",
+            "writableByGroupOrOther": false
+          },
+          {
+            "path": "/var",
+            "canonical": true,
+            "ownerIsRoot": true,
+            "mode": "0755",
+            "writableByGroupOrOther": false
+          },
+          {
+            "path": "/",
+            "canonical": true,
+            "ownerIsRoot": true,
+            "mode": "0755",
+            "writableByGroupOrOther": false
+          }
+        ]
+      }
+    },
+    {
+      "diagnosticOrdinal": 2,
+      "apparmorEnabled": "Y",
+      "restrictUnprivilegedUserns": "1",
+      "packageVersions": {
+        "apparmor": "4.0.1really4.0.1-0ubuntu0.24.04.8",
+        "apparmor-profiles": "4.0.1really4.0.1-0ubuntu0.24.04.8",
+        "bubblewrap": "0.9.0-1ubuntu0.3",
+        "util-linux": "2.39.3-9ubuntu6.6"
+      },
+      "profiles": {
+        "bwrap-userns-restrict": {
+          "present": true,
+          "disabledMarkerPresent": false,
+          "expectedPackageOwnsFile": true,
+          "matchesRecordedPackageFile": true,
+          "expectedMainProfileDeclared": true,
+          "sha256": "11d39094f044f0cda0febb3ad517b830301da6b2ce929664af09ee9e4dd264f9",
+          "pathAuthority": [
+            {
+              "path": "/usr/share/apparmor/extra-profiles/bwrap-userns-restrict",
+              "canonical": true,
+              "ownerIsRoot": true,
+              "mode": "0644",
+              "writableByGroupOrOther": false
+            },
+            {
+              "path": "/usr/share/apparmor/extra-profiles",
+              "canonical": true,
+              "ownerIsRoot": true,
+              "mode": "0755",
+              "writableByGroupOrOther": false
+            },
+            {
+              "path": "/usr/share/apparmor",
+              "canonical": true,
+              "ownerIsRoot": true,
+              "mode": "0755",
+              "writableByGroupOrOther": false
+            },
+            {
+              "path": "/usr/share",
+              "canonical": true,
+              "ownerIsRoot": true,
+              "mode": "0777",
+              "writableByGroupOrOther": true
+            },
+            {
+              "path": "/usr",
+              "canonical": true,
+              "ownerIsRoot": true,
+              "mode": "0755",
+              "writableByGroupOrOther": false
+            },
+            {
+              "path": "/",
+              "canonical": true,
+              "ownerIsRoot": true,
+              "mode": "0755",
+              "writableByGroupOrOther": false
+            }
+          ]
+        },
+        "unshare-userns-restrict": {
+          "present": true,
+          "disabledMarkerPresent": false,
+          "expectedPackageOwnsFile": true,
+          "matchesRecordedPackageFile": true,
+          "expectedMainProfileDeclared": true,
+          "sha256": "183fec116144311da39c9e8dcfa8646751f9539ac9953be7d586f3775d1f1d9b",
+          "pathAuthority": [
+            {
+              "path": "/usr/share/apparmor/extra-profiles/unshare-userns-restrict",
+              "canonical": true,
+              "ownerIsRoot": true,
+              "mode": "0644",
+              "writableByGroupOrOther": false
+            },
+            {
+              "path": "/usr/share/apparmor/extra-profiles",
+              "canonical": true,
+              "ownerIsRoot": true,
+              "mode": "0755",
+              "writableByGroupOrOther": false
+            },
+            {
+              "path": "/usr/share/apparmor",
+              "canonical": true,
+              "ownerIsRoot": true,
+              "mode": "0755",
+              "writableByGroupOrOther": false
+            },
+            {
+              "path": "/usr/share",
+              "canonical": true,
+              "ownerIsRoot": true,
+              "mode": "0777",
+              "writableByGroupOrOther": true
+            },
+            {
+              "path": "/usr",
+              "canonical": true,
+              "ownerIsRoot": true,
+              "mode": "0755",
+              "writableByGroupOrOther": false
+            },
+            {
+              "path": "/",
+              "canonical": true,
+              "ownerIsRoot": true,
+              "mode": "0755",
+              "writableByGroupOrOther": false
+            }
+          ]
+        }
+      },
+      "distroPathAuthority": {
+        "/usr/sbin/apparmor_parser": [
+          {
+            "path": "/usr/sbin/apparmor_parser",
+            "canonical": true,
+            "ownerIsRoot": true,
+            "mode": "0755",
+            "writableByGroupOrOther": false
+          },
+          {
+            "path": "/usr/sbin",
+            "canonical": true,
+            "ownerIsRoot": true,
+            "mode": "0755",
+            "writableByGroupOrOther": false
+          },
+          {
+            "path": "/usr",
+            "canonical": true,
+            "ownerIsRoot": true,
+            "mode": "0755",
+            "writableByGroupOrOther": false
+          },
+          {
+            "path": "/",
+            "canonical": true,
+            "ownerIsRoot": true,
+            "mode": "0755",
+            "writableByGroupOrOther": false
+          }
+        ],
+        "/var/lib/dpkg/info/apparmor-profiles.md5sums": [
+          {
+            "path": "/var/lib/dpkg/info/apparmor-profiles.md5sums",
+            "canonical": true,
+            "ownerIsRoot": true,
+            "mode": "0644",
+            "writableByGroupOrOther": false
+          },
+          {
+            "path": "/var/lib/dpkg/info",
+            "canonical": true,
+            "ownerIsRoot": true,
+            "mode": "0755",
+            "writableByGroupOrOther": false
+          },
+          {
+            "path": "/var/lib/dpkg",
+            "canonical": true,
+            "ownerIsRoot": true,
+            "mode": "0755",
+            "writableByGroupOrOther": false
+          },
+          {
+            "path": "/var/lib",
+            "canonical": true,
+            "ownerIsRoot": true,
+            "mode": "0755",
+            "writableByGroupOrOther": false
+          },
+          {
+            "path": "/var",
+            "canonical": true,
+            "ownerIsRoot": true,
+            "mode": "0755",
+            "writableByGroupOrOther": false
+          },
+          {
+            "path": "/",
+            "canonical": true,
+            "ownerIsRoot": true,
+            "mode": "0755",
+            "writableByGroupOrOther": false
+          }
+        ]
+      }
+    }
+  ]
+}

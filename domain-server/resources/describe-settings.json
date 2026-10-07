@@ -118,6 +118,24 @@
           "advanced": true
         },
         {
+          "name": "signaling_port",
+          "label": "Browser Signaling Port",
+          "help": "WebSocket signaling endpoint inside the domain server. Browser data connects directly to each responsible service over WebRTC. Requires an OVERTE_BROWSER_TRANSPORT build.",
+          "type": "integer",
+          "default": 40102,
+          "min": 1,
+          "max": 65535,
+          "advanced": true
+        },
+        {
+          "name": "signaling_address",
+          "label": "Browser Signaling Bind Address",
+          "help": "IP address on which the domain server accepts browser signaling. Use 127.0.0.1 for an isolated local laboratory.",
+          "type": "text",
+          "default": "0.0.0.0",
+          "advanced": true
+        },
+        {
             "name": "enable_webrtc_websocket_ssl",
             "label": "Enable WebRTC WebSocket SSL",
             "help": "Use secure WebSocket (wss:// protocol) for WebRTC signaling channel. If \"on\", the key, cert, and CA files are expected to be in the local Overte app directory, in a /domain-server/ subdirectory with filenames overte-cert.key, overte-cert.crt, and overte-crt-ca.crt.",

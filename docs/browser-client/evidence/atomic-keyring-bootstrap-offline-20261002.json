@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "scope": "offline-exact-approved-ubuntu-keyring-bootstrap",
+  "startedAt": "2026-10-02T07:07:43.831441+00:00",
+  "finishedAt": "2026-10-02T07:07:44.054009+00:00",
+  "completed": true,
+  "bootstrapTrust": "reviewed-repository-package-and-member-digests",
+  "package": {
+    "name": "ubuntu-keyring",
+    "version": "2023.11.28.1",
+    "architecture": "all",
+    "bytes": 11124,
+    "sha256": "36de43b15853ccae0028e9a767613770c704833f82586f28eb262f0311adb8a8"
+  },
+  "member": {
+    "bytes": 3607,
+    "sha256": "80a36b0a6de2f69f49d2df75ef473ccde121e9e190b9ea01d20a4f63778d5c31",
+    "ownerCurrentUser": true,
+    "mode0600": true,
+    "singleLink": true
+  },
+  "signedDependency": {
+    "signature": "verified-trusted-archive-key",
+    "dependency": "exact-reviewed-noble-amd64",
+    "binarySHA256": "28f957c227012de0b18d1bd7fff2d396cb693ea60ed8013be68de071e84b5001"
+  },
+  "signatureFingerprint": "F6ECB3762474EDA9D21B7022871920D1991BC93C",
+  "hostedAcceptance": "pending",
+  "networkRequestsByQualifier": 0,
+  "servicesStarted": 0
+}

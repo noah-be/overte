@@ -1,0 +1,91 @@
+{
+  "schema": 1,
+  "originalFailure": {
+    "inputSHA256": "4c5bc0c6d629732031ab1b0189c59ce9e2b2f57b837ff34459d9005e85044758",
+    "inputKnownName": "current-bitmap-upload-two-engine-browser.log",
+    "scope": "Preserved original plain-text literal pixel failure; not parsed as an attached 12-check report",
+    "oneFailedAndOnePassedSummary": true,
+    "expectedZeroChannelErrorNotRelaxed": true
+  },
+  "guardedConversionResult": {
+    "inputSHA256": "31ab8210632c5fabfbdde71dd4053d88d9ac6f5ce4957db51021d72394cab284",
+    "inputKnownName": "current-bitmap-owned-final-two-engine-browser.log",
+    "scope": "Saved Playwright project result; exact executable versions absent from attachment",
+    "stats": {
+      "startTime": "2026-10-01T22:14:06.931Z",
+      "duration": 9991.773000000001,
+      "expected": 2,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    },
+    "projects": [
+      {
+        "project": "chromium",
+        "statuses": [
+          "passed"
+        ],
+        "pixels": {
+          "checks": 12,
+          "prepared": 6,
+          "maximumChannelErrors": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "completed": true,
+          "ownedResourcesAfterClose": {
+            "leases": 0,
+            "bytes": 0,
+            "active": 0,
+            "closeFailures": 0
+          },
+          "texturesAfterClose": 0,
+          "geometriesAfterClose": 0
+        }
+      },
+      {
+        "project": "firefox",
+        "statuses": [
+          "passed"
+        ],
+        "pixels": {
+          "checks": 12,
+          "prepared": 6,
+          "maximumChannelErrors": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "completed": true,
+          "ownedResourcesAfterClose": {
+            "leases": 0,
+            "bytes": 0,
+            "active": 0,
+            "closeFailures": 0
+          },
+          "texturesAfterClose": 0,
+          "geometriesAfterClose": 0
+        }
+      }
+    ]
+  }
+}

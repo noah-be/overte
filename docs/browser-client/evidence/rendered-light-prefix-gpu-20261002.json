@@ -1,0 +1,1014 @@
+{
+  "schemaVersion": 1,
+  "materialAIAssistance": "OpenAI Codex",
+  "repository": "noah-be/overte",
+  "scope": "Synthetic actual World mapped opaque/mask/blend WebGL image fixture; no native or public-Hub speed claim",
+  "terminal": "rejected",
+  "originalRGBAErrorAllowance": 0,
+  "cohorts": [
+    {
+      "cohort": "original-proof",
+      "engine": "chromium",
+      "browserVersion": "154.0.8037.57",
+      "completed": false,
+      "exactImageEquality": false,
+      "sourceCoherent": true,
+      "cleanupVerified": true,
+      "durationSeconds": 3.513,
+      "sourceSHA256": {
+        "src/world.ts": "6563a11ea872e11d919b614abb17de2363c154f4a7844e262392739c5099cbb8",
+        "src/main.ts": "0465ded9054cc0f5ea4cb5fdb8924c5dec48db875e3b0e91c241b64c38718c38",
+        "src/rendered-light-capacity.ts": "351f1ca283a81713fe282d80261c68c846bee4de77dbbb8d432262babd7d2a9f",
+        "tests/rendered-light-capacity.browser.spec.ts": "300592e95b488ec1ec838f927ba1c68280b04b35042a88bcc4a68efc57cb2e44",
+        "package-lock.json": "76330fced87d7da3b6e550f9656bcb45da07fed560cc46d50a546b589d2dc695"
+      },
+      "rawReportSHA256": "a030c6ec62253eed789bc7095fe615bd67e05fe745136f5d63756638fa1b267d",
+      "records": [
+        {
+          "phase": "empty",
+          "different": 2,
+          "maximum": 1,
+          "foreground": 557401,
+          "changedFromPrevious": 0,
+          "stats": {
+            "enabled": true,
+            "pointCapacity": 0,
+            "spotCapacity": 0,
+            "growthEvents": 0,
+            "conservativeFullCapacity": false,
+            "unknownRootRefusals": 0,
+            "rootBudgetRefusals": 0,
+            "shadowOrMapRefusals": 0,
+            "nonfiniteRefusals": 0,
+            "disposed": false
+          },
+          "maximumGraphicsSubmitMs": 5.9000000059604645
+        },
+        {
+          "phase": "firstPoint",
+          "different": 0,
+          "maximum": 0,
+          "foreground": 557653,
+          "changedFromPrevious": 481204,
+          "stats": {
+            "enabled": true,
+            "pointCapacity": 1,
+            "spotCapacity": 0,
+            "growthEvents": 1,
+            "conservativeFullCapacity": false,
+            "unknownRootRefusals": 0,
+            "rootBudgetRefusals": 0,
+            "shadowOrMapRefusals": 0,
+            "nonfiniteRefusals": 0,
+            "disposed": false
+          },
+          "maximumGraphicsSubmitMs": 57.400000005960464
+        },
+        {
+          "phase": "movement",
+          "different": 2,
+          "maximum": 1,
+          "foreground": 558254,
+          "changedFromPrevious": 474680,
+          "stats": {
+            "enabled": true,
+            "pointCapacity": 1,
+            "spotCapacity": 0,
+            "growthEvents": 1,
+            "conservativeFullCapacity": false,
+            "unknownRootRefusals": 0,
+            "rootBudgetRefusals": 0,
+            "shadowOrMapRefusals": 0,
+            "nonfiniteRefusals": 0,
+            "disposed": false
+          },
+          "maximumGraphicsSubmitMs": 57.400000005960464
+        },
+        {
+          "phase": "newSpotAndHDR",
+          "different": 0,
+          "maximum": 0,
+          "foreground": 559636,
+          "changedFromPrevious": 513641,
+          "stats": {
+            "enabled": true,
+            "pointCapacity": 1,
+            "spotCapacity": 1,
+            "growthEvents": 2,
+            "conservativeFullCapacity": false,
+            "unknownRootRefusals": 0,
+            "rootBudgetRefusals": 0,
+            "shadowOrMapRefusals": 0,
+            "nonfiniteRefusals": 0,
+            "disposed": false
+          },
+          "maximumGraphicsSubmitMs": 66
+        },
+        {
+          "phase": "sourceDeletion",
+          "different": 0,
+          "maximum": 0,
+          "foreground": 557401,
+          "changedFromPrevious": 0,
+          "stats": {
+            "enabled": true,
+            "pointCapacity": 1,
+            "spotCapacity": 1,
+            "growthEvents": 2,
+            "conservativeFullCapacity": false,
+            "unknownRootRefusals": 0,
+            "rootBudgetRefusals": 0,
+            "shadowOrMapRefusals": 0,
+            "nonfiniteRefusals": 0,
+            "disposed": false
+          },
+          "maximumGraphicsSubmitMs": 66
+        }
+      ]
+    },
+    {
+      "cohort": "original-proof",
+      "engine": "firefox",
+      "browserVersion": "firefox/156.0",
+      "completed": false,
+      "exactImageEquality": false,
+      "sourceCoherent": true,
+      "cleanupVerified": true,
+      "durationSeconds": 10.645,
+      "sourceSHA256": {
+        "src/world.ts": "6563a11ea872e11d919b614abb17de2363c154f4a7844e262392739c5099cbb8",
+        "src/main.ts": "0465ded9054cc0f5ea4cb5fdb8924c5dec48db875e3b0e91c241b64c38718c38",
+        "src/rendered-light-capacity.ts": "351f1ca283a81713fe282d80261c68c846bee4de77dbbb8d432262babd7d2a9f",
+        "tests/rendered-light-capacity.browser.spec.ts": "300592e95b488ec1ec838f927ba1c68280b04b35042a88bcc4a68efc57cb2e44",
+        "package-lock.json": "76330fced87d7da3b6e550f9656bcb45da07fed560cc46d50a546b589d2dc695"
+      },
+      "rawReportSHA256": "c363480d7f2c47722bdce44fd846cd6188dfe3a3677a85bd0cc8ef5971d30894",
+      "records": [
+        {
+          "phase": "empty",
+          "different": 2,
+          "maximum": 1,
+          "foreground": 1546337,
+          "changedFromPrevious": 0,
+          "stats": {
+            "enabled": true,
+            "pointCapacity": 0,
+            "spotCapacity": 0,
+            "growthEvents": 0,
+            "conservativeFullCapacity": false,
+            "unknownRootRefusals": 0,
+            "rootBudgetRefusals": 0,
+            "shadowOrMapRefusals": 0,
+            "nonfiniteRefusals": 0,
+            "disposed": false
+          },
+          "maximumGraphicsSubmitMs": 11
+        },
+        {
+          "phase": "firstPoint",
+          "different": 3,
+          "maximum": 1,
+          "foreground": 1547144,
+          "changedFromPrevious": 1336017,
+          "stats": {
+            "enabled": true,
+            "pointCapacity": 1,
+            "spotCapacity": 0,
+            "growthEvents": 1,
+            "conservativeFullCapacity": false,
+            "unknownRootRefusals": 0,
+            "rootBudgetRefusals": 0,
+            "shadowOrMapRefusals": 0,
+            "nonfiniteRefusals": 0,
+            "disposed": false
+          },
+          "maximumGraphicsSubmitMs": 42
+        },
+        {
+          "phase": "movement",
+          "different": 6,
+          "maximum": 1,
+          "foreground": 1549002,
+          "changedFromPrevious": 1317222,
+          "stats": {
+            "enabled": true,
+            "pointCapacity": 1,
+            "spotCapacity": 0,
+            "growthEvents": 1,
+            "conservativeFullCapacity": false,
+            "unknownRootRefusals": 0,
+            "rootBudgetRefusals": 0,
+            "shadowOrMapRefusals": 0,
+            "nonfiniteRefusals": 0,
+            "disposed": false
+          },
+          "maximumGraphicsSubmitMs": 42
+        },
+        {
+          "phase": "newSpotAndHDR",
+          "different": 0,
+          "maximum": 0,
+          "foreground": 1552678,
+          "changedFromPrevious": 1425582,
+          "stats": {
+            "enabled": true,
+            "pointCapacity": 1,
+            "spotCapacity": 1,
+            "growthEvents": 2,
+            "conservativeFullCapacity": false,
+            "unknownRootRefusals": 0,
+            "rootBudgetRefusals": 0,
+            "shadowOrMapRefusals": 0,
+            "nonfiniteRefusals": 0,
+            "disposed": false
+          },
+          "maximumGraphicsSubmitMs": 65
+        },
+        {
+          "phase": "sourceDeletion",
+          "different": 0,
+          "maximum": 0,
+          "foreground": 1546337,
+          "changedFromPrevious": 0,
+          "stats": {
+            "enabled": true,
+            "pointCapacity": 1,
+            "spotCapacity": 1,
+            "growthEvents": 2,
+            "conservativeFullCapacity": false,
+            "unknownRootRefusals": 0,
+            "rootBudgetRefusals": 0,
+            "shadowOrMapRefusals": 0,
+            "nonfiniteRefusals": 0,
+            "disposed": false
+          },
+          "maximumGraphicsSubmitMs": 65
+        }
+      ]
+    },
+    {
+      "cohort": "baseline-baseline-control",
+      "engine": "chromium",
+      "browserVersion": "154.0.8037.57",
+      "completed": false,
+      "exactImageEquality": true,
+      "sourceCoherent": true,
+      "cleanupVerified": true,
+      "durationSeconds": 3.699,
+      "sourceSHA256": {
+        "src/world.ts": "6563a11ea872e11d919b614abb17de2363c154f4a7844e262392739c5099cbb8",
+        "src/main.ts": "0465ded9054cc0f5ea4cb5fdb8924c5dec48db875e3b0e91c241b64c38718c38",
+        "src/rendered-light-capacity.ts": "351f1ca283a81713fe282d80261c68c846bee4de77dbbb8d432262babd7d2a9f",
+        "tests/rendered-light-capacity.browser.spec.ts": "300592e95b488ec1ec838f927ba1c68280b04b35042a88bcc4a68efc57cb2e44",
+        "package-lock.json": "76330fced87d7da3b6e550f9656bcb45da07fed560cc46d50a546b589d2dc695"
+      },
+      "rawReportSHA256": "f77c09bc911de8131d2ac1771c644884587941a2beb3c684ef09f6fce7538fe2",
+      "records": [
+        {
+          "phase": "empty",
+          "different": 0,
+          "maximum": 0,
+          "foreground": 557401,
+          "changedFromPrevious": 0,
+          "stats": {
+            "enabled": false
+          },
+          "maximumGraphicsSubmitMs": 18.19999998807907
+        },
+        {
+          "phase": "firstPoint",
+          "different": 0,
+          "maximum": 0,
+          "foreground": 557653,
+          "changedFromPrevious": 481204,
+          "stats": {
+            "enabled": false
+          },
+          "maximumGraphicsSubmitMs": 18.19999998807907
+        },
+        {
+          "phase": "movement",
+          "different": 0,
+          "maximum": 0,
+          "foreground": 558254,
+          "changedFromPrevious": 474680,
+          "stats": {
+            "enabled": false
+          },
+          "maximumGraphicsSubmitMs": 18.19999998807907
+        },
+        {
+          "phase": "newSpotAndHDR",
+          "different": 0,
+          "maximum": 0,
+          "foreground": 559636,
+          "changedFromPrevious": 513641,
+          "stats": {
+            "enabled": false
+          },
+          "maximumGraphicsSubmitMs": 18.19999998807907
+        },
+        {
+          "phase": "sourceDeletion",
+          "different": 0,
+          "maximum": 0,
+          "foreground": 557401,
+          "changedFromPrevious": 0,
+          "stats": {
+            "enabled": false
+          },
+          "maximumGraphicsSubmitMs": 18.19999998807907
+        }
+      ]
+    },
+    {
+      "cohort": "baseline-baseline-control",
+      "engine": "firefox",
+      "browserVersion": "firefox/156.0",
+      "completed": false,
+      "exactImageEquality": true,
+      "sourceCoherent": true,
+      "cleanupVerified": true,
+      "durationSeconds": 10.403,
+      "sourceSHA256": {
+        "src/world.ts": "6563a11ea872e11d919b614abb17de2363c154f4a7844e262392739c5099cbb8",
+        "src/main.ts": "0465ded9054cc0f5ea4cb5fdb8924c5dec48db875e3b0e91c241b64c38718c38",
+        "src/rendered-light-capacity.ts": "351f1ca283a81713fe282d80261c68c846bee4de77dbbb8d432262babd7d2a9f",
+        "tests/rendered-light-capacity.browser.spec.ts": "300592e95b488ec1ec838f927ba1c68280b04b35042a88bcc4a68efc57cb2e44",
+        "package-lock.json": "76330fced87d7da3b6e550f9656bcb45da07fed560cc46d50a546b589d2dc695"
+      },
+      "rawReportSHA256": "1af60632385bad7b8f3793d7ec9f331a74858a54d63cfeec3afeef8581f44aba",
+      "records": [
+        {
+          "phase": "empty",
+          "different": 0,
+          "maximum": 0,
+          "foreground": 1546337,
+          "changedFromPrevious": 0,
+          "stats": {
+            "enabled": false
+          },
+          "maximumGraphicsSubmitMs": 117
+        },
+        {
+          "phase": "firstPoint",
+          "different": 0,
+          "maximum": 0,
+          "foreground": 1547144,
+          "changedFromPrevious": 1336017,
+          "stats": {
+            "enabled": false
+          },
+          "maximumGraphicsSubmitMs": 117
+        },
+        {
+          "phase": "movement",
+          "different": 0,
+          "maximum": 0,
+          "foreground": 1549002,
+          "changedFromPrevious": 1317222,
+          "stats": {
+            "enabled": false
+          },
+          "maximumGraphicsSubmitMs": 117
+        },
+        {
+          "phase": "newSpotAndHDR",
+          "different": 0,
+          "maximum": 0,
+          "foreground": 1552678,
+          "changedFromPrevious": 1425582,
+          "stats": {
+            "enabled": false
+          },
+          "maximumGraphicsSubmitMs": 117
+        },
+        {
+          "phase": "sourceDeletion",
+          "different": 0,
+          "maximum": 0,
+          "foreground": 1546337,
+          "changedFromPrevious": 0,
+          "stats": {
+            "enabled": false
+          },
+          "maximumGraphicsSubmitMs": 117
+        }
+      ]
+    },
+    {
+      "cohort": "bounded-pixel-localization",
+      "engine": "chromium",
+      "browserVersion": "154.0.8037.57",
+      "completed": false,
+      "exactImageEquality": false,
+      "sourceCoherent": true,
+      "cleanupVerified": true,
+      "durationSeconds": 3.867,
+      "sourceSHA256": {
+        "src/world.ts": "6563a11ea872e11d919b614abb17de2363c154f4a7844e262392739c5099cbb8",
+        "src/main.ts": "0465ded9054cc0f5ea4cb5fdb8924c5dec48db875e3b0e91c241b64c38718c38",
+        "src/rendered-light-capacity.ts": "351f1ca283a81713fe282d80261c68c846bee4de77dbbb8d432262babd7d2a9f",
+        "tests/rendered-light-capacity.browser.spec.ts": "bb09c82fec60829279365716cb18bb198158d343fdb2bfd37d2da24c70fa728a",
+        "package-lock.json": "76330fced87d7da3b6e550f9656bcb45da07fed560cc46d50a546b589d2dc695",
+        "tests/fixtures/rendered-light-comparison.mjs": "5f520e82693feb58c91378c8ed18ea183321d28650420cea5b01ae13627a9658"
+      },
+      "rawReportSHA256": "2310425288d951c6a3f3c96a2af584c9cbbddca5f7121fdcd865cff239c83d4f",
+      "records": [
+        {
+          "phase": "empty",
+          "different": 2,
+          "maximum": 1,
+          "foreground": 557401,
+          "changedFromPrevious": 0,
+          "stats": {
+            "enabled": true,
+            "pointCapacity": 0,
+            "spotCapacity": 0,
+            "growthEvents": 0,
+            "conservativeFullCapacity": false,
+            "unknownRootRefusals": 0,
+            "rootBudgetRefusals": 0,
+            "shadowOrMapRefusals": 0,
+            "nonfiniteRefusals": 0,
+            "disposed": false
+          },
+          "maximumGraphicsSubmitMs": 10.5,
+          "changedPixels": 2,
+          "changedChannels": [
+            1,
+            0,
+            1,
+            0
+          ],
+          "changedPixelBounds": {
+            "minX": 166,
+            "minY": 300,
+            "maxX": 502,
+            "maxY": 387
+          },
+          "sampledPixels": [
+            {
+              "x": 166,
+              "y": 300,
+              "baselineRGBA": [
+                158,
+                158,
+                159,
+                255
+              ],
+              "candidateRGBA": [
+                158,
+                158,
+                158,
+                255
+              ]
+            },
+            {
+              "x": 502,
+              "y": 387,
+              "baselineRGBA": [
+                160,
+                160,
+                160,
+                255
+              ],
+              "candidateRGBA": [
+                159,
+                160,
+                160,
+                255
+              ]
+            }
+          ]
+        },
+        {
+          "phase": "firstPoint",
+          "different": 0,
+          "maximum": 0,
+          "foreground": 557653,
+          "changedFromPrevious": 481204,
+          "stats": {
+            "enabled": true,
+            "pointCapacity": 1,
+            "spotCapacity": 0,
+            "growthEvents": 1,
+            "conservativeFullCapacity": false,
+            "unknownRootRefusals": 0,
+            "rootBudgetRefusals": 0,
+            "shadowOrMapRefusals": 0,
+            "nonfiniteRefusals": 0,
+            "disposed": false
+          },
+          "maximumGraphicsSubmitMs": 53.80000001192093,
+          "changedPixels": 0,
+          "changedChannels": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "changedPixelBounds": null,
+          "sampledPixels": []
+        },
+        {
+          "phase": "movement",
+          "different": 2,
+          "maximum": 1,
+          "foreground": 558254,
+          "changedFromPrevious": 474680,
+          "stats": {
+            "enabled": true,
+            "pointCapacity": 1,
+            "spotCapacity": 0,
+            "growthEvents": 1,
+            "conservativeFullCapacity": false,
+            "unknownRootRefusals": 0,
+            "rootBudgetRefusals": 0,
+            "shadowOrMapRefusals": 0,
+            "nonfiniteRefusals": 0,
+            "disposed": false
+          },
+          "maximumGraphicsSubmitMs": 53.80000001192093,
+          "changedPixels": 2,
+          "changedChannels": [
+            0,
+            2,
+            0,
+            0
+          ],
+          "changedPixelBounds": {
+            "minX": 315,
+            "minY": 253,
+            "maxX": 615,
+            "maxY": 321
+          },
+          "sampledPixels": [
+            {
+              "x": 315,
+              "y": 253,
+              "baselineRGBA": [
+                17,
+                161,
+                116,
+                255
+              ],
+              "candidateRGBA": [
+                17,
+                160,
+                116,
+                255
+              ]
+            },
+            {
+              "x": 615,
+              "y": 321,
+              "baselineRGBA": [
+                159,
+                160,
+                160,
+                255
+              ],
+              "candidateRGBA": [
+                159,
+                159,
+                160,
+                255
+              ]
+            }
+          ]
+        },
+        {
+          "phase": "newSpotAndHDR",
+          "different": 0,
+          "maximum": 0,
+          "foreground": 559636,
+          "changedFromPrevious": 513641,
+          "stats": {
+            "enabled": true,
+            "pointCapacity": 1,
+            "spotCapacity": 1,
+            "growthEvents": 2,
+            "conservativeFullCapacity": false,
+            "unknownRootRefusals": 0,
+            "rootBudgetRefusals": 0,
+            "shadowOrMapRefusals": 0,
+            "nonfiniteRefusals": 0,
+            "disposed": false
+          },
+          "maximumGraphicsSubmitMs": 55.30000001192093,
+          "changedPixels": 0,
+          "changedChannels": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "changedPixelBounds": null,
+          "sampledPixels": []
+        },
+        {
+          "phase": "sourceDeletion",
+          "different": 0,
+          "maximum": 0,
+          "foreground": 557401,
+          "changedFromPrevious": 0,
+          "stats": {
+            "enabled": true,
+            "pointCapacity": 1,
+            "spotCapacity": 1,
+            "growthEvents": 2,
+            "conservativeFullCapacity": false,
+            "unknownRootRefusals": 0,
+            "rootBudgetRefusals": 0,
+            "shadowOrMapRefusals": 0,
+            "nonfiniteRefusals": 0,
+            "disposed": false
+          },
+          "maximumGraphicsSubmitMs": 55.30000001192093,
+          "changedPixels": 0,
+          "changedChannels": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "changedPixelBounds": null,
+          "sampledPixels": []
+        }
+      ]
+    },
+    {
+      "cohort": "bounded-pixel-localization",
+      "engine": "firefox",
+      "browserVersion": "firefox/156.0",
+      "completed": false,
+      "exactImageEquality": false,
+      "sourceCoherent": true,
+      "cleanupVerified": true,
+      "durationSeconds": 6.393,
+      "sourceSHA256": {
+        "src/world.ts": "6563a11ea872e11d919b614abb17de2363c154f4a7844e262392739c5099cbb8",
+        "src/main.ts": "0465ded9054cc0f5ea4cb5fdb8924c5dec48db875e3b0e91c241b64c38718c38",
+        "src/rendered-light-capacity.ts": "351f1ca283a81713fe282d80261c68c846bee4de77dbbb8d432262babd7d2a9f",
+        "tests/rendered-light-capacity.browser.spec.ts": "bb09c82fec60829279365716cb18bb198158d343fdb2bfd37d2da24c70fa728a",
+        "package-lock.json": "76330fced87d7da3b6e550f9656bcb45da07fed560cc46d50a546b589d2dc695",
+        "tests/fixtures/rendered-light-comparison.mjs": "5f520e82693feb58c91378c8ed18ea183321d28650420cea5b01ae13627a9658"
+      },
+      "rawReportSHA256": "49397e1aba79912e0fd386b9ef15c087809627df7b593feee772060472ad6512",
+      "records": [
+        {
+          "phase": "empty",
+          "different": 2,
+          "maximum": 1,
+          "foreground": 1546337,
+          "changedFromPrevious": 0,
+          "stats": {
+            "enabled": true,
+            "pointCapacity": 0,
+            "spotCapacity": 0,
+            "growthEvents": 0,
+            "conservativeFullCapacity": false,
+            "unknownRootRefusals": 0,
+            "rootBudgetRefusals": 0,
+            "shadowOrMapRefusals": 0,
+            "nonfiniteRefusals": 0,
+            "disposed": false
+          },
+          "maximumGraphicsSubmitMs": 5,
+          "changedPixels": 2,
+          "changedChannels": [
+            0,
+            0,
+            2,
+            0
+          ],
+          "changedPixelBounds": {
+            "minX": 878,
+            "minY": 551,
+            "maxX": 1118,
+            "maxY": 674
+          },
+          "sampledPixels": [
+            {
+              "x": 878,
+              "y": 551,
+              "baselineRGBA": [
+                159,
+                159,
+                159,
+                255
+              ],
+              "candidateRGBA": [
+                159,
+                159,
+                160,
+                255
+              ]
+            },
+            {
+              "x": 1118,
+              "y": 674,
+              "baselineRGBA": [
+                160,
+                160,
+                160,
+                255
+              ],
+              "candidateRGBA": [
+                160,
+                160,
+                161,
+                255
+              ]
+            }
+          ]
+        },
+        {
+          "phase": "firstPoint",
+          "different": 3,
+          "maximum": 1,
+          "foreground": 1547144,
+          "changedFromPrevious": 1336017,
+          "stats": {
+            "enabled": true,
+            "pointCapacity": 1,
+            "spotCapacity": 0,
+            "growthEvents": 1,
+            "conservativeFullCapacity": false,
+            "unknownRootRefusals": 0,
+            "rootBudgetRefusals": 0,
+            "shadowOrMapRefusals": 0,
+            "nonfiniteRefusals": 0,
+            "disposed": false
+          },
+          "maximumGraphicsSubmitMs": 64,
+          "changedPixels": 3,
+          "changedChannels": [
+            2,
+            1,
+            0,
+            0
+          ],
+          "changedPixelBounds": {
+            "minX": 219,
+            "minY": 572,
+            "maxX": 973,
+            "maxY": 695
+          },
+          "sampledPixels": [
+            {
+              "x": 686,
+              "y": 572,
+              "baselineRGBA": [
+                166,
+                166,
+                168,
+                255
+              ],
+              "candidateRGBA": [
+                165,
+                166,
+                168,
+                255
+              ]
+            },
+            {
+              "x": 219,
+              "y": 618,
+              "baselineRGBA": [
+                161,
+                162,
+                163,
+                255
+              ],
+              "candidateRGBA": [
+                162,
+                162,
+                163,
+                255
+              ]
+            },
+            {
+              "x": 973,
+              "y": 695,
+              "baselineRGBA": [
+                164,
+                164,
+                166,
+                255
+              ],
+              "candidateRGBA": [
+                164,
+                165,
+                166,
+                255
+              ]
+            }
+          ]
+        },
+        {
+          "phase": "movement",
+          "different": 6,
+          "maximum": 1,
+          "foreground": 1549002,
+          "changedFromPrevious": 1317222,
+          "stats": {
+            "enabled": true,
+            "pointCapacity": 1,
+            "spotCapacity": 0,
+            "growthEvents": 1,
+            "conservativeFullCapacity": false,
+            "unknownRootRefusals": 0,
+            "rootBudgetRefusals": 0,
+            "shadowOrMapRefusals": 0,
+            "nonfiniteRefusals": 0,
+            "disposed": false
+          },
+          "maximumGraphicsSubmitMs": 64,
+          "changedPixels": 6,
+          "changedChannels": [
+            2,
+            3,
+            1,
+            0
+          ],
+          "changedPixelBounds": {
+            "minX": 125,
+            "minY": 414,
+            "maxX": 1211,
+            "maxY": 752
+          },
+          "sampledPixels": [
+            {
+              "x": 453,
+              "y": 414,
+              "baselineRGBA": [
+                18,
+                164,
+                120,
+                255
+              ],
+              "candidateRGBA": [
+                18,
+                164,
+                119,
+                255
+              ]
+            },
+            {
+              "x": 1211,
+              "y": 541,
+              "baselineRGBA": [
+                159,
+                160,
+                160,
+                255
+              ],
+              "candidateRGBA": [
+                159,
+                159,
+                160,
+                255
+              ]
+            },
+            {
+              "x": 905,
+              "y": 575,
+              "baselineRGBA": [
+                160,
+                161,
+                161,
+                255
+              ],
+              "candidateRGBA": [
+                161,
+                161,
+                161,
+                255
+              ]
+            },
+            {
+              "x": 125,
+              "y": 662,
+              "baselineRGBA": [
+                165,
+                166,
+                167,
+                255
+              ],
+              "candidateRGBA": [
+                165,
+                165,
+                167,
+                255
+              ]
+            },
+            {
+              "x": 866,
+              "y": 716,
+              "baselineRGBA": [
+                162,
+                163,
+                164,
+                255
+              ],
+              "candidateRGBA": [
+                162,
+                162,
+                164,
+                255
+              ]
+            },
+            {
+              "x": 1075,
+              "y": 752,
+              "baselineRGBA": [
+                161,
+                162,
+                163,
+                255
+              ],
+              "candidateRGBA": [
+                162,
+                162,
+                163,
+                255
+              ]
+            }
+          ]
+        },
+        {
+          "phase": "newSpotAndHDR",
+          "different": 0,
+          "maximum": 0,
+          "foreground": 1552678,
+          "changedFromPrevious": 1425582,
+          "stats": {
+            "enabled": true,
+            "pointCapacity": 1,
+            "spotCapacity": 1,
+            "growthEvents": 2,
+            "conservativeFullCapacity": false,
+            "unknownRootRefusals": 0,
+            "rootBudgetRefusals": 0,
+            "shadowOrMapRefusals": 0,
+            "nonfiniteRefusals": 0,
+            "disposed": false
+          },
+          "maximumGraphicsSubmitMs": 64,
+          "changedPixels": 0,
+          "changedChannels": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "changedPixelBounds": null,
+          "sampledPixels": []
+        },
+        {
+          "phase": "sourceDeletion",
+          "different": 0,
+          "maximum": 0,
+          "foreground": 1546337,
+          "changedFromPrevious": 0,
+          "stats": {
+            "enabled": true,
+            "pointCapacity": 1,
+            "spotCapacity": 1,
+            "growthEvents": 2,
+            "conservativeFullCapacity": false,
+            "unknownRootRefusals": 0,
+            "rootBudgetRefusals": 0,
+            "shadowOrMapRefusals": 0,
+            "nonfiniteRefusals": 0,
+            "disposed": false
+          },
+          "maximumGraphicsSubmitMs": 64,
+          "changedPixels": 0,
+          "changedChannels": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "changedPixelBounds": null,
+          "sampledPixels": []
+        }
+      ]
+    }
+  ],
+  "ownedViteStopped": true,
+  "productionRendererRestoredExactly": true,
+  "candidateRuntimeAndItsAcceptanceFixtureWithdrawn": true,
+  "rejectedSourceArchiveManifestSHA256": "fd1c0648075d0c37a706b2b7dd36974b2d7a11245f78ddbeffe608be7dbd936e",
+  "limits": [
+    "The enabled candidate fails the preserved strict zero-byte image oracle in both stock engines",
+    "Baseline/baseline controls compare identical full-count configurations and all five images match; their candidate-capacity assertions fail by design, so they are not acceptance passes",
+    "At most16 changed pixel records per phase are retained; complete-image byte counts/channel counts/bounds are uncensored",
+    "The observed one-level RGB differences localize the failure, but no driver/compiler cause is experimentally established",
+    "Changing emitted light counts changes shader specialization; algebraic zero does not establish identical rounding",
+    "No oracle tolerance, automatic resolution reduction, default activation or Hub gain is claimed"
+  ]
+}

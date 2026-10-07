@@ -1,0 +1,28 @@
+{
+  "startedAt": "2026-09-30T23:20:25.565Z",
+  "domain": "isolated-managed-test-domain",
+  "nativeVersion": "2026.04.1",
+  "publicWorldMutations": 0,
+  "microphoneEnabled": false,
+  "sourceSHA256": {
+    "server.mjs": "ecc852b8c97c4bbd2c368dfc5ab928f4d0b46190765ebef033159d7e14407d2b",
+    "native-bridge.js": "6f831e7e858707bc4cbd4c39e8d692edc924ecd1b4d9615bef55bbed5d5b9f44",
+    "native-visitor-persona.js": "0fc0444b83ecb0a141e7ceba49fcc82b283734cc12fa9c2c2454b9e530be0d02",
+    "visitor-persona.mjs": "f728192cc28b576bde04bc6f05b3d615b243913b10916b2b2249fe492a265d4e"
+  },
+  "assertions": [
+    "Fresh native worker 1 restores the complete Unicode display name, original avatar, scale 1.2 and all four actual version3 favorites including prototype-sensitive names",
+    "Fresh native worker 2 restores the complete Unicode display name, original avatar, scale 1.2 and all four actual version3 favorites including prototype-sensitive names"
+  ],
+  "passed": true,
+  "personaCount": 2,
+  "personaFields": [
+    "type",
+    "permissionRevision",
+    "displayName",
+    "avatarURL",
+    "avatarScale",
+    "avatarFavorites"
+  ],
+  "finishedAt": "2026-09-30T23:21:08.123Z"
+}

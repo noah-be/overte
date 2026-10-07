@@ -1,0 +1,1661 @@
+{
+  "startedAt": "2026-10-01T19:27:46.757Z",
+  "finishedAt": "2026-10-01T19:29:08.148Z",
+  "completed": true,
+  "diagnosticOnly": true,
+  "coreOnly": true,
+  "functionalAcceptance": false,
+  "nativePropertyAcceptance": true,
+  "sourceCoherent": true,
+  "shippingSourceCoherent": true,
+  "nativeBinarySHA256": "91f3e10c42c1e35d5c8265e9b0007e925844d9bee61a26807118dde6e527887c",
+  "nativeCreateScriptsSHA256": {
+    "system/create/qml/EditTabView.qml": "4895d0f72d438829b4e15626b0dbb719c734e4486a74d175ac3de1a8d15d2621",
+    "system/create/entityProperties/html/js/entityProperties.js": "5e31fbdc3e577dd13663c0d9ee429f7c816bf1c7c91f45ea62438a6b575e08d5",
+    "system/create/entityList/html/js/entityList.js": "1a398a1ab644af6714c16c8a3e00191dd1b861f8fbdd75e78ceb71de6494ecf1",
+    "system/create/edit.js": "c7e20e8a23b7657608da533c35850668558a356d96b515e6eee477858a905a3d"
+  },
+  "observerScriptSHA256": "95bfe9cdf8311a674a8c6fc1023f37c3608392eaab449faff623cc157c77ac76",
+  "nativeVersion": "2026.04.1",
+  "browserVersion": "154.0.8037.57",
+  "runtimeAuditCaptureSHA256": "d058a6b3d061ee68eebc9d063af225002cddd069b0e3f29866dc3ef940d9e84d",
+  "baselineIdentitySHA256": "8f52882ae70f9e6ec2759e217807b9167e379d8c5b3a1400cea093b1c7936661",
+  "ownedEntitySHA256": "598161c55410934577128611c92dd76510bcc053fb1208dd6ff05a0230762538",
+  "ownedFixtureCount": 1,
+  "editedProperties": {
+    "nameSHA256": "ec12c355f82f49e2d5057ba8b03ffcb50bf61b41f3fadc39cf595ba5d2c11370",
+    "color": {
+      "red": 30,
+      "green": 170,
+      "blue": 220
+    },
+    "dimensions": {
+      "x": 0.699999988079071,
+      "y": 0.8999999761581421,
+      "z": 1.100000023841858
+    }
+  },
+  "cleanupVerified": true,
+  "emergencyCleanup": true,
+  "warningCount": 0,
+  "assertions": [
+    "Native Shape button created exactly one domain Cube and its actual domain properties reached the browser",
+    "Diagnostic-only genuine Name/RGB/XYZ edits passed; List deletion is outside core-only scope and exact own-ID cleanup remains mandatory"
+  ],
+  "schemaVersion": 1,
+  "materialAssistance": "OpenAI Codex",
+  "scope": "Short actual private diagnostic using unchanged genuine native property/cleanup oracles; extra readonly atomic focus reads are not shipping-source or performance proof",
+  "rawReportSHA256": "ae0d56f60fcdda77456e62f186eaff5c256f96f9eab2e0be07e9871c2f82d9ca",
+  "shippingSourceHashes": {
+    "start": {
+      "tests/integration/tablet-create.mjs": "022c05b9f446b08b604c72bc1222f8ad5db92f550475a5ee419703284042185c",
+      "tests/integration/tablet-create-readiness.mjs": "ca5dbc144ed49153a11baed470f0ffa4aebe6db730ca36a5114bf5b41f8ae649",
+      "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+      "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+      "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+      "tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+      "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+      "gateway/tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+      "gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+      "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+      "src/world.ts": "57b74bc694a55b32a400cfbbb66ca5d70fd7d81ad83731161d807c8ff2e0a249",
+      "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+      "src/main.ts": "76b2ad8eb449abc7621275b7bd78f234fa1241811ffd7d1065e4eb73c6d708c6",
+      "gateway/server.mjs": "f8399c1015cb85ada0da613b9278b8a90dca0660d2478b8810d43161b1ed237c",
+      "gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60"
+    },
+    "end": {
+      "tests/integration/tablet-create.mjs": "022c05b9f446b08b604c72bc1222f8ad5db92f550475a5ee419703284042185c",
+      "tests/integration/tablet-create-readiness.mjs": "ca5dbc144ed49153a11baed470f0ffa4aebe6db730ca36a5114bf5b41f8ae649",
+      "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+      "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+      "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+      "tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+      "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+      "gateway/tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+      "gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+      "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+      "src/world.ts": "57b74bc694a55b32a400cfbbb66ca5d70fd7d81ad83731161d807c8ff2e0a249",
+      "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+      "src/main.ts": "76b2ad8eb449abc7621275b7bd78f234fa1241811ffd7d1065e4eb73c6d708c6",
+      "gateway/server.mjs": "f8399c1015cb85ada0da613b9278b8a90dca0660d2478b8810d43161b1ed237c",
+      "gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60"
+    }
+  },
+  "actualPrivateSourceHashes": {
+    "start": {
+      "tests/integration/tablet-create.mjs": "baeaa49b1496f33909f1cb908bd8e3205377b18cc1bbac4e91d6c6d36c61bf5f",
+      "tests/integration/tablet-create-readiness.mjs": "51a6d370a689a3899e1d632bd8c2c23744cd2a2fb634fdb0bd741cb25acc6d5f",
+      "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+      "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+      "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+      "tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+      "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+      "gateway/tablet-capture.qml": "d058a6b3d061ee68eebc9d063af225002cddd069b0e3f29866dc3ef940d9e84d",
+      "gateway/native-bridge.js": "98eebb80100dac99d1ef07b5dcfceb32431a6a4ad1ad562198406d089219e58d",
+      "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+      "src/world.ts": "57b74bc694a55b32a400cfbbb66ca5d70fd7d81ad83731161d807c8ff2e0a249",
+      "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+      "tests/integration/tablet-create-focus-audit.mjs": "970ab317b41d10b92b8d759e54356950a367b275c08b6f1bd7787d82f88357ed",
+      "gateway/server.mjs": "5baa50b14e66ba915f7e9958cbc56061c3740eb49e7c4f785c5b6b4816c0197e",
+      "gateway/private-bridge-audit.mjs": "4ff17782d08a79eadafc950dccad3dada4dfe0299de32cf16a1c4e3a1f3b2e40"
+    },
+    "end": {
+      "tests/integration/tablet-create.mjs": "baeaa49b1496f33909f1cb908bd8e3205377b18cc1bbac4e91d6c6d36c61bf5f",
+      "tests/integration/tablet-create-readiness.mjs": "51a6d370a689a3899e1d632bd8c2c23744cd2a2fb634fdb0bd741cb25acc6d5f",
+      "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+      "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+      "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+      "tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+      "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+      "gateway/tablet-capture.qml": "d058a6b3d061ee68eebc9d063af225002cddd069b0e3f29866dc3ef940d9e84d",
+      "gateway/native-bridge.js": "98eebb80100dac99d1ef07b5dcfceb32431a6a4ad1ad562198406d089219e58d",
+      "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+      "src/world.ts": "57b74bc694a55b32a400cfbbb66ca5d70fd7d81ad83731161d807c8ff2e0a249",
+      "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+      "tests/integration/tablet-create-focus-audit.mjs": "970ab317b41d10b92b8d759e54356950a367b275c08b6f1bd7787d82f88357ed",
+      "gateway/server.mjs": "5baa50b14e66ba915f7e9958cbc56061c3740eb49e7c4f785c5b6b4816c0197e",
+      "gateway/private-bridge-audit.mjs": "4ff17782d08a79eadafc950dccad3dada4dfe0299de32cf16a1c4e3a1f3b2e40"
+    }
+  },
+  "nativeFocusReads": [
+    {
+      "ordinal": 2,
+      "stage": "dispatch-before",
+      "event": "other",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": null,
+      "nativeFocusUnchanged": false,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": false,
+          "hitClassOrdinals": [],
+          "kind": "body",
+          "readonly": false,
+          "type": "other"
+        },
+        "documentFocused": false,
+        "documentMatches": true,
+        "hit": {
+          "disabled": false,
+          "editable": true,
+          "fieldOrdinal": 3,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "text"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 3,
+      "stage": "dispatch-after",
+      "event": "other",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": true,
+      "nativeFocusUnchanged": false,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": true,
+          "fieldOrdinal": 3,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "text"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "disabled": false,
+          "editable": true,
+          "fieldOrdinal": 3,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "text"
+        },
+        "hitIsActive": true
+      }
+    },
+    {
+      "ordinal": 4,
+      "stage": "dispatch-before",
+      "event": "text",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": null,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": true,
+          "fieldOrdinal": 3,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "text"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "editable": false,
+          "kind": "none"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 6,
+      "stage": "commit-atomic",
+      "event": "text",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": true,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": true,
+          "fieldOrdinal": 3,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "text"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "editable": false,
+          "kind": "none"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 5,
+      "stage": "dispatch-after",
+      "event": "text",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": true,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": true,
+          "fieldOrdinal": 3,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "text"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "editable": false,
+          "kind": "none"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 7,
+      "stage": "dispatch-before",
+      "event": "key",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": null,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": false,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": true,
+          "type": "text"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "editable": false,
+          "kind": "none"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 8,
+      "stage": "dispatch-before",
+      "event": "other",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": null,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": false,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": true,
+          "type": "text"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "disabled": false,
+          "editable": false,
+          "hitClassOrdinals": [],
+          "kind": "other",
+          "readonly": false,
+          "type": "other"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 9,
+      "stage": "dispatch-after",
+      "event": "other",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": true,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": false,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": true,
+          "type": "text"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "disabled": false,
+          "editable": false,
+          "hitClassOrdinals": [],
+          "kind": "other",
+          "readonly": false,
+          "type": "other"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 10,
+      "stage": "dispatch-before",
+      "event": "other",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": null,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": false,
+          "hitClassOrdinals": [],
+          "kind": "other",
+          "readonly": false,
+          "type": "other"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "disabled": false,
+          "editable": false,
+          "hitClassOrdinals": [],
+          "kind": "other",
+          "readonly": false,
+          "type": "other"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 11,
+      "stage": "dispatch-after",
+      "event": "other",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": true,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": false,
+          "hitClassOrdinals": [],
+          "kind": "body",
+          "readonly": false,
+          "type": "other"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "disabled": false,
+          "editable": false,
+          "hitClassOrdinals": [],
+          "kind": "other",
+          "readonly": false,
+          "type": "other"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 12,
+      "stage": "dispatch-before",
+      "event": "other",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": null,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": false,
+          "hitClassOrdinals": [],
+          "kind": "body",
+          "readonly": false,
+          "type": "other"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "text"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 13,
+      "stage": "dispatch-after",
+      "event": "other",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": true,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": false,
+          "hitClassOrdinals": [],
+          "kind": "body",
+          "readonly": false,
+          "type": "other"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "text"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 14,
+      "stage": "dispatch-after",
+      "event": "key",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": true,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "text"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "editable": false,
+          "kind": "none"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 15,
+      "stage": "dispatch-before",
+      "event": "text",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": null,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "text"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "editable": false,
+          "kind": "none"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 17,
+      "stage": "commit-atomic",
+      "event": "text",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": true,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "text"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "editable": false,
+          "kind": "none"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 16,
+      "stage": "dispatch-after",
+      "event": "text",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": true,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "text"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "editable": false,
+          "kind": "none"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 18,
+      "stage": "dispatch-before",
+      "event": "key",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": null,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "text"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "editable": false,
+          "kind": "none"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 19,
+      "stage": "dispatch-before",
+      "event": "other",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": null,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "text"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "text"
+        },
+        "hitIsActive": true
+      }
+    },
+    {
+      "ordinal": 20,
+      "stage": "dispatch-after",
+      "event": "other",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": true,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "text"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "text"
+        },
+        "hitIsActive": true
+      }
+    },
+    {
+      "ordinal": 21,
+      "stage": "dispatch-before",
+      "event": "key",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": null,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "text"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "editable": false,
+          "kind": "none"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 22,
+      "stage": "dispatch-before",
+      "event": "text",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": null,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "text"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "editable": false,
+          "kind": "none"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 24,
+      "stage": "commit-atomic",
+      "event": "text",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": true,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "text"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "editable": false,
+          "kind": "none"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 23,
+      "stage": "dispatch-after",
+      "event": "text",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": true,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "text"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "editable": false,
+          "kind": "none"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 25,
+      "stage": "dispatch-before",
+      "event": "key",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": null,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "text"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "editable": false,
+          "kind": "none"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 26,
+      "stage": "dispatch-after",
+      "event": "key",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": true,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "text"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "editable": false,
+          "kind": "none"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 27,
+      "stage": "dispatch-before",
+      "event": "other",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": null,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "text"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "text"
+        },
+        "hitIsActive": true
+      }
+    },
+    {
+      "ordinal": 28,
+      "stage": "dispatch-after",
+      "event": "other",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": true,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "text"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "text"
+        },
+        "hitIsActive": true
+      }
+    },
+    {
+      "ordinal": 29,
+      "stage": "dispatch-before",
+      "event": "release",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": null,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "text"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "text"
+        },
+        "hitIsActive": true
+      }
+    },
+    {
+      "ordinal": 30,
+      "stage": "dispatch-after",
+      "event": "release",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": true,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "text"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "text"
+        },
+        "hitIsActive": true
+      }
+    },
+    {
+      "ordinal": 31,
+      "stage": "commit-atomic",
+      "event": "text",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": true,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "text"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "editable": false,
+          "kind": "none"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 32,
+      "stage": "dispatch-before",
+      "event": "key",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": null,
+      "nativeFocusUnchanged": false,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": false,
+          "hitClassOrdinals": [],
+          "kind": "body",
+          "readonly": false,
+          "type": "other"
+        },
+        "documentFocused": false,
+        "documentMatches": true,
+        "hit": {
+          "editable": false,
+          "kind": "none"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 33,
+      "stage": "dispatch-after",
+      "event": "key",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": true,
+      "nativeFocusUnchanged": false,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": false,
+          "hitClassOrdinals": [],
+          "kind": "body",
+          "readonly": false,
+          "type": "other"
+        },
+        "documentFocused": false,
+        "documentMatches": true,
+        "hit": {
+          "editable": false,
+          "kind": "none"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 34,
+      "stage": "dispatch-before",
+      "event": "other",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": null,
+      "nativeFocusUnchanged": false,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": false,
+          "hitClassOrdinals": [],
+          "kind": "body",
+          "readonly": false,
+          "type": "other"
+        },
+        "documentFocused": false,
+        "documentMatches": true,
+        "hit": {
+          "disabled": false,
+          "editable": false,
+          "hitClassOrdinals": [],
+          "kind": "other",
+          "readonly": false,
+          "type": "other"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 35,
+      "stage": "dispatch-after",
+      "event": "other",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": true,
+      "nativeFocusUnchanged": false,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": false,
+          "hitClassOrdinals": [],
+          "kind": "other",
+          "readonly": false,
+          "type": "other"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "disabled": false,
+          "editable": false,
+          "hitClassOrdinals": [],
+          "kind": "other",
+          "readonly": false,
+          "type": "other"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 36,
+      "stage": "dispatch-before",
+      "event": "other",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": null,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": false,
+          "hitClassOrdinals": [],
+          "kind": "other",
+          "readonly": false,
+          "type": "other"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "disabled": false,
+          "editable": false,
+          "hitClassOrdinals": [],
+          "kind": "other",
+          "readonly": false,
+          "type": "other"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 37,
+      "stage": "dispatch-after",
+      "event": "other",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": true,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": false,
+          "hitClassOrdinals": [],
+          "kind": "other",
+          "readonly": false,
+          "type": "other"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "disabled": false,
+          "editable": false,
+          "hitClassOrdinals": [],
+          "kind": "other",
+          "readonly": false,
+          "type": "other"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 38,
+      "stage": "dispatch-before",
+      "event": "other",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": null,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": false,
+          "hitClassOrdinals": [],
+          "kind": "other",
+          "readonly": false,
+          "type": "other"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "disabled": false,
+          "editable": false,
+          "hitClassOrdinals": [],
+          "kind": "other",
+          "readonly": false,
+          "type": "other"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 39,
+      "stage": "dispatch-after",
+      "event": "other",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": true,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "number"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "number"
+        },
+        "hitIsActive": true
+      }
+    },
+    {
+      "ordinal": 40,
+      "stage": "dispatch-before",
+      "event": "key",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": null,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "number"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "editable": false,
+          "kind": "none"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 41,
+      "stage": "commit-atomic",
+      "event": "text",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": true,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "number"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "editable": false,
+          "kind": "none"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 42,
+      "stage": "dispatch-before",
+      "event": "key",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": null,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "number"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "editable": false,
+          "kind": "none"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 43,
+      "stage": "dispatch-after",
+      "event": "key",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": true,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "number"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "editable": false,
+          "kind": "none"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 44,
+      "stage": "dispatch-before",
+      "event": "other",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": null,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "number"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "number"
+        },
+        "hitIsActive": true
+      }
+    },
+    {
+      "ordinal": 45,
+      "stage": "dispatch-after",
+      "event": "other",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": true,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "number"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "number"
+        },
+        "hitIsActive": true
+      }
+    },
+    {
+      "ordinal": 46,
+      "stage": "dispatch-before",
+      "event": "key",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": null,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "number"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "editable": false,
+          "kind": "none"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 47,
+      "stage": "dispatch-after",
+      "event": "key",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": true,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "number"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "editable": false,
+          "kind": "none"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 48,
+      "stage": "commit-atomic",
+      "event": "text",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": true,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "number"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "editable": false,
+          "kind": "none"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 49,
+      "stage": "dispatch-before",
+      "event": "key",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": null,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "number"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "editable": false,
+          "kind": "none"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 50,
+      "stage": "dispatch-after",
+      "event": "key",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": true,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "number"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "editable": false,
+          "kind": "none"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 51,
+      "stage": "dispatch-before",
+      "event": "other",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": null,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "number"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "number"
+        },
+        "hitIsActive": true
+      }
+    },
+    {
+      "ordinal": 52,
+      "stage": "dispatch-after",
+      "event": "other",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": true,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "number"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "number"
+        },
+        "hitIsActive": true
+      }
+    },
+    {
+      "ordinal": 53,
+      "stage": "dispatch-before",
+      "event": "text",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": null,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "number"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "editable": false,
+          "kind": "none"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 55,
+      "stage": "commit-atomic",
+      "event": "text",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": true,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "number"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "editable": false,
+          "kind": "none"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 54,
+      "stage": "dispatch-after",
+      "event": "text",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": true,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "number"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "editable": false,
+          "kind": "none"
+        },
+        "hitIsActive": false
+      }
+    },
+    {
+      "ordinal": 56,
+      "stage": "dispatch-before",
+      "event": "key",
+      "revision": 1,
+      "navigationSequence": 3,
+      "accepted": null,
+      "nativeFocusUnchanged": true,
+      "dom": {
+        "active": {
+          "disabled": false,
+          "editable": true,
+          "hitClassOrdinals": [],
+          "kind": "input",
+          "readonly": false,
+          "type": "other"
+        },
+        "documentFocused": true,
+        "documentMatches": true,
+        "hit": {
+          "editable": false,
+          "kind": "none"
+        },
+        "hitIsActive": false
+      }
+    }
+  ],
+  "limits": [
+    "All genuine Name/RGB/XYZ predicates passed in this diagnostic; full native List deletion was intentionally outside core-only scope.",
+    "Additional readonly native queries may affect event timing; this does not establish a shipping Red-input correction.",
+    "Hidden Create color-picker clones made RGB selector ordinals nonunique, so null field ordinals do not identify a specific RGB input.",
+    "No public entity mutation, microphone or endurance test."
+  ]
+}

@@ -1,0 +1,114 @@
+{
+  "version": 1,
+  "startedAt": "2026-09-30T21:30:09.876Z",
+  "finishedAt": "2026-09-30T21:32:23.677Z",
+  "actualPublicPlace": "overte_hub",
+  "browserVersion": "firefox/156.0",
+  "webGL": {
+    "vendor": "NVIDIA Corporation",
+    "renderer": "NVIDIA GeForce GTX 980, or similar"
+  },
+  "functionalJourneyPassed": true,
+  "fluidMovementAcceptancePassed": false,
+  "performanceStatus": "Further Firefox rendering optimization is required; function tests passed at approximately 20fps, which does not establish fluid desktop performance.",
+  "realWorld": {
+    "entities": 517,
+    "localOnlyEntities": 0,
+    "loadedModels": 297,
+    "triangleMeshColliders": 75,
+    "loadedAvatarModels": 1
+  },
+  "steadyPostloadSamples": [
+    {
+      "at": 1790803866867,
+      "fps": 15.671934177876453,
+      "medianFrameMs": 50,
+      "p95FrameMs": 122,
+      "maximumFrameMs": 1450,
+      "drawCalls": 1910,
+      "triangles": 577915,
+      "loadedModels": 297,
+      "loadedAvatars": 1,
+      "meshColliders": 75
+    },
+    {
+      "at": 1790803869885,
+      "fps": 16.019223067681217,
+      "medianFrameMs": 50,
+      "p95FrameMs": 130,
+      "maximumFrameMs": 1450,
+      "drawCalls": 1909,
+      "triangles": 577819,
+      "loadedModels": 297,
+      "loadedAvatars": 1,
+      "meshColliders": 75
+    },
+    {
+      "at": 1790803872921,
+      "fps": 17.515691139979566,
+      "medianFrameMs": 45,
+      "p95FrameMs": 114,
+      "maximumFrameMs": 1450,
+      "drawCalls": 1909,
+      "triangles": 577819,
+      "loadedModels": 297,
+      "loadedAvatars": 1,
+      "meshColliders": 75
+    },
+    {
+      "at": 1790803875936,
+      "fps": 20.234381586712757,
+      "medianFrameMs": 42,
+      "p95FrameMs": 109,
+      "maximumFrameMs": 250,
+      "drawCalls": 1909,
+      "triangles": 577819,
+      "loadedModels": 297,
+      "loadedAvatars": 1,
+      "meshColliders": 75
+    }
+  ],
+  "walking": {
+    "distanceMeters": 3.39451779363979,
+    "nativeAvatarDifferenceMeters": 0.00013437399599626647,
+    "framesPerSecond": 20.804438280166437,
+    "p95FrameMs": 104
+  },
+  "rejoinedWalking": {
+    "distanceMeters": 2.9513827242460176,
+    "nativeAvatarDifferenceMeters": 0.0012045031880646925,
+    "framesPerSecond": 17.858471612471167,
+    "p95FrameMs": 133
+  },
+  "pageErrors": [],
+  "microphoneRequested": false,
+  "worldEditsSent": 0,
+  "rawAudioSaved": false,
+  "participantIdentifiersPublished": false,
+  "verificationCommand": "OVERTE_LAB_URL=http://127.0.0.1:8095 OVERTE_LAB_BROWSER=system-firefox OVERTE_LAB_BROWSER_DISPLAY=:0 OVERTE_LAB_RECONNECT=1 node browser-client/tests/integration/public-hub.mjs",
+  "testedSourceSHA256": {
+    "browser-client/gateway/server.mjs": "dd86d52d7b21a0ab9aa78bb057dbcfba7b4f8c3b6d3eca3e5a07255b37ce75fb",
+    "browser-client/gateway/native-bridge.js": "3a784b707c09ec9b07833e8489a78ff2c1a7ce11ec83c5d2efa0e9efda584c6f",
+    "browser-client/gateway/native-world.js": "bec2f02313446afde7a0be20899358a082b41c6c6c5d745ec67a24809e2b7ddb",
+    "browser-client/gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60",
+    "browser-client/gateway/public-places.mjs": "bd1ede93896cba0045c2315ea9f26fb3bf021e619de7fe1461867503ba6ddd72",
+    "browser-client/gateway/validation.mjs": "65eba4a66c76d4bfc0dbd18e172def64f43b37cca0db2301da5bf4d18645de79",
+    "browser-client/gateway/worker-sandbox.mjs": "ccd365f442d09002d8dc39b0f9505ee2be83a45a99159eb173e7c9a39fecd477",
+    "browser-client/gateway/network-sandbox.mjs": "3fd278b91a6ea383ddf816753d9eee870736b295ecd945714e827d794c8016d9",
+    "browser-client/gateway/network_udp.py": "378f7159b1456ab5a0e25d2f933f35106344106625cef0ce0d589de3d1e45eca",
+    "browser-client/gateway/native-tablet.js": "527e106866462d1dea2834978250ecb6fa3ee6b8e99b5b2129b21e521e4995a2",
+    "browser-client/gateway/tablet-capture.qml": "dc31f0b42692e55b73b17b2a21ab5b1bf4cb304ec2d98457e698622aade05f66",
+    "browser-client/gateway/process-lifecycle.mjs": "e8d7e021a8b934b271910883e27c2a1109aedd22e12044b763d4bf8acc274eaf",
+    "browser-client/dist/index.html": "e4b2c18d369ec3132bff3b2c592b58e6461e448d126eae536fbee3155268bff0"
+  },
+  "runtimeHelperSHA256": {
+    "native-tablet.js": "527e106866462d1dea2834978250ecb6fa3ee6b8e99b5b2129b21e521e4995a2",
+    "tablet-capture.qml": "dc31f0b42692e55b73b17b2a21ab5b1bf4cb304ec2d98457e698622aade05f66"
+  },
+  "limitations": [
+    "Read-only muted public journey; no public microphone or world modifications.",
+    "Firefox reports a privacy-normalized GPU model string; the host GPU is NVIDIA GTX1080Ti.",
+    "Missing model or texture dependencies are reported in the actual interface; foliage visual parity remains unconfirmed.",
+    "No30-minute endurance test, as explicitly canceled by the user."
+  ]
+}

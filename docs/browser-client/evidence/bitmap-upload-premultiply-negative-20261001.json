@@ -1,0 +1,121 @@
+{
+  "date": "2026-10-01",
+  "scope": "Actual bundled Firefox WebGL comparison of all twelve decoded-image bitmap variants. Negative experiment retained; not activated in BrowserWorld.",
+  "materialAssistance": "OpenAI Codex",
+  "testsPassed": 1,
+  "testsFailed": 1,
+  "elapsedSeconds": 9.2,
+  "chromium": "All twelve exact pixel comparisons passed.",
+  "firefox": {
+    "completed": true,
+    "checks": [
+      {
+        "flipY": false,
+        "premultiplyAlpha": false,
+        "colorSpace": "srgb",
+        "exact": true,
+        "maximumChannelError": 0
+      },
+      {
+        "flipY": false,
+        "premultiplyAlpha": false,
+        "colorSpace": "",
+        "exact": true,
+        "maximumChannelError": 0
+      },
+      {
+        "flipY": false,
+        "premultiplyAlpha": false,
+        "colorSpace": "srgb-linear",
+        "exact": true,
+        "maximumChannelError": 0
+      },
+      {
+        "flipY": false,
+        "premultiplyAlpha": true,
+        "colorSpace": "srgb",
+        "exact": false,
+        "maximumChannelError": 1
+      },
+      {
+        "flipY": false,
+        "premultiplyAlpha": true,
+        "colorSpace": "",
+        "exact": false,
+        "maximumChannelError": 3
+      },
+      {
+        "flipY": false,
+        "premultiplyAlpha": true,
+        "colorSpace": "srgb-linear",
+        "exact": false,
+        "maximumChannelError": 3
+      },
+      {
+        "flipY": true,
+        "premultiplyAlpha": false,
+        "colorSpace": "srgb",
+        "exact": true,
+        "maximumChannelError": 0
+      },
+      {
+        "flipY": true,
+        "premultiplyAlpha": false,
+        "colorSpace": "",
+        "exact": true,
+        "maximumChannelError": 0
+      },
+      {
+        "flipY": true,
+        "premultiplyAlpha": false,
+        "colorSpace": "srgb-linear",
+        "exact": true,
+        "maximumChannelError": 0
+      },
+      {
+        "flipY": true,
+        "premultiplyAlpha": true,
+        "colorSpace": "srgb",
+        "exact": false,
+        "maximumChannelError": 1
+      },
+      {
+        "flipY": true,
+        "premultiplyAlpha": true,
+        "colorSpace": "",
+        "exact": false,
+        "maximumChannelError": 3
+      },
+      {
+        "flipY": true,
+        "premultiplyAlpha": true,
+        "colorSpace": "srgb-linear",
+        "exact": false,
+        "maximumChannelError": 3
+      }
+    ],
+    "ownership": {
+      "requests": 12,
+      "hits": 0,
+      "created": 12,
+      "closed": 12,
+      "evictions": 10,
+      "cancelled": 0,
+      "failed": 0,
+      "closeFailures": 0,
+      "peakActive": 1,
+      "active": 0,
+      "pending": 0,
+      "readers": 0,
+      "retainedEntries": 0,
+      "liveEntries": 0,
+      "bytes": 0,
+      "leases": 0
+    },
+    "textureCountAfterClose": 0,
+    "geometryCountAfterClose": 0
+  },
+  "traceSHA256": "9f229cda31445a344185e596adbe07ad5e904bb2ecb33a8296d69d53cadf0d6f",
+  "logSHA256": "4c5bc0c6d629732031ab1b0189c59ce9e2b2f57b837ff34459d9005e85044758",
+  "resolution": "PremultiplyAlpha=true retains the ordinary decoded HTML-image upload. Exact zero-error assertion remains mandatory for all variants; no pixel tolerance or browser-name heuristic is introduced."
+}

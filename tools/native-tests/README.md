@@ -4,6 +4,14 @@ The Linux native lane builds real Overte targets and runs selected Qt tests.
 It complements the quick/host checks and device acceptance; it does not claim
 Windows, Android, iOS, GPU, audio-device, or full user-journey qualification.
 
+The optional direct browser transport has explicit `separate_lanes` ownership
+in `.github/native-tests.json`. Its dedicated workflow enables the transport,
+builds actual domain/assignment servers and every declared test, then checks
+CTest registration before execution. These targets are absent from the default
+dependency graph rather than excluded from qualification. Workflow/driver and
+inventory regressions fail closed. See the
+[direct browser guide](../../docs/browser-direct-client/BUILD.md).
+
 ## Routing and cost boundaries
 
 `repository-checks.yml` always calculates a route from the exact PR merge
