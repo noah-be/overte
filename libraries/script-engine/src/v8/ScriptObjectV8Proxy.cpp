@@ -1072,23 +1072,31 @@ void ScriptMethodV8Proxy::call(const v8::FunctionCallbackInfo<v8::Value>& argume
                 qScriptArgLists[i].append(ScriptValue(new ScriptValueV8Wrapper(_engine, V8ScriptValue(_engine, argVal))));
                 qGenArgsVectors[i][arg] = QGenericArgument("ScriptValue", &qScriptArgLists[i].back());
             } else if (methodArgTypeId == QMetaType::QVariant) {
-                QVariant varArgVal;
-                const bool convertedArgument = _engine->castValueToVariant(V8ScriptValue(_engine, argVal), varArgVal, methodArgTypeId);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+                qVarArgLists[i].emplace_back();
+#else
+                qVarArgLists[i].append(QVariant());
+#endif
+                const bool convertedArgument = _engine->castValueToVariant(V8ScriptValue(_engine, argVal), qVarArgLists[i].back(), methodArgTypeId);
                 if (!canContinue()) { return; }
                 if (!convertedArgument) {
                     conversionFailures++;
+                    qVarArgLists[i].pop_back();
                 } else {
-                    qVarArgLists[i].append(varArgVal);
                     qGenArgsVectors[i][arg] = QGenericArgument("QVariant", &qVarArgLists[i].back());
                 }
             } else {
-                QVariant varArgVal;
-                const bool convertedArgument = _engine->castValueToVariant(V8ScriptValue(_engine, argVal), varArgVal, methodArgTypeId);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+                qVarArgLists[i].emplace_back();
+#else
+                qVarArgLists[i].append(QVariant());
+#endif
+                const bool convertedArgument = _engine->castValueToVariant(V8ScriptValue(_engine, argVal), qVarArgLists[i].back(), methodArgTypeId);
                 if (!canContinue()) { return; }
                 if (!convertedArgument) {
                     conversionFailures++;
+                    qVarArgLists[i].pop_back();
                 } else {
-                    qVarArgLists[i].append(varArgVal);
                     const QVariant& converted = qVarArgLists[i].back();
                     conversionPenaltyScore += _engine->computeCastPenalty(V8ScriptValue(_engine, argVal), methodArgTypeId);
 
