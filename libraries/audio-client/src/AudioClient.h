@@ -194,7 +194,7 @@ public:
     VoiceTestSignal& voiceTestSignal() { return _voiceTestSignal; }
     bool prepareVoiceTest();
     bool sendVoiceTest(const std::array<int, 12>& symbols);
-    void resetVoiceTest(bool restoreInput = true);
+    void resetVoiceTest();
     void touchVoiceTest();
     QVariantMap voiceTestStatus() const;
 #endif

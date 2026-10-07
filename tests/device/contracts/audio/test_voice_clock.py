@@ -23,6 +23,8 @@ def method(source: str, signature: str) -> str:
 def run() -> None:
     source = (ROOT / "libraries/audio-client/src/AudioClient.cpp").read_text()
     header = (ROOT / "libraries/audio-client/src/AudioClient.h").read_text()
+    start = header.index("    bool prepareVoiceTest();")
+    declarations = header[start:header.index("#endif", start)]
     start = header.index("    VoiceTestSignal _voiceTestSignal;")
     members = header[start:header.index("#endif", start)]
     start = source.index("bool AudioClient::voiceTestLifecycleAllowed() const {")
@@ -72,6 +74,7 @@ void failCapture(std::shared_ptr<Native> native,std::shared_ptr<Native>){native-
     for key, value in {
         "NATIVE_ADAPTER_INCLUDE": '#include "ios/audio/IOSAudioAdapter.h"' if actual_adapter else "",
         "NATIVE_ADAPTER_FIXTURE": native, "VOICE_MEMBERS": members, "VOICE_METHODS": clock,
+        "VOICE_DECLARATIONS": declarations,
         "AUDIO_INPUT_METHOD": method(source, "void AudioClient::handleAudioInput(QByteArray& audioBuffer) {"),
         "IOS_REFRESH_METHOD": refresh,
         "MUTE_METHOD": method(source, "void AudioClient::setMuted(bool muted, bool emitSignal) {"),
