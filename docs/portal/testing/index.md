@@ -1,5 +1,4 @@
 ---
-last-updated: "2026-10-07"
 last-reviewed: "2026-10-07"
 scope: "Shared fork test layers; product qualification belongs to its owning branch"
 ---

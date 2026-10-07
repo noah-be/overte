@@ -1,5 +1,4 @@
 ---
-last-updated: "2026-10-07"
 last-reviewed: "2026-10-07"
 scope: "Local laboratory snapshot on 2026-10-07; not a live dashboard or device acceptance"
 ---

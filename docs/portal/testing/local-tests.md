@@ -1,5 +1,4 @@
 ---
-last-updated: "2026-10-07"
 last-reviewed: "2026-10-07"
 scope: "Linux host; current checkout's shared and declared product suites"
 ---

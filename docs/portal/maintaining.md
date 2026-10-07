@@ -1,5 +1,4 @@
 ---
-last-updated: "2026-10-07"
 last-reviewed: "2026-10-07"
 scope: "Documentation source, local HTML build, and page-maintenance rules"
 ---
@@ -40,8 +39,8 @@ trigger Jenkins or GitHub device tests.
 ## Add or update a page
 
 1. Write English Markdown with one clear title and task-oriented sections.
-2. Add `scope`, `last-updated`, and `last-reviewed` in its YAML header. Use
-   quoted `YYYY-MM-DD` dates. Portal builds reject absent or invalid metadata.
+2. Add `scope` and `last-reviewed` in its YAML header. Use a quoted
+   `YYYY-MM-DD` review date. Portal builds reject absent or invalid metadata.
 3. Link the page from [the portal navigation](index.md). For a canonical guide
    outside `docs/portal`, add its exact path to `include_patterns` in `conf.py`
    and its document name to the navigation.
@@ -49,13 +48,27 @@ trigger Jenkins or GitHub device tests.
    implementation changes, then run the build and repository documentation
    checks.
 
-`last-updated` records a content change. `last-reviewed` records an actual
+**Last updated** is generated for every page from the latest commit that changed
+its source file in the checked-out revision. It uses the commit's calendar date
+and follows file renames. Unrelated commits and the build date do not advance
+it. No manual `last-updated` field is needed; existing fields are ignored.
+
+The same Git history is available on GitHub after publication. The portal
+reports the version it was built from; it does not query GitHub in the browser.
+Rebuild after updating the checkout to show newer committed changes. Cached
+builds also refresh the date panels. A future CI checkout must fetch full history
+(for GitHub Actions, use `fetch-depth: 0`). Shallow checkouts or source archives
+show an unavailable date rather than guessing from incomplete history.
+Uncommitted files show **Not committed**; edits to a committed file add
+**local changes** beside its last commit date until committed and rebuilt.
+
+`last-reviewed` records an actual
 review against named source/configuration evidence; it can be later than the
 content change. A build or typo fix alone is not a technical review. Keep a
 dated laboratory snapshot separate from general instructions.
 
-Existing reference pages show their latest non-merge Git change date and
-**Not recorded** for review until an explicit review date exists. The page status panel
+Existing reference pages show **Not recorded** for review until an explicit
+review date exists. The page status panel
 does not use today's build date as a freshness claim. Only a page's owning
 procedure can justify its review metadata.
 

@@ -1,5 +1,4 @@
 ---
-last-updated: "2026-10-07"
 last-reviewed: "2026-10-07"
 scope: "noah-be/overte; shared main and explicitly named product branches"
 ---
