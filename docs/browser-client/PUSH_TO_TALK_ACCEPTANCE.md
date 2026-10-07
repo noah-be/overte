@@ -1,0 +1,40 @@
+# Genuine Desktop Push-to-Talk acceptance (prepared, not executed)
+
+The initial packet was source-only. The reviewed shipping-signature followup now passes15 fixed-QML calibration/parser/paint/ownership contracts and is registered in ordinary `npm test`. The first copied production build refused missing native-admin declarations; copying the two exact original module/type files preserves the complete typecheck and the corrected build passes. Genuine GUI/audio acceptance remains in progress; no PTT success is inferred from the build or CPU fixtures. Existing core audio acceptance remains separate.
+
+## Reviewed source composition
+
+Use `prepare-tablet-ptt-audit.mjs <current-browser-client> <original-frozen-PTT-directory> <frozen-mute-followup-directory>`. The tool creates a fresh independently owned source directory, copies gateway/shared/frontend/tools/public/tests, and applies only the two exact SHA-pinned reviewed patches with zero fuzz. It refuses unknown patch bytes or incompatible contexts. It never substitutes a whole newer gateway file. Only node_modules is a read-only dependency link; generated public assets and dist are owned regular directories. Run the production build in the returned browser-client directory. If current source already contains PTT or contexts changed, prepare an independently reviewed exact source cohort instead of bypassing the refusal.
+
+Launch this copied gateway using the existing reviewed managed local lab environment and a separate loopback port. Retain the normal anonymous-baseline policy, UDP scope, AppRun/default-script/QML input dependencies, worker sandbox/capability/proxy isolation, per-visitor lifetime and current audio implementation. The only additional native instrumentation is fixed read-only QML geometry/property logging at real frame capture. There is no incoming diagnostic route or native setter. This does not activate PTT on a production gateway.
+
+The source copier reads the six fixed repository mannequin files and license into its own ancestor tree so the existing prebuild generator is reproducible. It also copies the two fixed native-admin module/type files required by the existing full-project typecheck. The first owned build correctly refused that missing dependency; adding the original module preserves the complete typecheck. It copies the ordinary integration adapters but never runs dependency installation or changes the shared dependency link. Build and runtime launch are parent-owned follow-up actions, not completed evidence.
+
+## Parent-run acceptance
+
+Set `OVERTE_LAB_URL` to the copied gateway, `OVERTE_LAB_BROWSER_DISPLAY` to the independently owned actual browser display, and choose `OVERTE_LAB_BROWSER=system-firefox` or the current stock Chromium mode. Preserve the successful existing stock executable/library environment. Set `OVERTE_PTT_NATIVE_PULSE` and `OVERTE_PTT_BROWSER_PULSE` to two distinct existing owned private Unix Pulse servers. These are local private configuration paths, never report fields. For Chromium, `OVERTE_PTT_MICROPHONE_WAV` must name the existing controlled synthetic 440Hz WAV; its digest is recorded. Firefox uses its real fake-media capture backend and requires actual nonzero native output, without claiming a known 440Hz Firefox input.
+
+Run `node tests/integration/tablet-push-to-talk.mjs` from the copied built client. The isolated target is fixed to the existing seven-entity private test domain; public endpoints refuse. The native peer and both private audio servers must already be the reviewed local lab participants. There must be no unrelated voice on the controlled output: the initial quiet RMS gate intentionally refuses a contaminated run.
+
+The journey performs:
+
+1. Join muted with exactly the preserved seven domain entities and a real peer. Record source/dist hashes and the exact generated worker capture helper. No microphone API call precedes the explicit button.
+2. Open the original native Tablet Home. Recognize the actual AUDIO button by its source-defined properties, acknowledged captured frame and painted region, then click it through the ordinary browser-to-native pointer path.
+3. Identify the actual installed native Audio page through its exact title, dimensions and boolean-property signature, and the Desktop switch with exact source label `Push To Talk (T)`. Calibrate the actual Qt Switch background rectangle, displayed pixel contrast, checked value and native Audio state. Click the original native control; no Audio setter or event injection is used. Observe the same real native control and property enabled afterward. Read native About.buildVersion only through its bounded passive property.
+4. Click the ordinary browser microphone button to grant controlled synthetic capture. Verify no outbound PCM without a real held key. Send trusted physical automation KeyT down/up through the browser keyboard, require fresh monotonic effective native ACK, and record actual native output RMS plus known 440Hz in Chromium. Release must close browser PCM and yield quiet real native output.
+5. Inject the existing controlled 997Hz synthetic input only into the separate owned native peer's private audio server. Require actual browser playback RMS and known-tone content. The owned bounded subprocess is always stopped on failure; this does not use a human microphone.
+6. Use a real second browser tab to produce actual window blur and hidden-document events while held. Both event counters and actual document.hidden are required; no dispatchEvent or hidden-property override is used. Background ACK polling is bounded and does not require hidden-page RAF. Releasing via a genuine Tablet-open click and ordinary mute must also close the hold and preserve native PTT mode.
+7. Disable PTT through the original calibrated native control, verify ordinary real browser-to-native audio still works, mute, and enable PTT again via that same GUI. Leave while held: real input tracks must end. The exact first worker profile must be removed before rejoining.
+8. Rejoin through a fresh real worker, preserve the exact seven entity identities, require no automatic microphone grant or PCM, then cleanly leave. Stop only owned audio children, close owned contexts/browser, and require deletion of the exact two discovered native profiles. Before/after source/dist hashes must match.
+
+All screenshots, PCM and logs remain private mode-0600 artifacts. Console output contains only fixed completion/cleanup/source flags and an evidence digest. Failure phase categories are fixed; raw errors are only bounded private files.
+
+## Honest boundary
+
+The real second-tab action proves blur and visibility release together, not separate causal isolation. Separate CPU adapter tests already cover release behavior. A fresh connection can reuse permission revision number 1: the live rejoin step proves fresh-session authority, not an in-domain revision change. `inDomainRevisionChangeProved` is deliberately false. A genuine approved in-domain permission-revision change still needs an isolated operator-controlled trigger and subsequent actual acceptance; this harness does not forge a native permission packet or mutate the domain's permissions to manufacture evidence. Hardware microphone testing is separate.
+
+No overall completion, real two-way PTT success, native event latency, hosted Ubuntu qualification or browser version result is claimed until the parent executes this exact cohort. Existing original PTT and mute follow-up packets remain immutable.
+
+## CPU reproduction
+
+`OVERTE_PTT_SOURCE_CLIENT=<reviewed-browser-client> node --test browser-client/tests/integration/tablet-ptt-audit.test.mjs` runs the15 contracts. They execute the exact inserted QML function under a minimal source-shaped VM fixture with native property setters that throw, verify no calls/mutations, exact control ancestry, desktop label, ambiguity/clipping/staleness, privacy/schema and unchanged tree/count/byte bounds, plus actual painted contrast. These CPU fixtures are calibration oracles, not a native GUI test.

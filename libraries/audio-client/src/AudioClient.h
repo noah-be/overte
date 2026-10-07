@@ -14,6 +14,10 @@
 #ifndef hifi_AudioClient_h
 #define hifi_AudioClient_h
 
+#if defined(OVERTE_E2E_VOICE_TESTS)
+#include "VoiceTestSignal.h"
+#endif
+
 #include <fstream>
 #include <memory>
 #include <vector>
@@ -195,6 +199,10 @@ public:
     void setRecording(bool isRecording) { _isRecording = isRecording; };
     bool getRecording() { return _isRecording; };
 
+#if defined(OVERTE_E2E_VOICE_TESTS)
+    // Called only on the audio thread by the gated Test interface.
+    VoiceTestSignal& voiceTestSignal() { return _voiceTestSignal; }
+#endif
     bool startRecording(const QString& filename);
     void stopRecording();
     void setAudioPaused(bool pause);
@@ -555,6 +563,9 @@ private:
 
     QVector<AudioInjectorPointer> _activeLocalAudioInjectors;
 
+#if defined(OVERTE_E2E_VOICE_TESTS)
+    VoiceTestSignal _voiceTestSignal;
+#endif
     bool _isPlayingBackRecording { false };
     bool _audioPaused { false };
 

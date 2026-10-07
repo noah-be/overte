@@ -1,0 +1,60 @@
+{
+  "scope": "ELF dependency closure only; native GUI, kernel sandbox and actual shared journeys untested",
+  "osRelease": {
+    "VERSION_ID": "24.04",
+    "ID": "ubuntu"
+  },
+  "targets": {
+    "interface": {
+      "sha256": "91f3e10c42c1e35d5c8265e9b0007e925844d9bee61a26807118dde6e527887c",
+      "unresolvedLibraries": [],
+      "missingSymbolVersions": [],
+      "passed": true
+    },
+    "domainServer": {
+      "sha256": "19b63b081b014114558376050a383ce787d0e3a1d159a74026a02aac6932e25b",
+      "unresolvedLibraries": [],
+      "missingSymbolVersions": [],
+      "passed": true
+    },
+    "assignmentClient": {
+      "sha256": "283ee984d3f47a9ba842cfc0257c8748cac4297a6fcbe33afb3bd59a60be6d5e",
+      "unresolvedLibraries": [],
+      "missingSymbolVersions": [],
+      "passed": true
+    },
+    "xcbPlugin": {
+      "sha256": "61b1dc8cff8db81646c93e83ab7d1989db7701b8619f1167896f6fa4c9fd1f9b",
+      "unresolvedLibraries": [],
+      "missingSymbolVersions": [],
+      "passed": true
+    },
+    "qtTestPlugin": {
+      "sha256": "34a30feb4853359a973497c7bac0674d4dfb09055ef5a873a3230196610d54ee",
+      "unresolvedLibraries": [],
+      "missingSymbolVersions": [],
+      "passed": true
+    },
+    "nativeInput": {
+      "sha256": "3bbec428da94e254746d4573a38c568270a827dfc1bdb735fa701a8c43c42c43",
+      "unresolvedLibraries": [],
+      "missingSymbolVersions": [],
+      "passed": true
+    }
+  },
+  "passed": true,
+  "packageVersions": {
+    "bubblewrap": "0.9.0-1ubuntu0.3",
+    "ffmpeg": "7:6.1.1-3ubuntu5",
+    "libc6": "2.39-0ubuntu8.9",
+    "libstdc++6": "14.2.0-4ubuntu2~24.04.1",
+    "pulseaudio": "1:16.1+dfsg1-2ubuntu10.1",
+    "slirp4netns": "1.2.1-1build2",
+    "xvfb": "2:21.1.12-1ubuntu1.8"
+  },
+  "baseImageDigest": "docker.io/library/ubuntu@sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3",
+  "containerfileSHA256": "f4dacc19f758d503488807925f1b53c9ddde0c3568c7abe6f221404afd1d4bc3",
+  "auditSHA256": "5a43fc1fceeaaaf89a979f3dca406541c38cf67b912a2bf53e2c955e3f1b7d4a",
+  "network": "Disabled while auditing native dependencies",
+  "privateData": "Only public pinned native binaries/libraries staged; profiles, credentials, runtime configs and audio excluded"
+}

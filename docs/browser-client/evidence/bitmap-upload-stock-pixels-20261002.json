@@ -1,0 +1,777 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-02",
+  "scope": "Current source stock-browser exact bitmap upload and4096 World Image qualification",
+  "cohorts": [
+    {
+      "engine": "system-chromium",
+      "browserVersion": "154.0.8037.57",
+      "rawReportSHA256": "84a32e0a19f83cdc6212bbb319a7a208b84714d00c62d87be122945f5bd4d8fd",
+      "completed": true,
+      "scope": "Two unchanged registered authored actual-expect bodies; not a whole-Hub fidelity or speed proof",
+      "literalVariants": {
+        "checks": [
+          {
+            "flipY": false,
+            "premultiplyAlpha": false,
+            "colorSpace": "srgb",
+            "prepared": true,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": false,
+            "premultiplyAlpha": false,
+            "colorSpace": "",
+            "prepared": true,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": false,
+            "premultiplyAlpha": false,
+            "colorSpace": "srgb-linear",
+            "prepared": true,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": false,
+            "premultiplyAlpha": true,
+            "colorSpace": "srgb",
+            "prepared": false,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": false,
+            "premultiplyAlpha": true,
+            "colorSpace": "",
+            "prepared": false,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": false,
+            "premultiplyAlpha": true,
+            "colorSpace": "srgb-linear",
+            "prepared": false,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": true,
+            "premultiplyAlpha": false,
+            "colorSpace": "srgb",
+            "prepared": true,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": true,
+            "premultiplyAlpha": false,
+            "colorSpace": "",
+            "prepared": true,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": true,
+            "premultiplyAlpha": false,
+            "colorSpace": "srgb-linear",
+            "prepared": true,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": true,
+            "premultiplyAlpha": true,
+            "colorSpace": "srgb",
+            "prepared": false,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": true,
+            "premultiplyAlpha": true,
+            "colorSpace": "",
+            "prepared": false,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": true,
+            "premultiplyAlpha": true,
+            "colorSpace": "srgb-linear",
+            "prepared": false,
+            "exact": true,
+            "maximumChannelError": 0
+          }
+        ],
+        "ownershipAfterClose": {
+          "requests": 12,
+          "hits": 0,
+          "created": 6,
+          "closed": 6,
+          "evictions": 4,
+          "cancelled": 0,
+          "failed": 0,
+          "closeFailures": 0,
+          "peakActive": 1,
+          "invalidations": 0,
+          "active": 0,
+          "pending": 0,
+          "readers": 0,
+          "retainedEntries": 0,
+          "liveEntries": 0,
+          "bytes": 0,
+          "leases": 0
+        },
+        "texturesAfterClose": 0,
+        "geometriesAfterClose": 0
+      },
+      "world4096": {
+        "width": 4096,
+        "height": 4096,
+        "qualityChanged": false,
+        "exactPixelAndSamplerStates": true,
+        "records": [
+          {
+            "enabled": false,
+            "pixelHash": "454b71f9c3bfaf2f054c3b3997e75a99fa650498fc2538ed1223b912935f2def",
+            "programsBefore": 3,
+            "programsAfter": 3,
+            "states": [
+              {
+                "flipY": true,
+                "premultiplyAlpha": false,
+                "colorSpace": "srgb",
+                "wrapS": 1000,
+                "wrapT": 1000,
+                "minFilter": 1008,
+                "magFilter": 1006,
+                "anisotropy": 16,
+                "offset": [
+                  0,
+                  0
+                ],
+                "repeat": [
+                  1,
+                  1
+                ],
+                "matrix": [
+                  1,
+                  0,
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  1
+                ],
+                "transparent": true,
+                "alphaTest": 0,
+                "side": 2,
+                "depthWrite": false
+              },
+              {
+                "flipY": true,
+                "premultiplyAlpha": false,
+                "colorSpace": "srgb",
+                "wrapS": 1001,
+                "wrapT": 1000,
+                "minFilter": 1008,
+                "magFilter": 1006,
+                "anisotropy": 16,
+                "offset": [
+                  0,
+                  0
+                ],
+                "repeat": [
+                  1,
+                  1
+                ],
+                "matrix": [
+                  1,
+                  0,
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  1
+                ],
+                "transparent": true,
+                "alphaTest": 0,
+                "side": 2,
+                "depthWrite": false
+              }
+            ],
+            "uploads": {
+              "imageCalls": 2,
+              "bitmapCalls": 0,
+              "totalMs": 388.69999998807907,
+              "maxMs": 204.19999998807907
+            },
+            "firstRenderMs": 398.80000001192093,
+            "statistics": {
+              "enabled": false,
+              "roots": 0,
+              "converted": 0,
+              "fallbacks": 0,
+              "unsupported": 0,
+              "capacityFallbacks": 0,
+              "activeRoots": 0,
+              "peakRoots": 0
+            },
+            "warnings": [],
+            "disposal": {
+              "textures": 0,
+              "geometries": 0,
+              "objects": 0
+            }
+          },
+          {
+            "enabled": true,
+            "pixelHash": "454b71f9c3bfaf2f054c3b3997e75a99fa650498fc2538ed1223b912935f2def",
+            "programsBefore": 3,
+            "programsAfter": 3,
+            "states": [
+              {
+                "flipY": true,
+                "premultiplyAlpha": false,
+                "colorSpace": "srgb",
+                "wrapS": 1000,
+                "wrapT": 1000,
+                "minFilter": 1008,
+                "magFilter": 1006,
+                "anisotropy": 16,
+                "offset": [
+                  0,
+                  0
+                ],
+                "repeat": [
+                  1,
+                  1
+                ],
+                "matrix": [
+                  1,
+                  0,
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  1
+                ],
+                "transparent": true,
+                "alphaTest": 0,
+                "side": 2,
+                "depthWrite": false
+              },
+              {
+                "flipY": true,
+                "premultiplyAlpha": false,
+                "colorSpace": "srgb",
+                "wrapS": 1001,
+                "wrapT": 1000,
+                "minFilter": 1008,
+                "magFilter": 1006,
+                "anisotropy": 16,
+                "offset": [
+                  0,
+                  0
+                ],
+                "repeat": [
+                  1,
+                  1
+                ],
+                "matrix": [
+                  1,
+                  0,
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  1
+                ],
+                "transparent": true,
+                "alphaTest": 0,
+                "side": 2,
+                "depthWrite": false
+              }
+            ],
+            "uploads": {
+              "imageCalls": 0,
+              "bitmapCalls": 2,
+              "totalMs": 147.39999997615814,
+              "maxMs": 75.89999997615814
+            },
+            "firstRenderMs": 154.40000000596046,
+            "statistics": {
+              "enabled": true,
+              "roots": 2,
+              "converted": 2,
+              "fallbacks": 0,
+              "unsupported": 0,
+              "capacityFallbacks": 0,
+              "activeRoots": 0,
+              "peakRoots": 1,
+              "requests": 2,
+              "hits": 1,
+              "created": 1,
+              "closed": 0,
+              "evictions": 0,
+              "cancelled": 0,
+              "failed": 0,
+              "closeFailures": 0,
+              "peakActive": 1,
+              "invalidations": 0,
+              "active": 0,
+              "pending": 0,
+              "readers": 0,
+              "retainedEntries": 1,
+              "liveEntries": 1,
+              "bytes": 67108864,
+              "leases": 2
+            },
+            "warnings": [],
+            "disposal": {
+              "owner": {
+                "requests": 2,
+                "hits": 1,
+                "created": 1,
+                "closed": 1,
+                "evictions": 0,
+                "cancelled": 0,
+                "failed": 0,
+                "closeFailures": 0,
+                "peakActive": 1,
+                "invalidations": 0,
+                "active": 0,
+                "pending": 0,
+                "readers": 0,
+                "retainedEntries": 0,
+                "liveEntries": 0,
+                "bytes": 0,
+                "leases": 0
+              },
+              "textures": 0,
+              "geometries": 0,
+              "objects": 0
+            }
+          }
+        ]
+      },
+      "sourceCoherent": true,
+      "sourceFileCount": 147,
+      "keySourceSHA256": {
+        "src/world-bitmap-bindings.ts": "31cba7d754d160054d83881da5f6ba9d8c98c5198b520addcc80b47529881f54",
+        "src/world-bitmap-upload.ts": "18fefcf4fafdcc14403b8ee8b4140cf7ec33455a0ec642459c0255e91d356b09",
+        "src/world.ts": "65e22cc16ef843c2ac96e280a31c59e189cef9ba380a56f33382592293320e4a",
+        "tests/integration/stock-bitmap-pixels.mjs": "29f5369a0328ff92bfcbc98cdebfddb71bca0845a7f34baa78d6b5ebd3f84275",
+        "tests/integration/stock-bitmap-registration.mjs": "04187ea6132408053c262bfeb4a2627db8e52ea36de2007fca32e4e0d2c0885c",
+        "tests/world-bitmap-integration.browser.spec.ts": "05d00184cfe2f3706b1272244d9d3bdb90ef069fa220c6e235a83ce294a416a5",
+        "tests/world-bitmap-upload.browser.spec.ts": "9ce1232df245500888879c713a3b6437f3731b0d231905224281147869a48544"
+      },
+      "cleanup": {
+        "contextsClosed": 2,
+        "browser": "closed",
+        "server": "closed"
+      }
+    },
+    {
+      "engine": "system-firefox",
+      "browserVersion": "firefox/156.0",
+      "rawReportSHA256": "5fcc99a3f0303ed3ee94addb81b5419eb97dfb3884b0ca95a774bfbf0e7ccd04",
+      "completed": true,
+      "scope": "Two unchanged registered authored actual-expect bodies; not a whole-Hub fidelity or speed proof",
+      "literalVariants": {
+        "checks": [
+          {
+            "flipY": false,
+            "premultiplyAlpha": false,
+            "colorSpace": "srgb",
+            "prepared": true,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": false,
+            "premultiplyAlpha": false,
+            "colorSpace": "",
+            "prepared": true,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": false,
+            "premultiplyAlpha": false,
+            "colorSpace": "srgb-linear",
+            "prepared": true,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": false,
+            "premultiplyAlpha": true,
+            "colorSpace": "srgb",
+            "prepared": false,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": false,
+            "premultiplyAlpha": true,
+            "colorSpace": "",
+            "prepared": false,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": false,
+            "premultiplyAlpha": true,
+            "colorSpace": "srgb-linear",
+            "prepared": false,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": true,
+            "premultiplyAlpha": false,
+            "colorSpace": "srgb",
+            "prepared": true,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": true,
+            "premultiplyAlpha": false,
+            "colorSpace": "",
+            "prepared": true,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": true,
+            "premultiplyAlpha": false,
+            "colorSpace": "srgb-linear",
+            "prepared": true,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": true,
+            "premultiplyAlpha": true,
+            "colorSpace": "srgb",
+            "prepared": false,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": true,
+            "premultiplyAlpha": true,
+            "colorSpace": "",
+            "prepared": false,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": true,
+            "premultiplyAlpha": true,
+            "colorSpace": "srgb-linear",
+            "prepared": false,
+            "exact": true,
+            "maximumChannelError": 0
+          }
+        ],
+        "ownershipAfterClose": {
+          "requests": 12,
+          "hits": 0,
+          "created": 6,
+          "closed": 6,
+          "evictions": 4,
+          "cancelled": 0,
+          "failed": 0,
+          "closeFailures": 0,
+          "peakActive": 1,
+          "invalidations": 0,
+          "active": 0,
+          "pending": 0,
+          "readers": 0,
+          "retainedEntries": 0,
+          "liveEntries": 0,
+          "bytes": 0,
+          "leases": 0
+        },
+        "texturesAfterClose": 0,
+        "geometriesAfterClose": 0
+      },
+      "world4096": {
+        "width": 4096,
+        "height": 4096,
+        "qualityChanged": false,
+        "exactPixelAndSamplerStates": true,
+        "records": [
+          {
+            "enabled": false,
+            "pixelHash": "454b71f9c3bfaf2f054c3b3997e75a99fa650498fc2538ed1223b912935f2def",
+            "programsBefore": 3,
+            "programsAfter": 3,
+            "states": [
+              {
+                "flipY": true,
+                "premultiplyAlpha": false,
+                "colorSpace": "srgb",
+                "wrapS": 1000,
+                "wrapT": 1000,
+                "minFilter": 1008,
+                "magFilter": 1006,
+                "anisotropy": 16,
+                "offset": [
+                  0,
+                  0
+                ],
+                "repeat": [
+                  1,
+                  1
+                ],
+                "matrix": [
+                  1,
+                  0,
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  1
+                ],
+                "transparent": true,
+                "alphaTest": 0,
+                "side": 2,
+                "depthWrite": false
+              },
+              {
+                "flipY": true,
+                "premultiplyAlpha": false,
+                "colorSpace": "srgb",
+                "wrapS": 1001,
+                "wrapT": 1000,
+                "minFilter": 1008,
+                "magFilter": 1006,
+                "anisotropy": 16,
+                "offset": [
+                  0,
+                  0
+                ],
+                "repeat": [
+                  1,
+                  1
+                ],
+                "matrix": [
+                  1,
+                  0,
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  1
+                ],
+                "transparent": true,
+                "alphaTest": 0,
+                "side": 2,
+                "depthWrite": false
+              }
+            ],
+            "uploads": {
+              "imageCalls": 2,
+              "bitmapCalls": 0,
+              "totalMs": 69,
+              "maxMs": 69
+            },
+            "firstRenderMs": 78,
+            "statistics": {
+              "enabled": false,
+              "roots": 0,
+              "converted": 0,
+              "fallbacks": 0,
+              "unsupported": 0,
+              "capacityFallbacks": 0,
+              "activeRoots": 0,
+              "peakRoots": 0
+            },
+            "warnings": [],
+            "disposal": {
+              "textures": 0,
+              "geometries": 0,
+              "objects": 0
+            }
+          },
+          {
+            "enabled": true,
+            "pixelHash": "454b71f9c3bfaf2f054c3b3997e75a99fa650498fc2538ed1223b912935f2def",
+            "programsBefore": 3,
+            "programsAfter": 3,
+            "states": [
+              {
+                "flipY": true,
+                "premultiplyAlpha": false,
+                "colorSpace": "srgb",
+                "wrapS": 1000,
+                "wrapT": 1000,
+                "minFilter": 1008,
+                "magFilter": 1006,
+                "anisotropy": 16,
+                "offset": [
+                  0,
+                  0
+                ],
+                "repeat": [
+                  1,
+                  1
+                ],
+                "matrix": [
+                  1,
+                  0,
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  1
+                ],
+                "transparent": true,
+                "alphaTest": 0,
+                "side": 2,
+                "depthWrite": false
+              },
+              {
+                "flipY": true,
+                "premultiplyAlpha": false,
+                "colorSpace": "srgb",
+                "wrapS": 1001,
+                "wrapT": 1000,
+                "minFilter": 1008,
+                "magFilter": 1006,
+                "anisotropy": 16,
+                "offset": [
+                  0,
+                  0
+                ],
+                "repeat": [
+                  1,
+                  1
+                ],
+                "matrix": [
+                  1,
+                  0,
+                  0,
+                  0,
+                  1,
+                  0,
+                  0,
+                  0,
+                  1
+                ],
+                "transparent": true,
+                "alphaTest": 0,
+                "side": 2,
+                "depthWrite": false
+              }
+            ],
+            "uploads": {
+              "imageCalls": 0,
+              "bitmapCalls": 2,
+              "totalMs": 107,
+              "maxMs": 54
+            },
+            "firstRenderMs": 119,
+            "statistics": {
+              "enabled": true,
+              "roots": 2,
+              "converted": 2,
+              "fallbacks": 0,
+              "unsupported": 0,
+              "capacityFallbacks": 0,
+              "activeRoots": 0,
+              "peakRoots": 1,
+              "requests": 2,
+              "hits": 1,
+              "created": 1,
+              "closed": 0,
+              "evictions": 0,
+              "cancelled": 0,
+              "failed": 0,
+              "closeFailures": 0,
+              "peakActive": 1,
+              "invalidations": 0,
+              "active": 0,
+              "pending": 0,
+              "readers": 0,
+              "retainedEntries": 1,
+              "liveEntries": 1,
+              "bytes": 67108864,
+              "leases": 2
+            },
+            "warnings": [],
+            "disposal": {
+              "owner": {
+                "requests": 2,
+                "hits": 1,
+                "created": 1,
+                "closed": 1,
+                "evictions": 0,
+                "cancelled": 0,
+                "failed": 0,
+                "closeFailures": 0,
+                "peakActive": 1,
+                "invalidations": 0,
+                "active": 0,
+                "pending": 0,
+                "readers": 0,
+                "retainedEntries": 0,
+                "liveEntries": 0,
+                "bytes": 0,
+                "leases": 0
+              },
+              "textures": 0,
+              "geometries": 0,
+              "objects": 0
+            }
+          }
+        ]
+      },
+      "sourceCoherent": true,
+      "sourceFileCount": 147,
+      "keySourceSHA256": {
+        "src/world-bitmap-bindings.ts": "31cba7d754d160054d83881da5f6ba9d8c98c5198b520addcc80b47529881f54",
+        "src/world-bitmap-upload.ts": "18fefcf4fafdcc14403b8ee8b4140cf7ec33455a0ec642459c0255e91d356b09",
+        "src/world.ts": "65e22cc16ef843c2ac96e280a31c59e189cef9ba380a56f33382592293320e4a",
+        "tests/integration/stock-bitmap-pixels.mjs": "29f5369a0328ff92bfcbc98cdebfddb71bca0845a7f34baa78d6b5ebd3f84275",
+        "tests/integration/stock-bitmap-registration.mjs": "04187ea6132408053c262bfeb4a2627db8e52ea36de2007fca32e4e0d2c0885c",
+        "tests/world-bitmap-integration.browser.spec.ts": "05d00184cfe2f3706b1272244d9d3bdb90ef069fa220c6e235a83ce294a416a5",
+        "tests/world-bitmap-upload.browser.spec.ts": "9ce1232df245500888879c713a3b6437f3731b0d231905224281147869a48544"
+      },
+      "cleanup": {
+        "contextsClosed": 2,
+        "browser": "closed",
+        "server": "closed"
+      }
+    }
+  ],
+  "runtimeDefaultOff": true,
+  "causalHubLoadingGain": false,
+  "wholeHubPixelEquivalence": false,
+  "embeddedFbxGpuCoverage": false,
+  "publicDomainJoined": false,
+  "microphoneRequested": false
+}

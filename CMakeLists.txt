@@ -48,6 +48,10 @@ endif()
 
 
 project(overte)
+option(OVERTE_E2E_VOICE_TESTS "Enable synthetic voice E2E hooks in dedicated test builds" OFF)
+if(OVERTE_E2E_VOICE_TESTS)
+    add_compile_definitions(OVERTE_E2E_VOICE_TESTS)
+endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
     option(OVERTE_IOS_BOOTSTRAP_ONLY

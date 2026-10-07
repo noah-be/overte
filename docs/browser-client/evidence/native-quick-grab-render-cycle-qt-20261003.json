@@ -1,0 +1,64 @@
+{
+  "schema": 1,
+  "softwareQtVersion": "5.15.3",
+  "completed": true,
+  "sourceCoherent": true,
+  "managedRegistryUnchanged": true,
+  "ownedDisplayClosed": true,
+  "ownedQtClosed": true,
+  "hardwareOpened": false,
+  "ChromeLaunched": false,
+  "nativeApplicationLaunched": false,
+  "rows": [
+    {
+      "accepted": true,
+      "exactCenterPixel": true,
+      "kind": "active",
+      "passed": true,
+      "readyAfterGateRelease": 1,
+      "readyBeforeGateRelease": 1,
+      "readyInline": false,
+      "renderBeforeGateRelease": 1,
+      "renderRequestedDelta": 1,
+      "syncBeforeGateRelease": 1
+    },
+    {
+      "accepted": true,
+      "exactCenterPixel": true,
+      "kind": "held-output",
+      "passed": true,
+      "readyAfterGateRelease": 1,
+      "readyBeforeGateRelease": 0,
+      "readyInline": false,
+      "renderBeforeGateRelease": 0,
+      "renderRequestedDelta": 1,
+      "syncBeforeGateRelease": 0
+    },
+    {
+      "accepted": true,
+      "exactCenterPixel": true,
+      "kind": "paused",
+      "passed": true,
+      "readyAfterGateRelease": 1,
+      "readyBeforeGateRelease": 0,
+      "readyInline": false,
+      "renderBeforeGateRelease": 0,
+      "renderRequestedDelta": 1,
+      "syncBeforeGateRelease": 0
+    },
+    {
+      "accepted": true,
+      "exactCenterPixel": true,
+      "kind": "zero-max-fps",
+      "passed": true,
+      "readyAfterGateRelease": 1,
+      "readyBeforeGateRelease": 0,
+      "readyInline": false,
+      "renderBeforeGateRelease": 0,
+      "renderRequestedDelta": 1,
+      "syncBeforeGateRelease": 0
+    }
+  ],
+  "scope": "authored-manual-QQuickRenderControl; last-three-labels-represent-withheld-scheduling; native-SharedObject-not-executed",
+  "nativeFailureCauseEstablished": false
+}

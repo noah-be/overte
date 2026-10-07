@@ -1,0 +1,137 @@
+{
+  "schemaVersion": 1,
+  "scope": "Reviewed graphics context lifetime correction and bounded GPU/avatar diagnostics. Full product completion, spontaneous GPU repair and native-peer movement acceptance remain open.",
+  "recordedAt": "2026-10-04T01:03:37.145758+00:00",
+  "coherenceHeadReference": "6a613eeda62688e3e33bd381292410fba6957a14",
+  "commitScope": "This HEAD reference checks metadata coherence; the tested staged source is identified by the source inventories and hashes below. It is not a claim that the changes were already committed at that reference.",
+  "proposalSHA256": {
+    "contextCompositionV22": "c1831238121f9f08df9dff7617b2bf08210c223d3b1e1e434b7f4c89bfb4d37c",
+    "measuredFixtureCorrectionV23": "5b22748a9d3e4d5293cacd7e3fc3dd79e2076d38de1230b20223be5ebcf0c00c"
+  },
+  "currentSourceSHA256": {
+    "browser-client/src/world.ts": "609378a10d67dcd89f3e581b972986425a61ba77720d131eb27ee193c815be3a",
+    "browser-client/src/graphics-scan-frames.ts": "fda32d1d7c60b9b6745973fbbe065b31e15af05e82d8c2e528fe8bd6ae2ea2c9",
+    "browser-client/src/graphics-environment-scan.ts": "7ccc08ddede955931d1e1d2b6dce238ecb745536f7c18df07371ccd501666ced",
+    "browser-client/src/browser-graphics-intent.ts": "cd06d67ed3440abd38690b842f1401100a24d9c40266af566e9d64e151cbfe53",
+    "browser-client/src/main.ts": "3b0bcf6ef6e607e7b4035bd6dd11bbf686f3cf01370d1715622c03bf5f8c3d8b",
+    "browser-client/tests/graphics-context-restoration.browser.spec.ts": "a1eabc57a8fa6202839cc3e93953076b77a4657eee3387164b475635149e4929",
+    "browser-client/tests/fixtures/embedded-world.ts": "038f463149ac20ca9ee73c23219851d843fe953d26d316ca8a5e763e0c9bb591",
+    "browser-client/tests/integration/embedded-world.mjs": "244d7587a90fc436efe740c50e4b0b7f1c65456a8454552bcccc0a9561669305",
+    "browser-client/gateway/native-avatar-sample-diagnostics.js": "cd2f35f8bc04edfdb9c09fcd8b5399d1e03b5b3b40bbbf9a459620b68ad9be49",
+    "browser-client/gateway/native-avatar-stdout-projection.mjs": "90c7c18ab0c35e85620bcfa94427253232715da53c0abaf781e817b14515ea3f",
+    "browser-client/tests/fixtures/capture-live-context-v23-complete-source-manifest.json": "b126e6098be4b0619513432c7c384969aff569e163fa28405d816c758640f1c5",
+    "browser-client/tests/integration/prepare-tablet-capture-acceptance.mjs": "a13f60c0683ada6ae4a41be149a4b059eb3a00c302da79bb7180eada87b9ed41"
+  },
+  "completeSourceInventory": {
+    "files": 9817,
+    "sha256": "9e854fbc662ec2d62f6f64791ff02836b96055285fee35f653ab6db2340eb87c"
+  },
+  "checks": [
+    {
+      "label": "product-unit-suite",
+      "command": [
+        "npm",
+        "test"
+      ],
+      "exitCode": 0,
+      "seconds": 37.466,
+      "logSHA256": "9883f98c645a67ee42fe1f3797d4e0a1db542592f9933a6fedac2e6f307d246f",
+      "counts": {
+        "tests": 2799,
+        "pass": 2799,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "sourceCoherent": true
+    },
+    {
+      "label": "production-build",
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "exitCode": 0,
+      "seconds": 5.832,
+      "logSHA256": "00063051cde64fa853df278cfeb564934dda53da66bc50e8bbdb8ebd61ba626f",
+      "counts": {},
+      "sourceCoherent": true
+    },
+    {
+      "label": "repository-quick",
+      "command": [
+        "python3",
+        "tests/run-project-tests.py",
+        "--profile",
+        "quick",
+        "--timeout",
+        "240"
+      ],
+      "exitCode": 0,
+      "seconds": 155.876,
+      "logSHA256": "6b6908a62621a6e8547a5931c80fccb35c18f6ff0a1f9377a33c9d6d24972c85",
+      "counts": {},
+      "sourceCoherent": true
+    }
+  ],
+  "production": {
+    "files": 34,
+    "receiptSHA256": "669b0389e6a4b17e011ae84fb6ffbaabf8c9507e16bb61d1af9ef92afa054ab4"
+  },
+  "repositorySuitesPassed": 34,
+  "focusedChecks": {
+    "sourceHistoryGraphicsCases": 457,
+    "skipped": 0,
+    "independentFixtureCases": 51,
+    "wholeInstallationInverses": 10,
+    "countRelationship": "Focused cases overlap the full product suite; counts are kept separate and are not added. The focused replay also includes nested integration contracts."
+  },
+  "actualChromeComponent": {
+    "command": [
+      "node",
+      "node_modules/playwright/cli.js",
+      "test",
+      "tests/graphics-context-restoration.browser.spec.ts",
+      "--project=google-chrome",
+      "--reporter=json"
+    ],
+    "expected": 1,
+    "unexpected": 0,
+    "skipped": 0,
+    "flaky": 0,
+    "testSeconds": 6.396,
+    "ownerSeconds": 15.975,
+    "sourceInventoryFiles": 1041,
+    "sourceInventorySHA256": "4b76cc5bfdc9bd8165945ae6ced707648eb4d8d7680228cdffef332131280cb6",
+    "reportSHA256": "f8095ccc15631d4009e64b5051ed66a481b58a05586aee443e1176f74a8ff052",
+    "summarySHA256": "67d8344f691e6c0d631a0f7013c1a54402767483ab2ae7050b92719b5a829fc1",
+    "observedChromeBirths": 9,
+    "cleanupVerified": true,
+    "sourceCoherent": true,
+    "authorityRemoved": true,
+    "assertions": "One actual trusted loss and later restore; retained geometry; equal nonblack center pixels against black background; stable facade/controller; stale recommendation refusal; rendered frames stop while lost and resume; settings unchanged; session revocation refused.",
+    "backend": "Requested ANGLE SwiftShader in the existing headless Chrome project; actual backend was not collected in this component report. No physical GPU qualification inferred."
+  },
+  "retainedLocalEmbeddedNegative": {
+    "outerDeadlineSeconds": 165,
+    "ownerSeconds": 167.15,
+    "failurePhase": "fixture",
+    "innerResult": "not-obtained",
+    "cause": "not-established",
+    "summarySHA256": "89e64022605a33027fa4575e05f9b19683e465ab9ea133d965b9edbf9b659ddb",
+    "observedChromeBirths": 3,
+    "cleanupVerified": true,
+    "sourceCoherent": true,
+    "authorityRemoved": true,
+    "waived": false
+  },
+  "unchangedRuntime": "Nine existing registered local service births remained stable; served distribution and native binary were not restarted or replaced.",
+  "limits": [
+    "The original automatic/manual hosted GPU and stale-native-peer failures remain separate open gates.",
+    "The deliberate restoration component is not a repair or explanation of spontaneous GPU loss.",
+    "No new public Hub, full Native/Core journey or physical microphone acceptance is claimed.",
+    "Private raw logs, PIDs, profiles, authentication files and coordinates are not included."
+  ]
+}

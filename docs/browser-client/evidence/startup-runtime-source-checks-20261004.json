@@ -1,0 +1,421 @@
+{
+  "schemaVersion": 1,
+  "baseCommitSHA": "c624d6976ee2c3769f9855b6bb64fb379e2982cd",
+  "scope": "Reviewed startup-order repair and bounded X11/GPU fixture observations. Complete code/build/repository gates passed; new actual Chrome/native qualification pending.",
+  "materialAIAssistance": "OpenAI Codex",
+  "sourceFiles": [
+    {
+      "path": "browser-client/gateway/server.mjs",
+      "beforeSHA256": "6f22ccc165ab96d61d281f9deefbabb2fc4d249dd68121bfac9c021e5a644c7e",
+      "beforeBytes": 70408,
+      "afterSHA256": "79dde3d420fb6c21687437930751017e4872a813ced6d1a5e77afffd24cd6576",
+      "afterBytes": 70408
+    },
+    {
+      "path": "browser-client/gateway/session-launch-order.test.mjs",
+      "beforeSHA256": null,
+      "beforeBytes": null,
+      "afterSHA256": "3fad3c5e15d1ac297b5e0de8e9dafcd03b75ec9c3499f6c7de6c21a70778f752",
+      "afterBytes": 12011
+    },
+    {
+      "path": "browser-client/gateway/worker-sandbox.mjs",
+      "beforeSHA256": "8a936adad775e1b422fdb50390391336afe640843662d606af675952e780130f",
+      "beforeBytes": 13713,
+      "afterSHA256": "e7450d00ea046eba01e792ce5aa1bbe44655943ccaee528dd132e01006b4137a",
+      "afterBytes": 14376
+    },
+    {
+      "path": "browser-client/gateway/worker-sandbox.test.mjs",
+      "beforeSHA256": "adc7edd32bb7aac6a4d985108884118de1ad3857e12428b626e28faabbb6a333",
+      "beforeBytes": 17199,
+      "afterSHA256": "890336032ab241b16f6b80f2dd5c00bc210f7e35a5abdd69f8696792dc240618",
+      "afterBytes": 18595
+    },
+    {
+      "path": "browser-client/gateway/x11-readiness-stage.cpu.test.mjs",
+      "beforeSHA256": null,
+      "beforeBytes": null,
+      "afterSHA256": "4a718db5b29833fb31b07631fe5cd2d9a2276018aa6fe87092dbb71d1eea53e6",
+      "afterBytes": 8514
+    },
+    {
+      "path": "browser-client/tests/fixtures/capture-startup-runtime-v31-complete-source-manifest.json",
+      "beforeSHA256": null,
+      "beforeBytes": null,
+      "afterSHA256": "189a84148689f2a6342155457078255c8cb8f13bb7cc2632bdf1459de4067d7c",
+      "afterBytes": 346515
+    },
+    {
+      "path": "browser-client/tests/fixtures/capture-v30-startup-runtime-before.json.gz",
+      "beforeSHA256": null,
+      "beforeBytes": null,
+      "afterSHA256": "0639d013e67225cfc90404e3c4d36d11ebc473a8ba95fc5d25e183b60b48f0d5",
+      "afterBytes": 105866
+    },
+    {
+      "path": "browser-client/tests/fixtures/native-ignored-fbx-pixels.ts",
+      "beforeSHA256": "7c6e055d18afbcbde751647b9778768410ebc8543e5d0bdbbc9fe2b09c714e55",
+      "beforeBytes": 7301,
+      "afterSHA256": "2584429dfda183804772c567b9623ff3c9433af1db8bad24dbaad52b6963d1b8",
+      "afterBytes": 9292
+    },
+    {
+      "path": "browser-client/tests/integration/capture-avatar-consumption-source-fixture.mjs",
+      "beforeSHA256": "9d58b20726f49a62d294d1e248327d242104a40c08bbd60940abbb46b47a9425",
+      "beforeBytes": 6057,
+      "afterSHA256": "8cdb62db4553990e9e7358d0d891051299e5e79d9f6c22d91313c0cc9ecd008c",
+      "afterBytes": 6265
+    },
+    {
+      "path": "browser-client/tests/integration/capture-startup-runtime-source-fixture.mjs",
+      "beforeSHA256": null,
+      "beforeBytes": null,
+      "afterSHA256": "70ac2692e63bc86d6c4724538d52c50cae01d7245876153691c2587da661ef75",
+      "afterBytes": 7625
+    },
+    {
+      "path": "browser-client/tests/integration/native-ignored-fbx-pixels.mjs",
+      "beforeSHA256": "c5c1e0a8617d44bb6e7151b759450ddae8b083f0458a7917a9ec0087925a5d2a",
+      "beforeBytes": 8072,
+      "afterSHA256": "4d5f56fe9c3870cc9dbcecc8f4140d7edba526cbeb2da57c8d8f32be665f35c4",
+      "afterBytes": 8772
+    },
+    {
+      "path": "browser-client/tests/integration/prepare-tablet-capture-acceptance.mjs",
+      "beforeSHA256": "175a017fbb8707c364ba12c0279cb6e68ef36f9fcefc9becbe1a4a4a4e930dce",
+      "beforeBytes": 4597,
+      "afterSHA256": "b450355b8aa18bfc83a2e4c633829e6174eb923912af0072f3cde593a0382783",
+      "afterBytes": 4597
+    },
+    {
+      "path": "browser-client/tests/native-ignored-fbx-context-diagnostics.test.mjs",
+      "beforeSHA256": null,
+      "beforeBytes": null,
+      "afterSHA256": "f07623298966fadb5a787cd963ed0fc199f78e73a0d65f22fe03d8c0fbb6c627",
+      "afterBytes": 12389
+    },
+    {
+      "path": "browser-client/tests/native-ignored-fbx-diagnostics.test.mjs",
+      "beforeSHA256": "3796ff6c019e6d46886ba9f85c4aecdb5ac4bacaff90a810513861ccb2490f82",
+      "beforeBytes": 8088,
+      "afterSHA256": "76968e586122bb4e2bc7083d94bcc3f36edd8f87330fcc2f858bffc7d7d85381",
+      "afterBytes": 8314
+    },
+    {
+      "path": "browser-client/tests/tablet-capture-avatar-consumption-manifest.test.mjs",
+      "beforeSHA256": "435dcb030c7cf3ea00daa1d01ef04cedc30cfa20afae518cb7f13e56f1667ec3",
+      "beforeBytes": 9519,
+      "afterSHA256": "30ee2befd7c510cde1bde924213ce6932c7a344d2bd12b35565214b79643b0ef",
+      "afterBytes": 10008
+    },
+    {
+      "path": "browser-client/tests/tablet-capture-startup-runtime-manifest.test.mjs",
+      "beforeSHA256": null,
+      "beforeBytes": null,
+      "afterSHA256": "8757e994466dea5f1a74ad259946b904ed4e1b38a54741f61bf66c58ebbaba34",
+      "afterBytes": 11652
+    }
+  ],
+  "installationReceiptSHA256": "427d218c1d26f4f1e6b4feabb85f133780f65b21da820572363e9d9c7dea3b8b",
+  "frozenProposalSHA256": "fc313393c8d4218f9768314b63650ce646c333c99265bbb94cafb31805ae378a",
+  "focusedReplay": {
+    "passedCases": 271,
+    "failedCases": 0,
+    "skippedCases": 0,
+    "wholeSourceInverses": 16,
+    "receiptSHA256": "c6c99736266e69a9ed549e89d44cb833235f09cfbd04e7b9e24722c7a7046282",
+    "countsOverlapProductSuite": true
+  },
+  "startupCharacterization": {
+    "desiredCasesFailOriginal": 4,
+    "controlsPassOriginal": 5,
+    "correctedCasesPass": 9,
+    "existingAcknowledgementControlsPass": 52,
+    "actualHostedCauseEstablished": false
+  },
+  "sourceInventorySHA256": "3e36a398be727f7dfa858b07822f4d52970ae388291a5c851507731577ccfd85",
+  "sourceInventoryFiles": 9892,
+  "checks": [
+    {
+      "label": "product-unit-suite",
+      "command": [
+        "npm",
+        "test"
+      ],
+      "exitCode": 0,
+      "seconds": 29.637,
+      "logSHA256": "f2a910495c4f08ca9a8452d4e0175863f812bcff81552aaa80210032553c0819",
+      "counts": {
+        "tests": 3104,
+        "pass": 3104,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "sourceCoherent": true,
+      "scope": "Independent code gates only; original Native-liveness preflight remains failed; eight existing births and one missing row unchanged"
+    },
+    {
+      "label": "production-build",
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "exitCode": 0,
+      "seconds": 4.248,
+      "logSHA256": "dbe9f506aaec63af01b0a65f8967cfc967afd1e1cec0240022885d17bf131e83",
+      "counts": {},
+      "sourceCoherent": true,
+      "scope": "Independent code gates only; original Native-liveness preflight remains failed; eight existing births and one missing row unchanged"
+    },
+    {
+      "label": "embedded-fixture-build",
+      "command": [
+        "node",
+        "node_modules/vite/bin/vite.js",
+        "build",
+        "--config",
+        "vite.embedded.config.mjs",
+        "--configLoader",
+        "native"
+      ],
+      "exitCode": 0,
+      "seconds": 1.991,
+      "logSHA256": "f027d9e562c5cf5f645255d8e188d6d1a2d2478b360156e6a0c8f2af6bb842a8",
+      "counts": {},
+      "sourceCoherent": true,
+      "scope": "Independent code gates only; original Native-liveness preflight remains failed; eight existing births and one missing row unchanged"
+    },
+    {
+      "label": "embedded-world-build",
+      "command": [
+        "node",
+        "node_modules/vite/bin/vite.js",
+        "build",
+        "--config",
+        "vite.embedded-world.config.mjs",
+        "--configLoader",
+        "native"
+      ],
+      "exitCode": 0,
+      "seconds": 2.358,
+      "logSHA256": "5579b8797a493a62cf061f7c9e526f6ca4de476a59e10e26c8876ffa06109dc3",
+      "counts": {},
+      "sourceCoherent": true,
+      "scope": "Independent code gates only; original Native-liveness preflight remains failed; eight existing births and one missing row unchanged"
+    },
+    {
+      "label": "repository-quick",
+      "command": [
+        "python3",
+        "tests/run-project-tests.py",
+        "--profile",
+        "quick",
+        "--timeout",
+        "240"
+      ],
+      "exitCode": 0,
+      "seconds": 119.795,
+      "logSHA256": "223e575e7289f6236e7359c9141156879a108ade46bbffeab4d49531d37dfbc0",
+      "counts": {},
+      "sourceCoherent": true,
+      "scope": "Independent code gates only; original Native-liveness preflight remains failed; eight existing births and one missing row unchanged"
+    },
+    {
+      "label": "native-ignored-fixture-build",
+      "command": [
+        "node",
+        "node_modules/vite/bin/vite.js",
+        "build",
+        "--config",
+        "vite.native-ignored-fbx.config.mjs"
+      ],
+      "exitCode": 0,
+      "seconds": 2.324,
+      "logSHA256": "0f5a66917ced6ba949eaef11ca4c597c2dab0bdbd1f98b112abeb88ea616fbe8",
+      "sourceCoherent": true,
+      "scope": "Build only; no GPU runtime acceptance"
+    }
+  ],
+  "repositoryQuick": {
+    "passedSuites": 34,
+    "failedSuites": 0,
+    "wallSeconds": 119.795,
+    "logSHA256": "223e575e7289f6236e7359c9141156879a108ade46bbffeab4d49531d37dfbc0"
+  },
+  "productionBuild": {
+    "receiptSHA256": "eaf2c6e5d4f11a379fe41be1263aa82e5adef58d748df5990bc87b224bb317f9",
+    "files": 34,
+    "distribution": {
+      "dist/THIRD_PARTY_NOTICES.txt": {
+        "bytes": 20987,
+        "sha256": "5f3c7f3e6c5ff655fff812bad4c01699cd99cff693b215528c226c214e1b579a"
+      },
+      "dist/assets/FBXLoader-BczymW9Z.js": {
+        "bytes": 49918,
+        "sha256": "84ba03229134b90c9f136295b31e17a6ecbe841944892abe8976bed39bcfe676"
+      },
+      "dist/assets/FBXLoader-BczymW9Z.js.map": {
+        "bytes": 313206,
+        "sha256": "9c762c68a1d5516130bcf553bcf7690320bd7f8d0c031403f0643b07b50a10ec"
+      },
+      "dist/assets/GLTFLoader-DXE1F51K.js": {
+        "bytes": 43877,
+        "sha256": "2deb03a735b821272e2554d8f5094950f34e3534f983527f40894f1ac3aa2bb3"
+      },
+      "dist/assets/GLTFLoader-DXE1F51K.js.map": {
+        "bytes": 190241,
+        "sha256": "5599ac82a1e24a566904a9f184f8ee7a947d9e21e3e72f79ceb87753f405dd5c"
+      },
+      "dist/assets/OBJLoader-3HMsQr7x.js": {
+        "bytes": 8638,
+        "sha256": "c9a97a58c98b755aeaf84c92ecd62ac5a8a7ecd13ff8a0bb731270fa637623f4"
+      },
+      "dist/assets/OBJLoader-3HMsQr7x.js.map": {
+        "bytes": 39306,
+        "sha256": "c50bd6a1d384c796f04d7a15b032a6f5ad106139607d0fe711e5c3b373a85f7b"
+      },
+      "dist/assets/baked-draco-CTQGIgxv.js": {
+        "bytes": 125046,
+        "sha256": "c5f667faeb4a88fb9b1ee2b0919afdff21aa56bf1df5cadfe12fe392ed57ebfd"
+      },
+      "dist/assets/baked-draco-CTQGIgxv.js.map": {
+        "bytes": 1796272,
+        "sha256": "3b3c70a54b1db84c4aaa032fdb5f338a21af1a59ca18613d261766a286aa9f46"
+      },
+      "dist/assets/baked-draco-legacy-CMhlgON6.js": {
+        "bytes": 816324,
+        "sha256": "eb84ebc5eff49c7b0593382b07b23010897080f46b779ececdd515efcfb482d4"
+      },
+      "dist/assets/baked-draco-legacy-CMhlgON6.js.map": {
+        "bytes": 12654,
+        "sha256": "463d7b6f8dd5f569f2c0f68934aba0d1fba6c59745cf939732702f0e905afddb"
+      },
+      "dist/assets/draco_decoder-C32yEggz.wasm": {
+        "bytes": 285747,
+        "sha256": "c55a594e8ffd18426d36b27fea9618af3df5e173640a3e56d46f09d76f0574f2"
+      },
+      "dist/assets/draco_decoder-Z1_iN-Ht.wasm": {
+        "bytes": 192420,
+        "sha256": "a680d927bed9cb864ddbd63521868891af2bfbe755092761b4837487618df8ac"
+      },
+      "dist/assets/draco_decoder-fzg4nYZr.js": {
+        "bytes": 719410,
+        "sha256": "30e4d486fa020737af10e3c56197693e5b904bdc05b8bfa5d7b06751dec6da04"
+      },
+      "dist/assets/draco_wasm_wrapper-DxJM36Ib.js": {
+        "bytes": 58763,
+        "sha256": "e8049906ef3f8f75d3456c22a3f31bfdfe5b5b5bd09ccdec613b9e9a49d554d8"
+      },
+      "dist/assets/draco_wasm_wrapper-fZCQGLGb.js": {
+        "bytes": 58456,
+        "sha256": "8bb2952d2ba7d67e1414f8df819410cb0434a666be53f671fff75f68843d76f6"
+      },
+      "dist/assets/index-B2mAMfm4.css": {
+        "bytes": 5451,
+        "sha256": "cbf321b921d05ff91c3020a6ccffc91385eeebf223ea6ec0577c6354df12a521"
+      },
+      "dist/assets/index-BgHhUt_R.js": {
+        "bytes": 1077306,
+        "sha256": "3b0888601f0fbec41c52f2043b0d4414810aaead078e2f28972812590c86c45c"
+      },
+      "dist/assets/index-BgHhUt_R.js.map": {
+        "bytes": 4575073,
+        "sha256": "17690e570ed3714e19328ed223c339fc4da1aba7aa98cee01f00a99c64b3e30d"
+      },
+      "dist/assets/model-fbx-worker-BovrE8QR.js": {
+        "bytes": 828322,
+        "sha256": "ceb605678670c961bcfd13de192d2b9339363e242d526353e07bd8daf476fea9"
+      },
+      "dist/assets/model-fbx-worker-BovrE8QR.js.map": {
+        "bytes": 2558568,
+        "sha256": "ce1622036eda648b095c989dac04a6a4e4755d117836729b6857fb6625de67ce"
+      },
+      "dist/assets/tablet-gif.worker-DACjp6Cn.js": {
+        "bytes": 10409,
+        "sha256": "78ebb1c3db4d062dd4119c2cd86d201b7df2757fedf22a8993dd460fbb1057c8"
+      },
+      "dist/assets/tablet-gif.worker-DACjp6Cn.js.map": {
+        "bytes": 46076,
+        "sha256": "aaf983d36eb885c3b74db4bd97b83fef26bc21ae2203a77781389781141ddf8a"
+      },
+      "dist/assets/texture-alpha-worker-CBG2kYQR.js": {
+        "bytes": 2417,
+        "sha256": "f04f415ff39370ae4ab0268903ffaf6c86b9a7addeb0aed95d4a7948ee803485"
+      },
+      "dist/assets/texture-alpha-worker-CBG2kYQR.js.map": {
+        "bytes": 7635,
+        "sha256": "f48e806d67a554aba1960a23ab434a093c5ac7f00540615cf23ed1fff0586aeb"
+      },
+      "dist/default-avatar/LICENSE.txt": {
+        "bytes": 11201,
+        "sha256": "5ad0325b8da49619962642b1fbb20e35836343d6d568aa158e6723d5f5c38092"
+      },
+      "dist/default-avatar/defaultAvatar_full.fst": {
+        "bytes": 2544,
+        "sha256": "0519e02f2f3d6afe19f680dd824a29f14a3baa65acb06b87ace33b1836717c50"
+      },
+      "dist/default-avatar/manifest.json": {
+        "bytes": 1152,
+        "sha256": "b04f293cc0b79edf32c1c243f17f394e952ac5886b64913534a80a5a685de9d4"
+      },
+      "dist/default-avatar/mannequin/Eyes.png": {
+        "bytes": 22414,
+        "sha256": "e8be0da314bfa0e3ad7e0f9d2315dddc38f39510dd421c9edbafc5406086700d"
+      },
+      "dist/default-avatar/mannequin/lambert1_Base_Color.png": {
+        "bytes": 1229369,
+        "sha256": "70b544b69ea325ee03f726694d9392ea8a12ddc66d47559382d142da12b9bdc6"
+      },
+      "dist/default-avatar/mannequin/lambert1_Normal_OpenGL.png": {
+        "bytes": 1177174,
+        "sha256": "ead05dbdca83bc70c7546a3bd88ab2d58ccea85fed8f9f19b845cbfcd7b1fc05"
+      },
+      "dist/default-avatar/mannequin/lambert1_Roughness.png": {
+        "bytes": 522873,
+        "sha256": "2f3c696977e1a8bf888b107f4935c0b3e0dca1bee2540cec8f780228468771a8"
+      },
+      "dist/default-avatar/mannequin/mannequin.fbx": {
+        "bytes": 3655100,
+        "sha256": "e247f3342ff109e17f7ae90916f81935d17ff4f51f60c60908094bb4f38db7da"
+      },
+      "dist/index.html": {
+        "bytes": 2916,
+        "sha256": "4b32404d19b1ab6f2927a6597fc5a24da044453506e3e6ef9e80e2483bc40b8e"
+      }
+    }
+  },
+  "finiteSourceClosure": {
+    "previousRowsRetained": 265,
+    "currentRows": 272,
+    "migratedRows": 7,
+    "admittedRows": 7,
+    "expandedHistoryBytes": 493503,
+    "compressedHistoryBytes": 105866,
+    "expandedHistoryLimit": 524288,
+    "compressedHistoryLimit": 131072,
+    "heldReaderByteLimit": 262144,
+    "productionCurrentDigestsAccepted": 1,
+    "historicalReadersInProduction": false,
+    "historicalMicrophoneGuideRow": "Preserved old guide identity; current unchanged guide identity remains an explicitly documented exception, not an all-rows-current claim."
+  },
+  "preservedActualFailures": {
+    "featureCommitSHA": "c624d6976ee2c3769f9855b6bb64fb379e2982cd",
+    "automaticBrowserRun": 37203123522,
+    "singleOptInRun": 37203996072,
+    "nativeMovement": "Original 2800 ms native-to-browser assertion fails in both runs; later journey checkpoints unaccepted.",
+    "automaticPruning": "First background read reports CONTEXT_LOST_WEBGL 37442; failed-read backend and cause not established.",
+    "optInProduct": "Original worker private-Xvfb authentication times out within unchanged five-second readiness budget.",
+    "applicationCredit": "Current innerFlow2 does not observe matched application acknowledgements; physical callback success is insufficient."
+  },
+  "lifecycle": "Eight recorded live births and one missing registered Native remained unchanged. Original nine-service liveness preflight remains separately failed; no local service restart, healthy-nine claim or native/browser acceptance.",
+  "limitations": [
+    "New hosted exact-source browser/native gates pending.",
+    "X11 and context-loss additions observe bounded states; neither establishes or repairs the old failure cause.",
+    "Optional application-credit telemetry and private FST optimization overlay are excluded and uninstalled.",
+    "Full Tablet, Hub loading/fluidity, physical microphone and native feature parity remain open."
+  ]
+}

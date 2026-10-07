@@ -29,6 +29,10 @@ assert _policy_spec and _policy_spec.loader
 branch_policy = importlib.util.module_from_spec(_policy_spec)
 sys.modules[_policy_spec.name] = branch_policy
 _policy_spec.loader.exec_module(branch_policy)
+_tool_spec = importlib.util.spec_from_file_location(
+    "sync_tool_dependencies", ROOT / "tools/repository-checks/tool_dependencies.py")
+tool_dependencies = importlib.util.module_from_spec(_tool_spec)
+_tool_spec.loader.exec_module(tool_dependencies)
 
 
 class GateError(ValueError):
@@ -392,12 +396,27 @@ def classify_event(event: dict, config: dict, api: GitHubApi) -> SyncRequest | N
         and item.get("previous_filename", item["filename"]).endswith(".md")
         for item in changed_documents
     )
+    tool_only = False
+    if not repairs and tool_dependencies.affected_projects(list(changed)):
+        # Both sides must be regular blobs. Include rename sources in `changed`
+        # so an unrelated source/build path cannot disappear into this lane.
+        tool_only = True
+        for sha in (current_base, merge_sha):
+            _, tree = recursive_tree(api, repository, sha, error_type=GateError)
+            if any(path in tree and (tree[path]["mode"] != "100644" or tree[path]["type"] != "blob")
+                   for path in changed):
+                tool_only = False
+        if branch_sha(api, repository, base) != current_base or branch_sha(api, repository, parent) != current_parent:
+            raise GateError("target or parent head moved during tool manifest validation")
+    profile = "documentation" if doc_only and not repairs else edge["differential"]
+    if tool_only:
+        profile = "tool-dependencies"
     return SyncRequest(
         repository=repository, repository_id=repository_id, number=number,
         base=base, base_sha=current_base, head=head, head_sha=head_sha,
         head_repository_id=head_repository_id, merge_sha=merge_sha,
         classification="direct" if direct else "reconciliation", parent=parent,
-        parent_sha=current_parent, profile="documentation" if doc_only and not repairs else edge["differential"],
+        parent_sha=current_parent, profile=profile,
         changed_paths=changed, parent_changed_paths=tuple(sorted(parent_delta)),
         repair_paths=repairs,
     )
@@ -564,6 +583,8 @@ def inspect(args: argparse.Namespace) -> int:
         mode, reason = "fallback", "attested product repair requires complete fallback"
     elif request.profile == "documentation":
         reason = "documentation-only delta; no executable inputs require qualification"
+    elif request.profile == "tool-dependencies":
+        reason = "bounded tool manifest delta; affected tool checks required"
     else:
         try:
             evidence = verify_evidence(api, config, request)

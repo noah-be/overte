@@ -1,0 +1,28 @@
+[
+  {
+    "filename": "Overte-2026.04.1-x86_64.AppImage",
+    "url": "https://public.overte.org/build/overte/release/2026.04.1/Overte-2026.04.1-x86_64.AppImage",
+    "sha256": "dc39f5b4694a1c48cfb1454a8922f6a25fa4db5820bf937113ebf4086aa99145"
+  },
+  {
+    "filename": "overte-server-2026.04.1.f91d15a-1.fc42.x86_64.rpm",
+    "url": "https://public.overte.org/build/overte/release/2026.04.1/overte-server-2026.04.1.f91d15a-1.fc42.x86_64.rpm",
+    "sha256": "ecdabd358454b88dc669047fd1866b63114792280b331e48850a3c063464b2ae"
+  },
+  {
+    "filename": "pulseaudio-17.0-9.fc44.x86_64.rpm",
+    "sha256": "556318f10157bd652a8bbc8d1dac647692c265fc5d8d62c565cb22aac90f4c37"
+  },
+  {
+    "filename": "pulseaudio-libs-17.0-9.fc44.x86_64.rpm",
+    "sha256": "a0cb8816a5694ee5e50e23c8f1233fc9c3a683b137d6c2f0fdb37309392524b4"
+  },
+  {
+    "filename": "xorg-x11-server-Xvfb-21.1.24-1.fc44.x86_64.rpm",
+    "sha256": "32ec1cc4d345055fe7aed63e3404cfef26bc219f89006a39acf24225b7c1f998"
+  },
+  {
+    "filename": "speexdsp-1.2.1-10.fc44.x86_64.rpm",
+    "sha256": "e6dc391d83edf0f0e0665432c9d7237b8a882a261d501ab689af098f02693167"
+  }
+]

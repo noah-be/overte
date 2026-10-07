@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "scope": "Failed additional synthetic-audio cohorts; actual preceding reciprocal geometry gates preserved",
+  "cohorts": [
+    {
+      "engine": "chromium",
+      "browserVersion": "154.0.8037.57",
+      "durationSeconds": 73.407,
+      "rawReportSHA256": "7129617ac6c53faa7b5333370468e49b15733379942b2c423e46fdc10d991845",
+      "completed": false,
+      "sourceCoherent": true,
+      "cleanupVerified": true,
+      "reciprocalGeometryAcceptance": true,
+      "syntheticAudioAcceptance": false,
+      "failureCategory": "microphone-click-intercepted-by-open-tablet",
+      "scope": "Actual A and B raw peer omissions, attached remote geometry removal and fresh restoration passed before the additional synthetic cycle; no voice/hardware/native-pixel claim"
+    },
+    {
+      "engine": "firefox",
+      "browserVersion": "firefox/156.0",
+      "durationSeconds": 47.922,
+      "rawReportSHA256": "ae16e78d90a6eee3c3b699f08ef3488e644f1f0fa17840b05c65a890a31a0446",
+      "completed": false,
+      "sourceCoherent": true,
+      "cleanupVerified": true,
+      "reciprocalGeometryAcceptance": true,
+      "syntheticAudioAcceptance": false,
+      "failureCategory": "cleanup-failure-masks-primary-error",
+      "scope": "Actual A and B raw peer omissions, attached remote geometry removal and fresh restoration passed before the additional synthetic cycle; no voice/hardware/native-pixel claim"
+    }
+  ],
+  "shippingQmlUnchanged": true,
+  "ownedAuditGatewayStopped": true,
+  "nextStep": "Close the genuine modal Tablet before ordinary microphone controls, reopen the same native page for Ignore, and preserve primary errors and bounded scalar audio checkpoints; original gates remain unchanged"
+}

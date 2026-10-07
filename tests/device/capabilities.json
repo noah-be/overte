@@ -160,6 +160,10 @@
     "text.type": {
       "operation": "text.type",
       "result": "{performed: true}; arguments: {text: bounded Unicode string, backspaceCount: integer 0..32, submit: boolean}; use the target's real text-input path"
+    },
+    "voice.exchange": {
+      "operation": "voice.exchange",
+      "result": "Voice test contract v1: execute a bounded native test-build command and return the exact fresh result; captured PCM is private and transient."
     }
   }
 }

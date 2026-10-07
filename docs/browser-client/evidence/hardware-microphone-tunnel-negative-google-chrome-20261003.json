@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "scope": "Retained84178 tunnel readiness failure, actual cause unknown; no real capture qualification",
+  "summarySHA256": "d97140d85cbf18e5bc88c869bdc106191edb3495efd5c48e4926e1c9510ee5fd",
+  "failureSHA256": "d57083123acdfc1f5230664c7d618a695f561feccc37d21a921545be1e2a113a",
+  "pulseLogSHA256": "59050b55fc3e70928e64b6a54299b5bc1abaaa8a4286f94f88371313b5d99382",
+  "pulseLogBytes": 439,
+  "pulseLogRows": 4,
+  "fixedLoggerComponents": {
+    "main.c": 3,
+    "server-lookup.c": 1
+  },
+  "moduleTunnelLoggerRows": 0,
+  "normalLevelModuleLoadOrInitFailureRows": 0,
+  "observedStage": "tunnel",
+  "observedFailure": "tunnel-readiness-refused",
+  "hardwareMicrophoneQualified": false,
+  "actualChromeObserved": false,
+  "nativeModuleObserved": false,
+  "startupReceiptAuthenticated": false,
+  "cleanup": true,
+  "cleanupFailures": 0,
+  "privateCookieRetired": true,
+  "localReadinessMetadataRetained": false,
+  "retiredStartupScriptStillExists": false,
+  "original32501Cause": "unobserved",
+  "new84178Cause": "unobserved",
+  "pulseVersionSource": "17.0",
+  "tunnelPrimarySourceSHA256": "544c831d5f0db5c1dfb7e2ff56baea47bba30358e60c6996b22eec9516b9aa6d"
+}

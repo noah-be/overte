@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 1,
+  "scope": "Exact published source qualification and retained negative evidence; no product completion",
+  "testedFeatureCommit": "9e5e020210d312407fd67514d2a2811039eb675d",
+  "repository": "noah-be/overte",
+  "automatic": {
+    "run": 37180320361,
+    "browserJob": 111371405085,
+    "nativeJob": 111371404934,
+    "workflow": "failure",
+    "product": {
+      "tests": 2874,
+      "pass": 2874,
+      "fail": 0,
+      "skip": 0
+    },
+    "embedded": "failed",
+    "nativeCore": "failed",
+    "ownedStop": "passed",
+    "trustedContextLoss": {
+      "phase": "gpu-loop",
+      "firstDirectDrawAlreadyLost": true,
+      "observedRelativeMilliseconds": 34,
+      "causeEstablished": false
+    }
+  },
+  "explicitSoftwareComparison": {
+    "run": 37180436175,
+    "browserJob": 111371748411,
+    "nativeJob": 111371748273,
+    "workflow": "failure",
+    "browserJobResult": "success",
+    "product": {
+      "tests": 2874,
+      "pass": 2874,
+      "fail": 0,
+      "skip": 0
+    },
+    "actualChromeUI": {
+      "tests": 130,
+      "pass": 130,
+      "fail": 0,
+      "skip": 0
+    },
+    "originalEmbeddedAssertions": {
+      "completed": true,
+      "cpuRGBA": [
+        255,
+        0,
+        0,
+        255
+      ],
+      "gpuRGBA": [
+        255,
+        0,
+        0,
+        255
+      ],
+      "textureUploads": 1,
+      "assertionFrames": 20,
+      "upstreamRequests": 1,
+      "independentSamplers": true,
+      "actualModelCancellation": true
+    },
+    "requestedGraphicsMode": "swiftshader-requested",
+    "reportedBackendClass": "ANGLE/SwiftShader",
+    "nativeCore": "failed",
+    "ownedStop": "failed",
+    "ownedStopCategory": "managed-child-ancestry-changed",
+    "originalStopDeadlineSeconds": 3,
+    "topologyAndHostedCauseEstablished": false
+  },
+  "forwardingObservation": {
+    "distinctTargetBearingGatewayWitnesses": 4,
+    "browserSocket": "open",
+    "bufferedBytes": 4211892,
+    "originalAdmissionLimitBytes": 4194304,
+    "writeInvoked": false,
+    "writeReturnAccepted": null,
+    "latestSelectedSocketOrdinal": 1,
+    "selectedIsLatestCreated": true,
+    "initialBufferOriginEstablished": false,
+    "sameEnvelopeCorrelationEstablished": false,
+    "remoteReceiptEstablished": false
+  },
+  "otherCurrentHostedGates": {
+    "repositoryRun": 37180390765,
+    "repository": "success",
+    "codeqlRun": 37180320286,
+    "codeql": "success"
+  },
+  "limits": [
+    "One positive software comparison does not establish driver/kernel/policy cause or general rendering repair.",
+    "Thirteen graphics source hashes and fourteen runtime avatar source hashes authenticate named producers, not the complete merge tree or compiled distribution.",
+    "The native target reached its commanded position; browser movement synchronization still fails.",
+    "The new managed ancestry refusal remains a genuine hosted negative until fresh corrected-source actual stop qualification.",
+    "The local registered Native absence is separate; no existing services or registry were repaired.",
+    "Tablet, public Hub fluidness, physical microphone and full native-client parity remain unfinished."
+  ]
+}

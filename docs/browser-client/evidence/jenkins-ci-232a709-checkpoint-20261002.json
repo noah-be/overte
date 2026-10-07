@@ -1,0 +1,191 @@
+{
+  "schemaVersion": 1,
+  "materialAIAssistance": "OpenAI Codex",
+  "repository": "noah-be/overte",
+  "sourceSHA": "232a7093ab522b1812ca8eef60287af12c593559",
+  "job": "overte-browser-native-ci",
+  "buildNumber": 7,
+  "terminal": "FAILURE",
+  "executedStages": 19,
+  "passedStages": 18,
+  "skippedStages": 0,
+  "stages": [
+    {
+      "stage": "production-build",
+      "passed": true,
+      "durationSeconds": 3.013,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "unit-isolation-contracts",
+      "passed": true,
+      "durationSeconds": 11.119,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "actual-qt-input",
+      "passed": true,
+      "durationSeconds": 7.525,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "fbx-worker-chromium",
+      "passed": true,
+      "durationSeconds": 3.516,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "fbx-worker-firefox",
+      "passed": true,
+      "durationSeconds": 4.823,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "vite-embedded-config-mjs",
+      "passed": true,
+      "durationSeconds": 1.21,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "vite-embedded-world-config-mjs",
+      "passed": true,
+      "durationSeconds": 1.413,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "embedded-world",
+      "passed": true,
+      "durationSeconds": 7.226,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "browser-renderer",
+      "passed": true,
+      "durationSeconds": 428.821,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "test_host_tools-py",
+      "passed": true,
+      "durationSeconds": 0.704,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "test_curate_core_journey-py",
+      "passed": true,
+      "durationSeconds": 0.101,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "test_manage_state-py",
+      "passed": true,
+      "durationSeconds": 0.306,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "normal-native-preflight",
+      "passed": true,
+      "durationSeconds": 0.802,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "start-real-domain-native-gateway",
+      "passed": true,
+      "durationSeconds": 19.581,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "native-core-chromium",
+      "passed": false,
+      "durationSeconds": 28.455,
+      "exitCode": 1,
+      "failureCategory": null
+    },
+    {
+      "stage": "native-core-firefox",
+      "passed": true,
+      "durationSeconds": 77.495,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "source-immutability",
+      "passed": true,
+      "durationSeconds": 0.102,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "owned-lab-cleanup",
+      "passed": true,
+      "durationSeconds": 10.36,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "curate-native-core",
+      "passed": true,
+      "durationSeconds": 0.101,
+      "exitCode": 0,
+      "failureCategory": null
+    }
+  ],
+  "gateSummaryRawSHA256": "a562a684802fb04768b99bb147d4207d61335234263b3565713a950f9946d9ca",
+  "chromiumJourneyRawSHA256": "7957b745749fc4800f476cbffd9ec316c8d794dffbc29b1657bb5bf4e49f8a59",
+  "firefoxCuratedSHA256": "7e99c0ba818347855070d4dbacb554319f1ca5733e5f423c6ba0783d4d4b6bd3",
+  "nativePeerMovementDiagnostic": {
+    "browser": {
+      "snapshotPresent": true,
+      "snapshotAgeMs": 1,
+      "avatarCount": 2,
+      "peerCount": 1,
+      "fixtureNameMatchCount": 1,
+      "peerProjectionTruncated": false,
+      "peers": [
+        {
+          "fixtureNameMatch": true,
+          "targetDistance": 1.4142135623730958
+        }
+      ]
+    },
+    "native": {
+      "status": "read",
+      "commandSequenceMatched": true,
+      "commandAppliedAtMs": 1790907147894,
+      "commandAppliedAgeMs": 2893,
+      "commandTargetDistance": 0,
+      "observationPresent": true,
+      "observationAtMs": 1790907149391,
+      "observationAgeMs": 1396,
+      "observationAfterCommand": true,
+      "observationTargetDistance": 4.768371586472142e-08,
+      "bytesRead": 102411,
+      "tailTruncated": false
+    }
+  },
+  "ownedRegistryEmpty": true,
+  "hardwareSpeechTested": false,
+  "endurance": "canceled by the user; omitted",
+  "limits": [
+    "The original Chromium second-participant movement assertion fails after the unchanged2800ms delay",
+    "The original captured browser snapshot arrives1ms before capture and matches the fixture name, but its position is the old target",
+    "Independent native command/readback is already at the requested target; internally aged gateway sampling versus native transmission/receipt remains to be distinguished",
+    "Browser/World cache and fixture-name mismatch are not supported by this capture",
+    "Firefox eighteen-checkpoint synthetic-voice journey completes; its fixed peer command repeats the prior target, so it does not establish fresh peer movement after the Chromium failure",
+    "No complete nineteen-gate CI acceptance or physical-microphone/public-Hub performance inference"
+  ]
+}

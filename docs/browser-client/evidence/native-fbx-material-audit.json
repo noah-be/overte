@@ -1,0 +1,791 @@
+{
+  "schemaVersion": 1,
+  "scope": "Actual shipping native CPU FBX parser and graphics material values; no GPU, texture loading, browser visibility or network proof",
+  "started": "2026-10-01T00:20:09.304+00:00",
+  "completed": "2026-10-01T00:20:12.684+00:00",
+  "headerRevision": "f91d15a08587dcd37c642234424b3215dd331724",
+  "headerCount": 906,
+  "abiDefines": [
+    "GLM_FORCE_CTOR_INIT",
+    "GLM_FORCE_RADIANS",
+    "GLM_ENABLE_EXPERIMENTAL"
+  ],
+  "compiler": "g++ (GCC) 16.2.1 20260819 (Red Hat 16.2.1-2)",
+  "sourceHashes": {
+    "audit-native-fbx.cpp": "3a33d4dda82c448fe92c505ce964f3c0c23d71a69cdb9f2a1a11aa937b55fefe",
+    "audit-native-fbx.py": "a7e19781d79f7f68afc25bf3f83312e7986f594c731b25029be6d1c384122e9a"
+  },
+  "nativeLibraryHashes": {
+    "libmodel-serializers.so": "310a4523168ebcd4b2b7149c881773197caa92bc158a6381acbc1ecc3a050f81",
+    "libhfm.so": "abc8af44118c6de0aff44c4486386835c3de455aa53168d9f8fee998bf7c2b7c",
+    "libgraphics.so": "7b33325f9c2da8ac55ed435522ab8b769096f55fb36fa809eac247c627bcabc7",
+    "libQt5Core.so.5": "7d17398326dd44b442d2ea9f3b28d37ed5dbc71766ee13591a8816c4ddecbc66"
+  },
+  "negativeControlChecksPassed": 6,
+  "inputs": [
+    {
+      "label": "default-mannequin",
+      "kind": "operator-reviewed-native-FBX",
+      "bytes": 3655100,
+      "sha256": "e247f3342ff109e17f7ae90916f81935d17ff4f51f60c60908094bb4f38db7da",
+      "started": "2026-10-01T00:20:12.281+00:00",
+      "completed": "2026-10-01T00:20:12.356+00:00",
+      "exitCode": 0,
+      "contractChecksPassed": true,
+      "result": {
+        "glmVersion": 995,
+        "materials": [
+          {
+            "albedoTexture": "StingrayPBS10_Base_Color.png",
+            "diffuse": [
+              1,
+              1,
+              1
+            ],
+            "diffuseFactor": 1,
+            "effectiveAlbedoSRGB": [
+              1,
+              1,
+              1
+            ],
+            "effectiveMetallic": 0,
+            "effectiveOpacity": 1,
+            "effectiveRoughness": 0.33000001311302185,
+            "metallic": 0,
+            "metallicTexture": "",
+            "name": "StingrayPBS10",
+            "opacity": 1,
+            "opacityTexture": "StingrayPBS10_Base_Color.png",
+            "pbs": true,
+            "roughness": 0.33000001311302185,
+            "roughnessTexture": "lambert1_Roughness.png",
+            "useAlbedoMapDebug": true,
+            "useRoughnessMapDebug": true
+          },
+          {
+            "albedoTexture": "",
+            "diffuse": [
+              0.5,
+              0.5,
+              0.5
+            ],
+            "diffuseFactor": 0.800000011920929,
+            "effectiveAlbedoSRGB": [
+              0.40000611543655396,
+              0.40000611543655396,
+              0.40000611543655396
+            ],
+            "effectiveMetallic": 0.019999999552965164,
+            "effectiveOpacity": 1,
+            "effectiveRoughness": 0.7699999809265137,
+            "metallic": 0,
+            "metallicTexture": "",
+            "name": "lambert1",
+            "opacity": 1,
+            "opacityTexture": "",
+            "pbs": false,
+            "roughness": 1,
+            "roughnessTexture": "",
+            "useAlbedoMapDebug": false,
+            "useRoughnessMapDebug": false
+          },
+          {
+            "albedoTexture": "Eyes.png",
+            "diffuse": [
+              1,
+              1,
+              1
+            ],
+            "diffuseFactor": 1,
+            "effectiveAlbedoSRGB": [
+              1,
+              1,
+              1
+            ],
+            "effectiveMetallic": 0.5,
+            "effectiveOpacity": 1,
+            "effectiveRoughness": 1,
+            "metallic": 0.5,
+            "metallicTexture": "",
+            "name": "phong2",
+            "opacity": 1,
+            "opacityTexture": "Eyes.png",
+            "pbs": true,
+            "roughness": 1,
+            "roughnessTexture": "",
+            "useAlbedoMapDebug": false,
+            "useRoughnessMapDebug": false
+          }
+        ],
+        "meshes": 2,
+        "qtVersion": "5.15.3"
+      }
+    },
+    {
+      "label": "kim",
+      "kind": "operator-reviewed-native-FBX",
+      "bytes": 3062028,
+      "sha256": "9234bbeaa13b09bdeafb3e0b811da7427d245f278a50470b01af569adb56670f",
+      "started": "2026-10-01T00:20:12.356+00:00",
+      "completed": "2026-10-01T00:20:12.492+00:00",
+      "exitCode": 0,
+      "contractChecksPassed": true,
+      "result": {
+        "glmVersion": 995,
+        "materials": [
+          {
+            "albedoTexture": "Nails_03.png",
+            "diffuse": [
+              1,
+              1,
+              1
+            ],
+            "diffuseFactor": 1,
+            "effectiveAlbedoSRGB": [
+              1,
+              1,
+              1
+            ],
+            "effectiveMetallic": 0,
+            "effectiveOpacity": 1,
+            "effectiveRoughness": 1,
+            "metallic": 0,
+            "metallicTexture": "",
+            "name": "Nails_03_NRM_material",
+            "opacity": 0,
+            "opacityTexture": "Nails_03.png",
+            "pbs": false,
+            "roughness": 1,
+            "roughnessTexture": "",
+            "useAlbedoMapDebug": false,
+            "useRoughnessMapDebug": false
+          },
+          {
+            "albedoTexture": "bluegreen_eye.png",
+            "diffuse": [
+              1,
+              1,
+              1
+            ],
+            "diffuseFactor": 1,
+            "effectiveAlbedoSRGB": [
+              1,
+              1,
+              1
+            ],
+            "effectiveMetallic": 0,
+            "effectiveOpacity": 1,
+            "effectiveRoughness": 0.21764707565307617,
+            "metallic": 0,
+            "metallicTexture": "",
+            "name": "bluegreen_eye_material",
+            "opacity": 0,
+            "opacityTexture": "bluegreen_eye.png",
+            "pbs": false,
+            "roughness": 1,
+            "roughnessTexture": "",
+            "useAlbedoMapDebug": false,
+            "useRoughnessMapDebug": false
+          },
+          {
+            "albedoTexture": "braid01_diffuse_brightginger.png",
+            "diffuse": [
+              1,
+              1,
+              1
+            ],
+            "diffuseFactor": 1,
+            "effectiveAlbedoSRGB": [
+              1,
+              1,
+              1
+            ],
+            "effectiveMetallic": 0,
+            "effectiveOpacity": 1,
+            "effectiveRoughness": 1,
+            "metallic": 0,
+            "metallicTexture": "",
+            "name": "braid01_diffuse_brightginger_material",
+            "opacity": 0,
+            "opacityTexture": "braid01_diffuse_brightginger.png",
+            "pbs": false,
+            "roughness": 1,
+            "roughnessTexture": "",
+            "useAlbedoMapDebug": false,
+            "useRoughnessMapDebug": false
+          },
+          {
+            "albedoTexture": "eyebrow002.png",
+            "diffuse": [
+              1,
+              1,
+              1
+            ],
+            "diffuseFactor": 1,
+            "effectiveAlbedoSRGB": [
+              1,
+              1,
+              1
+            ],
+            "effectiveMetallic": 0,
+            "effectiveOpacity": 1,
+            "effectiveRoughness": 1,
+            "metallic": 0,
+            "metallicTexture": "",
+            "name": "eyebrow002_material",
+            "opacity": 0,
+            "opacityTexture": "eyebrow002.png",
+            "pbs": false,
+            "roughness": 1,
+            "roughnessTexture": "",
+            "useAlbedoMapDebug": false,
+            "useRoughnessMapDebug": false
+          },
+          {
+            "albedoTexture": "eyelashes04.png",
+            "diffuse": [
+              1,
+              1,
+              1
+            ],
+            "diffuseFactor": 1,
+            "effectiveAlbedoSRGB": [
+              1,
+              1,
+              1
+            ],
+            "effectiveMetallic": 0,
+            "effectiveOpacity": 1,
+            "effectiveRoughness": 1,
+            "metallic": 0,
+            "metallicTexture": "",
+            "name": "eyelashes04_material",
+            "opacity": 0,
+            "opacityTexture": "eyelashes04.png",
+            "pbs": false,
+            "roughness": 1,
+            "roughnessTexture": "",
+            "useAlbedoMapDebug": false,
+            "useRoughnessMapDebug": false
+          },
+          {
+            "albedoTexture": "lacechoker.png",
+            "diffuse": [
+              1,
+              1,
+              1
+            ],
+            "diffuseFactor": 1,
+            "effectiveAlbedoSRGB": [
+              1,
+              1,
+              1
+            ],
+            "effectiveMetallic": 0,
+            "effectiveOpacity": 1,
+            "effectiveRoughness": 1,
+            "metallic": 0,
+            "metallicTexture": "",
+            "name": "lacechoker_material",
+            "opacity": 0,
+            "opacityTexture": "lacechoker.png",
+            "pbs": false,
+            "roughness": 1,
+            "roughnessTexture": "",
+            "useAlbedoMapDebug": false,
+            "useRoughnessMapDebug": false
+          },
+          {
+            "albedoTexture": "offshoulder_top.png",
+            "diffuse": [
+              1,
+              1,
+              1
+            ],
+            "diffuseFactor": 1,
+            "effectiveAlbedoSRGB": [
+              1,
+              1,
+              1
+            ],
+            "effectiveMetallic": 0,
+            "effectiveOpacity": 1,
+            "effectiveRoughness": 1,
+            "metallic": 0,
+            "metallicTexture": "",
+            "name": "offshoulder_top_normals_material",
+            "opacity": 0,
+            "opacityTexture": "offshoulder_top.png",
+            "pbs": false,
+            "roughness": 1,
+            "roughnessTexture": "",
+            "useAlbedoMapDebug": false,
+            "useRoughnessMapDebug": false
+          },
+          {
+            "albedoTexture": "teeth.png",
+            "diffuse": [
+              1,
+              1,
+              1
+            ],
+            "diffuseFactor": 1,
+            "effectiveAlbedoSRGB": [
+              1,
+              1,
+              1
+            ],
+            "effectiveMetallic": 0,
+            "effectiveOpacity": 1,
+            "effectiveRoughness": 0.9823529124259949,
+            "metallic": 0,
+            "metallicTexture": "",
+            "name": "teeth_material",
+            "opacity": 0,
+            "opacityTexture": "teeth.png",
+            "pbs": false,
+            "roughness": 1,
+            "roughnessTexture": "",
+            "useAlbedoMapDebug": false,
+            "useRoughnessMapDebug": false
+          },
+          {
+            "albedoTexture": "tightjeans.png",
+            "diffuse": [
+              1,
+              1,
+              1
+            ],
+            "diffuseFactor": 1,
+            "effectiveAlbedoSRGB": [
+              1,
+              1,
+              1
+            ],
+            "effectiveMetallic": 0,
+            "effectiveOpacity": 1,
+            "effectiveRoughness": 1,
+            "metallic": 0,
+            "metallicTexture": "",
+            "name": "tightjeans_material",
+            "opacity": 0,
+            "opacityTexture": "tightjeans.png",
+            "pbs": false,
+            "roughness": 1,
+            "roughnessTexture": "",
+            "useAlbedoMapDebug": false,
+            "useRoughnessMapDebug": false
+          },
+          {
+            "albedoTexture": "tongue01_diffuse.png",
+            "diffuse": [
+              0.6000000238418579,
+              0.6000000238418579,
+              0.6000000238418579
+            ],
+            "diffuseFactor": 1,
+            "effectiveAlbedoSRGB": [
+              0.6000049710273743,
+              0.6000049710273743,
+              0.6000049710273743
+            ],
+            "effectiveMetallic": 0,
+            "effectiveOpacity": 1,
+            "effectiveRoughness": 0.9823529124259949,
+            "metallic": 0,
+            "metallicTexture": "",
+            "name": "tongue01_diffuse_material",
+            "opacity": 0,
+            "opacityTexture": "tongue01_diffuse.png",
+            "pbs": false,
+            "roughness": 1,
+            "roughnessTexture": "",
+            "useAlbedoMapDebug": false,
+            "useRoughnessMapDebug": false
+          },
+          {
+            "albedoTexture": "winterboots.png",
+            "diffuse": [
+              1,
+              1,
+              1
+            ],
+            "diffuseFactor": 1,
+            "effectiveAlbedoSRGB": [
+              1,
+              1,
+              1
+            ],
+            "effectiveMetallic": 0,
+            "effectiveOpacity": 1,
+            "effectiveRoughness": 1,
+            "metallic": 0,
+            "metallicTexture": "",
+            "name": "winterboots_material",
+            "opacity": 0,
+            "opacityTexture": "winterboots.png",
+            "pbs": false,
+            "roughness": 1,
+            "roughnessTexture": "",
+            "useAlbedoMapDebug": false,
+            "useRoughnessMapDebug": false
+          },
+          {
+            "albedoTexture": "young_lightskinned_female_diffuse3.png",
+            "diffuse": [
+              1,
+              1,
+              1
+            ],
+            "diffuseFactor": 1,
+            "effectiveAlbedoSRGB": [
+              1,
+              1,
+              1
+            ],
+            "effectiveMetallic": 0,
+            "effectiveOpacity": 1,
+            "effectiveRoughness": 1,
+            "metallic": 0,
+            "metallicTexture": "",
+            "name": "young_lightskinned_female_diffuse3_material",
+            "opacity": 0,
+            "opacityTexture": "young_lightskinned_female_diffuse3.png",
+            "pbs": false,
+            "roughness": 1,
+            "roughnessTexture": "",
+            "useAlbedoMapDebug": false,
+            "useRoughnessMapDebug": false
+          }
+        ],
+        "meshes": 12,
+        "qtVersion": "5.15.3"
+      }
+    },
+    {
+      "label": "factor-after-color",
+      "kind": "synthetic-raw-FBX-contract",
+      "bytes": 674,
+      "sha256": "5a46134fa93adf2e975300e03354d51985182638df1c2e704857dbbf1ce46fac",
+      "started": "2026-10-01T00:20:12.492+00:00",
+      "completed": "2026-10-01T00:20:12.523+00:00",
+      "exitCode": 0,
+      "contractChecksPassed": true,
+      "result": {
+        "glmVersion": 995,
+        "materials": [
+          {
+            "albedoTexture": "factor.png",
+            "diffuse": [
+              0.20000000298023224,
+              0.4000000059604645,
+              0.6000000238418579
+            ],
+            "diffuseFactor": 0.5,
+            "effectiveAlbedoSRGB": [
+              0.10000474005937576,
+              0.20000573992729187,
+              0.3000061810016632
+            ],
+            "effectiveMetallic": 0.019999999552965164,
+            "effectiveOpacity": 1,
+            "effectiveRoughness": 0.7699999809265137,
+            "metallic": 0,
+            "metallicTexture": "",
+            "name": "Audit",
+            "opacity": 0,
+            "opacityTexture": "",
+            "pbs": false,
+            "roughness": 1,
+            "roughnessTexture": "",
+            "useAlbedoMapDebug": false,
+            "useRoughnessMapDebug": false
+          }
+        ],
+        "meshes": 0,
+        "qtVersion": "5.15.3"
+      }
+    },
+    {
+      "label": "color-after-factor",
+      "kind": "synthetic-raw-FBX-contract",
+      "bytes": 674,
+      "sha256": "114f3f7878f911be323f39223f3cc29e0e554de8a4a229d7bc06c43b594c1d9f",
+      "started": "2026-10-01T00:20:12.523+00:00",
+      "completed": "2026-10-01T00:20:12.555+00:00",
+      "exitCode": 0,
+      "contractChecksPassed": true,
+      "result": {
+        "glmVersion": 995,
+        "materials": [
+          {
+            "albedoTexture": "color.png",
+            "diffuse": [
+              0.20000000298023224,
+              0.4000000059604645,
+              0.6000000238418579
+            ],
+            "diffuseFactor": 0.5,
+            "effectiveAlbedoSRGB": [
+              0.10000474005937576,
+              0.20000573992729187,
+              0.3000061810016632
+            ],
+            "effectiveMetallic": 0.019999999552965164,
+            "effectiveOpacity": 1,
+            "effectiveRoughness": 0.7699999809265137,
+            "metallic": 0,
+            "metallicTexture": "",
+            "name": "Audit",
+            "opacity": 0,
+            "opacityTexture": "",
+            "pbs": false,
+            "roughness": 1,
+            "roughnessTexture": "",
+            "useAlbedoMapDebug": false,
+            "useRoughnessMapDebug": false
+          }
+        ],
+        "meshes": 0,
+        "qtVersion": "5.15.3"
+      }
+    },
+    {
+      "label": "factor-only",
+      "kind": "synthetic-raw-FBX-contract",
+      "bytes": 643,
+      "sha256": "f5f7497c52f654c1c214c504d403a030128f3f2c64e5891e12e580fe3086f25e",
+      "started": "2026-10-01T00:20:12.555+00:00",
+      "completed": "2026-10-01T00:20:12.588+00:00",
+      "exitCode": 0,
+      "contractChecksPassed": true,
+      "result": {
+        "glmVersion": 995,
+        "materials": [
+          {
+            "albedoTexture": "factor.png",
+            "diffuse": [
+              0.20000000298023224,
+              0.4000000059604645,
+              0.6000000238418579
+            ],
+            "diffuseFactor": 0.5,
+            "effectiveAlbedoSRGB": [
+              0.10000474005937576,
+              0.20000573992729187,
+              0.3000061810016632
+            ],
+            "effectiveMetallic": 0.019999999552965164,
+            "effectiveOpacity": 1,
+            "effectiveRoughness": 0.7699999809265137,
+            "metallic": 0,
+            "metallicTexture": "",
+            "name": "Audit",
+            "opacity": 0,
+            "opacityTexture": "",
+            "pbs": false,
+            "roughness": 1,
+            "roughnessTexture": "",
+            "useAlbedoMapDebug": false,
+            "useRoughnessMapDebug": false
+          }
+        ],
+        "meshes": 0,
+        "qtVersion": "5.15.3"
+      }
+    },
+    {
+      "label": "pbs-alpha-overrides-other",
+      "kind": "synthetic-raw-FBX-contract",
+      "bytes": 722,
+      "sha256": "9388aaab5e9df742146e77d11bb71febbf2bdb234c8ba8f341e59ebe3de0110b",
+      "started": "2026-10-01T00:20:12.588+00:00",
+      "completed": "2026-10-01T00:20:12.621+00:00",
+      "exitCode": 0,
+      "contractChecksPassed": true,
+      "result": {
+        "glmVersion": 995,
+        "materials": [
+          {
+            "albedoTexture": "color.png",
+            "diffuse": [
+              0.20000000298023224,
+              0.4000000059604645,
+              0.6000000238418579
+            ],
+            "diffuseFactor": 0.5,
+            "effectiveAlbedoSRGB": [
+              0.10000474005937576,
+              0.20000573992729187,
+              0.3000061810016632
+            ],
+            "effectiveMetallic": 0.699999988079071,
+            "effectiveOpacity": 1,
+            "effectiveRoughness": 1,
+            "metallic": 0.699999988079071,
+            "metallicTexture": "",
+            "name": "Audit",
+            "opacity": 0,
+            "opacityTexture": "color.png",
+            "pbs": true,
+            "roughness": 1,
+            "roughnessTexture": "",
+            "useAlbedoMapDebug": false,
+            "useRoughnessMapDebug": false
+          }
+        ],
+        "meshes": 0,
+        "qtVersion": "5.15.3"
+      }
+    },
+    {
+      "label": "stingray-disabled-debug-map",
+      "kind": "synthetic-raw-FBX-contract",
+      "bytes": 828,
+      "sha256": "425459ebe781953c942bf1864a53306abf1cff6fc6287720d80feabdc3b74534",
+      "started": "2026-10-01T00:20:12.621+00:00",
+      "completed": "2026-10-01T00:20:12.654+00:00",
+      "exitCode": 0,
+      "contractChecksPassed": true,
+      "result": {
+        "glmVersion": 995,
+        "materials": [
+          {
+            "albedoTexture": "color.png",
+            "diffuse": [
+              0.20000000298023224,
+              0.4000000059604645,
+              0.6000000238418579
+            ],
+            "diffuseFactor": 0.5,
+            "effectiveAlbedoSRGB": [
+              0.10000474005937576,
+              0.20000573992729187,
+              0.3000061810016632
+            ],
+            "effectiveMetallic": 0,
+            "effectiveOpacity": 1,
+            "effectiveRoughness": 0.20000000298023224,
+            "metallic": 0,
+            "metallicTexture": "",
+            "name": "Audit",
+            "opacity": 0,
+            "opacityTexture": "color.png",
+            "pbs": true,
+            "roughness": 0.20000000298023224,
+            "roughnessTexture": "roughness.png",
+            "useAlbedoMapDebug": false,
+            "useRoughnessMapDebug": false
+          }
+        ],
+        "meshes": 0,
+        "qtVersion": "5.15.3"
+      }
+    },
+    {
+      "label": "ordinary-other-opacity",
+      "kind": "synthetic-raw-FBX-contract",
+      "bytes": 677,
+      "sha256": "9cb86f00f99549a0dcd52d80e562992788b5f9489263f59b7712c63cf56be5bd",
+      "started": "2026-10-01T00:20:12.654+00:00",
+      "completed": "2026-10-01T00:20:12.684+00:00",
+      "exitCode": 0,
+      "contractChecksPassed": true,
+      "result": {
+        "glmVersion": 995,
+        "materials": [
+          {
+            "albedoTexture": "color.png",
+            "diffuse": [
+              0.20000000298023224,
+              0.4000000059604645,
+              0.6000000238418579
+            ],
+            "diffuseFactor": 0.5,
+            "effectiveAlbedoSRGB": [
+              0.10000474005937576,
+              0.20000573992729187,
+              0.3000061810016632
+            ],
+            "effectiveMetallic": 0.019999999552965164,
+            "effectiveOpacity": 1,
+            "effectiveRoughness": 0.7699999809265137,
+            "metallic": 0,
+            "metallicTexture": "",
+            "name": "Audit",
+            "opacity": 0,
+            "opacityTexture": "other-alpha.png",
+            "pbs": false,
+            "roughness": 1,
+            "roughnessTexture": "",
+            "useAlbedoMapDebug": false,
+            "useRoughnessMapDebug": false
+          }
+        ],
+        "meshes": 0,
+        "qtVersion": "5.15.3"
+      }
+    }
+  ],
+  "harnessHistory": {
+    "initialWrongABIProbe": "The first diagnostic shim omitted native GLM_FORCE_CTOR_INIT and crashed while calling graphics::Material::getAlbedo. A private backtrace identified a GLM return-value ABI mismatch. The final reproducer uses all three native ABI defines; all eight final parses exited 0. This was a resolved audit harness defect, not a native parser failure."
+  },
+  "claims": {
+    "nativeCPUParser": true,
+    "nativeGraphicsMaterialNumericValues": true,
+    "actualReviewedAvatarFBXInputs": 2,
+    "generatedRawFBXContractFixtures": 6,
+    "textureGPUClassification": false,
+    "browserRendering": false,
+    "kimVisibleAfterRendererFix": false,
+    "networkServicesStarted": false,
+    "enduranceSessionRun": false,
+    "scopeLimit": "The output proves scalar values and texture filename bindings in the shipping native parser. It does not prove loaded image alpha, transparency classification on the GPU, or browser visual equivalence."
+  },
+  "observations": [
+    "Actual Kim: all 12 non-PBS materials authored opacity 0 become graphics::Material opacity 1; each opacity texture filename equals its albedo texture filename.",
+    "Actual default mannequin: lambert1 diffuse .5 times diffuseFactor .8 produces effective sRGB approximately .400006; non-PBS metallic .02 and roughness .77 come from native material consolidation.",
+    "Actual default mannequin: StingrayPBS10 preserves its roughness texture and .33 roughness; phong2 is PBS with .5 metallic.",
+    "Generated DiffuseFactor texture connections are processed as diffuse texture connections; connection order decides the final albedo filename, while the numeric factor remains .5.",
+    "Generated PBS transparency connection is replaced by the diffuse/albedo filename; a distinct non-PBS transparency filename stays distinct.",
+    "Generated zero Stingray use-color/use-roughness flags do not remove connected texture bindings; effective PBS roughness stays .2."
+  ],
+  "primarySources": [
+    {
+      "repository": "noah-be/overte",
+      "revision": "f91d15a08587dcd37c642234424b3215dd331724",
+      "path": "libraries/model-serializers/src/FBXSerializer.cpp",
+      "lines": [
+        1148,
+        1165
+      ],
+      "claim": "Connections are lowercased before the mixed-case DiffuseFactor condition, so that branch is unreachable in the pinned shipping source."
+    },
+    {
+      "repository": "noah-be/overte",
+      "revision": "f91d15a08587dcd37c642234424b3215dd331724",
+      "path": "libraries/model-serializers/src/FBXSerializer_Material.cpp",
+      "claim": "Actual native consolidation sets effective diffuse, opacity, PBS texture bindings, roughness and metallic values."
+    },
+    {
+      "repository": "noah-be/overte",
+      "revision": "f91d15a08587dcd37c642234424b3215dd331724",
+      "path": "CMakeLists.txt",
+      "lines": [
+        250,
+        252
+      ],
+      "claim": "Native GLM ABI compile definitions."
+    },
+    {
+      "repository": "noah-be/overte",
+      "revision": "f91d15a08587dcd37c642234424b3215dd331724",
+      "path": "cmake/macros/TargetGlm.cmake",
+      "lines": [
+        19,
+        21
+      ],
+      "claim": "Native GLM ABI compile definitions."
+    }
+  ]
+}

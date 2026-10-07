@@ -1,0 +1,316 @@
+{
+  "scope": "Fresh actual local-domain/native core journey with integrated embedded images, corrected Create routing and immediate-owned audio child lifecycle.18checkpoints per stockengine.",
+  "claimLimit": "Synthetic browser microphone and native997Hz injection only; no physicalmicrophone or Hubfluidness/endurance claim. Distribution/source hashes checked atcuration, not continuously.",
+  "runs": [
+    {
+      "schemaVersion": 1,
+      "browser": "chromium",
+      "status": "passed",
+      "completed": true,
+      "scope": "Real local managed-domain core journey; no public-world fluidness claim",
+      "audio": "Synthetic signals at actual browser/native outputs; no physical microphone claim",
+      "endurance": "Omitted at the user\u2019s explicit instruction",
+      "checkpoints": [
+        {
+          "name": "actual-domain-joined",
+          "at": "2026-10-01T09:56:09.522Z",
+          "entityCount": 7,
+          "avatarCount": 1
+        },
+        {
+          "name": "native-sees-browser",
+          "at": "2026-10-01T09:56:10.323Z",
+          "nativeOtherParticipants": 1
+        },
+        {
+          "name": "movement-measured",
+          "at": "2026-10-01T09:56:14.548Z",
+          "distanceMeters": 2.2199535950860194,
+          "renderPerformance": {
+            "fps": 56.01587116349632,
+            "p95FrameMs": 18.100000000002183,
+            "maximumFrameMs": 166.70000000000073,
+            "drawCalls": 5,
+            "triangles": 758
+          }
+        },
+        {
+          "name": "browser-movement-synchronized",
+          "at": "2026-10-01T09:56:14.793Z",
+          "distanceMeters": 2.2199535950860194
+        },
+        {
+          "name": "native-movement-synchronized",
+          "at": "2026-10-01T09:56:17.648Z"
+        },
+        {
+          "name": "actual-world-collision",
+          "at": "2026-10-01T09:56:19.658Z"
+        },
+        {
+          "name": "interaction-measured",
+          "at": "2026-10-01T09:56:21.160Z"
+        },
+        {
+          "name": "interaction-observed-by-native",
+          "at": "2026-10-01T09:56:21.166Z"
+        },
+        {
+          "name": "browser-to-native-audio",
+          "at": "2026-10-01T09:56:26.920Z",
+          "nativeOutput": {
+            "rms": 0.008350999252820564,
+            "peak": 0.02166748046875,
+            "bytes": 959064,
+            "tone440Amplitude": 0.010493077681446498,
+            "tone997Amplitude": 3.3639437026099047e-07
+          }
+        },
+        {
+          "name": "native-to-browser-audio",
+          "at": "2026-10-01T09:56:41.328Z",
+          "browserOutput": {
+            "rms": 0.011198649265274538,
+            "peak": 0.025360107421875,
+            "bytes": 959312,
+            "tone440Amplitude": 1.6447530108086708e-07,
+            "tone997Amplitude": 0.009439667614551374
+          }
+        },
+        {
+          "name": "stable-real-connection",
+          "at": "2026-10-01T09:56:41.338Z",
+          "connectedSeconds": 32.561
+        },
+        {
+          "name": "native-observed-clean-leave",
+          "at": "2026-10-01T09:56:43.380Z"
+        },
+        {
+          "name": "reconnected-to-actual-domain",
+          "at": "2026-10-01T09:56:56.527Z"
+        },
+        {
+          "name": "reconnection-movement-observed",
+          "at": "2026-10-01T09:56:58.009Z"
+        },
+        {
+          "name": "reconnection-movement",
+          "at": "2026-10-01T09:56:58.036Z",
+          "distanceMeters": 1.960005982458442
+        },
+        {
+          "name": "mouse-look",
+          "at": "2026-10-01T09:56:58.408Z"
+        },
+        {
+          "name": "final-view",
+          "at": "2026-10-01T09:56:58.441Z"
+        },
+        {
+          "name": "all-real-session-assertions-passed",
+          "at": "2026-10-01T09:57:01.918Z"
+        }
+      ],
+      "sourceSHA256": {
+        "browser-client/gateway/server.mjs": "e268d609756eb19d95034058db9d7c0ce13a4a7d9db8a7afc8ecaa6cbff69175",
+        "browser-client/gateway/native-bridge.js": "f76bedb62cd3ad7e29b383bf16fb0f6d80cf7263de34c467bdba9c001b7354dd",
+        "browser-client/gateway/process-lifecycle.mjs": "e8d7e021a8b934b271910883e27c2a1109aedd22e12044b763d4bf8acc274eaf",
+        "browser-client/gateway/validation.mjs": "65eba4a66c76d4bfc0dbd18e172def64f43b37cca0db2301da5bf4d18645de79",
+        "browser-client/gateway/permission-policy.mjs": "1547f4106e4b4fb72701a434a4afb57907f3af9797e4daf4c8793e034587d591",
+        "browser-client/dist/index.html": "aebe9c8456d36042576fbbf2ea0575a27ec5c3d0bf8a5ec9f29997be740ac0ea",
+        "browser-client/tests/integration/real-session.mjs": "54ee21258fc18391d4bece4d57c9dbf2e22ecaf276b2a3a915e060b645b693a8",
+        "browser-client/tests/integration/owned-audio-process.mjs": "0f4ed9d41c59e5af93a7bc5451ab09d10c15ce05dbd440f5551b3d79974867a8",
+        "browser-client/tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "browser-client/package-lock.json": "76330fced87d7da3b6e550f9656bcb45da07fed560cc46d50a546b589d2dc695",
+        "browser-client/dist/assets/FBXLoader-Df0FIhPO.js": "74af89b7723f484d97d62a7b7c489be014f6b3fbd097ae406fcad40346df8573",
+        "browser-client/dist/assets/FBXLoader-Df0FIhPO.js.map": "fac5f4a8dfd2dfa37350d21d77757d873eed01c3f0bbe8799405cefc88d9176d",
+        "browser-client/dist/assets/GLTFLoader-y_zVYlFW.js": "b2ba30a6684ff9486f0b5328a36e45ec75b60d03bccf400bb682d9653b192341",
+        "browser-client/dist/assets/GLTFLoader-y_zVYlFW.js.map": "b4e4e20f8d44d7800d2d47430b540febba948792585ad6eb3dc2aff0f7773c04",
+        "browser-client/dist/assets/OBJLoader-GenQpGWE.js": "fa19f8310f97bc3a53e610cc020ccefdd7fcdaee2893b2c004ad50a714f21480",
+        "browser-client/dist/assets/OBJLoader-GenQpGWE.js.map": "9c3b83f58e177876371437496e13ba4d53b3291ca67de7a300c0574204c70f11",
+        "browser-client/dist/assets/baked-draco-DOQBkCJV.js": "3c0410f6ce9f8547b0ee37c9d9d6093239fae203f583388931b640353e712963",
+        "browser-client/dist/assets/baked-draco-DOQBkCJV.js.map": "c0710b770d7cadf143de5b9a7fc2e7a22fbb6a790c115bbc315975f62e998b75",
+        "browser-client/dist/assets/baked-draco-legacy-CMhlgON6.js": "eb84ebc5eff49c7b0593382b07b23010897080f46b779ececdd515efcfb482d4",
+        "browser-client/dist/assets/baked-draco-legacy-CMhlgON6.js.map": "463d7b6f8dd5f569f2c0f68934aba0d1fba6c59745cf939732702f0e905afddb",
+        "browser-client/dist/assets/draco_decoder-C32yEggz.wasm": "c55a594e8ffd18426d36b27fea9618af3df5e173640a3e56d46f09d76f0574f2",
+        "browser-client/dist/assets/draco_decoder-Z1_iN-Ht.wasm": "a680d927bed9cb864ddbd63521868891af2bfbe755092761b4837487618df8ac",
+        "browser-client/dist/assets/draco_decoder-fzg4nYZr.js": "30e4d486fa020737af10e3c56197693e5b904bdc05b8bfa5d7b06751dec6da04",
+        "browser-client/dist/assets/draco_wasm_wrapper-DxJM36Ib.js": "e8049906ef3f8f75d3456c22a3f31bfdfe5b5b5bd09ccdec613b9e9a49d554d8",
+        "browser-client/dist/assets/draco_wasm_wrapper-fZCQGLGb.js": "8bb2952d2ba7d67e1414f8df819410cb0434a666be53f671fff75f68843d76f6",
+        "browser-client/dist/assets/index-B2mAMfm4.css": "cbf321b921d05ff91c3020a6ccffc91385eeebf223ea6ec0577c6354df12a521",
+        "browser-client/dist/assets/index-_uhBbeBz.js": "f76756b9fea5d7c49a02468759d15b7f5b411ee430789bebe72f58e85ae72916",
+        "browser-client/dist/assets/index-_uhBbeBz.js.map": "f79ce692a7878c46be88579f66799298b73ea9ec8c746a485ec34fff821ef9de",
+        "browser-client/dist/assets/model-fbx-worker-clQkD4aL.js": "33867fd105c4dcb50cda9b23ccbc1d8b4ff077dda5d0eb6eef9aa1f2946be3ab",
+        "browser-client/dist/assets/model-fbx-worker-clQkD4aL.js.map": "8795469d4b32acae20dd7679eedbb63dc4d85a43b523c4b8df3d74a8aa9c59c7",
+        "browser-client/dist/assets/tablet-gif.worker-DACjp6Cn.js": "78ebb1c3db4d062dd4119c2cd86d201b7df2757fedf22a8993dd460fbb1057c8",
+        "browser-client/dist/assets/tablet-gif.worker-DACjp6Cn.js.map": "0d3741b166327d49c79829e03bc313c6ac33ad62ed758a1e59877e19a40c5264",
+        "browser-client/dist/assets/texture-alpha-worker-CBG2kYQR.js": "f04f415ff39370ae4ab0268903ffaf6c86b9a7addeb0aed95d4a7948ee803485",
+        "browser-client/dist/assets/texture-alpha-worker-CBG2kYQR.js.map": "f48e806d67a554aba1960a23ab434a093c5ac7f00540615cf23ed1fff0586aeb"
+      },
+      "startedAt": "2026-10-01T09:55:55.352Z",
+      "finishedAt": "2026-10-01T09:57:01.918Z",
+      "browserVersion": "154.0.8037.57",
+      "nativeVersion": "2026.04.1",
+      "journeySeconds": 66.566,
+      "continuousSharedSessionSeconds": 0.001,
+      "rawReportSHA256": "c5061bfb7bd5c6ada992c765f98624d6e946f9f5ab0cda9be788db8bed337827",
+      "sourceHashesMatchAtCuration": true
+    },
+    {
+      "schemaVersion": 1,
+      "browser": "firefox",
+      "status": "passed",
+      "completed": true,
+      "scope": "Real local managed-domain core journey; no public-world fluidness claim",
+      "audio": "Synthetic signals at actual browser/native outputs; no physical microphone claim",
+      "endurance": "Omitted at the user\u2019s explicit instruction",
+      "checkpoints": [
+        {
+          "name": "actual-domain-joined",
+          "at": "2026-10-01T09:59:13.200Z",
+          "entityCount": 7,
+          "avatarCount": 1
+        },
+        {
+          "name": "native-sees-browser",
+          "at": "2026-10-01T09:59:13.689Z",
+          "nativeOtherParticipants": 1
+        },
+        {
+          "name": "movement-measured",
+          "at": "2026-10-01T09:59:17.954Z",
+          "distanceMeters": 2.2199548412272967,
+          "renderPerformance": {
+            "fps": 21.719063908345554,
+            "p95FrameMs": 67.04000000000087,
+            "maximumFrameMs": 216.65999999999985,
+            "drawCalls": 5,
+            "triangles": 758
+          }
+        },
+        {
+          "name": "browser-movement-synchronized",
+          "at": "2026-10-01T09:59:18.207Z",
+          "distanceMeters": 2.2199548412272967
+        },
+        {
+          "name": "native-movement-synchronized",
+          "at": "2026-10-01T09:59:21.035Z"
+        },
+        {
+          "name": "actual-world-collision",
+          "at": "2026-10-01T09:59:23.063Z"
+        },
+        {
+          "name": "interaction-measured",
+          "at": "2026-10-01T09:59:25.480Z"
+        },
+        {
+          "name": "interaction-observed-by-native",
+          "at": "2026-10-01T09:59:25.497Z"
+        },
+        {
+          "name": "browser-to-native-audio",
+          "at": "2026-10-01T09:59:31.564Z",
+          "nativeOutput": {
+            "rms": 0.007711781244465243,
+            "peak": 0.021148681640625,
+            "bytes": 956256,
+            "tone440Amplitude": 2.8610220307234672e-06,
+            "tone997Amplitude": 0.0006422956216839854
+          }
+        },
+        {
+          "name": "native-to-browser-audio",
+          "at": "2026-10-01T09:59:46.122Z",
+          "browserOutput": {
+            "rms": 0.010982583615745419,
+            "peak": 0.02569580078125,
+            "bytes": 958080,
+            "tone440Amplitude": 1.6255074010856887e-07,
+            "tone997Amplitude": 0.009455664506411164
+          }
+        },
+        {
+          "name": "stable-real-connection",
+          "at": "2026-10-01T09:59:46.137Z",
+          "connectedSeconds": 33.715
+        },
+        {
+          "name": "native-observed-clean-leave",
+          "at": "2026-10-01T09:59:47.364Z"
+        },
+        {
+          "name": "reconnected-to-actual-domain",
+          "at": "2026-10-01T10:00:01.164Z"
+        },
+        {
+          "name": "reconnection-movement-observed",
+          "at": "2026-10-01T10:00:02.761Z"
+        },
+        {
+          "name": "reconnection-movement",
+          "at": "2026-10-01T10:00:02.771Z",
+          "distanceMeters": 1.8666725660049432
+        },
+        {
+          "name": "mouse-look",
+          "at": "2026-10-01T10:00:03.251Z"
+        },
+        {
+          "name": "final-view",
+          "at": "2026-10-01T10:00:03.320Z"
+        },
+        {
+          "name": "all-real-session-assertions-passed",
+          "at": "2026-10-01T10:00:06.702Z"
+        }
+      ],
+      "sourceSHA256": {
+        "browser-client/gateway/server.mjs": "e268d609756eb19d95034058db9d7c0ce13a4a7d9db8a7afc8ecaa6cbff69175",
+        "browser-client/gateway/native-bridge.js": "f76bedb62cd3ad7e29b383bf16fb0f6d80cf7263de34c467bdba9c001b7354dd",
+        "browser-client/gateway/process-lifecycle.mjs": "e8d7e021a8b934b271910883e27c2a1109aedd22e12044b763d4bf8acc274eaf",
+        "browser-client/gateway/validation.mjs": "65eba4a66c76d4bfc0dbd18e172def64f43b37cca0db2301da5bf4d18645de79",
+        "browser-client/gateway/permission-policy.mjs": "1547f4106e4b4fb72701a434a4afb57907f3af9797e4daf4c8793e034587d591",
+        "browser-client/dist/index.html": "aebe9c8456d36042576fbbf2ea0575a27ec5c3d0bf8a5ec9f29997be740ac0ea",
+        "browser-client/tests/integration/real-session.mjs": "54ee21258fc18391d4bece4d57c9dbf2e22ecaf276b2a3a915e060b645b693a8",
+        "browser-client/tests/integration/owned-audio-process.mjs": "0f4ed9d41c59e5af93a7bc5451ab09d10c15ce05dbd440f5551b3d79974867a8",
+        "browser-client/tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "browser-client/package-lock.json": "76330fced87d7da3b6e550f9656bcb45da07fed560cc46d50a546b589d2dc695",
+        "browser-client/dist/assets/FBXLoader-Df0FIhPO.js": "74af89b7723f484d97d62a7b7c489be014f6b3fbd097ae406fcad40346df8573",
+        "browser-client/dist/assets/FBXLoader-Df0FIhPO.js.map": "fac5f4a8dfd2dfa37350d21d77757d873eed01c3f0bbe8799405cefc88d9176d",
+        "browser-client/dist/assets/GLTFLoader-y_zVYlFW.js": "b2ba30a6684ff9486f0b5328a36e45ec75b60d03bccf400bb682d9653b192341",
+        "browser-client/dist/assets/GLTFLoader-y_zVYlFW.js.map": "b4e4e20f8d44d7800d2d47430b540febba948792585ad6eb3dc2aff0f7773c04",
+        "browser-client/dist/assets/OBJLoader-GenQpGWE.js": "fa19f8310f97bc3a53e610cc020ccefdd7fcdaee2893b2c004ad50a714f21480",
+        "browser-client/dist/assets/OBJLoader-GenQpGWE.js.map": "9c3b83f58e177876371437496e13ba4d53b3291ca67de7a300c0574204c70f11",
+        "browser-client/dist/assets/baked-draco-DOQBkCJV.js": "3c0410f6ce9f8547b0ee37c9d9d6093239fae203f583388931b640353e712963",
+        "browser-client/dist/assets/baked-draco-DOQBkCJV.js.map": "c0710b770d7cadf143de5b9a7fc2e7a22fbb6a790c115bbc315975f62e998b75",
+        "browser-client/dist/assets/baked-draco-legacy-CMhlgON6.js": "eb84ebc5eff49c7b0593382b07b23010897080f46b779ececdd515efcfb482d4",
+        "browser-client/dist/assets/baked-draco-legacy-CMhlgON6.js.map": "463d7b6f8dd5f569f2c0f68934aba0d1fba6c59745cf939732702f0e905afddb",
+        "browser-client/dist/assets/draco_decoder-C32yEggz.wasm": "c55a594e8ffd18426d36b27fea9618af3df5e173640a3e56d46f09d76f0574f2",
+        "browser-client/dist/assets/draco_decoder-Z1_iN-Ht.wasm": "a680d927bed9cb864ddbd63521868891af2bfbe755092761b4837487618df8ac",
+        "browser-client/dist/assets/draco_decoder-fzg4nYZr.js": "30e4d486fa020737af10e3c56197693e5b904bdc05b8bfa5d7b06751dec6da04",
+        "browser-client/dist/assets/draco_wasm_wrapper-DxJM36Ib.js": "e8049906ef3f8f75d3456c22a3f31bfdfe5b5b5bd09ccdec613b9e9a49d554d8",
+        "browser-client/dist/assets/draco_wasm_wrapper-fZCQGLGb.js": "8bb2952d2ba7d67e1414f8df819410cb0434a666be53f671fff75f68843d76f6",
+        "browser-client/dist/assets/index-B2mAMfm4.css": "cbf321b921d05ff91c3020a6ccffc91385eeebf223ea6ec0577c6354df12a521",
+        "browser-client/dist/assets/index-_uhBbeBz.js": "f76756b9fea5d7c49a02468759d15b7f5b411ee430789bebe72f58e85ae72916",
+        "browser-client/dist/assets/index-_uhBbeBz.js.map": "f79ce692a7878c46be88579f66799298b73ea9ec8c746a485ec34fff821ef9de",
+        "browser-client/dist/assets/model-fbx-worker-clQkD4aL.js": "33867fd105c4dcb50cda9b23ccbc1d8b4ff077dda5d0eb6eef9aa1f2946be3ab",
+        "browser-client/dist/assets/model-fbx-worker-clQkD4aL.js.map": "8795469d4b32acae20dd7679eedbb63dc4d85a43b523c4b8df3d74a8aa9c59c7",
+        "browser-client/dist/assets/tablet-gif.worker-DACjp6Cn.js": "78ebb1c3db4d062dd4119c2cd86d201b7df2757fedf22a8993dd460fbb1057c8",
+        "browser-client/dist/assets/tablet-gif.worker-DACjp6Cn.js.map": "0d3741b166327d49c79829e03bc313c6ac33ad62ed758a1e59877e19a40c5264",
+        "browser-client/dist/assets/texture-alpha-worker-CBG2kYQR.js": "f04f415ff39370ae4ab0268903ffaf6c86b9a7addeb0aed95d4a7948ee803485",
+        "browser-client/dist/assets/texture-alpha-worker-CBG2kYQR.js.map": "f48e806d67a554aba1960a23ab434a093c5ac7f00540615cf23ed1fff0586aeb"
+      },
+      "startedAt": "2026-10-01T09:58:57.100Z",
+      "finishedAt": "2026-10-01T10:00:06.702Z",
+      "browserVersion": "firefox/156.0",
+      "nativeVersion": "2026.04.1",
+      "journeySeconds": 69.602,
+      "continuousSharedSessionSeconds": 0.001,
+      "rawReportSHA256": "c891bd1560a19dcc94666ad4f359a13e7581e1dadd4c310eff9ad603bd24a203",
+      "sourceHashesMatchAtCuration": true
+    }
+  ]
+}

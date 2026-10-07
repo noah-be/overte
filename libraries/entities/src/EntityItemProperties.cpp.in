@@ -1005,7 +1005,12 @@ OctreeElement::AppendState EntityItemProperties::encodeEntityEditPacket(PacketTy
         int finalizedSize = packetData->getFinalizedSize();
 
         if (finalizedSize <= buffer.size()) {
+            // Select QByteArray's position overload using its exact Qt index type.
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
             buffer.replace(qsizetype { 0 }, qsizetype { finalizedSize }, finalizedData, qsizetype { finalizedSize });
+#else
+            buffer.replace(int { 0 }, finalizedSize, finalizedData, finalizedSize);
+#endif
             buffer.resize(finalizedSize);
         } else {
             qCDebug(entities) << "ERROR - encoded edit message doesn't fit in output buffer.";

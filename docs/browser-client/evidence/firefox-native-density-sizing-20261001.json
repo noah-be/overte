@@ -1,0 +1,891 @@
+{
+  "schemaVersion": 1,
+  "materialAssistance": "OpenAI Codex",
+  "scope": "Actual isolated stock Firefox native-density public API sizing diagnostics; no app or fluidness acceptance implied",
+  "failedHelper": {
+    "startedAt": "2026-10-01T19:31:36.162Z",
+    "completed": false,
+    "target": {
+      "width": 1280,
+      "height": 900
+    },
+    "helperSHA256": "45f4425a5fa7a088deed7e83a77ddf3fde9c7b777c42ed1e1cfd572fbb71f978",
+    "version": "firefox/156.0",
+    "before": {
+      "width": 1280,
+      "height": 956,
+      "density": 1.6666666666666667
+    },
+    "error": "Error: The actual Firefox viewport did not reach its exact dimensions within ten seconds.",
+    "finishedAt": "2026-10-01T19:31:50.190Z"
+  },
+  "successfulHelper": {
+    "startedAt": "2026-10-01T19:45:46.916Z",
+    "completed": true,
+    "target": {
+      "width": 1280,
+      "height": 900
+    },
+    "helperSHA256": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+    "version": "firefox/156.0",
+    "before": {
+      "width": 1280,
+      "height": 956,
+      "density": 1.6666666666666667
+    },
+    "result": {
+      "method": "public-viewport-effect",
+      "boundsAttempts": 3,
+      "viewportAcknowledgementAtReturn": "pending",
+      "requested": {
+        "width": 1280,
+        "height": 900
+      },
+      "actual": {
+        "width": 1280,
+        "height": 900,
+        "density": 1.6666666666666667
+      },
+      "durationMs": 1866
+    },
+    "after": {
+      "width": 1280,
+      "height": 900,
+      "density": 1.6666666666666667
+    },
+    "finishedAt": "2026-10-01T19:45:52.736Z"
+  },
+  "independentPublicApiProbe": {
+    "startedAt": "2026-10-01T19:36:26.716Z",
+    "diagnosticOnly": true,
+    "ordinaryHelperUnchanged": true,
+    "sourceSHA256": "e1afeb263db152ba7ba18814401ad27f520b7af4fb4874fd7802459d2d6adf3a",
+    "deadlineMs": 10000,
+    "cases": [
+      {
+        "name": "900-default",
+        "requested": {
+          "width": 1280,
+          "height": 900
+        },
+        "explicitNativeDPR": false,
+        "effectWithinDeadline": true,
+        "samples": [
+          {
+            "elapsedMs": 14,
+            "width": 1280,
+            "height": 956,
+            "density": 1.6666666666666667,
+            "at": 120
+          },
+          {
+            "elapsedMs": 123,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666666666667,
+            "at": 231
+          }
+        ],
+        "acknowledgement": "not-requested",
+        "browserVersion": "firefox/156.0",
+        "before": {
+          "width": 1280,
+          "height": 956,
+          "density": 1.6666666666666667
+        },
+        "beforeBounds": {
+          "left": 0,
+          "top": 0,
+          "width": 1332,
+          "height": 1092,
+          "windowState": "normal"
+        },
+        "requestedAt": "2026-10-01T19:36:30.015Z",
+        "observedResizeEvents": [
+          {
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666666666667,
+            "at": 123
+          }
+        ],
+        "actual": {
+          "width": 1280,
+          "height": 900,
+          "density": 1.6666666666666667
+        },
+        "effectMs": 125,
+        "acknowledgementAtEffect": "pending",
+        "elapsedMs": 125,
+        "acknowledgementBeforeClose": "pending",
+        "browserClosed": true,
+        "acknowledgementAfterClose": "rejected",
+        "rpcError": "Protocol error (browsingContext.setViewport): Target closed",
+        "finishedAt": "2026-10-01T19:36:30.947Z"
+      },
+      {
+        "name": "900-native",
+        "requested": {
+          "width": 1280,
+          "height": 900
+        },
+        "explicitNativeDPR": true,
+        "effectWithinDeadline": false,
+        "samples": [
+          {
+            "elapsedMs": 12,
+            "width": 1280,
+            "height": 956,
+            "density": 1.6666666666666667,
+            "at": 85
+          },
+          {
+            "elapsedMs": 129,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 201
+          },
+          {
+            "elapsedMs": 232,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 308
+          },
+          {
+            "elapsedMs": 344,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 414
+          },
+          {
+            "elapsedMs": 448,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 523
+          },
+          {
+            "elapsedMs": 582,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 652
+          },
+          {
+            "elapsedMs": 722,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 797
+          },
+          {
+            "elapsedMs": 927,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 999
+          },
+          {
+            "elapsedMs": 1056,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 1113
+          },
+          {
+            "elapsedMs": 1166,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 1236
+          },
+          {
+            "elapsedMs": 1274,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 1347
+          },
+          {
+            "elapsedMs": 1378,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 1453
+          },
+          {
+            "elapsedMs": 1482,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 1557
+          },
+          {
+            "elapsedMs": 1588,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 1662
+          },
+          {
+            "elapsedMs": 1693,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 1766
+          },
+          {
+            "elapsedMs": 1798,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 1874
+          },
+          {
+            "elapsedMs": 1901,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 1977
+          },
+          {
+            "elapsedMs": 2012,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 2086
+          },
+          {
+            "elapsedMs": 2116,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 2191
+          },
+          {
+            "elapsedMs": 2219,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 2295
+          },
+          {
+            "elapsedMs": 2330,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 2403
+          },
+          {
+            "elapsedMs": 2434,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 2510
+          },
+          {
+            "elapsedMs": 2539,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 2616
+          },
+          {
+            "elapsedMs": 2647,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 2722
+          },
+          {
+            "elapsedMs": 2750,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 2825
+          },
+          {
+            "elapsedMs": 2859,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 2934
+          },
+          {
+            "elapsedMs": 2964,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 3039
+          },
+          {
+            "elapsedMs": 3073,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 3148
+          },
+          {
+            "elapsedMs": 3178,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 3253
+          },
+          {
+            "elapsedMs": 3284,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 3360
+          },
+          {
+            "elapsedMs": 3392,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 3468
+          },
+          {
+            "elapsedMs": 3497,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 3572
+          },
+          {
+            "elapsedMs": 3605,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 3678
+          },
+          {
+            "elapsedMs": 3714,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 3789
+          },
+          {
+            "elapsedMs": 3818,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 3894
+          },
+          {
+            "elapsedMs": 3923,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 3996
+          },
+          {
+            "elapsedMs": 4028,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 4102
+          },
+          {
+            "elapsedMs": 4132,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 4206
+          },
+          {
+            "elapsedMs": 4235,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 4311
+          },
+          {
+            "elapsedMs": 4340,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 4415
+          },
+          {
+            "elapsedMs": 4450,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 4526
+          },
+          {
+            "elapsedMs": 4552,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 4628
+          },
+          {
+            "elapsedMs": 4656,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 4731
+          },
+          {
+            "elapsedMs": 4758,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 4834
+          },
+          {
+            "elapsedMs": 4868,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 4943
+          },
+          {
+            "elapsedMs": 4974,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 5046
+          },
+          {
+            "elapsedMs": 5076,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 5152
+          },
+          {
+            "elapsedMs": 5179,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 5255
+          },
+          {
+            "elapsedMs": 5282,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 5358
+          },
+          {
+            "elapsedMs": 5393,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 5469
+          },
+          {
+            "elapsedMs": 5496,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 5572
+          },
+          {
+            "elapsedMs": 5601,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 5677
+          },
+          {
+            "elapsedMs": 5704,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 5779
+          },
+          {
+            "elapsedMs": 5811,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 5886
+          },
+          {
+            "elapsedMs": 5915,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 5991
+          },
+          {
+            "elapsedMs": 6018,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 6094
+          },
+          {
+            "elapsedMs": 6139,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 6201
+          },
+          {
+            "elapsedMs": 6243,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 6319
+          },
+          {
+            "elapsedMs": 6350,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 6426
+          },
+          {
+            "elapsedMs": 6453,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 6529
+          },
+          {
+            "elapsedMs": 6557,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 6633
+          },
+          {
+            "elapsedMs": 6661,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 6737
+          },
+          {
+            "elapsedMs": 6768,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 6844
+          },
+          {
+            "elapsedMs": 6870,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 6946
+          },
+          {
+            "elapsedMs": 6975,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 7050
+          },
+          {
+            "elapsedMs": 7082,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 7157
+          },
+          {
+            "elapsedMs": 7188,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 7263
+          },
+          {
+            "elapsedMs": 7291,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 7367
+          },
+          {
+            "elapsedMs": 7399,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 7474
+          },
+          {
+            "elapsedMs": 7501,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 7577
+          },
+          {
+            "elapsedMs": 7605,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 7681
+          },
+          {
+            "elapsedMs": 7715,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 7791
+          },
+          {
+            "elapsedMs": 7819,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 7895
+          },
+          {
+            "elapsedMs": 7922,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 7998
+          },
+          {
+            "elapsedMs": 8026,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 8102
+          },
+          {
+            "elapsedMs": 8128,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 8204
+          },
+          {
+            "elapsedMs": 8235,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 8308
+          },
+          {
+            "elapsedMs": 8338,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 8414
+          },
+          {
+            "elapsedMs": 8441,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 8517
+          },
+          {
+            "elapsedMs": 8543,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 8619
+          },
+          {
+            "elapsedMs": 8646,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 8722
+          },
+          {
+            "elapsedMs": 8758,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 8830
+          },
+          {
+            "elapsedMs": 8865,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 8937
+          },
+          {
+            "elapsedMs": 8969,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 9044
+          },
+          {
+            "elapsedMs": 9074,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 9149
+          },
+          {
+            "elapsedMs": 9178,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 9252
+          },
+          {
+            "elapsedMs": 9281,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 9356
+          },
+          {
+            "elapsedMs": 9384,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 9459
+          },
+          {
+            "elapsedMs": 9490,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 9562
+          },
+          {
+            "elapsedMs": 9598,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 9674
+          },
+          {
+            "elapsedMs": 9701,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 9777
+          },
+          {
+            "elapsedMs": 9805,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 9880
+          },
+          {
+            "elapsedMs": 9907,
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 9983
+          }
+        ],
+        "acknowledgement": "not-requested",
+        "browserVersion": "firefox/156.0",
+        "before": {
+          "width": 1280,
+          "height": 956,
+          "density": 1.6666666666666667
+        },
+        "beforeBounds": {
+          "left": 0,
+          "top": 0,
+          "width": 1332,
+          "height": 1092,
+          "windowState": "normal"
+        },
+        "requestedAt": "2026-10-01T19:36:34.201Z",
+        "observedResizeEvents": [
+          {
+            "width": 1280,
+            "height": 900,
+            "density": 1.6666666269302368,
+            "at": 108
+          }
+        ],
+        "elapsedMs": 10001,
+        "acknowledgementBeforeClose": "pending",
+        "browserClosed": true,
+        "acknowledgementAfterClose": "rejected",
+        "rpcError": "Protocol error (browsingContext.setViewport): Target closed",
+        "finishedAt": "2026-10-01T19:36:44.861Z"
+      },
+      {
+        "name": "800-default",
+        "requested": {
+          "width": 1280,
+          "height": 800
+        },
+        "explicitNativeDPR": false,
+        "effectWithinDeadline": true,
+        "samples": [
+          {
+            "elapsedMs": 52,
+            "width": 1280,
+            "height": 956,
+            "density": 1.6666666666666667,
+            "at": 81
+          },
+          {
+            "elapsedMs": 164,
+            "width": 1280,
+            "height": 800,
+            "density": 1.6666666666666667,
+            "at": 234
+          }
+        ],
+        "acknowledgement": "not-requested",
+        "browserVersion": "firefox/156.0",
+        "before": {
+          "width": 1280,
+          "height": 956,
+          "density": 1.6666666666666667
+        },
+        "beforeBounds": {
+          "left": 0,
+          "top": 0,
+          "width": 1332,
+          "height": 1092,
+          "windowState": "normal"
+        },
+        "requestedAt": "2026-10-01T19:36:48.164Z",
+        "observedResizeEvents": [
+          {
+            "width": 1280,
+            "height": 800,
+            "density": 1.6666666666666667,
+            "at": 85
+          }
+        ],
+        "actual": {
+          "width": 1280,
+          "height": 800,
+          "density": 1.6666666666666667
+        },
+        "effectMs": 184,
+        "acknowledgementAtEffect": "pending",
+        "elapsedMs": 184,
+        "acknowledgementBeforeClose": "pending",
+        "browserClosed": true,
+        "acknowledgementAfterClose": "rejected",
+        "rpcError": "Protocol error (browsingContext.setViewport): Target closed",
+        "finishedAt": "2026-10-01T19:36:49.539Z"
+      }
+    ],
+    "finishedAt": "2026-10-01T19:36:49.539Z"
+  },
+  "rawLogSHA256": {
+    "current-firefox-window-fallback-actual.log": "0f7a286afe9082c1fd3c9125f0e0314408b6cc236fe0f4f908ffd310bb9a14bf",
+    "current-firefox-window-native-readback-actual.log": "7d25d2d2a40f31b59ac376528b3d6957a4a4b77a9ba1e8e53068a36178d06e70",
+    "current-firefox-viewport-public-probe.log": "446ccc3557df4594f25125d2a8567a8291524cb2e573d8f60f14c8dcf2bd6576"
+  },
+  "limits": [
+    "The successful helper independently verifies1280x900 and the exact original5/3density in1.866seconds; its RPC remains pending at return and is consumed on owned browser close.",
+    "Explicit DPR emulation changes the actual density to1.6666666269302368; retaining the original exact density predicate correctly rejects that case.",
+    "No native Tablet input, domain, graphics setting, public mutation or performance acceptance is established by window geometry."
+  ]
+}

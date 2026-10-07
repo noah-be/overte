@@ -1,0 +1,101 @@
+{
+  "schema": 1,
+  "scope": "automated-google-chrome-fst-first-definition-two-authored-webgl-cases",
+  "completed": true,
+  "qualificationDurationSeconds": 12.929,
+  "browserVersion": "154.0.8037.97",
+  "source": {
+    "candidateManifestSHA256": "c4faee3d307a6fe7493e9e57df09a23b2202b20699b4286300f111f03341e965",
+    "rawReportSHA256": "7a73cc3618f74c089331724c10c77a469da84eca2c934fc376eb0e662726cc45",
+    "qualificationSummarySHA256": "36b25e522ede76579a1e3ed432e5b886e00bf17242ea33fb53d598dfad250eef",
+    "specSHA256": "f2ba1f3ca50fb2a2c82e0673141dea330ed04d64c91f1981404677cd75098fa9",
+    "driverSHA256": "ed127876c92a25680ad020c7cf16d898a8fd150c5b2d9e24df584eea1910fb19",
+    "ownerSHA256": "c7aec9a0c33d0fba3e3de9edf9dfc164d7c33495774512867eb3ed7cb773ac1a",
+    "candidateWorldSHA256": "0fab4e4763d47f08c30f480f282e2a9487c359815a1120bfd2a8e6ad4a383a8a",
+    "candidateMainSHA256": "a2ee2ac9648d89d027dbdef15e948ab2d9675b75df9b73f5af4c1f457586a33a",
+    "helperSHA256": "b5bfaf1974a0ba5384fe6cbf6cac2d87cf77840ac9a334836cb1b52d6746de18",
+    "actualChromeELFSHA256": "6c792041b07547a662e1b17974d1dc34a3db630379b45d9d89ddd7e3e68cc587",
+    "retainedNegativeManifestSHA256": "4a5721db24ceb21f515acfc3eb5314d6f416d7c7d0fc015e3415b44a717ee5d7",
+    "retainedNegativeRawSHA256": "8288e8f605e8f5d3c7d0695d583992c662c8ef46e4aa3a963b90dd07f63ad6f4",
+    "retainedNegativeSummarySHA256": "66459fb73286dfb5556105902ec2f49aa72d63d3bc12ac7990165824922c88b9"
+  },
+  "cases": [
+    {
+      "variant": 0,
+      "passed": true,
+      "runs": [
+        "original1",
+        "original2",
+        "candidate"
+      ],
+      "assertionEvidence": "exact-source-bound-complete-case-pass",
+      "assertions": {
+        "originalOriginalAndOriginalCandidateFullRgbaExact": true,
+        "geometryExact": true,
+        "authoredPixelAndMaterialMapChecksPassed": true,
+        "exactOwnedRequestsPassed": true,
+        "materialMapDisposalAndOwnedReaderRevocationPassed": true
+      },
+      "passiveCounts": {
+        "topLevelNavigations": 1,
+        "ownedImageRequests": 3,
+        "ownedDefinitionRequests": 3,
+        "failedRequests": 2,
+        "pageErrors": 0,
+        "viteMessages": 0
+      }
+    },
+    {
+      "variant": 1,
+      "passed": true,
+      "actualHttpFulfillAndFrameReceipt": {
+        "preReleaseFrame": 10,
+        "completionFrame": 17,
+        "observedFrame": 32,
+        "attempts": {
+          "fbx": {
+            "attempted": true,
+            "completed": true,
+            "delivered": true,
+            "rejected": false
+          },
+          "definition": {
+            "attempted": true,
+            "completed": true,
+            "delivered": true,
+            "rejected": false
+          }
+        }
+      },
+      "receiptScope": "completion-of-original-HTTP-fulfill-attempts-not-worker-delivery",
+      "lateImageAndOwnerResurrectionAssertionsPassed": true,
+      "passiveCounts": {
+        "topLevelNavigations": 1,
+        "ownedImageRequests": 0,
+        "ownedDefinitionRequests": 1,
+        "failedRequests": 2,
+        "pageErrors": 0,
+        "viteMessages": 0
+      }
+    }
+  ],
+  "ownership": {
+    "actualChromeELFObserved": true,
+    "ownedBrowserClosed": true,
+    "ownedContextsClosed": 2,
+    "ownedViteClosed": true,
+    "managedBirthCount": 9,
+    "managedBirthsUnchanged": true,
+    "sourceBeforeAfterEqual": true
+  },
+  "limits": {
+    "rawRgbaOrGeometryArraysPersisted": false,
+    "newHubComparisonPerformed": false,
+    "loadingSpeedGainEstablished": false,
+    "productionDefaultEnabled": false,
+    "nativeTabletOrHumanInputQualified": false,
+    "priorNegative8147Preserved": true,
+    "passiveFailedRequestsAreNotZero": true,
+    "failedRequestCausesClassified": false
+  }
+}

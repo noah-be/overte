@@ -1897,6 +1897,15 @@ float AudioClient::loudnessToLevel(float loudness) {
 }
 
 void AudioClient::handleAudioInput(QByteArray& audioBuffer) {
+#if defined(OVERTE_E2E_VOICE_TESTS)
+    static_assert(AudioConstants::SAMPLE_RATE == VoiceTestSignal::RATE, "voice test PCM rate");
+    const int voiceChannels = _isStereoInput ? 2 : 1;
+    _voiceTestSignal.replace(reinterpret_cast<int16_t*>(audioBuffer.data()),
+                            audioBuffer.size() / (2 * voiceChannels), voiceChannels);
+    // Preserve the mute-transition codec flush: synthetic PCM must not leak
+    // into its final non-silent packet. The source clock still advances.
+    if (_isMuted) { audioBuffer.fill(0); }
+#endif
     if (!_audioPaused) {
 
         bool audioGateOpen = false;
