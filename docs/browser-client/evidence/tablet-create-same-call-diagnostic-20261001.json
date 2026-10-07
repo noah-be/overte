@@ -1,0 +1,308 @@
+{
+  "schemaVersion": 1,
+  "scope": "Two actual full native Create workflows in the isolated seven-entity domain; independent native observer and original property/List/deletion/restoration gates.",
+  "sessions": [
+    {
+      "startedAt": "2026-10-01T20:30:10.004Z",
+      "finishedAt": "2026-10-01T20:31:37.663Z",
+      "functionalAcceptance": false,
+      "completed": false,
+      "error": "Actual native Name/Color/Dimensions exceeded 20000 milliseconds",
+      "tabletErrorMessages": [],
+      "sourceCoherent": true,
+      "shippingSourceCoherent": true,
+      "cleanupVerified": true,
+      "assertions": [
+        "Native Shape button created exactly one domain Cube and its actual domain properties reached the browser"
+      ],
+      "sourceHashes": {
+        "start": {
+          "tests/integration/tablet-create.mjs": "fb06b687b6351668ab13c81471d01aaafaaeaa396fc5ee742d0d78c202c8f5c7",
+          "tests/integration/tablet-create-readiness.mjs": "7d5636c2611e096e1f4b2a61a8f0303ea1a57145269c118d3d71d7acdf87586c",
+          "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+          "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+          "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+          "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+          "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+          "gateway/tablet-capture.qml": "c348dea6a6997ca7c7d4bb359117ad465e71159479a413e80a63bc46a6e61f27",
+          "gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+          "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+          "src/world.ts": "c0b3ef80c74b330575e4bf5e417b6a77cf5f6dd158ecaf5186fa9e62021bf69c",
+          "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+          "gateway/tablet.mjs": "8642ccb83ad35e946607acab6b49cd9c728ad7958dcfdb88879773724d737f9c",
+          "src/tablet.ts": "17dd1e5ca3c0a0beb0f8c0e5f2b6a93c6f1aed9465bd88b62f02ce39cd8778a2",
+          "gateway/server.mjs": "f8399c1015cb85ada0da613b9278b8a90dca0660d2478b8810d43161b1ed237c",
+          "tests/integration/tablet-web-commit-phase-audit.mjs": "3278ba513916a51340843b47ff66a21e8244c0013148618831b3cb3b9ea08324"
+        },
+        "end": {
+          "tests/integration/tablet-create.mjs": "fb06b687b6351668ab13c81471d01aaafaaeaa396fc5ee742d0d78c202c8f5c7",
+          "tests/integration/tablet-create-readiness.mjs": "7d5636c2611e096e1f4b2a61a8f0303ea1a57145269c118d3d71d7acdf87586c",
+          "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+          "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+          "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+          "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+          "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+          "gateway/tablet-capture.qml": "c348dea6a6997ca7c7d4bb359117ad465e71159479a413e80a63bc46a6e61f27",
+          "gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+          "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+          "src/world.ts": "c0b3ef80c74b330575e4bf5e417b6a77cf5f6dd158ecaf5186fa9e62021bf69c",
+          "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+          "gateway/tablet.mjs": "8642ccb83ad35e946607acab6b49cd9c728ad7958dcfdb88879773724d737f9c",
+          "src/tablet.ts": "17dd1e5ca3c0a0beb0f8c0e5f2b6a93c6f1aed9465bd88b62f02ce39cd8778a2",
+          "gateway/server.mjs": "f8399c1015cb85ada0da613b9278b8a90dca0660d2478b8810d43161b1ed237c",
+          "tests/integration/tablet-web-commit-phase-audit.mjs": "3278ba513916a51340843b47ff66a21e8244c0013148618831b3cb3b9ea08324"
+        }
+      },
+      "shippingSourceHashes": {
+        "start": {
+          "tests/integration/tablet-create.mjs": "022c05b9f446b08b604c72bc1222f8ad5db92f550475a5ee419703284042185c",
+          "tests/integration/tablet-create-readiness.mjs": "ca5dbc144ed49153a11baed470f0ffa4aebe6db730ca36a5114bf5b41f8ae649",
+          "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+          "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+          "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+          "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+          "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+          "gateway/tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+          "gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+          "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+          "src/world.ts": "c0b3ef80c74b330575e4bf5e417b6a77cf5f6dd158ecaf5186fa9e62021bf69c",
+          "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+          "gateway/tablet.mjs": "8642ccb83ad35e946607acab6b49cd9c728ad7958dcfdb88879773724d737f9c",
+          "src/tablet.ts": "17dd1e5ca3c0a0beb0f8c0e5f2b6a93c6f1aed9465bd88b62f02ce39cd8778a2",
+          "src/main.ts": "dbbabcf3a92d9cdf994a824d1698703d74bf7ba3918c315c23ec478ab3570800",
+          "gateway/server.mjs": "f8399c1015cb85ada0da613b9278b8a90dca0660d2478b8810d43161b1ed237c",
+          "gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60"
+        },
+        "end": {
+          "tests/integration/tablet-create.mjs": "022c05b9f446b08b604c72bc1222f8ad5db92f550475a5ee419703284042185c",
+          "tests/integration/tablet-create-readiness.mjs": "ca5dbc144ed49153a11baed470f0ffa4aebe6db730ca36a5114bf5b41f8ae649",
+          "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+          "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+          "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+          "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+          "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+          "gateway/tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+          "gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+          "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+          "src/world.ts": "c0b3ef80c74b330575e4bf5e417b6a77cf5f6dd158ecaf5186fa9e62021bf69c",
+          "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+          "gateway/tablet.mjs": "8642ccb83ad35e946607acab6b49cd9c728ad7958dcfdb88879773724d737f9c",
+          "src/tablet.ts": "17dd1e5ca3c0a0beb0f8c0e5f2b6a93c6f1aed9465bd88b62f02ce39cd8778a2",
+          "src/main.ts": "dbbabcf3a92d9cdf994a824d1698703d74bf7ba3918c315c23ec478ab3570800",
+          "gateway/server.mjs": "f8399c1015cb85ada0da613b9278b8a90dca0660d2478b8810d43161b1ed237c",
+          "gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60"
+        }
+      },
+      "nativeBinarySHA256": "91f3e10c42c1e35d5c8265e9b0007e925844d9bee61a26807118dde6e527887c",
+      "browserVersion": "154.0.8037.57",
+      "ownedFixtureCount": 1,
+      "browser": "chromium",
+      "rawCaptureSHA256": "8353af12032f71ac88421a2c8a4b8d704e463cf3f2874fe24a3bda6d3544c7c0",
+      "workerPrivateLogSHA256": "440a0f1dfe05b410b8683a33f9f70f3d444e3f54b41da3d4a36d339031113e28",
+      "workerLogCaptured": true,
+      "sameCallScalarRecords": [
+        {
+          "ordinal": 1,
+          "category": "accepted",
+          "accepted": true,
+          "nativeCurrent": true,
+          "documentFocused": true,
+          "tag": "INPUT",
+          "type": "text",
+          "selectionLength": 0,
+          "maxLength": null
+        },
+        {
+          "ordinal": 2,
+          "category": "accepted",
+          "accepted": true,
+          "nativeCurrent": true,
+          "documentFocused": true,
+          "tag": "INPUT",
+          "type": "text",
+          "selectionLength": 1,
+          "maxLength": 3
+        },
+        {
+          "ordinal": 3,
+          "category": "accepted",
+          "accepted": true,
+          "nativeCurrent": true,
+          "documentFocused": true,
+          "tag": "INPUT",
+          "type": "text",
+          "selectionLength": 3,
+          "maxLength": 3
+        },
+        {
+          "ordinal": 4,
+          "category": "accepted",
+          "accepted": true,
+          "nativeCurrent": true,
+          "documentFocused": true,
+          "tag": "INPUT",
+          "type": "text",
+          "selectionLength": 3,
+          "maxLength": 3
+        },
+        {
+          "ordinal": 5,
+          "category": "accepted",
+          "accepted": true,
+          "nativeCurrent": true,
+          "documentFocused": true,
+          "tag": "INPUT",
+          "type": "number",
+          "selectionLength": null,
+          "maxLength": null
+        },
+        {
+          "ordinal": 6,
+          "category": "accepted",
+          "accepted": true,
+          "nativeCurrent": true,
+          "documentFocused": true,
+          "tag": "INPUT",
+          "type": "number",
+          "selectionLength": null,
+          "maxLength": null
+        },
+        {
+          "ordinal": 7,
+          "category": "accepted",
+          "accepted": true,
+          "nativeCurrent": true,
+          "documentFocused": true,
+          "tag": "INPUT",
+          "type": "number",
+          "selectionLength": null,
+          "maxLength": null
+        }
+      ]
+    },
+    {
+      "startedAt": "2026-10-01T20:34:05.343Z",
+      "finishedAt": "2026-10-01T20:35:26.753Z",
+      "functionalAcceptance": true,
+      "completed": true,
+      "sourceCoherent": true,
+      "shippingSourceCoherent": true,
+      "cleanupVerified": true,
+      "assertions": [
+        "Native Shape button created exactly one domain Cube and its actual domain properties reached the browser",
+        "Genuine Qt Name/Color/Dimensions changes agree with independent native observation and browser domain data; List UI deletes the single own Shape"
+      ],
+      "editedProperties": {
+        "nameSHA256": "317463132410c74a8279f238c544b7a73aa6405a97aede1b18d321d3b887393c",
+        "color": {
+          "red": 30,
+          "green": 170,
+          "blue": 220
+        },
+        "dimensions": {
+          "x": 0.699999988079071,
+          "y": 0.8999999761581421,
+          "z": 1.100000023841858
+        }
+      },
+      "sourceHashes": {
+        "start": {
+          "tests/integration/tablet-create.mjs": "fb06b687b6351668ab13c81471d01aaafaaeaa396fc5ee742d0d78c202c8f5c7",
+          "tests/integration/tablet-create-readiness.mjs": "7d5636c2611e096e1f4b2a61a8f0303ea1a57145269c118d3d71d7acdf87586c",
+          "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+          "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+          "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+          "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+          "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+          "gateway/tablet-capture.qml": "c348dea6a6997ca7c7d4bb359117ad465e71159479a413e80a63bc46a6e61f27",
+          "gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+          "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+          "src/world.ts": "c0b3ef80c74b330575e4bf5e417b6a77cf5f6dd158ecaf5186fa9e62021bf69c",
+          "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+          "gateway/tablet.mjs": "8642ccb83ad35e946607acab6b49cd9c728ad7958dcfdb88879773724d737f9c",
+          "src/tablet.ts": "17dd1e5ca3c0a0beb0f8c0e5f2b6a93c6f1aed9465bd88b62f02ce39cd8778a2",
+          "gateway/server.mjs": "f8399c1015cb85ada0da613b9278b8a90dca0660d2478b8810d43161b1ed237c",
+          "tests/integration/tablet-web-commit-phase-audit.mjs": "3278ba513916a51340843b47ff66a21e8244c0013148618831b3cb3b9ea08324"
+        },
+        "end": {
+          "tests/integration/tablet-create.mjs": "fb06b687b6351668ab13c81471d01aaafaaeaa396fc5ee742d0d78c202c8f5c7",
+          "tests/integration/tablet-create-readiness.mjs": "7d5636c2611e096e1f4b2a61a8f0303ea1a57145269c118d3d71d7acdf87586c",
+          "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+          "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+          "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+          "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+          "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+          "gateway/tablet-capture.qml": "c348dea6a6997ca7c7d4bb359117ad465e71159479a413e80a63bc46a6e61f27",
+          "gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+          "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+          "src/world.ts": "c0b3ef80c74b330575e4bf5e417b6a77cf5f6dd158ecaf5186fa9e62021bf69c",
+          "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+          "gateway/tablet.mjs": "8642ccb83ad35e946607acab6b49cd9c728ad7958dcfdb88879773724d737f9c",
+          "src/tablet.ts": "17dd1e5ca3c0a0beb0f8c0e5f2b6a93c6f1aed9465bd88b62f02ce39cd8778a2",
+          "gateway/server.mjs": "f8399c1015cb85ada0da613b9278b8a90dca0660d2478b8810d43161b1ed237c",
+          "tests/integration/tablet-web-commit-phase-audit.mjs": "3278ba513916a51340843b47ff66a21e8244c0013148618831b3cb3b9ea08324"
+        }
+      },
+      "shippingSourceHashes": {
+        "start": {
+          "tests/integration/tablet-create.mjs": "022c05b9f446b08b604c72bc1222f8ad5db92f550475a5ee419703284042185c",
+          "tests/integration/tablet-create-readiness.mjs": "ca5dbc144ed49153a11baed470f0ffa4aebe6db730ca36a5114bf5b41f8ae649",
+          "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+          "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+          "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+          "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+          "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+          "gateway/tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+          "gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+          "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+          "src/world.ts": "c0b3ef80c74b330575e4bf5e417b6a77cf5f6dd158ecaf5186fa9e62021bf69c",
+          "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+          "gateway/tablet.mjs": "8642ccb83ad35e946607acab6b49cd9c728ad7958dcfdb88879773724d737f9c",
+          "src/tablet.ts": "17dd1e5ca3c0a0beb0f8c0e5f2b6a93c6f1aed9465bd88b62f02ce39cd8778a2",
+          "src/main.ts": "dbbabcf3a92d9cdf994a824d1698703d74bf7ba3918c315c23ec478ab3570800",
+          "gateway/server.mjs": "f8399c1015cb85ada0da613b9278b8a90dca0660d2478b8810d43161b1ed237c",
+          "gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60"
+        },
+        "end": {
+          "tests/integration/tablet-create.mjs": "022c05b9f446b08b604c72bc1222f8ad5db92f550475a5ee419703284042185c",
+          "tests/integration/tablet-create-readiness.mjs": "ca5dbc144ed49153a11baed470f0ffa4aebe6db730ca36a5114bf5b41f8ae649",
+          "tests/integration/tablet-create-contract.mjs": "b4f1494f3b987f4ba4db28fbda4b77550e8a1df4afd3b44dfb9333ae4e397b10",
+          "tests/integration/tablet-create-selection.mjs": "57d1f5dafd8ecfc3856b0b902e7d7a05e33e7a7ded8319814c6b94db9e448503",
+          "tests/integration/native-create-observer.js": "8a892f9d6a9f26c62582418c54889daf2d2191fcb692691b6930bca27171add4",
+          "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+          "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+          "gateway/tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+          "gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+          "gateway/create-responsive-overrides.mjs": "d37a2517a01a2e8109f7e344b12da32e40d840686f12b89b5cc14f19d66e666f",
+          "src/world.ts": "c0b3ef80c74b330575e4bf5e417b6a77cf5f6dd158ecaf5186fa9e62021bf69c",
+          "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+          "gateway/tablet.mjs": "8642ccb83ad35e946607acab6b49cd9c728ad7958dcfdb88879773724d737f9c",
+          "src/tablet.ts": "17dd1e5ca3c0a0beb0f8c0e5f2b6a93c6f1aed9465bd88b62f02ce39cd8778a2",
+          "src/main.ts": "dbbabcf3a92d9cdf994a824d1698703d74bf7ba3918c315c23ec478ab3570800",
+          "gateway/server.mjs": "f8399c1015cb85ada0da613b9278b8a90dca0660d2478b8810d43161b1ed237c",
+          "gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60"
+        }
+      },
+      "nativeBinarySHA256": "91f3e10c42c1e35d5c8265e9b0007e925844d9bee61a26807118dde6e527887c",
+      "browserVersion": "firefox/156.0",
+      "ownedFixtureCount": 1,
+      "browser": "firefox",
+      "rawCaptureSHA256": "fa109afdbeea62cfbc9551d027c0bbbb8df22804841a99386340e85868220f97",
+      "workerPrivateLogSHA256": null,
+      "workerLogCaptured": false,
+      "sameCallScalarRecords": []
+    }
+  ],
+  "publicWrites": 0,
+  "microphoneRequested": false,
+  "diagnosticOnly": true,
+  "limits": [
+    "Shipping QML92 retains its original insertion/control behavior, but the existing insertion call returns additional fixed scalar metadata.",
+    "This may change scheduling and is neither a shipping fix nor a performance gain.",
+    "Chromium loses Z and fails full native-property acceptance despite all seven accepted/current/focused callback results.",
+    "Firefox passes the complete original genuine workflow in this separate diagnostic cohort; product-wide reliability is not established.",
+    "Firefox worker log was unavailable after leave; no callback-phase evidence is invented for that session.",
+    "Neither raw private worker log nor native observer values/names/IDs are published.",
+    "No endurance test was run."
+  ]
+}

@@ -1,0 +1,152 @@
+{
+  "schemaVersion": 1,
+  "scope": "Existing native command/read clock projection and exact source binding; original Core movement acceptance and spontaneous GPU repair remain open. Material AI assistance used.",
+  "recordedAt": "2026-10-04T02:37:44.397682+00:00",
+  "coherenceHeadReference": "78a0060cf63ad1b2aa2983294e0f38952ed5c74a",
+  "commitScope": "The new four-path candidate was uncommitted during the first full run. Exact source hashes and complete inventories identify it; the coherence HEAD is not the tested-source identity.",
+  "sourceSHA256": {
+    "browser-client/tests/integration/native-peer-diagnostic.mjs": "3aec808022e1dd3fc95bdd895d370aae1eeb99386b0e90fb21f52f29a5029c1d",
+    "browser-client/tests/native-peer-diagnostic.test.mjs": "29e4cb415bfade50bda4742c3beb1715979d961d628555f9544101ecb8828538",
+    "browser-client/lab/curate-core-journey.py": "d879087afc510171c0e131c69ca40fd5127c77bbe78f6d8f86a4749c3cfb55b4",
+    "browser-client/lab/test_curate_core_journey.py": "2d683c04843846199d81566da419ec0f5398a0deb8c5745dc66bce58e39321ca",
+    "browser-client/tests/integration/real-session.mjs": "daba35297a9090a29a916ddd7658c11b2713fcf1f25d78894e17d9ac922e915b"
+  },
+  "proposalSHA256": "c96881a999f8c802262b920ace80df96c53ecac7203f03dbff9e9769b1d0a08c",
+  "focusedCommands": [
+    {
+      "command": [
+        "node",
+        "--test",
+        "browser-client/tests/native-peer-diagnostic.test.mjs"
+      ],
+      "pass": 13,
+      "fail": 0,
+      "skipped": 0
+    },
+    {
+      "command": [
+        "python3",
+        "browser-client/lab/test_curate_core_journey.py"
+      ],
+      "pass": 14,
+      "fail": 0,
+      "skipped": 0
+    }
+  ],
+  "firstCompleteRun": {
+    "sourceInventorySHA256": "28c70116bace612f62869a07a180440bae38c844466b40b96bd56ca32927744a",
+    "sourceFiles": 9818,
+    "checks": [
+      {
+        "label": "product-unit-suite",
+        "command": [
+          "npm",
+          "test"
+        ],
+        "exitCode": 1,
+        "seconds": 35.986,
+        "logSHA256": "2dc71a57df0f466301761d4a27e6e28b48fe2b9ebda635eb656883e1cf4d6754",
+        "counts": {
+          "tests": 2803,
+          "pass": 2796,
+          "fail": 7,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "sourceCoherent": true
+      }
+    ],
+    "build": "not-run after product failure",
+    "repositoryQuick": "not-run after product failure",
+    "fixedFailure": "Seven whole historical Chrome20 source checks reject new curator d879 against previous3980. This lab path is not among209 current direct capture rows, but is in the separate20-file source binding."
+  },
+  "correctedCompleteRun": {
+    "sourceFiles": 9823,
+    "sourceInventorySHA256": "ee83d56b4704ddbdf46dbabd5632606ba9ce8286ebade2dce0f41150ec13812d",
+    "checks": [
+      {
+        "label": "product-unit-suite",
+        "command": [
+          "npm",
+          "test"
+        ],
+        "exitCode": 0,
+        "seconds": 38.706,
+        "logSHA256": "1fae508a5dff72069ff11ceaca7103e02dff486596d9f32ffd0fe4be9068f8df",
+        "counts": {
+          "tests": 2813,
+          "pass": 2813,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "sourceCoherent": true
+      },
+      {
+        "label": "production-build",
+        "command": [
+          "npm",
+          "run",
+          "build"
+        ],
+        "exitCode": 0,
+        "seconds": 5.518,
+        "logSHA256": "07c22aa1e218f6af23c8db1b4b9c9e645534cdfef12377c03cf4eb8d1846be3d",
+        "counts": {},
+        "sourceCoherent": true
+      },
+      {
+        "label": "repository-quick",
+        "command": [
+          "python3",
+          "tests/run-project-tests.py",
+          "--profile",
+          "quick",
+          "--timeout",
+          "240"
+        ],
+        "exitCode": 0,
+        "seconds": 154.391,
+        "logSHA256": "9203b0d6d91cf42642117885a077ca154fbbcc5803de3563629805df57cc123b",
+        "counts": {},
+        "sourceCoherent": true
+      }
+    ],
+    "productionFiles": 34,
+    "productionReceiptSHA256": "2530b62845b5a4682b47c35efb77fdec30da54a3be1554f6579777a3bcb17b9b",
+    "localDistributionEqualsPriorV23": true,
+    "repositorySuitesPassed": 34,
+    "interpretation": "Full corrected local gates pass; hosted Native/Core, GPU and CodeQL qualification remain separate."
+  },
+  "meaningLimits": [
+    "Issued timestamp is the exact matched Node Date.now command sequence captured before awaited file publication. Read timestamp reuses the existing projector Date.now after the browser snapshot and native diagnostic file read.",
+    "Native applied/observation timestamps are separately reported by the native V8 process. Clock alignment, monotonicity and exact browser-capture epoch are not established.",
+    "The original Core command,2800ms wait,captured WebSocket peer predicate,thresholds and owned file-read boundaries remain unchanged.",
+    "Focused counts overlap the complete product suite and are not added to it. Private raw logs, process identifiers, authentication files and user data are omitted."
+  ],
+  "unchangedRuntime": "Nine existing registered local service births remain unchanged; no native/browser service restart.",
+  "sourceClosure": {
+    "version": 24,
+    "canonicalRows": 215,
+    "allPreviousRowsPreserved": 209,
+    "cpuMigrations": 2,
+    "newAdmissions": 6,
+    "manifestSHA256": "1d5a2cdf8556792c40794c7a8008af07a7b7f101dda800bc70cdd64197bd8f08",
+    "proposalSHA256": "272a304b9aebe27f438984d16ac17e51cfa12517b5b84ca5025ebbc68dead47f",
+    "independentCPU": 216,
+    "independentSkipped": 0,
+    "meaning": "Exact whole3980 curator retained for CPU historical inputs only. All original assertion bodies/archives remain. Current Chrome20 metadata explicitly pinsd879. No new production lab-path allowance or history import.",
+    "independentReceiptSHA256": "177ff19ef21e53fbb6533ffa7ad6a42294a3691f71333d63db5e874cddf85caa"
+  },
+  "privateClockViewer": {
+    "candidateManifestSHA256": "f86bef8f97be311e67e8831c07189fb24779e4660044e3d9c11e91f660045cca",
+    "rootCPU": 33,
+    "independentCPU": 33,
+    "artifactSourcePins": 14,
+    "gitOnlyMeaningDependencies": 2,
+    "gitOnlyDependenciesRuntimeAuthenticated": false,
+    "scope": "Separate source-bound offline viewer for the next committed cohort; old78a evidence remains on its predecessor; no clock alignment or acceptance window inferred."
+  }
+}

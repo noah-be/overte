@@ -1,0 +1,1266 @@
+{
+  "repository": "https://github.com/vircadia/vircadia-web-sdk",
+  "commit": "35cb07ba5d4a7e06d078d762fcd4584099a26959",
+  "packageVersion": "2024.1.2",
+  "license": "Apache-2.0",
+  "files": [
+    {
+      "path": "AvatarMixer.ts",
+      "sourcePath": "src/AvatarMixer.ts",
+      "sourceBlob": "0cae1a7aefa9cd33a8039d9402debb781e6fa5f1",
+      "sha256": "3981ffd8b932e718f6f12c9dedeec1702c15b49a041de2b4a309df2eeb4b7b69",
+      "status": "retained",
+      "currentSha256": "3981ffd8b932e718f6f12c9dedeec1702c15b49a041de2b4a309df2eeb4b7b69"
+    },
+    {
+      "path": "Camera.ts",
+      "sourcePath": "src/Camera.ts",
+      "sourceBlob": "72c0370918406ccf2e00bd51e3437ae2388e02e0",
+      "sha256": "4931cae6930e61396d955ccda517d275eede9e6cc526d7042f6c3dfc344ad6ad",
+      "status": "retained",
+      "currentSha256": "4931cae6930e61396d955ccda517d275eede9e6cc526d7042f6c3dfc344ad6ad"
+    },
+    {
+      "path": "DomainServer.ts",
+      "sourcePath": "src/DomainServer.ts",
+      "sourceBlob": "50b22fcd569ad3331b1d008c7d15c3cc034d3b44",
+      "sha256": "e49dfdc258af4c01f1ed3bdf919e1b5360d6afd1b4d3ca9a36a0a25963e43fe2",
+      "status": "adapted",
+      "modifications": "Delegate actual AssetServer requests and cancellation to the direct-session layer instead of warning that assets are unimplemented. Pass an optional peer factory through domain and node initialization without changing native admission.",
+      "currentSha256": "e7ea1ef5b4248de17fc297bf223c851fe1939b95790ed0c6903934e382bfdc85"
+    },
+    {
+      "path": "domain/AssignmentClient.ts",
+      "sourcePath": "src/domain/AssignmentClient.ts",
+      "sourceBlob": "2d2e31d843a87083d9413bcb3cac72843ba5431d",
+      "sha256": "f88bb2be8c290e5c7416d4779cbc1938d0c93f7b07322edbf47ab98efe17aa1c",
+      "status": "retained",
+      "currentSha256": "f88bb2be8c290e5c7416d4779cbc1938d0c93f7b07322edbf47ab98efe17aa1c"
+    },
+    {
+      "path": "domain/AvatarManager.ts",
+      "sourcePath": "src/domain/AvatarManager.ts",
+      "sourceBlob": "330ca1612a7e49b925321944e5abe4ddda887585",
+      "sha256": "c679e07d232ce34d2b821b4790ae89595a9c8a5c1850cd4b3805d2839e84255d",
+      "status": "retained",
+      "currentSha256": "c679e07d232ce34d2b821b4790ae89595a9c8a5c1850cd4b3805d2839e84255d"
+    },
+    {
+      "path": "domain/audio-client/AudioClient.ts",
+      "sourcePath": "src/domain/audio-client/AudioClient.ts",
+      "sourceBlob": "f061a96d51b94eefd0853df2918d563881a7193b",
+      "sha256": "e2dfb4d3330a8f131bfc2bfa0b2690ddc4aa32e5e03472c34d86c9519e1fc16e",
+      "status": "omitted",
+      "modifications": "Omit legacy SDK audio capture/playback/worklets; the local browser module owns permission, native PCM, mute and playback."
+    },
+    {
+      "path": "domain/audio/AudioConstants.ts",
+      "sourcePath": "src/domain/audio/AudioConstants.ts",
+      "sourceBlob": "e50e03552039c32104ba74045842e381e06a067e",
+      "sha256": "8433c757e5fcde892289982a878e7ec6b8bfd507e75340046f5672ad3c3cd35d",
+      "status": "omitted",
+      "modifications": "Omit legacy SDK audio capture/playback/worklets; the local browser module owns permission, native PCM, mute and playback."
+    },
+    {
+      "path": "domain/audio/AudioInput.ts",
+      "sourcePath": "src/domain/audio/AudioInput.ts",
+      "sourceBlob": "e3cbc3197574b3f264edcb31f7432c893fdd9696",
+      "sha256": "e99d135548302519f77e543ced826c48610189c810bfe5f040501bb4e64eb891",
+      "status": "omitted",
+      "modifications": "Omit legacy SDK audio capture/playback/worklets; the local browser module owns permission, native PCM, mute and playback."
+    },
+    {
+      "path": "domain/audio/AudioOutput.ts",
+      "sourcePath": "src/domain/audio/AudioOutput.ts",
+      "sourceBlob": "71d5557d1f5a1fe7dfdeda4d729fd8a284b4fda8",
+      "sha256": "fd5b2d360f6e07d956143bdc4f9183c3029ff23fc9aaf9dfbc7d75691f65bca7",
+      "status": "omitted",
+      "modifications": "Omit legacy SDK audio capture/playback/worklets; the local browser module owns permission, native PCM, mute and playback."
+    },
+    {
+      "path": "domain/audio/AudioWorklets.ts",
+      "sourcePath": "src/domain/audio/AudioWorklets.ts",
+      "sourceBlob": "131ace8e5a5b13048558c124b1620bd2fd035e85",
+      "sha256": "26f5adb5874f68157bd691f5c395b6c5ae551e1c921f35de106a523f6045592a",
+      "status": "omitted",
+      "modifications": "Omit legacy SDK audio capture/playback/worklets; the local browser module owns permission, native PCM, mute and playback."
+    },
+    {
+      "path": "domain/audio/InboundAudioStream.ts",
+      "sourcePath": "src/domain/audio/InboundAudioStream.ts",
+      "sourceBlob": "6af12553ead5df4f01cf5403994315d6e9ee18e4",
+      "sha256": "581003415e3ddb69d48438bc7b0b6675300750580ff8ae360cb01b2ef8f46b4c",
+      "status": "omitted",
+      "modifications": "Omit legacy SDK audio capture/playback/worklets; the local browser module owns permission, native PCM, mute and playback."
+    },
+    {
+      "path": "domain/avatar-renderer/Avatar.ts",
+      "sourcePath": "src/domain/avatar-renderer/Avatar.ts",
+      "sourceBlob": "37778303b4b9eed30b6ee16e041c8b77bc1c389d",
+      "sha256": "1ee169d1be81ad84393f478ae53687856d77a4ae89adcfeccb1e52ade9acccca",
+      "status": "retained",
+      "currentSha256": "1ee169d1be81ad84393f478ae53687856d77a4ae89adcfeccb1e52ade9acccca"
+    },
+    {
+      "path": "domain/avatar-renderer/ScriptAvatar.ts",
+      "sourcePath": "src/domain/avatar-renderer/ScriptAvatar.ts",
+      "sourceBlob": "f4d22836af7015b40dfef967526f0a5d2dcd7a09",
+      "sha256": "1e74db1fdf86828c7b8ae8cb32ded4eec227a255588642a42c59352f45dd3ce2",
+      "status": "retained",
+      "currentSha256": "1e74db1fdf86828c7b8ae8cb32ded4eec227a255588642a42c59352f45dd3ce2"
+    },
+    {
+      "path": "domain/avatar/MyAvatar.ts",
+      "sourcePath": "src/domain/avatar/MyAvatar.ts",
+      "sourceBlob": "69f7e8a61403e8dd224ece2a7b0e7252db87c7e6",
+      "sha256": "197744890f425702d18640900254e6783882f859013c6024e3365db6163a73a1",
+      "status": "adapted",
+      "modifications": "Read consent-owned browser PCM levels instead of instantiating the legacy SDK microphone implementation.",
+      "currentSha256": "f955ebc2e2e54fea9d3de9006b6643b50d5aa2a5b58cb4f23e5a2f8d64e9d08f"
+    },
+    {
+      "path": "domain/avatars/AvatarData.ts",
+      "sourcePath": "src/domain/avatars/AvatarData.ts",
+      "sourceBlob": "20d1717f3facc52fc47db9e3635504d7da1009b5",
+      "sha256": "27cd1416896682fa6f5e8eeec2e2ee131c581ec88e8b60fb56863445aac1ddad",
+      "status": "retained",
+      "currentSha256": "27cd1416896682fa6f5e8eeec2e2ee131c581ec88e8b60fb56863445aac1ddad"
+    },
+    {
+      "path": "domain/avatars/AvatarDataPacket.ts",
+      "sourcePath": "src/domain/avatars/AvatarDataPacket.ts",
+      "sourceBlob": "18ad3cbf9b99028d09821b8e092060fca90ffac4",
+      "sha256": "41bc8f4ba19e2f3529d858e2b17a9147cdcb227bf853a7406246692dd2cc3fc0",
+      "status": "retained",
+      "currentSha256": "41bc8f4ba19e2f3529d858e2b17a9147cdcb227bf853a7406246692dd2cc3fc0"
+    },
+    {
+      "path": "domain/avatars/AvatarHashMap.ts",
+      "sourcePath": "src/domain/avatars/AvatarHashMap.ts",
+      "sourceBlob": "080539974dea36bad881ce6414b0efd791200aca",
+      "sha256": "7e28172a592500a82129409d3767643b9ccf15893c955f02b863c92660c5cc4b",
+      "status": "retained",
+      "currentSha256": "7e28172a592500a82129409d3767643b9ccf15893c955f02b863c92660c5cc4b"
+    },
+    {
+      "path": "domain/avatars/AvatarTraits.ts",
+      "sourcePath": "src/domain/avatars/AvatarTraits.ts",
+      "sourceBlob": "cc3f08bce8453594d1f8fabf29155c9a7dd810ff",
+      "sha256": "e160cbbc4c26b60791476259fe2e1881f49b0b1d7da0bb6871ba304ec863a901",
+      "status": "adapted",
+      "modifications": "Use native UTF-8 joint-name byte indices and guarded native skeleton scales.",
+      "currentSha256": "89ff0edbf4d7b257e596c7e67bfe1ef4daf57e71b476570326b20e0c5569ca79"
+    },
+    {
+      "path": "domain/avatars/ClientTraitsHandler.ts",
+      "sourcePath": "src/domain/avatars/ClientTraitsHandler.ts",
+      "sourceBlob": "fd0cdbabb5170327a06494f7f497935c07a895e9",
+      "sha256": "85e3d25a68f0212ecf5935c0a23eced53ff3123989def0f013c80ff9c565de23",
+      "status": "retained",
+      "currentSha256": "85e3d25a68f0212ecf5935c0a23eced53ff3123989def0f013c80ff9c565de23"
+    },
+    {
+      "path": "domain/entities/AmbientLightPropertyGroup.ts",
+      "sourcePath": "src/domain/entities/AmbientLightPropertyGroup.ts",
+      "sourceBlob": "76c1930d377f00df48db9e3e1033d7bb71453758",
+      "sha256": "0635184279ffb8ac03f510f6ecc097a43245f338305d8dfd3c50b7f4450715ab",
+      "status": "retained",
+      "currentSha256": "0635184279ffb8ac03f510f6ecc097a43245f338305d8dfd3c50b7f4450715ab"
+    },
+    {
+      "path": "domain/entities/BloomPropertyGroup.ts",
+      "sourcePath": "src/domain/entities/BloomPropertyGroup.ts",
+      "sourceBlob": "cd7f88d6f8ba6feff422ad772b9a3c9ed4231e89",
+      "sha256": "92fb5ff7d1c2e3e5e58920944a08038edc91818d52575d3f44810762b8391e7a",
+      "status": "retained",
+      "currentSha256": "92fb5ff7d1c2e3e5e58920944a08038edc91818d52575d3f44810762b8391e7a"
+    },
+    {
+      "path": "domain/entities/EntityPropertyFlags.ts",
+      "sourcePath": "src/domain/entities/EntityPropertyFlags.ts",
+      "sourceBlob": "143ebe10906bb36924cdabb89634ea733108d50f",
+      "sha256": "e1ef931c778235bdbaa2edb09373ab6aaf9f0dbec8899d98a13f45633d80f55b",
+      "status": "retained",
+      "currentSha256": "e1ef931c778235bdbaa2edb09373ab6aaf9f0dbec8899d98a13f45633d80f55b"
+    },
+    {
+      "path": "domain/entities/EntityTypes.ts",
+      "sourcePath": "src/domain/entities/EntityTypes.ts",
+      "sourceBlob": "2e1f35b7b23df801173f9e2d9d57d997e244ab3f",
+      "sha256": "782b1e96fd55f584ec8a81268831c146c49f5bd23d85d8eb815b27551c3d7533",
+      "status": "retained",
+      "currentSha256": "782b1e96fd55f584ec8a81268831c146c49f5bd23d85d8eb815b27551c3d7533"
+    },
+    {
+      "path": "domain/entities/GizmoEntityItem.ts",
+      "sourcePath": "src/domain/entities/GizmoEntityItem.ts",
+      "sourceBlob": "7afa4537e1c4ba91eb99667f6fff890c38c69cd5",
+      "sha256": "06045368b1692d01c3dd4e0ef7033ff8e5b030c45b6355a8dc3ba82e6f072a45",
+      "status": "retained",
+      "currentSha256": "06045368b1692d01c3dd4e0ef7033ff8e5b030c45b6355a8dc3ba82e6f072a45"
+    },
+    {
+      "path": "domain/entities/GridEntityItem.ts",
+      "sourcePath": "src/domain/entities/GridEntityItem.ts",
+      "sourceBlob": "4d9eb385ca1fda7bffc5d061bd2781d73f94ebcf",
+      "sha256": "f8ca5e374717954e0b7d322083e34c8264ada9dd901e0e30cf391a968ffe79cc",
+      "status": "retained",
+      "currentSha256": "f8ca5e374717954e0b7d322083e34c8264ada9dd901e0e30cf391a968ffe79cc"
+    },
+    {
+      "path": "domain/entities/HazePropertyGroup.ts",
+      "sourcePath": "src/domain/entities/HazePropertyGroup.ts",
+      "sourceBlob": "d4138f0260d89816078350ca650b3f6baf52f09c",
+      "sha256": "471a2e6ec6e662079d9c3c7f2790e5fe209f53b1fc04bf44d068d4a9f5af753b",
+      "status": "retained",
+      "currentSha256": "471a2e6ec6e662079d9c3c7f2790e5fe209f53b1fc04bf44d068d4a9f5af753b"
+    },
+    {
+      "path": "domain/entities/ImageEntityItem.ts",
+      "sourcePath": "src/domain/entities/ImageEntityItem.ts",
+      "sourceBlob": "3af844d307a4d53015fb7cd630b2498c2a61c52a",
+      "sha256": "80fe8ec4ae7ff011cc13f75cee8138e06199ca1033f0a40d9d4829cf14b35b96",
+      "status": "retained",
+      "currentSha256": "80fe8ec4ae7ff011cc13f75cee8138e06199ca1033f0a40d9d4829cf14b35b96"
+    },
+    {
+      "path": "domain/entities/KeyLightPropertyGroup.ts",
+      "sourcePath": "src/domain/entities/KeyLightPropertyGroup.ts",
+      "sourceBlob": "1f9c096827caf9eb861e3cf891dd40a7e0d8bd9a",
+      "sha256": "cfa991418214c6526430894b750282e866a2820a9ed8672c325cfe4010b740d2",
+      "status": "retained",
+      "currentSha256": "cfa991418214c6526430894b750282e866a2820a9ed8672c325cfe4010b740d2"
+    },
+    {
+      "path": "domain/entities/LightEntityItem.ts",
+      "sourcePath": "src/domain/entities/LightEntityItem.ts",
+      "sourceBlob": "670705f7883998b76073ccff998c987ec88055f1",
+      "sha256": "8e9a403ef3fceb8bd0011124d7870cf78d75478032c51e486ce7c0e3258506ed",
+      "status": "retained",
+      "currentSha256": "8e9a403ef3fceb8bd0011124d7870cf78d75478032c51e486ce7c0e3258506ed"
+    },
+    {
+      "path": "domain/entities/LineEntityItem.ts",
+      "sourcePath": "src/domain/entities/LineEntityItem.ts",
+      "sourceBlob": "7acd9ebcbe830a514ee722daf0b3c023d0036d9a",
+      "sha256": "7c72b3c143cf0d7817fe0619ed9b004d98cbcf0170f0e8f569c37a166b5778d8",
+      "status": "retained",
+      "currentSha256": "7c72b3c143cf0d7817fe0619ed9b004d98cbcf0170f0e8f569c37a166b5778d8"
+    },
+    {
+      "path": "domain/entities/MaterialEntityItem.ts",
+      "sourcePath": "src/domain/entities/MaterialEntityItem.ts",
+      "sourceBlob": "42eecda4ad694a70a17bfb5e4bb895cb1cda3d1c",
+      "sha256": "c6d0e1602f7851b854e8344da3b6abbd27bafc88bbad9dcdb1d6a44c4b59262e",
+      "status": "retained",
+      "currentSha256": "c6d0e1602f7851b854e8344da3b6abbd27bafc88bbad9dcdb1d6a44c4b59262e"
+    },
+    {
+      "path": "domain/entities/ModelEntityItem.ts",
+      "sourcePath": "src/domain/entities/ModelEntityItem.ts",
+      "sourceBlob": "8a68786d9201e25d12c4b7dae8ae739670265fdc",
+      "sha256": "c6b8d1727be8615f1967df0b11d119dc5a9feefe6e7565cb6255b107ff62ec33",
+      "status": "retained",
+      "currentSha256": "c6b8d1727be8615f1967df0b11d119dc5a9feefe6e7565cb6255b107ff62ec33"
+    },
+    {
+      "path": "domain/entities/ParticleEffectEntityItem.ts",
+      "sourcePath": "src/domain/entities/ParticleEffectEntityItem.ts",
+      "sourceBlob": "3a0ce6e1398c69ef21b4ed87354d4e74b7bf603f",
+      "sha256": "c109da32ccedf2cda463b21490ab06cb5055f852294b7b451f8c746cebfc625a",
+      "status": "retained",
+      "currentSha256": "c109da32ccedf2cda463b21490ab06cb5055f852294b7b451f8c746cebfc625a"
+    },
+    {
+      "path": "domain/entities/PolyLineEntityItem.ts",
+      "sourcePath": "src/domain/entities/PolyLineEntityItem.ts",
+      "sourceBlob": "fba0b74e051f32ae7dddd900190419dbf6c5baf8",
+      "sha256": "c1a7fd0f81ce7a3bea6952dd88e723e7566ae33eaa6a7cfbbf52c1f772c6f524",
+      "status": "retained",
+      "currentSha256": "c1a7fd0f81ce7a3bea6952dd88e723e7566ae33eaa6a7cfbbf52c1f772c6f524"
+    },
+    {
+      "path": "domain/entities/PolyVoxEntityItem.ts",
+      "sourcePath": "src/domain/entities/PolyVoxEntityItem.ts",
+      "sourceBlob": "c40ff330ae50fea3ab8096ddfcafb9ba7d6f69b6",
+      "sha256": "2fa482f02413e16f6725aa93ed313e39909aad2c805e77012c23bf72300333a1",
+      "status": "retained",
+      "currentSha256": "2fa482f02413e16f6725aa93ed313e39909aad2c805e77012c23bf72300333a1"
+    },
+    {
+      "path": "domain/entities/PulsePropertyGroup.ts",
+      "sourcePath": "src/domain/entities/PulsePropertyGroup.ts",
+      "sourceBlob": "87d534a4e329b350851d2ddf17e9fb7968ae5ea6",
+      "sha256": "ae75425ca849cae29f9553aea202f8d6de2a3c9158b29d22e4562e2be2932912",
+      "status": "retained",
+      "currentSha256": "ae75425ca849cae29f9553aea202f8d6de2a3c9158b29d22e4562e2be2932912"
+    },
+    {
+      "path": "domain/entities/RingGizmoPropertyGroup.ts",
+      "sourcePath": "src/domain/entities/RingGizmoPropertyGroup.ts",
+      "sourceBlob": "0b30fb59ed5b950b9055e616668dc33e761a7cab",
+      "sha256": "a64032c463626bb556ffa1450f59fca560cb6824ba26f17af3fcbfc64a5173f4",
+      "status": "retained",
+      "currentSha256": "a64032c463626bb556ffa1450f59fca560cb6824ba26f17af3fcbfc64a5173f4"
+    },
+    {
+      "path": "domain/entities/ShapeEntityItem.ts",
+      "sourcePath": "src/domain/entities/ShapeEntityItem.ts",
+      "sourceBlob": "f535b79eece774bf481ae474d46f5555dc551156",
+      "sha256": "ef59c8f1ddda39b89deb006b7568a04374521a035d69060e723fcf98c27993ad",
+      "status": "retained",
+      "currentSha256": "ef59c8f1ddda39b89deb006b7568a04374521a035d69060e723fcf98c27993ad"
+    },
+    {
+      "path": "domain/entities/SkyboxPropertyGroup.ts",
+      "sourcePath": "src/domain/entities/SkyboxPropertyGroup.ts",
+      "sourceBlob": "88cb9835d5b01601a8b5bb748bdcfe12b6afa192",
+      "sha256": "ba02277d109d89ac60e0b32518b0fd928e4e4da6357bec94c3bb6899a30fe6de",
+      "status": "retained",
+      "currentSha256": "ba02277d109d89ac60e0b32518b0fd928e4e4da6357bec94c3bb6899a30fe6de"
+    },
+    {
+      "path": "domain/entities/TextEntityItem.ts",
+      "sourcePath": "src/domain/entities/TextEntityItem.ts",
+      "sourceBlob": "3e587151459a2968ff53e927459b9ee7e08c8d64",
+      "sha256": "2aebfceb9f73b848e00609ae57382167a8b32e0d690a51dab95300d7c391f25d",
+      "status": "retained",
+      "currentSha256": "2aebfceb9f73b848e00609ae57382167a8b32e0d690a51dab95300d7c391f25d"
+    },
+    {
+      "path": "domain/entities/WebEntityItem.ts",
+      "sourcePath": "src/domain/entities/WebEntityItem.ts",
+      "sourceBlob": "371a023e21bc13ee819cb05efdc7f8df74bf4ff9",
+      "sha256": "b21f38f91f3223313ac4f32a9026fbc7ed08fccc455f0269156ab0aefeba4c98",
+      "status": "retained",
+      "currentSha256": "b21f38f91f3223313ac4f32a9026fbc7ed08fccc455f0269156ab0aefeba4c98"
+    },
+    {
+      "path": "domain/entities/ZoneEntityItem.ts",
+      "sourcePath": "src/domain/entities/ZoneEntityItem.ts",
+      "sourceBlob": "901b072ace6950b57829231dfbe83d05848a7c6a",
+      "sha256": "09d3e94451a0a3f7a260bf04aead4ccc0590c9c5e071af5d0dc560f180abd3d3",
+      "status": "retained",
+      "currentSha256": "09d3e94451a0a3f7a260bf04aead4ccc0590c9c5e071af5d0dc560f180abd3d3"
+    },
+    {
+      "path": "domain/interfaces/AccountInterface.ts",
+      "sourcePath": "src/domain/interfaces/AccountInterface.ts",
+      "sourceBlob": "c472ea80d151c562f9d5866f074a49f8ced98f89",
+      "sha256": "f045bc733544372b2bcf73506b878c5ff000f699676f8c25653ae589f0251637",
+      "status": "retained",
+      "currentSha256": "f045bc733544372b2bcf73506b878c5ff000f699676f8c25653ae589f0251637"
+    },
+    {
+      "path": "domain/interfaces/AvatarListInterface.ts",
+      "sourcePath": "src/domain/interfaces/AvatarListInterface.ts",
+      "sourceBlob": "001b4d0ef5f274745af0afc2f124c110d7a0fb30",
+      "sha256": "12c8351b6d8620776a20f5b90fcd2bba121c9b63645bb8d17665e946224ba2a5",
+      "status": "retained",
+      "currentSha256": "12c8351b6d8620776a20f5b90fcd2bba121c9b63645bb8d17665e946224ba2a5"
+    },
+    {
+      "path": "domain/interfaces/MyAvatarInterface.ts",
+      "sourcePath": "src/domain/interfaces/MyAvatarInterface.ts",
+      "sourceBlob": "74c4d670d2dcc0717be7d75bf8578659fda83e77",
+      "sha256": "45839372212b5690b5b7df02a5811580c35df20a9144c538255cf3dffc45b7bf",
+      "status": "retained",
+      "currentSha256": "45839372212b5690b5b7df02a5811580c35df20a9144c538255cf3dffc45b7bf"
+    },
+    {
+      "path": "domain/interfaces/UsersInterface.ts",
+      "sourcePath": "src/domain/interfaces/UsersInterface.ts",
+      "sourceBlob": "a1324cca86aaef60b5917955ee037934257b7966",
+      "sha256": "55de7b2d6c50971de3ebdc184eb5b397c1626b7edf5c06852be63aa2079df121",
+      "status": "retained",
+      "currentSha256": "55de7b2d6c50971de3ebdc184eb5b397c1626b7edf5c06852be63aa2079df121"
+    },
+    {
+      "path": "domain/networking/AccountManager.ts",
+      "sourcePath": "src/domain/networking/AccountManager.ts",
+      "sourceBlob": "90274373e9dc4eebe8c37d6571eb975bfdf053f6",
+      "sha256": "0371601832037d0417620bc28b3b89da1aaed3c973877adc006003e9a8d6c69b",
+      "status": "adapted",
+      "modifications": "Own imported/generated key buffers and honor input-view offsets for current browser WebCrypto types. Require a configured authenticated account and nonempty username before initiating directory key generation/upload; anonymous domain challenges cannot write to the historical default directory.",
+      "currentSha256": "afb68e0e863adb91532bcc2c9da2b33a30778a4e479ba67c8e9c376c1d996430"
+    },
+    {
+      "path": "domain/networking/AddressManager.ts",
+      "sourcePath": "src/domain/networking/AddressManager.ts",
+      "sourceBlob": "f9f5543a5b3fc2d4549258660b8230666fbcb819",
+      "sha256": "51e29b15c7abb80f996405b413ae07528b9a10bfa31c70c7e904a7aaf4d33c02",
+      "status": "retained",
+      "currentSha256": "51e29b15c7abb80f996405b413ae07528b9a10bfa31c70c7e904a7aaf4d33c02"
+    },
+    {
+      "path": "domain/networking/DataServerAccountInfo.ts",
+      "sourcePath": "src/domain/networking/DataServerAccountInfo.ts",
+      "sourceBlob": "4cec877f6330bfe5ac9e964eb480d61b2f89711a",
+      "sha256": "bbcafc8d315bf2d73d01029aa998fa2aa6cbc68af22e0a085ee6fc7529d0b984",
+      "status": "adapted",
+      "modifications": "Own private-key and signing-plaintext buffers for native RSA authentication.",
+      "currentSha256": "f693be7848a89fa4f95badc7d0960277ab0441803cb16d69bd4afc6a025d190d"
+    },
+    {
+      "path": "domain/networking/DomainHandler.ts",
+      "sourcePath": "src/domain/networking/DomainHandler.ts",
+      "sourceBlob": "4fbcba562beb1c9f43637e8f282da06a656ad1e2",
+      "sha256": "fc0d8eefa6ed8bd80f112cce0738fe25fb67bd544e48c2def498d7ebf8c2fb4c",
+      "status": "retained",
+      "currentSha256": "fc0d8eefa6ed8bd80f112cce0738fe25fb67bd544e48c2def498d7ebf8c2fb4c"
+    },
+    {
+      "path": "domain/networking/FingerprintUtils.ts",
+      "sourcePath": "src/domain/networking/FingerprintUtils.ts",
+      "sourceBlob": "a97642097b061c34d97c7de566ecded23379ccbb",
+      "sha256": "4b7774413440e005c6feb98b8d7f5b808e583455d1e9ad597901ab80a54d7e74",
+      "status": "adapted",
+      "currentSha256": "271f97e31bcf95bbdd5a5b1a4407e46aea585cfe87ba49e1ab31b57f59775c06",
+      "modifications": "Accept an explicitly persisted main-thread fingerprint in a DedicatedWorker; validate and clone the non-null UUID without adding worker storage globals."
+    },
+    {
+      "path": "domain/networking/HMACAuth.ts",
+      "sourcePath": "src/domain/networking/HMACAuth.ts",
+      "sourceBlob": "d7ec856ada3c34be13d6d5d45278c3e424127c44",
+      "sha256": "29adae26d826a57950b96cbf9b6e9b9f306d5dc16979c53aaeb4b8ce1c6af465",
+      "status": "retained",
+      "currentSha256": "29adae26d826a57950b96cbf9b6e9b9f306d5dc16979c53aaeb4b8ce1c6af465"
+    },
+    {
+      "path": "domain/networking/LimitedNodeList.ts",
+      "sourcePath": "src/domain/networking/LimitedNodeList.ts",
+      "sourceBlob": "d9826c08d555643233e6b6da97b19333caa05b48",
+      "sha256": "635192984118c80b934aa19cfb4d9e2fadb2d3597e93371d8abf8cb757f8f93f",
+      "status": "adapted",
+      "modifications": "Authenticate the actual queued reliable packets; verify incoming source channel/HMAC and native exceptions; expose current transport failure. Inject the selected peer factory into the native datagram socket while retaining source and HMAC verification.",
+      "currentSha256": "aebcb0f434ec069ba0a73225b44e8482a4580a696432a4ed2afe733bffbb4e2e"
+    },
+    {
+      "path": "domain/networking/MessageData.ts",
+      "sourcePath": "src/domain/networking/MessageData.ts",
+      "sourceBlob": "953a479370079e158f3bf5e1be9476f614d704d5",
+      "sha256": "427f2080c4d2fb4c6f510da08aa59b93ab1db5b879c89bcab527e7b1c022c85d",
+      "status": "adapted",
+      "modifications": "Deep-clone exact owned datagram views and preserve read/write offsets without aliasing.",
+      "currentSha256": "b9828651ed15ae1e45e2e435b83d7484165775514782e64a8505d4ab1d1bdb57"
+    },
+    {
+      "path": "domain/networking/MetaverseAPI.ts",
+      "sourcePath": "src/domain/networking/MetaverseAPI.ts",
+      "sourceBlob": "eb3ca973987067bba2c6d8305b432b6841c6669c",
+      "sha256": "10ced6b9fe459f8961d203fa5b530c875d04367e6a1161ba01c1f01074792a46",
+      "status": "retained",
+      "currentSha256": "10ced6b9fe459f8961d203fa5b530c875d04367e6a1161ba01c1f01074792a46"
+    },
+    {
+      "path": "domain/networking/NLPacket.ts",
+      "sourcePath": "src/domain/networking/NLPacket.ts",
+      "sourceBlob": "93d9d7169ca1881d2e8987da6b979055efcee417",
+      "sha256": "d5f4a9ab920fe61715c87430bd9090ec08ca8b0cf52081282fdace094158b2b0",
+      "status": "retained",
+      "currentSha256": "d5f4a9ab920fe61715c87430bd9090ec08ca8b0cf52081282fdace094158b2b0"
+    },
+    {
+      "path": "domain/networking/NLPacketList.ts",
+      "sourcePath": "src/domain/networking/NLPacketList.ts",
+      "sourceBlob": "57dcdfda150401f23afbc7131cfdb48798a4fa50",
+      "sha256": "57c58525f6d3aff43224fb0d04f07d71a11edc6f1d23d76357ca5eec2d0e1d4d",
+      "status": "adapted",
+      "modifications": "Serialize native UTF-8 packet strings; keep a separate QDataStream QString writer for avatar identity.",
+      "currentSha256": "71b32b4f17db97774008e3a7eba35d8c501e6a3f355cc013cf950badc0460520"
+    },
+    {
+      "path": "domain/networking/NetworkAccessManager.ts",
+      "sourcePath": "src/domain/networking/NetworkAccessManager.ts",
+      "sourceBlob": "08e69713849e232626a63dd10c18d51bd02ff697",
+      "sha256": "f9eb61c206ba18c07c1c6d46d2e8083769d0ca0814d0141e0b70d26d90bfbf4e",
+      "status": "adapted",
+      "modifications": "Use browser-native FormData string/Blob overloads and remove the Node multipart polyfill.",
+      "currentSha256": "2a8f4e891dfd5d800868ee22cf6b8811e823b736cac3414fb2bfb20a1fda6929"
+    },
+    {
+      "path": "domain/networking/NetworkPeer.ts",
+      "sourcePath": "src/domain/networking/NetworkPeer.ts",
+      "sourceBlob": "ff979f4cc5ccfbcf4d8ad6731e79e6b2de04f383",
+      "sha256": "4cd28834b25d7a257979c688c92c5b75051c08fd0189bd5aaf1d2fd7d92189e2",
+      "status": "retained",
+      "currentSha256": "4cd28834b25d7a257979c688c92c5b75051c08fd0189bd5aaf1d2fd7d92189e2"
+    },
+    {
+      "path": "domain/networking/NetworkReply.ts",
+      "sourcePath": "src/domain/networking/NetworkReply.ts",
+      "sourceBlob": "9bcdb234180ed945215cf3151f6237f0762334ab",
+      "sha256": "0030a254dd95495a60b8a8415d1bc9669875e0c4cfbdd862b2f213b41f3d063b",
+      "status": "retained",
+      "currentSha256": "0030a254dd95495a60b8a8415d1bc9669875e0c4cfbdd862b2f213b41f3d063b"
+    },
+    {
+      "path": "domain/networking/NetworkRequest.ts",
+      "sourcePath": "src/domain/networking/NetworkRequest.ts",
+      "sourceBlob": "2502794528ab8b92c0941f86694881da0c170b93",
+      "sha256": "07f76e7f204136818f3b1c82a88da1c4d21d996aceaf9fd8b0d2ad60cddc4623",
+      "status": "retained",
+      "currentSha256": "07f76e7f204136818f3b1c82a88da1c4d21d996aceaf9fd8b0d2ad60cddc4623"
+    },
+    {
+      "path": "domain/networking/NetworkingConstants.ts",
+      "sourcePath": "src/domain/networking/NetworkingConstants.ts",
+      "sourceBlob": "e2f8cb8ecf1fb1c31d94ba60f84a15983b5c77e3",
+      "sha256": "54d1da6c54e3ad1dcaa4f384342ab987582f7d49db072273fc9428c1c47f2afa",
+      "status": "retained",
+      "currentSha256": "54d1da6c54e3ad1dcaa4f384342ab987582f7d49db072273fc9428c1c47f2afa"
+    },
+    {
+      "path": "domain/networking/Node.ts",
+      "sourcePath": "src/domain/networking/Node.ts",
+      "sourceBlob": "93db7761d69975b92f50ad61545433c21775bbff",
+      "sha256": "2b8839e8f112fa8e05a250e35d4520499557fad3d538b3cd2f94a269e16daeb2",
+      "status": "retained",
+      "currentSha256": "2b8839e8f112fa8e05a250e35d4520499557fad3d538b3cd2f94a269e16daeb2"
+    },
+    {
+      "path": "domain/networking/NodeList.ts",
+      "sourcePath": "src/domain/networking/NodeList.ts",
+      "sourceBlob": "6c6d94e2eff22bde160d91129e96f5b1aba4240e",
+      "sha256": "ac02dec49b1d94d286bb8eba477b5c2278b73b231abc56836245adcba16d43a9",
+      "status": "adapted",
+      "currentSha256": "152e1d500ebc45565ed7c5e76bb269261abf3131c2721d13771eda08468b9469",
+      "modifications": "Anonymous clients keep empty native username/signature fields after a challenge and do not initiate unsolicited directory key uploads. Pass the selected peer factory into native node initialization."
+    },
+    {
+      "path": "domain/networking/NodePermissions.ts",
+      "sourcePath": "src/domain/networking/NodePermissions.ts",
+      "sourceBlob": "ab0bf5eab52b36489388e4880e841b86a5c53601",
+      "sha256": "6bf79806a5c6062996a79ca2169a0f296a3a38850185fb5ee9ddba2cfc753fcc",
+      "status": "retained",
+      "currentSha256": "6bf79806a5c6062996a79ca2169a0f296a3a38850185fb5ee9ddba2cfc753fcc"
+    },
+    {
+      "path": "domain/networking/NodeType.ts",
+      "sourcePath": "src/domain/networking/NodeType.ts",
+      "sourceBlob": "5b4993c3f1bc180ccd8bdcc166d86b1bc4e0b41c",
+      "sha256": "3c756121af6f3a5d4a06f6bb89c6624aa181aac83db7c78e468c1cfe643a70db",
+      "status": "retained",
+      "currentSha256": "3c756121af6f3a5d4a06f6bb89c6624aa181aac83db7c78e468c1cfe643a70db"
+    },
+    {
+      "path": "domain/networking/OAuthAccessToken.ts",
+      "sourcePath": "src/domain/networking/OAuthAccessToken.ts",
+      "sourceBlob": "0112e1f2c3c13909dfd382b33366110a48bf072e",
+      "sha256": "484637b569ddee3548abdb0d0f278692e6235546a009031a0618077f8dceb29e",
+      "status": "retained",
+      "currentSha256": "484637b569ddee3548abdb0d0f278692e6235546a009031a0618077f8dceb29e"
+    },
+    {
+      "path": "domain/networking/PacketReceiver.ts",
+      "sourcePath": "src/domain/networking/PacketReceiver.ts",
+      "sourceBlob": "c30cd8e876e434921f2e8c79eeea46032f96ae9c",
+      "sha256": "d6682e230d476b68fca6660c5e97353ae3b284bfd2b41d128047251861a2a70b",
+      "status": "adapted",
+      "currentSha256": "7c69595bc552537dc41c7ef213f77e3f93960f0899ae1d061ce9db564971ebf7",
+      "modifications": "Use distinct address/message receive keys; retain no ambiguous decimal concatenation across native channels."
+    },
+    {
+      "path": "domain/networking/ReceivedMessage.ts",
+      "sourcePath": "src/domain/networking/ReceivedMessage.ts",
+      "sourceBlob": "731f27def0841811c40b4fc2ef43b1724c24b6eb",
+      "sha256": "c6c5f8362714d3ad22ff67b9d9fea400510abbb22af486d0c1524629b1d7bcfd",
+      "status": "adapted",
+      "modifications": "Assemble bounded native reliable fragments once and return exact payload views with correct metadata.",
+      "currentSha256": "746db6b350a30fd80d86e721708352d905ee49118c287b6907d896236513a5d5"
+    },
+    {
+      "path": "domain/networking/SockAddr.ts",
+      "sourcePath": "src/domain/networking/SockAddr.ts",
+      "sourceBlob": "53ed0561252a0f4d829991ee6bb0ed6386c03f49",
+      "sha256": "ddc1e0ea4ea462a9076fe3bbfe5c59d2a7bc21da928a3ab8b8339c129e013305",
+      "status": "retained",
+      "currentSha256": "ddc1e0ea4ea462a9076fe3bbfe5c59d2a7bc21da928a3ab8b8339c129e013305"
+    },
+    {
+      "path": "domain/networking/SocketType.ts",
+      "sourcePath": "src/domain/networking/SocketType.ts",
+      "sourceBlob": "d1ef9697f1443ac448f05a30351486dfbf87ba41",
+      "sha256": "4f9f837e410190dfdf16e45334f68eb671d000e43680113dca9a48c12cb0fb91",
+      "status": "retained",
+      "currentSha256": "4f9f837e410190dfdf16e45334f68eb671d000e43680113dca9a48c12cb0fb91"
+    },
+    {
+      "path": "domain/networking/packets/AvatarData.ts",
+      "sourcePath": "src/domain/networking/packets/AvatarData.ts",
+      "sourceBlob": "8d0e33d2b698e36e7da029320eb4ad243c35e3c5",
+      "sha256": "1fd644d9320ae1e4b9b239a1965765cf6500bf0a6479bd3b29818156112bdd26",
+      "status": "adapted",
+      "modifications": "Match native pose/joint serialization and use absolute translation dimensions.",
+      "currentSha256": "4dc74d2f4e1eb3ce1f1d95ad8d81c2e3717f596ef775ea8f83d5bc4d12b5e73d"
+    },
+    {
+      "path": "domain/networking/packets/AvatarIdentity.ts",
+      "sourcePath": "src/domain/networking/packets/AvatarIdentity.ts",
+      "sourceBlob": "1a59bfc07ca225f9ec38aff18453c9b8fd01f77c",
+      "sha256": "7c38aa396c8ba7387276f4965bcefb9f9356fbedebb168a03c2a29008604de5a",
+      "status": "adapted",
+      "modifications": "Match current native identity QString/flags and omit the removed attachment block.",
+      "currentSha256": "4ac030d67de32f006229ae883470273d40cf6c1993cce0c20887748503ee6a69"
+    },
+    {
+      "path": "domain/networking/packets/AvatarQuery.ts",
+      "sourcePath": "src/domain/networking/packets/AvatarQuery.ts",
+      "sourceBlob": "781df8609d2e68116f2fa1459626445b8698c5f0",
+      "sha256": "e3409c7db6fd89a7f8b11b88a1663f84bddb9c400eb06c9fced277afb546181b",
+      "status": "retained",
+      "currentSha256": "e3409c7db6fd89a7f8b11b88a1663f84bddb9c400eb06c9fced277afb546181b"
+    },
+    {
+      "path": "domain/networking/packets/BulkAvatarData.ts",
+      "sourcePath": "src/domain/networking/packets/BulkAvatarData.ts",
+      "sourceBlob": "00177a8fa777ad46d50194c2d71a23d6a5f4dbe9",
+      "sha256": "de53d614a9560f7b7a663feec1eabeff26cf610c80c8c0578b999a283e9e4902",
+      "status": "retained",
+      "currentSha256": "de53d614a9560f7b7a663feec1eabeff26cf610c80c8c0578b999a283e9e4902"
+    },
+    {
+      "path": "domain/networking/packets/BulkAvatarTraits.ts",
+      "sourcePath": "src/domain/networking/packets/BulkAvatarTraits.ts",
+      "sourceBlob": "8f80b730da564d2d8d59cb6f115878d294a47ba1",
+      "sha256": "abdb92d306409d19c891e0c6a5b5834a9ec2712a895ae7a76c1dc054b5df4243",
+      "status": "adapted",
+      "modifications": "Bound native trait values and correctly consume deletion and instance records.",
+      "currentSha256": "7d24fa1963aa4c89741090c1ee199f2c383a974b86b20cec207b2898f75b447a"
+    },
+    {
+      "path": "domain/networking/packets/BulkAvatarTraitsAck.ts",
+      "sourcePath": "src/domain/networking/packets/BulkAvatarTraitsAck.ts",
+      "sourceBlob": "ffa064f3b3411313ff54be83e48278d8219f6a5c",
+      "sha256": "2d99d4e8d3cb2d2c3bd46eefa76945f2b9c3472a101117aa6733fbe8bf439ed7",
+      "status": "retained",
+      "currentSha256": "2d99d4e8d3cb2d2c3bd46eefa76945f2b9c3472a101117aa6733fbe8bf439ed7"
+    },
+    {
+      "path": "domain/networking/packets/DomainConnectRequest.ts",
+      "sourcePath": "src/domain/networking/packets/DomainConnectRequest.ts",
+      "sourceBlob": "915254b7671f5280f25e796671000f9cafdb3274",
+      "sha256": "df241644b78ed42b523b075978dc98cb718574a144fed3044216ef8ff390c8df",
+      "status": "retained",
+      "currentSha256": "df241644b78ed42b523b075978dc98cb718574a144fed3044216ef8ff390c8df"
+    },
+    {
+      "path": "domain/networking/packets/DomainConnectionDenied.ts",
+      "sourcePath": "src/domain/networking/packets/DomainConnectionDenied.ts",
+      "sourceBlob": "4c30ec5c0a0ec0111a761eccf5d1fef3a1f8a0f0",
+      "sha256": "8e84563e7f483163473611663e5c1bad32da1919941cb18fbecaabe23c9b9e7c",
+      "status": "retained",
+      "currentSha256": "8e84563e7f483163473611663e5c1bad32da1919941cb18fbecaabe23c9b9e7c"
+    },
+    {
+      "path": "domain/networking/packets/DomainDisconnectRequest.ts",
+      "sourcePath": "src/domain/networking/packets/DomainDisconnectRequest.ts",
+      "sourceBlob": "0578a16d14ab01c1cc491ea46b9258c3ffe071f7",
+      "sha256": "fda53e981ee51444ea4c61ab2c9a00028335107bd9c836a9a8705400aaaddf52",
+      "status": "retained",
+      "currentSha256": "fda53e981ee51444ea4c61ab2c9a00028335107bd9c836a9a8705400aaaddf52"
+    },
+    {
+      "path": "domain/networking/packets/DomainList.ts",
+      "sourcePath": "src/domain/networking/packets/DomainList.ts",
+      "sourceBlob": "e826a77a35f005f44c33ecdf517f4051ae5808e4",
+      "sha256": "3a8766fcf749f3034d19a031a94592ec6b5681815c65eefbe5e15e2a9667812c",
+      "status": "adapted",
+      "currentSha256": "f5aeb12d5467e7f306e2889a0b8de250c57cbb2bc3a083619af5723761dbac72",
+      "modifications": "Read the production Qt native header UUID in big-endian order and use a bounded shared node reader for null/Any/IPv4 QHostAddress records instead of assuming two fixed eight-byte sockets."
+    },
+    {
+      "path": "domain/networking/packets/DomainListRequest.ts",
+      "sourcePath": "src/domain/networking/packets/DomainListRequest.ts",
+      "sourceBlob": "6b8759d48f996509b9e958046d86a3427f35573e",
+      "sha256": "31381af4be067936a246cb0032e04a55b1a806604dfd91829d661c27bd70d440",
+      "status": "retained",
+      "currentSha256": "31381af4be067936a246cb0032e04a55b1a806604dfd91829d661c27bd70d440"
+    },
+    {
+      "path": "domain/networking/packets/DomainServerAddedNode.ts",
+      "sourcePath": "src/domain/networking/packets/DomainServerAddedNode.ts",
+      "sourceBlob": "ca52bbef1bc65ba7bc5e592666a5582d22429acd",
+      "sha256": "fb9cefa2ed8311772a015e95f4be9a8626baebe842943aad09c00473ae28f17f",
+      "status": "adapted",
+      "currentSha256": "c0cba224da5724f9c6665ea6c415eab4febf438de07e49aa0bc2c238acb75371",
+      "modifications": "Share the bounded native node reader with DomainList, preserving short null/Any socket records and rejecting truncated or unsupported address protocols explicitly."
+    },
+    {
+      "path": "domain/networking/packets/DomainServerConnectionToken.ts",
+      "sourcePath": "src/domain/networking/packets/DomainServerConnectionToken.ts",
+      "sourceBlob": "9d7d58bf220b2e496372b229e27f0e6d66842b37",
+      "sha256": "6080172bc3fec079575dad38569af77a7728c19363be4f8f2c8ffc0a8a04924a",
+      "status": "retained",
+      "currentSha256": "6080172bc3fec079575dad38569af77a7728c19363be4f8f2c8ffc0a8a04924a"
+    },
+    {
+      "path": "domain/networking/packets/DomainServerPathQuery.ts",
+      "sourcePath": "src/domain/networking/packets/DomainServerPathQuery.ts",
+      "sourceBlob": "6b01495b07619e4929b939d85b811285ccc5a677",
+      "sha256": "f62d52ebcfce0523de48aa972a06722ae92478b60d4fdb38dcc2749d13b45f87",
+      "status": "retained",
+      "currentSha256": "f62d52ebcfce0523de48aa972a06722ae92478b60d4fdb38dcc2749d13b45f87"
+    },
+    {
+      "path": "domain/networking/packets/DomainServerPathResponse.ts",
+      "sourcePath": "src/domain/networking/packets/DomainServerPathResponse.ts",
+      "sourceBlob": "43d922822fce1d6833681af3f77ced49689c4938",
+      "sha256": "e3dfb343e02219b3e3e3d074b631c640677ec9863290628b9804db398c0a9b9f",
+      "status": "retained",
+      "currentSha256": "e3dfb343e02219b3e3e3d074b631c640677ec9863290628b9804db398c0a9b9f"
+    },
+    {
+      "path": "domain/networking/packets/DomainServerRemovedNode.ts",
+      "sourcePath": "src/domain/networking/packets/DomainServerRemovedNode.ts",
+      "sourceBlob": "6e4bf809c8814226af6e8c56687633b2870a60e1",
+      "sha256": "37caed0bca84d3593700649644cbfbc92a0ba88b9dd184c5683f3ede91274b19",
+      "status": "retained",
+      "currentSha256": "37caed0bca84d3593700649644cbfbc92a0ba88b9dd184c5683f3ede91274b19"
+    },
+    {
+      "path": "domain/networking/packets/EntityData.ts",
+      "sourcePath": "src/domain/networking/packets/EntityData.ts",
+      "sourceBlob": "9cf8996dc60efeea5bcab0242fbb268e5409c942",
+      "sha256": "2726a011134bbf3778b02a6e5ce10a30301542e6b8a206af9400d09c0e5f2e02",
+      "status": "adapted",
+      "modifications": "Correct typed inflate input and binary property returns; this legacy decoder is unused by the direct entity projection.",
+      "currentSha256": "20590293ff85e3c76589316eae4308b452ab4c6b5718ea4f6ce36032f3b37fe1"
+    },
+    {
+      "path": "domain/networking/packets/EntityQuery.ts",
+      "sourcePath": "src/domain/networking/packets/EntityQuery.ts",
+      "sourceBlob": "9d48e19381404d971b4997dbbb35b52d1a64d001",
+      "sha256": "13138f64d671c3bc6f6e62642d41c6b21f88cd4aea36962fb0df3352dd823d94",
+      "status": "retained",
+      "currentSha256": "13138f64d671c3bc6f6e62642d41c6b21f88cd4aea36962fb0df3352dd823d94"
+    },
+    {
+      "path": "domain/networking/packets/KillAvatar.ts",
+      "sourcePath": "src/domain/networking/packets/KillAvatar.ts",
+      "sourceBlob": "e42ab90559aa1e8c40d5967f4131f8f9a471cc2c",
+      "sha256": "2ad600fc7abd93f1b1bc8f988fab6a9e099973921328c44e9b67ce60804259fd",
+      "status": "retained",
+      "currentSha256": "2ad600fc7abd93f1b1bc8f988fab6a9e099973921328c44e9b67ce60804259fd"
+    },
+    {
+      "path": "domain/networking/packets/MessagesData.ts",
+      "sourcePath": "src/domain/networking/packets/MessagesData.ts",
+      "sourceBlob": "eb565cfa147e9e27db11ed34e15869eecf5f329c",
+      "sha256": "5026db87f03bf348d6197105ae059a32093a460002c47864aac37917f8c19aef",
+      "status": "adapted",
+      "modifications": "Return owned binary message bytes bounded to the supplied packet view.",
+      "currentSha256": "d3bb237bf97f56e001bce3a3a303ca1e96c28cabbc8e3ffba16a7c667fbf761c"
+    },
+    {
+      "path": "domain/networking/packets/MessagesSubscribe.ts",
+      "sourcePath": "src/domain/networking/packets/MessagesSubscribe.ts",
+      "sourceBlob": "65d600e5d5a374cf2d3082dea8e9151f725d4a11",
+      "sha256": "ce0917a98d19efdeeb2c81d6ee5b5bcda84683fcd7e7b54f02b7bba5d3a3fc36",
+      "status": "retained",
+      "currentSha256": "ce0917a98d19efdeeb2c81d6ee5b5bcda84683fcd7e7b54f02b7bba5d3a3fc36"
+    },
+    {
+      "path": "domain/networking/packets/MessagesUnsubscribe.ts",
+      "sourcePath": "src/domain/networking/packets/MessagesUnsubscribe.ts",
+      "sourceBlob": "c6d1ec80ba10d147548c5542fe259f3ba25a2991",
+      "sha256": "61c27835dce22e524ec92ae3c2d86cfb789c887999cab1c435be16406100b3a7",
+      "status": "retained",
+      "currentSha256": "61c27835dce22e524ec92ae3c2d86cfb789c887999cab1c435be16406100b3a7"
+    },
+    {
+      "path": "domain/networking/packets/MicrophoneAudioNoEcho.ts",
+      "sourcePath": "src/domain/networking/packets/MicrophoneAudioNoEcho.ts",
+      "sourceBlob": "67326f182bb9f6670d02f04359f4fb23248f4f33",
+      "sha256": "4b1e94861d4fa9fda54a93b9a6ff3a1716e7f1bf7035f452ede55866251ac765",
+      "status": "adapted",
+      "modifications": "Use the local native 24 kHz/240-sample PCM constants.",
+      "currentSha256": "a74d6a86dd7dfc959e46997a2c706c180c3393f94390dd7b740e3eb904012c02"
+    },
+    {
+      "path": "domain/networking/packets/MixedAudio.ts",
+      "sourcePath": "src/domain/networking/packets/MixedAudio.ts",
+      "sourceBlob": "015ff48513010dd2cc20f2498567f967b0514c7e",
+      "sha256": "f5264fc3ad84e67a6da0bae1b9d51d7c3192bff777301bb2c7198acc51e50941",
+      "status": "adapted",
+      "modifications": "Use local native PCM constants and return an exact bounded frame view.",
+      "currentSha256": "a958967a61bb426c36591928a84d016c7582ca84c900772031ceee9bff27eaec"
+    },
+    {
+      "path": "domain/networking/packets/NegotiateAudioFormat.ts",
+      "sourcePath": "src/domain/networking/packets/NegotiateAudioFormat.ts",
+      "sourceBlob": "45cab1571ae790035da1cd73a524765d1a30f838",
+      "sha256": "484415091e904de297920ef8ca8587ba9fd016e261804520f5edd216b4242dba",
+      "status": "retained",
+      "currentSha256": "484415091e904de297920ef8ca8587ba9fd016e261804520f5edd216b4242dba"
+    },
+    {
+      "path": "domain/networking/packets/NodeIgnoreRequest.ts",
+      "sourcePath": "src/domain/networking/packets/NodeIgnoreRequest.ts",
+      "sourceBlob": "edbd45c75010fd8218eacf0a64fed73dc559a2bd",
+      "sha256": "7a4751adbd8e5b7b55d006855a55d0cb35c9ddb09cd8ddead3004e60d9f9c9a7",
+      "status": "retained",
+      "currentSha256": "7a4751adbd8e5b7b55d006855a55d0cb35c9ddb09cd8ddead3004e60d9f9c9a7"
+    },
+    {
+      "path": "domain/networking/packets/NodeKickRequest.ts",
+      "sourcePath": "src/domain/networking/packets/NodeKickRequest.ts",
+      "sourceBlob": "742a4ac054477d7c00df276c94c04bdd82a9e88b",
+      "sha256": "2c1b89d95399e8ade0c31c1cb8c5d0fd657eb3cda26942ca21f3169b2a7b678a",
+      "status": "retained",
+      "currentSha256": "2c1b89d95399e8ade0c31c1cb8c5d0fd657eb3cda26942ca21f3169b2a7b678a"
+    },
+    {
+      "path": "domain/networking/packets/NodeMuteRequest.ts",
+      "sourcePath": "src/domain/networking/packets/NodeMuteRequest.ts",
+      "sourceBlob": "d692a78c4ecf3434c24730899cc6f74b2fdd3e38",
+      "sha256": "9ee7d7ee5b069b7d7839e201e53986803209f3ff625c4b4969d94f3bc5c0215a",
+      "status": "retained",
+      "currentSha256": "9ee7d7ee5b069b7d7839e201e53986803209f3ff625c4b4969d94f3bc5c0215a"
+    },
+    {
+      "path": "domain/networking/packets/PacketScribe.ts",
+      "sourcePath": "src/domain/networking/packets/PacketScribe.ts",
+      "sourceBlob": "6de43740fc1a06bc7ac1777f6b81564d4524510c",
+      "sha256": "9c39e3c803575c42fb8ced8df1e94da8f832c659baab4eda1c50eda2bc554263",
+      "status": "retained",
+      "currentSha256": "9c39e3c803575c42fb8ced8df1e94da8f832c659baab4eda1c50eda2bc554263"
+    },
+    {
+      "path": "domain/networking/packets/PerAvatarGainSet.ts",
+      "sourcePath": "src/domain/networking/packets/PerAvatarGainSet.ts",
+      "sourceBlob": "76f454fbad79cc9175dcd4930468e0af3bae0c2e",
+      "sha256": "4066caf94bbf23f03075aeacdb7a297997b64485112ea6f53ba8419f9ad3f209",
+      "status": "retained",
+      "currentSha256": "4066caf94bbf23f03075aeacdb7a297997b64485112ea6f53ba8419f9ad3f209"
+    },
+    {
+      "path": "domain/networking/packets/Ping.ts",
+      "sourcePath": "src/domain/networking/packets/Ping.ts",
+      "sourceBlob": "a18a5031e3a27247405cce1789dca1a5fad6aea7",
+      "sha256": "a1a37cd7de9e043aa9887b81935cef36fc8e6107b4380b6dbbd6db46d2e4475c",
+      "status": "retained",
+      "currentSha256": "a1a37cd7de9e043aa9887b81935cef36fc8e6107b4380b6dbbd6db46d2e4475c"
+    },
+    {
+      "path": "domain/networking/packets/PingReply.ts",
+      "sourcePath": "src/domain/networking/packets/PingReply.ts",
+      "sourceBlob": "6671b145b6890a2c0a935ad4b0525ba3344c1cec",
+      "sha256": "cf96f47ee68c9b1ef4c258c454f3d3f35dacce898e2b13cc3a5e7671e558518a",
+      "status": "retained",
+      "currentSha256": "cf96f47ee68c9b1ef4c258c454f3d3f35dacce898e2b13cc3a5e7671e558518a"
+    },
+    {
+      "path": "domain/networking/packets/RequestsDomainListData.ts",
+      "sourcePath": "src/domain/networking/packets/RequestsDomainListData.ts",
+      "sourceBlob": "f5558cd89447cce7c43de7d1bbb608a9c1d3dc45",
+      "sha256": "bcfb139e53955ad73532747b511b8ab3858c1f3f32606161545f5fc1fb85a485",
+      "status": "retained",
+      "currentSha256": "bcfb139e53955ad73532747b511b8ab3858c1f3f32606161545f5fc1fb85a485"
+    },
+    {
+      "path": "domain/networking/packets/SelectedAudioFormat.ts",
+      "sourcePath": "src/domain/networking/packets/SelectedAudioFormat.ts",
+      "sourceBlob": "b7c50ca488fb13e48bde778691dfdac845b07ceb",
+      "sha256": "f2a2054f9577abc5b667e8643ecce5a704812257da2528436dfedb0ecd5dd7f8",
+      "status": "retained",
+      "currentSha256": "f2a2054f9577abc5b667e8643ecce5a704812257da2528436dfedb0ecd5dd7f8"
+    },
+    {
+      "path": "domain/networking/packets/SetAvatarTraits.ts",
+      "sourcePath": "src/domain/networking/packets/SetAvatarTraits.ts",
+      "sourceBlob": "bfa7b965015e40a55adbf693a2551a2715068998",
+      "sha256": "f7dd23ada7281fe81a99b7445db2bf7307b6b014556ba87a32f5ed7876415567",
+      "status": "adapted",
+      "modifications": "Write native bounded UTF-8 joint names, correct joint indices and finite skeleton compression scales.",
+      "currentSha256": "501cd5fdf63a9d822f20d46b7f012bb5753b516aaec7fc4c52557638b05719dc"
+    },
+    {
+      "path": "domain/networking/packets/SilentAudioFrame.ts",
+      "sourcePath": "src/domain/networking/packets/SilentAudioFrame.ts",
+      "sourceBlob": "6fbf1edbbc6d0d9bab51cb3cfad0b0cb27f84483",
+      "sha256": "6474719f1f6d55013c12154212aae74bff805754864f42b8e3921185a0a13ce8",
+      "status": "retained",
+      "currentSha256": "6474719f1f6d55013c12154212aae74bff805754864f42b8e3921185a0a13ce8"
+    },
+    {
+      "path": "domain/networking/udt/BasePacket.ts",
+      "sourcePath": "src/domain/networking/udt/BasePacket.ts",
+      "sourceBlob": "e4b7cd39ad900372a79e293ece60ce1fddf3b27c",
+      "sha256": "a28a2fa20be04cb8ba351df5cc5fe6bb108554d3fef096e4f79435c7b2650c16",
+      "status": "adapted",
+      "modifications": "Parse bounded received datagrams honoring DataView offsets and the native MTU.",
+      "currentSha256": "7c19d877305f20ed53c3b184ea1072e9505fbfe4d2fa59e73f81ceeee165db03"
+    },
+    {
+      "path": "domain/networking/udt/CongestionControl.ts",
+      "sourcePath": "src/domain/networking/udt/CongestionControl.ts",
+      "sourceBlob": "86dda00c493839fae7f43443d62142cbdc9e3d7e",
+      "sha256": "f26212e1ac5ad15a65e5f0c7c540a01308609f83318e26c38e7bcb9c09116cda",
+      "status": "retained",
+      "currentSha256": "f26212e1ac5ad15a65e5f0c7c540a01308609f83318e26c38e7bcb9c09116cda"
+    },
+    {
+      "path": "domain/networking/udt/Connection.ts",
+      "sourcePath": "src/domain/networking/udt/Connection.ts",
+      "sourceBlob": "c2c16e47906ed3f22db6fc09125a064ae5ab5cb0",
+      "sha256": "2a03ad60a2760a32d42b870f66d20a3eb3d895f2e32138e6b293683125f7832d",
+      "status": "adapted",
+      "modifications": "Dispose reliable send queues and their retransmission timers. Release unfinished native receive fragments through the actual failure handler on channel disposal as well as stopping send timers.",
+      "currentSha256": "e690d7c1e9265eeb9637ee73de71109c53620d3cbf318f1e5a9d5a02908d284b"
+    },
+    {
+      "path": "domain/networking/udt/ControlPacket.ts",
+      "sourcePath": "src/domain/networking/udt/ControlPacket.ts",
+      "sourceBlob": "59c6c903ea2e098c06304f70ffae1798462b545a",
+      "sha256": "339216536aa964c14ac8908bf80b78d2df9825a8b21a61474b2e6cba9c2c769c",
+      "status": "retained",
+      "currentSha256": "339216536aa964c14ac8908bf80b78d2df9825a8b21a61474b2e6cba9c2c769c"
+    },
+    {
+      "path": "domain/networking/udt/LossList.ts",
+      "sourcePath": "src/domain/networking/udt/LossList.ts",
+      "sourceBlob": "f69e310284f8dcecb3cc05a9c0ba2c334649af56",
+      "sha256": "d259ea7182f4c6617822b39074ea9c60038d7a1bffb0f4735348ab0982f2fcbc",
+      "status": "adapted",
+      "currentSha256": "c6cc2ef85873124c6602131b8996557f8584e1792387d8614ebd3ed0ad201bfd",
+      "modifications": "Match production native LossList interval membership when removing retransmitted missing packets; actual lost/reordered reliable messages can then complete and cumulative ACKs advance, including sequence-number wraparound."
+    },
+    {
+      "path": "domain/networking/udt/Packet.ts",
+      "sourcePath": "src/domain/networking/udt/Packet.ts",
+      "sourceBlob": "33e04dc715cd50ae966882ceae050c3bdd028b99",
+      "sha256": "e201945d36b69bb51485b8234e6c1ff67368cbbfc877ec00626093584f053dde",
+      "status": "retained",
+      "currentSha256": "e201945d36b69bb51485b8234e6c1ff67368cbbfc877ec00626093584f053dde"
+    },
+    {
+      "path": "domain/networking/udt/PacketHeaders.ts",
+      "sourcePath": "src/domain/networking/udt/PacketHeaders.ts",
+      "sourceBlob": "f6d3dcbdee8e6ce0990b9c730994cc5b3d124d26",
+      "sha256": "c42bbe0b5d27d62bf1bb7cf8d623b387100464b8c8001a9b4ead826c2ca4f7e8",
+      "status": "adapted",
+      "modifications": "Use production-generated Overte packet versions/signature, source/HMAC classifications and replicated mapping.",
+      "currentSha256": "fd3311c028e2d1724a56895c748165f9a0d9f9945aeae8bbf8f151dd21405397"
+    },
+    {
+      "path": "domain/networking/udt/PacketQueue.ts",
+      "sourcePath": "src/domain/networking/udt/PacketQueue.ts",
+      "sourceBlob": "187b0ed3bf3fa85e7150e9b038c374ec25a11356",
+      "sha256": "12f95831a3d8c7109259912cf07ba4365c3a30951508e47064f701cc3ed64170",
+      "status": "retained",
+      "currentSha256": "12f95831a3d8c7109259912cf07ba4365c3a30951508e47064f701cc3ed64170"
+    },
+    {
+      "path": "domain/networking/udt/PendingReceivedMessage.ts",
+      "sourcePath": "src/domain/networking/udt/PendingReceivedMessage.ts",
+      "sourceBlob": "a8da1f2bfd777d66ef39c53231ef548a0ae87d0a",
+      "sha256": "8bb7b64881de390fa15dffc8ae4e4dc4fa09efbca1b71dc8a699c769249f6a21",
+      "status": "retained",
+      "currentSha256": "8bb7b64881de390fa15dffc8ae4e4dc4fa09efbca1b71dc8a699c769249f6a21"
+    },
+    {
+      "path": "domain/networking/udt/SendQueue.ts",
+      "sourcePath": "src/domain/networking/udt/SendQueue.ts",
+      "sourceBlob": "99e1846dd95072de3ba93c37f638ecc27cd798b0",
+      "sha256": "5eb566b324d49e5f350dfdbc77812368f4166bf4fd3042c8c3eee303c012bc16",
+      "status": "retained",
+      "currentSha256": "5eb566b324d49e5f350dfdbc77812368f4166bf4fd3042c8c3eee303c012bc16"
+    },
+    {
+      "path": "domain/networking/udt/SequenceNumber.ts",
+      "sourcePath": "src/domain/networking/udt/SequenceNumber.ts",
+      "sourceBlob": "32866e12cc056af301967c53f9ce6e8becc6121c",
+      "sha256": "8ed06f025e8f8dc288802c590a84623f99706508338f664d4b93146f701bbf44",
+      "status": "retained",
+      "currentSha256": "8ed06f025e8f8dc288802c590a84623f99706508338f664d4b93146f701bbf44"
+    },
+    {
+      "path": "domain/networking/udt/Socket.ts",
+      "sourcePath": "src/domain/networking/udt/Socket.ts",
+      "sourceBlob": "700658c47974d54dac5102514615f4b6206f0d05",
+      "sha256": "c91ef701a5b650c54e6fac56bd05fe2e24cbcf7744fc6141fa1f03d2c8ef6c27",
+      "status": "adapted",
+      "modifications": "Dispose queues and RTC sessions, bound current receive processing and relay typed synchronous transport failure. Inject the RTC peer factory while retaining native UDT reliability and receive filtering.",
+      "currentSha256": "d42e7796921fe408c22d59c0cf70f31faf8f9655576988f6e725c5eb8fe9cd42"
+    },
+    {
+      "path": "domain/networking/udt/UDT.ts",
+      "sourcePath": "src/domain/networking/udt/UDT.ts",
+      "sourceBlob": "5695dd554f01b33c395adcc7b7c536f12b2f2e85",
+      "sha256": "15a7d9cb7bc628bdb31f2fc6d2f9e795027198a6119954c428fa611f308d8692",
+      "status": "adapted",
+      "modifications": "Use the production-generated native maximum datagram size.",
+      "currentSha256": "d15dd8b9c7258236d8c003e801d1a28446a6e29a9ebece205dbeb078213d5b27"
+    },
+    {
+      "path": "domain/networking/webrtc/WebRTCDataChannel.ts",
+      "sourcePath": "src/domain/networking/webrtc/WebRTCDataChannel.ts",
+      "sourceBlob": "e646b4493eacf9e721d98b853eff2853a916fdac",
+      "sha256": "8a52b46599f2c74831c66747768a1f6a80f41f03bb0d3664fa18783cd50c0a45",
+      "status": "adapted",
+      "modifications": "Own one peer per service, bound ICE/SDP/send data, and invalidate delayed SDP/ICE/callbacks on close. Use cancellable peer acquisition for native or transferred channels, handle already-open channels, reject stale acquisition and expose fixed transfer failure messages.",
+      "currentSha256": "d091014f047c95d88575fb3681dda39967e9444bd5b8871c9d6134db6e5db39e"
+    },
+    {
+      "path": "domain/networking/webrtc/WebRTCSignalingChannel.ts",
+      "sourcePath": "src/domain/networking/webrtc/WebRTCSignalingChannel.ts",
+      "sourceBlob": "9b27f8dc0b23ca3a4ab69c262f9071cba07a5b54",
+      "sha256": "ede52966569272b9da0ce7f7464b1bc126b269f84ef07b84344b745910780f82",
+      "status": "retained",
+      "currentSha256": "ede52966569272b9da0ce7f7464b1bc126b269f84ef07b84344b745910780f82"
+    },
+    {
+      "path": "domain/networking/webrtc/WebRTCSocket.ts",
+      "sourcePath": "src/domain/networking/webrtc/WebRTCSocket.ts",
+      "sourceBlob": "cd761e001b38e688d0528db0a7832f90ef080169",
+      "sha256": "19d4c540ab8d10cba605e8733e3ffdd6e4e2460d6753797ff731635c94109506",
+      "status": "adapted",
+      "modifications": "Own current service/generation maps, bounded receive queues, non-reused pseudo ports and synchronous closure signals. Thread the configured peer factory through current service creation.",
+      "currentSha256": "45318ee632fec2cbefc07eb1bf0a00c857c28e4b50e325bdf759fc21ef74aa0c"
+    },
+    {
+      "path": "domain/octree/OctreeConstants.ts",
+      "sourcePath": "src/domain/octree/OctreeConstants.ts",
+      "sourceBlob": "186e6548634a7588b8868d78e97d67cce8272873",
+      "sha256": "ba7e65b2b23180486793cbf041682a470ba53d9656649976668a86cd1813a31f",
+      "status": "retained",
+      "currentSha256": "ba7e65b2b23180486793cbf041682a470ba53d9656649976668a86cd1813a31f"
+    },
+    {
+      "path": "domain/octree/OctreeQuery.ts",
+      "sourcePath": "src/domain/octree/OctreeQuery.ts",
+      "sourceBlob": "fce50259e86e25b7ef6a02314e04bafccb06cd3a",
+      "sha256": "4f31698a83bdc678eee89efbb126eb8024023018e85fb3c361d8a7d4152af5f3",
+      "status": "retained",
+      "currentSha256": "4f31698a83bdc678eee89efbb126eb8024023018e85fb3c361d8a7d4152af5f3"
+    },
+    {
+      "path": "domain/shared/AACube.ts",
+      "sourcePath": "src/domain/shared/AACube.ts",
+      "sourceBlob": "18824d6f74195c1c3b4a948fbe9ea90096c777bb",
+      "sha256": "5f5fe70728069977db19af2b96ff19f7b9a7501cd44c8d3955eb57a6751d2886",
+      "status": "retained",
+      "currentSha256": "5f5fe70728069977db19af2b96ff19f7b9a7501cd44c8d3955eb57a6751d2886"
+    },
+    {
+      "path": "domain/shared/AudioHelpers.ts",
+      "sourcePath": "src/domain/shared/AudioHelpers.ts",
+      "sourceBlob": "543e8ed6258f14fe3c0a8025b2ac937affbd1626",
+      "sha256": "27da8f32b7d48883856d3c26ff083d695114bc1b3410469c71be4db7d1f3d6c3",
+      "status": "retained",
+      "currentSha256": "27da8f32b7d48883856d3c26ff083d695114bc1b3410469c71be4db7d1f3d6c3"
+    },
+    {
+      "path": "domain/shared/AvatarConstants.ts",
+      "sourcePath": "src/domain/shared/AvatarConstants.ts",
+      "sourceBlob": "a47318e81899bfc2244b671d2d5f1c522aee4add",
+      "sha256": "ad08b5b890b726114a7a364510866bb8b6787b3d3f4bef877728e8c85ad9c5f4",
+      "status": "retained",
+      "currentSha256": "ad08b5b890b726114a7a364510866bb8b6787b3d3f4bef877728e8c85ad9c5f4"
+    },
+    {
+      "path": "domain/shared/AvatarPriorityMode.ts",
+      "sourcePath": "src/domain/shared/AvatarPriorityMode.ts",
+      "sourceBlob": "ce245188a2c57abb2c90648b0993bdcc8c5c5879",
+      "sha256": "869b4d4d37fef05c4b3b4dcc469f5f9ada1e35365f3f2b963591267e732115aa",
+      "status": "retained",
+      "currentSha256": "869b4d4d37fef05c4b3b4dcc469f5f9ada1e35365f3f2b963591267e732115aa"
+    },
+    {
+      "path": "domain/shared/BitVectorHelpers.ts",
+      "sourcePath": "src/domain/shared/BitVectorHelpers.ts",
+      "sourceBlob": "9f5697cd3a0c696e9dbeaaf5b1ef6ba97efc0c9d",
+      "sha256": "787a495dae1e30f5c0c2850fa06df0915e7d15938e013e7fa323efcc172f9905",
+      "status": "retained",
+      "currentSha256": "787a495dae1e30f5c0c2850fa06df0915e7d15938e013e7fa323efcc172f9905"
+    },
+    {
+      "path": "domain/shared/ByteCountCoded.ts",
+      "sourcePath": "src/domain/shared/ByteCountCoded.ts",
+      "sourceBlob": "23f14dea76445c843f24cbbf278ad567eb6898d8",
+      "sha256": "98c07185573479d2448a506ae8fceaac7c5827a2978f21ac3cfe38c1c1c7a299",
+      "status": "retained",
+      "currentSha256": "98c07185573479d2448a506ae8fceaac7c5827a2978f21ac3cfe38c1c1c7a299"
+    },
+    {
+      "path": "domain/shared/Camera.ts",
+      "sourcePath": "src/domain/shared/Camera.ts",
+      "sourceBlob": "40bdafe01e0967fa494c5c3c98d8049dd8025e23",
+      "sha256": "f81dde386ed4bd877bdcebb9e7f25beb480f529a2fe69bf143e470647519f9a4",
+      "status": "retained",
+      "currentSha256": "f81dde386ed4bd877bdcebb9e7f25beb480f529a2fe69bf143e470647519f9a4"
+    },
+    {
+      "path": "domain/shared/Color.ts",
+      "sourcePath": "src/domain/shared/Color.ts",
+      "sourceBlob": "4ad0b258086f0cb77a9952afa5f3d043ea5e5173",
+      "sha256": "1d8ec5c5dfe15ba80888ee3af50b089d2e4814943d5091cd8d20a27519128281",
+      "status": "retained",
+      "currentSha256": "1d8ec5c5dfe15ba80888ee3af50b089d2e4814943d5091cd8d20a27519128281"
+    },
+    {
+      "path": "domain/shared/ComponentMode.ts",
+      "sourcePath": "src/domain/shared/ComponentMode.ts",
+      "sourceBlob": "b92363e9726ab7652daae0ad025e43e8fe83485a",
+      "sha256": "2698ae34051586f5bf8fd3ae310143851be085079e5dd1355ac32b76816eb6c9",
+      "status": "retained",
+      "currentSha256": "2698ae34051586f5bf8fd3ae310143851be085079e5dd1355ac32b76816eb6c9"
+    },
+    {
+      "path": "domain/shared/ConditionVariable.ts",
+      "sourcePath": "src/domain/shared/ConditionVariable.ts",
+      "sourceBlob": "27ee09fb7088d4e2d7caefe7c185f5e59c610e57",
+      "sha256": "8c88ea935c2254c2444f4c61f7b83f0062b900ceee784a96c0c6b190cb780cbd",
+      "status": "retained",
+      "currentSha256": "8c88ea935c2254c2444f4c61f7b83f0062b900ceee784a96c0c6b190cb780cbd"
+    },
+    {
+      "path": "domain/shared/ContextManager.ts",
+      "sourcePath": "src/domain/shared/ContextManager.ts",
+      "sourceBlob": "29a04d60a7fef771a5257d92c2ea4f4d0dc76519",
+      "sha256": "0b80d678f27f7ea9d3e19760546622cba973301d95966a9b1d5b293105fb1f38",
+      "status": "retained",
+      "currentSha256": "0b80d678f27f7ea9d3e19760546622cba973301d95966a9b1d5b293105fb1f38"
+    },
+    {
+      "path": "domain/shared/DataViewExtensions.ts",
+      "sourcePath": "src/domain/shared/DataViewExtensions.ts",
+      "sourceBlob": "7e20f5cffb94ca7728ef0baac86a19b92428a0ce",
+      "sha256": "ecf78f4a7b38b6cfb23860f87941a9b2c1f33ab612eafd9ebadcd8649a12c90c",
+      "status": "retained",
+      "currentSha256": "ecf78f4a7b38b6cfb23860f87941a9b2c1f33ab612eafd9ebadcd8649a12c90c"
+    },
+    {
+      "path": "domain/shared/GLMHelpers.ts",
+      "sourcePath": "src/domain/shared/GLMHelpers.ts",
+      "sourceBlob": "749ef98ec5094d880e46785baea8d936c1d78e5a",
+      "sha256": "f3287773dbe65b3e3c0494fbddd903000685225908b1bc44b5b13740c6241b37",
+      "status": "adapted",
+      "modifications": "Normalize native six-byte quaternion compression and bound damaged quaternion reconstruction.",
+      "currentSha256": "cd126e1f668ed1090e627c53d646c0e28c1c19a7f375014bd6454201c7b5eab0"
+    },
+    {
+      "path": "domain/shared/HighResolutionClock.ts",
+      "sourcePath": "src/domain/shared/HighResolutionClock.ts",
+      "sourceBlob": "7e157bf9c7d5daf05646d3bc941a38cc3590c05c",
+      "sha256": "2b82d24037c2376dc34979b073e146773dc5c8066393f7ab190d3faa872d61ee",
+      "status": "retained",
+      "currentSha256": "2b82d24037c2376dc34979b073e146773dc5c8066393f7ab190d3faa872d61ee"
+    },
+    {
+      "path": "domain/shared/ModerationFlags.ts",
+      "sourcePath": "src/domain/shared/ModerationFlags.ts",
+      "sourceBlob": "924e9a14a460944be503fd7b5c81ba2f4a207e7d",
+      "sha256": "1f579171cc7ffa300c314bfa09f40cec615cad2ba2dbe3284995ca305dfa8ef6",
+      "status": "retained",
+      "currentSha256": "1f579171cc7ffa300c314bfa09f40cec615cad2ba2dbe3284995ca305dfa8ef6"
+    },
+    {
+      "path": "domain/shared/PropertyFlags.ts",
+      "sourcePath": "src/domain/shared/PropertyFlags.ts",
+      "sourceBlob": "0c5782dd2ab06e8ad94d4f2944ffb78d26795c29",
+      "sha256": "f6c3121fc57ff60eb1e410285755eceed26f4cc118f8ea17d413f19e5bd4f251",
+      "status": "retained",
+      "currentSha256": "f6c3121fc57ff60eb1e410285755eceed26f4cc118f8ea17d413f19e5bd4f251"
+    },
+    {
+      "path": "domain/shared/Quat.ts",
+      "sourcePath": "src/domain/shared/Quat.ts",
+      "sourceBlob": "df853541139ee661e1f827e85c372a428c128744",
+      "sha256": "f6adc1f0ab6825adc39714d06cea0a81dffa31bbcec79b851bf71d5dc4fa17a3",
+      "status": "retained",
+      "currentSha256": "f6adc1f0ab6825adc39714d06cea0a81dffa31bbcec79b851bf71d5dc4fa17a3"
+    },
+    {
+      "path": "domain/shared/Rect.ts",
+      "sourcePath": "src/domain/shared/Rect.ts",
+      "sourceBlob": "82336ef7505fc71e5a932bca5081064f5b93cef0",
+      "sha256": "3823c54db0782969544e4e070a1af65bd6c30b638ab2e1ff00e9267ec71a87ca",
+      "status": "retained",
+      "currentSha256": "3823c54db0782969544e4e070a1af65bd6c30b638ab2e1ff00e9267ec71a87ca"
+    },
+    {
+      "path": "domain/shared/ShapeType.ts",
+      "sourcePath": "src/domain/shared/ShapeType.ts",
+      "sourceBlob": "ce9eb2c56c07e60a70eed7c7d70de5ae04162c27",
+      "sha256": "5dc39628cf741611e1f50207e6b536c47fad1d189d8ee417bac01e4f1b57695b",
+      "status": "retained",
+      "currentSha256": "5dc39628cf741611e1f50207e6b536c47fad1d189d8ee417bac01e4f1b57695b"
+    },
+    {
+      "path": "domain/shared/SignalEmitter.ts",
+      "sourcePath": "src/domain/shared/SignalEmitter.ts",
+      "sourceBlob": "e73246ecf749322c3499f8b8d5554a720de6755a",
+      "sha256": "3dc31986421a6fa80b3dbe86928b707b3bc2e600a22ecaba8af30dc5ffc56b61",
+      "status": "retained",
+      "currentSha256": "3dc31986421a6fa80b3dbe86928b707b3bc2e600a22ecaba8af30dc5ffc56b61"
+    },
+    {
+      "path": "domain/shared/SpatiallyNestable.ts",
+      "sourcePath": "src/domain/shared/SpatiallyNestable.ts",
+      "sourceBlob": "2a2352599a44c84cb4f4fce5b6ba874bd7dbc6f9",
+      "sha256": "985b73be950f01ba2833c51bc32e4ec9d2b3f5776ca5992902db9b3a3024f8c5",
+      "status": "retained",
+      "currentSha256": "985b73be950f01ba2833c51bc32e4ec9d2b3f5776ca5992902db9b3a3024f8c5"
+    },
+    {
+      "path": "domain/shared/Url.ts",
+      "sourcePath": "src/domain/shared/Url.ts",
+      "sourceBlob": "ff7b96a0e35e7d4f0c4c650ef8a6a61a2f40d426",
+      "sha256": "7c12e1b79788953e068bf2f243c3b63a2c8249501fbb3b2d4b3eb50e03aeb1c9",
+      "status": "retained",
+      "currentSha256": "7c12e1b79788953e068bf2f243c3b63a2c8249501fbb3b2d4b3eb50e03aeb1c9"
+    },
+    {
+      "path": "domain/shared/Uuid.ts",
+      "sourcePath": "src/domain/shared/Uuid.ts",
+      "sourceBlob": "c8ca7443ec492b4c7047d84ce17829abfb4b2bf1",
+      "sha256": "66623c7e32655c57a84dc2c9d9bb1c9cdf2ab547ea84392206bc607ae7fb863f",
+      "status": "retained",
+      "currentSha256": "66623c7e32655c57a84dc2c9d9bb1c9cdf2ab547ea84392206bc607ae7fb863f"
+    },
+    {
+      "path": "domain/shared/Vec2.ts",
+      "sourcePath": "src/domain/shared/Vec2.ts",
+      "sourceBlob": "5d8160bc32c0fea0ca9c3a6c48ff1def33353ddf",
+      "sha256": "e9fb03b6abd06ea89bbb8b4bd5487399e698a8bf61359c1fd93750f3a9f557a7",
+      "status": "retained",
+      "currentSha256": "e9fb03b6abd06ea89bbb8b4bd5487399e698a8bf61359c1fd93750f3a9f557a7"
+    },
+    {
+      "path": "domain/shared/Vec3.ts",
+      "sourcePath": "src/domain/shared/Vec3.ts",
+      "sourceBlob": "0c9bb67b9d4af1f79bed972ceb80846e35f93a4e",
+      "sha256": "fdd9f079e5610a494e8fbda8e2753b59f9eceb884f1f13d4f4395d1ddf496bbf",
+      "status": "retained",
+      "currentSha256": "fdd9f079e5610a494e8fbda8e2753b59f9eceb884f1f13d4f4395d1ddf496bbf"
+    },
+    {
+      "path": "domain/shared/assert.ts",
+      "sourcePath": "src/domain/shared/assert.ts",
+      "sourceBlob": "d35a66ed0897c3a0d294a0bcbf8cc9cdb9ab34a1",
+      "sha256": "42e6236e88afce7ee17d6496e7391995bc197cbcabff632a89c14be5dac26774",
+      "status": "retained",
+      "currentSha256": "42e6236e88afce7ee17d6496e7391995bc197cbcabff632a89c14be5dac26774"
+    },
+    {
+      "path": "LICENSE",
+      "sourcePath": "LICENSE",
+      "sourceBlob": "261eeb9e9f8b2b4b0d119366dda99c6fd7d35c64",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "status": "retained",
+      "currentSha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    },
+    {
+      "path": "typings/WebAudioTyping.d.ts",
+      "sourcePath": "typings/WebAudioTyping.d.ts",
+      "sourceBlob": "7ef10e8034422b012f3e99700feb4ff64fac2df6",
+      "sha256": "6850de421a13e97e808a5d5d5b88969f3dc0da1c439c035f538d9d3c1f081f7d",
+      "status": "retained",
+      "currentSha256": "6850de421a13e97e808a5d5d5b88969f3dc0da1c439c035f538d9d3c1f081f7d"
+    }
+  ],
+  "note": "Original immutable inputs and reviewed Overte adaptations/omissions. Verify the complete inventory with tools/verify-sdk.mjs; compatibility evidence is in docs/browser-direct-client/SDK_PORT.md.",
+  "schemaVersion": 2
+}

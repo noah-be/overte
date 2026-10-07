@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "scope": "Independent container namespace/null-audio/native QtGUI diagnostic; no domain or hosted-runner acceptance",
+  "startedAt": "2026-10-01T09:01:19Z",
+  "nonRootUser": true,
+  "securityOverrides": "none",
+  "network": "Container must be launched with network=none and no port publication",
+  "probes": {
+    "unshare": {
+      "passed": false,
+      "exitCode": 1,
+      "category": "permission-denied"
+    },
+    "bubblewrap": {
+      "passed": false,
+      "exitCode": 1,
+      "category": "permission-denied"
+    },
+    "privatePulse": {
+      "passed": true,
+      "physicalDevices": "not-used"
+    },
+    "privateXvfb": {
+      "passed": true,
+      "authenticated": true,
+      "tcpListening": false
+    },
+    "nativeProtocol": {
+      "passed": false,
+      "exitCode": -6,
+      "category": "qt-platform-plugin-unavailable"
+    },
+    "nativeGui": {
+      "passed": false,
+      "scriptReady": false,
+      "domain": "No server exists at container-local test address; no domain joined",
+      "microphone": "Muted; only private synthetic null-source is available",
+      "category": "qt-platform-plugin-unavailable"
+    }
+  },
+  "sourceSHA256": "e3aaeb90d8b69b346320a04688c2890d38cb1d366134bf202898d37ccab6c982",
+  "seccompMode": 2,
+  "nativeBinarySHA256": "91f3e10c42c1e35d5c8265e9b0007e925844d9bee61a26807118dde6e527887c",
+  "finishedAt": "2026-10-01T09:01:21Z",
+  "completeNativePreflightPassed": false,
+  "hostedRunnerOrSharedDomainJourney": "not-tested",
+  "containerScope": {
+    "baseUbuntuImage": "docker.io/library/ubuntu@sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3",
+    "dependencyImage": "localhost/overte-ubuntu-native-closure:f4dacc19",
+    "policy": "Default rootless Podman policy, no privileged or security overrides, network=none, nonroot user",
+    "ownedContainerRemoved": true,
+    "hostNativeServicesChanged": false
+  },
+  "interpretation": "Pulse and authenticated Xvfb worked. Native protocol and Qt GUI failed during platform-plugin initialization. User namespace probes failed under this default container policy. The previous six-target ELF success is not complete GUI/runtime or hosted-runner proof."
+}

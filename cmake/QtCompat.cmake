@@ -43,8 +43,18 @@ function(overte_filter_qt_components output_variable)
 endfunction()
 
 macro(overte_find_qt)
-    overte_filter_qt_components(_overte_find_arguments ${ARGN})
-    find_package(${OVERTE_QT_PACKAGE} ${_overte_find_arguments})
+    cmake_parse_arguments(_overte_qt_request
+        "QUIET;REQUIRED;EXACT;CONFIG;NO_MODULE;MODULE;GLOBAL"
+        "" "COMPONENTS;OPTIONAL_COMPONENTS" ${ARGN})
+    set(_overte_requested_components
+        ${_overte_qt_request_COMPONENTS} ${_overte_qt_request_OPTIONAL_COMPONENTS})
+    overte_filter_qt_components(_overte_available_components ${_overte_requested_components})
+    # Keep discovery in the caller's scope for Qt's component variables. A
+    # return() in this macro would also stop the caller's CMake configuration.
+    if(NOT _overte_requested_components OR _overte_available_components)
+        overte_filter_qt_components(_overte_find_arguments ${ARGN})
+        find_package(${OVERTE_QT_PACKAGE} ${_overte_find_arguments})
+    endif()
 endmacro()
 
 function(overte_link_qt_modules target)

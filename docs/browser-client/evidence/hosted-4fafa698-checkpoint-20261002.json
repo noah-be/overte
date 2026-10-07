@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "testedCommitSHA": "4fafa698a10f479dd357151ac43a49829eaf3b72",
+  "status": "failed",
+  "hostedRuns": [
+    36961434356,
+    36961438495
+  ],
+  "actualDefaultPathLocalQualification": "passed; distinct from trusted Ubuntu path",
+  "browserJob": {
+    "productionBuild": "passed",
+    "originalProfilePreparation": "passed",
+    "trustedEntrypointBuildAndInstall": "passed",
+    "registeredContracts": {
+      "failedTests": [
+        171,
+        172,
+        173
+      ],
+      "failureScope": "All three actual network contract children reach original network-owner-ready then exit78 before native startup",
+      "diagnostics": [
+        {
+          "phase": "network-owner-ready",
+          "category": "unclassified-child-exit",
+          "observedBytes": 31,
+          "truncated": false,
+          "exitCode": 78,
+          "signal": null,
+          "helperEvents": []
+        }
+      ]
+    },
+    "laterNativeInputAndRenderer": "not-run"
+  },
+  "nativeJob": {
+    "signedHostDependencies": "passed",
+    "pinnedArtifactPreparation": "passed",
+    "originalPreflight": "passed",
+    "exactNativeTrustedBuildAndInstall": "passed",
+    "unchangedIsolationPreflight": "passed",
+    "domainStartAndStoredGuestReadback": "failed",
+    "actualBrowserNativeJourneys": "not-run",
+    "ownedCleanup": "passed",
+    "curatedArtifact": "retained"
+  },
+  "atomicDiagnostic": {
+    "run": 36961434373,
+    "exactReviewedSource": "passed",
+    "signedHostDependenciesAndOriginalProfiles": "passed",
+    "dependencyStaging": "failed-fixed-generic-refusal",
+    "ownedDomainOrStraceProbe": "not-run",
+    "cause": "unknown",
+    "localLiveSignedOfficialDependencyWithReviewedTestKeyring": "passed"
+  },
+  "privateFailedBrowserLogSHA256": "8c251c85dbf099423cf80a54d02ca3e63a7272af409acf44017e36dbd48fd647",
+  "limitations": [
+    "Successful trusted installation is not runtime confinement proof.",
+    "The C refusal occurs after owner-ready; TAP wait, routes/ACK/readback, attestation, capability retirement, sealed descriptor handoff and fexecve still require distinguishing.",
+    "The original QSaveFile persistence gate remains unchanged; actual current native commit cause not established.",
+    "No global profile changes or direct-write fallback; all failed gates retained."
+  ]
+}

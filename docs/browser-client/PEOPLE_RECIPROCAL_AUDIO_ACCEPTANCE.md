@@ -1,0 +1,21 @@
+# Reciprocal People and optional synthetic audio: current-source rebase
+
+The original `fb217742` proposal remains immutable. This narrow four-file follow-up is based on the current genuine People A harness and painted-ancestry audit. The parent reports genuine A acceptance in both stock browsers (Chromium 42.719 seconds, Firefox 47.908 seconds); this packet does not claim those runs as its own reciprocal or audio evidence.
+
+The current fresh `control(false)` immediately before the original Ignore click is preserved. The per-visitor foreground activation, fixed `leaveDiagnostics`, original Home guard, real frame acknowledgement factory, source/runtime attestation, CAS, painted native checkbox calibration, original 15/90-second A geometry deadlines, seven-entity identity checks and ordinary muted state remain intact. The current foreground cleanup block is byte-identical. No production source, installed native file, authority policy or service changes are included.
+
+The default additional acceptance examines B independently: exactly three actual raw snapshot batches must omit A; B's attached renderer-owned peer geometry must disappear while unaffected roots remain exact; Unignore must restore a fresh A root. Rig and fallback counts remain distinct. Genuine native visual comparison is outside this proof. The added CPU test runs actual `World.setAvatars` in two owners and rejects an unchanged B scene even when A has correctly removed its peer.
+
+## Optional authored audio
+
+`OVERTE_LAB_PEOPLE_SYNTHETIC_AUDIO=1` adds a separately named native Ignore/Unignore cycle only after the original muted A and reciprocal B geometry checks. Each owned browser supplies a 440/659-Hz authored MediaStream through the normal microphone button and actual browser/native PCM transport. A bounded private 48,000-sample ring observes the existing native stereo 16-bit/48-kHz mixed output. It creates no extra service, recording, device enumeration, permission request or raw PCM artifact. This is synthetic native-mixer evidence; it does not prove a hardware microphone, speech, an OS playback device or physical audibility.
+
+Each phase clears the private ring, requires a fresh generation and full one-second observed window, and requires at least ten newly outgoing nonzero PCM frames. Each participant must receive the opposite tone positively, suppress it below 0.0001 and below one percent of that baseline during Ignore, then receive it positively again after Unignore. Zero, stale, disconnected or unobserved input cannot qualify. Before the additional Ignore, the B geometry baseline is captured afresh. Normal mute, exact track/context retirement, explicit cleanup failures and repeated domain/connection/error checks are retained. PCM remains private in the bounded ring; only whitelisted numeric spectral rows may be curated.
+
+Pinned native rationale remains `f91d15a08587dcd37c642234424b3215dd331724`: `NodeList.cpp:1050` routes the original Ignore request to both native mixers; `AvatarMixerWorker.cpp:415` checks both sides with native PAL/admin exceptions; `AudioMixerClientData.cpp:245` and `AudioMixerWorker.cpp:271` implement reciprocal ordinary-guest audio filtering. B's People app remains closed. No audit invokes native setters. These source facts justify qualification; they do not prove a genuine run.
+
+## Qualification
+
+The combined 32 CPU contracts passed with zero failures/skips in 1121.809078 ms: the original 21 painted-audit contracts, six actual-World geometry contracts and five audio ownership/spectral contracts. Three syntax checks and `git apply --check` passed. The frozen source has no absolute temporary dependency paths. Read-only dependency links in this review folder are not patch contents.
+
+Root alone applies the narrow patch to the recorded before hashes and runs the existing owned isolated two-visitor gateway. Default command: `node browser-client/tests/integration/tablet-people-session.mjs` with the existing reviewed stock-browser environment. For the additional audio qualification, use the same command with `OVERTE_LAB_PEOPLE_SYNTHETIC_AUDIO=1`. This packet launches nothing. Both new genuine B and audio acceptances remain pending. Keep report paths, participant identities, screenshots and worker logs private; curate only fixed scopes/counts/numeric rows after actual execution.

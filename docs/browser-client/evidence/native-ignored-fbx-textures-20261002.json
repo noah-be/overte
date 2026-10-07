@@ -1,0 +1,33 @@
+{
+  "scope": "Actual recorded FBXLoader dependency/render-binding CPU proof, no GPU pixels/native visual/load-speed claim",
+  "inputSHA256": "54a2529473e3178ee5154a310d4cf1a3b6add52e8f28578074d8730dd03d5996",
+  "inputBytes": 2899536,
+  "preparedBytes": 748328,
+  "removedTextures": 3,
+  "removedVideos": 3,
+  "retainedTextures": 10,
+  "before": {
+    "requestCounts": {
+      "total": 13,
+      "dds": 3,
+      "blob": 10,
+      "other": 0
+    },
+    "meshCount": 1,
+    "renderBindingDigest": "3e5029f9b5cbc1a48e19d082a0034ada88b836ad2c0bcbf28b21c00285f39ac4"
+  },
+  "after": {
+    "requestCounts": {
+      "total": 10,
+      "dds": 0,
+      "blob": 10,
+      "other": 0
+    },
+    "meshCount": 1,
+    "renderBindingDigest": "3e5029f9b5cbc1a48e19d082a0034ada88b836ad2c0bcbf28b21c00285f39ac4"
+  },
+  "warnings": 21,
+  "createdBlobURLs": 20,
+  "releasedBlobURLs": 20,
+  "completed": true
+}

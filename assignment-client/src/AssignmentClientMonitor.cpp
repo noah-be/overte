@@ -1,3 +1,4 @@
+// Modified in 2026 for the optional direct browser transport.
 //
 //  AssignmentClientMonitor.cpp
 //  assignment-client/src
@@ -20,10 +21,12 @@
 
 #include <AddressManager.h>
 #include <LogHandler.h>
+#include <NodeSocketAddress.h>
 #include <udt/PacketHeaders.h>
 
 #include "AssignmentClientApp.h"
 #include "AssignmentClientChildData.h"
+#include "AssignmentMonitorPolicy.h"
 #include "SharedUtil.h"
 #include <QtCore/QJsonDocument>
 #ifdef _POSIX_SOURCE
@@ -333,39 +336,36 @@ void AssignmentClientMonitor::checkSpares() {
 }
 
 void AssignmentClientMonitor::handleChildStatusPacket(QSharedPointer<ReceivedMessage> message) {
+    const SockAddr& senderSockAddr = message->getSenderSockAddr();
+    if (!isAssignmentChildStatusSender(senderSockAddr,
+            nodeMonitorAddress(qEnvironmentVariable("OVERTE_NODE_UDP_ADDRESS")))
+        || message->getBytesLeftToRead() != NUM_BYTES_RFC4122_UUID + sizeof(quint8)) {
+        return;
+    }
+
     // read out the sender ID
     QUuid senderID = QUuid::fromRfc4122(message->readWithoutCopy(NUM_BYTES_RFC4122_UUID));
 
     auto nodeList = DependencyManager::get<LimitedNodeList>();
 
     SharedNodePointer matchingNode = nodeList->nodeWithUUID(senderID);
-    const SockAddr& senderSockAddr = message->getSenderSockAddr();
 
     AssignmentClientChildData* childData = nullptr;
 
     if (!matchingNode) {
-        // The parent only expects to be talking with programs running on this same machine.
-        if (senderSockAddr.getAddress() == QHostAddress::LocalHost ||
-                senderSockAddr.getAddress() == QHostAddress::LocalHostIPv6) {
-
-            if (!senderID.isNull()) {
-                // We don't have this node yet - we should add it
-                matchingNode = DependencyManager::get<LimitedNodeList>()->addOrUpdateNode(senderID, NodeType::Unassigned,
-                                                                                          senderSockAddr, senderSockAddr);
-
-                auto newChildData = std::unique_ptr<AssignmentClientChildData>
-                    { new AssignmentClientChildData(Assignment::Type::AllTypes) };
-                matchingNode->setLinkedData(std::move(newChildData));
-            } else {
-                // tell unknown assignment-client child to exit.
-                qDebug() << "Asking unknown child at" << senderSockAddr << "to exit.";
-
-                auto diePacket = NLPacket::create(PacketType::StopNode, 0);
-                nodeList->sendPacket(std::move(diePacket), senderSockAddr);
-
-                return;
-            }
+        if (senderID.isNull()) {
+            // Tell an unknown, local assignment-client child to exit.
+            qDebug() << "Asking unknown child at" << senderSockAddr << "to exit.";
+            auto diePacket = NLPacket::create(PacketType::StopNode, 0);
+            nodeList->sendPacket(std::move(diePacket), senderSockAddr);
+            return;
         }
+        matchingNode = nodeList->addOrUpdateNode(senderID, NodeType::Unassigned, senderSockAddr, senderSockAddr);
+        if (!matchingNode) {
+            return;
+        }
+        auto newChildData = std::make_unique<AssignmentClientChildData>(Assignment::Type::AllTypes);
+        matchingNode->setLinkedData(std::move(newChildData));
     }
     childData = dynamic_cast<AssignmentClientChildData*>(matchingNode->getLinkedData());
 
@@ -375,7 +375,10 @@ void AssignmentClientMonitor::handleChildStatusPacket(QSharedPointer<ReceivedMes
 
         // get child's assignment type out of the packet
         quint8 assignmentType;
-        message->readPrimitive(&assignmentType);
+        if (message->readPrimitive(&assignmentType) != sizeof(assignmentType)
+            || assignmentType > Assignment::Type::AllTypes) {
+            return;
+        }
 
         childData->setChildType(Assignment::Type(assignmentType));
 

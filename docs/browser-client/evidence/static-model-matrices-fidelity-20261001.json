@@ -1,0 +1,245 @@
+{
+  "date": "2026-10-01",
+  "materialAssistance": "OpenAI Codex",
+  "scope": "Actual BrowserWorld owned Model candidate, opt-in only; no actual online Hub speed benefit claimed by fixture equality.",
+  "startedAt": "2026-10-01T21:34:57.224Z",
+  "durationMs": 13227.708,
+  "testsPassed": 2,
+  "testsFailed": 0,
+  "testsSkipped": 0,
+  "command": "npx playwright test tests/static-model-matrices.browser.spec.ts --workers=1 --reporter=list,json",
+  "logSHA256": "02ce58303727865c1b215ec9c5168a0fc4084210c5b8abb68d76cb54fe9609fe",
+  "sourceSHA256": {
+    "browser-client/src/world.ts": "23138c29b063dabddc7a68e43979dcf9bea7f3e9d13665aaaeec13247b458e16",
+    "browser-client/src/main.ts": "1a60e855a84c2f4fed03d3c5d994e6f065fab8f8f035f83397bf500370a833da",
+    "browser-client/src/static-model-matrices.ts": "f1d25bf43d7f0d8d3bfdad21e28aab1960b0638071fdd7c3c33d1c0b8c93b585",
+    "browser-client/tests/static-model-matrices-fixture.ts": "fb801c70584fd9ee4496fb05c89b481b7a0b4c88d05c8d50558e9bb092c0415e",
+    "browser-client/tests/static-model-matrices.browser.spec.ts": "eea65192759bf1b2be06495c9196b60f1f1974f663b49351d3df4219e9f0b3a2",
+    "browser-client/tests/static-model-matrices.test.ts": "c913d353e016c9c8201d41d4ff66a60fc309566d9472d62b6e85a4af3595c94f",
+    "browser-client/tests/world-static-model-matrices.test.ts": "5ae1ab6e2e73846c712dfe523afb4b59e9c56b16c6ada17b85d1fb7900f2f81c"
+  },
+  "assertions": [
+    "Genuine loaded glTF: two six-vertex mesh primitives, shader readiness and real Model counters are required before capture.",
+    "All six baseline and optimized complete framebuffer hashes, transforms, material versions, draw counts, programs and picking records are exactly equal.",
+    "Initial pixels and raycast hits must be positive; actual pose and dimensions after native-style Model upserts are asserted independently.",
+    "Positive real collision contacts and raycast hits under nonuniform/negative transforms remain covered by independent CPU contracts.",
+    "Opt-in skips at least one hundred traversals, refreshes changed transforms and releases all owned root/node snapshots after removal."
+  ],
+  "engines": [
+    {
+      "engine": "chromium",
+      "version": "153.0.8010.12",
+      "durationMs": 5165,
+      "errors": [],
+      "frames": [
+        {
+          "label": "idle",
+          "framebufferSHA256": "69b1edf0e32155d54064e9c4c0761635de8d8bdb7d2ebb55f940018b40770356",
+          "centerRGBA": [
+            255,
+            0,
+            0,
+            255
+          ],
+          "drawCalls": 2,
+          "programs": 3,
+          "raycastHits": 2,
+          "matrixCount": 6
+        },
+        {
+          "label": "native-pose-upsert",
+          "framebufferSHA256": "d8a425de6d6ae4ee7ea4ec354559c1e8cf196bef84b928c28168026afcc73b3a",
+          "centerRGBA": [
+            255,
+            0,
+            0,
+            255
+          ],
+          "drawCalls": 2,
+          "programs": 3,
+          "raycastHits": 2,
+          "matrixCount": 6
+        },
+        {
+          "label": "negative-parent-transform",
+          "framebufferSHA256": "e4535192236b8a53c20d55aef2ef6c1eb7e43b1fe934418683c6546b7868ed67",
+          "centerRGBA": [
+            255,
+            0,
+            0,
+            255
+          ],
+          "drawCalls": 2,
+          "programs": 3,
+          "raycastHits": 2,
+          "matrixCount": 6
+        },
+        {
+          "label": "direct-local-change",
+          "framebufferSHA256": "e408bf33714f2b48873a8ccb0aad914df754acd56ba493c30d38495f0d25f922",
+          "centerRGBA": [
+            255,
+            0,
+            0,
+            255
+          ],
+          "drawCalls": 2,
+          "programs": 3,
+          "raycastHits": 2,
+          "matrixCount": 6
+        },
+        {
+          "label": "native-material-edit",
+          "framebufferSHA256": "a1b8d386932a1f91fca635669d495170fd231711e01cf5e8896e617e046c8790",
+          "centerRGBA": [
+            137,
+            0,
+            0,
+            255
+          ],
+          "drawCalls": 2,
+          "programs": 3,
+          "raycastHits": 2,
+          "matrixCount": 6
+        },
+        {
+          "label": "rebuild",
+          "framebufferSHA256": "31625c8dfeabec53a6b0e014a9ac8230a74f2d43cc47fe76eb07337273634ba0",
+          "centerRGBA": [
+            0,
+            0,
+            0,
+            255
+          ],
+          "drawCalls": 2,
+          "programs": 3,
+          "raycastHits": 0,
+          "matrixCount": 6
+        }
+      ],
+      "exactFullRecordsEqual": true,
+      "baseline": {
+        "enabled": false
+      },
+      "optimized": {
+        "enabled": true,
+        "activeRoots": 0,
+        "retainedNodes": 0,
+        "skippedTraversals": 117,
+        "updatedTraversals": 8,
+        "refusedRoots": 0,
+        "changedGraphs": 8
+      }
+    },
+    {
+      "engine": "firefox",
+      "version": "155.0",
+      "durationMs": 3345,
+      "errors": [],
+      "frames": [
+        {
+          "label": "idle",
+          "framebufferSHA256": "c9d9af220bd642547b75d66c303fb3384a79c38d6a2c04184d4d5466cc39c8b4",
+          "centerRGBA": [
+            255,
+            0,
+            0,
+            255
+          ],
+          "drawCalls": 2,
+          "programs": 3,
+          "raycastHits": 2,
+          "matrixCount": 6
+        },
+        {
+          "label": "native-pose-upsert",
+          "framebufferSHA256": "30edfd33308335e45311d81b8a5adff54f7a529fda57d6ed0404405aeacc6654",
+          "centerRGBA": [
+            255,
+            0,
+            0,
+            255
+          ],
+          "drawCalls": 2,
+          "programs": 3,
+          "raycastHits": 2,
+          "matrixCount": 6
+        },
+        {
+          "label": "negative-parent-transform",
+          "framebufferSHA256": "f03d6966acbe6f2dbab20871d9a96affc5ccacfaa0eb66bcc832e726b6ee710d",
+          "centerRGBA": [
+            255,
+            0,
+            0,
+            255
+          ],
+          "drawCalls": 2,
+          "programs": 3,
+          "raycastHits": 2,
+          "matrixCount": 6
+        },
+        {
+          "label": "direct-local-change",
+          "framebufferSHA256": "9c23d9c7ddfca656e413adad412a0d19a332f58d25da00d1b9abe8d1be008e70",
+          "centerRGBA": [
+            255,
+            0,
+            0,
+            255
+          ],
+          "drawCalls": 2,
+          "programs": 3,
+          "raycastHits": 2,
+          "matrixCount": 6
+        },
+        {
+          "label": "native-material-edit",
+          "framebufferSHA256": "bc4bac50e62d43578c25c4c17e267ddc4bdef117284d66803213cd74a8bbc177",
+          "centerRGBA": [
+            137,
+            0,
+            0,
+            255
+          ],
+          "drawCalls": 2,
+          "programs": 3,
+          "raycastHits": 2,
+          "matrixCount": 6
+        },
+        {
+          "label": "rebuild",
+          "framebufferSHA256": "05b834e2a9ff6f0b6e21f06da6ce7a3f364fc7d031a9ecef9e6937b651f44c5f",
+          "centerRGBA": [
+            0,
+            0,
+            0,
+            255
+          ],
+          "drawCalls": 2,
+          "programs": 3,
+          "raycastHits": 0,
+          "matrixCount": 6
+        }
+      ],
+      "exactFullRecordsEqual": true,
+      "baseline": {
+        "enabled": false
+      },
+      "optimized": {
+        "enabled": true,
+        "activeRoots": 0,
+        "retainedNodes": 0,
+        "skippedTraversals": 117,
+        "updatedTraversals": 8,
+        "refusedRoots": 0,
+        "changedGraphs": 8
+      }
+    }
+  ],
+  "limitations": [
+    "This fixture is not an online-world or performance acceptance proof.",
+    "No rendering-quality settings, collision geometry or material fidelity are reduced.",
+    "Both bundled engines are tested; current stock online-Hub measurements are a separate next step."
+  ]
+}

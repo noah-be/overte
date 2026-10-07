@@ -1,0 +1,3147 @@
+{
+  "date": "2026-10-02",
+  "materialAssistance": "OpenAI Codex",
+  "scope": "Four short source-frozen stock-engine Hub captures: one ordered baseline/optional-bitmap pair per engine, two admissions each",
+  "sourceSHA256": {
+    "browser-client/gateway/server.mjs": "f8399c1015cb85ada0da613b9278b8a90dca0660d2478b8810d43161b1ed237c",
+    "browser-client/gateway/native-bridge.js": "609cfb1bbaee247109f133c53b4a5a48292bf3fac78891e9ab9eba4ace24a442",
+    "browser-client/gateway/native-world.js": "bec2f02313446afde7a0be20899358a082b41c6c6c5d745ec67a24809e2b7ddb",
+    "browser-client/gateway/socket-heartbeat.mjs": "8f4f42f11cbb442692107365daa3e1966043d098d0b57579908fdc6a48d10f60",
+    "browser-client/gateway/public-places.mjs": "cbac3df2ecf7071da6e77df8d58b09be194afa184cfb0c37f6015f9f1f570471",
+    "browser-client/gateway/validation.mjs": "65eba4a66c76d4bfc0dbd18e172def64f43b37cca0db2301da5bf4d18645de79",
+    "browser-client/gateway/worker-sandbox.mjs": "0f676af4e006de48a0aeb32185ea37eb9500d1a7c65d064a5a16a27024c268a1",
+    "browser-client/gateway/network-sandbox.mjs": "b63bd39424077a476424b3b1ac59232f366bb4f72375a29bd33edb6451b7d113",
+    "browser-client/gateway/network_udp.py": "378f7159b1456ab5a0e25d2f933f35106344106625cef0ce0d589de3d1e45eca",
+    "browser-client/gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+    "browser-client/gateway/tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+    "browser-client/gateway/process-lifecycle.mjs": "e8d7e021a8b934b271910883e27c2a1109aedd22e12044b763d4bf8acc274eaf",
+    "browser-client/shared/fluid-performance.mjs": "44e5262f62785e3a9ba4a96c275f5f0bf3a93c27e1d44fdad3bdbec739deebe2",
+    "browser-client/gateway/session-assets.mjs": "68542cb352ccad1bdc23a65ae34ab19d4abc2b02e1f81dec3f529d525ab84bf4",
+    "browser-client/gateway/asset-download.mjs": "4718cfe223afa884ab4f5890b6dc093303a70b864917fe5d85dc5cc2b8568357",
+    "browser-client/src/main.ts": "80a7eb3f5466c00a7388895a5607b6e6ca4a12d97338d01c126d2dcf88802720",
+    "browser-client/src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+    "browser-client/src/compressed-color-session.ts": "e18af74fe59593bf9f1aee0ce7a91f0e6910ed5e903868f646f1311d61c42fcf",
+    "browser-client/src/native-compressed-color.ts": "312e6beac3a95b16f0ad3675d9789270eec69a6cdf808b66ce23da007c22aa56",
+    "browser-client/src/color-texture-metadata.ts": "1a4053acae0e7fd47076c0472598cf09b4da6ae178bd0563fa81857477c3d785",
+    "browser-client/src/initial-surface-wait.ts": "70c5a8c833eb2d7f71f21be0602e8e8a93aaa9e6452e9a942b02cfead61f4e47",
+    "browser-client/src/mesh-collision.ts": "2fa7aded6c11e1defb9dd87d2963abd0212ab9a4243eb3089aa01073d5b3e4a6",
+    "browser-client/src/simulation-clock.ts": "263fffd2b448c01fd25dc6f2adeceacf5cc28c2550d3dc249c07d915737bc7f5",
+    "browser-client/src/world.ts": "30e302aaf480b3c1a377df33aca244b95fe2d3e985a78d83e7dc5a17166d0a5e",
+    "browser-client/src/world-draw-census.ts": "dd46aff4c5de0e58d1f8184d27eb18dc8f34a31de44ffd6bd503bde8583a4150",
+    "browser-client/src/world-bitmap-upload.ts": "18fefcf4fafdcc14403b8ee8b4140cf7ec33455a0ec642459c0255e91d356b09",
+    "browser-client/src/world-bitmap-bindings.ts": "31cba7d754d160054d83881da5f6ba9d8c98c5198b520addcc80b47529881f54",
+    "browser-client/src/fst-graph-cache.ts": "3a97e6dfcff1afaf1919b766ba38370befcb740e36f54662d8c9a4769c157230",
+    "browser-client/src/fst-texture-admission.ts": "385f257d5f60ea60ab26af0df1d1f77186e836ba64e33640012349786244a5d5",
+    "browser-client/src/compressed-color-capabilities.ts": "9e0536d5b2c82dee198b4e952b8b4f92bce8c49011ec5972b53608e94583d9fe",
+    "browser-client/src/graphics-warmup.ts": "878c32f9d7503cd334f66e348e10670f73c8c077373906c979523d75884a93e6",
+    "browser-client/src/graphics-warmup-owner.ts": "e09c8bfbfb71dadbe838413551cce82a6b689967237e355cd4a787a9da0050d4",
+    "browser-client/src/gpu-time-observer.ts": "6431fd2ee12ed93a19c98abba26e895b82598da94f2c12f227c2b0a649d0fed3",
+    "browser-client/src/world-gpu-timing.ts": "f20d8edec0b0666e88fb7a60cc2b5dae35ae02d5c6e6b44bc2ae86810beccd46",
+    "browser-client/src/world-image-cache.ts": "ba45a6125087f8b275c939a5e9e36dadac6879a37cb0fbe50d8c19dd9f1c6af9",
+    "browser-client/src/world-source-text-cache.ts": "57ccb98bed54e788ed0e2f263e8362ae505f4b3073648dc08c311925e21116b1",
+    "browser-client/src/embedded-fbx-images.ts": "790210b1205de5a26798e59c428da4bfff94ace0357374b6c370d53a42009e66",
+    "browser-client/src/embedded-content-counts.ts": "99fdefbe880cc81f8871565875fd95620211cbbc7a64ff3cfb6a5ee601d33864",
+    "browser-client/src/embedded-fbx-protocol.ts": "381179c36c71ab04bd0214fde9d2da4afa2a04f7f52dcbadc526b9eb2dd0c1db",
+    "browser-client/src/native-zero-lights.ts": "db505e6dbbfa856f3f5a5cb7d2c38768ab47f68e545a44d2281589613e151659",
+    "browser-client/src/static-model-batch.ts": "e14251976cfbc726dc8758759d13b0318b5bd08bec47499f64083b7e9ff44b8a",
+    "browser-client/src/native-render-state.ts": "af31a1e01576c233c1f7e8a8231dd5c2cc5871cb58b5783bf01f788da70d01df",
+    "browser-client/src/native-alpha-material.ts": "a3515894f69f078222c7e2b543c46ce22f7bd05b58e12f3eaa14aa0a638dcfbb",
+    "browser-client/src/model-resources.ts": "23e551d60f53e02e2a9d28573df47e0bc7710fc499d1f05aeca88daa89703949",
+    "browser-client/src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+    "browser-client/src/worker-task-yield.ts": "6fdfa71526163386c9e041b74a533b2ff50c52f533145bfc2facb213d4333cc8",
+    "browser-client/src/prepared-fbx-cache.ts": "d4fe5ef8699e329094f4c4e99b0a8baa9da29739ee5b3dd6f28ff756b6466579",
+    "browser-client/src/model-load-scheduler.ts": "5b0f79beda5b11ba85dff0c34fbd4e091e5f21a0130efa78022d7eef9f453290",
+    "browser-client/src/model-geometry-stage.ts": "d940a9180cbb26f50a2fe8a712e6f8d9d30a2d31ec2b6dd5551b6ee6b83d34a3",
+    "browser-client/src/model-fbx-pool.ts": "76234b181e0cdded5d4e65350386bc62bf393802266e5614d825b57308e5b902",
+    "browser-client/src/model-fbx-decoder.ts": "5b80bced09705301a14574c8082a946dd3fd32f2ef1a9d1ce08ca7f30dd19ead",
+    "browser-client/src/model-fbx-decoder-memory.ts": "0f209e406a3571af97e78bf12471d7ea6a788cec26adbef733dc353b864cdc68",
+    "browser-client/src/model-fbx-worker.ts": "e418b09a7a3771bcb2cd52c130cc9ee01fcbfbca2ad5828df9c307adec9502f5",
+    "browser-client/src/model-textures.ts": "6de3ec3be2ce235642209ffab87295e52198e4fbebc12559c712ba6283e889bb",
+    "browser-client/src/texture-alpha.ts": "af9b46d9c56a156febaff92db76fe06b38dd4fa2ba7943ddfd4bbeaa47024ebe",
+    "browser-client/src/texture-alpha-worker.ts": "68cc81f419ed2373cfe18e9efd950222452479a7a742c5e10b8d965264d91761",
+    "browser-client/src/baked-fbx.ts": "eaa429192150981bb8c894ec77140a829a9430264652f0321dd41fc1486c0d00",
+    "browser-client/src/baked-draco.ts": "7e4426363fd8809df02d4f6c79d2b2fb899ae56ed663f839ffeb297e2a7d7844",
+    "browser-client/src/baked-draco-legacy.ts": "ba30ca915fcb85f5915fd5ef08f01745c13d3c9c7412c8dcefecb504c89a0a71",
+    "browser-client/dist/index.html": "3a711348983925beea5631002c5e3e2cfc7844a9c1a69cff8114d8c1347204e1",
+    "browser-client/tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+    "browser-client/tests/integration/public-hub-metrics.mjs": "18c9ed36feb60ddadbc5b3a73dcc73e2caa8561ab26cd672d8882de2bd25c789",
+    "browser-client/tests/integration/public-hub.mjs": "68e986927833c066960a6de9fd3aa0b1f6acc7308efff4fcaaa21abbc7236886",
+    "browser-client/src/world-texture-preparation.ts": "9bbe55c2b77a6df70b393cc139a35a34eb0d72b2f1f71d2b3f459dcb90a81be6",
+    "browser-client/src/foreground-texture-plan.ts": "9e986216767c9d65070e337e672c1f5bede40d5fd222d0191f715abba8c899c2",
+    "browser-client/src/world-cpu-frame-timing.ts": "579a99969dd17e1ec9d3cd93701817597aa2741ee6d531d0f99aa8df84490b36",
+    "browser-client/src/render-cpu-breakdown.ts": "19a7c3b5add363fbffbfb5b5dbb863054447ac50a5ac5312c722a984a715eeb3",
+    "browser-client/tests/integration/hub-upload-profile.mjs": "d16dfd152f78b6b6294d9f0791b44670562c9eee41014ede5c82e2a14f99e8ea",
+    "browser-client/src/static-model-matrices.ts": "f1d25bf43d7f0d8d3bfdad21e28aab1960b0638071fdd7c3c33d1c0b8c93b585",
+    "browser-client/src/native-image-material.ts": "53b2f6c9785611b3be7e50441feb317a854753dd9422f1152e88c19ca5818784",
+    "browser-client/src/native-image-effects.ts": "71146573d8ea9ee836119302b09c4af48a0c9e987ee5196fd32b59fceeab8d97"
+  },
+  "distributionManifest": {
+    "assets/baked-draco-DOQBkCJV.js": {
+      "sha256": "3c0410f6ce9f8547b0ee37c9d9d6093239fae203f583388931b640353e712963",
+      "bytes": 125046
+    },
+    "assets/baked-draco-legacy-CMhlgON6.js": {
+      "sha256": "eb84ebc5eff49c7b0593382b07b23010897080f46b779ececdd515efcfb482d4",
+      "bytes": 816324
+    },
+    "assets/draco_decoder-C32yEggz.wasm": {
+      "sha256": "c55a594e8ffd18426d36b27fea9618af3df5e173640a3e56d46f09d76f0574f2",
+      "bytes": 285747
+    },
+    "assets/draco_decoder-fzg4nYZr.js": {
+      "sha256": "30e4d486fa020737af10e3c56197693e5b904bdc05b8bfa5d7b06751dec6da04",
+      "bytes": 719410
+    },
+    "assets/draco_decoder-Z1_iN-Ht.wasm": {
+      "sha256": "a680d927bed9cb864ddbd63521868891af2bfbe755092761b4837487618df8ac",
+      "bytes": 192420
+    },
+    "assets/draco_wasm_wrapper-DxJM36Ib.js": {
+      "sha256": "e8049906ef3f8f75d3456c22a3f31bfdfe5b5b5bd09ccdec613b9e9a49d554d8",
+      "bytes": 58763
+    },
+    "assets/draco_wasm_wrapper-fZCQGLGb.js": {
+      "sha256": "8bb2952d2ba7d67e1414f8df819410cb0434a666be53f671fff75f68843d76f6",
+      "bytes": 58456
+    },
+    "assets/FBXLoader-2Evb_zrW.js": {
+      "sha256": "d46791d0fdeeefb524917ee7d32e90403415a0b8c50d2cba20a14ff3699113d1",
+      "bytes": 49922
+    },
+    "assets/GLTFLoader-Bo83z9nx.js": {
+      "sha256": "d0227c7ee843db5989ab498746f3f0c45e24a5a5913a01d01b5ad0883a5fb9d2",
+      "bytes": 44308
+    },
+    "assets/index-B2mAMfm4.css": {
+      "sha256": "cbf321b921d05ff91c3020a6ccffc91385eeebf223ea6ec0577c6354df12a521",
+      "bytes": 5451
+    },
+    "assets/index-BTkiZO63.js": {
+      "sha256": "92462c1390ee8c2dbaa82c568fb3b79a405717954b3cf3feda74a2f02617ede9",
+      "bytes": 934886
+    },
+    "assets/model-fbx-worker-clQkD4aL.js": {
+      "sha256": "33867fd105c4dcb50cda9b23ccbc1d8b4ff077dda5d0eb6eef9aa1f2946be3ab",
+      "bytes": 825453
+    },
+    "assets/OBJLoader-DLCyr9h_.js": {
+      "sha256": "a5d0599ed02d16656554cf474e77bfc6504f7682becf5fa1d89afa7ac60ab975",
+      "bytes": 8633
+    },
+    "assets/tablet-gif.worker-DACjp6Cn.js": {
+      "sha256": "78ebb1c3db4d062dd4119c2cd86d201b7df2757fedf22a8993dd460fbb1057c8",
+      "bytes": 10409
+    },
+    "assets/texture-alpha-worker-CBG2kYQR.js": {
+      "sha256": "f04f415ff39370ae4ab0268903ffaf6c86b9a7addeb0aed95d4a7948ee803485",
+      "bytes": 2417
+    }
+  },
+  "gatewayProvenance": "Gateway process predates the published checkpoint; disk source pins and native per-session helper pins do not independently attest every in-memory gateway module. Unchanged protocol happy-path only.",
+  "thresholds": {
+    "minimumFPS": 30,
+    "maximumP95FrameMs": 66.66666666666667,
+    "maximumSteadyStallMs": 250,
+    "minimumMovementMetersExclusive": 0.5,
+    "maximumNativeDifferenceMetersExclusive": 0.5,
+    "maximumNativeObservationAgeMsExclusive": 2500,
+    "maximumRejoinedVerticalChangeMetersExclusive": 3
+  },
+  "runs": [
+    {
+      "engine": "chromium",
+      "bitmapRequested": false,
+      "browserVersion": "154.0.8037.57",
+      "startedAt": "2026-10-01T23:20:12.248Z",
+      "connectedAt": "2026-10-01T23:20:26.228Z",
+      "finishedAt": "2026-10-01T23:21:51.032Z",
+      "rawSHA256": "42a8a6652607b2a952692d3ec1c5815bd9c72767193d946388296b9a9229fdf5",
+      "completed": true,
+      "fluidMovementAcceptancePassed": true,
+      "terminalFailureCategory": null,
+      "requestedOptions": {
+        "microphoneRequested": false,
+        "uploadProfileRequested": true,
+        "gpuTimingRequested": false,
+        "cpuFrameTimingRequested": true,
+        "renderCpuTimingRequested": true,
+        "staticModelMatricesRequested": false,
+        "bitmapUploadRequested": false,
+        "shaderWarmupRequested": false,
+        "texturePreparationRequested": false
+      },
+      "sourceStartEndCoherent": true,
+      "distributionStartEndCoherent": true,
+      "runtimeHelperSHA256": {
+        "native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+        "tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+        "bridge.js": "32420b0e3750c36f43904e8d2064391ffd87673a8a7796c77de61a727ea9bee2"
+      },
+      "reconnectedRuntimeHelperSHA256": {
+        "native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+        "tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+        "bridge.js": "f8cbad2dffaf0b8cb7febae90ff58db2beea50ec8a49a459e521638c0078f336"
+      },
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "nativeDevicePixelRatio": 1.000000015894571
+      },
+      "drawingBuffer": {
+        "drawingBufferWidth": 1280,
+        "drawingBufferHeight": 800
+      },
+      "modelJobsIdle": {
+        "scope": "First sampled model/graphics jobs idle, not complete asset success or all-world content readiness",
+        "relativeToConnectedSeconds": {
+          "lowerExclusive": 17.649,
+          "upperInclusive": 20.67
+        },
+        "sampleIndex": 5,
+        "loadedModels": 293,
+        "entities": 517,
+        "loadingModels": 0,
+        "queuedModels": 0,
+        "compilingGraphics": 0,
+        "imageLoading": {
+          "requests": 115,
+          "uniqueImages": 73,
+          "cacheHits": 42,
+          "completed": 65,
+          "failed": 8,
+          "cancelled": 0,
+          "evictions": 0,
+          "peakActive": 6,
+          "sourceKinds": {
+            "http": {
+              "requests": 39,
+              "uniqueImages": 29,
+              "cacheHits": 10,
+              "completed": 21,
+              "failed": 8,
+              "cancelled": 0,
+              "evictions": 0
+            },
+            "https": {
+              "requests": 0,
+              "uniqueImages": 0,
+              "cacheHits": 0,
+              "completed": 0,
+              "failed": 0,
+              "cancelled": 0,
+              "evictions": 0
+            },
+            "data": {
+              "requests": 0,
+              "uniqueImages": 0,
+              "cacheHits": 0,
+              "completed": 0,
+              "failed": 0,
+              "cancelled": 0,
+              "evictions": 0
+            },
+            "blob": {
+              "requests": 76,
+              "uniqueImages": 44,
+              "cacheHits": 32,
+              "completed": 44,
+              "failed": 0,
+              "cancelled": 0,
+              "evictions": 0
+            },
+            "other": {
+              "requests": 0,
+              "uniqueImages": 0,
+              "cacheHits": 0,
+              "completed": 0,
+              "failed": 0,
+              "cancelled": 0,
+              "evictions": 0
+            }
+          },
+          "active": 0,
+          "queued": 0,
+          "pending": 0,
+          "retainedEntries": 65,
+          "retainedPixels": 66714765,
+          "retainedKeyBytes": 14450,
+          "pendingKeyBytes": 0,
+          "phases": {
+            "imageLoad": {
+              "count": 65,
+              "totalMs": 6031.899999976158,
+              "maxMs": 407.90000000596046
+            },
+            "imageDecode": {
+              "count": 65,
+              "totalMs": 3302.199999988079,
+              "maxMs": 563.8000000119209
+            }
+          }
+        },
+        "loadPhases": {
+          "graphicsSubmit": {
+            "count": 1495,
+            "totalMs": 9818.40000012517,
+            "maxMs": 515.4000000059605
+          },
+          "shaderPrepare": {
+            "count": 499,
+            "totalMs": 10155.699999302626,
+            "maxMs": 228.19999998807907
+          },
+          "fbxMaterialBindings": {
+            "count": 128,
+            "totalMs": 331.40000009536743,
+            "maxMs": 62
+          },
+          "fbxDecode": {
+            "count": 128,
+            "totalMs": 2885.800000101328,
+            "maxMs": 648.7000000178814
+          },
+          "fbxPrepareWait": {
+            "count": 292,
+            "totalMs": 25760.900000423193,
+            "maxMs": 1092.6000000238419
+          },
+          "fbxParse": {
+            "count": 292,
+            "totalMs": 4118.799999833107,
+            "maxMs": 317.90000000596046
+          },
+          "fbxTextures": {
+            "count": 292,
+            "totalMs": 3298.5999998152256,
+            "maxMs": 362.59999999403954
+          },
+          "textureAlpha": {
+            "count": 842,
+            "totalMs": 794.6000001430511,
+            "maxMs": 104.19999998807907
+          },
+          "entityUpdate": {
+            "count": 8,
+            "totalMs": 129,
+            "maxMs": 92
+          },
+          "fstGraphPreflight": {
+            "count": 241,
+            "totalMs": 85.39999979734421,
+            "maxMs": 20.30000001192093
+          },
+          "colliderBuild": {
+            "count": 76,
+            "totalMs": 269.3999997675419,
+            "maxMs": 74.7999999821186
+          },
+          "compressedColor": {
+            "count": 231,
+            "totalMs": 16568.000000059605,
+            "maxMs": 1014
+          },
+          "modelBatch": {
+            "count": 6,
+            "totalMs": 121.59999996423721,
+            "maxMs": 56.400000005960464
+          }
+        },
+        "bitmapUpload": {
+          "enabled": false,
+          "roots": 0,
+          "converted": 0,
+          "fallbacks": 0,
+          "unsupported": 0,
+          "capacityFallbacks": 0,
+          "activeRoots": 0,
+          "peakRoots": 0
+        }
+      },
+      "fluidGates": {
+        "initialSteady": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250,
+          "sampleCount": 2,
+          "minimumObservedFPS": 46.44771728822745,
+          "maximumObservedP95FrameMs": 33.5,
+          "maximumObservedStallMs": 83.69999999999709
+        },
+        "initialWalk": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250,
+          "sampleCount": 2,
+          "minimumObservedFPS": 46.44771728822745,
+          "maximumObservedP95FrameMs": 33.5,
+          "maximumObservedStallMs": 50.099999999998545
+        },
+        "rejoinedSteady": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250,
+          "sampleCount": 2,
+          "minimumObservedFPS": 43.6323970548132,
+          "maximumObservedP95FrameMs": 33.80000000000291,
+          "maximumObservedStallMs": 100
+        },
+        "rejoinedWalk": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250,
+          "sampleCount": 2,
+          "minimumObservedFPS": 45.2787472879917,
+          "maximumObservedP95FrameMs": 33.5,
+          "maximumObservedStallMs": 50
+        }
+      },
+      "movement": {
+        "initialMeters": 4.252536457189493,
+        "initialNativeDifferenceMeters": 0.0005504140314630346,
+        "rejoinedMeters": 2.9083822177613885,
+        "rejoinedNativeDifferenceMeters": 0.0004847189306175409,
+        "rejoinedAbsoluteVerticalChangeMeters": 0.24268344281857424,
+        "movementAndNativeAgreementCriteriaPassed": true,
+        "nativeFreshnessCriteriaPassedByHarness": true
+      },
+      "initialAdmissionAssets": {
+        "ordinal": 1,
+        "uniqueURLs": 583,
+        "requests": 597,
+        "duplicateRequests": 14,
+        "knownBytes": 113106384,
+        "unknownByteResponses": 11,
+        "totalRequestMs": 69641.53400800003,
+        "maximumRequestMs": 2241.2200709999997,
+        "sources": {
+          "download": 581,
+          "shared": 0,
+          "memory": 5,
+          "unknown": 11
+        },
+        "categories": {
+          "FBX": {
+            "uniqueURLs": 122,
+            "requests": 130,
+            "duplicateRequests": 8,
+            "knownBytes": 20990528,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 129,
+              "shared": 0,
+              "memory": 1,
+              "unknown": 0
+            }
+          },
+          "FST": {
+            "uniqueURLs": 94,
+            "requests": 94,
+            "duplicateRequests": 0,
+            "knownBytes": 20719,
+            "unknownByteResponses": 1,
+            "sources": {
+              "download": 93,
+              "shared": 0,
+              "memory": 0,
+              "unknown": 1
+            }
+          },
+          "texmeta": {
+            "uniqueURLs": 129,
+            "requests": 129,
+            "duplicateRequests": 0,
+            "knownBytes": 40090,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 129,
+              "shared": 0,
+              "memory": 0,
+              "unknown": 0
+            }
+          },
+          "JSON": {
+            "uniqueURLs": 89,
+            "requests": 89,
+            "duplicateRequests": 0,
+            "knownBytes": 60289,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 89,
+              "shared": 0,
+              "memory": 0,
+              "unknown": 0
+            }
+          },
+          "image": {
+            "uniqueURLs": 141,
+            "requests": 146,
+            "duplicateRequests": 5,
+            "knownBytes": 85869002,
+            "unknownByteResponses": 10,
+            "sources": {
+              "download": 133,
+              "shared": 0,
+              "memory": 3,
+              "unknown": 10
+            }
+          },
+          "other": {
+            "uniqueURLs": 8,
+            "requests": 9,
+            "duplicateRequests": 1,
+            "knownBytes": 6125756,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 8,
+              "shared": 0,
+              "memory": 1,
+              "unknown": 0
+            }
+          }
+        }
+      },
+      "uploadProfile": {
+        "enabled": true,
+        "maximumRecords": 1000000,
+        "maximumBucketsPerPhase": 128,
+        "maximumTotalBuckets": 768,
+        "maximumSources": 1024,
+        "records": 56501,
+        "droppedRecords": 5595,
+        "invalidDurations": 0,
+        "unknownSignatures": 0,
+        "sourceLimitReached": true,
+        "uniqueArgumentSourcesLowerBound": 1024,
+        "uniqueArgumentSourcesByKind": {
+          "image": 41,
+          "bitmap": 14,
+          "canvas": 10,
+          "offscreen": 0,
+          "video": 0,
+          "imageData": 0,
+          "videoFrame": 0,
+          "data": 959,
+          "unknown": 0
+        },
+        "scope": "Two-admission observer; phase-separated existing upload call wall durations, not pure GPU time, transfer success or residency",
+        "truncated": true,
+        "retainedBucketCalls": 50906,
+        "bucketCount": 265,
+        "groups": [
+          {
+            "phase": "loading",
+            "kind": "data",
+            "largestDimensionPixels": "up-to-64",
+            "method": "texImage2D",
+            "buckets": 1,
+            "calls": 7,
+            "totalObservedCallMs": 0.19999998807907104,
+            "maximumObservedCallMs": 0.19999998807907104
+          },
+          {
+            "phase": "loading",
+            "kind": "data",
+            "largestDimensionPixels": "up-to-64",
+            "method": "texSubImage2D",
+            "buckets": 3,
+            "calls": 4739,
+            "totalObservedCallMs": 42.59999990463257,
+            "maximumObservedCallMs": 0.9000000059604645
+          },
+          {
+            "phase": "loading",
+            "kind": "canvas",
+            "largestDimensionPixels": "513-to-2048",
+            "method": "texSubImage2D",
+            "buckets": 1,
+            "calls": 10,
+            "totalObservedCallMs": 0.4000000059604645,
+            "maximumObservedCallMs": 0.19999998807907104
+          },
+          {
+            "phase": "loading",
+            "kind": "data",
+            "largestDimensionPixels": "513-to-2048",
+            "method": "compressedTexSubImage2D",
+            "buckets": 9,
+            "calls": 59,
+            "totalObservedCallMs": 13.099999994039536,
+            "maximumObservedCallMs": 2.800000011920929
+          },
+          {
+            "phase": "loading",
+            "kind": "data",
+            "largestDimensionPixels": "65-to-512",
+            "method": "compressedTexSubImage2D",
+            "buckets": 32,
+            "calls": 274,
+            "totalObservedCallMs": 4.0,
+            "maximumObservedCallMs": 0.30000001192092896
+          },
+          {
+            "phase": "loading",
+            "kind": "data",
+            "largestDimensionPixels": "up-to-64",
+            "method": "compressedTexSubImage2D",
+            "buckets": 70,
+            "calls": 662,
+            "totalObservedCallMs": 2.899999976158142,
+            "maximumObservedCallMs": 1.5999999940395355
+          },
+          {
+            "phase": "loading",
+            "kind": "image",
+            "largestDimensionPixels": "65-to-512",
+            "method": "texSubImage2D",
+            "buckets": 2,
+            "calls": 17,
+            "totalObservedCallMs": 88.99999997019768,
+            "maximumObservedCallMs": 9.700000017881393
+          },
+          {
+            "phase": "loading",
+            "kind": "image",
+            "largestDimensionPixels": "513-to-2048",
+            "method": "texSubImage2D",
+            "buckets": 7,
+            "calls": 24,
+            "totalObservedCallMs": 744.8000000417233,
+            "maximumObservedCallMs": 180.19999998807907
+          },
+          {
+            "phase": "loading",
+            "kind": "bitmap",
+            "largestDimensionPixels": "65-to-512",
+            "method": "texSubImage2D",
+            "buckets": 2,
+            "calls": 6,
+            "totalObservedCallMs": 4.5999999940395355,
+            "maximumObservedCallMs": 1.300000011920929
+          },
+          {
+            "phase": "loading",
+            "kind": "bitmap",
+            "largestDimensionPixels": "513-to-2048",
+            "method": "texSubImage2D",
+            "buckets": 1,
+            "calls": 7,
+            "totalObservedCallMs": 28.10000005364418,
+            "maximumObservedCallMs": 5.100000023841858
+          },
+          {
+            "phase": "steady",
+            "kind": "data",
+            "largestDimensionPixels": "up-to-64",
+            "method": "texSubImage2D",
+            "buckets": 3,
+            "calls": 21952,
+            "totalObservedCallMs": 135.09999987483025,
+            "maximumObservedCallMs": 3.4000000059604645
+          },
+          {
+            "phase": "leaving",
+            "kind": "data",
+            "largestDimensionPixels": "up-to-64",
+            "method": "texSubImage2D",
+            "buckets": 3,
+            "calls": 256,
+            "totalObservedCallMs": 1.6999999582767487,
+            "maximumObservedCallMs": 0.10000002384185791
+          },
+          {
+            "phase": "reloading",
+            "kind": "data",
+            "largestDimensionPixels": "up-to-64",
+            "method": "texImage2D",
+            "buckets": 1,
+            "calls": 7,
+            "totalObservedCallMs": 0.09999999403953552,
+            "maximumObservedCallMs": 0.09999999403953552
+          },
+          {
+            "phase": "reloading",
+            "kind": "data",
+            "largestDimensionPixels": "up-to-64",
+            "method": "texSubImage2D",
+            "buckets": 3,
+            "calls": 2724,
+            "totalObservedCallMs": 34.59999996423721,
+            "maximumObservedCallMs": 3.699999988079071
+          },
+          {
+            "phase": "reloading",
+            "kind": "canvas",
+            "largestDimensionPixels": "513-to-2048",
+            "method": "texSubImage2D",
+            "buckets": 1,
+            "calls": 10,
+            "totalObservedCallMs": 0.4000000059604645,
+            "maximumObservedCallMs": 0.10000002384185791
+          },
+          {
+            "phase": "reloading",
+            "kind": "data",
+            "largestDimensionPixels": "513-to-2048",
+            "method": "compressedTexSubImage2D",
+            "buckets": 9,
+            "calls": 59,
+            "totalObservedCallMs": 8.300000071525574,
+            "maximumObservedCallMs": 1
+          },
+          {
+            "phase": "reloading",
+            "kind": "data",
+            "largestDimensionPixels": "65-to-512",
+            "method": "compressedTexSubImage2D",
+            "buckets": 32,
+            "calls": 274,
+            "totalObservedCallMs": 4.300000041723251,
+            "maximumObservedCallMs": 0.699999988079071
+          },
+          {
+            "phase": "reloading",
+            "kind": "data",
+            "largestDimensionPixels": "up-to-64",
+            "method": "compressedTexSubImage2D",
+            "buckets": 71,
+            "calls": 663,
+            "totalObservedCallMs": 4.700000017881393,
+            "maximumObservedCallMs": 1.800000011920929
+          },
+          {
+            "phase": "reloading",
+            "kind": "image",
+            "largestDimensionPixels": "65-to-512",
+            "method": "texSubImage2D",
+            "buckets": 2,
+            "calls": 17,
+            "totalObservedCallMs": 80.50000002980232,
+            "maximumObservedCallMs": 6.899999976158142
+          },
+          {
+            "phase": "reloading",
+            "kind": "image",
+            "largestDimensionPixels": "513-to-2048",
+            "method": "texSubImage2D",
+            "buckets": 7,
+            "calls": 23,
+            "totalObservedCallMs": 702.7000000178814,
+            "maximumObservedCallMs": 144.59999999403954
+          },
+          {
+            "phase": "reloading",
+            "kind": "bitmap",
+            "largestDimensionPixels": "65-to-512",
+            "method": "texSubImage2D",
+            "buckets": 2,
+            "calls": 6,
+            "totalObservedCallMs": 3.699999988079071,
+            "maximumObservedCallMs": 0.9000000059604645
+          },
+          {
+            "phase": "rejoined-ready",
+            "kind": "data",
+            "largestDimensionPixels": "up-to-64",
+            "method": "texSubImage2D",
+            "buckets": 3,
+            "calls": 19110,
+            "totalObservedCallMs": 114.99999991059303,
+            "maximumObservedCallMs": 5.0999999940395355
+          }
+        ]
+      },
+      "initialWalkingBitmapResources": {
+        "enabled": false,
+        "roots": 0,
+        "converted": 0,
+        "fallbacks": 0,
+        "unsupported": 0,
+        "capacityFallbacks": 0,
+        "activeRoots": 0,
+        "peakRoots": 0
+      },
+      "rejoinedWalkingBitmapResources": {
+        "enabled": false,
+        "roots": 0,
+        "converted": 0,
+        "fallbacks": 0,
+        "unsupported": 0,
+        "capacityFallbacks": 0,
+        "activeRoots": 0,
+        "peakRoots": 0
+      },
+      "drawCensus": {
+        "admissionOrdinal": 1,
+        "afterInitialWalkingSamples": true,
+        "beforeLeave": true,
+        "durationWallMs": 77,
+        "elapsedMs": 75.90000000596046,
+        "partial": true,
+        "bounds": {
+          "maximumOwners": 1024,
+          "maximumNodes": 16384,
+          "maximumParts": 8192,
+          "maximumBytes": 67108864,
+          "maximumMetadataBytes": 2097152,
+          "maximumCpuMs": 75
+        },
+        "counts": {
+          "owners": 34,
+          "nodes": 191,
+          "meshes": 50,
+          "drawParts": 130,
+          "triangles": 123998,
+          "candidateParts": 33,
+          "geometryBytesRead": 6386688,
+          "metadataBytes": 155430,
+          "textureBindings": 37
+        },
+        "reasons": {
+          "not-loaded": 15,
+          "nonopaque-or-wireframe": 16,
+          "dynamic": 12,
+          "unsupported-node-accessor-or-class": 40,
+          "multipart-or-partial-range": 1,
+          "animation": 2,
+          "cpu-deadline": 3
+        },
+        "resources": {
+          "geometryIdentities": 33,
+          "geometryByteClasses": 33,
+          "materialIdentities": 53,
+          "textureIdentities": 36,
+          "sourceIdentities": 34,
+          "sharedSources": 1,
+          "samplerSourceBindings": 34
+        },
+        "hooks": {
+          "default": 52,
+          "owned-native-alpha": 1
+        },
+        "exactGeometryAndMaterialIdentity": {
+          "groups": 0,
+          "members": 0,
+          "sourceOnlyDrawReductionUpperBound": 0,
+          "independentlyLoadedGeometryGroups": 0,
+          "independentMaterialGroups": 0
+        },
+        "exactGeometryAndAuditedMaterialValues": {
+          "groups": 0,
+          "members": 0,
+          "sourceOnlyDrawReductionUpperBound": 0,
+          "independentlyLoadedGeometryGroups": 0,
+          "independentMaterialGroups": 0
+        },
+        "scope": "Scene-visible loaded mesh parts only; CPU-censored sample, no final instance eligibility or camera-frustum draw census"
+      },
+      "pageErrorCount": 0,
+      "failedResourceCount": 67,
+      "unsupportedModelWarnings": {
+        "retainedMessageCount": 102,
+        "retainedProtocolPhraseCount": 0,
+        "retainedUIPhraseCount": 0,
+        "retainedUICharacters": 981,
+        "scope": "Bounded retained protocol/UI history only; absence cannot prove whole-run absence"
+      }
+    },
+    {
+      "engine": "chromium",
+      "bitmapRequested": true,
+      "browserVersion": "154.0.8037.57",
+      "startedAt": "2026-10-01T23:23:18.759Z",
+      "connectedAt": "2026-10-01T23:23:33.000Z",
+      "finishedAt": "2026-10-01T23:25:01.731Z",
+      "rawSHA256": "48d4e76d909fd42aaafa420555c54e88949ff6174829677e22beffe1ee907c60",
+      "completed": true,
+      "fluidMovementAcceptancePassed": true,
+      "terminalFailureCategory": null,
+      "requestedOptions": {
+        "microphoneRequested": false,
+        "uploadProfileRequested": true,
+        "gpuTimingRequested": false,
+        "cpuFrameTimingRequested": true,
+        "renderCpuTimingRequested": true,
+        "staticModelMatricesRequested": false,
+        "bitmapUploadRequested": true,
+        "shaderWarmupRequested": false,
+        "texturePreparationRequested": false
+      },
+      "sourceStartEndCoherent": true,
+      "distributionStartEndCoherent": true,
+      "runtimeHelperSHA256": {
+        "native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+        "tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+        "bridge.js": "2328779f5b459c3ee81d50af2120b48975f11f32c662b612e3fc63fd9f75de09"
+      },
+      "reconnectedRuntimeHelperSHA256": {
+        "native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+        "tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+        "bridge.js": "fa1607d94a23f5ed02cc403f803b948498f0c85452e8aaeb15aeacfe9b295691"
+      },
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "nativeDevicePixelRatio": 1.000000015894571
+      },
+      "drawingBuffer": {
+        "drawingBufferWidth": 1280,
+        "drawingBufferHeight": 800
+      },
+      "modelJobsIdle": {
+        "scope": "First sampled model/graphics jobs idle, not complete asset success or all-world content readiness",
+        "relativeToConnectedSeconds": {
+          "lowerExclusive": 18.662,
+          "upperInclusive": 21.711
+        },
+        "sampleIndex": 5,
+        "loadedModels": 294,
+        "entities": 518,
+        "loadingModels": 0,
+        "queuedModels": 0,
+        "compilingGraphics": 0,
+        "imageLoading": {
+          "requests": 116,
+          "uniqueImages": 73,
+          "cacheHits": 43,
+          "completed": 65,
+          "failed": 8,
+          "cancelled": 0,
+          "evictions": 0,
+          "peakActive": 6,
+          "sourceKinds": {
+            "http": {
+              "requests": 40,
+              "uniqueImages": 29,
+              "cacheHits": 11,
+              "completed": 21,
+              "failed": 8,
+              "cancelled": 0,
+              "evictions": 0
+            },
+            "https": {
+              "requests": 0,
+              "uniqueImages": 0,
+              "cacheHits": 0,
+              "completed": 0,
+              "failed": 0,
+              "cancelled": 0,
+              "evictions": 0
+            },
+            "data": {
+              "requests": 0,
+              "uniqueImages": 0,
+              "cacheHits": 0,
+              "completed": 0,
+              "failed": 0,
+              "cancelled": 0,
+              "evictions": 0
+            },
+            "blob": {
+              "requests": 76,
+              "uniqueImages": 44,
+              "cacheHits": 32,
+              "completed": 44,
+              "failed": 0,
+              "cancelled": 0,
+              "evictions": 0
+            },
+            "other": {
+              "requests": 0,
+              "uniqueImages": 0,
+              "cacheHits": 0,
+              "completed": 0,
+              "failed": 0,
+              "cancelled": 0,
+              "evictions": 0
+            }
+          },
+          "active": 0,
+          "queued": 0,
+          "pending": 0,
+          "retainedEntries": 65,
+          "retainedPixels": 66714765,
+          "retainedKeyBytes": 14450,
+          "pendingKeyBytes": 0,
+          "phases": {
+            "imageLoad": {
+              "count": 65,
+              "totalMs": 7481.900000035763,
+              "maxMs": 607.7999999821186
+            },
+            "imageDecode": {
+              "count": 65,
+              "totalMs": 2843.2000000476837,
+              "maxMs": 177.59999999403954
+            }
+          }
+        },
+        "loadPhases": {
+          "graphicsSubmit": {
+            "count": 1513,
+            "totalMs": 9644.100000232458,
+            "maxMs": 401.90000000596046
+          },
+          "shaderPrepare": {
+            "count": 501,
+            "totalMs": 14931.900000751019,
+            "maxMs": 277.60000002384186
+          },
+          "entityUpdate": {
+            "count": 9,
+            "totalMs": 118.29999995231628,
+            "maxMs": 78.2999999821186
+          },
+          "fbxMaterialBindings": {
+            "count": 129,
+            "totalMs": 281.1000000536442,
+            "maxMs": 51.400000005960464
+          },
+          "fbxDecode": {
+            "count": 129,
+            "totalMs": 2957.0000000596046,
+            "maxMs": 638.5
+          },
+          "fbxPrepareWait": {
+            "count": 293,
+            "totalMs": 25419.40000039339,
+            "maxMs": 1049.199999988079
+          },
+          "fbxParse": {
+            "count": 293,
+            "totalMs": 4171.799999892712,
+            "maxMs": 346.5
+          },
+          "fbxTextures": {
+            "count": 293,
+            "totalMs": 3837.799999922514,
+            "maxMs": 637.4000000059605
+          },
+          "textureAlpha": {
+            "count": 845,
+            "totalMs": 688.6999997198582,
+            "maxMs": 44.79999998211861
+          },
+          "bitmapPreparation": {
+            "count": 497,
+            "totalMs": 797.8000001907349,
+            "maxMs": 153.10000002384186
+          },
+          "fstGraphPreflight": {
+            "count": 242,
+            "totalMs": 70.89999976754189,
+            "maxMs": 6.4000000059604645
+          },
+          "colliderBuild": {
+            "count": 76,
+            "totalMs": 274.00000008940697,
+            "maxMs": 88.2999999821186
+          },
+          "compressedColor": {
+            "count": 232,
+            "totalMs": 22223.09999999404,
+            "maxMs": 1221.8999999761581
+          },
+          "modelBatch": {
+            "count": 6,
+            "totalMs": 125.10000005364418,
+            "maxMs": 57.30000001192093
+          }
+        },
+        "bitmapUpload": {
+          "enabled": true,
+          "roots": 400,
+          "converted": 51,
+          "fallbacks": 4,
+          "unsupported": 308,
+          "capacityFallbacks": 97,
+          "activeRoots": 0,
+          "peakRoots": 16,
+          "requests": 55,
+          "hits": 18,
+          "created": 33,
+          "closed": 0,
+          "evictions": 33,
+          "cancelled": 0,
+          "failed": 0,
+          "closeFailures": 0,
+          "peakActive": 2,
+          "invalidations": 1,
+          "active": 0,
+          "pending": 0,
+          "readers": 0,
+          "retainedEntries": 0,
+          "liveEntries": 33,
+          "bytes": 133648948,
+          "leases": 51
+        }
+      },
+      "fluidGates": {
+        "initialSteady": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250,
+          "sampleCount": 2,
+          "minimumObservedFPS": 44.8556209700028,
+          "maximumObservedP95FrameMs": 33.5,
+          "maximumObservedStallMs": 66.80000000000291
+        },
+        "initialWalk": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250,
+          "sampleCount": 2,
+          "minimumObservedFPS": 47.52381140967507,
+          "maximumObservedP95FrameMs": 33.400000000001455,
+          "maximumObservedStallMs": 66.80000000000291
+        },
+        "rejoinedSteady": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250,
+          "sampleCount": 2,
+          "minimumObservedFPS": 43.63160382503734,
+          "maximumObservedP95FrameMs": 33.69999999999709,
+          "maximumObservedStallMs": 66.20000000001164
+        },
+        "rejoinedWalk": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250,
+          "sampleCount": 2,
+          "minimumObservedFPS": 43.50032625244692,
+          "maximumObservedP95FrameMs": 33.69999999999709,
+          "maximumObservedStallMs": 66.20000000001164
+        }
+      },
+      "movement": {
+        "initialMeters": 4.199401208410473,
+        "initialNativeDifferenceMeters": 0.00032640411437313556,
+        "rejoinedMeters": 2.861751706030779,
+        "rejoinedNativeDifferenceMeters": 0.000849487857428536,
+        "rejoinedAbsoluteVerticalChangeMeters": 0.2427997889526381,
+        "movementAndNativeAgreementCriteriaPassed": true,
+        "nativeFreshnessCriteriaPassedByHarness": true
+      },
+      "initialAdmissionAssets": {
+        "ordinal": 1,
+        "uniqueURLs": 575,
+        "requests": 590,
+        "duplicateRequests": 15,
+        "knownBytes": 112201734,
+        "unknownByteResponses": 11,
+        "totalRequestMs": 76654.11104199997,
+        "maximumRequestMs": 1932.9151139999994,
+        "sources": {
+          "download": 573,
+          "shared": 0,
+          "memory": 6,
+          "unknown": 11
+        },
+        "categories": {
+          "FBX": {
+            "uniqueURLs": 122,
+            "requests": 131,
+            "duplicateRequests": 9,
+            "knownBytes": 21012647,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 129,
+              "shared": 0,
+              "memory": 2,
+              "unknown": 0
+            }
+          },
+          "FST": {
+            "uniqueURLs": 92,
+            "requests": 92,
+            "duplicateRequests": 0,
+            "knownBytes": 18193,
+            "unknownByteResponses": 1,
+            "sources": {
+              "download": 91,
+              "shared": 0,
+              "memory": 0,
+              "unknown": 1
+            }
+          },
+          "texmeta": {
+            "uniqueURLs": 130,
+            "requests": 130,
+            "duplicateRequests": 0,
+            "knownBytes": 40414,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 130,
+              "shared": 0,
+              "memory": 0,
+              "unknown": 0
+            }
+          },
+          "JSON": {
+            "uniqueURLs": 86,
+            "requests": 86,
+            "duplicateRequests": 0,
+            "knownBytes": 59558,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 86,
+              "shared": 0,
+              "memory": 0,
+              "unknown": 0
+            }
+          },
+          "image": {
+            "uniqueURLs": 137,
+            "requests": 142,
+            "duplicateRequests": 5,
+            "knownBytes": 84945166,
+            "unknownByteResponses": 10,
+            "sources": {
+              "download": 129,
+              "shared": 0,
+              "memory": 3,
+              "unknown": 10
+            }
+          },
+          "other": {
+            "uniqueURLs": 8,
+            "requests": 9,
+            "duplicateRequests": 1,
+            "knownBytes": 6125756,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 8,
+              "shared": 0,
+              "memory": 1,
+              "unknown": 0
+            }
+          }
+        }
+      },
+      "uploadProfile": {
+        "enabled": true,
+        "maximumRecords": 1000000,
+        "maximumBucketsPerPhase": 128,
+        "maximumTotalBuckets": 768,
+        "maximumSources": 1024,
+        "records": 54357,
+        "droppedRecords": 5245,
+        "invalidDurations": 0,
+        "unknownSignatures": 0,
+        "sourceLimitReached": true,
+        "uniqueArgumentSourcesLowerBound": 1024,
+        "uniqueArgumentSourcesByKind": {
+          "image": 12,
+          "bitmap": 45,
+          "canvas": 11,
+          "offscreen": 0,
+          "video": 0,
+          "imageData": 0,
+          "videoFrame": 0,
+          "data": 956,
+          "unknown": 0
+        },
+        "scope": "Two-admission observer; phase-separated existing upload call wall durations, not pure GPU time, transfer success or residency",
+        "truncated": true,
+        "retainedBucketCalls": 49112,
+        "bucketCount": 265,
+        "groups": [
+          {
+            "phase": "loading",
+            "kind": "data",
+            "largestDimensionPixels": "up-to-64",
+            "method": "texImage2D",
+            "buckets": 1,
+            "calls": 7,
+            "totalObservedCallMs": 0.20000004768371582,
+            "maximumObservedCallMs": 0.10000002384185791
+          },
+          {
+            "phase": "loading",
+            "kind": "data",
+            "largestDimensionPixels": "up-to-64",
+            "method": "texSubImage2D",
+            "buckets": 3,
+            "calls": 4365,
+            "totalObservedCallMs": 39.69999998807907,
+            "maximumObservedCallMs": 2.4000000059604645
+          },
+          {
+            "phase": "loading",
+            "kind": "canvas",
+            "largestDimensionPixels": "513-to-2048",
+            "method": "texSubImage2D",
+            "buckets": 1,
+            "calls": 11,
+            "totalObservedCallMs": 0.09999999403953552,
+            "maximumObservedCallMs": 0.09999999403953552
+          },
+          {
+            "phase": "loading",
+            "kind": "data",
+            "largestDimensionPixels": "513-to-2048",
+            "method": "compressedTexSubImage2D",
+            "buckets": 9,
+            "calls": 59,
+            "totalObservedCallMs": 7.600000083446503,
+            "maximumObservedCallMs": 0.699999988079071
+          },
+          {
+            "phase": "loading",
+            "kind": "data",
+            "largestDimensionPixels": "65-to-512",
+            "method": "compressedTexSubImage2D",
+            "buckets": 32,
+            "calls": 274,
+            "totalObservedCallMs": 4.300000101327896,
+            "maximumObservedCallMs": 0.20000001788139343
+          },
+          {
+            "phase": "loading",
+            "kind": "data",
+            "largestDimensionPixels": "up-to-64",
+            "method": "compressedTexSubImage2D",
+            "buckets": 71,
+            "calls": 663,
+            "totalObservedCallMs": 5.199999988079071,
+            "maximumObservedCallMs": 3
+          },
+          {
+            "phase": "loading",
+            "kind": "bitmap",
+            "largestDimensionPixels": "65-to-512",
+            "method": "texSubImage2D",
+            "buckets": 2,
+            "calls": 20,
+            "totalObservedCallMs": 21.19999995827675,
+            "maximumObservedCallMs": 3.100000023841858
+          },
+          {
+            "phase": "loading",
+            "kind": "bitmap",
+            "largestDimensionPixels": "513-to-2048",
+            "method": "texSubImage2D",
+            "buckets": 6,
+            "calls": 22,
+            "totalObservedCallMs": 190.50000002980232,
+            "maximumObservedCallMs": 36.900000005960464
+          },
+          {
+            "phase": "loading",
+            "kind": "image",
+            "largestDimensionPixels": "65-to-512",
+            "method": "texSubImage2D",
+            "buckets": 1,
+            "calls": 1,
+            "totalObservedCallMs": 2.2999999821186066,
+            "maximumObservedCallMs": 2.2999999821186066
+          },
+          {
+            "phase": "loading",
+            "kind": "image",
+            "largestDimensionPixels": "513-to-2048",
+            "method": "texSubImage2D",
+            "buckets": 2,
+            "calls": 9,
+            "totalObservedCallMs": 155.9000000357628,
+            "maximumObservedCallMs": 27.200000017881393
+          },
+          {
+            "phase": "steady",
+            "kind": "data",
+            "largestDimensionPixels": "up-to-64",
+            "method": "texSubImage2D",
+            "buckets": 3,
+            "calls": 20406,
+            "totalObservedCallMs": 130.19999969005585,
+            "maximumObservedCallMs": 2.9000000059604645
+          },
+          {
+            "phase": "leaving",
+            "kind": "data",
+            "largestDimensionPixels": "up-to-64",
+            "method": "texSubImage2D",
+            "buckets": 3,
+            "calls": 300,
+            "totalObservedCallMs": 0.699999988079071,
+            "maximumObservedCallMs": 0.10000002384185791
+          },
+          {
+            "phase": "reloading",
+            "kind": "data",
+            "largestDimensionPixels": "up-to-64",
+            "method": "texImage2D",
+            "buckets": 1,
+            "calls": 7,
+            "totalObservedCallMs": 0.10000002384185791,
+            "maximumObservedCallMs": 0.10000002384185791
+          },
+          {
+            "phase": "reloading",
+            "kind": "data",
+            "largestDimensionPixels": "up-to-64",
+            "method": "texSubImage2D",
+            "buckets": 3,
+            "calls": 2678,
+            "totalObservedCallMs": 26.600000232458115,
+            "maximumObservedCallMs": 1.0999999940395355
+          },
+          {
+            "phase": "reloading",
+            "kind": "canvas",
+            "largestDimensionPixels": "513-to-2048",
+            "method": "texSubImage2D",
+            "buckets": 1,
+            "calls": 10,
+            "totalObservedCallMs": 0.5999999940395355,
+            "maximumObservedCallMs": 0.10000002384185791
+          },
+          {
+            "phase": "reloading",
+            "kind": "data",
+            "largestDimensionPixels": "513-to-2048",
+            "method": "compressedTexSubImage2D",
+            "buckets": 9,
+            "calls": 59,
+            "totalObservedCallMs": 11.199999958276749,
+            "maximumObservedCallMs": 2.2999999821186066
+          },
+          {
+            "phase": "reloading",
+            "kind": "data",
+            "largestDimensionPixels": "65-to-512",
+            "method": "compressedTexSubImage2D",
+            "buckets": 32,
+            "calls": 274,
+            "totalObservedCallMs": 3.600000023841858,
+            "maximumObservedCallMs": 0.20000001788139343
+          },
+          {
+            "phase": "reloading",
+            "kind": "data",
+            "largestDimensionPixels": "up-to-64",
+            "method": "compressedTexSubImage2D",
+            "buckets": 71,
+            "calls": 663,
+            "totalObservedCallMs": 3.7000000178813934,
+            "maximumObservedCallMs": 1.300000011920929
+          },
+          {
+            "phase": "reloading",
+            "kind": "bitmap",
+            "largestDimensionPixels": "65-to-512",
+            "method": "texSubImage2D",
+            "buckets": 2,
+            "calls": 20,
+            "totalObservedCallMs": 18.599999994039536,
+            "maximumObservedCallMs": 2.300000011920929
+          },
+          {
+            "phase": "reloading",
+            "kind": "bitmap",
+            "largestDimensionPixels": "513-to-2048",
+            "method": "texSubImage2D",
+            "buckets": 6,
+            "calls": 22,
+            "totalObservedCallMs": 177.5999999344349,
+            "maximumObservedCallMs": 37.39999997615814
+          },
+          {
+            "phase": "reloading",
+            "kind": "image",
+            "largestDimensionPixels": "65-to-512",
+            "method": "texSubImage2D",
+            "buckets": 1,
+            "calls": 1,
+            "totalObservedCallMs": 2.5,
+            "maximumObservedCallMs": 2.5
+          },
+          {
+            "phase": "reloading",
+            "kind": "image",
+            "largestDimensionPixels": "513-to-2048",
+            "method": "texSubImage2D",
+            "buckets": 2,
+            "calls": 9,
+            "totalObservedCallMs": 156.89999994635582,
+            "maximumObservedCallMs": 28.099999994039536
+          },
+          {
+            "phase": "rejoined-ready",
+            "kind": "data",
+            "largestDimensionPixels": "up-to-64",
+            "method": "texSubImage2D",
+            "buckets": 3,
+            "calls": 19232,
+            "totalObservedCallMs": 112.2000004351139,
+            "maximumObservedCallMs": 2.9000000059604645
+          }
+        ]
+      },
+      "initialWalkingBitmapResources": {
+        "enabled": true,
+        "roots": 400,
+        "converted": 51,
+        "fallbacks": 4,
+        "unsupported": 308,
+        "capacityFallbacks": 97,
+        "activeRoots": 0,
+        "peakRoots": 16,
+        "requests": 55,
+        "hits": 18,
+        "created": 33,
+        "closed": 0,
+        "evictions": 33,
+        "cancelled": 0,
+        "failed": 0,
+        "closeFailures": 0,
+        "peakActive": 2,
+        "invalidations": 1,
+        "active": 0,
+        "pending": 0,
+        "readers": 0,
+        "retainedEntries": 0,
+        "liveEntries": 33,
+        "bytes": 133648948,
+        "leases": 51
+      },
+      "rejoinedWalkingBitmapResources": {
+        "enabled": true,
+        "roots": 392,
+        "converted": 51,
+        "fallbacks": 4,
+        "unsupported": 308,
+        "capacityFallbacks": 105,
+        "activeRoots": 0,
+        "peakRoots": 16,
+        "requests": 55,
+        "hits": 18,
+        "created": 33,
+        "closed": 0,
+        "evictions": 33,
+        "cancelled": 0,
+        "failed": 0,
+        "closeFailures": 0,
+        "peakActive": 2,
+        "invalidations": 1,
+        "active": 0,
+        "pending": 0,
+        "readers": 0,
+        "retainedEntries": 0,
+        "liveEntries": 33,
+        "bytes": 133648948,
+        "leases": 51
+      },
+      "drawCensus": {
+        "admissionOrdinal": 1,
+        "afterInitialWalkingSamples": true,
+        "beforeLeave": true,
+        "durationWallMs": 77,
+        "elapsedMs": 75.80000001192093,
+        "partial": true,
+        "bounds": {
+          "maximumOwners": 1024,
+          "maximumNodes": 16384,
+          "maximumParts": 8192,
+          "maximumBytes": 67108864,
+          "maximumMetadataBytes": 2097152,
+          "maximumCpuMs": 75
+        },
+        "counts": {
+          "owners": 9,
+          "nodes": 44,
+          "meshes": 25,
+          "drawParts": 98,
+          "triangles": 61501,
+          "candidateParts": 21,
+          "geometryBytesRead": 3540264,
+          "metadataBytes": 99572,
+          "textureBindings": 27
+        },
+        "reasons": {
+          "not-loaded": 6,
+          "nonopaque-or-wireframe": 4,
+          "dynamic": 2,
+          "unsupported-node-accessor-or-class": 6,
+          "multipart-or-partial-range": 1,
+          "cpu-deadline": 3
+        },
+        "resources": {
+          "geometryIdentities": 21,
+          "geometryByteClasses": 21,
+          "materialIdentities": 27,
+          "textureIdentities": 26,
+          "sourceIdentities": 24,
+          "sharedSources": 1,
+          "samplerSourceBindings": 24
+        },
+        "hooks": {
+          "default": 27
+        },
+        "exactGeometryAndMaterialIdentity": {
+          "groups": 0,
+          "members": 0,
+          "sourceOnlyDrawReductionUpperBound": 0,
+          "independentlyLoadedGeometryGroups": 0,
+          "independentMaterialGroups": 0
+        },
+        "exactGeometryAndAuditedMaterialValues": {
+          "groups": 0,
+          "members": 0,
+          "sourceOnlyDrawReductionUpperBound": 0,
+          "independentlyLoadedGeometryGroups": 0,
+          "independentMaterialGroups": 0
+        },
+        "scope": "Scene-visible loaded mesh parts only; CPU-censored sample, no final instance eligibility or camera-frustum draw census"
+      },
+      "pageErrorCount": 0,
+      "failedResourceCount": 73,
+      "unsupportedModelWarnings": {
+        "retainedMessageCount": 102,
+        "retainedProtocolPhraseCount": 0,
+        "retainedUIPhraseCount": 0,
+        "retainedUICharacters": 957,
+        "scope": "Bounded retained protocol/UI history only; absence cannot prove whole-run absence"
+      }
+    },
+    {
+      "engine": "firefox",
+      "bitmapRequested": false,
+      "browserVersion": "firefox/156.0",
+      "startedAt": "2026-10-01T23:26:02.720Z",
+      "connectedAt": "2026-10-01T23:26:20.402Z",
+      "finishedAt": "2026-10-01T23:27:43.027Z",
+      "rawSHA256": "24ee060515b6805e5b5cce7215f5095753fe48f338d750f4c6c2e93d3b3ca2db",
+      "completed": false,
+      "fluidMovementAcceptancePassed": false,
+      "terminalFailureCategory": "fluid-gates-not-met",
+      "requestedOptions": {
+        "microphoneRequested": false,
+        "uploadProfileRequested": true,
+        "gpuTimingRequested": false,
+        "cpuFrameTimingRequested": true,
+        "renderCpuTimingRequested": true,
+        "staticModelMatricesRequested": false,
+        "bitmapUploadRequested": false,
+        "shaderWarmupRequested": false,
+        "texturePreparationRequested": false
+      },
+      "sourceStartEndCoherent": true,
+      "distributionStartEndCoherent": true,
+      "runtimeHelperSHA256": {
+        "native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+        "tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+        "bridge.js": "5190be7fdba75982776bbc76fbce9fb953a856128c8e1cac658f24ceae798aa9"
+      },
+      "reconnectedRuntimeHelperSHA256": {
+        "native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+        "tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+        "bridge.js": "74ec67465375a46c4212510c395cd1fd81b00b40df55a44cb2d737516b6476e6"
+      },
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "nativeDevicePixelRatio": 1.6666666666666667
+      },
+      "drawingBuffer": {
+        "drawingBufferWidth": 2133,
+        "drawingBufferHeight": 1333
+      },
+      "modelJobsIdle": {
+        "scope": "First sampled model/graphics jobs idle, not complete asset success or all-world content readiness",
+        "relativeToConnectedSeconds": {
+          "lowerExclusive": 15.048,
+          "upperInclusive": 18.093
+        },
+        "sampleIndex": 4,
+        "loadedModels": 293,
+        "entities": 517,
+        "loadingModels": 0,
+        "queuedModels": 0,
+        "compilingGraphics": 0,
+        "imageLoading": {
+          "requests": 115,
+          "uniqueImages": 73,
+          "cacheHits": 42,
+          "completed": 65,
+          "failed": 8,
+          "cancelled": 0,
+          "evictions": 0,
+          "peakActive": 6,
+          "sourceKinds": {
+            "http": {
+              "requests": 39,
+              "uniqueImages": 29,
+              "cacheHits": 10,
+              "completed": 21,
+              "failed": 8,
+              "cancelled": 0,
+              "evictions": 0
+            },
+            "https": {
+              "requests": 0,
+              "uniqueImages": 0,
+              "cacheHits": 0,
+              "completed": 0,
+              "failed": 0,
+              "cancelled": 0,
+              "evictions": 0
+            },
+            "data": {
+              "requests": 0,
+              "uniqueImages": 0,
+              "cacheHits": 0,
+              "completed": 0,
+              "failed": 0,
+              "cancelled": 0,
+              "evictions": 0
+            },
+            "blob": {
+              "requests": 76,
+              "uniqueImages": 44,
+              "cacheHits": 32,
+              "completed": 44,
+              "failed": 0,
+              "cancelled": 0,
+              "evictions": 0
+            },
+            "other": {
+              "requests": 0,
+              "uniqueImages": 0,
+              "cacheHits": 0,
+              "completed": 0,
+              "failed": 0,
+              "cancelled": 0,
+              "evictions": 0
+            }
+          },
+          "active": 0,
+          "queued": 0,
+          "pending": 0,
+          "retainedEntries": 65,
+          "retainedPixels": 66714765,
+          "retainedKeyBytes": 14450,
+          "pendingKeyBytes": 0,
+          "phases": {
+            "imageLoad": {
+              "count": 65,
+              "totalMs": 6303,
+              "maxMs": 536
+            },
+            "imageDecode": {
+              "count": 65,
+              "totalMs": 2114,
+              "maxMs": 303
+            }
+          }
+        },
+        "loadPhases": {
+          "graphicsSubmit": {
+            "count": 1173,
+            "totalMs": 6995,
+            "maxMs": 436
+          },
+          "shaderPrepare": {
+            "count": 499,
+            "totalMs": 24150,
+            "maxMs": 322
+          },
+          "fbxMaterialBindings": {
+            "count": 129,
+            "totalMs": 358,
+            "maxMs": 44
+          },
+          "fbxDecode": {
+            "count": 129,
+            "totalMs": 2676,
+            "maxMs": 400
+          },
+          "fbxPrepareWait": {
+            "count": 292,
+            "totalMs": 25519,
+            "maxMs": 1246
+          },
+          "fbxParse": {
+            "count": 292,
+            "totalMs": 4482,
+            "maxMs": 252
+          },
+          "fbxTextures": {
+            "count": 292,
+            "totalMs": 3168,
+            "maxMs": 392
+          },
+          "textureAlpha": {
+            "count": 842,
+            "totalMs": 3707,
+            "maxMs": 818
+          },
+          "entityUpdate": {
+            "count": 7,
+            "totalMs": 86,
+            "maxMs": 49
+          },
+          "fstGraphPreflight": {
+            "count": 241,
+            "totalMs": 69,
+            "maxMs": 9
+          },
+          "colliderBuild": {
+            "count": 76,
+            "totalMs": 315,
+            "maxMs": 69
+          },
+          "compressedColor": {
+            "count": 231,
+            "totalMs": 19314,
+            "maxMs": 886
+          },
+          "modelBatch": {
+            "count": 6,
+            "totalMs": 139,
+            "maxMs": 79
+          }
+        },
+        "bitmapUpload": {
+          "enabled": false,
+          "roots": 0,
+          "converted": 0,
+          "fallbacks": 0,
+          "unsupported": 0,
+          "capacityFallbacks": 0,
+          "activeRoots": 0,
+          "peakRoots": 0
+        }
+      },
+      "fluidGates": {
+        "initialSteady": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250,
+          "sampleCount": 2,
+          "minimumObservedFPS": 27.803521779425395,
+          "maximumObservedP95FrameMs": 67,
+          "maximumObservedStallMs": 128
+        },
+        "initialWalk": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250,
+          "sampleCount": 2,
+          "minimumObservedFPS": 27.803521779425395,
+          "maximumObservedP95FrameMs": 64,
+          "maximumObservedStallMs": 128
+        },
+        "rejoinedSteady": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250,
+          "sampleCount": 2,
+          "minimumObservedFPS": 27.598896044158234,
+          "maximumObservedP95FrameMs": 70,
+          "maximumObservedStallMs": 184
+        },
+        "rejoinedWalk": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250,
+          "sampleCount": 2,
+          "minimumObservedFPS": 27.37538496635109,
+          "maximumObservedP95FrameMs": 70,
+          "maximumObservedStallMs": 184
+        }
+      },
+      "movement": {
+        "initialMeters": 4.341357553370572,
+        "initialNativeDifferenceMeters": 0.0006327441986999068,
+        "rejoinedMeters": 3.046689230037314,
+        "rejoinedNativeDifferenceMeters": 0.0006214238886636324,
+        "rejoinedAbsoluteVerticalChangeMeters": 0.24256856761708434,
+        "movementAndNativeAgreementCriteriaPassed": true,
+        "nativeFreshnessCriteriaPassedByHarness": true
+      },
+      "initialAdmissionAssets": {
+        "ordinal": 1,
+        "uniqueURLs": 600,
+        "requests": 615,
+        "duplicateRequests": 15,
+        "knownBytes": 125767840,
+        "unknownByteResponses": 16,
+        "totalRequestMs": 41855.51053499997,
+        "maximumRequestMs": 3698.0198199999977,
+        "sources": {
+          "download": 594,
+          "shared": 0,
+          "memory": 5,
+          "unknown": 16
+        },
+        "categories": {
+          "FBX": {
+            "uniqueURLs": 122,
+            "requests": 131,
+            "duplicateRequests": 9,
+            "knownBytes": 21012647,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 129,
+              "shared": 0,
+              "memory": 2,
+              "unknown": 0
+            }
+          },
+          "FST": {
+            "uniqueURLs": 95,
+            "requests": 95,
+            "duplicateRequests": 0,
+            "knownBytes": 20846,
+            "unknownByteResponses": 1,
+            "sources": {
+              "download": 94,
+              "shared": 0,
+              "memory": 0,
+              "unknown": 1
+            }
+          },
+          "texmeta": {
+            "uniqueURLs": 133,
+            "requests": 133,
+            "duplicateRequests": 0,
+            "knownBytes": 41365,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 133,
+              "shared": 0,
+              "memory": 0,
+              "unknown": 0
+            }
+          },
+          "JSON": {
+            "uniqueURLs": 91,
+            "requests": 91,
+            "duplicateRequests": 0,
+            "knownBytes": 60756,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 91,
+              "shared": 0,
+              "memory": 0,
+              "unknown": 0
+            }
+          },
+          "image": {
+            "uniqueURLs": 147,
+            "requests": 152,
+            "duplicateRequests": 5,
+            "knownBytes": 98846418,
+            "unknownByteResponses": 10,
+            "sources": {
+              "download": 139,
+              "shared": 0,
+              "memory": 3,
+              "unknown": 10
+            }
+          },
+          "other": {
+            "uniqueURLs": 12,
+            "requests": 13,
+            "duplicateRequests": 1,
+            "knownBytes": 5785808,
+            "unknownByteResponses": 5,
+            "sources": {
+              "download": 8,
+              "shared": 0,
+              "memory": 0,
+              "unknown": 5
+            }
+          }
+        }
+      },
+      "uploadProfile": {
+        "enabled": true,
+        "maximumRecords": 1000000,
+        "maximumBucketsPerPhase": 128,
+        "maximumTotalBuckets": 768,
+        "maximumSources": 1024,
+        "records": 33995,
+        "droppedRecords": 2446,
+        "invalidDurations": 0,
+        "unknownSignatures": 0,
+        "sourceLimitReached": true,
+        "uniqueArgumentSourcesLowerBound": 1024,
+        "uniqueArgumentSourcesByKind": {
+          "image": 42,
+          "bitmap": 14,
+          "canvas": 10,
+          "offscreen": 0,
+          "video": 0,
+          "imageData": 0,
+          "videoFrame": 0,
+          "data": 958,
+          "unknown": 0
+        },
+        "scope": "Two-admission observer; phase-separated existing upload call wall durations, not pure GPU time, transfer success or residency",
+        "truncated": true,
+        "retainedBucketCalls": 31549,
+        "bucketCount": 265,
+        "groups": [
+          {
+            "phase": "loading",
+            "kind": "data",
+            "largestDimensionPixels": "up-to-64",
+            "method": "texImage2D",
+            "buckets": 1,
+            "calls": 7,
+            "totalObservedCallMs": 0,
+            "maximumObservedCallMs": 0
+          },
+          {
+            "phase": "loading",
+            "kind": "data",
+            "largestDimensionPixels": "up-to-64",
+            "method": "texSubImage2D",
+            "buckets": 3,
+            "calls": 1770,
+            "totalObservedCallMs": 19,
+            "maximumObservedCallMs": 2
+          },
+          {
+            "phase": "loading",
+            "kind": "canvas",
+            "largestDimensionPixels": "513-to-2048",
+            "method": "texSubImage2D",
+            "buckets": 1,
+            "calls": 10,
+            "totalObservedCallMs": 4,
+            "maximumObservedCallMs": 3
+          },
+          {
+            "phase": "loading",
+            "kind": "data",
+            "largestDimensionPixels": "513-to-2048",
+            "method": "compressedTexSubImage2D",
+            "buckets": 9,
+            "calls": 59,
+            "totalObservedCallMs": 73,
+            "maximumObservedCallMs": 10
+          },
+          {
+            "phase": "loading",
+            "kind": "data",
+            "largestDimensionPixels": "65-to-512",
+            "method": "compressedTexSubImage2D",
+            "buckets": 32,
+            "calls": 274,
+            "totalObservedCallMs": 48,
+            "maximumObservedCallMs": 3
+          },
+          {
+            "phase": "loading",
+            "kind": "data",
+            "largestDimensionPixels": "up-to-64",
+            "method": "compressedTexSubImage2D",
+            "buckets": 70,
+            "calls": 662,
+            "totalObservedCallMs": 1,
+            "maximumObservedCallMs": 1
+          },
+          {
+            "phase": "loading",
+            "kind": "image",
+            "largestDimensionPixels": "65-to-512",
+            "method": "texSubImage2D",
+            "buckets": 2,
+            "calls": 17,
+            "totalObservedCallMs": 89,
+            "maximumObservedCallMs": 17
+          },
+          {
+            "phase": "loading",
+            "kind": "image",
+            "largestDimensionPixels": "513-to-2048",
+            "method": "texSubImage2D",
+            "buckets": 7,
+            "calls": 23,
+            "totalObservedCallMs": 700,
+            "maximumObservedCallMs": 271
+          },
+          {
+            "phase": "loading",
+            "kind": "bitmap",
+            "largestDimensionPixels": "65-to-512",
+            "method": "texSubImage2D",
+            "buckets": 2,
+            "calls": 6,
+            "totalObservedCallMs": 1,
+            "maximumObservedCallMs": 1
+          },
+          {
+            "phase": "loading",
+            "kind": "bitmap",
+            "largestDimensionPixels": "513-to-2048",
+            "method": "texSubImage2D",
+            "buckets": 1,
+            "calls": 7,
+            "totalObservedCallMs": 0,
+            "maximumObservedCallMs": 0
+          },
+          {
+            "phase": "steady",
+            "kind": "data",
+            "largestDimensionPixels": "up-to-64",
+            "method": "texSubImage2D",
+            "buckets": 3,
+            "calls": 12720,
+            "totalObservedCallMs": 413,
+            "maximumObservedCallMs": 11
+          },
+          {
+            "phase": "leaving",
+            "kind": "data",
+            "largestDimensionPixels": "up-to-64",
+            "method": "texSubImage2D",
+            "buckets": 3,
+            "calls": 390,
+            "totalObservedCallMs": 10,
+            "maximumObservedCallMs": 3
+          },
+          {
+            "phase": "reloading",
+            "kind": "data",
+            "largestDimensionPixels": "up-to-64",
+            "method": "texImage2D",
+            "buckets": 1,
+            "calls": 7,
+            "totalObservedCallMs": 0,
+            "maximumObservedCallMs": 0
+          },
+          {
+            "phase": "reloading",
+            "kind": "data",
+            "largestDimensionPixels": "up-to-64",
+            "method": "texSubImage2D",
+            "buckets": 3,
+            "calls": 1513,
+            "totalObservedCallMs": 20,
+            "maximumObservedCallMs": 2
+          },
+          {
+            "phase": "reloading",
+            "kind": "canvas",
+            "largestDimensionPixels": "513-to-2048",
+            "method": "texSubImage2D",
+            "buckets": 1,
+            "calls": 11,
+            "totalObservedCallMs": 3,
+            "maximumObservedCallMs": 3
+          },
+          {
+            "phase": "reloading",
+            "kind": "data",
+            "largestDimensionPixels": "513-to-2048",
+            "method": "compressedTexSubImage2D",
+            "buckets": 9,
+            "calls": 59,
+            "totalObservedCallMs": 57,
+            "maximumObservedCallMs": 5
+          },
+          {
+            "phase": "reloading",
+            "kind": "data",
+            "largestDimensionPixels": "65-to-512",
+            "method": "compressedTexSubImage2D",
+            "buckets": 32,
+            "calls": 274,
+            "totalObservedCallMs": 43,
+            "maximumObservedCallMs": 5
+          },
+          {
+            "phase": "reloading",
+            "kind": "data",
+            "largestDimensionPixels": "up-to-64",
+            "method": "compressedTexSubImage2D",
+            "buckets": 70,
+            "calls": 662,
+            "totalObservedCallMs": 1,
+            "maximumObservedCallMs": 1
+          },
+          {
+            "phase": "reloading",
+            "kind": "image",
+            "largestDimensionPixels": "65-to-512",
+            "method": "texSubImage2D",
+            "buckets": 2,
+            "calls": 17,
+            "totalObservedCallMs": 99,
+            "maximumObservedCallMs": 20
+          },
+          {
+            "phase": "reloading",
+            "kind": "image",
+            "largestDimensionPixels": "513-to-2048",
+            "method": "texSubImage2D",
+            "buckets": 7,
+            "calls": 24,
+            "totalObservedCallMs": 682,
+            "maximumObservedCallMs": 273
+          },
+          {
+            "phase": "reloading",
+            "kind": "bitmap",
+            "largestDimensionPixels": "65-to-512",
+            "method": "texSubImage2D",
+            "buckets": 2,
+            "calls": 6,
+            "totalObservedCallMs": 0,
+            "maximumObservedCallMs": 0
+          },
+          {
+            "phase": "reloading",
+            "kind": "bitmap",
+            "largestDimensionPixels": "513-to-2048",
+            "method": "texSubImage2D",
+            "buckets": 1,
+            "calls": 7,
+            "totalObservedCallMs": 0,
+            "maximumObservedCallMs": 0
+          },
+          {
+            "phase": "rejoined-ready",
+            "kind": "data",
+            "largestDimensionPixels": "up-to-64",
+            "method": "texSubImage2D",
+            "buckets": 3,
+            "calls": 13024,
+            "totalObservedCallMs": 143,
+            "maximumObservedCallMs": 10
+          }
+        ]
+      },
+      "initialWalkingBitmapResources": {
+        "enabled": false,
+        "roots": 0,
+        "converted": 0,
+        "fallbacks": 0,
+        "unsupported": 0,
+        "capacityFallbacks": 0,
+        "activeRoots": 0,
+        "peakRoots": 0
+      },
+      "rejoinedWalkingBitmapResources": {
+        "enabled": false,
+        "roots": 0,
+        "converted": 0,
+        "fallbacks": 0,
+        "unsupported": 0,
+        "capacityFallbacks": 0,
+        "activeRoots": 0,
+        "peakRoots": 0
+      },
+      "drawCensus": {
+        "admissionOrdinal": 1,
+        "afterInitialWalkingSamples": true,
+        "beforeLeave": true,
+        "durationWallMs": 75,
+        "elapsedMs": 75,
+        "partial": true,
+        "bounds": {
+          "maximumOwners": 1024,
+          "maximumNodes": 16384,
+          "maximumParts": 8192,
+          "maximumBytes": 67108864,
+          "maximumMetadataBytes": 2097152,
+          "maximumCpuMs": 75
+        },
+        "counts": {
+          "owners": 9,
+          "nodes": 51,
+          "meshes": 32,
+          "drawParts": 105,
+          "triangles": 76067,
+          "candidateParts": 28,
+          "geometryBytesRead": 4468668,
+          "metadataBytes": 129660,
+          "textureBindings": 32
+        },
+        "reasons": {
+          "not-loaded": 6,
+          "nonopaque-or-wireframe": 4,
+          "dynamic": 2,
+          "unsupported-node-accessor-or-class": 6,
+          "multipart-or-partial-range": 1,
+          "cpu-deadline": 3
+        },
+        "resources": {
+          "geometryIdentities": 28,
+          "geometryByteClasses": 28,
+          "materialIdentities": 34,
+          "textureIdentities": 31,
+          "sourceIdentities": 29,
+          "sharedSources": 1,
+          "samplerSourceBindings": 29
+        },
+        "hooks": {
+          "default": 34
+        },
+        "exactGeometryAndMaterialIdentity": {
+          "groups": 0,
+          "members": 0,
+          "sourceOnlyDrawReductionUpperBound": 0,
+          "independentlyLoadedGeometryGroups": 0,
+          "independentMaterialGroups": 0
+        },
+        "exactGeometryAndAuditedMaterialValues": {
+          "groups": 0,
+          "members": 0,
+          "sourceOnlyDrawReductionUpperBound": 0,
+          "independentlyLoadedGeometryGroups": 0,
+          "independentMaterialGroups": 0
+        },
+        "scope": "Scene-visible loaded mesh parts only; CPU-censored sample, no final instance eligibility or camera-frustum draw census"
+      },
+      "pageErrorCount": 0,
+      "failedResourceCount": 33,
+      "unsupportedModelWarnings": {
+        "retainedMessageCount": 102,
+        "retainedProtocolPhraseCount": 0,
+        "retainedUIPhraseCount": 0,
+        "retainedUICharacters": 981,
+        "scope": "Bounded retained protocol/UI history only; absence cannot prove whole-run absence"
+      }
+    },
+    {
+      "engine": "firefox",
+      "bitmapRequested": true,
+      "browserVersion": "firefox/156.0",
+      "startedAt": "2026-10-01T23:29:15.331Z",
+      "connectedAt": "2026-10-01T23:29:33.494Z",
+      "finishedAt": "2026-10-01T23:31:11.664Z",
+      "rawSHA256": "0782187166100e60630bfc3c261959d34175037ae903d739fb9b5f6fff2db18c",
+      "completed": false,
+      "fluidMovementAcceptancePassed": false,
+      "terminalFailureCategory": "fluid-gates-not-met",
+      "requestedOptions": {
+        "microphoneRequested": false,
+        "uploadProfileRequested": true,
+        "gpuTimingRequested": false,
+        "cpuFrameTimingRequested": true,
+        "renderCpuTimingRequested": true,
+        "staticModelMatricesRequested": false,
+        "bitmapUploadRequested": true,
+        "shaderWarmupRequested": false,
+        "texturePreparationRequested": false
+      },
+      "sourceStartEndCoherent": true,
+      "distributionStartEndCoherent": true,
+      "runtimeHelperSHA256": {
+        "native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+        "tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+        "bridge.js": "980e5d85cfe4d3e7b3895d96a9934d90a9d0f58a062d424effc12bf34551f733"
+      },
+      "reconnectedRuntimeHelperSHA256": {
+        "native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+        "tablet-capture.qml": "92d3cbfd9a5dc310b3f9c794c00ae3f402f8536238d86546ba6d372eb307e038",
+        "bridge.js": "8ffe5db62e253aedc4e1045c869186f0de2c870cbcec40d77df9890e21865ec4"
+      },
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "nativeDevicePixelRatio": 1.6666666666666667
+      },
+      "drawingBuffer": {
+        "drawingBufferWidth": 2133,
+        "drawingBufferHeight": 1333
+      },
+      "modelJobsIdle": {
+        "scope": "First sampled model/graphics jobs idle, not complete asset success or all-world content readiness",
+        "relativeToConnectedSeconds": {
+          "lowerExclusive": 14.941,
+          "upperInclusive": 17.975
+        },
+        "sampleIndex": 4,
+        "loadedModels": 293,
+        "entities": 517,
+        "loadingModels": 0,
+        "queuedModels": 0,
+        "compilingGraphics": 0,
+        "imageLoading": {
+          "requests": 115,
+          "uniqueImages": 73,
+          "cacheHits": 42,
+          "completed": 65,
+          "failed": 8,
+          "cancelled": 0,
+          "evictions": 0,
+          "peakActive": 6,
+          "sourceKinds": {
+            "http": {
+              "requests": 39,
+              "uniqueImages": 29,
+              "cacheHits": 10,
+              "completed": 21,
+              "failed": 8,
+              "cancelled": 0,
+              "evictions": 0
+            },
+            "https": {
+              "requests": 0,
+              "uniqueImages": 0,
+              "cacheHits": 0,
+              "completed": 0,
+              "failed": 0,
+              "cancelled": 0,
+              "evictions": 0
+            },
+            "data": {
+              "requests": 0,
+              "uniqueImages": 0,
+              "cacheHits": 0,
+              "completed": 0,
+              "failed": 0,
+              "cancelled": 0,
+              "evictions": 0
+            },
+            "blob": {
+              "requests": 76,
+              "uniqueImages": 44,
+              "cacheHits": 32,
+              "completed": 44,
+              "failed": 0,
+              "cancelled": 0,
+              "evictions": 0
+            },
+            "other": {
+              "requests": 0,
+              "uniqueImages": 0,
+              "cacheHits": 0,
+              "completed": 0,
+              "failed": 0,
+              "cancelled": 0,
+              "evictions": 0
+            }
+          },
+          "active": 0,
+          "queued": 0,
+          "pending": 0,
+          "retainedEntries": 65,
+          "retainedPixels": 66714765,
+          "retainedKeyBytes": 14450,
+          "pendingKeyBytes": 0,
+          "phases": {
+            "imageLoad": {
+              "count": 65,
+              "totalMs": 6692,
+              "maxMs": 436
+            },
+            "imageDecode": {
+              "count": 65,
+              "totalMs": 2042,
+              "maxMs": 336
+            }
+          }
+        },
+        "loadPhases": {
+          "graphicsSubmit": {
+            "count": 1216,
+            "totalMs": 6406,
+            "maxMs": 333
+          },
+          "shaderPrepare": {
+            "count": 500,
+            "totalMs": 44129,
+            "maxMs": 431
+          },
+          "fbxMaterialBindings": {
+            "count": 128,
+            "totalMs": 356,
+            "maxMs": 45
+          },
+          "fbxDecode": {
+            "count": 128,
+            "totalMs": 2935,
+            "maxMs": 395
+          },
+          "fbxPrepareWait": {
+            "count": 292,
+            "totalMs": 25281,
+            "maxMs": 1238
+          },
+          "fbxParse": {
+            "count": 292,
+            "totalMs": 4328,
+            "maxMs": 212
+          },
+          "fbxTextures": {
+            "count": 292,
+            "totalMs": 4144,
+            "maxMs": 431
+          },
+          "textureAlpha": {
+            "count": 843,
+            "totalMs": 2597,
+            "maxMs": 427
+          },
+          "entityUpdate": {
+            "count": 7,
+            "totalMs": 87,
+            "maxMs": 46
+          },
+          "bitmapPreparation": {
+            "count": 496,
+            "totalMs": 1191,
+            "maxMs": 309
+          },
+          "fstGraphPreflight": {
+            "count": 241,
+            "totalMs": 67,
+            "maxMs": 5
+          },
+          "colliderBuild": {
+            "count": 76,
+            "totalMs": 253,
+            "maxMs": 57
+          },
+          "compressedColor": {
+            "count": 231,
+            "totalMs": 22260,
+            "maxMs": 1213
+          },
+          "modelBatch": {
+            "count": 6,
+            "totalMs": 148,
+            "maxMs": 82
+          }
+        },
+        "bitmapUpload": {
+          "enabled": true,
+          "roots": 496,
+          "converted": 50,
+          "fallbacks": 4,
+          "unsupported": 315,
+          "capacityFallbacks": 0,
+          "activeRoots": 0,
+          "peakRoots": 4,
+          "requests": 54,
+          "hits": 17,
+          "created": 33,
+          "closed": 0,
+          "evictions": 33,
+          "cancelled": 0,
+          "failed": 0,
+          "closeFailures": 0,
+          "peakActive": 2,
+          "invalidations": 1,
+          "active": 0,
+          "pending": 0,
+          "readers": 0,
+          "retainedEntries": 0,
+          "liveEntries": 33,
+          "bytes": 133648948,
+          "leases": 50
+        }
+      },
+      "fluidGates": {
+        "initialSteady": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250,
+          "sampleCount": 2,
+          "minimumObservedFPS": 27.70402862749625,
+          "maximumObservedP95FrameMs": 66,
+          "maximumObservedStallMs": 117
+        },
+        "initialWalk": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250,
+          "sampleCount": 2,
+          "minimumObservedFPS": 27.787426189649185,
+          "maximumObservedP95FrameMs": 66,
+          "maximumObservedStallMs": 117
+        },
+        "rejoinedSteady": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250,
+          "sampleCount": 2,
+          "minimumObservedFPS": 29.891642794868602,
+          "maximumObservedP95FrameMs": 56,
+          "maximumObservedStallMs": 119
+        },
+        "rejoinedWalk": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250,
+          "sampleCount": 2,
+          "minimumObservedFPS": 29.44423997055576,
+          "maximumObservedP95FrameMs": 57,
+          "maximumObservedStallMs": 119
+        }
+      },
+      "movement": {
+        "initialMeters": 4.289588100065358,
+        "initialNativeDifferenceMeters": 0.00022183381899699333,
+        "rejoinedMeters": 3.0008592634207623,
+        "rejoinedNativeDifferenceMeters": 5.513636088687295e-06,
+        "rejoinedAbsoluteVerticalChangeMeters": 0.22878102358924934,
+        "movementAndNativeAgreementCriteriaPassed": true,
+        "nativeFreshnessCriteriaPassedByHarness": true
+      },
+      "initialAdmissionAssets": {
+        "ordinal": 1,
+        "uniqueURLs": 600,
+        "requests": 615,
+        "duplicateRequests": 15,
+        "knownBytes": 126078359,
+        "unknownByteResponses": 16,
+        "totalRequestMs": 41436.20424899999,
+        "maximumRequestMs": 1725.0928789999998,
+        "sources": {
+          "download": 593,
+          "shared": 0,
+          "memory": 6,
+          "unknown": 16
+        },
+        "categories": {
+          "FBX": {
+            "uniqueURLs": 122,
+            "requests": 130,
+            "duplicateRequests": 8,
+            "knownBytes": 20983218,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 128,
+              "shared": 0,
+              "memory": 2,
+              "unknown": 0
+            }
+          },
+          "FST": {
+            "uniqueURLs": 95,
+            "requests": 95,
+            "duplicateRequests": 0,
+            "knownBytes": 20846,
+            "unknownByteResponses": 1,
+            "sources": {
+              "download": 94,
+              "shared": 0,
+              "memory": 0,
+              "unknown": 1
+            }
+          },
+          "texmeta": {
+            "uniqueURLs": 133,
+            "requests": 133,
+            "duplicateRequests": 0,
+            "knownBytes": 41365,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 133,
+              "shared": 0,
+              "memory": 0,
+              "unknown": 0
+            }
+          },
+          "JSON": {
+            "uniqueURLs": 91,
+            "requests": 91,
+            "duplicateRequests": 0,
+            "knownBytes": 60756,
+            "unknownByteResponses": 0,
+            "sources": {
+              "download": 91,
+              "shared": 0,
+              "memory": 0,
+              "unknown": 0
+            }
+          },
+          "image": {
+            "uniqueURLs": 147,
+            "requests": 152,
+            "duplicateRequests": 5,
+            "knownBytes": 98846418,
+            "unknownByteResponses": 10,
+            "sources": {
+              "download": 139,
+              "shared": 0,
+              "memory": 3,
+              "unknown": 10
+            }
+          },
+          "other": {
+            "uniqueURLs": 12,
+            "requests": 14,
+            "duplicateRequests": 2,
+            "knownBytes": 6125756,
+            "unknownByteResponses": 5,
+            "sources": {
+              "download": 8,
+              "shared": 0,
+              "memory": 1,
+              "unknown": 5
+            }
+          }
+        }
+      },
+      "uploadProfile": {
+        "enabled": true,
+        "maximumRecords": 1000000,
+        "maximumBucketsPerPhase": 128,
+        "maximumTotalBuckets": 768,
+        "maximumSources": 1024,
+        "records": 36066,
+        "droppedRecords": 2653,
+        "invalidDurations": 0,
+        "unknownSignatures": 0,
+        "sourceLimitReached": true,
+        "uniqueArgumentSourcesLowerBound": 1024,
+        "uniqueArgumentSourcesByKind": {
+          "image": 10,
+          "bitmap": 41,
+          "canvas": 10,
+          "offscreen": 0,
+          "video": 0,
+          "imageData": 0,
+          "videoFrame": 0,
+          "data": 963,
+          "unknown": 0
+        },
+        "scope": "Two-admission observer; phase-separated existing upload call wall durations, not pure GPU time, transfer success or residency",
+        "truncated": true,
+        "retainedBucketCalls": 33413,
+        "bucketCount": 265,
+        "groups": [
+          {
+            "phase": "loading",
+            "kind": "data",
+            "largestDimensionPixels": "up-to-64",
+            "method": "texImage2D",
+            "buckets": 1,
+            "calls": 7,
+            "totalObservedCallMs": 0,
+            "maximumObservedCallMs": 0
+          },
+          {
+            "phase": "loading",
+            "kind": "data",
+            "largestDimensionPixels": "up-to-64",
+            "method": "texSubImage2D",
+            "buckets": 3,
+            "calls": 1838,
+            "totalObservedCallMs": 24,
+            "maximumObservedCallMs": 2
+          },
+          {
+            "phase": "loading",
+            "kind": "canvas",
+            "largestDimensionPixels": "513-to-2048",
+            "method": "texSubImage2D",
+            "buckets": 1,
+            "calls": 10,
+            "totalObservedCallMs": 0,
+            "maximumObservedCallMs": 0
+          },
+          {
+            "phase": "loading",
+            "kind": "data",
+            "largestDimensionPixels": "513-to-2048",
+            "method": "compressedTexSubImage2D",
+            "buckets": 9,
+            "calls": 59,
+            "totalObservedCallMs": 56,
+            "maximumObservedCallMs": 3
+          },
+          {
+            "phase": "loading",
+            "kind": "data",
+            "largestDimensionPixels": "65-to-512",
+            "method": "compressedTexSubImage2D",
+            "buckets": 32,
+            "calls": 274,
+            "totalObservedCallMs": 40,
+            "maximumObservedCallMs": 2
+          },
+          {
+            "phase": "loading",
+            "kind": "data",
+            "largestDimensionPixels": "up-to-64",
+            "method": "compressedTexSubImage2D",
+            "buckets": 71,
+            "calls": 663,
+            "totalObservedCallMs": 0,
+            "maximumObservedCallMs": 0
+          },
+          {
+            "phase": "loading",
+            "kind": "bitmap",
+            "largestDimensionPixels": "65-to-512",
+            "method": "texSubImage2D",
+            "buckets": 2,
+            "calls": 20,
+            "totalObservedCallMs": 26,
+            "maximumObservedCallMs": 7
+          },
+          {
+            "phase": "loading",
+            "kind": "bitmap",
+            "largestDimensionPixels": "513-to-2048",
+            "method": "texSubImage2D",
+            "buckets": 6,
+            "calls": 22,
+            "totalObservedCallMs": 104,
+            "maximumObservedCallMs": 21
+          },
+          {
+            "phase": "loading",
+            "kind": "image",
+            "largestDimensionPixels": "65-to-512",
+            "method": "texSubImage2D",
+            "buckets": 1,
+            "calls": 1,
+            "totalObservedCallMs": 4,
+            "maximumObservedCallMs": 4
+          },
+          {
+            "phase": "loading",
+            "kind": "image",
+            "largestDimensionPixels": "513-to-2048",
+            "method": "texSubImage2D",
+            "buckets": 2,
+            "calls": 9,
+            "totalObservedCallMs": 135,
+            "maximumObservedCallMs": 38
+          },
+          {
+            "phase": "steady",
+            "kind": "data",
+            "largestDimensionPixels": "up-to-64",
+            "method": "texSubImage2D",
+            "buckets": 3,
+            "calls": 13600,
+            "totalObservedCallMs": 137,
+            "maximumObservedCallMs": 6
+          },
+          {
+            "phase": "leaving",
+            "kind": "data",
+            "largestDimensionPixels": "up-to-64",
+            "method": "texSubImage2D",
+            "buckets": 3,
+            "calls": 512,
+            "totalObservedCallMs": 4,
+            "maximumObservedCallMs": 1
+          },
+          {
+            "phase": "reloading",
+            "kind": "data",
+            "largestDimensionPixels": "up-to-64",
+            "method": "texImage2D",
+            "buckets": 1,
+            "calls": 7,
+            "totalObservedCallMs": 1,
+            "maximumObservedCallMs": 1
+          },
+          {
+            "phase": "reloading",
+            "kind": "data",
+            "largestDimensionPixels": "up-to-64",
+            "method": "texSubImage2D",
+            "buckets": 3,
+            "calls": 1669,
+            "totalObservedCallMs": 23,
+            "maximumObservedCallMs": 2
+          },
+          {
+            "phase": "reloading",
+            "kind": "canvas",
+            "largestDimensionPixels": "513-to-2048",
+            "method": "texSubImage2D",
+            "buckets": 1,
+            "calls": 10,
+            "totalObservedCallMs": 7,
+            "maximumObservedCallMs": 3
+          },
+          {
+            "phase": "reloading",
+            "kind": "data",
+            "largestDimensionPixels": "513-to-2048",
+            "method": "compressedTexSubImage2D",
+            "buckets": 9,
+            "calls": 59,
+            "totalObservedCallMs": 69,
+            "maximumObservedCallMs": 13
+          },
+          {
+            "phase": "reloading",
+            "kind": "data",
+            "largestDimensionPixels": "65-to-512",
+            "method": "compressedTexSubImage2D",
+            "buckets": 32,
+            "calls": 274,
+            "totalObservedCallMs": 48,
+            "maximumObservedCallMs": 3
+          },
+          {
+            "phase": "reloading",
+            "kind": "data",
+            "largestDimensionPixels": "up-to-64",
+            "method": "compressedTexSubImage2D",
+            "buckets": 71,
+            "calls": 663,
+            "totalObservedCallMs": 3,
+            "maximumObservedCallMs": 1
+          },
+          {
+            "phase": "reloading",
+            "kind": "bitmap",
+            "largestDimensionPixels": "65-to-512",
+            "method": "texSubImage2D",
+            "buckets": 2,
+            "calls": 20,
+            "totalObservedCallMs": 18,
+            "maximumObservedCallMs": 2
+          },
+          {
+            "phase": "reloading",
+            "kind": "bitmap",
+            "largestDimensionPixels": "513-to-2048",
+            "method": "texSubImage2D",
+            "buckets": 6,
+            "calls": 22,
+            "totalObservedCallMs": 114,
+            "maximumObservedCallMs": 16
+          },
+          {
+            "phase": "reloading",
+            "kind": "image",
+            "largestDimensionPixels": "65-to-512",
+            "method": "texSubImage2D",
+            "buckets": 1,
+            "calls": 1,
+            "totalObservedCallMs": 6,
+            "maximumObservedCallMs": 6
+          },
+          {
+            "phase": "reloading",
+            "kind": "image",
+            "largestDimensionPixels": "513-to-2048",
+            "method": "texSubImage2D",
+            "buckets": 2,
+            "calls": 9,
+            "totalObservedCallMs": 127,
+            "maximumObservedCallMs": 36
+          },
+          {
+            "phase": "rejoined-ready",
+            "kind": "data",
+            "largestDimensionPixels": "up-to-64",
+            "method": "texSubImage2D",
+            "buckets": 3,
+            "calls": 13664,
+            "totalObservedCallMs": 342,
+            "maximumObservedCallMs": 10
+          }
+        ]
+      },
+      "initialWalkingBitmapResources": {
+        "enabled": true,
+        "roots": 496,
+        "converted": 50,
+        "fallbacks": 4,
+        "unsupported": 315,
+        "capacityFallbacks": 0,
+        "activeRoots": 0,
+        "peakRoots": 4,
+        "requests": 54,
+        "hits": 17,
+        "created": 33,
+        "closed": 0,
+        "evictions": 33,
+        "cancelled": 0,
+        "failed": 0,
+        "closeFailures": 0,
+        "peakActive": 2,
+        "invalidations": 1,
+        "active": 0,
+        "pending": 0,
+        "readers": 0,
+        "retainedEntries": 0,
+        "liveEntries": 33,
+        "bytes": 133648948,
+        "leases": 50
+      },
+      "rejoinedWalkingBitmapResources": {
+        "enabled": true,
+        "roots": 497,
+        "converted": 51,
+        "fallbacks": 4,
+        "unsupported": 316,
+        "capacityFallbacks": 0,
+        "activeRoots": 0,
+        "peakRoots": 2,
+        "requests": 55,
+        "hits": 18,
+        "created": 33,
+        "closed": 0,
+        "evictions": 33,
+        "cancelled": 0,
+        "failed": 0,
+        "closeFailures": 0,
+        "peakActive": 2,
+        "invalidations": 1,
+        "active": 0,
+        "pending": 0,
+        "readers": 0,
+        "retainedEntries": 0,
+        "liveEntries": 33,
+        "bytes": 133648948,
+        "leases": 51
+      },
+      "drawCensus": {
+        "admissionOrdinal": 1,
+        "afterInitialWalkingSamples": true,
+        "beforeLeave": true,
+        "durationWallMs": 74,
+        "elapsedMs": 75,
+        "partial": true,
+        "bounds": {
+          "maximumOwners": 1024,
+          "maximumNodes": 16384,
+          "maximumParts": 8192,
+          "maximumBytes": 67108864,
+          "maximumMetadataBytes": 2097152,
+          "maximumCpuMs": 75
+        },
+        "counts": {
+          "owners": 9,
+          "nodes": 51,
+          "meshes": 32,
+          "drawParts": 105,
+          "triangles": 76067,
+          "candidateParts": 28,
+          "geometryBytesRead": 4468668,
+          "metadataBytes": 129660,
+          "textureBindings": 32
+        },
+        "reasons": {
+          "not-loaded": 6,
+          "nonopaque-or-wireframe": 4,
+          "dynamic": 2,
+          "unsupported-node-accessor-or-class": 6,
+          "multipart-or-partial-range": 1,
+          "cpu-deadline": 3
+        },
+        "resources": {
+          "geometryIdentities": 28,
+          "geometryByteClasses": 28,
+          "materialIdentities": 34,
+          "textureIdentities": 31,
+          "sourceIdentities": 29,
+          "sharedSources": 1,
+          "samplerSourceBindings": 29
+        },
+        "hooks": {
+          "default": 34
+        },
+        "exactGeometryAndMaterialIdentity": {
+          "groups": 0,
+          "members": 0,
+          "sourceOnlyDrawReductionUpperBound": 0,
+          "independentlyLoadedGeometryGroups": 0,
+          "independentMaterialGroups": 0
+        },
+        "exactGeometryAndAuditedMaterialValues": {
+          "groups": 0,
+          "members": 0,
+          "sourceOnlyDrawReductionUpperBound": 0,
+          "independentlyLoadedGeometryGroups": 0,
+          "independentMaterialGroups": 0
+        },
+        "scope": "Scene-visible loaded mesh parts only; CPU-censored sample, no final instance eligibility or camera-frustum draw census"
+      },
+      "pageErrorCount": 0,
+      "failedResourceCount": 33,
+      "unsupportedModelWarnings": {
+        "retainedMessageCount": 102,
+        "retainedProtocolPhraseCount": 0,
+        "retainedUIPhraseCount": 0,
+        "retainedUICharacters": 957,
+        "scope": "Bounded retained protocol/UI history only; absence cannot prove whole-run absence"
+      }
+    }
+  ],
+  "comparison": [
+    {
+      "engine": "chromium",
+      "orderedPairs": 1,
+      "initialLoadedModelCounts": [
+        293,
+        294
+      ],
+      "baselineModelJobsIdleUpperBoundSeconds": 20.67,
+      "enabledModelJobsIdleUpperBoundSeconds": 21.711,
+      "upperBoundDifferenceSeconds": 1.0409999999999968,
+      "descriptiveUpperBoundPercentChange": 5.036284470246718,
+      "baselineFluidGatesPassed": 4,
+      "enabledFluidGatesPassed": 4,
+      "causalPerformanceGainEstablished": false
+    },
+    {
+      "engine": "firefox",
+      "orderedPairs": 1,
+      "initialLoadedModelCounts": [
+        293,
+        293
+      ],
+      "baselineModelJobsIdleUpperBoundSeconds": 18.093,
+      "enabledModelJobsIdleUpperBoundSeconds": 17.975,
+      "upperBoundDifferenceSeconds": -0.11799999999999855,
+      "descriptiveUpperBoundPercentChange": -0.6521859282595399,
+      "baselineFluidGatesPassed": 0,
+      "enabledFluidGatesPassed": 0,
+      "causalPerformanceGainEstablished": false
+    }
+  ],
+  "limits": [
+    "One sequential ordered pair per engine; no randomized repeats or causal speed claim. Live Hub target counts differ (293/294) and may change.",
+    "Both modes have the same upload/CPU observers enabled and static matrices, shader warmup and texture-preparation options disabled. Chromium and Firefox preserve their different native DPR/buffer sizes; compare options within an engine, not raw FPS across engines.",
+    "Model/graphics jobs idle is a sampled interval, not exact completion or successful loading of every texture/entity. Eight original-image failures remain visible in each first-idle snapshot.",
+    "Initial-admission HTTP aggregates span the entire first admission until Leave, including later walking traffic; async request/phase duration sums are not elapsed wall time.",
+    "Upload buckets span both admissions, separated by phase. Dropped records and exhausted 1024-source identity capacity censor all four profiles; existing call durations include CPU/driver submission, not pure GPU time.",
+    "The one-shot census ran after initial walking/screenshot and before Leave; all four hit the 75ms CPU budget and are partial. Zero observed matching groups cannot establish full-scene absence.",
+    "Bitmap live bytes/leases are snapshots while models remain alive. These captures do not independently prove post-Leave resource closure; standalone ownership tests cover that separately.",
+    "No asset URLs, names, entity/participant identities, raw poses, credentials, account profiles, hardware/device identifiers or audio are published.",
+    "No public-world edits, microphone request or world interaction; thirty-minute endurance was cancelled. Firefox still fails all four fluid gates in both modes."
+  ]
+}

@@ -1,0 +1,330 @@
+{
+  "schema": 1,
+  "scope": "actual Google Chrome microphone API cause and same-device restart probes; no native Tablet or hardware microphone acceptance claim",
+  "browserVersion": "154.0.8037.97",
+  "executableSHA256": "6c792041b07547a662e1b17974d1dc34a3db630379b45d9d89ddd7e3e68cc587",
+  "hardwareMicrophoneTested": false,
+  "probes": [
+    {
+      "scope": "constraints",
+      "reportSHA256": "98e261e0f73265dc946b6037bd49f41b039d2d8216f773c430ca6e582589d969",
+      "probeSHA256": "94ac8ff89aca13b768d2e10acd6ecc92cad41cf781530c6ae854fee7b0f068bc",
+      "completed": true,
+      "actual": {
+        "start": {
+          "settings": {
+            "channelCount": 1,
+            "echoCancellation": true,
+            "noiseSuppression": true,
+            "autoGainControl": true
+          },
+          "capabilities": {
+            "channelCount": {
+              "max": 2,
+              "min": 1
+            },
+            "echoCancellation": [
+              true,
+              false,
+              "remote-only"
+            ],
+            "noiseSuppression": [
+              true,
+              false
+            ],
+            "autoGainControl": [
+              true,
+              false
+            ]
+          },
+          "constraints": {
+            "channelCount": 1,
+            "echoCancellation": true,
+            "noiseSuppression": true,
+            "autoGainControl": true
+          }
+        },
+        "attempts": [
+          {
+            "name": "identical",
+            "accepted": false,
+            "errorName": "OverconstrainedError",
+            "constraint": "echoCancellation",
+            "settings": {
+              "channelCount": 1,
+              "echoCancellation": true,
+              "noiseSuppression": true,
+              "autoGainControl": true
+            }
+          },
+          {
+            "name": "without-channel",
+            "accepted": false,
+            "errorName": "OverconstrainedError",
+            "constraint": "echoCancellation",
+            "settings": {
+              "channelCount": 1,
+              "echoCancellation": true,
+              "noiseSuppression": true,
+              "autoGainControl": true
+            }
+          },
+          {
+            "name": "one-field",
+            "accepted": false,
+            "errorName": "OverconstrainedError",
+            "constraint": "echoCancellation",
+            "settings": {
+              "channelCount": 1,
+              "echoCancellation": true,
+              "noiseSuppression": true,
+              "autoGainControl": true
+            }
+          },
+          {
+            "name": "preferred-field",
+            "accepted": true,
+            "settings": {
+              "channelCount": 1,
+              "echoCancellation": true,
+              "noiseSuppression": true,
+              "autoGainControl": true
+            }
+          }
+        ],
+        "trackEnded": true
+      },
+      "ownedBrowserHTTPClosed": true
+    },
+    {
+      "scope": "reacquire",
+      "reportSHA256": "a25ae1e941a139c7f5e4d8057470e846440a43d3012eae898f0fd19b844d2723",
+      "probeSHA256": "fe0ca498265d70a6705cb1a2c874ead5ce5397743f4020b48a75e3174e9041f1",
+      "completed": false,
+      "actual": {
+        "start": {
+          "settings": {
+            "channelCount": 1,
+            "echoCancellation": true,
+            "noiseSuppression": true,
+            "autoGainControl": true
+          }
+        },
+        "attempts": [
+          {
+            "field": "echoCancellation",
+            "value": false,
+            "accepted": true,
+            "sameDevice": true,
+            "allProcessing": true,
+            "oldLiveBeforeSwap": true,
+            "oldEndedAfterSwap": true,
+            "newLiveAfterSwap": true,
+            "settings": {
+              "channelCount": 1,
+              "echoCancellation": false,
+              "noiseSuppression": true,
+              "autoGainControl": true
+            }
+          },
+          {
+            "field": "echoCancellation",
+            "value": true,
+            "accepted": false,
+            "errorName": "OverconstrainedError",
+            "constraint": "other",
+            "settings": {
+              "channelCount": 1,
+              "echoCancellation": false,
+              "noiseSuppression": true,
+              "autoGainControl": true
+            }
+          },
+          {
+            "field": "noiseSuppression",
+            "value": false,
+            "accepted": false,
+            "errorName": "OverconstrainedError",
+            "constraint": "other",
+            "settings": {
+              "channelCount": 1,
+              "echoCancellation": false,
+              "noiseSuppression": true,
+              "autoGainControl": true
+            }
+          },
+          {
+            "field": "noiseSuppression",
+            "value": true,
+            "accepted": true,
+            "sameDevice": true,
+            "allProcessing": true,
+            "oldLiveBeforeSwap": true,
+            "oldEndedAfterSwap": true,
+            "newLiveAfterSwap": true,
+            "settings": {
+              "channelCount": 1,
+              "echoCancellation": false,
+              "noiseSuppression": true,
+              "autoGainControl": true
+            }
+          },
+          {
+            "field": "autoGainControl",
+            "value": false,
+            "accepted": false,
+            "errorName": "OverconstrainedError",
+            "constraint": "other",
+            "settings": {
+              "channelCount": 1,
+              "echoCancellation": false,
+              "noiseSuppression": true,
+              "autoGainControl": true
+            }
+          },
+          {
+            "field": "autoGainControl",
+            "value": true,
+            "accepted": true,
+            "sameDevice": true,
+            "allProcessing": true,
+            "oldLiveBeforeSwap": true,
+            "oldEndedAfterSwap": true,
+            "newLiveAfterSwap": true,
+            "settings": {
+              "channelCount": 1,
+              "echoCancellation": false,
+              "noiseSuppression": true,
+              "autoGainControl": true
+            }
+          }
+        ],
+        "trackEnded": true
+      },
+      "ownedBrowserHTTPClosed": true
+    },
+    {
+      "scope": "retire-reacquire",
+      "reportSHA256": "59001b1480d7c168a1a1ce6c7ff928428824700badc5103fcb0ece870bbc121b",
+      "probeSHA256": "cca80e62a18b93277d650d85c67fb86fc0bc0892e44206c0a38ebc1af7b649b5",
+      "completed": true,
+      "actual": {
+        "start": {
+          "settings": {
+            "channelCount": 1,
+            "echoCancellation": true,
+            "noiseSuppression": true,
+            "autoGainControl": true
+          }
+        },
+        "attempts": [
+          {
+            "field": "echoCancellation",
+            "value": false,
+            "accepted": true,
+            "sameDevice": true,
+            "allProcessing": true,
+            "retiredBeforeAcquisition": true,
+            "oldLiveBeforeSwap": true,
+            "oldEndedAfterSwap": true,
+            "newLiveAfterSwap": true,
+            "settings": {
+              "channelCount": 1,
+              "echoCancellation": false,
+              "noiseSuppression": true,
+              "autoGainControl": true
+            }
+          },
+          {
+            "field": "echoCancellation",
+            "value": true,
+            "accepted": true,
+            "sameDevice": true,
+            "allProcessing": true,
+            "retiredBeforeAcquisition": true,
+            "oldLiveBeforeSwap": true,
+            "oldEndedAfterSwap": true,
+            "newLiveAfterSwap": true,
+            "settings": {
+              "channelCount": 1,
+              "echoCancellation": true,
+              "noiseSuppression": true,
+              "autoGainControl": true
+            }
+          },
+          {
+            "field": "noiseSuppression",
+            "value": false,
+            "accepted": true,
+            "sameDevice": true,
+            "allProcessing": true,
+            "retiredBeforeAcquisition": true,
+            "oldLiveBeforeSwap": true,
+            "oldEndedAfterSwap": true,
+            "newLiveAfterSwap": true,
+            "settings": {
+              "channelCount": 1,
+              "echoCancellation": true,
+              "noiseSuppression": false,
+              "autoGainControl": true
+            }
+          },
+          {
+            "field": "noiseSuppression",
+            "value": true,
+            "accepted": true,
+            "sameDevice": true,
+            "allProcessing": true,
+            "retiredBeforeAcquisition": true,
+            "oldLiveBeforeSwap": true,
+            "oldEndedAfterSwap": true,
+            "newLiveAfterSwap": true,
+            "settings": {
+              "channelCount": 1,
+              "echoCancellation": true,
+              "noiseSuppression": true,
+              "autoGainControl": true
+            }
+          },
+          {
+            "field": "autoGainControl",
+            "value": false,
+            "accepted": true,
+            "sameDevice": true,
+            "allProcessing": true,
+            "retiredBeforeAcquisition": true,
+            "oldLiveBeforeSwap": true,
+            "oldEndedAfterSwap": true,
+            "newLiveAfterSwap": true,
+            "settings": {
+              "channelCount": 1,
+              "echoCancellation": true,
+              "noiseSuppression": true,
+              "autoGainControl": false
+            }
+          },
+          {
+            "field": "autoGainControl",
+            "value": true,
+            "accepted": true,
+            "sameDevice": true,
+            "allProcessing": true,
+            "retiredBeforeAcquisition": true,
+            "oldLiveBeforeSwap": true,
+            "oldEndedAfterSwap": true,
+            "newLiveAfterSwap": true,
+            "settings": {
+              "channelCount": 1,
+              "echoCancellation": true,
+              "noiseSuppression": true,
+              "autoGainControl": true
+            }
+          }
+        ],
+        "trackEnded": true
+      },
+      "ownedBrowserHTTPClosed": true
+    }
+  ],
+  "conclusion": "Exact processing changes require retiring the existing source before acquiring the same device with exact desired/current processing values; all six toggles/restorations pass the small API probe. Product integration and full Tablet acceptance remain pending."
+}

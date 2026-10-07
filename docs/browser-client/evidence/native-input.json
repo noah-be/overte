@@ -1,0 +1,54 @@
+{
+  "recordedAt": "2026-09-30T22:59:05.072852+00:00",
+  "platform": "Linux x86_64",
+  "qtSDKVersion": "5.15.3",
+  "qtRuntimeVersion": "5.15.3",
+  "packages": [
+    {
+      "url": "https://archive.ubuntu.com/ubuntu/pool/universe/q/qtbase-opensource-src/qtbase5-dev_5.15.3+dfsg-2_amd64.deb",
+      "sha256": "ca142897120402f6d83951dd9c6f8f30318ccad8e3490490f3e9476d8049078e"
+    },
+    {
+      "url": "https://archive.ubuntu.com/ubuntu/pool/universe/q/qtbase-opensource-src/qtbase5-dev-tools_5.15.3+dfsg-2_amd64.deb",
+      "sha256": "6d530acbd9a8b54353b5dca05d1b956b26db2c5b5d942f9f112a5153a8da49d5"
+    },
+    {
+      "url": "https://archive.ubuntu.com/ubuntu/pool/universe/q/qtdeclarative-opensource-src/qtdeclarative5-dev_5.15.3+dfsg-1_amd64.deb",
+      "sha256": "1ae3a692291438f4ec9449750c07c043c1c715d833357c019330206388380199"
+    }
+  ],
+  "command": "python3 browser-client/tools/build-native-input.py --output build/browser-lab/native-input-root-verification --test",
+  "completed": true,
+  "actualNativeQMLTests": true,
+  "syntheticInput": true,
+  "operatorDesktopUsed": false,
+  "operatorClipboardUsed": false,
+  "assertions": [
+    "Composed Unicode replaces the selected native text atomically and one undo/redo restores each whole transaction.",
+    "RichText receives visitor markup as literal text without changing textFormat.",
+    "Readonly, disabled and unfocused native controls refuse modification; readonly cut is refused.",
+    "Writable cut removes only the middle selected Unicode substring; one undo restores surrounding text.",
+    "Invalid native IntValidator replacement preserves the original selected text; valid replacement succeeds.",
+    "The native input mask and maximumLength remain enforced.",
+    "Exactly 64 KiB UTF-8 commits succeed; oversized and prohibited-control input is refused.",
+    "The isolated Qt clipboard sentinel remains unchanged."
+  ],
+  "atomicPublication": {
+    "completed": true,
+    "oldOpenInodePreserved": true,
+    "successPublishesNewInode": true,
+    "failedBuildPreservesLibrary": true,
+    "failedTemporaryLibraryRemoved": true
+  },
+  "sourceSHA256": {
+    "browser-client/native-input/native-input.cpp": "c171118de7624b5019b94089f3b920af82d929276061ef1bc025ebc637fb3d64",
+    "browser-client/native-input/input-test.qml": "808585fd33d543286271d7e273b5c5ae64b630970fc83e8e43d0d371f1c7e3a1",
+    "browser-client/native-input/input-test.cpp": "7c1e66badedf59d4c86e04b9dcec1ab9d9a39b1d0ba86f9bbc124afa4b223c41",
+    "browser-client/tools/build-native-input.py": "c8dffee4d6d282cdb8368e7af8f6acef4f4e10182179ac386fb1fa53f7694101"
+  },
+  "primarySources": [
+    "https://doc.qt.io/archives/qt-5.15/qinputmethodevent.html",
+    "https://github.com/qt/qtdeclarative/blob/5.15/src/quick/items/qquicktextinput.cpp",
+    "https://github.com/qt/qtdeclarative/blob/5.15/src/quick/items/qquicktextedit.cpp"
+  ]
+}
