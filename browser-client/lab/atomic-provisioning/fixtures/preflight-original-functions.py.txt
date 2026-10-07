@@ -1,0 +1,78 @@
+# Copyright 2026 Overte contributors
+# SPDX-License-Identifier: Apache-2.0
+# Frozen original functions before the one new capability-operation field.
+
+def stderr_failure(data):
+    bounded, _truncated = _bounded(data)
+    # No private executable/name/library/argument substring is returned.
+    for raw in bounded.splitlines():
+        line = raw.decode('ascii', 'replace')
+        if re.fullmatch(r'(?:[^\r\n]*[/ ])?(?:unshare|setpriv|python(?:3(?:\.\d+)?)?|strace): error while loading shared libraries: [^\r\n]+: cannot open shared object file: No such file or directory', line):
+            return 'dynamic-loader-library-not-found'
+        if re.fullmatch(r'(?:[^\r\n]*[/ ])?(?:unshare|setpriv|python(?:3(?:\.\d+)?)?|strace): symbol lookup error: [^\r\n]+: undefined symbol: [^\r\n]+', line):
+            return 'dynamic-loader-symbol-unavailable'
+        if re.fullmatch(r'(?:unshare|setpriv): (?:failed to execute|execvp) [^\r\n]+: No such file or directory', line):
+            return 'command-exec-not-found'
+        if re.fullmatch(r'(?:unshare|setpriv): (?:failed to execute|execvp) [^\r\n]+: Permission denied', line):
+            return 'command-exec-refused'
+        if line == 'unshare: unshare failed: Operation not permitted':
+            return 'unshare-operation-not-permitted'
+        if line == 'unshare: unshare failed: Permission denied':
+            return 'unshare-permission-denied'
+        if re.fullmatch(r'setpriv: (?:apply bounding set|apply capabilities|set capabilities|cap_set_proc|set process securebits)(?:: | failed: )(?:Operation not permitted|Permission denied)', line):
+            return 'capability-action-refused'
+        if re.fullmatch(r'setpriv: (?:setresuid|setresgid|setgroups|setting no_new_privs) failed: (?:Operation not permitted|Permission denied)', line):
+            return 'identity-action-refused'
+        if line.startswith('strace: ') and 'ptrace(' in line:
+            if line.endswith('Operation not permitted'):
+                return 'tracer-ptrace-operation-not-permitted'
+            if line.endswith('Permission denied'):
+                return 'tracer-ptrace-permission-denied'
+            return 'tracer-ptrace-unclassified-error'
+        if re.fullmatch(r'strace: (?:exec|Can\x27t stat)[^\r\n]*: No such file or directory', line):
+            return 'tracer-exec-not-found'
+        if re.match(r'(?:ModuleNotFoundError|ImportError):', line):
+            return 'python-import-error'
+        if re.match(r'SyntaxError:', line):
+            return 'python-syntax-error'
+        if re.fullmatch(r'AssertionError(?::[^\r\n]*)?', line):
+            return 'python-assertion-error'
+        if re.match(r'(?:OSError|FileNotFoundError|PermissionError|RuntimeError|ValueError|TypeError|KeyError|NameError):', line):
+            return 'python-runtime-error'
+    return 'unobserved-or-unclassified'
+
+def project_preflight(returncode, stdout, stderr):
+    out, out_truncated = _bounded(stdout)
+    err, err_truncated = _bounded(stderr)
+    seen, caps, inner, malformed = [], None, None, 0
+    for raw in out.splitlines():
+        if raw.startswith(b'ATOMIC_PREFLIGHT:'):
+            milestone = raw[len(b'ATOMIC_PREFLIGHT:'):].decode('ascii', 'replace')
+            if milestone in MILESTONES and milestone not in seen:
+                seen.append(milestone)
+        elif raw.startswith(b'ATOMIC_PREFLIGHT_CAPS:'):
+            try:
+                value = json.loads(raw[len(b'ATOMIC_PREFLIGHT_CAPS:'):])
+            except (ValueError, UnicodeError, RecursionError):
+                malformed += 1
+                continue
+            if type(value) is dict and set(value) == set(CAPABILITIES.values()) and all(v in ('zero', 'nonzero', 'absent', 'unparseable') for v in value.values()):
+                caps = {k: value[k] for k in CAPABILITIES.values()}
+            else:
+                malformed += 1
+        elif raw.startswith(b'ATOMIC_PREFLIGHT_OBSERVER:'):
+            try:
+                value = _inner(json.loads(raw[len(b'ATOMIC_PREFLIGHT_OBSERVER:'):]))
+            except (ValueError, UnicodeError, RecursionError):
+                value = None
+            if value is None:
+                malformed += 1
+            else:
+                inner = value
+    return {'schemaVersion': 1, 'scope': 'unchanged-owned-zero-cap-user-ipc-preflight',
+            'outerExitCode': returncode if type(returncode) is int and -128 <= returncode <= 255 else None,
+            'lastMilestone': seen[-1] if seen else 'none-observed',
+            'milestones': seen, 'capabilityStates': caps, 'innerObservation': inner,
+            'outerStderrFailure': stderr_failure(err), 'stdoutPrefixTruncated': out_truncated,
+            'stderrPrefixTruncated': err_truncated, 'malformedFixedRecords': malformed,
+            'cause': 'not-established'}

@@ -1,0 +1,212 @@
+{
+  "startedAt": "2026-10-01T12:32:26.998Z",
+  "finishedAt": "2026-10-01T12:33:02.132Z",
+  "completed": true,
+  "scope": "Fresh standalone normal native profile with one ECO0 setter and original-profile restoration; not a sandboxed gateway worker or Tablet/audio/pose acceptance",
+  "entityWrites": 0,
+  "microphoneRequested": false,
+  "experimentalEcoOptIn": true,
+  "productionDefaultEnabled": false,
+  "records": [
+    {
+      "phase": "baseline",
+      "at": 1790857967385,
+      "nativeVersion": "2026.04.1",
+      "connected": true,
+      "domainMatched": true,
+      "refreshRateProfile": 2,
+      "regime": 0,
+      "targetHz": 60,
+      "quality": {
+        "performancePreset": 4,
+        "renderMethod": 0,
+        "shadowsEnabled": true,
+        "hazeEnabled": true,
+        "bloomEnabled": true,
+        "ambientOcclusionEnabled": true,
+        "localLightingEnabled": true,
+        "proceduralMaterialsEnabled": true,
+        "antialiasingMode": 0,
+        "viewportResolutionScale": 1,
+        "verticalFieldOfView": 55,
+        "cameraClippingEnabled": false,
+        "worldDetailQuality": 1,
+        "automaticLODAdjust": true
+      },
+      "dynamicLOD": {
+        "angleDeg": 0.0010000000474974513,
+        "targetFPS": 30
+      }
+    },
+    {
+      "phase": "baselineEnd",
+      "at": 1790857972638,
+      "nativeVersion": "2026.04.1",
+      "connected": true,
+      "domainMatched": true,
+      "refreshRateProfile": 2,
+      "regime": 0,
+      "targetHz": 60,
+      "quality": {
+        "performancePreset": 4,
+        "renderMethod": 0,
+        "shadowsEnabled": true,
+        "hazeEnabled": true,
+        "bloomEnabled": true,
+        "ambientOcclusionEnabled": true,
+        "localLightingEnabled": true,
+        "proceduralMaterialsEnabled": true,
+        "antialiasingMode": 0,
+        "viewportResolutionScale": 1,
+        "verticalFieldOfView": 55,
+        "cameraClippingEnabled": false,
+        "worldDetailQuality": 1,
+        "automaticLODAdjust": true
+      },
+      "dynamicLOD": {
+        "angleDeg": 0.0010000000474974513,
+        "targetFPS": 30
+      }
+    },
+    {
+      "phase": "eco",
+      "at": 1790857972639,
+      "nativeVersion": "2026.04.1",
+      "connected": true,
+      "domainMatched": true,
+      "refreshRateProfile": 0,
+      "regime": 0,
+      "targetHz": 20,
+      "quality": {
+        "performancePreset": 4,
+        "renderMethod": 0,
+        "shadowsEnabled": true,
+        "hazeEnabled": true,
+        "bloomEnabled": true,
+        "ambientOcclusionEnabled": true,
+        "localLightingEnabled": true,
+        "proceduralMaterialsEnabled": true,
+        "antialiasingMode": 0,
+        "viewportResolutionScale": 1,
+        "verticalFieldOfView": 55,
+        "cameraClippingEnabled": false,
+        "worldDetailQuality": 1,
+        "automaticLODAdjust": true
+      },
+      "dynamicLOD": {
+        "angleDeg": 0.0010000000474974513,
+        "targetFPS": 10
+      }
+    },
+    {
+      "phase": "ecoEnd",
+      "at": 1790857977888,
+      "nativeVersion": "2026.04.1",
+      "connected": true,
+      "domainMatched": true,
+      "refreshRateProfile": 0,
+      "regime": 0,
+      "targetHz": 20,
+      "quality": {
+        "performancePreset": 4,
+        "renderMethod": 0,
+        "shadowsEnabled": true,
+        "hazeEnabled": true,
+        "bloomEnabled": true,
+        "ambientOcclusionEnabled": true,
+        "localLightingEnabled": true,
+        "proceduralMaterialsEnabled": true,
+        "antialiasingMode": 0,
+        "viewportResolutionScale": 1,
+        "verticalFieldOfView": 55,
+        "cameraClippingEnabled": false,
+        "worldDetailQuality": 1,
+        "automaticLODAdjust": true
+      },
+      "dynamicLOD": {
+        "angleDeg": 0.0010000000474974513,
+        "targetFPS": 10
+      }
+    },
+    {
+      "phase": "restored",
+      "at": 1790857977889,
+      "nativeVersion": "2026.04.1",
+      "connected": true,
+      "domainMatched": true,
+      "refreshRateProfile": 2,
+      "regime": 0,
+      "targetHz": 60,
+      "quality": {
+        "performancePreset": 4,
+        "renderMethod": 0,
+        "shadowsEnabled": true,
+        "hazeEnabled": true,
+        "bloomEnabled": true,
+        "ambientOcclusionEnabled": true,
+        "localLightingEnabled": true,
+        "proceduralMaterialsEnabled": true,
+        "antialiasingMode": 0,
+        "viewportResolutionScale": 1,
+        "verticalFieldOfView": 55,
+        "cameraClippingEnabled": false,
+        "worldDetailQuality": 1,
+        "automaticLODAdjust": true
+      },
+      "dynamicLOD": {
+        "angleDeg": 0.0010000000474974513,
+        "targetFPS": 30
+      }
+    }
+  ],
+  "cpuSamples": {
+    "baseline": {
+      "startedAt": "2026-10-01T12:32:47.389Z",
+      "finishedAt": "2026-10-01T12:32:50.401Z",
+      "seconds": 3.011781848,
+      "processCpuSeconds": 5.67,
+      "meanProcessCores": 1.882606472233443,
+      "scope": "Owned Interface leader only; no descendant sum or identical workload claim"
+    },
+    "eco": {
+      "startedAt": "2026-10-01T12:32:52.643Z",
+      "finishedAt": "2026-10-01T12:32:55.645Z",
+      "seconds": 3.001749479,
+      "processCpuSeconds": 5.46,
+      "meanProcessCores": 1.8189392679827963,
+      "scope": "Owned Interface leader only; no descendant sum or identical workload claim"
+    }
+  },
+  "nativeQualityCaptureVerified": false,
+  "tabletAudioPoseAcceptanceVerified": false,
+  "identicalActualLODOrWorkloadVerified": false,
+  "nativeBinarySHA256": "91f3e10c42c1e35d5c8265e9b0007e925844d9bee61a26807118dde6e527887c",
+  "productionSettingsSHA256": "3bfe798724fd27724714e70a2837e86f1eab01f500e041f55a6ff0cf823d688c",
+  "trustedScriptSHA256": "5e0d8f931a65c1688d8abbfce092699b00ef2ae02cf1177790eee612b10a83d8",
+  "startSourceSHA256": {
+    "gateway/server.mjs": "dbba6b07c63fc3d3f65851945c05e67d22404ba081382c4d8f29924477b44444",
+    "tests/integration/native-eco.mjs": "85a5746bd199ac9ebb19c7a16cdd9ffb2aa9aa0d609703f0964cb8807dd0dec0",
+    "tests/integration/native-eco-probe.js": "5e0d8f931a65c1688d8abbfce092699b00ef2ae02cf1177790eee612b10a83d8"
+  },
+  "sourceSHA256": {
+    "gateway/server.mjs": "dbba6b07c63fc3d3f65851945c05e67d22404ba081382c4d8f29924477b44444",
+    "tests/integration/native-eco.mjs": "85a5746bd199ac9ebb19c7a16cdd9ffb2aa9aa0d609703f0964cb8807dd0dec0",
+    "tests/integration/native-eco-probe.js": "5e0d8f931a65c1688d8abbfce092699b00ef2ae02cf1177790eee612b10a83d8"
+  },
+  "sourceCoherent": true,
+  "baselineAlreadyEco": false,
+  "configuredQualityUnchanged": true,
+  "effectiveLODTargetChanged": true,
+  "sourceBoundNativeSetterAndCPUProof": true,
+  "processCleanup": {
+    "started": true,
+    "processExited": true,
+    "groupExited": true,
+    "identityGuarded": true,
+    "exit": {
+      "code": null,
+      "signal": "SIGKILL"
+    }
+  },
+  "privateProfileRemoved": true
+}

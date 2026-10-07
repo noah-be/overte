@@ -1,3 +1,4 @@
+// Modified in 2026 for the optional direct browser transport.
 //
 //  WebRTCSignalingServer.h
 //  libraries/networking/src/webrtc
@@ -16,6 +17,7 @@
 #include <QObject>
 #include <QtCore/QTimer>
 #include <QWebSocketServer>
+#include <QSet>
 
 #include "../SockAddr.h"
 
@@ -69,6 +71,7 @@ public:
     /// @param port The port to use for the WebSocket.
     /// @return <code>true</code> if the WebSocket was successfully bound, <code>false</code> if it wasn't.
     bool bind(const QHostAddress& address, quint16 port);
+    quint16 localPort() const { return _webSocketServer->serverPort(); }
 
 public slots:
 
@@ -85,6 +88,9 @@ signals:
     /// Not emitted if the message was an echo request for the domain server.
     void messageReceived(const QJsonObject& message);
 
+    /// The domain server removes the admitted native node for this socket.
+    void sessionClosed(const SockAddr& address);
+
 private slots:
 
     void newWebSocketConnection();
@@ -100,6 +106,7 @@ private:
     quint16 _port { 0 };
 
     QHash<QString, QWebSocket*> _webSockets;  // <client WebSocket IP address and port, client connection WebSocket object>
+    QHash<QString, QSet<QString>> _targets;
     // The WebSocket IP address and port is formatted as "n.n.n.n:n".
     // A QString is used rather than a SockAddr, to make signaling easier.
 

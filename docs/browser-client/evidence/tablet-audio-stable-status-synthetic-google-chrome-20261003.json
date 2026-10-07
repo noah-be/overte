@@ -1,0 +1,285 @@
+{
+  "schemaVersion": 1,
+  "outcome": "PASS",
+  "scope": "Owned Google Chrome synthetic capture controls, Desktop PTT, voice, gain and fresh-session permission journey; copied stable-status UI only",
+  "durationSeconds": 201.815,
+  "browser": {
+    "product": "Google Chrome stable",
+    "version": "154.0.8037.97",
+    "elfSHA256": "6c792041b07547a662e1b17974d1dc34a3db630379b45d9d89ddd7e3e68cc587"
+  },
+  "bindings": {
+    "rawReportSHA256": "44d2b4f8a9cd83090e36abb95bb92b40f7b256312d4c8f6ef2d1f7d20395c4af",
+    "reserializedOutcomeSHA256": "3c944359da260115042a900cc39d40a09768cc2d4ee4e23f7a5abb991b2f2d1d",
+    "independentParsedJsonEquality": true,
+    "parentSummarySHA256": "4f308a1b9202bc512181c38a5be4bfee2fac60a6ca2b8ade2d93779e78e126c4",
+    "preparedSHA256": "6fbc8c3442a572bbaf893ab0f6e47312fc7c700a33f2a09ebca9fd2c1eb87c66",
+    "qualificationPacketSHA256": "731afd37ac2a884aeaecefabbaae89ab0091ea156f9e01d6141fcbe32c7e663f",
+    "factoryRootSHA256": "38aa8a75aeca858af220f98a020fc6ab806b5611a28c6d3da1ea377b0e6f40bc",
+    "factoryCopySHA256": "a98031e5365a25318d5a25d0841193f3826ef0f53bac2a1e59d4b1dc86e3b20d",
+    "nativeModuleSHA256": "4a8b5befb478b898856e59ef651afb7dc8f7bd1e6a9677807674aa9b52367b24",
+    "nativeCopiedSHA256": "7a12fb2ea1e2306901b45b5bf8443143d1e7d082f32276931503225192d7dbd9",
+    "qmlCopiedSHA256": "20ac65ae4936c83b2507de94c4ae01564d184a8291e0d673da891a0b531e1814",
+    "bridgeCopiedSHA256": "2cc87092f94e6a18c813e0efb8f72c9dafd632d75b36833965f1ace100d197d6",
+    "workerAttestationSourceSHA256": "21220086f4f98e32f1fdb0ccdc6601d0d406985c30964ab6d392284e1d89d20e",
+    "generatedWorkerStartEndExact": true
+  },
+  "source": {
+    "RootSourceCount": 423,
+    "copySourceCount": 426,
+    "wholeRootTests": 454,
+    "wholeCopyTests": 456,
+    "distributionFiles": 34,
+    "canonicalManifestRows": 104,
+    "canonicalAdmissionUnchanged": true,
+    "sourceCoherent": true,
+    "productionStatusFixIntegrated": false
+  },
+  "steps": [
+    "joined-muted",
+    "genuine-native-desktop-ptt-enabled",
+    "explicit-synthetic-microphone-grant",
+    "real-T-hold-browser-to-native",
+    "real-T-release",
+    "native-to-browser-audio",
+    "actual-window-blur-and-document-hidden-release",
+    "genuine-Tablet-open-releases-hold",
+    "ordinary-mute-preserves-native-PTT-mode",
+    "genuine-native-mode-off-preserves-ordinary-audio",
+    "leave-releases-held-microphone",
+    "fresh-session-authority-requires-new-explicit-grant",
+    "capture-page-alone-does-not-grant-microphone",
+    "visitor-capture-real-controls-and-readback-complete"
+  ],
+  "stepCount": 14,
+  "originalPttStepsPassed": 12,
+  "capturePageDoesNotGrantMicrophone": true,
+  "captureControls": {
+    "supported": {
+      "echoCancellation": true,
+      "noiseSuppression": true,
+      "autoGainControl": true,
+      "inputGainPercent": true
+    },
+    "effective": {
+      "echoCancellation": true,
+      "noiseSuppression": true,
+      "autoGainControl": true,
+      "inputGainPercent": 100,
+      "inputGain": 1
+    },
+    "hardwareEfficacy": false
+  },
+  "processingOperations": [
+    {
+      "field": "echoCancellation",
+      "value": false,
+      "getUserMediaCallsDelta": 1,
+      "oldEndedBeforeAcquisition": true,
+      "oldEnded": true,
+      "newLive": true,
+      "sameDevice": true,
+      "allThreeEffectiveSettings": true,
+      "effectiveSettings": {
+        "echoCancellation": false,
+        "noiseSuppression": true,
+        "autoGainControl": true
+      },
+      "authorityCurrent": true,
+      "liveTrackCount": 1
+    },
+    {
+      "field": "echoCancellation",
+      "value": true,
+      "getUserMediaCallsDelta": 1,
+      "oldEndedBeforeAcquisition": true,
+      "oldEnded": true,
+      "newLive": true,
+      "sameDevice": true,
+      "allThreeEffectiveSettings": true,
+      "effectiveSettings": {
+        "echoCancellation": true,
+        "noiseSuppression": true,
+        "autoGainControl": true
+      },
+      "authorityCurrent": true,
+      "liveTrackCount": 1
+    },
+    {
+      "field": "noiseSuppression",
+      "value": false,
+      "getUserMediaCallsDelta": 1,
+      "oldEndedBeforeAcquisition": true,
+      "oldEnded": true,
+      "newLive": true,
+      "sameDevice": true,
+      "allThreeEffectiveSettings": true,
+      "effectiveSettings": {
+        "echoCancellation": true,
+        "noiseSuppression": false,
+        "autoGainControl": true
+      },
+      "authorityCurrent": true,
+      "liveTrackCount": 1
+    },
+    {
+      "field": "noiseSuppression",
+      "value": true,
+      "getUserMediaCallsDelta": 1,
+      "oldEndedBeforeAcquisition": true,
+      "oldEnded": true,
+      "newLive": true,
+      "sameDevice": true,
+      "allThreeEffectiveSettings": true,
+      "effectiveSettings": {
+        "echoCancellation": true,
+        "noiseSuppression": true,
+        "autoGainControl": true
+      },
+      "authorityCurrent": true,
+      "liveTrackCount": 1
+    },
+    {
+      "field": "autoGainControl",
+      "value": false,
+      "getUserMediaCallsDelta": 1,
+      "oldEndedBeforeAcquisition": true,
+      "oldEnded": true,
+      "newLive": true,
+      "sameDevice": true,
+      "allThreeEffectiveSettings": true,
+      "effectiveSettings": {
+        "echoCancellation": true,
+        "noiseSuppression": true,
+        "autoGainControl": false
+      },
+      "authorityCurrent": true,
+      "liveTrackCount": 1
+    },
+    {
+      "field": "autoGainControl",
+      "value": true,
+      "getUserMediaCallsDelta": 1,
+      "oldEndedBeforeAcquisition": true,
+      "oldEnded": true,
+      "newLive": true,
+      "sameDevice": true,
+      "allThreeEffectiveSettings": true,
+      "effectiveSettings": {
+        "echoCancellation": true,
+        "noiseSuppression": true,
+        "autoGainControl": true
+      },
+      "authorityCurrent": true,
+      "liveTrackCount": 1
+    }
+  ],
+  "physicalProcessingPressReleaseProofsMatched": 6,
+  "gain": {
+    "targetPercent": [
+      100,
+      50,
+      100
+    ],
+    "wireRmsHalfToInitialRatio": 0.500937878833181,
+    "measurements": {
+      "initial": {
+        "wireRms": 0.08614815772493897,
+        "nativeOutput": {
+          "rms": 0.018145297666103396,
+          "tone440Amplitude": 0.013367168911859278,
+          "tone997Amplitude": 2.584089313321249e-07,
+          "frames": 143057,
+          "bytes": 572228
+        }
+      },
+      "half": {
+        "wireRms": 0.043154875396117245,
+        "nativeOutput": {
+          "rms": 0.01284768471091853,
+          "tone440Amplitude": 0.005618422770187986,
+          "tone997Amplitude": 1.7203277900206025e-06,
+          "frames": 142520,
+          "bytes": 570080
+        }
+      },
+      "restored": {
+        "wireRms": 0.08631332979189656,
+        "nativeOutput": {
+          "rms": 0.015783180519978415,
+          "tone440Amplitude": 0.013278204463050048,
+          "tone997Amplitude": 1.90833104568568e-07,
+          "frames": 142748,
+          "bytes": 570992
+        }
+      }
+    },
+    "originalGainAndNativePcmAssertionsPassed": true,
+    "gainPhysicalRowsPersisted": false
+  },
+  "originalSyntheticPcm": {
+    "real-T-hold-browser-to-native": {
+      "nativeOutput": {
+        "rms": 0.010052816385728714,
+        "tone440Amplitude": 0.01192441352142036,
+        "tone997Amplitude": 5.956551241021797e-06,
+        "frames": 142716,
+        "bytes": 570864
+      }
+    },
+    "real-T-release": {
+      "nativeOutput": {
+        "rms": 1.5277485227313312e-05,
+        "tone440Amplitude": 1.2090169675501916e-07,
+        "tone997Amplitude": 2.431121926917349e-07,
+        "frames": 142738,
+        "bytes": 570952
+      }
+    },
+    "native-to-browser-audio": {
+      "browserOutput": {
+        "rms": 0.01568564182300435,
+        "tone440Amplitude": 2.691910162414783e-07,
+        "tone997Amplitude": 0.015596816866978206,
+        "frames": 240000,
+        "bytes": 960000
+      }
+    },
+    "genuine-native-mode-off-preserves-ordinary-audio": {
+      "nativeOutput": {
+        "rms": 0.013093324837548078,
+        "tone440Amplitude": 0.013313889014974371,
+        "tone997Amplitude": 3.6551516346708434e-07,
+        "frames": 142842,
+        "bytes": 571368
+      }
+    }
+  },
+  "cleanup": {
+    "verified": true,
+    "mappedObserverWorkers": 2,
+    "actualChromeProcessesObservedAndClosed": 18,
+    "runnerClosed": true,
+    "gatewayClosed": true,
+    "registeredManagedServicesPreserved": 9,
+    "nativeAuthorMutedRestored": true,
+    "nativeAuthorGuardClosed": true,
+    "captureObserversRetired": true,
+    "sourceAndDistChecksPassed": true
+  },
+  "limits": {
+    "syntheticMicrophone": true,
+    "hardwareMicrophone": false,
+    "hardwareProcessingEfficacy": false,
+    "humanAudibility": false,
+    "realRoomEchoNoiseSuppression": false,
+    "deviceIdsExported": false,
+    "nativeDeviceChoicesAffectVisitorProved": false,
+    "fullTabletParity": false,
+    "frameTimingOrLoadingGainClaim": false,
+    "allPriorFailuresRetained": true,
+    "singleOwnedOrderedRun": true,
+    "gainProofPixelsIncluded": false,
+    "sourceBoundOriginalAssertionsPassed": true
+  }
+}

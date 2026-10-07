@@ -1,0 +1,15 @@
+{
+  "cancelTextInput": "d6ba2c76b914d54d18c9c0c042f885085855417af3cf19cf42b0542fe953e525",
+  "currentTextTarget": "83f45585092437d1ea412291f84e53a7959f9a708977a9c56254c539fa859efc",
+  "failTextInput": "8f03e147a65ab31e510798c865549056c728e7b2cfa133abdb51050e77b96a4a",
+  "queueTextInput": "9cd9def2a2f2e229b05cb3899ee8bc828acbe3e8d950ae6e47912270d98e3d0f",
+  "finishTextInput": "bcbf679173a29e3994afd11bc5a2e93a65a813d22feafcffa86a0aa5f8291def",
+  "startWebText": "f8f71e6c112a8aa0dd199244ed60c18205b7d789c002762b0047011e120ce637",
+  "passwordTextValid": "c82dc90e0c08573726d202b94bd8ebe96bed18b627fc22eeeaca3de93ea5c34e",
+  "continuePasswordText": "9e411be71dd40107edb49df1df61aaa22bc605b3d662f62e8ea8d0f3ebe1fbc5",
+  "nativeInputCPP": "c4edbad2ea9697cc969b0ab965ad5c834119a553465ae5ef7d95205d73f2d3ca",
+  "editor-fixture.template.qml": "a2bdcdeb8002fb17f23281cbf7bdaee88b8ea757c7de15a704e51f0bc2f97a26",
+  "editor-fixture.html": "c8c676021846e33cf158696503f497d05c3d32de7ee2ec7646a54dfb25ba0aab",
+  "editor-fixture.cpp": "294336c523ed3cac9f31684f4f22e053b6c275588dc2288b8d6e0d3c32f3563f",
+  "actualReportSHA256": "6843c575c5f103d1e6934aa4c011057adaba3376d8eed756faedac0fb0aee834"
+}

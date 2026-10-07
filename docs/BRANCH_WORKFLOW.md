@@ -177,9 +177,18 @@ branch unless a later reviewed propagation deliberately changes that scope.
 
 ## Exact-parent test reuse
 
+A synchronization changing only regular `package.json` / `package-lock.json`
+files under `tools/jsdoc` or `server-console`, optionally with Markdown, runs
+the [bounded tool checks](../tests/PROJECT_TESTING.md#host-prerequisites).
+The trusted gate verifies the existing topology and both Git trees' file modes
+before selecting this profile. It includes rename sources and rejects mixed
+source/build deltas from the bounded lane. Pushes run the same affected-tool
+checks without publishing complete host-qualification evidence. Such syncs do
+not repeat the native client build, complete host suite, or product suites.
+
 The four permanent branches that have children (`main`, `android-main`,
 `android-vr`, and `apple-main`) qualify each exact pushed commit once, except
-for Markdown-only pushes. The
+for Markdown-only pushes and the bounded tool-only pushes above. The
 qualification runs the shared project and complete device-control-plane suites,
 then uploads a short-lived machine-readable artifact. The artifact binds the
 repository numeric ID and name, parent commit and tree, qualification workflow

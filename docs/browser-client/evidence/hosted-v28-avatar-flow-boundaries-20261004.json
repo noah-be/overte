@@ -1,0 +1,139 @@
+{
+  "schemaVersion": 1,
+  "recordedAtUTC": "2026-10-04T10:47:01.135887+00:00",
+  "repository": "noah-be/overte",
+  "testedPublishedCommit": "39ff99ac902b22eb84b732b2cba2ae61e47ab9e5",
+  "scope": "Exact committed automatic and one manual hosted cohort; fixed projections and source authentication, not a repair or wider acceptance",
+  "automatic": {
+    "runId": 37192753251,
+    "event": "pull_request",
+    "testedVirtualMerge": "d4efad49d3f3c4fa81b634af89987057bad71f27",
+    "mergeParents": [
+      "db0ba6e05c507e943b05abd5fdd9ae976b18b9e8",
+      "39ff99ac902b22eb84b732b2cba2ae61e47ab9e5"
+    ],
+    "mergeTreeMatchesFeature": true,
+    "browserJob": {
+      "id": 111408218967,
+      "conclusion": "failure",
+      "productPass": 2972,
+      "productSkipped": 0,
+      "realNetworkPass": 3,
+      "embedded": "Original20 redCPU/GPU frames, upload1, samplers/cancellation passed;13runtime source hashes match",
+      "pruning": "Original Actual GPU render produced a GL error assertion failed; no code/readphase/backend retained",
+      "chromeUI": "not-run after pruning failure",
+      "fixedReceiptSHA256": "34f2047ec91c42ddc99169fa69e36533120f9d376ac24611e011d7a59e3fdee9"
+    },
+    "nativeCore": {
+      "id": 111408218829,
+      "conclusion": "failure",
+      "completedCheckpoints": 4,
+      "requiredCheckpoints": 18,
+      "firstFailure": "native-movement-synchronized",
+      "originalWaitMs": 2800,
+      "nativeTargetDistanceMeters": 4.768e-08,
+      "browserTargetDistanceMeters": 1.41421356,
+      "browserSnapshotAgeMs": 11,
+      "ownedStop": "passed",
+      "laterVoiceInteractionReconnect": "not-run",
+      "runtimeIdentities": 15,
+      "gitOnlyIdentities": 2,
+      "receiptSHA256": "546c7fdca37391f77b38decac446fb879dca05a4b3e3d483c5e9946d24700abe"
+    }
+  },
+  "manual": {
+    "runId": 37193186302,
+    "event": "workflow_dispatch",
+    "dispatchAttempts": 1,
+    "headMatchesFeature": true,
+    "inputs": {
+      "startup_diagnostics": false,
+      "embedded_default_angle_control": false,
+      "avatar_sample_diagnostics": true
+    },
+    "browserJob": {
+      "id": 111409499410,
+      "conclusion": "failure",
+      "productPass": 2972,
+      "productSkipped": 0,
+      "realNetworkPass": 3,
+      "embedded": "Original exact redCPU/GPU/upload/samplers/cancellation passed;13runtime source hashes match",
+      "pruning": "Same unchanged GL assertion failed; no code/readphase/backend retained",
+      "chromeUI": "not-run",
+      "fixedReceiptSHA256": "d469b5504fa720fcba1bacc8590d4781b181056119d32bcf53423e360aee5b21"
+    },
+    "nativeCore": {
+      "id": 111409499324,
+      "conclusion": "failure",
+      "completedCheckpoints": 4,
+      "requiredCheckpoints": 18,
+      "firstFailure": "native-movement-synchronized",
+      "originalWaitMs": 2800,
+      "browserTargetDistanceMeters": 1.41421356,
+      "browserSnapshotAgeMs": 1.5,
+      "ownedStop": "passed",
+      "runtimeIdentities": 15,
+      "gitOnlyIdentities": 3,
+      "collectorRuntimeAuthenticated": false,
+      "strictFrozenViewerManifestSHA256": "219892445b7040c56bfc9c8e79ad420abbcd49aca9ada1a7d7849e0bd72b91b0"
+    },
+    "flow": {
+      "nativeRows": 38,
+      "gatewayRows": 118,
+      "rejectedRows": 0,
+      "tailCensored": false,
+      "outputBudgetCensored": false,
+      "fixtureFlowRows": 59,
+      "nullTerminalCounterCensoredFixtureRows": 0,
+      "displayOnlyLast16WasCensored": true,
+      "receivedAndValidatedPendingTargetDistanceMeters": 4.768e-08,
+      "oldFlightTargetDistanceMeters": 1.41421356,
+      "heldFlightBytes": 26158,
+      "observedWriteCount": 197,
+      "observedCallbackSuccessCount": 196,
+      "observedCallbackErrorCount": 0,
+      "observedOfferRefusedCount": 0,
+      "observedOfferThrewCount": 0,
+      "fixedSixRowSHA256": "99c14ebc30ef6848ab78f490f98d1a05673a60dddcee76e82a114413a0c286a2",
+      "receiptSHA256": "6172781d4344304ed6f3a440a2d4c1a29ee736fc16fbed20e56bd11c185553dc",
+      "sampledRecordsWithTargetPending": 5,
+      "oneOfFiveSampledRecordsIsCachedDuplicate": true
+    }
+  },
+  "actualOwnLoopbackCharacterization": {
+    "shippingDelta": 0,
+    "tests": 3,
+    "pass": 3,
+    "fail": 0,
+    "skip": 0,
+    "nodeVersion": "24.21.0",
+    "hostedNode": "22; exactminor unobserved",
+    "pausedReceiverCurrentFlightBufferedBytes": 1972699,
+    "pausedReceiverCurrentFlightReady": "OPEN",
+    "actualCallbacksBeforeResume": 0,
+    "actualCallbacksAfterResume": 2,
+    "targetAfterReceiverResumeMs": 730.453,
+    "originalAcceptanceWaitMs": 2800,
+    "allOwnedEndpointsClosed": true,
+    "transportStimuliAreNotWorldTabletAcceptance": true,
+    "manifestSHA256": "82532fe8bbd4e7592906620b678ae57cd00dacd0f5d3ebdab272f93bde8c3107",
+    "receiptSHA256": "f2a46646f938a2286873854367e36c62e8a5169a7df9ea4a2ccd17e63e569da7",
+    "hostedCauseEstablished": false
+  },
+  "currentRequiredGates": {
+    "repositoryRun": 37192830216,
+    "repositoryConclusion": "success",
+    "codeqlRun": 37192753302,
+    "codeqlConclusion": "success",
+    "atomicAtCurrentHead": "No matching source delta, no duplicate run; native/atomic sources unchanged from retained1f scope"
+  },
+  "limits": [
+    "Gateway local slots do not identify the same envelope as accompanying native rows or prove physical-channel continuity across sampled rows.",
+    "Observed write/callback counters are not a conservation equation, remote ACK or callback completion timestamp.",
+    "Reported command/sample offsets do not establish synchronized clocks or the Core capture window.",
+    "Both embedded passes are retained alongside both pruning failures. Embedded SwiftShader request is not pruning backend evidence.",
+    "Current Chrome UI, movement, later Core voice/interaction/reconnect, full Tablet, Hub fluidness, physical microphone and native parity remain unqualified.",
+    "Existing registered Native missing with eight other births matching is separate; no live service/registry repair or new local native acceptance."
+  ],
+  "aiAssistance": "Implementation and evidence curation substantially assisted by Codex; owner and independent source-bound reviews are explicit."
+}

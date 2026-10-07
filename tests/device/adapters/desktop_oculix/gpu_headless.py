@@ -119,6 +119,43 @@ def _process_details(
     return token, group, parent, image, arguments
 
 
+def _process_confirmed_exited(pid: int) -> bool:
+    """Require positive absence/death proof; inspection errors are not exit."""
+    if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 1:
+        return False
+    try:
+        raw_stat = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
+    except (FileNotFoundError, ProcessLookupError):
+        return True
+    except (OSError, UnicodeError):
+        return False
+    opening, closing = raw_stat.find("("), raw_stat.rfind(")")
+    if (opening < 0 or closing <= opening
+            or raw_stat[:opening].strip() != str(pid)):
+        return False
+    fields = raw_stat[closing + 1:].split()
+    # Kernel start time is field22 (index19 after comm). A truncated or
+    # malformed inspection must never authorize cleanup as an exited member.
+    return (len(fields) > 19 and fields[19].isdigit()
+            and fields[0] in {"Z", "X"})
+
+
+def _wait_for_confirmed_exit(pid: int) -> bool:
+    """Allow bounded kernel exit settling, never timeout-as-exit fallback."""
+    if _process_confirmed_exited(pid):
+        return True
+    # exit_mm() can remove /proc/PID/exe before exit_notify() marks Z/X.
+    # Five recorded members bound worst-case cleanup delay to1.25seconds.
+    deadline = time.monotonic() + 0.25
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return False
+        time.sleep(min(0.01, remaining))
+        if _process_confirmed_exited(pid):
+            return True
+
+
 def _group_processes(group: int) -> list[tuple[int, tuple[str, int, int, str, tuple[str, ...]]]]:
     values = []
     for entry in Path("/proc").glob("[0-9]*"):
@@ -817,8 +854,15 @@ class GpuHeadlessLifecycle:
             return
         recorded = [state.get(name) for name in (
             "lifecycleRoot", "sessionGuard", "mutter", "sentinel", "xwayland")]
-        live_recorded = [component for component in recorded
-                         if component is not None and _process_details(component["pid"]) is not None]
+        live_recorded = []
+        for component in recorded:
+            if component is None:
+                continue
+            if _process_details(component["pid"]) is not None:
+                live_recorded.append(component)
+            elif not _wait_for_confirmed_exit(component["pid"]):
+                raise RuntimeError(
+                    "refusing GPU cleanup after an unreadable recorded process identity")
         if not live_recorded:
             # killpg(0) can still see unreaped zombies although /proc contains
             # no signalable member. Fail closed if the PGID has instead been
@@ -831,9 +875,20 @@ class GpuHeadlessLifecycle:
         # Children can be reparented after a compositor crash. Their immutable
         # start token, PGID, executable and required argv still bind them to
         # this lifecycle; requiring the now-stale PPID would prevent recovery.
-        if any(not self._component_owned(component, require_parent=False)
-               for component in live_recorded):
-            raise RuntimeError("refusing to signal GPU process group with mismatched identity")
+        owned_live = []
+        for component in live_recorded:
+            if not self._component_owned(component, require_parent=False):
+                # A killed member can disappear between the initial live scan
+                # and ownership readback. It cannot authorize a signal; omit it
+                # only after a fresh read confirms no signalable process. A
+                # reused PID or any still-live mismatch remains a hard refusal.
+                if _process_details(component["pid"]) is not None:
+                    raise RuntimeError("refusing to signal GPU process group with mismatched identity")
+                if not _wait_for_confirmed_exit(component["pid"]):
+                    raise RuntimeError("refusing to signal GPU process group with unreadable identity")
+                continue
+            owned_live.append(component)
+        live_recorded = owned_live
         snapshot = {pid: details[0] for pid, details in _group_processes(group)}
         if not any(snapshot.get(component["pid"]) == component["processToken"]
                    for component in live_recorded):

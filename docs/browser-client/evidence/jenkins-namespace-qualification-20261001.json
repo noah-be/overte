@@ -1,0 +1,64 @@
+{
+  "namespaceSmoke": {
+    "namespaceSmokePassed": true,
+    "completeCI": "not-run",
+    "sourceSHA": "cee2402852b77be38d35882e41c89bde80c64a90",
+    "sourceCheckoutClean": false,
+    "qualificationHelperSHA256": {
+      "run.py": "3a52c023d0f9594c27611fccee9ef712feea1e498f5faa519eb6b2a9e6a962cc",
+      "namespace-owner.py": "f12f06e30518a0104ac02c13bba0c6b12b2d9dd69b97b64688dd6fcc96dcc85f",
+      "gates.py": "660c027e41b73b726cfd6c26ec1eb36b4b498c64b2f9286ac9f384f0bc508c3f",
+      "prepare.py": "cac59f8f74d99b8ff470d52a62a84b6f3fd87f11d4687c923b8e63950e327176",
+      "probe.py": "0db958e08754617d93cbbe8fbb443e4deea82e29e2f22928126efa3124d241cc",
+      "owned-exec.py": "306175442cb5910f812c8c51fc0283f1e8ef30802849a20dbd1f5898a2ede47a"
+    },
+    "independentNamespaces": {
+      "net": true,
+      "ipc": true,
+      "mnt": true,
+      "pid": true
+    },
+    "fixedTCPPortsInsideOwnedNamespace": 3,
+    "fixedUDPPortsInsideOwnedNamespace": 7,
+    "privateXSocketAndLockFiles": "clean",
+    "nonrootAndZeroInheritedCapabilities": true,
+    "verifiedZeroCapabilitySets": [
+      "inheritable",
+      "permitted",
+      "effective",
+      "bounding",
+      "ambient"
+    ],
+    "nestedNormalUnshareAndBubblewrap": "passed",
+    "hostServiceChanges": "none",
+    "ordinaryNativeGUIAndAudioGates": "not-run"
+  },
+  "preparationInstallerNamespace": {
+    "passed": true,
+    "exitCode": 0,
+    "preparationHelperSHA256": "000c83fef3c7e53bc3e6d26f9a950b286267a563065f1bc7dcad946d1d28c030",
+    "ownedExecSHA256": "306175442cb5910f812c8c51fc0283f1e8ef30802849a20dbd1f5898a2ede47a",
+    "networkNamespace": "unchanged; no downloads or services",
+    "PIDNamespace": "owned normal user+PID+proc namespace",
+    "completeCI": "not-run",
+    "actual": {
+      "nonroot": true,
+      "zeroCapabilitySets": {
+        "CapInh": true,
+        "CapPrm": true,
+        "CapEff": true,
+        "CapBnd": true,
+        "CapAmb": true
+      },
+      "installerExecuted": false
+    }
+  },
+  "earlierInstallerQualification": {
+    "passed": false,
+    "exitCode": 127,
+    "error": "setpriv: apply bounding set: Operation not permitted",
+    "cause": "Setup capability was lost before the ordinary setpriv drop. Corrected unshare preserves setup capabilities, then independently verifies all five sets zero before installer exec."
+  },
+  "candidateManifestSHA256": "3f8f6fbd8ac4b130e48552e29d4dcaf20caa1d809d7e3c871f51155dd70a5fb6",
+  "actualCompleteJenkinsBuild": "not-run"
+}

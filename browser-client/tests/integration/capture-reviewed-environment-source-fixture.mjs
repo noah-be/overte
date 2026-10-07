@@ -1,0 +1,23 @@
+// Copyright 2026 Overte contributors
+// SPDX-License-Identifier: Apache-2.0
+// Exact whole historical v14 CPU fixtures only. Never imported by production.
+import {recoverCaptureV15Input} from './capture-chrome-readme-source-fixture.mjs';
+import {open,realpath} from 'node:fs/promises';import {constants} from 'node:fs';import {fileURLToPath} from 'node:url';import {createHash} from 'node:crypto';import {gunzipSync} from 'node:zlib';
+const sha=b=>createHash('sha256').update(b).digest('hex'),refuse=()=>{throw Error('Historical reviewed environment source refused');};
+const ARCHIVE="08ef97c61cc5154e281961faf58b71fb7f985b9c6f78261be025465682aa6173",BEFORE={".github/workflows/browser-client.yml":"c832cc8da969af0acdf02d4c71e98d2b6ae2d58f5ce3d8496a26fda49b3507c5","browser-client/gateway/worker-sandbox.mjs":"984fcaf01a09518c5df3032572a357790941e3de3a113c82b1badb218009e5e9","browser-client/tests/fixtures/capture-image-transport-v14-complete-source-manifest.json":"e8c3449bffe20f6b4d2f779db7fd13059e30960d95a2e69adc574126367c6b5f","browser-client/tests/integration/capture-environment-source-fixture.mjs":"2cdc6bcb9d0adb4a32f30a469c6e9b6c3bd49c621bbaa5cc55d7871e543a0e3a","browser-client/tests/integration/capture-image-transport-source-fixture.mjs":"5adb43fc7a27c58ad816edd50034ebc935d9d24fd8dab0c361c48ca970d22327","browser-client/tests/integration/capture-loading-source-fixture.mjs":"226f8cfbf645a95e3e9e279854ca3c868192f139f4262dd863f09d0db758088c","browser-client/tests/integration/prepare-tablet-capture-acceptance.mjs":"c93047cc72929cf14d726718c48363373406890f1b85b0a3c4566c5c5524087a","browser-client/tests/tablet-capture-image-transport-manifest.test.mjs":"b09d41be0f0c5965ae03d82f5ed1a4320daeb650c8ee027e71f6af39e4c91488","browser-client/lab/README.md":"86e5620f014c69879722a90609fb1808a7e55f5592a51fb9ec6d5c7b1070a4cb"},CURRENT={"browser-client/tests/integration/capture-environment-source-fixture.mjs":"898b36de7b093864ee1fc07f9837880a361e18b350a5ac96c66674d3b5390840","browser-client/tests/integration/capture-loading-source-fixture.mjs":"191a835e6c6dbe1c2d9420fc9951a9720a541bad9de9fc67b0dd87164ae7205e","browser-client/tests/integration/capture-image-transport-source-fixture.mjs":"948a99bb027a281726e4dcda6c0ddf02cb5d1c1eb8912cd23b47c214272be8e8","browser-client/tests/tablet-capture-image-transport-manifest.test.mjs":"e4dffb133fca1d3feb4c305a5aeff08b8d68dade540067a9c67c74ab5d113ed8","browser-client/gateway/worker-sandbox.mjs":"8a936adad775e1b422fdb50390391336afe640843662d606af675952e780130f",".github/workflows/browser-client.yml":"1c35849c3a5dd71bccc7bd90125c12d5df7a1cb805e474be9174f87309cdd8ef","browser-client/lab/README.md":"4d3b41b34f70c1158e135b3bbce98b911136e54d376078144020516fab49ec86"};
+export function decodeCaptureV14History(bytes){
+ if(!Buffer.isBuffer(bytes)||bytes.length<1||bytes.length>131072||sha(bytes)!==ARCHIVE)refuse();
+ const value=JSON.parse(gunzipSync(bytes,{maxOutputLength:524288}));
+ if(!value||value.version!==1||Object.keys(value).sort().join(',')!=='files,version'||Object.keys(value.files||{}).sort().join(',')!==Object.keys(BEFORE).sort().join(','))refuse();
+ for(const[key,hash]of Object.entries(BEFORE)){const row=value.files[key];if(!row||Object.keys(row).sort().join(',')!=='sha256,source'||row.sha256!==hash||typeof row.source!=='string'||sha(Buffer.from(row.source))!==hash)refuse();Object.freeze(row);}
+ Object.freeze(value.files);return Object.freeze(value);
+}
+let history;
+export async function readCaptureV14History(){
+ if(!history)history=(async()=>{const file=fileURLToPath(new URL('../fixtures/capture-v14-reviewed-environment-before.json.gz',import.meta.url));if(await realpath(file)!==file)refuse();const h=await open(file,constants.O_RDONLY|constants.O_NOFOLLOW|constants.O_NONBLOCK);try{const a=await h.stat();if(!a.isFile()||a.size<1||a.size>131072)refuse();const b=Buffer.alloc(131073);let n=0;while(n<b.length){const r=await h.read(b,n,b.length-n,n);if(!r.bytesRead)break;n+=r.bytesRead;}const z=await h.stat();if(n!==a.size||n>131072||a.ino!==z.ino||a.dev!==z.dev||a.size!==z.size||a.mtimeMs!==z.mtimeMs||a.ctimeMs!==z.ctimeMs)refuse();return decodeCaptureV14History(b.subarray(0,n));}finally{await h.close();}})();return history;
+}
+export async function readCaptureV14Source(relative){if(!Object.hasOwn(BEFORE,relative))refuse();return(await readCaptureV14History()).files[relative].source;}
+export async function recoverCaptureV14Input(relative,bytes){
+ if(!Buffer.isBuffer(bytes))refuse();bytes=await recoverCaptureV15Input(relative,bytes);if(!Object.hasOwn(CURRENT,relative))return bytes;
+ const hash=sha(bytes);if(hash===BEFORE[relative])return bytes;if(hash!==CURRENT[relative])refuse();return Buffer.from(await readCaptureV14Source(relative));
+}

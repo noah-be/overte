@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "scope": "Real browser execution of pinned genuine native Create widget/CSS, not domain entity edit/delete acceptance",
+  "run": {
+    "startTime": "2026-10-01T17:41:02.401Z",
+    "duration": 15213.581,
+    "expected": 4,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "passed": 4,
+  "cases": [
+    "320/480/600px center hit targets and native XYZ Enter handlers in Chromium/Firefox",
+    "Unadapted480px clipping negative and exact800px desktop geometry in Chromium/Firefox"
+  ],
+  "nativeNumbersEditedByDOMWrites": false,
+  "nativeEntityAcceptance": false,
+  "retainedPriorFailures": "Both genuine right-arrow hit boxes overlapped the native numeric text before the scoped tbody table-row-group correction.",
+  "nativeWidgetSourceUnchanged": true,
+  "domainPropertyTransport": "Controlled fixture callback records emitted axis/value; actual native domain editing requires the separate pending Create journey.",
+  "rawReportSHA256": "729b69fe9c59edb0224f3e1c533ed8f43d0954fccf743c6cc1a456e36ee77a47"
+}
