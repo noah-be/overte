@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "scope": "Candidate Qt World-X routing and original editor regression qualification; not installed native Sit/Stop acceptance",
+  "date": "2026-10-02",
+  "command": "python3 browser-client/tools/build-native-input.py --runtime-dir <packaged-Qt5.15.3> --output <owned-private-output> --test --test-web-editors",
+  "result": {
+    "exitCode": 0,
+    "durationSeconds": 19.46,
+    "sourceCoherent": true,
+    "runtimeCoherent": true,
+    "originalAssertionsChanged": false,
+    "qtSDKVersion": "5.15.3",
+    "qtRuntimeVersion": "5.15.3",
+    "editorCompleted": true,
+    "editorCasesPassed": 14,
+    "editorCasesCount": 14,
+    "ownedRendererGroupStopped": true,
+    "ownedDisplayStopped": true,
+    "homePreserved": true
+  },
+  "sourcePins": {
+    "native-input/native-input.cpp": "e8326d2571327b435318f256e70eba9c53d393ccac31130f941ab48b5f4cf5df",
+    "native-input/world-key-route.h": "9769fe814d69345bc5959a2ed71060add048f72925fe200edf66d7c1d7ef6170",
+    "native-input/world-key-route-test.cpp": "38737a0b38413d32db89f0bfa2bbb98e49127d217691e3de814d3eb56dee4469",
+    "native-input/application-key-route.h": "5cb4125f1b309d77a8866311fec4b078486727c82a02d85eda6fe3cdd0dd6203",
+    "gateway/tablet-capture.qml": "ddfbef52f203822885d889dab4c34c841f4ffc407b82d743fb07ffe6df2a50fd",
+    "tools/build-native-input.py": "aabc6f68439fc2396f99b6ec5377fd307f32815b161c6a3a5df6782b80b53be0"
+  },
+  "retainedReadonlyNegativeAssertion": 106,
+  "sourceAndRuntimeSnapshotSHA256": "81541e2b6339838e6ef945ed4048ecec05bda37a53091596c9fead401eefac3d",
+  "sourceFilesChecked": 30,
+  "runtimeLibrariesChecked": 6,
+  "runtimeResourcesChecked": 9,
+  "signedSDKPackagesChecked": 3,
+  "artifactsSHA256": "6f1ffd9f0017ece44734c9ab675763f842b91faadf49f40534f5b7782ecabb36",
+  "moduleSHA256": "cb7b3c3b61cc68fda81275196d07282685c75a88e91bdb0fbf4fabdc4a77531f",
+  "originalEditorReportSHA256": "276e941ab57a2b9af9d1311a11134a710f876bfb4e539fd3374609d4925014ff",
+  "privateRawLogSHA256": "97870b6f4a270b27e7dd15437aaa8104f901ad78654228df4bb6b19b57815fde",
+  "privateQualificationManifestSHA256": "8dbecd3bba60037ae662f7b228daf13d0251e8af8a1c0d0c39cc925071fab0a6",
+  "privateResultSHA256": "08b12db5b2a7f749d50f07ee6202aba828360827aebd79ce9214cd0c37d70fb3",
+  "pending": [
+    "Integration into current shipping composition",
+    "Actual native Sit, closed Tablet, trusted world X and restore-handler/standing acceptance in both stock browsers"
+  ],
+  "notClaimed": [
+    "Public Hub interaction completeness",
+    "Hardware microphone behavior",
+    "Browser/native runtime keyboard acceptance"
+  ]
+}

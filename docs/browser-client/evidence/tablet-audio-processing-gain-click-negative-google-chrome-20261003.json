@@ -1,0 +1,206 @@
+{
+  "additionalNoImplicitGrantPassed": true,
+  "browser": "google-chrome",
+  "cleanupVerified": true,
+  "completed": false,
+  "diagnosticStageIsStale": true,
+  "earlierCalibration": {
+    "contrast": 0,
+    "kind": "inputGainPercent-50",
+    "maximumRgbMean": 37,
+    "minimumRgbMean": 37,
+    "opaquePixels": 256,
+    "originalPaintedAssertionPassed": false,
+    "pixelCount": 256,
+    "retainedNativeCropMatchesCanvasSample": true,
+    "retainedRGBAHash": "fc95da4e7d007172974ac87fda894f9fc2891263a6d3e29040f77925048e057e",
+    "sampleHeight": 16,
+    "sampleWidth": 16
+  },
+  "fullAudioAcceptance": false,
+  "gainAcceptance": false,
+  "gainChangeRequests": 0,
+  "hardwareAcceptance": false,
+  "hashes": {
+    "completeSourceManifestSHA256": "66c7ce8e7723cfff9ba1c88a0d59730214c896def3fe9597db98d777d790db31",
+    "earlierFailedPaintMetadataSHA256": "3690c4bd7e1dc6d440ebaa93eb4c7402907f2ac99a8292a5fb1f728bad3a166b",
+    "earlierFailedPaintPNG_SHA256": "967369def572f6bb855e2aa53b5a455c1f1dd8ed0c6382d65be7d1c8383d8bc0",
+    "earlierFailedPaintRGBA_SHA256": "fc95da4e7d007172974ac87fda894f9fc2891263a6d3e29040f77925048e057e",
+    "failureDiagnosticSHA256": "bcc72fa2c80bdb5a398b1409bbeb7d4bc95e2a3ceb962114b2d28402447f59a9",
+    "moduleSHA256": "4a8b5befb478b898856e59ef651afb7dc8f7bd1e6a9677807674aa9b52367b24",
+    "nativeBridgeSHA256": "2cc87092f94e6a18c813e0efb8f72c9dafd632d75b36833965f1ace100d197d6",
+    "nativeHelperSHA256": "7a12fb2ea1e2306901b45b5bf8443143d1e7d082f32276931503225192d7dbd9",
+    "originalRawReportSHA256": "0ccddfaec1727c489a37b6e77de38600b17e2a204d998be4154cb0947a8c6a7e",
+    "ownedWrapperPythonIndent2ReportSHA256": "eb53e08f38666ab16d5e6cccc0575c542541bfbd3940986326790d54d54ed968",
+    "preparedSHA256": "1dc055ab3a739e0df86ca981407c0446c3c74af66d950e7642b266ab590815cf",
+    "primaryFailureSHA256": "947eb9597e25ac2fbc76c1e10ea1ff2488c460564669cf19b11b0ccccbfa7138",
+    "summarySHA256": "47537e28c03ed2216f377ace75414d8d535c2dd0e50de5daaaf0ce41e0c45537"
+  },
+  "interpretation": {
+    "earlierCalibrationIsPrimaryFailure": false,
+    "gainEffectProved": false,
+    "nativeJobTraversalQualification": "pending-strict-paired-logger-projection",
+    "observerFixedCapture": false,
+    "originalNewStatsProjectionsRemainCensored": true,
+    "pixelAgreementEstablishesLayoutCause": false,
+    "zeroInitialCountersEstablishMissingRenderHistory": false
+  },
+  "kind": "actual-google-chrome-audio-processing-and-gain-click-negative",
+  "originalTwelvePassed": true,
+  "ownedClosure": {
+    "actualGoogleChromeProcesses": 17,
+    "browser": true,
+    "gateway": true,
+    "nativeWorkers": 2,
+    "nineManagedBirthsPreservedByAuthenticatedWrapperFinalCheck": true,
+    "runner": true
+  },
+  "ownedWrapperReportSerialization": "Python json.dumps(json.loads(originalRawReport), indent=2) + newline; default ensure_ascii=True",
+  "primaryBoundary": "physical-gain50-input-proof",
+  "primaryFailure": "trusted-press-release-proof-incomplete",
+  "processingOperations": [
+    {
+      "allThreeEffectiveSettings": true,
+      "authorityCurrent": true,
+      "effectiveSettings": {
+        "autoGainControl": true,
+        "echoCancellation": false,
+        "noiseSuppression": true
+      },
+      "field": "echoCancellation",
+      "getUserMediaCallsDelta": 1,
+      "liveTrackCount": 1,
+      "newLive": true,
+      "oldEnded": true,
+      "oldEndedBeforeAcquisition": true,
+      "ordinal": 1,
+      "sameDevice": true,
+      "value": false
+    },
+    {
+      "allThreeEffectiveSettings": true,
+      "authorityCurrent": true,
+      "effectiveSettings": {
+        "autoGainControl": true,
+        "echoCancellation": true,
+        "noiseSuppression": true
+      },
+      "field": "echoCancellation",
+      "getUserMediaCallsDelta": 1,
+      "liveTrackCount": 1,
+      "newLive": true,
+      "oldEnded": true,
+      "oldEndedBeforeAcquisition": true,
+      "ordinal": 2,
+      "sameDevice": true,
+      "value": true
+    },
+    {
+      "allThreeEffectiveSettings": true,
+      "authorityCurrent": true,
+      "effectiveSettings": {
+        "autoGainControl": true,
+        "echoCancellation": true,
+        "noiseSuppression": false
+      },
+      "field": "noiseSuppression",
+      "getUserMediaCallsDelta": 1,
+      "liveTrackCount": 1,
+      "newLive": true,
+      "oldEnded": true,
+      "oldEndedBeforeAcquisition": true,
+      "ordinal": 3,
+      "sameDevice": true,
+      "value": false
+    },
+    {
+      "allThreeEffectiveSettings": true,
+      "authorityCurrent": true,
+      "effectiveSettings": {
+        "autoGainControl": true,
+        "echoCancellation": true,
+        "noiseSuppression": true
+      },
+      "field": "noiseSuppression",
+      "getUserMediaCallsDelta": 1,
+      "liveTrackCount": 1,
+      "newLive": true,
+      "oldEnded": true,
+      "oldEndedBeforeAcquisition": true,
+      "ordinal": 4,
+      "sameDevice": true,
+      "value": true
+    },
+    {
+      "allThreeEffectiveSettings": true,
+      "authorityCurrent": true,
+      "effectiveSettings": {
+        "autoGainControl": false,
+        "echoCancellation": true,
+        "noiseSuppression": true
+      },
+      "field": "autoGainControl",
+      "getUserMediaCallsDelta": 1,
+      "liveTrackCount": 1,
+      "newLive": true,
+      "oldEnded": true,
+      "oldEndedBeforeAcquisition": true,
+      "ordinal": 5,
+      "sameDevice": true,
+      "value": false
+    },
+    {
+      "allThreeEffectiveSettings": true,
+      "authorityCurrent": true,
+      "effectiveSettings": {
+        "autoGainControl": true,
+        "echoCancellation": true,
+        "noiseSuppression": true
+      },
+      "field": "autoGainControl",
+      "getUserMediaCallsDelta": 1,
+      "liveTrackCount": 1,
+      "newLive": true,
+      "oldEnded": true,
+      "oldEndedBeforeAcquisition": true,
+      "ordinal": 6,
+      "sameDevice": true,
+      "value": true
+    }
+  ],
+  "processingRequestCount": 27,
+  "processingResultCount": 26,
+  "retainedDiagnosticStage": "autoGainControl-change-ack",
+  "schemaVersion": 1,
+  "sixProcessingOperationsPassed": true,
+  "sourceCoherent": true,
+  "status": "failed",
+  "workers": [
+    {
+      "nativeLogSHA256": "916cd53d39a8fab02fae4c839686d4d026bf2ee313d9e65da09724b1468dad9a",
+      "originalTraversalCensored": true,
+      "originalTraversalInvalidRows": 10,
+      "originalTraversalProjectionSHA256": "a1945516ff48850f1fb73451e09bec58531142a6824aeeb3194d84b8b64eeb97",
+      "originalTraversalUniqueCandidates": 10,
+      "routes": 4,
+      "windowCensored": false,
+      "windowInvalidRows": 0,
+      "windowProjectionSHA256": "2fdd5949b161210ec8018f17ce199d85486df5402c2f7f9b935f50c17392c521",
+      "windowSamples": 8,
+      "workerOrdinal": 1
+    },
+    {
+      "nativeLogSHA256": "e7ece44a55bd1863e4a23a7e12a8665b881787f19bf8e7e51c24324dc1f3e8ac",
+      "originalTraversalCensored": true,
+      "originalTraversalInvalidRows": 10,
+      "originalTraversalProjectionSHA256": "6ef23c6e37d7f93c2a89c26ce90b1ee7463a8881d2020185eb5164a65b0e57c5",
+      "originalTraversalUniqueCandidates": 10,
+      "routes": 4,
+      "windowCensored": false,
+      "windowInvalidRows": 0,
+      "windowProjectionSHA256": "16aed888a0a83cf50ec5f0310d2f1d87f5556fad496779c5a554939732fe280b",
+      "windowSamples": 9,
+      "workerOrdinal": 2
+    }
+  ]
+}

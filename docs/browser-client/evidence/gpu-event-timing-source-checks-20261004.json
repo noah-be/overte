@@ -1,0 +1,447 @@
+{
+  "schemaVersion": 1,
+  "scope": "Exact integrated uncommitted V25 source qualification; hosted native/GPU and wider product acceptance remain separate",
+  "parentCommitSHA": "3329dfc45ec31244fdc15463c3eee1e17e6d869a",
+  "sourceInventorySHA256": "3f9fb004358f9294dbed43fdca4abf88abc734004faca818e9f697bfca1bca47",
+  "sourceFiles": 9829,
+  "installedPaths": [
+    {
+      "path": "browser-client/tests/integration/capture-command-clock-source-fixture.mjs",
+      "beforeSHA256": "e4acbec46a90c258531803dca84a6887ea23a9c524e774b87a36e7d2a92aa11c",
+      "beforeBytes": 4508,
+      "afterSHA256": "323d0790ad6a280f49e94b48bf5012d55ba7c80466aae0379b52bd5668a055ee",
+      "bytes": 4747
+    },
+    {
+      "path": "browser-client/tests/tablet-capture-command-clock-manifest.test.mjs",
+      "beforeSHA256": "539152738af4d02613659d8e689f85eb713605ef035e00b44507b6305344754a",
+      "beforeBytes": 9929,
+      "afterSHA256": "21418051c8e4e32f5f898b4b3ef005f5a1d9212a9d844489c3d58248c522bc12",
+      "bytes": 10415
+    },
+    {
+      "path": "browser-client/tests/fixtures/embedded-world.ts",
+      "beforeSHA256": "038f463149ac20ca9ee73c23219851d843fe953d26d316ca8a5e763e0c9bb591",
+      "beforeBytes": 12441,
+      "afterSHA256": "95d63b3f476c775a762729740b74c96dda52be6845dbe5de4dcefee2ff8818d1",
+      "bytes": 13413
+    },
+    {
+      "path": "browser-client/tests/integration/embedded-world.mjs",
+      "beforeSHA256": "244d7587a90fc436efe740c50e4b0b7f1c65456a8454552bcccc0a9561669305",
+      "beforeBytes": 11221,
+      "afterSHA256": "71a6753cc91f750d3f05114f09c79e65214a63df0e010f0ce23e71a69ee096e1",
+      "bytes": 11859
+    },
+    {
+      "path": "browser-client/tests/embedded-world-event-timing.test.mjs",
+      "beforeSHA256": null,
+      "beforeBytes": null,
+      "afterSHA256": "939c7e1b30123d4dc7e22554922a18cc7877bb3b00c3d83d2826152ca187f06b",
+      "bytes": 8191
+    },
+    {
+      "path": "browser-client/tests/fixtures/capture-v24-event-timing-before.json.gz",
+      "beforeSHA256": null,
+      "beforeBytes": null,
+      "afterSHA256": "05fe06d808b7b67e1ebbfa8520862d1ad6a306391211949ad9a3428d0ee0157f",
+      "bytes": 61482
+    },
+    {
+      "path": "browser-client/tests/integration/capture-event-timing-source-fixture.mjs",
+      "beforeSHA256": null,
+      "beforeBytes": null,
+      "afterSHA256": "aa86a4afa05410c39a7699a5356889f2652f8446846121c2f203c4a4845484d1",
+      "bytes": 3863
+    },
+    {
+      "path": "browser-client/tests/tablet-capture-event-timing-manifest.test.mjs",
+      "beforeSHA256": null,
+      "beforeBytes": null,
+      "afterSHA256": "5885f0d7f7d5e14f1d7f73862320a15ee7409b5be9f221508dde5dcd7d654545",
+      "bytes": 9037
+    },
+    {
+      "path": "browser-client/tests/fixtures/capture-event-timing-v25-complete-source-manifest.json",
+      "beforeSHA256": null,
+      "beforeBytes": null,
+      "afterSHA256": "e549f49dab6f14f8040b58d77444e60f3252ae44108ac1d6523f3f9fd260332d",
+      "bytes": 224131
+    },
+    {
+      "path": "browser-client/tests/integration/prepare-tablet-capture-acceptance.mjs",
+      "beforeSHA256": "b2f648e24dd86454a7d85a3c576820f869dfe2ffda6902d40a8fb02acdeca806",
+      "beforeBytes": 4597,
+      "afterSHA256": "7530dfeb18151f53c6695d7f34856a4470b41412148531e7393356f06e6b257c",
+      "bytes": 4597
+    }
+  ],
+  "clockSemantics": "New synchronous performance.now observations at existing bounded lifecycle callbacks; not claimed scheduling-equivalent. Pending preparation count does not establish GPU health or cause.",
+  "sourceClosure": {
+    "manifestSHA256": "1f66a0c497dde1e29f4e81f4d0df3b87552093745d64ac12353649d68988ed38",
+    "currentManifestSHA256": "e549f49dab6f14f8040b58d77444e60f3252ae44108ac1d6523f3f9fd260332d",
+    "rows": 220,
+    "inherited": 215,
+    "migrations": 4,
+    "admissions": 5,
+    "wholeHistoryInputs": 6,
+    "wholeHistoryBytes": 268481,
+    "historyImportsInProduction": false,
+    "WorldBackendWorkflowChanged": false
+  },
+  "independentReview": {
+    "tests": 310,
+    "passed": 310,
+    "skipped": 0,
+    "receiptSHA256": "5b66f77b3bcde19bc017e4fc646bbeb0d5dd7a8b976b761eb23eca6509125f5d",
+    "RootFocusedTests": 19,
+    "RootFocusedOverlapWithIndependent": true,
+    "RootLogSHA256": "c54c27c81e1c85beec049357d40b38e160c8a48a25892505b52dc285918cbfad"
+  },
+  "checks": [
+    {
+      "label": "product-unit-suite",
+      "command": [
+        "npm",
+        "test"
+      ],
+      "exitCode": 0,
+      "seconds": 36.914,
+      "logSHA256": "319d4741a114c3a6701f892e8747637002d2f66f8c10c7b516463f2628ab4a3d",
+      "counts": {
+        "tests": 2832,
+        "pass": 2832,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "sourceCoherent": true
+    },
+    {
+      "label": "production-build",
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "exitCode": 0,
+      "seconds": 5.341,
+      "logSHA256": "aee5dd355584101d0b5e10fac69125061436a18f2dd3bacda48d4ab9c40429d2",
+      "counts": {},
+      "sourceCoherent": true
+    },
+    {
+      "label": "embedded-fixture-build",
+      "command": [
+        "node",
+        "node_modules/vite/bin/vite.js",
+        "build",
+        "--config",
+        "vite.embedded.config.mjs",
+        "--configLoader",
+        "native"
+      ],
+      "exitCode": 0,
+      "seconds": 2.5,
+      "logSHA256": "4187ffeddfc03931a4725d26ba7b05076665edd69c9eb9eb84f3b28c14a305d1",
+      "counts": {},
+      "sourceCoherent": true
+    },
+    {
+      "label": "embedded-world-build",
+      "command": [
+        "node",
+        "node_modules/vite/bin/vite.js",
+        "build",
+        "--config",
+        "vite.embedded-world.config.mjs",
+        "--configLoader",
+        "native"
+      ],
+      "exitCode": 0,
+      "seconds": 2.839,
+      "logSHA256": "b516ef0e04f60a194fdb9f6222db5070501a9878ebd1d9af0ea588a9443a25cc",
+      "counts": {},
+      "sourceCoherent": true
+    },
+    {
+      "label": "repository-quick",
+      "command": [
+        "python3",
+        "tests/run-project-tests.py",
+        "--profile",
+        "quick",
+        "--timeout",
+        "240"
+      ],
+      "exitCode": 0,
+      "seconds": 153.88,
+      "logSHA256": "b40fa51c5ecf53e71f98019f2ec9d7d3f53ef2a4510aab885496766f135c2991",
+      "counts": {},
+      "sourceCoherent": true
+    }
+  ],
+  "productionReceiptSHA256": "2fcc6201c5593f040b65305413fd60fb0fc37599d9777b999f44a4cca6f6860a",
+  "distributionFiles": 34,
+  "sameToolchainPriorDistributionEqual": true,
+  "hostedDistributionEqualityInferred": false,
+  "preservedPackagingNegatives": [
+    {
+      "manifestSHA256": "d722e369c9d1da91eefc027bacf5a3d53e7ba559e653d0b09c7f0f0bf18a20bc",
+      "passed": 268,
+      "importFailures": 4
+    },
+    {
+      "passed": 280,
+      "importFailures": 2,
+      "scope": "Second immutable packaging snapshot; complete published-source CPU dependencies added, no shipping bytes or original tests reduced"
+    }
+  ],
+  "preservedPublishedCohort": {
+    "commitSHA": "3329dfc45ec31244fdc15463c3eee1e17e6d869a",
+    "automaticRun": 37171816468,
+    "automaticBrowser": "2813 product and 3 real network pass; original embedded GPU failure retained",
+    "manualRun": 37171981635,
+    "manualBrowser": "2813 product, 3 network and 130 actual Chrome UI pass; original pixels/upload/cancellation pass",
+    "bothNativeCore": "Original movement assertion fails; native target distance4.77e-8, browser target distance1.41421356",
+    "clockObservedNodeIssueToReadMs": 3291,
+    "separateNativeAndNodeClockAlignmentEstablished": false,
+    "gatewayRetainedRows": 146,
+    "gatewayFinalReportedOffsetFromNodeIssueMs": -261,
+    "offlineCollectorCensored": false,
+    "producerProjectorInternalBudgetsEstablished": false,
+    "causeEstablished": false
+  },
+  "preservedPrivateHeadedModeControl": {
+    "publishedSource": "3329dfc45ec31244fdc15463c3eee1e17e6d869a",
+    "singleExplicitANGLEFlag": true,
+    "unsafeSwiftShaderFlag": false,
+    "outerWorkBudgetSeconds": 165,
+    "totalSeconds": 167.384,
+    "result": "failed before inner report; original work budget exceeded",
+    "ownedChromeBirths": 3,
+    "ownedCleanupVerified": true,
+    "sourceCoherent": true,
+    "privateAuthorityRemoved": true,
+    "contextRestorationNotRun": true,
+    "causeEstablished": false,
+    "fixedReceiptSHA256": "d8b768c47a76f591e344d9cf2dc7245e2d29122e06ab23dddb74420ce4237df5"
+  },
+  "liveServicesRestarted": false,
+  "repositoryQuickSuites": 34,
+  "recordedAtUTC": "2026-10-04T03:32:48.153647+00:00",
+  "materialAIAssistance": "OpenAI Codex implementation, source review and validation; evidence is actual checks, not generated claims",
+  "postGateDocumentationOnlyPaths": [
+    "docs/browser-client/GPU_DIAGNOSTICS.md",
+    "docs/browser-client/NATIVE_AVATAR_DIAGNOSTICS.md",
+    "docs/browser-client/PLAN.md",
+    "docs/browser-client/STATUS.md",
+    "docs/browser-client/evidence/gpu-event-timing-source-checks-20261004.json"
+  ],
+  "preservedPreFormattingSourceQualification": {
+    "sourceInventorySHA256": "dbb862f43bcc72df2dea10ae4eb4bb35fb0a656e8948cacf5d70289b4c6bf62f",
+    "sourceFiles": 9828,
+    "installedPaths": [
+      {
+        "path": "browser-client/tests/integration/capture-command-clock-source-fixture.mjs",
+        "beforeSHA256": "e4acbec46a90c258531803dca84a6887ea23a9c524e774b87a36e7d2a92aa11c",
+        "beforeBytes": 4508,
+        "afterSHA256": "323d0790ad6a280f49e94b48bf5012d55ba7c80466aae0379b52bd5668a055ee",
+        "bytes": 4747
+      },
+      {
+        "path": "browser-client/tests/tablet-capture-command-clock-manifest.test.mjs",
+        "beforeSHA256": "539152738af4d02613659d8e689f85eb713605ef035e00b44507b6305344754a",
+        "beforeBytes": 9929,
+        "afterSHA256": "21418051c8e4e32f5f898b4b3ef005f5a1d9212a9d844489c3d58248c522bc12",
+        "bytes": 10415
+      },
+      {
+        "path": "browser-client/tests/fixtures/embedded-world.ts",
+        "beforeSHA256": "038f463149ac20ca9ee73c23219851d843fe953d26d316ca8a5e763e0c9bb591",
+        "beforeBytes": 12441,
+        "afterSHA256": "95d63b3f476c775a762729740b74c96dda52be6845dbe5de4dcefee2ff8818d1",
+        "bytes": 13413
+      },
+      {
+        "path": "browser-client/tests/integration/embedded-world.mjs",
+        "beforeSHA256": "244d7587a90fc436efe740c50e4b0b7f1c65456a8454552bcccc0a9561669305",
+        "beforeBytes": 11221,
+        "afterSHA256": "71a6753cc91f750d3f05114f09c79e65214a63df0e010f0ce23e71a69ee096e1",
+        "bytes": 11859
+      },
+      {
+        "path": "browser-client/tests/embedded-world-event-timing.test.mjs",
+        "beforeSHA256": null,
+        "beforeBytes": null,
+        "afterSHA256": "939c7e1b30123d4dc7e22554922a18cc7877bb3b00c3d83d2826152ca187f06b",
+        "bytes": 8191
+      },
+      {
+        "path": "browser-client/tests/fixtures/capture-v24-event-timing-before.json.gz",
+        "beforeSHA256": null,
+        "beforeBytes": null,
+        "afterSHA256": "05fe06d808b7b67e1ebbfa8520862d1ad6a306391211949ad9a3428d0ee0157f",
+        "bytes": 61482
+      },
+      {
+        "path": "browser-client/tests/integration/capture-event-timing-source-fixture.mjs",
+        "beforeSHA256": null,
+        "beforeBytes": null,
+        "afterSHA256": "3de52d861275404fa3f1e69942b4abde82c5cd1eff745afdacd6eecec76e4bc5",
+        "bytes": 3864
+      },
+      {
+        "path": "browser-client/tests/tablet-capture-event-timing-manifest.test.mjs",
+        "beforeSHA256": null,
+        "beforeBytes": null,
+        "afterSHA256": "5885f0d7f7d5e14f1d7f73862320a15ee7409b5be9f221508dde5dcd7d654545",
+        "bytes": 9037
+      },
+      {
+        "path": "browser-client/tests/fixtures/capture-event-timing-v25-complete-source-manifest.json",
+        "beforeSHA256": null,
+        "beforeBytes": null,
+        "afterSHA256": "2ebb71748c6e55ef043f64701b24d42c6785240dc29a0367ef371f23c105eb7f",
+        "bytes": 224131
+      },
+      {
+        "path": "browser-client/tests/integration/prepare-tablet-capture-acceptance.mjs",
+        "beforeSHA256": "b2f648e24dd86454a7d85a3c576820f869dfe2ffda6902d40a8fb02acdeca806",
+        "beforeBytes": 4597,
+        "afterSHA256": "364dfa028f6d7eb4d13e9e2a5c46576de5b3c68a4b7ee8a566690f3409636e93",
+        "bytes": 4597
+      }
+    ],
+    "checks": [
+      {
+        "label": "product-unit-suite",
+        "command": [
+          "npm",
+          "test"
+        ],
+        "exitCode": 0,
+        "seconds": 42.031,
+        "logSHA256": "aeb7d33f233705fcec75ce565742e0140ca6ce6d6c70608d5ebdeffc05b21c66",
+        "counts": {
+          "tests": 2832,
+          "pass": 2832,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        "sourceCoherent": true
+      },
+      {
+        "label": "production-build",
+        "command": [
+          "npm",
+          "run",
+          "build"
+        ],
+        "exitCode": 0,
+        "seconds": 5.395,
+        "logSHA256": "aee5dd355584101d0b5e10fac69125061436a18f2dd3bacda48d4ab9c40429d2",
+        "counts": {},
+        "sourceCoherent": true
+      },
+      {
+        "label": "embedded-fixture-build",
+        "command": [
+          "node",
+          "node_modules/vite/bin/vite.js",
+          "build",
+          "--config",
+          "vite.embedded.config.mjs",
+          "--configLoader",
+          "native"
+        ],
+        "exitCode": 0,
+        "seconds": 2.51,
+        "logSHA256": "ab22de7bdea93c16194b646cf38063ea0363f5797afba105706cf9157d22b126",
+        "counts": {},
+        "sourceCoherent": true
+      },
+      {
+        "label": "embedded-world-build",
+        "command": [
+          "node",
+          "node_modules/vite/bin/vite.js",
+          "build",
+          "--config",
+          "vite.embedded-world.config.mjs",
+          "--configLoader",
+          "native"
+        ],
+        "exitCode": 0,
+        "seconds": 2.936,
+        "logSHA256": "0ac28ecbe5c68726f7c1b31f2e32b079d807d775ba95a3674469ac7498202762",
+        "counts": {},
+        "sourceCoherent": true
+      },
+      {
+        "label": "repository-quick",
+        "command": [
+          "python3",
+          "tests/run-project-tests.py",
+          "--profile",
+          "quick",
+          "--timeout",
+          "240"
+        ],
+        "exitCode": 0,
+        "seconds": 154.214,
+        "logSHA256": "b1b4b729125c62c764b9f277667a3ab5d9d8dbe290c1f99a93119184caeb6405",
+        "counts": {},
+        "sourceCoherent": true
+      }
+    ],
+    "productionReceiptSHA256": "3f7a71619ebbcafffe2adb869b336b4490b6d0a36abffc22f849064dcc620cf7"
+  },
+  "formattingCorrection": {
+    "preservedFailure": "Staged git diff --check exited2 for one new blank line at EOF; previous unstaged check omitted this new file",
+    "manifestSHA256": "aebabedd336fd8852d501da01302b2ff839c3be69bf51bfd92812bcc5ca35701",
+    "changes": [
+      {
+        "path": "browser-client/tests/integration/capture-event-timing-source-fixture.mjs",
+        "beforeSHA256": "3de52d861275404fa3f1e69942b4abde82c5cd1eff745afdacd6eecec76e4bc5",
+        "afterSHA256": "aa86a4afa05410c39a7699a5356889f2652f8446846121c2f203c4a4845484d1",
+        "beforeBytes": 3864,
+        "afterBytes": 3863
+      },
+      {
+        "path": "browser-client/tests/fixtures/capture-event-timing-v25-complete-source-manifest.json",
+        "beforeSHA256": "2ebb71748c6e55ef043f64701b24d42c6785240dc29a0367ef371f23c105eb7f",
+        "afterSHA256": "e549f49dab6f14f8040b58d77444e60f3252ae44108ac1d6523f3f9fd260332d",
+        "beforeBytes": 224131,
+        "afterBytes": 224131
+      },
+      {
+        "path": "browser-client/tests/integration/prepare-tablet-capture-acceptance.mjs",
+        "beforeSHA256": "364dfa028f6d7eb4d13e9e2a5c46576de5b3c68a4b7ee8a566690f3409636e93",
+        "afterSHA256": "7530dfeb18151f53c6695d7f34856a4470b41412148531e7393356f06e6b257c",
+        "beforeBytes": 4597,
+        "afterBytes": 4597
+      }
+    ],
+    "helperBodyChanged": false,
+    "other219ManifestRowsChanged": false,
+    "productionDigestLiteralOnly": true,
+    "independentTests": 10,
+    "passed": 10,
+    "skipped": 0,
+    "receiptSHA256": "778f38b306cf2f0a7cfadfafcac49f10fc2c767254aec6bc4a960a9f4ecd355a",
+    "fullGatesRepeated": true
+  },
+  "strictPrivateV4ViewerRootReplay": {
+    "tests": 11,
+    "passed": 11,
+    "skipped": 0,
+    "originalTenBodiesExact": true,
+    "genuineCommitTreeBlobTagBoundaries": true,
+    "shippingPathsChanged": false,
+    "runtime": false
+  }
+}

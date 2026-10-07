@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 2,
+  "date": "2026-10-03",
+  "scope": "Actual current V9 Google Chrome hardware microphone admission and PTT attempt; physical input, no synthetic audio",
+  "completed": false,
+  "summarySHA256": "a4c6e515e8e385860b7d8462977932d22f07ddbd627b82daa380df0ce833a872",
+  "originalReportSHA256": "bc922f50906a41a2766926d6009433569cd1d949759d3abe34116a045e879e14",
+  "qualifierManifestSHA256": "bd76c87f80b829f107947b3f877ba82d824cbda64320339a425fe9d5cde48bd4",
+  "productionReceiptSHA256": "20cedb53d46a8b8b123b82bb385b6b380458c08cdaaa98256d506e97f0fc0212",
+  "syntheticMicrophone": false,
+  "physicalCapturePermissionGranted": true,
+  "realCaptureTrackLive": true,
+  "hardwareSourceProvenanceVerified": true,
+  "passedStepNames": [
+    "joined-muted",
+    "genuine-native-desktop-ptt-enabled",
+    "explicit-hardware-microphone-grant"
+  ],
+  "lastPassedStep": "explicit-hardware-microphone-grant",
+  "originalFailureCategory": "acceptance-refused",
+  "hardwareMicrophoneAcceptance": false,
+  "hardwareProcessingProved": false,
+  "humanAudibilityProved": false,
+  "nativeHeldPCMProved": false,
+  "procFinalRecords": 12,
+  "procFinalStates": {
+    "gone": 12
+  },
+  "procMissingRetryTotal": 0,
+  "procFinalRowsAreFinalObservationOnly": true,
+  "realNoFakeStartupAuthority": true,
+  "qualifiedNativeModuleObserved": true,
+  "cleanupPassed": true,
+  "allOwnedChromeAndNativeClosed": true,
+  "privateCookieRetired": true,
+  "cleanupFailureCount": 0,
+  "originalCleanupVerified": true,
+  "originalSourceCoherent": true,
+  "gainClaim": false,
+  "enduranceTestPerformed": false,
+  "limitations": [
+    "Trusted KeyT and matching held/enabled/unmuted/sequence acknowledgement complete. The subsequent three-second native PCM amplitude assertion fails.",
+    "The original failure phase names the last completed step; it does not locate the failed assertion.",
+    "A real live capture track does not establish sufficient delivered audio, hardware DSP or human audibility.",
+    "The earlier unreadable-live process failure remains preserved; its cause is not established by this later run.",
+    "Nonzero low-level native output cannot distinguish quiet or suppressed hardware input from transport loss; input energy was not retained."
+  ],
+  "correctsEarlierProjectionSHA256": "30d9817fd7c76858fa66315f938b67305f17a20d54d54d04727f8b25852ac5f9",
+  "trustedKeyDownAndHeldAcknowledgementPassed": true,
+  "nativeHeldPCMRecorded": true,
+  "nativeHeldPCMAmplitudeGatePassed": false,
+  "exactFailedAssertion": "heard.rms > .001",
+  "failureStageSourceBound": true,
+  "nativePCMAggregates": {
+    "initial-muted": {
+      "bytes": 568864,
+      "frames": 142216,
+      "rms": 1.5232802014165936e-05,
+      "absolutePeak": 3.0517578125e-05,
+      "nonzeroSamples": 70866,
+      "sha256": "6ba1f538a521e0da76db1d6e2ee61a87f13754557288f4ba229fa559117c5eb3"
+    },
+    "real-t-hold": {
+      "bytes": 570468,
+      "frames": 142617,
+      "rms": 2.5895056508614437e-05,
+      "absolutePeak": 0.0001220703125,
+      "nonzeroSamples": 147892,
+      "sha256": "585e1fc34aab7fa8f313695603327799dd762f6da3dbebbe139a6c204da95594"
+    }
+  },
+  "nativePCMFormat": "48000 Hz, stereo signed16 little endian; original three-second FFmpeg capture",
+  "inputEnergyObserved": false,
+  "audioLossCauseEstablished": false
+}

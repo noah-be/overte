@@ -1,0 +1,36 @@
+// Copyright 2026 Overte contributors
+// SPDX-License-Identifier: Apache-2.0
+import test from 'node:test';import assert from 'node:assert/strict';import {readFile,writeFile,mkdtemp,rm,cp,mkdir,unlink,symlink,lstat,realpath} from 'node:fs/promises';import path from 'node:path';import {fileURLToPath} from 'node:url';import {tmpdir} from 'node:os';import {createHash} from 'node:crypto';
+const sha=b=>createHash('sha256').update(b).digest('hex');
+const client=fileURLToPath(new URL('../',import.meta.url)),manifest=fileURLToPath(new URL('./fixtures/layout-v4-gzip-complete-source-manifest.json',import.meta.url));
+const styled=await readFile(new URL('./fixtures/layout-v4-complete-source-manifest.json',import.meta.url)),previous=await readFile(new URL('./fixtures/layout-v3-complete-source-manifest.json',import.meta.url)),old=await readFile(new URL('./fixtures/layout-v2-complete-source-manifest.json',import.meta.url)),original=await readFile(new URL('./fixtures/layout-v2-prepare-capture.mjs.txt',import.meta.url),'utf8'),candidate=await readFile(new URL('./integration/prepare-tablet-capture-acceptance.mjs',import.meta.url),'utf8'),current=await readFile(manifest),v2=JSON.parse(old),v3=JSON.parse(current);
+const a=candidate.indexOf('const manifestBytes=await readFile(proposal);'),z=candidate.indexOf('const directory=await mkdtemp(',a);assert(a>=0&&z>a);
+const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;
+const preflight=new AsyncFunction('assert','readFile','realpath','lstat','path','sha','source','proposal',candidate.slice(a,z)+'return m;');
+async function fixture(fn){const dir=await mkdtemp(path.join(tmpdir(),'capture-layout-guard-'));try{const source=path.join(dir,'browser-client');for(const row of v3.files){if(!row.path.startsWith('browser-client/'))continue;const relative=row.path.slice(15),dest=path.join(source,relative);await mkdir(path.dirname(dest),{recursive:true});await cp(path.join(client,relative),dest);}const p=path.join(dir,'manifest.json');await writeFile(p,current);return await fn(source,p);}finally{await rm(dir,{recursive:true,force:true});}}
+test('new hardcoded complete manifest changes only reviewed literal and recovers entire original preparer',()=>{
+ assert.equal(sha(old),'e6f3ad43d392f15ba6273ef8fdb50b06d623ce307471d6136feafd6bc08577d5');assert.equal(sha(previous),'0a40b3182cd441791f88a049e0ced1681484f7719c75ea0551546ba7e7e97e14');assert.equal(candidate.replace(sha(current),sha(old)),original);assert.equal(candidate.split(sha(current)).length,2);assert.equal(v3.layoutDerivation.widthCorrectionManifestSHA256,'35f2a699657e34dae3fb2f717ecff05e39b9f85b99b2ca66b7cd767f7d0b944c');
+ const first=v3.files.slice(0,25),expected=structuredClone(v2.files);const row=expected.find(v=>v.path==='browser-client/gateway/browser-capture-overrides.mjs');row.afterSHA256='661347b2b9e27f18ce1cebf2f88fa3d853a7646f236818a7f93dc08cede48f52';row.bytes=13015;assert.deepEqual(first,expected);assert.equal(v3.files.length,38);
+ for(const k of ['dependencyPins','packagePins','limits','verification','followupManifestSHA256','historicalManifestSHA256','historicalPatchSHA256'])assert.deepEqual(v3[k],v2[k]);
+});
+test('actual pre-copy guard accepts all exact reviewed client rows and no setup side effects',()=>fixture(async(source,p)=>{const m=await preflight(assert,readFile,realpath,lstat,path,sha,source,p);assert.deepEqual(m,v3);assert.equal(m.files.length,38);}));
+test('original old source and arbitrary valid-shaped manifests are refused before any source read',()=>fixture(async(source,p)=>{
+ for(const bytes of [old,previous,styled,Buffer.from(JSON.stringify({...v3,version:99})),Buffer.from(JSON.stringify({...v3,files:[]}))]){await writeFile(p,bytes);let sourceReads=0;await assert.rejects(preflight(assert,async f=>{if(f!==p)sourceReads++;return readFile(f);},realpath,lstat,path,sha,source,p));assert.equal(sourceReads,0);}
+}));
+test('exact current manifest never allows old-width bytes, other source drift or symlink aliases',()=>fixture(async(source,p)=>{
+ const overrides=path.join(source,'gateway/browser-capture-overrides.mjs'),oldOverride=await readFile(path.join(source,'tests/fixtures/capture-overrides-before-switch-width.mjs.txt')),saved=await readFile(overrides);const oldStyle=await readFile(path.join(source,'tests/fixtures/capture-style-v3-overrides.mjs.txt'));await writeFile(overrides,oldStyle);await assert.rejects(preflight(assert,readFile,realpath,lstat,path,sha,source,p),/Exact reviewed capture composition required/);await writeFile(overrides,oldOverride);await assert.rejects(preflight(assert,readFile,realpath,lstat,path,sha,source,p),/Exact reviewed capture composition required/);await writeFile(overrides,saved);
+ const helper=path.join(source,'gateway/native-browser-capture.js'),bytes=await readFile(helper);await writeFile(helper,Buffer.concat([bytes,Buffer.from('\n')]));await assert.rejects(preflight(assert,readFile,realpath,lstat,path,sha,source,p),/Exact reviewed capture composition required/);await unlink(helper);const alias=path.join(source,'native-helper-copy.js');await writeFile(alias,bytes);await symlink(alias,helper);await assert.rejects(preflight(assert,readFile,realpath,lstat,path,sha,source,p));
+}));
+
+test('style-v4 preserves every historical row and gate except reviewed style source and its exact recovery test',()=>{
+ const prior=JSON.parse(previous),expected=structuredClone(prior);expected.version=4;expected.scope=v3.scope;
+ for(const name of ['browser-client/gateway/browser-capture-overrides.mjs','browser-client/tests/tablet-capture-switch-width.test.mjs']){const row=expected.files.find(v=>v.path===name),next=v3.files.find(v=>v.path===name);row.afterSHA256=next.afterSHA256;row.bytes=next.bytes;}
+ expected.files.push(...v3.files.slice(prior.files.length));expected.styleDerivation=v3.styleDerivation;expected.gzipGoldDerivation=v3.gzipGoldDerivation;assert.deepEqual(expected,v3);assert.equal(prior.files.length,29);assert.equal(v3.files.length,38);
+ assert.equal(v3.styleDerivation.completeLayoutV3ManifestSHA256,sha(previous));assert.equal(v3.styleDerivation.declaration,'HifiConstants { id: hifi; }');assert.equal(v3.styleDerivation.actualStyledQtQualified,false);
+});
+
+test('compressed-gold derivative retains every original signed package gate and preserves historical raw-source pin',()=>{
+ const prior=JSON.parse(styled),expected=structuredClone(prior);expected.gzipGoldDerivation=v3.gzipGoldDerivation;
+ for(const row of expected.files){const next=v3.files.find(v=>v.path===row.path||row.path==='browser-client/tests/fixtures/native-audio-f91d15a.qml.txt'&&v.path==='browser-client/tests/fixtures/native-audio-f91d15a.qml.gz');assert(next);if(row.path==='browser-client/tests/fixtures/native-audio-f91d15a.qml.txt'||row.path==='browser-client/tests/tablet-capture-style.test.mjs'||row.path==='browser-client/tests/tablet-capture-layout-manifest.test.mjs')Object.assign(row,next);}
+ expected.files.push(v3.files.at(-1));assert.deepEqual(expected,v3);assert.equal(prior.files.length,37);assert.equal(v3.files.length,38);assert.equal(v3.gzipGoldDerivation.originalRawSHA256,'4208e7f17c85d1c1bd57e515eb191fa6afb1ffb517b5506d58844922e8f99379');assert.equal(v3.gzipGoldDerivation.previousCompleteManifestSHA256,sha(styled));
+});

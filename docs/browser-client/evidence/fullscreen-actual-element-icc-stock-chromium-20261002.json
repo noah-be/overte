@@ -1,0 +1,171 @@
+{
+  "version": 1,
+  "scope": "Two actual stock Chromium cross-origin embedding cases with exact actual-element-ICC-bound screenshot encoding; no native Tablet qualification",
+  "startedAt": "2026-10-02T15:48:48.887Z",
+  "finishedAt": "2026-10-02T15:48:52.106Z",
+  "stockVersion": "Chromium 154.0.8037.57",
+  "stockExecutableSHA256": "513aa7ba1c0add78f3df3f9b852f9cf197fe093682eef4337efad581bca4846b",
+  "seconds": 3.589,
+  "completed": true,
+  "rawReportSHA256": "5ee8eac2fa97456d72756cf0dd4f4909a85cbffe4ca455951ef171a661729211",
+  "sourcePins": {
+    "src/tablet.ts": "d0624d76d2bffa2f60dfeaaefd0e53e6f5a5798f635183ba04c75a983e32e7a6",
+    "src/fullscreen.ts": "c6cc3b470ff6c6f5763a56227c1ec19693507e5abdbb2580c9407ab00ce16720",
+    "tests/tablet-fullscreen.browser.spec.ts": "53ae639c6ec16a6f57aba3ee60bf997e87589a20ec6ce50735fd3bccfb393c37",
+    "tests/integration/system-firefox.mjs": "375416100da67828ba3b91962fff5e8d72d41b64144562eb0e234a48eea639c5",
+    "tests/integration/replacement-material-clones-diagnostics.mjs": "6c45bfc48160758f35b312023c9819266de57be00be05f641a72f5923c2010c9"
+  },
+  "reviewedPackets": {
+    "baseManifestSHA256": "a42f3fce6c75931776eccb2e39fc347654496f958db2207da7d23805fd7ca9d5",
+    "ICCFollowupManifestSHA256": "5236883b2f303995032658c44f8a5799295463381becd6bc4ca545762f1dcf09",
+    "driverSHA256": "a55ed7e614716358e31c8f2ce94b3ec1855c80535fef3fc6b45966d867d000a7"
+  },
+  "cases": [
+    {
+      "kind": "actual-cross-origin-no-delegation-denial",
+      "passed": true,
+      "permissionEnabled": false,
+      "buttonDisabled": true,
+      "warningVisible": true,
+      "trustedPhysicalCanvasPressReleaseAndActualProductionWire": true,
+      "composed": {
+        "width": 800,
+        "height": 1177,
+        "bytes": 6365,
+        "sha256": "c662fd26a6863a594bf33b85ee3f6568332fb9014c3576546dbfb4b3e62b62df",
+        "center": [
+          44,
+          81,
+          100,
+          255
+        ],
+        "authoredCenter": [
+          40,
+          80,
+          100,
+          255
+        ],
+        "expectedEncodedCenter": [
+          44,
+          81,
+          100,
+          255
+        ],
+        "colorEncoding": {
+          "kind": "reviewed-srgb-primaries-gamma22-icc",
+          "profileSHA256": "883a0b8b9fd4ed2381bf911b9ec7f5e59e93ae01440c34e9447aca0557a0b6e1",
+          "profileBytes": 480,
+          "matrixFixed16": [
+            [
+              28578,
+              14581,
+              912
+            ],
+            [
+              25241,
+              46981,
+              6362
+            ],
+            [
+              9376,
+              3972,
+              46799
+            ]
+          ],
+          "gammaFixed16": 144179
+        }
+      },
+      "privateElementPNGMode": "0600",
+      "actualTrustedSingleAPIDenial": {
+        "trusted": true,
+        "calls": 1,
+        "visible": true,
+        "connected": true,
+        "enabled": false,
+        "rejected": true,
+        "name": "TypeError",
+        "none": true
+      }
+    },
+    {
+      "kind": "actual-explicit-fullscreen-delegation-positive",
+      "passed": true,
+      "permissionEnabled": true,
+      "buttonDisabled": false,
+      "warningVisible": false,
+      "trustedPhysicalCanvasPressReleaseAndActualProductionWire": true,
+      "composed": {
+        "width": 800,
+        "height": 1177,
+        "bytes": 5554,
+        "sha256": "72f31a7325beabe8c183990505212c7c0de076a954915467c5193ac4bd5bc8a7",
+        "center": [
+          44,
+          81,
+          100,
+          255
+        ],
+        "authoredCenter": [
+          40,
+          80,
+          100,
+          255
+        ],
+        "expectedEncodedCenter": [
+          44,
+          81,
+          100,
+          255
+        ],
+        "colorEncoding": {
+          "kind": "reviewed-srgb-primaries-gamma22-icc",
+          "profileSHA256": "883a0b8b9fd4ed2381bf911b9ec7f5e59e93ae01440c34e9447aca0557a0b6e1",
+          "profileBytes": 480,
+          "matrixFixed16": [
+            [
+              28578,
+              14581,
+              912
+            ],
+            [
+              25241,
+              46981,
+              6362
+            ],
+            [
+              9376,
+              3972,
+              46799
+            ]
+          ],
+          "gammaFixed16": 144179
+        }
+      },
+      "privateElementPNGMode": "0600",
+      "actualDelegatedEnterExit": true
+    }
+  ],
+  "cleanup": {
+    "driverCleanupVerified": true,
+    "ownedSourceServerClosed": true,
+    "ownedDriverClosed": true,
+    "observedOwnedStockExecutable": true,
+    "observedOwnedStockProcessesClosed": true,
+    "managedServicesUnchanged": true,
+    "rootSourcesUnchanged": true,
+    "candidateUnchanged": true
+  },
+  "unchangedRootSourceFiles": 305,
+  "unchangedManagedServices": 9,
+  "limits": {
+    "originalFourBodiesExecuted": false,
+    "headerNegativeRequalified": false,
+    "nativeTabletQualified": false,
+    "composedPixelsProveHitTestReadiness": false,
+    "priorFailureRetained": true,
+    "noPixelTolerance": true,
+    "noColorProfileForcing": true,
+    "noQualityOrDPRChanges": true,
+    "rawScreenshotsPrivateOnly": true
+  }
+}

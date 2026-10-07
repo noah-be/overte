@@ -1,0 +1,264 @@
+{
+  "schemaVersion": 1,
+  "scope": "Retained exact V27 hosted positive and negative evidence; new V28 source measurements not yet hosted",
+  "repository": "noah-be/overte",
+  "featureCommit": "1f7950b2cd127a664fcb6d940961285ae1690a11",
+  "automatic": {
+    "run": 37185774127,
+    "browserJob": 111387240101,
+    "nativeJob": 111387240241,
+    "product": {
+      "tests": 2930,
+      "pass": 2930,
+      "fail": 0,
+      "skip": 0
+    },
+    "realNetwork": {
+      "pass": 3,
+      "fail": 0
+    },
+    "ChromeUI": {
+      "pass": 130,
+      "fail": 0,
+      "skip": 0
+    },
+    "embeddedSafeProofSHA256": "f1c1087fd9be0c6c9f4b1795dc7d9becaecfd3bb47ab2cd93e6566f1ce5465f9",
+    "Core": {
+      "completed": false,
+      "checkpoints": 4,
+      "required": 18,
+      "nextMissing": "native-movement-synchronized",
+      "nativeTargetDistanceMeters": 4.768371586472142e-08,
+      "browserTargetDistanceMeters": 1.4142135623730958,
+      "browserSnapshotAgeMs": 4
+    },
+    "ownedStop": "passed",
+    "testedVirtualMerge": "c534e5309dbfa2c0898273e7dac6e072449af862",
+    "virtualMergeParentsVerified": true,
+    "runtimeSourceIdentities": 15,
+    "GitOnlyMeaningDependencies": 2
+  },
+  "singleManual": {
+    "run": 37186294900,
+    "dispatchCount": 1,
+    "testedCommit": "1f7950b2cd127a664fcb6d940961285ae1690a11",
+    "Core": {
+      "browserSnapshotAgeMs": 6,
+      "browserTargetDistanceMeters": 1.4142135623730958,
+      "checkpoints": [
+        "actual-domain-joined",
+        "native-sees-browser",
+        "movement-measured",
+        "browser-movement-synchronized"
+      ],
+      "completed": false,
+      "nativeObservationAgeMs": 78,
+      "nativeObservationTargetDistanceMeters": 4.768371586472142e-08,
+      "nextMissingCheckpoint": "native-movement-synchronized",
+      "observedCount": 4,
+      "requiredCount": 18,
+      "socketSelection": {
+        "latestCreatedSocketOrdinal": 1,
+        "latestReadyState": "open",
+        "ordinalCensored": false,
+        "selectedIsLatest": true,
+        "selectedReadyState": "open",
+        "selectedSocketOrdinal": 1
+      }
+    },
+    "gatewayWitness": {
+      "allObservedBufferedBytesZero": true,
+      "allObservedSocketOpen": true,
+      "allObservedWriteInvokedTrue": true,
+      "attachedRows": 79,
+      "distinctRetainedObservationSequences": 17,
+      "earlierObservationSequenceUnretainedIsNotMissingEnvelopeProof": true,
+      "lastObservationSequence": 18,
+      "lastObservedSendTargetDistanceMeters": 1.4142135623730958,
+      "nullRows": 1,
+      "sameOldWitnessOnEveryCapturedTargetSample": true,
+      "targetBearingObservedSendWitnesses": 0
+    },
+    "nativeBranchCounters": {
+      "queued": {
+        "lastRecordValue": 797,
+        "maximum": 797,
+        "minimum": 1,
+        "observed": 80
+      },
+      "refused": {
+        "lastRecordValue": 0,
+        "maximum": 0,
+        "minimum": 0,
+        "observed": 80
+      },
+      "writeInvoked": {
+        "lastRecordValue": 797,
+        "maximum": 797,
+        "minimum": 1,
+        "observed": 80
+      }
+    },
+    "capturedTargetRows": 5,
+    "retainedSampleCoverage": [
+      {
+        "bytesRead": 160756,
+        "incompleteSuffixDiscarded": false,
+        "markerLines": 42,
+        "prefixDiscarded": false,
+        "rejectedMarkerLines": 0,
+        "retainedRows": 42,
+        "rowBudgetReached": false,
+        "source": "native",
+        "status": "read",
+        "tailTruncated": false,
+        "unprocessedCompleteLines": 0
+      },
+      {
+        "bytesRead": 146230,
+        "incompleteSuffixDiscarded": false,
+        "markerLines": 159,
+        "prefixDiscarded": false,
+        "rejectedMarkerLines": 0,
+        "retainedRows": 159,
+        "rowBudgetReached": false,
+        "source": "gateway",
+        "status": "read",
+        "tailTruncated": false,
+        "unprocessedCompleteLines": 0
+      }
+    ],
+    "reportedOffsetsOnly": {
+      "NodeIssuedToReadMs": 4213,
+      "browserAssertionCaptureEpochRecorded": false,
+      "clockAlignmentEstablished": false,
+      "firstCapturedTargetRelativeToAppliedMs": 1528,
+      "firstCapturedTargetRelativeToIssuedMs": 1682,
+      "firstCapturedTargetRelativeToReadMs": -2531,
+      "lastObservedSendCaptureRelativeToAppliedMs": -1486,
+      "lastObservedSendCaptureRelativeToIssuedMs": -1332,
+      "withinOriginalAcceptanceWindowEstablished": false
+    },
+    "originalWaitMs": 2800,
+    "ownedStop": "passed",
+    "product": {
+      "tests": 2930,
+      "pass": 2930,
+      "fail": 0,
+      "skip": 0
+    },
+    "ChromeUI": {
+      "tests": 130,
+      "pass": 129,
+      "fail": 1,
+      "skip": 0
+    },
+    "UIFailure": {
+      "source": "browser-client/tests/render-dispatch-attribution.browser.spec.ts",
+      "sourceSHA256": "67d79e424c40131e85f3033151570e5861c45a085b1de1d512dc1a5ff39a016b",
+      "testTitle": "actual World dispatch attribution preserves exact rendered pixels and program-call boundaries",
+      "testRegistrationLine": 4,
+      "assertionLine": 34,
+      "assertionColumn": 243,
+      "fixedCategory": "dispatch-attribution-censored-samples-nonzero",
+      "actualPredicate": "expect(population.censoredSamples).toBe(0)",
+      "population": "modelJobsIdle",
+      "expected": 0,
+      "received": 1,
+      "causeEstablished": false,
+      "perFrameCensorReasonAvailable": false,
+      "earlierAssertionsReachedAndPassed": [
+        "pageErrorsAndWarningsEmpty",
+        "pixelHashEquality",
+        "centerRGBAEquality",
+        "redBlueCenterDominance",
+        "matrixEquality",
+        "methodIdentity",
+        "matrixAutoUpdatePolicy",
+        "drawCallEquality",
+        "useProgramIdentity",
+        "attributionEnabled",
+        "completeSamplesPositive"
+      ]
+    },
+    "embedded": {
+      "completed": true,
+      "all13RuntimeSourceHashesMatched": true,
+      "browserVersion": "154.0.8037.97",
+      "requestedAngleMode": "swiftshader-requested",
+      "reportedBackendClass": "ANGLE/SwiftShader",
+      "cpuRGBA": [
+        255,
+        0,
+        0,
+        255
+      ],
+      "gpuRGBA": [
+        255,
+        0,
+        0,
+        255
+      ],
+      "frames": 20,
+      "textureUploads": 1,
+      "upstreamRequests": 1,
+      "independentSamplers": true,
+      "actualModelCancellation": true
+    },
+    "pruning": "passed",
+    "sourceAuthentication": {
+      "GitOnlyMeaningDependencies": 2,
+      "GitOnlyRuntimeAuthenticated": false,
+      "runtimeArtifactKeys": 15,
+      "viewerExitCode": 0,
+      "viewerManifestSHA256": "736ffdf03389c8233d6a892302415c4963993f13a5bff52541468078a83ec36e"
+    }
+  },
+  "atomic": {
+    "run": 37185771015,
+    "job": 111387231250,
+    "conclusion": "success",
+    "committedExactSevenSourcesVerified": true,
+    "guestReadbackPassed": true,
+    "nativeConfinement": {
+      "userIsolated": true,
+      "ipcIsolated": true,
+      "zeroCapabilities": true,
+      "identityStable": true,
+      "noNewPrivileges": true,
+      "allThreadsConfined": true,
+      "seccompFiltered": true,
+      "profile": "signed-bwrap-child-enforce"
+    },
+    "targetRenameSuccess": 1,
+    "targetRenameFailure": 0,
+    "ownedFdatasyncSuccess": 1,
+    "syncDescriptorUnattributed": 1,
+    "fullNativeDescendantRetirementProved": false
+  },
+  "currentRequiredRepository": {
+    "run": 37185847825,
+    "conclusion": "success"
+  },
+  "CodeQL": {
+    "run": 37185773984,
+    "conclusion": "success"
+  },
+  "fixedInputSHA256": {
+    "manualAvatarFixed": "35463da4d73b9a92d4b1ba1e950aa29333a248d1ebd6d01e1dcadefe2529e8e5",
+    "manualUIFixed": "79c20f78e056bec0f555ac541ab065fbf06752171bfea1fc7056f6c7cf92a04a",
+    "independentAtomicReceipt": "6cfb98f8f63ef62613a48508d8a5eb3f893a5db2b0226c4b61698b95dde37674"
+  },
+  "limits": [
+    "Passing automatic Chrome does not erase same-head manual UI failure.",
+    "Native sampled target is not a received envelope; old gateway witness can be attached asynchronously.",
+    "Physical flight, pending and callback states are not measured in these V27 artifacts.",
+    "Native queue and write counters are invocation witnesses only; the native WebSocket bufferedAmount getter is a constant-zero stub.",
+    "No producer clock alignment, original deadline acceptance, remote receipt or movement cause is established.",
+    "No raw log, credential, path, UUID or avatar coordinates are included.",
+    "Sync descriptor remains unattributed; observer stop is not full native retirement.",
+    "New V28 source/CPU checks do not change this failed hosted Core outcome.",
+    "Full Tablet, Hub fluidness, physical microphone and complete native parity remain open.",
+    "The user cancelled the 30-minute endurance requirement."
+  ]
+}

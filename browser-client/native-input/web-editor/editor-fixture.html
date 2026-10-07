@@ -1,0 +1,26 @@
+<!doctype html>
+<!-- Copyright 2026 Overte contributors; SPDX-License-Identifier: Apache-2.0 -->
+<meta charset="utf-8">
+<style>body{margin:10px;background:#ddd}input,textarea,[contenteditable]{display:block;box-sizing:border-box;width:360px;height:42px;margin:10px;padding:6px;font:16px sans-serif}</style>
+<input id="plain" value="abc">
+<input id="number" type="number" value="0.2">
+<textarea id="area">abc</textarea>
+<div id="rich" contenteditable="true">abc</div>
+<input id="password" type="password" maxlength="8" value="abc" autocomplete="off">
+<input id="readonly" readonly value="unchanged">
+<input id="disabled" disabled value="unchanged">
+
+<script>
+// Authored fixture only: acknowledge the original trusted native Ctrl/Meta+A
+// keyup without editing, forcing focus or synthesizing any DOM event.
+(function(){
+ const counts=new WeakMap();
+ const allowed=new Set(['plain','number','area','rich','password','readonly','disabled']);
+ Object.defineProperty(window,'fixtureSelectionAck',{value:function(element){return counts.get(element)||0;}});
+ document.addEventListener('keyup',function(event){
+  if(!event.isTrusted||!(event.ctrlKey||event.metaKey)||event.key.toLowerCase()!=='a')return;
+  const element=document.activeElement;
+  if(element&&allowed.has(element.id))counts.set(element,Math.min(65535,(counts.get(element)||0)+1));
+ },true);
+})();
+</script>

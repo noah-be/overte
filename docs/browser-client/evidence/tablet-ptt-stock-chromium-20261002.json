@@ -1,0 +1,279 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-02",
+  "scope": "Actual stock Chromium PTT copied-production candidate in the isolated seven-entity native domain; complete original short journey. Firefox and production integration remain pending.",
+  "engine": "system-chromium",
+  "browserVersion": "154.0.8037.57",
+  "durationSeconds": 98.63,
+  "rawReportSHA256": "51bec85e36c276f7da9e5f0a168365b826ed35b7274d92f4ecdade335f6ec561",
+  "completed": true,
+  "syntheticMicrophone": true,
+  "hardwareMicrophone": false,
+  "voiceInput": "Authored 440Hz browser and997Hz native synthetic input, separate owned audio servers; no physical audibility claim",
+  "steps": [
+    {
+      "name": "joined-muted",
+      "entityCount": 7
+    },
+    {
+      "name": "genuine-native-desktop-ptt-enabled"
+    },
+    {
+      "name": "explicit-synthetic-microphone-grant",
+      "getUserMediaCalls": 1
+    },
+    {
+      "name": "real-T-hold-browser-to-native",
+      "nativeOutput": {
+        "rms": 0.009698340573267916,
+        "frames": 143011,
+        "bytes": 572044,
+        "tone440Amplitude": 0.01114203077410538,
+        "tone997Amplitude": 6.29690180383913e-06
+      }
+    },
+    {
+      "name": "real-T-release",
+      "nativeOutput": {
+        "rms": 1.526813928629123e-05,
+        "frames": 142749,
+        "bytes": 570996,
+        "tone440Amplitude": 2.279858387541294e-07,
+        "tone997Amplitude": 1.223036129119306e-07
+      }
+    },
+    {
+      "name": "native-to-browser-audio",
+      "browserOutput": {
+        "rms": 0.015830584676387677,
+        "frames": 239711,
+        "bytes": 958844,
+        "tone440Amplitude": 2.7180539239514824e-07,
+        "tone997Amplitude": 0.015621143032527134
+      }
+    },
+    {
+      "name": "actual-window-blur-and-document-hidden-release",
+      "actualBothEvents": true
+    },
+    {
+      "name": "genuine-Tablet-open-releases-hold"
+    },
+    {
+      "name": "ordinary-mute-preserves-native-PTT-mode"
+    },
+    {
+      "name": "genuine-native-mode-off-preserves-ordinary-audio",
+      "nativeOutput": {
+        "rms": 0.009683228972463613,
+        "frames": 142980,
+        "bytes": 571920,
+        "tone440Amplitude": 0.009470198697226664,
+        "tone997Amplitude": 2.0980692810065538e-05
+      }
+    },
+    {
+      "name": "leave-releases-held-microphone"
+    },
+    {
+      "name": "fresh-session-authority-requires-new-explicit-grant"
+    }
+  ],
+  "nativeAuthor": {
+    "sourceSHA256": "6f9460727f45e954ba576a642e9711b5fa734fa634b724c14cad7da6dbb38af8",
+    "servedSourceSHA256": "6edf4ce0147b9ad0118b8118fb56fef70b7064bb03b453225bed84b8baa752e1",
+    "diagnosticsSHA256": "5fa16f3effc4036817351ed20a2fc87d793ebf9fab139b1dfdf57ef639ad0f99",
+    "registration": "historical-full-no-mode",
+    "currentSourceSHA256": "c0648ce3fb6f4924cee122445ef6132e0770d15568b36bcc71aefe8204e0f17f",
+    "currentDiagnosticsSHA256": "ac3bb49a0ab81913044e1c3c1cde78280098a6b0ff0c59d07f72ede7faba0ca8",
+    "unmutedVerified": true,
+    "mutedRestored": true,
+    "guardClosed": true
+  },
+  "actualVisibility": {
+    "version": 1,
+    "scope": "Authored document visibility/focus only; browser window topology not established",
+    "records": [
+      {
+        "phase": "before-second-tab",
+        "snapshot": {
+          "version": 1,
+          "document": {
+            "hidden": false,
+            "visibilityState": "visible",
+            "hasFocus": true
+          },
+          "events": {
+            "keyDown": 1,
+            "keyUp": 1,
+            "focus": 1,
+            "blur": 0,
+            "hidden": 0,
+            "trustedFocus": 1,
+            "trustedBlur": 0,
+            "trustedHidden": 0
+          },
+          "state": {
+            "enabled": true,
+            "held": false,
+            "muted": true
+          },
+          "command": {
+            "held": false,
+            "sequence": 2
+          }
+        }
+      },
+      {
+        "phase": "before-other-front",
+        "snapshot": {
+          "version": 1,
+          "document": {
+            "hidden": false,
+            "visibilityState": "visible",
+            "hasFocus": true
+          },
+          "events": {
+            "keyDown": 2,
+            "keyUp": 1,
+            "focus": 2,
+            "blur": 1,
+            "hidden": 1,
+            "trustedFocus": 2,
+            "trustedBlur": 1,
+            "trustedHidden": 1
+          },
+          "state": {
+            "enabled": true,
+            "held": true,
+            "muted": false
+          },
+          "command": {
+            "held": true,
+            "sequence": 3
+          }
+        }
+      },
+      {
+        "phase": "after-other-front",
+        "snapshot": {
+          "version": 1,
+          "document": {
+            "hidden": true,
+            "visibilityState": "hidden",
+            "hasFocus": false
+          },
+          "events": {
+            "keyDown": 2,
+            "keyUp": 1,
+            "focus": 2,
+            "blur": 2,
+            "hidden": 2,
+            "trustedFocus": 2,
+            "trustedBlur": 2,
+            "trustedHidden": 2
+          },
+          "state": {
+            "enabled": true,
+            "held": true,
+            "muted": false
+          },
+          "command": {
+            "held": false,
+            "sequence": 4
+          }
+        }
+      }
+    ],
+    "readRefused": 0,
+    "persistRefused": 0
+  },
+  "browserFocusCleanup": {
+    "defaultContextOnly": true,
+    "focusOverridesSkipped": true,
+    "ownedLeaderClosed": true
+  },
+  "cleanupVerified": true,
+  "browserClosed": true,
+  "ownedCopiedGatewayStopped": true,
+  "sourceCoherent": true,
+  "startSourceSHA256": {
+    "gateway/server.mjs": "995d8c8c8e1bacee0a4afce2d23bd42b5421f66601b85bf2dd9c863c90463063",
+    "gateway/native-bridge.js": "5faabe08b1cd12f6e89a2f96f464a859a15a92a57fa225459bf82c616649c068",
+    "gateway/native-push-to-talk.js": "9cc0c88a015e8a56b038c4a31c33a5190993fe47d2d439d99e0e159fa6088321",
+    "gateway/native-tablet.js": "6e8bbe38b2654aace6a4e999b6e1315582981e83245f8266c2b272bd8fc4ee6a",
+    "gateway/push-to-talk.mjs": "b9cc4c5715ad8ed459bf5b63351484bbb6e0e949e077bd0142523f73fa49f457",
+    "gateway/tablet-capture.qml": "0b165cae29a6247eddf30f4d9bdbea0e09e9ace1e1e7711cc887f01de6d913b9",
+    "shared/push-to-talk.mjs": "2b425bc8b21f2c992f48a9b6f3363ba71ba16de134a084e2d8a1124a2556a376",
+    "src/main.ts": "da00689620b6ea5ba83fe2067ab5fffe3d38a36ceee22dc084446d93d8069b43",
+    "src/audio.ts": "1f8b23394abbbf3ce6a9346187e40453642d3792fefe7b1166b05228d45f51ef",
+    "src/push-to-talk.ts": "61e2d6a750abf377a16a4451dfa76907d093d210f3efd4980cf3476ffcf25cab",
+    "src/session.ts": "79d78c5c170917c79c5d740456a419a5656528ea7a961ab1ef2b3dc92e2779c1",
+    "tests/integration/tablet-push-to-talk.mjs": "9a09634e66f6680f8b5059e578eda9b35b85fbfaca740f476b6e20732b71b72f",
+    "tests/integration/tablet-ptt-audit.mjs": "efffe7839589952f6716ea518353fa1500b3d3eb687c1b9d5726f5bef61a5aa8",
+    "tests/integration/tablet-ptt-frame-sample.mjs": "72fc83c2b231b08e97a51ef5055aedec2361921e1c41401c1708bcf6dfd1044f",
+    "tests/integration/tablet-ptt-proof-queue.mjs": "ad8320328e778cf61d1bf86a920abba7f47e7f6d7323d43752718d253aa48a2d",
+    "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+    "tests/integration/owned-audio-process.mjs": "0f4ed9d41c59e5af93a7bc5451ab09d10c15ce05dbd440f5551b3d79974867a8",
+    "tests/integration/tablet-ptt-native-peer.mjs": "0612ba9af9f17ede4eb657a0fdfeb3921738d9b17d8b1cd2dcdb1e78fa2da5f7",
+    "tests/integration/tablet-ptt-visibility.mjs": "4c7e4500fb7389ab76f6470467e6e8d8ad278ca5d5aa7f98aa20fe4c51075256",
+    "tests/integration/tablet-ptt-real-focus.mjs": "2a6af346e37bf712a9e34c8de712c8c5008de67f82bbf95f94cb086afa80d5fe",
+    "dist/index.html": "07ea2152d2263a303e07500341690161a435f0bd4b81a8a805834a576d42c229",
+    "dist/assets/FBXLoader-hg-r6YHf.js": "bd8041ca79317b7bdff5fca701e2f47e1a9d8f6546325ef80d8c7bcd6cb748d4",
+    "dist/assets/GLTFLoader-CrIIP9Jq.js": "c240a2605ad741c0f66796f702c813d677e57cb96b73065691080072a74b5325",
+    "dist/assets/OBJLoader-Bp1XaY-O.js": "0c9af932aba062da4636f85a25b055ba93399e67c85f7556faea390fc97a6322",
+    "dist/assets/baked-draco-CTQGIgxv.js": "c5f667faeb4a88fb9b1ee2b0919afdff21aa56bf1df5cadfe12fe392ed57ebfd",
+    "dist/assets/baked-draco-legacy-CMhlgON6.js": "eb84ebc5eff49c7b0593382b07b23010897080f46b779ececdd515efcfb482d4",
+    "dist/assets/draco_decoder-fzg4nYZr.js": "30e4d486fa020737af10e3c56197693e5b904bdc05b8bfa5d7b06751dec6da04",
+    "dist/assets/draco_wasm_wrapper-DxJM36Ib.js": "e8049906ef3f8f75d3456c22a3f31bfdfe5b5b5bd09ccdec613b9e9a49d554d8",
+    "dist/assets/draco_wasm_wrapper-fZCQGLGb.js": "8bb2952d2ba7d67e1414f8df819410cb0434a666be53f671fff75f68843d76f6",
+    "dist/assets/index-B2mAMfm4.css": "cbf321b921d05ff91c3020a6ccffc91385eeebf223ea6ec0577c6354df12a521",
+    "dist/assets/index-XulHimJR.js": "1700391c0941520a515e242df3f12b48268374eaf73cf4d4c6d98b60e8aef2e0",
+    "dist/assets/model-fbx-worker-BovrE8QR.js": "ceb605678670c961bcfd13de192d2b9339363e242d526353e07bd8daf476fea9",
+    "dist/assets/tablet-gif.worker-DACjp6Cn.js": "78ebb1c3db4d062dd4119c2cd86d201b7df2757fedf22a8993dd460fbb1057c8",
+    "dist/assets/texture-alpha-worker-CBG2kYQR.js": "f04f415ff39370ae4ab0268903ffaf6c86b9a7addeb0aed95d4a7948ee803485"
+  },
+  "endSourceSHA256": {
+    "gateway/server.mjs": "995d8c8c8e1bacee0a4afce2d23bd42b5421f66601b85bf2dd9c863c90463063",
+    "gateway/native-bridge.js": "5faabe08b1cd12f6e89a2f96f464a859a15a92a57fa225459bf82c616649c068",
+    "gateway/native-push-to-talk.js": "9cc0c88a015e8a56b038c4a31c33a5190993fe47d2d439d99e0e159fa6088321",
+    "gateway/native-tablet.js": "6e8bbe38b2654aace6a4e999b6e1315582981e83245f8266c2b272bd8fc4ee6a",
+    "gateway/push-to-talk.mjs": "b9cc4c5715ad8ed459bf5b63351484bbb6e0e949e077bd0142523f73fa49f457",
+    "gateway/tablet-capture.qml": "0b165cae29a6247eddf30f4d9bdbea0e09e9ace1e1e7711cc887f01de6d913b9",
+    "shared/push-to-talk.mjs": "2b425bc8b21f2c992f48a9b6f3363ba71ba16de134a084e2d8a1124a2556a376",
+    "src/main.ts": "da00689620b6ea5ba83fe2067ab5fffe3d38a36ceee22dc084446d93d8069b43",
+    "src/audio.ts": "1f8b23394abbbf3ce6a9346187e40453642d3792fefe7b1166b05228d45f51ef",
+    "src/push-to-talk.ts": "61e2d6a750abf377a16a4451dfa76907d093d210f3efd4980cf3476ffcf25cab",
+    "src/session.ts": "79d78c5c170917c79c5d740456a419a5656528ea7a961ab1ef2b3dc92e2779c1",
+    "tests/integration/tablet-push-to-talk.mjs": "9a09634e66f6680f8b5059e578eda9b35b85fbfaca740f476b6e20732b71b72f",
+    "tests/integration/tablet-ptt-audit.mjs": "efffe7839589952f6716ea518353fa1500b3d3eb687c1b9d5726f5bef61a5aa8",
+    "tests/integration/tablet-ptt-frame-sample.mjs": "72fc83c2b231b08e97a51ef5055aedec2361921e1c41401c1708bcf6dfd1044f",
+    "tests/integration/tablet-ptt-proof-queue.mjs": "ad8320328e778cf61d1bf86a920abba7f47e7f6d7323d43752718d253aa48a2d",
+    "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+    "tests/integration/owned-audio-process.mjs": "0f4ed9d41c59e5af93a7bc5451ab09d10c15ce05dbd440f5551b3d79974867a8",
+    "tests/integration/tablet-ptt-native-peer.mjs": "0612ba9af9f17ede4eb657a0fdfeb3921738d9b17d8b1cd2dcdb1e78fa2da5f7",
+    "tests/integration/tablet-ptt-visibility.mjs": "4c7e4500fb7389ab76f6470467e6e8d8ad278ca5d5aa7f98aa20fe4c51075256",
+    "tests/integration/tablet-ptt-real-focus.mjs": "2a6af346e37bf712a9e34c8de712c8c5008de67f82bbf95f94cb086afa80d5fe",
+    "dist/index.html": "07ea2152d2263a303e07500341690161a435f0bd4b81a8a805834a576d42c229",
+    "dist/assets/FBXLoader-hg-r6YHf.js": "bd8041ca79317b7bdff5fca701e2f47e1a9d8f6546325ef80d8c7bcd6cb748d4",
+    "dist/assets/GLTFLoader-CrIIP9Jq.js": "c240a2605ad741c0f66796f702c813d677e57cb96b73065691080072a74b5325",
+    "dist/assets/OBJLoader-Bp1XaY-O.js": "0c9af932aba062da4636f85a25b055ba93399e67c85f7556faea390fc97a6322",
+    "dist/assets/baked-draco-CTQGIgxv.js": "c5f667faeb4a88fb9b1ee2b0919afdff21aa56bf1df5cadfe12fe392ed57ebfd",
+    "dist/assets/baked-draco-legacy-CMhlgON6.js": "eb84ebc5eff49c7b0593382b07b23010897080f46b779ececdd515efcfb482d4",
+    "dist/assets/draco_decoder-fzg4nYZr.js": "30e4d486fa020737af10e3c56197693e5b904bdc05b8bfa5d7b06751dec6da04",
+    "dist/assets/draco_wasm_wrapper-DxJM36Ib.js": "e8049906ef3f8f75d3456c22a3f31bfdfe5b5b5bd09ccdec613b9e9a49d554d8",
+    "dist/assets/draco_wasm_wrapper-fZCQGLGb.js": "8bb2952d2ba7d67e1414f8df819410cb0434a666be53f671fff75f68843d76f6",
+    "dist/assets/index-B2mAMfm4.css": "cbf321b921d05ff91c3020a6ccffc91385eeebf223ea6ec0577c6354df12a521",
+    "dist/assets/index-XulHimJR.js": "1700391c0941520a515e242df3f12b48268374eaf73cf4d4c6d98b60e8aef2e0",
+    "dist/assets/model-fbx-worker-BovrE8QR.js": "ceb605678670c961bcfd13de192d2b9339363e242d526353e07bd8daf476fea9",
+    "dist/assets/tablet-gif.worker-DACjp6Cn.js": "78ebb1c3db4d062dd4119c2cd86d201b7df2757fedf22a8993dd460fbb1057c8",
+    "dist/assets/texture-alpha-worker-CBG2kYQR.js": "f04f415ff39370ae4ab0268903ffaf6c86b9a7addeb0aed95d4a7948ee803485"
+  },
+  "qualificationLimits": [
+    "Copied candidate, not yet production PTT integration",
+    "Historical full-no-mode native author differs from current passive source",
+    "Stock Firefox complete PTT remains pending",
+    "No hardware microphone test",
+    "No endurance test"
+  ]
+}

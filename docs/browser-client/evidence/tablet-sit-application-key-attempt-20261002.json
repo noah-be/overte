@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "scope": "Current owned Application key route; original installed Sit succeeds, original ordinary x Stop still fails in both stock browsers",
+  "completed": false,
+  "cohorts": [
+    {
+      "engine": "chromium",
+      "exitCode": 1,
+      "completed": false,
+      "cleanupVerified": true,
+      "sourceCoherent": true,
+      "step": "genuine-key-Stop",
+      "browserVersion": "154.0.8037.57",
+      "durationSeconds": 56.973,
+      "rawReportSHA256": "de984ca7e045bf0f3ae06539d0ec168868c0f59b965ac0b90b2b5bb9516e4726",
+      "ownedMappedModuleQualified": true,
+      "freshModuleSHA256": "3fa7952bb488fcd791f2adbbeaeaa83b87f733594c78120eb2bb7fd8455ddb4f",
+      "ownedNativeClosed": true
+    },
+    {
+      "engine": "firefox",
+      "exitCode": 1,
+      "completed": false,
+      "cleanupVerified": true,
+      "sourceCoherent": true,
+      "step": "genuine-key-Stop",
+      "browserVersion": "firefox/156.0",
+      "durationSeconds": 61.16,
+      "rawReportSHA256": "57ea1354446ab6bb45838adb8a842ef07b16f97c8967b93d7bf578187543e5cf",
+      "ownedMappedModuleQualified": true,
+      "freshModuleSHA256": "3fa7952bb488fcd791f2adbbeaeaa83b87f733594c78120eb2bb7fd8455ddb4f",
+      "ownedNativeClosed": true
+    }
+  ],
+  "ownedGatewayStopped": true,
+  "preservedServiceIdentities": true,
+  "sourceAndDistributionUnchanged": true,
+  "parentReceiptSHA256": "998dc6c0937e9b621273980b33a49f9b867ac47131c91990a760b38c637d3a01",
+  "originalDeadlineUnchanged": true,
+  "syntheticControllerOrAnimationFallback": false
+}

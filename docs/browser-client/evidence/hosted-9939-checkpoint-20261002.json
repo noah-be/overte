@@ -1,0 +1,141 @@
+{
+  "schemaVersion": 1,
+  "repository": "noah-be/overte",
+  "sourceCommit": "9939ba65a7342620c19ff04ef4d742a24880c67b",
+  "observedAt": "2026-10-02T10:07:56.648496+00:00",
+  "scope": "Hosted prerequisite failures only; no actual world/native acceptance claim",
+  "githubMutationsPerformed": false,
+  "originalAdmissionAndAssertionsChanged": false,
+  "atomic": {
+    "run": 36992569237,
+    "conclusion": "failure",
+    "failedStage": "Require signed-dependency and fixed-summary contracts before native startup",
+    "dependencyStaging": "passed",
+    "contracts": {
+      "tests": 80,
+      "failures": 1,
+      "test": "test_zero_cap_own_child_and_same_namespace_user_ipc_launch_preflight"
+    },
+    "fixedProjection": {
+      "schemaVersion": 1,
+      "scope": "unchanged-owned-zero-cap-user-ipc-preflight",
+      "outerExitCode": 127,
+      "lastMilestone": "none-observed",
+      "milestones": [],
+      "outerStderrFailure": "unobserved-or-unclassified",
+      "stdoutPrefixTruncated": false,
+      "stderrPrefixTruncated": false,
+      "capabilityStates": null,
+      "innerObservation": null
+    },
+    "cause": "not-established",
+    "nativeStartup": "not-run"
+  },
+  "browserRuns": [
+    {
+      "run": 36992569182,
+      "conclusion": "failure",
+      "browser": {
+        "failedStage": "Qualify reviewed dedicated network setup entrypoint",
+        "trustedPythonContracts": {
+          "tests": 73,
+          "failures": 6
+        },
+        "independentCContracts": 17,
+        "metadataCause": "unclassified-for-browser-contracts"
+      },
+      "native": {
+        "failedStage": "Qualify reviewed entrypoint with exact prepared native packages",
+        "stagingFailure": {
+          "version": 1,
+          "category": "python-import-alias-target-untrusted",
+          "entryKind": "import-alias",
+          "entryOrdinal": 3,
+          "ancestorOrdinal": 0,
+          "metadata": {
+            "aliasSizeWithinBound": false,
+            "boundedBytes": 4194305,
+            "fileType": "regular",
+            "groupOrOtherWritable": false,
+            "permissions": 420,
+            "rootOwned": true,
+            "sizeTruncated": true
+          },
+          "metadataSHA256": "d3ae2394e207731f5d7eed96e9e2ff2f611384256a09adec0b61d6ee4b3f2f13"
+        },
+        "observedRefusalCondition": "original-four-MiB-alias-size-bound",
+        "actualTargetIdentity": "not-disclosed",
+        "nativeJourneys": "not-run",
+        "ownedCleanup": "passed"
+      }
+    },
+    {
+      "run": 36992575008,
+      "conclusion": "failure",
+      "browser": {
+        "failedStage": "Qualify reviewed dedicated network setup entrypoint",
+        "trustedPythonContracts": {
+          "tests": 73,
+          "failures": 6
+        },
+        "independentCContracts": 17,
+        "metadataCause": "unclassified-for-browser-contracts"
+      },
+      "native": {
+        "failedStage": "Qualify reviewed entrypoint with exact prepared native packages",
+        "stagingFailure": {
+          "version": 1,
+          "category": "python-import-alias-target-untrusted",
+          "entryKind": "import-alias",
+          "entryOrdinal": 3,
+          "ancestorOrdinal": 0,
+          "metadata": {
+            "aliasSizeWithinBound": false,
+            "boundedBytes": 4194305,
+            "fileType": "regular",
+            "groupOrOtherWritable": false,
+            "permissions": 420,
+            "rootOwned": true,
+            "sizeTruncated": true
+          },
+          "metadataSHA256": "d3ae2394e207731f5d7eed96e9e2ff2f611384256a09adec0b61d6ee4b3f2f13"
+        },
+        "observedRefusalCondition": "original-four-MiB-alias-size-bound",
+        "actualTargetIdentity": "not-disclosed",
+        "nativeJourneys": "not-run",
+        "ownedCleanup": "passed"
+      }
+    }
+  ],
+  "otherObservedChecks": {
+    "CodeQL": "success",
+    "branchPolicy": "success",
+    "dependencyPolicy": "success",
+    "repositoryChecks": "new-same-source-run-in-progress-older-run-cancelled"
+  },
+  "privateLogDigests": [
+    {
+      "scope": "atomic",
+      "bytes": 286375,
+      "sha256": "973d038846f7761673dd3afab5f361a482773a4b5451008ba5dd909d24838f62"
+    },
+    {
+      "scope": "browser-workflow",
+      "run": 36992569182,
+      "bytes": 715228,
+      "sha256": "5aade0b6f94348efb32077b13344846404285fd64afc156619e4c2fce2c5fa19"
+    },
+    {
+      "scope": "browser-workflow",
+      "run": 36992575008,
+      "bytes": 713660,
+      "sha256": "69b6f0da7276c874aca4759bb03d1b3eb209f2716320249e111472084e344e6f"
+    }
+  ],
+  "limits": [
+    "No actual alias path or exact oversize target byte count is exposed.",
+    "Native CLI alias-size evidence does not separately classify browser contract failures.",
+    "Outer exit127 does not establish loader, interpreter, capability or AppArmor cause.",
+    "No size/ownership/type/read/namespace/route/capability/security bounds were relaxed."
+  ]
+}

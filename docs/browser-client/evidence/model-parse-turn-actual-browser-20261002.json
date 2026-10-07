@@ -1,0 +1,1278 @@
+{
+  "date": "2026-10-02",
+  "materialAssistance": "OpenAI Codex",
+  "scope": "Actual bundled Chromium and Firefox parser/constructed BrowserWorld GPU and early-collision proof. Authored fixtures, not actual Hub performance.",
+  "testedRuntimeSHA256": {
+    "browser-client/src/model-parse-turn.ts": "cfbb72af99a0b3913fc062ecc6bf669e118e8c44e5c458436fbed7f8e5263858",
+    "browser-client/src/model-textures.ts": "99fadece5a55786eee4401ec0866203d6d50e5af816ab113f132619273c6f77b",
+    "browser-client/src/world.ts": "0e1af68f676a1f50b0833d244216ed198db9388dd8fc9ce43cad7e72f2a8c9c8",
+    "browser-client/src/main.ts": "5bd4a0548d425ed0a1cc4518ee600bac523e559eb5e6d4a8b95b006ce80d98e3",
+    "browser-client/src/baked-fbx.ts": "c62387724472564c82c8ba89eb28db708147902613429062a27014c55bc53d20"
+  },
+  "runs": [
+    {
+      "rawCaptureSHA256": "2fb9d6459df2d27cba8125de8416cb2cd2f091672191f39927378ba72a18bbb6",
+      "pinCaptureSHA256": "e19f29a620b7515582306e7192f71fc0dbe43ebd22dbb32b863bbd6ca866a9e7",
+      "startedAt": "2026-10-02T00:25:01.152Z",
+      "durationMilliseconds": 25058.964,
+      "passedCases": 4,
+      "failedCases": 2,
+      "skippedCases": 0,
+      "sourceUnchanged": true,
+      "fixtureSourceSHA256": {
+        "browser-client/tests/model-parse-turn.test.ts": "34bb7708c2ba7947a7605972088c0e08b249f8478a4acc59d20100754a0ffb74",
+        "browser-client/tests/model-parse-turn.browser.spec.ts": "630ce5d6124cb3e3267dcac7829c66cc9fc801ba68c998df3be6a2acd1306e24",
+        "browser-client/tests/world-model-parse-turn.test.ts": "c6669ef8b6a984d20e5fbec4c34e9e74910d58fb470dd5f1d0ec1b02c438c293",
+        "browser-client/tests/world-model-parse-turn.browser.spec.ts": "ec4c65a343b71dec0e58b4b0378ec1d820d60704c60313c2a23e764d765c678f",
+        "browser-client/tests/integration/public-hub.mjs": "46b85346e331e884e6785335d462c824e4d930ac8b1146432532120af96efe20"
+      }
+    },
+    {
+      "rawCaptureSHA256": "f59dde02730a0a52264ad8368674c99d4bde1a9cf8afe76625a7cde6ce999944",
+      "pinCaptureSHA256": "b4f58c3afda5788488c5a5642ec4ba64d219e81a33623457ea25e3e443979a71",
+      "startedAt": "2026-10-02T00:27:12.867Z",
+      "durationMilliseconds": 8380.734,
+      "passedCases": 0,
+      "failedCases": 2,
+      "skippedCases": 0,
+      "sourceUnchanged": true,
+      "fixtureSourceSHA256": {
+        "browser-client/tests/model-parse-turn.browser.spec.ts": "efbedf7d62e0e14524bec9da176d67761dafef4e01058fb7a26a3802e93b8377",
+        "browser-client/tests/world-model-parse-turn.browser.spec.ts": "ec4c65a343b71dec0e58b4b0378ec1d820d60704c60313c2a23e764d765c678f"
+      }
+    },
+    {
+      "rawCaptureSHA256": "5c3016df931a17c1c376bebe40b24135457fd31a42e7ca72679b4c88e4fd7c18",
+      "pinCaptureSHA256": "f90749fac065cc7de60e4091dde1da32ae9c74986d072ec722feec8f28fb312c",
+      "startedAt": "2026-10-02T00:28:19.388Z",
+      "durationMilliseconds": 8560.282,
+      "passedCases": 2,
+      "failedCases": 0,
+      "skippedCases": 0,
+      "sourceUnchanged": true,
+      "fixtureSourceSHA256": {
+        "browser-client/tests/model-parse-turn.browser.spec.ts": "f25250909dedff2b29d036509f861f1d069cb38c6c57de3cb8ae28ac2f24d1b2",
+        "browser-client/tests/world-model-parse-turn.browser.spec.ts": "ec4c65a343b71dec0e58b4b0378ec1d820d60704c60313c2a23e764d765c678f"
+      }
+    }
+  ],
+  "passedObservations": [
+    {
+      "engine": "chromium",
+      "case": "constructed-world-delayed-textured-floor",
+      "observations": {
+        "scheduled": false,
+        "before": {
+          "position": {
+            "x": -2,
+            "y": 0.8500099999999999,
+            "z": -2
+          },
+          "visible": false,
+          "children": 0
+        },
+        "pixel": [
+          102,
+          207,
+          85,
+          255
+        ],
+        "performance": {
+          "frames": 36,
+          "samples": 36,
+          "fps": 14.972512961621291,
+          "medianFrameMs": 50,
+          "p95FrameMs": 266.79999999999995,
+          "maximumFrameMs": 333.3000000000002,
+          "bitmapUpload": {
+            "enabled": false,
+            "roots": 0,
+            "converted": 0,
+            "fallbacks": 0,
+            "unsupported": 0,
+            "capacityFallbacks": 0,
+            "activeRoots": 0,
+            "peakRoots": 0
+          },
+          "staticModelMatrices": {
+            "enabled": false
+          },
+          "texturePreparation": {
+            "enabled": false,
+            "roots": 0,
+            "bindings": 0,
+            "unsupported": 0,
+            "activeBindings": 0,
+            "peakBindings": 0,
+            "capacityFallbacks": 0
+          },
+          "shaderWarmup": {
+            "enabled": false,
+            "roots": 0,
+            "bindings": 0,
+            "batches": 0,
+            "yielded": 0,
+            "smallRoots": 0,
+            "conservativeFallbacks": 0
+          },
+          "gpuTiming": {
+            "enabled": false
+          },
+          "cpuFrameTiming": {
+            "enabled": false
+          },
+          "renderCpuTiming": {
+            "enabled": false
+          },
+          "drawingBufferWidth": 800,
+          "drawingBufferHeight": 600,
+          "drawCalls": 1,
+          "triangles": 1,
+          "geometries": 1,
+          "textures": 1,
+          "entities": 1,
+          "loadedAvatars": 0,
+          "loadedModels": 1,
+          "loadingModels": 0,
+          "queuedModels": 0,
+          "compilingGraphics": 0,
+          "parallelShaderCompile": false,
+          "meshColliders": 1,
+          "graphicsActive": true,
+          "imageLoading": {
+            "requests": 1,
+            "uniqueImages": 1,
+            "cacheHits": 0,
+            "completed": 1,
+            "failed": 0,
+            "cancelled": 0,
+            "evictions": 0,
+            "peakActive": 1,
+            "sourceKinds": {
+              "http": {
+                "requests": 1,
+                "uniqueImages": 1,
+                "cacheHits": 0,
+                "completed": 1,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "https": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "data": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "blob": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "other": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              }
+            },
+            "active": 0,
+            "queued": 0,
+            "pending": 0,
+            "retainedEntries": 1,
+            "retainedPixels": 1,
+            "retainedKeyBytes": 96,
+            "pendingKeyBytes": 0,
+            "phases": {
+              "imageLoad": {
+                "count": 1,
+                "totalMs": 970.3000000119209,
+                "maxMs": 970.3000000119209
+              },
+              "imageDecode": {
+                "count": 1,
+                "totalMs": 3.899999976158142,
+                "maxMs": 3.899999976158142
+              }
+            }
+          },
+          "embeddedImages": {
+            "createdURLs": 0,
+            "reusedURLs": 0,
+            "revokedURLs": 0,
+            "bytes": 0,
+            "entries": 0,
+            "scopes": 0,
+            "distinctContents": 0,
+            "repeatedContentEntries": 0,
+            "distinctContentBytes": 0,
+            "repeatedContentBytes": 0,
+            "preparations": 1,
+            "convertedImages": 0,
+            "extractedBytes": 0,
+            "skippedOversize": 0,
+            "skippedUnsupported": 0
+          },
+          "fbxPreparation": {
+            "active": 0,
+            "queued": 0,
+            "outstanding": 0,
+            "inputBytes": 0,
+            "workers": 1,
+            "completed": 1,
+            "cancelled": 0,
+            "failed": 0,
+            "disposed": false
+          },
+          "sourceTextLoading": {
+            "hits": 0,
+            "misses": 1,
+            "bytes": 152,
+            "ready": 1,
+            "active": 0,
+            "readers": 0,
+            "evictions": 0,
+            "disposed": false
+          },
+          "modelParseScheduling": {
+            "enabled": false,
+            "capacityFallbacks": 0
+          },
+          "preparedFbxCache": {
+            "hits": 0,
+            "misses": 1,
+            "bytes": 654,
+            "ready": 1,
+            "active": 0,
+            "readers": 0,
+            "evictions": 0,
+            "disposed": false
+          },
+          "fstGraphCache": {
+            "inspections": 0,
+            "hits": 0,
+            "zeroResults": 0,
+            "unknownResults": 0,
+            "positiveResults": 0,
+            "positiveReinspections": 0,
+            "disposed": false
+          },
+          "modelScheduling": {
+            "active": 0,
+            "queued": 0,
+            "dispatches": 1,
+            "priorityPasses": 1,
+            "disposed": false
+          },
+          "initialSurfaceWait": {
+            "verified": true,
+            "waiting": false,
+            "startedAt": 1106.094,
+            "expired": false
+          },
+          "loadPhases": {
+            "entityUpdate": {
+              "count": 1,
+              "totalMs": 1.0999999940395355,
+              "maxMs": 1.0999999940395355
+            },
+            "graphicsSubmit": {
+              "count": 37,
+              "totalMs": 137.0999999344349,
+              "maxMs": 117.89999997615814
+            },
+            "shaderPrepare": {
+              "count": 2,
+              "totalMs": 379.7000000178814,
+              "maxMs": 363.40000000596046
+            },
+            "fbxMaterialBindings": {
+              "count": 1,
+              "totalMs": 2.600000023841858,
+              "maxMs": 2.600000023841858
+            },
+            "fbxDecode": {
+              "count": 1,
+              "totalMs": 0.5999999940395355,
+              "maxMs": 0.5999999940395355
+            },
+            "fbxPrepareWait": {
+              "count": 1,
+              "totalMs": 305.30000001192093,
+              "maxMs": 305.30000001192093
+            },
+            "colliderBuild": {
+              "count": 1,
+              "totalMs": 3,
+              "maxMs": 3
+            },
+            "fbxParse": {
+              "count": 1,
+              "totalMs": 8.5,
+              "maxMs": 8.5
+            },
+            "fbxTextures": {
+              "count": 1,
+              "totalMs": 968.5,
+              "maxMs": 968.5
+            },
+            "textureAlpha": {
+              "count": 1,
+              "totalMs": 0.19999998807907104,
+              "maxMs": 0.19999998807907104
+            }
+          },
+          "renderedFrames": 37
+        }
+      }
+    },
+    {
+      "engine": "chromium",
+      "case": "constructed-world-delayed-textured-floor",
+      "observations": {
+        "scheduled": true,
+        "before": {
+          "position": {
+            "x": -2,
+            "y": 0.8500099999999999,
+            "z": -2
+          },
+          "visible": false,
+          "children": 0
+        },
+        "pixel": [
+          102,
+          207,
+          85,
+          255
+        ],
+        "performance": {
+          "frames": 36,
+          "samples": 36,
+          "fps": 13.756335556764757,
+          "medianFrameMs": 50,
+          "p95FrameMs": 250.10000000000002,
+          "maximumFrameMs": 316.7000000000003,
+          "bitmapUpload": {
+            "enabled": false,
+            "roots": 0,
+            "converted": 0,
+            "fallbacks": 0,
+            "unsupported": 0,
+            "capacityFallbacks": 0,
+            "activeRoots": 0,
+            "peakRoots": 0
+          },
+          "staticModelMatrices": {
+            "enabled": false
+          },
+          "texturePreparation": {
+            "enabled": false,
+            "roots": 0,
+            "bindings": 0,
+            "unsupported": 0,
+            "activeBindings": 0,
+            "peakBindings": 0,
+            "capacityFallbacks": 0
+          },
+          "shaderWarmup": {
+            "enabled": false,
+            "roots": 0,
+            "bindings": 0,
+            "batches": 0,
+            "yielded": 0,
+            "smallRoots": 0,
+            "conservativeFallbacks": 0
+          },
+          "gpuTiming": {
+            "enabled": false
+          },
+          "cpuFrameTiming": {
+            "enabled": false
+          },
+          "renderCpuTiming": {
+            "enabled": false
+          },
+          "drawingBufferWidth": 800,
+          "drawingBufferHeight": 600,
+          "drawCalls": 1,
+          "triangles": 1,
+          "geometries": 1,
+          "textures": 1,
+          "entities": 1,
+          "loadedAvatars": 0,
+          "loadedModels": 1,
+          "loadingModels": 0,
+          "queuedModels": 0,
+          "compilingGraphics": 0,
+          "parallelShaderCompile": false,
+          "meshColliders": 1,
+          "graphicsActive": true,
+          "imageLoading": {
+            "requests": 1,
+            "uniqueImages": 1,
+            "cacheHits": 0,
+            "completed": 1,
+            "failed": 0,
+            "cancelled": 0,
+            "evictions": 0,
+            "peakActive": 1,
+            "sourceKinds": {
+              "http": {
+                "requests": 1,
+                "uniqueImages": 1,
+                "cacheHits": 0,
+                "completed": 1,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "https": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "data": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "blob": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "other": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              }
+            },
+            "active": 0,
+            "queued": 0,
+            "pending": 0,
+            "retainedEntries": 1,
+            "retainedPixels": 1,
+            "retainedKeyBytes": 96,
+            "pendingKeyBytes": 0,
+            "phases": {
+              "imageLoad": {
+                "count": 1,
+                "totalMs": 1019,
+                "maxMs": 1019
+              },
+              "imageDecode": {
+                "count": 1,
+                "totalMs": 19.899999976158142,
+                "maxMs": 19.899999976158142
+              }
+            }
+          },
+          "embeddedImages": {
+            "createdURLs": 0,
+            "reusedURLs": 0,
+            "revokedURLs": 0,
+            "bytes": 0,
+            "entries": 0,
+            "scopes": 0,
+            "distinctContents": 0,
+            "repeatedContentEntries": 0,
+            "distinctContentBytes": 0,
+            "repeatedContentBytes": 0,
+            "preparations": 1,
+            "convertedImages": 0,
+            "extractedBytes": 0,
+            "skippedOversize": 0,
+            "skippedUnsupported": 0
+          },
+          "fbxPreparation": {
+            "active": 0,
+            "queued": 0,
+            "outstanding": 0,
+            "inputBytes": 0,
+            "workers": 1,
+            "completed": 1,
+            "cancelled": 0,
+            "failed": 0,
+            "disposed": false
+          },
+          "sourceTextLoading": {
+            "hits": 0,
+            "misses": 1,
+            "bytes": 152,
+            "ready": 1,
+            "active": 0,
+            "readers": 0,
+            "evictions": 0,
+            "disposed": false
+          },
+          "modelParseScheduling": {
+            "enabled": true,
+            "queued": 0,
+            "queuedBytes": 0,
+            "parsed": 1,
+            "closed": false,
+            "taskChannelOpen": false,
+            "capacityFallbacks": 0
+          },
+          "preparedFbxCache": {
+            "hits": 0,
+            "misses": 1,
+            "bytes": 654,
+            "ready": 1,
+            "active": 0,
+            "readers": 0,
+            "evictions": 0,
+            "disposed": false
+          },
+          "fstGraphCache": {
+            "inspections": 0,
+            "hits": 0,
+            "zeroResults": 0,
+            "unknownResults": 0,
+            "positiveResults": 0,
+            "positiveReinspections": 0,
+            "disposed": false
+          },
+          "modelScheduling": {
+            "active": 0,
+            "queued": 0,
+            "dispatches": 1,
+            "priorityPasses": 1,
+            "disposed": false
+          },
+          "initialSurfaceWait": {
+            "verified": true,
+            "waiting": false,
+            "startedAt": 524.024,
+            "expired": false
+          },
+          "loadPhases": {
+            "entityUpdate": {
+              "count": 1,
+              "totalMs": 0.9000000059604645,
+              "maxMs": 0.9000000059604645
+            },
+            "graphicsSubmit": {
+              "count": 37,
+              "totalMs": 144.60000002384186,
+              "maxMs": 128.40000000596046
+            },
+            "shaderPrepare": {
+              "count": 2,
+              "totalMs": 298.19999998807907,
+              "maxMs": 279.69999998807907
+            },
+            "fbxMaterialBindings": {
+              "count": 1,
+              "totalMs": 2.2000000178813934,
+              "maxMs": 2.2000000178813934
+            },
+            "fbxDecode": {
+              "count": 1,
+              "totalMs": 0.5,
+              "maxMs": 0.5
+            },
+            "fbxPrepareWait": {
+              "count": 1,
+              "totalMs": 272.2000000178814,
+              "maxMs": 272.2000000178814
+            },
+            "fbxParseQueueWait": {
+              "count": 1,
+              "totalMs": 0.30000001192092896,
+              "maxMs": 0.30000001192092896
+            },
+            "colliderBuild": {
+              "count": 1,
+              "totalMs": 1.2000000178813934,
+              "maxMs": 1.2000000178813934
+            },
+            "fbxParse": {
+              "count": 1,
+              "totalMs": 11.5,
+              "maxMs": 11.5
+            },
+            "fbxTextures": {
+              "count": 1,
+              "totalMs": 1032.9000000059605,
+              "maxMs": 1032.9000000059605
+            },
+            "textureAlpha": {
+              "count": 1,
+              "totalMs": 0.19999998807907104,
+              "maxMs": 0.19999998807907104
+            }
+          },
+          "renderedFrames": 37
+        }
+      }
+    },
+    {
+      "engine": "firefox",
+      "case": "constructed-world-delayed-textured-floor",
+      "observations": {
+        "scheduled": false,
+        "before": {
+          "position": {
+            "x": -2,
+            "y": 0.8500099999999999,
+            "z": -2
+          },
+          "visible": false,
+          "children": 0
+        },
+        "pixel": [
+          102,
+          207,
+          85,
+          255
+        ],
+        "performance": {
+          "frames": 59,
+          "samples": 59,
+          "fps": 44.65569700731142,
+          "medianFrameMs": 17,
+          "p95FrameMs": 34,
+          "maximumFrameMs": 299.9999999999999,
+          "bitmapUpload": {
+            "enabled": false,
+            "roots": 0,
+            "converted": 0,
+            "fallbacks": 0,
+            "unsupported": 0,
+            "capacityFallbacks": 0,
+            "activeRoots": 0,
+            "peakRoots": 0
+          },
+          "staticModelMatrices": {
+            "enabled": false
+          },
+          "texturePreparation": {
+            "enabled": false,
+            "roots": 0,
+            "bindings": 0,
+            "unsupported": 0,
+            "activeBindings": 0,
+            "peakBindings": 0,
+            "capacityFallbacks": 0
+          },
+          "shaderWarmup": {
+            "enabled": false,
+            "roots": 0,
+            "bindings": 0,
+            "batches": 0,
+            "yielded": 0,
+            "smallRoots": 0,
+            "conservativeFallbacks": 0
+          },
+          "gpuTiming": {
+            "enabled": false
+          },
+          "cpuFrameTiming": {
+            "enabled": false
+          },
+          "renderCpuTiming": {
+            "enabled": false
+          },
+          "drawingBufferWidth": 800,
+          "drawingBufferHeight": 600,
+          "drawCalls": 1,
+          "triangles": 1,
+          "geometries": 1,
+          "textures": 1,
+          "entities": 1,
+          "loadedAvatars": 0,
+          "loadedModels": 1,
+          "loadingModels": 0,
+          "queuedModels": 0,
+          "compilingGraphics": 0,
+          "parallelShaderCompile": false,
+          "meshColliders": 1,
+          "graphicsActive": true,
+          "imageLoading": {
+            "requests": 1,
+            "uniqueImages": 1,
+            "cacheHits": 0,
+            "completed": 1,
+            "failed": 0,
+            "cancelled": 0,
+            "evictions": 0,
+            "peakActive": 1,
+            "sourceKinds": {
+              "http": {
+                "requests": 1,
+                "uniqueImages": 1,
+                "cacheHits": 0,
+                "completed": 1,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "https": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "data": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "blob": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "other": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              }
+            },
+            "active": 0,
+            "queued": 0,
+            "pending": 0,
+            "retainedEntries": 1,
+            "retainedPixels": 1,
+            "retainedKeyBytes": 96,
+            "pendingKeyBytes": 0,
+            "phases": {
+              "imageLoad": {
+                "count": 1,
+                "totalMs": 505,
+                "maxMs": 505
+              },
+              "imageDecode": {
+                "count": 1,
+                "totalMs": 0,
+                "maxMs": 0
+              }
+            }
+          },
+          "embeddedImages": {
+            "createdURLs": 0,
+            "reusedURLs": 0,
+            "revokedURLs": 0,
+            "bytes": 0,
+            "entries": 0,
+            "scopes": 0,
+            "distinctContents": 0,
+            "repeatedContentEntries": 0,
+            "distinctContentBytes": 0,
+            "repeatedContentBytes": 0,
+            "preparations": 1,
+            "convertedImages": 0,
+            "extractedBytes": 0,
+            "skippedOversize": 0,
+            "skippedUnsupported": 0
+          },
+          "fbxPreparation": {
+            "active": 0,
+            "queued": 0,
+            "outstanding": 0,
+            "inputBytes": 0,
+            "workers": 1,
+            "completed": 1,
+            "cancelled": 0,
+            "failed": 0,
+            "disposed": false
+          },
+          "sourceTextLoading": {
+            "hits": 0,
+            "misses": 1,
+            "bytes": 152,
+            "ready": 1,
+            "active": 0,
+            "readers": 0,
+            "evictions": 0,
+            "disposed": false
+          },
+          "modelParseScheduling": {
+            "enabled": false,
+            "capacityFallbacks": 0
+          },
+          "preparedFbxCache": {
+            "hits": 0,
+            "misses": 1,
+            "bytes": 654,
+            "ready": 1,
+            "active": 0,
+            "readers": 0,
+            "evictions": 0,
+            "disposed": false
+          },
+          "fstGraphCache": {
+            "inspections": 0,
+            "hits": 0,
+            "zeroResults": 0,
+            "unknownResults": 0,
+            "positiveResults": 0,
+            "positiveReinspections": 0,
+            "disposed": false
+          },
+          "modelScheduling": {
+            "active": 0,
+            "queued": 0,
+            "dispatches": 1,
+            "priorityPasses": 1,
+            "disposed": false
+          },
+          "initialSurfaceWait": {
+            "verified": true,
+            "waiting": false,
+            "startedAt": 815.14,
+            "expired": false
+          },
+          "loadPhases": {
+            "entityUpdate": {
+              "count": 1,
+              "totalMs": 1,
+              "maxMs": 1
+            },
+            "graphicsSubmit": {
+              "count": 60,
+              "totalMs": 31,
+              "maxMs": 4
+            },
+            "shaderPrepare": {
+              "count": 2,
+              "totalMs": 68,
+              "maxMs": 56
+            },
+            "fbxMaterialBindings": {
+              "count": 1,
+              "totalMs": 2,
+              "maxMs": 2
+            },
+            "fbxDecode": {
+              "count": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "fbxPrepareWait": {
+              "count": 1,
+              "totalMs": 259,
+              "maxMs": 259
+            },
+            "colliderBuild": {
+              "count": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "fbxParse": {
+              "count": 1,
+              "totalMs": 3,
+              "maxMs": 3
+            },
+            "fbxTextures": {
+              "count": 1,
+              "totalMs": 504,
+              "maxMs": 504
+            },
+            "textureAlpha": {
+              "count": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            }
+          },
+          "renderedFrames": 60
+        }
+      }
+    },
+    {
+      "engine": "firefox",
+      "case": "constructed-world-delayed-textured-floor",
+      "observations": {
+        "scheduled": true,
+        "before": {
+          "position": {
+            "x": -2,
+            "y": 0.8500099999999999,
+            "z": -2
+          },
+          "visible": false,
+          "children": 0
+        },
+        "pixel": [
+          102,
+          207,
+          85,
+          255
+        ],
+        "performance": {
+          "frames": 54,
+          "samples": 54,
+          "fps": 52.417006406523,
+          "medianFrameMs": 17,
+          "p95FrameMs": 41,
+          "maximumFrameMs": 51,
+          "bitmapUpload": {
+            "enabled": false,
+            "roots": 0,
+            "converted": 0,
+            "fallbacks": 0,
+            "unsupported": 0,
+            "capacityFallbacks": 0,
+            "activeRoots": 0,
+            "peakRoots": 0
+          },
+          "staticModelMatrices": {
+            "enabled": false
+          },
+          "texturePreparation": {
+            "enabled": false,
+            "roots": 0,
+            "bindings": 0,
+            "unsupported": 0,
+            "activeBindings": 0,
+            "peakBindings": 0,
+            "capacityFallbacks": 0
+          },
+          "shaderWarmup": {
+            "enabled": false,
+            "roots": 0,
+            "bindings": 0,
+            "batches": 0,
+            "yielded": 0,
+            "smallRoots": 0,
+            "conservativeFallbacks": 0
+          },
+          "gpuTiming": {
+            "enabled": false
+          },
+          "cpuFrameTiming": {
+            "enabled": false
+          },
+          "renderCpuTiming": {
+            "enabled": false
+          },
+          "drawingBufferWidth": 800,
+          "drawingBufferHeight": 600,
+          "drawCalls": 1,
+          "triangles": 1,
+          "geometries": 1,
+          "textures": 1,
+          "entities": 1,
+          "loadedAvatars": 0,
+          "loadedModels": 1,
+          "loadingModels": 0,
+          "queuedModels": 0,
+          "compilingGraphics": 0,
+          "parallelShaderCompile": false,
+          "meshColliders": 1,
+          "graphicsActive": true,
+          "imageLoading": {
+            "requests": 1,
+            "uniqueImages": 1,
+            "cacheHits": 0,
+            "completed": 1,
+            "failed": 0,
+            "cancelled": 0,
+            "evictions": 0,
+            "peakActive": 1,
+            "sourceKinds": {
+              "http": {
+                "requests": 1,
+                "uniqueImages": 1,
+                "cacheHits": 0,
+                "completed": 1,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "https": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "data": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "blob": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              },
+              "other": {
+                "requests": 0,
+                "uniqueImages": 0,
+                "cacheHits": 0,
+                "completed": 0,
+                "failed": 0,
+                "cancelled": 0,
+                "evictions": 0
+              }
+            },
+            "active": 0,
+            "queued": 0,
+            "pending": 0,
+            "retainedEntries": 1,
+            "retainedPixels": 1,
+            "retainedKeyBytes": 96,
+            "pendingKeyBytes": 0,
+            "phases": {
+              "imageLoad": {
+                "count": 1,
+                "totalMs": 505,
+                "maxMs": 505
+              },
+              "imageDecode": {
+                "count": 1,
+                "totalMs": 1,
+                "maxMs": 1
+              }
+            }
+          },
+          "embeddedImages": {
+            "createdURLs": 0,
+            "reusedURLs": 0,
+            "revokedURLs": 0,
+            "bytes": 0,
+            "entries": 0,
+            "scopes": 0,
+            "distinctContents": 0,
+            "repeatedContentEntries": 0,
+            "distinctContentBytes": 0,
+            "repeatedContentBytes": 0,
+            "preparations": 1,
+            "convertedImages": 0,
+            "extractedBytes": 0,
+            "skippedOversize": 0,
+            "skippedUnsupported": 0
+          },
+          "fbxPreparation": {
+            "active": 0,
+            "queued": 0,
+            "outstanding": 0,
+            "inputBytes": 0,
+            "workers": 1,
+            "completed": 1,
+            "cancelled": 0,
+            "failed": 0,
+            "disposed": false
+          },
+          "sourceTextLoading": {
+            "hits": 0,
+            "misses": 1,
+            "bytes": 152,
+            "ready": 1,
+            "active": 0,
+            "readers": 0,
+            "evictions": 0,
+            "disposed": false
+          },
+          "modelParseScheduling": {
+            "enabled": true,
+            "queued": 0,
+            "queuedBytes": 0,
+            "parsed": 1,
+            "closed": false,
+            "taskChannelOpen": false,
+            "capacityFallbacks": 0
+          },
+          "preparedFbxCache": {
+            "hits": 0,
+            "misses": 1,
+            "bytes": 654,
+            "ready": 1,
+            "active": 0,
+            "readers": 0,
+            "evictions": 0,
+            "disposed": false
+          },
+          "fstGraphCache": {
+            "inspections": 0,
+            "hits": 0,
+            "zeroResults": 0,
+            "unknownResults": 0,
+            "positiveResults": 0,
+            "positiveReinspections": 0,
+            "disposed": false
+          },
+          "modelScheduling": {
+            "active": 0,
+            "queued": 0,
+            "dispatches": 1,
+            "priorityPasses": 1,
+            "disposed": false
+          },
+          "initialSurfaceWait": {
+            "verified": true,
+            "waiting": false,
+            "startedAt": 482.3,
+            "expired": false
+          },
+          "loadPhases": {
+            "entityUpdate": {
+              "count": 1,
+              "totalMs": 1,
+              "maxMs": 1
+            },
+            "graphicsSubmit": {
+              "count": 55,
+              "totalMs": 29,
+              "maxMs": 3
+            },
+            "shaderPrepare": {
+              "count": 2,
+              "totalMs": 51,
+              "maxMs": 37
+            },
+            "fbxMaterialBindings": {
+              "count": 1,
+              "totalMs": 3,
+              "maxMs": 3
+            },
+            "fbxDecode": {
+              "count": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "fbxPrepareWait": {
+              "count": 1,
+              "totalMs": 257,
+              "maxMs": 257
+            },
+            "fbxParseQueueWait": {
+              "count": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "colliderBuild": {
+              "count": 1,
+              "totalMs": 1,
+              "maxMs": 1
+            },
+            "fbxParse": {
+              "count": 1,
+              "totalMs": 4,
+              "maxMs": 4
+            },
+            "fbxTextures": {
+              "count": 1,
+              "totalMs": 504,
+              "maxMs": 504
+            },
+            "textureAlpha": {
+              "count": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            }
+          },
+          "renderedFrames": 55
+        }
+      }
+    },
+    {
+      "engine": "chromium",
+      "case": "genuine-fbx-data-and-cancellation",
+      "sixGeometryMaterialImageAndBVHRecordsEqual": true,
+      "revokedParserCalls": 0,
+      "revokedName": "AbortError",
+      "parsedBeforeTask": 0,
+      "cancelledName": "AbortError",
+      "cancelledParserCalls": 0,
+      "stats": {
+        "queued": 0,
+        "queuedBytes": 0,
+        "parsed": 6,
+        "closed": false,
+        "taskChannelOpen": false
+      },
+      "actualImageCompletionEvents": 12,
+      "scheduledImagesBeforeLastParse": 0
+    },
+    {
+      "engine": "firefox",
+      "case": "genuine-fbx-data-and-cancellation",
+      "sixGeometryMaterialImageAndBVHRecordsEqual": true,
+      "revokedParserCalls": 0,
+      "revokedName": "AbortError",
+      "parsedBeforeTask": 0,
+      "cancelledName": "AbortError",
+      "cancelledParserCalls": 0,
+      "stats": {
+        "queued": 0,
+        "queuedBytes": 0,
+        "parsed": 6,
+        "closed": false,
+        "taskChannelOpen": false
+      },
+      "actualImageCompletionEvents": 12,
+      "scheduledImagesBeforeLastParse": 0
+    }
+  ],
+  "limitations": [
+    "Six final predicates pass across two retained runs: four constructed-World cases in the initial run and two corrected authored-FBX cases in the final run. This is not one green final six-case invocation.",
+    "The initial two FBX fixtures fail an untransformed bare import inside page.evaluate; direct actual Vite module imports correct fixture execution.",
+    "The second fixture run fails expected12HTTPrequests versus actual1 because all dependencies shared one cached URL. Twelve distinct authored dependency URLs preserve the original12actual-image-completion oracle and allow real HTTP counting. No production predicate is weakened.",
+    "Both final actual engines observe zero scheduled image completions before the last parser. MessageChannel fairness or general loading improvement is not demonstrated.",
+    "Long individual FBX parsers remain synchronous. No public-world or native-client acceptance follows from authored fixture pixels."
+  ]
+}

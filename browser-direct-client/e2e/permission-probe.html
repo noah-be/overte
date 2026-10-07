@@ -1,0 +1,13 @@
+<!doctype html>
+<!-- Copyright 2026 Overte contributors; SPDX-License-Identifier: Apache-2.0 -->
+<html lang="en">
+<head><meta charset="utf-8"><title>Overte private microphone permission diagnostic</title></head>
+<body>
+<h1>Private microphone permission diagnostic</h1>
+<p>This isolated test uses the production BrowserAudio API and only the laboratory's virtual input. It does not join a domain.</p>
+<button id="enable">Enable laboratory microphone</button>
+<button id="stop">Stop laboratory microphone</button>
+<p id="status">Microphone has not been requested.</p>
+<script type="module" src="./permission-probe-entry.ts"></script>
+</body>
+</html>

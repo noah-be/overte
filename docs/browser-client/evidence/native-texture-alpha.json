@@ -1,0 +1,274 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Actual public Hub albedo alpha diagnosis and native-compatible bounded worker classification; focused asset tests do not replace a production-world journey.",
+  "nativeSources": [
+    {
+      "path": "libraries/image/src/image/TextureProcessing.cpp",
+      "line": 885,
+      "behavior": "Alpha is valid when any pixel is not fully opaque. Mask mode permits at most int(0.05f * float(pixelCount)) intermediate-alpha pixels."
+    },
+    {
+      "path": "libraries/graphics/src/graphics/Material.cpp",
+      "line": 237,
+      "behavior": "Absent an explicit opacityMapMode, readable albedo alpha usage selects mask or blend; explicit modes remain authoritative."
+    },
+    {
+      "path": "libraries/graphics/src/graphics/Material.cpp",
+      "line": 30,
+      "behavior": "Default native opacity cutoff is 0.5."
+    },
+    {
+      "path": "libraries/gpu/src/gpu/Texture_ktx.cpp",
+      "line": 41,
+      "behavior": "Actual native KTX hifi.gpu payload preserves texture alpha usage."
+    }
+  ],
+  "nativeObserverComparison": {
+    "capturedAt": "2026-09-30T23:15:21.194576Z",
+    "nativeVersion": "2026.04.1",
+    "microphoneMuted": true,
+    "worldInteractionsSent": 0,
+    "position": {
+      "x": 154.69000244140625,
+      "y": -97.28274536132812,
+      "z": -397.89898681640625
+    },
+    "orientation": {
+      "x": 0,
+      "y": 0.9969174861907959,
+      "z": 0,
+      "w": 0.07845768332481384
+    },
+    "viewportResolutionScale": 0.2,
+    "screenshot": "native-hub-leaf-alpha.png",
+    "screenshotSHA256": "e5d9c62f40a2a43015454233e5e40928b247932a9a0f2fbc2e316034dd422f59",
+    "scope": "Actual native visitor view near the same Hub spawn and orientation; low-resolution native image is a qualitative comparison, not a pixel-identical browser/native image claim."
+  },
+  "verification": {
+    "typecheck": true,
+    "pureTestsPassed": 2,
+    "browserTestsPassed": 4,
+    "realPublicAssetTestsPassed": 2,
+    "commands": [
+      "cd browser-client && npx tsx --test tests/texture-alpha.test.ts",
+      "cd browser-client && npx playwright test tests/texture-alpha.browser.spec.ts --workers=1",
+      "node browser-client/tests/integration/native-texture-alpha.mjs",
+      "OVERTE_LAB_BROWSER=firefox node browser-client/tests/integration/native-texture-alpha.mjs"
+    ]
+  },
+  "runs": [
+    {
+      "startedAt": "2026-09-30T23:27:16.469Z",
+      "completed": true,
+      "domainConnected": false,
+      "microphoneRequested": false,
+      "worldInteractionsSent": 0,
+      "assets": [
+        {
+          "asset": "shrub-jungle-leafy-1a",
+          "materialSHA256": "9256fa25188194de52b541535c34ba8de0e07586ac414318fe4c40e0a1af8cbd",
+          "metadataSHA256": "f74027d6d4b8ac6e44a5054436bb9f7ba100e6d6593751a223867510362ea2f3",
+          "originalPNG_SHA256": "43d594a99f2b8d8412348a45b0556f4af8c1960ccbce0e2b3164c8fa61beba6c",
+          "nativeKTX_SHA256": "8271f00457196483ecf617df4f644885d35e52fad010ad31b9bd35afe2cc5355",
+          "nativeUsage": {
+            "flags": 13,
+            "mode": "mask",
+            "internalFormat": 35919
+          },
+          "rgba": {
+            "width": 512,
+            "height": 512,
+            "opaque": 175920,
+            "transparent": 86224,
+            "intermediate": 0
+          },
+          "pixels": {
+            "alpha": "mask",
+            "shared": [
+              "mask",
+              "mask"
+            ],
+            "before": {
+              "background": 0,
+              "black": 86224,
+              "green": 0
+            },
+            "after": {
+              "background": 86224,
+              "black": 0,
+              "green": 0
+            }
+          }
+        },
+        {
+          "asset": "tree-banana-GB",
+          "materialSHA256": "207269184816c838ba6920199750524e4a5fe6859370044866b4b5f5c4244ac2",
+          "metadataSHA256": "e5bbce343e9bd61379b9d1ae198338e44029b3f4901ba764ee6af156016654f4",
+          "originalPNG_SHA256": "e2d9215bdc818b18789560a9e74238f08e462233bea95e061d4edc440dc66d5f",
+          "nativeKTX_SHA256": "2766871e32be935792a7aeac34b8b88d4a115830f4bde01a3708d3754100afcc",
+          "nativeUsage": {
+            "flags": 1,
+            "mode": "opaque",
+            "internalFormat": 35916
+          },
+          "rgba": {
+            "width": 1024,
+            "height": 1024,
+            "opaque": 1048576,
+            "transparent": 0,
+            "intermediate": 0
+          },
+          "pixels": null
+        },
+        {
+          "asset": "shrub-bluepops-1a",
+          "materialSHA256": "d07a53314e9230b29991af77453471019bbd2ac6e8729967a03303dd79dfde4b",
+          "metadataSHA256": "042227d891e22b5bc9725b0ecec654da568754e457c8af31101d06becfd25880",
+          "originalPNG_SHA256": "0087b3a3a9c9347b3a592db7b7e4f88fe333aedb7c6bd6aae48ed664c3f98739",
+          "nativeKTX_SHA256": "665f2c22827bafda51eb0127b69cce6c5d33869a98ae7331b8aafa88985d89f6",
+          "nativeUsage": {
+            "flags": 1,
+            "mode": "opaque",
+            "internalFormat": 35916
+          },
+          "rgba": {
+            "width": 768,
+            "height": 768,
+            "opaque": 589824,
+            "transparent": 0,
+            "intermediate": 0
+          },
+          "pixels": null
+        }
+      ],
+      "browserVersion": "153.0.8010.12",
+      "finishedAt": "2026-09-30T23:27:19.167Z",
+      "sourceSHA256": {
+        "browser-client/src/texture-alpha.ts": "3263afc811d7995c915c9300ec5913077b003509a93c5e76c1ca8e14ae0f16f6",
+        "browser-client/src/texture-alpha-worker.ts": "19f26164f38e33946aa57e1fd0d3ce06da02b9ca2d24f3ca25f77f621aafd3a0"
+      }
+    },
+    {
+      "startedAt": "2026-09-30T23:28:04.996Z",
+      "completed": true,
+      "domainConnected": false,
+      "microphoneRequested": false,
+      "worldInteractionsSent": 0,
+      "assets": [
+        {
+          "asset": "shrub-jungle-leafy-1a",
+          "materialSHA256": "9256fa25188194de52b541535c34ba8de0e07586ac414318fe4c40e0a1af8cbd",
+          "metadataSHA256": "f74027d6d4b8ac6e44a5054436bb9f7ba100e6d6593751a223867510362ea2f3",
+          "originalPNG_SHA256": "43d594a99f2b8d8412348a45b0556f4af8c1960ccbce0e2b3164c8fa61beba6c",
+          "nativeKTX_SHA256": "8271f00457196483ecf617df4f644885d35e52fad010ad31b9bd35afe2cc5355",
+          "nativeUsage": {
+            "flags": 13,
+            "mode": "mask",
+            "internalFormat": 35919
+          },
+          "rgba": {
+            "width": 512,
+            "height": 512,
+            "opaque": 175920,
+            "transparent": 86224,
+            "intermediate": 0
+          },
+          "pixels": {
+            "alpha": "mask",
+            "shared": [
+              "mask",
+              "mask"
+            ],
+            "before": {
+              "background": 0,
+              "black": 86224,
+              "green": 0
+            },
+            "after": {
+              "background": 86224,
+              "black": 0,
+              "green": 0
+            }
+          }
+        },
+        {
+          "asset": "tree-banana-GB",
+          "materialSHA256": "207269184816c838ba6920199750524e4a5fe6859370044866b4b5f5c4244ac2",
+          "metadataSHA256": "e5bbce343e9bd61379b9d1ae198338e44029b3f4901ba764ee6af156016654f4",
+          "originalPNG_SHA256": "e2d9215bdc818b18789560a9e74238f08e462233bea95e061d4edc440dc66d5f",
+          "nativeKTX_SHA256": "2766871e32be935792a7aeac34b8b88d4a115830f4bde01a3708d3754100afcc",
+          "nativeUsage": {
+            "flags": 1,
+            "mode": "opaque",
+            "internalFormat": 35916
+          },
+          "rgba": {
+            "width": 1024,
+            "height": 1024,
+            "opaque": 1048576,
+            "transparent": 0,
+            "intermediate": 0
+          },
+          "pixels": null
+        },
+        {
+          "asset": "shrub-bluepops-1a",
+          "materialSHA256": "d07a53314e9230b29991af77453471019bbd2ac6e8729967a03303dd79dfde4b",
+          "metadataSHA256": "042227d891e22b5bc9725b0ecec654da568754e457c8af31101d06becfd25880",
+          "originalPNG_SHA256": "0087b3a3a9c9347b3a592db7b7e4f88fe333aedb7c6bd6aae48ed664c3f98739",
+          "nativeKTX_SHA256": "665f2c22827bafda51eb0127b69cce6c5d33869a98ae7331b8aafa88985d89f6",
+          "nativeUsage": {
+            "flags": 1,
+            "mode": "opaque",
+            "internalFormat": 35916
+          },
+          "rgba": {
+            "width": 768,
+            "height": 768,
+            "opaque": 589824,
+            "transparent": 0,
+            "intermediate": 0
+          },
+          "pixels": null
+        }
+      ],
+      "browserVersion": "155.0",
+      "finishedAt": "2026-09-30T23:28:09.572Z",
+      "sourceSHA256": {
+        "browser-client/src/texture-alpha.ts": "3263afc811d7995c915c9300ec5913077b003509a93c5e76c1ca8e14ae0f16f6",
+        "browser-client/src/texture-alpha-worker.ts": "19f26164f38e33946aa57e1fd0d3ce06da02b9ca2d24f3ca25f77f621aafd3a0"
+      }
+    }
+  ],
+  "interpretation": "Leaf-Cards really has 86224 transparent alpha pixels and native mask flags, unlike the examined opaque Banana and Bluepops textures. The focused actual-image WebGL audit removes exactly those 86224 black background pixels; opaque black remains visible in the separate adversarial fixture. No RGB-derived transparency or public asset changes were used.",
+  "productionWorldIntegrationProof": "Pending the coherent production build and subsequent actual Hub journey.",
+  "sandboxContinuation": {
+    "recordedAt": "2026-09-30T23:46:34.822021+00:00",
+    "sourceSHA256": {
+      "browser-client/src/texture-alpha.ts": "af9b46d9c56a156febaff92db76fe06b38dd4fa2ba7943ddfd4bbeaa47024ebe",
+      "browser-client/src/texture-alpha-worker.ts": "19f26164f38e33946aa57e1fd0d3ce06da02b9ca2d24f3ca25f77f621aafd3a0",
+      "browser-client/tests/texture-alpha-deadline.test.ts": "c7cce6e8138904e91a5619cdaeedc8bb64dad903f743da95fd00cf8176371d44"
+    },
+    "sourceLocation": "Writable continuation snapshot; original topic worktree is currently read-only. These changes have not been committed or pushed.",
+    "nodeVersion": "24.21.0",
+    "commands": [
+      "node --import tsx --test --test-isolation=none tests/texture-alpha.test.ts tests/texture-alpha-deadline.test.ts",
+      "node node_modules/typescript/bin/tsc --noEmit"
+    ],
+    "testsPassed": 9,
+    "testsFailed": 0,
+    "typecheckPassed": true,
+    "faultInjectionScope": "Node tests inject stalled createImageBitmap and Worker responses with a virtual timer. They prove actual scheduler cancellation, exact30-second deadline, stale callback rejection, late bitmap closure, shared-reader retention, bounded FIFO backpressure, capacity reuse after queued cancellation and decoded-size failure recovery. They are not real-browser or public-world tests.",
+    "bounds": {
+      "deadlineMilliseconds": 30000,
+      "pixelLimit": 67108864,
+      "waitingQueue": 32,
+      "backpressureWaiters": 128,
+      "excess": "Explicit failure without unbounded admission."
+    },
+    "currentDeadlineBackpressureBrowserProof": false,
+    "pendingReason": "The platform now denies browser process launch and localhost listening with EPERM, and prevents writes to the original worktree. Previous browser/actual-asset evidence applies to the earlier utility hashes recorded in each run.",
+    "combinedAlphaAndBatchTestsPassed": 22,
+    "combinedCommand": "node --import tsx --test --test-isolation=none tests/texture-alpha.test.ts tests/texture-alpha-deadline.test.ts tests/static-model-batch.test.ts"
+  }
+}

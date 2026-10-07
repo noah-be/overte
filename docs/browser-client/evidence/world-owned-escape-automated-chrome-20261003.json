@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "scope": "Automated Google Chrome CDP Escape in an owned minimal canvas using exact BrowserWorld installControls source",
+  "qualificationCasesPassed": 2,
+  "sourceBindings": {
+    "scaffoldManifestSHA256": "33f470d1930c7691fd1051ca3ffaee78eff7d8001b334f8baa974353fbe72713",
+    "scaffoldControlSHA256": "a5867e0c377a2d8493ebec305e27d276179a927c97ee354bfdc226543219d988",
+    "beforeWorldSHA256": "c02931412d89d91650cf9bf185e8aaaa9ad3c120fc07a159d770761c84839fa7",
+    "candidateWorldSHA256": "290a31d51a6baed46dd3c6de7160b4662f400cb5079aaa4b8059aed60dbc94bb",
+    "exactHunkSHA256": "a7161381f49e8238c13a09b66754d029e3522b14ed70a15cbe298a77041973e1",
+    "officialChromeELFSHA256": "6c792041b07547a662e1b17974d1dc34a3db630379b45d9d89ddd7e3e68cc587"
+  },
+  "actualBindings": {
+    "rawControlSHA256": "eb7df8073d21d2afebee0a87dc379796f4530e1f431c31c28cbf81ba9e3803a9",
+    "rawSummarySHA256": "d8ff85d6f2c362e67c32253ae77859a3b764162fe54f4c9649167ef4b57b764d"
+  },
+  "cases": [
+    {
+      "kind": "original",
+      "physicalClicks": 1,
+      "physicalEscapePresses": 1,
+      "trustedEscapeCount": 1,
+      "captureBeforeEscape": true,
+      "focusedBeforeEscape": true,
+      "documentFocused": true,
+      "plainOwnedEscapeObserved": true,
+      "releasedWithinOriginalFiveSeconds": false,
+      "observationDurationMs": 5003.7202019999995,
+      "unexpectedForeignPointerLock": false
+    },
+    {
+      "kind": "candidate",
+      "physicalClicks": 1,
+      "physicalEscapePresses": 1,
+      "trustedEscapeCount": 1,
+      "captureBeforeEscape": true,
+      "focusedBeforeEscape": true,
+      "documentFocused": true,
+      "plainOwnedEscapeObserved": true,
+      "releasedWithinOriginalFiveSeconds": true,
+      "observationDurationMs": 10.969066000000566,
+      "unexpectedForeignPointerLock": false
+    }
+  ],
+  "ownership": {
+    "actualGoogleChromeObserved": true,
+    "ownedGoogleChromeClosed": true,
+    "nineManagedBirthsPreserved": true,
+    "sourceCoherent": true,
+    "nativeServicesLaunched": false,
+    "childExitCode": 0
+  },
+  "retainedEarlierFailure": {
+    "version": 1,
+    "originalPacketManifestSHA256": "d88fe8df128f8fcf119719cfd15620554be395701d84994502d4b4db1ab7ea4c",
+    "rawControlSHA256": "34fae38f38d8a99b3811016b4545e0672f2ed88d6a97db8d430e999edf695578",
+    "completed": false,
+    "caseCount": 1,
+    "originalCasePhysicalClicks": 1,
+    "originalCaseEscapePresses": 0,
+    "captureQualificationReached": false,
+    "originalExceptionRetained": false,
+    "missingReceiverSourceEvidence": true,
+    "causeEstablished": false,
+    "newActualQualificationPending": true
+  },
+  "limits": {
+    "samePhysicalActionsBothCases": true,
+    "originalFiveSecondGatesUnchanged": true,
+    "originalCaseIsExpectedRetainedLockCounterfactual": true,
+    "automatedBrowserInputTransport": "Puppeteer CDP",
+    "humanOSDefaultEscapeTested": false,
+    "fullWorldOrNativeTabletJourneyTested": false,
+    "actualMinimalCanvasOnly": true,
+    "missingEarlierReceiverWasProvenCausal": false,
+    "publicRawImagesOrPrivateCoordinates": false
+  }
+}

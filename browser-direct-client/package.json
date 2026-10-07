@@ -1,0 +1,41 @@
+{
+  "name": "overte-browser-direct-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build && node tools/build-notices.mjs",
+    "preview": "vite preview --host 127.0.0.1",
+    "test": "tsx --test src/*.test.ts tests/*.test.ts e2e/*.test.mjs",
+    "verify:reuse": "node tools/verify-reuse.mjs",
+    "verify:sdk": "node tools/verify-sdk.mjs",
+    "test:browser": "python3 e2e/run.py --mode direct --timeout 180",
+    "test:browser:smoke": "python3 e2e/run.py --mode smoke",
+    "benchmark:browser": "python3 e2e/run.py --mode benchmark --timeout 240",
+    "benchmark:asset-route": "python3 e2e/run.py --mode benchmark-asset-route --timeout 240",
+    "predev": "node tools/prepare-default-avatar.mjs",
+    "prebuild": "node tools/prepare-default-avatar.mjs"
+  },
+  "dependencies": {
+    "axios": "1.20.0",
+    "crypto-js": "4.2.0",
+    "draco3d": "1.3.4",
+    "pako": "2.1.0",
+    "three": "0.186.1",
+    "three-mesh-bvh": "0.9.15"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/crypto-js": "4.2.2",
+    "@types/node": "26.6.3",
+    "@types/pako": "2.0.4",
+    "@types/three": "0.186.0",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vite": "8.3.1"
+  }
+}

@@ -1,0 +1,209 @@
+{
+  "schema": 1,
+  "scope": "Actual official-Google-Chrome synthetic-audio partial acceptance. Six processing replacements qualified; gain and overall acceptance not qualified.",
+  "browser": {
+    "engine": "google-chrome-stable",
+    "version": "154.0.8037.97",
+    "elfSHA256": "6c792041b07547a662e1b17974d1dc34a3db630379b45d9d89ddd7e3e68cc587",
+    "packageSHA256": "d6086fb6be1a193ebe4699d8ae8bbec67ea333c1d799a91faca479c4f4064ac9",
+    "actualOwnedExecutableObserved": true,
+    "systemInstalled": false
+  },
+  "startedAt": "2026-10-02T21:49:03.480Z",
+  "finishedAt": "2026-10-02T21:51:40.243Z",
+  "durationSeconds": 157.548,
+  "status": {
+    "completed": false,
+    "functionalAcceptance": false,
+    "originalTwelveCheckpointsPassed": true,
+    "additionalCaptureConsentCheckpointPassed": true,
+    "processingToggleRestoreAcceptance": true,
+    "gainAcceptance": false,
+    "hardwareMicrophone": false,
+    "hardwareProcessingEfficacy": false,
+    "syntheticMicrophone": true,
+    "sourceCoherent": true,
+    "cleanupVerified": true
+  },
+  "checkpoints": [
+    "joined-muted",
+    "genuine-native-desktop-ptt-enabled",
+    "explicit-synthetic-microphone-grant",
+    "real-T-hold-browser-to-native",
+    "real-T-release",
+    "native-to-browser-audio",
+    "actual-window-blur-and-document-hidden-release",
+    "genuine-Tablet-open-releases-hold",
+    "ordinary-mute-preserves-native-PTT-mode",
+    "genuine-native-mode-off-preserves-ordinary-audio",
+    "leave-releases-held-microphone",
+    "fresh-session-authority-requires-new-explicit-grant",
+    "capture-page-alone-does-not-grant-microphone"
+  ],
+  "processingOperations": [
+    {
+      "ordinal": 1,
+      "field": "echoCancellation",
+      "value": false,
+      "getUserMediaCallsDelta": 1,
+      "oldEndedBeforeAcquisition": true,
+      "oldEnded": true,
+      "newLive": true,
+      "sameDevice": true,
+      "allThreeEffectiveSettings": true,
+      "authorityCurrent": true,
+      "liveTrackCount": 1,
+      "effectiveSettings": {
+        "echoCancellation": false,
+        "noiseSuppression": true,
+        "autoGainControl": true
+      }
+    },
+    {
+      "ordinal": 2,
+      "field": "echoCancellation",
+      "value": true,
+      "getUserMediaCallsDelta": 1,
+      "oldEndedBeforeAcquisition": true,
+      "oldEnded": true,
+      "newLive": true,
+      "sameDevice": true,
+      "allThreeEffectiveSettings": true,
+      "authorityCurrent": true,
+      "liveTrackCount": 1,
+      "effectiveSettings": {
+        "echoCancellation": true,
+        "noiseSuppression": true,
+        "autoGainControl": true
+      }
+    },
+    {
+      "ordinal": 3,
+      "field": "noiseSuppression",
+      "value": false,
+      "getUserMediaCallsDelta": 1,
+      "oldEndedBeforeAcquisition": true,
+      "oldEnded": true,
+      "newLive": true,
+      "sameDevice": true,
+      "allThreeEffectiveSettings": true,
+      "authorityCurrent": true,
+      "liveTrackCount": 1,
+      "effectiveSettings": {
+        "echoCancellation": true,
+        "noiseSuppression": false,
+        "autoGainControl": true
+      }
+    },
+    {
+      "ordinal": 4,
+      "field": "noiseSuppression",
+      "value": true,
+      "getUserMediaCallsDelta": 1,
+      "oldEndedBeforeAcquisition": true,
+      "oldEnded": true,
+      "newLive": true,
+      "sameDevice": true,
+      "allThreeEffectiveSettings": true,
+      "authorityCurrent": true,
+      "liveTrackCount": 1,
+      "effectiveSettings": {
+        "echoCancellation": true,
+        "noiseSuppression": true,
+        "autoGainControl": true
+      }
+    },
+    {
+      "ordinal": 5,
+      "field": "autoGainControl",
+      "value": false,
+      "getUserMediaCallsDelta": 1,
+      "oldEndedBeforeAcquisition": true,
+      "oldEnded": true,
+      "newLive": true,
+      "sameDevice": true,
+      "allThreeEffectiveSettings": true,
+      "authorityCurrent": true,
+      "liveTrackCount": 1,
+      "effectiveSettings": {
+        "echoCancellation": true,
+        "noiseSuppression": true,
+        "autoGainControl": false
+      }
+    },
+    {
+      "ordinal": 6,
+      "field": "autoGainControl",
+      "value": true,
+      "getUserMediaCallsDelta": 1,
+      "oldEndedBeforeAcquisition": true,
+      "oldEnded": true,
+      "newLive": true,
+      "sameDevice": true,
+      "allThreeEffectiveSettings": true,
+      "authorityCurrent": true,
+      "liveTrackCount": 1,
+      "effectiveSettings": {
+        "echoCancellation": true,
+        "noiseSuppression": true,
+        "autoGainControl": true
+      }
+    }
+  ],
+  "processingGetUserMediaCalls": 6,
+  "restoredEffectiveSettings": {
+    "echoCancellation": true,
+    "noiseSuppression": true,
+    "autoGainControl": true
+  },
+  "failure": {
+    "category": "acceptance-refused",
+    "lastPassedCheckpoint": "capture-page-alone-does-not-grant-microphone",
+    "operationNotQualified": "native-gain-slider-painted-control-contrast",
+    "causeProved": false
+  },
+  "retainedEarlierNegative": {
+    "kind": "initial-tablet-frame-deadline",
+    "status": "unresolved",
+    "approximateDurationSeconds": 59,
+    "causeProved": false,
+    "fixedByThisPartialRun": false
+  },
+  "provenance": {
+    "originalRawReportSHA256": "34bb9d1109230074422cd4200cc0ec5fca9470cf4effc7f61edbbb273990df99",
+    "reserializedPrivateCopySHA256": "537f2d3b6d69b6abc2ee51dd29d4ad683a3e4c66186d397e654ee96d6ce34f4b",
+    "parsedOriginalAndPrivateCopyEqual": true,
+    "summarySHA256": "3c99718e2fbf2fcf03cc3b0a70c1fa7ba1acf28ee4f02b4af26467a6176ba0f6",
+    "startEndSourceMapSHA256": "8778312a40a061d15463ec8b28a39d555baa668aa818653e434dc51975da4b67",
+    "preparedCompleteSourceManifestSHA256": "0c8b85887e17f4655f00cc38f56fef2ed7c378c5c951d3581be0c05ce90eef27",
+    "sourceCount": 381,
+    "testSourceCount": 428,
+    "configurationCount": 5,
+    "nativeGeneratedCaptureScriptSHA256": "d251f0219d28e3ef087f30e495248af5034877cb24c5789418f8b6f8fa2c8a04",
+    "nativeGeneratedCaptureQmlSHA256": "9dd3cfa2e5083cc6330b4022a71481c7cacd6c0833c7857775c2b18011af2ebc",
+    "nativeCaptureHelperSHA256": "1d258ce76705033598e3f5decbe084e746feb2bcd19ba30f8b0c1afa416d6f2f",
+    "nativeGeneratedSourceExact": true
+  },
+  "cleanup": {
+    "browserClosed": true,
+    "actualObservedChromeBirthsClosed": true,
+    "ownedRunnerStopped": true,
+    "ownedGatewayStopped": true,
+    "captureReacquisitionObserverRetired": true,
+    "captureObserverRetired": true,
+    "nativeAuthorMutedRestored": true,
+    "nativeAuthorGuardClosed": true
+  },
+  "limitations": [
+    "Synthetic file input and effective-setting readback do not establish hardware DSP efficacy.",
+    "One ordinary getUserMedia call per successful change follows retirement of the old track; no device identity is published.",
+    "The six processing operations are partial evidence and do not mark the whole failed run as passed.",
+    "The last checkpoint label is not a diagnosis of the later gain paint refusal.",
+    "The retained earlier first-frame failure remains unresolved."
+  ],
+  "lastRecordedEffectiveGain": {
+    "inputGainPercent": 100,
+    "inputGain": 1,
+    "scope": "Last recorded effective gain before unqualified painted gain operation; not a fresh post-failure read or successful gain-change proof"
+  }
+}

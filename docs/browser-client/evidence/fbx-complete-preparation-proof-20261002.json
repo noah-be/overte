@@ -1,0 +1,466 @@
+{
+  "date": "2026-10-02",
+  "materialAssistance": "OpenAI Codex",
+  "scope": "Proof-only correction of stale baseline to complete current canonical FBX plus embedded-image sidecar protocol. Production runtime unchanged.",
+  "tests": {
+    "actualBrowserEnginesPassed": 2,
+    "CPURegressionPassed": 8,
+    "CPURegressionSkipped": 0
+  },
+  "sourceSHA256": {
+    "browser-client/tests/integration/model-fbx-pool-entry.ts": "33cead9e3a29defac63d6e0bd1a28bbd338ee9d111e5754be1471b379218eeb2",
+    "browser-client/tests/integration/model-fbx-pool-proof.mjs": "19375d2d990a3547f407fed1c1bae96d78173bab615a9d84302d95f15b95dc01",
+    "browser-client/tests/integration/model-fbx-pool-baseline.ts": "082f3eecc01520905454aea04e7dac0b226e899ddee20197918ac437014b747d",
+    "browser-client/tests/model-fbx-pool-baseline.test.ts": "5fd56f63fded30e93784dc4ed50d32cae7744bb87b6856711806c04ce3ea5474",
+    "browser-client/src/model-fbx-worker.ts": "e418b09a7a3771bcb2cd52c130cc9ee01fcbfbca2ad5828df9c307adec9502f5",
+    "browser-client/src/model-fbx-pool.ts": "76234b181e0cdded5d4e65350386bc62bf393802266e5614d825b57308e5b902",
+    "browser-client/src/baked-fbx.ts": "eaa429192150981bb8c894ec77140a829a9430264652f0321dd41fc1486c0d00",
+    "browser-client/src/embedded-fbx-protocol.ts": "381179c36c71ab04bd0214fde9d2da4afa2a04f7f52dcbadc526b9eb2dd0c1db"
+  },
+  "cause": {
+    "previousBaselineBytes": 3655214,
+    "previousBaselineSHA256": "21ea5bb66808e04f727548fef374d1223b321e3879b6bd2e532b24d47f158848",
+    "currentCanonicalBytes": 901361,
+    "currentCanonicalSHA256": "7dad24a26182bda343b1e1993e4c40d601f2a457d128b9e5cb8b56beb49e59f9",
+    "embeddedImages": 4,
+    "exactSidecarBytes": 2754173,
+    "geometryChanged": false
+  },
+  "cohorts": [
+    {
+      "engine": "chromium",
+      "browserVersion": "153.0.8010.12",
+      "startedAt": "2026-10-01T23:13:15.298Z",
+      "finishedAt": "2026-10-01T23:13:18.007Z",
+      "rawCaptureSHA256": "42b4628d60e8d8c89a7fd0cc2b13f2a0b5c2593e625c8a03bb65b66aa63475c7",
+      "fixtures": [
+        {
+          "index": 0,
+          "fixtureKind": "packaged-native-mannequin",
+          "inputBytes": 3655100,
+          "inputSHA256": "e247f3342ff109e17f7ae90916f81935d17ff4f51f60c60908094bb4f38db7da",
+          "actual": {
+            "sha256": "7dad24a26182bda343b1e1993e4c40d601f2a457d128b9e5cb8b56beb49e59f9",
+            "bytes": 901361,
+            "embeddedImages": [
+              {
+                "digest": "0209b79f58db1eac0799410fade6083b3046904221a22bd62f2e134a51ee3cfc",
+                "mimeType": "image/png",
+                "bytes": 537177,
+                "sha256": "0209b79f58db1eac0799410fade6083b3046904221a22bd62f2e134a51ee3cfc"
+              },
+              {
+                "digest": "2c61f336e9d6c93da29ca5994a2addcc61f66d80d5197c01ea3e2883f0977ad1",
+                "mimeType": "image/png",
+                "bytes": 1026568,
+                "sha256": "2c61f336e9d6c93da29ca5994a2addcc61f66d80d5197c01ea3e2883f0977ad1"
+              },
+              {
+                "digest": "c86899503c7d6c025b3bbf020c348dd7ea9235ed1248b9cd11c5e7f88ba055e6",
+                "mimeType": "image/png",
+                "bytes": 1168014,
+                "sha256": "c86899503c7d6c025b3bbf020c348dd7ea9235ed1248b9cd11c5e7f88ba055e6"
+              },
+              {
+                "digest": "e8be0da314bfa0e3ad7e0f9d2315dddc38f39510dd421c9edbafc5406086700d",
+                "mimeType": "image/png",
+                "bytes": 22414,
+                "sha256": "e8be0da314bfa0e3ad7e0f9d2315dddc38f39510dd421c9edbafc5406086700d"
+              }
+            ],
+            "embeddedCounts": {
+              "converted": 4,
+              "rawBytes": 2754173,
+              "skippedOversize": 0,
+              "skippedUnsupported": 0
+            },
+            "meshes": 2,
+            "vertices": 44244,
+            "triangles": 14748,
+            "groups": 0,
+            "bones": 73,
+            "materialIndices": []
+          },
+          "expected": {
+            "sha256": "7dad24a26182bda343b1e1993e4c40d601f2a457d128b9e5cb8b56beb49e59f9",
+            "bytes": 901361,
+            "embeddedImages": [
+              {
+                "digest": "0209b79f58db1eac0799410fade6083b3046904221a22bd62f2e134a51ee3cfc",
+                "mimeType": "image/png",
+                "bytes": 537177,
+                "sha256": "0209b79f58db1eac0799410fade6083b3046904221a22bd62f2e134a51ee3cfc"
+              },
+              {
+                "digest": "2c61f336e9d6c93da29ca5994a2addcc61f66d80d5197c01ea3e2883f0977ad1",
+                "mimeType": "image/png",
+                "bytes": 1026568,
+                "sha256": "2c61f336e9d6c93da29ca5994a2addcc61f66d80d5197c01ea3e2883f0977ad1"
+              },
+              {
+                "digest": "c86899503c7d6c025b3bbf020c348dd7ea9235ed1248b9cd11c5e7f88ba055e6",
+                "mimeType": "image/png",
+                "bytes": 1168014,
+                "sha256": "c86899503c7d6c025b3bbf020c348dd7ea9235ed1248b9cd11c5e7f88ba055e6"
+              },
+              {
+                "digest": "e8be0da314bfa0e3ad7e0f9d2315dddc38f39510dd421c9edbafc5406086700d",
+                "mimeType": "image/png",
+                "bytes": 22414,
+                "sha256": "e8be0da314bfa0e3ad7e0f9d2315dddc38f39510dd421c9edbafc5406086700d"
+              }
+            ],
+            "embeddedCounts": {
+              "converted": 4,
+              "rawBytes": 2754173,
+              "skippedOversize": 0,
+              "skippedUnsupported": 0
+            },
+            "meshes": 2,
+            "vertices": 44244,
+            "triangles": 14748,
+            "groups": 0,
+            "bones": 73,
+            "materialIndices": []
+          },
+          "phases": {
+            "materialBindingsMs": 47.20000001788139,
+            "decodeMs": 43.099999994039536
+          }
+        },
+        {
+          "index": 1,
+          "fixtureKind": "authored-ordinary-Draco",
+          "inputBytes": 1043,
+          "inputSHA256": "d14744018ba511def63b0265f5471573be8968de74d9caf30bf01f62f22dae96",
+          "actual": {
+            "sha256": "e9cf93b52608ff0e8507063970e4ed43c706411dc79cb8bede44f0ff2ba50f54",
+            "bytes": 1912,
+            "embeddedImages": [],
+            "embeddedCounts": {
+              "converted": 0,
+              "rawBytes": 0,
+              "skippedOversize": 0,
+              "skippedUnsupported": 0
+            },
+            "meshes": 1,
+            "vertices": 6,
+            "triangles": 2,
+            "groups": 1,
+            "bones": 0,
+            "materialIndices": [
+              0
+            ]
+          },
+          "expected": {
+            "sha256": "e9cf93b52608ff0e8507063970e4ed43c706411dc79cb8bede44f0ff2ba50f54",
+            "bytes": 1912,
+            "embeddedImages": [],
+            "embeddedCounts": {
+              "converted": 0,
+              "rawBytes": 0,
+              "skippedOversize": 0,
+              "skippedUnsupported": 0
+            },
+            "meshes": 1,
+            "vertices": 6,
+            "triangles": 2,
+            "groups": 1,
+            "bones": 0,
+            "materialIndices": [
+              0
+            ]
+          },
+          "phases": {
+            "materialBindingsMs": 0.7999999821186066,
+            "decodeMs": 24.80000001192093
+          }
+        },
+        {
+          "index": 2,
+          "fixtureKind": "authored-native-custom-Draco",
+          "inputBytes": 27726,
+          "inputSHA256": "0b1369af794d5410362df7f61d1badd102cc8fcafdb2dbc5c95d2baff51d6924",
+          "actual": {
+            "sha256": "d0d7a99d146199578fa9e72c11248e22e4b7b62abd5136abc9f3693056932f62",
+            "bytes": 3992,
+            "embeddedImages": [],
+            "embeddedCounts": {
+              "converted": 0,
+              "rawBytes": 0,
+              "skippedOversize": 0,
+              "skippedUnsupported": 0
+            },
+            "meshes": 1,
+            "vertices": 6,
+            "triangles": 2,
+            "groups": 2,
+            "bones": 2,
+            "materialIndices": [
+              0,
+              1
+            ]
+          },
+          "expected": {
+            "sha256": "d0d7a99d146199578fa9e72c11248e22e4b7b62abd5136abc9f3693056932f62",
+            "bytes": 3992,
+            "embeddedImages": [],
+            "embeddedCounts": {
+              "converted": 0,
+              "rawBytes": 0,
+              "skippedOversize": 0,
+              "skippedUnsupported": 0
+            },
+            "meshes": 1,
+            "vertices": 6,
+            "triangles": 2,
+            "groups": 2,
+            "bones": 2,
+            "materialIndices": [
+              0,
+              1
+            ]
+          },
+          "phases": {
+            "materialBindingsMs": 0.29999998211860657,
+            "decodeMs": 96.10000002384186
+          }
+        }
+      ],
+      "ownWorkers": 2,
+      "poolCleanup": true,
+      "activeInputDetached": true,
+      "outstanding": 0,
+      "inputBytes": 0,
+      "hardDeadlineElapsedMs": 77.5,
+      "hardDeadlineWorkersAfter": 0,
+      "pageErrors": 0
+    },
+    {
+      "engine": "firefox",
+      "browserVersion": "155.0",
+      "startedAt": "2026-10-01T23:13:50.133Z",
+      "finishedAt": "2026-10-01T23:13:55.484Z",
+      "rawCaptureSHA256": "e1c62a53686ea828fc382b1406cd1b008f87a6442a595ea93aa6506f4a530c38",
+      "fixtures": [
+        {
+          "index": 0,
+          "fixtureKind": "packaged-native-mannequin",
+          "inputBytes": 3655100,
+          "inputSHA256": "e247f3342ff109e17f7ae90916f81935d17ff4f51f60c60908094bb4f38db7da",
+          "actual": {
+            "sha256": "7dad24a26182bda343b1e1993e4c40d601f2a457d128b9e5cb8b56beb49e59f9",
+            "bytes": 901361,
+            "embeddedImages": [
+              {
+                "digest": "0209b79f58db1eac0799410fade6083b3046904221a22bd62f2e134a51ee3cfc",
+                "mimeType": "image/png",
+                "bytes": 537177,
+                "sha256": "0209b79f58db1eac0799410fade6083b3046904221a22bd62f2e134a51ee3cfc"
+              },
+              {
+                "digest": "2c61f336e9d6c93da29ca5994a2addcc61f66d80d5197c01ea3e2883f0977ad1",
+                "mimeType": "image/png",
+                "bytes": 1026568,
+                "sha256": "2c61f336e9d6c93da29ca5994a2addcc61f66d80d5197c01ea3e2883f0977ad1"
+              },
+              {
+                "digest": "c86899503c7d6c025b3bbf020c348dd7ea9235ed1248b9cd11c5e7f88ba055e6",
+                "mimeType": "image/png",
+                "bytes": 1168014,
+                "sha256": "c86899503c7d6c025b3bbf020c348dd7ea9235ed1248b9cd11c5e7f88ba055e6"
+              },
+              {
+                "digest": "e8be0da314bfa0e3ad7e0f9d2315dddc38f39510dd421c9edbafc5406086700d",
+                "mimeType": "image/png",
+                "bytes": 22414,
+                "sha256": "e8be0da314bfa0e3ad7e0f9d2315dddc38f39510dd421c9edbafc5406086700d"
+              }
+            ],
+            "embeddedCounts": {
+              "converted": 4,
+              "rawBytes": 2754173,
+              "skippedOversize": 0,
+              "skippedUnsupported": 0
+            },
+            "meshes": 2,
+            "vertices": 44244,
+            "triangles": 14748,
+            "groups": 0,
+            "bones": 73,
+            "materialIndices": []
+          },
+          "expected": {
+            "sha256": "7dad24a26182bda343b1e1993e4c40d601f2a457d128b9e5cb8b56beb49e59f9",
+            "bytes": 901361,
+            "embeddedImages": [
+              {
+                "digest": "0209b79f58db1eac0799410fade6083b3046904221a22bd62f2e134a51ee3cfc",
+                "mimeType": "image/png",
+                "bytes": 537177,
+                "sha256": "0209b79f58db1eac0799410fade6083b3046904221a22bd62f2e134a51ee3cfc"
+              },
+              {
+                "digest": "2c61f336e9d6c93da29ca5994a2addcc61f66d80d5197c01ea3e2883f0977ad1",
+                "mimeType": "image/png",
+                "bytes": 1026568,
+                "sha256": "2c61f336e9d6c93da29ca5994a2addcc61f66d80d5197c01ea3e2883f0977ad1"
+              },
+              {
+                "digest": "c86899503c7d6c025b3bbf020c348dd7ea9235ed1248b9cd11c5e7f88ba055e6",
+                "mimeType": "image/png",
+                "bytes": 1168014,
+                "sha256": "c86899503c7d6c025b3bbf020c348dd7ea9235ed1248b9cd11c5e7f88ba055e6"
+              },
+              {
+                "digest": "e8be0da314bfa0e3ad7e0f9d2315dddc38f39510dd421c9edbafc5406086700d",
+                "mimeType": "image/png",
+                "bytes": 22414,
+                "sha256": "e8be0da314bfa0e3ad7e0f9d2315dddc38f39510dd421c9edbafc5406086700d"
+              }
+            ],
+            "embeddedCounts": {
+              "converted": 4,
+              "rawBytes": 2754173,
+              "skippedOversize": 0,
+              "skippedUnsupported": 0
+            },
+            "meshes": 2,
+            "vertices": 44244,
+            "triangles": 14748,
+            "groups": 0,
+            "bones": 73,
+            "materialIndices": []
+          },
+          "phases": {
+            "materialBindingsMs": 38,
+            "decodeMs": 39
+          }
+        },
+        {
+          "index": 1,
+          "fixtureKind": "authored-ordinary-Draco",
+          "inputBytes": 1043,
+          "inputSHA256": "d14744018ba511def63b0265f5471573be8968de74d9caf30bf01f62f22dae96",
+          "actual": {
+            "sha256": "e9cf93b52608ff0e8507063970e4ed43c706411dc79cb8bede44f0ff2ba50f54",
+            "bytes": 1912,
+            "embeddedImages": [],
+            "embeddedCounts": {
+              "converted": 0,
+              "rawBytes": 0,
+              "skippedOversize": 0,
+              "skippedUnsupported": 0
+            },
+            "meshes": 1,
+            "vertices": 6,
+            "triangles": 2,
+            "groups": 1,
+            "bones": 0,
+            "materialIndices": [
+              0
+            ]
+          },
+          "expected": {
+            "sha256": "e9cf93b52608ff0e8507063970e4ed43c706411dc79cb8bede44f0ff2ba50f54",
+            "bytes": 1912,
+            "embeddedImages": [],
+            "embeddedCounts": {
+              "converted": 0,
+              "rawBytes": 0,
+              "skippedOversize": 0,
+              "skippedUnsupported": 0
+            },
+            "meshes": 1,
+            "vertices": 6,
+            "triangles": 2,
+            "groups": 1,
+            "bones": 0,
+            "materialIndices": [
+              0
+            ]
+          },
+          "phases": {
+            "materialBindingsMs": 2,
+            "decodeMs": 24
+          }
+        },
+        {
+          "index": 2,
+          "fixtureKind": "authored-native-custom-Draco",
+          "inputBytes": 27726,
+          "inputSHA256": "0b1369af794d5410362df7f61d1badd102cc8fcafdb2dbc5c95d2baff51d6924",
+          "actual": {
+            "sha256": "d0d7a99d146199578fa9e72c11248e22e4b7b62abd5136abc9f3693056932f62",
+            "bytes": 3992,
+            "embeddedImages": [],
+            "embeddedCounts": {
+              "converted": 0,
+              "rawBytes": 0,
+              "skippedOversize": 0,
+              "skippedUnsupported": 0
+            },
+            "meshes": 1,
+            "vertices": 6,
+            "triangles": 2,
+            "groups": 2,
+            "bones": 2,
+            "materialIndices": [
+              0,
+              1
+            ]
+          },
+          "expected": {
+            "sha256": "d0d7a99d146199578fa9e72c11248e22e4b7b62abd5136abc9f3693056932f62",
+            "bytes": 3992,
+            "embeddedImages": [],
+            "embeddedCounts": {
+              "converted": 0,
+              "rawBytes": 0,
+              "skippedOversize": 0,
+              "skippedUnsupported": 0
+            },
+            "meshes": 1,
+            "vertices": 6,
+            "triangles": 2,
+            "groups": 2,
+            "bones": 2,
+            "materialIndices": [
+              0,
+              1
+            ]
+          },
+          "phases": {
+            "materialBindingsMs": 1,
+            "decodeMs": 107
+          }
+        }
+      ],
+      "ownWorkers": 2,
+      "poolCleanup": true,
+      "activeInputDetached": true,
+      "outstanding": 0,
+      "inputBytes": 0,
+      "hardDeadlineElapsedMs": 77,
+      "hardDeadlineWorkersAfter": 0,
+      "pageErrors": 0
+    }
+  ],
+  "unchangedGates": [
+    "exact canonical buffer SHA and length",
+    "exact geometry/groups/material indices/bones",
+    "two bounded workers",
+    "actual detached inputs and zero owned pending bytes",
+    "hard termination deadline and no page errors"
+  ],
+  "additionalGates": [
+    "exact sidecar actual SHA versus declared digest",
+    "exact MIME and byte length",
+    "exact complete sidecar metadata and accounting",
+    "negative image mutation, missing descriptor and unsupported MIME regressions"
+  ],
+  "limitations": [
+    "This is a packaged/native codec proof without a connected world or GPU context.",
+    "The complete new-commit native CI must still run; isolated two-engine proof does not replace it."
+  ]
+}
