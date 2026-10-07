@@ -2780,6 +2780,11 @@ void ScriptManager::unloadEntityScript(const EntityItemID& entityID, const QStri
         "entityID:" << entityID;
 #endif
 
+    // Queued cleanup can arrive after run() has released its engine scope.
+    // Copying EntityScriptDetails also copies ScriptValues and enters V8.
+    // Acquire the engine before the details lock and retain it through cleanup.
+    auto scopeGuard = _engine->getScopeGuard();
+
     auto consent = _entityScriptConsentRequests.find(entityID);
     if (consent != _entityScriptConsentRequests.end()) {
         if (auto request = consent->value(scriptURL)) { request->invalidate(); }
@@ -2847,6 +2852,11 @@ void ScriptManager::unloadAllEntityScriptsForEntity(const EntityItemID& entityID
                           << entityID;
 #endif
 
+    // Queued cleanup can arrive after run() has released its engine scope.
+    // Copying EntityScriptDetails also copies ScriptValues and enters V8.
+    // Acquire the engine before the details lock and retain it through cleanup.
+    auto scopeGuard = _engine->getScopeGuard();
+
     for (const auto& request : _entityScriptConsentRequests.value(entityID)) { request->invalidate(); }
     _entityScriptConsentRequests.remove(entityID);
     _entityScriptLoads.remove(entityID);
@@ -2909,6 +2919,11 @@ void ScriptManager::unloadAllEntityScripts(bool blockingCall) {
 #ifdef THREAD_DEBUGGING
     qCDebug(scriptengine) << "ScriptManager::unloadAllEntityScripts() called on correct thread [" << thread() << "]";
 #endif
+
+    // Queued cleanup can arrive after run() has released its engine scope.
+    // Copying EntityScriptDetails also copies ScriptValues and enters V8.
+    // Acquire the engine before the details lock and retain it through cleanup.
+    auto scopeGuard = _engine->getScopeGuard();
 
     for (const auto& scripts : _entityScriptConsentRequests) {
         for (const auto& request : scripts) { request->invalidate(); }
