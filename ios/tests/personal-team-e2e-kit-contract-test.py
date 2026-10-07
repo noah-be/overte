@@ -173,7 +173,9 @@ def assert_workflow_contract() -> None:
         "  push:\n", 1
     )[0]
     dispatch_inputs = re.findall(r"^      [a-z][a-z0-9_]*:$", dispatch, re.MULTILINE)
-    assert len(dispatch_inputs) <= 10
+    # GitHub.com supports 25 workflow_dispatch inputs. Older GHES releases used 10.
+    # https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_dispatchinputs
+    assert len(dispatch_inputs) <= 25
     assert "personal_team_overte_reuse_run_attempt" not in bootstrap
     assert re.search(r"^on:\n  workflow_call:", workflow, re.MULTILINE)
     assert not re.search(r"^  (?:workflow_dispatch|push|pull_request|schedule):", workflow, re.MULTILINE)
