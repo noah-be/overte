@@ -1,0 +1,10 @@
+{
+  "scope": "Supplemental post-run audit of the retained native module; not a harness start/end binary attestation",
+  "qtSDKVersion": "5.15.3",
+  "qtRuntimeVersion": "5.15.3",
+  "compiledSourceSHA256": "c6ec527b810dec4d179526c2b3ef41b9e45c367063d8a29d67273d765d2eb063",
+  "currentSourceSHA256": "c6ec527b810dec4d179526c2b3ef41b9e45c367063d8a29d67273d765d2eb063",
+  "currentNativePluginSHA256": "d426e8dfcac7e2b5adbbaf4b58fd2117f718b520d8f364fd8a9ddad6576df1c2",
+  "builderManifestSHA256": "47993a5c08eb074052078e299683145a81dace682e7a1620f90f9b06edb7d12e",
+  "sourceMatchesBuilderManifest": true
+}

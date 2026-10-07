@@ -1,0 +1,1234 @@
+{
+  "schema": 1,
+  "scope": "Source-bound numeric original Hub observations; no inferred performance cause",
+  "baseline": {
+    "mode": "baseline",
+    "rawReportSHA256": "586f1048fe589594f537bfce4ed3a5e5eb23a09013d35aeaf5078312d82bd32a",
+    "originalCompleted": false,
+    "originalAllFluidPassed": false,
+    "pageErrorCount": 0,
+    "externalGuards": {
+      "sourceUnchanged": true,
+      "distributionUnchanged": true,
+      "stockExecutableObserved": true,
+      "ownedBrowserClosed": true,
+      "gatewayChildrenReturnedToBaseline": true,
+      "nineManagedServicesUnchanged": true
+    },
+    "outerSourceCoherent": true,
+    "outerManagedBirthsUnchanged": true,
+    "outerCleanup": true,
+    "windows": [
+      {
+        "label": "initial-steady",
+        "originalGate": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "recomputedOriginalGate": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250,
+          "failedFixedReasons": [
+            "fps",
+            "p95"
+          ]
+        },
+        "samples": [
+          {
+            "samples": 240,
+            "fps": 31.370498660218285,
+            "medianFrameMs": 33.299999999995634,
+            "p95FrameMs": 66.69999999999709,
+            "maximumFrameMs": 185.09999999999854,
+            "drawCalls": 676,
+            "triangles": 556228,
+            "geometries": 423,
+            "textures": 217,
+            "entities": 517,
+            "loadedModels": 296,
+            "meshColliders": 75,
+            "drawingBufferWidth": 1280,
+            "drawingBufferHeight": 800
+          },
+          {
+            "samples": 240,
+            "fps": 29.626703535453306,
+            "medianFrameMs": 33.30000000000291,
+            "p95FrameMs": 81.70000000000437,
+            "maximumFrameMs": 185.09999999999854,
+            "drawCalls": 676,
+            "triangles": 556228,
+            "geometries": 423,
+            "textures": 217,
+            "entities": 517,
+            "loadedModels": 296,
+            "meshColliders": 75,
+            "drawingBufferWidth": 1280,
+            "drawingBufferHeight": 800
+          }
+        ]
+      },
+      {
+        "label": "initial-walk",
+        "originalGate": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "recomputedOriginalGate": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250,
+          "failedFixedReasons": [
+            "fps",
+            "p95"
+          ]
+        },
+        "samples": [
+          {
+            "samples": 240,
+            "fps": 29.626703535453306,
+            "medianFrameMs": 33.30000000000291,
+            "p95FrameMs": 81.70000000000437,
+            "maximumFrameMs": 185.09999999999854,
+            "drawCalls": 676,
+            "triangles": 556228,
+            "geometries": 423,
+            "textures": 217,
+            "entities": 517,
+            "loadedModels": 296,
+            "meshColliders": 75,
+            "drawingBufferWidth": 1280,
+            "drawingBufferHeight": 800
+          },
+          {
+            "samples": 240,
+            "fps": 28.91287586738629,
+            "medianFrameMs": 33.299999999995634,
+            "p95FrameMs": 83.29999999999563,
+            "maximumFrameMs": 185.09999999999854,
+            "drawCalls": 645,
+            "triangles": 527639,
+            "geometries": 423,
+            "textures": 217,
+            "entities": 517,
+            "loadedModels": 296,
+            "meshColliders": 75,
+            "drawingBufferWidth": 1280,
+            "drawingBufferHeight": 800
+          }
+        ]
+      },
+      {
+        "label": "rejoin-steady",
+        "originalGate": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "recomputedOriginalGate": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250,
+          "failedFixedReasons": [
+            "p95"
+          ]
+        },
+        "samples": [
+          {
+            "samples": 240,
+            "fps": 37.015330516055386,
+            "medianFrameMs": 32.89999999999418,
+            "p95FrameMs": 50,
+            "maximumFrameMs": 83.29999999998836,
+            "drawCalls": 677,
+            "triangles": 556821,
+            "geometries": 426,
+            "textures": 220,
+            "entities": 516,
+            "loadedModels": 295,
+            "meshColliders": 75,
+            "drawingBufferWidth": 1280,
+            "drawingBufferHeight": 800
+          },
+          {
+            "samples": 240,
+            "fps": 30.186021356610066,
+            "medianFrameMs": 33.30000000000291,
+            "p95FrameMs": 66.69999999999709,
+            "maximumFrameMs": 216.6999999999971,
+            "drawCalls": 677,
+            "triangles": 556821,
+            "geometries": 426,
+            "textures": 220,
+            "entities": 516,
+            "loadedModels": 295,
+            "meshColliders": 75,
+            "drawingBufferWidth": 1280,
+            "drawingBufferHeight": 800
+          }
+        ]
+      },
+      {
+        "label": "rejoin-walk",
+        "originalGate": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "recomputedOriginalGate": {
+          "passed": false,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250,
+          "failedFixedReasons": [
+            "fps",
+            "p95"
+          ]
+        },
+        "samples": [
+          {
+            "samples": 240,
+            "fps": 30.186021356610066,
+            "medianFrameMs": 33.30000000000291,
+            "p95FrameMs": 66.69999999999709,
+            "maximumFrameMs": 216.6999999999971,
+            "drawCalls": 677,
+            "triangles": 556821,
+            "geometries": 426,
+            "textures": 220,
+            "entities": 516,
+            "loadedModels": 295,
+            "meshColliders": 75,
+            "drawingBufferWidth": 1280,
+            "drawingBufferHeight": 800
+          },
+          {
+            "samples": 240,
+            "fps": 29.265437518290888,
+            "medianFrameMs": 33.30000000000291,
+            "p95FrameMs": 66.69999999999709,
+            "maximumFrameMs": 216.6999999999971,
+            "drawCalls": 656,
+            "triangles": 536136,
+            "geometries": 426,
+            "textures": 220,
+            "entities": 516,
+            "loadedModels": 295,
+            "meshColliders": 75,
+            "drawingBufferWidth": 1280,
+            "drawingBufferHeight": 800
+          }
+        ]
+      }
+    ],
+    "coldSlotObservations": [
+      {
+        "observedAfterAdmissionMs": 4728.0,
+        "loadedModels": 22,
+        "busyModelSlots": 6,
+        "queuedModels": 19,
+        "compilingGraphics": 0,
+        "imageActive": 0,
+        "imageQueued": 0,
+        "compressedColorActive": 0,
+        "compressedColorQueued": 0
+      },
+      {
+        "observedAfterAdmissionMs": 9551.0,
+        "loadedModels": 59,
+        "busyModelSlots": 6,
+        "queuedModels": 239,
+        "compilingGraphics": 0,
+        "imageActive": 0,
+        "imageQueued": 0,
+        "compressedColorActive": 2,
+        "compressedColorQueued": 1
+      },
+      {
+        "observedAfterAdmissionMs": 12645.0,
+        "loadedModels": 87,
+        "busyModelSlots": 6,
+        "queuedModels": 208,
+        "compilingGraphics": 0,
+        "imageActive": 0,
+        "imageQueued": 0,
+        "compressedColorActive": 0,
+        "compressedColorQueued": 0
+      },
+      {
+        "observedAfterAdmissionMs": 15860.0,
+        "loadedModels": 126,
+        "busyModelSlots": 6,
+        "queuedModels": 167,
+        "compilingGraphics": 0,
+        "imageActive": 0,
+        "imageQueued": 0,
+        "compressedColorActive": 0,
+        "compressedColorQueued": 0
+      },
+      {
+        "observedAfterAdmissionMs": 18981.0,
+        "loadedModels": 181,
+        "busyModelSlots": 6,
+        "queuedModels": 112,
+        "compilingGraphics": 1,
+        "imageActive": 0,
+        "imageQueued": 0,
+        "compressedColorActive": 1,
+        "compressedColorQueued": 0
+      },
+      {
+        "observedAfterAdmissionMs": 22084.0,
+        "loadedModels": 229,
+        "busyModelSlots": 6,
+        "queuedModels": 63,
+        "compilingGraphics": 0,
+        "imageActive": 0,
+        "imageQueued": 0,
+        "compressedColorActive": 0,
+        "compressedColorQueued": 0
+      },
+      {
+        "observedAfterAdmissionMs": 25230.0,
+        "loadedModels": 281,
+        "busyModelSlots": 6,
+        "queuedModels": 9,
+        "compilingGraphics": 0,
+        "imageActive": 0,
+        "imageQueued": 0,
+        "compressedColorActive": 0,
+        "compressedColorQueued": 0
+      },
+      {
+        "observedAfterAdmissionMs": 28347.0,
+        "loadedModels": 296,
+        "busyModelSlots": 0,
+        "queuedModels": 0,
+        "compilingGraphics": 0,
+        "imageActive": 0,
+        "imageQueued": 0,
+        "compressedColorActive": 0,
+        "compressedColorQueued": 0
+      }
+    ],
+    "firstReadyPollingBracket": {
+      "scope": "Polling bracket includes early movement; not exact loader/CPU/GPU elapsed",
+      "lastNotReadyObservationMs": 25230.0,
+      "firstReadyObservationMs": 28347.0,
+      "loadedModels": 296
+    },
+    "loadPhases": {
+      "scope": "Overlapping all-owner sums, never critical-path or CPU/GPU elapsed",
+      "initial": {
+        "graphicsSubmit": {
+          "count": 2146,
+          "totalMs": 25189.200001090765,
+          "maxMs": 713.4000000059605
+        },
+        "shaderPrepare": {
+          "count": 500,
+          "totalMs": 32046.29999935627,
+          "maxMs": 393
+        },
+        "fbxMaterialBindings": {
+          "count": 122,
+          "totalMs": 490.09999999403954,
+          "maxMs": 82.40000000596046
+        },
+        "fbxDecode": {
+          "count": 122,
+          "totalMs": 5287.499999940395,
+          "maxMs": 1127.800000011921
+        },
+        "fbxPrepareWait": {
+          "count": 295,
+          "totalMs": 36574.70000013709,
+          "maxMs": 1611.4000000059605
+        },
+        "fbxParse": {
+          "count": 295,
+          "totalMs": 5891.099999815226,
+          "maxMs": 555.1999999880791
+        },
+        "fbxTextures": {
+          "count": 295,
+          "totalMs": 4682.300000011921,
+          "maxMs": 441.19999998807907
+        },
+        "textureAlpha": {
+          "count": 848,
+          "totalMs": 1156.8999999761581,
+          "maxMs": 131.40000000596046
+        },
+        "fstGraphPreflight": {
+          "count": 244,
+          "totalMs": 97.89999988675117,
+          "maxMs": 22.5
+        },
+        "colliderBuild": {
+          "count": 78,
+          "totalMs": 350.2000000178814,
+          "maxMs": 74.90000000596046
+        },
+        "compressedColor": {
+          "count": 234,
+          "totalMs": 24240.100000053644,
+          "maxMs": 794.5
+        },
+        "modelBatch": {
+          "count": 6,
+          "totalMs": 274.40000000596046,
+          "maxMs": 122.7000000178814
+        }
+      },
+      "rejoin": {
+        "graphicsSubmit": {
+          "count": 2233,
+          "totalMs": 22634.20000138879,
+          "maxMs": 902
+        },
+        "shaderPrepare": {
+          "count": 499,
+          "totalMs": 10117.299999713898,
+          "maxMs": 204.69999998807907
+        },
+        "fbxMaterialBindings": {
+          "count": 122,
+          "totalMs": 575.8999999463558,
+          "maxMs": 127.69999998807907
+        },
+        "fbxDecode": {
+          "count": 122,
+          "totalMs": 4054.7000000178814,
+          "maxMs": 791.3000000119209
+        },
+        "fbxPrepareWait": {
+          "count": 294,
+          "totalMs": 35803.300000071526,
+          "maxMs": 1504.8999999761581
+        },
+        "fbxParse": {
+          "count": 294,
+          "totalMs": 5551.599999904633,
+          "maxMs": 507.59999999403954
+        },
+        "fbxTextures": {
+          "count": 294,
+          "totalMs": 4066.800000101328,
+          "maxMs": 509.09999999403954
+        },
+        "textureAlpha": {
+          "count": 846,
+          "totalMs": 1255.6999999284744,
+          "maxMs": 170.69999998807907
+        },
+        "fstGraphPreflight": {
+          "count": 243,
+          "totalMs": 70.80000001192093,
+          "maxMs": 8
+        },
+        "colliderBuild": {
+          "count": 78,
+          "totalMs": 296.19999983906746,
+          "maxMs": 75.09999999403954
+        },
+        "compressedColor": {
+          "count": 233,
+          "totalMs": 24697.300000220537,
+          "maxMs": 1363.4000000059605
+        },
+        "modelBatch": {
+          "count": 6,
+          "totalMs": 232.89999997615814,
+          "maxMs": 127.69999998807907
+        }
+      }
+    },
+    "fstRetainedOwnerDetail": {
+      "initial": {
+        "scope": "Only retained owner rows; earlier rows omitted; waits across owners overlap",
+        "allOwners": 311,
+        "terminals": {
+          "completed": 295,
+          "refused": 16,
+          "cancelled": 0,
+          "censored": 0
+        },
+        "clockInvalid": 0,
+        "reportCensored": false,
+        "retainedRows": 64,
+        "earlierRowsOmitted": 247,
+        "retainedFstRows": 53,
+        "countCensoredRows": 0,
+        "retainedMultiTemplateOwners": 19,
+        "retainedTemplateAttempts": 73,
+        "retainedTemplatesCompleted": 73,
+        "retainedMapReaderAttempts": 43
+      },
+      "rejoin": {
+        "scope": "Only retained owner rows; earlier rows omitted; waits across owners overlap",
+        "allOwners": 310,
+        "terminals": {
+          "completed": 294,
+          "refused": 16,
+          "cancelled": 0,
+          "censored": 0
+        },
+        "clockInvalid": 0,
+        "reportCensored": false,
+        "retainedRows": 64,
+        "earlierRowsOmitted": 246,
+        "retainedFstRows": 54,
+        "countCensoredRows": 0,
+        "retainedMultiTemplateOwners": 17,
+        "retainedTemplateAttempts": 72,
+        "retainedTemplatesCompleted": 72,
+        "retainedMapReaderAttempts": 44
+      }
+    },
+    "lookaheadWork": {
+      "initial": {
+        "enabled": false,
+        "started": 0,
+        "consumed": 0,
+        "capacityFallback": 0
+      },
+      "rejoin": {
+        "enabled": false,
+        "started": 0,
+        "consumed": 0,
+        "capacityFallback": 0
+      }
+    },
+    "assetCategoryMetadata": {
+      "FBX": {
+        "uniqueURLs": 122,
+        "requests": 246,
+        "duplicateRequests": 124,
+        "knownBytes": 39534270,
+        "unknownByteResponses": 0
+      },
+      "FST": {
+        "uniqueURLs": 95,
+        "requests": 182,
+        "duplicateRequests": 87,
+        "knownBytes": 40645,
+        "unknownByteResponses": 0
+      },
+      "texmeta": {
+        "uniqueURLs": 135,
+        "requests": 265,
+        "duplicateRequests": 130,
+        "knownBytes": 82411,
+        "unknownByteResponses": 0
+      },
+      "JSON": {
+        "uniqueURLs": 93,
+        "requests": 183,
+        "duplicateRequests": 90,
+        "knownBytes": 121520,
+        "unknownByteResponses": 0
+      },
+      "image": {
+        "uniqueURLs": 145,
+        "requests": 284,
+        "duplicateRequests": 139,
+        "knownBytes": 164310908,
+        "unknownByteResponses": 0
+      },
+      "other": {
+        "uniqueURLs": 8,
+        "requests": 16,
+        "duplicateRequests": 8,
+        "knownBytes": 8995328,
+        "unknownByteResponses": 0
+      }
+    },
+    "imageLoading": {
+      "initial": {
+        "requests": 116,
+        "uniqueImages": 71,
+        "cacheHits": 45,
+        "completed": 63,
+        "failed": 8,
+        "cancelled": 0,
+        "evictions": 0,
+        "peakActive": 6
+      },
+      "rejoin": {
+        "requests": 115,
+        "uniqueImages": 71,
+        "cacheHits": 44,
+        "completed": 63,
+        "failed": 8,
+        "cancelled": 0,
+        "evictions": 0,
+        "peakActive": 6
+      }
+    },
+    "GLObservedCalls": {
+      "scope": "Generic calls include dynamic tiny skin/bone uploads; not unique static images or GPU duration",
+      "values": {
+        "texSubImage2D:0": {
+          "calls": 44940,
+          "totalMs": 3659.2000003755093,
+          "maxMs": 403.5
+        },
+        "getProgramInfoLog": {
+          "calls": 68,
+          "totalMs": 684.8999998867512,
+          "maxMs": 196.7999999821186
+        }
+      }
+    },
+    "profilersRequested": {
+      "uploadProfileRequested": false,
+      "gpuTimingRequested": false,
+      "cpuFrameTimingRequested": false,
+      "renderCpuTimingRequested": false
+    },
+    "wholeHubPixelEquivalenceProven": false,
+    "gainClaim": false
+  },
+  "candidateAvailable": true,
+  "pairComparison": {
+    "schema": 1,
+    "accepted": false,
+    "reason": "original-gate",
+    "gainClaim": false,
+    "wholeHubPixelEquivalenceProven": false
+  },
+  "gainClaim": false,
+  "candidate": {
+    "mode": "lookahead",
+    "rawReportSHA256": "6b0ee4aeb1f521c7d0f5db759754555a62b17f03c086e8870e32ea161cf11913",
+    "originalCompleted": true,
+    "originalAllFluidPassed": true,
+    "pageErrorCount": 0,
+    "externalGuards": {
+      "sourceUnchanged": true,
+      "distributionUnchanged": true,
+      "stockExecutableObserved": true,
+      "ownedBrowserClosed": true,
+      "gatewayChildrenReturnedToBaseline": true,
+      "nineManagedServicesUnchanged": true
+    },
+    "outerSourceCoherent": true,
+    "outerManagedBirthsUnchanged": true,
+    "outerCleanup": true,
+    "windows": [
+      {
+        "label": "initial-steady",
+        "originalGate": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "recomputedOriginalGate": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250,
+          "failedFixedReasons": []
+        },
+        "samples": [
+          {
+            "samples": 240,
+            "fps": 32.72385159733301,
+            "medianFrameMs": 33.299999999995634,
+            "p95FrameMs": 66.29999999999563,
+            "maximumFrameMs": 216.89999999999418,
+            "drawCalls": 674,
+            "triangles": 554004,
+            "geometries": 421,
+            "textures": 216,
+            "entities": 517,
+            "loadedModels": 296,
+            "meshColliders": 75,
+            "drawingBufferWidth": 1280,
+            "drawingBufferHeight": 800
+          },
+          {
+            "samples": 240,
+            "fps": 33.33055578701776,
+            "medianFrameMs": 33.299999999995634,
+            "p95FrameMs": 50.099999999998545,
+            "maximumFrameMs": 216.89999999999418,
+            "drawCalls": 674,
+            "triangles": 554004,
+            "geometries": 421,
+            "textures": 216,
+            "entities": 517,
+            "loadedModels": 296,
+            "meshColliders": 75,
+            "drawingBufferWidth": 1280,
+            "drawingBufferHeight": 800
+          }
+        ]
+      },
+      {
+        "label": "initial-walk",
+        "originalGate": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "recomputedOriginalGate": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250,
+          "failedFixedReasons": []
+        },
+        "samples": [
+          {
+            "samples": 240,
+            "fps": 33.33055578701776,
+            "medianFrameMs": 33.299999999995634,
+            "p95FrameMs": 50.099999999998545,
+            "maximumFrameMs": 216.89999999999418,
+            "drawCalls": 674,
+            "triangles": 554004,
+            "geometries": 421,
+            "textures": 216,
+            "entities": 517,
+            "loadedModels": 296,
+            "meshColliders": 75,
+            "drawingBufferWidth": 1280,
+            "drawingBufferHeight": 800
+          },
+          {
+            "samples": 240,
+            "fps": 30.96734235687282,
+            "medianFrameMs": 33.299999999995634,
+            "p95FrameMs": 66.5,
+            "maximumFrameMs": 216.89999999999418,
+            "drawCalls": 636,
+            "triangles": 511951,
+            "geometries": 421,
+            "textures": 216,
+            "entities": 517,
+            "loadedModels": 296,
+            "meshColliders": 75,
+            "drawingBufferWidth": 1280,
+            "drawingBufferHeight": 800
+          }
+        ]
+      },
+      {
+        "label": "rejoin-steady",
+        "originalGate": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "recomputedOriginalGate": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250,
+          "failedFixedReasons": []
+        },
+        "samples": [
+          {
+            "samples": 240,
+            "fps": 40.56589422443079,
+            "medianFrameMs": 16.80000000000291,
+            "p95FrameMs": 49.09999999999127,
+            "maximumFrameMs": 66.69999999999709,
+            "drawCalls": 676,
+            "triangles": 556673,
+            "geometries": 424,
+            "textures": 217,
+            "entities": 516,
+            "loadedModels": 295,
+            "meshColliders": 75,
+            "drawingBufferWidth": 1280,
+            "drawingBufferHeight": 800
+          },
+          {
+            "samples": 240,
+            "fps": 39.55631005554363,
+            "medianFrameMs": 16.80000000000291,
+            "p95FrameMs": 49.80000000000291,
+            "maximumFrameMs": 66.69999999999709,
+            "drawCalls": 675,
+            "triangles": 556001,
+            "geometries": 424,
+            "textures": 217,
+            "entities": 516,
+            "loadedModels": 295,
+            "meshColliders": 75,
+            "drawingBufferWidth": 1280,
+            "drawingBufferHeight": 800
+          }
+        ]
+      },
+      {
+        "label": "rejoin-walk",
+        "originalGate": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250
+        },
+        "recomputedOriginalGate": {
+          "passed": true,
+          "validMeasurements": true,
+          "minimumFPS": 30,
+          "maximumP95FrameMs": 66.66666666666667,
+          "maximumStallMs": 250,
+          "failedFixedReasons": []
+        },
+        "samples": [
+          {
+            "samples": 240,
+            "fps": 39.55631005554363,
+            "medianFrameMs": 16.80000000000291,
+            "p95FrameMs": 49.80000000000291,
+            "maximumFrameMs": 66.69999999999709,
+            "drawCalls": 675,
+            "triangles": 556001,
+            "geometries": 424,
+            "textures": 217,
+            "entities": 516,
+            "loadedModels": 295,
+            "meshColliders": 75,
+            "drawingBufferWidth": 1280,
+            "drawingBufferHeight": 800
+          },
+          {
+            "samples": 240,
+            "fps": 41.49449333494705,
+            "medianFrameMs": 16.70000000001164,
+            "p95FrameMs": 34,
+            "maximumFrameMs": 50.19999999999709,
+            "drawCalls": 656,
+            "triangles": 535344,
+            "geometries": 424,
+            "textures": 217,
+            "entities": 516,
+            "loadedModels": 295,
+            "meshColliders": 75,
+            "drawingBufferWidth": 1280,
+            "drawingBufferHeight": 800
+          }
+        ]
+      }
+    ],
+    "coldSlotObservations": [
+      {
+        "observedAfterAdmissionMs": 8322.0,
+        "loadedModels": 10,
+        "busyModelSlots": 6,
+        "queuedModels": 292,
+        "compilingGraphics": 0,
+        "imageActive": 0,
+        "imageQueued": 0,
+        "compressedColorActive": 0,
+        "compressedColorQueued": 0
+      },
+      {
+        "observedAfterAdmissionMs": 12999.0,
+        "loadedModels": 60,
+        "busyModelSlots": 6,
+        "queuedModels": 236,
+        "compilingGraphics": 0,
+        "imageActive": 0,
+        "imageQueued": 0,
+        "compressedColorActive": 1,
+        "compressedColorQueued": 0
+      },
+      {
+        "observedAfterAdmissionMs": 16116.0,
+        "loadedModels": 93,
+        "busyModelSlots": 6,
+        "queuedModels": 202,
+        "compilingGraphics": 0,
+        "imageActive": 0,
+        "imageQueued": 0,
+        "compressedColorActive": 0,
+        "compressedColorQueued": 0
+      },
+      {
+        "observedAfterAdmissionMs": 19198.0,
+        "loadedModels": 136,
+        "busyModelSlots": 6,
+        "queuedModels": 157,
+        "compilingGraphics": 0,
+        "imageActive": 0,
+        "imageQueued": 0,
+        "compressedColorActive": 2,
+        "compressedColorQueued": 0
+      },
+      {
+        "observedAfterAdmissionMs": 22320.0,
+        "loadedModels": 191,
+        "busyModelSlots": 6,
+        "queuedModels": 102,
+        "compilingGraphics": 0,
+        "imageActive": 2,
+        "imageQueued": 0,
+        "compressedColorActive": 1,
+        "compressedColorQueued": 0
+      },
+      {
+        "observedAfterAdmissionMs": 25413.0,
+        "loadedModels": 227,
+        "busyModelSlots": 6,
+        "queuedModels": 65,
+        "compilingGraphics": 0,
+        "imageActive": 0,
+        "imageQueued": 0,
+        "compressedColorActive": 0,
+        "compressedColorQueued": 0
+      },
+      {
+        "observedAfterAdmissionMs": 28562.0,
+        "loadedModels": 276,
+        "busyModelSlots": 6,
+        "queuedModels": 14,
+        "compilingGraphics": 0,
+        "imageActive": 2,
+        "imageQueued": 0,
+        "compressedColorActive": 0,
+        "compressedColorQueued": 0
+      },
+      {
+        "observedAfterAdmissionMs": 31636.0,
+        "loadedModels": 296,
+        "busyModelSlots": 0,
+        "queuedModels": 0,
+        "compilingGraphics": 0,
+        "imageActive": 0,
+        "imageQueued": 0,
+        "compressedColorActive": 0,
+        "compressedColorQueued": 0
+      }
+    ],
+    "firstReadyPollingBracket": {
+      "scope": "Polling bracket includes early movement; not exact loader/CPU/GPU elapsed",
+      "lastNotReadyObservationMs": 28562.0,
+      "firstReadyObservationMs": 31636.0,
+      "loadedModels": 296
+    },
+    "loadPhases": {
+      "scope": "Overlapping all-owner sums, never critical-path or CPU/GPU elapsed",
+      "initial": {
+        "graphicsSubmit": {
+          "count": 2373,
+          "totalMs": 26168.800000488758,
+          "maxMs": 844.5
+        },
+        "shaderPrepare": {
+          "count": 500,
+          "totalMs": 35036.99999970198,
+          "maxMs": 247.90000000596046
+        },
+        "fbxMaterialBindings": {
+          "count": 122,
+          "totalMs": 465.2000000178814,
+          "maxMs": 71.09999999403954
+        },
+        "fbxDecode": {
+          "count": 122,
+          "totalMs": 4370.900000035763,
+          "maxMs": 897.7999999821186
+        },
+        "fbxPrepareWait": {
+          "count": 295,
+          "totalMs": 36022.80000039935,
+          "maxMs": 1438.800000011921
+        },
+        "fbxParse": {
+          "count": 295,
+          "totalMs": 5788.699999511242,
+          "maxMs": 420.90000000596046
+        },
+        "fbxTextures": {
+          "count": 295,
+          "totalMs": 4973.099999964237,
+          "maxMs": 492.90000000596046
+        },
+        "textureAlpha": {
+          "count": 848,
+          "totalMs": 1253.200000166893,
+          "maxMs": 121.09999999403954
+        },
+        "fstGraphPreflight": {
+          "count": 244,
+          "totalMs": 85.20000007748604,
+          "maxMs": 11.300000011920929
+        },
+        "colliderBuild": {
+          "count": 78,
+          "totalMs": 338.2000001370907,
+          "maxMs": 60.69999998807907
+        },
+        "compressedColor": {
+          "count": 234,
+          "totalMs": 24457.40000000596,
+          "maxMs": 1131.1000000238419
+        },
+        "modelBatch": {
+          "count": 6,
+          "totalMs": 189.59999999403954,
+          "maxMs": 103.89999997615814
+        }
+      },
+      "rejoin": {
+        "graphicsSubmit": {
+          "count": 2128,
+          "totalMs": 20397.599999815226,
+          "maxMs": 629.3000000119209
+        },
+        "shaderPrepare": {
+          "count": 499,
+          "totalMs": 8921.500001341105,
+          "maxMs": 241.90000000596046
+        },
+        "fbxMaterialBindings": {
+          "count": 122,
+          "totalMs": 320.7000000476837,
+          "maxMs": 69.30000001192093
+        },
+        "fbxDecode": {
+          "count": 122,
+          "totalMs": 3237.0000000298023,
+          "maxMs": 673.7999999821186
+        },
+        "fbxPrepareWait": {
+          "count": 294,
+          "totalMs": 27445.999999672174,
+          "maxMs": 1198.9000000059605
+        },
+        "fbxParse": {
+          "count": 294,
+          "totalMs": 4451.700000405312,
+          "maxMs": 337.2000000178814
+        },
+        "fbxTextures": {
+          "count": 294,
+          "totalMs": 3363.2999999523163,
+          "maxMs": 341.7999999821186
+        },
+        "textureAlpha": {
+          "count": 846,
+          "totalMs": 719.3999998867512,
+          "maxMs": 110.19999998807907
+        },
+        "fstGraphPreflight": {
+          "count": 243,
+          "totalMs": 55.300000339746475,
+          "maxMs": 5.4000000059604645
+        },
+        "colliderBuild": {
+          "count": 78,
+          "totalMs": 254.00000008940697,
+          "maxMs": 55
+        },
+        "compressedColor": {
+          "count": 233,
+          "totalMs": 17360.599999904633,
+          "maxMs": 554.0999999940395
+        },
+        "modelBatch": {
+          "count": 6,
+          "totalMs": 146.89999997615814,
+          "maxMs": 64.90000000596046
+        }
+      }
+    },
+    "fstRetainedOwnerDetail": {
+      "initial": {
+        "scope": "Only retained owner rows; earlier rows omitted; waits across owners overlap",
+        "allOwners": 311,
+        "terminals": {
+          "completed": 295,
+          "refused": 16,
+          "cancelled": 0,
+          "censored": 0
+        },
+        "clockInvalid": 0,
+        "reportCensored": false,
+        "retainedRows": 64,
+        "earlierRowsOmitted": 247,
+        "retainedFstRows": 51,
+        "countCensoredRows": 0,
+        "retainedMultiTemplateOwners": 16,
+        "retainedTemplateAttempts": 67,
+        "retainedTemplatesCompleted": 67,
+        "retainedMapReaderAttempts": 40
+      },
+      "rejoin": {
+        "scope": "Only retained owner rows; earlier rows omitted; waits across owners overlap",
+        "allOwners": 310,
+        "terminals": {
+          "completed": 294,
+          "refused": 16,
+          "cancelled": 0,
+          "censored": 0
+        },
+        "clockInvalid": 0,
+        "reportCensored": false,
+        "retainedRows": 64,
+        "earlierRowsOmitted": 246,
+        "retainedFstRows": 52,
+        "countCensoredRows": 0,
+        "retainedMultiTemplateOwners": 18,
+        "retainedTemplateAttempts": 71,
+        "retainedTemplatesCompleted": 71,
+        "retainedMapReaderAttempts": 42
+      }
+    },
+    "lookaheadWork": {
+      "initial": {
+        "enabled": true,
+        "started": 104,
+        "consumed": 102,
+        "capacityFallback": 0
+      },
+      "rejoin": {
+        "enabled": true,
+        "started": 104,
+        "consumed": 102,
+        "capacityFallback": 0
+      }
+    },
+    "assetCategoryMetadata": {
+      "FBX": {
+        "uniqueURLs": 122,
+        "requests": 246,
+        "duplicateRequests": 124,
+        "knownBytes": 39534270,
+        "unknownByteResponses": 0
+      },
+      "FST": {
+        "uniqueURLs": 95,
+        "requests": 185,
+        "duplicateRequests": 90,
+        "knownBytes": 41010,
+        "unknownByteResponses": 0
+      },
+      "texmeta": {
+        "uniqueURLs": 135,
+        "requests": 267,
+        "duplicateRequests": 132,
+        "knownBytes": 82968,
+        "unknownByteResponses": 0
+      },
+      "JSON": {
+        "uniqueURLs": 93,
+        "requests": 184,
+        "duplicateRequests": 91,
+        "knownBytes": 103896,
+        "unknownByteResponses": 0
+      },
+      "image": {
+        "uniqueURLs": 145,
+        "requests": 286,
+        "duplicateRequests": 141,
+        "knownBytes": 166058968,
+        "unknownByteResponses": 0
+      },
+      "other": {
+        "uniqueURLs": 8,
+        "requests": 16,
+        "duplicateRequests": 8,
+        "knownBytes": 11571616,
+        "unknownByteResponses": 0
+      }
+    },
+    "imageLoading": {
+      "initial": {
+        "requests": 116,
+        "uniqueImages": 71,
+        "cacheHits": 45,
+        "completed": 63,
+        "failed": 8,
+        "cancelled": 0,
+        "evictions": 0,
+        "peakActive": 6
+      },
+      "rejoin": {
+        "requests": 115,
+        "uniqueImages": 71,
+        "cacheHits": 44,
+        "completed": 63,
+        "failed": 8,
+        "cancelled": 0,
+        "evictions": 0,
+        "peakActive": 6
+      }
+    },
+    "GLObservedCalls": {
+      "scope": "Generic calls include dynamic tiny skin/bone uploads; not unique static images or GPU duration",
+      "values": {
+        "texSubImage2D:0": {
+          "calls": 48434,
+          "totalMs": 3411.100000232458,
+          "maxMs": 342.69999998807907
+        },
+        "getProgramInfoLog": {
+          "calls": 68,
+          "totalMs": 441.0000001490116,
+          "maxMs": 61.400000005960464
+        }
+      }
+    },
+    "profilersRequested": {
+      "uploadProfileRequested": false,
+      "gpuTimingRequested": false,
+      "cpuFrameTimingRequested": false,
+      "renderCpuTimingRequested": false
+    },
+    "wholeHubPixelEquivalenceProven": false,
+    "gainClaim": false
+  },
+  "diagnosticMetadata": {
+    "scope": "Diagnostic observed metadata only; never paired acceptance or pixel/latency equivalence",
+    "accepted": false,
+    "originalAcceptanceUnchanged": true,
+    "gainClaim": false,
+    "sameSources": true,
+    "sameDistribution": true,
+    "sameBrowserVersion": true,
+    "sameViewport": true,
+    "sameWebGLMetadata": true,
+    "sameObservedSceneCounts": false,
+    "sameObservedPrivateMembership": false,
+    "membershipCompleteBoth": true,
+    "sameAssetRequestByteSourceMetadata": false,
+    "assetByteCensorAbsentBoth": true,
+    "sameOriginalImageFailureMetadata": true,
+    "imageErrorCensorAbsentBoth": true
+  }
+}

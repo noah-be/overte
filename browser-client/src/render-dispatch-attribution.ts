@@ -1,0 +1,48 @@
+// Copyright 2026 Overte contributors
+// SPDX-License-Identifier: Apache-2.0
+import {BufferGeometry,Material,Object3D,TextureSource,Texture} from 'three';
+export const DISPATCH_ATTRIBUTION_LIMITS=Object.freeze({maximumSamples:512,maximumDrawsPerSample:4096,maximumOwnersPerSample:512,maximumMaterialsPerSample:512,maximumGeometriesPerSample:512,maximumSourcesPerSample:1024,maximumSamplerTuplesPerSample:2048,maximumProgramsPerSample:128,maximumProgramCallsPerSample:4096,maximumSamplerKeyBytesPerSample:256*1024,maximumCpuMsPerSample:2,maximumAggregateCpuMs:500,maximumElapsedMsPerSample:5000});
+const roles=['map','alphaMap','normalMap','bumpMap','roughnessMap','metalnessMap','emissiveMap','aoMap','lightMap','envMap','displacementMap','specularMap','clearcoatMap','clearcoatNormalMap','clearcoatRoughnessMap','transmissionMap','thicknessMap','sheenColorMap','sheenRoughnessMap','iridescenceMap','iridescenceThicknessMap','anisotropyMap'] as const;
+const samplerFields=['wrapS','wrapT','wrapR','magFilter','minFilter','anisotropy','internalFormat','format','type','generateMipmaps','premultiplyAlpha','flipY','unpackAlignment','colorSpace'] as const;
+const accessor=Symbol('unsupported descriptor');
+/** Read only bounded data descriptors. Asset-controlled accessors are never invoked. */
+function data(object:object,key:string):unknown{let current:object|null=object;for(let depth=0;current&&depth<6;depth++,current=Object.getPrototypeOf(current)){const own=Object.getOwnPropertyDescriptor(current,key);if(own)return 'value'in own?own.value:accessor;}return current?accessor:undefined;}
+const identity=(value:unknown):value is object=>typeof value==='object'&&value!==null;
+export type AttributionReason='draw-limit'|'owner-limit'|'material-limit'|'geometry-limit'|'source-limit'|'sampler-limit'|'sampler-key-limit'|'program-call-limit'|'program-limit'|'cpu-limit'|'wall-limit'|'invalid-clock'|'unsupported-input'|'context-lost'|'aborted'|'foreign-hook'|'installation-refused'|'render-failed'|'timing-invalid';
+export interface DispatchAttributionRecord{complete:boolean;censored:boolean;reason:AttributionReason|null;drawsObserved:number;owners:number;materials:number;geometries:number;materialTransitions:number;geometryTransitions:number;geometryVariantTransitions:number;geometryVariants:number;programCalls:number;programTransitions:number;drawsWithObservedProgram:number;drawsWithoutObservedProgram:number;programs:number;textureBindings:number;sources:number;sourceSamplerTuples:number;samplerKeyBytes:number;cpuMs:number;elapsedMs:number;}
+/** Frame-local private identities only. Counters describe observed dispatches, not
+ * scene census, shader equivalence, residency, value equality or batching admission. */
+export class RenderDispatchAttributionFrame{
+ private owners=new Set<object>();private materials=new Set<object>();private geometries=new Set<object>();private programs=new Set<object>();private sources=new Map<object,Set<string>>();private variants=new Set<number>();
+ private previousMaterial?:object;private previousGeometry?:object;private previousVariant?:number;private previousProgram:object|null|undefined;private closed=false;private start:number;private last:number;
+ private record:DispatchAttributionRecord={complete:false,censored:false,reason:null,drawsObserved:0,owners:0,materials:0,geometries:0,materialTransitions:0,geometryTransitions:0,geometryVariantTransitions:0,geometryVariants:0,programCalls:0,programTransitions:0,drawsWithObservedProgram:0,drawsWithoutObservedProgram:0,programs:0,textureBindings:0,sources:0,sourceSamplerTuples:0,samplerKeyBytes:0,cpuMs:0,elapsedMs:0};
+ constructor(private readonly now:()=>number,private readonly allowedCpuMs:number=DISPATCH_ATTRIBUTION_LIMITS.maximumCpuMsPerSample){this.start=this.last=this.clock();if(!Number.isFinite(allowedCpuMs)||allowedCpuMs<=0||allowedCpuMs>2)this.censor('cpu-limit');}
+ private clock():number{try{const value=this.now();if(!Number.isFinite(value)||this.last!==undefined&&value<this.last){this.censor('invalid-clock');return this.last??0;}this.last=value;return value;}catch{this.censor('invalid-clock');return this.last??0;}}
+ censor(reason:AttributionReason):void{if(this.closed||this.record.censored)return;this.record.censored=true;this.record.reason=reason;}
+ private operation(read:()=>void):void{if(this.closed||this.record.censored)return;const started=this.clock();if(this.record.censored)return;if(started-this.start>DISPATCH_ATTRIBUTION_LIMITS.maximumElapsedMsPerSample){this.censor('wall-limit');return;}try{read();}catch{this.censor('unsupported-input');}finally{const ended=this.clock();this.record.cpuMs+=Math.max(0,ended-started);if(this.record.cpuMs>this.allowedCpuMs)this.censor('cpu-limit');}}
+ private add(set:Set<object>,value:object,maximum:number,reason:AttributionReason):boolean{if(set.has(value))return true;if(set.size>=maximum){this.censor(reason);return false;}set.add(value);return true;}
+ observeProgram(program:unknown):void{this.operation(()=>{if(this.record.programCalls>=4096){this.censor('program-call-limit');return;}if(program!==null&&!identity(program)){this.censor('unsupported-input');return;}if(program!==null&&!this.add(this.programs,program,128,'program-limit'))return;this.record.programCalls++;if(this.previousProgram!==undefined&&this.previousProgram!==program)this.record.programTransitions++;this.previousProgram=program;});}
+ observeDraw(geometry:unknown,material:unknown,owner:unknown):void{this.operation(()=>{
+  if(!(geometry instanceof BufferGeometry)||!(material instanceof Material)||!(owner instanceof Object3D)){this.censor('unsupported-input');return;}
+  if(this.record.drawsObserved>=4096){this.censor('draw-limit');return;}
+  if(!this.add(this.owners,owner,512,'owner-limit')||!this.add(this.materials,material,512,'material-limit')||!this.add(this.geometries,geometry,512,'geometry-limit'))return;
+  // These are public geometry/object feature flags, not compiled program identities.
+  const attributes=data(geometry,'attributes'),morphs=data(geometry,'morphAttributes');if(!identity(attributes)||!identity(morphs)){this.censor('unsupported-input');return;}
+  const color=data(attributes,'color'),colorItemSize=identity(color)?data(color,'itemSize'):undefined;if(color===accessor||colorItemSize===accessor||['isSkinnedMesh','isInstancedMesh','isBatchedMesh'].some(key=>data(owner,key)===accessor)||['position','normal','color'].some(key=>data(morphs,key)===accessor)||data(material,'vertexColors')===accessor){this.censor('unsupported-input');return;}const variant=(data(owner,'isSkinnedMesh')===true?1:0)|(data(owner,'isInstancedMesh')===true?2:0)|(data(owner,'isBatchedMesh')===true?4:0)|(data(morphs,'position')!==undefined?8:0)|(data(morphs,'normal')!==undefined?16:0)|(data(morphs,'color')!==undefined?32:0)|(data(material,'vertexColors')===true&&identity(color)&&colorItemSize===4?64:0);
+  this.variants.add(variant);this.record.drawsObserved++;
+  if(this.previousMaterial!==undefined&&this.previousMaterial!==material)this.record.materialTransitions++;
+  if(this.previousGeometry!==undefined&&this.previousGeometry!==geometry)this.record.geometryTransitions++;
+  if(this.previousVariant!==undefined&&this.previousVariant!==variant)this.record.geometryVariantTransitions++;
+  this.previousMaterial=material;this.previousGeometry=geometry;this.previousVariant=variant;
+  for(const role of roles){const texture=data(material,role);if(texture===undefined||texture===null)continue;if(!(texture instanceof Texture)){this.censor('unsupported-input');return;}
+   const source=data(texture,'source');if(!(source instanceof TextureSource)){this.censor('unsupported-input');return;}let tuples=this.sources.get(source);
+   if(!tuples){if(this.sources.size>=1024){this.censor('source-limit');return;}tuples=new Set();this.sources.set(source,tuples);}
+   const sampler=[];for(const field of samplerFields){const value=data(texture,field);if(!(value===null||value===undefined||typeof value==='boolean'||typeof value==='number'&&Number.isFinite(value)||typeof value==='string'&&value.length<=64)){this.censor('unsupported-input');return;}sampler.push(field==='wrapR'?(value||0):value);}
+   // Exact Three0.186.1 WebGLTextures sampler-key fields; strings remain private.
+   const key=sampler.join(',');if(!tuples.has(key)){if(this.record.sourceSamplerTuples>=2048){this.censor('sampler-limit');return;}if(this.record.samplerKeyBytes+key.length*2>256*1024){this.censor('sampler-key-limit');return;}tuples.add(key);this.record.samplerKeyBytes+=key.length*2;this.record.sourceSamplerTuples++;}this.record.textureBindings++;
+  }
+ });}
+ finishDraw():void{this.operation(()=>{if(this.previousProgram!==undefined&&this.previousProgram!==null)this.record.drawsWithObservedProgram++;else this.record.drawsWithoutObservedProgram++;});}
+ finish(reason?:AttributionReason):DispatchAttributionRecord{if(this.closed)return {...this.record};if(reason)this.censor(reason);this.record.elapsedMs=Math.max(0,this.clock()-this.start);if(this.record.elapsedMs>5000)this.censor('wall-limit');this.record.complete=!this.record.censored;this.record.owners=this.owners.size;this.record.materials=this.materials.size;this.record.geometries=this.geometries.size;this.record.programs=this.programs.size;this.record.sources=this.sources.size;this.record.geometryVariants=this.variants.size;this.closed=true;
+  this.owners.clear();this.materials.clear();this.geometries.clear();this.programs.clear();this.sources.clear();this.variants.clear();this.previousMaterial=this.previousGeometry=this.previousProgram=undefined;this.previousVariant=undefined;return {...this.record};}
+}

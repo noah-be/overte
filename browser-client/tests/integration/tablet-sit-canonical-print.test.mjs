@@ -1,0 +1,11 @@
+// Copyright 2026 Overte contributors
+// SPDX-License-Identifier: Apache-2.0
+import test from 'node:test';import assert from 'node:assert/strict';
+import {parseEmoteAudit,EMOTE_PREFIX,VIEW_PREFIX} from './tablet-sit-audit.mjs';
+const event={kind:'override-returned',name:'Sit2',frames:367,fps:60},body=EMOTE_PREFIX+JSON.stringify(event);
+const line=(category,payload=body)=>'[authored time] [DEBUG] ['+category+'] [authored thread] '+payload;
+test('one pinned native print has two routes but exactly one canonical action record',()=>{const text=[line('overte.scriptengine'),line('overte.scriptengine.script')].join('\n');const a=parseEmoteAudit(text,EMOTE_PREFIX);assert.deepEqual(a,[event]);assert(a.length<=1);});
+test('two identical canonical native print invocations remain two and fail the ORIGINAL at-most-one action predicate',()=>{const a=parseEmoteAudit([line('overte.scriptengine.script'),line('overte.scriptengine.script')].join('\n'),EMOTE_PREFIX);assert.equal(a.length,2);assert.throws(()=>assert(a.length<=1));});
+test('unknown logger, bare marker, category injection and source dump cannot create an action record',()=>{for(const text of [line('foreign'),line('scriptengine.script'),body,'[overte.scriptengine.script] '+body,line('overte.scriptengine', '[overte.scriptengine.script] '+body),line('overte.scriptengine.script',"print('BROWSER_EMOTE_ACTION '+JSON.stringify(...));")])assert.deepEqual(parseEmoteAudit(text,EMOTE_PREFIX),[]);});
+test('canonical malformed object payload refuses and original per-line/log/retention bounds remain',()=>{assert.throws(()=>parseEmoteAudit(line('overte.scriptengine.script',EMOTE_PREFIX+'{invalid'),EMOTE_PREFIX));assert.throws(()=>parseEmoteAudit(line('overte.scriptengine.script',EMOTE_PREFIX+'{'+ 'x'.repeat(16384)),EMOTE_PREFIX));assert.throws(()=>parseEmoteAudit('x'.repeat(4*1024*1024+1),EMOTE_PREFIX));const a=parseEmoteAudit(Array.from({length:50},(_,ordinal)=>line('overte.scriptengine.script',EMOTE_PREFIX+JSON.stringify({ordinal}))).join('\n'),EMOTE_PREFIX);assert.equal(a.length,32);assert.equal(a[0].ordinal,18);});
+test('QML view route remains byte-for-byte parsed independently from native script print routing',()=>{const view={sequence:4,revision:2,navigationSequence:3};assert.deepEqual(parseEmoteAudit(VIEW_PREFIX+JSON.stringify(view),VIEW_PREFIX),[view]);});

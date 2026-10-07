@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "materialAIAssistance": true,
+  "scope": "Actual source-bound Google Chrome PNG/Three/Session regression fixtures; not production build, native/domain, public-world or microphone acceptance",
+  "dateUTC": "2026-10-03",
+  "chromeVersion": "Google Chrome 154.0.8037.97",
+  "chromeExecutableSHA256": "6c792041b07547a662e1b17974d1dc34a3db630379b45d9d89ddd7e3e68cc587",
+  "sourceInventorySHA256": "483a35111d2c1c24e6e008aaf9433b96cf8f9398c109044300a9a64383846a72",
+  "command": [
+    "node",
+    "node_modules/@playwright/test/cli.js",
+    "test",
+    "--config=playwright.image-approval.config.ts",
+    "--reporter=json"
+  ],
+  "threeOriginalFixtureCases": {
+    "pass": 3,
+    "fail": 0,
+    "skip": 0,
+    "seconds": 7.576
+  },
+  "unchangedFixtureSHA256": "f38feb2db7b22714fb4699ab88a8a7225556bccefc694bbed97652b1b153076f",
+  "configSHA256": "44708dd7a35d3a25765313f90982a5d5eddc598f4e7f881f36e50ceb07853357",
+  "source": {
+    "cacheSHA256": "ff3393a7d243dbdd17b6527071e09f4b812ba16f5f4b9138b2b204664bd41578",
+    "serverSHA256": "e17fae1f721ed162e131309c983041ef824d5688080e5053b6b98f2f9f4722ea",
+    "worldSHA256": "fd86e005c4b24c055da051a0a38385b8f02b25b0945d001bfed9ac577578e4d0"
+  },
+  "actualAssertions": [
+    "Ready-hit and pending readers refuse revoked approval with exact manager accounting and disposal.",
+    "Six held physical image producers retain the scheduler limit across invalidation.",
+    "The same logical Session.assetURL after same-revision reapproval produces a distinct image/source, red decoded bytes and a second real HTTP request.",
+    "Borrowed old images and samplers retain their green pixels and actual WebGL rendering until disposal."
+  ],
+  "cleanup": {
+    "ownedProcessCleanup": true,
+    "ownedProfilesClosed": true,
+    "ownedViteClosed": true,
+    "sourceCoherent": true,
+    "observedChromeProcesses": 8,
+    "observedOwnedBirths": 14
+  },
+  "reportSHA256": "5627e5e914b7b80929388f8fb6f9d19b1b1bc51d484fdf2d058ca21b25f2eabd",
+  "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "previousNegative": "image-approval-same-route-negative-google-chrome-20261003.json",
+  "limitations": [
+    "Browser caching mechanism was not identified.",
+    "No native or online domain session was started.",
+    "No performance improvement or integrated production acceptance is inferred."
+  ],
+  "firefoxLaunched": false
+}

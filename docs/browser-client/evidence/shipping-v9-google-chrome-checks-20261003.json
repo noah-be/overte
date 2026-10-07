@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-03",
+  "materialAssistance": "OpenAI Codex",
+  "shippingSourceIntegrated": true,
+  "completeManifestSHA256": "e78d679622ce9d3494cadab32288b5c52925267fb3c0f62ffc380e6771220802",
+  "preparerSHA256": "00c666b3ed34f9539ede609a6e35a03864e9f7542b0c8e0112cd5919a771ca42",
+  "productionReceiptSHA256": "20cedb53d46a8b8b123b82bb385b6b380458c08cdaaa98256d506e97f0fc0212",
+  "productionDistributionFiles": 34,
+  "productionBuildExitCode": 0,
+  "unit": {
+    "passed": 2457,
+    "failed": 0,
+    "skipped": 0,
+    "logSHA256": "01966477546b479381b8a933c5f621882ba6faf5aae7d725cc73539b21ead32b"
+  },
+  "browser": {
+    "product": "Google Chrome",
+    "version": "154.0.8037.97",
+    "passed": 126,
+    "failed": 0,
+    "project": "google-chrome",
+    "workers": 1,
+    "renderBackend": "SwiftShader",
+    "logSHA256": "e361101625f3a998b348ab71ed5aaf61d8d4de3d21c5e7f28e1f5616f1240446",
+    "scope": "Actual browser rendering and authored test fixtures; does not establish public-Hub, physical-microphone or complete-Tablet acceptance"
+  },
+  "repositoryQuick": {
+    "passed": 34,
+    "failed": 0,
+    "logSHA256": "566127c0d8213651a0acae1f4c59b9d60d569704583890b964389c377b8367cf"
+  },
+  "buildLogSHA256": "0e30b6ea87487b6e4ce07bba2cf79726edb158898ff8569f755880c61df35ec9",
+  "managedServicesRestarted": false,
+  "firefoxLaunched": false,
+  "enduranceTestPerformed": false,
+  "fullyQualifiedMandatoryScope": false
+}

@@ -1,0 +1,170 @@
+{
+  "scope": "Read-only scheduling review; no runtime changes",
+  "replay": {
+    "scope": "Offline source-based queue replay, not an actual browser measurement",
+    "snapshotSHA256": "a06acca590a602f5e03ad91eb6a1e27241bd0e11ca0a5ae91f7d17bccab355fc",
+    "snapshotEntities": 511,
+    "models": 310,
+    "collidableModels": 83,
+    "overlappingBoundsAtObservedSpawn": 2,
+    "baseline": {
+      "sorts": 310,
+      "comparisons": 95608,
+      "elapsedMilliseconds": 68.351965,
+      "pendingAfterSixStarts": 304
+    },
+    "coalescedBusyGuard": {
+      "sorts": 1,
+      "comparisons": 1981,
+      "elapsedMilliseconds": 0.6772039999999606,
+      "pendingAfterSixStarts": 304
+    }
+  },
+  "sourceSHA256": "5922e17e19d3bffc852192d3623737ea4278693b2ff18e4f1efcbd8761b6f119",
+  "actualBrowserObservations": [
+    {
+      "startedAt": "2026-10-01T05:14:29.796Z",
+      "connectedAt": "2026-10-01T05:14:43.783Z",
+      "browserVersion": "154.0.8037.57",
+      "samples": [
+        {
+          "secondsAfterConnected": 3.608,
+          "entities": 74,
+          "loadedModels": 33,
+          "loadingModels": 6,
+          "queuedModels": 9,
+          "meshColliders": 10,
+          "compilingGraphics": 1
+        },
+        {
+          "secondsAfterConnected": 7.881,
+          "entities": 517,
+          "loadedModels": 65,
+          "loadingModels": 6,
+          "queuedModels": 231,
+          "meshColliders": 23,
+          "compilingGraphics": 0
+        },
+        {
+          "secondsAfterConnected": 11.092,
+          "entities": 517,
+          "loadedModels": 93,
+          "loadingModels": 6,
+          "queuedModels": 202,
+          "meshColliders": 33,
+          "compilingGraphics": 1
+        },
+        {
+          "secondsAfterConnected": 14.12,
+          "entities": 517,
+          "loadedModels": 119,
+          "loadingModels": 6,
+          "queuedModels": 176,
+          "meshColliders": 35,
+          "compilingGraphics": 0
+        },
+        {
+          "secondsAfterConnected": 17.225,
+          "entities": 517,
+          "loadedModels": 156,
+          "loadingModels": 6,
+          "queuedModels": 138,
+          "meshColliders": 49,
+          "compilingGraphics": 0
+        },
+        {
+          "secondsAfterConnected": 20.239,
+          "entities": 517,
+          "loadedModels": 185,
+          "loadingModels": 6,
+          "queuedModels": 109,
+          "meshColliders": 54,
+          "compilingGraphics": 0
+        },
+        {
+          "secondsAfterConnected": 23.303,
+          "entities": 517,
+          "loadedModels": 215,
+          "loadingModels": 6,
+          "queuedModels": 78,
+          "meshColliders": 63,
+          "compilingGraphics": 0
+        }
+      ],
+      "earlyMovementMeters": 0.0,
+      "scope": "Observed partial arrival/load latency; not a new functional or fluidness acceptance result"
+    },
+    {
+      "startedAt": "2026-10-01T05:21:19.249Z",
+      "connectedAt": "2026-10-01T05:21:37.107Z",
+      "browserVersion": "firefox/156.0",
+      "samples": [
+        {
+          "secondsAfterConnected": 3.981,
+          "entities": 74,
+          "loadedModels": 26,
+          "loadingModels": 6,
+          "queuedModels": 16,
+          "meshColliders": 10,
+          "compilingGraphics": 0
+        },
+        {
+          "secondsAfterConnected": 8.85,
+          "entities": 517,
+          "loadedModels": 69,
+          "loadingModels": 6,
+          "queuedModels": 227,
+          "meshColliders": 27,
+          "compilingGraphics": 0
+        },
+        {
+          "secondsAfterConnected": 11.861,
+          "entities": 517,
+          "loadedModels": 98,
+          "loadingModels": 6,
+          "queuedModels": 197,
+          "meshColliders": 34,
+          "compilingGraphics": 0
+        },
+        {
+          "secondsAfterConnected": 14.877,
+          "entities": 517,
+          "loadedModels": 117,
+          "loadingModels": 6,
+          "queuedModels": 178,
+          "meshColliders": 37,
+          "compilingGraphics": 2
+        },
+        {
+          "secondsAfterConnected": 17.915,
+          "entities": 517,
+          "loadedModels": 153,
+          "loadingModels": 6,
+          "queuedModels": 141,
+          "meshColliders": 48,
+          "compilingGraphics": 1
+        },
+        {
+          "secondsAfterConnected": 20.974,
+          "entities": 517,
+          "loadedModels": 193,
+          "loadingModels": 6,
+          "queuedModels": 101,
+          "meshColliders": 57,
+          "compilingGraphics": 0
+        },
+        {
+          "secondsAfterConnected": 24.043,
+          "entities": 517,
+          "loadedModels": 227,
+          "loadingModels": 6,
+          "queuedModels": 66,
+          "meshColliders": 65,
+          "compilingGraphics": 0
+        }
+      ],
+      "earlyMovementMeters": 0.0,
+      "scope": "Observed partial arrival/load latency; not a new functional or fluidness acceptance result"
+    }
+  ]
+}

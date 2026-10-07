@@ -1,0 +1,269 @@
+{
+  "schemaVersion": 1,
+  "scope": "read-only authorized owned local Jenkins laboratory build5; private raw artifact fallback to exact verified workspace",
+  "repository": "noah-be/overte",
+  "job": "overte-browser-native-ci",
+  "build": 5,
+  "sourceSHA": "0d09473978f2cb5a8d7dc0e738a5dc104d8a26a5",
+  "result": "FAILURE",
+  "definition": {
+    "sourceParameterCount": 1,
+    "concurrentBuildsDisabled": true,
+    "requiredGateCount": 19
+  },
+  "preparationPassed": true,
+  "gateCount": 19,
+  "passedGates": 17,
+  "failedGates": 2,
+  "stages": [
+    {
+      "stage": "production-build",
+      "passed": true,
+      "durationSeconds": 3.519,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "unit-isolation-contracts",
+      "passed": true,
+      "durationSeconds": 12.099,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "actual-qt-input",
+      "passed": true,
+      "durationSeconds": 7.933,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "fbx-worker-chromium",
+      "passed": true,
+      "durationSeconds": 3.814,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "fbx-worker-firefox",
+      "passed": true,
+      "durationSeconds": 5.219,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "vite-embedded-config-mjs",
+      "passed": true,
+      "durationSeconds": 1.309,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "vite-embedded-world-config-mjs",
+      "passed": true,
+      "durationSeconds": 1.611,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "embedded-world",
+      "passed": true,
+      "durationSeconds": 7.328,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "browser-renderer",
+      "passed": true,
+      "durationSeconds": 414.131,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "test_host_tools-py",
+      "passed": true,
+      "durationSeconds": 0.704,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "test_curate_core_journey-py",
+      "passed": true,
+      "durationSeconds": 0.101,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "test_manage_state-py",
+      "passed": true,
+      "durationSeconds": 0.302,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "normal-native-preflight",
+      "passed": true,
+      "durationSeconds": 0.803,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "start-real-domain-native-gateway",
+      "passed": true,
+      "durationSeconds": 20.386,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "native-core-chromium",
+      "passed": false,
+      "durationSeconds": 92.703,
+      "exitCode": 1,
+      "failureCategory": null
+    },
+    {
+      "stage": "native-core-firefox",
+      "passed": false,
+      "durationSeconds": 95.378,
+      "exitCode": 1,
+      "failureCategory": null
+    },
+    {
+      "stage": "source-immutability",
+      "passed": true,
+      "durationSeconds": 0.103,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "owned-lab-cleanup",
+      "passed": true,
+      "durationSeconds": 10.458,
+      "exitCode": 0,
+      "failureCategory": null
+    },
+    {
+      "stage": "curate-native-core",
+      "passed": true,
+      "durationSeconds": 0.101,
+      "exitCode": 0,
+      "failureCategory": null
+    }
+  ],
+  "sourcePins": {
+    "run.py": "4c96051dedbc09e61c85fcb2d20ca0e9b246d10fab0fc689e3055ef17b62402b",
+    "namespace-owner.py": "b73c00cbbca864039a830bf35366a48d59df86f4bf67ac72851c0af9982f6ead",
+    "gates.py": "e46c150608775d3cb5d685620e7a96467694bec9f37ba87d6fa9bd3a0e2cfd1e",
+    "prepare.py": "546c8cfcf91dc8c34a6cb018eda2be0d95aa081224191ac1431d55302b84ce5a",
+    "probe.py": "0db958e08754617d93cbbe8fbb443e4deea82e29e2f22928126efa3124d241cc",
+    "owned-exec.py": "306175442cb5910f812c8c51fc0283f1e8ef30802849a20dbd1f5898a2ede47a",
+    "owned-xvfb.py": "0d515f061e436d2ba53292cac27244f42586baad3d8ed20e26df167b1f30ba13"
+  },
+  "allSevenSourcePinsMatchCommittedBytes": true,
+  "workspaceVerification": {
+    "scope": "owned verified Jenkins job5 exact-source workspace fallback",
+    "sourceSHA": "0d09473978f2cb5a8d7dc0e738a5dc104d8a26a5",
+    "workspaceHeadVerified": true,
+    "authorizedForkVerified": true,
+    "workspaceSourceRealpathSHA256": "40aa798bbdf97b90cbb43adff2ac0eb328935c3fd50e240a72e5ea13125c4a9c"
+  },
+  "counts": {
+    "unit": {
+      "tests": 1141,
+      "passed": 1141,
+      "failed": 0,
+      "skipped": 0
+    },
+    "actualBrowserRenderer": {
+      "passed": 188,
+      "durationSeconds": 414.131
+    },
+    "hostToolsPython": 12,
+    "curationPython": 8,
+    "manageStatePython": 24
+  },
+  "nativeCoreFailures": [
+    {
+      "browser": "chromium",
+      "phase": "initial-domain-join-predicate",
+      "deadlineMs": 90000,
+      "source": "browser-client/tests/integration/real-session.mjs",
+      "sourceLine": 149,
+      "checkpoints": 0,
+      "completed": false
+    },
+    {
+      "browser": "firefox",
+      "phase": "initial-domain-join-predicate",
+      "deadlineMs": 90000,
+      "source": "browser-client/tests/integration/real-session.mjs",
+      "sourceLine": 149,
+      "checkpoints": 0,
+      "completed": false
+    }
+  ],
+  "joinPredicate": {
+    "requiresConnected": true,
+    "minimumEntities": 7,
+    "minimumPeerAvatars": 1,
+    "visibleErrorNoticeMayTerminateEarly": true
+  },
+  "nativeObserver": {
+    "samples": 102,
+    "timespanSeconds": 202.099,
+    "entityCountHistogram": {
+      "6": 1,
+      "7": 3,
+      "0": 98
+    },
+    "avatarCountHistogram": {
+      "0": 24,
+      "1": 78
+    },
+    "browserVisibleSamples": {
+      "chromium": 40,
+      "firefox": 38
+    },
+    "browserVisibleWithSevenEntities": {
+      "chromium": 0,
+      "firefox": 0
+    }
+  },
+  "cleanup": {
+    "gatePassed": true,
+    "exitCode": 0,
+    "fixedManagedServicesStopped": 9,
+    "ownedRegistryEmpty": true,
+    "matchingOwnedWorkspaceProcesses": 0,
+    "verifiedAtUTC": "2026-10-02T00:22:21.108060+00:00",
+    "noDestructiveAgentCleanup": true
+  },
+  "limits": [
+    "All19 stages executed;17 passed. A complete local CI acceptance is not achieved.",
+    "Both stock browsers attempted their initial join; neither reached its first checkpoint or any synthetic voice/movement/rejoin assertion.",
+    "Observer confirms real browser avatar participation and loss of native entity baseline; this is not proof of why entities disappeared.",
+    "This entity loss has not been linked causally to the independent Root Chrome public avatar-stream stall.",
+    "No deadline, route, permissions, capability, profile or assertion was relaxed. No extra workload, rerun or trigger was performed by this audit."
+  ],
+  "rawSourceSHA256": {
+    "test_manage_state-py-private.log": "ae8ff259aef4090d7637236b5f3aa1e84d6e50f74ac95a070b7691e8e3970358",
+    "test_curate_core_journey-py-private.log": "698d16d7b93c4bd9707d3cfacda6fb1e0fea99ed0cda6e69bedc42772940540a",
+    "test_host_tools-py-private.log": "0a44a383fc3d0a440f7f2e09a63d36e0537d4aab25bf99fd084ad564b194a2ed",
+    "normal-native-preflight-private.log": "14964638509841824d0fcd7fb887e71d817a42e4477646015ab3471462c1b914",
+    "browser-renderer-private.log": "ef800f07489a1f7d64bc9c324cff5318e672118ad38040a6f336e7d8a40442a7",
+    "lab-assignments.log": "55ef41085d57f68ceda37b4b6b68f4f8a212a542b5c42331ad5db76494125f55",
+    "lab-gateway.log": "4b275446d1138f2df40760b078a7590bec4e83e9c0ad5ac1891ce95486efba66",
+    "lab-native.log": "faf939a1dabc403d3ca93da17d96d5865f35528a70ec2591d8f53718de2f1022",
+    "lab-domain.log": "e2c0aa43f25be5f098dc4a8cdbc872269a4adff2de74477b28743a4c8109f5c7",
+    "start-real-domain-native-gateway-private.log": "b5725c90514f9e1135b17f635e2fe30f1c10a89ac0ccf94db3dab298f4c40a08",
+    "owned-lab-cleanup-private.log": "edaeab1cbc259bae380c486767d2730cac5031ff9822e908bb25cc096838f285",
+    "namespace-private.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native-core-firefox-private.log": "310b1a279489ed8992320a177fa5393e5221468155b30464c41194ed65d6913b",
+    "native-core-chromium-private.log": "310b1a279489ed8992320a177fa5393e5221468155b30464c41194ed65d6913b",
+    "fbx-worker-firefox-private.log": "5a42d32107c3c2fc7736cc0128c9d3d0a5912d531ef07ba4e7dc829790d87042",
+    "fbx-worker-chromium-private.log": "f5cbd0bc79f198e139cb21f7378d335fa1b354d9b2986debc4cc016449fc3e53",
+    "unit-isolation-contracts-private.log": "adebeedad1c9ce60c37d2ae63efef7133228f51eb614c95deddbaf1bd5a022ed",
+    "build5.private.log": "77aba66a5e2b00f1c78554a4337515c5eebc8c6e7642e8433259c82ee2c51344",
+    "job.private.xml": "aa7aa4bb0e7c7189e4ea6038d3efeb61dc8b916b5c1822b4047f58fc0cc9f61c"
+  }
+}

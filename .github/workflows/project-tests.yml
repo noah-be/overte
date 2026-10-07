@@ -2,6 +2,11 @@ name: Shared project CI
 
 on:
   workflow_call:
+    inputs:
+      dependency_projects:
+        type: string
+        default: ""
+        description: Exact tool projects selected by the trusted repository router
   push:
     # Parent pushes run these checks in parent-qualification.yml, where the same
     # successful execution also produces evidence for downstream syncs.
@@ -27,7 +32,43 @@ defaults:
     shell: bash
 
 jobs:
+  route:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      projects: ${{ steps.push.outputs.projects || steps.caller.outputs.projects }}
+    steps:
+      - name: Check out source and exact push parents
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Validate the trusted reusable caller selection
+        if: github.event_name != 'push'
+        id: caller
+        env:
+          DEPENDENCY_PROJECTS: ${{ inputs.dependency_projects }}
+        run: |
+          # Candidate helper changes cannot switch a required full PR to tool checks.
+          python3 - <<'PY'
+          import os
+          selected = os.environ['DEPENDENCY_PROJECTS']
+          projects = selected.split(',') if selected else []
+          assert len(projects) == len(set(projects))
+          assert set(projects) <= {'tools/jsdoc', 'server-console'}
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('projects=' + selected + '\n')
+          PY
+      - name: Select checks from the exact protected push
+        if: github.event_name == 'push'
+        id: push
+        run: >-
+          python3 tools/repository-checks/tool_dependencies.py
+          --event "$GITHUB_EVENT_PATH" --output "$GITHUB_OUTPUT"
+
   project-tests:
+    needs: route
+    if: needs.route.outputs.projects == ''
     runs-on: ubuntu-24.04
     env:
       OVERTE_QML_TEST_RUNNER: /usr/lib/qt6/bin/qmltestrunner
@@ -110,3 +151,24 @@ jobs:
             build/test-results/device-self-tests.json
           if-no-files-found: warn
           retention-days: 7
+
+  tool-dependencies:
+    needs: route
+    if: needs.route.outputs.projects != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out source without credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "22"
+      - name: Check affected tool dependencies and behavior
+        env:
+          DEPENDENCY_PROJECTS: ${{ needs.route.outputs.projects }}
+          GH_TOKEN: ""
+          GITHUB_TOKEN: ""
+        run: python3 tools/repository-checks/tool_dependencies.py --projects "$DEPENDENCY_PROJECTS"

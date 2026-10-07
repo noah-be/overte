@@ -1,0 +1,55 @@
+{
+  "schema": 1,
+  "scope": "retrospective-original80849-assets-only; no new runtime",
+  "inputSHA256": {
+    "public-hub.json": "45adc7c6ea69400e67845577cf2f5c42139f48a5f982ce6ed41f036837e03a88",
+    "jpg-origin-cohort.private.json": "d13f32dbd4dd0a8a597f6b1668aa17b8ec61cc634f96efa77ef6f5f9861ba97f",
+    "qualification.private.json": "5db23481a46d72e1c5cc128db6763756b5e932a564b1f4edca58d6a19f427d46",
+    "public-hub.png": "7bef11c2728975890081e1f5c5baf28b93376b32835130cbce91eec6f55bebe5"
+  },
+  "categoryProducerSHA256": "18c9ed36feb60ddadbc5b3a73dcc73e2caa8561ab26cd672d8882de2bd25c789",
+  "recordedAssetCategory": "image",
+  "correctedAssetDeliveryObservationPassed": true,
+  "inheritedCSSPNGDimensionAssumptionSatisfied": false,
+  "originalCompleted": false,
+  "originalCleanup": true,
+  "originalFourFluidGates": {
+    "steadyFluidPerformance": false,
+    "walkFluidPerformance": false,
+    "reconnectedSteadyFluidPerformance": false,
+    "reconnectedWalkFluidPerformance": false
+  },
+  "completed": false,
+  "gainClaim": false,
+  "individualTexturePixelFidelityProven": false,
+  "GETAndRender": {
+    "originalURLSHA256": "60390dbf6bdd1366758ce7751a663740fe27e56d95b0b659817dfbc6a8011535",
+    "sessions": [
+      {
+        "ordinal": 1,
+        "requests": 1,
+        "knownBytes": 46854,
+        "requestTotalMs": 169.24986699999863,
+        "maximumRequestMs": 169.24986699999863
+      },
+      {
+        "ordinal": 2,
+        "requests": 1,
+        "knownBytes": 46854,
+        "requestTotalMs": 134.81133799999952,
+        "maximumRequestMs": 134.81133799999952
+      }
+    ],
+    "originalWorldScreenshotSHA256": "7bef11c2728975890081e1f5c5baf28b93376b32835130cbce91eec6f55bebe5",
+    "actualSurfacePNGDimensions": [
+      2134,
+      1334
+    ],
+    "originalCSSViewportDimensions": [
+      1280,
+      800
+    ],
+    "individualTexturePixelFidelityProven": false,
+    "HEADWasNotPixelProof": true
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-02",
+  "scope": "Source-bound copied PTT prerequisite correction; genuine native controls and bidirectional synthetic voice. Production PTT integration and full journey qualification remain pending.",
+  "substantialAiAssistance": true,
+  "nativeAuthorSource": "exact-admitted-historical-full-no-mode; current repository author distinguished",
+  "cohorts": [
+    {
+      "engine": "chromium",
+      "browserVersion": "154.0.8037.57",
+      "rawReportSHA256": "0266be752a1d0ce6d44819a64e11b04bb6ac20311c8fa0400943f944ba3ec219",
+      "durationSeconds": 75.667,
+      "completed": false,
+      "sourceCoherent": true,
+      "browserClosed": true,
+      "fullTwoProfileCleanupGate": false,
+      "syntheticMicrophone": true,
+      "hardwareMicrophone": false,
+      "passedCheckpoints": [
+        "joined-muted",
+        "genuine-native-desktop-ptt-enabled",
+        "explicit-synthetic-microphone-grant",
+        "real-T-hold-browser-to-native",
+        "real-T-release",
+        "native-to-browser-audio"
+      ],
+      "nativeAuthorUnmutedVerified": true,
+      "nativeAuthorMutedRestored": true,
+      "nativeAuthorGuardClosed": true,
+      "nextFailure": "original-document-hidden-and-blur-deadline"
+    },
+    {
+      "engine": "firefox",
+      "browserVersion": "firefox/156.0",
+      "rawReportSHA256": "32e43f494c3c456c9770cd62b99361101919050ec23db97af4df0e6e0d6cfa64",
+      "durationSeconds": 101.836,
+      "completed": false,
+      "sourceCoherent": true,
+      "browserClosed": true,
+      "fullTwoProfileCleanupGate": false,
+      "syntheticMicrophone": true,
+      "hardwareMicrophone": false,
+      "passedCheckpoints": [
+        "joined-muted",
+        "genuine-native-desktop-ptt-enabled",
+        "explicit-synthetic-microphone-grant",
+        "real-T-hold-browser-to-native",
+        "real-T-release",
+        "native-to-browser-audio",
+        "actual-window-blur-and-document-hidden-release"
+      ],
+      "nativeAuthorUnmutedVerified": true,
+      "nativeAuthorMutedRestored": true,
+      "nativeAuthorGuardClosed": true,
+      "nextFailure": "native-audio-control-not-qualified-after-tablet-reopen"
+    }
+  ],
+  "ownedCopiedGatewayStopped": true,
+  "limits": [
+    "No physical microphone qualification.",
+    "Chromium original visibility gate refused; Firefox passed it, then reopening Tablet returned Home rather than the expected Audio view.",
+    "Each failed before the second-session full profile cleanup gate could pass. Browser closure and source coherence are recorded separately.",
+    "No public-domain, texture-loading, fluidness or native-feature-completeness claim.",
+    "Earlier failures and original thresholds are retained."
+  ]
+}

@@ -1,0 +1,84 @@
+{
+  "schema": 1,
+  "scope": "Authored real FBXLoader/WebGL GPU counterfactual of unchanged World removeEntities body with exact original or proposed private cleanup binding",
+  "wholeHubLoadingGainEstablished": false,
+  "originalWorldSHA256": "be862706042293efd4878fa84781049ba0d235c56d0f38aea08cdc11c248dad9",
+  "candidatePrivateCleanupSHA256": "37558eb6c703427f8dfacb74872c394bad6f8f95b0385581145e731d22474d64",
+  "helperSHA256": "3393a8301f6a27b680fafcabf9917638dcaf265a7b86c63c8a505bea018ea859",
+  "originalRegisteredBodySHA256": "cac26e961e44423063991b9da7b918b0f68d46ca6d667cac5f4d835747f6df2e",
+  "originalFirefoxCallerRealmRefusalRetained": true,
+  "cohorts": [
+    {
+      "engine": "chromium",
+      "version": "154.0.8037.57",
+      "passed": true,
+      "seconds": 5.177,
+      "sourceAndDistributionCoherent": true,
+      "ownedBrowsersAndViteClosed": true,
+      "nineManagedServicesUnchanged": true,
+      "rawReportSHA256": "5185fca0177ec83550523233425f97b84dda797b8895f30757e2091f700b8997",
+      "cases": [
+        {
+          "survivingSecondOwner": false,
+          "beforeCleanupPixelHashMatched": true,
+          "visiblePixels": 2948,
+          "survivingVisiblePixels": 0,
+          "originalResidentTexturesAfterCleanup": 1,
+          "candidateResidentTexturesAfterCleanup": 0,
+          "candidateOwnedTextureDisposals": 1,
+          "survivorDisposals": 0,
+          "allPrivateTexturesRecoveredAfterMeasurement": true,
+          "retiredOriginalRoot": true
+        },
+        {
+          "survivingSecondOwner": true,
+          "beforeCleanupPixelHashMatched": true,
+          "visiblePixels": 5852,
+          "survivingVisiblePixels": 2926,
+          "originalResidentTexturesAfterCleanup": 2,
+          "candidateResidentTexturesAfterCleanup": 1,
+          "candidateOwnedTextureDisposals": 1,
+          "survivorDisposals": 0,
+          "allPrivateTexturesRecoveredAfterMeasurement": true,
+          "retiredOriginalRoot": true
+        }
+      ]
+    },
+    {
+      "engine": "firefox",
+      "version": "firefox/156.0",
+      "passed": true,
+      "seconds": 7.867,
+      "sourceAndDistributionCoherent": true,
+      "ownedBrowsersAndViteClosed": true,
+      "nineManagedServicesUnchanged": true,
+      "rawReportSHA256": "a124eb18e79d5967bf8a946005bbafe9cbc7c622773ad92f2eb2711a6c1b2933",
+      "cases": [
+        {
+          "survivingSecondOwner": false,
+          "beforeCleanupPixelHashMatched": true,
+          "visiblePixels": 2948,
+          "survivingVisiblePixels": 0,
+          "originalResidentTexturesAfterCleanup": 1,
+          "candidateResidentTexturesAfterCleanup": 0,
+          "candidateOwnedTextureDisposals": 1,
+          "survivorDisposals": 0,
+          "allPrivateTexturesRecoveredAfterMeasurement": true,
+          "retiredOriginalRoot": true
+        },
+        {
+          "survivingSecondOwner": true,
+          "beforeCleanupPixelHashMatched": true,
+          "visiblePixels": 5852,
+          "survivingVisiblePixels": 2926,
+          "originalResidentTexturesAfterCleanup": 2,
+          "candidateResidentTexturesAfterCleanup": 1,
+          "candidateOwnedTextureDisposals": 1,
+          "survivorDisposals": 0,
+          "allPrivateTexturesRecoveredAfterMeasurement": true,
+          "retiredOriginalRoot": true
+        }
+      ]
+    }
+  ]
+}

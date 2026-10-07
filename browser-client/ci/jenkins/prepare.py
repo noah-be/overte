@@ -1,0 +1,132 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+"""Prepare only a dedicated checkout's dependencies; no fixture startup."""
+import argparse
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import signal
+import time
+import re
+from run import checked_source, checked_executable, safe_environment, stop_owned, checkout_clean, empty_npm_environment
+
+
+def installer_command(command):
+    # Downloads retain normal networking. Only the installer's process tree is
+    # private; no fixture services start here. Kernel PID-init destruction also
+    # covers descendants that create independent sessions during installation.
+    return [sys.executable, str(Path(__file__).resolve().parent/'owned-exec.py'),
+        str(os.getpid()), checked_executable('unshare'), '--user', '--map-current-user', '--keep-caps',
+        '--pid', '--fork', '--mount-proc', '--kill-child=KILL', '--',
+        checked_executable('setpriv'), '--bounding-set=-all', '--inh-caps=-all',
+        '--ambient-caps=-all', '--', sys.executable, str(Path(__file__).resolve()),
+        '--execute-installer', *command]
+
+
+def main():
+    if len(sys.argv)>2 and sys.argv[1]=='--execute-installer':
+        # Namespace setup retains only its setup authority until setpriv.
+        # Verify the actual non-root, five-zero-set result before any installer.
+        from gates import isolated_identity
+        isolated_identity()
+        os.execvpe(sys.argv[2],sys.argv[2:],os.environ)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--repo', type=Path, required=True)
+    parser.add_argument('--source-sha', required=True)
+    args = parser.parse_args()
+    repo = args.repo.resolve(strict=True)
+    if repo in (Path('/'),Path.home(),Path('/tmp')) or not (repo/'browser-client/package.json').is_file():
+        raise RuntimeError('preparation-requires-a-dedicated-complete-checkout')
+    runtime = repo/'build/jenkins-browser-ci'
+    runtime.mkdir(parents=True,exist_ok=True,mode=0o700)
+    if runtime.is_symlink():raise RuntimeError('preparation-runtime-must-not-be-a-symlink')
+    runtime.chmod(0o700)
+    source_sha=args.source_sha if re.fullmatch(r'[0-9a-f]{40}',args.source_sha) else None
+    publish_preparation(runtime,{'sourceSHA':source_sha,'passed':False,'stages':[],
+        'failureCategory':'preflight-not-completed'})
+    try:
+        return prepare_dependencies(repo,args.source_sha,runtime)
+    except (RuntimeError,OSError,ValueError,subprocess.SubprocessError) as error:
+        category=str(error) if isinstance(error,RuntimeError) and re.fullmatch(r'[A-Za-z0-9_.:-]{1,160}',str(error)) else type(error).__name__
+        publish_preparation(runtime,{'sourceSHA':source_sha,'passed':False,'stages':[],
+            'failureCategory':category})
+        raise
+
+
+def publish_preparation(runtime,document):
+    payload=json.dumps(document,separators=(',',':'))+'\n'
+    if len(payload.encode())>65536:raise RuntimeError('preparation-summary-exceeds-bound')
+    filename=runtime/'prepare-summary.json'
+    descriptor=os.open(filename,os.O_WRONLY|os.O_CREAT|os.O_TRUNC|os.O_NOFOLLOW,0o600)
+    with os.fdopen(descriptor,'w') as output:output.write(payload)
+
+
+def prepare_dependencies(repo,source_sha,runtime):
+    if os.getuid() == 0 or not Path('/etc/fedora-release').is_file():
+        raise RuntimeError('qualification-requires-reviewed-nonroot-Fedora-agent')
+    checked_source(repo,source_sha)
+    if not checkout_clean(repo):
+        raise RuntimeError('dependency-preparation-requires-clean-exact-source')
+    if (repo/'build/browser-lab').exists():
+        raise RuntimeError('qualification-must-not-reuse-or-replace-an-existing-laboratory')
+    for name in ('node','npm','git','python3','g++','ar','tar','rpm2cpio','cpio','dnf',
+                 'ffmpeg','pactl','bwrap','unshare','mount','setpriv','ip','xauth'):
+        checked_executable(name)
+    chrome_manifest=os.environ.get('OVERTE_CI_CHROME_PAYLOAD_MANIFEST')
+    chrome_manifest_sha=os.environ.get('OVERTE_CI_CHROME_PAYLOAD_SHA256')
+    if not chrome_manifest or not chrome_manifest_sha or not re.fullmatch('[0-9a-f]{64}',chrome_manifest_sha):
+        raise RuntimeError('reviewed-google-chrome-payload-selection-required')
+    env = {**safe_environment(), 'PLAYWRIGHT_BROWSERS_PATH': str(runtime/'browsers'),
+           **empty_npm_environment(runtime, create=True),
+           'XDG_CACHE_HOME':str(runtime/'cache'), 'OVERTE_LAB_ROOT':str(repo/'build/browser-lab')}
+    version = subprocess.check_output(['node','-p','process.versions.node'],text=True,timeout=10,env=env).strip()
+    major,minor,_patch = map(int,version.split('.'))
+    if major < 22 or (major == 22 and minor < 12):
+        raise RuntimeError('Node-does-not-meet-reviewed-package-engine')
+    commands = [
+        (['npm','ci'],repo/'browser-client'),
+        ([sys.executable,str(Path(__file__).resolve().parent/'chrome-payload.py'),str(runtime),chrome_manifest,chrome_manifest_sha],repo),
+        ([sys.executable,'browser-client/lab/manage.py','prepare'],repo),
+    ]
+    stages = []
+    cancelled=False
+    def cancel(_number,_frame):
+        nonlocal cancelled
+        cancelled=True
+    signal.signal(signal.SIGTERM,cancel)
+    signal.signal(signal.SIGINT,cancel)
+    for number,(command,directory) in enumerate(commands):
+        with (runtime/f'prepare-{number}-private.log').open('wb') as log:
+            result = subprocess.Popen(installer_command(command),cwd=directory,env=env,
+                stdout=log,stderr=log,start_new_session=True)
+            deadline=time.monotonic()+1200
+            failure=None
+            try:
+                while result.poll() is None:
+                    if cancelled:failure='cancelled';break
+                    if time.monotonic()>deadline:failure='dependency-deadline';break
+                    if os.fstat(log.fileno()).st_size>64*1024*1024:failure='private-log-size-limit';break
+                    time.sleep(.1)
+            finally:
+                stop_owned(result)
+        stages.append({'stage':['npm-ci','reviewed-google-chrome-payload','pinned-native-artifacts'][number],
+                       'passed':result.returncode==0 and failure is None,'failureCategory':failure})
+        publish_preparation(runtime,{'sourceSHA':source_sha,'nodeVersion':version,
+            'browserScope':'google-chrome-only','browserPayloadManifestSHA256':chrome_manifest_sha,
+            'passed':all(row['passed'] for row in stages),'stages':stages})
+        if result.returncode or failure:
+            return 1
+    marker=runtime/'preparation-complete'
+    descriptor=os.open(marker,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
+    with os.fdopen(descriptor,'w') as output:output.write(source_sha+'\n')
+    return 0
+
+
+if __name__ == '__main__':
+    try:raise SystemExit(main())
+    except (RuntimeError,OSError,ValueError,subprocess.SubprocessError) as error:
+        print(json.dumps({'passed':False,'stage':'dependency-preparation',
+             'category':str(error) if isinstance(error,RuntimeError) else type(error).__name__}),file=sys.stderr)
+        raise SystemExit(1)

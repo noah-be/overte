@@ -1,0 +1,64 @@
+{
+  "startedAt": "2026-09-30T21:24:48.342Z",
+  "completed": true,
+  "syntheticGeometry": true,
+  "nativeWorldProof": false,
+  "codec": "draco3d 1.3.4",
+  "browserVersion": "153.0.8010.12",
+  "result": {
+    "points": [
+      {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "original": 2
+      },
+      {
+        "position": [
+          1,
+          0,
+          0
+        ],
+        "original": 0
+      },
+      {
+        "position": [
+          0,
+          1,
+          0
+        ],
+        "original": 1
+      },
+      {
+        "position": [
+          2,
+          0,
+          0
+        ],
+        "original": 0
+      },
+      {
+        "position": [
+          3,
+          0,
+          0
+        ],
+        "original": 2
+      },
+      {
+        "position": [
+          2,
+          1,
+          0
+        ],
+        "original": 1
+      }
+    ],
+    "integerAttributeType": "Uint32Array",
+    "triangles": 2,
+    "invalidRejected": true
+  },
+  "finishedAt": "2026-09-30T21:24:50.536Z"
+}

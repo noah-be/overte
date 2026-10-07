@@ -1,0 +1,276 @@
+{
+  "date": "2026-10-02",
+  "materialAssistance": "OpenAI Codex",
+  "scope": "Current standalone GPU fidelity/lease cleanup after finally-release correction. ModelResources direct-close exclusion remains separately CPU-tested; BrowserWorld conversion is not yet active.",
+  "command": "npx playwright test tests/world-bitmap-upload.browser.spec.ts --workers=1 --reporter=list,json",
+  "startedAt": "2026-10-01T22:14:06.931Z",
+  "elapsedMs": 9991.773000000001,
+  "testsPassed": 2,
+  "testsFailed": 0,
+  "testsSkipped": 0,
+  "logSHA256": "31ab8210632c5fabfbdde71dd4053d88d9ac6f5ce4957db51021d72394cab284",
+  "sourceSHA256": {
+    "browser-client/src/world-bitmap-upload.ts": "8b46dc009bf497426ac87d583f4756e9f214d5e629687037a46194f5033775ad",
+    "browser-client/src/world-bitmap-upload.test.ts": "96dae0a70fa29b5d670f0317564a2cdd8f94c3dcdbd47cca799a94c300f0efa6",
+    "browser-client/src/model-resources.ts": "23e551d60f53e02e2a9d28573df47e0bc7710fc499d1f05aeca88daa89703949",
+    "browser-client/tests/bitmap-model-resources.test.ts": "83231a523428efd42f21c96f0e6c340aafd542cd09f9b1997e819fdda6392327",
+    "browser-client/tests/fixtures/world-bitmap-upload.ts": "9640c4796a457a6e89db0b4b1c637c00ff0970424de21bf2c0e8cd22bc152d12",
+    "browser-client/tests/world-bitmap-upload.browser.spec.ts": "9ce1232df245500888879c713a3b6437f3731b0d231905224281147869a48544"
+  },
+  "engines": [
+    {
+      "engine": "chromium",
+      "durationMs": 1908,
+      "attachment": {
+        "completed": true,
+        "checks": [
+          {
+            "flipY": false,
+            "premultiplyAlpha": false,
+            "colorSpace": "srgb",
+            "prepared": true,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": false,
+            "premultiplyAlpha": false,
+            "colorSpace": "",
+            "prepared": true,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": false,
+            "premultiplyAlpha": false,
+            "colorSpace": "srgb-linear",
+            "prepared": true,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": false,
+            "premultiplyAlpha": true,
+            "colorSpace": "srgb",
+            "prepared": false,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": false,
+            "premultiplyAlpha": true,
+            "colorSpace": "",
+            "prepared": false,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": false,
+            "premultiplyAlpha": true,
+            "colorSpace": "srgb-linear",
+            "prepared": false,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": true,
+            "premultiplyAlpha": false,
+            "colorSpace": "srgb",
+            "prepared": true,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": true,
+            "premultiplyAlpha": false,
+            "colorSpace": "",
+            "prepared": true,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": true,
+            "premultiplyAlpha": false,
+            "colorSpace": "srgb-linear",
+            "prepared": true,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": true,
+            "premultiplyAlpha": true,
+            "colorSpace": "srgb",
+            "prepared": false,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": true,
+            "premultiplyAlpha": true,
+            "colorSpace": "",
+            "prepared": false,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": true,
+            "premultiplyAlpha": true,
+            "colorSpace": "srgb-linear",
+            "prepared": false,
+            "exact": true,
+            "maximumChannelError": 0
+          }
+        ],
+        "ownership": {
+          "requests": 12,
+          "hits": 0,
+          "created": 6,
+          "closed": 6,
+          "evictions": 4,
+          "cancelled": 0,
+          "failed": 0,
+          "closeFailures": 0,
+          "peakActive": 1,
+          "active": 0,
+          "pending": 0,
+          "readers": 0,
+          "retainedEntries": 0,
+          "liveEntries": 0,
+          "bytes": 0,
+          "leases": 0
+        },
+        "textureCountAfterClose": 0,
+        "geometryCountAfterClose": 0
+      }
+    },
+    {
+      "engine": "firefox",
+      "durationMs": 3419,
+      "attachment": {
+        "completed": true,
+        "checks": [
+          {
+            "flipY": false,
+            "premultiplyAlpha": false,
+            "colorSpace": "srgb",
+            "prepared": true,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": false,
+            "premultiplyAlpha": false,
+            "colorSpace": "",
+            "prepared": true,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": false,
+            "premultiplyAlpha": false,
+            "colorSpace": "srgb-linear",
+            "prepared": true,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": false,
+            "premultiplyAlpha": true,
+            "colorSpace": "srgb",
+            "prepared": false,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": false,
+            "premultiplyAlpha": true,
+            "colorSpace": "",
+            "prepared": false,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": false,
+            "premultiplyAlpha": true,
+            "colorSpace": "srgb-linear",
+            "prepared": false,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": true,
+            "premultiplyAlpha": false,
+            "colorSpace": "srgb",
+            "prepared": true,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": true,
+            "premultiplyAlpha": false,
+            "colorSpace": "",
+            "prepared": true,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": true,
+            "premultiplyAlpha": false,
+            "colorSpace": "srgb-linear",
+            "prepared": true,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": true,
+            "premultiplyAlpha": true,
+            "colorSpace": "srgb",
+            "prepared": false,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": true,
+            "premultiplyAlpha": true,
+            "colorSpace": "",
+            "prepared": false,
+            "exact": true,
+            "maximumChannelError": 0
+          },
+          {
+            "flipY": true,
+            "premultiplyAlpha": true,
+            "colorSpace": "srgb-linear",
+            "prepared": false,
+            "exact": true,
+            "maximumChannelError": 0
+          }
+        ],
+        "ownership": {
+          "requests": 12,
+          "hits": 0,
+          "created": 6,
+          "closed": 6,
+          "evictions": 4,
+          "cancelled": 0,
+          "failed": 0,
+          "closeFailures": 0,
+          "peakActive": 1,
+          "active": 0,
+          "pending": 0,
+          "readers": 0,
+          "retainedEntries": 0,
+          "liveEntries": 0,
+          "bytes": 0,
+          "leases": 0
+        },
+        "textureCountAfterClose": 0,
+        "geometryCountAfterClose": 0
+      }
+    }
+  ],
+  "limitations": [
+    "No whole-World conversion activation or online speed gain is claimed.",
+    "Premultiplied variants retain original HTML-image upload; every exact pixel predicate remains zero-error."
+  ]
+}

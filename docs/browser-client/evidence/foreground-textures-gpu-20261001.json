@@ -1,0 +1,3634 @@
+{
+  "schemaVersion": 1,
+  "scope": "Actual authored BrowserWorld foreground texture residency/fidelity and shader lifetime proof; not public-world admission, latency improvement or native Tablet editing acceptance",
+  "rawReportSHA256": "d043459ca327ad52f65820b9d4fa5544c2600361d0f6f4a6256dc082a6d278cb",
+  "combinedRun": {
+    "startTime": "2026-10-01T17:26:01.413Z",
+    "duration": 127478.167,
+    "expected": 18,
+    "skipped": 0,
+    "unexpected": 2,
+    "flaky": 0
+  },
+  "foregroundCasesPassed": 12,
+  "shaderCasesPassed": 4,
+  "responsiveNegativeCasesPassed": 2,
+  "responsiveEditingCasesTimedOut": 2,
+  "runtimeDefaults": {
+    "shaderWarmup": false,
+    "texturePreparation": false
+  },
+  "sourceAudit": {
+    "timing": "Post-run source audit of the unchanged cohort files; not separately recorded start/end source attestation",
+    "sha256": {
+      "browser-client/src/world.ts": "cdea6c0797fef9c1eb3c219003475b7ea7ab8dc882cc3bb0680021231db55a6c",
+      "browser-client/src/main.ts": "9328406172fe1bb61118811f58db3a43b75cc99d7258cf2f1636b22571051d79",
+      "browser-client/src/graphics-warmup.ts": "878c32f9d7503cd334f66e348e10670f73c8c077373906c979523d75884a93e6",
+      "browser-client/src/graphics-warmup-owner.ts": "e09c8bfbfb71dadbe838413551cce82a6b689967237e355cd4a787a9da0050d4",
+      "browser-client/src/world-texture-preparation.ts": "9bbe55c2b77a6df70b393cc139a35a34eb0d72b2f1f71d2b3f459dcb90a81be6",
+      "browser-client/src/foreground-texture-plan.ts": "9e986216767c9d65070e337e672c1f5bede40d5fd222d0191f715abba8c899c2",
+      "browser-client/tests/foreground-textures-fixture.ts": "006210fe3fc4c687c3114e193dd4bd5935fedd58fe0dfcd8471ae66ce5cb5c75",
+      "browser-client/tests/foreground-textures.browser.spec.ts": "5481dc31b193536cfb2322522713ecd4fdb7fbc7cb80705518f9ba5c7bab7361",
+      "browser-client/tests/graphics-warmup-fixture.ts": "f4a0811c075446f6c0e0942dee60f4a7bdb6d42a35fcf6a45abea37e64c5519b",
+      "browser-client/tests/graphics-warmup.browser.spec.ts": "069b17cdf79acbc9df71d6fec2e81dd0d3e6b58816e1220186308a9b2e8e778a",
+      "browser-client/tests/create-responsive.browser.spec.ts": "ecbcab59662ea359540cca80f5bea7e5c271f80c06b8153ee13c240b786e255a"
+    }
+  },
+  "reports": [
+    {
+      "test": "foreground-texture-fidelity",
+      "durationMs": 2213,
+      "schemaVersion": 1,
+      "browser": "153.0.8010.12",
+      "project": "chromium",
+      "source": "image",
+      "sampler": "shared",
+      "report": {
+        "baseline": {
+          "before": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "beforeRender": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "afterRender": {
+            "image": 1,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "beforeGpu": 0,
+          "firstGpu": 1,
+          "beforeAllocations": [],
+          "firstAllocations": [
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            }
+          ],
+          "warnings": [],
+          "hash": "2e74314b82ec9c2b91480a5097950b937a032e1c7a56075c4cb826879acf4e54",
+          "greenPixels": 6120,
+          "centerPixels": [
+            [
+              0,
+              255,
+              0,
+              255
+            ],
+            [
+              0,
+              255,
+              0,
+              255
+            ]
+          ],
+          "samplerDifference": false,
+          "initialWrapS": [
+            1001,
+            1001
+          ],
+          "versionsUnchanged": true,
+          "hooksUnchanged": true,
+          "sourceShared": true,
+          "preparation": {
+            "enabled": false,
+            "roots": 0,
+            "bindings": 0,
+            "unsupported": 0,
+            "activeBindings": 0,
+            "peakBindings": 0,
+            "capacityFallbacks": 0
+          },
+          "uploadDelta": 1,
+          "afterReveal": {
+            "image": 2,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "gpuAfterReveal": 2,
+          "bitmapLiveAfterReveal": true,
+          "releasedGpu": 0,
+          "releasedReferences": 0
+        },
+        "prepared": {
+          "before": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "beforeRender": {
+            "image": 1,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "afterRender": {
+            "image": 1,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "beforeGpu": 1,
+          "firstGpu": 1,
+          "beforeAllocations": [
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            }
+          ],
+          "firstAllocations": [
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            }
+          ],
+          "warnings": [],
+          "hash": "2e74314b82ec9c2b91480a5097950b937a032e1c7a56075c4cb826879acf4e54",
+          "greenPixels": 6120,
+          "centerPixels": [
+            [
+              0,
+              255,
+              0,
+              255
+            ],
+            [
+              0,
+              255,
+              0,
+              255
+            ]
+          ],
+          "samplerDifference": false,
+          "initialWrapS": [
+            1001,
+            1001
+          ],
+          "versionsUnchanged": true,
+          "hooksUnchanged": true,
+          "sourceShared": true,
+          "preparation": {
+            "enabled": true,
+            "roots": 1,
+            "bindings": 4,
+            "unsupported": 0,
+            "activeBindings": 0,
+            "peakBindings": 4,
+            "capacityFallbacks": 0,
+            "submitted": 1,
+            "completed": 1,
+            "cancelled": 0,
+            "failed": 0,
+            "initCalls": 2,
+            "imageCalls": 2,
+            "bitmapCalls": 0,
+            "compressedCalls": 0,
+            "skipped": 2,
+            "totalInitMs": 3.8999999910593033,
+            "maxInitMs": 3.7999999970197678,
+            "peakReferences": 2,
+            "queued": 0,
+            "active": 0,
+            "references": 0,
+            "disposed": false
+          },
+          "uploadDelta": 0,
+          "afterReveal": {
+            "image": 2,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "gpuAfterReveal": 2,
+          "bitmapLiveAfterReveal": true,
+          "releasedGpu": 0,
+          "releasedReferences": 0
+        }
+      },
+      "errors": []
+    },
+    {
+      "test": "foreground-texture-fidelity",
+      "durationMs": 1669,
+      "schemaVersion": 1,
+      "browser": "153.0.8010.12",
+      "project": "chromium",
+      "source": "image",
+      "sampler": "different",
+      "report": {
+        "baseline": {
+          "before": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "beforeRender": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "afterRender": {
+            "image": 2,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "beforeGpu": 0,
+          "firstGpu": 2,
+          "beforeAllocations": [],
+          "firstAllocations": [
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            },
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            }
+          ],
+          "warnings": [],
+          "hash": "2e74314b82ec9c2b91480a5097950b937a032e1c7a56075c4cb826879acf4e54",
+          "greenPixels": 6120,
+          "centerPixels": [
+            [
+              0,
+              255,
+              0,
+              255
+            ],
+            [
+              0,
+              255,
+              0,
+              255
+            ]
+          ],
+          "samplerDifference": true,
+          "initialWrapS": [
+            1001,
+            1000
+          ],
+          "versionsUnchanged": true,
+          "hooksUnchanged": true,
+          "sourceShared": true,
+          "preparation": {
+            "enabled": false,
+            "roots": 0,
+            "bindings": 0,
+            "unsupported": 0,
+            "activeBindings": 0,
+            "peakBindings": 0,
+            "capacityFallbacks": 0
+          },
+          "uploadDelta": 2,
+          "afterReveal": {
+            "image": 3,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "gpuAfterReveal": 3,
+          "bitmapLiveAfterReveal": true,
+          "releasedGpu": 0,
+          "releasedReferences": 0
+        },
+        "prepared": {
+          "before": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "beforeRender": {
+            "image": 2,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "afterRender": {
+            "image": 2,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "beforeGpu": 2,
+          "firstGpu": 2,
+          "beforeAllocations": [
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            },
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            }
+          ],
+          "firstAllocations": [
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            },
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            }
+          ],
+          "warnings": [],
+          "hash": "2e74314b82ec9c2b91480a5097950b937a032e1c7a56075c4cb826879acf4e54",
+          "greenPixels": 6120,
+          "centerPixels": [
+            [
+              0,
+              255,
+              0,
+              255
+            ],
+            [
+              0,
+              255,
+              0,
+              255
+            ]
+          ],
+          "samplerDifference": true,
+          "initialWrapS": [
+            1001,
+            1000
+          ],
+          "versionsUnchanged": true,
+          "hooksUnchanged": true,
+          "sourceShared": true,
+          "preparation": {
+            "enabled": true,
+            "roots": 1,
+            "bindings": 4,
+            "unsupported": 0,
+            "activeBindings": 0,
+            "peakBindings": 4,
+            "capacityFallbacks": 0,
+            "submitted": 1,
+            "completed": 1,
+            "cancelled": 0,
+            "failed": 0,
+            "initCalls": 2,
+            "imageCalls": 2,
+            "bitmapCalls": 0,
+            "compressedCalls": 0,
+            "skipped": 2,
+            "totalInitMs": 2.4000000059604645,
+            "maxInitMs": 2.2000000029802322,
+            "peakReferences": 2,
+            "queued": 0,
+            "active": 0,
+            "references": 0,
+            "disposed": false
+          },
+          "uploadDelta": 0,
+          "afterReveal": {
+            "image": 3,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "gpuAfterReveal": 3,
+          "bitmapLiveAfterReveal": true,
+          "releasedGpu": 0,
+          "releasedReferences": 0
+        }
+      },
+      "errors": []
+    },
+    {
+      "test": "foreground-texture-fidelity",
+      "durationMs": 1620,
+      "schemaVersion": 1,
+      "browser": "153.0.8010.12",
+      "project": "chromium",
+      "source": "bitmap",
+      "sampler": "shared",
+      "report": {
+        "baseline": {
+          "before": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "beforeRender": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "afterRender": {
+            "image": 0,
+            "bitmap": 1,
+            "compressed": 0
+          },
+          "beforeGpu": 0,
+          "firstGpu": 1,
+          "beforeAllocations": [],
+          "firstAllocations": [
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            }
+          ],
+          "warnings": [],
+          "hash": "2e74314b82ec9c2b91480a5097950b937a032e1c7a56075c4cb826879acf4e54",
+          "greenPixels": 6120,
+          "centerPixels": [
+            [
+              0,
+              255,
+              0,
+              255
+            ],
+            [
+              0,
+              255,
+              0,
+              255
+            ]
+          ],
+          "samplerDifference": false,
+          "initialWrapS": [
+            1001,
+            1001
+          ],
+          "versionsUnchanged": true,
+          "hooksUnchanged": true,
+          "sourceShared": true,
+          "preparation": {
+            "enabled": false,
+            "roots": 0,
+            "bindings": 0,
+            "unsupported": 0,
+            "activeBindings": 0,
+            "peakBindings": 0,
+            "capacityFallbacks": 0
+          },
+          "uploadDelta": 1,
+          "afterReveal": {
+            "image": 0,
+            "bitmap": 2,
+            "compressed": 0
+          },
+          "gpuAfterReveal": 2,
+          "bitmapLiveAfterReveal": true,
+          "releasedGpu": 0,
+          "releasedReferences": 0
+        },
+        "prepared": {
+          "before": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "beforeRender": {
+            "image": 0,
+            "bitmap": 1,
+            "compressed": 0
+          },
+          "afterRender": {
+            "image": 0,
+            "bitmap": 1,
+            "compressed": 0
+          },
+          "beforeGpu": 1,
+          "firstGpu": 1,
+          "beforeAllocations": [
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            }
+          ],
+          "firstAllocations": [
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            }
+          ],
+          "warnings": [],
+          "hash": "2e74314b82ec9c2b91480a5097950b937a032e1c7a56075c4cb826879acf4e54",
+          "greenPixels": 6120,
+          "centerPixels": [
+            [
+              0,
+              255,
+              0,
+              255
+            ],
+            [
+              0,
+              255,
+              0,
+              255
+            ]
+          ],
+          "samplerDifference": false,
+          "initialWrapS": [
+            1001,
+            1001
+          ],
+          "versionsUnchanged": true,
+          "hooksUnchanged": true,
+          "sourceShared": true,
+          "preparation": {
+            "enabled": true,
+            "roots": 1,
+            "bindings": 4,
+            "unsupported": 0,
+            "activeBindings": 0,
+            "peakBindings": 4,
+            "capacityFallbacks": 0,
+            "submitted": 1,
+            "completed": 1,
+            "cancelled": 0,
+            "failed": 0,
+            "initCalls": 2,
+            "imageCalls": 0,
+            "bitmapCalls": 2,
+            "compressedCalls": 0,
+            "skipped": 2,
+            "totalInitMs": 1.7000000029802322,
+            "maxInitMs": 1.7000000029802322,
+            "peakReferences": 2,
+            "queued": 0,
+            "active": 0,
+            "references": 0,
+            "disposed": false
+          },
+          "uploadDelta": 0,
+          "afterReveal": {
+            "image": 0,
+            "bitmap": 2,
+            "compressed": 0
+          },
+          "gpuAfterReveal": 2,
+          "bitmapLiveAfterReveal": true,
+          "releasedGpu": 0,
+          "releasedReferences": 0
+        }
+      },
+      "errors": []
+    },
+    {
+      "test": "foreground-texture-fidelity",
+      "durationMs": 1632,
+      "schemaVersion": 1,
+      "browser": "153.0.8010.12",
+      "project": "chromium",
+      "source": "bitmap",
+      "sampler": "different",
+      "report": {
+        "baseline": {
+          "before": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "beforeRender": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "afterRender": {
+            "image": 0,
+            "bitmap": 2,
+            "compressed": 0
+          },
+          "beforeGpu": 0,
+          "firstGpu": 2,
+          "beforeAllocations": [],
+          "firstAllocations": [
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            },
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            }
+          ],
+          "warnings": [],
+          "hash": "2e74314b82ec9c2b91480a5097950b937a032e1c7a56075c4cb826879acf4e54",
+          "greenPixels": 6120,
+          "centerPixels": [
+            [
+              0,
+              255,
+              0,
+              255
+            ],
+            [
+              0,
+              255,
+              0,
+              255
+            ]
+          ],
+          "samplerDifference": true,
+          "initialWrapS": [
+            1001,
+            1000
+          ],
+          "versionsUnchanged": true,
+          "hooksUnchanged": true,
+          "sourceShared": true,
+          "preparation": {
+            "enabled": false,
+            "roots": 0,
+            "bindings": 0,
+            "unsupported": 0,
+            "activeBindings": 0,
+            "peakBindings": 0,
+            "capacityFallbacks": 0
+          },
+          "uploadDelta": 2,
+          "afterReveal": {
+            "image": 0,
+            "bitmap": 3,
+            "compressed": 0
+          },
+          "gpuAfterReveal": 3,
+          "bitmapLiveAfterReveal": true,
+          "releasedGpu": 0,
+          "releasedReferences": 0
+        },
+        "prepared": {
+          "before": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "beforeRender": {
+            "image": 0,
+            "bitmap": 2,
+            "compressed": 0
+          },
+          "afterRender": {
+            "image": 0,
+            "bitmap": 2,
+            "compressed": 0
+          },
+          "beforeGpu": 2,
+          "firstGpu": 2,
+          "beforeAllocations": [
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            },
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            }
+          ],
+          "firstAllocations": [
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            },
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            }
+          ],
+          "warnings": [],
+          "hash": "2e74314b82ec9c2b91480a5097950b937a032e1c7a56075c4cb826879acf4e54",
+          "greenPixels": 6120,
+          "centerPixels": [
+            [
+              0,
+              255,
+              0,
+              255
+            ],
+            [
+              0,
+              255,
+              0,
+              255
+            ]
+          ],
+          "samplerDifference": true,
+          "initialWrapS": [
+            1001,
+            1000
+          ],
+          "versionsUnchanged": true,
+          "hooksUnchanged": true,
+          "sourceShared": true,
+          "preparation": {
+            "enabled": true,
+            "roots": 1,
+            "bindings": 4,
+            "unsupported": 0,
+            "activeBindings": 0,
+            "peakBindings": 4,
+            "capacityFallbacks": 0,
+            "submitted": 1,
+            "completed": 1,
+            "cancelled": 0,
+            "failed": 0,
+            "initCalls": 2,
+            "imageCalls": 0,
+            "bitmapCalls": 2,
+            "compressedCalls": 0,
+            "skipped": 2,
+            "totalInitMs": 5.300000011920929,
+            "maxInitMs": 5.200000002980232,
+            "peakReferences": 2,
+            "queued": 0,
+            "active": 0,
+            "references": 0,
+            "disposed": false
+          },
+          "uploadDelta": 0,
+          "afterReveal": {
+            "image": 0,
+            "bitmap": 3,
+            "compressed": 0
+          },
+          "gpuAfterReveal": 3,
+          "bitmapLiveAfterReveal": true,
+          "releasedGpu": 0,
+          "releasedReferences": 0
+        }
+      },
+      "errors": []
+    },
+    {
+      "test": "foreground-texture-fidelity",
+      "durationMs": 1650,
+      "schemaVersion": 1,
+      "browser": "153.0.8010.12",
+      "project": "chromium",
+      "source": "native-ktx",
+      "sampler": "shared",
+      "report": {
+        "baseline": {
+          "before": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "beforeRender": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "afterRender": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 3
+          },
+          "beforeGpu": 0,
+          "firstGpu": 1,
+          "beforeAllocations": [],
+          "firstAllocations": [
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            }
+          ],
+          "warnings": [],
+          "hash": "2e74314b82ec9c2b91480a5097950b937a032e1c7a56075c4cb826879acf4e54",
+          "greenPixels": 6120,
+          "centerPixels": [
+            [
+              0,
+              255,
+              0,
+              255
+            ],
+            [
+              0,
+              255,
+              0,
+              255
+            ]
+          ],
+          "samplerDifference": false,
+          "initialWrapS": [
+            1000,
+            1000
+          ],
+          "versionsUnchanged": true,
+          "hooksUnchanged": true,
+          "sourceShared": true,
+          "preparation": {
+            "enabled": false,
+            "roots": 0,
+            "bindings": 0,
+            "unsupported": 0,
+            "activeBindings": 0,
+            "peakBindings": 0,
+            "capacityFallbacks": 0
+          },
+          "uploadDelta": 3,
+          "afterReveal": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 6
+          },
+          "gpuAfterReveal": 2,
+          "bitmapLiveAfterReveal": true,
+          "releasedGpu": 0,
+          "releasedReferences": 0
+        },
+        "prepared": {
+          "before": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "beforeRender": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 3
+          },
+          "afterRender": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 3
+          },
+          "beforeGpu": 1,
+          "firstGpu": 1,
+          "beforeAllocations": [
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            }
+          ],
+          "firstAllocations": [
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            }
+          ],
+          "warnings": [],
+          "hash": "2e74314b82ec9c2b91480a5097950b937a032e1c7a56075c4cb826879acf4e54",
+          "greenPixels": 6120,
+          "centerPixels": [
+            [
+              0,
+              255,
+              0,
+              255
+            ],
+            [
+              0,
+              255,
+              0,
+              255
+            ]
+          ],
+          "samplerDifference": false,
+          "initialWrapS": [
+            1000,
+            1000
+          ],
+          "versionsUnchanged": true,
+          "hooksUnchanged": true,
+          "sourceShared": true,
+          "preparation": {
+            "enabled": true,
+            "roots": 1,
+            "bindings": 4,
+            "unsupported": 0,
+            "activeBindings": 0,
+            "peakBindings": 4,
+            "capacityFallbacks": 0,
+            "submitted": 1,
+            "completed": 1,
+            "cancelled": 0,
+            "failed": 0,
+            "initCalls": 2,
+            "imageCalls": 0,
+            "bitmapCalls": 0,
+            "compressedCalls": 2,
+            "skipped": 2,
+            "totalInitMs": 3.2000000178813934,
+            "maxInitMs": 3.1000000089406967,
+            "peakReferences": 2,
+            "queued": 0,
+            "active": 0,
+            "references": 0,
+            "disposed": false
+          },
+          "uploadDelta": 0,
+          "afterReveal": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 6
+          },
+          "gpuAfterReveal": 2,
+          "bitmapLiveAfterReveal": true,
+          "releasedGpu": 0,
+          "releasedReferences": 0
+        }
+      },
+      "errors": []
+    },
+    {
+      "test": "foreground-texture-fidelity",
+      "durationMs": 1636,
+      "schemaVersion": 1,
+      "browser": "153.0.8010.12",
+      "project": "chromium",
+      "source": "native-ktx",
+      "sampler": "different",
+      "report": {
+        "baseline": {
+          "before": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "beforeRender": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "afterRender": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 6
+          },
+          "beforeGpu": 0,
+          "firstGpu": 2,
+          "beforeAllocations": [],
+          "firstAllocations": [
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            },
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            }
+          ],
+          "warnings": [],
+          "hash": "2e74314b82ec9c2b91480a5097950b937a032e1c7a56075c4cb826879acf4e54",
+          "greenPixels": 6120,
+          "centerPixels": [
+            [
+              0,
+              255,
+              0,
+              255
+            ],
+            [
+              0,
+              255,
+              0,
+              255
+            ]
+          ],
+          "samplerDifference": true,
+          "initialWrapS": [
+            1000,
+            1001
+          ],
+          "versionsUnchanged": true,
+          "hooksUnchanged": true,
+          "sourceShared": true,
+          "preparation": {
+            "enabled": false,
+            "roots": 0,
+            "bindings": 0,
+            "unsupported": 0,
+            "activeBindings": 0,
+            "peakBindings": 0,
+            "capacityFallbacks": 0
+          },
+          "uploadDelta": 6,
+          "afterReveal": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 9
+          },
+          "gpuAfterReveal": 3,
+          "bitmapLiveAfterReveal": true,
+          "releasedGpu": 0,
+          "releasedReferences": 0
+        },
+        "prepared": {
+          "before": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "beforeRender": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 6
+          },
+          "afterRender": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 6
+          },
+          "beforeGpu": 2,
+          "firstGpu": 2,
+          "beforeAllocations": [
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            },
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            }
+          ],
+          "firstAllocations": [
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            },
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            }
+          ],
+          "warnings": [],
+          "hash": "2e74314b82ec9c2b91480a5097950b937a032e1c7a56075c4cb826879acf4e54",
+          "greenPixels": 6120,
+          "centerPixels": [
+            [
+              0,
+              255,
+              0,
+              255
+            ],
+            [
+              0,
+              255,
+              0,
+              255
+            ]
+          ],
+          "samplerDifference": true,
+          "initialWrapS": [
+            1000,
+            1001
+          ],
+          "versionsUnchanged": true,
+          "hooksUnchanged": true,
+          "sourceShared": true,
+          "preparation": {
+            "enabled": true,
+            "roots": 1,
+            "bindings": 4,
+            "unsupported": 0,
+            "activeBindings": 0,
+            "peakBindings": 4,
+            "capacityFallbacks": 0,
+            "submitted": 1,
+            "completed": 1,
+            "cancelled": 0,
+            "failed": 0,
+            "initCalls": 2,
+            "imageCalls": 0,
+            "bitmapCalls": 0,
+            "compressedCalls": 2,
+            "skipped": 2,
+            "totalInitMs": 6.5,
+            "maxInitMs": 6.200000002980232,
+            "peakReferences": 2,
+            "queued": 0,
+            "active": 0,
+            "references": 0,
+            "disposed": false
+          },
+          "uploadDelta": 0,
+          "afterReveal": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 9
+          },
+          "gpuAfterReveal": 3,
+          "bitmapLiveAfterReveal": true,
+          "releasedGpu": 0,
+          "releasedReferences": 0
+        }
+      },
+      "errors": []
+    },
+    {
+      "test": "foreground-texture-fidelity",
+      "durationMs": 1369,
+      "schemaVersion": 1,
+      "browser": "155.0",
+      "project": "firefox",
+      "source": "image",
+      "sampler": "shared",
+      "report": {
+        "baseline": {
+          "before": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "beforeRender": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "afterRender": {
+            "image": 1,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "beforeGpu": 0,
+          "firstGpu": 1,
+          "beforeAllocations": [],
+          "firstAllocations": [
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            }
+          ],
+          "warnings": [],
+          "hash": "ed53c96646b04d177b0ef75544821781a7e5415920c2e461dc5c245204ddf813",
+          "greenPixels": 6120,
+          "centerPixels": [
+            [
+              0,
+              255,
+              0,
+              255
+            ],
+            [
+              0,
+              255,
+              0,
+              255
+            ]
+          ],
+          "samplerDifference": false,
+          "initialWrapS": [
+            1001,
+            1001
+          ],
+          "versionsUnchanged": true,
+          "hooksUnchanged": true,
+          "sourceShared": true,
+          "preparation": {
+            "enabled": false,
+            "roots": 0,
+            "bindings": 0,
+            "unsupported": 0,
+            "activeBindings": 0,
+            "peakBindings": 0,
+            "capacityFallbacks": 0
+          },
+          "uploadDelta": 1,
+          "afterReveal": {
+            "image": 2,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "gpuAfterReveal": 2,
+          "bitmapLiveAfterReveal": true,
+          "releasedGpu": 0,
+          "releasedReferences": 0
+        },
+        "prepared": {
+          "before": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "beforeRender": {
+            "image": 1,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "afterRender": {
+            "image": 1,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "beforeGpu": 1,
+          "firstGpu": 1,
+          "beforeAllocations": [
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            }
+          ],
+          "firstAllocations": [
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            }
+          ],
+          "warnings": [],
+          "hash": "ed53c96646b04d177b0ef75544821781a7e5415920c2e461dc5c245204ddf813",
+          "greenPixels": 6120,
+          "centerPixels": [
+            [
+              0,
+              255,
+              0,
+              255
+            ],
+            [
+              0,
+              255,
+              0,
+              255
+            ]
+          ],
+          "samplerDifference": false,
+          "initialWrapS": [
+            1001,
+            1001
+          ],
+          "versionsUnchanged": true,
+          "hooksUnchanged": true,
+          "sourceShared": true,
+          "preparation": {
+            "enabled": true,
+            "roots": 1,
+            "bindings": 4,
+            "unsupported": 0,
+            "activeBindings": 0,
+            "peakBindings": 4,
+            "capacityFallbacks": 0,
+            "submitted": 1,
+            "completed": 1,
+            "cancelled": 0,
+            "failed": 0,
+            "initCalls": 2,
+            "imageCalls": 2,
+            "bitmapCalls": 0,
+            "compressedCalls": 0,
+            "skipped": 2,
+            "totalInitMs": 2,
+            "maxInitMs": 2,
+            "peakReferences": 2,
+            "queued": 0,
+            "active": 0,
+            "references": 0,
+            "disposed": false
+          },
+          "uploadDelta": 0,
+          "afterReveal": {
+            "image": 2,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "gpuAfterReveal": 2,
+          "bitmapLiveAfterReveal": true,
+          "releasedGpu": 0,
+          "releasedReferences": 0
+        }
+      },
+      "errors": []
+    },
+    {
+      "test": "foreground-texture-fidelity",
+      "durationMs": 1205,
+      "schemaVersion": 1,
+      "browser": "155.0",
+      "project": "firefox",
+      "source": "image",
+      "sampler": "different",
+      "report": {
+        "baseline": {
+          "before": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "beforeRender": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "afterRender": {
+            "image": 2,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "beforeGpu": 0,
+          "firstGpu": 2,
+          "beforeAllocations": [],
+          "firstAllocations": [
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            },
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            }
+          ],
+          "warnings": [],
+          "hash": "ed53c96646b04d177b0ef75544821781a7e5415920c2e461dc5c245204ddf813",
+          "greenPixels": 6120,
+          "centerPixels": [
+            [
+              0,
+              255,
+              0,
+              255
+            ],
+            [
+              0,
+              255,
+              0,
+              255
+            ]
+          ],
+          "samplerDifference": true,
+          "initialWrapS": [
+            1001,
+            1000
+          ],
+          "versionsUnchanged": true,
+          "hooksUnchanged": true,
+          "sourceShared": true,
+          "preparation": {
+            "enabled": false,
+            "roots": 0,
+            "bindings": 0,
+            "unsupported": 0,
+            "activeBindings": 0,
+            "peakBindings": 0,
+            "capacityFallbacks": 0
+          },
+          "uploadDelta": 2,
+          "afterReveal": {
+            "image": 3,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "gpuAfterReveal": 3,
+          "bitmapLiveAfterReveal": true,
+          "releasedGpu": 0,
+          "releasedReferences": 0
+        },
+        "prepared": {
+          "before": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "beforeRender": {
+            "image": 2,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "afterRender": {
+            "image": 2,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "beforeGpu": 2,
+          "firstGpu": 2,
+          "beforeAllocations": [
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            },
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            }
+          ],
+          "firstAllocations": [
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            },
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            }
+          ],
+          "warnings": [],
+          "hash": "ed53c96646b04d177b0ef75544821781a7e5415920c2e461dc5c245204ddf813",
+          "greenPixels": 6120,
+          "centerPixels": [
+            [
+              0,
+              255,
+              0,
+              255
+            ],
+            [
+              0,
+              255,
+              0,
+              255
+            ]
+          ],
+          "samplerDifference": true,
+          "initialWrapS": [
+            1001,
+            1000
+          ],
+          "versionsUnchanged": true,
+          "hooksUnchanged": true,
+          "sourceShared": true,
+          "preparation": {
+            "enabled": true,
+            "roots": 1,
+            "bindings": 4,
+            "unsupported": 0,
+            "activeBindings": 0,
+            "peakBindings": 4,
+            "capacityFallbacks": 0,
+            "submitted": 1,
+            "completed": 1,
+            "cancelled": 0,
+            "failed": 0,
+            "initCalls": 2,
+            "imageCalls": 2,
+            "bitmapCalls": 0,
+            "compressedCalls": 0,
+            "skipped": 2,
+            "totalInitMs": 0,
+            "maxInitMs": 0,
+            "peakReferences": 2,
+            "queued": 0,
+            "active": 0,
+            "references": 0,
+            "disposed": false
+          },
+          "uploadDelta": 0,
+          "afterReveal": {
+            "image": 3,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "gpuAfterReveal": 3,
+          "bitmapLiveAfterReveal": true,
+          "releasedGpu": 0,
+          "releasedReferences": 0
+        }
+      },
+      "errors": []
+    },
+    {
+      "test": "foreground-texture-fidelity",
+      "durationMs": 1210,
+      "schemaVersion": 1,
+      "browser": "155.0",
+      "project": "firefox",
+      "source": "bitmap",
+      "sampler": "shared",
+      "report": {
+        "baseline": {
+          "before": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "beforeRender": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "afterRender": {
+            "image": 0,
+            "bitmap": 1,
+            "compressed": 0
+          },
+          "beforeGpu": 0,
+          "firstGpu": 1,
+          "beforeAllocations": [],
+          "firstAllocations": [
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            }
+          ],
+          "warnings": [],
+          "hash": "ed53c96646b04d177b0ef75544821781a7e5415920c2e461dc5c245204ddf813",
+          "greenPixels": 6120,
+          "centerPixels": [
+            [
+              0,
+              255,
+              0,
+              255
+            ],
+            [
+              0,
+              255,
+              0,
+              255
+            ]
+          ],
+          "samplerDifference": false,
+          "initialWrapS": [
+            1001,
+            1001
+          ],
+          "versionsUnchanged": true,
+          "hooksUnchanged": true,
+          "sourceShared": true,
+          "preparation": {
+            "enabled": false,
+            "roots": 0,
+            "bindings": 0,
+            "unsupported": 0,
+            "activeBindings": 0,
+            "peakBindings": 0,
+            "capacityFallbacks": 0
+          },
+          "uploadDelta": 1,
+          "afterReveal": {
+            "image": 0,
+            "bitmap": 2,
+            "compressed": 0
+          },
+          "gpuAfterReveal": 2,
+          "bitmapLiveAfterReveal": true,
+          "releasedGpu": 0,
+          "releasedReferences": 0
+        },
+        "prepared": {
+          "before": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "beforeRender": {
+            "image": 0,
+            "bitmap": 1,
+            "compressed": 0
+          },
+          "afterRender": {
+            "image": 0,
+            "bitmap": 1,
+            "compressed": 0
+          },
+          "beforeGpu": 1,
+          "firstGpu": 1,
+          "beforeAllocations": [
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            }
+          ],
+          "firstAllocations": [
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            }
+          ],
+          "warnings": [],
+          "hash": "ed53c96646b04d177b0ef75544821781a7e5415920c2e461dc5c245204ddf813",
+          "greenPixels": 6120,
+          "centerPixels": [
+            [
+              0,
+              255,
+              0,
+              255
+            ],
+            [
+              0,
+              255,
+              0,
+              255
+            ]
+          ],
+          "samplerDifference": false,
+          "initialWrapS": [
+            1001,
+            1001
+          ],
+          "versionsUnchanged": true,
+          "hooksUnchanged": true,
+          "sourceShared": true,
+          "preparation": {
+            "enabled": true,
+            "roots": 1,
+            "bindings": 4,
+            "unsupported": 0,
+            "activeBindings": 0,
+            "peakBindings": 4,
+            "capacityFallbacks": 0,
+            "submitted": 1,
+            "completed": 1,
+            "cancelled": 0,
+            "failed": 0,
+            "initCalls": 2,
+            "imageCalls": 0,
+            "bitmapCalls": 2,
+            "compressedCalls": 0,
+            "skipped": 2,
+            "totalInitMs": 0,
+            "maxInitMs": 0,
+            "peakReferences": 2,
+            "queued": 0,
+            "active": 0,
+            "references": 0,
+            "disposed": false
+          },
+          "uploadDelta": 0,
+          "afterReveal": {
+            "image": 0,
+            "bitmap": 2,
+            "compressed": 0
+          },
+          "gpuAfterReveal": 2,
+          "bitmapLiveAfterReveal": true,
+          "releasedGpu": 0,
+          "releasedReferences": 0
+        }
+      },
+      "errors": []
+    },
+    {
+      "test": "foreground-texture-fidelity",
+      "durationMs": 1288,
+      "schemaVersion": 1,
+      "browser": "155.0",
+      "project": "firefox",
+      "source": "bitmap",
+      "sampler": "different",
+      "report": {
+        "baseline": {
+          "before": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "beforeRender": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "afterRender": {
+            "image": 0,
+            "bitmap": 2,
+            "compressed": 0
+          },
+          "beforeGpu": 0,
+          "firstGpu": 2,
+          "beforeAllocations": [],
+          "firstAllocations": [
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            },
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            }
+          ],
+          "warnings": [],
+          "hash": "ed53c96646b04d177b0ef75544821781a7e5415920c2e461dc5c245204ddf813",
+          "greenPixels": 6120,
+          "centerPixels": [
+            [
+              0,
+              255,
+              0,
+              255
+            ],
+            [
+              0,
+              255,
+              0,
+              255
+            ]
+          ],
+          "samplerDifference": true,
+          "initialWrapS": [
+            1001,
+            1000
+          ],
+          "versionsUnchanged": true,
+          "hooksUnchanged": true,
+          "sourceShared": true,
+          "preparation": {
+            "enabled": false,
+            "roots": 0,
+            "bindings": 0,
+            "unsupported": 0,
+            "activeBindings": 0,
+            "peakBindings": 0,
+            "capacityFallbacks": 0
+          },
+          "uploadDelta": 2,
+          "afterReveal": {
+            "image": 0,
+            "bitmap": 3,
+            "compressed": 0
+          },
+          "gpuAfterReveal": 3,
+          "bitmapLiveAfterReveal": true,
+          "releasedGpu": 0,
+          "releasedReferences": 0
+        },
+        "prepared": {
+          "before": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "beforeRender": {
+            "image": 0,
+            "bitmap": 2,
+            "compressed": 0
+          },
+          "afterRender": {
+            "image": 0,
+            "bitmap": 2,
+            "compressed": 0
+          },
+          "beforeGpu": 2,
+          "firstGpu": 2,
+          "beforeAllocations": [
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            },
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            }
+          ],
+          "firstAllocations": [
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            },
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            }
+          ],
+          "warnings": [],
+          "hash": "ed53c96646b04d177b0ef75544821781a7e5415920c2e461dc5c245204ddf813",
+          "greenPixels": 6120,
+          "centerPixels": [
+            [
+              0,
+              255,
+              0,
+              255
+            ],
+            [
+              0,
+              255,
+              0,
+              255
+            ]
+          ],
+          "samplerDifference": true,
+          "initialWrapS": [
+            1001,
+            1000
+          ],
+          "versionsUnchanged": true,
+          "hooksUnchanged": true,
+          "sourceShared": true,
+          "preparation": {
+            "enabled": true,
+            "roots": 1,
+            "bindings": 4,
+            "unsupported": 0,
+            "activeBindings": 0,
+            "peakBindings": 4,
+            "capacityFallbacks": 0,
+            "submitted": 1,
+            "completed": 1,
+            "cancelled": 0,
+            "failed": 0,
+            "initCalls": 2,
+            "imageCalls": 0,
+            "bitmapCalls": 2,
+            "compressedCalls": 0,
+            "skipped": 2,
+            "totalInitMs": 1,
+            "maxInitMs": 1,
+            "peakReferences": 2,
+            "queued": 0,
+            "active": 0,
+            "references": 0,
+            "disposed": false
+          },
+          "uploadDelta": 0,
+          "afterReveal": {
+            "image": 0,
+            "bitmap": 3,
+            "compressed": 0
+          },
+          "gpuAfterReveal": 3,
+          "bitmapLiveAfterReveal": true,
+          "releasedGpu": 0,
+          "releasedReferences": 0
+        }
+      },
+      "errors": []
+    },
+    {
+      "test": "foreground-texture-fidelity",
+      "durationMs": 1405,
+      "schemaVersion": 1,
+      "browser": "155.0",
+      "project": "firefox",
+      "source": "native-ktx",
+      "sampler": "shared",
+      "report": {
+        "baseline": {
+          "before": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "beforeRender": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "afterRender": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 3
+          },
+          "beforeGpu": 0,
+          "firstGpu": 1,
+          "beforeAllocations": [],
+          "firstAllocations": [
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            }
+          ],
+          "warnings": [],
+          "hash": "ed53c96646b04d177b0ef75544821781a7e5415920c2e461dc5c245204ddf813",
+          "greenPixels": 6120,
+          "centerPixels": [
+            [
+              0,
+              255,
+              0,
+              255
+            ],
+            [
+              0,
+              255,
+              0,
+              255
+            ]
+          ],
+          "samplerDifference": false,
+          "initialWrapS": [
+            1000,
+            1000
+          ],
+          "versionsUnchanged": true,
+          "hooksUnchanged": true,
+          "sourceShared": true,
+          "preparation": {
+            "enabled": false,
+            "roots": 0,
+            "bindings": 0,
+            "unsupported": 0,
+            "activeBindings": 0,
+            "peakBindings": 0,
+            "capacityFallbacks": 0
+          },
+          "uploadDelta": 3,
+          "afterReveal": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 6
+          },
+          "gpuAfterReveal": 2,
+          "bitmapLiveAfterReveal": true,
+          "releasedGpu": 0,
+          "releasedReferences": 0
+        },
+        "prepared": {
+          "before": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "beforeRender": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 3
+          },
+          "afterRender": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 3
+          },
+          "beforeGpu": 1,
+          "firstGpu": 1,
+          "beforeAllocations": [
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            }
+          ],
+          "firstAllocations": [
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            }
+          ],
+          "warnings": [],
+          "hash": "ed53c96646b04d177b0ef75544821781a7e5415920c2e461dc5c245204ddf813",
+          "greenPixels": 6120,
+          "centerPixels": [
+            [
+              0,
+              255,
+              0,
+              255
+            ],
+            [
+              0,
+              255,
+              0,
+              255
+            ]
+          ],
+          "samplerDifference": false,
+          "initialWrapS": [
+            1000,
+            1000
+          ],
+          "versionsUnchanged": true,
+          "hooksUnchanged": true,
+          "sourceShared": true,
+          "preparation": {
+            "enabled": true,
+            "roots": 1,
+            "bindings": 4,
+            "unsupported": 0,
+            "activeBindings": 0,
+            "peakBindings": 4,
+            "capacityFallbacks": 0,
+            "submitted": 1,
+            "completed": 1,
+            "cancelled": 0,
+            "failed": 0,
+            "initCalls": 2,
+            "imageCalls": 0,
+            "bitmapCalls": 0,
+            "compressedCalls": 2,
+            "skipped": 2,
+            "totalInitMs": 0,
+            "maxInitMs": 0,
+            "peakReferences": 2,
+            "queued": 0,
+            "active": 0,
+            "references": 0,
+            "disposed": false
+          },
+          "uploadDelta": 0,
+          "afterReveal": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 6
+          },
+          "gpuAfterReveal": 2,
+          "bitmapLiveAfterReveal": true,
+          "releasedGpu": 0,
+          "releasedReferences": 0
+        }
+      },
+      "errors": []
+    },
+    {
+      "test": "foreground-texture-fidelity",
+      "durationMs": 1331,
+      "schemaVersion": 1,
+      "browser": "155.0",
+      "project": "firefox",
+      "source": "native-ktx",
+      "sampler": "different",
+      "report": {
+        "baseline": {
+          "before": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "beforeRender": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "afterRender": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 6
+          },
+          "beforeGpu": 0,
+          "firstGpu": 2,
+          "beforeAllocations": [],
+          "firstAllocations": [
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            },
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            }
+          ],
+          "warnings": [],
+          "hash": "ed53c96646b04d177b0ef75544821781a7e5415920c2e461dc5c245204ddf813",
+          "greenPixels": 6120,
+          "centerPixels": [
+            [
+              0,
+              255,
+              0,
+              255
+            ],
+            [
+              0,
+              255,
+              0,
+              255
+            ]
+          ],
+          "samplerDifference": true,
+          "initialWrapS": [
+            1000,
+            1001
+          ],
+          "versionsUnchanged": true,
+          "hooksUnchanged": true,
+          "sourceShared": true,
+          "preparation": {
+            "enabled": false,
+            "roots": 0,
+            "bindings": 0,
+            "unsupported": 0,
+            "activeBindings": 0,
+            "peakBindings": 0,
+            "capacityFallbacks": 0
+          },
+          "uploadDelta": 6,
+          "afterReveal": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 9
+          },
+          "gpuAfterReveal": 3,
+          "bitmapLiveAfterReveal": true,
+          "releasedGpu": 0,
+          "releasedReferences": 0
+        },
+        "prepared": {
+          "before": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 0
+          },
+          "beforeRender": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 6
+          },
+          "afterRender": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 6
+          },
+          "beforeGpu": 2,
+          "firstGpu": 2,
+          "beforeAllocations": [
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            },
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            }
+          ],
+          "firstAllocations": [
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            },
+            {
+              "levels": 3,
+              "width": 4,
+              "height": 4
+            }
+          ],
+          "warnings": [],
+          "hash": "ed53c96646b04d177b0ef75544821781a7e5415920c2e461dc5c245204ddf813",
+          "greenPixels": 6120,
+          "centerPixels": [
+            [
+              0,
+              255,
+              0,
+              255
+            ],
+            [
+              0,
+              255,
+              0,
+              255
+            ]
+          ],
+          "samplerDifference": true,
+          "initialWrapS": [
+            1000,
+            1001
+          ],
+          "versionsUnchanged": true,
+          "hooksUnchanged": true,
+          "sourceShared": true,
+          "preparation": {
+            "enabled": true,
+            "roots": 1,
+            "bindings": 4,
+            "unsupported": 0,
+            "activeBindings": 0,
+            "peakBindings": 4,
+            "capacityFallbacks": 0,
+            "submitted": 1,
+            "completed": 1,
+            "cancelled": 0,
+            "failed": 0,
+            "initCalls": 2,
+            "imageCalls": 0,
+            "bitmapCalls": 0,
+            "compressedCalls": 2,
+            "skipped": 2,
+            "totalInitMs": 1,
+            "maxInitMs": 1,
+            "peakReferences": 2,
+            "queued": 0,
+            "active": 0,
+            "references": 0,
+            "disposed": false
+          },
+          "uploadDelta": 0,
+          "afterReveal": {
+            "image": 0,
+            "bitmap": 0,
+            "compressed": 9
+          },
+          "gpuAfterReveal": 3,
+          "bitmapLiveAfterReveal": true,
+          "releasedGpu": 0,
+          "releasedReferences": 0
+        }
+      },
+      "errors": []
+    },
+    {
+      "test": "graphics-warmup-fidelity",
+      "durationMs": 2118,
+      "schemaVersion": 1,
+      "browser": "153.0.8010.12",
+      "project": "chromium",
+      "report": {
+        "webgl2": true,
+        "sharedRendererDFG": true,
+        "cleanup": [
+          {
+            "closed": true,
+            "geometryDisposals": 5,
+            "expectedGeometryDisposals": 5,
+            "materialDisposals": 3,
+            "expectedMaterialDisposals": 3,
+            "targetDisposals": 1,
+            "geometriesAfterClose": 0,
+            "texturesAfterClose": 0,
+            "textureReleaseSteps": [
+              {
+                "stage": "before",
+                "textures": 7,
+                "remaining": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7
+                ]
+              },
+              {
+                "stage": "target",
+                "textures": 6,
+                "remaining": [
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7
+                ]
+              },
+              {
+                "stage": "materials",
+                "textures": 6,
+                "remaining": [
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7
+                ]
+              },
+              {
+                "stage": "geometry-and-morph",
+                "textures": 5,
+                "remaining": [
+                  2,
+                  3,
+                  4,
+                  5,
+                  7
+                ]
+              },
+              {
+                "stage": "skeleton",
+                "textures": 4,
+                "remaining": [
+                  2,
+                  3,
+                  4,
+                  5
+                ]
+              },
+              {
+                "stage": "instances",
+                "textures": 4,
+                "remaining": [
+                  2,
+                  3,
+                  4,
+                  5
+                ]
+              },
+              {
+                "stage": "alpha",
+                "textures": 3,
+                "remaining": [
+                  2,
+                  3,
+                  5
+                ]
+              },
+              {
+                "stage": "shadow",
+                "textures": 1,
+                "remaining": [
+                  5
+                ]
+              },
+              {
+                "stage": "shared-dfg",
+                "textures": 0,
+                "remaining": []
+              },
+              {
+                "stage": "renderer",
+                "textures": 0,
+                "remaining": []
+              }
+            ],
+            "textureIdentity": {
+              "created": 7,
+              "deleted": 7,
+              "bindings": [
+                {
+                  "name": "target",
+                  "id": 1
+                },
+                {
+                  "name": "alpha",
+                  "id": 4
+                },
+                {
+                  "name": "bone",
+                  "id": 7
+                },
+                {
+                  "name": "shadow-color",
+                  "id": 2
+                },
+                {
+                  "name": "shadow-depth",
+                  "id": 3
+                },
+                {
+                  "name": "pbr-dfg",
+                  "id": 5
+                }
+              ],
+              "dfg": {
+                "name": "DFG_LUT",
+                "width": 16,
+                "height": 16,
+                "isDataTexture": true
+              }
+            }
+          },
+          {
+            "closed": true,
+            "geometryDisposals": 5,
+            "expectedGeometryDisposals": 5,
+            "materialDisposals": 3,
+            "expectedMaterialDisposals": 3,
+            "targetDisposals": 1,
+            "geometriesAfterClose": 0,
+            "texturesAfterClose": 0,
+            "textureReleaseSteps": [
+              {
+                "stage": "before",
+                "textures": 7,
+                "remaining": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7
+                ]
+              },
+              {
+                "stage": "target",
+                "textures": 6,
+                "remaining": [
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7
+                ]
+              },
+              {
+                "stage": "materials",
+                "textures": 6,
+                "remaining": [
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7
+                ]
+              },
+              {
+                "stage": "geometry-and-morph",
+                "textures": 5,
+                "remaining": [
+                  2,
+                  3,
+                  4,
+                  5,
+                  7
+                ]
+              },
+              {
+                "stage": "skeleton",
+                "textures": 4,
+                "remaining": [
+                  2,
+                  3,
+                  4,
+                  5
+                ]
+              },
+              {
+                "stage": "instances",
+                "textures": 4,
+                "remaining": [
+                  2,
+                  3,
+                  4,
+                  5
+                ]
+              },
+              {
+                "stage": "alpha",
+                "textures": 3,
+                "remaining": [
+                  2,
+                  3,
+                  5
+                ]
+              },
+              {
+                "stage": "shadow",
+                "textures": 1,
+                "remaining": [
+                  5
+                ]
+              },
+              {
+                "stage": "shared-dfg",
+                "textures": 0,
+                "remaining": []
+              },
+              {
+                "stage": "renderer",
+                "textures": 0,
+                "remaining": []
+              }
+            ],
+            "textureIdentity": {
+              "created": 7,
+              "deleted": 7,
+              "bindings": [
+                {
+                  "name": "target",
+                  "id": 1
+                },
+                {
+                  "name": "alpha",
+                  "id": 4
+                },
+                {
+                  "name": "bone",
+                  "id": 7
+                },
+                {
+                  "name": "shadow-color",
+                  "id": 2
+                },
+                {
+                  "name": "shadow-depth",
+                  "id": 3
+                },
+                {
+                  "name": "pbr-dfg",
+                  "id": 5
+                }
+              ],
+              "dfg": {
+                "name": "DFG_LUT",
+                "width": 16,
+                "height": 16,
+                "isDataTexture": true
+              }
+            }
+          }
+        ],
+        "statistics": {
+          "bindings": 14,
+          "batches": 4,
+          "yielded": 4,
+          "planningMs": 0.29999999701976776,
+          "submitMs": 24.200000002980232,
+          "maxSubmitMs": 13,
+          "finalSubmitMs": 6.5999999940395355,
+          "readinessWaitMs": 12,
+          "fallback": null
+        },
+        "maximum": 0,
+        "changed": 0,
+        "components": 36864,
+        "frames": [
+          {
+            "frame": 0,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 1,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 2,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 3,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 4,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 5,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 6,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 7,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 8,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 9,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 10,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 11,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 12,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 13,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 14,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 15,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 16,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 17,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 18,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 19,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 20,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          }
+        ],
+        "changedAnimationComponents": 1462,
+        "nonBackground": 991,
+        "finalRootExact": true,
+        "finalCameraExact": true,
+        "finalSceneExact": true,
+        "warmInputs": true,
+        "callsEqual": true,
+        "trianglesEqual": true,
+        "stableCalls": true,
+        "stablePrograms": true,
+        "coldProgramCountsEqual": true,
+        "stableVersions": true,
+        "retainedHooks": true,
+        "nativeAlphaInitiallyCorrect": true,
+        "nativeAlphaHooksBefore": {
+          "mask": true,
+          "blend": false
+        },
+        "nativeAlphaHooksAfter": {
+          "mask": true,
+          "blend": false
+        },
+        "nativeAlphaRetained": true,
+        "actualShadowMap": true,
+        "retainedInputs": true
+      },
+      "errors": []
+    },
+    {
+      "test": "graphics-warmup-cancellation",
+      "durationMs": 818,
+      "schemaVersion": 1,
+      "browser": "153.0.8010.12",
+      "project": "chromium",
+      "report": {
+        "webgl2": true,
+        "cleanup": {
+          "closed": true,
+          "geometryDisposals": 5,
+          "expectedGeometryDisposals": 5,
+          "materialDisposals": 3,
+          "expectedMaterialDisposals": 3,
+          "targetDisposals": 1,
+          "geometriesAfterClose": 0,
+          "texturesAfterClose": 0,
+          "textureReleaseSteps": [
+            {
+              "stage": "before",
+              "textures": 1,
+              "remaining": [
+                1
+              ]
+            },
+            {
+              "stage": "target",
+              "textures": 0,
+              "remaining": []
+            },
+            {
+              "stage": "materials",
+              "textures": 0,
+              "remaining": []
+            },
+            {
+              "stage": "geometry-and-morph",
+              "textures": 0,
+              "remaining": []
+            },
+            {
+              "stage": "skeleton",
+              "textures": 0,
+              "remaining": []
+            },
+            {
+              "stage": "instances",
+              "textures": 0,
+              "remaining": []
+            },
+            {
+              "stage": "alpha",
+              "textures": 0,
+              "remaining": []
+            },
+            {
+              "stage": "shadow",
+              "textures": 0,
+              "remaining": []
+            },
+            {
+              "stage": "shared-dfg",
+              "textures": 0,
+              "remaining": []
+            },
+            {
+              "stage": "renderer",
+              "textures": 0,
+              "remaining": []
+            }
+          ],
+          "textureIdentity": {
+            "created": 1,
+            "deleted": 1,
+            "bindings": [
+              {
+                "name": "target",
+                "id": 1
+              },
+              {
+                "name": "alpha",
+                "id": null
+              },
+              {
+                "name": "bone",
+                "id": null
+              },
+              {
+                "name": "shadow-color",
+                "id": null
+              },
+              {
+                "name": "shadow-depth",
+                "id": null
+              },
+              {
+                "name": "pbr-dfg",
+                "id": null
+              }
+            ],
+            "dfg": null
+          }
+        },
+        "failureName": "AbortError",
+        "submitted": 1,
+        "settledSubmitted": 1,
+        "finalCalls": 0,
+        "yields": 1,
+        "closed": 1,
+        "publishedReady": 0,
+        "warmInputs": true,
+        "shadersReady": false
+      },
+      "errors": []
+    },
+    {
+      "test": "graphics-warmup-fidelity",
+      "durationMs": 1100,
+      "schemaVersion": 1,
+      "browser": "155.0",
+      "project": "firefox",
+      "report": {
+        "webgl2": true,
+        "sharedRendererDFG": true,
+        "cleanup": [
+          {
+            "closed": true,
+            "geometryDisposals": 5,
+            "expectedGeometryDisposals": 5,
+            "materialDisposals": 3,
+            "expectedMaterialDisposals": 3,
+            "targetDisposals": 1,
+            "geometriesAfterClose": 0,
+            "texturesAfterClose": 0,
+            "textureReleaseSteps": [
+              {
+                "stage": "before",
+                "textures": 7,
+                "remaining": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7
+                ]
+              },
+              {
+                "stage": "target",
+                "textures": 6,
+                "remaining": [
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7
+                ]
+              },
+              {
+                "stage": "materials",
+                "textures": 6,
+                "remaining": [
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7
+                ]
+              },
+              {
+                "stage": "geometry-and-morph",
+                "textures": 5,
+                "remaining": [
+                  2,
+                  3,
+                  4,
+                  5,
+                  7
+                ]
+              },
+              {
+                "stage": "skeleton",
+                "textures": 4,
+                "remaining": [
+                  2,
+                  3,
+                  4,
+                  5
+                ]
+              },
+              {
+                "stage": "instances",
+                "textures": 4,
+                "remaining": [
+                  2,
+                  3,
+                  4,
+                  5
+                ]
+              },
+              {
+                "stage": "alpha",
+                "textures": 3,
+                "remaining": [
+                  2,
+                  3,
+                  5
+                ]
+              },
+              {
+                "stage": "shadow",
+                "textures": 1,
+                "remaining": [
+                  5
+                ]
+              },
+              {
+                "stage": "shared-dfg",
+                "textures": 0,
+                "remaining": []
+              },
+              {
+                "stage": "renderer",
+                "textures": 0,
+                "remaining": []
+              }
+            ],
+            "textureIdentity": {
+              "created": 7,
+              "deleted": 7,
+              "bindings": [
+                {
+                  "name": "target",
+                  "id": 1
+                },
+                {
+                  "name": "alpha",
+                  "id": 4
+                },
+                {
+                  "name": "bone",
+                  "id": 7
+                },
+                {
+                  "name": "shadow-color",
+                  "id": 2
+                },
+                {
+                  "name": "shadow-depth",
+                  "id": 3
+                },
+                {
+                  "name": "pbr-dfg",
+                  "id": 5
+                }
+              ],
+              "dfg": {
+                "name": "DFG_LUT",
+                "width": 16,
+                "height": 16,
+                "isDataTexture": true
+              }
+            }
+          },
+          {
+            "closed": true,
+            "geometryDisposals": 5,
+            "expectedGeometryDisposals": 5,
+            "materialDisposals": 3,
+            "expectedMaterialDisposals": 3,
+            "targetDisposals": 1,
+            "geometriesAfterClose": 0,
+            "texturesAfterClose": 0,
+            "textureReleaseSteps": [
+              {
+                "stage": "before",
+                "textures": 7,
+                "remaining": [
+                  1,
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7
+                ]
+              },
+              {
+                "stage": "target",
+                "textures": 6,
+                "remaining": [
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7
+                ]
+              },
+              {
+                "stage": "materials",
+                "textures": 6,
+                "remaining": [
+                  2,
+                  3,
+                  4,
+                  5,
+                  6,
+                  7
+                ]
+              },
+              {
+                "stage": "geometry-and-morph",
+                "textures": 5,
+                "remaining": [
+                  2,
+                  3,
+                  4,
+                  5,
+                  7
+                ]
+              },
+              {
+                "stage": "skeleton",
+                "textures": 4,
+                "remaining": [
+                  2,
+                  3,
+                  4,
+                  5
+                ]
+              },
+              {
+                "stage": "instances",
+                "textures": 4,
+                "remaining": [
+                  2,
+                  3,
+                  4,
+                  5
+                ]
+              },
+              {
+                "stage": "alpha",
+                "textures": 3,
+                "remaining": [
+                  2,
+                  3,
+                  5
+                ]
+              },
+              {
+                "stage": "shadow",
+                "textures": 1,
+                "remaining": [
+                  5
+                ]
+              },
+              {
+                "stage": "shared-dfg",
+                "textures": 0,
+                "remaining": []
+              },
+              {
+                "stage": "renderer",
+                "textures": 0,
+                "remaining": []
+              }
+            ],
+            "textureIdentity": {
+              "created": 7,
+              "deleted": 7,
+              "bindings": [
+                {
+                  "name": "target",
+                  "id": 1
+                },
+                {
+                  "name": "alpha",
+                  "id": 4
+                },
+                {
+                  "name": "bone",
+                  "id": 7
+                },
+                {
+                  "name": "shadow-color",
+                  "id": 2
+                },
+                {
+                  "name": "shadow-depth",
+                  "id": 3
+                },
+                {
+                  "name": "pbr-dfg",
+                  "id": 5
+                }
+              ],
+              "dfg": {
+                "name": "DFG_LUT",
+                "width": 16,
+                "height": 16,
+                "isDataTexture": true
+              }
+            }
+          }
+        ],
+        "statistics": {
+          "bindings": 14,
+          "batches": 4,
+          "yielded": 4,
+          "planningMs": 1,
+          "submitMs": 26,
+          "maxSubmitMs": 16,
+          "finalSubmitMs": 1,
+          "readinessWaitMs": 11,
+          "fallback": null
+        },
+        "maximum": 0,
+        "changed": 0,
+        "components": 36864,
+        "frames": [
+          {
+            "frame": 0,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 1,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 2,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 3,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 4,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 5,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 6,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 7,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 8,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 9,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 10,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 11,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 12,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 13,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 14,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 15,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 16,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 17,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 18,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 19,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          },
+          {
+            "frame": 20,
+            "maximum": 0,
+            "changed": 0,
+            "calls": 23,
+            "directCalls": 23,
+            "triangles": 156,
+            "directTriangles": 156,
+            "programs": 8,
+            "directPrograms": 8
+          }
+        ],
+        "changedAnimationComponents": 1354,
+        "nonBackground": 996,
+        "finalRootExact": true,
+        "finalCameraExact": true,
+        "finalSceneExact": true,
+        "warmInputs": true,
+        "callsEqual": true,
+        "trianglesEqual": true,
+        "stableCalls": true,
+        "stablePrograms": true,
+        "coldProgramCountsEqual": true,
+        "stableVersions": true,
+        "retainedHooks": true,
+        "nativeAlphaInitiallyCorrect": true,
+        "nativeAlphaHooksBefore": {
+          "mask": true,
+          "blend": false
+        },
+        "nativeAlphaHooksAfter": {
+          "mask": true,
+          "blend": false
+        },
+        "nativeAlphaRetained": true,
+        "actualShadowMap": true,
+        "retainedInputs": true
+      },
+      "errors": []
+    },
+    {
+      "test": "graphics-warmup-cancellation",
+      "durationMs": 835,
+      "schemaVersion": 1,
+      "browser": "155.0",
+      "project": "firefox",
+      "report": {
+        "webgl2": true,
+        "cleanup": {
+          "closed": true,
+          "geometryDisposals": 5,
+          "expectedGeometryDisposals": 5,
+          "materialDisposals": 3,
+          "expectedMaterialDisposals": 3,
+          "targetDisposals": 1,
+          "geometriesAfterClose": 0,
+          "texturesAfterClose": 0,
+          "textureReleaseSteps": [
+            {
+              "stage": "before",
+              "textures": 1,
+              "remaining": [
+                1
+              ]
+            },
+            {
+              "stage": "target",
+              "textures": 0,
+              "remaining": []
+            },
+            {
+              "stage": "materials",
+              "textures": 0,
+              "remaining": []
+            },
+            {
+              "stage": "geometry-and-morph",
+              "textures": 0,
+              "remaining": []
+            },
+            {
+              "stage": "skeleton",
+              "textures": 0,
+              "remaining": []
+            },
+            {
+              "stage": "instances",
+              "textures": 0,
+              "remaining": []
+            },
+            {
+              "stage": "alpha",
+              "textures": 0,
+              "remaining": []
+            },
+            {
+              "stage": "shadow",
+              "textures": 0,
+              "remaining": []
+            },
+            {
+              "stage": "shared-dfg",
+              "textures": 0,
+              "remaining": []
+            },
+            {
+              "stage": "renderer",
+              "textures": 0,
+              "remaining": []
+            }
+          ],
+          "textureIdentity": {
+            "created": 1,
+            "deleted": 1,
+            "bindings": [
+              {
+                "name": "target",
+                "id": 1
+              },
+              {
+                "name": "alpha",
+                "id": null
+              },
+              {
+                "name": "bone",
+                "id": null
+              },
+              {
+                "name": "shadow-color",
+                "id": null
+              },
+              {
+                "name": "shadow-depth",
+                "id": null
+              },
+              {
+                "name": "pbr-dfg",
+                "id": null
+              }
+            ],
+            "dfg": null
+          }
+        },
+        "failureName": "AbortError",
+        "submitted": 1,
+        "settledSubmitted": 1,
+        "finalCalls": 0,
+        "yields": 1,
+        "closed": 1,
+        "publishedReady": 0,
+        "warmInputs": true,
+        "shadersReady": false
+      },
+      "errors": []
+    }
+  ],
+  "retainedFailures": [
+    {
+      "cohort": "Initial foreground/Create run",
+      "passed": 10,
+      "failed": 6,
+      "causes": [
+        "Two KTX different-sampler fixtures incorrectly assigned RepeatWrapping, which was already their actual initial sampler; the fixture now selects the opposite actual sampler and independently asserts its difference. The six-mip upload oracle remains unchanged.",
+        "Four Create scaffold cases lacked the authentic loaded-width wrapper/font geometry."
+      ]
+    },
+    {
+      "cohort": "Corrected combined run",
+      "passed": 18,
+      "failed": 2,
+      "cause": "Both positive responsive Create editing cases time out because the genuine right-arrow element intercepts the numeric text click; actual editing and native deletion remain unproved."
+    }
+  ],
+  "limitations": [
+    "No whole-Hub loading improvement is inferred from fixture upload placement.",
+    "One public renderer.initTexture upload remains synchronous and may still stall.",
+    "GPU proof uses bundled Chromium153 and Firefox155; stock production Hub performance is measured separately.",
+    "No endurance test is required or scheduled."
+  ]
+}
