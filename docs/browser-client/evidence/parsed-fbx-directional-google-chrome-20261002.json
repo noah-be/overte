@@ -1,0 +1,117 @@
+{
+  "schema": 1,
+  "scope": "actual Google Chrome thirteen unchanged registered authored pixel and owned-resource cases; no whole-Hub or loading improvement claim",
+  "browser": "Google Chrome Stable",
+  "browserVersion": "154.0.8037.97",
+  "executableSHA256": "6c792041b07547a662e1b17974d1dc34a3db630379b45d9d89ddd7e3e68cc587",
+  "parsedTemplateSHA256": "6b1a9d25abb413be0d80bc98aac5705ef4ee143dc9f3dec3c227092768010817",
+  "qualificationRecipeManifestSHA256": "c0b068c9c36c3324bf9c20ca49556da7f41ac6103923b4e8e36e1de04ab50bc0",
+  "rawReportSHA256": "9e4b2fede72f2f6562c7eb825c78c23ba5c08e83bd21274f5e0e4d2df8ba8d31",
+  "rawQualificationSHA256": "c164cdd6303a33fb5a9d997c8f978dc9d51b2f9bba004c3e1d2eeadf2cf09951",
+  "seconds": 36.336,
+  "completed": true,
+  "records": [
+    {
+      "suite": "named",
+      "variant": "plain",
+      "passed": true,
+      "attachmentReceived": true,
+      "sourceSHA256": "4bc7bfc8400ca025e812ca05f22a4ba008a87c093b6a08675b537bc8d1674b67"
+    },
+    {
+      "suite": "named",
+      "variant": "skin",
+      "passed": true,
+      "attachmentReceived": true,
+      "sourceSHA256": "4bc7bfc8400ca025e812ca05f22a4ba008a87c093b6a08675b537bc8d1674b67"
+    },
+    {
+      "suite": "named",
+      "variant": "morph",
+      "passed": true,
+      "attachmentReceived": true,
+      "sourceSHA256": "4bc7bfc8400ca025e812ca05f22a4ba008a87c093b6a08675b537bc8d1674b67"
+    },
+    {
+      "suite": "unnamed",
+      "variant": "plain",
+      "passed": true,
+      "attachmentReceived": true,
+      "sourceSHA256": "b289040cf7478ecf1824d1fa61e100ad0404f56e6e56caeffecdb781be5d33c2"
+    },
+    {
+      "suite": "unnamed",
+      "variant": "skin",
+      "passed": true,
+      "attachmentReceived": true,
+      "sourceSHA256": "b289040cf7478ecf1824d1fa61e100ad0404f56e6e56caeffecdb781be5d33c2"
+    },
+    {
+      "suite": "unnamed",
+      "variant": "morph",
+      "passed": true,
+      "attachmentReceived": true,
+      "sourceSHA256": "b289040cf7478ecf1824d1fa61e100ad0404f56e6e56caeffecdb781be5d33c2"
+    },
+    {
+      "suite": "world",
+      "variant": "original",
+      "passed": true,
+      "attachmentReceived": true,
+      "sourceSHA256": "cae3d97d96ebb8f12d7202d0c0074e7a6673ad32101171307204e90ca1eef527"
+    },
+    {
+      "suite": "world",
+      "variant": "rgb",
+      "passed": true,
+      "attachmentReceived": true,
+      "sourceSHA256": "cae3d97d96ebb8f12d7202d0c0074e7a6673ad32101171307204e90ca1eef527"
+    },
+    {
+      "suite": "world",
+      "variant": "skin",
+      "passed": true,
+      "attachmentReceived": true,
+      "sourceSHA256": "cae3d97d96ebb8f12d7202d0c0074e7a6673ad32101171307204e90ca1eef527"
+    },
+    {
+      "suite": "world",
+      "variant": "mask",
+      "passed": true,
+      "attachmentReceived": true,
+      "sourceSHA256": "cae3d97d96ebb8f12d7202d0c0074e7a6673ad32101171307204e90ca1eef527"
+    },
+    {
+      "suite": "directional",
+      "variant": "plain",
+      "passed": true,
+      "attachmentReceived": true,
+      "sourceSHA256": "3512311b366a58c0119438e5df81dece9a18a25ea6ea706343b138b2e917d767"
+    },
+    {
+      "suite": "directional",
+      "variant": "skin",
+      "passed": true,
+      "attachmentReceived": true,
+      "sourceSHA256": "3512311b366a58c0119438e5df81dece9a18a25ea6ea706343b138b2e917d767"
+    },
+    {
+      "suite": "directional",
+      "variant": "morph",
+      "passed": true,
+      "attachmentReceived": true,
+      "sourceSHA256": "3512311b366a58c0119438e5df81dece9a18a25ea6ea706343b138b2e917d767"
+    }
+  ],
+  "cleanup": {
+    "contextsClosed": 13,
+    "browser": true,
+    "server": true
+  },
+  "managedBirthCount": 9,
+  "managedBirthsUnchanged": true,
+  "ownedChromeObservedAndClosed": true,
+  "sourceCoherent": true,
+  "shippingCacheDefault": "OFF",
+  "hardwareMicrophoneTested": false
+}

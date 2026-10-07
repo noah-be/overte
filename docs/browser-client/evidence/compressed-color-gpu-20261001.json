@@ -1,0 +1,490 @@
+{
+  "scope": "Original public Hub images on isolated fixed-cookie fixture; no real domain/cache authority or whole-world performance claim",
+  "networkBytesReduced": false,
+  "runs": [
+    {
+      "startedAt": "2026-10-01T07:16:22.750Z",
+      "completed": true,
+      "engine": "system-chromium",
+      "domainConnected": false,
+      "microphoneRequested": false,
+      "worldInteractionsSent": 0,
+      "scope": "Original saved public Hub PNG and KTX on an owned isolated fixture server; no production cache/transport integration, world or whole-load speed claim",
+      "inputs": [
+        {
+          "name": "opaque",
+          "pngSHA256": "0087b3a3a9c9347b3a592db7b7e4f88fe333aedb7c6bd6aae48ed664c3f98739",
+          "pngBytes": 372063,
+          "ktxSHA256": "665f2c22827bafda51eb0127b69cce6c5d33869a98ae7331b8aafa88985d89f6",
+          "ktxBytes": 393432
+        },
+        {
+          "name": "mask",
+          "pngSHA256": "43d594a99f2b8d8412348a45b0556f4af8c1960ccbce0e2b3164c8fa61beba6c",
+          "pngBytes": 94618,
+          "ktxSHA256": "8271f00457196483ecf617df4f644885d35e52fad010ad31b9bd35afe2cc5355",
+          "ktxBytes": 349744
+        }
+      ],
+      "browserVersion": "154.0.8037.57",
+      "gpu": {
+        "completed": true,
+        "scope": "Isolated original PNG versus validated native color KTX GPU sampling, not a world loading or native framebuffer proof",
+        "cases": [
+          {
+            "name": "opaque",
+            "size": 768,
+            "classification": "opaque",
+            "originalAlpha": {
+              "total": 589824,
+              "opaque": 589824,
+              "intermediate": 0
+            },
+            "matched": {
+              "rgbMAE": 0.2756370261863426,
+              "maskDifferenceFraction": 0,
+              "opaque": 589824,
+              "intermediate": 0,
+              "total": 589824
+            },
+            "opposite": {
+              "rgbMAE": 2.9832820185908564,
+              "maskDifferenceFraction": 0,
+              "opaque": 589824,
+              "intermediate": 0,
+              "total": 589824
+            },
+            "unflippedMatch": {
+              "rgbMAE": 0.2756370261863426,
+              "maskDifferenceFraction": 0,
+              "opaque": 589824,
+              "intermediate": 0,
+              "total": 589824
+            },
+            "minified": {
+              "rgbMAE": 0.3688151041666667,
+              "maskDifferenceFraction": 0,
+              "opaque": 4096,
+              "intermediate": 0,
+              "total": 4096
+            },
+            "texture": {
+              "format": 33776,
+              "colorSpace": "srgb",
+              "mipmapDimensions": [
+                [
+                  768,
+                  768
+                ],
+                [
+                  384,
+                  384
+                ],
+                [
+                  192,
+                  192
+                ],
+                [
+                  96,
+                  96
+                ],
+                [
+                  48,
+                  48
+                ],
+                [
+                  24,
+                  24
+                ],
+                [
+                  12,
+                  12
+                ],
+                [
+                  6,
+                  6
+                ],
+                [
+                  3,
+                  3
+                ],
+                [
+                  1,
+                  1
+                ]
+              ],
+              "flipY": false,
+              "matrix": [
+                1,
+                0,
+                0,
+                0,
+                -1,
+                0,
+                0,
+                1,
+                1
+              ]
+            }
+          },
+          {
+            "name": "mask",
+            "size": 512,
+            "classification": "mask",
+            "originalAlpha": {
+              "total": 262144,
+              "opaque": 175920,
+              "intermediate": 0
+            },
+            "matched": {
+              "rgbMAE": 1.8849344398969228,
+              "maskDifferenceFraction": 0,
+              "opaque": 175388,
+              "intermediate": 532,
+              "total": 262144
+            },
+            "opposite": {
+              "rgbMAE": 20.168580105334694,
+              "maskDifferenceFraction": 0.1446533203125,
+              "opaque": 175388,
+              "intermediate": 532,
+              "total": 262144
+            },
+            "unflippedMatch": {
+              "rgbMAE": 1.8849344398969228,
+              "maskDifferenceFraction": 0,
+              "opaque": 175388,
+              "intermediate": 532,
+              "total": 262144
+            },
+            "minified": {
+              "rgbMAE": 3.0374531835205993,
+              "maskDifferenceFraction": 0.000732421875,
+              "opaque": 2129,
+              "intermediate": 963,
+              "total": 4096
+            },
+            "texture": {
+              "format": 33779,
+              "colorSpace": "srgb",
+              "mipmapDimensions": [
+                [
+                  512,
+                  512
+                ],
+                [
+                  256,
+                  256
+                ],
+                [
+                  128,
+                  128
+                ],
+                [
+                  64,
+                  64
+                ],
+                [
+                  32,
+                  32
+                ],
+                [
+                  16,
+                  16
+                ],
+                [
+                  8,
+                  8
+                ],
+                [
+                  4,
+                  4
+                ],
+                [
+                  2,
+                  2
+                ],
+                [
+                  1,
+                  1
+                ]
+              ],
+              "flipY": false,
+              "matrix": [
+                1,
+                0,
+                0,
+                0,
+                -1,
+                0,
+                0,
+                1,
+                1
+              ]
+            }
+          }
+        ],
+        "compressedUploads": 20,
+        "compressedUploadBytes": 742792,
+        "cache": {
+          "retainedBytes": 743176,
+          "retainedEntries": 2,
+          "active": 0,
+          "queued": 0,
+          "readers": 0
+        },
+        "deadlineMs": 30000
+      },
+      "finishedAt": "2026-10-01T07:16:25.375Z",
+      "sourceSHA256": {
+        "tests/integration/compressed-color.mjs": "a2e814f4353826c57893a5ae2b3d821a3ebc8e9e4258901cd4f93067cced33db",
+        "tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "tests/fixtures/compressed-color.ts": "eeda204dc327874318d99f3016816244b15a6f5a409de6d2a8b7730c47d44bee",
+        "src/native-compressed-color.ts": "5c4abff626f0c3b1aace4a9d70e364472725bca7a337cffcbba5454feb2791b1",
+        "shared/native-ktx.mjs": "5c06f05ab00aa0678e40e56b1bf5c1bc0f6f5578fdbff1a8d4030cf6d4840a97"
+      }
+    },
+    {
+      "startedAt": "2026-10-01T07:19:49.569Z",
+      "completed": true,
+      "engine": "system-firefox",
+      "domainConnected": false,
+      "microphoneRequested": false,
+      "worldInteractionsSent": 0,
+      "scope": "Original saved public Hub PNG and KTX on an owned isolated fixture server; no production cache/transport integration, world or whole-load speed claim",
+      "inputs": [
+        {
+          "name": "opaque",
+          "pngSHA256": "0087b3a3a9c9347b3a592db7b7e4f88fe333aedb7c6bd6aae48ed664c3f98739",
+          "pngBytes": 372063,
+          "ktxSHA256": "665f2c22827bafda51eb0127b69cce6c5d33869a98ae7331b8aafa88985d89f6",
+          "ktxBytes": 393432
+        },
+        {
+          "name": "mask",
+          "pngSHA256": "43d594a99f2b8d8412348a45b0556f4af8c1960ccbce0e2b3164c8fa61beba6c",
+          "pngBytes": 94618,
+          "ktxSHA256": "8271f00457196483ecf617df4f644885d35e52fad010ad31b9bd35afe2cc5355",
+          "ktxBytes": 349744
+        }
+      ],
+      "browserVersion": "firefox/156.0",
+      "gpu": {
+        "completed": true,
+        "scope": "Isolated original PNG versus validated native color KTX GPU sampling, not a world loading or native framebuffer proof",
+        "cases": [
+          {
+            "name": "opaque",
+            "size": 768,
+            "classification": "opaque",
+            "originalAlpha": {
+              "total": 589824,
+              "opaque": 589824,
+              "intermediate": 0
+            },
+            "matched": {
+              "rgbMAE": 0.2756370261863426,
+              "maskDifferenceFraction": 0,
+              "opaque": 589824,
+              "intermediate": 0,
+              "total": 589824
+            },
+            "opposite": {
+              "rgbMAE": 2.9832820185908564,
+              "maskDifferenceFraction": 0,
+              "opaque": 589824,
+              "intermediate": 0,
+              "total": 589824
+            },
+            "unflippedMatch": {
+              "rgbMAE": 0.2756370261863426,
+              "maskDifferenceFraction": 0,
+              "opaque": 589824,
+              "intermediate": 0,
+              "total": 589824
+            },
+            "minified": {
+              "rgbMAE": 0.3688151041666667,
+              "maskDifferenceFraction": 0,
+              "opaque": 4096,
+              "intermediate": 0,
+              "total": 4096
+            },
+            "texture": {
+              "format": 33776,
+              "colorSpace": "srgb",
+              "mipmapDimensions": [
+                [
+                  768,
+                  768
+                ],
+                [
+                  384,
+                  384
+                ],
+                [
+                  192,
+                  192
+                ],
+                [
+                  96,
+                  96
+                ],
+                [
+                  48,
+                  48
+                ],
+                [
+                  24,
+                  24
+                ],
+                [
+                  12,
+                  12
+                ],
+                [
+                  6,
+                  6
+                ],
+                [
+                  3,
+                  3
+                ],
+                [
+                  1,
+                  1
+                ]
+              ],
+              "flipY": false,
+              "matrix": [
+                1,
+                0,
+                0,
+                0,
+                -1,
+                0,
+                0,
+                1,
+                1
+              ]
+            }
+          },
+          {
+            "name": "mask",
+            "size": 512,
+            "classification": "mask",
+            "originalAlpha": {
+              "total": 262144,
+              "opaque": 175920,
+              "intermediate": 0
+            },
+            "matched": {
+              "rgbMAE": 1.8849344398969228,
+              "maskDifferenceFraction": 0,
+              "opaque": 175388,
+              "intermediate": 532,
+              "total": 262144
+            },
+            "opposite": {
+              "rgbMAE": 20.168580105334694,
+              "maskDifferenceFraction": 0.1446533203125,
+              "opaque": 175388,
+              "intermediate": 532,
+              "total": 262144
+            },
+            "unflippedMatch": {
+              "rgbMAE": 1.8849344398969228,
+              "maskDifferenceFraction": 0,
+              "opaque": 175388,
+              "intermediate": 532,
+              "total": 262144
+            },
+            "minified": {
+              "rgbMAE": 3.0374531835205993,
+              "maskDifferenceFraction": 0.000732421875,
+              "opaque": 2129,
+              "intermediate": 963,
+              "total": 4096
+            },
+            "texture": {
+              "format": 33779,
+              "colorSpace": "srgb",
+              "mipmapDimensions": [
+                [
+                  512,
+                  512
+                ],
+                [
+                  256,
+                  256
+                ],
+                [
+                  128,
+                  128
+                ],
+                [
+                  64,
+                  64
+                ],
+                [
+                  32,
+                  32
+                ],
+                [
+                  16,
+                  16
+                ],
+                [
+                  8,
+                  8
+                ],
+                [
+                  4,
+                  4
+                ],
+                [
+                  2,
+                  2
+                ],
+                [
+                  1,
+                  1
+                ]
+              ],
+              "flipY": false,
+              "matrix": [
+                1,
+                0,
+                0,
+                0,
+                -1,
+                0,
+                0,
+                1,
+                1
+              ]
+            }
+          }
+        ],
+        "compressedUploads": 20,
+        "compressedUploadBytes": 742792,
+        "cache": {
+          "retainedBytes": 743176,
+          "retainedEntries": 2,
+          "active": 0,
+          "queued": 0,
+          "readers": 0
+        },
+        "deadlineMs": 30000
+      },
+      "finishedAt": "2026-10-01T07:19:55.072Z",
+      "sourceSHA256": {
+        "tests/integration/compressed-color.mjs": "a2e814f4353826c57893a5ae2b3d821a3ebc8e9e4258901cd4f93067cced33db",
+        "tests/integration/system-firefox.mjs": "e330aa06f30e515c1c3f6df37fbea35d0c23aac4102b4a0b5723584689f6bbfd",
+        "tests/fixtures/compressed-color.ts": "eeda204dc327874318d99f3016816244b15a6f5a409de6d2a8b7730c47d44bee",
+        "src/native-compressed-color.ts": "5c4abff626f0c3b1aace4a9d70e364472725bca7a337cffcbba5454feb2791b1",
+        "shared/native-ktx.mjs": "5c06f05ab00aa0678e40e56b1bf5c1bc0f6f5578fdbff1a8d4030cf6d4840a97"
+      }
+    }
+  ]
+}

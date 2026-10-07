@@ -1,3 +1,4 @@
+// Modified in 2026 for the optional direct browser transport.
 //
 //  AssignmentClient.cpp
 //  assignment-client/src
@@ -29,6 +30,7 @@
 #include <LogUtils.h>
 #include <LimitedNodeList.h>
 #include <NodeList.h>
+#include <NodeSocketAddress.h>
 #include <udt/PacketHeaders.h>
 #include <SharedUtil.h>
 #include <ShutdownEventListener.h>
@@ -39,6 +41,7 @@
 
 #include "AssignmentClientLogging.h"
 #include "AssignmentFactory.h"
+#include "AssignmentMonitorPolicy.h"
 #include "ResourceRequestObserver.h"
 
 const QString ASSIGNMENT_CLIENT_TARGET_NAME = "assignment-client";
@@ -113,7 +116,8 @@ AssignmentClient::AssignmentClient(Assignment::Type requestAssignmentType, QStri
 
     // did we get an assignment-client monitor port?
     if (assignmentMonitorPort > 0) {
-        _assignmentClientMonitorSocket = SockAddr(SocketType::UDP, DEFAULT_ASSIGNMENT_CLIENT_MONITOR_HOSTNAME, 
+        _assignmentClientMonitorSocket = SockAddr(SocketType::UDP,
+            nodeMonitorAddress(qEnvironmentVariable("OVERTE_NODE_UDP_ADDRESS")),
             assignmentMonitorPort);
         _assignmentClientMonitorSocket.setObjectName("AssignmentClientMonitor");
 
@@ -287,13 +291,12 @@ void AssignmentClient::handleCreateAssignmentPacket(QSharedPointer<ReceivedMessa
 void AssignmentClient::handleStopNodePacket(QSharedPointer<ReceivedMessage> message) {
     const SockAddr& senderSockAddr = message->getSenderSockAddr();
 
-    if (senderSockAddr.getAddress() == QHostAddress::LocalHost ||
-        senderSockAddr.getAddress() == QHostAddress::LocalHostIPv6) {
+    if (isAssignmentMonitorStopSender(senderSockAddr, _assignmentClientMonitorSocket)) {
 
         qCDebug(assignment_client) << "AssignmentClientMonitor at" << senderSockAddr << "requested stop via PacketType::StopNode.";
         QCoreApplication::quit();
     } else {
-        qCWarning(assignment_client) << "Got a stop packet from other than localhost.";
+        qCWarning(assignment_client) << "Rejected StopNode packet from an unauthorized transport or monitor endpoint.";
     }
 }
 
@@ -351,6 +354,14 @@ void AssignmentClient::assignmentCompleted() {
 #if defined(WEBRTC_DATA_CHANNELS)
 
 void AssignmentClient::handleWebRTCSignalingPacket(QSharedPointer<ReceivedMessage> message) {
+    // Legacy signaling packets are unsourced. Only this assignment's connected
+    // domain server may establish, alter, or close browser transport sessions.
+    const auto nodeList = DependencyManager::get<NodeList>();
+    const auto& domain = nodeList->getDomainHandler();
+    if (!domain.isConnected() || message->getSenderSockAddr() != domain.getSockAddr()
+        || message->getSize() > 1024 * 1024) {
+        return;
+    }
     auto messageString = message->readString();
     auto json = QJsonDocument::fromJson(messageString.toUtf8()).object();
     if (json.keys().contains("echo")) {

@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0d1724" />
+  <title>Overte · Browser</title>
+</head>
+<body>
+  <main id="app">
+    <div id="world" aria-label="Overte world"></div>
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark" aria-hidden="true">O</span><div>Overte<span class="brand-caption">Explore together</span></div></div>
+      <span id="connection" class="connection" data-state="disconnected">Disconnected</span>
+      <div class="topbar-actions"><button id="microphone" type="button" aria-pressed="false">Microphone off</button><button id="tablet-toggle" type="button" aria-controls="tablet" aria-expanded="true">Tablet</button></div>
+    </header>
+    <div id="notice" class="notice" role="status" aria-live="polite">Choose a domain in the tablet to join.</div>
+    <div id="asset-warning" class="asset-warning" role="status" aria-live="polite" hidden></div>
+    <aside id="tablet" class="tablet" aria-label="Overte tablet"></aside>
+    <footer class="controls-hint">Click the world to look around · WASD move · Space jump · E interact · V view avatar · Esc release mouse</footer>
+  </main>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

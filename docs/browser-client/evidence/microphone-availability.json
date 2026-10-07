@@ -1,0 +1,50 @@
+{
+  "startedAt": "2026-09-30T14:37:20.705Z",
+  "syntheticMicrophone": false,
+  "recordings": false,
+  "hostCaptureSourceCount": 1,
+  "defaultSourceIsPhysicalAlsa": true,
+  "defaultSourcePortCount": 3,
+  "defaultSourcePortAvailability": {
+    "available": 0,
+    "unavailable": 3,
+    "unknown": 0
+  },
+  "probes": [
+    {
+      "browserMode": "playwright-headless-shell",
+      "startedAt": "2026-09-30T14:37:20.756Z",
+      "browserVersion": "153.0.8010.12",
+      "audioInputs": 0,
+      "captureError": "NotFoundError",
+      "finishedAt": "2026-09-30T14:37:21.100Z"
+    },
+    {
+      "browserMode": "playwright-full-chrome-headless",
+      "startedAt": "2026-09-30T14:37:21.100Z",
+      "browserVersion": "153.0.8010.12",
+      "audioInputs": 0,
+      "captureError": "NotFoundError",
+      "finishedAt": "2026-09-30T14:37:22.320Z"
+    },
+    {
+      "browserMode": "playwright-full-chrome-headful",
+      "startedAt": "2026-09-30T14:37:22.320Z",
+      "browserVersion": "153.0.8010.12",
+      "audioInputs": 0,
+      "captureError": "NotFoundError",
+      "finishedAt": "2026-09-30T14:37:24.434Z"
+    },
+    {
+      "browserMode": "system-chromium-headless",
+      "startedAt": "2026-09-30T14:37:24.434Z",
+      "browserVersion": "154.0.8037.57",
+      "audioInputs": 0,
+      "captureError": "NotFoundError",
+      "finishedAt": "2026-09-30T14:37:26.092Z"
+    }
+  ],
+  "primarySource": "https://chromium.googlesource.com/chromium/src/+/main/media/audio/pulse/audio_manager_pulse.cc",
+  "chromiumReason": "AudioManagerPulse::InputDevicesInfoCallback excludes output monitors and excludes a source with ports when all report PA_PORT_AVAILABLE_NO. Firefox opening an ALSA capture device does not prove a connected microphone or human speech.",
+  "finishedAt": "2026-09-30T14:37:26.092Z"
+}

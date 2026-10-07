@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -17,6 +18,10 @@ SPEC = importlib.util.spec_from_file_location("repository_checks", ROOT / "tools
 CHECKS = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(CHECKS)
 CONFIG, BRANCHES = CHECKS.configuration()
+TOOL_SPEC = importlib.util.spec_from_file_location(
+    "tool_dependencies_test", ROOT / "tools/repository-checks/tool_dependencies.py")
+TOOLS = importlib.util.module_from_spec(TOOL_SPEC)
+TOOL_SPEC.loader.exec_module(TOOLS)
 
 
 def event(base="main", head="fix/main/example", fork=False):
@@ -29,13 +34,35 @@ def event(base="main", head="fix/main/example", fork=False):
 
 def results(mode="full", security="true"):
     return {"route": {"result": "success", "outputs": {"mode": mode, "security": security, "native": "full"}},
-            "project": {"result": "success" if mode == "full" else "skipped"},
+            "project": {"result": "success" if mode in {"full", "tool-dependencies"} else "skipped"},
             "documentation": {"result": "success"},
             "native": {"result": "success"},
             "workflow-security": {"result": "success" if security == "true" else "skipped"}}
 
 
 class RoutingTests(unittest.TestCase):
+    def test_tool_manifests_select_only_the_affected_projects(self):
+        for project in TOOLS.PROJECTS:
+            for filename in ("package.json", "package-lock.json"):
+                route = CHECKS.plan(event(), [f"{project}/{filename}", "docs/change.md"], CONFIG, BRANCHES)
+                self.assertEqual(route, {"mode": "tool-dependencies", "security": "false",
+                                         "tool_projects": project})
+        route = CHECKS.plan(event(), sorted(TOOLS.MANIFESTS), CONFIG, BRANCHES)
+        self.assertEqual(route["tool_projects"], "server-console,tools/jsdoc")
+
+    def test_tool_route_does_not_cover_source_build_unknown_or_nonregular_changes(self):
+        manifests = ["tools/jsdoc/package-lock.json"]
+        for path in ("interface/src/Application.cpp", "tools/jsdoc/CMakeLists.txt",
+                     "tools/jsdoc/plugins/hifi.js", "tools/jsdoc/unknown.json", "server-console/src/main.js",
+                     "tools/repository-checks/tool_dependencies.py", ".github/workflows/project-tests.yml",
+                     "browser-client/package-lock.json", "docs/image.png"):
+            self.assertEqual(CHECKS.plan(event(), manifests + [path], CONFIG, BRANCHES)["mode"], "full")
+        self.assertEqual(CHECKS.plan(event(), manifests, CONFIG, BRANCHES,
+                                     documentation_safe=False)["mode"], "full")
+        route = CHECKS.plan(event("android-main", "main"), manifests, CONFIG, BRANCHES)
+        self.assertEqual(route["mode"], "delegated-sync")
+        self.assertNotIn("tool_projects", route)
+
     def test_previously_uncovered_and_unknown_paths_run_project_checks(self):
         for path in ("CMakeLists.txt", "cmake/compiler.cmake", "assignment-client/src/Agent.cpp",
                      "domain-server/src/DomainServer.cpp", "ice-server/src/main.cpp",
@@ -83,6 +110,13 @@ class RoutingTests(unittest.TestCase):
 
 
 class AggregateTests(unittest.TestCase):
+    def test_tool_checks_cannot_be_skipped_or_hide_a_failure(self):
+        for conclusion in ("skipped", "cancelled", "failure", "neutral", "pending"):
+            candidate = results("tool-dependencies", "false")
+            candidate["project"]["result"] = conclusion
+            with self.assertRaises(ValueError):
+                CHECKS.verify(candidate)
+
     def test_valid_full_documentation_and_delegated_modes(self):
         for mode in CHECKS.MODES:
             for security in ("true", "false"):
@@ -194,6 +228,71 @@ class AggregateTests(unittest.TestCase):
                      "tools/repository-policy/check.py", "tools/repository-health/check.py",
                      "tests/requirements-repository.txt"):
             self.assertTrue(any(fnmatch.fnmatchcase(path, pattern) for pattern in reuse["qualified_inputs"]), path)
+
+
+class ToolDependencyTests(unittest.TestCase):
+    def test_push_inventory_uses_both_sides_and_exact_commit_identity(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            def git(*args):
+                return subprocess.check_output(['git', '-c', 'core.hooksPath=/dev/null',
+                                                '-c', 'commit.gpgsign=false', *args], cwd=root, text=True).strip()
+            git('init', '-q', '--initial-branch=main')
+            git('config', 'user.name', 'Fixture')
+            git('config', 'user.email', 'fixture@example.invalid')
+            (root / 'tools/jsdoc').mkdir(parents=True)
+            manifest = root / 'tools/jsdoc/package-lock.json'
+            manifest.write_text('{}')
+            (root / 'native.cpp').write_text('initial source')
+            git('add', '.')
+            git('commit', '-qm', 'Base')
+            base = git('rev-parse', 'HEAD')
+            manifest.write_text('{"updated":true}')
+            git('commit', '-qam', 'Tool update')
+            updated = git('rev-parse', 'HEAD')
+            payload = {'repository': event()['repository'], 'before': base, 'after': updated}
+            self.assertEqual(TOOLS.push_projects(root, payload), ('tools/jsdoc',))
+            self.assertEqual(TOOLS.push_projects(root, {**payload, 'before': '9' * 40}), ())
+            with self.assertRaises(ValueError):
+                TOOLS.push_projects(root, {**payload, 'after': base})
+            with self.assertRaises(ValueError):
+                TOOLS.push_projects(root, {**payload, 'repository': {'full_name': 'overte-org/overte', 'id': 1}})
+            manifest.chmod(0o755)
+            git('commit', '-qam', 'Executable manifest')
+            self.assertEqual(TOOLS.push_projects(root, {**payload, 'after': git('rev-parse', 'HEAD')}), ())
+            manifest.chmod(0o644)
+            (root / 'native.cpp').write_text('source')
+            git('add', '.')
+            git('commit', '-qm', 'Mixed source update')
+            self.assertEqual(TOOLS.push_projects(root, {**payload, 'after': git('rev-parse', 'HEAD')}), ())
+            git('mv', 'native.cpp', 'server-console-package-lock.md')
+            git('commit', '-qm', 'Rename source to Markdown')
+            self.assertEqual(TOOLS.push_projects(root, {**payload, 'after': git('rev-parse', 'HEAD')}), ())
+            self.assertEqual(TOOLS.push_projects(root, {}), ())
+
+    def test_unknown_duplicate_and_empty_projects_are_rejected_before_execution(self):
+        with patch.object(TOOLS.subprocess, "run") as run:
+            for projects in ([], ["browser-client"], ["tools/jsdoc", "tools/jsdoc"], ["../tools/jsdoc"]):
+                with self.assertRaises(ValueError):
+                    TOOLS.run(ROOT, projects)
+            run.assert_not_called()
+
+    def test_install_or_audit_failure_stops_before_behavior_checks(self):
+        for fail_at in (0, 1):
+            failure = subprocess.CalledProcessError(1, "npm")
+            with patch.object(TOOLS.subprocess, "run", side_effect=[None] * fail_at + [failure]) as run:
+                with self.assertRaises(subprocess.CalledProcessError):
+                    TOOLS.run(ROOT, ["server-console"])
+                self.assertEqual(run.call_count, fail_at + 1)
+
+    def test_dependency_install_disables_scripts_and_the_audit_includes_all_severities(self):
+        with patch.object(TOOLS.subprocess, "run") as run:
+            TOOLS.run(ROOT, ["server-console"])
+            calls = [call.args[0] for call in run.call_args_list]
+            self.assertIn("--ignore-scripts", calls[0])
+            self.assertEqual(calls[1], ("npm", "audit", "--audit-level=low"))
+            self.assertEqual(calls[2], ("npm", "test"))
+            self.assertTrue(all(call.kwargs["check"] for call in run.call_args_list))
 
 
 class CandidateTests(unittest.TestCase):

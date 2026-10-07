@@ -1,0 +1,486 @@
+{
+  "date": "2026-10-01",
+  "materialAssistance": "OpenAI Codex",
+  "scope": "Actual stock Chromium154 and Firefox156 with real Overte2026.04.1 native participant in the isolated local domain. Four owned Image entities, PNG and approved native KTX data, unchanged absolute RGB/UV/alpha/source and cleanup predicates.",
+  "microphoneRequested": false,
+  "publicWorldWrites": 0,
+  "command": "OVERTE_LAB_BROWSER_DISPLAY=:0 [stock browser environment] node tests/integration/native-image-state.mjs",
+  "absoluteSourceRGBMAEMaximum": 10,
+  "sourceCorrelationMinimum": 0.9,
+  "originalVersusCompressedMaskMismatchMaximum": 0.01,
+  "nativeVersusBrowserMaskMismatchMaximum": 0.03,
+  "cohorts": [
+    {
+      "engine": "chromium",
+      "startedAt": "2026-10-01T21:00:07.613Z",
+      "finishedAt": "2026-10-01T21:01:46.250Z",
+      "browserVersion": "154.0.8037.57",
+      "nativeVersion": "2026.04.1",
+      "lighting": "unlit",
+      "completed": true,
+      "ownedFixtureCount": 4,
+      "preservedBaselineCount": 7,
+      "cleanupVerified": true,
+      "sourceCoherent": true,
+      "sourceSHA256": {
+        "tests/integration/native-image-state.mjs": "fbcb7b39dec035e339aef72e7fa2ca6b2895dac1ec8dfe4b1097db8a50af1346",
+        "tests/integration/native-image-fixture.js": "397936d663db3909bc53927af9970da74d4c2fb8431b9f34da629e1ba0ca398c",
+        "tests/integration/native-image-pixels.mjs": "2aa0deb8528ceee4140af8a704c584f6dbb61d28e85eda8f4fd1a3352dd5f5fc",
+        "tests/integration/native-image-convergence.mjs": "c474b058359ab10d4c81e76748bba7f589eb05f08ed9e3df3783875edbea9d00",
+        "tests/integration/native-image-lit.mjs": "4f52a7ad93735b5e814d463be4bd539acadfc2155a686b2d237584048e715e4d",
+        "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+        "src/world.ts": "3504f471ac26a590ed8ded270d12011d52a4a4f9e8d7c888c3f9379b402342cb",
+        "src/compressed-color-session.ts": "e18af74fe59593bf9f1aee0ce7a91f0e6910ed5e903868f646f1311d61c42fcf",
+        "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+        "src/native-compressed-color.ts": "312e6beac3a95b16f0ad3675d9789270eec69a6cdf808b66ce23da007c22aa56",
+        "src/native-alpha-material.ts": "a3515894f69f078222c7e2b543c46ce22f7bd05b58e12f3eaa14aa0a638dcfbb",
+        "src/native-render-state.ts": "af31a1e01576c233c1f7e8a8231dd5c2cc5871cb58b5783bf01f788da70d01df",
+        "src/world-image-cache.ts": "ba45a6125087f8b275c939a5e9e36dadac6879a37cb0fbe50d8c19dd9f1c6af9",
+        "src/world-source-text-cache.ts": "57ccb98bed54e788ed0e2f263e8362ae505f4b3073648dc08c311925e21116b1",
+        "src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+        "shared/native-ktx.mjs": "586f3dc1abe490d324c1737a1a1835f211ff2bba00fb61a5cfa243cd0e66aa0f"
+      },
+      "startSourceSHA256": {
+        "tests/integration/native-image-state.mjs": "fbcb7b39dec035e339aef72e7fa2ca6b2895dac1ec8dfe4b1097db8a50af1346",
+        "tests/integration/native-image-fixture.js": "397936d663db3909bc53927af9970da74d4c2fb8431b9f34da629e1ba0ca398c",
+        "tests/integration/native-image-pixels.mjs": "2aa0deb8528ceee4140af8a704c584f6dbb61d28e85eda8f4fd1a3352dd5f5fc",
+        "tests/integration/native-image-convergence.mjs": "c474b058359ab10d4c81e76748bba7f589eb05f08ed9e3df3783875edbea9d00",
+        "tests/integration/native-image-lit.mjs": "4f52a7ad93735b5e814d463be4bd539acadfc2155a686b2d237584048e715e4d",
+        "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+        "src/world.ts": "3504f471ac26a590ed8ded270d12011d52a4a4f9e8d7c888c3f9379b402342cb",
+        "src/compressed-color-session.ts": "e18af74fe59593bf9f1aee0ce7a91f0e6910ed5e903868f646f1311d61c42fcf",
+        "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+        "src/native-compressed-color.ts": "312e6beac3a95b16f0ad3675d9789270eec69a6cdf808b66ce23da007c22aa56",
+        "src/native-alpha-material.ts": "a3515894f69f078222c7e2b543c46ce22f7bd05b58e12f3eaa14aa0a638dcfbb",
+        "src/native-render-state.ts": "af31a1e01576c233c1f7e8a8231dd5c2cc5871cb58b5783bf01f788da70d01df",
+        "src/world-image-cache.ts": "ba45a6125087f8b275c939a5e9e36dadac6879a37cb0fbe50d8c19dd9f1c6af9",
+        "src/world-source-text-cache.ts": "57ccb98bed54e788ed0e2f263e8362ae505f4b3073648dc08c311925e21116b1",
+        "src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+        "shared/native-ktx.mjs": "586f3dc1abe490d324c1737a1a1835f211ff2bba00fb61a5cfa243cd0e66aa0f"
+      },
+      "nativeBinarySHA256": "91f3e10c42c1e35d5c8265e9b0007e925844d9bee61a26807118dde6e527887c",
+      "inputs": [
+        {
+          "name": "opaque",
+          "pngSHA256": "0087b3a3a9c9347b3a592db7b7e4f88fe333aedb7c6bd6aae48ed664c3f98739",
+          "pngBytes": 372063,
+          "ktxSHA256": "665f2c22827bafda51eb0127b69cce6c5d33869a98ae7331b8aafa88985d89f6",
+          "ktxBytes": 393432,
+          "metadataSHA256": "d1c5fb8899b89f3e42788d04f63bec84331317707c00976b4369049ebc11d674"
+        },
+        {
+          "name": "mask",
+          "pngSHA256": "43d594a99f2b8d8412348a45b0556f4af8c1960ccbce0e2b3164c8fa61beba6c",
+          "pngBytes": 94618,
+          "ktxSHA256": "8271f00457196483ecf617df4f644885d35e52fad010ad31b9bd35afe2cc5355",
+          "ktxBytes": 349744,
+          "metadataSHA256": "5e29136bf95ad68a61f34ccafdbb660119e87bb6b01707798a12c1dbb883a8d9"
+        }
+      ],
+      "rawCaptureSHA256": "0a4868ecb67c151c19b2f44e1f8be416931346e23f8576a2ff0aab9ab8c957eb",
+      "logSHA256": "f614091004f8c2cdd2eb0597f9616205c72cce21aea7d2e9807e6a140c523661",
+      "cases": [
+        {
+          "name": "opaque",
+          "mode": "original",
+          "auditedSourceComparison": {
+            "native": {
+              "rgbMAE": 0.653000276761269,
+              "correlation": 0.9928572921172043,
+              "maskMismatch": 0
+            },
+            "browser": {
+              "rgbMAE": 0.7022151087587258,
+              "correlation": 0.9925943713218128,
+              "maskMismatch": 0
+            }
+          },
+          "crossEngine": {
+            "rgbMAE": 0.6495047421582637,
+            "correlation": 0.9966149484509222,
+            "maskMismatch": 0
+          },
+          "nativePNG_SHA256": "281a6d0a7e90f6e68e37233dde084060c9a460029e834b377fed771f519ded44",
+          "browserPNG_SHA256": "826747108ff4fd7e7607a40e2d64c4198f5a71ab1c1b1a19ae04713ff289744a",
+          "browserMaterialStates": [
+            {
+              "isCompressedTexture": false,
+              "colorSpace": "srgb",
+              "transparent": false,
+              "depthWrite": true,
+              "side": 2,
+              "forceSinglePass": true
+            }
+          ]
+        },
+        {
+          "name": "opaque",
+          "mode": "compressed",
+          "auditedSourceComparison": {
+            "native": {
+              "rgbMAE": 0.9609855955156777,
+              "correlation": 0.991081766460514,
+              "maskMismatch": 0
+            },
+            "browser": {
+              "rgbMAE": 0.6734313719359367,
+              "correlation": 0.9921399548896789,
+              "maskMismatch": 0
+            }
+          },
+          "crossEngine": {
+            "rgbMAE": 0.6494429957814988,
+            "correlation": 0.9970011892046172,
+            "maskMismatch": 0
+          },
+          "nativePNG_SHA256": "c0f8e310a7b04eeaaf33578f71d775f556edc236e21c43ded462885b7e86df7f",
+          "browserPNG_SHA256": "b213944bdeb69b6490a91e3e081b310f9477ca7542b85907eabd2986ca8267b3",
+          "browserMaterialStates": [
+            {
+              "isCompressedTexture": true,
+              "colorSpace": "srgb",
+              "transparent": false,
+              "depthWrite": true,
+              "side": 2,
+              "forceSinglePass": true
+            }
+          ]
+        },
+        {
+          "name": "opaque",
+          "originalVsCompressed": {
+            "native": {
+              "rgbMAE": 0.517921666430434,
+              "correlation": 0.9974472798600477,
+              "maskMismatch": 0
+            },
+            "browser": {
+              "rgbMAE": 0.47751844638417196,
+              "correlation": 0.9978969067349013,
+              "maskMismatch": 0
+            }
+          }
+        },
+        {
+          "name": "mask",
+          "mode": "original",
+          "auditedSourceComparison": {
+            "native": {
+              "rgbMAE": 2.677080191259656,
+              "correlation": 0.9972219944810746,
+              "maskMismatch": 0.007080078125
+            },
+            "browser": {
+              "rgbMAE": 2.421590438244381,
+              "correlation": 0.9981174266031575,
+              "maskMismatch": 0.006103515625
+            }
+          },
+          "crossEngine": {
+            "rgbMAE": 1.735333084307798,
+            "correlation": 0.9984224671708523,
+            "maskMismatch": 0.004150390625
+          },
+          "nativePNG_SHA256": "ab87551be92efa2319fe8b7b2f0ea5b71b2647994325253b266894ac43ab6ee4",
+          "browserPNG_SHA256": "de52d886b5fa3d50848d15d62fcc003ee50b4d3774b73748aeb872828dad5291",
+          "browserMaterialStates": [
+            {
+              "isCompressedTexture": false,
+              "colorSpace": "srgb",
+              "transparent": true,
+              "depthWrite": false,
+              "side": 2,
+              "forceSinglePass": true
+            }
+          ]
+        },
+        {
+          "name": "mask",
+          "mode": "compressed",
+          "auditedSourceComparison": {
+            "native": {
+              "rgbMAE": 2.7969672800979324,
+              "correlation": 0.9970861301698808,
+              "maskMismatch": 0.0068359375
+            },
+            "browser": {
+              "rgbMAE": 2.392677866617893,
+              "correlation": 0.9981120522919984,
+              "maskMismatch": 0.006103515625
+            }
+          },
+          "crossEngine": {
+            "rgbMAE": 1.801953887340191,
+            "correlation": 0.9982381233480908,
+            "maskMismatch": 0.0048828125
+          },
+          "nativePNG_SHA256": "a9de6e5b33ec1982fbae1593be7d329074c874eb5e1f80876b96b1b6388b85c9",
+          "browserPNG_SHA256": "861e50765c57fc02213446f4799475cea6a1b469d885d035458b9ac2460d2efc",
+          "browserMaterialStates": [
+            {
+              "isCompressedTexture": true,
+              "colorSpace": "srgb",
+              "transparent": true,
+              "depthWrite": false,
+              "side": 2,
+              "forceSinglePass": true
+            }
+          ]
+        },
+        {
+          "name": "mask",
+          "originalVsCompressed": {
+            "native": {
+              "rgbMAE": 0.5164794617516758,
+              "correlation": 0.9999667057735263,
+              "maskMismatch": 0.000732421875
+            },
+            "browser": {
+              "rgbMAE": 0.6891741324494105,
+              "correlation": 0.9999620762726834,
+              "maskMismatch": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "engine": "firefox",
+      "startedAt": "2026-10-01T21:03:35.088Z",
+      "finishedAt": "2026-10-01T21:05:14.392Z",
+      "browserVersion": "firefox/156.0",
+      "nativeVersion": "2026.04.1",
+      "lighting": "unlit",
+      "completed": true,
+      "ownedFixtureCount": 4,
+      "preservedBaselineCount": 7,
+      "cleanupVerified": true,
+      "sourceCoherent": true,
+      "sourceSHA256": {
+        "tests/integration/native-image-state.mjs": "fbcb7b39dec035e339aef72e7fa2ca6b2895dac1ec8dfe4b1097db8a50af1346",
+        "tests/integration/native-image-fixture.js": "397936d663db3909bc53927af9970da74d4c2fb8431b9f34da629e1ba0ca398c",
+        "tests/integration/native-image-pixels.mjs": "2aa0deb8528ceee4140af8a704c584f6dbb61d28e85eda8f4fd1a3352dd5f5fc",
+        "tests/integration/native-image-convergence.mjs": "c474b058359ab10d4c81e76748bba7f589eb05f08ed9e3df3783875edbea9d00",
+        "tests/integration/native-image-lit.mjs": "4f52a7ad93735b5e814d463be4bd539acadfc2155a686b2d237584048e715e4d",
+        "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+        "src/world.ts": "3504f471ac26a590ed8ded270d12011d52a4a4f9e8d7c888c3f9379b402342cb",
+        "src/compressed-color-session.ts": "e18af74fe59593bf9f1aee0ce7a91f0e6910ed5e903868f646f1311d61c42fcf",
+        "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+        "src/native-compressed-color.ts": "312e6beac3a95b16f0ad3675d9789270eec69a6cdf808b66ce23da007c22aa56",
+        "src/native-alpha-material.ts": "a3515894f69f078222c7e2b543c46ce22f7bd05b58e12f3eaa14aa0a638dcfbb",
+        "src/native-render-state.ts": "af31a1e01576c233c1f7e8a8231dd5c2cc5871cb58b5783bf01f788da70d01df",
+        "src/world-image-cache.ts": "ba45a6125087f8b275c939a5e9e36dadac6879a37cb0fbe50d8c19dd9f1c6af9",
+        "src/world-source-text-cache.ts": "57ccb98bed54e788ed0e2f263e8362ae505f4b3073648dc08c311925e21116b1",
+        "src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+        "shared/native-ktx.mjs": "586f3dc1abe490d324c1737a1a1835f211ff2bba00fb61a5cfa243cd0e66aa0f"
+      },
+      "startSourceSHA256": {
+        "tests/integration/native-image-state.mjs": "fbcb7b39dec035e339aef72e7fa2ca6b2895dac1ec8dfe4b1097db8a50af1346",
+        "tests/integration/native-image-fixture.js": "397936d663db3909bc53927af9970da74d4c2fb8431b9f34da629e1ba0ca398c",
+        "tests/integration/native-image-pixels.mjs": "2aa0deb8528ceee4140af8a704c584f6dbb61d28e85eda8f4fd1a3352dd5f5fc",
+        "tests/integration/native-image-convergence.mjs": "c474b058359ab10d4c81e76748bba7f589eb05f08ed9e3df3783875edbea9d00",
+        "tests/integration/native-image-lit.mjs": "4f52a7ad93735b5e814d463be4bd539acadfc2155a686b2d237584048e715e4d",
+        "tests/integration/system-firefox.mjs": "d8f9e3ca635ae9627745a592ec31f7cacc5519cb12a66af2f104edeea2abe9ed",
+        "src/world.ts": "3504f471ac26a590ed8ded270d12011d52a4a4f9e8d7c888c3f9379b402342cb",
+        "src/compressed-color-session.ts": "e18af74fe59593bf9f1aee0ce7a91f0e6910ed5e903868f646f1311d61c42fcf",
+        "src/session.ts": "7209a8b9e041dddc5fa2b326284a0bd73ac780bdf55490a3cfeb304c3f0b7dfd",
+        "src/native-compressed-color.ts": "312e6beac3a95b16f0ad3675d9789270eec69a6cdf808b66ce23da007c22aa56",
+        "src/native-alpha-material.ts": "a3515894f69f078222c7e2b543c46ce22f7bd05b58e12f3eaa14aa0a638dcfbb",
+        "src/native-render-state.ts": "af31a1e01576c233c1f7e8a8231dd5c2cc5871cb58b5783bf01f788da70d01df",
+        "src/world-image-cache.ts": "ba45a6125087f8b275c939a5e9e36dadac6879a37cb0fbe50d8c19dd9f1c6af9",
+        "src/world-source-text-cache.ts": "57ccb98bed54e788ed0e2f263e8362ae505f4b3073648dc08c311925e21116b1",
+        "src/world-data.ts": "a98d4d794c5ff3eaa052986e83b52d80dd3666cfffe971d7da53aabdbf96a2b4",
+        "shared/native-ktx.mjs": "586f3dc1abe490d324c1737a1a1835f211ff2bba00fb61a5cfa243cd0e66aa0f"
+      },
+      "nativeBinarySHA256": "91f3e10c42c1e35d5c8265e9b0007e925844d9bee61a26807118dde6e527887c",
+      "inputs": [
+        {
+          "name": "opaque",
+          "pngSHA256": "0087b3a3a9c9347b3a592db7b7e4f88fe333aedb7c6bd6aae48ed664c3f98739",
+          "pngBytes": 372063,
+          "ktxSHA256": "665f2c22827bafda51eb0127b69cce6c5d33869a98ae7331b8aafa88985d89f6",
+          "ktxBytes": 393432,
+          "metadataSHA256": "d1c5fb8899b89f3e42788d04f63bec84331317707c00976b4369049ebc11d674"
+        },
+        {
+          "name": "mask",
+          "pngSHA256": "43d594a99f2b8d8412348a45b0556f4af8c1960ccbce0e2b3164c8fa61beba6c",
+          "pngBytes": 94618,
+          "ktxSHA256": "8271f00457196483ecf617df4f644885d35e52fad010ad31b9bd35afe2cc5355",
+          "ktxBytes": 349744,
+          "metadataSHA256": "5e29136bf95ad68a61f34ccafdbb660119e87bb6b01707798a12c1dbb883a8d9"
+        }
+      ],
+      "rawCaptureSHA256": "0659507db13a99c86e8f72ac8da3ddf00eb54f9bd68549ec23d3363b3508e90b",
+      "logSHA256": "19a099e4a31b8845962b35e3a6102f3c9db3aa0545fae06183eaadee90af82a5",
+      "cases": [
+        {
+          "name": "opaque",
+          "mode": "original",
+          "auditedSourceComparison": {
+            "native": {
+              "rgbMAE": 0.5908069095765673,
+              "correlation": 0.9928781153394078,
+              "maskMismatch": 0
+            },
+            "browser": {
+              "rgbMAE": 0.7022151087587258,
+              "correlation": 0.9925943713218128,
+              "maskMismatch": 0
+            }
+          },
+          "crossEngine": {
+            "rgbMAE": 0.5834329561575914,
+            "correlation": 0.9968013745757438,
+            "maskMismatch": 0
+          },
+          "nativePNG_SHA256": "b04203f53dab3ed13090c048e44110107c35e9e5aea6a1a7712eed2cf2677865",
+          "browserPNG_SHA256": "99ced647707dbaf9a366b7135a5f03787bd150254e0f80c12aff76ca6628356b",
+          "browserMaterialStates": [
+            {
+              "isCompressedTexture": false,
+              "colorSpace": "srgb",
+              "transparent": false,
+              "depthWrite": true,
+              "side": 2,
+              "forceSinglePass": true
+            }
+          ]
+        },
+        {
+          "name": "opaque",
+          "mode": "compressed",
+          "auditedSourceComparison": {
+            "native": {
+              "rgbMAE": 0.8417180108286275,
+              "correlation": 0.9914056724746996,
+              "maskMismatch": 0
+            },
+            "browser": {
+              "rgbMAE": 0.6734313719359367,
+              "correlation": 0.9921399548896789,
+              "maskMismatch": 0
+            }
+          },
+          "crossEngine": {
+            "rgbMAE": 0.5264711428638512,
+            "correlation": 0.9974612968937698,
+            "maskMismatch": 0
+          },
+          "nativePNG_SHA256": "c54b34d18dfe54210020c4ac881eea9eba372d0da248225bd00971b96461eb78",
+          "browserPNG_SHA256": "eb10a4cbaf2a7a1b93bcf3e66032dd43766603071bc70d8a0d2c96349b1323cb",
+          "browserMaterialStates": [
+            {
+              "isCompressedTexture": true,
+              "colorSpace": "srgb",
+              "transparent": false,
+              "depthWrite": true,
+              "side": 2,
+              "forceSinglePass": true
+            }
+          ]
+        },
+        {
+          "name": "opaque",
+          "originalVsCompressed": {
+            "native": {
+              "rgbMAE": 0.4582092665604061,
+              "correlation": 0.9980501937655122,
+              "maskMismatch": 0
+            },
+            "browser": {
+              "rgbMAE": 0.47751844638417196,
+              "correlation": 0.9978969067349013,
+              "maskMismatch": 0
+            }
+          }
+        },
+        {
+          "name": "mask",
+          "mode": "original",
+          "auditedSourceComparison": {
+            "native": {
+              "rgbMAE": 2.804552885130276,
+              "correlation": 0.9972070887819124,
+              "maskMismatch": 0.007080078125
+            },
+            "browser": {
+              "rgbMAE": 2.421590438244381,
+              "correlation": 0.9981174266031575,
+              "maskMismatch": 0.006103515625
+            }
+          },
+          "crossEngine": {
+            "rgbMAE": 1.8447735808206867,
+            "correlation": 0.9984036975816685,
+            "maskMismatch": 0.004150390625
+          },
+          "nativePNG_SHA256": "c2e72b8c4701c5c3824567319c12313e7f596d5feb254082b07555f4ae75e164",
+          "browserPNG_SHA256": "4409e7ad2fb5c0d353c0ef54f64d4671346cf4ae289d324ce0f9a171dcd6df24",
+          "browserMaterialStates": [
+            {
+              "isCompressedTexture": false,
+              "colorSpace": "srgb",
+              "transparent": true,
+              "depthWrite": false,
+              "side": 2,
+              "forceSinglePass": true
+            }
+          ]
+        },
+        {
+          "name": "mask",
+          "mode": "compressed",
+          "auditedSourceComparison": {
+            "native": {
+              "rgbMAE": 2.9248798462741514,
+              "correlation": 0.9970711012747256,
+              "maskMismatch": 0.007080078125
+            },
+            "browser": {
+              "rgbMAE": 2.392677866617893,
+              "correlation": 0.9981120522919984,
+              "maskMismatch": 0.006103515625
+            }
+          },
+          "crossEngine": {
+            "rgbMAE": 1.9120176706754561,
+            "correlation": 0.9982175958767678,
+            "maskMismatch": 0.004638671875
+          },
+          "nativePNG_SHA256": "2e341f8d5bc0f23ae0bc8f371ed9d11689e0db91226fb29e90252247ed051223",
+          "browserPNG_SHA256": "06e480b241de90013eaf93cf16765f48bd6c1f192d647695ede2d4b187b5905e",
+          "browserMaterialStates": [
+            {
+              "isCompressedTexture": true,
+              "colorSpace": "srgb",
+              "transparent": true,
+              "depthWrite": false,
+              "side": 2,
+              "forceSinglePass": true
+            }
+          ]
+        },
+        {
+          "name": "mask",
+          "originalVsCompressed": {
+            "native": {
+              "rgbMAE": 0.5167177004174283,
+              "correlation": 0.999966582562447,
+              "maskMismatch": 0.00048828125
+            },
+            "browser": {
+              "rgbMAE": 0.6891741324494105,
+              "correlation": 0.9999620762726834,
+              "maskMismatch": 0
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "Emissive=true unlit cohort only. Native lit BRDF/environment, live pulse clock synchronization and complete Image/Material parity remain pending.",
+    "These functional comparisons do not measure Hub loading speed or native Tablet reliability."
+  ]
+}

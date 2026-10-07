@@ -1,0 +1,18 @@
+{
+  "package": "strace",
+  "version": "6.8-0ubuntu2",
+  "architecture": "amd64",
+  "releaseURL": "https://archive.ubuntu.com/ubuntu/dists/noble/InRelease",
+  "releaseSHA256": "cdb2f31d809f589719a53c6ad15f255b27569c4059542ada282aaa21b8e164b0",
+  "signingFingerprint": "F6ECB3762474EDA9D21B7022871920D1991BC93C",
+  "packagesPath": "main/binary-amd64/Packages.xz",
+  "packagesSHA256": "2a6a199e1031a5c279cb346646d594993f35b1c03dd4a82aaa0323980dd92451",
+  "packageURL": "https://archive.ubuntu.com/ubuntu/pool/main/s/strace/strace_6.8-0ubuntu2_amd64.deb",
+  "packageSHA256": "d588810ae26b06fee6678dc81e5b54f6efcde8e718e4589adb4d11d254b9820b",
+  "packageBytes": 584172,
+  "keyringSHA256": "80a36b0a6de2f69f49d2df75ef473ccde121e9e190b9ea01d20a4f63778d5c31",
+  "signatureValidated": true,
+  "binarySHA256": "28f957c227012de0b18d1bd7fff2d396cb693ea60ed8013be68de071e84b5001",
+  "binaryBytes": 2087432,
+  "FedoraHostVersionProbe": "strace -- version 6.8"
+}

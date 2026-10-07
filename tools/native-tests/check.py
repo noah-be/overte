@@ -22,6 +22,9 @@ HOST_NATIVE_FIXTURES = frozenset({
     'tests/safe-landing/safe-landing-driver.cpp',
     'tests/safe-landing/safe-landing-fixture.h',
 })
+HOST_TOOL_MANIFESTS = frozenset({
+    'tools/jsdoc/package.json', 'tools/jsdoc/package-lock.json',
+})
 CORE_ROOTS = ('tests/shared/',)
 RUNTIME_ASSETS = {'.qml', '.js', '.png', '.jpg', '.jpeg', '.svg', '.webp', '.gif',
                   '.wav', '.mp3', '.ogg', '.html', '.css'}
@@ -54,7 +57,7 @@ def plan(paths: list[str], regular: bool = True, *, verified_empty: bool = False
                 or path.startswith(('tools/native-tests/', 'tests/native-', 'cmake/',
                                         '.github/workflows/native-', '.github/actions/conan-install/'))):
             relevant.append(path)
-        elif path in HOST_NATIVE_FIXTURES:
+        elif path in HOST_NATIVE_FIXTURES or path in HOST_TOOL_MANIFESTS:
             continue
         elif path.startswith('interface/resources/') and PurePosixPath(path).suffix.lower() in RUNTIME_ASSETS:
             # Native core tests do not exercise UI/media content. Host QML/JS

@@ -1,0 +1,859 @@
+{
+  "schemaVersion": 1,
+  "browser": "system-firefox",
+  "scope": "Genuine native Qt Graphics controls, painted popup rows and actual browser framebuffer; not complete rendering parity or performance acceptance",
+  "completed": true,
+  "controlAcceptance": true,
+  "resolutionProfileAcceptance": true,
+  "functionalAcceptance": false,
+  "performanceAcceptance": false,
+  "entityMutations": false,
+  "sourceAttestation": true,
+  "controlEffects": [
+    {
+      "field": "fieldOfView",
+      "requested": 20,
+      "accepted": true,
+      "matchedRequest": true,
+      "settings": {
+        "version": 1,
+        "fieldOfView": 20,
+        "resolutionPercent": 100,
+        "localLights": true,
+        "cameraClipping": true
+      },
+      "width": 1280,
+      "height": 900
+    },
+    {
+      "field": "fieldOfView",
+      "requested": 130,
+      "accepted": true,
+      "matchedRequest": true,
+      "settings": {
+        "version": 1,
+        "fieldOfView": 130,
+        "resolutionPercent": 100,
+        "localLights": true,
+        "cameraClipping": true
+      },
+      "width": 1280,
+      "height": 900
+    },
+    {
+      "field": "resolutionPercent",
+      "requested": 50,
+      "accepted": true,
+      "matchedRequest": true,
+      "settings": {
+        "version": 1,
+        "fieldOfView": 130,
+        "resolutionPercent": 50,
+        "localLights": true,
+        "cameraClipping": true
+      },
+      "width": 640,
+      "height": 450
+    },
+    {
+      "field": "resolutionPercent",
+      "requested": 200,
+      "accepted": true,
+      "matchedRequest": true,
+      "settings": {
+        "version": 1,
+        "fieldOfView": 130,
+        "resolutionPercent": 200,
+        "localLights": true,
+        "cameraClipping": true
+      },
+      "width": 2560,
+      "height": 1800
+    },
+    {
+      "field": "resolutionPercent",
+      "requested": 100,
+      "accepted": true,
+      "matchedRequest": true,
+      "settings": {
+        "version": 1,
+        "fieldOfView": 130,
+        "resolutionPercent": 100,
+        "localLights": true,
+        "cameraClipping": true
+      },
+      "width": 1280,
+      "height": 900
+    },
+    {
+      "field": "localLights",
+      "requested": false,
+      "accepted": true,
+      "matchedRequest": true,
+      "settings": {
+        "version": 1,
+        "fieldOfView": 130,
+        "resolutionPercent": 100,
+        "localLights": false,
+        "cameraClipping": true
+      },
+      "width": 1280,
+      "height": 900
+    },
+    {
+      "field": "localLights",
+      "requested": true,
+      "accepted": true,
+      "matchedRequest": true,
+      "settings": {
+        "version": 1,
+        "fieldOfView": 130,
+        "resolutionPercent": 100,
+        "localLights": true,
+        "cameraClipping": true
+      },
+      "width": 1280,
+      "height": 900
+    },
+    {
+      "field": "cameraClipping",
+      "requested": false,
+      "accepted": true,
+      "matchedRequest": true,
+      "settings": {
+        "version": 1,
+        "fieldOfView": 130,
+        "resolutionPercent": 100,
+        "localLights": true,
+        "cameraClipping": false
+      },
+      "width": 1280,
+      "height": 900
+    },
+    {
+      "field": "cameraClipping",
+      "requested": true,
+      "accepted": true,
+      "matchedRequest": true,
+      "settings": {
+        "version": 1,
+        "fieldOfView": 130,
+        "resolutionPercent": 100,
+        "localLights": true,
+        "cameraClipping": true
+      },
+      "width": 1280,
+      "height": 900
+    },
+    {
+      "field": "resolutionPercent",
+      "requested": 80,
+      "accepted": true,
+      "matchedRequest": true,
+      "settings": {
+        "version": 1,
+        "fieldOfView": 130,
+        "resolutionPercent": 80,
+        "localLights": true,
+        "cameraClipping": true
+      },
+      "width": 1024,
+      "height": 720
+    },
+    {
+      "field": "resolutionPercent",
+      "requested": 60,
+      "accepted": true,
+      "matchedRequest": true,
+      "settings": {
+        "version": 1,
+        "fieldOfView": 130,
+        "resolutionPercent": 60,
+        "localLights": true,
+        "cameraClipping": true
+      },
+      "width": 768,
+      "height": 540
+    },
+    {
+      "field": "resolutionPercent",
+      "requested": 100,
+      "accepted": true,
+      "matchedRequest": true,
+      "settings": {
+        "version": 1,
+        "fieldOfView": 130,
+        "resolutionPercent": 100,
+        "localLights": true,
+        "cameraClipping": true
+      },
+      "width": 1280,
+      "height": 900
+    },
+    {
+      "field": "resolutionPercent",
+      "requested": 70,
+      "accepted": true,
+      "matchedRequest": true,
+      "settings": {
+        "version": 1,
+        "fieldOfView": 130,
+        "resolutionPercent": 70,
+        "localLights": true,
+        "cameraClipping": true
+      },
+      "width": 896,
+      "height": 630
+    },
+    {
+      "field": "resolutionPercent",
+      "requested": 60,
+      "accepted": true,
+      "matchedRequest": true,
+      "settings": {
+        "version": 1,
+        "fieldOfView": 130,
+        "resolutionPercent": 60,
+        "localLights": true,
+        "cameraClipping": true
+      },
+      "width": 768,
+      "height": 540
+    },
+    {
+      "field": "resolutionPercent",
+      "requested": 70,
+      "accepted": true,
+      "matchedRequest": true,
+      "settings": {
+        "version": 1,
+        "fieldOfView": 130,
+        "resolutionPercent": 70,
+        "localLights": true,
+        "cameraClipping": true
+      },
+      "width": 896,
+      "height": 630
+    },
+    {
+      "field": "fieldOfView",
+      "requested": 70,
+      "accepted": true,
+      "matchedRequest": true,
+      "settings": {
+        "version": 1,
+        "fieldOfView": 70,
+        "resolutionPercent": 70,
+        "localLights": true,
+        "cameraClipping": true
+      },
+      "width": 896,
+      "height": 630
+    },
+    {
+      "field": "resolutionPercent",
+      "requested": 100,
+      "accepted": true,
+      "matchedRequest": true,
+      "settings": {
+        "version": 1,
+        "fieldOfView": 70,
+        "resolutionPercent": 100,
+        "localLights": true,
+        "cameraClipping": true
+      },
+      "width": 1280,
+      "height": 900
+    }
+  ],
+  "popupReadiness": [
+    {
+      "step": "preset-80-open",
+      "top": 106,
+      "height": 170,
+      "rowHeight": 42,
+      "highlightedIndex": 0,
+      "options": [
+        {
+          "index": 0,
+          "y": 128,
+          "glyphRows": 10,
+          "highlightRows": 38,
+          "totalRows": 38
+        },
+        {
+          "index": 1,
+          "y": 170,
+          "glyphRows": 9,
+          "highlightRows": 0,
+          "totalRows": 38
+        },
+        {
+          "index": 2,
+          "y": 212,
+          "glyphRows": 8,
+          "highlightRows": 0,
+          "totalRows": 38
+        },
+        {
+          "index": 3,
+          "y": 254,
+          "glyphRows": 7,
+          "highlightRows": 0,
+          "totalRows": 38
+        }
+      ]
+    },
+    {
+      "step": "preset-80-home",
+      "top": 106,
+      "height": 170,
+      "rowHeight": 42,
+      "highlightedIndex": 0,
+      "options": [
+        {
+          "index": 0,
+          "y": 128,
+          "glyphRows": 10,
+          "highlightRows": 38,
+          "totalRows": 38
+        },
+        {
+          "index": 1,
+          "y": 170,
+          "glyphRows": 9,
+          "highlightRows": 0,
+          "totalRows": 38
+        },
+        {
+          "index": 2,
+          "y": 212,
+          "glyphRows": 8,
+          "highlightRows": 0,
+          "totalRows": 38
+        },
+        {
+          "index": 3,
+          "y": 254,
+          "glyphRows": 7,
+          "highlightRows": 0,
+          "totalRows": 38
+        }
+      ]
+    },
+    {
+      "step": "preset-80-row-1",
+      "top": 106,
+      "height": 170,
+      "rowHeight": 42,
+      "highlightedIndex": 1,
+      "options": [
+        {
+          "index": 0,
+          "y": 128,
+          "glyphRows": 9,
+          "highlightRows": 0,
+          "totalRows": 38
+        },
+        {
+          "index": 1,
+          "y": 170,
+          "glyphRows": 9,
+          "highlightRows": 38,
+          "totalRows": 38
+        },
+        {
+          "index": 2,
+          "y": 212,
+          "glyphRows": 8,
+          "highlightRows": 0,
+          "totalRows": 38
+        },
+        {
+          "index": 3,
+          "y": 254,
+          "glyphRows": 7,
+          "highlightRows": 0,
+          "totalRows": 38
+        }
+      ]
+    },
+    {
+      "step": "preset-60-open",
+      "top": 106,
+      "height": 170,
+      "rowHeight": 42,
+      "highlightedIndex": 1,
+      "options": [
+        {
+          "index": 0,
+          "y": 128,
+          "glyphRows": 9,
+          "highlightRows": 0,
+          "totalRows": 38
+        },
+        {
+          "index": 1,
+          "y": 170,
+          "glyphRows": 9,
+          "highlightRows": 38,
+          "totalRows": 38
+        },
+        {
+          "index": 2,
+          "y": 212,
+          "glyphRows": 8,
+          "highlightRows": 0,
+          "totalRows": 38
+        },
+        {
+          "index": 3,
+          "y": 254,
+          "glyphRows": 7,
+          "highlightRows": 0,
+          "totalRows": 38
+        }
+      ]
+    },
+    {
+      "step": "preset-60-home",
+      "top": 106,
+      "height": 170,
+      "rowHeight": 42,
+      "highlightedIndex": 0,
+      "options": [
+        {
+          "index": 0,
+          "y": 128,
+          "glyphRows": 10,
+          "highlightRows": 38,
+          "totalRows": 38
+        },
+        {
+          "index": 1,
+          "y": 170,
+          "glyphRows": 9,
+          "highlightRows": 0,
+          "totalRows": 38
+        },
+        {
+          "index": 2,
+          "y": 212,
+          "glyphRows": 8,
+          "highlightRows": 0,
+          "totalRows": 38
+        },
+        {
+          "index": 3,
+          "y": 254,
+          "glyphRows": 7,
+          "highlightRows": 0,
+          "totalRows": 38
+        }
+      ]
+    },
+    {
+      "step": "preset-60-row-1",
+      "top": 106,
+      "height": 170,
+      "rowHeight": 42,
+      "highlightedIndex": 1,
+      "options": [
+        {
+          "index": 0,
+          "y": 128,
+          "glyphRows": 9,
+          "highlightRows": 0,
+          "totalRows": 38
+        },
+        {
+          "index": 1,
+          "y": 170,
+          "glyphRows": 9,
+          "highlightRows": 38,
+          "totalRows": 38
+        },
+        {
+          "index": 2,
+          "y": 212,
+          "glyphRows": 8,
+          "highlightRows": 0,
+          "totalRows": 38
+        },
+        {
+          "index": 3,
+          "y": 254,
+          "glyphRows": 7,
+          "highlightRows": 0,
+          "totalRows": 38
+        }
+      ]
+    },
+    {
+      "step": "preset-60-row-2",
+      "top": 106,
+      "height": 170,
+      "rowHeight": 42,
+      "highlightedIndex": 2,
+      "options": [
+        {
+          "index": 0,
+          "y": 128,
+          "glyphRows": 9,
+          "highlightRows": 0,
+          "totalRows": 38
+        },
+        {
+          "index": 1,
+          "y": 170,
+          "glyphRows": 9,
+          "highlightRows": 0,
+          "totalRows": 38
+        },
+        {
+          "index": 2,
+          "y": 212,
+          "glyphRows": 9,
+          "highlightRows": 38,
+          "totalRows": 38
+        },
+        {
+          "index": 3,
+          "y": 254,
+          "glyphRows": 7,
+          "highlightRows": 0,
+          "totalRows": 38
+        }
+      ]
+    },
+    {
+      "step": "preset-100-open",
+      "top": 106,
+      "height": 170,
+      "rowHeight": 42,
+      "highlightedIndex": 2,
+      "options": [
+        {
+          "index": 0,
+          "y": 128,
+          "glyphRows": 9,
+          "highlightRows": 0,
+          "totalRows": 38
+        },
+        {
+          "index": 1,
+          "y": 170,
+          "glyphRows": 9,
+          "highlightRows": 0,
+          "totalRows": 38
+        },
+        {
+          "index": 2,
+          "y": 212,
+          "glyphRows": 9,
+          "highlightRows": 38,
+          "totalRows": 38
+        },
+        {
+          "index": 3,
+          "y": 254,
+          "glyphRows": 7,
+          "highlightRows": 0,
+          "totalRows": 38
+        }
+      ]
+    },
+    {
+      "step": "preset-100-home",
+      "top": 106,
+      "height": 170,
+      "rowHeight": 42,
+      "highlightedIndex": 0,
+      "options": [
+        {
+          "index": 0,
+          "y": 128,
+          "glyphRows": 10,
+          "highlightRows": 38,
+          "totalRows": 38
+        },
+        {
+          "index": 1,
+          "y": 170,
+          "glyphRows": 9,
+          "highlightRows": 0,
+          "totalRows": 38
+        },
+        {
+          "index": 2,
+          "y": 212,
+          "glyphRows": 8,
+          "highlightRows": 0,
+          "totalRows": 38
+        },
+        {
+          "index": 3,
+          "y": 254,
+          "glyphRows": 7,
+          "highlightRows": 0,
+          "totalRows": 38
+        }
+      ]
+    },
+    {
+      "step": "custom-70-open",
+      "top": 106,
+      "height": 170,
+      "rowHeight": 42,
+      "highlightedIndex": 3,
+      "options": [
+        {
+          "index": 0,
+          "y": 128,
+          "glyphRows": 9,
+          "highlightRows": 0,
+          "totalRows": 38
+        },
+        {
+          "index": 1,
+          "y": 170,
+          "glyphRows": 9,
+          "highlightRows": 0,
+          "totalRows": 38
+        },
+        {
+          "index": 2,
+          "y": 212,
+          "glyphRows": 8,
+          "highlightRows": 0,
+          "totalRows": 38
+        },
+        {
+          "index": 3,
+          "y": 254,
+          "glyphRows": 8,
+          "highlightRows": 38,
+          "totalRows": 38
+        }
+      ]
+    },
+    {
+      "step": "custom-arrow-up-row-2",
+      "top": 106,
+      "height": 170,
+      "rowHeight": 42,
+      "highlightedIndex": 2,
+      "options": [
+        {
+          "index": 0,
+          "y": 128,
+          "glyphRows": 9,
+          "highlightRows": 0,
+          "totalRows": 38
+        },
+        {
+          "index": 1,
+          "y": 170,
+          "glyphRows": 9,
+          "highlightRows": 0,
+          "totalRows": 38
+        },
+        {
+          "index": 2,
+          "y": 212,
+          "glyphRows": 9,
+          "highlightRows": 38,
+          "totalRows": 38
+        },
+        {
+          "index": 3,
+          "y": 254,
+          "glyphRows": 7,
+          "highlightRows": 0,
+          "totalRows": 38
+        }
+      ]
+    },
+    {
+      "step": "preset-100-open",
+      "top": 106,
+      "height": 170,
+      "rowHeight": 42,
+      "highlightedIndex": 3,
+      "options": [
+        {
+          "index": 0,
+          "y": 128,
+          "glyphRows": 9,
+          "highlightRows": 0,
+          "totalRows": 38
+        },
+        {
+          "index": 1,
+          "y": 170,
+          "glyphRows": 9,
+          "highlightRows": 0,
+          "totalRows": 38
+        },
+        {
+          "index": 2,
+          "y": 212,
+          "glyphRows": 8,
+          "highlightRows": 0,
+          "totalRows": 38
+        },
+        {
+          "index": 3,
+          "y": 254,
+          "glyphRows": 8,
+          "highlightRows": 38,
+          "totalRows": 38
+        }
+      ]
+    },
+    {
+      "step": "preset-100-home",
+      "top": 106,
+      "height": 170,
+      "rowHeight": 42,
+      "highlightedIndex": 0,
+      "options": [
+        {
+          "index": 0,
+          "y": 128,
+          "glyphRows": 10,
+          "highlightRows": 38,
+          "totalRows": 38
+        },
+        {
+          "index": 1,
+          "y": 170,
+          "glyphRows": 9,
+          "highlightRows": 0,
+          "totalRows": 38
+        },
+        {
+          "index": 2,
+          "y": 212,
+          "glyphRows": 8,
+          "highlightRows": 0,
+          "totalRows": 38
+        },
+        {
+          "index": 3,
+          "y": 254,
+          "glyphRows": 7,
+          "highlightRows": 0,
+          "totalRows": 38
+        }
+      ]
+    }
+  ],
+  "sourceHashes": {
+    "start": {
+      "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+      "gateway/tablet-capture.qml": "0d6fc2e721894cb849feefa6442de20dbcb39b8498fb9887ea3b2ec2e74e580c",
+      "gateway/native-browser-graphics.js": "723bc8456a884964c3c96c8ab4720f8773ae29a19b8f7adb54a4c1b11cecfa16",
+      "gateway/browser-graphics-overrides.mjs": "ccb50787e8bc0431b6c13c67de1ebdbddf9abdc5f7123a64b6b061be89712329",
+      "gateway/tablet.mjs": "e93b26ee0c10982a0c4902f3edc1c6336bf2709f41c2207b6dc2fdf373d08ebb",
+      "gateway/server.mjs": "f8399c1015cb85ada0da613b9278b8a90dca0660d2478b8810d43161b1ed237c",
+      "gateway/native-bridge.js": "44ecbdf489bc54c4f73d9dddb2a6bf3a8f1d281c0c7daf3e8d73a6ab6472dcd4",
+      "gateway/worker-sandbox.mjs": "0f676af4e006de48a0aeb32185ea37eb9500d1a7c65d064a5a16a27024c268a1",
+      "gateway/native-worker-refresh-readback.js": "a703b627786a3f2660a4f478ad3776c53ae9c28d7aba85f62823048bcb360d10",
+      "gateway/native-worker-refresh-probe.js": "7513a1a873444b7514f913057f5fa99d09f32b84ce2f47526a7d75326b2d0893",
+      "dist/index.html": "0a65d0e86734e79c7d78560447597502b7a100eaee978aa04b5df24942d0b9f3",
+      "src/main.ts": "9328406172fe1bb61118811f58db3a43b75cc99d7258cf2f1636b22571051d79",
+      "src/world.ts": "cdea6c0797fef9c1eb3c219003475b7ea7ab8dc882cc3bb0680021231db55a6c",
+      "src/browser-graphics-controller.ts": "0f8e5cf0a26b54e05224debcecb7a4db3dbdcba1894ab617f4ad8821e7cfddbd",
+      "src/browser-graphics-target.ts": "605b347d480909ae29667242cd058199b2877ce35657edb65510d0ac08ce91f6",
+      "shared/browser-graphics.mjs": "b7b66b25602f430cf303d24902dbc4715a3fd48135829fcddda06b238fbdd682",
+      "tests/integration/tablet-graphics.mjs": "2dd0a4b77929c261f14638d89875bb4daf3337fc86790153797f3c51b982cb02",
+      "tests/integration/tablet-graphics-geometry.mjs": "6bcd03da67f0ddb0815bddc5ad1273989547734472b7d137d0e57ee72638073b",
+      "tests/integration/tablet-graphics-popup.mjs": "cfb575b30ad4f09bf1465ba27931ce333b0e5742bc836b159fd99756d19df5c2"
+    },
+    "end": {
+      "gateway/native-tablet.js": "f551c88bf6f5c06e0c2cabed79017759f73b7f957d8554569d2c676893c1e6b7",
+      "gateway/tablet-capture.qml": "0d6fc2e721894cb849feefa6442de20dbcb39b8498fb9887ea3b2ec2e74e580c",
+      "gateway/native-browser-graphics.js": "723bc8456a884964c3c96c8ab4720f8773ae29a19b8f7adb54a4c1b11cecfa16",
+      "gateway/browser-graphics-overrides.mjs": "ccb50787e8bc0431b6c13c67de1ebdbddf9abdc5f7123a64b6b061be89712329",
+      "gateway/tablet.mjs": "e93b26ee0c10982a0c4902f3edc1c6336bf2709f41c2207b6dc2fdf373d08ebb",
+      "gateway/server.mjs": "f8399c1015cb85ada0da613b9278b8a90dca0660d2478b8810d43161b1ed237c",
+      "gateway/native-bridge.js": "44ecbdf489bc54c4f73d9dddb2a6bf3a8f1d281c0c7daf3e8d73a6ab6472dcd4",
+      "gateway/worker-sandbox.mjs": "0f676af4e006de48a0aeb32185ea37eb9500d1a7c65d064a5a16a27024c268a1",
+      "gateway/native-worker-refresh-readback.js": "a703b627786a3f2660a4f478ad3776c53ae9c28d7aba85f62823048bcb360d10",
+      "gateway/native-worker-refresh-probe.js": "7513a1a873444b7514f913057f5fa99d09f32b84ce2f47526a7d75326b2d0893",
+      "dist/index.html": "0a65d0e86734e79c7d78560447597502b7a100eaee978aa04b5df24942d0b9f3",
+      "src/main.ts": "9328406172fe1bb61118811f58db3a43b75cc99d7258cf2f1636b22571051d79",
+      "src/world.ts": "cdea6c0797fef9c1eb3c219003475b7ea7ab8dc882cc3bb0680021231db55a6c",
+      "src/browser-graphics-controller.ts": "0f8e5cf0a26b54e05224debcecb7a4db3dbdcba1894ab617f4ad8821e7cfddbd",
+      "src/browser-graphics-target.ts": "605b347d480909ae29667242cd058199b2877ce35657edb65510d0ac08ce91f6",
+      "shared/browser-graphics.mjs": "b7b66b25602f430cf303d24902dbc4715a3fd48135829fcddda06b238fbdd682",
+      "tests/integration/tablet-graphics.mjs": "2dd0a4b77929c261f14638d89875bb4daf3337fc86790153797f3c51b982cb02",
+      "tests/integration/tablet-graphics-geometry.mjs": "6bcd03da67f0ddb0815bddc5ad1273989547734472b7d137d0e57ee72638073b",
+      "tests/integration/tablet-graphics-popup.mjs": "cfb575b30ad4f09bf1465ba27931ce333b0e5742bc836b159fd99756d19df5c2"
+    }
+  },
+  "nativePackageSources": {
+    "start": {
+      "Settings.qml": "aed4ea8d5082510480aac302ddbc220c3bd4412018fa7130edf24dbfa686eece",
+      "qml/SettingBoolean.qml": "f043477adb67b59f8afda3a03870087a268283bb49045fabff3552a81178f093",
+      "qml/SettingComboBox.qml": "53577ed3a638d7f4db36b27ad4775eedf897073f6fd9b3923799414aabce13cf",
+      "qml/SettingSlider.qml": "c2ec0136e4f0cf6e812e0e1c8f5628185ece3c1fd44eb75822e6ab411cc822c7",
+      "qml/pages/GraphicsSettings.qml": "f1eda115ef4504e355002dc5a2a238385374cd09f2247e187e5aa0392b75b313",
+      "settings.js": "e5176a990cc09a9f0df1651dbd1483ffb7c52129702a42de34c60bef01e06129"
+    },
+    "end": {
+      "Settings.qml": "aed4ea8d5082510480aac302ddbc220c3bd4412018fa7130edf24dbfa686eece",
+      "qml/SettingBoolean.qml": "f043477adb67b59f8afda3a03870087a268283bb49045fabff3552a81178f093",
+      "qml/SettingComboBox.qml": "53577ed3a638d7f4db36b27ad4775eedf897073f6fd9b3923799414aabce13cf",
+      "qml/SettingSlider.qml": "c2ec0136e4f0cf6e812e0e1c8f5628185ece3c1fd44eb75822e6ab411cc822c7",
+      "qml/pages/GraphicsSettings.qml": "f1eda115ef4504e355002dc5a2a238385374cd09f2247e187e5aa0392b75b313",
+      "settings.js": "e5176a990cc09a9f0df1651dbd1483ffb7c52129702a42de34c60bef01e06129"
+    }
+  },
+  "endurance": "Omitted at user instruction",
+  "startedAt": "2026-10-01T17:22:04.676Z",
+  "finishedAt": "2026-10-01T17:24:09.971Z",
+  "browserVersion": "firefox/156.0",
+  "drawingBuffer": {
+    "width": 1280,
+    "height": 900
+  },
+  "initialDensity": {
+    "devicePixelRatio": 1,
+    "baseRatio": 1,
+    "cssWidth": 1280,
+    "cssHeight": 900
+  },
+  "browserGraphics": {
+    "version": 1,
+    "fieldOfView": 70,
+    "resolutionPercent": 100,
+    "localLights": true,
+    "cameraClipping": true
+  },
+  "profileSequence": [
+    100,
+    80,
+    60,
+    100,
+    70,
+    60,
+    70,
+    100
+  ],
+  "restored": {
+    "settings": {
+      "version": 1,
+      "fieldOfView": 130,
+      "resolutionPercent": 70,
+      "localLights": true,
+      "cameraClipping": true
+    },
+    "width": 896,
+    "height": 630
+  },
+  "sourceHashesStable": true,
+  "nativePackageSourcesStable": true,
+  "rawReportSHA256": "ad4cd29add02c6749759db14b13e2e5b272399d18824acc4873542b30ae32ac2"
+}

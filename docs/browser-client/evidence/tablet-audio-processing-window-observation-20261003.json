@@ -1,0 +1,200 @@
+{
+  "schemaVersion": 1,
+  "kind": "actual-audio-processing-partial-and-gain-calibration-negative",
+  "browser": "google-chrome",
+  "status": "failed",
+  "completed": false,
+  "cleanupVerified": true,
+  "sourceCoherent": true,
+  "hardwareAcceptance": false,
+  "fullCaptureFeatureAcceptance": false,
+  "originalTwelvePassed": true,
+  "additionalNoImplicitGrantPassed": true,
+  "sixProcessingOperationsPassed": true,
+  "gainAcceptance": false,
+  "gainPhysicalChangeRequests": 0,
+  "failureBoundary": "first-gain50-painted-calibration-before-physical-click",
+  "actualPrimaryError": "painted-visible-contrast-refused",
+  "retainedDiagnosticStage": "autoGainControl-change-ack",
+  "diagnosticStageIsStale": true,
+  "hashes": {
+    "originalReportSHA256": "b98a8754c98100c36c2090508e841f3b209bddb9a0f34a17bc0ea5be385aa424",
+    "ownedWrapperPythonIndent2ReportSHA256": "75b130f1ea9539293199a74cfd00483745c5df8f8a9b492b484bf3685dcad0ca",
+    "summarySHA256": "e57d031b73193de8ef25c3270067a725df0c9ad06554e34022b886368b6f5a34",
+    "privateFailureSHA256": "6b374b6decc4134b19e2cd90fa76d3e3473785adcbb73b8ec28f6be2dc1d6de2",
+    "phaseSHA256": "f23c217dbee97355d5ccef6d248a7a92fe0a9bc0c497840ce6e541e4dd7f7825"
+  },
+  "ownedWrapperReportSerialization": "Python json.dumps(json.loads(originalRawReport), indent=2) + newline; default ensure_ascii=True",
+  "processingOperations": [
+    {
+      "field": "echoCancellation",
+      "value": false,
+      "getUserMediaCallsDelta": 1,
+      "oldEndedBeforeAcquisition": true,
+      "oldEnded": true,
+      "newLive": true,
+      "sameDevice": true,
+      "allThreeEffectiveSettings": true,
+      "authorityCurrent": true,
+      "liveTrackCount": 1,
+      "effectiveSettings": {
+        "echoCancellation": false,
+        "noiseSuppression": true,
+        "autoGainControl": true
+      }
+    },
+    {
+      "field": "echoCancellation",
+      "value": true,
+      "getUserMediaCallsDelta": 1,
+      "oldEndedBeforeAcquisition": true,
+      "oldEnded": true,
+      "newLive": true,
+      "sameDevice": true,
+      "allThreeEffectiveSettings": true,
+      "authorityCurrent": true,
+      "liveTrackCount": 1,
+      "effectiveSettings": {
+        "echoCancellation": true,
+        "noiseSuppression": true,
+        "autoGainControl": true
+      }
+    },
+    {
+      "field": "noiseSuppression",
+      "value": false,
+      "getUserMediaCallsDelta": 1,
+      "oldEndedBeforeAcquisition": true,
+      "oldEnded": true,
+      "newLive": true,
+      "sameDevice": true,
+      "allThreeEffectiveSettings": true,
+      "authorityCurrent": true,
+      "liveTrackCount": 1,
+      "effectiveSettings": {
+        "echoCancellation": true,
+        "noiseSuppression": false,
+        "autoGainControl": true
+      }
+    },
+    {
+      "field": "noiseSuppression",
+      "value": true,
+      "getUserMediaCallsDelta": 1,
+      "oldEndedBeforeAcquisition": true,
+      "oldEnded": true,
+      "newLive": true,
+      "sameDevice": true,
+      "allThreeEffectiveSettings": true,
+      "authorityCurrent": true,
+      "liveTrackCount": 1,
+      "effectiveSettings": {
+        "echoCancellation": true,
+        "noiseSuppression": true,
+        "autoGainControl": true
+      }
+    },
+    {
+      "field": "autoGainControl",
+      "value": false,
+      "getUserMediaCallsDelta": 1,
+      "oldEndedBeforeAcquisition": true,
+      "oldEnded": true,
+      "newLive": true,
+      "sameDevice": true,
+      "allThreeEffectiveSettings": true,
+      "authorityCurrent": true,
+      "liveTrackCount": 1,
+      "effectiveSettings": {
+        "echoCancellation": true,
+        "noiseSuppression": true,
+        "autoGainControl": false
+      }
+    },
+    {
+      "field": "autoGainControl",
+      "value": true,
+      "getUserMediaCallsDelta": 1,
+      "oldEndedBeforeAcquisition": true,
+      "oldEnded": true,
+      "newLive": true,
+      "sameDevice": true,
+      "allThreeEffectiveSettings": true,
+      "authorityCurrent": true,
+      "liveTrackCount": 1,
+      "effectiveSettings": {
+        "echoCancellation": true,
+        "noiseSuppression": true,
+        "autoGainControl": true
+      }
+    }
+  ],
+  "workers": [
+    {
+      "workerOrdinal": 1,
+      "nativeLogSHA256": "c374e210f56d8df0aacc2eec03ad3bce7e4118b0078740fd0150664cbeb21b2f",
+      "windowProjectionSHA256": "6c888ca26f3dbc6e3ccc68c4953e20a4665868ac62220aa94fc68f707a39d054",
+      "routeCount": 4,
+      "windowSampleCount": 7,
+      "route": "descendant-js",
+      "observerRootAccepted": true,
+      "current": true,
+      "allSampledCountersZero": true,
+      "sceneGraphInitialized": true,
+      "proxyVisible": true,
+      "proxyExposed": true,
+      "renderReadbackCount": 12,
+      "censored": false
+    },
+    {
+      "workerOrdinal": 2,
+      "nativeLogSHA256": "cbf310f651aa028d2cf8fb976fa301cad88aea21b2a95d71927897fa490a87a7",
+      "windowProjectionSHA256": "6c888ca26f3dbc6e3ccc68c4953e20a4665868ac62220aa94fc68f707a39d054",
+      "routeCount": 4,
+      "windowSampleCount": 7,
+      "route": "descendant-js",
+      "observerRootAccepted": true,
+      "current": true,
+      "allSampledCountersZero": true,
+      "sceneGraphInitialized": true,
+      "proxyVisible": true,
+      "proxyExposed": true,
+      "renderReadbackCount": 12,
+      "censored": false
+    }
+  ],
+  "ownedClosure": {
+    "ownedRunnerStopped": true,
+    "ownedGatewayStopped": true,
+    "actualChromeProcessesClosed": true
+  },
+  "actualChromeProcessesObservedAndClosed": 15,
+  "earlierGainWitness": {
+    "earlierPNGOnly": true,
+    "failedSampleRetained": false,
+    "nativePNGWidth": 480,
+    "nativePNGHeight": 706,
+    "pngSHA256": "c9eff924b1ace4f7dd96e5dc34fa3dda14812af7b64668644ac84a7f4649be36",
+    "sourceTrackWidth": 468,
+    "sourceTrackHeight": 6,
+    "sliderWidth": 480,
+    "sliderHeight": 40,
+    "handleWidth": 28,
+    "gainValue": 100,
+    "cropWidth": 16,
+    "cropHeight": 16,
+    "rgbMeanContrast": 102.66666666666666,
+    "opaquePixels": 256,
+    "pixelCount": 256
+  },
+  "interpretation": {
+    "synchronizationHistory": "unobserved",
+    "counterReads": "individual-relaxed-not-coherent-snapshot",
+    "scope": "since-registration-not-grab-exclusive",
+    "terminalReadyRow": "not-required-after-observation-retirement",
+    "paletteCause": "unproved",
+    "exactFailedPixels": "not-retained",
+    "observerRemedyClaim": false,
+    "firstFrameFailureRemedyClaim": false
+  }
+}

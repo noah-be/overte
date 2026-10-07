@@ -1,3 +1,4 @@
+// Modified in 2026 for the optional direct browser transport.
 //
 //  Socket.cpp
 //  libraries/networking/src/udt
@@ -59,6 +60,9 @@ Socket::Socket(QObject* parent, bool shouldChangeSocketOptions) :
 }
 
 void Socket::bind(SocketType socketType, const QHostAddress& address, quint16 port) {
+    if (socketType == SocketType::UDP) {
+        _udpBindAddress = address;
+    }
     _networkSocket.bind(socketType, address, port);
 
     if (_shouldChangeSocketOptions) {
@@ -88,7 +92,7 @@ void Socket::rebind(SocketType socketType) {
 
 void Socket::rebind(SocketType socketType, quint16 localPort) {
     _networkSocket.abort(socketType);
-    bind(socketType, QHostAddress::AnyIPv4, localPort);
+    bind(socketType, socketType == SocketType::UDP ? _udpBindAddress : QHostAddress::AnyIPv4, localPort);
 }
 
 #if defined(WEBRTC_DATA_CHANNELS)
@@ -167,15 +171,24 @@ qint64 Socket::writePacket(const Packet& packet, const SockAddr& sockAddr) {
 qint64 Socket::writePacket(std::unique_ptr<Packet> packet, const SockAddr& sockAddr) {
 
     if (packet->isReliable()) {
+        QString rtcGeneration;
+#if defined(WEBRTC_DATA_CHANNELS)
+        if (sockAddr.getType() == SocketType::WebRTC) {
+            rtcGeneration = _networkSocket.getWebRTCSocket()->peerGeneration(sockAddr);
+            if (rtcGeneration.isEmpty()) {
+                return 0;
+            }
+        }
+#endif
         // hand this packet off to writeReliablePacket
         // because Qt can't invoke with the unique_ptr we have to release it here and re-construct in writeReliablePacket
 
         if (QThread::currentThread() != thread()) {
             QMetaObject::invokeMethod(this, "writeReliablePacket", Qt::QueuedConnection,
                                       Q_ARG(Packet*, packet.release()),
-                                      Q_ARG(SockAddr, sockAddr));
+                                      Q_ARG(SockAddr, sockAddr), Q_ARG(QString, rtcGeneration));
         } else {
-            writeReliablePacket(packet.release(), sockAddr);
+            writeReliablePacket(packet.release(), sockAddr, rtcGeneration);
         }
 
         return 0;
@@ -192,6 +205,15 @@ qint64 Socket::writePacketList(std::unique_ptr<PacketList> packetList, const Soc
     }
 
     if (packetList->isReliable()) {
+        QString rtcGeneration;
+#if defined(WEBRTC_DATA_CHANNELS)
+        if (sockAddr.getType() == SocketType::WebRTC) {
+            rtcGeneration = _networkSocket.getWebRTCSocket()->peerGeneration(sockAddr);
+            if (rtcGeneration.isEmpty()) {
+                return 0;
+            }
+        }
+#endif
         // hand this packetList off to writeReliablePacketList
         // because Qt can't invoke with the unique_ptr we have to release it here and re-construct in writeReliablePacketList
 
@@ -199,9 +221,9 @@ qint64 Socket::writePacketList(std::unique_ptr<PacketList> packetList, const Soc
             auto ptr = packetList.release();
             QMetaObject::invokeMethod(this, "writeReliablePacketList", Qt::AutoConnection,
                                       Q_ARG(PacketList*, ptr),
-                                      Q_ARG(SockAddr, sockAddr));
+                                      Q_ARG(SockAddr, sockAddr), Q_ARG(QString, rtcGeneration));
         } else {
-            writeReliablePacketList(packetList.release(), sockAddr);
+            writeReliablePacketList(packetList.release(), sockAddr, rtcGeneration);
         }
 
         return 0;
@@ -215,10 +237,21 @@ qint64 Socket::writePacketList(std::unique_ptr<PacketList> packetList, const Soc
     return totalBytesSent;
 }
 
-void Socket::writeReliablePacket(Packet* packet, const SockAddr& sockAddr) {
+void Socket::writeReliablePacket(Packet* packet, const SockAddr& sockAddr, const QString& rtcGeneration) {
+    auto ownedPacket = std::unique_ptr<Packet>(packet);
+#if defined(WEBRTC_DATA_CHANNELS)
+    // A worker can post before close and execute after a replacement has opened
+    // at the same address. Retain the generation, not only its open state.
+    if (sockAddr.getType() == SocketType::WebRTC && (rtcGeneration.isEmpty() ||
+        rtcGeneration != _networkSocket.getWebRTCSocket()->peerGeneration(sockAddr))) {
+        return;
+    }
+#else
+    Q_UNUSED(rtcGeneration)
+#endif
     auto connection = findOrCreateConnection(sockAddr);
     if (connection) {
-        connection->sendReliablePacket(std::unique_ptr<Packet>(packet));
+        connection->sendReliablePacket(std::move(ownedPacket));
     }
 #ifdef UDT_CONNECTION_DEBUG
     else {
@@ -228,10 +261,19 @@ void Socket::writeReliablePacket(Packet* packet, const SockAddr& sockAddr) {
 
 }
 
-void Socket::writeReliablePacketList(PacketList* packetList, const SockAddr& sockAddr) {
+void Socket::writeReliablePacketList(PacketList* packetList, const SockAddr& sockAddr, const QString& rtcGeneration) {
+    auto ownedPacketList = std::unique_ptr<PacketList>(packetList);
+#if defined(WEBRTC_DATA_CHANNELS)
+    if (sockAddr.getType() == SocketType::WebRTC && (rtcGeneration.isEmpty() ||
+        rtcGeneration != _networkSocket.getWebRTCSocket()->peerGeneration(sockAddr))) {
+        return;
+    }
+#else
+    Q_UNUSED(rtcGeneration)
+#endif
     auto connection = findOrCreateConnection(sockAddr);
     if (connection) {
-        connection->sendReliablePacketList(std::unique_ptr<PacketList>(packetList));
+        connection->sendReliablePacketList(std::move(ownedPacketList));
     }
 #ifdef UDT_CONNECTION_DEBUG
     else {

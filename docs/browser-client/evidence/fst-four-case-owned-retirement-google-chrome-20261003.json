@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "scope": "source-bound-four-case-real-Chrome-FST-pixels-and-owned-retirement",
+  "featureCheckpoint": "96d4e6d51bee318b8bf1c0ade286b1a6687f1c8c",
+  "wholeCommitAcceptance": false,
+  "qualificationManifestSHA256": "d6154eb934eca291fcbffa26ab3da640cc77053f9e4e037286bfc47040434af3",
+  "runtimeManifestSHA256": "e8c3449bffe20f6b4d2f779db7fd13059e30960d95a2e69adc574126367c6b5f",
+  "officialChromeSHA256": "6c792041b07547a662e1b17974d1dc34a3db630379b45d9d89ddd7e3e68cc587",
+  "fixtureSHA256": "2b9b320cbb4b82ed4fc7bacc4b494262bb6ac02bcf547aadd26796871d5271fa",
+  "driverSHA256": "c5081a63ff031aa39726af1e6170bd626edf533281e5684e9244181a25db8d16",
+  "rawReportSHA256": "21c7eb781960fcc1dde32477d914eb7fcbd171ee76c253ab6206e1a465ab011c",
+  "safeResultSHA256": "33429b1421ea155695dec0253ede0167281b7e5a3704da3845de5b65eb9adba6",
+  "checks": {
+    "originalFunctionalAndPixelCasesPassed": 4,
+    "failed": 0,
+    "childExit": 0,
+    "observedOwnChromeClosed": true,
+    "allContextsAndBrowserClosed": true,
+    "ownTemporaryDirectoryEmpty": true,
+    "parentCleanupPassed": true,
+    "rootSourceAndNineManagedBirthsUnchanged": true,
+    "boundedScratchDirectoriesRetired": 1,
+    "boundedScratchFilesRetired": 1,
+    "boundedScratchBytesRetired": 14028
+  },
+  "retirementRule": "Only the own post-Chrome regular scratch member is retired after descriptor/inode/UID/mode/exact-name and finite-size validation. Unexpected members still fail the original empty-directory gate.",
+  "CPUControls": {
+    "passed": 49,
+    "failed": 0,
+    "scope": "bounded scratch ownership, exact source and refusal controls"
+  },
+  "limitations": [
+    "Earlier four functional/pixel passes with failed parent cleanup remain separate unchanged negative evidence.",
+    "No native workload, public Hub optimization or frame/loading gain is claimed.",
+    "This source-bound private production build is a fixture qualification, not acceptance of later managed-launch or gateway changes."
+  ],
+  "materialAssistance": "OpenAI Codex; complete result and evidence reviewed."
+}
