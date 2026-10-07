@@ -43,6 +43,17 @@ function(overte_filter_qt_components output_variable)
 endfunction()
 
 function(overte_find_qt)
+    cmake_parse_arguments(_overte_qt_request
+        "QUIET;REQUIRED;EXACT;CONFIG;NO_MODULE;MODULE;GLOBAL"
+        "" "COMPONENTS;OPTIONAL_COMPONENTS" ${ARGN})
+    set(_overte_requested_components
+        ${_overte_qt_request_COMPONENTS} ${_overte_qt_request_OPTIONAL_COMPONENTS})
+    overte_filter_qt_components(_overte_available_components ${_overte_requested_components})
+    if(_overte_requested_components AND NOT _overte_available_components)
+        # Core5Compat-only migration opt-ins need no separate package in Qt 5.
+        # Qt 5 rejects a find_package call with an empty component list.
+        return()
+    endif()
     overte_filter_qt_components(_overte_find_arguments ${ARGN})
     find_package(${OVERTE_QT_PACKAGE} ${_overte_find_arguments})
 endfunction()
