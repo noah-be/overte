@@ -27,6 +27,9 @@
 
 #if defined(OVERTE_E2E_VOICE_TESTS)
 #include <AudioClient.h>
+#include <AudioInjectorManager.h>
+#include <IOSAudioPermission.h>
+#include <vector>
 #include <QCryptographicHash>
 #include <QRegularExpression>
 #include <QTimer>
@@ -67,6 +70,10 @@ QVariantMap TestScriptingInterface::voiceTest(const QVariantMap& command) {
         });
     };
     const QString action = command.value("action").toString();
+    if (_acousticPrepared && action != "status") {
+        result["error"] = "acoustic-test-busy";
+        return result;
+    }
     if (action == "prepare") {
         if (audio->getRecording() || !_voiceCapturePath.isEmpty()) {
             result["error"] = "voice-recording-busy";
@@ -144,6 +151,152 @@ QVariantMap TestScriptingInterface::voiceTest(const QVariantMap& command) {
     appendAudioStatus();
     result["ok"] = true;
     return result;
+}
+
+QVariantMap TestScriptingInterface::acousticTest(const QVariantMap& command) {
+    if (QThread::currentThread() != thread()) {
+        QVariantMap result;
+        QMetaObject::invokeMethod(this, [&] { result = acousticTest(command); }, Qt::BlockingQueuedConnection);
+        return result;
+    }
+    const QString id = command.value("commandId").toString();
+    QVariantMap result { { "schemaVersion", 1 }, { "commandId", id }, { "ok", false } };
+#if !defined(Q_OS_IOS)
+    result["error"] = "acoustic-test-requires-ios";
+    return result;
+#else
+    if (_testResultsLocation.isEmpty() || !QCoreApplication::arguments().contains("--testScript") ||
+            command.value("schemaVersion").toInt() != 1 ||
+            !QRegularExpression("^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$").match(id).hasMatch()) {
+        result["error"] = "acoustic-test-not-enabled";
+        return result;
+    }
+    const QString action = command.value("action").toString();
+    QStringList fields { "schemaVersion", "commandId", "action" };
+    if (action == "capture-start") { fields << "seconds" << "challenge"; }
+    if (action == "play") { fields << "challenge"; }
+    fields.sort();
+    if (command.keys() != fields) { result["error"] = "acoustic-invalid-command"; return result; }
+    auto audio = DependencyManager::get<AudioClient>();
+    const auto onAudio = [&](const std::function<void()>& callback) {
+        if (QThread::currentThread() == audio->thread()) { callback(); }
+        else { QMetaObject::invokeMethod(audio.data(), callback, Qt::BlockingQueuedConnection); }
+    };
+    const auto appendStatus = [&] {
+        onAudio([&] {
+            const auto voice = audio->voiceTestStatus();
+            const auto capture = audio->acousticCaptureStatus();
+            for (auto it = voice.cbegin(); it != voice.cend(); ++it) { result[it.key()] = it.value(); }
+            for (auto it = capture.cbegin(); it != capture.cend(); ++it) { result[it.key()] = it.value(); }
+        });
+        const auto route = overteIOSAcousticTestState();
+        result["builtInMicrophone"] = route.builtInMicrophone;
+        result["builtInSpeaker"] = route.builtInSpeaker;
+        result["measurementMode"] = route.measurementMode;
+        result["outputVolume"] = route.outputVolume;
+        result["physicalDevice"] = route.physicalDevice;
+        result["outputRevision"] = QVariant::fromValue(overteIOSAudioOutputRevision());
+        result["prepared"] = _acousticPrepared;
+        result["challenge"] = _acousticChallenge;
+        result["playing"] = _acousticInjector && _acousticInjector->isPlaying();
+        result["captureSource"] = "physical-device-input-before-processing";
+    };
+    appendStatus();
+    if (action == "reset") {
+        if (_acousticInjector) {
+            DependencyManager::get<AudioInjectorManager>()->stop(_acousticInjector);
+            _acousticInjector.clear();
+        }
+        onAudio([&] { audio->resetAcousticCapture(); });
+        const bool restored = !_acousticPrepared || overteIOSSetAcousticTestMode(false);
+        // Retain ownership after a failed restore so the caller/watchdog can retry.
+        _acousticPrepared = !restored;
+        _acousticChallenge.clear();
+        ++_acousticGeneration;
+        result["ok"] = restored;
+        appendStatus();
+        return result;
+    }
+    // Read-only status must remain available while the OS dialog owns the
+    // foreground, so the probe can wait without starting or changing audio.
+    if (action == "status") { result["ok"] = true; return result; }
+    if (result.value("sourceEnabled").toBool() || result.value("sourceClockActive").toBool() ||
+            !result.value("iosForeground").toBool() || result.value("iosInterrupted").toBool() ||
+            DependencyManager::get<NodeList>()->getDomainHandler().isConnected()) {
+        result["error"] = "acoustic-unsafe-audio-state";
+        return result;
+    }
+    if (action == "prepare") {
+        if (_acousticPrepared || audio->getRecording() || !_voiceCapturePath.isEmpty() ||
+                !result.value("iosCaptureAllowed").toBool() ||
+                !result.value("physicalDevice").toBool() ||
+                !result.value("builtInMicrophone").toBool() || !result.value("builtInSpeaker").toBool()) {
+            result["error"] = "acoustic-prepare-unavailable";
+            return result;
+        }
+        _acousticPrepared = true;
+        if (!overteIOSSetAcousticTestMode(true)) {
+            acousticTest({ { "schemaVersion", 1 }, { "commandId", "acoustic-failed-prepare" }, { "action", "reset" } });
+            result["error"] = "acoustic-measurement-unavailable";
+            return result;
+        }
+        const auto generation = ++_acousticGeneration;
+        QTimer::singleShot(45000, this, [this, generation] {
+            if (_acousticPrepared && generation == _acousticGeneration) {
+                acousticTest({ { "schemaVersion", 1 }, { "commandId", "acoustic-watchdog" }, { "action", "reset" } });
+            }
+        });
+    } else if (action == "capture-start") {
+        const QString challenge = command.value("challenge").toString();
+        if (!_acousticPrepared || !QRegularExpression("^[0-9a-f]{32}$").match(challenge).hasMatch()) {
+            result["error"] = "acoustic-invalid-challenge";
+            return result;
+        }
+        bool started = false;
+        onAudio([&] { started = audio->startAcousticCapture(command.value("seconds").toInt()); });
+        if (!started) { result["error"] = "acoustic-capture-unavailable"; return result; }
+        _acousticChallenge = challenge;
+    } else if (action == "play") {
+        if (!_acousticPrepared || _acousticChallenge.isEmpty() ||
+                command.value("challenge").toString() != _acousticChallenge || _acousticInjector ||
+                !result.value("captureActive").toBool() || !result.value("builtInMicrophone").toBool() ||
+                !result.value("builtInSpeaker").toBool() || !result.value("measurementMode").toBool() ||
+                result.value("outputVolume").toFloat() <= 0.0f) {
+            result["error"] = "acoustic-play-unavailable";
+            return result;
+        }
+        const QByteArray digest = QCryptographicHash::hash("overte-voice-v1:" + _acousticChallenge.toLatin1(), QCryptographicHash::Sha256);
+        std::array<int, 12> symbols;
+        symbols[0] = static_cast<unsigned char>(digest[0]) % 8;
+        for (int i = 1; i < 12; ++i) { symbols[i] = (symbols[i - 1] + 1 + static_cast<unsigned char>(digest[i]) % 7) % 8; }
+        // Use the known waveform only as LOCAL SPEAKER OUTPUT. Never enable
+        // AudioClient's synthetic input or feed this PCM into the capture.
+        VoiceTestSignal output;
+        static_assert(VoiceTestSignal::RATE == AudioConstants::SAMPLE_RATE, "acoustic output sample rate");
+        output.send(symbols);
+        std::vector<int16_t> pcm(VoiceTestSignal::FRAMES);
+        output.replace(pcm.data(), VoiceTestSignal::FRAMES, 1);
+        AudioInjectorOptions options;
+        options.localOnly = true;
+        options.volume = 1.0f;
+        _acousticInjector = DependencyManager::get<AudioInjectorManager>()->playSound(
+            AudioData::make(static_cast<uint32_t>(pcm.size()), 1, pcm.data()), options);
+        if (!_acousticInjector) { result["error"] = "acoustic-output-unavailable"; return result; }
+    } else if (action == "capture-stop") {
+        if (!_acousticPrepared) { result["error"] = "acoustic-session-unprepared"; return result; }
+        QByteArray wav;
+        onAudio([&] { wav = audio->takeAcousticCapture(); });
+        if (wav.isEmpty()) { result["error"] = "acoustic-capture-incomplete"; return result; }
+        result["wavBase64"] = QString::fromLatin1(wav.toBase64());
+        result["sha256"] = QString::fromLatin1(QCryptographicHash::hash(wav, QCryptographicHash::Sha256).toHex());
+        // Preserve the completed capture's status; takeAcousticCapture clears it.
+        result["ok"] = true;
+        return result;
+    } else { result["error"] = "acoustic-invalid-action"; return result; }
+    appendStatus();
+    result["ok"] = true;
+    return result;
+#endif
 }
 #endif
 

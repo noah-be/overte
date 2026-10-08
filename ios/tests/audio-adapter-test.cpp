@@ -13,6 +13,15 @@ struct Native final : NativeAudioOperations {
     bool failStart { false }, failStop { false }, captures { false };
     bool throwPermission { false };
     int starts { 0 }, stops { 0 };
+#if defined(OVERTE_E2E_VOICE_TESTS)
+    bool measurement { false }, failMeasurementMode { false };
+    bool setAcousticTestMode(bool enabled) override {
+        if (failMeasurementMode) { return false; }
+        measurement = enabled;
+        return true;
+    }
+    IOSAcousticTestState acousticTestState() const override { return { captures, true, captures && measurement, 0.5f, true }; }
+#endif
     std::function<void(Permission)> completion;
     std::function<bool()> lastValidity;
     bool activate(bool capture, std::function<bool()> current) override {
@@ -69,6 +78,40 @@ void concurrentActivation() {
     assert(adapter->outcome() == Outcome::Muted && adapter->playbackAllowed());
     assert(!adapter->microphonePermissionGranted());
 }
+
+#if defined(OVERTE_E2E_VOICE_TESTS)
+void acousticMeasurementLifecycle() {
+    auto native = std::make_shared<Native>();
+    auto adapter = std::make_shared<IOSAudioAdapter>(native);
+    assert(!adapter->setAcousticTestMode(true)); // no capture eligibility before permission/foreground
+    native->granted = Permission::Granted;
+    adapter->foreground(true);
+    assert(adapter->activate());
+    const auto before = adapter->outputRevision();
+    assert(adapter->setAcousticTestMode(true));
+    assert(adapter->acousticTestState().measurementMode);
+    assert(adapter->outputRevision() > before && adapter->voiceTestState().captureAllowed);
+    native->failMeasurementMode = true;
+    assert(!adapter->setAcousticTestMode(false)); // failed restore is not a success receipt
+    assert(native->measurement);
+    native->failMeasurementMode = false;
+    assert(adapter->setAcousticTestMode(false) && !native->measurement);
+    assert(adapter->setAcousticTestMode(true));
+    adapter->foreground(false);
+    const auto suspendedStarts = native->starts;
+    assert(!adapter->setAcousticTestMode(true));
+    assert(adapter->setAcousticTestMode(false) && !native->measurement);
+    assert(native->starts == suspendedStarts && !native->captures); // cleanup cannot resume background audio
+    adapter->foreground(true);
+    assert(adapter->activate());
+    native->failStart = true;
+    assert(!adapter->setAcousticTestMode(true));
+    assert(!adapter->voiceTestState().captureAllowed);
+    native->failStart = false;
+    assert(adapter->setAcousticTestMode(false));
+    assert(!native->measurement && !native->captures);
+}
+#endif
 
 int main() {
     auto native = std::make_shared<Native>();
@@ -177,4 +220,7 @@ int main() {
     adapter->routeChanged();
     assert(notifications == beforeUnregister);
     concurrentActivation();
+#if defined(OVERTE_E2E_VOICE_TESTS)
+    acousticMeasurementLifecycle();
+#endif
 }

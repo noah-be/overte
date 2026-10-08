@@ -187,7 +187,7 @@ assert.equal(saved.at(-1).ok,false);assert.equal(Audio.muted,false);
     def test_actual_qt_hook_compiles_and_bounds_recording_lifecycle(self):
         source = (ROOT.parents[1] / "interface/src/scripting/TestScriptingInterface.cpp").read_text()
         start = source.index("QVariantMap TestScriptingInterface::voiceTest(")
-        end = source.index("\n#endif", start)
+        end = source.index("\nQVariantMap TestScriptingInterface::acousticTest(", start)
         method = source[start:end]
         audio_source = (ROOT.parents[1] / "libraries/audio-client/src/AudioClient.cpp").read_text()
         input_start = audio_source.index("void AudioClient::handleAudioInput(QByteArray& audioBuffer) {")
@@ -245,6 +245,7 @@ class TestScriptingInterface : public QObject {
 public:
     QString _testResultsLocation, _voiceCapturePath;
     quint64 _voiceCaptureGeneration = 0;
+    bool _acousticPrepared = false;
     QVariantMap voiceTest(const QVariantMap&);
 };
 METHOD

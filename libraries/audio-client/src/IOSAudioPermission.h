@@ -11,6 +11,11 @@ struct IOSVoiceTestState {
     Outcome outcome { Outcome::Stopped };
     bool foreground { false }, interrupted { false }, captureAllowed { false };
 };
+struct IOSAcousticTestState {
+    bool builtInMicrophone { false }, builtInSpeaker { false }, measurementMode { false };
+    float outputVolume { 0.0f };
+    bool physicalDevice { false };
+};
 #endif
 // Native implementation lives in ios/audio, owns AVAudioSession and dispatches
 // its operations on the native serial executor. Gate actual capture/resume with
@@ -31,6 +36,8 @@ public:
 #if defined(OVERTE_E2E_VOICE_TESTS)
     // Closed observations only; no device identifiers, routes or native messages.
     virtual IOSVoiceTestState voiceTestState() const { return {}; }
+    virtual IOSAcousticTestState acousticTestState() const { return {}; }
+    virtual bool setAcousticTestMode(bool enabled) { return !enabled; }
 #endif
 };
 bool installIOSAudioSessionAdapter(std::shared_ptr<IOSAudioSessionAdapter> adapter);
@@ -53,4 +60,6 @@ std::uint64_t overteIOSAudioOutputRevision();
 
 #if defined(OVERTE_E2E_VOICE_TESTS)
 overte::audio::IOSVoiceTestState overteIOSVoiceTestState();
+overte::audio::IOSAcousticTestState overteIOSAcousticTestState();
+bool overteIOSSetAcousticTestMode(bool enabled);
 #endif

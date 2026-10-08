@@ -6,11 +6,12 @@ from pathlib import Path
 ios = Path(__file__).resolve().parents[1]
 with tempfile.TemporaryDirectory(prefix="overte-ios-audio-") as scratch:
     binary = str(Path(scratch) / "test")
-    subprocess.run(["c++", "-std=c++17", "-Wall", "-Wextra", "-Werror", "-pthread",
-                    str(ios / "audio/IOSAudioAdapter.cpp"), str(Path(__file__).with_suffix(".cpp")),
-                    "-x", "c++", str(ios.parent / "libraries/audio-client/src/IOSAudioPermission.mm"),
-                    "-o", binary], check=True, timeout=60)
-    subprocess.run([binary], check=True, timeout=10)
+    for flags in ([], ["-DOVERTE_E2E_VOICE_TESTS=1"]):
+        subprocess.run(["c++", "-std=c++17", "-Wall", "-Wextra", "-Werror", "-pthread", *flags,
+                        str(ios / "audio/IOSAudioAdapter.cpp"), str(Path(__file__).with_suffix(".cpp")),
+                        "-x", "c++", str(ios.parent / "libraries/audio-client/src/IOSAudioPermission.mm"),
+                        "-o", binary], check=True, timeout=60)
+        subprocess.run([binary], check=True, timeout=10)
     shared_binary = str(Path(scratch) / "original-shim-test")
     subprocess.run(["c++", "-std=c++14", "-Wall", "-Wextra", "-Werror", "-pthread",
                     "-x", "c++", str(ios.parent / "libraries/audio-client/src/IOSAudioPermission.mm"),

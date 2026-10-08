@@ -10,6 +10,16 @@ audio::IOSVoiceTestState IOSAudioAdapter::voiceTestState() const {
     return { permission, outcome, _voiceTestForeground.load(), _voiceTestInterrupted.load(),
              _capture && permission == audio::Permission::Granted && outcome == audio::Outcome::Capturing };
 }
+audio::IOSAcousticTestState IOSAudioAdapter::acousticTestState() const {
+    return _native ? _native->acousticTestState() : audio::IOSAcousticTestState {};
+}
+bool IOSAudioAdapter::setAcousticTestMode(bool enabled) {
+    std::lock_guard<std::recursive_mutex> operationLock(_applyMutex);
+    if (!_native || (enabled && !voiceTestState().captureAllowed) || !_native->setAcousticTestMode(enabled)) {
+        return false;
+    }
+    return apply();
+}
 #endif
 bool IOSAudioAdapter::apply(bool notify) {
     const auto revision = ++_revision;

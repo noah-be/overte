@@ -254,5 +254,10 @@ Exact open-source tool versions, artifact checksums, and the offline validation
 workflow are in [`TOOLCHAIN.md`](TOOLCHAIN.md) and
 [`toolchain.lock.json`](toolchain.lock.json).
 
+The optional [internal iPad acoustic loopback](ios/ACOUSTIC_LOOPBACK.md) verifies
+the built-in speaker and microphone together without external audio hardware.
+Its standalone runner requires a dedicated test build and records physical PCM
+pattern evidence, separate from synthetic voice and UI observations.
+
 The optional [synthetic voice roundtrip](VOICE_ROUNDTRIP.md) uses the same runner,
 adapters, owned fixtures and PCM assertions for Phone, iPad and Pico test builds.

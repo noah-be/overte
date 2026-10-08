@@ -16,6 +16,7 @@
 
 #if defined(OVERTE_E2E_VOICE_TESTS)
 #include "VoiceTestSignal.h"
+#include "AcousticTestCapture.h"
 #include <QVariantMap>
 #endif
 
@@ -209,6 +210,12 @@ public:
     void resetVoiceTest();
     void touchVoiceTest();
     QVariantMap voiceTestStatus() const;
+#endif
+#if defined(OVERTE_E2E_VOICE_TESTS)
+    bool startAcousticCapture(int seconds);
+    QVariantMap acousticCaptureStatus() const;
+    QByteArray takeAcousticCapture();
+    void resetAcousticCapture();
 #endif
     bool startRecording(const QString& filename);
     void stopRecording();
@@ -584,6 +591,10 @@ private:
     bool _voiceTestInputEnabled { false }, _voiceTestDelivering { false };
     QString _voiceTestSourceError;
     std::unique_ptr<AudioGate> _voiceTestGate;
+#endif
+#if defined(OVERTE_E2E_VOICE_TESTS)
+    AcousticTestCapture _acousticCapture;
+    quint64 _acousticCaptureGeneration { 0 }, _acousticOutputRevision { 0 };
 #endif
     bool _isPlayingBackRecording { false };
     bool _audioPaused { false };

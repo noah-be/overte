@@ -4,6 +4,7 @@
 #include "../src/RedactingDiagnostics.h"
 #import <AVFoundation/AVFoundation.h>
 #import <UIKit/UIKit.h>
+#include <TargetConditionals.h>
 #include <QCoreApplication>
 
 namespace overte::ios {
@@ -13,12 +14,20 @@ public:
     AVAudioOperations() : _queue(dispatch_queue_create("org.overte.audio.operations", DISPATCH_QUEUE_SERIAL)) {}
 
     bool activate(bool capture, std::function<bool()> stillCurrent) override {
+#if defined(OVERTE_E2E_VOICE_TESTS)
+        const bool measurement = _acousticMeasurement.load();
+        return perform([capture, stillCurrent, measurement] {
+#else
         return perform([capture, stillCurrent] {
+#endif
             if (!stillCurrent()) { return false; }
             AVAudioSession* session = AVAudioSession.sharedInstance;
             NSError* error = nil;
             NSString* category = capture ? AVAudioSessionCategoryPlayAndRecord : AVAudioSessionCategoryPlayback;
             NSString* mode = capture ? AVAudioSessionModeGameChat : AVAudioSessionModeDefault;
+#if defined(OVERTE_E2E_VOICE_TESTS)
+            if (capture && measurement) { mode = AVAudioSessionModeMeasurement; }
+#endif
             AVAudioSessionCategoryOptions options = capture ?
                 (AVAudioSessionCategoryOptionDefaultToSpeaker | AVAudioSessionCategoryOptionAllowBluetoothHFP) : 0;
             if (![session setCategory:category mode:mode options:options error:&error]) { return false; }
@@ -69,7 +78,39 @@ public:
         });
     }
 
+#if defined(OVERTE_E2E_VOICE_TESTS)
+    bool setAcousticTestMode(bool enabled) override {
+        _acousticMeasurement = enabled;
+        if (enabled) { return true; } // activate() applies it through the lifecycle gate
+        // Clear the actual OS mode even when the lifecycle gate is suspended
+        // or Failed. Changing a mode here does not activate or resume audio.
+        return perform([] {
+            AVAudioSession* session = AVAudioSession.sharedInstance;
+            if (![session.mode isEqualToString:AVAudioSessionModeMeasurement]) { return true; }
+            NSError* error = nil;
+            NSString* mode = [session.category isEqualToString:AVAudioSessionCategoryPlayAndRecord]
+                ? AVAudioSessionModeGameChat : AVAudioSessionModeDefault;
+            return [session setMode:mode error:&error] == YES;
+        }, [] { return true; });
+    }
+    audio::IOSAcousticTestState acousticTestState() const override {
+        @try {
+            AVAudioSession* session = AVAudioSession.sharedInstance;
+            AVAudioSessionRouteDescription* route = session.currentRoute;
+            const bool microphone = route.inputs.count == 1 &&
+                [route.inputs.firstObject.portType isEqualToString:AVAudioSessionPortBuiltInMic];
+            const bool speaker = route.outputs.count == 1 &&
+                [route.outputs.firstObject.portType isEqualToString:AVAudioSessionPortBuiltInSpeaker];
+            return { microphone, speaker, [session.mode isEqualToString:AVAudioSessionModeMeasurement] == YES,
+                     session.outputVolume, TARGET_OS_SIMULATOR == 0 };
+        } @catch (NSException*) { return {}; }
+    }
+#endif
+
 private:
+#if defined(OVERTE_E2E_VOICE_TESTS)
+    std::atomic<bool> _acousticMeasurement { false };
+#endif
     struct Operation {
         dispatch_semaphore_t finished { dispatch_semaphore_create(0) };
         std::atomic<bool> cancelled { false }, succeeded { false };

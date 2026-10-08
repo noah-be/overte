@@ -64,4 +64,12 @@ overte::audio::IOSVoiceTestState overteIOSVoiceTestState() {
     auto value = std::atomic_load(&adapter);
     return value ? value->voiceTestState() : overte::audio::IOSVoiceTestState {};
 }
+overte::audio::IOSAcousticTestState overteIOSAcousticTestState() {
+    auto value = std::atomic_load(&adapter);
+    return value ? value->acousticTestState() : overte::audio::IOSAcousticTestState {};
+}
+bool overteIOSSetAcousticTestMode(bool enabled) {
+    auto value = std::atomic_load(&adapter);
+    return value && value->setAcousticTestMode(enabled);
+}
 #endif
