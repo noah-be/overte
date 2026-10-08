@@ -220,9 +220,12 @@ QVariantMap TestScriptingInterface::acousticTest(const QVariantMap& command) {
     // Read-only status must remain available while the OS dialog owns the
     // foreground, so the probe can wait without starting or changing audio.
     if (action == "status") { result["ok"] = true; return result; }
+    const auto& domain = DependencyManager::get<NodeList>()->getDomainHandler();
+    // A loaded serverless scene also sets isConnected(). Only an actual
+    // domain-server connection can send this test's input to a remote mixer.
     if (result.value("sourceEnabled").toBool() || result.value("sourceClockActive").toBool() ||
             !result.value("iosForeground").toBool() || result.value("iosInterrupted").toBool() ||
-            DependencyManager::get<NodeList>()->getDomainHandler().isConnected()) {
+            (domain.isConnected() && !domain.isServerless())) {
         result["error"] = "acoustic-unsafe-audio-state";
         return result;
     }

@@ -211,7 +211,7 @@ function scenario(failure) {
    return state();
  },saveObject:r=>saved=JSON.parse(JSON.stringify(r))};
  const context={OVERTE_ACOUSTIC_RUN:{id:'acoustic-fixture',control:'a'.repeat(32),signal:'b'.repeat(32)},
-  About:{buildVersion:'fixture'},Audio,Test,location:{protocol:'file',isConnected:false},
+  About:{buildVersion:'fixture'},Audio,Test,location:{protocol:'file',isConnected:true},
   Date:{now:()=>now},Script:{setInterval:cb=>{tick=cb;return 1},clearInterval:()=>{tick=null},
     setTimeout:()=>2,clearTimeout:()=>{},scriptEnding:{connect:cb=>end=cb},stop:()=>stopped=true}};
  vm.runInNewContext(source,context);

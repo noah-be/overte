@@ -78,7 +78,10 @@
     }
     function tick() {
         try {
-            if (String(location.protocol) !== "file" || Boolean(location.isConnected)) {
+            // A loaded file-backed serverless scene reports isConnected=true.
+            // Its file protocol, together with the native domain-server guard,
+            // keeps this physical test independent of an online audio mixer.
+            if (String(location.protocol) !== "file") {
                 throw new Error("acoustic-test-requires-local-world");
             }
             var status = native("status");

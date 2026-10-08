@@ -87,7 +87,11 @@ public:
     }
     void stop(const QSharedPointer<AudioInjector>& injector) { injector->active = false; }
 };
-struct DomainHandler { bool connected { false }; bool isConnected() const { return connected; } };
+struct DomainHandler {
+    bool connected { true }, serverless { true };
+    bool isConnected() const { return connected; }
+    bool isServerless() const { return serverless; }
+};
 struct NodeList { DomainHandler domain; const DomainHandler& getDomainHandler() const { return domain; } };
 struct DependencyManager {
     template<class T> static QSharedPointer<T> get() { static auto instance = QSharedPointer<T>::create(); return instance; }
@@ -182,8 +186,11 @@ int main(int argc, char** argv) {
     assert(!test.acousticTest(command)["ok"].toBool());
     route.physicalDevice = true;
     DependencyManager::get<NodeList>()->domain.connected = true;
+    DependencyManager::get<NodeList>()->domain.serverless = false;
     assert(!test.acousticTest(command)["ok"].toBool());
-    DependencyManager::get<NodeList>()->domain.connected = false;
+    // connectedToServerless() marks a local scene as connected too. It must
+    // remain usable while an actual domain-server connection remains refused.
+    DependencyManager::get<NodeList>()->domain.serverless = true;
     auto physical = DependencyManager::get<AudioClient>();
     physical->_voiceTestInputEnabled = true;
     assert(!test.acousticTest(command)["ok"].toBool());
