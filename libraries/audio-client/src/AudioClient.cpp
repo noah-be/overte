@@ -45,6 +45,8 @@
 #include <QtConcurrent/QtConcurrent>
 #include <QtCore/QThreadPool>
 #include <QtCore/QBuffer>
+#include <QtCore/QCoreApplication>
+#include <QtCore/QEvent>
 
 #include <shared/QtHelpers.h>
 #include <ThreadHelpers.h>
@@ -3108,6 +3110,14 @@ bool AudioClient::switchOutputToAudioDevice(const HifiAudioDeviceInfo outputDevi
         // must not act on the replacement device.
         disconnect(_audioOutput, nullptr, this, nullptr);
         _audioOutput->stop();
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        // Qt queues pull callbacks on the source QIODevice. Disconnecting the
+        // stopped backend does not cancel calls already posted to that source.
+        // Source and sink share our thread, so none can execute concurrently
+        // here. Remove only this dedicated source's pending calls before reuse;
+        // keep AudioClient telemetry and the backend's drain notifications.
+        QCoreApplication::removePostedEvents(&_audioOutputIODevice, QEvent::MetaCall);
+#endif
         _audioOutputIODevice.close();
 
         //must be deleted in next eventloop cycle when its called from notify()
