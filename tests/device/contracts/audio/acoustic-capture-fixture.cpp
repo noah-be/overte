@@ -75,13 +75,13 @@ public:
         return result;
     }
 };
-struct AudioInjectorOptions { bool localOnly { false }; float volume { 0.0f }; };
+struct AudioInjectorOptions { bool localOnly { false }, positionSet { true }; float volume { 0.0f }; };
 class AudioInjector { public: bool active { true }; bool isPlaying() const { return active; } };
 class AudioInjectorManager {
 public:
     std::shared_ptr<const AudioData> played;
     QSharedPointer<AudioInjector> playSound(std::shared_ptr<const AudioData> data, const AudioInjectorOptions& options) {
-        assert(options.localOnly && options.volume == 1.0f);
+        assert(options.localOnly && !options.positionSet && options.volume == 1.0f);
         played = data;
         return QSharedPointer<AudioInjector>::create();
     }

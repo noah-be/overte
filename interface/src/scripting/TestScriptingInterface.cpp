@@ -278,6 +278,9 @@ QVariantMap TestScriptingInterface::acousticTest(const QVariantMap& command) {
         output.replace(pcm.data(), VoiceTestSignal::FRAMES, 1);
         AudioInjectorOptions options;
         options.localOnly = true;
+        // Non-spatial playback uses the system gain and cannot be attenuated
+        // by the avatar's distance from the default world-origin position.
+        options.positionSet = false;
         options.volume = 1.0f;
         _acousticInjector = DependencyManager::get<AudioInjectorManager>()->playSound(
             AudioData::make(static_cast<uint32_t>(pcm.size()), 1, pcm.data()), options);

@@ -60,8 +60,10 @@ Unrelated system dialogs are never automatically accepted.
 The runner launches the local tutorial, away from network voice. The script
 waits for granted permission and UIKit foreground, saves the original audio
 settings and disables local/server echo, push-to-talk, noise reduction and
-Overte AEC. Local injector gain is temporarily 0 dB; other audio gains are
-suppressed. The native iOS adapter temporarily selects `measurement` mode to
+Overte AEC. The challenge is explicitly non-spatial local playback, so it uses
+the system injector gain at 0 dB; other audio gains are suppressed. It cannot
+be attenuated by the avatar's distance from the world origin. The native iOS
+adapter temporarily selects `measurement` mode to
 minimize system processing, then waits for a stable, active physical input.
 System output volume is observed and retained, not changed.
 

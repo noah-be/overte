@@ -99,8 +99,9 @@
                 Audio.acousticEchoCancellation = false;
                 Audio.avatarGain = -96;
                 Audio.serverInjectorGain = -96;
-                Audio.systemInjectorGain = -96;
-                Audio.localInjectorGain = 0;
+                Audio.localInjectorGain = -96;
+                // The local, non-spatial challenge uses the system sound bus.
+                Audio.systemInjectorGain = 0;
                 Audio.muted = false;
                 phase = "native-ready";
                 phaseStarted = Date.now();

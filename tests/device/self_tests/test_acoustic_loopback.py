@@ -201,7 +201,11 @@ function scenario(failure) {
    operations.push(command);
    if(command.action==='prepare'){prepared=true;revision++}
    if(command.action==='capture-start'){active=true;recordStart=now}
-   if(command.action==='play')return {...state(),playing:true};
+   if(command.action==='play'){
+     assert.equal(Audio.systemInjectorGain,0); // non-spatial playback must reach the speaker bus
+     assert.equal(Audio.localInjectorGain,-96);
+     return {...state(),playing:true};
+   }
    if(command.action==='capture-stop'){active=false;return {...state(),captureComplete:true}}
    if(command.action==='reset'){prepared=false;active=false;revision++}
    return state();
