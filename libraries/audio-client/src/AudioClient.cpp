@@ -2972,7 +2972,12 @@ bool AudioClient::switchInputToAudioDevice(const HifiAudioDeviceInfo inputDevice
                 }
 #else
                 _audioInput = new HifiAudioSource(_inputDeviceInfo.getDevice(), _inputFormat, this);
+#if !defined(Q_OS_IOS)
                 _audioInput->setBufferSize(_numInputCallbackBytes);
+#endif
+                // iOS delivers hardware blocks larger than one network callback.
+                // Keep Qt's default ring capacity so those blocks are not truncated.
+                // readyRead still drains each block immediately; capacity is not latency.
                 // different audio input devices may have different volumes
                 emit inputVolumeChanged(_audioInput->volume());
 

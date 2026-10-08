@@ -95,6 +95,7 @@ python3 "$script_dir/shared-ios-desktop-api-isolation-test.py"
 python3 "$script_dir/audio-adapter-test.py"
 python3 "$script_dir/audio-permission-request-test.py"
 python3 "$script_dir/../../tests/device/contracts/audio/test_ios_audio_caller.py"
+python3 "$script_dir/../../tests/device/contracts/audio/test_ios_input_buffer.py"
 if command -v pkg-config >/dev/null && pkg-config --exists Qt6Core; then
     python3 "$script_dir/../tools/tests/test-qt-mutex-patch.py"
     python3 "$script_dir/../../tests/device/contracts/dependency/test_cache.py"

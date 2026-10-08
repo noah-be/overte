@@ -78,6 +78,8 @@ System output volume is observed and retained, not changed.
 
 Input is copied only from `processMicAudioInput`, before echo, AEC, gating and
 resampling. It is never copied from the output mixer or synthetic voice source.
+The iOS input uses Qt's default ring capacity rather than the smaller network
+callback size: native hardware blocks must fit without dropping samples.
 Each capture is bounded to ten seconds maximum and checked against its original
 format and native route revision. Permission/lifecycle/route changes, missing
 input, truncated captures, another nonce or an active synthetic source fail.
@@ -104,6 +106,7 @@ GitHub issues.
 
 ```bash
 python3 tests/run-unittest-suite.py tests/device/self_tests --pattern test_acoustic_loopback.py
+python3 tests/device/contracts/audio/test_ios_input_buffer.py
 python3 tests/run-project-tests.py --profile quick --timeout 240
 git diff --check
 ```
