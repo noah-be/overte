@@ -203,8 +203,9 @@ class AcousticTests(unittest.TestCase):
         script = r'''
 const assert = require('assert'), vm = require('vm'), fs = require('fs');
 const source = fs.readFileSync(process.argv[1], 'utf8');
-function scenario(failure) {
+function scenario(failure, recovery) {
  let now=1000, tick, end, recordStart=0, active=false, prepared=false, saved=null, stopped=false;
+ let unavailable=false, preparedAt=0;
  let permission=0, foreground=false, revision=1, operations=[], writes=0, local=true, server=true;
  let original={muted:true,pushToTalk:true,noiseReduction:true,acousticEchoCancellation:true,
    avatarGain:-3,serverInjectorGain:-4,localInjectorGain:-5,systemInjectorGain:-6};
@@ -213,12 +214,12 @@ function scenario(failure) {
    {set:(obj,key,value)=>{writes++;obj[key]=value;return true}});
  const state=()=>({ok:true,iosPermission:permission,iosForeground:foreground,iosInterrupted:false,
    iosCaptureAllowed:permission===1 && !Audio.muted,builtInMicrophone:true,builtInSpeaker:true,
-   physicalDevice:true,inputPresent:true,inputState:0,inputError:0,sourceEnabled:false,sourceClockActive:false,
+   physicalDevice:true,inputPresent:!unavailable,inputState:0,inputError:0,sourceEnabled:false,sourceClockActive:false,
    outputRevision:revision,prepared,measurementMode:prepared,captureInvalid:false,
    physicalInputCallbacks:now-recordStart>400?8:0,captureComplete:active && now-recordStart>=8000});
  const Test={acousticTest:command=>{
    operations.push(command);
-   if(command.action==='prepare'){prepared=true;revision++}
+   if(command.action==='prepare'){prepared=true;preparedAt=now;revision++}
    if(command.action==='capture-start'){active=true;recordStart=now}
    if(command.action==='play'){
      assert.equal(Audio.systemInjectorGain,0); // non-spatial playback must reach the speaker bus
@@ -242,6 +243,9 @@ function scenario(failure) {
  foreground=true;
  for(let i=0;i<160 && tick;i++){
   now+=200;
+  // One transient input loss must restart stability even without a new route revision.
+  unavailable=(recovery==='native' && i===3) ||
+    (recovery==='measurement' && prepared && now-preparedAt===600);
   if(failure && active && now-recordStart>=1000)permission=2;
   tick();
  }
@@ -256,7 +260,7 @@ function scenario(failure) {
  } else assert.equal(operations.filter(x=>x.action==='play').length,0);
  end(); assert(!prepared); // scriptEnding cleanup remains idempotent
 }
-scenario(false);scenario(true);
+scenario(false);scenario(true);scenario(false,'native');scenario(false,'measurement');
 '''
         subprocess.run(["node", "-e", script, str(ROOT / "ios/acoustic_loopback.js")], check=True, timeout=15)
 

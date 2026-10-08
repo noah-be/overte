@@ -64,7 +64,7 @@
             readySince = 0;
             return false;
         }
-        if (revision !== status.outputRevision) {
+        if (!readySince || revision !== status.outputRevision) {
             revision = status.outputRevision;
             readySince = Date.now();
         }
