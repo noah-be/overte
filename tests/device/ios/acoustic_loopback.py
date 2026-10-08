@@ -129,6 +129,23 @@ def handle_permission(client, session: str, decision: str, *, required: bool, ti
     return False
 
 
+def wait_capture_removal(client, session: str, remote: str, run_id: str, timeout: float = 60) -> None:
+    """Do not terminate the script before its on-device WAV expiry runs."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            receipt = json.loads(appium_read(client, session, remote))
+        except (RuntimeError, ValueError, WebDriverRequestError):
+            time.sleep(1)
+            continue
+        if (receipt.get("runId") == run_id
+                and receipt.get("cleanup", {}).get("restored") is True
+                and not any("wavBase64" in capture for capture in receipt.get("captures", []))):
+            return
+        time.sleep(1)
+    raise AcousticError("ACOUSTIC_TRANSFER_CLEANUP_FAILED")
+
+
 @contextmanager
 def serve_script(address: str, run: dict):
     # Serve exactly one generated script. No directory listings, private target
@@ -272,12 +289,16 @@ def main(argv=None) -> int:
                     raise AcousticError("ACOUSTIC_RESULT_TIMEOUT")
             finally:
                 # Do not kill a probe before it has restored the saved settings.
-                if document and document.get("cleanup", {}).get("restored") is True:
-                    client.execute(session, "mobile: terminateApp", {"bundleId": target["appId"]})
-                    client.execute(session, "mobile: launchApp", normal)
-                    result["normalLaunchRestored"] = True
-                if session:
-                    client.call("DELETE", "/session/" + session)
+                try:
+                    if document and document.get("cleanup", {}).get("restored") is True:
+                        wait_capture_removal(client, session, remote, run["id"])
+                        result["onDeviceCaptureRemoved"] = True
+                        client.execute(session, "mobile: terminateApp", {"bundleId": target["appId"]})
+                        client.execute(session, "mobile: launchApp", normal)
+                        result["normalLaunchRestored"] = True
+                finally:
+                    if session:
+                        client.call("DELETE", "/session/" + session)
     except (Exception, SystemExit) as error:
         result["error"] = str(error) if isinstance(error, AcousticError) else "ACOUSTIC_INFRASTRUCTURE_FAILED"
         result["passed"] = False

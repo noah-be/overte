@@ -19,7 +19,7 @@ import wave
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from ios.acoustic_loopback import AcousticError, evaluate, handle_permission, main
+from ios.acoustic_loopback import AcousticError, evaluate, handle_permission, main, wait_capture_removal
 from adapters.appium.adapter import WebDriverRequestError
 from voice_peer import voice_signal as dsp
 
@@ -161,8 +161,12 @@ class AcousticTests(unittest.TestCase):
             clock = [0.0]
             def monotonic(): clock[0] += 0.6; return clock[0]
             output = self.private / ("run-ok" if cleanup else "run-cleanup-failed")
+            expired = deepcopy(document)
+            for capture in expired["captures"]:
+                capture.pop("wavBase64")
+            expired["capturePayloadExpired"] = True
             with patch("ios.acoustic_loopback.serve_script", server), patch("ios.acoustic_loopback.WebDriver", return_value=Client()), \
-                 patch("ios.acoustic_loopback.appium_read", return_value=json.dumps(document).encode()), \
+                 patch("ios.acoustic_loopback.appium_read", side_effect=[json.dumps(document).encode(), json.dumps(expired).encode()]), \
                  patch("ios.acoustic_loopback.secrets.token_hex", side_effect=["fixture", RUN["control"], RUN["signal"]]), \
                  patch("ios.acoustic_loopback.time.sleep"), patch("ios.acoustic_loopback.time.monotonic", monotonic), \
                  patch("ios.acoustic_loopback.fcntl.flock"), patch("ios.acoustic_loopback.Path.home", return_value=self.private):
@@ -174,6 +178,21 @@ class AcousticTests(unittest.TestCase):
             self.assertEqual(events[-1], "session-close")
             self.assertEqual(events[-2], "normal-launch" if cleanup else "test-script-launch")
             self.assertNotIn("fixture-private-device", (output / "result.json").read_text())
+
+    def test_capture_payload_must_expire_before_host_relaunch(self):
+        document = self.document()
+        expired = deepcopy(document)
+        for capture in expired["captures"]:
+            capture.pop("wavBase64")
+        wrong_run = deepcopy(expired)
+        wrong_run["runId"] = "another-run"
+        with patch("ios.acoustic_loopback.appium_read", side_effect=[
+                json.dumps(wrong_run), json.dumps(document), json.dumps(expired)]), \
+                patch("ios.acoustic_loopback.time.sleep") as sleep:
+            wait_capture_removal(Mock(), "session", "remote", RUN["id"])
+        self.assertEqual(sleep.call_count, 2)
+        with self.assertRaisesRegex(AcousticError, "TRANSFER_CLEANUP_FAILED"):
+            wait_capture_removal(Mock(), "session", "remote", RUN["id"], timeout=0)
 
     @unittest.skipUnless(shutil.which("c++") and shutil.which("pkg-config"), "requires host C++ and Qt6 Core")
     def test_actual_native_capture_and_script_api(self):

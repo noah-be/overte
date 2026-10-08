@@ -85,7 +85,9 @@ input, truncated captures, another nonce or an active synthetic source fail.
 `result.json` retains measurements, candidate identity, observed build version
 and cleanup status. Raw WAVs are analyzed in a temporary private directory and
 are not retained by the host. The on-device transfer payload expires after
-45 seconds. A script watchdog restores settings on failure; a native watchdog
+45 seconds. The host verifies that this payload has been removed before its
+normal app relaunch, so termination cannot cancel the expiry timer. A script
+watchdog restores settings on failure; a native watchdog
 also bounds capture/injector ownership. The runner never terminates an unfinished
 probe before it has reported successful restoration. An infrastructure failure
 without a cleanup receipt must not be described as restored.
