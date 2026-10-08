@@ -254,6 +254,10 @@ Exact open-source tool versions, artifact checksums, and the offline validation
 workflow are in [`TOOLCHAIN.md`](TOOLCHAIN.md) and
 [`toolchain.lock.json`](toolchain.lock.json).
 
+The [internal iPad output test](ios/AUDIO_OUTPUT.md) verifies physical output PCM
+at system volume zero, with fresh Allow/Deny dialogs and voice mute/unmute.
+It does not record microphone sound or measure emitted sound.
+
 The optional [internal iPad acoustic loopback](ios/ACOUSTIC_LOOPBACK.md) verifies
 the built-in speaker and microphone together without external audio hardware.
 Its standalone runner requires a dedicated test build and records physical PCM
