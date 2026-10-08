@@ -1953,10 +1953,10 @@ void AudioClient::touchVoiceTest() {
 bool AudioClient::sendVoiceTest(const std::array<int, 12>& symbols) {
     Q_ASSERT(QThread::currentThread() == thread());
     if (!_voiceTestInputEnabled || !voiceTestLifecycleAllowed() || _voiceTestSignal.active()) { return false; }
-    // Drain due silent packets BEFORE installing the challenge. A late timer
-    // must not compress the leading silence into a burst at send acknowledgement.
-    handleVoiceTestInput();
-    if (!_voiceTestInputEnabled) { return false; }
+    // Each challenge owns a fresh epoch. Idle preparation and native mute
+    // transitions must not advance its leading silence or invalidate it.
+    _voiceTestPackets = 0;
+    _voiceTestElapsed.restart();
     _voiceTestSignal.send(symbols);
     touchVoiceTest();
     return true;
@@ -1986,7 +1986,14 @@ void AudioClient::handleVoiceTestInput() {
     // Qt coalesces missed timer events. Pace PCM by monotonic time, with at
     // most 100 ms of catch-up; larger stalls fail instead of retiming the tone.
     const quint64 due = static_cast<quint64>(_voiceTestElapsed.nsecsElapsed() / 10000000);
-    if (due - _voiceTestPackets > 10) { stopVoiceTestInput("voice-source-clock-late"); return; }
+    if (due - _voiceTestPackets > 10) {
+        if (_voiceTestSignal.active()) { stopVoiceTestInput("voice-source-clock-late"); return; }
+        // No challenge samples are pending while idle. Device reconfiguration
+        // can therefore rebase silence without hiding a truncated test tone.
+        _voiceTestPackets = 0;
+        _voiceTestElapsed.restart();
+        return;
+    }
     while (_voiceTestInputEnabled && _voiceTestPackets < due) {
         const int channels = _isStereoInput ? 2 : 1;
         if (_voiceTestChannels != channels) {
