@@ -40,8 +40,10 @@ test and restores their previous state afterward. Capture uses Interface's
 existing final output recording path. Native recording is limited to 6–10
 seconds and a watchdog finalizes it independently of the host command channel.
 
-The clock follows monotonic time with at most 100 ms of catch-up. Longer stalls
-fail with `voice-source-clock-late`; incomplete progress is retained. Stop,
+Each challenge starts a fresh monotonic epoch with at most 100 ms of catch-up.
+Longer stalls during a challenge fail with `voice-source-clock-late`; incomplete
+progress is retained. Idle silence can rebase after preparation, domain joins
+or device reconfiguration without advancing the next challenge. Stop,
 pause and iOS foreground loss/interruption cancel the source. A native 120-second
 lease bounds abandoned test mode, independently of the script watchdog. Valid
 commands renew that lease. Failure also mutes physical input until the probe

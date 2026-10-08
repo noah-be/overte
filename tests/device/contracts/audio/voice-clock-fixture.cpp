@@ -106,9 +106,16 @@ int main(int argc,char**argv){
  audio._dummyAudioInput=new QTimer(&audio);audio._dummyAudioInput->start(10);
  audio._audioGate=new AudioGate(24000,1);
  assert(audio.prepareVoiceTest());assert(!audio.prepareVoiceTest());
+ // Preparation can block for device setup with no challenge in flight.
+ // Both a late idle timer and a send before that timer runs need fresh epochs.
+ QThread::msleep(150);audio.handleVoiceTestInput();
+ assert(audio.voiceTestStatus()["sourceError"].toString().isEmpty());
+ assert(audio.voiceTestStatus()["sourceEnabled"].toBool());
+ QThread::msleep(150);
  audio.setMuted(true);audio.switchInputToAudioDevice({},true);
  assert(!audio._audioInput && !audio._dummyAudioInput && !audio._audioGate);
  assert(audio.sendVoiceTest(symbols));
+ assert(audio._voiceTestSignal.frames()==0 && audio._voiceTestPackets==0);
  waitMs(5100);
  assert(!audio._voiceTestSignal.active() && audio._voiceTestSignal.frames()==VoiceTestSignal::FRAMES);
  assert(!audio.packets.empty());
