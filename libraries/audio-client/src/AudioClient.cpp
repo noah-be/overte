@@ -2655,10 +2655,13 @@ void AudioClient::setMuted(bool muted, bool emitSignal) {
     if (_isMuted != muted) {
         _isMuted = muted;
 #if defined(Q_OS_IOS)
+        // Stop the running Qt microphone before changing AVAudioSession to a
+        // playback-only category. Reversing this order can fail activation and
+        // leave the native lifecycle gate Failed until a later interruption.
+        if (muted) { refreshIOSAudioInput(); }
         overteIOSSetAudioMuted(muted);
-#endif
-#if defined(Q_OS_IOS)
-        refreshIOSAudioInput();
+        // Opening input requires the new capture session to be active first.
+        if (!muted) { refreshIOSAudioInput(); }
 #endif
         if (emitSignal) {
             emit muteToggled(_isMuted);

@@ -8,11 +8,14 @@ Q_LOGGING_CATEGORY(audioclient,"overte.test.audio-mute")
 #include <thread>
 #include <iostream>
 #include "libraries/audio-client/src/IOSAudioPermission.h"
+// Playback-only activation rejects a running Qt microphone on the device.
+// Keep that OS constraint separate from the extracted production mute method.
+bool qtInputOpen = false;
 #ifdef ACTUAL_IOS_ADAPTER
 #include "ios/audio/IOSAudioAdapter.h"
 struct Native:overte::ios::NativeAudioOperations {
  bool captures=false;int starts=0;
- bool activate(bool capture,std::function<bool()> current)override{++starts;captures=capture&&current();return current();}
+ bool activate(bool capture,std::function<bool()> current)override{++starts;if(!capture&&qtInputOpen)return false;captures=capture&&current();return current();}
  bool deactivate()override{captures=false;return true;}
  overte::audio::Permission permission()override{return overte::audio::Permission::Granted;}
  void requestPermission(std::function<bool()> current,
@@ -27,13 +30,13 @@ struct Adapter:overte::audio::IOSAudioSessionAdapter {
  void requestMicrophonePermission()override{}
  bool activate()override{return true;}
  bool deactivate()override{capture=false;return true;}
- void muted(bool value)override{++starts;capture=!value;}
+ void muted(bool value)override{assert(!value||!qtInputOpen);++starts;capture=!value;}
 };
 #endif
 class AudioClient:public QObject {
 public:
  bool _isMuted=false;int signalCount=0,refreshes=0;
- void refreshIOSAudioInput(){++refreshes;}
+ void refreshIOSAudioInput(){++refreshes;qtInputOpen=!_isMuted&&overteIOSMicrophonePermissionGranted();}
  void muteToggled(bool value){assert(QThread::currentThread()==thread());assert(value==_isMuted);++signalCount;}
  void setMuted(bool,bool=true);
 };
@@ -50,7 +53,7 @@ int main(int argc,char**argv){
  auto adapter=std::make_shared<Adapter>();
 #endif
  assert(overte::audio::installIOSAudioSessionAdapter(adapter));
- AudioClient client;assert(overteIOSMicrophonePermissionGranted());
+ AudioClient client;qtInputOpen=true;assert(overteIOSMicrophonePermissionGranted());
  std::thread worker([&]{client.setMuted(true);});worker.join();
  assert(!client._isMuted&&overteIOSMicrophonePermissionGranted());
  QCoreApplication::processEvents();assert(client._isMuted&&client.signalCount==1&&!overteIOSMicrophonePermissionGranted());
@@ -60,6 +63,7 @@ int main(int argc,char**argv){
  std::thread pending([&]{doomed->setMuted(true);});pending.join();delete doomed.data();
  QCoreApplication::processEvents();assert(!doomed&&overteIOSMicrophonePermissionGranted());
  // Initial muted state must survive activation rather than requesting capture.
+ qtInputOpen=false; // a fresh process has not opened a Qt source yet
  initialAudio(true);assert(!overteIOSMicrophonePermissionGranted());
  overteIOSSetAudioMuted(false);assert(overteIOSMicrophonePermissionGranted());
 #ifdef ACTUAL_IOS_ADAPTER

@@ -104,6 +104,7 @@ if command -v pkg-config >/dev/null && pkg-config --exists Qt6Core; then
     python3 "$script_dir/../../tests/device/contracts/lifecycle/test_ios_render_environment.py"
     python3 "$script_dir/../../tests/device/contracts/audio/test_ios_output_recovery.py"
     python3 "$script_dir/../../tests/device/contracts/audio/test_mute_caller.py"
+    python3 "$script_dir/../../tests/device/contracts/audio/test_audio_device_selection.py"
     python3 "$script_dir/../../tests/device/contracts/audio/test_recording_safety.py"
     python3 "$script_dir/../../tests/device/contracts/audio/test_injector_buffer_publication.py"
     python3 "$script_dir/../../tests/device/contracts/audio/test_injector_event_delivery.py"
