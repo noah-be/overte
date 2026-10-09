@@ -30,7 +30,7 @@ class OutputTests(unittest.TestCase):
         import wave
         cls.document = {"schemaVersion": 1, "runId": RUN["id"], "ok": True,
                         "buildVersion": "fixture", "foregroundContinuous": True, "cleanup": {"restored": True}, "captures": []}
-        for index, phase in enumerate(("quiet-control", "unmuted", "muted", "unmuted-again")):
+        for index, phase in enumerate(("quiet-control", "local-playback-1", "local-playback-2", "local-playback-3")):
             pcm = array.array("h", [0]) * (24000 * 8)
             if index:
                 signal = samples(RUN["challenges"][index - 1])
@@ -53,6 +53,12 @@ class OutputTests(unittest.TestCase):
                            "sourceClockActive": False, "iosInterrupted": False, "prepared": False,
                            "measurementMode": False, "outputVolume": 0}})
 
+        cls.document["voiceTransitions"] = [
+            {"phase": phase, "status": copy.deepcopy(cls.document["captures"][index]["status"])}
+            for index, phase in ((1, "unmuted"), (2, "muted"), (3, "unmuted-again"))]
+        for capture in cls.document["captures"]:
+            capture["status"] = copy.deepcopy(cls.document["voiceTransitions"][1]["status"])
+
     def evaluate(self, document, run=RUN):
         with tempfile.TemporaryDirectory() as private:
             return evaluate(document, run, Path(private))
@@ -61,7 +67,7 @@ class OutputTests(unittest.TestCase):
         result = self.evaluate(self.document)
         self.assertTrue(result["passed"])
         self.assertEqual([m["phase"] for m in result["measurements"]],
-                         ["quiet-control", "unmuted", "muted", "unmuted-again"])
+                         ["quiet-control", "local-playback-1", "local-playback-2", "local-playback-3"])
         self.assertTrue(result["measurements"][2]["patternDetected"])
         self.assertNotIn("wavBase64", json.dumps(result))
 
@@ -69,13 +75,16 @@ class OutputTests(unittest.TestCase):
         doc = copy.deepcopy(self.document)
         run = {**RUN, "permission": 2}
         for index, capture in enumerate(doc["captures"]):
-            capture["status"].update(iosPermission=2, iosOutcome=3 if index == 2 else 1,
+            capture["status"].update(iosPermission=2, iosOutcome=3,
                                      iosCaptureAllowed=False, inputPresent=False)
+        for index, transition in enumerate(doc["voiceTransitions"]):
+            transition["status"].update(iosPermission=2, iosOutcome=3 if index == 1 else 1,
+                                        iosCaptureAllowed=False, inputPresent=False)
         self.assertTrue(self.evaluate(doc, run)["passed"])
 
     def test_rejects_nonzero_volume_synthetic_input_and_wrong_microphone_state(self):
         for field, value in (("outputVolume", 1), ("sourceEnabled", True), ("sourceClockActive", True),
-                             ("iosCaptureAllowed", False), ("physicalDevice", False),
+                             ("iosCaptureAllowed", True), ("physicalDevice", False),
                              ("measurementMode", True), ("iosInterrupted", True)):
             doc = copy.deepcopy(self.document)
             doc["captures"][0]["status"][field] = value
@@ -83,10 +92,12 @@ class OutputTests(unittest.TestCase):
                 self.evaluate(doc)
 
     def test_rejects_wrong_nonce_missing_output_and_failed_cleanup(self):
-        for kind in ("nonce", "missing-output", "control-playback", "cleanup", "foreground"):
+        for kind in ("nonce", "missing-output", "control-playback", "cleanup", "foreground", "input-not-open"):
             doc = copy.deepcopy(self.document)
             if kind == "nonce":
                 doc["captures"][1]["challenge"] = "d" * 32
+            elif kind == "input-not-open":
+                doc["voiceTransitions"][0]["status"]["inputPresent"] = False
             elif kind == "foreground":
                 doc["foregroundContinuous"] = False
             elif kind == "cleanup":
@@ -173,10 +184,10 @@ function scenario(permission, volume, loseForeground=false) {
  let operations=[],plays=0,timers=[],heartbeats=[];
  const Audio=new Proxy({...original,getLocalEcho:()=>local,getServerEcho:()=>server,
   setLocalEcho:x=>{local=x;writes++},setServerEcho:x=>{server=x;writes++},
-  playSound:()=>{plays++;return {stop:()=>{}}}}, {set:(o,k,v)=>{o[k]=v;writes++;return true}});
+  playSound:()=>{assert(Audio.muted);plays++;return {stop:()=>{}}}}, {set:(o,k,v)=>{o[k]=v;writes++;return true}});
  const Test={acousticTest:()=>({ok:true,iosPermission:permission,iosForeground:foreground,
   sourceEnabled:false,sourceClockActive:false,prepared:false,measurementMode:false,physicalDevice:true,
-  builtInSpeaker:true,iosInterrupted:false,nativeMuted:Audio.muted,outputVolume:volume,
+  builtInSpeaker:true,iosInterrupted:false,nativeMuted:Audio.muted,outputVolume:permission===1&&!Audio.muted?0.05:volume,
   iosOutcome:Audio.muted?3:(permission===1?2:1),iosCaptureAllowed:permission===1&&!Audio.muted,
   inputPresent:permission===1&&!Audio.muted,inputState:0,inputError:0}),
   voiceTest:c=>{operations.push(c.action);if(c.action==='capture-start')active=true;
@@ -198,7 +209,9 @@ function scenario(permission, volume, loseForeground=false) {
  assert(heartbeats.length>0&&heartbeats.every(h=>h.runId==='output-fixture'&&h.observedEpochMs<=now));
  if(loseForeground){assert.equal(saved.foregroundContinuous,false);assert.equal(saved.error,'output-left-foreground');assert(heartbeats.some(h=>!h.iosForeground));}
  else if(volume===0){assert.equal(plays,3);assert.equal(saved.captures.length,4);
-  assert.equal(saved.captures[2].status.nativeMuted,true);
+  assert(saved.captures.every(c=>c.status.nativeMuted));
+  assert.deepEqual(saved.voiceTransitions.map(t=>t.status.nativeMuted),[false,true,false]);
+  if(permission===1)assert.equal(saved.voiceTransitions[0].status.outputVolume,0.05);
   timers.find(x=>x.ms===45000).cb();assert(saved.capturePayloadExpired);
   assert(saved.captures.every(c=>!('wavBase64' in c)));}
  else assert.equal(plays,0);

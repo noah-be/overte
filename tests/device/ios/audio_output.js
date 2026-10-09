@@ -5,13 +5,13 @@
     "use strict";
     var run = OVERTE_OUTPUT_RUN;
     var report = { schemaVersion: 1, runId: run.id, buildVersion: String(About.buildVersion),
-        startedEpochMs: Date.now(), captures: [], cleanup: { restored: false } };
+        startedEpochMs: Date.now(), voiceTransitions: [], captures: [], cleanup: { restored: false } };
     var keys = ["muted", "pushToTalk", "avatarGain", "serverInjectorGain", "localInjectorGain", "systemInjectorGain"];
     var original = null, localEcho = false, serverEcho = false, timer = null, watchdog = null;
     var injector = null, step = -1, phase = "ready", since = Date.now(), sequence = 0;
     var heartbeatTimer = null;
     report.foregroundContinuous = true;
-    var sounds = [];
+    var sounds = [], transition = 0;
     function command(action, fields) {
         var request = { schemaVersion: 1, commandId: run.id + "-" + (++sequence), action: action };
         Object.keys(fields || {}).forEach(function (key) { request[key] = fields[key]; });
@@ -83,10 +83,12 @@
                 Audio.systemInjectorGain = 0;
                 Audio.muted = false;
                 step = 0;
+                phase = "transitions";
                 since = Date.now();
                 return;
             }
-            var muted = step === 2, expected = muted ? 3 : (run.permission === 1 ? 2 : 1);
+            var muted = phase === "transitions" ? transition === 1 : true;
+            var expected = muted ? 3 : (run.permission === 1 ? 2 : 1);
             var captureAllowed = run.permission === 1 && !muted;
             var ready = value.iosOutcome === expected && value.nativeMuted === muted
                 && value.iosCaptureAllowed === captureAllowed && value.inputPresent === captureAllowed
@@ -95,6 +97,15 @@
             if (!ready) {
                 if (phase === "capture" || Date.now() - since > 10000) {
                     throw new Error("output-native-state-invalid");
+                }
+                return;
+            }
+            if (phase === "transitions") {
+                if (Date.now() - since >= 1500) {
+                    report.voiceTransitions.push({ phase: ["unmuted", "muted", "unmuted-again"][transition], status: value });
+                    if (transition === 2) { Audio.muted = true; phase = "ready"; }
+                    else { transition++; Audio.muted = transition === 1; }
+                    since = Date.now();
                 }
                 return;
             }
@@ -112,14 +123,13 @@
                 }
                 if (Date.now() - since >= 8400) {
                     var capture = command("capture-stop");
-                    capture.phase = ["quiet-control", "unmuted", "muted", "unmuted-again"][step];
+                    capture.phase = ["quiet-control", "local-playback-1", "local-playback-2", "local-playback-3"][step];
                     capture.challenge = run.challenges[Math.max(0, step - 1)];
                     capture.status = value;
                     report.captures.push(capture);
                     if (injector) { injector.stop(); injector = null; }
                     if (step === 3) { finish(); return; }
                     step++;
-                    Audio.muted = step === 2;
                     phase = "ready";
                     since = Date.now();
                 }

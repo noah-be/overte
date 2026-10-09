@@ -34,33 +34,43 @@ class AudioOutputError(AcousticError):
     """Closed diagnostics for the internal physical-device output check."""
 
 
+def validate_native(status: dict, permission: int, muted: bool, *, zero: bool) -> None:
+    active_input = permission == 1 and not muted
+    expected_outcome = 3 if muted else (2 if permission == 1 else 1)
+    if (status.get("iosPermission") != permission or status.get("iosOutcome") != expected_outcome
+            or status.get("nativeMuted") is not muted or status.get("iosCaptureAllowed") is not active_input
+            or status.get("inputPresent") is not active_input
+            or any(status.get(key) is not True for key in ("physicalDevice", "builtInSpeaker", "iosForeground"))
+            or any(status.get(key) is not False for key in (
+                "sourceEnabled", "sourceClockActive", "iosInterrupted", "prepared", "measurementMode"))
+            or (zero and (type(status.get("outputVolume")) not in (int, float) or status["outputVolume"] != 0))
+            or (active_input and (status.get("inputState") != 0 or status.get("inputError") != 0))):
+        raise AudioOutputError("AUDIO_OUTPUT_NATIVE_STATE_INVALID")
+
+
 def evaluate(document: dict, run: dict, private: Path) -> dict:
     if (not isinstance(document, dict) or document.get("runId") != run["id"]
             or document.get("schemaVersion") != 1 or document.get("ok") is not True
             or document.get("error") or document.get("cleanup", {}).get("restored") is not True
             or document.get("foregroundContinuous") is not True):
         raise AudioOutputError("AUDIO_OUTPUT_RUN_OR_CLEANUP_FAILED")
+    transitions = document.get("voiceTransitions")
+    if not isinstance(transitions, list) or len(transitions) != 3:
+        raise AudioOutputError("AUDIO_OUTPUT_VOICE_TRANSITIONS_MISSING")
+    for index, phase in enumerate(("unmuted", "muted", "unmuted-again")):
+        if not isinstance(transitions[index], dict) or transitions[index].get("phase") != phase:
+            raise AudioOutputError("AUDIO_OUTPUT_VOICE_TRANSITION_INVALID")
+        validate_native(transitions[index].get("status", {}), run["permission"], index == 1, zero=False)
     captures = document.get("captures")
     if not isinstance(captures, list) or len(captures) != 4:
         raise AudioOutputError("AUDIO_OUTPUT_CAPTURES_MISSING")
     measurements = []
-    phases = ("quiet-control", "unmuted", "muted", "unmuted-again")
+    phases = ("quiet-control", "local-playback-1", "local-playback-2", "local-playback-3")
     for index, (capture, phase) in enumerate(zip(captures, phases)):
         if not isinstance(capture, dict) or capture.get("ok") is not True or capture.get("phase") != phase:
             raise AudioOutputError("AUDIO_OUTPUT_CAPTURE_INVALID")
         status = capture.get("status", {})
-        muted = index == 2
-        active_input = run["permission"] == 1 and not muted
-        expected_outcome = 3 if muted else (2 if run["permission"] == 1 else 1)
-        if (status.get("iosPermission") != run["permission"] or status.get("iosOutcome") != expected_outcome
-                or status.get("nativeMuted") is not muted or status.get("iosCaptureAllowed") is not active_input
-                or status.get("inputPresent") is not active_input
-                or any(status.get(key) is not True for key in ("physicalDevice", "builtInSpeaker", "iosForeground"))
-                or any(status.get(key) is not False for key in (
-                    "sourceEnabled", "sourceClockActive", "iosInterrupted", "prepared", "measurementMode"))
-                or type(status.get("outputVolume")) not in (int, float) or status["outputVolume"] != 0
-                or (active_input and (status.get("inputState") != 0 or status.get("inputError") != 0))):
-            raise AudioOutputError("AUDIO_OUTPUT_NATIVE_STATE_INVALID")
+        validate_native(status, run["permission"], True, zero=True)
         challenge = run["challenges"][max(0, index - 1)]
         if capture.get("challenge") != challenge:
             raise AudioOutputError("AUDIO_OUTPUT_NONCE_MISMATCH")
@@ -75,7 +85,7 @@ def evaluate(document: dict, run: dict, private: Path) -> dict:
             raise AudioOutputError("AUDIO_OUTPUT_CHALLENGE_MISMATCH")
         measured.update(phase=phase, captureSha256=capture["sha256"], status=status)
         measurements.append(measured)
-    return {"passed": True, "measurements": measurements, "cleanup": document["cleanup"],
+    return {"passed": True, "voiceTransitions": transitions, "measurements": measurements, "cleanup": document["cleanup"],
             "observedBuildVersion": document.get("buildVersion"),
             "startedEpochMs": document.get("startedEpochMs"), "completedEpochMs": document.get("completedEpochMs")}
 
@@ -205,7 +215,7 @@ def main(argv=None) -> int:
                 identity = None
                 deadline = time.monotonic() + 150
                 remote = f"@{target['appId']}:documents/{directory}/output-playback-result.json"
-                print("Internal output test running at volume zero: quiet control, unmuted, muted, unmuted again.", flush=True)
+                print("Testing microphone transitions without a test tone, then quiet control and three output signals at volume zero.", flush=True)
                 while time.monotonic() < deadline:
                     active = client.execute(session, "mobile: activeAppInfo")
                     if active.get("bundleId") != target["appId"]:

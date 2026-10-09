@@ -33,13 +33,19 @@ The installation and any additional device-lab locks prevent concurrent runs.
 When resetting permission, the host explicitly answers the fresh microphone
 dialog and verifies that it closed before launching the test script.
 
-Four eight-second captures cover a quiet control, local playback, local playback
-with voice muted, and playback after unmuting. Each playback uses a different
-fresh twelve-symbol challenge. All symbols must arrive in order with bounded
-clipping; the quiet control must contain none of the challenges. Muting the
-microphone preserves local playback while the native permission and input
-state must agree with the selected decision. Allow must open active input;
-Deny and voice mute must close it. A meter change alone never passes.
+The script first checks unmute, mute and unmute again without playing a test
+tone. Allow must open active input; Deny and voice mute must close it. It then
+mutes the microphone and records four eight-second output captures: a quiet
+control and three different fresh twelve-symbol playback challenges. Every
+capture requires system output volume exactly zero, with all symbols arriving
+in order and bounded clipping. The quiet control must contain none of them.
+A meter change alone never passes.
+
+These are separate observations: a device may retain a nonzero minimum volume
+in its active microphone session. Such a value is recorded in the permission
+transitions and never accepted as a zero-volume PCM capture. No challenge is
+played during those transitions. This check does not prove simultaneous live
+microphone capture and playback at hardware volume zero.
 
 The test saves and restores the audio settings and stops its owned injector
 and output recording. Private WAV payloads are analyzed in a temporary host
