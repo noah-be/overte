@@ -259,13 +259,31 @@ class IOSAdapter(AppiumAdapter):
         process = self.native_process(client, session, target)
         if process is None or not process["foreground"]:
             fail("native UIKit observation requires the configured foreground process")
+        command_id = "ios-" + uuid.uuid4().hex
+        payload = {"schemaVersion": 1, "commandId": command_id,
+                   "action": "native-ui-snapshot"}
+        origin = target["testBuild"]["fixtureOrigin"]
+        self.controlled_http_url(origin, "iOS fixture command origin")
+        request = Request(origin + "/e2e-client-command.json",
+                          data=json.dumps(payload).encode(), method="POST",
+                          headers={"Content-Type": "application/json"})
+        with urlopen(request, timeout=5) as response:
+            content = response.read(4097)
+            if response.status != 200 or len(content) > 4096 or json.loads(content) != payload:
+                fail("owned fixture did not accept the exact native UIKit snapshot request")
         remote = (f"@{target['appId']}:documents/"
-                  f"{target['testBuild']['resultsDirectory']}/ios-native-ui.json")
+                  f"{target['testBuild']['resultsDirectory']}/ios-native-ui-request-result.json")
         deadline = time.monotonic() + 5
         while time.monotonic() < deadline:
             encoded = client.execute(session, "mobile: pullFile", {"remotePath": remote})
             try:
-                document = native_ui.validate(json.loads(base64.b64decode(encoded, validate=True)), process["pid"])
+                receipt = json.loads(base64.b64decode(encoded, validate=True))
+                if (not isinstance(receipt, dict) or set(receipt) != {
+                        "schemaVersion", "commandId", "observation"}
+                        or type(receipt["schemaVersion"]) is not int or receipt["schemaVersion"] != 1
+                        or receipt["commandId"] != command_id):
+                    raise ValueError("native UIKit snapshot did not match this request")
+                document = native_ui.validate(receipt["observation"], process["pid"])
             except (ValueError, UnicodeError):
                 time.sleep(0.1)
                 continue

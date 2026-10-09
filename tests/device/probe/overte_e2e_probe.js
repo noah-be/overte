@@ -719,6 +719,18 @@
     }
 
     function applyClientCommand(command) {
+        if (command && command.schemaVersion === 1 && command.commandId
+                && command.commandId !== lastClientCommandId
+                && command.action === "native-ui-snapshot"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action"])
+                && typeof Test.iosNativeUiSnapshot === "function") {
+            // Keep the actual UIKit result stable while AFC consumes it.
+            // Each request receives a fresh native observation and nonce.
+            Test.saveObject({ schemaVersion: 1, commandId: String(command.commandId),
+                observation: Test.iosNativeUiSnapshot() }, "ios-native-ui-request-result.json");
+            lastClientCommandId = String(command.commandId);
+            return;
+        }
         if (command && command.commandId !== lastClientCommandId && command.action === "native-crash"
                 && objectKeysMatch(command, ["schemaVersion", "commandId", "action"])
                 && typeof Test.iosCrashTest === "function" && Test.iosCrashTest(command)) {
@@ -1221,9 +1233,6 @@
         }, "e2e-collaboration-observation.json");
         if (typeof Test.iosRenderObservation === "function") {
             Test.saveObject(Test.iosRenderObservation(), "ios-render-observation.json");
-        }
-        if (typeof Test.iosNativeUiSnapshot === "function") {
-            Test.saveObject(Test.iosNativeUiSnapshot(), "ios-native-ui.json");
         }
         if (typeof Tablet.touchUiRuntimeMetrics === "object"
                 && Tablet.touchUiRuntimeMetrics !== null) {

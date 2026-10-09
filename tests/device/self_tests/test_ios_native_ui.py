@@ -51,7 +51,8 @@ class NativeUiEvidence(unittest.TestCase):
                 native_ui.validate(document, 42, 10000)
 
     def adapter(self):
-        target = {"appId": "org.example.client", "testBuild": {"resultsDirectory": "owned-results"},
+        target = {"appId": "org.example.client", "testBuild": {"resultsDirectory": "owned-results",
+                  "fixtureOrigin": "http://fixture.invalid:49121"},
                   "nativeUiObservation": {"kind": "uikit-documents", "version": 1}}
         adapter = IOSAdapter.__new__(IOSAdapter)
         adapter.platform = "ios"
@@ -84,11 +85,52 @@ class NativeUiEvidence(unittest.TestCase):
         adapter, client, target = self.adapter()
         document = copy.deepcopy(self.document)
         document["sampleEpochMs"] = time.time() * 1000
-        client.execute.return_value = base64.b64encode(json.dumps(document).encode()).decode()
+        command_id = "ios-" + "f" * 32
+        receipt = {"schemaVersion": 1, "commandId": command_id, "observation": document}
+        client.execute.return_value = base64.b64encode(json.dumps(receipt).encode()).decode()
+        response = Mock(status=200)
+        response.read.return_value = json.dumps({"schemaVersion": 1,
+            "commandId": command_id, "action": "native-ui-snapshot"}).encode()
+        response.__enter__ = Mock(return_value=response)
+        response.__exit__ = Mock(return_value=False)
         before = {"bundleId": target["appId"], "pid": 42, "foreground": True}
-        with patch.object(adapter, "native_process", side_effect=[before, {**before, "pid": 43}]):
+        with patch.object(adapter, "native_process", side_effect=[before, {**before, "pid": 43}]), \
+                patch("adapters.ios.adapter.uuid.uuid4", return_value=Mock(hex="f" * 32)), \
+                patch("adapters.ios.adapter.urlopen", return_value=response):
             with self.assertRaisesRegex(RuntimeError, "crossed process"):
                 adapter.native_ui_snapshot(client, "owned", target)
+
+    def test_snapshot_requires_exact_request_nonce_and_fresh_native_widgets(self):
+        for violation in (None, "nonce", "stale", "extra", "boolean-schema"):
+            with self.subTest(violation=violation):
+                adapter, client, target = self.adapter()
+                document = copy.deepcopy(self.document)
+                document["sampleEpochMs"] = time.time() * 1000
+                command_id = "ios-" + "f" * 32
+                receipt = {"schemaVersion": 1, "commandId": command_id, "observation": document}
+                if violation == "nonce": receipt["commandId"] = "ios-" + "e" * 32
+                if violation == "stale": document["sampleEpochMs"] -= 10000
+                if violation == "extra": receipt["inferredReady"] = True
+                if violation == "boolean-schema": receipt["schemaVersion"] = True
+                client.execute.return_value = base64.b64encode(json.dumps(receipt).encode()).decode()
+                response = Mock(status=200)
+                response.read.return_value = json.dumps({"schemaVersion": 1,
+                    "commandId": command_id, "action": "native-ui-snapshot"}).encode()
+                response.__enter__ = Mock(return_value=response)
+                response.__exit__ = Mock(return_value=False)
+                process = {"bundleId": target["appId"], "pid": 42, "foreground": True}
+                with patch.object(adapter, "native_process", return_value=process), \
+                        patch("adapters.ios.adapter.uuid.uuid4", return_value=Mock(hex="f" * 32)), \
+                        patch("adapters.ios.adapter.urlopen", return_value=response), \
+                        patch("adapters.ios.adapter.time.monotonic", side_effect=[0, 0.1, 6]), \
+                        patch("adapters.ios.adapter.time.sleep"):
+                    if violation is None:
+                        self.assertEqual(document, adapter.native_ui_snapshot(client, "owned", target))
+                        self.assertTrue(client.execute.call_args.args[2]["remotePath"].endswith(
+                            "/ios-native-ui-request-result.json"))
+                    else:
+                        with self.assertRaisesRegex(RuntimeError, "not available"):
+                            adapter.native_ui_snapshot(client, "owned", target)
 
     def test_failed_physical_touch_still_releases_contact(self):
         adapter, client, target = self.adapter()

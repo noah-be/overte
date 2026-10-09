@@ -59,7 +59,7 @@ assert.equal(saved['ios-ui-observation.json'],undefined);
         subprocess.run(["node", "-e", harness], check=True, timeout=5)
 
     @unittest.skipUnless(shutil.which("node"), "probe execution requires Node.js")
-    def test_actual_native_ui_observation_is_exported_without_inference(self):
+    def test_periodic_probe_does_not_replace_requested_native_ui_observations(self):
         source = (Path(__file__).resolve().parents[1] / "probe/overte_e2e_probe.js").read_text()
         start = source.index("        sampleSequence += 1;")
         end = source.index("        orientationHistory.push({", start)
@@ -71,16 +71,50 @@ var observation={schemaVersion:1, valid:true, sampleEpochMs:now, processId:42, e
 var saved={}, calls=0;
 var Test={iosNativeUiSnapshot:()=>{calls++;return observation;}, saveObject:(value,name)=>{saved[name]=value;}};
 OBSERVE
-assert.equal(calls,1);
+assert.equal(calls,0);
 assert.equal(saved['e2e-collaboration-observation.json'].entityCount,0);
 assert.strictEqual(saved['e2e-collaboration-observation.json'].observation,null);
-assert.strictEqual(saved['ios-native-ui.json'],observation);
-assert.deepEqual(saved['ios-native-ui.json'].elements,[]);
+assert.equal(saved['ios-native-ui.json'],undefined);
+assert.equal(saved['ios-native-ui-request-result.json'],undefined);
 delete Test.iosNativeUiSnapshot;
 saved={};
 OBSERVE
 assert.equal(saved['ios-native-ui.json'],undefined);
 '''.replace("OBSERVE", source[start:end])
+        subprocess.run(["node", "-e", harness], check=True, timeout=5)
+
+    def test_actual_client_command_captures_native_ui_once_per_exact_request(self):
+        source = (Path(__file__).resolve().parents[1] / "probe/overte_e2e_probe.js").read_text()
+        start = source.index("    function applyClientCommand(command) {")
+        end = source.index("    function pollClientCommand()", start)
+        harness = r'''
+const assert = require('assert');
+let lastClientCommandId='',lastTextCommandId='',calls=0,saved={};
+const applyVoice=()=>false;
+const objectKeysMatch=(v,k)=>Object.keys(v).sort().join('|')===k.sort().join('|');
+const observation={schemaVersion:1,valid:true,sampleEpochMs:Date.now(),processId:42,elements:[]};
+const Test={iosNativeUiSnapshot:()=>{calls++;return observation;},
+ saveObject:(value,name)=>{saved[name]=value;}};
+FUNCTION
+const command={schemaVersion:1,commandId:'ios-'+'a'.repeat(32),action:'native-ui-snapshot'};
+applyClientCommand(command);
+const result=saved['ios-native-ui-request-result.json'];
+assert.equal(calls,1);
+assert.equal(result.commandId,command.commandId);
+assert.strictEqual(result.observation,observation);
+assert.equal(lastClientCommandId,command.commandId);
+applyClientCommand(command);
+assert.equal(calls,1);
+for (const invalid of [{...command,commandId:'foreign',elements:[]},
+ {...command,commandId:'foreign',schemaVersion:true}]) {
+ applyClientCommand(invalid);
+ assert.equal(calls,1);
+ assert.equal(lastClientCommandId,command.commandId);
+}
+delete Test.iosNativeUiSnapshot;
+applyClientCommand({...command,commandId:'ios-'+'b'.repeat(32)});
+assert.equal(lastClientCommandId,command.commandId);
+'''.replace("FUNCTION", source[start:end])
         subprocess.run(["node", "-e", harness], check=True, timeout=5)
 
 

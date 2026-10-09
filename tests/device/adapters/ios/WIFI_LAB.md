@@ -24,7 +24,10 @@ inventory may enable the optional target configuration:
 
 That test-only client exposes `Test.iosNativeUiSnapshot()` when launched with
 the existing explicit test script and results directory. The shared probe
-saves its read-only UIKit observation as `ios-native-ui.json`. The adapter
+saves its read-only UIKit observation once per `native-ui-snapshot` request as
+`ios-native-ui-request-result.json`. The result contains the exact request nonce
+and the native observation; periodic probe samples do not replace this file.
+The adapter
 requires an exact schema, current sample, matching live foreground PID, and
 the closed Tablet Contract vocabulary. Absent controls remain absent; the
 observer never fills in expected controls or exports account/user text.
