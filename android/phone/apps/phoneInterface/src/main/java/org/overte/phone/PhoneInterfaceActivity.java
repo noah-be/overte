@@ -68,6 +68,32 @@ public final class PhoneInterfaceActivity extends QtActivity
     private static final int MAX_URL_RETRY_ATTEMPTS = 300;
     private static final long METRICS_RETRY_DELAY_MS = 100;
     private static final int MAX_METRICS_RETRY_ATTEMPTS = 300;
+    // Numeric delivery diagnostics contain no input, identity or device data.
+    // Read only by the explicitly launched native test build.
+    private static volatile String touchUiDeliveryDiagnostic = "{}";
+    private int touchUiCaptureCount;
+    private int touchUiNativeAttemptCount;
+    private int touchUiLastWidth;
+    private int touchUiLastHeight;
+    public static String getTouchUiDeliveryDiagnostic() { return touchUiDeliveryDiagnostic; }
+    public static void onNativeUiReady() {
+        android.app.Activity current = QtNative.activity();
+        if (!(current instanceof PhoneInterfaceActivity)) { return; }
+        PhoneInterfaceActivity activity = (PhoneInterfaceActivity) current;
+        activity.mainHandler.post(() -> {
+            if (QtNative.activity() != activity || activity.isFinishing()) { return; }
+            activity.touchUiMetrics.nativeUiReady();
+            activity.touchUiMetricsRetryAttempts = 0;
+            activity.captureTouchUiMetrics();
+            activity.getWindow().getDecorView().requestApplyInsets();
+        });
+    }
+    private void recordTouchUiDeliveryDiagnostic(boolean accepted) {
+        touchUiDeliveryDiagnostic = "{\"captures\":" + touchUiCaptureCount
+                + ",\"nativeAttempts\":" + touchUiNativeAttemptCount
+                + ",\"width\":" + touchUiLastWidth + ",\"height\":" + touchUiLastHeight
+                + ",\"resumed\":" + resumed + ",\"accepted\":" + accepted + "}";
+    }
     private static final long E2E_OVERRIDE_RETRY_DELAY_MS = 50;
     private static final int MAX_E2E_OVERRIDE_RETRY_ATTEMPTS = 600;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -82,6 +108,7 @@ public final class PhoneInterfaceActivity extends QtActivity
     private String pendingUrl;
     private int pendingUrlRetryAttempts;
     private boolean resumed;
+    private PhoneAccessibilityBridge accessibilityBridge;
     private boolean nativeBackConsumed;
     private Object api33BackHandler;
     private final PhoneTouchUiMetricsPolicy.Delivery touchUiMetrics =
@@ -215,6 +242,7 @@ public final class PhoneInterfaceActivity extends QtActivity
             api33BackHandler = new Api33BackHandler(this);
         }
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        accessibilityBridge = new PhoneAccessibilityBridge(this);
         installTouchUiMetricsObserver();
         applyPhoneWindowBounds();
         drainE2eFlyingOverride();
@@ -224,6 +252,7 @@ public final class PhoneInterfaceActivity extends QtActivity
     protected void onResume() {
         super.onResume();
         resumed = true;
+        if (accessibilityBridge != null) { accessibilityBridge.start(); }
         publishNativeForegroundState(true);
         registerInputDeviceListener();
         applyPhoneWindowBounds();
@@ -236,6 +265,7 @@ public final class PhoneInterfaceActivity extends QtActivity
     @Override
     protected void onPause() {
         resumed = false;
+        if (accessibilityBridge != null) { accessibilityBridge.stop(); }
         // SH-005 invalidates the old navigation budget on suspension. An
         // explicit newer onNewIntent may populate a new request afterwards.
         replacePendingUrl(null);
@@ -254,6 +284,7 @@ public final class PhoneInterfaceActivity extends QtActivity
     @Override
     protected void onDestroy() {
         resumed = false;
+        if (accessibilityBridge != null) { accessibilityBridge.stop(); }
         replacePendingUrl(null);
         publishNativeForegroundState(false);
         mainHandler.removeCallbacks(drainForegroundTask);
@@ -367,6 +398,10 @@ public final class PhoneInterfaceActivity extends QtActivity
     private void captureTouchUiMetrics(View decorView, WindowInsets windowInsets) {
         int width = decorView.getWidth();
         int height = decorView.getHeight();
+        ++touchUiCaptureCount;
+        touchUiLastWidth = width;
+        touchUiLastHeight = height;
+        recordTouchUiDeliveryDiagnostic(false);
         if (width <= 0 || height <= 0) {
             return;
         }
@@ -376,6 +411,7 @@ public final class PhoneInterfaceActivity extends QtActivity
         int right = 0;
         int bottom = 0;
         int imeBottom = 0;
+        boolean keyboardVisible = false;
         if (windowInsets != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             Insets protectedInsets = windowInsets.getInsets(
                     WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
@@ -387,6 +423,7 @@ public final class PhoneInterfaceActivity extends QtActivity
             right = Math.max(protectedInsets.right, mandatoryGestures.right);
             bottom = Math.max(protectedInsets.bottom, mandatoryGestures.bottom);
             imeBottom = ime.bottom;
+            keyboardVisible = windowInsets.isVisible(WindowInsets.Type.ime());
         } else if (windowInsets != null) {
             int mandatoryLeft = 0;
             int mandatoryTop = 0;
@@ -432,6 +469,7 @@ public final class PhoneInterfaceActivity extends QtActivity
             right = legacyInsets.right;
             bottom = legacyInsets.bottom;
             imeBottom = legacyInsets.imeBottom;
+            keyboardVisible = imeBottom > bottom;
         }
 
         Configuration configuration = getResources().getConfiguration();
@@ -445,6 +483,7 @@ public final class PhoneInterfaceActivity extends QtActivity
                 imeBottom,
                 getResources().getDisplayMetrics().density,
                 configuration.fontScale,
+                keyboardVisible,
                 hasHoverInput(),
                 hasHardwareKeyboard(configuration),
                 hasHaptics());
@@ -500,6 +539,7 @@ public final class PhoneInterfaceActivity extends QtActivity
             return;
         }
         boolean accepted = false;
+        ++touchUiNativeAttemptCount;
         try {
             accepted = nativeUpdateTouchUiMetrics(
                     snapshot.surfaceWidth,
@@ -519,6 +559,7 @@ public final class PhoneInterfaceActivity extends QtActivity
         } catch (UnsatisfiedLinkError nativeLibraryNotReady) {
             // Qt loads the phone native library asynchronously.
         }
+        recordTouchUiDeliveryDiagnostic(accepted);
         if (accepted) {
             touchUiMetrics.accepted(snapshot);
             touchUiMetricsRetryAttempts = 0;

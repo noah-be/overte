@@ -80,7 +80,7 @@ require "$shared_preferences" 'objectName:[[:space:]]*"stack"' \
     'General Settings preserve the native StackView routing identity'
 require "$shared_preferences" 'objectName:[[:space:]]*profileRoot[.]semanticScreenId' \
     'General Settings expose the versioned semantic screen identity on the visible dialog'
-require "$tablet_preferences_dialog" 'objectName:[[:space:]]*"nav[.]back"' \
+require "$tablet_preferences_dialog" 'objectName:[[:space:]]*"GeneralPreferencesCancel"' \
     'General Settings expose the contract Back control'
 require "$tablet_preferences_dialog" 'Accessible[.]description:[[:space:]]*qsTr\("Discard changed preferences"\)' \
     'General Settings describe the destructive Cancel result'

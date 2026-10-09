@@ -320,7 +320,7 @@ Item {
             }
 
             HifiControls.Button {
-                objectName: "nav.back"
+                objectName: "GeneralPreferencesCancel"
                 text: "Cancel"
                 activeFocusOnTab: true
                 Accessible.role: Accessible.Button

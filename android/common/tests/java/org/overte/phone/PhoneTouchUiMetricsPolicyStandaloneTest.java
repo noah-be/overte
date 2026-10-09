@@ -12,11 +12,46 @@ public final class PhoneTouchUiMetricsPolicyStandaloneTest {
         preservesAsymmetricInsetsAndCapabilities();
         derivesStableDensityScaleWithoutImeZooming();
         separatesLegacyImeFromPersistentProtection();
+        preservesExplicitKeyboardVisibility();
+        republishesMetricsAfterNativeStartup();
         clampsHostileMeasurements();
         snapshotsHaveStableValueSemantics();
         coversRepresentativeDeviceMatrix();
         runsBoundedDeterministicPerformanceMatrix();
         System.out.println("Phone touch UI metrics assertions passed: " + assertions);
+    }
+
+    private static void preservesExplicitKeyboardVisibility() {
+        PhoneTouchUiMetricsPolicy.Snapshot floating = PhoneTouchUiMetricsPolicy.normalize(
+                1920, 1080, 0, 0, 0, 24, 0, 2.5f, 1.0f,
+                true, false, false, false);
+        check(floating.valid && floating.keyboardVisible && floating.imeInsetBottom == 0);
+        PhoneTouchUiMetricsPolicy.Snapshot hidden = PhoneTouchUiMetricsPolicy.normalize(
+                1920, 1080, 0, 0, 0, 24, 420, 2.5f, 1.0f,
+                false, false, false, false);
+        check(hidden.valid && !hidden.keyboardVisible && hidden.imeInsetBottom == 420);
+    }
+
+    private static void republishesMetricsAfterNativeStartup() {
+        PhoneTouchUiMetricsPolicy.Delivery delivery = new PhoneTouchUiMetricsPolicy.Delivery();
+        PhoneTouchUiMetricsPolicy.Snapshot first = snapshot(1920, 1080, 0, 0, 0, 0, 0, 2.5f);
+        PhoneTouchUiMetricsPolicy.Snapshot newer = snapshot(1920, 1080, 0, 0, 0, 0, 420, 2.5f);
+        check(!delivery.offer(snapshot(0, 1080, 0, 0, 0, 0, 0, 2.5f)));
+        check(delivery.pending() == null);
+        check(delivery.offer(first));
+        check(!delivery.offer(first));
+        check(delivery.offer(newer));
+        delivery.accepted(first);
+        check(delivery.pending() == newer);
+        delivery.accepted(newer);
+        check(delivery.pending() == null);
+        check(!delivery.offer(newer));
+        delivery.nativeUiReady();
+        check(delivery.offer(newer));
+        check(delivery.pending() == newer);
+        delivery.dropPending();
+        check(delivery.pending() == null);
+        check(delivery.offer(newer));
     }
 
     private static void separatesLegacyImeFromPersistentProtection() {

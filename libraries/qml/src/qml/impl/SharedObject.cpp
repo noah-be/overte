@@ -13,6 +13,7 @@
 #include <QtQuick/QQuickItem>
 #include <QtQml/QQmlContext>
 #include <QtQml/QQmlEngine>
+#include <QtQml/QQmlComponent>
 
 #include <QtGui/QOpenGLContext>
 #include <QPointer>
@@ -31,6 +32,7 @@
 #include "TextureCache.h"
 #include <ThreadHelpers.h>
 #include "PhoneQmlFatalDiagnostics.h"
+#include "../PhoneQuickBootstrap.h"
 
 // Time between receiving a request to render the offscreen UI actually triggering
 // the render.  Could possibly be increased depending on the framerate we expect to
@@ -60,6 +62,7 @@ QOpenGLContext* SharedObject::getSharedContext() {
 
 SharedObject::SharedObject() {
 #ifndef DISABLE_QML
+    phoneInitializeQuickTypes();
 
     // Create render control
     _renderControl = new RenderControl();

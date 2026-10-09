@@ -24,6 +24,32 @@ tempfile.tempdir = str(SELF_TEST_TMP)
 
 
 class MutationClassificationTest(unittest.TestCase):
+    def test_keyboard_mutants_apply_to_both_reviewed_metric_versions(self):
+        versions = {
+            "touch-metrics-ime-threshold": (
+                "boolean keyboardVisible = ime > bottom;",
+                "boolean keyboardVisible = platformKeyboardVisible != null "
+                "? platformKeyboardVisible : ime > bottom;"),
+            "native-touch-invent-keyboard": (
+                "result.keyboardVisible = rawKeyboardVisible "
+                "&& result.imeInsetBottom > result.safeInsetBottom;",
+                "result.keyboardVisible = rawKeyboardVisible "
+                "&& imeBottom >= 0 && imeBottom < height;"),
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            source, destination = Path(temporary) / "source", Path(temporary) / "mutated"
+            for name, variants in versions.items():
+                mutant = next(item for item in runner.MUTANTS if item.name == name)
+                for text in variants:
+                    with self.subTest(name=name, text=text):
+                        source.write_text(text)
+                        runner.replace_once(source, destination, mutant.old, mutant.new)
+                        self.assertEqual(destination.read_text(),
+                                         text.replace(mutant.old, mutant.new, 1))
+                        source.write_text(text + "\n" + text)
+                        with self.assertRaises(RuntimeError):
+                            runner.replace_once(source, destination, mutant.old, mutant.new)
+
     def test_jvm_exception_is_infrastructure_error(self):
         mutant = runner.Mutant(
             "intentional-jvm-crash", "java", runner.JAVA_PRODUCTION["deep"],

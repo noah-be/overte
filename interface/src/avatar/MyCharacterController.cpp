@@ -228,7 +228,7 @@ void MyCharacterController::handleChangedCollisionMask() {
 #if defined(ANDROID_APP_PHONE_INTERFACE)
 void MyCharacterController::beginSpawnHold() {
     _spawnGate.begin(static_cast<double>(usecTimestampNow()) / USECS_PER_SECOND);
-    qInfo() << "PHONE_SPAWN_HOLD waiting for supporting collision";
+    qInfo() << "OVT_PHONE_SPAWN_HELD";
 }
 
 bool MyCharacterController::hasSpawnSupport() const {
@@ -261,9 +261,24 @@ bool MyCharacterController::hasSpawnSupport() const {
 
 bool MyCharacterController::updateSpawnHold(bool physicsReady) {
     const bool wasHeld = _spawnGate.held();
-    const bool notifyFailure = _spawnGate.update(
-        static_cast<double>(usecTimestampNow()) / USECS_PER_SECOND,
-        physicsReady, physicsReady && hasSpawnSupport());
+    const double now = static_cast<double>(usecTimestampNow()) / USECS_PER_SECOND;
+    const bool supportReady = physicsReady && hasSpawnSupport();
+    const bool notifyFailure = _spawnGate.update(now, physicsReady, supportReady);
+    static double lastGroundDiagnostic { 0.0 };
+    if (_spawnGate.held() && now - lastGroundDiagnostic >= 5.0) {
+        lastGroundDiagnostic = now;
+        qInfo().noquote() << QStringLiteral(
+            "OVT_PHONE_LOADING phase=spawn_support physics=%1 engine=%2 body=%3 ready=%4 world=%5 support=%6 y=%7 half=%8 radius=%9 scale=%10")
+            .arg(physicsReady ? 1 : 0).arg(_physicsEngine ? 1 : 0).arg(_rigidBody ? 1 : 0)
+            .arg(isEnabledAndReady() ? 1 : 0).arg(_rigidBody && _rigidBody->isInWorld() ? 1 : 0)
+            .arg(supportReady ? 1 : 0).arg(static_cast<double>(_position.y()), 0, 'f', 4)
+            .arg(static_cast<double>(_halfHeight), 0, 'f', 4)
+            .arg(static_cast<double>(_radius), 0, 'f', 4)
+            .arg(static_cast<double>(_scaleFactor), 0, 'f', 4);
+    }
+    if (notifyFailure) {
+        qInfo() << "OVT_PHONE_SPAWN_TIMEOUT";
+    }
     if (_rigidBody) {
         if (_spawnGate.held()) {
             if (!_spawnBodyHeld) {
@@ -285,7 +300,7 @@ bool MyCharacterController::updateSpawnHold(bool physicsReady) {
         }
     }
     if (wasHeld && !_spawnGate.held()) {
-        qInfo() << "PHONE_SPAWN_HOLD released: supporting Bullet collision ready";
+        qInfo() << "OVT_PHONE_SPAWN_RELEASED";
     }
     return notifyFailure;
 }

@@ -316,6 +316,7 @@
         icon: "icons/tablet-icons/menu-i.svg",
         activeIcon: "icons/tablet-icons/menu-a.svg",
         text: "TABLET",
+        semanticId: "tablet.open",
         accessibleName: "Open tablet",
         accessibleDescription: "Open the Overte application tablet"
     }));

@@ -64,7 +64,7 @@ struct TouchUiMetrics {
         result.fontScale = boundedFinite(rawFontScale, 1.0f, 0.5f, 2.0f);
         result.contentScale = boundedFinite(rawContentScale, 1.0f, 1.0f, 3.0f);
         result.keyboardVisible = rawKeyboardVisible
-                && result.imeInsetBottom > result.safeInsetBottom;
+                && imeBottom >= 0 && imeBottom < height;
         result.hoverSupported = rawHoverSupported;
         result.hardwareKeyboardSupported = rawHardwareKeyboardSupported;
         result.hapticsSupported = rawHapticsSupported;

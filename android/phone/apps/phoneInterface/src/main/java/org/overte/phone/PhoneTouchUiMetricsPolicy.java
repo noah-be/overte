@@ -67,6 +67,29 @@ public final class PhoneTouchUiMetricsPolicy {
             boolean hoverSupported,
             boolean hardwareKeyboardSupported,
             boolean hapticsSupported) {
+        return normalizeObserved(surfaceWidth, surfaceHeight, safeInsetLeft, safeInsetTop,
+                safeInsetRight, safeInsetBottom, imeInsetBottom, density, fontScale,
+                null, hoverSupported,
+                hardwareKeyboardSupported, hapticsSupported);
+    }
+
+    public static Snapshot normalize(
+            int surfaceWidth, int surfaceHeight,
+            int safeInsetLeft, int safeInsetTop, int safeInsetRight, int safeInsetBottom,
+            int imeInsetBottom, float density, float fontScale,
+            boolean platformKeyboardVisible, boolean hoverSupported,
+            boolean hardwareKeyboardSupported, boolean hapticsSupported) {
+        return normalizeObserved(surfaceWidth, surfaceHeight, safeInsetLeft, safeInsetTop,
+                safeInsetRight, safeInsetBottom, imeInsetBottom, density, fontScale,
+                platformKeyboardVisible, hoverSupported, hardwareKeyboardSupported, hapticsSupported);
+    }
+
+    private static Snapshot normalizeObserved(
+            int surfaceWidth, int surfaceHeight,
+            int safeInsetLeft, int safeInsetTop, int safeInsetRight, int safeInsetBottom,
+            int imeInsetBottom, float density, float fontScale,
+            Boolean platformKeyboardVisible, boolean hoverSupported,
+            boolean hardwareKeyboardSupported, boolean hapticsSupported) {
         if (surfaceWidth <= 0 || surfaceHeight <= 0
                 || surfaceWidth > MAX_SURFACE_EXTENT
                 || surfaceHeight > MAX_SURFACE_EXTENT) {
@@ -102,7 +125,10 @@ public final class PhoneTouchUiMetricsPolicy {
         // Avoid layout churn from insignificant display-metric jitter.
         scale = Math.round(scale * 20.0f) / 20.0f;
 
-        boolean keyboardVisible = ime > bottom;
+        // IME visibility is independent of occlusion: floating and fullscreen
+        // keyboards can be visible with no bottom inset on the app window.
+        boolean keyboardVisible = platformKeyboardVisible != null
+                ? platformKeyboardVisible : ime > bottom;
         return new Snapshot(
                 true,
                 surfaceWidth,
@@ -152,6 +178,12 @@ public final class PhoneTouchUiMetricsPolicy {
 
         Snapshot pending() {
             return pending;
+        }
+
+        void nativeUiReady() {
+            // A queued startup receipt is not evidence that the final native
+            // runtime retained it. Re-measure and publish even unchanged bounds.
+            published = null;
         }
 
         void accepted(Snapshot snapshot) {
@@ -256,9 +288,8 @@ public final class PhoneTouchUiMetricsPolicy {
                     && imeInsetBottom == snapshot.imeInsetBottom
                     && Float.compare(density, snapshot.density) == 0
                     && Float.compare(fontScale, snapshot.fontScale) == 0
-                    // Both derived fields are determined by values already
-                    // compared above: contentScale by geometry/density and
-                    // keyboardVisible by IME/persistent bottom insets.
+                    && keyboardVisible == snapshot.keyboardVisible
+                    // contentScale is determined by geometry/density above.
                     && hoverSupported == snapshot.hoverSupported
                     && hardwareKeyboardSupported == snapshot.hardwareKeyboardSupported
                     && hapticsSupported == snapshot.hapticsSupported;

@@ -78,8 +78,22 @@ int main() {
         "font scale has a lower bound");
     expect(std::abs(boundedScales.contentScale - 3.0f) < 0.001f,
         "content scale has an upper bound");
-    expect(!boundedScales.keyboardVisible,
-        "equal IME and safe insets are not a visible keyboard");
+    expect(boundedScales.keyboardVisible,
+        "platform keyboard visibility survives equal IME and safe insets");
+
+    const auto floatingKeyboard = TouchUiMetrics::fromUntrusted(
+        1000, 800, 0, 0, 0, 20, 0,
+        1.0f, 1.0f, 1.0f, true, false, false, false);
+    expect(floatingKeyboard.keyboardVisible,
+        "visible floating keyboard does not require an occluding inset");
+
+    const auto invalidFloatingKeyboard = TouchUiMetrics::fromUntrusted(
+        1000, 800, 0, 0, 0, 20, -1,
+        1.0f, 1.0f, 1.0f, true, false, false, false);
+    expect(invalidFloatingKeyboard.imeInsetBottom == 0,
+        "negative raw IME occlusion is clamped before native layout");
+    expect(!invalidFloatingKeyboard.keyboardVisible,
+        "invalid negative IME evidence cannot claim keyboard visibility");
 
     const auto suppressedKeyboard = TouchUiMetrics::fromUntrusted(
         1000, 800, 0, 0, 0, 20, 300,

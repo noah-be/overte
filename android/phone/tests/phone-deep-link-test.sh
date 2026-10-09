@@ -15,10 +15,12 @@ javac -d "${TEST_OUTPUT}" \
     "${ANDROID_ROOT}/common/tests/java/org/overte/phone/PhoneLaunchStateStandaloneTest.java" \
     "${ANDROID_ROOT}/common/tests/java/org/overte/phone/PhonePermissionFlowStandaloneTest.java" \
     "${ANDROID_ROOT}/common/tests/java/org/overte/phone/PhonePendingUrlPolicyStandaloneTest.java" \
-    "${ANDROID_ROOT}/common/tests/java/org/overte/phone/PhoneTouchUiMetricsPolicyStandaloneTest.java"
+    "${ANDROID_ROOT}/common/tests/java/org/overte/phone/PhoneTouchUiMetricsPolicyStandaloneTest.java" \
+    "${ANDROID_ROOT}/phone/tests/instrumentation/PhoneMetricsDeliveryHostTest.java"
 
 java -cp "${TEST_OUTPUT}" org.overte.phone.PhoneDeepLinkNormalizerTest
 java -cp "${TEST_OUTPUT}" org.overte.phone.PhoneLaunchStateStandaloneTest
 java -cp "${TEST_OUTPUT}" org.overte.phone.PhonePermissionFlowStandaloneTest
 java -cp "${TEST_OUTPUT}" org.overte.phone.PhonePendingUrlPolicyStandaloneTest
 java -cp "${TEST_OUTPUT}" org.overte.phone.PhoneTouchUiMetricsPolicyStandaloneTest
+java -cp "${TEST_OUTPUT}" org.overte.phone.PhoneMetricsDeliveryHostTest

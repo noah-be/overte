@@ -32,6 +32,15 @@ def main():
     if missing_suites:
         fail(f"Phone inventory test runners are absent from suite catalog: {missing_suites}")
 
+    profile = json.loads((root / "tests/platform-profile.json").read_text(encoding="utf-8"))
+    runtime_contract = {
+        "name": "phone-e2e-runtime-regressions",
+        "entrypoint": "android/phone/tests/phone-e2e-runtime-regressions.py",
+        "interpreter": "python",
+    }
+    if runtime_contract not in profile["suites"]:
+        fail("Phone native regressions must remain in the mandatory platform profile")
+
     discovered = set()
     for pattern in inventory["scope"]["globs"]:
         discovered.update(

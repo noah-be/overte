@@ -145,6 +145,7 @@ class ScannerInputTests(unittest.TestCase):
                     '--version-code', '4', '--version-name', '0.1.3',
                     '--sdk', '/sdk', '--work-dir', str(Path(td) / 'missing')]
             with patch('sys.argv', args), patch.object(builder, 'preflight'), \
+                    patch.object(builder, 'APK', Path(td) / 'app/build/outputs/apk/release/app.apk'), \
                     patch.object(builder, 'acquire') as acquire, \
                     patch.object(builder.urllib.request, 'urlopen') as network:
                 with self.assertRaisesRegex(ValueError, 'will not download'):
@@ -158,6 +159,7 @@ class ScannerInputTests(unittest.TestCase):
                     '--version-code', '4', '--version-name', '0.1.3',
                     '--sdk', '/sdk', '--work-dir', str(Path(td) / 'new')]
             with patch('sys.argv', args), patch.object(builder, 'preflight'), \
+                    patch.object(builder, 'APK', Path(td) / 'app/build/outputs/apk/release/app.apk'), \
                     patch.object(builder, 'acquire') as acquire, \
                     patch.object(builder, 'release_command') as compile_command:
                 builder.main()

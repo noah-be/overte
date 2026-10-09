@@ -29,8 +29,13 @@ if [ -n "${MOCK_EXPECT_TMPDIR:-}" ]; then
   test "$TMPDIR" = "$MOCK_EXPECT_TMPDIR"
 fi
 """)
-        self.analyzer = self.tool("apkanalyzer", """
+        self.analyzer = self.tool("apkanalyzer", r"""
 case "$2" in
+  code)
+    count="${MOCK_QT_CLASS_COUNT:-1}"
+    for ((i=0; i<count; ++i)); do
+      printf '.class public L%s;\n' "${4//./\/}"
+    done ;;
   application-id) printf '%s\n' "${MOCK_PACKAGE:-io.github.noah_be.overte.phone}" ;;
   version-code) printf '7\n' ;;
   version-name) printf '0.4.0\n' ;;
@@ -85,6 +90,16 @@ printf 'Signer #1 certificate SHA-256 digest: %064d\n' 0
         result = self.run_verifier({"MOCK_GATE": "0"})
         self.assertEqual(result.returncode, 2)
         self.assertIn("command failed", result.stderr)
+
+    def test_rejects_duplicate_packaged_qt_replacement(self):
+        result = self.run_verifier({"MOCK_QT_CLASS_COUNT": "2"})
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("exactly one packaged definition", result.stderr)
+
+    def test_rejects_missing_packaged_qt_replacement(self):
+        result = self.run_verifier({"MOCK_QT_CLASS_COUNT": "0"})
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("exactly one packaged definition", result.stderr)
 
     def test_failed_gate_invalidates_stale_output_and_cleans_staging(self):
         output = self.directory / "reports/apk-manifest.json"

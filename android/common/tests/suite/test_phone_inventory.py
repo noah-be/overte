@@ -37,6 +37,10 @@ class PhoneInventoryAdversarialTest(unittest.TestCase):
             {"id": suite} for suite in self.inventory["required_catalog_suites"]
         ]}
         self._put("android/common/tests/suite/catalog.json", json.dumps(catalog))
+        self._put(
+            "tests/platform-profile.json",
+            (REPO_ROOT / "tests/platform-profile.json").read_text(encoding="utf-8"),
+        )
         for production in set(self.inventory["tested"]) | set(self.inventory["runtime_boundaries"]):
             self._put(production, "production fixture")
         for production, evidence in self.inventory["tested"].items():
@@ -82,6 +86,16 @@ class PhoneInventoryAdversarialTest(unittest.TestCase):
             "class UnownedPolicy {}"
         )
         self.assertRejected("lack test ownership")
+
+    def test_missing_runtime_regression_registration_is_rejected(self):
+        profile_path = self.root / "tests/platform-profile.json"
+        profile = json.loads(profile_path.read_text(encoding="utf-8"))
+        profile["suites"] = [
+            suite for suite in profile["suites"]
+            if suite["name"] != "phone-e2e-runtime-regressions"
+        ]
+        self._put("tests/platform-profile.json", json.dumps(profile))
+        self.assertRejected("must remain in the mandatory platform profile")
 
     def test_stale_evidence_path_is_rejected(self):
         evidence = next(iter(self.inventory["tested"].values()))[0]

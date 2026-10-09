@@ -57,8 +57,16 @@ require "$repo_root/android/phone/apps/phoneInterface/src/main/java/org/qtprojec
     'postDelayed\(\(\) -> QtNative\.setApplicationDisplayMetrics' \
     'phone reapplies real metrics after Qt replaces its fallback screen'
 require "$repo_root/android/phone/apps/phoneInterface/build.gradle" \
-    "exclude 'org/qtproject/qt5/android/QtLayout.class'" \
-    'phone packaging replaces only the bundled QtLayout implementation'
+    "inputs.property 'phoneQtJavaOverrides', phoneQtJavaOverrides" \
+    'phone packaging binds Qt override changes to the cached Jar input'
+require "$repo_root/android/phone/apps/phoneInterface/build.gradle" \
+    'exclude phoneQtJavaOverrides' \
+    'phone packaging excludes the declared Qt override classes'
+for qt_class in 'QtLayout[.]class' 'QtLayout[$]LayoutParams[.]class' 'QtEditText[.]class'; do
+    require "$repo_root/android/phone/apps/phoneInterface/build.gradle" \
+        "org/qtproject/qt5/android/${qt_class//./\\.}" \
+        'phone packaging declares each production Qt replacement'
+done
 require "$repo_root/android/phone/apps/phoneInterface/src/main/java/org/qtproject/qt5/android/QtLayout.java" \
     '\(applicationWidth > applicationHeight\).*\(maximumWidth > maximumHeight\)' \
     'Qt current and maximum metrics share the requested orientation'

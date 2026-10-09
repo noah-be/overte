@@ -7,6 +7,7 @@
 #include <utility>
 
 #include <QCoreApplication>
+#include <QGuiApplication>
 #include <QMetaObject>
 #include <QObject>
 #include <QPointer>
@@ -15,6 +16,7 @@
 #include <QVariantMap>
 
 #include "AndroidHelper.h"
+#include "PhoneApplicationOwner.h"
 #include <PhoneLoadingDiagnostics.h>
 #include "PhoneLifecycleHandoff.h"
 #include "PhonePendingHandoff.h"
@@ -152,7 +154,14 @@ public:
 
     void submit(const phone::TouchUiMetrics& metrics) {
         _pending = metrics;
+        // Preserve Android's observed visibility. Qt 5's cached input-method
+        // state can remain false while Android has already shown the keyboard.
         _hasPending = metrics.valid;
+#if defined(OVERTE_E2E_VOICE_TESTS)
+        QCoreApplication::instance()->setProperty("phoneTouchUiMetricsDiagnostic", QVariantMap {
+            {"submitted", true}, {"valid", metrics.valid},
+            {"loadComplete", AndroidHelper::instance().isLoadComplete()} });
+#endif
         deliverIfReady();
     }
 
@@ -161,7 +170,12 @@ private:
         if (!_hasPending || !AndroidHelper::instance().isLoadComplete()) {
             return;
         }
-        if (!phone::updateTouchUiRuntimeMetrics(touchUiMetricsMap(_pending))) {
+        const bool delivered = phone::updateTouchUiRuntimeMetrics(touchUiMetricsMap(_pending));
+#if defined(OVERTE_E2E_VOICE_TESTS)
+        QCoreApplication::instance()->setProperty("phoneTouchUiMetricsDiagnostic", QVariantMap {
+            {"submitted", true}, {"valid", _pending.valid}, {"loadComplete", true}, {"delivered", delivered} });
+#endif
+        if (!delivered) {
             return;
         }
         _hasPending = false;
@@ -276,7 +290,7 @@ Java_org_overte_phone_PhoneInterfaceActivity_nativeProcessUrl(
     // Supersede ownership on the Android ingress thread, not only when Qt
     // eventually dispatches the callback. Empty input is cancellation only.
     const auto request = urlRequests().next();
-    auto* application = QCoreApplication::instance();
+    auto* application = phoneApplication();
     if (!application) {
         return JNI_FALSE;
     }
@@ -317,7 +331,7 @@ Java_org_overte_phone_PhoneInterfaceActivity_nativeProcessUrl(
 extern "C" JNIEXPORT jboolean JNICALL
 Java_org_overte_phone_PhoneInterfaceActivity_nativeHandleBack(
         JNIEnv* /* env */, jclass /* activityClass */) {
-    auto* application = QCoreApplication::instance();
+    auto* application = phoneApplication();
     if (!application) {
         return JNI_FALSE;
     }
@@ -370,7 +384,7 @@ Java_org_overte_phone_PhoneInterfaceActivity_nativeUpdateTouchUiMetrics(
         hoverSupported == JNI_TRUE,
         hardwareKeyboardSupported == JNI_TRUE,
         hapticsSupported == JNI_TRUE);
-    auto* application = QCoreApplication::instance();
+    auto* application = phoneApplication();
     if (!metrics.valid || !application) {
         return JNI_FALSE;
     }
@@ -387,7 +401,7 @@ Java_org_overte_phone_PhoneInterfaceActivity_nativeUpdateTouchUiMetrics(
 extern "C" JNIEXPORT jboolean JNICALL
 Java_org_overte_phone_PhoneInterfaceActivity_nativeSetForegroundState(
         JNIEnv* /* env */, jclass /* activityClass */, jboolean foreground) {
-    auto* application = QCoreApplication::instance();
+    auto* application = phoneApplication();
     if (!application) {
         return JNI_FALSE;
     }
@@ -407,7 +421,7 @@ Java_org_overte_phone_PhoneInterfaceActivity_nativeSetForegroundState(
 extern "C" JNIEXPORT jboolean JNICALL
 Java_org_overte_phone_PhoneInterfaceActivity_nativeSetE2eFlyingOverride(
         JNIEnv* /* env */, jclass /* activityClass */, jint mode) {
-    auto* application = QCoreApplication::instance();
+    auto* application = phoneApplication();
     if (!application || mode < -1 || mode > 1) {
         return JNI_FALSE;
     }

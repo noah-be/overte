@@ -357,6 +357,8 @@ android {
     }
     buildTypes {
         debug {
+            externalNativeBuild.cmake.arguments '-DOVERTE_E2E_VOICE_TESTS=' +
+                (providers.gradleProperty('overteVoiceTests').orNull == 'true' ? 'ON' : 'OFF')
             enableUnitTestCoverage true
             enableAndroidTestCoverage true
             buildConfigField 'String', 'BACKTRACE_URL', '""'
@@ -367,6 +369,7 @@ android {
         }
         emulator {
             initWith debug
+            externalNativeBuild.cmake.arguments '-DOVERTE_E2E_VOICE_TESTS=OFF'
             // The x86_64 smoke APK does not package JaCoCo's offline runtime.
             // Inheriting debug coverage instruments QtApplication and crashes
             // the process before AndroidJUnitRunner can start.
@@ -375,6 +378,8 @@ android {
             matchingFallbacks = ['debug']
         }
         release {
+            // Synthetic sources and PCM capture are restricted to dedicated debug builds.
+            externalNativeBuild.cmake.arguments '-DOVERTE_E2E_VOICE_TESTS=OFF'
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'),
                 'proguard-rules.pro'
@@ -421,6 +426,7 @@ android {
     applicationVariants.all { variant ->
         def e2eProbeAsset = file('../../../../tests/device/probe/overte_e2e_probe.js')
         def e2eSceneAsset = file('../../../../tests/device/fixture/scene.json')
+        def e2eEntityScriptAsset = file('../../../../tests/device/fixture/scripted_interactable.js')
         def nativeResourcesRcc = fileTree(new File(projectDir, '.cxx')) {
             include '**/android/phone/apps/phoneInterface/libraries/interface/resources.rcc'
         }
@@ -435,7 +441,7 @@ android {
         // those include/exclude rules invalidate the merged asset output.
         variant.mergeAssets.inputs.file(project.file('build.gradle'))
         if (variant.buildType.name == 'debug') {
-            variant.mergeAssets.inputs.files(e2eProbeAsset, e2eSceneAsset)
+            variant.mergeAssets.inputs.files(e2eProbeAsset, e2eSceneAsset, e2eEntityScriptAsset)
         }
 
         variant.mergeAssets.doLast {
@@ -570,6 +576,7 @@ android {
                 copy {
                     from e2eProbeAsset
                     from e2eSceneAsset
+                    from e2eEntityScriptAsset
                     into mergedAssetsDir
                     eachFile { details -> assetList.add(details.path) }
                 }
@@ -653,11 +660,18 @@ android {
 def preparePhoneQtAndroidJar = tasks.register('preparePhoneQtAndroidJar', Jar) {
     def originalQtAndroidJar = new File(qtPackageDir, 'jar/QtAndroid.jar')
     inputs.file originalQtAndroidJar
+    // Changes to zipTree exclusion rules alone do not invalidate this Jar's
+    // cached output. Bind the replacement class set as an explicit input.
+    def phoneQtJavaOverrides = [
+        'org/qtproject/qt5/android/QtLayout.class',
+        'org/qtproject/qt5/android/QtLayout$LayoutParams.class',
+        'org/qtproject/qt5/android/QtEditText.class'
+    ]
+    inputs.property 'phoneQtJavaOverrides', phoneQtJavaOverrides
     archiveFileName = 'QtAndroid-phone.jar'
     destinationDirectory = layout.buildDirectory.dir('generated/phoneQtJava')
     from(zipTree(originalQtAndroidJar)) {
-        exclude 'org/qtproject/qt5/android/QtLayout.class'
-        exclude 'org/qtproject/qt5/android/QtLayout$LayoutParams.class'
+        exclude phoneQtJavaOverrides
     }
 }
 

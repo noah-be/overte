@@ -21,7 +21,8 @@
       "interface/resources/qml/hifi/tablet/TabletGeneralPreferencesPolicy.qml",
       "interface/resources/qml/hifi/tablet/TabletGeneralPreferences.qml",
       "interface/resources/qml/hifi/tablet/TabletTouchConfiguration.qml",
-      "interface/resources/qml/hifi/tablet/tabletWindows/TabletPreferencesLayout.qml"
+      "interface/resources/qml/hifi/tablet/tabletWindows/TabletPreferencesLayout.qml",
+      "android/phone/apps/phoneInterface/src/main/java/org/qtproject/qt5/android/QtEditText.java"
     ]
   },
   "required_catalog_suites": [
@@ -177,6 +178,23 @@
     ],
     "interface/resources/qml/hifi/tablet/tabletWindows/TabletPreferencesLayout.qml": [
       "android/common/tests/qml/tst_phone_general_preferences.qml"
+    ],
+    "android/phone/apps/phoneInterface/src/PhoneApplicationOwner.h": [
+      "tests/device/contracts/lifecycle/phone-application-owner-test.cpp",
+      "tests/device/contracts/lifecycle/test_phone_native_startup.py"
+    ],
+    "android/phone/apps/phoneInterface/src/PhoneAccessibilityBridge.cpp": [
+      "tests/device/modules/accessibility.py",
+      "tests/device/modules/tablet_e2e.py",
+      "tests/device/contracts/test_phone_accessibility_tree.py"
+    ],
+    "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneAccessibilityBridge.java": [
+      "tests/device/modules/accessibility.py",
+      "tests/device/modules/tablet_e2e.py",
+      "tests/device/contracts/test_phone_accessibility_tree.py"
+    ],
+    "android/phone/apps/phoneInterface/src/main/java/org/qtproject/qt5/android/QtEditText.java": [
+      "android/phone/tests/test_phone_ime.py"
     ]
   },
   "runtime_boundaries": {

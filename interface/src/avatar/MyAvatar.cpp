@@ -776,7 +776,16 @@ void MyAvatar::update(float deltaTime) {
         _physicsSafetyPending = getCollisionsEnabled();
         _characterController.recomputeFlying(); // In case we've gone to into the sky.
     }
-    if (_goToFeetAjustment && _skeletonModel->isLoaded()) {
+    // Model::isLoaded() can become true before SkeletonModel's simulation
+    // computes its collision capsule. Consuming the feet adjustment with the
+    // minimum placeholder shape embeds the later full-sized avatar in the
+    // floor; Phone's safety hold correctly refuses to release that position.
+    const bool feetGeometryReady = _skeletonModel->isLoaded()
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        && _skeletonModel->getBoundingCapsuleRadius() > 0.0f
+#endif
+        ;
+    if (_goToFeetAjustment && feetGeometryReady) {
         auto feetAjustment = getWorldPosition() - getWorldFeetPosition();
         _goToPosition = getWorldPosition() + feetAjustment;
         setWorldPosition(_goToPosition);
