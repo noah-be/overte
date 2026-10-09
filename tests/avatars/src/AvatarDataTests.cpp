@@ -33,6 +33,9 @@ AvatarSkeletonTrait::UnpackedJointData skeletonJoint(const QString& name, const 
 
 class TestAvatarData : public AvatarData {
 public:
+    size_t pendingJointCount() const { return _hasNewJointDataVec.size(); }
+    void markPendingJoint(size_t joint) { _hasNewJointDataVec.at(joint) = true; }
+    bool jointPending(size_t joint) const { return _hasNewJointDataVec.at(joint); }
     void setOutboundGlobalPosition(const glm::vec3& position) { _globalPosition = position; }
     void setOutboundBoundingBox(const glm::vec3& dimensions, const glm::vec3& offset) {
         _globalBoundingBoxDimensions = dimensions;
@@ -73,7 +76,32 @@ private slots:
     void rejectTruncatedAvatarIdentity();
     void replicateAvatarIdentity();
     void validateAvatarTraitWireFields();
+    void publicJointMutationKeepsPendingFlagsAligned();
 };
+
+void AvatarDataTests::publicJointMutationKeepsPendingFlagsAligned() {
+    TestAvatarData avatar;
+    avatar.setRawJointData(QVector<JointData>(2));
+    QCOMPARE(avatar.pendingJointCount(), size_t(2));
+    avatar.markPendingJoint(1);
+    avatar.setJointTranslation(6, glm::vec3(0.0f));
+    QCOMPARE(avatar.pendingJointCount(), size_t(7));
+    QVERIFY(avatar.jointPending(1));
+    QVERIFY(!avatar.jointPending(6));
+    avatar.setJointRotations(QVector<glm::quat>(10, Quaternions::IDENTITY));
+    QCOMPARE(avatar.pendingJointCount(), size_t(10));
+    avatar.setJointTranslations(QVector<glm::vec3>(12, glm::vec3(0.0f)));
+    QCOMPARE(avatar.pendingJointCount(), size_t(12));
+    avatar.clearJointData(14);
+    QCOMPARE(avatar.pendingJointCount(), size_t(15));
+    avatar.setJointRotation(16, Quaternions::IDENTITY);
+    QCOMPARE(avatar.pendingJointCount(), size_t(17));
+    avatar.setJointData(18, Quaternions::IDENTITY, glm::vec3(0.0f));
+    QCOMPARE(avatar.pendingJointCount(), size_t(19));
+    avatar.setRawJointData(QVector<JointData>(2));
+    QCOMPARE(avatar.pendingJointCount(), size_t(2));
+    QVERIFY(avatar.jointPending(1));
+}
 
 void AvatarDataTests::parseTruncatedFlags() {
     AvatarData avatar;
