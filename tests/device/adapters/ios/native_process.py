@@ -38,7 +38,9 @@ async def abort(rsd, bundle, executable):
             if await info.execname_for_pid(process["pid"]) != executable:
                 raise RuntimeError("configured executable changed before abort")
             async with ProcessControl(provider) as control:
-                await control.signal(process["pid"], signal.SIGABRT)
+                # The native DTX encoder accepts a plain integer. Python's
+                # signal enum is numerically equal but is not wire-encodable.
+                await control.signal(process["pid"], int(signal.SIGABRT))
             deadline = asyncio.get_running_loop().time() + 10
             while await info.is_running_pid(process["pid"]):
                 if asyncio.get_running_loop().time() >= deadline:
