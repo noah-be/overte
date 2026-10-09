@@ -74,8 +74,10 @@ elif cmd == ["get-state"]:
                       if connection_state_path and os.path.exists(connection_state_path) else 0)
     if connection_state_path: open(connection_state_path,"w").write(str(connection_reads + 1))
     print("offline" if connection_reads < connection_offline_reads else "device")
-elif cmd[:2] == ["shell", "getprop"]:
-    prop=cmd[2]
+elif (cmd[:2] == ["shell", "getprop"]
+      or (len(cmd) == 2 and cmd[0] == "shell"
+          and shlex.split(cmd[1])[:2] == ["sh", "-c"]
+          and shlex.split(cmd[1])[2].startswith("getprop ro.product.manufacturer\n"))):
     pico=bool(target and target.startswith("pico-secret"))
     values={
       "ro.product.manufacturer": "PICO" if pico else "Example",
@@ -86,7 +88,12 @@ elif cmd[:2] == ["shell", "getprop"]:
       "ro.product.cpu.abilist": "arm64-v8a,armeabi-v7a",
       "ro.build.version.sdk": "36", "ro.build.version.release": "17",
       "ro.opengles.version": "196610", "ro.kernel.qemu": "0"}
-    print(values.get(prop, ""))
+    if cmd[:2] == ["shell", "getprop"]:
+        print(values.get(cmd[2], ""))
+    else:
+        for line in shlex.split(cmd[1])[2].splitlines():
+            if line.startswith("getprop "): print(values.get(line.split()[1], ""))
+            elif line == "pm list features": print("feature:android.hardware.touchscreen")
 elif cmd == ["shell", "pm", "list", "features"]: print("feature:android.hardware.touchscreen")
 elif cmd[:4] == ["shell", "pidof", "-s", "io.github.noah_be.overte.phone"] and process_state != "stopped": print("45" if process_state == "restarted" else "42")
 elif cmd[:4] == ["shell", "pidof", "-s", "org.overte.pico"] and process_state != "stopped": print("44" if process_state == "restarted" else "43")
@@ -273,9 +280,9 @@ class AndroidAdapterTest(unittest.TestCase):
 
     def test_android_control_reads_app_private_files_through_module_loader(self):
         probe = (ROOT / "probe/overte_e2e_probe.js").read_text(encoding="utf-8")
-        self.assertIn('Script.require("./android-control.json")', probe)
+        self.assertIn('Script.require(androidControlMarkerUrl)', probe)
         self.assertIn(
-            'Script.require("./android-control-command.json?sample="', probe)
+            'Script.require(androidControlCommandUrl + "?sample="', probe)
         self.assertNotIn('request.open("GET", Script.resolvePath("android-control', probe)
 
     def test_probe_retains_asynchronous_control_requests_until_completion(self):
@@ -284,8 +291,8 @@ class AndroidAdapterTest(unittest.TestCase):
             self.assertIn(f"var {name} = null;", probe)
             self.assertIn(f"{name} = request;", probe)
             self.assertIn(f"{name} = null;", probe)
-        self.assertIn('Script.require("./android-control.json")', probe)
-        self.assertIn('Script.require("./android-control-command.json?sample="', probe)
+        self.assertIn('Script.require(androidControlMarkerUrl)', probe)
+        self.assertIn('Script.require(androidControlCommandUrl + "?sample="', probe)
         for obsolete_name in ("clientCommandRequestPending",
                               "androidControlCommandRequestPending",
                               "androidControlMarkerRequestPending",
@@ -369,6 +376,46 @@ class AndroidAdapterTest(unittest.TestCase):
         self.addCleanup(process.communicate, timeout=5)
         self.addCleanup(process.terminate)
         return process, json.loads(ready.read_text(encoding="utf-8"))
+
+    def test_batched_phone_profile_retains_all_live_eligibility_checks(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("batched_android_profile", ADAPTER)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        adapter = module.AndroidAdapter("phone")
+
+        class LiveProfile:
+            def __init__(self):
+                self.values = ["Google", "google", "Pixel 6a", "bluejay",
+                               "default", "arm64-v8a", "37", "196610",
+                               "feature:android.hardware.touchscreen"]
+                self.calls = 0
+
+            def execute(self, arguments, *, target, check):
+                self.calls += 1
+                self.asserted_target = target
+                return "\n".join(self.values) + "\n"
+
+        live = LiveProfile()
+        adapter.adb = live
+        self.assertTrue(adapter.eligible("test-phone"))
+        self.assertEqual(1, live.calls)
+        valid = list(live.values)
+        for index, replacement in ((0, "PICO"), (1, "ByteDance"),
+                                   (4, "watch"), (4, "tv"), (4, "automotive"), (4, "vr"),
+                                   (5, "x86_64"), (6, "25"), (6, ""),
+                                   (7, "196609"), (7, ""),
+                                   (8, "feature:android.hardware.camera")):
+            live.values = list(valid)
+            live.values[index] = replacement
+            with self.subTest(index=index, replacement=replacement):
+                self.assertFalse(adapter.eligible("test-phone"))
+        live.values = valid[:3]
+        self.assertFalse(adapter.eligible("test-phone"))
+        live.values = list(valid)
+        self.assertTrue(adapter.eligible("test-phone"))
+        self.assertEqual("test-phone", live.asserted_target)
+        self.assertEqual(15, live.calls)
 
     def test_phone_profile_discovers_only_phone(self):
         result = self.verify("phone")
@@ -703,10 +750,12 @@ class AndroidAdapterTest(unittest.TestCase):
 
     def test_probe_executes_real_controlled_actions_and_reports_observations(self):
         probe = (ROOT / "probe/overte_e2e_probe.js").read_text(encoding="utf-8")
-        self.assertIn('Script.require("./android-control.json")', probe)
-        self.assertIn('Script.require("./android-control-command.json?sample="', probe)
-        self.assertNotIn('Script.resolvePath("android-control.json")', probe)
-        self.assertNotIn('Script.resolvePath("android-control-command.json")', probe)
+        self.assertIn('Script.require(androidControlMarkerUrl)', probe)
+        self.assertIn('Script.require(androidControlCommandUrl + "?sample="', probe)
+        self.assertLess(probe.index('Script.resolvePath("android-control.json")'),
+                        probe.index("function sample(now)"))
+        self.assertLess(probe.index('Script.resolvePath("android-control-command.json")'),
+                        probe.index("function sample(now)"))
         self.assertIn("location.handleLookupString(command.url)", probe)
         self.assertNotIn("location.href = command.url", probe)
         self.assertEqual(1, probe.count("androidAssetEntityId = Entities.addEntity("))

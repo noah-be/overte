@@ -78,8 +78,8 @@ def validate_fixture() -> dict:
             or not all(isinstance(spawn[axis], (int, float))
                        and not isinstance(spawn[axis], bool)
                        for axis in ("x", "y", "z"))
-            or spawn["y"] < 2.0):
-        raise ValueError("fixture spawn must be explicit and safely above the floor")
+            or spawn["y"] != 0.0):
+        raise ValueError("fixture spawn feet must be on the floor surface")
     expected_spawn_path = (f"/{spawn['x']},{spawn['y']},{spawn['z']}"
                            "/0,0,0,1")
     if manifest["spawnPath"] != expected_spawn_path:
@@ -96,6 +96,14 @@ def validate_fixture() -> dict:
             or not isinstance(position.get("y"), (int, float))
             or abs(position["y"] + thickness / 2.0) > 1e-6):
         raise ValueError("fixture floor must be thick with its top fixed at y=0")
+    if (floor.get("collisionless") is not False
+            or floor.get("rotation", {"x": 0, "y": 0, "z": 0, "w": 1})
+                != {"x": 0, "y": 0, "z": 0, "w": 1}
+            or any(not isinstance(dimensions.get(axis), (int, float))
+                   or not isinstance(position.get(axis), (int, float))
+                   or abs(spawn[axis] - position[axis]) >= dimensions[axis] / 2.0 - 1.0
+                   for axis in ("x", "z"))):
+        raise ValueError("fixture spawn must be inside its supporting collision floor")
     wall_contract = manifest.get("collisionWall")
     if (not isinstance(collision_wall, dict) or not isinstance(wall_contract, dict)
             or set(wall_contract) != {"approachDirection", "center", "dimensions", "name"}
@@ -111,7 +119,7 @@ def validate_fixture() -> dict:
             or set(interaction_contract) != {"dimensions", "name", "position"}
             or interaction_contract.get("name") != "OVERTE_E2E_INTERACTABLE"
             or interaction_target.get("collisionless") is not True
-            or interaction_target.get("locked") is not True
+            or interaction_target.get("locked") is not False
             or interaction_target.get("position") != interaction_contract.get("position")
             or interaction_target.get("dimensions") != interaction_contract.get("dimensions")):
         raise ValueError("fixture interaction target does not match its manifest")
@@ -411,7 +419,14 @@ class FixtureState:
                 or not CLIENT_COMMAND_ID.fullmatch(command["commandId"])):
             raise ValueError("invalid client command envelope")
         action = command.get("action")
-        if action == "scene-load":
+        if action == "voice-test":
+            sys.path.insert(0, str(ROOT.parent))
+            from voice_contract import command as validate_voice_command
+            valid = set(command) == {"schemaVersion", "commandId", "action", "request"}
+            if valid:
+                request = validate_voice_command(command["request"])
+                valid = request["commandId"] == command["commandId"]
+        elif action == "scene-load":
             valid = (set(command) == {"schemaVersion", "commandId", "action", "url"}
                      and self._web_url(command.get("url")))
         elif action == "navigate":

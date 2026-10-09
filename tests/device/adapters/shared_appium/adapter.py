@@ -34,7 +34,8 @@ from adapters.common import (EMBEDDED_FIXTURE_URL, emit, fail,  # noqa: E402
                              read_fresh_json, require_fresh_snapshot,
                              state_directory)
 from contracts import (TABLET_CONTRACT_VERSION, load_tablet_ui_contract,  # noqa: E402
-                       validate_operation_arguments, validate_tablet_ui_snapshot)
+                       validate_operation_arguments, validate_tablet_ui_snapshot,
+                       validate_text_snapshot)
 
 
 TARGET_FIELDS = {
@@ -47,6 +48,8 @@ MAX_PAGE_SOURCE_BYTES = 2 * 1024 * 1024
 TRANSITION_ATTEMPTS = 20
 TRANSITION_RETRY_SECONDS = 0.1
 TRANSITION_ERRORS = {
+    "Android semantic source must expose exactly one visible screen",
+    "Android semantic source contains duplicate visible controls",
     "iOS semantic source must expose exactly one visible screen",
     "iOS semantic source contains duplicate visible controls",
     "iOS semantic ready marker does not match the visible screen",
@@ -147,7 +150,7 @@ class WebDriver:
 
 class AppiumAdapter:
     ANDROID_DEBUG_PROBE = "files/overte-e2e/overte-probe.json"
-    ANDROID_CLIENT_COMMAND = "files/overte-e2e/e2e-client-command.json"
+    ANDROID_CLIENT_COMMAND = "files/overte-e2e/android-control-command.json"
     IOS_TEST_BUILD_CONTRACT = "overte-ios-e2e-v1"
     IOS_TEST_BUILD_PLIST_KEY = "OverteE2ETestBuildContractVersion"
     IOS_PROBE_SCRIPT_PATH = "/overte_e2e_probe.js"
@@ -207,6 +210,7 @@ class AppiumAdapter:
             if not isinstance(entry.get("clientControl", {}), dict):
                 fail("Appium target clientControl must be an object")
             self.validate_controls(entry.get("controls", {}))
+            self.validate_tablet_resource_ids(entry)
             tablet = entry.get("controls", {}).get("tablet", {})
             if not isinstance(tablet, dict):
                 fail("Appium target controls.tablet must be an object")
@@ -269,8 +273,11 @@ class AppiumAdapter:
 
     @staticmethod
     def validate_controls(controls: dict) -> None:
-        if set(controls) - {"look", "move", "tablet"}:
+        if set(controls) - {"look", "move", "tablet", "primary", "mute", "jump"}:
             fail("Appium target contains unsupported shared controls")
+        for name in ("primary", "mute", "jump"):
+            if name in controls:
+                AppiumAdapter.validate_fractional_point(controls[name], "controls." + name)
         if "look" in controls:
             look = controls["look"]
             if (not isinstance(look, dict)
@@ -305,6 +312,7 @@ class AppiumAdapter:
             allowed = {
                 "closeAccessibilityId", "closePoint", "openAccessibilityId",
                 "openPoint", "semanticUi", "toggleAccessibilityId", "togglePoint",
+                "openResourceId", "closeResourceId",
             }
             if not isinstance(tablet, dict) or set(tablet) - allowed:
                 fail("Appium tablet control is invalid")
@@ -319,6 +327,18 @@ class AppiumAdapter:
             if semantic is not None and semantic != {
                     "contractVersion": TABLET_CONTRACT_VERSION}:
                 fail("tablet.semanticUi must opt into the current contract exactly")
+
+    @staticmethod
+    def validate_tablet_resource_ids(target: dict) -> None:
+        tablet = target.get("controls", {}).get("tablet", {})
+        for key in ("openResourceId", "closeResourceId"):
+            if key not in tablet:
+                continue
+            value = tablet[key]
+            if (target.get("platform") != "android" or not isinstance(value, str)
+                    or not value.startswith(target.get("appId", "") + ":id/")
+                    or not re.fullmatch(r"[A-Za-z0-9_.]+:id/[A-Za-z0-9_.-]+", value)):
+                fail("tablet resource IDs require the selected Android application namespace")
 
     @staticmethod
     def normalized_http_origin(value: object, label: str) -> str:
@@ -518,8 +538,26 @@ class AppiumAdapter:
         if target["platform"] == "android" and process.get("kind") == "adb":
             values.append("telemetry.snapshot")
         if cls.controlled_android_client(target):
-            values += ["asset.load", "navigation.enter-domain", "sound.play"]
+            values += ["app.crash", "app.stop", "app.version", "asset.load",
+                       "navigation.enter-domain", "scene.reload", "sound.play",
+                       "permission.set", "permission.snapshot"]
+            import importlib.util
+            if importlib.util.find_spec("PIL") is not None:
+                values.append("render.snapshot")
+            if (os.environ.get("OVERTE_E2E_VOICE_TESTS") == "1"
+                    and target.get("appId") == "io.github.noah_be.overte.phone"):
+                values.append("voice.exchange")
+            if os.environ.get("OVERTE_ANDROID_E2E_TEXT_INPUT") == "1":
+                values += ["text.dismiss", "text.focus", "text.snapshot", "text.type"]
         controls = target.get("controls", {})
+        if controls.get("primary") is not None:
+            values.append("input.primary")
+        if cls.controlled_android_client(target) and controls.get("mute") is not None:
+            values.append("audio.mute")
+        if cls.controlled_android_client(target) and controls.get("jump") is not None:
+            values.append("input.jump")
+            if os.environ.get("OVERTE_ANDROID_E2E_FLYING") == "1":
+                values.append("input.fly")
         if target.get("scene"):
             values.append("scene.load")
         if target.get("probe"):
@@ -534,7 +572,10 @@ class AppiumAdapter:
                                          (tablet.get("openAccessibilityId") and
                                           tablet.get("closeAccessibilityId")) or
                                          (tablet.get("openPoint") and
-                                          tablet.get("closePoint"))):
+                                          tablet.get("closePoint")) or
+                                         (target.get("platform") == "android" and
+                                          tablet.get("openResourceId") and
+                                          tablet.get("closeResourceId"))):
             values += ["tablet.close", "tablet.open"]
         if isinstance(tablet, dict) and tablet.get("semanticUi"):
             values += ["tablet.activate", "tablet.snapshot"]
@@ -620,7 +661,8 @@ class AppiumAdapter:
             value = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             fail("Appium session state is unreadable")
-        allowed = {"generation", "processIdentity", "sessionId", "targetFingerprint"}
+        allowed = {"generation", "processIdentity", "sessionId", "targetFingerprint",
+                   "microphoneOriginalMode", "microphoneOriginalUidMode"}
         if (not isinstance(value, dict) or set(value) - allowed
                 or not isinstance(value.get("sessionId"), str) or not value["sessionId"]
                 or not isinstance(value.get("generation", 0), int)
@@ -633,6 +675,10 @@ class AppiumAdapter:
                 and (not isinstance(value["processIdentity"], str)
                      or not value["processIdentity"])):
             fail("Appium session state is invalid")
+        for key in ("microphoneOriginalMode", "microphoneOriginalUidMode"):
+            if (key in value and (not isinstance(value[key], str)
+                    or value[key] not in {"allow", "default", "foreground", "ignore", "deny"})):
+                fail("Appium session microphone restore mode is invalid")
         return value
 
     def save_session(self, selector: str, value: dict) -> None:
@@ -659,26 +705,30 @@ class AppiumAdapter:
         from adb_transport import AdbTransport
         adb = AdbTransport()
         adb.require_connected(device)
-        identity = " ".join(adb.prop(device, name) for name in (
+        properties = adb.properties(device, (
+            "ro.product.manufacturer", "ro.product.model", "ro.product.device", "ro.product.name",
+            "ro.build.characteristics", "ro.product.cpu.abilist", "ro.build.version.sdk",
+            "ro.opengles.version", "ro.kernel.qemu"))
+        identity = " ".join(properties[name] for name in (
             "ro.product.manufacturer", "ro.product.model",
             "ro.product.device", "ro.product.name",
         )).casefold()
         characteristics = {
             value.strip().casefold()
-            for value in adb.prop(device, "ro.build.characteristics").split(",")
+            for value in properties["ro.build.characteristics"].split(",")
             if value.strip()
         }
         abis = {
             value.strip()
-            for value in adb.prop(device, "ro.product.cpu.abilist").split(",")
+            for value in properties["ro.product.cpu.abilist"].split(",")
             if value.strip()
         }
-        sdk = adb.prop(device, "ro.build.version.sdk")
-        gles = adb.prop(device, "ro.opengles.version")
+        sdk = properties["ro.build.version.sdk"]
+        gles = properties["ro.opengles.version"]
         features = set(adb.shell(
             device, "pm", "list", "features", check=False).splitlines())
         supported = (
-            adb.prop(device, "ro.kernel.qemu") != "1"
+            properties["ro.kernel.qemu"] != "1"
             and not ({"watch", "tv", "automotive", "vr"} & characteristics)
             and "pico" not in identity and "bytedance" not in identity
             and "arm64-v8a" in abis
@@ -713,7 +763,8 @@ class AppiumAdapter:
 
     def ensure_session(self, selector: str) -> tuple[WebDriver, str, dict]:
         target = self.target(selector)
-        if self.platform == "android" and target.get("physical") is True:
+        android_attested = self.platform == "android" and target.get("physical") is True
+        if android_attested:
             self.attest_android_phone_profile(target)
         client = WebDriver(target["serverUrl"])
         state = self.read_session(selector)
@@ -726,7 +777,8 @@ class AppiumAdapter:
         if state:
             try:
                 client.call("GET", f"/session/{state['sessionId']}")
-                self.attest_physical_target(client, state["sessionId"], target)
+                if not android_attested:
+                    self.attest_physical_target(client, state["sessionId"], target)
                 return client, state["sessionId"], state
             except RuntimeError:
                 self.state_path(selector).unlink(missing_ok=True)
@@ -742,7 +794,8 @@ class AppiumAdapter:
         state = {"sessionId": value["sessionId"], "generation": generation,
                  "targetFingerprint": fingerprint}
         self.save_session(selector, state)
-        self.attest_physical_target(client, value["sessionId"], target)
+        if not android_attested:
+            self.attest_physical_target(client, value["sessionId"], target)
         return client, value["sessionId"], state
 
     def query_app_state(self, client: WebDriver, session: str, target: dict) -> int:
@@ -846,8 +899,11 @@ class AppiumAdapter:
         client.call("DELETE", f"/session/{session}/actions")
 
     def click_accessibility(self, client: WebDriver, session: str, identifier: str) -> None:
+        self.click_element(client, session, "accessibility id", identifier)
+
+    def click_element(self, client: WebDriver, session: str, using: str, identifier: str) -> None:
         value = client.call("POST", f"/session/{session}/element",
-                            {"using": "accessibility id", "value": identifier})
+                            {"using": using, "value": identifier})
         if not isinstance(value, dict):
             fail("Appium did not return an element reference")
         element = value.get("element-6066-11e4-a52e-4f735466cecf") or value.get("ELEMENT")
@@ -949,7 +1005,7 @@ class AppiumAdapter:
 
     def semantic_snapshot(self, client: WebDriver,
                           session: str) -> tuple[dict, dict[str, tuple[str, str]]]:
-        attempts = TRANSITION_ATTEMPTS if self.platform == "ios" else 1
+        attempts = TRANSITION_ATTEMPTS
         for attempt in range(attempts):
             source = client.call("GET", f"/session/{session}/source")
             try:
@@ -1096,6 +1152,95 @@ class AppiumAdapter:
         if after != before:
             fail("Android client process changed while delivering the in-client command")
 
+    def android_text_state(self, client: WebDriver, session: str,
+                           target: dict, action: str) -> dict:
+        from adb_transport import AdbTransport
+        identity = self.android_client_identity(client, session, target)
+        command_id = uuid.uuid4().hex
+        device = target["process"].get("selector") or target["capabilities"].get("appium:udid")
+        adb = AdbTransport()
+        requested_at = adb.epoch_milliseconds(device)
+        self.write_android_client_command(client, session, target, {
+            "schemaVersion": 1, "commandId": command_id,
+            "action": "text-fixture", "operation": action}, identity)
+        deadline = time.monotonic() + 15
+        while time.monotonic() < deadline:
+            raw = adb.read_debug_app_file(device, target["appId"],
+                                         "files/overte-e2e/phone-ui-status.json", attempts=1)
+            try:
+                response = json.loads(raw) if len(raw.encode()) <= 16384 else None
+            except (ValueError, TypeError):
+                response = None
+            if isinstance(response, dict) and response.get("commandId") == command_id:
+                observed_at = adb.epoch_milliseconds(device)
+                if (set(response) != {"schemaVersion", "commandId", "ok", "sampleEpochMs", "snapshot"}
+                        or type(response.get("schemaVersion")) is not int or response["schemaVersion"] != 1
+                        or response.get("ok") is not True
+                        or type(response.get("sampleEpochMs")) is not int
+                        or not requested_at <= response["sampleEpochMs"] <= observed_at
+                        or observed_at - response["sampleEpochMs"] > 5000):
+                    if target.get("selector") and os.environ.get("OVERTE_DEVICE_STATE_ROOT"):
+                        diagnostic = self.state_path(target["selector"]).parent / "text-observation-failure.json"
+                        diagnostic.write_text(json.dumps(response, indent=2) + "\n", encoding="utf-8")
+                        diagnostic.chmod(0o600)
+                        try:
+                            time.sleep(0.1)  # Native diagnostics follow the correlated result.
+                            raw = adb.read_debug_app_file(device, target["appId"],
+                                "files/overte-e2e/phone-ui-diagnostic.json", attempts=1)
+                            if len(raw.encode()) <= 16384:
+                                native = diagnostic.with_name("text-native-failure.json")
+                                native.write_text(raw, encoding="utf-8")
+                                native.chmod(0o600)
+                        except (RuntimeError, OSError):
+                            pass  # Keep the original failed native observation.
+                    fail("native Android text fixture did not produce a fresh successful observation")
+                try:
+                    snapshot = validate_text_snapshot(response["snapshot"])
+                except ValueError as error:
+                    fail(str(error))
+                if type(snapshot["keyboardVisible"]) is not bool:
+                    fail("native Android keyboard visibility is unavailable")
+                if self.android_client_identity(client, session, target) != identity:
+                    fail("Android client process changed during text input")
+                return snapshot
+            if self.android_client_identity(client, session, target) != identity:
+                fail("Android client process changed while waiting for the text fixture")
+            time.sleep(0.1)
+        fail("native Android text fixture observation timed out")
+
+    def android_type_text(self, client: WebDriver, session: str,
+                          target: dict, values: dict) -> dict:
+        from adb_transport import AdbTransport
+        before = self.android_text_state(client, session, target, "snapshot")
+        if before["focused"] is not True:
+            fail("native controlled text field does not have input focus")
+        identity = self.android_client_identity(client, session, target)
+        found = client.call("POST", f"/session/{session}/element", {
+            "using": "id", "value": target["appId"] + ":id/controlled.text"})
+        if not isinstance(found, dict):
+            fail("native controlled text field is not exposed through Android accessibility")
+        element = found.get("element-6066-11e4-a52e-4f735466cecf") or found.get("ELEMENT")
+        if not isinstance(element, str) or not element:
+            fail("native controlled text field has no WebDriver element reference")
+        # UiAutomator sends ACTION_SET_TEXT through the real Android node
+        # provider. The bridge calls Qt's native accessibility editing API.
+        client.call("POST", f"/session/{session}/element/{element}/value", {"text": values["text"]})
+        expected = values["text"]
+        deadline = time.monotonic() + 5
+        while self.android_text_state(client, session, target, "snapshot")["value"] != expected:
+            if time.monotonic() >= deadline:
+                fail("native accessibility Unicode editing did not reach the controlled field")
+            time.sleep(0.1)
+        device = target["process"].get("selector") or target["capabilities"].get("appium:udid")
+        adb = AdbTransport()
+        for _ in range(values["backspaceCount"]):
+            adb.shell(device, "input", "keyevent", "67")
+        if values["submit"]:
+            adb.shell(device, "input", "keyevent", "66")
+        if self.android_client_identity(client, session, target) != identity:
+            fail("Android client process changed while typing")
+        return {"performed": True}
+
     def request_android_sound(self, client: WebDriver, session: str,
                               target: dict, values: dict) -> dict:
         sound_origin = self.controlled_http_url(values["url"], "sound.play url")
@@ -1129,7 +1274,7 @@ class AppiumAdapter:
             fail("controlled fixture did not acknowledge the exact sound command")
         self.write_android_client_command(client, session, target, {
             "schemaVersion": 1, "commandId": "sound-channel-" + values["commandId"],
-            "action": "sound-channel", "url": values["commandUrl"],
+            "action": "sound-channel", "commandUrl": values["commandUrl"],
         }, expected_process)
         return {"requested": True, "commandId": values["commandId"]}
 
@@ -1187,20 +1332,38 @@ class AppiumAdapter:
                 and arguments["direction"] not in target.get("controls", {}).get("move", {})):
             fail("requested movement direction is not configured")
         client, session, state = self.ensure_session(selector)
+        if operation in {"text.focus", "text.snapshot", "text.dismiss"}:
+            snapshot = self.android_text_state(client, session, target, operation.split(".", 1)[1])
+            return snapshot if operation == "text.snapshot" else {"performed": True}
+        if operation == "text.type":
+            return self.android_type_text(client, session, target, arguments)
+        if operation == "voice.exchange":
+            from adapters.voice_transport import exchange
+            from adb_transport import AdbTransport
+            identity = self.android_client_identity(client, session, target)
+            device = target["process"].get("selector") or target["capabilities"].get("appium:udid")
+            adb = AdbTransport()
+            def check():
+                if self.android_client_identity(client, session, target) != identity:
+                    fail("voice test Android process changed")
+            return exchange(arguments,
+                lambda payload: self.write_android_client_command(client, session, target, payload, identity),
+                lambda: adb.read_debug_app_file(device, target["appId"],
+                    "files/overte-e2e/voice-result.json", attempts=1), check)
         if operation in {"navigation.enter-domain", "asset.load", "sound.play"}:
             if self.platform != "android" or not self.controlled_android_client(target):
                 fail("Appium target has no controlled client channel for this operation")
             if operation == "navigation.enter-domain":
                 self.write_android_client_command(client, session, target, {
                     "schemaVersion": 1, "commandId": "navigation-" + uuid.uuid4().hex,
-                    "action": "navigation-enter-domain", "url": arguments["url"],
+                    "action": "enter-domain", "url": arguments["url"],
                 })
                 return {"requested": True}
             if operation == "asset.load":
                 command_id = "asset-" + hashlib.sha256(json.dumps(
                     arguments, sort_keys=True, separators=(",", ":")).encode()).hexdigest()[:24]
                 self.write_android_client_command(client, session, target, {
-                    "schemaVersion": 1, "commandId": command_id, "action": "asset-load",
+                    "schemaVersion": 1, "commandId": command_id, "action": "load-asset",
                     "assetId": arguments["assetId"], "url": arguments["url"],
                     "entityName": arguments["entityName"],
                 })
@@ -1227,6 +1390,49 @@ class AppiumAdapter:
                 script = "mobile: activateApp" if self.platform == "android" else "mobile: launchApp"
                 client.execute(session, script, {key: target["appId"]})
             return {"launched": True}
+        if operation == "app.stop":
+            client.execute(session, "mobile: terminateApp", {"appId": target["appId"]})
+            return {"stopped": True}
+        if operation == "app.version":
+            from adb_transport import AdbTransport
+            device = target["process"].get("selector") or target["capabilities"].get("appium:udid")
+            text = AdbTransport().shell(device, "dumpsys", "package", target["appId"])
+            versions = set(re.findall(r"^\s*versionName=([^\s]+)\s*$", text, re.MULTILINE))
+            if len(versions) != 1:
+                fail("installed Android version is unavailable or ambiguous")
+            return {"schemaVersion": 1, "version": versions.pop()}
+        if operation == "app.crash":
+            before = self.android_client_identity(client, session, target)
+            pid = before["identity"].split(":", 1)[0]
+            if not pid.isdigit():
+                fail("controlled Android process has no valid PID")
+            from adb_transport import AdbTransport
+            device = target["process"].get("selector") or target["capabilities"].get("appium:udid")
+            AdbTransport().shell(device, "run-as", target["appId"], "kill", "-ABRT", pid)
+            return {"crashed": True}
+        if operation in {"permission.snapshot", "permission.set", "render.snapshot"}:
+            from adb_transport import AdbTransport
+            from adapters.shared_appium.android_observation import (permission_modes,
+                permission_snapshot, render_snapshot)
+            self.android_client_identity(client, session, target)
+            device = target["process"].get("selector") or target["capabilities"].get("appium:udid")
+            adb = AdbTransport()
+            if operation == "permission.snapshot":
+                return permission_snapshot(adb, device, target["appId"])
+            if operation == "permission.set":
+                if "microphoneOriginalMode" not in state:
+                    original_modes = permission_modes(adb, device, target["appId"])
+                    state["microphoneOriginalMode"] = original_modes["package"]
+                    state["microphoneOriginalUidMode"] = original_modes["uid"]
+                    self.save_session(selector, state)
+                original = state["microphoneOriginalUidMode"]
+                mode = "ignore" if arguments["state"] == "denied" else (
+                    original if original in {"allow", "foreground", "default"} else "allow")
+                adb.shell(device, "cmd", "appops", "set", "--uid", target["appId"], "RECORD_AUDIO", mode)
+                return {"performed": True}
+            screenshot = client.call("GET", f"/session/{session}/screenshot")
+            return render_snapshot(adb, device, target["appId"], screenshot,
+                                   self.query_app_state(client, session, target) == 4)
         if operation == "app.process":
             return self.process_state(selector, client, session, state, target)
         if operation == "app.foreground":
@@ -1248,7 +1454,7 @@ class AppiumAdapter:
             adb = AdbTransport()
             adb.require_connected(device)
             return adb.telemetry_snapshot(device, target["appId"])
-        if operation == "scene.load":
+        if operation in {"scene.load", "scene.reload"}:
             scene = target.get("scene", {})
             url = values.get("url")
             if not isinstance(url, str) or "://" not in url:
@@ -1256,7 +1462,27 @@ class AppiumAdapter:
             if scene.get("kind") == "android-debug-e2e" and self.platform == "android":
                 if url != EMBEDDED_FIXTURE_URL:
                     fail("Android debug scene.load accepts only the embedded fixture URL")
-                self.start_android_e2e(client, session, target)
+                if self.controlled_android_client(target):
+                    if os.environ.get("OVERTE_ANDROID_E2E_FLYING") == "1":
+                        from adb_transport import AdbTransport
+                        device = target["process"].get("selector") or target["capabilities"].get("appium:udid")
+                        AdbTransport().shell(device, "am", "start", "-n",
+                            target["appId"] + "/org.overte.phone.E2eFlightControlActivity",
+                            "--ei", "org.overte.phone.e2e.FLIGHT_MODE", "1")
+                        deadline = time.monotonic() + 15
+                        while self.query_app_state(client, session, target) != 4:
+                            if time.monotonic() > deadline:
+                                fail("controlled flight setup did not return to the client")
+                            time.sleep(0.2)
+                    command_id = "scene-" + uuid.uuid4().hex
+                    self.write_android_client_command(client, session, target, {
+                        "schemaVersion": 1, "commandId": command_id,
+                        "action": "reload-scene",
+                    })
+                    return {"requested": True, "verification": "fixture-markers",
+                            "commandId": command_id}
+                else:
+                    self.start_android_e2e(client, session, target)
                 return {"requested": True, "verification": "fixture-markers"}
             if scene.get("kind") == "ios-test-build" and self.platform == "ios":
                 self.launch_ios_test_build(
@@ -1298,6 +1524,27 @@ class AppiumAdapter:
             destination.chmod(0o600)
             return {"artifact": destination.name}
         controls = target.get("controls", {})
+        if operation == "input.primary":
+            self.tap_fractional_point(client, session, controls["primary"], "primary")
+            return {"performed": True}
+        if operation in {"input.jump", "input.fly"}:
+            point = controls["jump"]
+            self.gesture(client, session, {"start": point, "end": point, "mode": "hold"},
+                         duration_override=0.2 if operation == "input.jump" else arguments["durationSeconds"])
+            return {"performed": True}
+        if operation == "audio.mute":
+            observed = self.probe_snapshot(client, session, target)
+            if observed["audio"]["muted"] != arguments["muted"]:
+                self.tap_fractional_point(client, session, controls["mute"], "mute")
+                deadline = time.monotonic() + 10
+                while time.monotonic() < deadline:
+                    observed = self.probe_snapshot(client, session, target)
+                    if observed["audio"]["muted"] == arguments["muted"]:
+                        break
+                    time.sleep(0.25)
+                else:
+                    fail("native microphone control did not reach the requested state")
+            return {"performed": True}
         if operation == "input.look":
             look = controls.get("look", {})
             horizontal = arguments["horizontal"]
@@ -1322,6 +1569,11 @@ class AppiumAdapter:
             return {"performed": True}
         if operation in {"tablet.open", "tablet.close"}:
             tablet = controls.get("tablet", {})
+            resource_key = "openResourceId" if operation.endswith("open") else "closeResourceId"
+            if resource_key in tablet:
+                self.validate_tablet_resource_ids(target)
+                self.click_element(client, session, "id", tablet[resource_key])
+                return {"performed": True}
             key = "openAccessibilityId" if operation.endswith("open") else "closeAccessibilityId"
             identifier = tablet.get(key) or tablet.get("toggleAccessibilityId")
             if isinstance(identifier, str) and identifier:
@@ -1340,6 +1592,43 @@ class AppiumAdapter:
             _snapshot, elements = self.semantic_snapshot(client, session)
             locator = elements.get(arguments["controlId"])
             if locator is None:
+                # Keep the actual framework tree private for a failed action;
+                # this diagnostic does not substitute for a native UI operation.
+                source = client.call("GET", f"/session/{session}/source")
+                diagnostic = self.state_path(selector).parent / "tablet-action-failure.xml"
+                if isinstance(source, str):
+                    diagnostic.write_text(source, encoding="utf-8")
+                    diagnostic.chmod(0o600)
+                if self.platform == "android" and self.controlled_android_client(target):
+                    # Ask the explicit native test build for a read-only Qt
+                    # diagnostic while the failed screen still exists.
+                    command_id = uuid.uuid4().hex
+                    try:
+                        self.write_android_client_command(client, session, target, {
+                            "schemaVersion": 1, "commandId": command_id,
+                            "action": "text-fixture", "operation": "snapshot"})
+                        from adb_transport import AdbTransport
+                        adb = AdbTransport()
+                        device = target["process"].get("selector") or target["capabilities"].get("appium:udid")
+                        deadline = time.monotonic() + 2
+                        while time.monotonic() < deadline:
+                            status = adb.read_debug_app_file(device, target["appId"],
+                                "files/overte-e2e/phone-ui-status.json", attempts=1)
+                            try:
+                                reply = json.loads(status)
+                            except (ValueError, TypeError):
+                                reply = {}
+                            if reply.get("commandId") == command_id:
+                                time.sleep(0.1)
+                                raw = adb.read_debug_app_file(device, target["appId"],
+                                    "files/overte-e2e/phone-ui-diagnostic.json", attempts=1)
+                                native = self.state_path(selector).parent / "tablet-native-failure.json"
+                                native.write_text(raw, encoding="utf-8")
+                                native.chmod(0o600)
+                                break
+                            time.sleep(0.1)
+                    except RuntimeError:
+                        pass  # Preserve the original failed action.
                 fail("semantic tablet control is not currently actionable")
             using, identifier = locator
             value = client.call("POST", f"/session/{session}/element",
@@ -1358,6 +1647,19 @@ class AppiumAdapter:
         target = self.target(selector)
         state = self.read_session(selector)
         if state:
+            original_mode = state.get("microphoneOriginalMode")
+            if original_mode is not None:
+                if not self.controlled_android_client(target) or original_mode not in {
+                        "allow", "ignore", "deny", "default", "foreground"}:
+                    fail("invalid private microphone restoration state")
+                from adb_transport import AdbTransport
+                device = target["process"].get("selector") or target["capabilities"].get("appium:udid")
+                AdbTransport().shell(device, "cmd", "appops", "set", target["appId"],
+                                     "RECORD_AUDIO", original_mode)
+                original_uid_mode = state.get("microphoneOriginalUidMode")
+                if original_uid_mode is not None:
+                    AdbTransport().shell(device, "cmd", "appops", "set", "--uid", target["appId"],
+                                         "RECORD_AUDIO", original_uid_mode)
             client = WebDriver(target["serverUrl"])
             try:
                 key = "appId" if self.platform == "android" else "bundleId"

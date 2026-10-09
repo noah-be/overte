@@ -55,10 +55,37 @@ class AdbTransportTest(unittest.TestCase):
         self.assertEqual(["secret"], self.transport.authorized_targets())
         self.transport.require_connected("secret")
 
+    def test_native_epoch_is_read_from_android_and_malformed_clocks_fail(self):
+        with mock.patch.object(self.transport, "shell", return_value="1791518932123\n") as shell:
+            self.assertEqual(1791518932123, self.transport.epoch_milliseconds("secret"))
+            shell.assert_called_once_with("secret", "date", "+%s%3N")
+        for value in ("", "0", "true", "1791518932%3N", "1791518932123 extra"):
+            with self.subTest(value=value), mock.patch.object(self.transport, "shell", return_value=value):
+                with self.assertRaisesRegex(RuntimeError, "native clock"):
+                    self.transport.epoch_milliseconds("secret")
+
     def test_process_identity_includes_start_time(self):
         state = self.transport.process_state("secret", "org.overte.test")
         self.assertTrue(state["running"])
         self.assertTrue(state["identity"].startswith("42:"))
+
+    def test_property_snapshot_is_fresh_and_batched(self):
+        with mock.patch.object(self.transport, "shell", side_effect=[
+                "[ro.product.model]: [Phone]\n[ro.kernel.qemu]: [0]\n[private]: [secret]\n",
+                "[ro.product.model]: [Emulator]\n[ro.kernel.qemu]: [1]\n"]) as shell:
+            names = ("ro.product.model", "ro.kernel.qemu", "absent")
+            self.assertEqual({"ro.product.model": "Phone", "ro.kernel.qemu": "0", "absent": ""},
+                             self.transport.properties("secret", names))
+            self.assertEqual("1", self.transport.properties("secret", names)["ro.kernel.qemu"])
+            self.assertEqual([mock.call("secret", "getprop")]*2, shell.call_args_list)
+
+    def test_duplicate_property_snapshot_fails_without_private_values(self):
+        with mock.patch.object(self.transport, "shell", return_value=
+                "[ro.kernel.qemu]: [private]\n[ro.kernel.qemu]: [secret]\n"):
+            with self.assertRaisesRegex(RuntimeError, "duplicate entries") as error:
+                self.transport.properties("secret", ("ro.kernel.qemu",))
+            self.assertNotIn("private", str(error.exception))
+            self.assertNotIn("secret", str(error.exception))
 
     def test_parses_android_17_foreground_format(self):
         self.assertEqual("org.overte.test", self.transport.foreground_package("secret"))

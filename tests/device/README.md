@@ -253,3 +253,6 @@ tooling decisions, and the hardware acceptance matrix.
 Exact open-source tool versions, artifact checksums, and the offline validation
 workflow are in [`TOOLCHAIN.md`](TOOLCHAIN.md) and
 [`toolchain.lock.json`](toolchain.lock.json).
+
+The optional [synthetic voice roundtrip](VOICE_ROUNDTRIP.md) uses the same runner,
+adapters, owned fixtures and PCM assertions for Phone, iPad and Pico test builds.
