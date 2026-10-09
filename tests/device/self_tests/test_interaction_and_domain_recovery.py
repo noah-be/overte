@@ -38,6 +38,21 @@ class InteractionAndDomainRecoveryTest(unittest.TestCase):
            env=env, check=False)
         return temporary, root, output, result
 
+    def test_crash_recovery_rebinds_a_process_local_probe_sequence(self):
+        temporary, root, output, result = self.run_suite("crash-recovery-under-load", {
+            "OVERTE_E2E_SCENE_URL": "http://fixture.invalid/scene.json",
+            "OVERTE_DEVICE_LAUNCH_SETTLE_SECONDS": "0",
+        })
+        try:
+            self.assertEqual(0, result.returncode, result.stdout)
+            state = json.loads((root / "state.json").read_text())
+            self.assertEqual(2, state["launchCount"])
+            receipt = json.loads((output / "modules/crash-recovery-under-load/crash-recovery.json").read_text())
+            self.assertTrue(receipt["processChanged"])
+            self.assertTrue(receipt["sceneReady"])
+        finally:
+            temporary.cleanup()
+
     def test_world_interaction_observes_one_fresh_entity_press(self):
         temporary, root, output, result = self.run_suite("interaction-smoke", {
             "OVERTE_E2E_SCENE_URL": "http://fixture.invalid/scene.json",
