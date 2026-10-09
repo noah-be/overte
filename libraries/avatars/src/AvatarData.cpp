@@ -1819,6 +1819,7 @@ void AvatarData::setRawJointData(QVector<JointData> data) {
     }
     QWriteLocker writeLock(&_jointDataLock);
     _jointData = data;
+    _hasNewJointDataVec.resize(static_cast<size_t>(_jointData.size()), false);
 }
 
 void AvatarData::setJointData(int index, const glm::quat& rotation, const glm::vec3& translation) {
@@ -1828,6 +1829,7 @@ void AvatarData::setJointData(int index, const glm::quat& rotation, const glm::v
     QWriteLocker writeLock(&_jointDataLock);
     if (_jointData.size() <= index) {
         _jointData.resize(index + 1);
+        _hasNewJointDataVec.resize(static_cast<size_t>(_jointData.size()), false);
     }
     JointData& data = _jointData[index];
     data.rotation = rotation;
@@ -1851,6 +1853,7 @@ void AvatarData::clearJointData(int index) {
     // FIXME: I don't understand how this "clears" the joint data at index
     if (_jointData.size() <= index) {
         _jointData.resize(index + 1);
+        _hasNewJointDataVec.resize(static_cast<size_t>(_jointData.size()), false);
     }
     _jointData[index] = {};
 }
@@ -1973,6 +1976,7 @@ void AvatarData::setJointRotation(int index, const glm::quat& rotation) {
     QWriteLocker writeLock(&_jointDataLock);
     if (_jointData.size() <= index) {
         _jointData.resize(index + 1);
+        _hasNewJointDataVec.resize(static_cast<size_t>(_jointData.size()), false);
     }
     JointData& data = _jointData[index];
     data.rotation = rotation;
@@ -1986,6 +1990,7 @@ void AvatarData::setJointTranslation(int index, const glm::vec3& translation) {
     QWriteLocker writeLock(&_jointDataLock);
     if (_jointData.size() <= index) {
         _jointData.resize(index + 1);
+        _hasNewJointDataVec.resize(static_cast<size_t>(_jointData.size()), false);
     }
     JointData& data = _jointData[index];
     data.translation = translation;
@@ -2041,6 +2046,7 @@ void AvatarData::setJointRotations(const QVector<glm::quat>& jointRotations) {
     auto size = jointRotations.size();
     if (_jointData.size() < size) {
         _jointData.resize(size);
+        _hasNewJointDataVec.resize(static_cast<size_t>(_jointData.size()), false);
     }
     for (int i = 0; i < size; ++i) {
         auto& data = _jointData[i];
@@ -2063,6 +2069,7 @@ void AvatarData::setJointTranslations(const QVector<glm::vec3>& jointTranslation
     auto size = jointTranslations.size();
     if (_jointData.size() < size) {
         _jointData.resize(size);
+        _hasNewJointDataVec.resize(static_cast<size_t>(_jointData.size()), false);
     }
     for (int i = 0; i < size; ++i) {
         auto& data = _jointData[i];
