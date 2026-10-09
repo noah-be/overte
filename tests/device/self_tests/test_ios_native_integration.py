@@ -73,3 +73,16 @@ class NativeIntegration(unittest.TestCase):
         for operation in ("text.focus", "text.dismiss"):
             observed = adapter.invoke("selected", operation, {})
             self.assertEqual(validate_operation_result(operation, observed), {"performed": True})
+
+    def test_collaboration_rejects_foreign_or_unbound_control_before_device_use(self):
+        config = {"kind": "owned-domain", "stateUrl": "http://127.0.0.1:49001/v1/collaboration-state",
+                  "editUrl": "http://127.0.0.1:49001/v1/collaboration-edit", "token": "a" * 48,
+                  "domainId": "aaaaaaaa-1111-2222-3333-bbbbbbbbbbbb", "domainUrl": "hifi://fixture.example:40182"}
+        target = {"collaboration": config, "testBuild": {"fixtureOrigin": "http://fixture.example:49000"}}
+        self.assertEqual(IOSAdapter.collaboration_configuration(target), config)
+        for mutation in ({"stateUrl": "http://foreign.example:49001/v1/collaboration-state"},
+                         {"editUrl": "http://127.0.0.1:49002/v1/collaboration-edit"},
+                         {"stateUrl": True}, {"token": "unbound"}, {"domainUrl": "hifi://foreign.example:40182"},
+                         {"domainId": "00000000-0000-0000-0000-000000000000"}, {"unexpected": True}):
+            with self.subTest(mutation=mutation), self.assertRaises(RuntimeError):
+                IOSAdapter.collaboration_configuration({**target, "collaboration": config | mutation})

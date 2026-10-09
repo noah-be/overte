@@ -12,7 +12,9 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 import time
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 import uuid
@@ -21,6 +23,7 @@ from adapters.appium.adapter import AppiumAdapter
 from adapters.common import fail
 from contracts import validate_operation_arguments
 from adapters.ios import native_ui, native_integration
+from adapters.collaboration_observation import actor_receipt, portable_observation
 
 
 class IOSAdapter(AppiumAdapter):
@@ -31,6 +34,7 @@ class IOSAdapter(AppiumAdapter):
         "app.crash", "app.stop", "app.version", "lifecycle.background",
     })
 
+    COLLABORATION_OPERATIONS = frozenset({"collaboration.edit", "collaboration.snapshot"})
     INTEGRATION_OPERATIONS = frozenset({"text.focus", "text.type", "text.snapshot", "text.dismiss", "render.snapshot"})
 
     def __init__(self):
@@ -45,6 +49,8 @@ class IOSAdapter(AppiumAdapter):
             values |= IOSAdapter.CLIENT_OPERATIONS | IOSAdapter.NATIVE_OPERATIONS
             if native_integration.enabled(target):
                 values |= IOSAdapter.INTEGRATION_OPERATIONS
+            if IOSAdapter.collaboration_configuration(target) is not None:
+                values |= IOSAdapter.COLLABORATION_OPERATIONS
         return sorted(values)
 
     @staticmethod
@@ -183,6 +189,83 @@ class IOSAdapter(AppiumAdapter):
         finally:
             client.call("DELETE", f"/session/{session}/actions")
 
+    @classmethod
+    def collaboration_configuration(cls, target):
+        config = target.get("collaboration")
+        if config is None:
+            return None
+        if (not isinstance(config, dict) or set(config) != {"kind", "stateUrl", "editUrl", "token", "domainId", "domainUrl"}
+                or config["kind"] != "owned-domain"
+                or any(not isinstance(value, str) for value in config.values())
+                or not isinstance(config["token"], str) or not re.fullmatch(r"[A-Za-z0-9_-]{40,128}", config["token"])
+                or not isinstance(config["domainId"], str)
+                or not re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", config["domainId"])
+                or config["domainId"] == "00000000-0000-0000-0000-000000000000"):
+            fail("independent iOS collaboration configuration is invalid")
+        for kind in ("state", "edit"):
+            parsed = urlsplit(config[kind + "Url"])
+            if (parsed.scheme != "http" or parsed.hostname != "127.0.0.1" or not parsed.port
+                    or parsed.username or parsed.password or parsed.query or parsed.fragment
+                    or parsed.path != "/v1/collaboration-" + kind):
+                fail("independent iOS collaboration control must be on the owned loopback fixture")
+        if self_origin := cls.controlled_http_url(config["stateUrl"], "actor state origin"):
+            if self_origin != cls.controlled_http_url(config["editUrl"], "actor edit origin"):
+                fail("independent actor state and edit must use one owned control server")
+        domain = urlsplit(config["domainUrl"])
+        fixture = urlsplit(target["testBuild"]["fixtureOrigin"])
+        if (domain.scheme != "hifi" or domain.hostname != fixture.hostname or not domain.port
+                or domain.username or domain.password):
+            fail("independent collaboration domain must be on the owned lab host")
+        return config
+
+    def collaboration_request(self, target, kind, payload=None):
+        config = self.collaboration_configuration(target)
+        if config is None:
+            fail("independent iOS collaboration is not configured")
+        request = Request(config[kind + "Url"], data=None if payload is None else json.dumps(payload).encode(),
+                          headers={"X-Overte-E2E-Token": config["token"], "Content-Type": "application/json"},
+                          method="GET" if payload is None else "POST")
+        try:
+            with urlopen(request, timeout=5) as response:
+                body = response.read(4097)
+                if response.status != 200 or len(body) > 4096:
+                    fail("independent actor response exceeded its contract")
+                result = json.loads(body)
+                if kind == "state":
+                    actor_receipt(result)
+                return result
+        except HTTPError as error:
+            if kind == "state" and error.code == 503:
+                return None
+            fail("independent actor rejected the requested operation")
+        except (URLError, OSError, ValueError):
+            fail("independent actor control is unavailable or malformed")
+
+    def collaboration_snapshot(self, selector, client, session, state, target):
+        config = self.collaboration_configuration(target)
+        identity = self.assert_ios_process_identity(selector, client, session, state, target)
+        probe = self.probe_snapshot(selector, client, session, state, target)
+        if str(probe["domain"]["id"]).strip("{}").lower() != config["domainId"] or not probe["domain"]["connected"]:
+            self.command(selector, client, session, state, target, "navigate", url=config["domainUrl"])
+        remote = f"@{target['appId']}:documents/{target['testBuild']['resultsDirectory']}/e2e-collaboration-observation.json"
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            actor = self.collaboration_request(target, "state")
+            probe = self.probe_snapshot(selector, client, session, state, target)
+            encoded = client.execute(session, "mobile: pullFile", {"remotePath": remote})
+            try:
+                observed = json.loads(base64.b64decode(encoded, validate=True))
+                portable = portable_observation(observed, actor, time.time() * 1000, probe) if actor else None
+            except (ValueError, UnicodeError):
+                portable = None
+            if portable and probe["domain"]["connected"] and str(probe["domain"]["id"]).strip("{}").lower() == config["domainId"]:
+                if self.assert_ios_process_identity(selector, client, session, state, target) != identity:
+                    fail("collaboration crossed process identities")
+                return portable
+            self.assert_ios_process_identity(selector, client, session, state, target)
+            time.sleep(0.1)
+        fail("independent native actor and replicated client entity did not match")
+
     def native_text_command(self, selector, client, session, state, target, action):
         identity = self.assert_ios_process_identity(selector, client, session, state, target)
         command_id = "ios-" + uuid.uuid4().hex
@@ -255,7 +338,7 @@ class IOSAdapter(AppiumAdapter):
                     return super().invoke(selector, operation, values)
                 finally:
                     del self._native_ui_target
-        extended = self.CLIENT_OPERATIONS | self.NATIVE_OPERATIONS | self.INTEGRATION_OPERATIONS | {"app.process"}
+        extended = self.CLIENT_OPERATIONS | self.NATIVE_OPERATIONS | self.INTEGRATION_OPERATIONS | self.COLLABORATION_OPERATIONS | {"app.process"}
         if operation not in extended:
             return super().invoke(selector, operation, values)
         arguments = validate_operation_arguments(operation, values)
@@ -273,6 +356,15 @@ class IOSAdapter(AppiumAdapter):
             if parsed.hostname != fixture.hostname:
                 fail("iOS navigation must remain on the owned lab host")
         client, session, state = self.ensure_session(selector)
+        if operation in self.COLLABORATION_OPERATIONS:
+            observed = self.collaboration_snapshot(selector, client, session, state, target)
+            if operation == "collaboration.snapshot":
+                return observed
+            if arguments["entityName"] != observed["entityName"]:
+                fail("collaboration edit requires the independently observed fixture entity")
+            self.collaboration_request(target, "edit", {"schemaVersion": 1, **arguments})
+            self.assert_ios_process_identity(selector, client, session, state, target)
+            return {"performed": True}
         if operation in self.INTEGRATION_OPERATIONS:
             self.assert_ios_process_identity(selector, client, session, state, target)
             if operation == "render.snapshot":

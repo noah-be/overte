@@ -169,6 +169,26 @@
         renderStats.newStats.connect(observeRenderedFrame);
     }
 
+    function controlledSharedObservation(properties) {
+        if (properties.name !== "OVERTE_E2E_SHARED_COLOR") { return null; }
+        var state;
+        try { state = JSON.parse(String(properties.userData)); } catch (error) { return null; }
+        var author = String(properties.lastEditedBy).replace(/[{}]/g, "").toLowerCase();
+        if (!state || state.contract !== "overte-e2e-collaboration-v1"
+                || state.actorId !== "OVERTE_E2E_ACTOR_FIXTURE"
+                || typeof state.revision !== "number" || !isFinite(state.revision)
+                || state.revision < 0 || state.revision > 9007199254740991 || state.revision % 1 !== 0
+                || (state.value !== "blue" && state.value !== "orange")
+                || !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(author)
+                || author === "00000000-0000-0000-0000-000000000000") { return null; }
+        var color = state.value === "blue"
+            ? { red: 40, green: 120, blue: 255 } : { red: 255, green: 150, blue: 40 };
+        if (!properties.color || properties.color.red !== color.red
+                || properties.color.green !== color.green || properties.color.blue !== color.blue) { return null; }
+        return { schemaVersion: 1, entityName: String(properties.name), actorId: state.actorId,
+            revision: state.revision, value: state.value, actorSessionId: author };
+    }
+
     function controlledPeer() {
         var identifiers = AvatarList.getAvatarIdentifiers();
         var candidates = [];
@@ -1024,6 +1044,8 @@
         var ids = Entities.findEntities(MyAvatar.position, 1000.0);
         var foundMarkers = {};
         var foundDomainMarkers = {};
+        var sharedEntityCount = 0;
+        var sharedObservation = null;
         var interactionTargetAvailable = false;
         var scriptedEntity = {
             targetAvailable: false, loaded: false, scriptUrl: "", activationCount: 0,
@@ -1034,13 +1056,17 @@
         var index;
         for (index = 0; index < ids.length; index += 1) {
             var properties = Entities.getEntityProperties(ids[index], [
-                "name", "position", "dimensions", "script", "userData", "color"
+                "name", "position", "dimensions", "script", "userData", "color", "lastEditedBy"
             ]);
             if (fixtureMarkers.indexOf(properties.name) !== -1) {
                 foundMarkers[properties.name] = true;
             }
             if (domainMarkers.indexOf(properties.name) !== -1) {
                 foundDomainMarkers[properties.name] = true;
+            }
+            if (properties.name === "OVERTE_E2E_SHARED_COLOR") {
+                sharedEntityCount += 1;
+                sharedObservation = controlledSharedObservation(properties);
             }
             if (properties.name === "OVERTE_E2E_FLOOR") {
                 floorTopY = Number(properties.position.y) + Number(properties.dimensions.y) / 2.0;
@@ -1122,6 +1148,11 @@
             }
         }
         sampleSequence += 1;
+        // Read-only entity replication evidence. Native author UUIDs remain
+        // in this app-private document and never enter the portable probe.
+        Test.saveObject({ schemaVersion: 1, sampleEpochMs: now, sampleSequence: sampleSequence,
+            entityCount: sharedEntityCount, observation: sharedEntityCount === 1 ? sharedObservation : null
+        }, "e2e-collaboration-observation.json");
         if (typeof Test.iosRenderObservation === "function") {
             Test.saveObject(Test.iosRenderObservation(), "ios-render-observation.json");
         }

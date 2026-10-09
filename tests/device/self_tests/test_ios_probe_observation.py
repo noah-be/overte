@@ -19,6 +19,7 @@ var About = {platform:'Overte'};
 var Tablet = {touchUiRuntimeMetrics:{valid:true,surfaceWidth:1024,surfaceHeight:768}};
 var Window = {innerWidth:2048,innerHeight:1536};
 var sampleSequence=0, now=Date.now(), lastClientCommandId='ios-executed-command';
+var sharedEntityCount=0, sharedObservation=null;
 var saved={};
 var Test = {saveObject:(value,name)=>{saved[name]=value;}};
 OBSERVE
@@ -41,11 +42,14 @@ assert.equal(saved['ios-ui-observation.json'],undefined);
         harness = r'''
 const assert = require('assert');
 var Tablet = {}, Window = {}, sampleSequence=0, now=Date.now(), lastClientCommandId=null;
+var sharedEntityCount=0, sharedObservation=null;
 var observation={schemaVersion:1, valid:true, sampleEpochMs:now, processId:42, elements:[]};
 var saved={}, calls=0;
 var Test={iosNativeUiSnapshot:()=>{calls++;return observation;}, saveObject:(value,name)=>{saved[name]=value;}};
 OBSERVE
 assert.equal(calls,1);
+assert.equal(saved['e2e-collaboration-observation.json'].entityCount,0);
+assert.strictEqual(saved['e2e-collaboration-observation.json'].observation,null);
 assert.strictEqual(saved['ios-native-ui.json'],observation);
 assert.deepEqual(saved['ios-native-ui.json'].elements,[]);
 delete Test.iosNativeUiSnapshot;

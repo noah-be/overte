@@ -77,3 +77,14 @@ screenshot of the central world region. A counter or a lit edge toolbar alone
 does not prove healthy visible rendering. Pillow is required for this local
 physical screenshot analysis. These operations still require native build,
 installation and real-device qualification.
+
+## Independent entity synchronization
+
+An owned domain fixture may configure the private `collaboration` binding with
+its loopback state/edit endpoints, control token, domain UUID and lab domain
+URL. The assignment client edits one bounded fixture entity. The shared probe
+only reads replicated properties, including its real `lastEditedBy` author,
+color and revision. The host joins that private observation to the independent
+actor's exact receipt and current connected domain before exporting portable
+results. Native author UUIDs remain outside published probe/artifact data.
+The domain keeps its UUID across a controlled offline/recovery transition.
