@@ -157,6 +157,10 @@ class VoicePeerFixture:
                 self.log.close()
                 self.log = None
             if self.temporary is not None:
+                # A portable module may fail an audio assertion while this
+                # supervisor exits cleanly. Retain bounded private diagnostics
+                # for that outcome before removing the owned temporary state.
+                self.preserve_failure_diagnostics()
                 self.temporary.cleanup()
                 self.temporary = None
                 self.state = None

@@ -132,6 +132,40 @@ class ProbeCommandChannelTest(unittest.TestCase):
         )
         self.assertIn("controlledAssetEntity = null", self.source)
 
+    def test_production_scene_command_leaves_domains_and_preserves_same_scene_viewpoint(self):
+        start = self.source.index("    function applyClientCommand(command) {")
+        end = self.source.index("    function pollClientCommand()", start)
+        harness = r'''
+const assert = require('assert');
+let lastTextCommandId='', lastClientCommandId='', lastSceneCommandId='';
+let resetCount=0;
+const location={isConnected:true,href:'hifi://127.0.0.1:40182/0,0,4'};
+const Window={}, Script={setTimeout:()=>{}};
+const applyVoice=()=>false;
+const objectKeysMatch=(v,k)=>Object.keys(v).sort().join('|')===k.sort().join('|');
+const httpUrl=v=>v.startsWith('http://');
+const controlledSceneLocation=()=>'/0,2,4';
+const addressWithoutReloadCommand=v=>v;
+const resetSceneObservation=()=>{resetCount++;};
+FUNCTION
+const command={schemaVersion:1,commandId:'scene-1',action:'scene-load',
+ url:'http://127.0.0.1:40180/scene.json?location=%2F0%2C2%2C4'};
+applyClientCommand(command);
+assert.equal(Window.location,command.url);
+assert.equal(resetCount,1);
+applyClientCommand(command);
+assert.equal(resetCount,1);
+location.isConnected=false;
+location.href=command.url;
+applyClientCommand({...command,commandId:'scene-2'});
+assert.equal(Window.location,'/0,2,4');
+assert.equal(lastSceneCommandId,'scene-2');
+location.href='http://127.0.0.1:40180/other-scene.json';
+applyClientCommand({...command,commandId:'scene-3'});
+assert.equal(Window.location,command.url);
+'''.replace("FUNCTION", self.source[start:end])
+        subprocess.run(["node", "-e", harness], check=True, timeout=5)
+
 
 if __name__ == "__main__":
     unittest.main()

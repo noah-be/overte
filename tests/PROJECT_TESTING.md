@@ -168,6 +168,7 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `ios-build-qualification` | `quick` | `python3 tests/run-project-tests.py --suite ios-build-qualification` |
 | `ios-native-accessibility` | `quick` | `python3 tests/run-project-tests.py --suite ios-native-accessibility` |
 | `ios-observation-publication` | `quick` | `python3 tests/run-project-tests.py --suite ios-observation-publication` |
+| `ios-world-tap` | `quick` | `python3 tests/run-project-tests.py --suite ios-world-tap` |
 | `repository-policy` | `quick` | `python3 tests/run-project-tests.py --suite repository-policy` |
 | `policy-consistency` | `quick` | `python3 tests/run-project-tests.py --suite policy-consistency` |
 | `documentation-contracts` | `quick` | `python3 tests/run-project-tests.py --suite documentation-contracts` |

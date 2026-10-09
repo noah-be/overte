@@ -34,6 +34,9 @@
 
 #include "avatar/MyAvatar.h"
 #include "ConnectionMonitor.h"
+#if defined(Q_OS_IOS)
+#include "MobileWorldTap.h"
+#endif
 #include "CursorManager.h"
 #include "FancyCamera.h"
 #include "graphics/GraphicsEngine.h"
@@ -893,6 +896,9 @@ private:
     bool _phoneBackKeyConsumed { false };
 #endif
     TouchEvent _lastTouchEvent;
+#if defined(Q_OS_IOS)
+    MobileWorldTap _iosWorldTap;
+#endif
     quint64 _lastAcceptedKeyPress { 0 };
 
     ThreadSafeValueCache<EntityItemID> _keyboardFocusedEntity;

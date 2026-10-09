@@ -33,6 +33,7 @@ SUITES = (
     Suite("ios-build-qualification", "quick", (sys.executable, "tests/ios-build-qualification-test.py")),
     Suite("ios-native-accessibility", "quick", (sys.executable, "ios/tests/e2e-accessibility-identifiers-test.py")),
     Suite("ios-observation-publication", "quick", (sys.executable, "ios/tests/e2e-observation-publication-test.py")),
+    Suite("ios-world-tap", "quick", (sys.executable, "ios/tests/mobile-world-tap-test.py")),
     Suite("repository-policy", "quick", (sys.executable, "tests/repository-policy-test.py")),
     Suite("policy-consistency", "quick", (sys.executable, "tools/repository-policy/check.py")),
     Suite("documentation-contracts", "quick", (sys.executable, "tests/documentation-test.py")),

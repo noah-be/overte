@@ -711,11 +711,13 @@
             lastClientCommandId = sceneCommandId;
             lastSceneCommandId = sceneCommandId;
             resetSceneObservation();
-            // app.launch already loaded this exact controlled serverless
-            // scene. Applying the bounded location path keeps the single
-            // Interface process and, unlike assigning the full URL again,
-            // does not restart this probe before its readiness observation.
-            if (scenePath !== "") {
+            // A path-only viewpoint is valid only inside this serverless
+            // scene. From a domain it merely moves the avatar in that domain
+            // and never disconnects or loads the fixture.
+            if (Boolean(location.isConnected)
+                    || addressWithoutReloadCommand(location.href) !== addressWithoutReloadCommand(command.url)) {
+                Window.location = command.url;
+            } else if (scenePath !== "") {
                 Window.location = scenePath;
             }
             Script.setTimeout(function () {
