@@ -770,3 +770,6 @@ ANDROID_SERIAL=<phone-serial> ./tests/phone-device-test.sh
 Do not capture or commit a global `adb logcat`; it can contain unrelated device,
 application, account, and user data. The package name is `io.github.noah_be.overte.phone`,
 and the launcher activity is `org.overte.phone.PermissionsActivity`.
+
+For permanent Pixel laboratory qualification, native binding requirements and
+regression-first full runs, see [Pixel E2E qualification](PIXEL_E2E.md).

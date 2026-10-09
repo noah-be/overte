@@ -1,0 +1,247 @@
+{
+  "schemaVersion": 1,
+  "evidenceType": "local-physical-device-qualification",
+  "repository": "noah-be/overte",
+  "platform": "android-phone",
+  "deviceModel": "Google Pixel 6a",
+  "jenkinsBuild": 59,
+  "verifiedAtUtc": "2026-10-09T08:40:50.927259+00:00",
+  "status": "passed",
+  "versionCode": 12,
+  "versionName": "0.1.3-voice-00136ecc93-pixel-e2e.8",
+  "apkSha256": "7ed72262bef5e2424eed270b1f2b1d4f2a84a8147fa7f55cf10bad673d018ab1",
+  "selectedAudioVoiceSourceCommit": "00136ecc93041efd14318069da4ac6a13ab27e77",
+  "exactQualifiedRepairSnapshotCommit": "2cd35f6e45028df2fc833f98a0819430f02c52f4",
+  "repairSourceArchiveSha256": "d5a90e35c5735b4d027697be279905882c71de7790cc1c047d6c15d58aea9fef",
+  "catalogSha256": "7f019d1d421acdaac3b1942ab4d0f97a3b39f442ba66d3267f0fb6d93f283a78",
+  "distinctCatalogModules": 35,
+  "checksIncludingLaunchPreconditions": 53,
+  "launchPreconditions": 19,
+  "failed": 0,
+  "errors": 0,
+  "skipped": 0,
+  "installedApkDigestVerifiedAfterRun": true,
+  "ownedFixturesCleaned": true,
+  "regressionFirstOrderVerified": true,
+  "hostValidation": {
+    "projectGroupsPassed": 44,
+    "fullControlPlaneGroupsPassed": 36,
+    "selectedSelfTests": 428,
+    "loadedSelfTests": 428,
+    "runSelfTests": 428,
+    "skipped": 0
+  },
+  "scope": "Complete pre-integration APK 12, not a new native build of a future merge commit. Voice evidence covers the digital mixer path, both directions and both mute controls.",
+  "modules": [
+    {
+      "id": "launch-smoke",
+      "status": "passed",
+      "checks": 19,
+      "durationSeconds": 285.438
+    },
+    {
+      "id": "text-input",
+      "status": "passed",
+      "checks": 1,
+      "durationSeconds": 28.591
+    },
+    {
+      "id": "tablet-e2e",
+      "status": "passed",
+      "checks": 1,
+      "durationSeconds": 72.562
+    },
+    {
+      "id": "accessibility",
+      "status": "passed",
+      "checks": 1,
+      "durationSeconds": 13.435
+    },
+    {
+      "id": "entity-sync",
+      "status": "passed",
+      "checks": 1,
+      "durationSeconds": 9.201
+    },
+    {
+      "id": "update-upgrade",
+      "status": "passed",
+      "checks": 1,
+      "durationSeconds": 38.918
+    },
+    {
+      "id": "tablet",
+      "status": "passed",
+      "checks": 1,
+      "durationSeconds": 5.878
+    },
+    {
+      "id": "tablet-input-isolation",
+      "status": "passed",
+      "checks": 1,
+      "durationSeconds": 14.726
+    },
+    {
+      "id": "lifecycle-under-load",
+      "status": "passed",
+      "checks": 1,
+      "durationSeconds": 15.492
+    },
+    {
+      "id": "crash-recovery-under-load",
+      "status": "passed",
+      "checks": 1,
+      "durationSeconds": 19.503
+    },
+    {
+      "id": "domain-enter",
+      "status": "passed",
+      "checks": 1,
+      "durationSeconds": 8.883
+    },
+    {
+      "id": "domain-roundtrip",
+      "status": "passed",
+      "checks": 1,
+      "durationSeconds": 14.094
+    },
+    {
+      "id": "multi-user",
+      "status": "passed",
+      "checks": 1,
+      "durationSeconds": 15.814
+    },
+    {
+      "id": "network-fault-recovery",
+      "status": "passed",
+      "checks": 1,
+      "durationSeconds": 27.831
+    },
+    {
+      "id": "asset-load",
+      "status": "passed",
+      "checks": 1,
+      "durationSeconds": 8.662
+    },
+    {
+      "id": "sound-playback",
+      "status": "passed",
+      "checks": 1,
+      "durationSeconds": 11.808
+    },
+    {
+      "id": "settings-persistence",
+      "status": "passed",
+      "checks": 1,
+      "durationSeconds": 24.265
+    },
+    {
+      "id": "app-restart",
+      "status": "passed",
+      "checks": 1,
+      "durationSeconds": 16.982
+    },
+    {
+      "id": "voice-roundtrip",
+      "status": "passed",
+      "checks": 1,
+      "durationSeconds": 63.757
+    },
+    {
+      "id": "scene",
+      "status": "passed",
+      "checks": 1,
+      "durationSeconds": 0.735
+    },
+    {
+      "id": "spawn-grounded",
+      "status": "passed",
+      "checks": 1,
+      "durationSeconds": 1.539
+    },
+    {
+      "id": "world-interaction",
+      "status": "passed",
+      "checks": 1,
+      "durationSeconds": 5.936
+    },
+    {
+      "id": "scripted-entity",
+      "status": "passed",
+      "checks": 1,
+      "durationSeconds": 6.628
+    },
+    {
+      "id": "audio-controls",
+      "status": "passed",
+      "checks": 1,
+      "durationSeconds": 7.499
+    },
+    {
+      "id": "look",
+      "status": "passed",
+      "checks": 1,
+      "durationSeconds": 29.694
+    },
+    {
+      "id": "move",
+      "status": "passed",
+      "checks": 1,
+      "durationSeconds": 33.22
+    },
+    {
+      "id": "input-neutral",
+      "status": "passed",
+      "checks": 1,
+      "durationSeconds": 3.262
+    },
+    {
+      "id": "scene-reload",
+      "status": "passed",
+      "checks": 1,
+      "durationSeconds": 5.43
+    },
+    {
+      "id": "jump",
+      "status": "passed",
+      "checks": 1,
+      "durationSeconds": 7.813
+    },
+    {
+      "id": "collision",
+      "status": "passed",
+      "checks": 1,
+      "durationSeconds": 9.808
+    },
+    {
+      "id": "fly",
+      "status": "passed",
+      "checks": 1,
+      "durationSeconds": 8.792
+    },
+    {
+      "id": "lifecycle-soak",
+      "status": "passed",
+      "checks": 1,
+      "durationSeconds": 97.19
+    },
+    {
+      "id": "idle-soak",
+      "status": "passed",
+      "checks": 1,
+      "durationSeconds": 307.45
+    },
+    {
+      "id": "render-health",
+      "status": "passed",
+      "checks": 1,
+      "durationSeconds": 9.096
+    },
+    {
+      "id": "permission-recovery",
+      "status": "passed",
+      "checks": 1,
+      "durationSeconds": 11.395
+    }
+  ]
+}
