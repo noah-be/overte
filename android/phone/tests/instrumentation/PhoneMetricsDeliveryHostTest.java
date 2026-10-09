@@ -21,6 +21,16 @@ public final class PhoneMetricsDeliveryHostTest {
         check(delivery.offer(closed));
         check(delivery.pending().equals(closed));
         delivery.accepted(closed);
+        check(!delivery.offer(closed));
+        delivery.nativeUiReady();
+        check(delivery.offer(closed)); // unchanged bounds must reach the final runtime
+        check(delivery.pending().equals(closed));
+        delivery.accepted(closed);
+        check(delivery.offer(open));
+        delivery.nativeUiReady();
+        check(delivery.pending().equals(open)); // do not discard newer IME state
+        check(delivery.offer(closed)); // actual remeasurement supersedes the old state
+        delivery.accepted(closed);
         check(delivery.pending() == null);
         check(delivery.offer(open));
         check(delivery.pending().keyboardVisible);
@@ -41,6 +51,22 @@ public final class PhoneMetricsDeliveryHostTest {
                 0, 0, 0, 0, 0, 0, 0, 1, 1, false, false, false);
         check(!delivery.offer(invalid));
         check(delivery.pending() == null);
+        PhoneTouchUiMetricsPolicy.Snapshot floating = PhoneTouchUiMetricsPolicy.normalize(
+                1600, 2560, 0, 24, 0, 96, 0, 2, 1,
+                true, false, false, true);
+        check(floating.keyboardVisible);
+        check(floating.imeInsetBottom == 0);
+        check(!floating.equals(closed)); // visibility-only changes must be delivered
+        check(delivery.offer(floating));
+        delivery.accepted(floating);
+        check(delivery.offer(closed));
+        check(!delivery.pending().keyboardVisible);
+        delivery.accepted(closed);
+        PhoneTouchUiMetricsPolicy.Snapshot hiddenWithInset = PhoneTouchUiMetricsPolicy.normalize(
+                1600, 2560, 0, 24, 0, 96, 720, 2, 1,
+                false, false, false, true);
+        check(!hiddenWithInset.keyboardVisible);
+        check(!hiddenWithInset.equals(open));
         System.out.println("Phone metrics delivery: " + checks + " assertions PASS");
     }
 }

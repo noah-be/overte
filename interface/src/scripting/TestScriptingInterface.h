@@ -146,6 +146,7 @@ public slots:
     void saveObject(QVariant v, const QString& filename);
 #if defined(OVERTE_E2E_VOICE_TESTS)
     Q_INVOKABLE QVariantMap voiceTest(const QVariantMap& command);
+    Q_INVOKABLE bool uiTest(const QVariantMap& command);
 #endif
 
     /*@jsdoc

@@ -227,6 +227,10 @@ void messageHandler(QtMsgType type, const QMessageLogContext& context, const QSt
         QRegularExpression("^OVT_PHONE_LOADING [a-z0-9_= .-]+$").match(message).hasMatch()) {
         __android_log_write(ANDROID_LOG_INFO, "OvertePhoneLoading", message.toLatin1().constData());
     }
+    if (message == "OVT_PHONE_SPAWN_HELD" || message == "OVT_PHONE_SPAWN_RELEASED" ||
+        message == "OVT_PHONE_SPAWN_TIMEOUT") {
+        __android_log_write(ANDROID_LOG_INFO, "OvertePhoneSpawn", message.toLatin1().constData());
+    }
     if (message.startsWith("OVT_PHONE_TABLET_") && message.size() < 100 &&
         QRegularExpression("^OVT_PHONE_TABLET_[A-Z_]+( -?[0-9]+)*$").match(message).hasMatch()) {
         __android_log_write(ANDROID_LOG_INFO, "OvertePhoneRuntime", message.toLatin1().constData());
@@ -1543,7 +1547,7 @@ bool Application::gpuTextureMemSizeStable() {
     auto renderStats = renderConfig->getConfig<render::EngineStats>("Stats");
 
     qint64 textureResourceGPUMemSize = renderStats->textureResourceGPUMemSize;
-#if !defined(ANDROID_APP_PICO_INTERFACE)
+#if !defined(ANDROID_APP_PICO_INTERFACE) && !defined(ANDROID_APP_PHONE_INTERFACE)
     qint64 texturePopulatedGPUMemSize = renderStats->textureResourcePopulatedGPUMemSize;
 #endif
     qint64 textureTransferSize = renderStats->texturePendingGPUTransferSize;
@@ -1554,11 +1558,22 @@ bool Application::gpuTextureMemSizeStable() {
         _gpuTextureMemSizeStabilityCount = 0;
     }
     _gpuTextureMemSizeAtLastCheck = textureResourceGPUMemSize;
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    static quint64 lastTextureDiagnostic { 0 };
+    const quint64 now = usecTimestampNow();
+    if (now - lastTextureDiagnostic >= 5 * USECS_PER_SECOND) {
+        lastTextureDiagnostic = now;
+        PHONE_LOADING("phase=gpu_readiness requested_bytes=%lld populated_bytes=%lld pending_bytes=%lld stable_samples=%d",
+            static_cast<long long>(textureResourceGPUMemSize),
+            static_cast<long long>(renderStats->textureResourcePopulatedGPUMemSize),
+            static_cast<long long>(textureTransferSize), _gpuTextureMemSizeStabilityCount);
+    }
+#endif
 
     if (_gpuTextureMemSizeStabilityCount >= _minimumGPUTextureMemSizeStabilityCount) {
-#if defined(ANDROID_APP_PICO_INTERFACE)
+#if defined(ANDROID_APP_PICO_INTERFACE) || defined(ANDROID_APP_PHONE_INTERFACE)
         // Android texture streaming intentionally keeps some requested mip levels non-resident. Waiting for
-        // requested and populated memory to match can therefore deadlock the Pico loading screen forever.
+        // requested and populated memory to match can therefore deadlock Android world entry forever.
         // Stable allocation and an empty transfer queue are the reliable completion signals on this client.
         return textureTransferSize == 0;
 #else

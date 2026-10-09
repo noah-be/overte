@@ -1752,6 +1752,7 @@ protected:
         }
         if (_jointData.size() <= index) {
             _jointData.resize(index + 1);
+            _hasNewJointDataVec.resize(static_cast<size_t>(_jointData.size()), false);
         }
         f(index);
     }

@@ -92,6 +92,8 @@ def environment(scene: dict, domain: dict | None) -> dict[str, str]:
                 domain["requiredMarkers"], separators=(",", ":")),
             "OVERTE_E2E_DOMAIN_CONTROL_URL": domain["controlUrl"],
             "OVERTE_E2E_DOMAIN_CONTROL_TOKEN": domain["controlToken"],
+            "OVERTE_E2E_COLLABORATION_EDIT_URL": domain["collaborationEditUrl"],
+            "OVERTE_E2E_COLLABORATION_STATE_URL": domain["collaborationStateUrl"],
         })
     if not all(isinstance(key, str) and isinstance(value, str) and value
                for key, value in values.items()):

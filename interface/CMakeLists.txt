@@ -38,6 +38,16 @@ if (OVERTE_BUILD_TOOLS AND JSDOC_ENABLED)
 endif()
 
 set(RESOURCES_QRC ${CMAKE_CURRENT_BINARY_DIR}/resources.qrc)
+if (HIFI_ANDROID AND HIFI_ANDROID_APP STREQUAL "phoneInterface" AND OVERTE_E2E_VOICE_TESTS)
+  # The controlled client entity script is application code in dedicated E2E
+  # builds. Embed it so it follows the existing immutable qrc consent policy.
+  add_custom_qrc_path(CUSTOM_INTERFACE_QRC_PATHS
+    "${CMAKE_SOURCE_DIR}/tests/device/fixture/scripted_interactable.js"
+    "overte-e2e/scripted_interactable.js")
+  add_custom_qrc_path(CUSTOM_INTERFACE_QRC_PATHS
+    "${CMAKE_SOURCE_DIR}/tests/device/fixture/ControlledTextInput.qml"
+    "qml/hifi/ControlledTextInput.qml")
+endif()
 set(RESOURCES_RCC ${CMAKE_CURRENT_BINARY_DIR}/resources.rcc)
 set(INTERFACE_QRC_EXCLUDES "")
 if (HIFI_ANDROID AND HIFI_ANDROID_APP STREQUAL "phoneInterface")

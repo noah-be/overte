@@ -40,6 +40,8 @@ Item {
 
     property bool isActive: false
     property bool bindToAudioMute: false
+    property string semanticId: ""
+    objectName: semanticId
     property string accessibleName: text
     property string accessibleDescription: ""
 

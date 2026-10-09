@@ -17,7 +17,7 @@ import tempfile
 import time
 
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_GATE = ROOT / "android/phone/tests/check-phone-apk-16k.sh"
 EXPECTED_PACKAGE = "io.github.noah_be.overte.phone"
 DEFAULT_TEMP_ROOT = ROOT / "android/build/apk-verification-tmp"
@@ -53,6 +53,18 @@ def analyzer_value(analyzer, apk, field):
     if not value or "\n" in value or "\r" in value:
         fail(f"apkanalyzer returned invalid {field} metadata")
     return value
+
+
+def verify_unique_qt_java(analyzer, apk):
+    # Android loads the first definition when stale external dex and a local
+    # replacement both declare the same class. Inspect the actual packaged
+    # definitions rather than accepting the Java source/build census alone.
+    for name in ("org.qtproject.qt5.android.QtLayout", "org.qtproject.qt5.android.QtEditText"):
+        output = run([analyzer, "dex", "code", "--class", name, str(apk)])
+        descriptor = "L" + name.replace(".", "/") + ";"
+        declarations = re.findall(r"^\.class\b[^\n]*\s(L[^\s;]+;)\s*$", output, re.MULTILINE)
+        if declarations.count(descriptor) != 1:
+            fail(f"expected exactly one packaged definition of {name}; found {declarations.count(descriptor)}")
 
 
 def signature_digest(output):
@@ -160,6 +172,7 @@ def verified_manifest(args):
     package = analyzer_value(analyzer, args.apk, "application-id")
     if package != EXPECTED_PACKAGE:
         fail(f"expected package {EXPECTED_PACKAGE}, found {package}")
+    verify_unique_qt_java(analyzer, args.apk)
     signer_digest = None
     if args.expect_unsigned:
         verify_unsigned(signer, args.apk)

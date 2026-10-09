@@ -13,6 +13,9 @@
 #include <QDebug>
 #include <QScopedValueRollback>
 #include <QThread>
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+#include <QtAndroidExtras/QAndroidJniObject>
+#endif
 #include <AccountManager.h>
 #include <AudioClient.h>
 #include <src/ui/LoginDialog.h>
@@ -40,6 +43,12 @@ void AndroidHelper::notifyLoadComplete() {
     PHONE_LOADING("phase=url_load_complete");
     _loadComplete = true;
     emit qtAppLoadComplete();
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // Recapture the actual Android window once the final application is ready.
+    // An early queued receipt can belong to main()'s temporary parser app.
+    QAndroidJniObject::callStaticMethod<void>(
+        "org/overte/phone/PhoneInterfaceActivity", "onNativeUiReady", "()V");
+#endif
 }
 
 void AndroidHelper::notifyStartupNavigationReady() {

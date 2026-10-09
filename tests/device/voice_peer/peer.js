@@ -71,8 +71,14 @@
         });
     }
     var timer = Script.setInterval(tick, 250);
+    // The isolated local startup scene owns no mixer. Join only after both
+    // audio signals and snapshot publication have been connected.
+    var joinTimer = Script.setTimeout(function () {
+        location.handleLookupString(config.domain);
+    }, 1000);
     Script.scriptEnding.connect(function () {
         Script.clearInterval(timer);
+        Script.clearTimeout(joinTimer);
         Audio.muted = true;
         Audio.setLocalEcho(false);
         Audio.setServerEcho(false);

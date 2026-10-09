@@ -538,6 +538,8 @@ def validate_probe_snapshot(value: object) -> dict:
     }
     if "controller" in value:
         root_fields.add("controller")
+    if "control" in value:
+        root_fields.add("control")
     if "interaction" in value:
         root_fields.add("interaction")
     if "peer" in value:

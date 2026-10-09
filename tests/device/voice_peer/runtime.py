@@ -192,7 +192,7 @@ class Peer:
         with self.client_path.open("rb") as binary:
             self.client_digest = hashlib.file_digest(binary, "sha256").hexdigest()
         script = self.root / "peer-runtime.js"
-        config = {"url": url, "token": self.token, "session": self.session}
+        config = {"url": url, "token": self.token, "session": self.session, "domain": self.domain}
         script.write_text("var VOICE_PEER_CONFIG = " + json.dumps(config) + ";\n"
                           + Path(__file__).with_name("peer.js").read_text(), encoding="utf-8")
         script.chmod(0o600)
@@ -208,6 +208,11 @@ class Peer:
             "XDG_DATA_HOME": str(self.root / "data"),
             "XDG_CACHE_HOME": str(self.root / "cache"),
         })
+        # Register mixer callbacks before entering the domain. Connecting via
+        # --url directly can deliver the first audio packet before peer.js loads.
+        startup = self.root / "voice-startup.json"
+        startup.write_text(json.dumps({"DataVersion": 3, "Entities": [], "Version": 1}))
+        startup.chmod(0o600)
         # An isolated profile and explicit Pulse stream ownership avoid changing
         # host defaults, existing Overte preferences, or another application's audio.
         args = [str(self.client_path), "--allowMultipleInstances", "--no-updater",
@@ -215,7 +220,7 @@ class Peer:
                 "--suppress-settings-reset", "--cache", str(self.root / "cache"),
                 "--defaultScriptsOverride", str(empty),
                 "--testScript", str(script), "--testResultsLocation", str(self.root / "client-results"),
-                "--url", self.domain]
+                "--url", startup.as_uri()]
         log = (self.root / "client.log").open("wb")
         try:
             self.client = subprocess.Popen(args, env=env, stdout=log, stderr=log,

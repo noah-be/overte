@@ -100,7 +100,10 @@ def run_roundtrip(state: Path, identity: str, domain_id: str) -> dict:
         challenge = secrets.token_hex(16)
         require_peer(state, domain_id)
         with ThreadPoolExecutor(max_workers=1) as workers:
-            receiving = workers.submit(peer, state, "receive", challenge=challenge, seconds=8,
+            # Wireless command delivery follows capture readiness. Keep the
+            # complete 4.84-second challenge inside the bounded capture even
+            # when several identity checks precede the native send command.
+            receiving = workers.submit(peer, state, "receive", challenge=challenge, seconds=10,
                                        expect="absent" if muted else "present")
             deadline = time.monotonic() + 8
             while True:

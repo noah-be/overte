@@ -3,6 +3,7 @@ setup_hifi_library()
 target_sources(${TARGET_NAME} PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../../../common/src/QtInputConnectionCompat.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/PhoneUrlHandler.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/PhoneAccessibilityBridge.cpp"
 )
 link_hifi_libraries(
     shared task networking qml
@@ -52,4 +53,6 @@ endif()
 add_subdirectory("${CMAKE_SOURCE_DIR}/interface" "libraries/interface")
 target_compile_options(audio-client PRIVATE -include jni.h)
 include_directories("${CMAKE_SOURCE_DIR}/interface/src")
-target_link_libraries(${TARGET_NAME} android log m interface)
+include_hifi_library_headers(ui)
+include_hifi_library_headers(script-engine)
+target_link_libraries(${TARGET_NAME} android log m interface ui Qt5::AndroidExtras)
