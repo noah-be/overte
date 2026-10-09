@@ -2141,7 +2141,17 @@ void AvatarData::processAvatarIdentity(QDataStream& packetStream, bool& identity
         >> identity.sessionDisplayName
         >> identity.identityFlags
         ;
-    if (!packetStream.commitTransaction()) {
+    const bool identityDecoded = packetStream.commitTransaction();
+#if defined(Q_OS_ANDROID)
+    static std::atomic<int> identityDecodeTraceBudget { 16 };
+    if (identityDecodeTraceBudget.fetch_sub(1) > 0) {
+        qInfo().noquote().nospace() << "OVT_PHONE_LOADING phase=avatar_identity_decode status="
+            << int(packetStream.status()) << " decoded=" << int(identityDecoded)
+            << " name_length=" << identity.displayName.size()
+            << " session_name_length=" << identity.sessionDisplayName.size();
+    }
+#endif
+    if (!identityDecoded) {
         return;
     }
 
