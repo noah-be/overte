@@ -16,11 +16,17 @@ class ApplicationConsent(unittest.TestCase):
 
             source=source.replace('request->active() && request->belongsTo(_entityScriptConsentScope) &&','true &&')
         fixture=Path(__file__).with_name('entity-consent-application-test.cpp').read_text().replace('// ACTUAL_SOURCE',source)
+        qml=(ROOT/'interface/resources/qml/dialogs/TabletMessageBox.qml').read_text()
+        click='function click(button) {'+qml.split('function click(button) {',1)[1].split('    function exec()',1)[0]
+        fixture=fixture.replace('// PRODUCTION_DIALOG_CLICK',click)
+        native=(ROOT/'interface/src/scripting/TestScriptingInterface.cpp').read_text()
+        native='bool TestScriptingInterface::iosEntityScriptConsentTest('+native.split('bool TestScriptingInterface::iosEntityScriptConsentTest(',1)[1].split('QVariantMap TestScriptingInterface::iosNativeUiSnapshot()',1)[0]
+        fixture=fixture.replace('// ACTUAL_IOS_CONSENT_SOURCE',native)
         with tempfile.TemporaryDirectory(prefix='consent-application-') as directory:
             d=Path(directory);cpp=d/'test.cpp';cpp.write_text(fixture)
             subprocess.run(['/usr/lib64/qt6/libexec/moc',str(cpp),'-o',str(d/'test.moc')],check=True,timeout=10)
             flags=shlex.split(subprocess.check_output(['pkg-config','--cflags','--libs','Qt6Quick','Qt6Widgets'],text=True))
-            subprocess.run(['c++','-DANDROID_APP_PICO_INTERFACE','-std=c++17','-fPIC','-pthread','-I',str(ROOT/'libraries/script-engine/src'),str(cpp),'-o',str(d/'test'),*flags],check=True,timeout=30)
+            subprocess.run(['c++','-DANDROID_APP_PICO_INTERFACE','-std=c++17','-fPIC','-pthread','-I',str(ROOT/'libraries/script-engine/src'),'-I',str(ROOT/'interface/src/scripting'),str(cpp),'-o',str(d/'test'),*flags],check=True,timeout=30)
             env=dict(os.environ,QT_QPA_PLATFORM='offscreen',QT_QUICK_BACKEND='software')
-            subprocess.run(['unshare','--user','--map-root-user','--net',str(d/'test')],env=env,check=True,timeout=10)
+            subprocess.run(['unshare','--user','--map-root-user','--net',str(d/'test'),'--testScript','controlled-test.js'],env=env,check=True,timeout=10)
 if __name__=='__main__':unittest.main()

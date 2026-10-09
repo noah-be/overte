@@ -29,6 +29,8 @@
 #include "NetworkingConstants.h"
 #if defined(Q_OS_IOS) && defined(OVERTE_IOS_E2E_TEST_BUILD)
 #include "../IOSTouchUiMetrics.h"
+#include "EntityScriptConsentUiTest.h"
+#include <AddressManager.h>
 #include <QDateTime>
 #include <QRegularExpression>
 #include <QInputMethod>
@@ -59,6 +61,60 @@ TestScriptingInterface* TestScriptingInterface::getInstance() {
 }
 
 #if defined(Q_OS_IOS) && defined(OVERTE_IOS_E2E_TEST_BUILD)
+bool TestScriptingInterface::iosEntityScriptConsentTest(const QVariantMap& command) {
+    const QString id = command.value("commandId").toString();
+    const QString operation = command.value("operation").toString();
+    const QUrl source(command.value("source").toString());
+    if (_testResultsLocation.isEmpty() || !QCoreApplication::arguments().contains("--testScript") ||
+            command.size() != 5 || command.value("schemaVersion").toInt() != 1 ||
+            command.value("action").toString() != "entity-script-consent" ||
+            !QRegularExpression("^ios-[0-9a-f]{32}$").match(id).hasMatch() ||
+            (operation != "review" && operation != "allow") || !source.isValid() ||
+            source.scheme() != "http" || source.host().isEmpty() || !source.userInfo().isEmpty() ||
+            source.hasQuery() || source.hasFragment() ||
+            source.path() != "/scripted_interactable.js") { return false; }
+    return QMetaObject::invokeMethod(qApp, [this, id, operation, source] {
+        const QUrl world(DependencyManager::get<AddressManager>()->currentAddress(true));
+        const QString origin = world.toString(QUrl::FullyEncoded);
+        const QString sourceReference = source.toString(QUrl::FullyEncoded);
+        const bool ownedWorld = world.scheme() == source.scheme() && world.host() == source.host() &&
+            world.port() == source.port() && world.path() == "/scene.json";
+        if (operation == "review" && ownedWorld && qApp->_isForeground && !qApp->_aboutToQuit) {
+            qApp->beginEntityScriptConsentReview();
+        }
+        const auto scope = qApp->_entityScriptConsentScope;
+        auto poll = std::make_shared<std::function<void(int)>>();
+        const std::weak_ptr<std::function<void(int)>> weakPoll = poll;
+        *poll = [this, id, operation, sourceReference, origin, ownedWorld, scope, weakPoll](int remaining) {
+            const auto request = qApp->_activeEntityScriptConsentRequest;
+            QQuickItem* dialog = qApp->_entityScriptConsentDialog
+                ? qApp->_entityScriptConsentDialog->getDialogItem() : nullptr;
+            const bool current = ownedWorld && qApp->_isForeground && !qApp->_aboutToQuit &&
+                scope && scope == qApp->_entityScriptConsentScope && scope->active() &&
+                request && request->active() && request->belongsTo(scope) &&
+                request->source() == sourceReference && request->origin() == origin;
+            const bool visible = current && dialog && dialog->isVisible() &&
+                dialog->width() > 0 && dialog->height() > 0;
+            if (operation == "review" && !visible && remaining > 0 &&
+                    scope && scope == qApp->_entityScriptConsentScope && scope->active()) {
+                if (auto next = weakPoll.lock()) {
+                    QTimer::singleShot(250, this, [next, remaining] { (*next)(remaining - 1); });
+                }
+                return;
+            }
+            const bool ok = visible && (operation == "review" ||
+                pressEntityScriptConsentDialog(dialog, request, scope, sourceReference, origin));
+            saveObject(QVariantMap {
+                { "schemaVersion", 1 }, { "commandId", id }, { "operation", operation },
+                { "sampleEpochMs", QDateTime::currentMSecsSinceEpoch() },
+                { "processId", QCoreApplication::applicationPid() }, { "source", sourceReference },
+                { "origin", origin }, { "visible", visible }, { "ok", ok }
+            }, "ios-entity-consent-result.json");
+        };
+        (*poll)(40);
+    }, Qt::QueuedConnection);
+}
+
 QVariantMap TestScriptingInterface::iosNativeUiSnapshot() {
     if (_testResultsLocation.isEmpty() ||
             !QCoreApplication::arguments().contains("--testScript")) {

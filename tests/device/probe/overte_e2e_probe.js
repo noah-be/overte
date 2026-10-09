@@ -719,6 +719,14 @@
     }
 
     function applyClientCommand(command) {
+        if (command && command.commandId !== lastClientCommandId
+                && command.action === "entity-script-consent"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action", "operation", "source"])
+                && typeof Test.iosEntityScriptConsentTest === "function"
+                && Test.iosEntityScriptConsentTest(command)) {
+            lastClientCommandId = String(command.commandId);
+            return;
+        }
         if (command && command.commandId !== lastTextCommandId && command.action === "text-fixture"
                 && objectKeysMatch(command, ["schemaVersion", "commandId", "action", "operation"])
                 && typeof Test.iosTextTest === "function" && Test.iosTextTest(command)) {

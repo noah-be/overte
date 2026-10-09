@@ -22,7 +22,7 @@ import uuid
 from adapters.appium.adapter import AppiumAdapter
 from adapters.common import fail
 from contracts import validate_operation_arguments, validate_operation_result
-from adapters.ios import native_ui, native_integration, native_primary, native_upgrade, native_permission
+from adapters.ios import native_ui, native_integration, native_primary, native_upgrade, native_permission, native_consent
 from adapters.collaboration_observation import actor_receipt, portable_observation
 
 
@@ -47,6 +47,8 @@ class IOSAdapter(AppiumAdapter):
                 and target.get("testBuild")
                 and target.get("probe") == {"kind": "ios-documents"}):
             values |= IOSAdapter.CLIENT_OPERATIONS | IOSAdapter.NATIVE_OPERATIONS
+            if native_consent.enabled(target):
+                values.add("entity-script.review")
             if native_integration.enabled(target):
                 values |= IOSAdapter.INTEGRATION_OPERATIONS
             if native_primary.enabled(target):
@@ -135,6 +137,39 @@ class IOSAdapter(AppiumAdapter):
                 return command_id
             time.sleep(0.1)
         fail("fresh iOS client execution receipt was not observed")
+
+    def review_entity_script(self, selector, client, session, state, target):
+        identity = self.assert_ios_process_identity(selector, client, session, state, target)
+        origin = target["testBuild"]["fixtureOrigin"]
+        source = origin + "/scripted_interactable.js"
+        scene = origin + target["testBuild"]["scenePath"]
+        was_visible = self.probe_snapshot(selector, client, session, state, target)["tablet"]["open"]
+        self.invoke(selector, "tablet.open", {})
+        remote = f"@{target['appId']}:documents/{target['testBuild']['resultsDirectory']}/ios-entity-consent-result.json"
+        try:
+            for operation in ("review", "allow"):
+                command_id = self.command(selector, client, session, state, target,
+                    "entity-script-consent", operation=operation, source=source)
+                deadline = time.monotonic() + 20
+                while time.monotonic() < deadline:
+                    if self.assert_ios_process_identity(selector, client, session, state, target) != identity:
+                        fail("entity consent crossed process identities")
+                    encoded = client.execute(session, "mobile: pullFile", {"remotePath": remote})
+                    try:
+                        document = json.loads(base64.b64decode(encoded, validate=True))
+                    except (ValueError, UnicodeError):
+                        time.sleep(0.1)
+                        continue
+                    if isinstance(document, dict) and document.get("commandId") == command_id:
+                        native_consent.observation(document, int(identity), command_id, operation, source, scene)
+                        break
+                    time.sleep(0.1)
+                else:
+                    fail("fresh production entity consent dialog execution was not observed")
+            return {"performed": True}
+        finally:
+            if not was_visible:
+                self.invoke(selector, "tablet.close", {})
 
     def reset_launch_state(self, selector, state):
         for key in ("processIdentity", "iosE2ELaunchCompleted", "iosE2ESceneUrl"):
@@ -379,7 +414,7 @@ class IOSAdapter(AppiumAdapter):
                     return super().invoke(selector, operation, values)
                 finally:
                     del self._native_ui_target
-        extended = self.CLIENT_OPERATIONS | self.NATIVE_OPERATIONS | self.INTEGRATION_OPERATIONS | self.COLLABORATION_OPERATIONS | {"app.process", "input.primary", "scene.load", "scene.reload", "app.install", "app.upgrade", "permission.snapshot", "permission.set"}
+        extended = self.CLIENT_OPERATIONS | self.NATIVE_OPERATIONS | self.INTEGRATION_OPERATIONS | self.COLLABORATION_OPERATIONS | {"app.process", "input.primary", "scene.load", "scene.reload", "app.install", "app.upgrade", "permission.snapshot", "permission.set", "entity-script.review"}
         if operation not in extended:
             return super().invoke(selector, operation, values)
         arguments = validate_operation_arguments(operation, values)
@@ -404,6 +439,8 @@ class IOSAdapter(AppiumAdapter):
                     "fromVersion":upgrade["source"]["version"],"toVersion":upgrade["candidate"]["version"]}:
                 fail("native upgrade requires the exact prepared version pair")
         client, session, state = self.ensure_session(selector)
+        if operation == "entity-script.review":
+            return self.review_entity_script(selector, client, session, state, target)
         if operation in {"permission.snapshot", "permission.set"}:
             identity = self.assert_ios_process_identity(selector, client, session, state, target)
             receipt = client.execute(session, "mobile: overteMicrophonePermission", arguments)

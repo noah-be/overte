@@ -224,7 +224,7 @@ def validate_operation_arguments(operation: str, value: object) -> dict:
     if operation == "voice.exchange":
         from voice_contract import command
         return command(value)
-    if operation in {"app.version", "collaboration.snapshot", "render.snapshot",
+    if operation in {"app.version", "collaboration.snapshot", "render.snapshot", "entity-script.review",
                      "tablet.snapshot", "text.snapshot"}:
         if value:
             raise ValueError(f"{operation} does not accept arguments")
@@ -425,7 +425,7 @@ def validate_operation_result(operation: str, value: object) -> dict:
                     or recovery["processBefore"] == recovery["processAfter"]):
                 raise ValueError("permission.set requires exact iOS Settings restart evidence")
         return value
-    if operation in {"audio.mute", "collaboration.edit", "input.fly", "input.jump", "input.look", "input.move", "input.primary",
+    if operation in {"audio.mute", "collaboration.edit", "entity-script.review", "input.fly", "input.jump", "input.look", "input.move", "input.primary",
                      "tablet.activate", "tablet.close", "tablet.open", "text.dismiss",
                      "text.focus", "text.type", "setting.set"}:
         return validate_performed_result(operation, value)

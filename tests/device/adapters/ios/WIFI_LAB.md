@@ -87,6 +87,30 @@ does not prove healthy visible rendering. Pillow is required for this local
 physical screenshot analysis. These operations still require native build,
 installation and real-device qualification.
 
+## Controlled entity script consent
+
+The observed installed integer `OverteE2EEntityScriptConsentVersion=1` marker
+enables `nativeEntityConsent: {"kind": "ios-documents", "version": 1}` and the
+optional `entity-script.review` operation. The scripted-entity module explicitly
+requests this operation before requiring actual script execution. A client
+without this marker does not advertise it; lack of executed script still fails
+the existing behavioral assertions.
+
+The E2E-only native hook opens the existing source-scoped review flow, requires
+the displayed production dialog for the exact controlled HTTP script and
+current world, and invokes that dialog's real QML Yes action. Its existing
+selected signal and Application listener retain ownership of the decision.
+The helper never resolves a consent token directly. A fresh, command/PID-bound
+native receipt must confirm each UI action; a delivery acknowledgement cannot
+substitute. Wrong sources/worlds, invisible or expired dialogs and unexpected
+process changes fail. This is UI automation, not proof of a physical consent
+button tap or informed human intent. It grants no general entity-script policy.
+
+The module still independently requires downloaded-script preload evidence and
+one real world touch to change its own state, activation count and color.
+Background/world/account transitions retain the production consent revocation
+behavior. The adapter restores the tablet's prior open/closed state.
+
 ## Independent entity synchronization
 
 An owned domain fixture may configure the private `collaboration` binding with

@@ -7,6 +7,14 @@
 #include <QUrl>
 #include <QEvent>
 #include <QDebug>
+#include <QQmlComponent>
+#include <QQmlEngine>
+#include <QQuickWindow>
+#include <QDateTime>
+#include <QRegularExpression>
+#include <QTimer>
+#include <QEventLoop>
+#include "EntityScriptConsentUiTest.h"
 #include <deque>
 #include <thread>
 #include <cassert>
@@ -24,6 +32,8 @@ public:
     QString text;
     ModalDialogListener(){item=new QQuickItem;item->setParent(this);}
     QQuickItem* getDialogItem(){return item;}
+public slots:
+    void selectButton(int button){emit response(button);}
 signals:
     void response(const QVariant&);
 };
@@ -40,7 +50,10 @@ struct OffscreenUi {
 };
 struct Domain {bool isConnected()const{return true;}};
 struct NodeList {Domain domain;Domain& getDomainHandler(){return domain;}};
-struct AddressManager {QUrl currentAddress(bool domainOnly)const{assert(domainOnly);return QUrl("https://world.invalid/world?secret=world-canary");}};
+struct AddressManager {
+    static inline QUrl address=QUrl("https://world.invalid/world?secret=world-canary");
+    QUrl currentAddress(bool domainOnly)const{assert(domainOnly);return address;}
+};
 struct DependencyManager {template<class T>static QSharedPointer<T>get(){static auto value=QSharedPointer<T>::create();return value;}};
 class EntityTreeRenderer:public QObject {
 public:
@@ -85,6 +98,17 @@ public:
     quint64 _entityScriptConsentUiGeneration{0};
 };
 // ACTUAL_SOURCE
+static Application* testedApplication=nullptr;
+#undef qApp
+#define qApp testedApplication
+class TestScriptingInterface:public QObject {
+public:
+    QString _testResultsLocation="owned-test-output";
+    QVariantMap receipt;
+    bool iosEntityScriptConsentTest(const QVariantMap&);
+    void saveObject(QVariant object,const QString& name){assert(name=="ios-entity-consent-result.json");receipt=object.toMap();}
+};
+// ACTUAL_IOS_CONSENT_SOURCE
 static void deliver(){for(int i=0;i!=6;++i){QCoreApplication::sendPostedEvents(nullptr,QEvent::MetaCall);}}
 static void cleanup(){QCoreApplication::sendPostedEvents(nullptr,QEvent::DeferredDelete);}
 static std::shared_ptr<EntityScriptConsentRequest> request(Application& application){
@@ -103,9 +127,43 @@ int main(int argc,char**argv){
     assert(!dialog->text.contains("<script>"));
     emit dialog->response(int(QMessageBox::Yes));emit dialog->response(int(QMessageBox::Yes));deliver();
     assert(answers==QVector<bool>{true});dialog->deleteLater();cleanup();
+    // Drive the real QML click function through the native UI binding, while
+    // preserving the actual Application listener and source/origin scope.
+    app.beginEntityScriptConsentReview();deliver();answers.clear();
+    auto reviewed=request(app);
+    app.enqueueEntityScriptConsent(reviewed,[&](bool value){answers.push_back(value);});
+    dialog=app._entityScriptConsentDialog;
+    QQmlEngine engine;QQmlComponent component(&engine);
+    QQuickWindow window;window.resize(400,300);window.show();
+    component.setData(R"qml(import QtQuick 2.5
+Item {
+    width: 400; height: 300; visible: true
+    property int buttons: 81920
+    property int defaultButton: 65536
+    property int clickedButton: 0
+    signal selected(int button)
+    // PRODUCTION_DIALOG_CLICK
+})qml",QUrl());
+    auto* actualDialog=qobject_cast<QQuickItem*>(component.create());
+    assert(actualDialog && component.errors().isEmpty());
+    actualDialog->setParentItem(window.contentItem());
+    QQmlEngine::setObjectOwnership(actualDialog,QQmlEngine::JavaScriptOwnership);
+    dialog->item->deleteLater();dialog->item=actualDialog;actualDialog->setParent(dialog);
+    QObject::connect(actualDialog,SIGNAL(selected(int)),dialog,SLOT(selectButton(int)));
+    const auto scope=app._entityScriptConsentScope;
+    assert(!pressEntityScriptConsentDialog(actualDialog,reviewed,scope,"wrong-source",reviewed->origin()));
+    assert(!pressEntityScriptConsentDialog(actualDialog,reviewed,scope,reviewed->source(),"wrong-world"));
+    actualDialog->setVisible(false);
+    assert(!pressEntityScriptConsentDialog(actualDialog,reviewed,scope,reviewed->source(),reviewed->origin()));
+    actualDialog->setVisible(true);
+    assert(answers.isEmpty());
+    assert(pressEntityScriptConsentDialog(actualDialog,reviewed,scope,reviewed->source(),reviewed->origin()));
+    deliver();assert(answers==QVector<bool>{true});
+    assert(!app._activeEntityScriptConsentRequest);dialog->deleteLater();cleanup();
     // The request may be invalidated while its dialog remains alive.
     auto stale=request(app);answers.clear();app.enqueueEntityScriptConsent(stale,[&](bool value){answers.push_back(value);});
     dialog=app._entityScriptConsentDialog;app._entityScriptConsentScope->invalidate();
+    assert(!pressEntityScriptConsentDialog(dialog->item,stale,app._entityScriptConsentScope,stale->source(),stale->origin()));
     emit dialog->response(int(QMessageBox::Yes));deliver();assert(answers==QVector<bool>{false});dialog->deleteLater();cleanup();
     // Session invalidation closes the active decision; a late Yes is ignored.
     app.beginEntityScriptConsentReview();deliver();answers.clear();app.enqueueEntityScriptConsent(request(app),[&](bool value){answers.push_back(value);});
@@ -144,5 +202,35 @@ int main(int argc,char**argv){
     app.domainURLChanged(QUrl("file:///new-import.json"));
     assert(!current->active() && app._picoDeferredServerlessSceneURL==QUrl("file:///new-import.json"));
     app._isForeground=false;app.beginEntityScriptConsentReview();deliver();cleanup();assert(!app._entityScriptConsentScope);
+    // Compile and execute the actual E2E hook with UI dispatch, the production
+    // dialog click and listener, and only the world/renderer/file boundaries held.
+    testedApplication=&app;app._isForeground=true;
+    AddressManager::address=QUrl("http://fixture.invalid:49121/scene.json");
+    TestScriptingInterface test;
+    QVariantMap command{{"schemaVersion",1},{"commandId","ios-cccccccccccccccccccccccccccccccc"},
+        {"action","entity-script-consent"},{"operation","review"},
+        {"source","http://fixture.invalid:49121/scripted_interactable.js"}};
+    auto foreign=command;foreign["source"]="http://fixture.invalid:49121/foreign.js";
+    assert(!test.iosEntityScriptConsentTest(foreign));
+    assert(test.iosEntityScriptConsentTest(command));deliver();
+    auto controlled=std::make_shared<EntityScriptConsentRequest>(app._entityScriptConsentScope,
+        command["source"].toString(),false);
+    answers.clear();app.enqueueEntityScriptConsent(controlled,[&](bool value){answers.push_back(value);});
+    dialog=app._entityScriptConsentDialog;
+    auto* controlledDialog=qobject_cast<QQuickItem*>(component.create());
+    assert(controlledDialog);controlledDialog->setParentItem(window.contentItem());
+    QQmlEngine::setObjectOwnership(controlledDialog,QQmlEngine::JavaScriptOwnership);
+    dialog->item->deleteLater();dialog->item=controlledDialog;controlledDialog->setParent(dialog);
+    QObject::connect(controlledDialog,SIGNAL(selected(int)),dialog,SLOT(selectButton(int)));
+    QEventLoop events;QTimer::singleShot(400,&events,&QEventLoop::quit);events.exec();
+    assert(test.receipt["ok"].toBool() && test.receipt["visible"].toBool());
+    assert(test.receipt["source"]==command["source"] && test.receipt["origin"]==AddressManager::address.toString());
+    assert(answers.isEmpty());
+    test.receipt.clear();command["operation"]="allow";
+    assert(test.iosEntityScriptConsentTest(command));deliver();
+    assert(test.receipt["ok"].toBool() && answers==QVector<bool>{true});
+    assert(!app._activeEntityScriptConsentRequest);dialog->deleteLater();cleanup();
+    test.receipt.clear();assert(test.iosEntityScriptConsentTest(command));deliver();
+    assert(!test.receipt["ok"].toBool());
 }
 #include "test.moc"

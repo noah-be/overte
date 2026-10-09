@@ -617,6 +617,9 @@ private slots:
 
 private:
     friend class Menu;
+#if defined(Q_OS_IOS) && defined(OVERTE_IOS_E2E_TEST_BUILD)
+    friend class TestScriptingInterface;
+#endif
     void beginEntityScriptConsentReview();
     void invalidateEntityScriptConsent();
     void enqueueEntityScriptConsent(const std::shared_ptr<EntityScriptConsentRequest>& request,

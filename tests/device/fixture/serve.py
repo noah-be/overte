@@ -445,6 +445,15 @@ class FixtureState:
                      and type(command["schemaVersion"]) is int
                      and re.fullmatch(r"ios-[0-9a-f]{32}", command["commandId"]) is not None
                      and command.get("operation") in {"focus", "snapshot", "dismiss"})
+        elif action == "entity-script-consent":
+            source = urlsplit(command.get("source") if isinstance(command.get("source"), str) else "")
+            valid = (set(command) == {"schemaVersion", "commandId", "action", "operation", "source"}
+                     and type(command["schemaVersion"]) is int
+                     and re.fullmatch(r"ios-[0-9a-f]{32}", command["commandId"]) is not None
+                     and command.get("operation") in {"review", "allow"}
+                     and self._web_url(command.get("source"))
+                     and source.path == "/scripted_interactable.js"
+                     and not source.query and not source.fragment)
         elif action == "scene-load":
             valid = (set(command) == {"schemaVersion", "commandId", "action", "url"}
                      and self._web_url(command.get("url")))

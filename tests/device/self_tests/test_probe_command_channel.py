@@ -126,6 +126,19 @@ class ProbeCommandChannelTest(unittest.TestCase):
             self.assertEqual(error.exception.code, 400)
             error.exception.close()
 
+    def test_entity_consent_command_cannot_forge_decisions_or_select_another_script(self):
+        command = {"schemaVersion": 1, "commandId": "ios-" + "c" * 32,
+                   "action": "entity-script-consent", "operation": "review",
+                   "source": "http://fixture.invalid:49121/scripted_interactable.js"}
+        self.assertEqual(self.post_command(command), command)
+        for override in ({"granted": True}, {"operation": "resolve"}, {"schemaVersion": True},
+                {"source": "http://fixture.invalid:49121/other.js"},
+                {"source": command["source"] + "?foreign"}, {"commandId": "unbound"}):
+            with self.subTest(override=override), self.assertRaises(HTTPError) as error:
+                self.post_command(command | override)
+            self.assertEqual(error.exception.code, 400)
+            error.exception.close()
+
     def test_adapter_owned_entity_is_removed_on_replacement_and_shutdown(self) -> None:
         self.assertGreaterEqual(
             self.source.count("Entities.deleteEntity(controlledAssetEntity)"), 2

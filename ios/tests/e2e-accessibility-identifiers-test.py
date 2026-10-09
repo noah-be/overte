@@ -90,7 +90,7 @@ def main() -> None:
     test_interface = (ROOT / "interface/src/scripting/TestScriptingInterface.cpp").read_text()
     ordinary_interface = preprocess_native_bridge(test_interface, False, True)
     enabled_interface = preprocess_native_bridge(test_interface, True, True)
-    for symbol in ("iosNativeUiSnapshot", "iosTextTest", "iosRenderObservation"):
+    for symbol in ("iosNativeUiSnapshot", "iosTextTest", "iosRenderObservation", "iosEntityScriptConsentTest"):
         assert "TestScriptingInterface::" + symbol not in ordinary_interface
         assert "TestScriptingInterface::" + symbol in enabled_interface
     assert 'OverteIOSAccessibilityElement' in production_bridge

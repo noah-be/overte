@@ -155,6 +155,7 @@ public slots:
     // Read actual native accessibility widgets without traversing Qt's AX tree.
     Q_INVOKABLE QVariantMap iosNativeUiSnapshot();
     Q_INVOKABLE bool iosTextTest(const QVariantMap& command);
+    Q_INVOKABLE bool iosEntityScriptConsentTest(const QVariantMap& command);
     Q_INVOKABLE QVariantMap iosRenderObservation();
 #endif
 
