@@ -31,6 +31,7 @@
 #include "../IOSTouchUiMetrics.h"
 #include "EntityScriptConsentUiTest.h"
 #include <AddressManager.h>
+#include <cstdlib>
 #include <QDateTime>
 #include <QRegularExpression>
 #include <QInputMethod>
@@ -61,6 +62,25 @@ TestScriptingInterface* TestScriptingInterface::getInstance() {
 }
 
 #if defined(Q_OS_IOS) && defined(OVERTE_IOS_E2E_TEST_BUILD)
+bool TestScriptingInterface::iosCrashTest(const QVariantMap& command) {
+    const QString id = command.value("commandId").toString();
+    if (_testResultsLocation.isEmpty() || !QCoreApplication::arguments().contains("--testScript") ||
+            command.size() != 3 || command.value("schemaVersion").toInt() != 1 ||
+            command.value("action").toString() != "native-crash" ||
+            !QRegularExpression("^ios-[0-9a-f]{32}$").match(id).hasMatch()) { return false; }
+    QTimer::singleShot(100, this, [this, id] {
+        // This receipt is published at the actual firing boundary, immediately
+        // before the real native abort. Delivery or arming alone is not evidence.
+        saveObject(QVariantMap {
+            { "schemaVersion", 1 }, { "commandId", id }, { "phase", "firing" },
+            { "cause", "SIGABRT" }, { "sampleEpochMs", QDateTime::currentMSecsSinceEpoch() },
+            { "processId", QCoreApplication::applicationPid() }
+        }, "ios-crash-result.json");
+        std::abort();
+    });
+    return true;
+}
+
 bool TestScriptingInterface::iosEntityScriptConsentTest(const QVariantMap& command) {
     const QString id = command.value("commandId").toString();
     const QString operation = command.value("operation").toString();

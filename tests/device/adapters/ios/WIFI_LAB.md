@@ -142,6 +142,25 @@ installation because the operating system can move the app container. No
 uninstall, data reset or fallback to a different bundle is part of this path.
 Installation and upgrade retain bounded 240-second operation deadlines.
 
+## Native crash recovery binding
+
+Some device developer protocols reject SIGABRT with `Unsupported signal 6`.
+The native signal fallback retains that failure rather than substituting normal
+termination or SIGKILL. An observed installed integer
+`OverteE2ENativeCrashVersion=1` enables the optional `nativeCrash` binding
+`{"kind": "ios-documents", "version": 1}` and an E2E-only client crash hook.
+
+The owned fixture can deliver only a nonce-bound `native-crash` command; it
+cannot choose another process, signal or crash result. Immediately before the
+client calls real `std::abort()`, it atomically publishes an actual firing
+receipt. The adapter requires that fresh receipt for the original live PID and
+exact command, then independently observes that process exit. Delivery, arming,
+an ordinary app stop or a replacement PID cannot satisfy this operation. The
+portable module still requires a new process, loaded scene and usable tablet.
+The hook is absent from ordinary builds and refuses launches without the explicit
+test script. The host regression executes the actual hook and JSON writer in an
+isolated process and verifies genuine SIGABRT; device acceptance remains separate.
+
 ## Native microphone permission recovery
 
 The explicit `nativePermission` binding is

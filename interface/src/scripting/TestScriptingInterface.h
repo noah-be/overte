@@ -156,6 +156,7 @@ public slots:
     Q_INVOKABLE QVariantMap iosNativeUiSnapshot();
     Q_INVOKABLE bool iosTextTest(const QVariantMap& command);
     Q_INVOKABLE bool iosEntityScriptConsentTest(const QVariantMap& command);
+    Q_INVOKABLE bool iosCrashTest(const QVariantMap& command);
     Q_INVOKABLE QVariantMap iosRenderObservation();
 #endif
 

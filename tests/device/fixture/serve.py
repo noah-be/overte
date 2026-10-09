@@ -440,6 +440,10 @@ class FixtureState:
                      and type(command["schemaVersion"]) is int
                      and re.fullmatch(r"ios-[0-9a-f]{32}", command["commandId"]) is not None
                      and command.get("operation") in {"prepare", "restore"})
+        elif action == "native-crash":
+            valid = (set(command) == {"schemaVersion", "commandId", "action"}
+                     and type(command["schemaVersion"]) is int
+                     and re.fullmatch(r"ios-[0-9a-f]{32}", command["commandId"]) is not None)
         elif action == "text-fixture":
             valid = (set(command) == {"schemaVersion", "commandId", "action", "operation"}
                      and type(command["schemaVersion"]) is int

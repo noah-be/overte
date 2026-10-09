@@ -29,6 +29,11 @@ python3 "$script_dir/dsym-content-test.py"
 python3 "$script_dir/command-timeout-test.py"
 python3 "$script_dir/e2e-test-build-contract-test.py"
 python3 "$script_dir/e2e-accessibility-identifiers-test.py"
+if pkg-config --exists Qt6Core; then
+    python3 "$script_dir/native-crash-test.py"
+else
+    echo "SKIP executable native crash hook test: host Qt6Core unavailable"
+fi
 python3 "$script_dir/e2e-observation-publication-test.py"
 python3 "$script_dir/fedora-e2e-producer-contract-test.py"
 python3 "$script_dir/personal-team-e2e-kit-contract-test.py"

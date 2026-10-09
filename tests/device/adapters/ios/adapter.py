@@ -22,7 +22,7 @@ import uuid
 from adapters.appium.adapter import AppiumAdapter
 from adapters.common import fail
 from contracts import validate_operation_arguments, validate_operation_result
-from adapters.ios import native_ui, native_integration, native_primary, native_upgrade, native_permission, native_consent
+from adapters.ios import native_ui, native_integration, native_primary, native_upgrade, native_permission, native_consent, native_crash
 from adapters.collaboration_observation import actor_receipt, portable_observation
 
 
@@ -170,6 +170,44 @@ class IOSAdapter(AppiumAdapter):
         finally:
             if not was_visible:
                 self.invoke(selector, "tablet.close", {})
+
+    def crash_ios_client(self, selector, client, session, state, target):
+        identity = self.assert_ios_process_identity(selector, client, session, state, target)
+        command_id = "ios-" + uuid.uuid4().hex
+        payload = {"schemaVersion": 1, "commandId": command_id, "action": "native-crash"}
+        origin = target["testBuild"]["fixtureOrigin"]
+        self.controlled_http_url(origin, "native crash fixture origin")
+        request = Request(origin + "/e2e-client-command.json", data=json.dumps(payload).encode(),
+                          method="POST", headers={"Content-Type": "application/json"})
+        with urlopen(request, timeout=5) as response:
+            content = response.read(4097)
+            if response.status != 200 or len(content) > 4096 or json.loads(content) != payload:
+                fail("owned fixture did not accept the exact native crash command")
+        remote = f"@{target['appId']}:documents/{target['testBuild']['resultsDirectory']}/ios-crash-result.json"
+        deadline = time.monotonic() + 15
+        while time.monotonic() < deadline:
+            encoded = client.execute(session, "mobile: pullFile", {"remotePath": remote})
+            try:
+                document = json.loads(base64.b64decode(encoded, validate=True))
+            except (ValueError, UnicodeError):
+                time.sleep(0.1)
+                continue
+            if isinstance(document, dict) and document.get("commandId") == command_id:
+                native_crash.observation(document, int(identity), command_id)
+                break
+            time.sleep(0.1)
+        else:
+            fail("actual native abort firing receipt was not observed")
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            process = self.native_process(client, session, target)
+            if process is None:
+                self.reset_launch_state(selector, state)
+                return {"crashed": True}
+            if str(process["pid"]) != identity:
+                fail("native crash unexpectedly replaced the configured process")
+            time.sleep(0.1)
+        fail("native abort firing did not terminate the original process")
 
     def reset_launch_state(self, selector, state):
         for key in ("processIdentity", "iosE2ELaunchCompleted", "iosE2ESceneUrl"):
@@ -558,6 +596,8 @@ class IOSAdapter(AppiumAdapter):
             self.reset_launch_state(selector, state)
             return {"stopped": True}
         if operation == "app.crash":
+            if native_crash.enabled(target):
+                return self.crash_ios_client(selector, client, session, state, target)
             self.assert_ios_process_identity(selector, client, session, state, target)
             client.execute(session, "mobile: overteAbortApp", {"bundleId": target["appId"]})
             if self.native_process(client, session, target) is not None:
@@ -571,7 +611,7 @@ class IOSAdapter(AppiumAdapter):
             before = self.native_process(client, session, target)
             if before is None or not before["foreground"]:
                 fail("native background requires the configured foreground process")
-            client.execute(session, "mobile: pressButton", {"name": "home"})
+            client.execute(session, "mobile: backgroundApp", {"seconds": -1})
             deadline = time.monotonic() + 10
             while time.monotonic() < deadline:
                 after = self.native_process(client, session, target)

@@ -719,6 +719,12 @@
     }
 
     function applyClientCommand(command) {
+        if (command && command.commandId !== lastClientCommandId && command.action === "native-crash"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action"])
+                && typeof Test.iosCrashTest === "function" && Test.iosCrashTest(command)) {
+            lastClientCommandId = String(command.commandId);
+            return;
+        }
         if (command && command.commandId !== lastClientCommandId
                 && command.action === "entity-script-consent"
                 && objectKeysMatch(command, ["schemaVersion", "commandId", "action", "operation", "source"])

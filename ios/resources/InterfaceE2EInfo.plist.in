@@ -34,6 +34,7 @@
     <key>OverteE2ENativeUiObservationVersion</key><integer>1</integer>
     <key>OverteE2ENativeIntegrationVersion</key><integer>2</integer>
     <key>OverteE2EEntityScriptConsentVersion</key><integer>1</integer>
+    <key>OverteE2ENativeCrashVersion</key><integer>1</integer>
     <key>OverteE2ENativeWorldTapVersion</key><integer>1</integer>
     <key>UIFileSharingEnabled</key><true/>
     <key>UILaunchScreen</key>

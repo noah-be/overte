@@ -99,6 +99,14 @@ class ExtendedIOS(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "lost the original process"):
                 self.adapter.invoke("selected", "lifecycle.background", {})
 
+    def test_background_uses_native_indefinite_app_deactivation_and_observed_same_pid(self):
+        before = {"bundleId": self.target["appId"], "pid": 42, "foreground": True}
+        after = {**before, "foreground": False}
+        with patch.object(self.adapter, "native_process", side_effect=[before, after]):
+            self.assertEqual({"backgrounded": True},
+                             self.adapter.invoke("selected", "lifecycle.background", {}))
+        self.client.execute.assert_called_once_with("owned", "mobile: backgroundApp", {"seconds": -1})
+
     def test_stop_clears_launch_identity_only_after_observed_exit(self):
         self.client.execute.return_value = None
         self.assertEqual(self.adapter.invoke("selected", "app.stop", {}), {"stopped": True})
