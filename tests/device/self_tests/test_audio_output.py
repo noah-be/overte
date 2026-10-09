@@ -29,7 +29,7 @@ class OutputTests(unittest.TestCase):
     def setUpClass(cls):
         import wave
         cls.document = {"schemaVersion": 1, "runId": RUN["id"], "ok": True,
-                        "buildVersion": "fixture", "cleanup": {"restored": True}, "captures": []}
+                        "buildVersion": "fixture", "foregroundContinuous": True, "cleanup": {"restored": True}, "captures": []}
         for index, phase in enumerate(("quiet-control", "unmuted", "muted", "unmuted-again")):
             pcm = array.array("h", [0]) * (24000 * 8)
             if index:
@@ -83,10 +83,12 @@ class OutputTests(unittest.TestCase):
                 self.evaluate(doc)
 
     def test_rejects_wrong_nonce_missing_output_and_failed_cleanup(self):
-        for kind in ("nonce", "missing-output", "control-playback", "cleanup"):
+        for kind in ("nonce", "missing-output", "control-playback", "cleanup", "foreground"):
             doc = copy.deepcopy(self.document)
             if kind == "nonce":
                 doc["captures"][1]["challenge"] = "d" * 32
+            elif kind == "foreground":
+                doc["foregroundContinuous"] = False
             elif kind == "cleanup":
                 doc["cleanup"]["restored"] = False
             else:
@@ -165,10 +167,10 @@ class OutputTests(unittest.TestCase):
         script = r'''
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const source=fs.readFileSync(process.argv[1],'utf8');
-function scenario(permission, volume) {
+function scenario(permission, volume, loseForeground=false) {
  let now=1000,tick,end,saved,active=false,foreground=false,writes=0,local=true,server=true;
  let original={muted:true,pushToTalk:true,avatarGain:-1,serverInjectorGain:-2,localInjectorGain:-3,systemInjectorGain:-4};
- let operations=[],plays=0,timers=[];
+ let operations=[],plays=0,timers=[],heartbeats=[];
  const Audio=new Proxy({...original,getLocalEcho:()=>local,getServerEcho:()=>server,
   setLocalEcho:x=>{local=x;writes++},setServerEcho:x=>{server=x;writes++},
   playSound:()=>{plays++;return {stop:()=>{}}}}, {set:(o,k,v)=>{o[k]=v;writes++;return true}});
@@ -179,28 +181,30 @@ function scenario(permission, volume) {
   inputPresent:permission===1&&!Audio.muted,inputState:0,inputError:0}),
   voiceTest:c=>{operations.push(c.action);if(c.action==='capture-start')active=true;
    if(c.action==='capture-stop'){assert(active);active=false;}if(c.action==='reset')active=false;
-   return {ok:true,wavBase64:'private-fixture'};},saveObject:r=>saved=JSON.parse(JSON.stringify(r))};
+   return {ok:true,wavBase64:'private-fixture'};},saveObject:(r,name)=>{if(name==='output-playback-result.json')saved=JSON.parse(JSON.stringify(r));else heartbeats.push(JSON.parse(JSON.stringify(r)));}};
  const context={OVERTE_OUTPUT_RUN:{id:'output-fixture',permission,challenges:['a'.repeat(32),'b'.repeat(32),'c'.repeat(32)],urls:['a','b','c']},
   Test,Audio,About:{buildVersion:'fixture'},location:{protocol:'file'},SoundCache:{getSound:()=>({downloaded:true})},
-  Date:{now:()=>now},Script:{setInterval:cb=>{tick=cb;return 1},clearInterval:()=>{tick=null},
+  Date:{now:()=>now},Script:{setInterval:(cb,ms)=>{if(ms===100)tick=cb;else context.heartbeat=cb;return ms},clearInterval:id=>{if(id===100)tick=null},
    setTimeout:(cb,ms)=>{timers.push({cb,ms});return timers.length},clearTimeout:()=>{},
    scriptEnding:{connect:cb=>end=cb},stop:()=>{}}};
  vm.runInNewContext(source,context);
  for(let i=0;i<10;i++){now+=100;tick();}
  assert.equal(writes,0);assert.equal(plays,0);assert.equal(operations.length,0);
  foreground=true;
- for(let i=0;i<700&&tick;i++){now+=100;tick();}
- assert(saved&&saved.cleanup.restored);assert.equal(saved.ok,volume===0);
+ for(let i=0;i<700&&tick;i++){now+=100;if(loseForeground&&i===20)foreground=false;context.heartbeat();tick&&tick();}
+ assert(saved&&saved.cleanup.restored);assert.equal(saved.ok,volume===0&&!loseForeground);
  assert.deepEqual(Object.fromEntries(Object.keys(original).map(k=>[k,Audio[k]])),original);
  assert(local&&server&&!active);assert(!operations.includes('prepare')&&!operations.includes('send'));
- if(volume===0){assert.equal(plays,3);assert.equal(saved.captures.length,4);
+ assert(heartbeats.length>0&&heartbeats.every(h=>h.runId==='output-fixture'&&h.observedEpochMs<=now));
+ if(loseForeground){assert.equal(saved.foregroundContinuous,false);assert.equal(saved.error,'output-left-foreground');assert(heartbeats.some(h=>!h.iosForeground));}
+ else if(volume===0){assert.equal(plays,3);assert.equal(saved.captures.length,4);
   assert.equal(saved.captures[2].status.nativeMuted,true);
   timers.find(x=>x.ms===45000).cb();assert(saved.capturePayloadExpired);
   assert(saved.captures.every(c=>!('wavBase64' in c)));}
  else assert.equal(plays,0);
  end();
 }
-scenario(1,0);scenario(2,0);scenario(1,1);
+scenario(1,0);scenario(2,0);scenario(1,1);scenario(1,0,true);
 '''
         subprocess.run(["node", "-e", script, str(ROOT / "ios/audio_output.js")], check=True, timeout=10)
 

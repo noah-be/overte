@@ -45,7 +45,10 @@ The test saves and restores the audio settings and stops its owned injector
 and output recording. Private WAV payloads are analyzed in a temporary host
 directory and expire on-device after 45 seconds. The host verifies their
 removal before restarting the normal app and records that restart separately.
-Failed cleanup or restart makes the complete run fail. `result.json` contains
+Failed cleanup or restart makes the complete run fail. The script also rejects
+foreground loss after starting and publishes a fresh, run-bound native foreground
+heartbeat. Wi-Fi adapters can verify that heartbeat with the independently
+resolved process ID without accessibility snapshots that stall on Qt scenes. `result.json` contains
 measurements and candidate identity, without PCM or private device selectors.
 Its source/artifact binding is operator-selected provenance, not a cryptographic
 attestation of the installed signed bytes.

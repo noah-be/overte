@@ -37,7 +37,8 @@ class AudioOutputError(AcousticError):
 def evaluate(document: dict, run: dict, private: Path) -> dict:
     if (not isinstance(document, dict) or document.get("runId") != run["id"]
             or document.get("schemaVersion") != 1 or document.get("ok") is not True
-            or document.get("error") or document.get("cleanup", {}).get("restored") is not True):
+            or document.get("error") or document.get("cleanup", {}).get("restored") is not True
+            or document.get("foregroundContinuous") is not True):
         raise AudioOutputError("AUDIO_OUTPUT_RUN_OR_CLEANUP_FAILED")
     captures = document.get("captures")
     if not isinstance(captures, list) or len(captures) != 4:

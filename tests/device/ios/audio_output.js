@@ -9,6 +9,8 @@
     var keys = ["muted", "pushToTalk", "avatarGain", "serverInjectorGain", "localInjectorGain", "systemInjectorGain"];
     var original = null, localEcho = false, serverEcho = false, timer = null, watchdog = null;
     var injector = null, step = -1, phase = "ready", since = Date.now(), sequence = 0;
+    var heartbeatTimer = null;
+    report.foregroundContinuous = true;
     var sounds = [];
     function command(action, fields) {
         var request = { schemaVersion: 1, commandId: run.id + "-" + (++sequence), action: action };
@@ -61,7 +63,10 @@
         try {
             var value = status();
             if (String(location.protocol) !== "file") { throw new Error("output-requires-local-world"); }
-            if (!value.iosForeground) { return; }
+            if (!value.iosForeground) {
+                if (original) { report.foregroundContinuous = false; throw new Error("output-left-foreground"); }
+                return;
+            }
             if (value.iosPermission !== run.permission) { throw new Error("output-unexpected-permission"); }
             if (step === -1) {
                 if (!sounds.every(function (sound) { return sound.downloaded; })) { return; }
@@ -136,7 +141,23 @@
         return;
     }
     sounds = run.urls.map(function (url) { return SoundCache.getSound(url); });
-    Script.scriptEnding.connect(cleanup);
+    function heartbeat() {
+        try {
+            var value = status();
+            Test.saveObject({ schemaVersion: 1, runId: run.id, observedEpochMs: Date.now(),
+                iosForeground: value.iosForeground }, "output-foreground.json");
+            if (original && !value.iosForeground && phase !== "finished") {
+                report.foregroundContinuous = false;
+                finish("output-left-foreground");
+            }
+        } catch (error) { finish("output-foreground-status-failed"); }
+    }
+    Script.scriptEnding.connect(function () {
+        if (heartbeatTimer !== null) { Script.clearInterval(heartbeatTimer); heartbeatTimer = null; }
+        cleanup();
+    });
+    heartbeat();
+    heartbeatTimer = Script.setInterval(heartbeat, 500);
     watchdog = Script.setTimeout(function () { finish("output-playback-timeout"); }, 75000);
     timer = Script.setInterval(tick, 100);
 }());
