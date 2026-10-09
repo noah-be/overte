@@ -69,7 +69,7 @@ class ProbeCommandChannelTest(unittest.TestCase):
             self.source,
         )
         self.assertIn('&& String(location.protocol) !== "file"', self.source)
-        self.assertIn("Window.location = command.url", self.source)
+        self.assertIn("location.handleLookupString(command.url)", self.source)
         self.assertIn("controlledSceneLocation(command.url)", self.source)
         self.assertIn("Window.location = scenePath", self.source)
         self.assertIn("applySceneLocation", self.source)

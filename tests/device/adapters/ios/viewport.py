@@ -23,8 +23,16 @@ def viewport(document, now_ms=None):
              window.get("width"), window.get("height")]
     if any(type(v) not in (int, float) or not math.isfinite(v) or not 1 <= v <= 10000 for v in sizes):
         raise ValueError("native viewport dimensions are invalid")
-    # Both views describe the same active application surface. Reject rotation
-    # races and hidden/resized windows rather than injecting at guessed points.
-    if abs(sizes[0] / sizes[1] - sizes[2] / sizes[3]) > 0.02:
+    insets = [native.get("safeInset" + edge) for edge in ("Left", "Top", "Right", "Bottom")]
+    if any(type(v) not in (int, float) or not math.isfinite(v) or v < 0 for v in insets):
+        raise ValueError("native safe-content insets are invalid")
+    left, top, right, bottom = insets
+    width, height = sizes[0] - left - right, sizes[1] - top - bottom
+    if width < 1 or height < 1:
+        raise ValueError("native safe-content area is empty")
+    # Qt reports its safe-content viewport, UIKit the complete window. Use
+    # observed native insets, including the home-indicator area, for projection.
+    # Reject rotation races instead of guessing an orientation or fixed offset.
+    if abs(width / height - sizes[2] / sizes[3]) > 0.005:
         raise ValueError("native UIKit and Qt viewport orientations disagree")
-    return {"x": 0, "y": 0, "width": sizes[0], "height": sizes[1]}
+    return {"x": left, "y": top, "width": width, "height": height}

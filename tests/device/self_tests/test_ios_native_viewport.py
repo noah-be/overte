@@ -12,7 +12,9 @@ from adapters.ios.viewport import viewport
 class NativeViewport(unittest.TestCase):
     def setUp(self):
         self.observed = {"schemaVersion": 1, "sampleEpochMs": 10000, "sampleSequence": 1,
-                         "nativeUi": {"valid": True, "surfaceWidth": 1024, "surfaceHeight": 768},
+                         "nativeUi": {"valid": True, "surfaceWidth": 1024, "surfaceHeight": 768,
+                                      "safeInsetLeft": 0, "safeInsetTop": 0,
+                                      "safeInsetRight": 0, "safeInsetBottom": 0},
                          "window": {"width": 2048, "height": 1536}}
 
     def test_native_coordinates_allow_real_scaled_qt_surface(self):
@@ -28,6 +30,16 @@ class NativeViewport(unittest.TestCase):
             container[keys[-1]] = value
             with self.subTest(path=path), self.assertRaises(ValueError):
                 viewport(observed, 10000)
+
+    def test_native_safe_area_projects_content_without_guessing_offsets(self):
+        self.observed["nativeUi"].update(surfaceWidth=1366, surfaceHeight=1024,
+                                         safeInsetBottom=25)
+        self.observed["window"] = {"width": 1366, "height": 999}
+        self.assertEqual(viewport(self.observed, 10000),
+                         {"x": 0, "y": 0, "width": 1366, "height": 999})
+        self.observed["nativeUi"]["safeInsetBottom"] = 0
+        with self.assertRaises(ValueError):
+            viewport(self.observed, 10000)
 
 
 if __name__ == "__main__":
