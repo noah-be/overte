@@ -88,6 +88,25 @@ class AdbTransport:
     def prop(self, target: str, name: str) -> str:
         return self.shell(target, "getprop", name, check=False).strip()
 
+    def properties(self, target: str, names: tuple[str, ...]) -> dict[str, str]:
+        """Read one fresh property snapshot without logging private values."""
+        requested = set(names)
+        values = {}
+        for line in self.shell(target, "getprop").splitlines():
+            match = re.fullmatch(r"\[([^\[\]]+)\]: \[(.*)\]", line)
+            if match and match[1] in requested:
+                if match[1] in values:
+                    raise RuntimeError("Android property snapshot contains duplicate entries")
+                values[match[1]] = match[2]
+        return {name: values.get(name, "") for name in names}
+
+    def epoch_milliseconds(self, target: str) -> int:
+        """Read the target clock so native samples do not use the host epoch."""
+        value = self.shell(target, "date", "+%s%3N").strip()
+        if not re.fullmatch(r"[1-9][0-9]{12}", value):
+            raise RuntimeError("Android native clock is unavailable")
+        return int(value)
+
     def authorized_targets(self) -> list[str]:
         lines = self.execute(["devices", "-l"]).splitlines()
         return [parts[0] for line in lines
