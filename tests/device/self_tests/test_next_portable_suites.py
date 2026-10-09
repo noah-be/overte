@@ -356,6 +356,22 @@ class NextPortableSuitesTest(unittest.TestCase):
                 self.assert_failure(
                     "lifecycle-under-load", failure, "lifecycle-under-load")
 
+    def test_crash_recovery_uses_new_process_probe_sequence_and_rejects_survival(self):
+        temporary, root, output, result = self.run_suite("crash-recovery-under-load")
+        try:
+            self.assertEqual(0, result.returncode, result.stdout)
+            state = json.loads((root / "state.json").read_text(encoding="utf-8"))
+            self.assertEqual(2, state["launchCount"])
+            module = output / "modules/crash-recovery-under-load"
+            recovered = json.loads((module / "scene-ready.json").read_text(encoding="utf-8"))
+            self.assertEqual(1, recovered["sampleSequence"])
+            proof = json.loads((module / "crash-recovery.json").read_text(encoding="utf-8"))
+            self.assertEqual({"processChanged": True, "sceneReady": True}, proof)
+        finally:
+            temporary.cleanup()
+        self.assert_failure("crash-recovery-under-load", "crash-process-survives",
+                            "crash-recovery-under-load")
+
     def test_render_health_flow_and_failures(self):
         temporary, _root, output, result = self.run_suite("render-health")
         try:
