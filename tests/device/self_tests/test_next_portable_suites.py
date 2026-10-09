@@ -126,7 +126,7 @@ class NextPortableSuitesTest(unittest.TestCase):
         validate_probe_snapshot(probe)
 
     def run_suite(self, suite: str, extra: dict[str, str] | None = None,
-                  timeout: str = "5"):
+                  timeout: str = "5", first_module: str | None = None):
         temporary = tempfile.TemporaryDirectory(prefix=f"overte-{suite}-")
         root = Path(temporary.name)
         output = root / "results"
@@ -145,10 +145,19 @@ class NextPortableSuitesTest(unittest.TestCase):
             "OVERTE_MOCK_E2E_DOMAIN_ID": DOMAIN_ID,
             **(extra or {}),
         })
+        catalog = DEVICE_ROOT / "catalog.json"
+        if first_module:
+            content = json.loads(catalog.read_text())
+            content["modules"].sort(key=lambda module: {
+                "launch-smoke": 0, first_module: 1}.get(module["id"], 2))
+            for module in content["modules"]:
+                module["command"][0] = str(DEVICE_ROOT / module["command"][0])
+            catalog = root / "regression-first-catalog.json"
+            catalog.write_text(json.dumps(content))
         result = subprocess.run([
             sys.executable, str(DEVICE_ROOT / "run.py"),
             "--adapter-manifest", str(DEVICE_ROOT / "adapters/mock/adapter.json"),
-            "--catalog", str(DEVICE_ROOT / "catalog.json"),
+            "--catalog", str(catalog),
             "--suite", suite, "--allow-virtual", "--require-complete",
             "--output-dir", str(output),
         ], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -215,6 +224,25 @@ class NextPortableSuitesTest(unittest.TestCase):
         for failure in ("peer-missing", "peer-static", "peer-session-changed"):
             with self.subTest(failure=failure):
                 self.assert_failure("multi-user-smoke", failure, "multi-user")
+
+    def test_multi_user_establishes_domain_before_earlier_domain_entry_module(self):
+        temporary, _root, output, result = self.run_suite(
+            "multi-user-smoke", first_module="multi-user")
+        try:
+            self.assertEqual(0, result.returncode, result.stdout)
+            module = output / "modules/multi-user"
+            initial = json.loads((module / "peer-entry-initial.json").read_text())
+            before = json.loads((module / "peer-before-roundtrip.json").read_text())
+            after = json.loads((module / "peer-after-roundtrip.json").read_text())
+            self.assertIs(initial["domain"]["connected"], False)
+            self.assertIs(before["present"], True)
+            self.assertGreaterEqual(before["observationCount"], 3)
+            self.assertGreaterEqual(before["movementDistanceMeters"], 0.25)
+            self.assertEqual(before["sessionId"], after["sessionId"])
+            self.assertGreater(after["movementDistanceMeters"],
+                               before["movementDistanceMeters"])
+        finally:
+            temporary.cleanup()
 
     def run_network_suite(self, failure: str = "", network_first: bool = False):
         temporary = tempfile.TemporaryDirectory(prefix="overte-network-fault-")

@@ -36,8 +36,10 @@ is named `OVERTE_E2E_PEER` and follows a deterministic bounded path. The probe
 requires exactly one such peer and records its ephemeral session UUID,
 position, observation count, and cumulative replicated movement. The module
 requires movement, observes departure, reconnects, and requires the same peer
-session plus fresh movement. No account identity or production avatar data is
-used.
+session plus fresh movement. Focused and regression-first runs establish the
+controlled domain themselves when a preceding scene module left serverless
+mode; they do not depend on an earlier domain-entry module. No account identity
+or production avatar data is used.
 
 ## `network-fault-recovery`
 

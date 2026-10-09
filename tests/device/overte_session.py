@@ -577,6 +577,14 @@ class OverteSession:
         fail(f"timed out waiting for {description}")
 
     def assert_controlled_peer_roundtrip(self) -> tuple[dict, dict]:
+        # Other scene tests deliberately leave the client in serverless mode.
+        # Establish this module's real peer prerequisite regardless of order.
+        initial = self.snapshot("peer-entry-initial.json")
+        expected_domain = self._domain_uuid(
+            os.environ.get("OVERTE_E2E_DOMAIN_ID"), "OVERTE_E2E_DOMAIN_ID")
+        if (initial["domain"]["connected"] is not True
+                or self._parsed_domain_uuid(initial["domain"].get("id")) != expected_domain):
+            self.enter_controlled_domain()
         minimum = self._float_environment(
             "OVERTE_E2E_MIN_PEER_MOVE_METERS", 0.25, 0.01, 10.0)
 
