@@ -51,11 +51,21 @@ Appium observation path and any transport capability exclusions.
 
 ## Local regression checks
 
+Wi-Fi physical input requests `native-geometry-snapshot` from the owned fixture.
+The client saves its actual `Tablet.touchUiRuntimeMetrics` and Qt window bounds
+once per request in `ios-ui-request-result.json`. The host requires the exact
+request nonce, a fresh timestamp, valid dimensions and safe insets, matching
+UIKit/Qt orientation, and the same independently observed configured foreground
+process before and after reading. The fixture cannot supply coordinates or a
+successful result. Periodic geometry export remains available for diagnostics;
+physical input consumes the stable request-bound observation instead.
+
 From the repository root:
 
 ```sh
 python3 tests/run-unittest-suite.py tests/device/self_tests --pattern test_ios_native_ui.py
 python3 tests/run-unittest-suite.py tests/device/self_tests --pattern test_ios_probe_observation.py
+python3 tests/run-unittest-suite.py tests/device/self_tests --pattern test_ios_native_geometry.py
 python3 tests/run-unittest-suite.py tests/device/self_tests --pattern test_ios_extended_adapter.py
 ```
 

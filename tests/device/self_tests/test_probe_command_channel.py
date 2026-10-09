@@ -147,6 +147,18 @@ class ProbeCommandChannelTest(unittest.TestCase):
             self.assertEqual(error.exception.code, 400)
             error.exception.close()
 
+    def test_native_geometry_request_cannot_supply_coordinates_or_claim_device_results(self):
+        command = {"schemaVersion": 1, "commandId": "ios-" + "f" * 32,
+                   "action": "native-geometry-snapshot"}
+        self.assertEqual(self.post_command(command), command)
+        for override in ({"nativeUi": {}}, {"window": {"width": 1, "height": 1}},
+                         {"observation": {}}, {"sampleEpochMs": 1}, {"processId": 42},
+                         {"schemaVersion": True}, {"commandId": "unbound"}):
+            with self.subTest(override=override), self.assertRaises(HTTPError) as error:
+                self.post_command(command | override)
+            self.assertEqual(error.exception.code, 400)
+            error.exception.close()
+
     def test_entity_consent_command_cannot_forge_decisions_or_select_another_script(self):
         command = {"schemaVersion": 1, "commandId": "ios-" + "c" * 32,
                    "action": "entity-script-consent", "operation": "review",

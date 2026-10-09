@@ -719,6 +719,22 @@
     }
 
     function applyClientCommand(command) {
+        if (command && command.schemaVersion === 1
+                && /^ios-[0-9a-f]{32}$/.test(command.commandId)
+                && command.commandId !== lastClientCommandId
+                && command.action === "native-geometry-snapshot"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action"])
+                && typeof Tablet.touchUiRuntimeMetrics === "object"
+                && Tablet.touchUiRuntimeMetrics !== null) {
+            // Preserve this actual native sample while the host reads it.
+            Test.saveObject({ schemaVersion: 1, commandId: String(command.commandId),
+                observation: { schemaVersion: 1, sampleEpochMs: Date.now(),
+                    sampleSequence: sampleSequence, nativeUi: Tablet.touchUiRuntimeMetrics,
+                    window: { width: Number(Window.innerWidth), height: Number(Window.innerHeight) }
+                } }, "ios-ui-request-result.json");
+            lastClientCommandId = String(command.commandId);
+            return;
+        }
         if (command && command.schemaVersion === 1 && command.commandId
                 && command.commandId !== lastClientCommandId
                 && command.action === "native-ui-snapshot"

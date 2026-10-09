@@ -83,6 +83,43 @@ assert.equal(saved['ios-native-ui.json'],undefined);
 '''.replace("OBSERVE", source[start:end])
         subprocess.run(["node", "-e", harness], check=True, timeout=5)
 
+    def test_actual_client_command_captures_native_geometry_once_and_ignores_host_coordinates(self):
+        source = (Path(__file__).resolve().parents[1] / "probe/overte_e2e_probe.js").read_text()
+        start = source.index("    function applyClientCommand(command) {")
+        end = source.index("    function pollClientCommand()", start)
+        harness = r'''
+const assert=require('assert');
+let lastClientCommandId='',lastTextCommandId='',sampleSequence=7,calls=0,saved={};
+const applyVoice=()=>false;
+const objectKeysMatch=(v,k)=>Object.keys(v).sort().join('|')===k.sort().join('|');
+const Tablet={touchUiRuntimeMetrics:{valid:true,surfaceWidth:1024,surfaceHeight:768,
+ safeInsetLeft:0,safeInsetTop:20,safeInsetRight:0,safeInsetBottom:20}};
+const Window={innerWidth:1024,innerHeight:728};
+const Test={saveObject:(v,n)=>{calls++;saved[n]=v;}};
+FUNCTION
+const command={schemaVersion:1,commandId:'ios-'+'a'.repeat(32),action:'native-geometry-snapshot'};
+const before=Date.now();
+applyClientCommand(command);
+const result=saved['ios-ui-request-result.json'];
+assert.equal(result.commandId,command.commandId);
+assert.deepEqual(result.observation.nativeUi,Tablet.touchUiRuntimeMetrics);
+assert.deepEqual(result.observation.window,{width:1024,height:728});
+assert.equal(result.observation.sampleSequence,7);
+assert.ok(result.observation.sampleEpochMs>=before && result.observation.sampleEpochMs<=Date.now());
+applyClientCommand(command);
+assert.equal(calls,1);
+for (const invalid of [{...command,commandId:'ios-'+'b'.repeat(32),window:{width:1,height:1}},
+ {...command,commandId:'foreign'}, {...command,commandId:'ios-'+'b'.repeat(32),schemaVersion:true}]) {
+ applyClientCommand(invalid);
+ assert.equal(calls,1);
+}
+delete Tablet.touchUiRuntimeMetrics;
+applyClientCommand({...command,commandId:'ios-'+'b'.repeat(32)});
+assert.equal(calls,1);
+assert.equal(lastClientCommandId,command.commandId);
+'''.replace("FUNCTION", source[start:end])
+        subprocess.run(["node", "-e", harness], check=True, timeout=5)
+
     def test_actual_client_command_captures_native_ui_once_per_exact_request(self):
         source = (Path(__file__).resolve().parents[1] / "probe/overte_e2e_probe.js").read_text()
         start = source.index("    function applyClientCommand(command) {")
