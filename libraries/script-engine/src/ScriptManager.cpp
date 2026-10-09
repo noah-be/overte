@@ -833,6 +833,16 @@ void ScriptManager::init() {
         return; // only initialize once
     }
 
+    // Native registration must finish before permanently aborting V8: an
+    // aborted engine returns empty properties, including Script.require.
+    // Keep stop requests immediate without waiting for this worker's Locker.
+    _isInitializing.store(true);
+    Finally finishInitialization([this] {
+        _isInitializing.store(false);
+        if (isStopping()) { _engine->abortEvaluation(); }
+    });
+    if (isStopping() || isStopped()) { return; }
+
     _isInitialized = true;
 
     if (_context != NETWORKLESS_TEST_SCRIPT) {
@@ -1257,7 +1267,7 @@ void ScriptManager::stop(bool marshal) {
     // Interrupt JavaScript before queuing manager-thread work: that thread may
     // be occupied by an unbounded evaluation. Retain the engine during the call.
     auto engine = _engine;
-    if (engine) {
+    if (engine && !_isInitializing.load()) {
         engine->abortEvaluation();
     }
 
