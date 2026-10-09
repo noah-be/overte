@@ -216,7 +216,7 @@ class NextPortableSuitesTest(unittest.TestCase):
             with self.subTest(failure=failure):
                 self.assert_failure("multi-user-smoke", failure, "multi-user")
 
-    def run_network_suite(self, failure: str = ""):
+    def run_network_suite(self, failure: str = "", network_first: bool = False):
         temporary = tempfile.TemporaryDirectory(prefix="overte-network-fault-")
         root = Path(temporary.name)
         MockDomainControl.state_path = root / "state.json"
@@ -242,6 +242,7 @@ class NextPortableSuitesTest(unittest.TestCase):
             "OVERTE_DEVICE_LAUNCH_SETTLE_SECONDS": "0",
             "OVERTE_E2E_POLL_SECONDS": "0.05",
             "OVERTE_E2E_TIMEOUT_SECONDS": "1" if failure else "5",
+            "OVERTE_E2E_SCENE_URL": "http://fixture.invalid/scene.json",
             "OVERTE_E2E_DOMAIN_URL": "hifi://127.0.0.1:40102/0,2,4/0,0,0,1",
             "OVERTE_E2E_DOMAIN_HOST": "127.0.0.1",
             "OVERTE_E2E_DOMAIN_ID": DOMAIN_ID,
@@ -250,10 +251,21 @@ class NextPortableSuitesTest(unittest.TestCase):
             **extra,
         })
         output = root / "results"
+        catalog = DEVICE_ROOT / "catalog.json"
+        if network_first:
+            content = json.loads(catalog.read_text())
+            # Retain launch as the session bootstrap, then run recovery before
+            # the domain-entry module that previously supplied its prerequisite.
+            content["modules"].sort(key=lambda module: {
+                "launch-smoke": 0, "network-fault-recovery": 1}.get(module["id"], 2))
+            catalog = root / "regression-first-catalog.json"
+            for module in content["modules"]:
+                module["command"][0] = str(DEVICE_ROOT / module["command"][0])
+            catalog.write_text(json.dumps(content))
         result = subprocess.run([
             sys.executable, str(DEVICE_ROOT / "run.py"),
             "--adapter-manifest", str(DEVICE_ROOT / "adapters/mock/adapter.json"),
-            "--catalog", str(DEVICE_ROOT / "catalog.json"),
+            "--catalog", str(catalog),
             "--suite", "network-fault-recovery", "--allow-virtual", "--require-complete",
             "--output-dir", str(output),
         ], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -262,6 +274,21 @@ class NextPortableSuitesTest(unittest.TestCase):
         server.server_close()
         thread.join(timeout=2)
         return temporary, output, result
+
+    def test_network_fault_establishes_its_real_domain_when_ordered_first(self):
+        temporary, output, result = self.run_network_suite(network_first=True)
+        try:
+            self.assertEqual(0, result.returncode, result.stdout)
+            module = output / "modules/network-fault-recovery"
+            initial = json.loads((module / "network-entry-initial.json").read_text())
+            before = json.loads((module / "network-before.json").read_text())
+            self.assertIs(initial["domain"]["connected"], False)
+            self.assertIs(before["domain"]["connected"], True)
+            self.assertEqual(before["domain"]["id"].strip("{}"), DOMAIN_ID)
+            self.assertTrue((module / "network-disconnected.json").is_file())
+            self.assertTrue((module / "network-reconnected.json").is_file())
+        finally:
+            temporary.cleanup()
 
     def test_network_fault_recovers_and_rejects_missing_or_wrong_recovery(self):
         temporary, output, result = self.run_network_suite()

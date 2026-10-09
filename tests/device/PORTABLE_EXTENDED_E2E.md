@@ -41,6 +41,12 @@ used.
 
 ## `network-fault-recovery`
 
+Focused and regression-first runs can begin in the serverless fixture. The
+module establishes and verifies the controlled domain before interrupting it
+when no domain is connected; it does not require an earlier `domain-enter`
+module. Initial, connected, disconnected and recovered observations remain
+separate evidence, with unchanged process and exact recovery requirements.
+
 `fixture/domain.py` publishes an authenticated loopback-only control endpoint
 in its private ready file. The module requests `offline`, observes
 disconnection while Interface and its process remain alive, requests `online`,
