@@ -95,6 +95,8 @@ MaintainerNotes: |
   in both the scanner view and Conan post_source, before compiling either context.
   Conan also removes every declared scandelete file, with exact paths and hashes,
   so the external archive cache cannot restore scanner-rejected compiler inputs.
+  Content-bound edits remove hwloc's deleted web manifest from its installation
+  lists, identically in the scanner view and compiler sources.
   Full-build qualification after source cleanup is required before enabling.
   The maintainer-signed reference must match the source build and allowed key.
   Automatic updates select android-phone-release-v<versionName>+<versionCode>.

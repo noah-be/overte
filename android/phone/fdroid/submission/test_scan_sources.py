@@ -20,6 +20,54 @@ scan = builder.scan_sources
 
 
 class ScannerInputTests(unittest.TestCase):
+    def patch_fixture(self, root):
+        before, after = b'data = package.json README\n', b'data = README\n'
+        view = root / 'view'
+        compiler = root / 'compiler'
+        for directory in (view / 'archive/library', compiler / 'library'):
+            directory.mkdir(parents=True)
+            (directory / 'Makefile.in').write_bytes(before)
+            (directory / 'package.json').write_bytes(b'{}')
+        removal = {'reference': 'library/1', 'archive_sha256': 'archive',
+                   'archive_path': 'library/package.json', 'compiler_suffix': 'package.json',
+                   'sha256': scan.hashlib.sha256(b'{}').hexdigest()}
+        edit = dict(removal, archive_path='library/Makefile.in', compiler_suffix='Makefile.in',
+                    sha256=scan.hashlib.sha256(before).hexdigest(), before='package.json ', after='',
+                    patched_sha256=scan.hashlib.sha256(after).hexdigest())
+        return view, compiler, {'remove': [removal], 'scandelete': [], 'patches': [edit]}, after
+
+    def test_cleanup_patch_is_identical_in_scanner_and_compiler_views(self):
+        with tempfile.TemporaryDirectory() as td:
+            view, compiler, policy, expected = self.patch_fixture(Path(td))
+            scan.clean_view(view, policy)
+            self.assertEqual(1, scan.clean_compiler_sources(compiler, 'library/1', policy))
+            self.assertEqual(expected, (compiler / 'library/Makefile.in').read_bytes())
+            self.assertEqual(scan.inventory(view / 'archive'), scan.inventory(compiler))
+            self.assertEqual(0, scan.clean_compiler_sources(compiler, 'library/1', policy))
+
+    def test_bad_patch_fails_before_any_removal(self):
+        for context in ('scanner', 'compiler'):
+            for mutation in ('input', 'output', 'missing', 'symlink'):
+                with self.subTest(context=context, mutation=mutation), tempfile.TemporaryDirectory() as td:
+                    view, compiler, policy, _ = self.patch_fixture(Path(td))
+                    base = view / 'archive/library' if context == 'scanner' else compiler / 'library'
+                    target = base / 'Makefile.in'
+                    if mutation == 'input':
+                        target.write_text('unexpected input')
+                    elif mutation == 'output':
+                        policy['patches'][0]['patched_sha256'] = '0' * 64
+                    elif mutation == 'missing':
+                        target.unlink()
+                    else:
+                        target.rename(base / 'original')
+                        target.symlink_to('original')
+                    with self.assertRaises(ValueError):
+                        if context == 'scanner':
+                            scan.clean_view(view, policy)
+                        else:
+                            scan.clean_compiler_sources(compiler, 'library/1', policy)
+                    self.assertTrue((base / 'package.json').exists())
+
     def test_compiler_cleanup_removes_only_exact_content_bound_paths(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

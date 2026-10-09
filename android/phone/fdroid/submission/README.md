@@ -117,6 +117,15 @@ inventory cannot be rewritten to accept a scanner finding. Conan's actual
 extracted compiler sources, checking their original hashes before deletion.
 The external archive cache cannot silently restore rejected compiler inputs.
 
+hwloc's unused web-tool manifest is also listed as installable data in its
+`contrib/hwloc-ps.www/Makefile.am` and generated `Makefile.in`. Deleting the
+manifest alone causes `make all` to fail. The cleanup policy removes that one
+installation-list entry from both files, checking complete input and output
+hashes. The identical edits are applied before the scanner inventory and in
+Conan's compiler source cleanup. The manifest stays deleted; library sources,
+configure options and runtime behavior are unchanged. Conan already discards
+the installed web-tool data from the dependency package.
+
 The newly deleted files are:
 
 - 263 `package.json`/`Cargo.toml` installation manifests. npm and Corepack

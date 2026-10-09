@@ -16340,5 +16340,29 @@
       "finding": "DexClassLoader",
       "reason": "Unused Qt Android deployment-template loader, not compiled into QtAndroid.jar. Phone uses its maintained android/common/libraries/qt Java bindings and bundled QtActivityDelegate. Remove from scanner view and compiler sources; retain the actual runtime Java sources."
     }
+  ],
+  "patches": [
+    {
+      "reference": "hwloc/2.12.2",
+      "archive_sha256": "563e61d70febb514138af0fac36b97621e01a4aacbca07b86e7bd95b85055ba0",
+      "archive_path": "hwloc-2.12.2/contrib/hwloc-ps.www/Makefile.am",
+      "compiler_suffix": "contrib/hwloc-ps.www/Makefile.am",
+      "sha256": "4d116c53de1fe29753ab3c43af64c6771f7e96d7853c7c4bc22c3baae0f54833",
+      "before": "\tpackage.json \\\n",
+      "after": "",
+      "patched_sha256": "4e18e53a788ed3b0a999ec07d220a832b3d2af1f10c301cc0e00fdb124ef6829",
+      "reason": "Remove the installation-list dependency on the scandeleted unused web-tool manifest. Conan discards the installed web tool; library sources and configure options remain unchanged."
+    },
+    {
+      "reference": "hwloc/2.12.2",
+      "archive_sha256": "563e61d70febb514138af0fac36b97621e01a4aacbca07b86e7bd95b85055ba0",
+      "archive_path": "hwloc-2.12.2/contrib/hwloc-ps.www/Makefile.in",
+      "compiler_suffix": "contrib/hwloc-ps.www/Makefile.in",
+      "sha256": "066f5bd9dc08df8d5ebe13f65cf0a5198ecd4b0faaad2a47802f0f4db2361b72",
+      "before": "\tpackage.json \\\n",
+      "after": "",
+      "patched_sha256": "651bec82eaa00f9463a35bab27df340ab287ff04a1188be955472ce99aaa0df3",
+      "reason": "Remove the installation-list dependency on the scandeleted unused web-tool manifest. Conan discards the installed web tool; library sources and configure options remain unchanged."
+    }
   ]
 }
