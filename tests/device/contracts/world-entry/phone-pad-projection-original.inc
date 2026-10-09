@@ -33,4 +33,3 @@ glm::vec2 TouchscreenVirtualPadDevice::clippedPointInCircle(float radius, glm::v
 
     return vec2(finalX, finalY);
 }
-
