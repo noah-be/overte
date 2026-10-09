@@ -178,7 +178,7 @@ class NextPortableSuitesTest(unittest.TestCase):
         finally:
             temporary.cleanup()
         for failure in ("text-backspace-missing", "text-submit-missing",
-                        "text-dismiss-missing"):
+                        "text-dismiss-missing", "text-keyboard-missing"):
             with self.subTest(failure=failure):
                 self.assert_failure("text-input-smoke", failure, "text-input")
 

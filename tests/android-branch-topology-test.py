@@ -160,6 +160,31 @@ class AndroidBranchTopologyTest(unittest.TestCase):
                     ),
                 )
 
+    def test_phone_runtime_contracts_are_owned_only_by_phone(self):
+        product_paths = ('tests/device/contracts/audio/test_voice_clock.py', 'tests/device/contracts/audio/voice-clock-fixture.cpp', 'tests/device/contracts/lifecycle/phone-application-owner-test.cpp', 'tests/device/contracts/lifecycle/phone-quick-startup-test.cpp', 'tests/device/contracts/lifecycle/test_phone_native_startup.py', 'tests/device/contracts/phone-accessibility-tree-test.cpp', 'tests/device/contracts/phone-text-input-test.cpp', 'tests/device/contracts/tablet/phone-settings-click-test.cpp', 'tests/device/contracts/tablet/test_phone_settings_click.py', 'tests/device/contracts/test_phone_accessibility_tree.py', 'tests/device/contracts/world-entry/phone-pad-projection-original.inc', 'tests/device/contracts/world-entry/test_phone_feet_alignment.py', 'tests/device/contracts/world-entry/test_phone_pad_projection.py', 'tests/device/evidence/pixel6a-v12-qualification.json')
+        for path in product_paths:
+            for target, base in (("android-phone", self.android_main),
+                                 ("android-vr", self.android_main),
+                                 ("android-vr-pico", self.android_vr)):
+                with self.subTest(path=path, target=target):
+                    run(self.repo, "checkout", "-q", base)
+                    head = self.commit(path, "product runtime contract\n")
+                    errors = MODULE.validate(self.repo, target,
+                                             self.android_main, self.android_vr, head)
+                    self.assertEqual(target != "android-phone", bool(errors))
+
+    def test_unlisted_product_contracts_cannot_bypass_shared_ownership(self):
+        for path in ("tests/device/contracts/unreviewed.py",
+                     "tests/device/evidence/unreviewed.json",
+                     "tests/device/adapters/shared_appium/adapter.py",
+                     "tests/device/probe/overte_e2e_probe.js"):
+            with self.subTest(path=path):
+                run(self.repo, "checkout", "-q", self.android_main)
+                head = self.commit(path, "unreviewed shared change\n")
+                errors = MODULE.validate(self.repo, "android-phone",
+                                         self.android_main, self.android_vr, head)
+                self.assertTrue(any("tests/device differs" in error for error in errors))
+
     def test_other_phone_harness_change_is_rejected(self):
         run(self.repo, "checkout", "-q", self.android_main)
         head = self.commit(

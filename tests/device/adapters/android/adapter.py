@@ -9,11 +9,13 @@ import math
 import os
 from pathlib import Path
 import re
+import shlex
 import subprocess
 import sys
 import time
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+from urllib.parse import urlsplit
 import uuid
 
 
@@ -29,7 +31,8 @@ from adapters.common import (EMBEDDED_FIXTURE_URL, emit, fail,  # noqa: E402
                              require_fresh_snapshot)
 from adapters.native_binding import PrivateParser, attach_binding, create_adapter  # noqa: E402
 from contracts import (validate_operation_arguments,  # noqa: E402
-                       validate_tablet_ui_snapshot)
+                       validate_tablet_ui_snapshot, validate_operation_result)
+from adapters.android.collaboration_observation import actor_receipt, portable_observation
 from openxr_input.adapter_session import (  # noqa: E402
     PicoOpenXrAdapterSession, pico_openxr_opted_in,
     validate_pico_openxr_configuration,
@@ -98,24 +101,41 @@ class AndroidAdapter:
         return "pico" in identity or "bytedance" in identity
 
     def eligible(self, target: str) -> bool:
+        if self.kind == "phone":
+            # Retain every live eligibility check, but read the immutable
+            # properties and touchscreen feature in one WLAN-ADB round trip.
+            # Separate queries before each probe and process read can consume
+            # an entire short audio or movement observation window.
+            properties = (
+                "ro.product.manufacturer", "ro.product.brand",
+                "ro.product.model", "ro.product.device",
+                "ro.build.characteristics", "ro.product.cpu.abilist",
+                "ro.build.version.sdk", "ro.opengles.version",
+            )
+            script = "\n".join("getprop " + name for name in properties)
+            script += "\npm list features"
+            lines = self.adb.execute(
+                ["shell", shlex.join(["sh", "-c", script])],
+                target=target, check=False).splitlines()
+            if len(lines) < len(properties):
+                return False
+            values = dict(zip(properties, lines[:len(properties)]))
+            identity = " ".join(lines[:4]).lower()
+            characteristics = values["ro.build.characteristics"].lower().split(",")
+            abis = values["ro.product.cpu.abilist"].split(",")
+            sdk = values["ro.build.version.sdk"]
+            gles = values["ro.opengles.version"]
+            return ("pico" not in identity and "bytedance" not in identity
+                    and not {"watch", "tv", "automotive", "vr"}.intersection(characteristics)
+                    and "arm64-v8a" in abis and sdk.isdigit() and int(sdk) >= 26
+                    and gles.isdigit() and int(gles) >= 196610
+                    and "feature:android.hardware.touchscreen" in lines[len(properties):])
         pico = self.is_pico(target)
-        if self.kind == "pico":
-            abis = self.adb.prop(target, "ro.product.cpu.abilist").split(",")
-            sdk = self.adb.prop(target, "ro.build.version.sdk")
-            gles = self.adb.prop(target, "ro.opengles.version")
-            return (pico and "arm64-v8a" in abis and sdk.isdigit() and int(sdk) >= 26
-                    and gles.isdigit() and int(gles) >= 196610)
-        if pico:
-            return False
-        characteristics = self.adb.prop(target, "ro.build.characteristics").lower().split(",")
         abis = self.adb.prop(target, "ro.product.cpu.abilist").split(",")
         sdk = self.adb.prop(target, "ro.build.version.sdk")
         gles = self.adb.prop(target, "ro.opengles.version")
-        features = self.adb.shell(target, "pm", "list", "features", check=False).splitlines()
-        return (not {"watch", "tv", "automotive", "vr"}.intersection(characteristics)
-                and "arm64-v8a" in abis and sdk.isdigit() and int(sdk) >= 26
-                and gles.isdigit() and int(gles) >= 196610
-                and "feature:android.hardware.touchscreen" in features)
+        return (pico and "arm64-v8a" in abis and sdk.isdigit() and int(sdk) >= 26
+                and gles.isdigit() and int(gles) >= 196610)
 
     def capabilities(self, target: str | None = None) -> list[str]:
         values = ["app.foreground", "app.install", "app.launch", "app.process",
@@ -132,8 +152,15 @@ class AndroidAdapter:
                 "asset.load", "navigation.enter-domain", "probe.snapshot",
                 "scene.load", "setting.set", "sound.play",
             ]
+        if self.kind == "phone" and os.environ.get("OVERTE_ANDROID_E2E_DEBUG") == "1" and os.environ.get("OVERTE_E2E_VOICE_TESTS") == "1":
+            values.append("voice.exchange")
         if self.upgrade_configuration_available():
             values.append("app.upgrade")
+        if self.kind == "phone" and os.environ.get("OVERTE_ANDROID_E2E_COLLABORATION") == "1":
+            if os.environ.get("OVERTE_ANDROID_E2E_DEBUG") != "1":
+                fail("independent collaboration requires the debug test client")
+            self.collaboration_request("state", allow_pending=True)
+            values += ["collaboration.edit", "collaboration.snapshot"]
         if self.kind == "pico" and os.environ.get("OVERTE_PICO_OPENXR_INPUT") == "1":
             # An explicit opt-in with incomplete isolation is a configuration
             # error, not a silent capability downgrade.
@@ -177,6 +204,83 @@ class AndroidAdapter:
             fail("Android upgrade artifact has no valid package metadata")
         return match.group(1), match.group(2)
 
+    @staticmethod
+    def collaboration_request(kind: str, payload: dict | None = None,
+                              allow_pending: bool = False) -> dict | None:
+        name = "OVERTE_E2E_COLLABORATION_" + ("STATE_URL" if kind == "state" else "EDIT_URL")
+        url = os.environ.get(name, "")
+        token = os.environ.get("OVERTE_E2E_DOMAIN_CONTROL_TOKEN", "")
+        parsed = urlsplit(url)
+        expected_path = "/v1/collaboration-" + kind
+        if (parsed.scheme != "http" or parsed.hostname != "127.0.0.1"
+                or parsed.username or parsed.password or not parsed.port
+                or parsed.path != expected_path or parsed.query or parsed.fragment
+                or not re.fullmatch(r"[A-Za-z0-9_-]{40,128}", token)):
+            fail("independent collaboration control is not privately configured")
+        request = Request(url, data=None if payload is None else json.dumps(payload).encode(),
+                          headers={"X-Overte-E2E-Token": token, "Content-Type": "application/json"},
+                          method="GET" if payload is None else "POST")
+        try:
+            with urlopen(request, timeout=5) as response:
+                result = json.loads(response.read(4096))
+                if response.status != 200 or not isinstance(result, dict):
+                    fail("independent actor returned an invalid observation")
+                if kind == "state":
+                    try:
+                        actor_receipt(result)
+                    except ValueError:
+                        fail("independent actor returned malformed native state")
+                return result
+        except HTTPError as error:
+            if allow_pending and error.code == 503:
+                return None
+            fail("independent actor rejected the controlled request")
+        except (URLError, OSError, ValueError):
+            fail("independent actor control is unavailable")
+
+    def collaboration_snapshot(self, target: str, identity: str) -> dict:
+        package = self.profile["package"]
+        probe = self.read_probe_snapshot(target, package, None)
+        expected_domain = os.environ.get("OVERTE_E2E_DOMAIN_ID", "").strip("{}").lower()
+        if not expected_domain:
+            fail("independent collaboration requires the owned domain")
+        if str(probe["domain"]["id"]).strip("{}").lower() != expected_domain or not probe["domain"]["connected"]:
+            self.invoke(target, "navigation.enter-domain", {"url": os.environ.get("OVERTE_E2E_DOMAIN_URL", "")})
+        deadline = time.monotonic() + 30
+        actor = observed = None
+        join_error = "independent actor or client observation unavailable"
+        while time.monotonic() < deadline:
+            actor = self.collaboration_request("state", allow_pending=True)
+            raw = self.adb.read_debug_app_file(target, package,
+                                              "files/overte-e2e/phone-collaboration-observation.json", attempts=1)
+            observed = self.decode_json(raw)
+            if actor and observed:
+                try:
+                    portable = portable_observation(
+                        observed, actor, self.adb.epoch_milliseconds(target), probe)
+                    validate_operation_result("collaboration.snapshot", portable)
+                except ValueError as error:
+                    join_error = str(error)
+                    portable = None
+                if portable:
+                    live = self.read_probe_snapshot(target, package, None)
+                    if (not live["domain"]["connected"]
+                            or str(live["domain"]["id"]).strip("{}").lower() != expected_domain):
+                        time.sleep(0.2)
+                        continue
+                    self.require_same_process(target, identity, "independent entity synchronization")
+                    return portable
+            self.require_same_process(target, identity, "independent entity synchronization")
+            time.sleep(0.2)
+        private_root = os.environ.get("OVERTE_DEVICE_STATE_ROOT")
+        if private_root:
+            Path(private_root).mkdir(parents=True, exist_ok=True, mode=0o700)
+            diagnostic = Path(private_root) / "collaboration-join-failure.json"
+            diagnostic.write_text(json.dumps({"actor": actor, "nativeObservation": observed,
+                "joinError": join_error}, indent=2) + "\n", encoding="utf-8")
+            diagnostic.chmod(0o600)
+        fail("ASSERTION: the client did not receive the independent actor's exact native entity revision and author")
+
     def installed_version(self, target: str) -> str:
         output = self.adb.shell(
             target, "dumpsys", "package", self.profile["package"], check=False)
@@ -219,7 +323,7 @@ class AndroidAdapter:
             after = self.adb.process_state(target, package)
             if after.get("running") is not True or after.get("identity") != identity:
                 return None
-            control = probe.get("control", {}) if probe is not None else {}
+            control = (probe.get("control") or {}) if probe is not None else {}
             if (marker == ANDROID_CONTROL_CONTRACT and probe is not None
                     and all(control.get(key) == value
                             for key, value in ANDROID_CONTROL_CONTRACT.items())
@@ -284,7 +388,7 @@ class AndroidAdapter:
         for attempt in range(attempts):
             snapshot = self.decode_json(self.adb.read_debug_app_file(
                 target, package, ANDROID_DEBUG_PROBE, attempts=1))
-            control = snapshot.get("control", {}) if snapshot is not None else {}
+            control = (snapshot.get("control") or {}) if snapshot is not None else {}
             self.require_same_process(target, identity, operation)
             if control.get("lastCommandId") == command_id:
                 return
@@ -406,12 +510,19 @@ class AndroidAdapter:
     def read_probe_snapshot(self, target: str, package: str,
                             after_sequence: int | None) -> dict:
         attempts, interval = self.probe_retry_policy()
+        diagnostic = {"requestedAfterSampleSequence": after_sequence}
         for attempt in range(attempts):
             raw = self.adb.read_debug_app_file(
                 target, package, ANDROID_DEBUG_PROBE, attempts=1)
             try:
+                candidate = json.loads(raw)
+                if isinstance(candidate, dict):
+                    diagnostic["lastSampleSequence"] = candidate.get("sampleSequence")
+                    epoch = candidate.get("sampleEpochMs")
+                    if isinstance(epoch, (int, float)) and not isinstance(epoch, bool):
+                        diagnostic["sampleAgeSeconds"] = (time.time() * 1000 - epoch) / 1000
                 snapshot = require_fresh_snapshot(
-                    json.loads(raw), self.probe_maximum_age_seconds())
+                    candidate, self.probe_maximum_age_seconds())
             except (json.JSONDecodeError, RuntimeError):
                 snapshot = None
             if snapshot is not None:
@@ -424,6 +535,31 @@ class AndroidAdapter:
                     return snapshot
             if attempt + 1 < attempts:
                 time.sleep(interval)
+        private_root = os.environ.get("OVERTE_DEVICE_STATE_ROOT")
+        if private_root:
+            path = Path(private_root) / "unavailable-probe-diagnostic.json"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(diagnostic) + "\n")
+            path.chmod(0o600)
+            if (self.kind == "phone"
+                    and os.environ.get("OVERTE_ANDROID_E2E_CAPTURE_STALE_STACK") == "1"):
+                # Keep real thread evidence private and bounded. Diagnostics
+                # must never turn an unavailable probe into a successful read.
+                try:
+                    pid = self.adb.shell(target, "pidof", package, check=False).strip()
+                    if pid.isdigit():
+                        stack = self.adb.execute(
+                            ["shell", "debuggerd", "-b", pid], target=target,
+                            timeout=12, check=False)
+                        if not stack.strip():
+                            stack = self.adb.execute(
+                                ["shell", "run-as", package, "debuggerd", "-b", pid],
+                                target=target, timeout=12, check=False)
+                        stack_path = Path(private_root) / "stale-probe-threads.private.log"
+                        stack_path.write_text(stack)
+                        stack_path.chmod(0o600)
+                except RuntimeError:
+                    pass
         fail("Android probe snapshot is unavailable, stale, or did not advance")
 
     def read_pico_tablet_snapshot(self, target: str, identity: str) -> dict:
@@ -621,6 +757,28 @@ class AndroidAdapter:
         else:
             self.require(target)
         package = self.profile["package"]
+        if operation in {"collaboration.edit", "collaboration.snapshot"}:
+            if self.kind != "phone" or os.environ.get("OVERTE_ANDROID_E2E_COLLABORATION") != "1":
+                fail("independent collaboration is not enabled")
+            try:
+                values = validate_operation_arguments(operation, values)
+            except ValueError as error:
+                fail(str(error))
+            identity = self.require_controlled_debug_identity(target)
+            if operation == "collaboration.snapshot":
+                return self.collaboration_snapshot(target, identity)
+            self.collaboration_request("edit", {"schemaVersion": 1, **values})
+            self.require_same_process(target, identity, "independent entity edit request")
+            return {"performed": True}
+        if operation == "voice.exchange":
+            if operation not in self.capabilities(target):
+                fail("voice test requires an explicitly enabled debug test build")
+            from adapters.voice_transport import exchange
+            identity = self.require_controlled_debug_identity(target)
+            return exchange(values,
+                lambda payload: self.write_control_command(target, identity, operation, payload),
+                lambda: self.adb.read_debug_app_file(target, package, "files/overte-e2e/voice-result.json", attempts=1),
+                lambda: self.require_same_process(target, identity, operation))
         if operation in {"navigation.enter-domain", "asset.load", "sound.play"}:
             try:
                 values = validate_operation_arguments(operation, values)

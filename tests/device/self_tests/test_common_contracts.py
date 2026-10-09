@@ -151,6 +151,20 @@ class CommonContractTest(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     validate_probe_snapshot(invalid)
 
+    def test_probe_accepts_optional_android_control_and_rejects_invalid_markers(self):
+        valid = snapshot()
+        valid['control'] = None
+        self.assertIs(valid, validate_probe_snapshot(valid))
+        valid['control'] = {'schemaVersion': 1, 'channel': 'android-debug-file-v1',
+                            'probe': 'overte_e2e_probe.js', 'lastCommandId': ''}
+        self.assertIs(valid, validate_probe_snapshot(valid))
+        for key, value in [('schemaVersion', 2), ('channel', 'untrusted'),
+                           ('probe', 'other.js'), ('lastCommandId', None)]:
+            invalid = copy.deepcopy(valid)
+            invalid['control'][key] = value
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                validate_probe_snapshot(invalid)
+
     def test_probe_orientation_history_is_bounded_ordered_and_current(self):
         valid = snapshot()
         valid["sampleSequence"] = 9
