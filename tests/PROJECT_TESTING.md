@@ -34,6 +34,9 @@ Android branch suites also need Java/Javac. Python 3.11 is
 required by repository helpers using `hashlib.file_digest`; use the CI versions
 above when reproducing CI behavior. The quick profile compiles small portable
 production C++ regressions and checks CMake test registration using stub targets.
+The iOS observation-publication regression additionally requires `pkg-config`
+and Qt 6 Core development files. It executes the actual portable file-writing
+method with real Qt files; it does not compile UIKit or prove device behavior.
 JavaScript syntax checks use two bounded subprocesses and preserve complete,
 ordered diagnostics; neither JavaScript nor shell source is executed by syntax checks.
 Local Unix sockets must be available for the input-protocol tests.
@@ -164,6 +167,7 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `repository-checks` | `quick` | `python3 tests/run-project-tests.py --suite repository-checks` |
 | `ios-build-qualification` | `quick` | `python3 tests/run-project-tests.py --suite ios-build-qualification` |
 | `ios-native-accessibility` | `quick` | `python3 tests/run-project-tests.py --suite ios-native-accessibility` |
+| `ios-observation-publication` | `quick` | `python3 tests/run-project-tests.py --suite ios-observation-publication` |
 | `repository-policy` | `quick` | `python3 tests/run-project-tests.py --suite repository-policy` |
 | `policy-consistency` | `quick` | `python3 tests/run-project-tests.py --suite policy-consistency` |
 | `documentation-contracts` | `quick` | `python3 tests/run-project-tests.py --suite documentation-contracts` |

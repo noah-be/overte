@@ -12,6 +12,9 @@
 #include <QtCore/QCoreApplication>
 #include <QtCore/QLoggingCategory>
 #include <QtCore/QThread>
+#if defined(Q_OS_IOS)
+#include <QSaveFile>
+#endif
 
 #include <shared/FileUtils.h>
 #include <shared/QtHelpers.h>
@@ -479,11 +482,23 @@ void TestScriptingInterface::saveObject(QVariant variant, const QString& filenam
     }
 
     QString filepath = QDir::cleanPath(_testResultsLocation + filename);
+#if defined(Q_OS_IOS)
+    // Native AFC readers may open this path between samples. Publish a whole
+    // new file atomically so neither truncation nor an old size/new body pair
+    // can expose incomplete test observations.
+    QSaveFile file(filepath);
+    file.setDirectWriteFallback(false);
+    if (!file.open(QIODevice::WriteOnly) || file.write(jsonData) != jsonData.size()
+            || !file.commit()) {
+        qCWarning(trace_test) << "iOS test observation publication failed";
+    }
+#else
     QFile file(filepath);
 
     file.open(QFile::WriteOnly);
     file.write(jsonData);
     file.close();
+#endif
 }
 
 void TestScriptingInterface::showMaximized() {

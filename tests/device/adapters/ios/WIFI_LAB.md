@@ -29,6 +29,12 @@ requires an exact schema, current sample, matching live foreground PID, and
 the closed Tablet Contract vocabulary. Absent controls remain absent; the
 observer never fills in expected controls or exports account/user text.
 
+iOS `Test.saveObject` publishes a complete JSON file with an atomic rename.
+The native AFC reader opens the file first and reads bounded current bytes
+until EOF, without pairing an earlier path-size query with a later file body.
+This keeps rapidly updated observations complete while the service connection
+is reused. Parse, schema, freshness and process-identity checks remain required.
+
 The audit XML represents observed UIKit controls. It is not an XCTest tree.
 Physical activation uses a WDA touch at the center of the freshly observed
 visible enabled control's native frame, followed by contact release even if
