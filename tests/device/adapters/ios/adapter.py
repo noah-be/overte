@@ -152,8 +152,6 @@ class IOSAdapter(AppiumAdapter):
                     "entity-script-consent", operation=operation, source=source)
                 deadline = time.monotonic() + 20
                 while time.monotonic() < deadline:
-                    if self.assert_ios_process_identity(selector, client, session, state, target) != identity:
-                        fail("entity consent crossed process identities")
                     encoded = client.execute(session, "mobile: pullFile", {"remotePath": remote})
                     try:
                         document = json.loads(base64.b64decode(encoded, validate=True))
@@ -162,6 +160,11 @@ class IOSAdapter(AppiumAdapter):
                         continue
                     if isinstance(document, dict) and document.get("commandId") == command_id:
                         native_consent.observation(document, int(identity), command_id, operation, source, scene)
+                        # Validate the one-shot native receipt when it is read,
+                        # before an independent Instruments process query can
+                        # consume its three-second freshness window.
+                        if self.assert_ios_process_identity(selector, client, session, state, target) != identity:
+                            fail("entity consent crossed process identities")
                         break
                     time.sleep(0.1)
                 else:

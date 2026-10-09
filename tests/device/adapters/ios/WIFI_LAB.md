@@ -115,7 +115,10 @@ current world, and invokes that dialog's real QML Yes action. Its existing
 selected signal and Application listener retain ownership of the decision.
 The helper never resolves a consent token directly. A fresh, command/PID-bound
 native receipt must confirm each UI action; a delivery acknowledgement cannot
-substitute. Wrong sources/worlds, invisible or expired dialogs and unexpected
+substitute. The adapter validates the receipt's unchanged three-second freshness
+window immediately after reading it, then independently verifies the process.
+A slow Instruments query must not age evidence before it is validated.
+Wrong sources/worlds, invisible or expired dialogs and unexpected
 process changes fail. This is UI automation, not proof of a physical consent
 button tap or informed human intent. It grants no general entity-script policy.
 

@@ -84,5 +84,56 @@ class NativeConsent(unittest.TestCase):
         with self.assertRaises(ValueError): validate_operation_arguments("entity-script.review", {"source": "foreign"})
         with self.assertRaises(ValueError): validate_operation_result("entity-script.review", {"performed": False})
 
+    def test_slow_independent_process_query_does_not_age_a_fresh_receipt(self):
+        target = {"appId": "org.example.client", "testBuild": {
+            "fixtureOrigin": "http://fixture.invalid:49121",
+            "scenePath": "/scene.json?location=controlled", "resultsDirectory": "owned"}}
+        adapter = IOSAdapter.__new__(IOSAdapter)
+        clock = [10.0]
+        pending = {}
+
+        def process(*args):
+            clock[0] += 4.0
+            return "42"
+
+        def command(*args, operation, **kwargs):
+            key = operation + "-command"
+            pending.update(self.document, commandId=key, operation=operation,
+                           sampleEpochMs=clock[0] * 1000)
+            return key
+
+        adapter.assert_ios_process_identity = Mock(side_effect=process)
+        adapter.probe_snapshot = Mock(return_value={"tablet": {"open": False}})
+        adapter.invoke = Mock()
+        adapter.command = Mock(side_effect=command)
+        client = Mock()
+        client.execute.side_effect = lambda *args: base64.b64encode(
+            json.dumps(pending).encode()).decode()
+        with patch("adapters.ios.native_integration.time.time", side_effect=lambda: clock[0]):
+            self.assertEqual({"performed": True}, adapter.review_entity_script(
+                "owned", client, "session", {}, target))
+        self.assertEqual(3, adapter.assert_ios_process_identity.call_count)
+        self.assertEqual(["review", "allow"],
+                         [call.kwargs["operation"] for call in adapter.command.call_args_list])
+
+    def test_fresh_receipt_still_requires_an_independent_matching_process(self):
+        target = {"appId": "org.example.client", "testBuild": {
+            "fixtureOrigin": "http://fixture.invalid:49121",
+            "scenePath": "/scene.json?location=controlled", "resultsDirectory": "owned"}}
+        adapter = IOSAdapter.__new__(IOSAdapter)
+        adapter.assert_ios_process_identity = Mock(side_effect=["42", "43"])
+        adapter.probe_snapshot = Mock(return_value={"tablet": {"open": False}})
+        adapter.invoke = Mock()
+        adapter.command = Mock(return_value="owned-command")
+        client = Mock()
+        client.execute.return_value = base64.b64encode(json.dumps({**self.document,
+            "operation": "review"}).encode()).decode()
+        with patch("adapters.ios.native_integration.time.time", return_value=10), \
+                self.assertRaisesRegex(RuntimeError, "entity consent crossed process identities"):
+            adapter.review_entity_script("owned", client, "session", {}, target)
+        self.assertEqual(1, adapter.command.call_count)
+        self.assertEqual(["tablet.open", "tablet.close"],
+                         [call.args[1] for call in adapter.invoke.call_args_list])
+
 
 if __name__ == "__main__": unittest.main()
