@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Exercise source-scan visibility and refusal to restore rejected inputs."""
 import importlib.util
+import glob
 import io
 import json
 from pathlib import Path
@@ -60,22 +61,43 @@ class ScannerInputTests(unittest.TestCase):
                 scan.clean_compiler_sources(root, 'library/1', policy)
             self.assertTrue((root / 'outside').exists())
 
-    def test_candidate_exceptions_are_exact_source_manifests_or_qt_loader(self):
+    def test_scandelete_globs_cover_the_content_bound_policy(self):
         policy = scan.load_policy(HERE / 'source-scan-policy.json',
                                   HERE.parent / 'manifests/source-closure.lock.json')
         template = (HERE / 'metadata/io.github.noah_be.overte.phone.yml.in').read_text()
-        for rule in policy['scanignore']:
-            self.assertIn(Path(rule['archive_path']).name,
-                          ['package.json', 'Cargo.toml', 'QtLoader.java'])
-            self.assertNotIn('*', rule['archive_path'])
-            self.assertIn('fdroid-source-closure/' + rule['archive_sha256'] + '/' +
-                          rule['archive_path'], template)
+        self.assertNotIn('    scanignore:', template)
+        patterns = [line.strip()[2:] for line in template.splitlines()
+                    if line.strip().startswith('- fdroid-source-closure/')]
+        self.assertLess(len(patterns), len(policy['scandelete']))
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            expected = set()
+            for rule in policy['scandelete']:
+                self.assertIn(Path(rule['archive_path']).name,
+                              ['package.json', 'Cargo.toml', 'QtLoader.java'])
+                path = root / 'fdroid-source-closure' / rule['archive_sha256'] / rule['archive_path']
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.touch()
+                expected.add(str(path))
+            # F-Droid's getpaths_map uses non-recursive glob.glob, not a
+            # recursive ** matcher. Exercise those semantics for nested npm.
+            matches = set()
+            for pattern in patterns:
+                found = glob.glob(str(root / pattern))
+                self.assertTrue(found, pattern)
+                self.assertTrue(all(Path(p).is_file() for p in found))
+                matches.update(found)
+            self.assertEqual(expected, matches)
 
     def fixture(self, root):
         archive = root / 'source.tar.gz'
         with tarfile.open(archive, 'w:gz') as out:
             info = tarfile.TarInfo('library/source.c')
             content = b'int main(void) { return 0; }\n'
+            info.size = len(content)
+            out.addfile(info, io.BytesIO(content))
+            info = tarfile.TarInfo('library/examples/package.json')
+            content = b'{"name":"unused-example"}\n'
             info.size = len(content)
             out.addfile(info, io.BytesIO(content))
         sha = scan.digest(archive)
@@ -87,6 +109,80 @@ class ScannerInputTests(unittest.TestCase):
         checkout.mkdir()
         view = checkout / 'fdroid-source-closure'
         return doc, root / 'store', checkout, view, sha
+
+    def deletion_fixture(self, root):
+        document, store, checkout, view, sha = self.fixture(root)
+        rule = {'reference': 'library/1', 'archive_sha256': sha,
+                'archive_path': 'library/examples/package.json',
+                'compiler_suffix': 'examples/package.json',
+                'sha256': scan.hashlib.sha256(b'{"name":"unused-example"}\n').hexdigest()}
+        policy = {'remove': [], 'scandelete': [rule]}
+        inventory_sha = scan.expand(document, store, view, checkout, policy)
+        return store, view, sha, inventory_sha, policy
+
+    def test_declared_scanner_deletion_is_required_and_then_accepted(self):
+        with tempfile.TemporaryDirectory() as td:
+            store, view, sha, inventory_sha, policy = self.deletion_fixture(Path(td))
+            with self.assertRaisesRegex(ValueError, 'scandelete files still present'):
+                scan.verify(store, view, inventory_sha)
+            (view / sha / 'library/examples/package.json').unlink()
+            scan.verify(store, view, inventory_sha)
+            self.assertTrue((view / sha / 'library/source.c').exists())
+
+    def test_approved_deletion_does_not_allow_other_source_changes(self):
+        for change in ('delete', 'modify', 'add', 'symlink', 'restore'):
+            with self.subTest(change=change), tempfile.TemporaryDirectory() as td:
+                store, view, sha, inventory_sha, policy = self.deletion_fixture(Path(td))
+                manifest = view / sha / 'library/examples/package.json'
+                manifest.unlink()
+                source = view / sha / 'library/source.c'
+                if change == 'delete':
+                    source.unlink()
+                elif change == 'modify':
+                    source.write_text('changed')
+                elif change == 'add':
+                    source.with_name('injected.c').write_text('unexpected')
+                elif change == 'symlink':
+                    source.unlink()
+                    source.symlink_to('examples')
+                else:
+                    manifest.write_text('restored')
+                with self.assertRaisesRegex(ValueError, 'expanded source changed'):
+                    scan.verify(store, view, inventory_sha)
+
+    def test_compiler_cannot_restore_the_declared_scandelete_inputs(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            store, view, sha, inventory_sha, policy = self.deletion_fixture(root)
+            (view / sha / 'library/examples/package.json').unlink()
+            scan.verify(store, view, inventory_sha)
+            compiler = root / 'compiler'
+            scan.unpack(store / sha / 'source', compiler)
+            self.assertEqual(1, scan.clean_compiler_sources(compiler, 'library/1', policy))
+            self.assertFalse((compiler / 'library/examples/package.json').exists())
+            self.assertEqual(scan.inventory(view / sha), scan.inventory(compiler))
+
+    def test_changed_manifest_is_rejected_before_any_compiler_deletion(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            store, view, sha, inventory_sha, policy = self.deletion_fixture(root)
+            compiler = root / 'compiler'
+            scan.unpack(store / sha / 'source', compiler)
+            manifest = compiler / 'library/examples/package.json'
+            manifest.write_text('changed dependency declaration')
+            with self.assertRaisesRegex(ValueError, 'input changed'):
+                scan.clean_compiler_sources(compiler, 'library/1', policy)
+            self.assertTrue(manifest.exists())
+
+    def test_scandelete_authorization_cannot_be_added_to_inventory_after_scan(self):
+        with tempfile.TemporaryDirectory() as td:
+            store, view, sha, inventory_sha, policy = self.deletion_fixture(Path(td))
+            record_path = view / 'inventory.json'
+            record = json.loads(record_path.read_text())
+            record['scandelete'].append(sha + '/library/source.c')
+            record_path.write_text(json.dumps(record))
+            with self.assertRaisesRegex(ValueError, 'inventory missing or changed'):
+                scan.verify(store, view, inventory_sha)
 
     def test_complete_view_matches_locked_archive_and_rejects_scanner_deletion(self):
         with tempfile.TemporaryDirectory() as td:
