@@ -70,6 +70,7 @@
     var clientCommandRequest = null;
     var clientCommandUnavailable = false;
     var lastClientCommandId = "";
+    var lastTextCommandId = "";
     var lastSceneCommandId = "";
     var sampleSequence = 0;
     var orientationHistory = [];
@@ -664,6 +665,12 @@
     }
 
     function applyClientCommand(command) {
+        if (command && command.commandId !== lastTextCommandId && command.action === "text-fixture"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action", "operation"])
+                && typeof Test.iosTextTest === "function" && Test.iosTextTest(command)) {
+            lastTextCommandId = String(command.commandId);
+            return;
+        }
         if (applyVoice(command)) { return; }
         if (!command || command.schemaVersion !== 1 || !command.commandId
                 || command.commandId === lastClientCommandId) {
@@ -1115,6 +1122,9 @@
             }
         }
         sampleSequence += 1;
+        if (typeof Test.iosRenderObservation === "function") {
+            Test.saveObject(Test.iosRenderObservation(), "ios-render-observation.json");
+        }
         if (typeof Test.iosNativeUiSnapshot === "function") {
             Test.saveObject(Test.iosNativeUiSnapshot(), "ios-native-ui.json");
         }

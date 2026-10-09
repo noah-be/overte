@@ -20,7 +20,7 @@ import uuid
 from adapters.appium.adapter import AppiumAdapter
 from adapters.common import fail
 from contracts import validate_operation_arguments
-from adapters.ios import native_ui
+from adapters.ios import native_ui, native_integration
 
 
 class IOSAdapter(AppiumAdapter):
@@ -30,6 +30,8 @@ class IOSAdapter(AppiumAdapter):
     NATIVE_OPERATIONS = frozenset({
         "app.crash", "app.stop", "app.version", "lifecycle.background",
     })
+
+    INTEGRATION_OPERATIONS = frozenset({"text.focus", "text.type", "text.snapshot", "text.dismiss", "render.snapshot"})
 
     def __init__(self):
         super().__init__("ios")
@@ -41,6 +43,8 @@ class IOSAdapter(AppiumAdapter):
                 and target.get("testBuild")
                 and target.get("probe") == {"kind": "ios-documents"}):
             values |= IOSAdapter.CLIENT_OPERATIONS | IOSAdapter.NATIVE_OPERATIONS
+            if native_integration.enabled(target):
+                values |= IOSAdapter.INTEGRATION_OPERATIONS
         return sorted(values)
 
     @staticmethod
@@ -179,6 +183,63 @@ class IOSAdapter(AppiumAdapter):
         finally:
             client.call("DELETE", f"/session/{session}/actions")
 
+    def native_text_command(self, selector, client, session, state, target, action):
+        identity = self.assert_ios_process_identity(selector, client, session, state, target)
+        command_id = "ios-" + uuid.uuid4().hex
+        payload = {"schemaVersion": 1, "commandId": command_id,
+                   "action": "text-fixture", "operation": action}
+        origin = target["testBuild"]["fixtureOrigin"]
+        self.controlled_http_url(origin, "native text fixture origin")
+        request = Request(origin + "/e2e-client-command.json", data=json.dumps(payload).encode(),
+                          method="POST", headers={"Content-Type": "application/json"})
+        with urlopen(request, timeout=5) as response:
+            body = response.read(4097)
+            if response.status != 200 or len(body) > 4096 or json.loads(body) != payload:
+                fail("owned fixture did not accept the exact native text command")
+        remote = f"@{target['appId']}:documents/{target['testBuild']['resultsDirectory']}/ios-text-observation.json"
+        deadline = time.monotonic() + 15
+        while time.monotonic() < deadline:
+            if self.assert_ios_process_identity(selector, client, session, state, target) != identity:
+                fail("native text command crossed process identities")
+            encoded = client.execute(session, "mobile: pullFile", {"remotePath": remote})
+            try:
+                observed = native_integration.text(json.loads(base64.b64decode(encoded, validate=True)), int(identity), command_id)
+            except (ValueError, UnicodeError):
+                time.sleep(0.1)
+                continue
+            self.assert_ios_process_identity(selector, client, session, state, target)
+            return observed
+        fail("fresh actual native text execution was not observed")
+
+    def native_render_snapshot(self, selector, client, session, state, target):
+        identity = self.assert_ios_process_identity(selector, client, session, state, target)
+        remote = f"@{target['appId']}:documents/{target['testBuild']['resultsDirectory']}/ios-render-observation.json"
+        encoded = client.execute(session, "mobile: pullFile", {"remotePath": remote})
+        document = native_integration.render(json.loads(base64.b64decode(encoded, validate=True)), int(identity))
+        # A native presentation counter alone cannot prove visible pixels.
+        # Classify a contemporaneous physical screenshot of the world surface.
+        from io import BytesIO
+        from PIL import Image
+        image_data = base64.b64decode(client.call("GET", f"/session/{session}/screenshot"), validate=True)
+        if not image_data or len(image_data) > 24 * 1024 * 1024:
+            fail("native render screenshot exceeded its byte bound")
+        with Image.open(BytesIO(image_data)) as image:
+            if image.width * image.height > 24 * 1024 * 1024:
+                fail("native render screenshot exceeded its pixel bound")
+            # Exclude edge controls and status bars; require scene pixels in
+            # the central world region, rather than a lit toolbar on black.
+            crop = image.crop((image.width // 4, image.height // 4,
+                               image.width * 3 // 4, image.height * 3 // 4)).convert("RGB")
+            crop.thumbnail((128, 128))
+            pixels = list(crop.getdata())
+            non_black = sum(max(pixel) > 12 for pixel in pixels)
+            black = non_black < max(1, len(pixels) // 100)
+        self.assert_ios_process_identity(selector, client, session, state, target)
+        return {"schemaVersion": 1, "backend": document["backend"],
+                "hardwareAccelerated": document["hardwareAccelerated"],
+                "surfaceVisible": document["surfaceVisible"], "blackFrame": black,
+                "frameSequence": document["frameSequence"]}
+
     def invoke(self, selector, operation, values):
         if operation in {"accessibility.snapshot", "tablet.open", "tablet.close", "tablet.activate", "tablet.snapshot"}:
             target = self.target(selector)
@@ -194,7 +255,7 @@ class IOSAdapter(AppiumAdapter):
                     return super().invoke(selector, operation, values)
                 finally:
                     del self._native_ui_target
-        extended = self.CLIENT_OPERATIONS | self.NATIVE_OPERATIONS | {"app.process"}
+        extended = self.CLIENT_OPERATIONS | self.NATIVE_OPERATIONS | self.INTEGRATION_OPERATIONS | {"app.process"}
         if operation not in extended:
             return super().invoke(selector, operation, values)
         arguments = validate_operation_arguments(operation, values)
@@ -212,6 +273,22 @@ class IOSAdapter(AppiumAdapter):
             if parsed.hostname != fixture.hostname:
                 fail("iOS navigation must remain on the owned lab host")
         client, session, state = self.ensure_session(selector)
+        if operation in self.INTEGRATION_OPERATIONS:
+            self.assert_ios_process_identity(selector, client, session, state, target)
+            if operation == "render.snapshot":
+                return self.native_render_snapshot(selector, client, session, state, target)
+            if operation == "text.type":
+                before = self.native_text_command(selector, client, session, state, target, "snapshot")
+                if not before["focused"]:
+                    fail("native keyboard input requires the controlled focused field")
+                # XCTest sends actual native keyboard events. No assignment to
+                # field values or submit counters is available in the bridge.
+                client.execute(session, "mobile: overteTypeText", arguments)
+                self.assert_ios_process_identity(selector, client, session, state, target)
+                return {"performed": True}
+            action = {"text.focus": "focus", "text.snapshot": "snapshot", "text.dismiss": "dismiss"}[operation]
+            observed = self.native_text_command(selector, client, session, state, target, action)
+            return observed if operation == "text.snapshot" else {"performed": True}
         if operation == "app.process":
             return self.process_state(selector, client, session, state, target)
         if operation == "app.stop":

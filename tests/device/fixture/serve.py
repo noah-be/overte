@@ -418,6 +418,11 @@ class FixtureState:
             if valid:
                 request = validate_voice_command(command["request"])
                 valid = request["commandId"] == command["commandId"]
+        elif action == "text-fixture":
+            valid = (set(command) == {"schemaVersion", "commandId", "action", "operation"}
+                     and type(command["schemaVersion"]) is int
+                     and re.fullmatch(r"ios-[0-9a-f]{32}", command["commandId"]) is not None
+                     and command.get("operation") in {"focus", "snapshot", "dismiss"})
         elif action == "scene-load":
             valid = (set(command) == {"schemaVersion", "commandId", "action", "url"}
                      and self._web_url(command.get("url")))

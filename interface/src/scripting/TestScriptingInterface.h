@@ -154,6 +154,8 @@ public slots:
 #if defined(Q_OS_IOS) && defined(OVERTE_IOS_E2E_TEST_BUILD)
     // Read actual native accessibility widgets without traversing Qt's AX tree.
     Q_INVOKABLE QVariantMap iosNativeUiSnapshot();
+    Q_INVOKABLE bool iosTextTest(const QVariantMap& command);
+    Q_INVOKABLE QVariantMap iosRenderObservation();
 #endif
 
     /*@jsdoc

@@ -114,6 +114,18 @@ class ProbeCommandChannelTest(unittest.TestCase):
         self.assertEqual(400, rejected_key.exception.code)
         rejected_key.exception.close()
 
+    def test_native_text_setup_cannot_inject_values_or_submission_results(self):
+        command = {"schemaVersion": 1, "commandId": "ios-" + "a" * 32,
+                   "action": "text-fixture", "operation": "focus"}
+        self.assertEqual(self.post_command(command), command)
+        for override in ({"text": "injected"}, {"submittedCount": 1},
+                         {"operation": "type"}, {"schemaVersion": True},
+                         {"commandId": "unbound"}):
+            with self.subTest(override=override), self.assertRaises(HTTPError) as error:
+                self.post_command(command | override)
+            self.assertEqual(error.exception.code, 400)
+            error.exception.close()
+
     def test_adapter_owned_entity_is_removed_on_replacement_and_shutdown(self) -> None:
         self.assertGreaterEqual(
             self.source.count("Entities.deleteEntity(controlledAssetEntity)"), 2

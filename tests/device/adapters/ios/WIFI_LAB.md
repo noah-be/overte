@@ -59,3 +59,21 @@ python3 tests/run-unittest-suite.py tests/device/self_tests --pattern test_ios_e
 These regressions are included in the quick device control-plane profile.
 The complete real-device run must still require all 35 catalog modules and
 retain the tested client and runner versions.
+
+## Native text and rendering integration
+
+The exact installed integer `OverteE2ENativeIntegrationVersion=2` marker enables
+`nativeIntegration: {"kind": "ios-documents", "version": 2}`. Text setup uses a
+dedicated test panel containing the product `Uit.TextField`; only focus, clear,
+read and dismiss are available to the test bridge. Actual Unicode, backspace
+and submit events come from XCTest. GUI-thread observations must match the
+command nonce, foreground process and freshness bound. Typed values and submit
+counters are never supplied by the host observer.
+
+Renderer observations use the active Vulkan plugin, actual physical-device
+properties and current world-generation presentation records from the real
+WSI queue. The host additionally classifies a bounded contemporaneous physical
+screenshot of the central world region. A counter or a lit edge toolbar alone
+does not prove healthy visible rendering. Pillow is required for this local
+physical screenshot analysis. These operations still require native build,
+installation and real-device qualification.

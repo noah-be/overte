@@ -32,6 +32,7 @@
     <string>Overte uses the microphone for spatial voice communication after you grant permission.</string>
     <key>OverteE2ETestBuildContractVersion</key><integer>1</integer>
     <key>OverteE2ENativeUiObservationVersion</key><integer>1</integer>
+    <key>OverteE2ENativeIntegrationVersion</key><integer>2</integer>
     <key>UIFileSharingEnabled</key><true/>
     <key>UILaunchScreen</key>
     <dict><key>UIColorName</key><string>AccentColor</string></dict>

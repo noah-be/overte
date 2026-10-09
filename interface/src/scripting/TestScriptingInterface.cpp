@@ -29,6 +29,16 @@
 #include "NetworkingConstants.h"
 #if defined(Q_OS_IOS) && defined(OVERTE_IOS_E2E_TEST_BUILD)
 #include "../IOSTouchUiMetrics.h"
+#include <QDateTime>
+#include <QRegularExpression>
+#include <QInputMethod>
+#include <QPointer>
+#include <QQuickItem>
+#include <QTimer>
+#include <ui/TabletScriptingInterface.h>
+#include <display-plugins/VulkanDisplayPlugin.h>
+#include <vk/Context.h>
+#include <shared/IOSRuntimeLogging.h>
 #endif
 
 #if defined(OVERTE_E2E_VOICE_TESTS)
@@ -63,6 +73,94 @@ QVariantMap TestScriptingInterface::iosNativeUiSnapshot() {
     }
     return result;
 }
+
+bool TestScriptingInterface::iosTextTest(const QVariantMap& command) {
+    const QString id = command.value("commandId").toString();
+    const QString action = command.value("operation").toString();
+    const QString directory = _testResultsLocation;
+    if (directory.isEmpty() || !QCoreApplication::arguments().contains("--testScript") ||
+            command.size() != 4 || command.value("schemaVersion").toInt() != 1 ||
+            command.value("action").toString() != "text-fixture" ||
+            !QRegularExpression("^ios-[0-9a-f]{32}$").match(id).hasMatch() ||
+            (action != "focus" && action != "snapshot" && action != "dismiss")) { return false; }
+    return QMetaObject::invokeMethod(qApp, [id, action, directory] {
+        static QPointer<QQuickItem> panel;
+        static QPointer<QQuickItem> field;
+        const auto finish = [id, action, directory](QQuickItem* created = nullptr) {
+            if (created) {
+                panel = created;
+                field = panel->findChild<QQuickItem*>("controlled.text");
+            }
+            bool ok = panel && field && panel->metaObject()->indexOfProperty("submittedCount") >= 0;
+            if (ok && action == "focus") {
+                panel->setVisible(true);
+                ok = field->setProperty("text", QString());
+                field->forceActiveFocus(Qt::OtherFocusReason);
+                qGuiApp->inputMethod()->show();
+            } else if (ok && action == "dismiss") {
+                field->setFocus(false);
+                panel->setFocus(false);
+                panel->setVisible(false);
+                qGuiApp->inputMethod()->hide();
+            }
+            QVariantMap result { {"schemaVersion", 1}, {"commandId", id}, {"ok", ok},
+                {"processId", QCoreApplication::applicationPid()},
+                {"sampleEpochMs", QDateTime::currentMSecsSinceEpoch()} };
+            if (ok && DependencyManager::isSet<TabletScriptingInterface>()) {
+                const auto metrics = DependencyManager::get<TabletScriptingInterface>()->getTouchUiRuntimeMetrics();
+                if (!metrics.value("valid").toBool()) { result["ok"] = false; }
+                else {
+                    result["snapshot"] = QVariantMap { {"schemaVersion", 1},
+                        {"value", field->property("text").toString()},
+                        {"focused", field->hasActiveFocus()},
+                        {"keyboardVisible", metrics.value("keyboardVisible").toBool()},
+                        {"submittedCount", panel->property("submittedCount").toInt()} };
+                }
+            } else { result["ok"] = false; }
+            QSaveFile output(QDir(directory).absoluteFilePath("ios-text-observation.json"));
+            output.setDirectWriteFallback(false);
+            const auto bytes = QJsonDocument::fromVariant(result).toJson(QJsonDocument::Compact);
+            if (output.open(QIODevice::WriteOnly)) {
+                output.setPermissions(QFile::ReadOwner | QFile::WriteOwner);
+                if (output.write(bytes) == bytes.size()) { output.commit(); }
+            }
+        };
+        if (!DependencyManager::isSet<OffscreenUi>()) { finish(); return; }
+        if (action == "focus" && !panel) {
+            DependencyManager::get<OffscreenUi>()->load(QUrl("qrc:/qml/hifi/ControlledTextInput.qml"),
+                [finish](QQmlContext*, QQuickItem* created) {
+                    QPointer<QQuickItem> guarded(created);
+                    QTimer::singleShot(0, qApp, [finish, guarded] { finish(guarded); });
+                });
+        } else { finish(); }
+    }, Qt::QueuedConnection);
+}
+
+QVariantMap TestScriptingInterface::iosRenderObservation() {
+    if (_testResultsLocation.isEmpty() || !QCoreApplication::arguments().contains("--testScript")) {
+        return { {"schemaVersion", 1}, {"valid", false} };
+    }
+    QVariantMap result;
+    const auto observe = [&] {
+        const auto plugin = qApp->getActiveDisplayPlugin();
+        const auto* vulkan = plugin ? dynamic_cast<VulkanDisplayPlugin*>(plugin.get()) : nullptr;
+        const auto device = vks::Context::get().device;
+        const auto frame = iosRuntimeEntityEvidenceSnapshot();
+        const bool hardware = device && (device->properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU ||
+            device->properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU);
+        result = { {"schemaVersion", 1}, {"valid", vulkan && device && frame.armed && frame.committed && !frame.capacityExceeded},
+            {"processId", QCoreApplication::applicationPid()}, {"sampleEpochMs", QDateTime::currentMSecsSinceEpoch()},
+            {"backend", QString("Vulkan/MoltenVK")}, {"hardwareAccelerated", hardware},
+            {"surfaceVisible", qApp->applicationState() == Qt::ApplicationActive && qApp->getWindow() && qApp->getWindow()->isVisible()},
+            {"generation", QString::number(frame.generation)},
+            {"acceptedPresentCalls", QString::number(frame.acceptedPresentCalls)},
+            {"frameSequence", frame.lastPresentedFrame} };
+    };
+    if (QThread::currentThread() == qApp->thread()) { observe(); }
+    else { QMetaObject::invokeMethod(qApp, observe, Qt::BlockingQueuedConnection); }
+    return result;
+}
+
 #endif
 
 #if defined(OVERTE_E2E_VOICE_TESTS)

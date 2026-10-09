@@ -83,7 +83,7 @@ def commands(profile: str, self_test_jobs: int | None = None) -> list[tuple[str,
             "test_execution_plan_pipeline.py", "test_harness.py",
             "test_matrix_evaluator.py", "test_voice_peer.py", "test_voice_roundtrip.py", "test_acoustic_loopback.py",
             "test_ios_extended_adapter.py", "test_ios_native_touch.py",
-            "test_ios_hid_session.py", "test_ios_native_ui.py", "test_ios_native_files.py",
+            "test_ios_hid_session.py", "test_ios_native_ui.py", "test_ios_native_files.py", "test_ios_native_integration.py",
             "test_ios_native_viewport.py", "test_ios_probe_observation.py",
             "test_probe_command_channel.py",
         ]
