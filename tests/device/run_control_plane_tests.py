@@ -52,6 +52,7 @@ def commands(profile: str, self_test_jobs: int | None = None) -> list[tuple[str,
             ("phone-voice-buffer", "audio/test_phone_voice_buffer.py"),
             ("phone-spawn-gate", "world-entry/test_phone_spawn_gate.py"),
             ("remote-avatar-keyframes", "world-entry/test_remote_avatar_keyframes.py"),
+            ("joint-pending-flags", "world-entry/test_joint_pending_flags.py"),
         ):
             checks.append((name, [sys.executable, str(ROOT / "contracts" / path)], False))
         # Portable production regressions require Qt6 Core/Concurrent/Gui development
@@ -68,6 +69,8 @@ def commands(profile: str, self_test_jobs: int | None = None) -> list[tuple[str,
             "lifecycle/test_domain_list_history.py",
             "lifecycle/test_domain_list_receiver.py",
             "lifecycle/test_v8_wrapper_teardown.py",
+            "lifecycle/test_qml_wrapper_thread.py",
+            "lifecycle/test_qml_property_dispatch.py",
             "graphics/entity-change-thread-test.py",
             "graphics/image-decode-budget-test.py",
             "graphics/image-decode-qt-codec-test.py",
