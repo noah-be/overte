@@ -1,55 +1,41 @@
-# Native iPad lab extension
+# Canonical iOS bound preflight
 
-[`IOSAdapter`](adapter.py) extends the [base Appium adapter](../appium/README.md)
-for an authenticated physical-device driver. The driver must implement actual
-`mobile: overteProcessInfo` and `mobile: overteAbortApp` operations for the
-configured application. Process identity and foreground observations come
-from the device, including after lifecycle operations.
+Consumes `sh004-ios-native-binding/v001` through General's fixed source loader
+and real `appium/ios-bound.json` entrypoint. The supplied canonical class is
+subclassed; target privacy, physical attestation and cleanup are not reimplemented.
 
-Owned HTTP commands deliver asset creation, domain navigation, audio mute,
-and the allow-listed audio warning setting to the shared in-client probe.
-Delivery alone is insufficient: the adapter requires an exact fresh
-`client-command-result.json` receipt from the running client's Documents
-directory. The portable modules independently verify the resulting behavior.
+Pass `--candidate-manifest` plus the existing `verify_candidate_handoff.py`
+input flags, and an independently frozen `--expected-artifact-sha256`. These may
+precede the runner's action. The fixed original iOS verifier checks SH-002/v002
+and SH-009/v001 evidence, clean source revision, candidate bytes and independent
+build inputs. It runs offline with a 90-second process-group bound, private
+discarded output and no simulator execution flags. Candidate preflight does not
+change or sign the candidate and does not install or start an app.
 
-## Native UI observation
+Successful describe deliberately omits `executionIdentity`. All bound invoke
+and session-start paths reject until a reviewed installed-code/signature
+association exists. The real v003 runner rejects missing identity; archive hashes,
+bundle identifiers, expected flags and the old preinstalled receipt cannot fill
+that gap. No form-factor/PID/telemetry evidence is fabricated.
 
-An installed E2E client may expose the integer Info.plist marker
-`OverteE2ENativeUiObservationVersion=1`. Only fresh authenticated installation
-inventory may enable the optional target configuration:
+The required `--sbom-contract-root` pins `sh009-sbom-pair/v001`. Run this
+consumer with a separate validation Python environment containing that release's
+exact `tools/sbom/requirements-validation.txt` dependencies. Its unchanged
+offline CLI checks private snapshots of the already hash-bound SPDX/CycloneDX
+bytes before candidate preflight or simulator staging can succeed. Missing tools,
+changed releases, foreign bytes and invalid content fail closed. The result stays
+`SBOM_PAIR_VALID_CONTENT_VERIFICATION_PENDING`, not complete package/binary proof.
 
-```json
-"nativeUiObservation": {"kind": "uikit-documents", "version": 1}
-```
+Cleanup remains available without candidate arguments or after candidate files
+change/disappear, using the original canonical termination implementation. The
+unbound `ios.json` diagnostic mode is unchanged. Source provenance for future
+execution must include this module, the original candidate verifier and its
+helpers, canonical Appium/loader and pinned external Shared contracts.
 
-That test-only client exposes `Test.iosNativeUiSnapshot()` when launched with
-the existing explicit test script and results directory. The shared probe
-saves its read-only UIKit observation as `ios-native-ui.json`. The adapter
-requires an exact schema, current sample, matching live foreground PID, and
-the closed Tablet Contract vocabulary. Absent controls remain absent; the
-observer never fills in expected controls or exports account/user text.
+Focused tests use only test candidate/OS boundaries; no device is contacted.
+Reviewed installed-code identity, physical iPad/iPhone evidence and original
+IO-001/002/003/004/010 acceptance remain pending.
 
-The audit XML represents observed UIKit controls. It is not an XCTest tree.
-Physical activation uses a WDA touch at the center of the freshly observed
-visible enabled control's native frame, followed by contact release even if
-the touch request fails. The module still observes the actual resulting
-tablet screen independently. No fixed-coordinate activation fallback is used.
-
-The optional path needs a newly built and installed client plus successful
-physical-device validation. Host regression success alone does not establish
-device support. A client without the installed marker retains the base
-Appium observation path and any transport capability exclusions.
-
-## Local regression checks
-
-From the repository root:
-
-```sh
-python3 tests/run-unittest-suite.py tests/device/self_tests --pattern test_ios_native_ui.py
-python3 tests/run-unittest-suite.py tests/device/self_tests --pattern test_ios_probe_observation.py
-python3 tests/run-unittest-suite.py tests/device/self_tests --pattern test_ios_extended_adapter.py
-```
-
-These regressions are included in the quick device control-plane profile.
-The complete real-device run must still require all 35 catalog modules and
-retain the tested client and runner versions.
+The separate observation-only local device lab extension is documented in
+[WIFI_LAB.md](WIFI_LAB.md). It does not replace the installed-code identity
+requirements of this canonical bound preflight.
