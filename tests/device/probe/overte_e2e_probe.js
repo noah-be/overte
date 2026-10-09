@@ -70,6 +70,8 @@
     var clientCommandRequest = null;
     var clientCommandUnavailable = false;
     var lastClientCommandId = "";
+    var pendingProbeRequestId = "";
+    var lastProbeResponseId = "";
     var lastTextCommandId = "";
     var primaryOriginalCameraMode = null;
     var primaryViewCommandId = "";
@@ -722,6 +724,15 @@
         if (command && command.schemaVersion === 1
                 && /^ios-[0-9a-f]{32}$/.test(command.commandId)
                 && command.commandId !== lastClientCommandId
+                && command.action === "native-probe-snapshot"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action"])) {
+            pendingProbeRequestId = String(command.commandId);
+            lastClientCommandId = String(command.commandId);
+            return;
+        }
+        if (command && command.schemaVersion === 1
+                && /^ios-[0-9a-f]{32}$/.test(command.commandId)
+                && command.commandId !== lastClientCommandId
                 && command.action === "native-geometry-snapshot"
                 && objectKeysMatch(command, ["schemaVersion", "commandId", "action"])
                 && typeof Tablet.touchUiRuntimeMetrics === "object"
@@ -1275,7 +1286,7 @@
         if (orientationHistory.length > 48) {
             orientationHistory.shift();
         }
-        Test.saveObject({
+        var probeSnapshot = {
             schemaVersion: 2,
             sampleEpochMs: now,
             sampleSequence: sampleSequence,
@@ -1413,7 +1424,14 @@
                 finished: soundState.finished,
                 finishReason: soundState.finishReason
             }
-        }, "overte-probe.json");
+        };
+        Test.saveObject(probeSnapshot, "overte-probe.json");
+        if (pendingProbeRequestId !== "" && pendingProbeRequestId !== lastProbeResponseId) {
+            // Preserve exactly this real sample until the next owned request.
+            Test.saveObject({ schemaVersion: 1, commandId: pendingProbeRequestId,
+                observation: probeSnapshot }, "ios-probe-request-result.json");
+            lastProbeResponseId = pendingProbeRequestId;
+        }
     }
 
     function updateProbe() {

@@ -228,3 +228,16 @@ descriptors and recheck ownership before delivery to prevent PID reuse from
 targeting an unrelated process. Surviving owned descendants fail cleanup rather
 than being hidden by successful parent-process termination. Other hosts retain
 their existing process-group cleanup.
+
+## Stable native Wi-Fi probe transfer
+
+The local native Wi-Fi driver requests `native-probe-snapshot` before reading
+the portable client probe. The actual in-client sampler writes its next full
+observation once to `ios-probe-request-result.json`, with the exact request
+nonce. Subsequent periodic samples retain that response until a new request.
+This prevents AFC reads from racing the live file's truncate/write cycle.
+The existing probe schema and freshness checks remain unchanged, and the
+configured foreground process is independently checked before and after the
+transfer. Persistent AFC errors still fail. Only absent Android `control:null`
+metadata is omitted from the iOS observation. The periodic portable probe
+continues to serve other adapters.

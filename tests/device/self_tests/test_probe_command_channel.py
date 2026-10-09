@@ -159,6 +159,17 @@ class ProbeCommandChannelTest(unittest.TestCase):
             self.assertEqual(error.exception.code, 400)
             error.exception.close()
 
+    def test_native_probe_request_cannot_supply_client_state_or_claim_success(self):
+        command = {"schemaVersion": 1, "commandId": "ios-" + "a" * 32,
+                   "action": "native-probe-snapshot"}
+        self.assertEqual(self.post_command(command), command)
+        for override in ({"observation": {}}, {"passed": True}, {"processId": 42},
+                         {"schemaVersion": True}, {"commandId": "unbound"}):
+            with self.subTest(override=override), self.assertRaises(HTTPError) as error:
+                self.post_command(command | override)
+            self.assertEqual(error.exception.code, 400)
+            error.exception.close()
+
     def test_entity_consent_command_cannot_forge_decisions_or_select_another_script(self):
         command = {"schemaVersion": 1, "commandId": "ios-" + "c" * 32,
                    "action": "entity-script-consent", "operation": "review",

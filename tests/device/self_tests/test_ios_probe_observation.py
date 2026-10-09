@@ -8,6 +8,46 @@ import unittest
 
 
 class NativeProbeObservation(unittest.TestCase):
+    def test_actual_command_and_sampler_preserve_one_probe_per_owned_nonce(self):
+        source = (Path(__file__).resolve().parents[1] / "probe/overte_e2e_probe.js").read_text()
+        start = source.index("    function applyClientCommand(command) {")
+        end = source.index("    function pollClientCommand()", start)
+        emit_start = source.index('        Test.saveObject(probeSnapshot, "overte-probe.json");')
+        emit_end = source.index("\n    function updateProbe()", emit_start)
+        emit = source[emit_start:emit_end].rsplit("    }", 1)[0]
+        harness = r'''
+const assert=require('assert');
+let lastClientCommandId='',lastTextCommandId='',pendingProbeRequestId='',lastProbeResponseId='';
+const objectKeysMatch=(v,k)=>Object.keys(v).sort().join('|')===k.sort().join('|');
+const applyVoice=()=>false;
+let probeSnapshot={schemaVersion:2,sampleEpochMs:Date.now(),sampleSequence:7,actualState:'before'};
+let saved={},writes=[];
+const Test={saveObject:(v,n)=>{saved[n]=v;writes.push(n);}};
+FUNCTION
+const emit=()=>{EMIT};
+const command={schemaVersion:1,commandId:'ios-'+'a'.repeat(32),action:'native-probe-snapshot'};
+applyClientCommand(command);
+assert.equal(saved['ios-probe-request-result.json'],undefined);
+emit();
+const first=saved['ios-probe-request-result.json'];
+assert.equal(first.commandId,command.commandId);
+assert.strictEqual(first.observation,probeSnapshot);
+probeSnapshot={...probeSnapshot,sampleSequence:8,actualState:'after'};
+emit();applyClientCommand(command);emit();
+assert.strictEqual(saved['ios-probe-request-result.json'],first);
+assert.equal(writes.filter(v=>v==='ios-probe-request-result.json').length,1);
+for(const invalid of [{...command,commandId:'ios-'+'b'.repeat(32),observation:{}},
+ {...command,commandId:'foreign'}, {...command,schemaVersion:true}]) {
+ applyClientCommand(invalid);emit();
+ assert.strictEqual(saved['ios-probe-request-result.json'],first);
+}
+const next={...command,commandId:'ios-'+'b'.repeat(32)};
+applyClientCommand(next);emit();
+assert.equal(saved['ios-probe-request-result.json'].commandId,next.commandId);
+assert.strictEqual(saved['ios-probe-request-result.json'].observation,probeSnapshot);
+'''.replace("FUNCTION", source[start:end]).replace("EMIT", emit)
+        subprocess.run(["node", "-e", harness], check=True, timeout=5)
+
     def test_production_domain_observation_distinguishes_loaded_http_scenes_from_live_domains(self):
         source = (Path(__file__).resolve().parents[1] / "probe/overte_e2e_probe.js").read_text()
         start = source.index("            domain: {") + len("            domain: ")
