@@ -704,7 +704,27 @@
                 && typeof command.url === "string"
                 && /^hifi:\/\/(?:[A-Za-z0-9.-]+|\[[0-9A-Fa-f:]+\]):[0-9]+(?:\/|$)/.test(command.url)) {
             lastClientCommandId = String(command.commandId);
-            Window.location = command.url;
+            location.handleLookupString(command.url);
+            return;
+        }
+        if (command.action === "set-safe-setting"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action",
+                    "settingId", "enabled"])
+                && command.settingId === "audio.warn-when-muted"
+                && typeof command.enabled === "boolean") {
+            Audio.warnWhenMuted = command.enabled;
+            if (Boolean(Audio.warnWhenMuted) === command.enabled) {
+                lastClientCommandId = String(command.commandId);
+            }
+            return;
+        }
+        if (command.action === "set-audio-mute"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action", "muted"])
+                && typeof command.muted === "boolean") {
+            Audio.muted = command.muted;
+            if (Boolean(Audio.muted) === command.muted) {
+                lastClientCommandId = String(command.commandId);
+            }
             return;
         }
         if (command.action === "asset-load"
@@ -1095,6 +1115,23 @@
             }
         }
         sampleSequence += 1;
+        if (String(About.platform).toLowerCase() === "ios") {
+            // Independent live UIKit bounds and Qt viewport observations let
+            // the host validate real screen-coordinate HID input without
+            // asking XCTest to traverse the Qt accessibility window tree.
+            Test.saveObject({ schemaVersion: 1, sampleEpochMs: now,
+                sampleSequence: sampleSequence,
+                nativeUi: Tablet.touchUiRuntimeMetrics,
+                window: { width: Number(Window.innerWidth), height: Number(Window.innerHeight) }
+            }, "ios-ui-observation.json");
+        }
+        // The fixture's HTTP echo proves delivery only. This independent
+        // device-side receipt is emitted after the real client action; the
+        // adapter requires the exact nonce, fresh timestamp and same PID.
+        if (lastClientCommandId !== "") {
+            Test.saveObject({ schemaVersion: 1, commandId: lastClientCommandId,
+                sampleEpochMs: now }, "client-command-result.json");
+        }
         orientationHistory.push({
             sampleSequence: sampleSequence,
             orientation: vector(orientation)

@@ -443,6 +443,14 @@ class FixtureState:
         elif action == "sound-channel":
             valid = (set(command) == {"schemaVersion", "commandId", "action", "url"}
                      and self._web_url(command.get("url")))
+        elif action == "set-safe-setting":
+            valid = (set(command) == {"schemaVersion", "commandId", "action",
+                                      "settingId", "enabled"}
+                     and command.get("settingId") == "audio.warn-when-muted"
+                     and type(command.get("enabled")) is bool)
+        elif action == "set-audio-mute":
+            valid = (set(command) == {"schemaVersion", "commandId", "action", "muted"}
+                     and type(command.get("muted")) is bool)
         elif action == "key-hold":
             valid = (set(command) == {"schemaVersion", "commandId", "action",
                                       "key", "durationMs"}
