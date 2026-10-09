@@ -22,7 +22,7 @@ import uuid
 from adapters.appium.adapter import AppiumAdapter
 from adapters.common import fail
 from contracts import validate_operation_arguments
-from adapters.ios import native_ui, native_integration, native_primary, native_upgrade
+from adapters.ios import native_ui, native_integration, native_primary, native_upgrade, native_permission
 from adapters.collaboration_observation import actor_receipt, portable_observation
 
 
@@ -53,6 +53,8 @@ class IOSAdapter(AppiumAdapter):
                 values.add("input.primary")
             if native_upgrade.configuration(target) is not None:
                 values |= {"app.install", "app.upgrade"}
+            if native_permission.enabled(target):
+                values |= {"permission.snapshot", "permission.set"}
             if IOSAdapter.collaboration_configuration(target) is not None:
                 values |= IOSAdapter.COLLABORATION_OPERATIONS
         return sorted(values)
@@ -374,7 +376,7 @@ class IOSAdapter(AppiumAdapter):
                     return super().invoke(selector, operation, values)
                 finally:
                     del self._native_ui_target
-        extended = self.CLIENT_OPERATIONS | self.NATIVE_OPERATIONS | self.INTEGRATION_OPERATIONS | self.COLLABORATION_OPERATIONS | {"app.process", "input.primary", "scene.load", "scene.reload", "app.install", "app.upgrade"}
+        extended = self.CLIENT_OPERATIONS | self.NATIVE_OPERATIONS | self.INTEGRATION_OPERATIONS | self.COLLABORATION_OPERATIONS | {"app.process", "input.primary", "scene.load", "scene.reload", "app.install", "app.upgrade", "permission.snapshot", "permission.set"}
         if operation not in extended:
             return super().invoke(selector, operation, values)
         arguments = validate_operation_arguments(operation, values)
@@ -399,6 +401,25 @@ class IOSAdapter(AppiumAdapter):
                     "fromVersion":upgrade["source"]["version"],"toVersion":upgrade["candidate"]["version"]}:
                 fail("native upgrade requires the exact prepared version pair")
         client, session, state = self.ensure_session(selector)
+        if operation in {"permission.snapshot", "permission.set"}:
+            identity = self.assert_ios_process_identity(selector, client, session, state, target)
+            receipt = client.execute(session, "mobile: overteMicrophonePermission", arguments)
+            observed = native_permission.observation(receipt, identity)
+            if str(receipt["processAfter"]) != identity or receipt["stoppedByOperatingSystem"]:
+                actual = self.native_process(client, session, target)
+                if actual is None or actual["pid"] != receipt["processAfter"] or not actual["foreground"]:
+                    fail("native permission recovery did not restore the observed configured process")
+                # Preserve the failure while allowing the module's finally
+                # block to restore the original OS permission in a fresh session.
+                self.reset_launch_state(selector, state)
+                self.launch_ios_test_build(selector, client, session, state, target, reactivate=True)
+                raise RuntimeError("ASSERTION: iOS microphone permission change restarted the application")
+            self.assert_ios_process_identity(selector, client, session, state, target)
+            if operation == "permission.snapshot":
+                return observed
+            if observed["state"] != arguments["state"]:
+                fail("native microphone switch did not become the requested state")
+            return {"performed": True}
         if upgrade is not None:
             if operation == "app.upgrade":
                 observed = self.probe_snapshot(selector,client,session,state,target)
