@@ -9,6 +9,7 @@ from unittest.mock import Mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from adapters.ios import native_permission
 from adapters.ios.adapter import IOSAdapter
+from contracts import validate_operation_result
 
 
 class NativePermissionTest(unittest.TestCase):
@@ -58,12 +59,39 @@ class NativePermissionTest(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             adapter.invoke("selected","permission.set",{"permissionId":"microphone","state":"denied"})
 
-    def test_process_restart_remains_a_failure_until_physical_recovery_is_qualified(self):
+    def test_unattested_restart_and_snapshot_restart_remain_failures(self):
         adapter,_=self.adapter();self.receipt["processAfter"]=124
         with self.assertRaisesRegex(RuntimeError,"ASSERTION.*restarted"):
             adapter.invoke("selected","permission.snapshot",{"permissionId":"microphone"})
         adapter.reset_launch_state.assert_called_once()
         adapter.launch_ios_test_build.assert_called_once()
+
+    def test_only_observed_settings_termination_with_a_verified_replacement_is_allowed(self):
+        adapter,_=self.adapter()
+        self.receipt.update(processAfter=124,stoppedByOperatingSystem=True)
+        result=adapter.invoke("selected","permission.set",{"permissionId":"microphone","state":"granted"})
+        self.assertEqual({"performed":True,"recovery":{
+            "kind":"ios-settings-process-restart","permissionId":"microphone",
+            "processBefore":123,"processAfter":124,"stoppedByOperatingSystem":True}},result)
+        adapter.launch_ios_test_build.assert_called_once()
+        for actual in (None,{"pid":125,"foreground":True},{"pid":124,"foreground":False}):
+            adapter.native_process.return_value=actual
+            with self.subTest(actual=actual),self.assertRaises(RuntimeError):
+                adapter.invoke("selected","permission.set",{"permissionId":"microphone","state":"granted"})
+        self.receipt["stoppedByOperatingSystem"]=False
+        adapter.native_process.return_value={"pid":124,"foreground":True}
+        with self.assertRaises(RuntimeError):
+            adapter.invoke("selected","permission.set",{"permissionId":"microphone","state":"granted"})
+
+    def test_portable_permission_result_rejects_forged_or_ambiguous_recovery(self):
+        recovery={"kind":"ios-settings-process-restart","permissionId":"microphone",
+                  "processBefore":123,"processAfter":124,"stoppedByOperatingSystem":True}
+        self.assertEqual({"performed":True},validate_operation_result("permission.set",{"performed":True}))
+        for field,value in (("kind","arbitrary-restart"),("permissionId","camera"),
+                            ("processAfter",123),("processAfter",True),("stoppedByOperatingSystem",False)):
+            invalid={**recovery,field:value}
+            with self.subTest(field=field),self.assertRaises(ValueError):
+                validate_operation_result("permission.set",{"performed":True,"recovery":invalid})
 
 
 if __name__ == "__main__":unittest.main()

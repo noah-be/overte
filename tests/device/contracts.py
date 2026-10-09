@@ -409,8 +409,23 @@ def validate_operation_result(operation: str, value: object) -> dict:
         return result(value)
     if not isinstance(value, dict):
         raise ValueError(f"{operation} result must be an object")
+    if operation == "permission.set":
+        validate_performed_result(operation, value)
+        if set(value) not in ({"performed"}, {"performed", "recovery"}):
+            raise ValueError("permission.set has unexpected recovery evidence")
+        if "recovery" in value:
+            recovery = value["recovery"]
+            if (not isinstance(recovery, dict) or set(recovery) != {
+                    "kind", "permissionId", "processBefore", "processAfter", "stoppedByOperatingSystem"}
+                    or recovery["kind"] != "ios-settings-process-restart"
+                    or recovery["permissionId"] != "microphone"
+                    or recovery["stoppedByOperatingSystem"] is not True
+                    or any(type(recovery[k]) is not int or recovery[k] <= 0
+                           for k in ("processBefore", "processAfter"))
+                    or recovery["processBefore"] == recovery["processAfter"]):
+                raise ValueError("permission.set requires exact iOS Settings restart evidence")
+        return value
     if operation in {"audio.mute", "collaboration.edit", "input.fly", "input.jump", "input.look", "input.move", "input.primary",
-                     "permission.set",
                      "tablet.activate", "tablet.close", "tablet.open", "text.dismiss",
                      "text.focus", "text.type", "setting.set"}:
         return validate_performed_result(operation, value)

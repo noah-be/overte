@@ -21,7 +21,7 @@ import uuid
 
 from adapters.appium.adapter import AppiumAdapter
 from adapters.common import fail
-from contracts import validate_operation_arguments
+from contracts import validate_operation_arguments, validate_operation_result
 from adapters.ios import native_ui, native_integration, native_primary, native_upgrade, native_permission
 from adapters.collaboration_observation import actor_receipt, portable_observation
 
@@ -409,10 +409,18 @@ class IOSAdapter(AppiumAdapter):
                 actual = self.native_process(client, session, target)
                 if actual is None or actual["pid"] != receipt["processAfter"] or not actual["foreground"]:
                     fail("native permission recovery did not restore the observed configured process")
-                # Preserve the failure while allowing the module's finally
-                # block to restore the original OS permission in a fresh session.
+                # Actual iPadOS Settings revocation terminates the configured
+                # process. Re-establish a fresh native probe, and disclose that
+                # lifecycle boundary only for an observed permission change.
                 self.reset_launch_state(selector, state)
                 self.launch_ios_test_build(selector, client, session, state, target, reactivate=True)
+                if (operation == "permission.set" and receipt["stoppedByOperatingSystem"]
+                        and str(receipt["processAfter"]) != identity
+                        and observed["state"] == arguments["state"]):
+                    return validate_operation_result("permission.set", {"performed": True,
+                        "recovery": {"kind": "ios-settings-process-restart",
+                            "permissionId": "microphone", "processBefore": receipt["processBefore"],
+                            "processAfter": receipt["processAfter"], "stoppedByOperatingSystem": True}})
                 raise RuntimeError("ASSERTION: iOS microphone permission change restarted the application")
             self.assert_ios_process_identity(selector, client, session, state, target)
             if operation == "permission.snapshot":
