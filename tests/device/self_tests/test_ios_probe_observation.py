@@ -17,7 +17,7 @@ class NativeProbeObservation(unittest.TestCase):
         emit = source[emit_start:emit_end].rsplit("    }", 1)[0]
         harness = r'''
 const assert=require('assert');
-let lastClientCommandId='',lastTextCommandId='',pendingProbeRequestId='',lastProbeResponseId='';
+let lastClientCommandId='owned-action',lastTextCommandId='',pendingProbeRequestId='',lastProbeResponseId='';
 const objectKeysMatch=(v,k)=>Object.keys(v).sort().join('|')===k.sort().join('|');
 const applyVoice=()=>false;
 let probeSnapshot={schemaVersion:2,sampleEpochMs:Date.now(),sampleSequence:7,actualState:'before'};
@@ -43,6 +43,7 @@ for(const invalid of [{...command,commandId:'ios-'+'b'.repeat(32),observation:{}
 }
 const next={...command,commandId:'ios-'+'b'.repeat(32)};
 applyClientCommand(next);emit();
+assert.equal(lastClientCommandId,'owned-action');
 assert.equal(saved['ios-probe-request-result.json'].commandId,next.commandId);
 assert.strictEqual(saved['ios-probe-request-result.json'].observation,probeSnapshot);
 '''.replace("FUNCTION", source[start:end]).replace("EMIT", emit)

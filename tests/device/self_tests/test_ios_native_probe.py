@@ -89,6 +89,18 @@ class RequestBoundProbe(unittest.TestCase):
             self.capture()
         self.assertEqual(1, self.observe.call_count)
 
+    def test_first_launch_wait_is_bounded_without_accepting_a_previous_sample(self):
+        self.client.execute.side_effect = [base64.b64encode(b'null').decode(),
+            base64.b64encode(json.dumps(self.receipt).encode()).decode()]
+        with patch.object(native_probe.time, "monotonic", side_effect=[0, 0, 6]), \
+                patch.object(native_probe.time, "sleep"):
+            self.assertEqual(self.receipt["observation"], native_probe.capture(
+                self.client, "session", self.target, self.observe, timeout_seconds=20))
+        for invalid in (True, 0, 21, 60):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                native_probe.capture(self.client, "session", self.target, self.observe,
+                                     timeout_seconds=invalid)
+
 
 if __name__ == "__main__":
     unittest.main()

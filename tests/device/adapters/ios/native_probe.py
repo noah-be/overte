@@ -22,7 +22,9 @@ def validate(receipt, command_id):
     return AppiumAdapter.validate_probe(document)
 
 
-def capture(client, session, target, observe_process):
+def capture(client, session, target, observe_process, *, timeout_seconds=5):
+    if type(timeout_seconds) is not int or timeout_seconds not in (5, 20):
+        raise ValueError("native probe wait must use the normal or first-launch bound")
     before = observe_process()
     if (not isinstance(before, dict) or type(before.get("pid")) is not int
             or before["pid"] <= 0 or before.get("foregroundRunning") is not True):
@@ -40,7 +42,7 @@ def capture(client, session, target, observe_process):
             raise RuntimeError("owned fixture did not accept the exact native probe request")
     remote = (f"@{target['appId']}:documents/"
               f"{target['testBuild']['resultsDirectory']}/ios-probe-request-result.json")
-    deadline = time.monotonic() + 5
+    deadline = time.monotonic() + timeout_seconds
     while time.monotonic() < deadline:
         encoded = client.execute(session, "mobile: pullFile", {"remotePath": remote})
         try:

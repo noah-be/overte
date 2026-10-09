@@ -723,11 +723,10 @@
     function applyClientCommand(command) {
         if (command && command.schemaVersion === 1
                 && /^ios-[0-9a-f]{32}$/.test(command.commandId)
-                && command.commandId !== lastClientCommandId
                 && command.action === "native-probe-snapshot"
                 && objectKeysMatch(command, ["schemaVersion", "commandId", "action"])) {
+            // Observation must not supersede an in-flight scene/action receipt.
             pendingProbeRequestId = String(command.commandId);
-            lastClientCommandId = String(command.commandId);
             return;
         }
         if (command && command.schemaVersion === 1

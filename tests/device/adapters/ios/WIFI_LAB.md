@@ -241,3 +241,8 @@ configured foreground process is independently checked before and after the
 transfer. Persistent AFC errors still fail. Only absent Android `control:null`
 metadata is omitted from the iOS observation. The periodic portable probe
 continues to serve other adapters.
+
+The initial probe after a controlled client launch uses the existing 20-second
+startup bound; later samples use five seconds. Every accepted sample must still
+meet the unchanged probe freshness contract. Read-only probe requests preserve
+the last action receipt, including the scene loader's delayed spawn correction.
