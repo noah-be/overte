@@ -211,7 +211,7 @@ class Peer:
         # An isolated profile and explicit Pulse stream ownership avoid changing
         # host defaults, existing Overte preferences, or another application's audio.
         args = [str(self.client_path), "--allowMultipleInstances", "--no-updater",
-                "--no-launcher", "--no-login-suggestion", "--display", "Desktop",
+                "--no-launcher", "--no-login-suggestion", "--display=Desktop",
                 "--suppress-settings-reset", "--cache", str(self.root / "cache"),
                 "--defaultScriptsOverride", str(empty),
                 "--testScript", str(script), "--testResultsLocation", str(self.root / "client-results"),
