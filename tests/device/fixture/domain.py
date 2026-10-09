@@ -447,6 +447,16 @@ def main() -> int:
         nonlocal domain_id, generation, stack_state
         if stack_state == "online":
             return
+        # The broker and assignment seed start afresh on each controlled
+        # restart. Reusing persisted entities would retain the previous seed
+        # and create two identically named shared objects. Preserve the domain
+        # identity/configuration while keeping each seed's content isolated.
+        content_runtime = runtime / f"stack-{generation + 1}"
+        content_runtime.mkdir(mode=0o700)
+        for name in ("data", "cache"):
+            (content_runtime / name).mkdir(mode=0o700)
+        environment.update(XDG_DATA_HOME=str(content_runtime / "data"),
+                           XDG_CACHE_HOME=str(content_runtime / "cache"))
         DomainResourceHandler.content_ready.clear()
         DomainResourceHandler.collaboration.reset()
         domain_process = subprocess.Popen(

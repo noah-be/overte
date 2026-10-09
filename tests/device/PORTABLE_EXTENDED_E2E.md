@@ -56,6 +56,12 @@ and requires fresh samples for automatic reconnection to the same domain UUID,
 host, and marker set. A `finally` recovery request restores the owned fixture.
 The random token is omitted from console output and artifacts.
 
+Each controlled stack start uses a fresh private data/cache directory while
+retaining its configuration and pinned domain UUID. The independent actor
+broker and seeded content therefore reset together; persisted shared entities
+from a previous stack cannot accumulate duplicate fixture objects. Previous
+stack data remains available for diagnosis.
+
 ## `audio-controls` and `settings-persistence`
 
 `audio-controls` asks the adapter to toggle the product's native mute control;
