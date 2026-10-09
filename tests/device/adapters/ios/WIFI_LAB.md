@@ -140,6 +140,13 @@ from host contract tests.
 
 ## Domain fixture cleanup
 
+Independent laboratory slots can pass `--voice-peer-resource ipad` to the
+fixture orchestrator. This selects a dedicated PC peer lease while the existing
+runtime still creates a fresh profile, authenticated loopback controller and
+separate transmit/receive Pulse routes for each peer. The iPad Jenkins job must
+use its corresponding dedicated PC resource and distinct scene/domain ports.
+The default shared reservation and same-slot exclusivity remain in force.
+
 Linux fixture processes inherit a fresh private ownership nonce and the exact
 fixture configuration directory. Cleanup includes matching descendants even
 when a process has exited or a child creates a new session. Signals use process

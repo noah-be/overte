@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import stat
@@ -35,7 +36,8 @@ def invoke(state: Path, action: str, **arguments) -> dict:
 
 
 class VoicePeerFixture:
-    def __init__(self, config: Path, domain: str, diagnostics_dir: Path | None = None):
+    def __init__(self, config: Path, domain: str, diagnostics_dir: Path | None = None,
+                 resource_name: str | None = None):
         if sys.platform != "linux":
             raise RuntimeError("the owned PC voice fixture requires Linux")
         metadata = config.lstat()
@@ -43,6 +45,10 @@ class VoicePeerFixture:
                 or stat.S_IMODE(metadata.st_mode) != 0o600):
             raise ValueError("voice peer configuration must be a private current-user file")
         self.config, self.domain = config, domain
+        if resource_name is not None and (not isinstance(resource_name, str)
+                or not re.fullmatch(r"[a-z][a-z0-9-]{0,63}", resource_name)):
+            raise ValueError("independent voice resource must have a bounded stable name")
+        self.resource_name = resource_name
         self.diagnostics_dir = diagnostics_dir
         self.temporary = None
         self.lock = None
@@ -61,7 +67,11 @@ class VoicePeerFixture:
         metadata = lock_root.stat()
         if metadata.st_uid != os.getuid() or stat.S_IMODE(metadata.st_mode) != 0o700:
             raise RuntimeError("voice resource directory must be private and current-user-owned")
-        descriptor = os.open(lock_root / "resource.lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+        # Default callers retain the legacy global lease. An explicitly
+        # provisioned lab slot may run an independent peer: the runtime owns
+        # a fresh profile, controller port and session-specific Pulse routes.
+        filename = "resource.lock" if self.resource_name is None else "resource-" + self.resource_name + ".lock"
+        descriptor = os.open(lock_root / filename, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
         self.lock = os.fdopen(descriptor, "a")
         try:
             fcntl.flock(self.lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
