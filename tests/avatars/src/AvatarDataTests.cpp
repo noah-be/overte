@@ -33,6 +33,7 @@ AvatarSkeletonTrait::UnpackedJointData skeletonJoint(const QString& name, const 
 
 class TestAvatarData : public AvatarData {
 public:
+    using AvatarData::setRawJointData;
     size_t pendingJointCount() const { return _hasNewJointDataVec.size(); }
     void markPendingJoint(size_t joint) { _hasNewJointDataVec.at(joint) = true; }
     bool jointPending(size_t joint) const { return _hasNewJointDataVec.at(joint); }
