@@ -364,6 +364,26 @@ private slots:
             else { checkPacking(mesh); }
         }
     }
+    void bundledDefaultAvatarLoadsAndBakes() {
+        const QString path = QFINDTESTDATA("../../../interface/resources/meshes/mannequin/mannequin.fbx");
+        QVERIFY(!path.isEmpty());
+        QFile file(path);
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        FBXSerializer serializer;
+        auto model = serializer.read(file.readAll(), {}, QUrl::fromLocalFile(path));
+        QVERIFY2(model, "The shipped default avatar must satisfy the production importer contract");
+        QVERIFY(model->hasSkeletonJoints);
+        QVERIFY(model->joints.size() > 0);
+        QVERIFY(model->meshes.size() > 0);
+        QCOMPARE(model->loadErrorCount, 0);
+        baker::Baker bake(model, {}, QUrl::fromLocalFile(path));
+        bake.run();
+        for (const auto& mesh : bake.getHFMModel()->meshes) {
+            QVERIFY(mesh.skinningDataValid);
+            QVERIFY(mesh._mesh);
+            checkPacking(mesh);
+        }
+    }
     void offlineFBXRootAndMalformedCardinality() {
         FBXSerializer serializer;
         auto model = serializer.read(asciiFBX(128), {}, QUrl("file:///offline.fbx"));
