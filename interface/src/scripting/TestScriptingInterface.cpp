@@ -24,6 +24,9 @@
 
 #include "Application.h"
 #include "NetworkingConstants.h"
+#if defined(Q_OS_IOS) && defined(OVERTE_IOS_E2E_TEST_BUILD)
+#include "../IOSTouchUiMetrics.h"
+#endif
 
 #if defined(OVERTE_E2E_VOICE_TESTS)
 #include <AudioClient.h>
@@ -41,6 +44,23 @@ TestScriptingInterface* TestScriptingInterface::getInstance() {
     static TestScriptingInterface sharedInstance;
     return &sharedInstance;
 }
+
+#if defined(Q_OS_IOS) && defined(OVERTE_IOS_E2E_TEST_BUILD)
+QVariantMap TestScriptingInterface::iosNativeUiSnapshot() {
+    if (_testResultsLocation.isEmpty() ||
+            !QCoreApplication::arguments().contains("--testScript")) {
+        return { { "schemaVersion", 1 }, { "valid", false } };
+    }
+    QVariantMap result;
+    if (QThread::currentThread() == qApp->thread()) {
+        result = observeIOSNativeAccessibility();
+    } else {
+        QMetaObject::invokeMethod(qApp, [&] { result = observeIOSNativeAccessibility(); },
+                                  Qt::BlockingQueuedConnection);
+    }
+    return result;
+}
+#endif
 
 #if defined(OVERTE_E2E_VOICE_TESTS)
 QVariantMap TestScriptingInterface::voiceTest(const QVariantMap& command) {

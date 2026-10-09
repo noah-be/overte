@@ -12,6 +12,7 @@
 #include <cstring>
 
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QAccessible>
 #include <QJSEngine>
 #include <QMetaObject>
@@ -833,3 +834,65 @@ void suppressIOSKeyboardAssistant() {
         });
     }
 }
+
+#if defined(OVERTE_IOS_E2E_TEST_BUILD)
+QVariantMap observeIOSNativeAccessibility() {
+    QVariantMap result {
+        { "schemaVersion", 1 }, { "valid", false },
+        { "processId", static_cast<qint64>(NSProcessInfo.processInfo.processIdentifier) },
+        { "sampleEpochMs", QDateTime::currentMSecsSinceEpoch() },
+        { "elements", QVariantList {} }
+    };
+    if (!NSThread.isMainThread) {
+        return result;
+    }
+    UIWindow* window = activeWindow();
+    if (window == nil || CGRectIsEmpty(window.bounds)) {
+        return result;
+    }
+    NSMutableArray<UIView*>* pending = [NSMutableArray arrayWithObject:window];
+    QVariantList elements;
+    int visited { 0 };
+    while (pending.count > 0) {
+        UIView* view = pending.lastObject;
+        [pending removeLastObject];
+        if (++visited > 5000) {
+            return result;
+        }
+        if (view.hidden || view.alpha <= 0.01 || view.accessibilityElementsHidden) {
+            continue;
+        }
+        [pending addObjectsFromArray:view.subviews];
+        NSString* identifier = view.accessibilityIdentifier;
+        // Export only existing owned control identifiers. Never expose user
+        // text, unrelated application views or inferred expected controls.
+        if (![view isKindOfClass:OverteIOSE2EAccessibilityButton.class] ||
+                !view.isAccessibilityElement || identifier == nil ||
+                ![identifier hasPrefix:@"OverteTablet"] || identifier.length > 128) {
+            continue;
+        }
+        const CGRect rawFrame = [view convertRect:view.bounds toView:window];
+        if (!std::isfinite(rawFrame.origin.x) || !std::isfinite(rawFrame.origin.y) ||
+                !std::isfinite(rawFrame.size.width) || !std::isfinite(rawFrame.size.height) ||
+                CGRectIsEmpty(rawFrame) || !CGRectIntersectsRect(rawFrame, window.bounds)) {
+            continue;
+        }
+        const CGRect frame = CGRectIntersection(rawFrame, window.bounds);
+        if (elements.size() >= 128) {
+            return result;
+        }
+        const bool enabled = ![view isKindOfClass:UIControl.class] || ((UIControl*)view).enabled;
+        elements.append(QVariantMap {
+            { "identifier", QString::fromUtf8(identifier.UTF8String) },
+            { "visible", true }, { "enabled", enabled },
+            { "frame", QVariantMap {
+                { "x", frame.origin.x }, { "y", frame.origin.y },
+                { "width", frame.size.width }, { "height", frame.size.height }
+            } }
+        });
+    }
+    result["elements"] = elements;
+    result["valid"] = true;
+    return result;
+}
+#endif

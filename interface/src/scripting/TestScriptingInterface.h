@@ -151,6 +151,10 @@ public slots:
     Q_INVOKABLE QVariantMap voiceTest(const QVariantMap& command);
     Q_INVOKABLE QVariantMap acousticTest(const QVariantMap& command);
 #endif
+#if defined(Q_OS_IOS) && defined(OVERTE_IOS_E2E_TEST_BUILD)
+    // Read actual native accessibility widgets without traversing Qt's AX tree.
+    Q_INVOKABLE QVariantMap iosNativeUiSnapshot();
+#endif
 
     /*@jsdoc
     * Maximizes the window

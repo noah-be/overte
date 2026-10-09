@@ -4,6 +4,10 @@ The adapter talks directly to Appium's W3C HTTP protocol using the Python
 standard library. No proprietary device cloud or language-specific Appium
 client is required.
 
+The [native iPad lab extension](../ios/README.md) adds authenticated process
+operations, receipt-verified client commands, and an optional installed-build
+UIKit observation path. The statements below describe the base Appium path.
+
 Copy `targets.example.json` outside the repository, insert private UDIDs and
 verified control identifiers, protect the file, and export
 `OVERTE_APPIUM_TARGETS=/absolute/private/targets.json`. Capabilities are

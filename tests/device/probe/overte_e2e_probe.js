@@ -1115,6 +1115,9 @@
             }
         }
         sampleSequence += 1;
+        if (typeof Test.iosNativeUiSnapshot === "function") {
+            Test.saveObject(Test.iosNativeUiSnapshot(), "ios-native-ui.json");
+        }
         if (typeof Tablet.touchUiRuntimeMetrics === "object"
                 && Tablet.touchUiRuntimeMetrics !== null) {
             // Independent live UIKit bounds and Qt viewport observations let

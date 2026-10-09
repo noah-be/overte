@@ -96,6 +96,32 @@ class ExtendedIOS(unittest.TestCase):
         self.assertEqual(fixture.set_client_command({**envelope,
                          "action": "set-audio-mute", "muted": True})["muted"], True)
 
+    def test_execution_requires_exact_fresh_versioned_device_receipt(self):
+        self.adapter.assert_ios_process_identity = Mock(return_value="42")
+        @contextmanager
+        def response(request, **unused):
+            value = Mock(status=200)
+            value.read.return_value = request.data
+            yield value
+        for version, age, accepted in ((1, 0, True), (True, 0, False), (1, 6000, False)):
+            self.client.execute.return_value = base64.b64encode(json.dumps({
+                "schemaVersion": version, "commandId": "ios-owned",
+                "sampleEpochMs": 10000 - age
+            }).encode()).decode()
+            with self.subTest(version=version, age=age), \
+                    patch("adapters.ios.adapter.urlopen", response), \
+                    patch("adapters.ios.adapter.uuid.uuid4", return_value=Mock(hex="owned")), \
+                    patch("adapters.ios.adapter.time.time", return_value=10), \
+                    patch("adapters.ios.adapter.time.monotonic", side_effect=[0, 0, 16]), \
+                    patch("adapters.ios.adapter.time.sleep"):
+                if accepted:
+                    self.assertEqual(self.adapter.command("selected", self.client, "owned", self.state,
+                        self.target, "set-audio-mute", muted=True), "ios-owned")
+                else:
+                    with self.assertRaisesRegex(RuntimeError, "execution receipt"):
+                        self.adapter.command("selected", self.client, "owned", self.state,
+                            self.target, "set-audio-mute", muted=True)
+
 
 if __name__ == "__main__":
     unittest.main()

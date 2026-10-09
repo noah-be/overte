@@ -4,6 +4,7 @@
 #pragma once
 
 #include <QObject>
+#include <QVariantMap>
 
 class TabletProxy;
 
@@ -59,3 +60,6 @@ void dismissIOSKeyboard();
 void suppressIOSKeyboardAssistant();
 void updateIOSTabletAccessibilityControls(
     TabletProxy* tablet, const IOSTouchUiMetrics* metrics);
+#if defined(OVERTE_IOS_E2E_TEST_BUILD)
+QVariantMap observeIOSNativeAccessibility();
+#endif

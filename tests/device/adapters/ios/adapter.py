@@ -20,6 +20,7 @@ import uuid
 from adapters.appium.adapter import AppiumAdapter
 from adapters.common import fail
 from contracts import validate_operation_arguments
+from adapters.ios import native_ui
 
 
 class IOSAdapter(AppiumAdapter):
@@ -96,7 +97,7 @@ class IOSAdapter(AppiumAdapter):
                 continue
             if (isinstance(observed, dict) and set(observed) == {
                     "schemaVersion", "commandId", "sampleEpochMs"}
-                    and observed["schemaVersion"] == 1
+                    and type(observed["schemaVersion"]) is int and observed["schemaVersion"] == 1
                     and observed["commandId"] == command_id
                     and type(observed["sampleEpochMs"]) in (int, float)
                     and -1000 <= time.time() * 1000 - observed["sampleEpochMs"] <= 5000):
@@ -109,7 +110,75 @@ class IOSAdapter(AppiumAdapter):
             state.pop(key, None)
         self.save_session(selector, state)
 
+    @staticmethod
+    def native_ui_enabled(target):
+        value = target.get("nativeUiObservation")
+        return (value == {"kind": "uikit-documents", "version": 1}
+                and type(value.get("version")) is int)
+
+    def native_ui_snapshot(self, client, session, target):
+        process = self.native_process(client, session, target)
+        if process is None or not process["foreground"]:
+            fail("native UIKit observation requires the configured foreground process")
+        remote = (f"@{target['appId']}:documents/"
+                  f"{target['testBuild']['resultsDirectory']}/ios-native-ui.json")
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            encoded = client.execute(session, "mobile: pullFile", {"remotePath": remote})
+            try:
+                document = native_ui.validate(json.loads(base64.b64decode(encoded, validate=True)), process["pid"])
+            except (ValueError, UnicodeError):
+                time.sleep(0.1)
+                continue
+            after = self.native_process(client, session, target)
+            if after != process:
+                raise RuntimeError("ASSERTION: native UIKit observation crossed process or foreground identities")
+            return document
+        fail("fresh native UIKit accessibility observation was not available")
+
+    def ios_tablet_observation(self, selector, client, session, state, target):
+        if not self.native_ui_enabled(target):
+            return super().ios_tablet_observation(selector, client, session, state, target)
+        self.assert_ios_process_identity(selector, client, session, state, target)
+        document = self.native_ui_snapshot(client, session, target)
+        return self.parse_ios_tablet_source(native_ui.source(document))
+
+    def click_accessibility(self, client, session, identifier):
+        target = getattr(self, "_native_ui_target", None)
+        if target is None or not self.native_ui_enabled(target):
+            return super().click_accessibility(client, session, identifier)
+        document = self.native_ui_snapshot(client, session, target)
+        matches = [e for e in document["elements"] if e["identifier"] == identifier
+                   and e["visible"] and e["enabled"]]
+        if len(matches) != 1:
+            fail("native UIKit activation requires one observed visible enabled control")
+        frame = matches[0]["frame"]
+        x, y = round(frame["x"] + frame["width"] / 2), round(frame["y"] + frame["height"] / 2)
+        body = {"actions": [{"type": "pointer", "id": "overte-native-widget", "parameters": {"pointerType": "touch"},
+            "actions": [
+                {"type": "pointerMove", "duration": 0, "origin": "viewport", "x": x, "y": y},
+                {"type": "pointerDown", "button": 0}, {"type": "pause", "duration": 80},
+                {"type": "pointerUp", "button": 0}]}]}
+        try:
+            client.call("POST", f"/session/{session}/actions", body)
+        finally:
+            client.call("DELETE", f"/session/{session}/actions")
+
     def invoke(self, selector, operation, values):
+        if operation in {"accessibility.snapshot", "tablet.open", "tablet.close", "tablet.activate", "tablet.snapshot"}:
+            target = self.target(selector)
+            if self.native_ui_enabled(target):
+                self._native_ui_target = target
+                try:
+                    if operation == "accessibility.snapshot":
+                        if values != {}:
+                            fail("native UIKit accessibility observation does not accept arguments")
+                        client, session, state = self.ensure_session(selector)
+                        self.assert_ios_process_identity(selector, client, session, state, target)
+                        return {"source": native_ui.source(self.native_ui_snapshot(client, session, target)), "artifact": None}
+                    return super().invoke(selector, operation, values)
+                finally:
+                    del self._native_ui_target
         extended = self.CLIENT_OPERATIONS | self.NATIVE_OPERATIONS | {"app.process"}
         if operation not in extended:
             return super().invoke(selector, operation, values)

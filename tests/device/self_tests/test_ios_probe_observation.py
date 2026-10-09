@@ -33,6 +33,28 @@ assert.equal(saved['ios-ui-observation.json'],undefined);
 '''.replace("OBSERVE", source[start:end])
         subprocess.run(["node", "-e", harness], check=True, timeout=5)
 
+    @unittest.skipUnless(shutil.which("node"), "probe execution requires Node.js")
+    def test_actual_native_ui_observation_is_exported_without_inference(self):
+        source = (Path(__file__).resolve().parents[1] / "probe/overte_e2e_probe.js").read_text()
+        start = source.index("        sampleSequence += 1;")
+        end = source.index("        orientationHistory.push({", start)
+        harness = r'''
+const assert = require('assert');
+var Tablet = {}, Window = {}, sampleSequence=0, now=Date.now(), lastClientCommandId=null;
+var observation={schemaVersion:1, valid:true, sampleEpochMs:now, processId:42, elements:[]};
+var saved={}, calls=0;
+var Test={iosNativeUiSnapshot:()=>{calls++;return observation;}, saveObject:(value,name)=>{saved[name]=value;}};
+OBSERVE
+assert.equal(calls,1);
+assert.strictEqual(saved['ios-native-ui.json'],observation);
+assert.deepEqual(saved['ios-native-ui.json'].elements,[]);
+delete Test.iosNativeUiSnapshot;
+saved={};
+OBSERVE
+assert.equal(saved['ios-native-ui.json'],undefined);
+'''.replace("OBSERVE", source[start:end])
+        subprocess.run(["node", "-e", harness], check=True, timeout=5)
+
 
 if __name__ == "__main__":
     unittest.main()
