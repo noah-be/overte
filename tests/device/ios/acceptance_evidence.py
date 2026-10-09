@@ -62,6 +62,29 @@ def local_resume(before, after):
             "renderFramesAdvanced": after["render"]["frameCount"] - before["render"]["frameCount"]}
 
 
+def landscape_geometry(document, *, keyboard=None):
+    metrics = document.get("nativeUi", {})
+    fields = ("surfaceWidth", "surfaceHeight", "safeInsetLeft", "safeInsetTop", "safeInsetRight",
+              "safeInsetBottom", "imeInsetBottom", "density", "fontScale")
+    if (not isinstance(metrics, dict) or metrics.get("valid") is not True
+            or not all(number(metrics.get(key)) and metrics[key] >= 0 for key in fields)
+            or metrics["surfaceWidth"] <= metrics["surfaceHeight"] or metrics["surfaceHeight"] <= 0
+            or metrics["density"] <= 0 or metrics["fontScale"] <= 0
+            or metrics["safeInsetLeft"] + metrics["safeInsetRight"] >= metrics["surfaceWidth"]
+            or metrics["safeInsetTop"] + metrics["safeInsetBottom"] >= metrics["surfaceHeight"]
+            or metrics["imeInsetBottom"] > metrics["surfaceHeight"]
+            or type(metrics.get("keyboardVisible")) is not bool
+            or keyboard is not None and metrics["keyboardVisible"] is not keyboard):
+        raise EvidenceError("IOS_ACCEPTANCE_NATIVE_GEOMETRY_INVALID")
+    window = document.get("window", {})
+    if (not number(window.get("width")) or not number(window.get("height"))
+            or not window["width"] > window["height"] > 0
+            or window["width"] > metrics["surfaceWidth"] + 1
+            or window["height"] > metrics["surfaceHeight"] + 1):
+        raise EvidenceError("IOS_ACCEPTANCE_QT_WINDOW_NOT_LANDSCAPE")
+    return {"passed": True, "nativeUi": metrics, "window": window}
+
+
 def stability(rows, *, minimum_seconds=1800):
     if minimum_seconds < 1800:
         raise EvidenceError("IOS_STABILITY_INTERVAL_TOO_SHORT")

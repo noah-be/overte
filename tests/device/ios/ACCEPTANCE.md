@@ -11,6 +11,9 @@ An owning device runner supplies a fresh `OVERTE_ACCEPTANCE_RUN.id` matching
 `output-[0-9a-f]{32}` and launches the installed E2E client with `--testScript`
 and its existing dedicated `--testResultsLocation`. The observer stops after
 70 minutes and releases its renderer handler and timer when its script ends.
+Its `Tablet.touchUiRuntimeMetrics` observations use the existing native UIKit
+publisher: safe insets, surface size, keyboard visibility/occlusion and density
+are observed rather than inferred from a screenshot or a fixture override.
 
 `acceptance_evidence.py` rejects stale or mismatched runs, absent physical
 observations, frozen rendering, replaced local scene identities, restarted

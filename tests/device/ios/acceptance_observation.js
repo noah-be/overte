@@ -21,17 +21,24 @@
             }
             var ids = Entities.findEntities(MyAvatar.position, 10000).map(String).sort();
             if (ids.length > 10000) { throw new Error("acceptance-scene-observation-unbounded"); }
+            var markers = [];
+            ids.forEach(function (id) {
+                var name = String(Entities.getEntityProperties(id, ["name"]).name);
+                if (/^OVERTE_E2E_DOMAIN_(FLOOR|NORTH|EAST|ORIGIN)$/.test(name)) { markers.push(name); }
+            });
             var tablet = Tablet.getTablet("com.highfidelity.interface.tablet.system");
             Test.saveObject({ schemaVersion: 1, runId: run.id, sampleSequence: ++sequence,
                 sampleEpochMs: now, buildVersion: String(About.buildVersion),
                 nativeAudio: native, render: { frameCount: frameCount, lastFrameEpochMs: lastFrame,
                     drawCalls: Number(stats.frameDrawcallCount), triangles: Number(stats.frameTriangleCount) },
                 scene: { protocol: String(location.protocol), connected: Boolean(location.isConnected),
-                    entityIds: ids, entityCount: ids.length },
+                    domainId: String(location.domainID), hostname: String(location.hostname),
+                    entityIds: ids, entityCount: ids.length, domainMarkers: markers.sort() },
                 avatar: { position: vector(MyAvatar.position), feetPosition: vector(MyAvatar.feetPosition),
                     cameraOrientation: vector(Quat.safeEulerAngles(Camera.orientation)) },
                 window: { width: Number(Window.innerWidth), height: Number(Window.innerHeight),
                     hasFocus: Boolean(Window.hasFocus()) },
+                nativeUi: Tablet.touchUiRuntimeMetrics,
                 tablet: { shown: Boolean(tablet.tabletShown || HMD.showTablet) }
             }, "acceptance-observation.json");
             Test.saveObject({ schemaVersion: 1, runId: run.id, observedEpochMs: now,

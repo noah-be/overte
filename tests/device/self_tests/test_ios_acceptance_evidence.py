@@ -11,7 +11,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from ios.acceptance_evidence import EvidenceError, local_resume, observation, stability
+from ios.acceptance_evidence import EvidenceError, landscape_geometry, local_resume, observation, stability
 
 
 class EvidenceTests(unittest.TestCase):
@@ -46,6 +46,26 @@ class EvidenceTests(unittest.TestCase):
         with self.assertRaises(EvidenceError):
             stability(rows)
 
+    def test_requires_real_native_landscape_safe_area_and_keyboard_metrics(self):
+        doc = {"nativeUi": {"valid": True, "surfaceWidth": 1366, "surfaceHeight": 1024,
+                            "safeInsetLeft": 0, "safeInsetTop": 20, "safeInsetRight": 0,
+                            "safeInsetBottom": 0, "imeInsetBottom": 400, "density": 2,
+                            "fontScale": 1, "keyboardVisible": True},
+               "window": {"width": 1366, "height": 1004}}
+        self.assertTrue(landscape_geometry(doc, keyboard=True)["passed"])
+        # A floating keyboard is visible without a full-width bottom inset.
+        doc["nativeUi"]["imeInsetBottom"] = 0
+        self.assertTrue(landscape_geometry(doc, keyboard=True)["passed"])
+        for key, value in (("valid", False), ("surfaceWidth", 700), ("safeInsetTop", 1100),
+                           ("imeInsetBottom", None), ("keyboardVisible", False), ("density", 0)):
+            changed = copy.deepcopy(doc)
+            changed["nativeUi"][key] = value
+            with self.subTest(key=key), self.assertRaises(EvidenceError):
+                landscape_geometry(changed, keyboard=True)
+        doc["window"] = {"width": 700, "height": 1004}
+        with self.assertRaises(EvidenceError):
+            landscape_geometry(doc)
+
     @unittest.skipUnless(shutil.which("node"), "Node is required to execute the actual observer")
     def test_actual_observer_is_read_only_and_binds_native_render_and_run(self):
         script = ROOT / "ios/acceptance_observation.js"
@@ -65,12 +85,14 @@ const context = { OVERTE_ACCEPTANCE_RUN: { id: "output-" + "f".repeat(32) },
     Test: { acousticTest(command) {
         if (command.action !== "status") throw Error("observer changed audio"); return native;
     }, saveObject(value, name) { state.saved[name] = value; } },
-    About: { buildVersion: "fixture" }, Entities: { findEntities() { return ["b", "a"]; } },
+    About: { buildVersion: "fixture" }, Entities: { findEntities() { return ["b", "a"]; },
+        getEntityProperties(id) { return { name: id === "a" ? "OVERTE_E2E_DOMAIN_FLOOR" : "unrelated" }; } },
     MyAvatar: { position: { x: 0, y: 2, z: 0 }, feetPosition: { x: 0, y: 1, z: 0 } },
     Quat: { safeEulerAngles() { return { x: 0, y: 0, z: 0 }; } }, Camera: { orientation: {} },
     Window: { innerWidth: 1366, innerHeight: 1024, hasFocus() { return true; } },
     location: { protocol: "file", isConnected: true },
-    Tablet: { getTablet() { return { tabletShown: false }; } }, HMD: { showTablet: false },
+    Tablet: { touchUiRuntimeMetrics: { valid: true, surfaceWidth: 1366, surfaceHeight: 1024 },
+        getTablet() { return { tabletShown: false }; } }, HMD: { showTablet: false },
     Script: { setInterval(callback) { state.tick = callback; return 1; }, clearInterval(value) {
         if (value !== 1) throw Error("wrong timer cleanup"); state.cleared = true;
     }, scriptEnding: { connect(callback) { state.ending = callback; } },
@@ -94,6 +116,8 @@ process.stdout.write(JSON.stringify({ observed, heartbeat }));
         self.assertTrue(result["heartbeat"]["iosForeground"])
         valid = observation(doc, "output-" + "f" * 32, "fixture", doc["sampleEpochMs"])
         self.assertEqual(valid["scene"]["entityIds"], ["a", "b"])
+        self.assertEqual(valid["scene"]["domainMarkers"], ["OVERTE_E2E_DOMAIN_FLOOR"])
+        self.assertTrue(valid["nativeUi"]["valid"])
         for key, value in (("runId", "old"), ("buildVersion", "other"), ("sampleEpochMs", 1)):
             changed = copy.deepcopy(doc)
             changed[key] = value
