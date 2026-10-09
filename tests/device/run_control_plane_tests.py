@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 from pathlib import Path
 import shutil
@@ -77,11 +78,25 @@ def commands(profile: str, self_test_jobs: int | None = None) -> list[tuple[str,
             "graphics/draw-info-object-index-test.py",
         ):
             checks.append((Path(path).stem, [sys.executable, str(ROOT / "contracts" / path)], False))
+        # Platform declarations bind prepared-host regressions to their owning
+        # product. Shared and Android integration profiles retain portable tests.
+        source_profile = json.loads(
+            (REPOSITORY / "tests/platform-profile.json").read_text())
+        for entry in source_profile["suites"]:
+            if entry["name"] == "phone-e2e-runtime-regressions":
+                expected = "android/phone/tests/phone-e2e-runtime-regressions.py"
+                if (source_profile["platform"] != "android"
+                        or entry["entrypoint"] != expected
+                        or entry["interpreter"] != "python"
+                        or not (REPOSITORY / expected).is_file()):
+                    raise ValueError("invalid Phone prepared-host contract declaration")
+                checks.append(("phone-native-runtime", [sys.executable,
+                               str(REPOSITORY / expected), "--execute"], False))
     else:
         patterns = [
             "test_common_contracts.py", "test_governance_and_frontier.py",
             "test_execution_plan_pipeline.py", "test_harness.py",
-            "test_matrix_evaluator.py",
+            "test_matrix_evaluator.py", "test_voice_peer.py", "test_voice_roundtrip.py",
         ]
         stability = ROOT / "self_tests/test_stability_campaign.py"
         if stability.is_file():

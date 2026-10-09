@@ -221,6 +221,9 @@ def contains_private_identity(value: object, identities: set[str]) -> bool:
 def validate_operation_arguments(operation: str, value: object) -> dict:
     if not isinstance(value, dict):
         raise ValueError("operation arguments must be an object")
+    if operation == "voice.exchange":
+        from voice_contract import command
+        return command(value)
     if operation in {"app.version", "collaboration.snapshot", "render.snapshot",
                      "tablet.snapshot", "text.snapshot"}:
         if value:
@@ -401,6 +404,9 @@ def validate_performed_result(operation: str, value: object) -> dict:
 
 def validate_operation_result(operation: str, value: object) -> dict:
     """Validate portable evidence returned by an adapter operation."""
+    if operation == "voice.exchange":
+        from voice_contract import result
+        return result(value)
     if not isinstance(value, dict):
         raise ValueError(f"{operation} result must be an object")
     if operation in {"audio.mute", "collaboration.edit", "input.fly", "input.jump", "input.look", "input.move", "input.primary",
@@ -532,6 +538,8 @@ def validate_probe_snapshot(value: object) -> dict:
     }
     if "controller" in value:
         root_fields.add("controller")
+    if "control" in value:
+        root_fields.add("control")
     if "interaction" in value:
         root_fields.add("interaction")
     if "peer" in value:
