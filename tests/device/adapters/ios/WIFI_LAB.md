@@ -118,6 +118,26 @@ installation because the operating system can move the app container. No
 uninstall, data reset or fallback to a different bundle is part of this path.
 Installation and upgrade retain bounded 240-second operation deadlines.
 
+## Native microphone permission recovery
+
+The explicit `nativePermission` binding is
+`{"kind": "ios-settings-ui", "permissionId": "microphone"}`. The local
+driver observes the selected installed app's actual switch in system Settings,
+requires unique native accessibility elements and verifies Settings' foreground
+process before input. Audio mute is not a substitute for OS permission.
+
+The physical iPad terminates the client when this permission changes. The
+adapter independently verifies the stopped process and the foreground
+replacement, establishes a fresh client probe and returns the exact
+`ios-settings-process-restart` recovery receipt. The portable module validates
+that its original and replacement identities match that receipt. Unexplained
+restarts, snapshot-triggered restarts, stale observations and an unavailable
+replacement still fail. Platforms that return no recovery receipt retain the
+same-process requirement. The module restores the original permission in its
+cleanup block; its bounded 300-second deadline covers both real Settings
+transitions and restoration. Complete device qualification remains separate
+from host contract tests.
+
 ## Domain fixture cleanup
 
 Linux fixture processes inherit a fresh private ownership nonce and the exact
