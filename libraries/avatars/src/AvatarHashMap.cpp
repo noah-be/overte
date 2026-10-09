@@ -346,6 +346,13 @@ AvatarSharedPointer AvatarHashMap::parseAvatarData(QSharedPointer<ReceivedMessag
 }
 
 void AvatarHashMap::processAvatarIdentityPacket(QSharedPointer<ReceivedMessage> message, SharedNodePointer sendingNode) {
+#if defined(Q_OS_ANDROID)
+    static std::atomic<int> identityTraceBudget { 16 };
+    if (identityTraceBudget.fetch_sub(1) > 0) {
+        qInfo().noquote().nospace() << "OVT_PHONE_LOADING phase=avatar_identity_packet bytes="
+            << message->getMessage().size();
+    }
+#endif
     QDataStream avatarIdentityStream(message->getMessage());
 
     while (!avatarIdentityStream.atEnd()) {
