@@ -87,6 +87,14 @@ int main() {
     expect(floatingKeyboard.keyboardVisible,
         "visible floating keyboard does not require an occluding inset");
 
+    const auto invalidFloatingKeyboard = TouchUiMetrics::fromUntrusted(
+        1000, 800, 0, 0, 0, 20, -1,
+        1.0f, 1.0f, 1.0f, true, false, false, false);
+    expect(invalidFloatingKeyboard.imeInsetBottom == 0,
+        "negative raw IME occlusion is clamped before native layout");
+    expect(!invalidFloatingKeyboard.keyboardVisible,
+        "invalid negative IME evidence cannot claim keyboard visibility");
+
     const auto suppressedKeyboard = TouchUiMetrics::fromUntrusted(
         1000, 800, 0, 0, 0, 20, 300,
         1.0f, 1.0f, 1.0f, false, false, false, false);
