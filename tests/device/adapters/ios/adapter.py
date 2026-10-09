@@ -22,7 +22,7 @@ import uuid
 from adapters.appium.adapter import AppiumAdapter
 from adapters.common import fail
 from contracts import validate_operation_arguments
-from adapters.ios import native_ui, native_integration
+from adapters.ios import native_ui, native_integration, native_primary
 from adapters.collaboration_observation import actor_receipt, portable_observation
 
 
@@ -49,6 +49,8 @@ class IOSAdapter(AppiumAdapter):
             values |= IOSAdapter.CLIENT_OPERATIONS | IOSAdapter.NATIVE_OPERATIONS
             if native_integration.enabled(target):
                 values |= IOSAdapter.INTEGRATION_OPERATIONS
+            if native_primary.enabled(target):
+                values.add("input.primary")
             if IOSAdapter.collaboration_configuration(target) is not None:
                 values |= IOSAdapter.COLLABORATION_OPERATIONS
         return sorted(values)
@@ -338,7 +340,7 @@ class IOSAdapter(AppiumAdapter):
                     return super().invoke(selector, operation, values)
                 finally:
                     del self._native_ui_target
-        extended = self.CLIENT_OPERATIONS | self.NATIVE_OPERATIONS | self.INTEGRATION_OPERATIONS | self.COLLABORATION_OPERATIONS | {"app.process"}
+        extended = self.CLIENT_OPERATIONS | self.NATIVE_OPERATIONS | self.INTEGRATION_OPERATIONS | self.COLLABORATION_OPERATIONS | {"app.process", "input.primary", "scene.load", "scene.reload"}
         if operation not in extended:
             return super().invoke(selector, operation, values)
         arguments = validate_operation_arguments(operation, values)
@@ -356,6 +358,35 @@ class IOSAdapter(AppiumAdapter):
             if parsed.hostname != fixture.hostname:
                 fail("iOS navigation must remain on the owned lab host")
         client, session, state = self.ensure_session(selector)
+        if operation in {"scene.load", "scene.reload"}:
+            url = arguments["url"]
+            self.launch_ios_test_build(selector, client, session, state, target, url)
+            # launch_ios_test_build deliberately preserves an existing process.
+            # Therefore even scene.load must deliver a real scene command;
+            # relaunch validation alone leaves an existing domain unchanged.
+            nonce = self.request_ios_scene_reload(selector, client, session, state, target, url)
+            return {"requested": True, "verification": "fixture-markers", "commandId": nonce}
+        if operation == "input.primary":
+            identity = self.assert_ios_process_identity(selector, client, session, state, target)
+            try:
+                nonce = self.command(selector, client, session, state, target, "primary-view", operation="prepare")
+                remote = f"@{target['appId']}:documents/{target['testBuild']['resultsDirectory']}/ios-primary-observation.json"
+                deadline = time.monotonic() + 10
+                while time.monotonic() < deadline:
+                    self.assert_ios_process_identity(selector, client, session, state, target)
+                    encoded = client.execute(session, "mobile: pullFile", {"remotePath": remote})
+                    try:
+                        point = native_primary.point(json.loads(base64.b64decode(encoded, validate=True)), nonce)
+                    except (ValueError, UnicodeError):
+                        time.sleep(0.1)
+                        continue
+                    self.tap_fractional_point(client, session, point, "independently picked world entity")
+                    if self.assert_ios_process_identity(selector, client, session, state, target) != identity:
+                        fail("world interaction crossed process identities")
+                    return {"performed": True}
+                fail("controlled world entity was not independently picked in the viewport")
+            finally:
+                self.command(selector, client, session, state, target, "primary-view", operation="restore")
         if operation in self.COLLABORATION_OPERATIONS:
             observed = self.collaboration_snapshot(selector, client, session, state, target)
             if operation == "collaboration.snapshot":

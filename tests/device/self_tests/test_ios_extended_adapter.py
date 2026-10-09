@@ -36,6 +36,17 @@ class ExtendedIOS(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             self.adapter.invoke("selected", "app.process", {})
 
+    def test_scene_load_in_an_existing_process_delivers_a_real_command(self):
+        self.target["scene"] = {"kind":"ios-test-build"}
+        self.adapter.launch_ios_test_build = Mock()
+        self.adapter.request_ios_scene_reload = Mock(return_value="exact-device-scene-command")
+        for action in ("scene.load","scene.reload"):
+            result = self.adapter.invoke("selected",action,{"url":"http://lab.example:49121/scene.json"})
+            self.assertEqual(result,{"requested":True,"verification":"fixture-markers",
+                                     "commandId":"exact-device-scene-command"})
+        self.assertEqual(self.adapter.request_ios_scene_reload.call_count,2)
+        self.assertEqual(self.state["processIdentity"],"42")
+
     def test_atomic_native_guard_rejects_background_absent_foreign_and_restarted_process(self):
         live = {"bundleId": self.target["appId"], "pid": 42, "foreground": True}
         for observed in (None, {**live, "foreground": False}, {**live, "pid": 43},

@@ -62,6 +62,15 @@ retain the tested client and runner versions.
 
 ## Native text and rendering integration
 
+The exact installed integer `OverteE2ENativeWorldTapVersion=1` marker enables
+physical primary input. The owned fixture temporarily selects first-person
+camera mode and restores the prior mode afterwards. A read-only observer
+projects the unique controlled entity through the actual camera frustum and
+requires the client ray pick to hit that entity before the host sends a real
+touch. The portable modules independently check the resulting input event and
+entity-script mutation. No fixture command can set an input count or target
+screen coordinate.
+
 The exact installed integer `OverteE2ENativeIntegrationVersion=2` marker enables
 `nativeIntegration: {"kind": "ios-documents", "version": 2}`. Text setup uses a
 dedicated test panel containing the product `Uit.TextField`; only focus, clear,

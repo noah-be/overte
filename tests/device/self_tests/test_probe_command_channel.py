@@ -132,6 +132,17 @@ class ProbeCommandChannelTest(unittest.TestCase):
         )
         self.assertIn("controlledAssetEntity = null", self.source)
 
+    def test_primary_fixture_cannot_inject_a_target_position_or_click_result(self):
+        command = {"schemaVersion": 1, "commandId": "ios-" + "b" * 32,
+                   "action": "primary-view", "operation": "prepare"}
+        self.assertEqual(self.post_command(command), command)
+        for override in ({"entityName":"foreign"},{"pressCount":1},{"point":{"x":0.5,"y":0.5}},
+                         {"operation":"click"},{"schemaVersion":True}):
+            with self.subTest(override=override),self.assertRaises(HTTPError) as error:
+                self.post_command(command | override)
+            self.assertEqual(error.exception.code,400)
+            error.exception.close()
+
     def test_production_scene_command_leaves_domains_and_preserves_same_scene_viewpoint(self):
         start = self.source.index("    function applyClientCommand(command) {")
         end = self.source.index("    function pollClientCommand()", start)
@@ -165,6 +176,30 @@ applyClientCommand({...command,commandId:'scene-3'});
 assert.equal(Window.location,command.url);
 '''.replace("FUNCTION", self.source[start:end])
         subprocess.run(["node", "-e", harness], check=True, timeout=5)
+
+    def test_production_peer_republishes_identity_after_the_mixer_arrives(self):
+        script = (DEVICE_ROOT/"fixture/domain_peer_agent.js").read_text()
+        harness = r'''
+const assert=require('assert');
+let mixer=false, name='', update, receipt;
+const Agent={isListeningToAudioStream:true,isAvatar:false};
+const Avatar={position:{}};
+Object.defineProperty(Avatar,'displayName',{get:()=>name,set:v=>{if(mixer){name=v;}}});
+const Script={update:{connect:fn=>{update=fn;}},scriptEnding:{connect:()=>{}},resolvePath:p=>p};
+function XMLHttpRequest(){this.open=()=>{};this.setRequestHeader=()=>{};
+ this.send=v=>{receipt=JSON.parse(v);};}
+SCRIPT
+assert.equal(name,'');
+mixer=true;
+update(0.5);update(0.6);
+assert.equal(name,'OVERTE_E2E_PEER');
+assert.equal(receipt.avatarEnabled,true);
+assert.equal(receipt.updates,2);
+const previous=Avatar.position.x;
+update(0.6);
+assert.notEqual(Avatar.position.x,previous);
+'''.replace("SCRIPT",script)
+        subprocess.run(["node","-e",harness],check=True,timeout=5)
 
 
 if __name__ == "__main__":

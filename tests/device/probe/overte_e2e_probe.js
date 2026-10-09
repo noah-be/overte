@@ -71,6 +71,8 @@
     var clientCommandUnavailable = false;
     var lastClientCommandId = "";
     var lastTextCommandId = "";
+    var primaryOriginalCameraMode = null;
+    var primaryViewCommandId = "";
     var lastSceneCommandId = "";
     var sampleSequence = 0;
     var orientationHistory = [];
@@ -248,6 +250,38 @@
     }
 
     Entities.mousePressOnEntity.connect(observePrimaryInteraction);
+
+    function primaryViewObservation(now, sequence) {
+        var result = { schemaVersion: 1, sampleEpochMs: now, sampleSequence: sequence,
+            commandId: primaryViewCommandId, valid: false, entityName: "", point: null };
+        if (primaryOriginalCameraMode === null || String(Camera.mode) !== "first person") {
+            return result;
+        }
+        var ids = Entities.findEntities(MyAvatar.position, 1000.0);
+        var candidates = [];
+        ids.forEach(function (id) {
+            var properties = Entities.getEntityProperties(id, ["name", "position"]);
+            if (properties.name === interactionTargetName) { candidates.push({id:id, properties:properties}); }
+        });
+        if (candidates.length !== 1) { return result; }
+        var frustum = Camera.frustum;
+        var view = Mat4.inverse(Mat4.createFromRotAndTrans(frustum.orientation, frustum.position));
+        var cameraPoint = Mat4.transformPoint(view, candidates[0].properties.position);
+        if (cameraPoint.z >= 0) { return result; }
+        var clip = Mat4.transformPoint(frustum.projection, cameraPoint);
+        var u = (Number(clip.x) + 1) / 2;
+        var v = (1 - Number(clip.y)) / 2;
+        if (!isFinite(u) || !isFinite(v) || u <= 0.05 || u >= 0.95 || v <= 0.05 || v >= 0.95) {
+            return result;
+        }
+        var ray = Camera.computePickRay(u * Window.innerWidth, v * Window.innerHeight);
+        var hit = Entities.findRayIntersection(ray);
+        if (!hit.intersects || String(hit.entityID) !== String(candidates[0].id)) { return result; }
+        result.valid = true;
+        result.entityName = String(candidates[0].properties.name);
+        result.point = { x: u, y: v };
+        return result;
+    }
 
     function controllerPose(channel) {
         var pose = Controller.getPoseValue(channel);
@@ -694,6 +728,21 @@
         if (applyVoice(command)) { return; }
         if (!command || command.schemaVersion !== 1 || !command.commandId
                 || command.commandId === lastClientCommandId) {
+            return;
+        }
+        if (command.action === "primary-view"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action", "operation"])
+                && (command.operation === "prepare" || command.operation === "restore")) {
+            if (command.operation === "prepare") {
+                if (primaryOriginalCameraMode === null) { primaryOriginalCameraMode = String(Camera.mode); }
+                Camera.mode = "first person";
+                if (String(Camera.mode) !== "first person") { return; }
+            } else {
+                if (primaryOriginalCameraMode !== null) { Camera.mode = primaryOriginalCameraMode; }
+                primaryOriginalCameraMode = null;
+            }
+            primaryViewCommandId = String(command.commandId);
+            lastClientCommandId = String(command.commandId);
             return;
         }
         if (command.action === "key-hold"
@@ -1149,6 +1198,7 @@
                 soundState.finishReason = soundStopRequested ? "stopped" : "natural";
             }
         }
+        Test.saveObject(primaryViewObservation(now, sampleSequence + 1), "ios-primary-observation.json");
         sampleSequence += 1;
         // Read-only entity replication evidence. Native author UUIDs remain
         // in this app-private document and never enter the portable probe.
@@ -1362,6 +1412,7 @@
     Script.scriptEnding.connect(function () {
         Script.update.disconnect(updateProbe);
         restoreVoice();
+        if (primaryOriginalCameraMode !== null) { Camera.mode = primaryOriginalCameraMode; }
         releaseControlledKey(controlledKeyCommandId);
         Controller.disableMapping(controlledInputMappingName);
         Entities.mousePressOnEntity.disconnect(observePrimaryInteraction);
