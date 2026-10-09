@@ -154,7 +154,10 @@ class OutputTests(unittest.TestCase):
                     self.assertTrue(driver.started)
                     driver.expired = True
                 from contextlib import nullcontext
-                with patch.object(audio_output, "WebDriver", return_value=client), \
+                # Host tests must never contend for the real installation lock
+                # while an authorized physical laboratory run is in progress.
+                with patch.object(audio_output.Path, "home", return_value=root), \
+                        patch.object(audio_output, "WebDriver", return_value=client), \
                         patch.object(audio_output, "serve_script", return_value=nullcontext("http://fixture/script.js")), \
                         patch.object(audio_output, "handle_permission", side_effect=permission), \
                         patch.object(audio_output, "wait_capture_removal", side_effect=expired), \
