@@ -207,7 +207,8 @@ def main() -> int:
                 raise ValueError("voice peer fixture requires the owned domain")
             sys.path.insert(0, str(DEVICE_ROOT))
             from voice_peer.fixture import VoicePeerFixture
-            voice_peer = VoicePeerFixture(args.voice_peer_config, domain["domainUrl"])
+            voice_peer = VoicePeerFixture(args.voice_peer_config, domain["domainUrl"],
+                                         diagnostics_dir=output / "voice-peer-diagnostics")
             values.update(voice_peer.start(lambda: stopping))
         atomic_json(env_path, {"schemaVersion": 1, "environment": values})
         ready = {

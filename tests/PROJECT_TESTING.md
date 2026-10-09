@@ -163,6 +163,7 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `python-test-runner` | `quick` | `python3 tests/run-project-tests.py --suite python-test-runner` |
 | `repository-checks` | `quick` | `python3 tests/run-project-tests.py --suite repository-checks` |
 | `ios-build-qualification` | `quick` | `python3 tests/run-project-tests.py --suite ios-build-qualification` |
+| `ios-native-accessibility` | `quick` | `python3 tests/run-project-tests.py --suite ios-native-accessibility` |
 | `repository-policy` | `quick` | `python3 tests/run-project-tests.py --suite repository-policy` |
 | `policy-consistency` | `quick` | `python3 tests/run-project-tests.py --suite policy-consistency` |
 | `documentation-contracts` | `quick` | `python3 tests/run-project-tests.py --suite documentation-contracts` |

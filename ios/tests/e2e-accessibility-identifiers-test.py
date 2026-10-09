@@ -7,10 +7,22 @@
 from __future__ import annotations
 
 import re
+import subprocess
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def preprocess_native_bridge(source: str, test_build: bool) -> str:
+    # Exercise the real preprocessor guards without requiring UIKit/Qt headers
+    # on the host. No native compilation or device acceptance is claimed here.
+    source = re.sub(r'^\s*#(?:include|import)\s+.*$', '', source, flags=re.MULTILINE)
+    command = ['c++', '-E', '-P', '-x', 'c++', '-']
+    if test_build:
+        command.append('-DOVERTE_IOS_E2E_TEST_BUILD=1')
+    return subprocess.run(command, input=source, capture_output=True,
+                          text=True, check=True, timeout=10).stdout
 
 
 def main() -> None:
@@ -66,7 +78,15 @@ def main() -> None:
     assert "OverteIOSAccessibilityOverlay : UIView" in native_bridge
     assert "pointInside:(CGPoint)point withEvent:(UIEvent*)event" in native_bridge
     assert "return NO;" in native_bridge
-    assert native_bridge.count("#if defined(OVERTE_IOS_E2E_TEST_BUILD)") == 4
+    production_bridge = preprocess_native_bridge(native_bridge, False)
+    test_bridge = preprocess_native_bridge(native_bridge, True)
+    for test_only_symbol in ('OverteIOSE2EAccessibilityButton',
+                             'tabletE2EAccessibilityButton',
+                             'observeIOSNativeAccessibility'):
+        assert test_only_symbol not in production_bridge, test_only_symbol
+        assert test_only_symbol in test_bridge, test_only_symbol
+    assert 'OverteIOSAccessibilityElement' in production_bridge
+    assert 'updateIOSTabletAccessibilityControls' in production_bridge
     assert "OverteIOSE2EAccessibilityButton : UIButton" in native_bridge
     assert "forControlEvents:UIControlEventTouchUpInside" in native_bridge
     assert "overlay.accessibilityElements = @[];" in native_bridge

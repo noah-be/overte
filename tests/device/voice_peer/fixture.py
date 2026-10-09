@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import shutil
 import stat
 import subprocess
 import sys
@@ -22,6 +23,10 @@ def invoke(state: Path, action: str, **arguments) -> dict:
     except subprocess.TimeoutExpired:
         raise RuntimeError("owned PC voice operation timed out") from None
     if completed.returncode not in (0, 1):
+        diagnostic = state / "last-cli-error.private.json"
+        diagnostic.write_text(json.dumps({"exitCode": completed.returncode,
+                                         "stderr": completed.stderr[:16384]}))
+        diagnostic.chmod(0o600)
         raise RuntimeError("owned PC voice operation failed")
     try:
         return json.loads(completed.stdout)
@@ -30,7 +35,7 @@ def invoke(state: Path, action: str, **arguments) -> dict:
 
 
 class VoicePeerFixture:
-    def __init__(self, config: Path, domain: str):
+    def __init__(self, config: Path, domain: str, diagnostics_dir: Path | None = None):
         if sys.platform != "linux":
             raise RuntimeError("the owned PC voice fixture requires Linux")
         metadata = config.lstat()
@@ -38,6 +43,7 @@ class VoicePeerFixture:
                 or stat.S_IMODE(metadata.st_mode) != 0o600):
             raise ValueError("voice peer configuration must be a private current-user file")
         self.config, self.domain = config, domain
+        self.diagnostics_dir = diagnostics_dir
         self.temporary = None
         self.lock = None
         self.state = None
@@ -105,8 +111,33 @@ class VoicePeerFixture:
             self.close()
             raise RuntimeError("the shared PC audio fixture is already reserved") from None
         except BaseException:
-            self.close()
+            try:
+                self.preserve_failure_diagnostics()
+            finally:
+                self.close()
             raise
+
+    def preserve_failure_diagnostics(self) -> None:
+        if self.diagnostics_dir is None or self.state is None:
+            return
+        destination = self.diagnostics_dir
+        destination.mkdir(mode=0o700, parents=True, exist_ok=True)
+        metadata = destination.lstat()
+        if (not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != os.getuid()
+                or stat.S_IMODE(metadata.st_mode) != 0o700):
+            raise RuntimeError("PC voice diagnostics directory must be private")
+        # Retain only bounded diagnostics, never session tokens or generated
+        # authenticated runtime scripts. These files remain local and private.
+        for name in ("supervisor.log", "client.log", "last-cli-error.private.json", "last-command-error.json"):
+            source = self.state / name
+            if source.is_symlink() or not source.is_file():
+                continue
+            descriptor = os.open(destination / name,
+                                 os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+            with source.open("rb") as inp, os.fdopen(descriptor, "wb") as out:
+                inp.seek(max(0, source.stat().st_size - 8 * 1024 * 1024))
+                shutil.copyfileobj(inp, out)
+            (destination / name).chmod(0o600)
 
     def close(self) -> None:
         try:

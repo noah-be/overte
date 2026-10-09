@@ -441,6 +441,39 @@ class VoiceModuleTests(unittest.TestCase):
 
 @unittest.skipUnless(sys.platform == "linux", "PC fixture ownership is Linux-only")
 class OwnedFixtureTests(unittest.TestCase):
+    def test_failed_start_retains_private_diagnostics_and_still_cleans_owned_state(self):
+        with tempfile.TemporaryDirectory() as private:
+            root = Path(private)
+            config = root / "launch.json"
+            config.write_text("{}"); config.chmod(0o600)
+            diagnostics = root / "diagnostics"
+            process = Mock()
+            process.poll.return_value = None
+            owned_state = []
+            def popen(arguments, **_):
+                state = Path(arguments[arguments.index("--state-dir") + 1])
+                owned_state.append(state)
+                (state / "session.json").write_text("private-control-token")
+                (state / "peer-runtime.js").write_text("private-authenticated-script")
+                (state / "client.log").write_text("startup failure evidence")
+                process.terminate.side_effect = lambda: (state / "session.json").unlink()
+                return process
+            with patch.dict(os.environ, {"XDG_STATE_HOME": str(root)}), \
+                    patch("voice_peer.fixture.subprocess.Popen", side_effect=popen), \
+                    patch("voice_peer.fixture.invoke", side_effect=RuntimeError("owned PC voice operation failed")):
+                fixture = VoicePeerFixture(config, "hifi://localhost:40102", diagnostics_dir=diagnostics)
+                with self.assertRaisesRegex(RuntimeError, "owned PC voice operation failed"):
+                    fixture.start()
+                self.assertIsNone(fixture.lock)
+                self.assertFalse(owned_state[0].exists())
+                process.terminate.assert_called_once()
+                process.wait.assert_called_once_with(timeout=25)
+            self.assertEqual((diagnostics / "client.log").read_text(), "startup failure evidence")
+            self.assertEqual(diagnostics.stat().st_mode & 0o777, 0o700)
+            self.assertEqual((diagnostics / "client.log").stat().st_mode & 0o777, 0o600)
+            self.assertFalse((diagnostics / "session.json").exists())
+            self.assertFalse((diagnostics / "peer-runtime.js").exists())
+
     def test_fixture_stops_its_owned_peer_and_releases_global_audio_lock(self):
         with tempfile.TemporaryDirectory() as private:
             root = Path(private)
