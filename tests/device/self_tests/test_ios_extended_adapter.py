@@ -13,6 +13,7 @@ from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from adapters.ios.adapter import IOSAdapter
+from adapters.appium.adapter import AppiumAdapter
 from fixture.serve import FixtureState
 
 
@@ -46,6 +47,27 @@ class ExtendedIOS(unittest.TestCase):
                                      "commandId":"exact-device-scene-command"})
         self.assertEqual(self.adapter.request_ios_scene_reload.call_count,2)
         self.assertEqual(self.state["processIdentity"],"42")
+
+    def test_launch_never_accepts_a_prior_process_document(self):
+        self.state.pop("iosE2ELaunchCompleted")
+        self.adapter.assert_ios_process_identity = Mock(return_value="42")
+        self.adapter.validate_probe = Mock()
+        old = {"sampleEpochMs":9999,"sampleSequence":100}
+        fresh = {"sampleEpochMs":10001,"sampleSequence":1}
+        self.client.execute.side_effect = [base64.b64encode(json.dumps(x).encode()).decode() for x in (old,fresh)]
+        with patch.object(AppiumAdapter,"launch_ios_test_build"), \
+                patch("adapters.ios.adapter.time.time",return_value=10), \
+                patch("adapters.ios.adapter.time.sleep"):
+            self.adapter.launch_ios_test_build("selected",self.client,"owned",self.state,self.target)
+        self.adapter.validate_probe.assert_called_once_with(fresh)
+        self.assertEqual(self.client.execute.call_count,2)
+
+    def test_reactivation_does_not_restart_or_rebase_observation(self):
+        with patch.object(AppiumAdapter,"launch_ios_test_build") as launch:
+            self.adapter.launch_ios_test_build("selected",self.client,"owned",self.state,self.target,
+                                               reactivate=True)
+        self.client.execute.assert_not_called()
+        launch.assert_called_once()
 
     def test_atomic_native_guard_rejects_background_absent_foreign_and_restarted_process(self):
         live = {"bundleId": self.target["appId"], "pid": 42, "foreground": True}

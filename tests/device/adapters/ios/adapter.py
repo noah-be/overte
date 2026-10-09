@@ -137,6 +137,38 @@ class IOSAdapter(AppiumAdapter):
             state.pop(key, None)
         self.save_session(selector, state)
 
+    def launch_ios_test_build(self, selector, client, session, state, target, scene_url=None,
+                              *, reactivate=False):
+        new_process = state.get("iosE2ELaunchCompleted") is not True
+        launched_at = int(time.time() * 1000)
+        super().launch_ios_test_build(selector, client, session, state, target, scene_url,
+                                     reactivate=reactivate)
+        if not new_process:
+            return
+        # Documents survives process restarts. Wait for this launch's first
+        # actual observation instead of returning a previous process's file
+        # while its replacement script is still starting. This bounded wait
+        # applies only at launch; normal stale observations remain failures.
+        identity = self.assert_ios_process_identity(selector, client, session, state, target)
+        remote = f"@{target['appId']}:documents/{target['testBuild']['resultsDirectory']}/overte-probe.json"
+        deadline = time.monotonic() + 20
+        while time.monotonic() < deadline:
+            if self.assert_ios_process_identity(selector, client, session, state, target) != identity:
+                fail("first iOS observation crossed launch process identities")
+            encoded = client.execute(session, "mobile: pullFile", {"remotePath": remote})
+            try:
+                observed = json.loads(base64.b64decode(encoded, validate=True))
+            except (ValueError, UnicodeError):
+                time.sleep(0.1)
+                continue
+            epoch = observed.get("sampleEpochMs") if isinstance(observed, dict) else None
+            if type(epoch) is int and epoch >= launched_at:
+                self.validate_probe(observed)
+                self.assert_ios_process_identity(selector, client, session, state, target)
+                return
+            time.sleep(0.1)
+        fail("this iOS launch did not produce a fresh first probe observation")
+
     @staticmethod
     def native_ui_enabled(target):
         value = target.get("nativeUiObservation")
