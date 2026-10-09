@@ -8,6 +8,30 @@ import unittest
 
 
 class NativeProbeObservation(unittest.TestCase):
+    def test_production_domain_observation_distinguishes_loaded_http_scenes_from_live_domains(self):
+        source = (Path(__file__).resolve().parents[1] / "probe/overte_e2e_probe.js").read_text()
+        start = source.index("            domain: {") + len("            domain: ")
+        end = source.index("            input: effectiveInputState(),",start)
+        expression = source[start:end].strip().rstrip(",")
+        harness = r'''
+const assert=require('assert');
+const location={isConnected:true,hostname:'actual-host',domainID:'actual-id',protocol:'hifi'};
+const observe=()=>EXPRESSION;
+assert.equal(observe().connected,true);
+assert.equal(observe().serverless,false);
+for (const protocol of ['file','http','https']) {
+ location.protocol=protocol;
+ const observed=observe();
+ assert.equal(observed.connected,false);
+ assert.equal(observed.serverless,true);
+ assert.equal(observed.hostname,'actual-host');
+ assert.equal(observed.id,'actual-id');
+}
+location.protocol='hifi';location.isConnected=false;
+assert.equal(observe().connected,false);
+'''.replace("EXPRESSION", "(" + expression + ")")
+        subprocess.run(["node","-e",harness],check=True,timeout=5)
+
     @unittest.skipUnless(shutil.which("node"), "probe execution requires Node.js")
     def test_real_observation_emits_geometry_with_product_branding(self):
         source = (Path(__file__).resolve().parents[1] / "probe/overte_e2e_probe.js").read_text()

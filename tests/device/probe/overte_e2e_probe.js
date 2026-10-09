@@ -1256,14 +1256,16 @@
                 lastCommandId: lastAndroidControlCommandId
             } : null,
             domain: {
-                // A file-backed serverless scene can report location.isConnected
-                // even though no domain server or domain UUID exists.
+                // File and HTTP(S) serverless scenes report isConnected when
+                // their scene is loaded, without a domain server connection.
                 connected: Boolean(location.isConnected)
-                    && String(location.protocol) !== "file",
+                    && String(location.protocol) !== "file"
+                    && String(location.protocol) !== "http"
+                    && String(location.protocol) !== "https",
                 hostname: String(location.hostname),
                 id: String(location.domainID),
                 protocol: String(location.protocol),
-                serverless: String(location.protocol) === "file"
+                serverless: /^(file|http|https)$/.test(String(location.protocol))
             },
             input: effectiveInputState(),
             audio: {
