@@ -1115,7 +1115,8 @@
             }
         }
         sampleSequence += 1;
-        if (String(About.platform).toLowerCase() === "ios") {
+        if (typeof Tablet.touchUiRuntimeMetrics === "object"
+                && Tablet.touchUiRuntimeMetrics !== null) {
             // Independent live UIKit bounds and Qt viewport observations let
             // the host validate real screen-coordinate HID input without
             // asking XCTest to traverse the Qt accessibility window tree.
