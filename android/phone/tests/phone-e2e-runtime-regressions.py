@@ -10,6 +10,7 @@ CHECKS = (
     "android/phone/tests/phone-test-inventory-test.py",
     "android/phone/tests/test_phone_ime.py",
     "android/phone/tests/phone-apk-provenance-test.py",
+    "android/phone/tests/test_phone_voice_signal.py",
     "tests/device/contracts/world-entry/test_phone_feet_alignment.py",
     "tests/device/contracts/world-entry/test_phone_pad_projection.py",
     "tests/device/contracts/tablet/test_phone_settings_click.py",
