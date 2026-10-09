@@ -31,6 +31,7 @@ python3 "$script_dir/e2e-test-build-contract-test.py"
 python3 "$script_dir/e2e-accessibility-identifiers-test.py"
 if pkg-config --exists Qt6Core; then
     python3 "$script_dir/native-crash-test.py"
+    python3 "$script_dir/log-console-backpressure-test.py"
 else
     echo "SKIP executable native crash hook test: host Qt6Core unavailable"
 fi

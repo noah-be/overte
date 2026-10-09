@@ -142,6 +142,21 @@ installation because the operating system can move the app container. No
 uninstall, data reset or fallback to a different bundle is part of this path.
 Installation and upgrade retain bounded 240-second operation deadlines.
 
+## Native console backpressure
+
+Repeated-message logging uses Apple's native unified logging transport on iOS,
+with the same closed diagnostic sanitizer as the Qt message handler. Dynamic
+payload and context do not reach the public OS sink. The formatted return value
+for callers remains unchanged. This avoids a developer stdout pipe blocking
+the shared log mutex and the main-thread flush timer during a scene transition.
+See [Apple's logging API](https://developer.apple.com/documentation/os/os_log_with_type?language=objc).
+
+The host regression compiles the actual LogHandler and Qt metadata, fills a
+real stdout pipe and requires both its writer and Qt timer to progress. Replacing
+the native transport with the old stdout branch reproduces the stall. Only the
+Apple transport boundary is substituted; this host proof does not establish
+physical-device qualification.
+
 ## Native crash recovery binding
 
 Some device developer protocols reject SIGABRT with `Unsupported signal 6`.
