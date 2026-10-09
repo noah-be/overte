@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 from pathlib import Path
 import shutil
@@ -36,12 +37,6 @@ def commands(profile: str, self_test_jobs: int | None = None) -> list[tuple[str,
         ("fixtures", [sys.executable, str(ROOT / "fixture/orchestrate.py"), "--check"], False),
     ]
     if profile == "full":
-        checks.append(("phone-test-inventory", [sys.executable,
-                       "android/phone/tests/phone-test-inventory-test.py", str(REPOSITORY)], False))
-        checks.append(("phone-ime", [sys.executable,
-                       "android/phone/tests/test_phone_ime.py"], False))
-        checks.append(("phone-apk-provenance", [sys.executable,
-                       "android/phone/tests/phone-apk-provenance-test.py"], False))
         # Isolated validation dependencies are pinned in tests/requirements-host.txt.
         # These tests also exercise their CLIs inside Linux network namespaces.
         checks.append((
@@ -58,8 +53,6 @@ def commands(profile: str, self_test_jobs: int | None = None) -> list[tuple[str,
             ("phone-voice-buffer", "audio/test_phone_voice_buffer.py"),
             ("phone-spawn-gate", "world-entry/test_phone_spawn_gate.py"),
             ("remote-avatar-keyframes", "world-entry/test_remote_avatar_keyframes.py"),
-            ("phone-feet-alignment", "world-entry/test_phone_feet_alignment.py"),
-            ("phone-pad-projection", "world-entry/test_phone_pad_projection.py"),
             ("joint-pending-flags", "world-entry/test_joint_pending_flags.py"),
         ):
             checks.append((name, [sys.executable, str(ROOT / "contracts" / path)], False))
@@ -74,20 +67,31 @@ def commands(profile: str, self_test_jobs: int | None = None) -> list[tuple[str,
             "dependency/test_cache.py",
             "tablet/test_tablet_qml.py",
             "tablet/test_tablet_close.py",
-            "tablet/test_phone_settings_click.py",
             "lifecycle/test_domain_list_history.py",
             "lifecycle/test_domain_list_receiver.py",
             "lifecycle/test_v8_wrapper_teardown.py",
             "lifecycle/test_qml_wrapper_thread.py",
             "lifecycle/test_qml_property_dispatch.py",
-            "lifecycle/test_phone_native_startup.py",
-            "test_phone_accessibility_tree.py",
             "graphics/entity-change-thread-test.py",
             "graphics/image-decode-budget-test.py",
             "graphics/image-decode-qt-codec-test.py",
             "graphics/draw-info-object-index-test.py",
         ):
             checks.append((Path(path).stem, [sys.executable, str(ROOT / "contracts" / path)], False))
+        # Platform declarations bind prepared-host regressions to their owning
+        # product. Shared and Android integration profiles retain portable tests.
+        source_profile = json.loads(
+            (REPOSITORY / "tests/platform-profile.json").read_text())
+        for entry in source_profile["suites"]:
+            if entry["name"] == "phone-e2e-runtime-regressions":
+                expected = "android/phone/tests/phone-e2e-runtime-regressions.py"
+                if (source_profile["platform"] != "android"
+                        or entry["entrypoint"] != expected
+                        or entry["interpreter"] != "python"
+                        or not (REPOSITORY / expected).is_file()):
+                    raise ValueError("invalid Phone prepared-host contract declaration")
+                checks.append(("phone-native-runtime", [sys.executable,
+                               str(REPOSITORY / expected), "--execute"], False))
     else:
         patterns = [
             "test_common_contracts.py", "test_governance_and_frontier.py",

@@ -26,6 +26,7 @@ sourceSets {
         java {
             srcDirs phoneJava, interfaceJava, picoJava, questJava, qtJava, sharedRedactionJava
             include 'org/overte/phone/PhoneInterfaceActivity.java'
+            include 'org/overte/phone/PhoneAccessibilityBridge.java'
             include 'org/overte/security/SafeDiagnostics.java'
             include 'org/overte/phone/SecureAccountStore.java'
             include 'org/overte/phone/RedactingDiagnostics.java'

@@ -51,6 +51,11 @@
       "name": "phone-editor-teardown",
       "entrypoint": "android/phone/tests/test_phone_editor_teardown.py",
       "interpreter": "python"
+    },
+    {
+      "name": "phone-e2e-runtime-regressions",
+      "entrypoint": "android/phone/tests/phone-e2e-runtime-regressions.py",
+      "interpreter": "python"
     }
   ]
 }

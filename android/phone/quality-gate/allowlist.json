@@ -19,16 +19,16 @@
     {
       "rule": "gitleaks-generic-api-key",
       "path": "android/phone/fdroid/manifests/recipe-source.lock.json",
-      "sha256": "719be1b805da9ef4e887f03d083355884fc96a0a513ac022c543452a87e5530a",
-      "reason": "The previously reviewed hit is a SHA-256 source-file digest in a source-closure path-to-digest map, not a credential. Re-reviewed 2026-09-25: the manifest changes only three SHA-256 bindings for the Phone F-Droid target profile, release Gradle file and dependency build script. Each new digest matches its reviewed source file; all other fields are unchanged and no credential or source URL was added. Re-review if the file changes.",
+      "sha256": "46044f9b676266b7a71ff6b8ee62159292cf86ce498047b2a7ce8dc847578759",
+      "reason": "Reviewed 2026-10-09: this source-closure digest map changes only the SHA-256 bindings for Phone Gradle and CMake files. Both new 64-digit hexadecimal values match the actual source files. All other fields, paths and Discord-related digests are unchanged; the Discord bindings still match their source files. No credential, URL or authentication material was added. The reported matches are source-file digests, not API keys or Discord tokens. This review is bound to the complete manifest digest; any further file change requires renewed review.",
       "owner": "Android quality gate qualification review",
       "expires": "2026-12-18"
     },
     {
       "rule": "gitleaks-discord-api-token",
       "path": "android/phone/fdroid/manifests/recipe-source.lock.json",
-      "sha256": "719be1b805da9ef4e887f03d083355884fc96a0a513ac022c543452a87e5530a",
-      "reason": "Both previously reviewed hits are SHA-256 values for discord-rpc source paths in a source-closure digest map, not Discord authentication tokens. Re-reviewed 2026-09-25: both Discord-related digests are unchanged and still match their source files. The manifest changes only three unrelated Phone profile/build SHA-256 bindings; no authentication material was added. Re-review if the file changes.",
+      "sha256": "46044f9b676266b7a71ff6b8ee62159292cf86ce498047b2a7ce8dc847578759",
+      "reason": "Reviewed 2026-10-09: this source-closure digest map changes only the SHA-256 bindings for Phone Gradle and CMake files. Both new 64-digit hexadecimal values match the actual source files. All other fields, paths and Discord-related digests are unchanged; the Discord bindings still match their source files. No credential, URL or authentication material was added. The reported matches are source-file digests, not API keys or Discord tokens. This review is bound to the complete manifest digest; any further file change requires renewed review.",
       "owner": "Android quality gate qualification review",
       "expires": "2026-12-18"
     },

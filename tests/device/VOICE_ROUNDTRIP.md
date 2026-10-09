@@ -17,7 +17,7 @@ does not advertise the capability for Pico or iOS targets.
 ## Dedicated debug build
 
 First prepare the prerequisites and verified 16 KiB dependencies in the
-[Phone build guide](../../android/phone/docs/BUILD.md). From `android/phone`,
+[Phone build guide](https://github.com/noah-be/overte/blob/android-phone/android/phone/docs/BUILD.md). From `android/phone`,
 with a JDK from 17 through 21 selected, build:
 
 ```bash
