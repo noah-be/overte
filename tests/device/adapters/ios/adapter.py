@@ -67,6 +67,21 @@ class IOSAdapter(AppiumAdapter):
         self.save_session(selector, state)
         return {"running": True, "identity": identity}
 
+    def assert_ios_process_identity(self, selector, client, session, state, target):
+        # One fresh DVT observation verifies bundle, executable, PID and
+        # foreground state together. No process facts are cached between calls.
+        process = self.native_process(client, session, target)
+        if process is None or process["foreground"] is not True:
+            raise RuntimeError("ASSERTION: iOS application is not foregrounded")
+        identity = str(process["pid"])
+        expected = state.get("processIdentity")
+        if expected is not None and expected != identity:
+            raise RuntimeError("ASSERTION: iOS application process restarted during the E2E sequence")
+        if expected is None:
+            state["processIdentity"] = identity
+            self.save_session(selector, state)
+        return identity
+
     def command(self, selector, client, session, state, target, action, **arguments):
         identity = self.assert_ios_process_identity(selector, client, session, state, target)
         command_id = "ios-" + uuid.uuid4().hex

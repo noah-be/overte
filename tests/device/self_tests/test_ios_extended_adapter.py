@@ -36,6 +36,23 @@ class ExtendedIOS(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             self.adapter.invoke("selected", "app.process", {})
 
+    def test_atomic_native_guard_rejects_background_absent_foreign_and_restarted_process(self):
+        live = {"bundleId": self.target["appId"], "pid": 42, "foreground": True}
+        for observed in (None, {**live, "foreground": False}, {**live, "pid": 43},
+                         {**live, "bundleId": "org.example.foreign"}):
+            self.client.execute.return_value = observed
+            with self.subTest(observed=observed), self.assertRaises(RuntimeError):
+                self.adapter.assert_ios_process_identity("selected", self.client, "owned", self.state, self.target)
+
+    def test_atomic_native_guard_observes_live_identity_again_on_every_call(self):
+        live = {"bundleId": self.target["appId"], "pid": 42, "foreground": True}
+        self.client.execute.side_effect = [live, {**live, "pid": 43}]
+        self.assertEqual(self.adapter.assert_ios_process_identity(
+            "selected", self.client, "owned", self.state, self.target), "42")
+        with self.assertRaisesRegex(RuntimeError, "process restarted"):
+            self.adapter.assert_ios_process_identity("selected", self.client, "owned", self.state, self.target)
+        self.assertEqual(self.client.execute.call_count, 2)
+
     def test_background_process_remains_observable(self):
         self.client.execute.return_value = {"bundleId": self.target["appId"], "pid": 42,
                                             "foreground": False}
