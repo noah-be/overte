@@ -39,7 +39,7 @@ Item {
                     (navigation.width / navigation.contentScale - 40) / 3))
                 height: navigation.implicitHeight / navigation.contentScale
                 text: modelData.label
-                font.pixelSize: Math.round(16 * metrics.textScale)
+                fontSize: Math.round(16 * metrics.textScale)
                 Accessible.name: modelData.accessible
                 androidClickAction: activate
                 onClicked: { if (!usesAndroidClickAction) { activate() } }
