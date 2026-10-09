@@ -97,3 +97,33 @@ color and revision. The host joins that private observation to the independent
 actor's exact receipt and current connected domain before exporting portable
 results. Native author UUIDs remain outside published probe/artifact data.
 The domain keeps its UUID across a controlled offline/recovery transition.
+
+## Prepared native upgrade pair
+
+An explicitly prepared private `nativeUpgrade` contract binds the configured
+bundle and signing team to two signed device IPAs. Each role (`source` and
+`candidate`) records an absolute owned file path, actual SHA-256, source revision
+and independently observed client version. All four artifact fields must differ.
+The local reviewed signer verifies the signature; the native installation
+service independently accepts or rejects the package. Structural archive
+checks alone do not establish signature validity or installed-byte identity.
+
+The adapter rejects foreign paths and version pairs before opening a device
+session. It transfers freshly verified package bytes only while the configured
+app is stopped. Installation must acknowledge the exact prepared digest, and
+the upgraded process must independently report the candidate version. The
+portable module checks that its changed persisted setting survived the upgrade.
+The driver refreshes the actual executable path and Documents service after
+installation because the operating system can move the app container. No
+uninstall, data reset or fallback to a different bundle is part of this path.
+Installation and upgrade retain bounded 240-second operation deadlines.
+
+## Domain fixture cleanup
+
+Linux fixture processes inherit a fresh private ownership nonce and the exact
+fixture configuration directory. Cleanup includes matching descendants even
+when a process has exited or a child creates a new session. Signals use process
+descriptors and recheck ownership before delivery to prevent PID reuse from
+targeting an unrelated process. Surviving owned descendants fail cleanup rather
+than being hidden by successful parent-process termination. Other hosts retain
+their existing process-group cleanup.

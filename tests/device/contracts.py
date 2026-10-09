@@ -600,8 +600,9 @@ def validate_probe_snapshot(value: object) -> dict:
         raise ValueError("probe domain requires connection, identity and protocol state")
     if domain["connected"] and (not domain["hostname"] or not domain["id"]):
         raise ValueError("connected probe domain requires hostname and id")
-    if domain["serverless"] and domain["protocol"] != "file":
-        raise ValueError("serverless probe domain requires file protocol")
+    if domain["serverless"] and (domain["protocol"] not in {"file", "http", "https"}
+                                 or domain["connected"]):
+        raise ValueError("serverless probe requires a file or HTTP(S) scene without a domain connection")
 
     input_state = value["input"]
     _require_exact_fields(

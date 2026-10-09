@@ -31,7 +31,9 @@ def load_command(manifest_path: Path) -> list[str]:
 def invoke(manifest: Path, target: str, operation: str,
            arguments: dict[str, object] | None = None) -> object:
     command = load_command(manifest)
-    timeout = 240 if operation == "app.install" else 60
+    # Both operations can transfer a complete native device package. Their
+    # portable module retains its separate total deadline and all assertions.
+    timeout = 240 if operation in {"app.install", "app.upgrade"} else 60
     adapter_environment = os.environ.copy()
     # Product expectations belong exclusively to the shared assertion module.
     # An adapter must report observed UI and must never receive the policy path.

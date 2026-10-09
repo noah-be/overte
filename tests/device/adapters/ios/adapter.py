@@ -22,7 +22,7 @@ import uuid
 from adapters.appium.adapter import AppiumAdapter
 from adapters.common import fail
 from contracts import validate_operation_arguments
-from adapters.ios import native_ui, native_integration, native_primary
+from adapters.ios import native_ui, native_integration, native_primary, native_upgrade
 from adapters.collaboration_observation import actor_receipt, portable_observation
 
 
@@ -51,6 +51,8 @@ class IOSAdapter(AppiumAdapter):
                 values |= IOSAdapter.INTEGRATION_OPERATIONS
             if native_primary.enabled(target):
                 values.add("input.primary")
+            if native_upgrade.configuration(target) is not None:
+                values |= {"app.install", "app.upgrade"}
             if IOSAdapter.collaboration_configuration(target) is not None:
                 values |= IOSAdapter.COLLABORATION_OPERATIONS
         return sorted(values)
@@ -372,7 +374,7 @@ class IOSAdapter(AppiumAdapter):
                     return super().invoke(selector, operation, values)
                 finally:
                     del self._native_ui_target
-        extended = self.CLIENT_OPERATIONS | self.NATIVE_OPERATIONS | self.INTEGRATION_OPERATIONS | self.COLLABORATION_OPERATIONS | {"app.process", "input.primary", "scene.load", "scene.reload"}
+        extended = self.CLIENT_OPERATIONS | self.NATIVE_OPERATIONS | self.INTEGRATION_OPERATIONS | self.COLLABORATION_OPERATIONS | {"app.process", "input.primary", "scene.load", "scene.reload", "app.install", "app.upgrade"}
         if operation not in extended:
             return super().invoke(selector, operation, values)
         arguments = validate_operation_arguments(operation, values)
@@ -389,7 +391,34 @@ class IOSAdapter(AppiumAdapter):
             fixture = urlsplit(target["testBuild"]["fixtureOrigin"])
             if parsed.hostname != fixture.hostname:
                 fail("iOS navigation must remain on the owned lab host")
+        upgrade = native_upgrade.configuration(target) if operation in {"app.install", "app.upgrade"} else None
+        if upgrade is not None:
+            if operation == "app.install" and arguments["path"] != upgrade["source"]["path"]:
+                fail("native install requires the exact prepared source artifact")
+            if operation == "app.upgrade" and arguments != {
+                    "fromVersion":upgrade["source"]["version"],"toVersion":upgrade["candidate"]["version"]}:
+                fail("native upgrade requires the exact prepared version pair")
         client, session, state = self.ensure_session(selector)
+        if upgrade is not None:
+            if operation == "app.upgrade":
+                observed = self.probe_snapshot(selector,client,session,state,target)
+                if observed["build"]["version"] != arguments["fromVersion"]:
+                    fail("native upgrade did not start in the independently observed source version")
+                client.execute(session,"mobile: terminateApp",{"bundleId":target["appId"]})
+            if self.native_process(client,session,target) is not None:
+                fail("native installation requires the configured application process to be stopped")
+            role = "source" if operation == "app.install" else "candidate"
+            receipt = client.execute(session,"mobile: overteInstallArtifact",{"role":role})
+            if receipt != {"installed":True,"sha256":upgrade[role]["sha256"]}:
+                fail("native installation service did not acknowledge the exact prepared package")
+            self.reset_launch_state(selector,state)
+            if operation == "app.install":
+                return {"installed":True}
+            self.launch_ios_test_build(selector,client,session,state,target,reactivate=True)
+            actual = self.probe_snapshot(selector,client,session,state,target)
+            if actual["build"]["version"] != arguments["toVersion"]:
+                fail("native installed candidate did not report the requested version")
+            return {"applied":True}
         if operation in {"scene.load", "scene.reload"}:
             url = arguments["url"]
             self.launch_ios_test_build(selector, client, session, state, target, url)

@@ -20,6 +20,7 @@ from urllib.request import urlopen
 import uuid
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from fixture.collaboration_broker import CollaborationBroker
+from fixture.owned_processes import OwnedProcesses
 
 
 ROOT = Path(__file__).resolve().parent
@@ -423,6 +424,7 @@ def main() -> int:
         "HIFI_DOMAIN_SERVER_HTTP_PORT": str(args.http_port),
         "OVERTE_DOMAIN_SERVER_WS_PORT": str(args.domain_port),
     })
+    owned_processes = OwnedProcesses(environment)
 
     domain_log = (output / "domain-server.log").open("w", encoding="utf-8")
     assignment_log = (output / "assignment-client.log").open("w", encoding="utf-8")
@@ -506,6 +508,7 @@ def main() -> int:
         for process in reversed(assignment_processes):
             stop_process(process)
         stop_process(domain_process)
+        owned_processes.stop()
         assignment_agent_processes = []
         assignment_processes = []
         domain_process = None

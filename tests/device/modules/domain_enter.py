@@ -11,7 +11,8 @@ def main() -> None:
     session = OverteSession()
     # Modules may follow voice or collaboration checks which already entered
     # this domain. Observe an actual serverless departure before testing entry.
-    session.load_controlled_scene()
+    if session.snapshot("domain-entry-initial.json")["domain"]["connected"]:
+        session.load_controlled_scene()
     snapshot, samples = session.enter_controlled_domain()
     print(f"Connected to controlled domain {snapshot['domain']['hostname']} with "
           f"{snapshot['scene']['domainMarkerCount']} markers across {len(samples)} stable samples.")

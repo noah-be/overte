@@ -67,11 +67,23 @@ class CoreSequenceTest(unittest.TestCase):
         self.assertIn('&& String(location.protocol) !== "file"', probe)
         scene_load = probe.split('command.action === "scene-load"', 1)[1].split(
             'command.action === "navigate"', 1)[0]
-        self.assertEqual(0, scene_load.count("Window.location = command.url"))
+        self.assertEqual(1, scene_load.count("Window.location = command.url"))
+        self.assertIn("if (Boolean(location.isConnected)",scene_load)
         self.assertEqual(1, scene_load.count("Window.location = scenePath"))
         self.assertIn("spawnLocationObserved: avatarAtSpawn", probe)
         self.assertIn("return Boolean(tablet.tabletShown || HMD.showTablet)", probe)
         self.assertIn('(name === "tablet" || !controlledTabletOpen())', probe)
+
+    def test_http_serverless_protocol_is_valid_without_a_domain_connection(self):
+        for protocol in ("file","http","https"):
+            snapshot=self.snapshot();snapshot['domain'].update(protocol=protocol,connected=False,serverless=True)
+            self.assertIs(validate_probe_snapshot(snapshot),snapshot)
+            snapshot['domain'].update(connected=True,hostname='actual-host',id='actual-domain')
+            with self.assertRaisesRegex(ValueError,'serverless'):
+                validate_probe_snapshot(snapshot)
+        snapshot=self.snapshot();snapshot['domain']['protocol']='hifi'
+        with self.assertRaisesRegex(ValueError,'serverless'):
+            validate_probe_snapshot(snapshot)
 
     def test_probe_normalizes_initial_and_controlled_reload_flight_state(self):
         probe = (DEVICE_ROOT / "probe/overte_e2e_probe.js").read_text(
