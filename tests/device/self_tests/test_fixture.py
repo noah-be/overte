@@ -10,7 +10,7 @@ import sys
 import tempfile
 import time
 import unittest
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 
 SERVER = Path(__file__).resolve().parents[1] / "fixture" / "serve.py"
@@ -38,7 +38,17 @@ class FixtureTest(unittest.TestCase):
                 with urlopen(metadata["baseUrl"] + "/healthz", timeout=2) as response:
                     self.assertTrue(json.load(response)["ready"])
                 with urlopen(metadata["sceneUrl"], timeout=2) as response:
-                    self.assertEqual(6, len(json.load(response)["Entities"]))
+                    entities = json.load(response)["Entities"]
+                    self.assertEqual(6, len(entities))
+                    target = next(e for e in entities if e["name"] == "OVERTE_E2E_INTERACTABLE")
+                    self.assertFalse(target["locked"], "the actual entity script must be able to edit its own state")
+                    self.assertEqual(metadata["baseUrl"] + "/scripted_interactable.js", target["script"])
+                    self.assertTrue(all(e["locked"] for e in entities if e is not target))
+                with urlopen(Request(metadata["sceneUrl"], headers={"Host": "untrusted.invalid"}), timeout=2) as response:
+                    target = next(e for e in json.load(response)["Entities"] if e["name"] == "OVERTE_E2E_INTERACTABLE")
+                    self.assertTrue(target["script"].startswith(metadata["baseUrl"] + "/"))
+                with urlopen(target["script"], timeout=2) as response:
+                    self.assertIn(b"this.preload", response.read())
                 with urlopen(metadata["probeScriptUrl"], timeout=2) as response:
                     self.assertIn(b"Test.saveObject", response.read())
             finally:

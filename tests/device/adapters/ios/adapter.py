@@ -154,6 +154,9 @@ class IOSAdapter(AppiumAdapter):
         # while its replacement script is still starting. This bounded wait
         # applies only at launch; normal stale observations remain failures.
         identity = self.assert_ios_process_identity(selector, client, session, state, target)
+        self.wait_first_ios_probe(selector, client, session, state, target, identity, launched_at)
+
+    def wait_first_ios_probe(self, selector, client, session, state, target, identity, launched_at):
         remote = f"@{target['appId']}:documents/{target['testBuild']['resultsDirectory']}/overte-probe.json"
         deadline = time.monotonic() + 20
         while time.monotonic() < deadline:
@@ -413,7 +416,14 @@ class IOSAdapter(AppiumAdapter):
                 # process. Re-establish a fresh native probe, and disclose that
                 # lifecycle boundary only for an observed permission change.
                 self.reset_launch_state(selector, state)
-                self.launch_ios_test_build(selector, client, session, state, target, reactivate=True)
+                # The driver already restored this exact process with the
+                # controlled argv. Adopting it must not terminate it again.
+                state["processIdentity"] = str(actual["pid"])
+                self.wait_first_ios_probe(selector, client, session, state, target,
+                                          str(actual["pid"]), receipt["recoveryLaunchEpochMs"])
+                state["iosE2ELaunchCompleted"] = True
+                state["iosE2ESceneUrl"] = target["testBuild"]["fixtureOrigin"] + target["testBuild"]["scenePath"]
+                self.save_session(selector, state)
                 if (operation == "permission.set" and receipt["stoppedByOperatingSystem"]
                         and str(receipt["processAfter"]) != identity
                         and observed["state"] == arguments["state"]):

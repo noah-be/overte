@@ -111,7 +111,7 @@ def validate_fixture() -> dict:
             or set(interaction_contract) != {"dimensions", "name", "position"}
             or interaction_contract.get("name") != "OVERTE_E2E_INTERACTABLE"
             or interaction_target.get("collisionless") is not True
-            or interaction_target.get("locked") is not True
+            or interaction_target.get("locked") is not False
             or interaction_target.get("position") != interaction_contract.get("position")
             or interaction_target.get("dimensions") != interaction_contract.get("dimensions")):
         raise ValueError("fixture interaction target does not match its manifest")
@@ -219,6 +219,7 @@ class FixtureServer(ThreadingHTTPServer):
     def __init__(self, address: tuple[str, int], handler: object, manifest: dict):
         super().__init__(address, handler)
         self.manifest = manifest
+        self.public_origin = f"http://{address[0]}:{self.server_address[1]}"
         self.telemetry = RequestTelemetry()
         self.fixture_state = FixtureState()
 
@@ -232,6 +233,22 @@ class FixtureHandler(SimpleHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
         parsed = urlsplit(self.path)
         request_path = parsed.path
+        if request_path == "/" + self.server.manifest["scene"]:
+            # The entity loader does not resolve a relative script path
+            # against an imported serverless scene. Bind the script to this
+            # controlled server's configured origin, never the Host header.
+            scene = json.loads((ROOT / self.server.manifest["scene"]).read_text(encoding="utf-8"))
+            scripted = self.server.manifest["scriptedInteraction"]["script"]
+            for entity in scene["Entities"]:
+                if entity.get("script") == scripted:
+                    entity["script"] = self.server.public_origin + "/" + scripted
+            payload = (json.dumps(scene, sort_keys=True) + "\n").encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+            return
         if request_path == "/healthz":
             payload = b'{"ready":true,"schemaVersion":1}\n'
             self.send_response(200)
@@ -548,6 +565,7 @@ def main() -> int:
     if host in {"0.0.0.0", "::"}:
         raise ValueError("--public-host is required when binding all interfaces")
     base_url = f"http://{host}:{server.server_address[1]}"
+    server.public_origin = base_url
     asset = manifest["asset"]
     sound_path = manifest["sound"]["path"]
     ready = {"schemaVersion": 1, "baseUrl": base_url,

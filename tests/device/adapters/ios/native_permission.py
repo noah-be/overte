@@ -1,6 +1,7 @@
 """Validate evidence from the selected app's actual microphone Settings switch."""
 # Copyright 2026 Overte e.V.
 # SPDX-License-Identifier: Apache-2.0
+import time
 from contracts import validate_operation_result
 
 
@@ -15,11 +16,13 @@ def enabled(target):
 
 def observation(value, identity):
     if (not isinstance(value, dict) or set(value) != {
-            "snapshot", "processBefore", "processAfter", "stoppedByOperatingSystem"}
+            "snapshot", "processBefore", "processAfter", "stoppedByOperatingSystem", "recoveryLaunchEpochMs"}
             or any(type(value[k]) is not int or value[k] <= 0
                    for k in ("processBefore", "processAfter"))
             or str(value["processBefore"]) != identity
-            or type(value["stoppedByOperatingSystem"]) is not bool):
+            or type(value["stoppedByOperatingSystem"]) is not bool
+            or type(value["recoveryLaunchEpochMs"]) is not int
+            or not -1000 <= time.time() * 1000 - value["recoveryLaunchEpochMs"] <= 120000):
         raise ValueError("native permission receipt has invalid process evidence")
     snapshot = validate_operation_result("permission.snapshot", value["snapshot"])
     if type(snapshot["schemaVersion"]) is not int or snapshot["state"] not in {"denied", "granted"}:

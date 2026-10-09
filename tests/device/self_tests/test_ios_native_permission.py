@@ -5,6 +5,7 @@ import copy
 from pathlib import Path
 import sys
 import unittest
+import time
 from unittest.mock import Mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from adapters.ios import native_permission
@@ -15,10 +16,11 @@ from contracts import validate_operation_result
 class NativePermissionTest(unittest.TestCase):
     def setUp(self):
         self.target = {"platform":"ios", "physical":True, "appId":"org.example.client",
-            "testBuild":{"resultsDirectory":"owned"}, "probe":{"kind":"ios-documents"},
+            "testBuild":{"resultsDirectory":"owned", "fixtureOrigin":"http://fixture.invalid", "scenePath":"/scene.json"}, "probe":{"kind":"ios-documents"},
             "nativePermission":{"kind":"ios-settings-ui","permissionId":"microphone"}}
         self.receipt = {"snapshot":{"schemaVersion":1,"permissionId":"microphone","state":"granted"},
-                       "processBefore":123,"processAfter":123,"stoppedByOperatingSystem":False}
+                       "processBefore":123,"processAfter":123,"stoppedByOperatingSystem":False,
+                       "recoveryLaunchEpochMs":int(time.time()*1000)}
 
     def test_binding_is_explicit_and_microphone_only(self):
         self.assertFalse(native_permission.enabled({}))
@@ -48,6 +50,8 @@ class NativePermissionTest(unittest.TestCase):
         adapter.native_process=Mock(return_value={"pid":124,"foreground":True,"bundleId":"org.example.client"})
         adapter.reset_launch_state=Mock()
         adapter.launch_ios_test_build=Mock()
+        adapter.wait_first_ios_probe=Mock()
+        adapter.save_session=Mock()
         return adapter,client
 
     def test_set_requires_the_independently_observed_requested_switch_state(self):
@@ -64,7 +68,8 @@ class NativePermissionTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError,"ASSERTION.*restarted"):
             adapter.invoke("selected","permission.snapshot",{"permissionId":"microphone"})
         adapter.reset_launch_state.assert_called_once()
-        adapter.launch_ios_test_build.assert_called_once()
+        adapter.wait_first_ios_probe.assert_called_once()
+        adapter.launch_ios_test_build.assert_not_called()
 
     def test_only_observed_settings_termination_with_a_verified_replacement_is_allowed(self):
         adapter,_=self.adapter()
@@ -73,7 +78,8 @@ class NativePermissionTest(unittest.TestCase):
         self.assertEqual({"performed":True,"recovery":{
             "kind":"ios-settings-process-restart","permissionId":"microphone",
             "processBefore":123,"processAfter":124,"stoppedByOperatingSystem":True}},result)
-        adapter.launch_ios_test_build.assert_called_once()
+        adapter.wait_first_ios_probe.assert_called_once()
+        adapter.launch_ios_test_build.assert_not_called()
         for actual in (None,{"pid":125,"foreground":True},{"pid":124,"foreground":False}):
             adapter.native_process.return_value=actual
             with self.subTest(actual=actual),self.assertRaises(RuntimeError):
