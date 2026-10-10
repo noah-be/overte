@@ -9,5 +9,6 @@ namespace overte::pico::e2e {
 // implementation remains dormant unless the repository E2E probe is the
 // active --testScript.
 void installTabletBridge(QObject* owner);
+void installTextBridge(QObject* owner);
 
 }  // namespace overte::pico::e2e

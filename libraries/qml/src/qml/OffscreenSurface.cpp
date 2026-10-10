@@ -18,6 +18,15 @@
 #include <QtQuick/QQuickItem>
 #include <QtQuick/QQuickWindow>
 #include <QtQuick/QQuickRenderControl>
+#if defined(Q_OS_ANDROID)
+#include <QDateTime>
+#include <QFileInfo>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QSaveFile>
+#include <shared/GlobalAppProperties.h>
+#endif
 
 #include <GLMHelpers.h>
 
@@ -385,6 +394,33 @@ void OffscreenSurface::finishQmlLoad(QQmlComponent* qmlComponent,
                                      const QmlContextObjectCallback& callback) {
     PROFILE_RANGE(app, "finishQmlLoad");
     disconnect(qmlComponent, &QQmlComponent::statusChanged, this, 0);
+#if defined(Q_OS_ANDROID)
+    // Keep component-load errors private in the explicitly launched Pico test
+    // process. Public diagnostics remain redacted by the application handler.
+    if (qmlComponent->isError()) {
+        const QString expected = QFileInfo(QStringLiteral(
+            "/data/user/0/org.overte.pico/files/overte-e2e/overte_e2e_probe.js")).canonicalFilePath();
+        const QUrl probe = qApp->property(hifi::properties::TEST).toUrl();
+        if (probe.isLocalFile() && !expected.isEmpty()
+                && QFileInfo(probe.toLocalFile()).canonicalFilePath() == expected) {
+            QJsonArray errors;
+            for (const auto& error : qmlComponent->errors()) {
+                errors.append(QJsonObject{{"url", error.url().toString()},
+                    {"line", error.line()}, {"description", error.description()}});
+            }
+            QSaveFile output(QStringLiteral(
+                "/data/user/0/org.overte.pico/files/overte-e2e/qml-load-error.json"));
+            if (output.open(QIODevice::WriteOnly)) {
+                output.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+                output.write(QJsonDocument(QJsonObject{{"schemaVersion", 1},
+                    {"processId", QCoreApplication::applicationPid()},
+                    {"updatedEpochMs", QDateTime::currentMSecsSinceEpoch()},
+                    {"errors", errors}}).toJson(QJsonDocument::Compact));
+                output.commit();
+            }
+        }
+    }
+#endif
     if (qmlComponent->isError()) {
         for (const auto& error : qmlComponent->errors()) {
             qCWarning(qmlLogging) << error.url() << error.line() << error;

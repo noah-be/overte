@@ -1,0 +1,5 @@
+<RCC>
+  <qresource prefix="/overte-e2e">
+    <file alias="scripted_interactable.js">../../../../../../tests/device/fixture/scripted_interactable.js</file>
+  </qresource>
+</RCC>
