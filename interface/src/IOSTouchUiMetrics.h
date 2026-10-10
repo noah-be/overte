@@ -61,5 +61,5 @@ void suppressIOSKeyboardAssistant();
 void updateIOSTabletAccessibilityControls(
     TabletProxy* tablet, const IOSTouchUiMetrics* metrics);
 #if defined(OVERTE_IOS_E2E_TEST_BUILD)
-QVariantMap observeIOSNativeAccessibility();
+QVariantMap observeIOSNativeAccessibility(QVariantMap* diagnostic = nullptr);
 #endif

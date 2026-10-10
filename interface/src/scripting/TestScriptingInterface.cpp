@@ -140,13 +140,11 @@ QVariantMap TestScriptingInterface::iosNativeUiSnapshot() {
             !QCoreApplication::arguments().contains("--testScript")) {
         return { { "schemaVersion", 1 }, { "valid", false } };
     }
-    QVariantMap result;
-    if (QThread::currentThread() == qApp->thread()) {
-        result = observeIOSNativeAccessibility();
-    } else {
-        QMetaObject::invokeMethod(qApp, [&] { result = observeIOSNativeAccessibility(); },
-                                  Qt::BlockingQueuedConnection);
-    }
+    // The observer reads UIKit views, so its own main-queue dispatch is the
+    // required affinity. A Qt application thread alone does not establish it.
+    QVariantMap diagnostic;
+    const QVariantMap result = observeIOSNativeAccessibility(&diagnostic);
+    saveObject(diagnostic, "ios-native-ui-diagnostic.json");
     return result;
 }
 

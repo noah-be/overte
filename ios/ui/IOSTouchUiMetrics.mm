@@ -836,19 +836,52 @@ void suppressIOSKeyboardAssistant() {
 }
 
 #if defined(OVERTE_IOS_E2E_TEST_BUILD)
-QVariantMap observeIOSNativeAccessibility() {
+QVariantMap observeIOSNativeAccessibility(QVariantMap* diagnostic) {
+    if (!NSThread.isMainThread) {
+        __block QVariantMap sample;
+        dispatch_sync(dispatch_get_main_queue(), ^{
+            sample = observeIOSNativeAccessibility(diagnostic);
+        });
+        if (diagnostic != nullptr) {
+            (*diagnostic)["callerWasMainThread"] = false;
+        }
+        return sample;
+    }
+
     QVariantMap result {
         { "schemaVersion", 1 }, { "valid", false },
         { "processId", static_cast<qint64>(NSProcessInfo.processInfo.processIdentifier) },
         { "sampleEpochMs", QDateTime::currentMSecsSinceEpoch() },
         { "elements", QVariantList {} }
     };
-    if (!NSThread.isMainThread) {
-        return result;
+    if (diagnostic != nullptr) {
+        *diagnostic = {
+            { "schemaVersion", 1 }, { "processId", result["processId"] },
+            { "sampleEpochMs", result["sampleEpochMs"] },
+            { "callerWasMainThread", true }, { "samplingOnMainThread", static_cast<bool>(NSThread.isMainThread) },
+            { "applicationState", static_cast<int>(UIApplication.sharedApplication.applicationState) },
+            { "reason", "sampling" }, { "viewsVisited", 0 }, { "controlsObserved", 0 }
+        };
+        int activeScenes { 0 };
+        int inactiveScenes { 0 };
+        for (UIScene* scene in UIApplication.sharedApplication.connectedScenes) {
+            if (![scene isKindOfClass:UIWindowScene.class]) { continue; }
+            if (scene.activationState == UISceneActivationStateForegroundActive) { ++activeScenes; }
+            if (scene.activationState == UISceneActivationStateForegroundInactive) { ++inactiveScenes; }
+        }
+        (*diagnostic)["foregroundActiveScenes"] = activeScenes;
+        (*diagnostic)["foregroundInactiveScenes"] = inactiveScenes;
     }
-    UIWindow* window = activeWindow();
-    if (window == nil || CGRectIsEmpty(window.bounds)) {
+    const auto rejected = [&](const char* reason) {
+        if (diagnostic != nullptr) { (*diagnostic)["reason"] = QString::fromLatin1(reason); }
         return result;
+    };
+    UIWindow* window = activeWindow();
+    if (window == nil) {
+        return rejected("no-active-window");
+    }
+    if (CGRectIsEmpty(window.bounds)) {
+        return rejected("empty-window-bounds");
     }
     NSMutableArray<UIView*>* pending = [NSMutableArray arrayWithObject:window];
     QVariantList elements;
@@ -856,8 +889,10 @@ QVariantMap observeIOSNativeAccessibility() {
     while (pending.count > 0) {
         UIView* view = pending.lastObject;
         [pending removeLastObject];
-        if (++visited > 5000) {
-            return result;
+        ++visited;
+        if (diagnostic != nullptr) { (*diagnostic)["viewsVisited"] = visited; }
+        if (visited > 5000) {
+            return rejected("view-limit");
         }
         if (view.hidden || view.alpha <= 0.01 || view.accessibilityElementsHidden) {
             continue;
@@ -879,7 +914,8 @@ QVariantMap observeIOSNativeAccessibility() {
         }
         const CGRect frame = CGRectIntersection(rawFrame, window.bounds);
         if (elements.size() >= 128) {
-            return result;
+            if (diagnostic != nullptr) { (*diagnostic)["controlsObserved"] = 128; }
+            return rejected("control-limit");
         }
         const bool enabled = ![view isKindOfClass:UIControl.class] || ((UIControl*)view).enabled;
         elements.append(QVariantMap {
@@ -893,6 +929,10 @@ QVariantMap observeIOSNativeAccessibility() {
     }
     result["elements"] = elements;
     result["valid"] = true;
+    if (diagnostic != nullptr) {
+        (*diagnostic)["reason"] = "valid";
+        (*diagnostic)["controlsObserved"] = static_cast<int>(elements.size());
+    }
     return result;
 }
 #endif
