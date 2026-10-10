@@ -458,7 +458,7 @@ Item {
                 // native objectName and assign the newer identifier only when
                 // the attached accessibility object actually supports it.
                 Component.onCompleted: {
-                    if (typeof Accessible.id !== "undefined") {
+                    if ("id" in Accessible) {
                         Accessible.id = Qt.binding(function() { return objectName })
                     }
                 }

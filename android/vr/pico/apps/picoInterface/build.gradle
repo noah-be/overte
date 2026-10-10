@@ -204,7 +204,8 @@ android {
         // package stale controller/UI logic after a script-only change.
         variant.mergeAssets.inputs.dir(file("${projectDir}/../../../../../scripts"))
         if (variant.buildType.name == 'debug') {
-            variant.mergeAssets.inputs.files(e2eProbeAsset, e2eSceneAsset, e2eEntityScriptAsset, e2eTextInputAsset)
+            variant.mergeAssets.inputs.files(e2eProbeAsset, e2eSceneAsset)
+            variant.mergeAssets.inputs.files(e2eEntityScriptAsset, e2eTextInputAsset)
         }
 
         variant.mergeAssets.doLast {

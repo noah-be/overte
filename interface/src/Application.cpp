@@ -61,8 +61,10 @@ overte::lifecycle::Gate& overte::lifecycle::applicationGate() {
 #include <BuildInfo.h>
 #include <controllers/ScriptingInterface.h>
 #include <controllers/UserInputMapper.h>
-#if defined(ANDROID_APP_PICO_INTERFACE) && defined(OVERTE_E2E_OPENXR_INPUT_V1)
+#if defined(ANDROID_APP_PICO_INTERFACE)
+#if defined(OVERTE_E2E_OPENXR_INPUT_V1)
 #include "../../android/vr/pico/apps/picoInterface/e2e/PicoE2eControllerObservation.h"
+#endif
 #endif
 #include <CrashHelpers.h>
 #include <DebugDraw.h>
