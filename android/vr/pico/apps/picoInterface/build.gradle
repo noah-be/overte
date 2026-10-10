@@ -8,6 +8,7 @@ def picoUnsigned = providers.gradleProperty('PICO_UNSIGNED').orNull == '1'
 def picoDebugApkVersionName = providers.gradleProperty('picoDebugApkVersionName').orNull
 if (picoDebugApkVersionName != null && (
         !(picoDebugApkVersionName ==~ /[A-Za-z0-9][A-Za-z0-9._-]{0,127}/) ||
+        gradle.startParameter.taskNames.isEmpty() ||
         !gradle.startParameter.taskNames.every { it.toLowerCase().contains('debug') })) {
     throw new GradleException('picoDebugApkVersionName requires an explicit Debug build and a bounded package version')
 }
