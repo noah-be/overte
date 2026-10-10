@@ -19,7 +19,7 @@ function fixture() {
     let command = {schemaVersion:1,pending:false}, interval, editCount = 0, broken = false;
     const context = {
         Agent:{sessionUUID:'{'+actor+'}'}, print:()=>{},
-        EntityViewer:{queryOctree:()=>{}},
+        EntityViewer:{queryOctree:()=>{}, setPosition:()=>{}, setCenterRadius:()=>{}},
         Script:{resolvePath:p=>p, setTimeout:f=>delayed.push(f), setInterval:f=>{interval=f;}},
         Entities:{serversExist:()=>true,canRez:()=>true,
             findEntities:()=>Array.from(stored.keys()), deleteEntity:id=>stored.delete(id),
