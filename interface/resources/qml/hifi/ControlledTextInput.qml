@@ -1,3 +1,5 @@
+// Copyright 2026 Overte e.V.
+// SPDX-License-Identifier: Apache-2.0
 // Dedicated test-build fixture; uses the same control as product settings.
 import QtQuick 2.7
 import controlsUit 1.0 as Uit

@@ -1,3 +1,5 @@
+# Copyright 2026 Overte e.V.
+# SPDX-License-Identifier: Apache-2.0
 """Exercise production pull-source ownership and retirement with real Qt events.
 
 The sink is an explicit backend seam; this does not qualify CoreAudio hardware.
