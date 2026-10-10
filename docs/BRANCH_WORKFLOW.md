@@ -237,6 +237,10 @@ changes on the iOS leaf. Those changes must arrive through `main` and
 `tests/device/ios/adapters/` and `tests/device/ios/self_tests/`; generic shared
 imports keep the parent implementation. Each attested native repair requires
 the complete fallback and the independent exact-candidate iOS build gate.
+The trusted iOS host gate installs the existing pinned host requirements in
+a separate test environment before executing native regressions, including
+independent permission-switch image checks. Product dependency caches and
+physical-device qualification remain separate.
 
 When all bindings match, a separate read-only validation workflow runs only the
 edge-specific hardware-free differential profile. The redundant Android and
