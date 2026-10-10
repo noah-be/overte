@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 import subprocess
 import sys
@@ -119,6 +120,50 @@ class ProbeCommandChannelTest(unittest.TestCase):
             self.source.count("Entities.deleteEntity(controlledAssetEntity)"), 2
         )
         self.assertIn("controlledAssetEntity = null", self.source)
+
+    @unittest.skipUnless(shutil.which("node"), "probe execution requires Node.js")
+    def test_reload_identity_survives_navigation_and_probe_restart(self) -> None:
+        source = self.source
+        address_functions = source[source.index("    function reloadCommandIdFromAddress("):
+                                   source.index("    var tablet =")]
+        reload_function = source[source.index("    function reloadControlledScene("):
+                                 source.index("    function avatarAtExpectedSpawn(")]
+        initial_scene_identity = next(line for line in source.splitlines()
+                                      if "var lastSceneCommandId =" in line)
+        script = r'''
+const assert = require('assert');
+const vm = require('vm');
+ADDRESS_FUNCTIONS
+var androidControlAvailable = true;
+var androidFixtureUrl = 'file:///fixture/scene.json?location=/0,0,4/0,0,0,1';
+var location = {href: androidFixtureUrl};
+var Window = {};
+var resetCount = 0;
+function resetSceneObservation() { resetCount += 1; }
+INITIAL_SCENE_IDENTITY
+RELOAD_FUNCTION
+assert.equal(lastSceneCommandId, '');
+reloadControlledScene('reload first');
+assert.equal(lastSceneCommandId, 'reload first');
+assert.equal(resetCount, 1);
+assert.equal(reloadCommandIdFromAddress(Window.location), 'reload first');
+assert(Window.location.includes('location=/0,0,4/0,0,0,1'));
+const restarted = {location: {href: Window.location}};
+vm.runInNewContext(ADDRESS_SOURCE + INITIAL_SOURCE, restarted);
+assert.equal(restarted.lastSceneCommandId, 'reload first');
+location.href = Window.location;
+androidControlAvailable = false;
+reloadControlledScene('reload-second');
+assert.equal(lastSceneCommandId, 'reload-second');
+assert.equal(reloadCommandIdFromAddress(Window.location), 'reload-second');
+assert.equal((Window.location.match(/overteE2EReloadCommandId=/g) || []).length, 1);
+assert.equal(reloadCommandIdFromAddress('file:///fixture/scene.json?overteE2EReloadCommandId=%ZZ'), '');
+'''.replace("ADDRESS_FUNCTIONS", address_functions).replace(
+            "INITIAL_SCENE_IDENTITY", initial_scene_identity).replace(
+            "RELOAD_FUNCTION", reload_function).replace(
+            "ADDRESS_SOURCE", json.dumps(address_functions)).replace(
+            "INITIAL_SOURCE", json.dumps(initial_scene_identity))
+        subprocess.run(["node", "-e", script], check=True, timeout=5)
 
 
 if __name__ == "__main__":
