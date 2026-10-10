@@ -30,7 +30,7 @@ public abstract class E2eLauncherActivityBase extends Activity {
     private static final String CONTROL_COMMAND = "android-control-command.json";
     private static final String CONTROL_CONTRACT =
             "{\"channel\":\"android-debug-file-v1\",\"probe\":\"overte_e2e_probe.js\","
-                    + "\"schemaVersion\":1}\n";
+                    + "\"schemaVersion\":1,\"processId\":";
     private static final String EMPTY_CONTROL_COMMAND = "{\"schemaVersion\":1}\n";
     // AddressManager treats viewpoint coordinates as the avatar's feet
     // position. The controlled fixture floor ends at y=0, so starting at y=0
@@ -47,6 +47,10 @@ public abstract class E2eLauncherActivityBase extends Activity {
         return Uri.fromFile(new File(directory, asset)).toString();
     }
 
+    protected void prepareAdditionalAssets(File directory) throws IOException {
+        // Product launchers may include additional version-bound fixture assets.
+    }
+
     @Override
     protected final void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -60,7 +64,9 @@ public abstract class E2eLauncherActivityBase extends Activity {
                 copyAsset(asset, launchDirectory);
             }
             bindAdditionalAssetReferences(scene, launchDirectory);
-            writeAtomically(CONTROL_MARKER, CONTROL_CONTRACT, launchDirectory);
+            prepareAdditionalAssets(launchDirectory);
+            writeAtomically(CONTROL_MARKER,
+                    CONTROL_CONTRACT + android.os.Process.myPid() + "}\n", launchDirectory);
             writeAtomically(CONTROL_COMMAND, EMPTY_CONTROL_COMMAND, launchDirectory);
             File previousProbe = new File(launchDirectory, "overte-probe.json");
             deleteIfPresent(previousProbe, "previous probe snapshot");
@@ -122,7 +128,7 @@ public abstract class E2eLauncherActivityBase extends Activity {
         }
     }
 
-    private File copyAsset(String name, File directory) throws IOException {
+    protected final File copyAsset(String name, File directory) throws IOException {
         File destination = new File(directory, name);
         File temporary = new File(directory, name + ".tmp");
         try (InputStream input = getAssets().open(name);
