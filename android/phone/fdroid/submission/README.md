@@ -22,12 +22,11 @@ removes `gradlew`, `gradlew.bat`, and `gradle-wrapper.jar`. This adapter instead
 acquires the same Gradle 8.13 distribution, checks the existing SHA-256, and runs
 its executable directly. No wrapper scan exception is required.
 
-The metadata's eight `scandelete` entries came from the actual F-Droid source
-scan. They delete only unused test data or npm package manifests in F-Droid's
-**disposable checkout**. They do not delete JavaScript implementations, icons,
-fonts, runtime media, or license notices from the maintained repository. There
-is no blanket `scanignore`, no bypass of APK scanning, and no per-asset license
-certificate requirement.
+The metadata uses `scandelete` for unused files in F-Droid's disposable
+checkout, including globbed dependency manifests and an unused Qt deployment
+loader template. The maintained source archives remain hash-pinned. There is
+no `scanignore` and no bypass of APK scanning. The compiler-source cleanup
+removes the same declared files before native compilation (see below).
 
 ## Stage a reviewable submission
 
@@ -90,52 +89,65 @@ Dependency source versions, recipe locks and archive hashes remain unchanged.
 Source-built Conan build tools remain locked too; this changes the host's
 Debian tools, not the dependency graph's source identity.
 
-**Current validation boundary:** the published 0.1.2 reference remains tied to
-`cd08e500d73d661c6050a8f3ad4c45921c03770c`. This review follow-up is a disabled
-0.1.3 (4) candidate. The proposed scanner exceptions need review; a clean build,
-reproducibility comparison and new signed reference are required before enabling it. Do not replace the existing 0.1.2 tag or APK.
+**Current validation boundary:** the published 0.1.3 (4) reference is tied to
+`ee32aaffe5c78358b4eb1bdfb539793258e53571`. The 0.1.4 (5) candidate includes
+source cleanup directly in the repository and requires no F-Droid backport patch.
+Do not replace the 0.1.3 tag or APK. Keep the staged recipe disabled until two
+independent clean builds match and the new signed reference has been verified.
+Earlier device results do not establish device qualification of this candidate.
 The 36000-second timeout is an upper limit, not evidence of performance on the
 official buildserver. No successful shared-runner/official-server test is claimed.
 
 The work directory, Conan cache and Gradle home stay outside the checkout.
 `prebuild` calls `--acquire-only`: it downloads the hash-locked archives and
 Gradle inputs, prepares the dependency source caches, and expands all native
-source archives into `fdroid-source-closure/` inside the checkout, applying the
-content-bound cleanup in `source-scan-policy.json`. F-Droid's
-normal source scanner therefore sees those sources before `build` is invoked.
-No broad `scanignore` is added. The expanded view and the original archives are
-bound by a recorded inventory, which is checked again before compilation.
+source archives into `fdroid-source-closure/` inside the checkout. The existing
+1551 content-bound binary-fixture/platform-tool/wrapper exclusions are applied
+before inventorying; the 264 declared `scandelete` files remain for F-Droid's
+normal scanner to inspect and delete. The metadata expresses those deletions
+as 20 file globs; it has no `scanignore`. F-Droid uses non-recursive globbing,
+so nested npm manifests require separate patterns for their different depths.
 
-`build` calls `--build-only`: it requires the same prebuild commit, version,
-manifest, Gradle distribution and expanded-source inventory. It never invokes
-input acquisition. Missing, modified or scanner-deleted inputs stop the build;
-re-extracting rejected files from the archive cache is deliberately prohibited.
-Unexpected findings must be resolved in the source closure and its preparation,
-not hidden by deleting just the scanner view or restoring the original blobs.
+`build` calls `--build-only` and never acquires inputs. It requires the same
+prebuild commit, version, policy, manifest, Gradle distribution and inventory.
+The inventory records exact deletion paths and original file hashes. After
+scanning, precisely those files must be absent and every remaining source must
+match; extra, modified or unexpectedly missing files stop the build. The
+inventory cannot be rewritten to accept a scanner finding. Conan's actual
+`post_source` hook removes the same 1551 + 264 files from the separately
+extracted compiler sources, checking their original hashes before deletion.
+The external archive cache cannot silently restore rejected compiler inputs.
 
-The initial offline scan exposed 1812 fatal dependency-source findings. The
-candidate policy removes 1551 exact, SHA-256-bound binary fixtures/platform tools
-and unused Qt wrapper files. The same policy runs in Conan's actual `post_source`
-hook before dependency compilation, not only in the scanner view. A rehearsal
-on all 51 source-bearing recipes removed exactly the same 1551 files. This checks
-hook behavior and archive layouts; it does not prove a successful native build.
+hwloc's unused web-tool manifest is also listed as installable data in its
+`contrib/hwloc-ps.www/Makefile.am` and generated `Makefile.in`. Deleting the
+manifest alone causes `make all` to fail. The cleanup policy removes that one
+installation-list entry from both files, checking complete input and output
+hashes. The identical edits are applied before the scanner inventory and in
+Conan's compiler source cleanup. The manifest stays deleted; library sources,
+configure options and runtime behavior are unchanged. Conan already discards
+the installed web-tool data from the dependency package.
 
-The metadata proposes 264 exact-file scanner exceptions: 263 vendored
-`package.json`/`Cargo.toml` files and Qt's open-source `QtLoader.java`. The native
-recipes do not install npm/Cargo dependencies from those manifests; their bytes
-are part of the pinned native archive closure. Node is configured without npm
-and Corepack. Qt's standard Java loader triggers the dynamic-class-loader rule;
-the Phone app packages its Qt libraries locally. This exception is limited to
-that source file and does not assert that every Qt loader code path is disabled.
-There are no binary or whole-directory exceptions. The policy records each
-file's archive, recipe, content digest and reason; prebuild rejects stale rules.
+The newly deleted files are:
 
-A local scan of the cleaned dependency view with these proposed exceptions
-returned zero fatal findings using the retained fdroidserver's bundled SUSS
-rules, offline. Warnings remain recorded in the local evidence. This is not
-acceptance by F-Droid or a scan using freshly downloaded rules. Full native build
-qualification must establish that the exclusions do not remove a required build
-input, followed by independent APK comparison and candidate device checks.
+- 263 `package.json`/`Cargo.toml` installation manifests. npm and Corepack
+  installation are disabled. Node embeds the JavaScript files declared by
+  `node.gyp`/`configure.py`, not these manifests; those JavaScript files stay.
+  Other manifests belong to unused Meson Rust tests, Qt examples/tests,
+  SPIRV-Tools wasm/editor tooling, hwloc web tooling and Draco npm packaging.
+- Qt's `src/android/java/.../bindings/QtLoader.java`, an unused Android
+  deployment template. It is installed as source by `java/java.pro`, not
+  compiled into `QtAndroid.jar` by `jar/jar.pro`. The Phone Gradle project uses
+  its maintained `android/common/libraries/qt` bindings, including its own
+  `QtActivityLoader`, and the separate QtAndroid.jar runtime delegate. It does
+  not use Qt's deployment-template source directory. The runtime Java sources
+  and jar inputs remain intact. This correction supersedes the earlier
+  rationale for retaining the template as a scanner exception.
+
+`source-scan-policy.json` retains the exact archive, recipe, path, content hash
+and rationale for each removal. These entries constrain the implementation;
+they are not a long list of scanner exceptions in F-Droid metadata. A fresh
+source scan and compiler-cleanup rehearsal validate this policy; they do not
+prove a successful full build or a byte-identical reference APK.
 
 `build.py --check` verifies source coordinates, the SDK/toolchain and isolation
 without acquiring or compiling. On a host with networking it requires working
@@ -146,7 +158,7 @@ fallback to network-enabled compilation.
 
 ```sh
 python3 android/phone/fdroid/submission/build.py \
-  --commit "$(git rev-parse HEAD)" --version-code 4 --version-name 0.1.3 \
+  --commit "$(git rev-parse HEAD)" --version-code 5 --version-name 0.1.4 \
   --sdk "$ANDROID_SDK_ROOT" --work-dir /absolute/new/build-attempt --check
 ```
 
@@ -189,8 +201,8 @@ EXIF metadata was removed without changing image pixels.
 Current release configuration:
 
 - **Identity:** `Overte Mobile (Unofficial)`, application ID
-  `io.github.noah_be.overte.phone`. Published version: `0.1.2` (3); disabled
-  review candidate: `0.1.3` (4).
+  `io.github.noah_be.overte.phone`. Published version: `0.1.3` (4); disabled
+  review candidate: `0.1.4` (5).
   The internal Java/JNI namespace remains `org.overte.phone`; Android components
   therefore use fully qualified class names. Earlier local test APKs used a
   different application ID. They are separate installations, not upgrade inputs.
@@ -201,15 +213,15 @@ Current release configuration:
   Store description and initial changelog use the approved unofficial name;
   the description requires OpenGL ES 3.2 and does not list jumping separately.
 - **Device support:** API 26 minimum, target/compile API 36, ARM64 and OpenGL ES
-  3.2. SDK/NDK/CMake versions and the existing eight scanner deletions remain
-  unchanged. The supplied Navy artwork and two maintainer-created Phone
-  screenshots are included.
+  3.2. SDK/NDK/CMake versions remain unchanged. Twenty dependency-source deletion
+  globs supplement the existing eight scanner deletions. The supplied Navy artwork
+  and two maintainer-created Phone screenshots are included.
 - **Signing:** reproducible builds against the maintainer-signed published APK,
   with `AllowedAPKSigningKeys` binding the established release certificate.
   The local Android debug key remains test-only. No keys belong in the checkout.
 - **Publication:** disabled candidate, full commit binding, unsigned build output,
   ten-hour timeout ceiling and Android-specific tag update detection. The
-  published 0.1.2 reference remains unchanged. Qualify the new source revision
+  published 0.1.3 reference remains unchanged. Qualify the new source revision
   before requesting approval to publish a new tag, signed reference or metadata.
 
 The [earlier qualification record](VALIDATION.md) documents the old test identity
