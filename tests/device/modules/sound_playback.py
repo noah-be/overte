@@ -153,7 +153,7 @@ def main() -> None:
     request = request_evidence(requests_url, command_id, requested_url, timeout)
     write_json("sound-request.json", request)
 
-    ready_sample = fresh.wait(
+    ready_sample = command_sample if command_sample["sound"]["resourceReady"] is True else fresh.wait(
         "the controlled WAV to become decoded and usable",
         lambda sound: sound["commandId"] == command_id and sound["resourceReady"] is True,
         timeout,

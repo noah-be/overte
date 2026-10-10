@@ -96,11 +96,16 @@ target binding, module status and JUnit. Failed PCM assertions are product
 failures; adapter/fixture failures are infrastructure errors. Cleanup errors
 cannot turn an observed product failure into a retryable result.
 
-Raw PCM remains in private, temporary storage. Capture digests are checked
-before analysis; raw audio never enters publishable module artifacts. Reset
+Raw PCM is retained in private module storage with an exact capture digest for
+failure diagnosis; it is excluded from the laboratory's publishable JSON/XML/log
+artifacts. Captures contain synthetic lab challenges. Reset
 overwrites the private device result, deletes the WAV and restores audio state.
 Probe/native watchdogs bound abandoned test state and captures. Process death
 is handled by the existing runner/fixture lifecycle.
+
+Device-to-PC measurements also retain available native PC audio stream counters
+sampled during reception. These observations help distinguish packet loss,
+buffer starvation and dropped frames without changing the PCM verdict.
 
 `voice-native-status.json` retains the latest bounded native status even when a
 send fails. Each completed device-to-PC leg also records that status. It includes

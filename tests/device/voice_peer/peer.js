@@ -46,7 +46,8 @@
             muted: Boolean(Audio.muted), localEcho: Boolean(Audio.getLocalEcho()),
             serverEcho: Boolean(Audio.getServerEcho()), inputPeak: peak,
             position: { x: MyAvatar.position.x, y: MyAvatar.position.y, z: MyAvatar.position.z },
-            build: { version: String(About.buildVersion), date: String(About.buildDate) }
+            build: { version: String(About.buildVersion), date: String(About.buildDate) },
+            audioStats: audioStats()
         }, null);
         peak = Number(Audio.inputLevel);
         if (busy) { return; }
@@ -69,6 +70,30 @@
                 commandError = "voice-command-failed";
             }
         });
+    }
+
+    function audioStats() {
+        // Read actual native counters; missing properties are diagnostic only.
+        var result = { available: typeof AudioStats !== "undefined", sampledEpochMs: Date.now() };
+        if (!result.available) { return result; }
+        ["pingMs", "inputReadMsMax", "outputUnplayedMsMax", "sentTimegapMsMaxWindow"]
+            .forEach(function (key) {
+                var value = AudioStats[key];
+                if (typeof value === "number" && isFinite(value) && value >= 0) { result[key] = value; }
+            });
+        ["clientStream", "mixerStream"].forEach(function (name) {
+            var stream = AudioStats[name];
+            if (!stream) { return; }
+            var counters = {};
+            ["lossCount", "dropCount", "starveCount", "overflowCount", "framesDesired",
+             "framesAvailable", "framesAvailableAvg", "timegapMsMaxWindow", "timegapMsAvgWindow"]
+                .forEach(function (key) {
+                    var value = stream[key];
+                    if (typeof value === "number" && isFinite(value) && value >= 0) { counters[key] = value; }
+                });
+            result[name] = counters;
+        });
+        return result;
     }
     var timer = Script.setInterval(tick, 250);
     Script.scriptEnding.connect(function () {

@@ -177,6 +177,17 @@ assert.equal(Audio.muted,true);assert.equal(native.at(-1).action,'send');
 apply('reset','reset');assert.equal(Audio.muted,false);assert.equal(Audio.pushToTalk,true);
 assert.equal(Audio.noiseReduction,true);assert.equal(Audio.avatarGain,-2);assert.equal(Audio.localEcho,true);
 assert(!saved.at(-1).wavBase64);
+location.href='hifi://fixture:40102/0,1,0';location.url='retained-established-domain';
+apply('same-domain','prepare',{domainUrl:'hifi://fixture:40102'});
+assert.equal(location.url,'retained-established-domain');
+apply('same-domain-reset','reset');
+apply('different-port','prepare',{domainUrl:'hifi://fixture:40103'});
+assert.equal(location.url,'hifi://fixture:40103');
+apply('different-port-reset','reset');
+location.isConnected=false;
+apply('disconnected-domain','prepare',{domainUrl:'hifi://fixture:40102'});
+assert.equal(location.url,'hifi://fixture:40102');
+apply('disconnected-domain-reset','reset');
 delete Test.voiceTest;
 apply('release','prepare',{domainUrl:'hifi://fixture:40102'});
 assert.equal(saved.at(-1).ok,false);assert.equal(Audio.muted,false);
@@ -343,6 +354,50 @@ int main() {
 
 
 class VoiceModuleTests(unittest.TestCase):
+    def test_ten_second_device_window_is_used_for_both_native_captures(self):
+        windows = []
+        with patch.dict(os.environ, {"OVERTE_E2E_VOICE_DEVICE_CAPTURE_SECONDS": "10"}):
+            evidence, _ = self.exercise(capture_windows=windows)
+        self.assertEqual(windows, [10, 10])
+        self.assertEqual(evidence["deviceCaptureSeconds"], 10)
+        self.assertEqual(len(evidence["legs"]), 4)
+
+    def test_invalid_device_capture_window_is_rejected_before_touching_the_peer(self):
+        for value in ("5", "11", "10.5", "invalid"):
+            with patch.dict(os.environ, {"OVERTE_E2E_VOICE_DEVICE_CAPTURE_SECONDS": value}), patch.object(MODULE, "peer") as peer:
+                with self.assertRaises(MODULE.InfrastructureError):
+                    MODULE.run_roundtrip(Path("unused"), "process", "domain")
+                peer.assert_not_called()
+
+    def test_delayed_complete_challenge_needs_the_full_capture_window(self):
+        # Preserve the detector's exact fresh challenge and all-symbol
+        # requirements. An eight-second capture really loses the tail of a
+        # challenge delivered after four seconds of transport delay.
+        data = array.array("h", [0]) * (4 * dsp.RATE)
+        data.extend(dsp.samples(CHALLENGE))
+        with tempfile.TemporaryDirectory() as private:
+            path = Path(private) / "delayed.wav"
+            for seconds, expected in ((8, False), (10, True), (12, True)):
+                capture = array.array("h", data[:seconds * dsp.RATE])
+                capture.extend([0] * (seconds * dsp.RATE - len(capture)))
+                with wave.open(str(path), "wb") as output:
+                    output.setparams((1, 2, dsp.RATE, 0, "NONE", "not compressed"))
+                    output.writeframes(capture.tobytes())
+                self.assertEqual(dsp.analyze(path, CHALLENGE)["passed"], expected)
+
+    def test_late_reverse_channel_needs_the_complete_pc_capture_window(self):
+        data = array.array("h", [0]) * (8 * dsp.RATE)
+        data.extend(dsp.samples(CHALLENGE))
+        with tempfile.TemporaryDirectory() as private:
+            path = Path(private) / "late-reverse.wav"
+            for seconds, expected in ((12, False), (16, True)):
+                capture = array.array("h", data[:seconds*dsp.RATE])
+                capture.extend([0]*(seconds*dsp.RATE-len(capture)))
+                with wave.open(str(path), "wb") as output:
+                    output.setparams((1,2,dsp.RATE,0,"NONE","not compressed"))
+                    output.writeframes(capture.tobytes())
+                self.assertEqual(dsp.analyze(path, CHALLENGE)["passed"], expected)
+
     def test_native_clock_failure_is_saved_and_cannot_pass_with_complete_frames(self):
         def response(_, request):
             return {"schemaVersion": 1, "commandId": request["commandId"], "ok": False,
@@ -373,7 +428,7 @@ class VoiceModuleTests(unittest.TestCase):
             MODULE.main()
         self.assertEqual(calls, ["prepare", "status", "reset"])
 
-    def exercise(self, corrupt=False):
+    def exercise(self, corrupt=False, capture_windows=None):
         sent = {}
         pending = {}
         observed_ids = []
@@ -396,6 +451,8 @@ class VoiceModuleTests(unittest.TestCase):
                 return {"passed": True, "challenge": values["challenge"], "expected": values["expect"]}
             raise AssertionError(action)
         def exchange(action, **values):
+            if action == "capture-start" and capture_windows is not None:
+                capture_windows.append(values["seconds"])
             if action == "send":
                 observed_ids.append(values["challenge"])
                 event.set()
@@ -415,7 +472,7 @@ class VoiceModuleTests(unittest.TestCase):
                 return {"wavBase64": base64.b64encode(data).decode(), "sha256": hashlib.sha256(data).hexdigest(), "version": "device-test-version"}
             return {"ok": True, "muted": values.get("muted", True)}
         ticks = itertools.count()
-        with patch.object(MODULE, "peer", side_effect=peer), patch.object(MODULE, "exchange", side_effect=exchange), patch.object(MODULE, "assert_process"), patch.object(MODULE, "write_json", side_effect=lambda _, evidence: legs.append(json.loads(json.dumps(evidence)))), patch.object(MODULE.time, "monotonic", side_effect=lambda: next(ticks) * 0.5), patch.object(MODULE.time, "sleep", side_effect=lambda _: event.wait(0.001)):
+        with tempfile.TemporaryDirectory(prefix="voice-module-artifacts-") as artifacts, patch.object(MODULE, "ARTIFACT_DIR", Path(artifacts)), patch.object(MODULE, "peer", side_effect=peer), patch.object(MODULE, "exchange", side_effect=exchange), patch.object(MODULE, "assert_process"), patch.object(MODULE, "write_json", side_effect=lambda _, evidence: legs.append(json.loads(json.dumps(evidence)))), patch.object(MODULE.time, "monotonic", side_effect=lambda: next(ticks) * 0.5), patch.object(MODULE.time, "sleep", side_effect=lambda _: event.wait(0.001)):
             evidence = MODULE.run_roundtrip(Path("unused"), "process", "domain")
         return evidence, observed_ids
 

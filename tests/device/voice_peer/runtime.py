@@ -374,15 +374,32 @@ class Peer:
                 if expect not in ("present", "absent") or not request.get("challenge"):
                     raise ValueError("receive requires an explicit challenge and present/absent expectation")
                 self.configure(muted=True)
+                audio_stats = []
+                previous_sequence = None
                 with self.artifacts() as root:
                     with self.routes.capture(root) as wav:
                         with self.guard:
                             self.receiving_challenge = challenge
                         deadline = time.monotonic() + seconds
                         while time.monotonic() < deadline:
-                            self.ready()
+                            observed = self.ready().get("client") or {}
+                            sequence_number = observed.get("sequence")
+                            stats = observed.get("audioStats")
+                            if (sequence_number != previous_sequence and isinstance(stats, dict)
+                                    and len(audio_stats) < 128):
+                                audio_stats.append({"peerSequence": sequence_number, **stats})
+                                previous_sequence = sequence_number
                             time.sleep(0.1)
                     result = analyze(wav, challenge, expect)
+                    result["pcAudioStats"] = audio_stats
+                    # Retain the exact owned loopback PCM until the device
+                    # module copies it; the next receive replaces this pair.
+                    content = wav.read_bytes()
+                    retained = self.root / "receive-capture.wav"
+                    retained.write_bytes(content)
+                    retained.chmod(0o600)
+                    write_json(self.root / "receive-capture.json", {
+                        "challenge": challenge, "sha256": hashlib.sha256(content).hexdigest()})
             else:
                 with self.artifacts() as root:
                     wav = root / "challenge.wav"

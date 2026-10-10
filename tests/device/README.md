@@ -71,6 +71,18 @@ assertion failure.
 
 Enable long suites only after the short suites are reliable on the target.
 
+The Pico laboratory enables `OVERTE_E2E_REQUIRE_FIXTURE_SCREENSHOT=1`.
+Its scene prerequisite requires authored entity markers, grounded spawn,
+five fresh stable samples, advancing native OpenXR submissions, and an actual
+Android screenshot showing fixture geometry in both eye interiors. Gray floor,
+magenta collision wall, and orange interaction-target pixels supplement the
+semantic checks; a visible skybox alone cannot pass. Keep the headset facing
+the fixture's initial forward view during this prerequisite. The module saves
+`screenshot.png` and `fixture-image-observation.json` (including the image
+checksum) even when semantic scene readiness fails. If this prerequisite
+fails, the runner records subsequent modules as blocked skips and fails the
+run; those modules do not count as executed or passed.
+
 Modules that assert in-client effects use `OverteSession` and verify those
 effects through fresh schema-v2 `probe.snapshot` samples. A successful input
 command alone is never enough to pass a behavior.
