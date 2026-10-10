@@ -144,6 +144,70 @@ class NativeUiEvidence(unittest.TestCase):
                 adapter.click_accessibility(client, "owned", "OverteTabletOpen")
         client.call.assert_any_call("DELETE", "/session/owned/actions")
 
+    def capture_after_native_transition(self, persistent=False, foreign=False, changed=False):
+        adapter, client, target = self.adapter()
+        requests = []
+        observations = {}
+        def submit(request, timeout):
+            payload = json.loads(request.data)
+            requests.append(payload)
+            document = copy.deepcopy(self.document)
+            document["sampleEpochMs"] = time.time() * 1000
+            document["valid"] = False if persistent or foreign else len(requests) > 1
+            if not document["valid"]:
+                document["elements"] = []
+            if foreign:
+                document["processId"] = 43
+            observations[payload["commandId"]] = document
+            response = Mock(status=200)
+            response.read.return_value = json.dumps(payload).encode()
+            response.__enter__ = Mock(return_value=response)
+            response.__exit__ = Mock(return_value=False)
+            return response
+        def pull(session, operation, values):
+            command_id = requests[-1]["commandId"]
+            # The producer retains each sampled result. Reading the same
+            # nonce repeatedly cannot turn an invalid native sample valid.
+            receipt = {"schemaVersion": 1, "commandId": command_id,
+                       "observation": observations[command_id]}
+            return base64.b64encode(json.dumps(receipt).encode()).decode()
+        client.execute.side_effect = pull
+        process = {"bundleId": target["appId"], "pid": 42, "foreground": True}
+        states = [process, {**process, "pid": 43}] if changed else [process, process]
+        clock = [0]
+        def tick():
+            clock[0] += 0.1
+            return clock[0]
+        with patch.object(adapter, "native_process", side_effect=states), \
+                patch("adapters.ios.adapter.urlopen", side_effect=submit), \
+                patch("adapters.ios.adapter.time.monotonic", side_effect=tick), \
+                patch("adapters.ios.adapter.time.sleep"):
+            if persistent or foreign or changed:
+                with self.assertRaisesRegex(RuntimeError, "crossed process" if changed else "not available"):
+                    adapter.native_ui_snapshot(client, "owned", target)
+            else:
+                result = adapter.native_ui_snapshot(client, "owned", target)
+                self.assertIs(result["valid"], True)
+                self.assertEqual(self.document["elements"], result["elements"])
+        self.assertLessEqual(clock[0], 5.5)
+        return requests
+
+    def test_transient_invalid_native_sample_requires_a_new_capture_nonce(self):
+        requests = self.capture_after_native_transition()
+        self.assertEqual(2, len(requests))
+        self.assertNotEqual(requests[0]["commandId"], requests[1]["commandId"])
+
+    def test_persistently_invalid_native_samples_remain_failed_within_original_deadline(self):
+        requests = self.capture_after_native_transition(persistent=True)
+        self.assertGreater(len(requests), 1)
+        self.assertEqual(len(requests), len({r["commandId"] for r in requests}))
+
+    def test_foreign_process_invalid_sample_does_not_trigger_resampling(self):
+        self.assertEqual(1, len(self.capture_after_native_transition(foreign=True)))
+
+    def test_fresh_valid_capture_still_cannot_cross_foreground_process_identity(self):
+        self.assertEqual(2, len(self.capture_after_native_transition(changed=True)))
+
     def test_native_ui_requires_exact_installed_feature_marker(self):
         adapter, client, target = self.adapter()
         self.assertTrue(adapter.native_ui_enabled(target))

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import base64
 import json
+import math
 import re
 import time
 from urllib.error import HTTPError, URLError
@@ -266,24 +267,28 @@ class IOSAdapter(AppiumAdapter):
         process = self.native_process(client, session, target)
         if process is None or not process["foreground"]:
             fail("native UIKit observation requires the configured foreground process")
-        command_id = "ios-" + uuid.uuid4().hex
-        payload = {"schemaVersion": 1, "commandId": command_id,
-                   "action": "native-ui-snapshot"}
         origin = target["testBuild"]["fixtureOrigin"]
         self.controlled_http_url(origin, "iOS fixture command origin")
-        request = Request(origin + "/e2e-client-command.json",
-                          data=json.dumps(payload).encode(), method="POST",
-                          headers={"Content-Type": "application/json"})
-        with urlopen(request, timeout=5) as response:
-            content = response.read(4097)
-            if response.status != 200 or len(content) > 4096 or json.loads(content) != payload:
-                fail("owned fixture did not accept the exact native UIKit snapshot request")
+        def request_snapshot(timeout=5):
+            command_id = "ios-" + uuid.uuid4().hex
+            payload = {"schemaVersion": 1, "commandId": command_id,
+                       "action": "native-ui-snapshot"}
+            request = Request(origin + "/e2e-client-command.json",
+                              data=json.dumps(payload).encode(), method="POST",
+                              headers={"Content-Type": "application/json"})
+            with urlopen(request, timeout=timeout) as response:
+                content = response.read(4097)
+                if response.status != 200 or len(content) > 4096 or json.loads(content) != payload:
+                    fail("owned fixture did not accept the exact native UIKit snapshot request")
+            return command_id
+        command_id = request_snapshot()
         remote = (f"@{target['appId']}:documents/"
                   f"{target['testBuild']['resultsDirectory']}/ios-native-ui-request-result.json")
         deadline = time.monotonic() + 5
         last_rejection = None
         while time.monotonic() < deadline:
             encoded = client.execute(session, "mobile: pullFile", {"remotePath": remote})
+            retry_native_capture = False
             try:
                 receipt = json.loads(base64.b64decode(encoded, validate=True))
                 if (not isinstance(receipt, dict) or set(receipt) != {
@@ -291,9 +296,28 @@ class IOSAdapter(AppiumAdapter):
                         or type(receipt["schemaVersion"]) is not int or receipt["schemaVersion"] != 1
                         or receipt["commandId"] != command_id):
                     raise ValueError("native UIKit snapshot did not match this request")
-                document = native_ui.validate(receipt["observation"], process["pid"])
+                observation = receipt["observation"]
+                # A native scene transition can produce valid:false. The
+                # client retains that exact sample once per nonce, so rereading
+                # it cannot observe readiness. Request another actual sample
+                # within the same deadline; never accept the invalid sample.
+                if isinstance(observation, dict) and set(observation) == {
+                        "schemaVersion", "valid", "sampleEpochMs", "processId", "elements"}:
+                    epoch = observation["sampleEpochMs"]
+                    retry_native_capture = (
+                        type(observation["schemaVersion"]) is int and observation["schemaVersion"] == 1
+                        and observation["valid"] is False
+                        and type(observation["processId"]) is int and observation["processId"] == process["pid"]
+                        and observation["elements"] == []
+                        and type(epoch) in (int, float) and math.isfinite(epoch)
+                        and -1000 <= time.time() * 1000 - epoch <= 3000)
+                document = native_ui.validate(observation, process["pid"])
             except (ValueError, UnicodeError) as error:
                 last_rejection = error
+                if retry_native_capture:
+                    remaining = deadline - time.monotonic()
+                    if remaining > 0:
+                        command_id = request_snapshot(timeout=min(5, remaining))
                 time.sleep(0.1)
                 continue
             after = self.native_process(client, session, target)
