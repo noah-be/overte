@@ -227,7 +227,7 @@ def main() -> None:
         "the audio injector to finish normally",
         lambda sound: sound["commandId"] == command_id and sound["finished"] is True
         and sound["playing"] is False,
-        timeout,
+        max(timeout, expected_duration),
     )
     reason = finished_sample["sound"]["finishReason"]
     if reason not in {"natural", "stopped"}:
