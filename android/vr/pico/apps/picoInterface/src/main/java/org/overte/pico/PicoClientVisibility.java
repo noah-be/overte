@@ -23,6 +23,15 @@ final class PicoClientVisibility {
     // True means queued/admitted, NOT applied or physically stopped.
     private static native boolean publish(long generation, boolean foreground);
 
+    // The full client registers JNI after Qt loads its DSO. Deliver the
+    // retained Activity observation at that boundary, without relying on a
+    // delayed Android main-loop callback during Qt startup.
+    static synchronized boolean nativeBindingsReady(Object instance) {
+        if (instance == null || owner.get() != instance) return false;
+        deliver();
+        return !pending;
+    }
+
     static synchronized void attach(Object instance) {
         if (instance == null) return;
         owner = new WeakReference<>(instance);

@@ -490,6 +490,13 @@ bool Protocol::tryAccept(std::int64_t epochMilliseconds,
                 return false;
             }
             active.booleans[static_cast<std::size_t>(channel)] = true;
+            // A trigger click represents a full physical press. Overte derives
+            // its standard virtual click from the corresponding analog value.
+            if (control == QLatin1String("trigger")) {
+                const auto trigger = hand == QLatin1String("left")
+                    ? FloatChannel::LeftTrigger : FloatChannel::RightTrigger;
+                active.floats[static_cast<std::size_t>(trigger)] = 1.0f;
+            }
             duration = static_cast<std::int64_t>(hold);
         } else if (operation == QLatin1String("controller.trigger") ||
                    operation == QLatin1String("controller.grip")) {
@@ -626,6 +633,42 @@ bool Protocol::tryAccept(std::int64_t epochMilliseconds,
                 : direction == QLatin1String("backward") ? static_cast<float>(-strength) : 0.0f;
             active.vectors[static_cast<std::size_t>(VectorChannel::LeftThumbstick)] = { x, y };
             duration = static_cast<std::int64_t>(std::llround(seconds * 1000.0));
+        } else if (operation == QLatin1String("input.primary")) {
+            if (!exactKeys(arguments, {}, { "positionMeters", "orientation" })
+                    || arguments.contains("positionMeters") != arguments.contains("orientation")) {
+                return false;
+            }
+            // A bounded real right-hand pointer gesture in the controlled
+            // fixture: settle the injected grip, then press the native trigger.
+            // The client must independently observe the actual entity event.
+            auto& grip = active.poses[static_cast<std::size_t>(PoseChannel::RightGrip)];
+            grip.active = true;
+            grip.pose.position = { 0.0f, 1.6f, -0.35f };
+            grip.pose.orientation = { -0.3928474792f, 0.3928474792f, 0.5879378012f, -0.5879378012f };
+            if (arguments.contains("positionMeters")) {
+                std::vector<double> position;
+                std::vector<double> orientation;
+                if (!readVector(arguments.value("positionMeters"), 3, -3.0, 3.0, position)
+                        || !readVector(arguments.value("orientation"), 4, -1.0, 1.0, orientation)) {
+                    return false;
+                }
+                double normSquared { 0.0 };
+                for (auto component : orientation) { normSquared += component * component; }
+                if (std::abs(std::sqrt(normSquared) - 1.0) > 0.0001) { return false; }
+                grip.pose.position = { static_cast<float>(position[0]),
+                    static_cast<float>(position[1]), static_cast<float>(position[2]) };
+                grip.pose.orientation = { static_cast<float>(orientation[0]),
+                    static_cast<float>(orientation[1]), static_cast<float>(orientation[2]),
+                    static_cast<float>(orientation[3]) };
+            }
+            // Wake the lazy ray with a half squeeze before its digital edge.
+            // Native pointer picking must see the settled pose before a click.
+            active.floats[static_cast<std::size_t>(FloatChannel::RightTrigger)] = 0.2f;
+            compiled.push_back({ cursor, active, identifier.toStdString() });
+            cursor += 1200;
+            active.booleans[static_cast<std::size_t>(BooleanChannel::RightTrigger)] = true;
+            active.floats[static_cast<std::size_t>(FloatChannel::RightTrigger)] = 1.0f;
+            duration = 800;
         } else if (operation == QLatin1String("input.jump")) {
             if (!exactKeys(arguments, {})) {
                 return false;

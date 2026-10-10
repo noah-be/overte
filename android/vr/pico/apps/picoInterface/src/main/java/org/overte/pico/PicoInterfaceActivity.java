@@ -21,6 +21,7 @@ public final class PicoInterfaceActivity extends QtActivity {
     private static final PicoActivityInstancePolicy<PicoInterfaceActivity> INSTANCE =
         new PicoActivityInstancePolicy<>();
     private boolean resumed;
+    private PicoAccessibilityBridge accessibility;
 
     static {
         // Shared emits canonical OpenSSL 3 filenames/SONAMEs. Preload crypto
@@ -45,6 +46,10 @@ public final class PicoInterfaceActivity extends QtActivity {
         PicoClientVisibility.attach(this);
         APPLICATION_PARAMETERS = PicoInterfaceActivityPolicy.applicationParameters(
             getCacheDir().getAbsolutePath());
+        // Qt's stock provider targets on-screen windows and activates Qt Quick
+        // from Android's UI thread. Our offscreen provider queues activation and
+        // snapshots on the Qt GUI thread and publishes them on the real surface.
+        ENVIRONMENT_VARIABLES += "\tQT_ANDROID_DISABLE_ACCESSIBILITY=1";
 
         HifiUtils.upackAssets(getAssets(), getCacheDir().getAbsolutePath());
 
@@ -60,6 +65,7 @@ public final class PicoInterfaceActivity extends QtActivity {
             RedactingDiagnostics.e(Event.STORAGE_UNAVAILABLE);
         }
         super.onCreate(savedInstanceState);
+        accessibility = new PicoAccessibilityBridge(this);
         OffscreenWebView.initializeNativeBridge();
         AndroidAudioInput.initializeNativeBridge();
     }
@@ -123,6 +129,7 @@ public final class PicoInterfaceActivity extends QtActivity {
     @Override
     protected void onDestroy() {
         final boolean ownsLifecycle = INSTANCE.current() == this;
+        if (accessibility != null) accessibility.stop();
         if (ownsLifecycle) {
             runShutdownStep("Web input", () -> OffscreenWebView.setInputForeground(this, false));
         }
@@ -186,6 +193,7 @@ public final class PicoInterfaceActivity extends QtActivity {
     public void onResume() {
         super.onResume();
         resumed = true;
+        if (accessibility != null) accessibility.start();
         runShutdownStep("Web input", () -> OffscreenWebView.setInputForeground(this, hasWindowFocus()));
         if (INSTANCE.current() == this) PicoClientVisibility.foreground(this, true);
         if (INSTANCE.current() == this) AndroidAudioInput.setForeground(hasWindowFocus());
@@ -194,6 +202,7 @@ public final class PicoInterfaceActivity extends QtActivity {
     @Override
     public void onPause() {
         resumed = false;
+        if (accessibility != null) accessibility.stop();
         runShutdownStep("Web input", () -> OffscreenWebView.setInputForeground(this, false));
         if (INSTANCE.current() == this) PicoClientVisibility.foreground(this, false);
         if (INSTANCE.current() == this) AndroidAudioInput.setForeground(false);

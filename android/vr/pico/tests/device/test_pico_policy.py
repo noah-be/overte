@@ -36,7 +36,11 @@ constexpr bool JNI_TRUE = true;
 namespace Qt { constexpr int QueuedConnection = 1; }
 struct AudioClient {};
 struct Handle { explicit operator bool() const { return true; } AudioClient* data() { return nullptr; } };
-struct DependencyManager { template<class T> static Handle get() { return {}; } };
+static bool clientAvailable = true;
+struct DependencyManager {
+ template<class T> static bool isSet() { return clientAvailable; }
+ template<class T> static Handle get() { assert(clientAvailable); return {}; }
+};
 static int clears = 0, queued = 0;
 static bool invocationSucceeds = true;
 void finishAndroidAudioDrain(bool discard) { assert(discard); ++clears; }
@@ -45,6 +49,12 @@ static overte::audio::PicoCapturePolicy picoCapturePolicy;
 static std::atomic<bool> picoAudioRefreshScheduled { false };
 void callback(jboolean allowed) ''' + callback + '''
 int main() {
+ clientAvailable = false;
+ callback(true); auto startup = picoCapturePolicy.ticket();
+ assert(picoCapturePolicy.allows() && clears == 1 && queued == 0);
+ callback(false);
+ assert(!picoCapturePolicy.accepts(startup) && clears == 2 && queued == 0);
+ clientAvailable = true; clears = 0;
  callback(false); assert(clears == 0 && queued == 0);
  callback(true); auto old = picoCapturePolicy.ticket(); assert(clears == 1 && queued == 1);
  callback(true); assert(clears == 1 && queued == 1);
@@ -52,6 +62,10 @@ int main() {
  callback(true); assert(clears == 3 && queued == 1 && !picoCapturePolicy.accepts(old));
  picoAudioRefreshScheduled.store(false); invocationSucceeds = false;
  callback(false); assert(!picoAudioRefreshScheduled.load() && !picoCapturePolicy.allows());
+ clientAvailable = false;
+ callback(true); auto teardown = picoCapturePolicy.ticket();
+ callback(false); assert(!picoCapturePolicy.accepts(teardown));
+ assert(!picoAudioRefreshScheduled.load() && queued == 2);
 }
 '''
         with tempfile.TemporaryDirectory() as temporary:

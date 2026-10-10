@@ -10,7 +10,7 @@ import unittest
 TEST_DIR = Path(__file__).resolve().parent
 MATRIX = json.loads((TEST_DIR / "pico4-coverage.json").read_text(encoding="utf-8"))
 RUNNER_TREE = ast.parse((TEST_DIR / "pico4-test-suite.py").read_text(encoding="utf-8"))
-EXPECTED_CATALOG_CASES = 31
+EXPECTED_CATALOG_CASES = 32
 
 
 def catalog_entries() -> list[str]:
@@ -42,7 +42,7 @@ class CoverageMatrixTests(unittest.TestCase):
         self.assertEqual(result_exit_code(Result(True)), 0)
         self.assertEqual(result_exit_code(Result(False)), 1)
 
-    def test_catalog_contains_31_unique_cases(self):
+    def test_catalog_contains_32_unique_cases(self):
         entries = catalog_entries()
         self.assertEqual(len(entries), EXPECTED_CATALOG_CASES)
         self.assertEqual(len(set(entries)), EXPECTED_CATALOG_CASES)

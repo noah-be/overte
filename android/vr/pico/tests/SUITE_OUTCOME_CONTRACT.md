@@ -1,6 +1,6 @@
 # Pico device-free suite outcomes
 
-The 31-case catalog is unchanged. A selected run succeeds only when every selected
+The 32-case catalog includes the native class-loader ownership regression. A selected run succeeds only when every selected
 case passes. `--skip-missing` preserves the skipped result kind but returns 1 for
 an incomplete run. A named/category subset can succeed; it is not the complete
 catalog. `--list` only lists the plan and retains exit 0.
@@ -20,4 +20,4 @@ The 12 self-tests exercise the actual CLI, runner and XML writer using short rea
 Python child processes and deliberately absent executables. They cover complete
 and partial selections, missing tools with skip reporting, fail-fast omissions,
 launch failure, timeout and an empty catalog. The original runner fails the new
-outcome assertions. These fixtures do not run the original 31 suite cases.
+outcome assertions. These fixtures do not run the actual 32 suite cases.

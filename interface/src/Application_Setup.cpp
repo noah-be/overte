@@ -32,6 +32,14 @@
 #include <QtCore/QResource>
 #include <QtQml/QQmlContext>
 #include <QtQuick/QQuickWindow>
+#if defined(ANDROID_APP_PICO_INTERFACE) && defined(OVERTE_E2E_OPENXR_INPUT_V1)
+#include <QDateTime>
+#include <QFileInfo>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QSaveFile>
+#include <QTimer>
+#endif
 
 #if defined(OVERTE_PICO_SETUP)
 #else
@@ -45,6 +53,7 @@
 #include <AccountManager.h>
 #if defined(OVERTE_PICO_SETUP)
 #include "../../android/vr/pico/apps/picoInterface/security/PicoAccountStore.h"
+#include "../../android/vr/pico/apps/picoInterface/lifecycle/PicoNativeBridges.h"
 #else
 #endif
 #include <AddressManager.h>
@@ -468,6 +477,51 @@ bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted
     DependencyManager::set<AddressManager>();
     DependencyManager::set<NodeList>(NodeType::Agent, listenPort);
 #if defined(ANDROID_APP_PICO_INTERFACE)
+    const bool picoNativeBridgesReady = overte::pico::installNativeBridges();
+    if (!picoNativeBridgesReady) {
+        qWarning("OVT_CALLBACK_DISCARDED");
+    }
+#if defined(OVERTE_E2E_OPENXR_INPUT_V1)
+    qApp->setProperty("picoE2eNativeBridgesReady", picoNativeBridgesReady);
+    const auto picoDebugArgs = QCoreApplication::arguments();
+    const int picoProbeArgument = picoDebugArgs.indexOf(QStringLiteral("--testScript"));
+    const QString picoProbeFile = QStringLiteral(
+        "/data/user/0/org.overte.pico/files/overte-e2e/overte_e2e_probe.js");
+    if (picoProbeArgument >= 0 && picoProbeArgument + 1 < picoDebugArgs.size() &&
+            !QFileInfo(picoProbeFile).canonicalFilePath().isEmpty() &&
+            QFileInfo(picoDebugArgs[picoProbeArgument + 1]).canonicalFilePath() ==
+                QFileInfo(picoProbeFile).canonicalFilePath()) {
+        // Read actual GUI-thread state independently of the Java retry and
+        // script readiness. No endpoint, account or device identifier enters
+        // this private diagnostic record.
+        auto app = QCoreApplication::instance();
+        const bool explicitStartupUrl = picoDebugArgs.contains(QStringLiteral("--url"));
+        auto observationTimer = new QTimer(app);
+        QObject::connect(observationTimer, &QTimer::timeout, app, [app, explicitStartupUrl] {
+            const QJsonObject observation {
+                {"schemaVersion", 1}, {"processId", QCoreApplication::applicationPid()},
+                {"updatedEpochMs", QDateTime::currentMSecsSinceEpoch()},
+                {"nativeBridgesReady", app->property("picoE2eNativeBridgesReady").toBool()},
+                {"nativeVisibilityObserved", app->property("picoE2eNativeVisibilityObserved").toBool()},
+                {"nativeForeground", app->property("picoE2eNativeForeground").toBool()},
+                {"qtForeground", app->property("picoE2eQtForeground").toBool()},
+                {"effectiveForeground", overte::lifecycle::applicationGate().snapshot().foreground},
+                {"pendingStartupNavigation", app->property("picoPendingStartupNavigation").toBool()},
+                {"explicitStartupUrl", explicitStartupUrl},
+                {"addressConnected", DependencyManager::get<AddressManager>()->isConnected()},
+                {"desktopMenuAvailable", Menu::getInstance() != nullptr},
+            };
+            QSaveFile output(QStringLiteral(
+                "/data/user/0/org.overte.pico/files/overte-e2e/lifecycle-observation.json"));
+            if (output.open(QIODevice::WriteOnly)) {
+                output.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+                output.write(QJsonDocument(observation).toJson(QJsonDocument::Compact));
+                output.commit();
+            }
+        });
+        observationTimer->start(250);
+    }
+#endif
     overte::lifecycle::observeQtVisibility(overte::pico::qtVisible(QGuiApplication::applicationState()));
 #else
     overte::lifecycle::observeQtVisibility(QGuiApplication::applicationState() == Qt::ApplicationActive);
@@ -1688,6 +1742,7 @@ void Application::setupSignalsAndOperators() {
 #if defined(OVERTE_PICO_SETUP)
 #if defined(OVERTE_E2E_OPENXR_INPUT_V1)
     overte::pico::e2e::installTabletBridge(this);
+    overte::pico::e2e::installTextBridge(this);
 #endif
 
 #else

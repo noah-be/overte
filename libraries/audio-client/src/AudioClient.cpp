@@ -424,6 +424,10 @@ Java_org_overte_pico_AndroidAudioInput_nativePolicyChanged(JNIEnv*, jclass, jboo
     if (!picoCapturePolicy.change(allowed == JNI_TRUE)) { return; }
     // Invalidate queued PCM synchronously, before the queued Qt device action.
     finishAndroidAudioDrain(true);
+    // Android focus can arrive before Qt creates AudioClient or after teardown.
+    // Retain the policy/epoch above without entering the missing-dependency
+    // diagnostic path while Qt logging itself is starting or shutting down.
+    if (!DependencyManager::isSet<AudioClient>()) { return; }
     auto client = DependencyManager::get<AudioClient>();
     bool expected = false;
     if (client && picoAudioRefreshScheduled.compare_exchange_strong(expected, true)) {

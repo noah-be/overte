@@ -64,6 +64,16 @@ set_property(TARGET interface PROPERTY SOURCES "${PICO_INTERFACE_SOURCES}")
 target_sources(interface PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/overrides/Application_Setup.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/lifecycle/PicoClientVisibility.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/lifecycle/PicoNativeBridges.cpp"
+)
+# Android accessibility reflects actual rendered Qt controls and their actions.
+pico_bind_qt_host_tools(interface)
+set_target_properties(interface PROPERTIES AUTORCC ON)
+target_sources(interface PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/accessibility/PicoAccessibilityBridge.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/accessibility/PicoAccessibilityTree.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/accessibility/PicoAccessibilityTree.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/accessibility/pico-accessibility.qrc"
 )
 # Application setup consumes the single account-store instance in picoOpenXR.
 # Link its owning library directly so libinterface resolves that symbol.
@@ -71,8 +81,12 @@ target_link_libraries(interface picoOpenXR)
 if(OVERTE_PICO_E2E_OPENXR_INPUT)
     target_compile_definitions(interface PRIVATE OVERTE_E2E_OPENXR_INPUT_V1=1)
     target_sources(interface PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/e2e/pico-e2e-fixture.qrc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/e2e/PicoE2eTextBridge.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/e2e/PicoE2eTabletBridge.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/e2e/PicoE2eTabletBridge.h"
+        "${CMAKE_CURRENT_SOURCE_DIR}/e2e/PicoE2eControllerObservation.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/e2e/PicoE2eControllerObservation.h"
     )
 endif()
 target_compile_options(audio-client PRIVATE -include jni.h)

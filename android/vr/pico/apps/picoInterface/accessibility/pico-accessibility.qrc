@@ -1,0 +1,5 @@
+<RCC>
+  <qresource prefix="/qml/hifi">
+    <file>PicoTabletAccessibility.qml</file>
+  </qresource>
+</RCC>

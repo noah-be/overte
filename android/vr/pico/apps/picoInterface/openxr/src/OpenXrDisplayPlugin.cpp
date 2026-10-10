@@ -20,6 +20,15 @@
 #include <sstream>
 #include <utility>
 
+#if defined(OVERTE_E2E_OPENXR_INPUT_V1)
+#include <QCoreApplication>
+#include <QDateTime>
+#include <QFileInfo>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QSaveFile>
+#endif
+
 #if defined(Q_OS_ANDROID)
 #include <sys/system_properties.h>
 #endif
@@ -91,6 +100,47 @@ static XrFoveationLevelFB picoFoveationLevel() {
         return XR_FOVEATION_LEVEL_HIGH_FB;
     }
     return XR_FOVEATION_LEVEL_LOW_FB;
+}
+#endif
+
+#if defined(OVERTE_E2E_OPENXR_INPUT_V1)
+// Observe successful native OpenXR submissions independently of Script/Stats.
+// The fixed Debug launcher and its exact local probe are the only consumers.
+static void recordE2ePresentation(bool submittedLayer) {
+    static const bool enabled = [] {
+        const auto args = QCoreApplication::arguments();
+        const int at = args.indexOf(QStringLiteral("--testScript"));
+        if (at < 0 || at + 1 >= args.size()) { return false; }
+        const auto active = QFileInfo(args[at + 1]).canonicalFilePath();
+        const auto expected = QFileInfo(QStringLiteral(
+            "/data/user/0/org.overte.pico/files/overte-e2e/overte_e2e_probe.js")).canonicalFilePath();
+        return !active.isEmpty() && active == expected;
+    }();
+    if (!enabled) { return; }
+    static quint64 submittedFrames { 0 };
+    static qint64 lastWrite { 0 };
+    if (submittedLayer) { ++submittedFrames; }
+    const auto now = QDateTime::currentMSecsSinceEpoch();
+    if (now - lastWrite < 250) { return; }
+    lastWrite = now;
+    const auto raw = glGetString(GL_RENDERER);
+    const auto renderer = raw ? QString::fromLatin1(reinterpret_cast<const char*>(raw)) : QString();
+    const auto lower = renderer.toLower();
+    const bool hardware = !renderer.isEmpty() && !lower.contains("software")
+        && !lower.contains("llvmpipe") && !lower.contains("swiftshader");
+    const QJsonObject value {
+        {"schemaVersion", 1}, {"processId", QCoreApplication::applicationPid()},
+        {"updatedEpochMs", now}, {"frameSequence", static_cast<double>(submittedFrames)},
+        {"backend", QStringLiteral("OpenXR / OpenGL ES / ") + renderer},
+        {"hardwareAccelerated", hardware}, {"surfaceVisible", submittedLayer},
+    };
+    QSaveFile output(QStringLiteral(
+        "/data/user/0/org.overte.pico/files/overte-e2e/render-presentation.json"));
+    if (output.open(QIODevice::WriteOnly)) {
+        output.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+        output.write(QJsonDocument(value).toJson(QJsonDocument::Compact));
+        output.commit();
+    }
 }
 #endif
 
@@ -765,6 +815,9 @@ bool OpenXrDisplayPlugin::endFrame(bool submitLayer) {
         return false;
     }
 
+#if defined(OVERTE_E2E_OPENXR_INPUT_V1)
+    recordE2ePresentation(info.layerCount > 0);
+#endif
     return true;
 }
 

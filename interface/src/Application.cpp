@@ -42,6 +42,10 @@ overte::lifecycle::Gate& overte::lifecycle::applicationGate() {
 #include <QLoggingCategory>
 #include <malloc.h>
 #include <sys/system_properties.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <time.h>
 #endif
 #include <string_view>
 
@@ -57,6 +61,11 @@ overte::lifecycle::Gate& overte::lifecycle::applicationGate() {
 #include <BuildInfo.h>
 #include <controllers/ScriptingInterface.h>
 #include <controllers/UserInputMapper.h>
+#if defined(Q_OS_ANDROID) && defined(ANDROID_APP_PICO_INTERFACE)
+#if defined(OVERTE_E2E_OPENXR_INPUT_V1)
+#include "../../android/vr/pico/apps/picoInterface/e2e/PicoE2eControllerObservation.h"
+#endif
+#endif
 #include <CrashHelpers.h>
 #include <DebugDraw.h>
 #include <DesktopPreviewProvider.h>
@@ -209,6 +218,31 @@ const QString DEFAULT_CURSOR_NAME = "SYSTEM";
 Setting::Handle<int> sessionRunTime { "sessionRunTime", 0 };
 
 void messageHandler(QtMsgType type, const QMessageLogContext& context, const QString& message) {
+#if defined(ANDROID_APP_PICO_INTERFACE) && defined(OVERTE_E2E_OPENXR_INPUT_V1)
+    // Keep fatal details only in the explicitly launched, private debug probe.
+    // Public diagnostics below remain closed constants. Use plain file I/O so
+    // recording an abort cannot recurse through Qt's logging/file machinery.
+    if (type == QtFatalMsg && QCoreApplication::instance()) {
+        const QUrl probe = QCoreApplication::instance()->property(hifi::properties::TEST).toUrl();
+        if (probe.isLocalFile() && probe.toLocalFile() == QStringLiteral(
+                "/data/user/0/org.overte.pico/files/overte-e2e/overte_e2e_probe.js")) {
+            const int descriptor = ::open(
+                "/data/user/0/org.overte.pico/files/overte-e2e/fatal.private.log",
+                O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW, 0600);
+            if (descriptor >= 0) {
+                ::fchmod(descriptor, 0600);
+                timespec now {};
+                ::clock_gettime(CLOCK_REALTIME, &now);
+                ::dprintf(descriptor, "processId=%d epochMs=%lld line=%d\n", getpid(),
+                    static_cast<long long>(now.tv_sec) * 1000 + now.tv_nsec / 1000000,
+                    context.line);
+                const QByteArray detail = message.left(16384).toUtf8();
+                ::write(descriptor, detail.constData(), detail.size());
+                ::close(descriptor);
+            }
+        }
+    }
+#endif
     Q_UNUSED(context);
     // Never forward dynamic Qt context, source path, category or arbitrary text.
     // Closed event constants carry useful outcomes without reversible fragments.
@@ -3661,6 +3695,9 @@ void Application::update(float deltaTime) {
         }
         userInputMapper->setInputCalibrationData(calibrationData);
         userInputMapper->update(deltaTime);
+#if defined(ANDROID_APP_PICO_INTERFACE) && defined(OVERTE_E2E_OPENXR_INPUT_V1)
+        overte::pico::e2e::observeControllerFrame(*userInputMapper);
+#endif
 #if defined(ANDROID_APP_PICO_INTERFACE)
         // Keep an emergency escape hatch available while the loading interstitial captures normal input.
         // OpenXR exposes the controller face buttons through the public standard X channel.
