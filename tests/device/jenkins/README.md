@@ -1,5 +1,9 @@
 # Shared Jenkins control plane
 
+For operation of the existing local laboratory, start with the
+[Jenkins operator guide](../../../docs/portal/jenkins/index.md) and its dated
+job inventory. This page owns the shared pipeline implementation contracts.
+
 This directory provides the portable Jenkins wrapper for the device-control
 plane. Jenkins supplies scheduling, an exclusive target lock, credential
 binding, time limits, and quarantined result publication. Test scenarios and
