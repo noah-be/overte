@@ -153,7 +153,12 @@ checks alone do not establish signature validity or installed-byte identity.
 
 The adapter rejects foreign paths and version pairs before opening a device
 session. It transfers freshly verified package bytes only while the configured
-app is stopped. Installation must acknowledge the exact prepared digest, and
+app is stopped. The local driver requires the selected, already paired physical
+USB device for both native AFC staging and installation; it rejects a network
+multiplexer connection, foreign device identity or absent cable before upload.
+There is no installation fallback to Wi-Fi. The private native completion
+receipt records the USB transport and verified physical device identity.
+Installation must acknowledge the exact prepared digest, and
 the upgraded process must independently report the candidate version. The
 portable module checks that its changed persisted setting survived the upgrade.
 The driver refreshes the actual executable path and Documents service after
@@ -281,3 +286,23 @@ Regression-first execution may run domain-roundtrip before domain-enter. Its
 module establishes the real controlled-domain prerequisite when necessary,
 then still proves departure, serverless state and stable reconnection in one
 unchanged foreground process.
+
+## Owned developer connection lifetime
+
+The local driver establishes its authenticated Instruments connection before
+starting XCTest and retains it in the owned session stack. App termination,
+launch, fresh process/executable observations and Settings observations reuse
+that connection. A changed authenticated device route cannot reuse it, and only
+owned session cleanup closes it. This avoids additional developer capability
+handshakes competing with an active native test session.
+
+Settings automation reuses the exact native HTTP client that already proved
+ready for the configured WDA product. Each permission operation checks that
+identity and readiness again before input. The paired-device LAN route retains
+the authenticated remote-device identity; switching to a new application-port
+route after the client foregrounds is not assumed to work.
+
+These connection checks do not replace physical input acknowledgments, real
+permission changes, native process replacement or complete cleanup evidence.
+Independent read-only runner diagnostics retained after a failed input never
+supply test results or retry an input whose acknowledgment is missing.
