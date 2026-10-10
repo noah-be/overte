@@ -17,7 +17,9 @@ OUTPUT = ROOT / "audio" / "overte-e2e-tone.wav"
 SAMPLE_RATE = 8000
 CHANNELS = 1
 SAMPLE_WIDTH_BYTES = 2
-DURATION_SECONDS = 8.0
+# Real iPad snapshot transport took 10.5 seconds to collect the two independent
+# command/resource observations. Keep playback active across that evidence chain.
+DURATION_SECONDS = 16.0
 FREQUENCY_HZ = 440.0
 AMPLITUDE = 0.2
 
