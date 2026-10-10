@@ -833,6 +833,16 @@ void ScriptManager::init() {
         return; // only initialize once
     }
 
+    // Native registration must finish before permanently aborting V8: an
+    // aborted engine returns empty properties, including Script.require.
+    // Keep stop requests immediate without waiting for this worker's Locker.
+    _isInitializing.store(true);
+    Finally finishInitialization([this] {
+        _isInitializing.store(false);
+        if (isStopping()) { _engine->abortEvaluation(); }
+    });
+    if (isStopping() || isStopped()) { return; }
+
     _isInitialized = true;
 
     if (_context != NETWORKLESS_TEST_SCRIPT) {
@@ -1257,7 +1267,7 @@ void ScriptManager::stop(bool marshal) {
     // Interrupt JavaScript before queuing manager-thread work: that thread may
     // be occupied by an unbounded evaluation. Retain the engine during the call.
     auto engine = _engine;
-    if (engine) {
+    if (engine && !_isInitializing.load()) {
         engine->abortEvaluation();
     }
 
@@ -2763,6 +2773,11 @@ void ScriptManager::unloadEntityScript(const EntityItemID& entityID, const QStri
         "entityID:" << entityID;
 #endif
 
+    // Queued cleanup can arrive after run() has released its engine scope.
+    // Copying EntityScriptDetails also copies ScriptValues and enters V8.
+    // Acquire the engine before the details lock and retain it through cleanup.
+    auto scopeGuard = _engine->getScopeGuard();
+
     auto consent = _entityScriptConsentRequests.find(entityID);
     if (consent != _entityScriptConsentRequests.end()) {
         if (auto request = consent->value(scriptURL)) { request->invalidate(); }
@@ -2830,6 +2845,11 @@ void ScriptManager::unloadAllEntityScriptsForEntity(const EntityItemID& entityID
                           << entityID;
 #endif
 
+    // Queued cleanup can arrive after run() has released its engine scope.
+    // Copying EntityScriptDetails also copies ScriptValues and enters V8.
+    // Acquire the engine before the details lock and retain it through cleanup.
+    auto scopeGuard = _engine->getScopeGuard();
+
     for (const auto& request : _entityScriptConsentRequests.value(entityID)) { request->invalidate(); }
     _entityScriptConsentRequests.remove(entityID);
     _entityScriptLoads.remove(entityID);
@@ -2892,6 +2912,11 @@ void ScriptManager::unloadAllEntityScripts(bool blockingCall) {
 #ifdef THREAD_DEBUGGING
     qCDebug(scriptengine) << "ScriptManager::unloadAllEntityScripts() called on correct thread [" << thread() << "]";
 #endif
+
+    // Queued cleanup can arrive after run() has released its engine scope.
+    // Copying EntityScriptDetails also copies ScriptValues and enters V8.
+    // Acquire the engine before the details lock and retain it through cleanup.
+    auto scopeGuard = _engine->getScopeGuard();
 
     for (const auto& scripts : _entityScriptConsentRequests) {
         for (const auto& request : scripts) { request->invalidate(); }

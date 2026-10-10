@@ -88,6 +88,27 @@ EntityTreeRenderer::EntityTreeRenderer(bool wantScripts, AbstractViewStateInterf
     connect(pointerManager.data(), &PointerManager::triggerBeginEntity, entityScriptingInterface, &EntityScriptingInterface::mousePressOnEntity);
     connect(pointerManager.data(), &PointerManager::triggerContinueEntity, entityScriptingInterface, &EntityScriptingInterface::mouseMoveOnEntity);
     connect(pointerManager.data(), &PointerManager::triggerEndEntity, entityScriptingInterface, &EntityScriptingInterface::mouseReleaseOnEntity);
+    // Begin native pointer click lifecycle. A controller's primary trigger
+    // must reach the same entity-script click callbacks as a desktop click.
+    connect(pointerManager.data(), &PointerManager::triggerBeginEntity, entityScriptingInterface,
+        [entityScriptingInterface](const QUuid& entityID, const PointerEvent& event) {
+            if (event.getButton() == PointerEvent::PrimaryButton) {
+                emit entityScriptingInterface->clickDownOnEntity(entityID, event);
+            }
+        });
+    connect(pointerManager.data(), &PointerManager::triggerContinueEntity, entityScriptingInterface,
+        [entityScriptingInterface](const QUuid& entityID, const PointerEvent& event) {
+            if (event.getButton() == PointerEvent::PrimaryButton) {
+                emit entityScriptingInterface->holdingClickOnEntity(entityID, event);
+            }
+        });
+    connect(pointerManager.data(), &PointerManager::triggerEndEntity, entityScriptingInterface,
+        [entityScriptingInterface](const QUuid& entityID, const PointerEvent& event) {
+            if (event.getButton() == PointerEvent::PrimaryButton) {
+                emit entityScriptingInterface->clickReleaseOnEntity(entityID, event);
+            }
+        });
+    // End native pointer click lifecycle.
     connect(pointerManager.data(), &PointerManager::scrollEntity, entityScriptingInterface, &EntityScriptingInterface::scrollOnEntity);
 
     // Forward mouse events to web entities

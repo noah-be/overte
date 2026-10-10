@@ -1,0 +1,12 @@
+{% extends "!page.html" %}
+{% block body %}
+{% if portal_scope %}
+<aside class="portal-page-status" aria-label="Document scope and freshness">
+  <p><strong>Scope:</strong> {{ portal_scope }}</p>
+  <p><strong>Last updated:</strong> {{ portal_updated }}
+     <span class="portal-date-separator">·</span>
+     <strong>Last reviewed:</strong> {{ portal_reviewed }}</p>
+</aside>
+{% endif %}
+{{ super() }}
+{% endblock %}

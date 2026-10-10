@@ -11,7 +11,7 @@ from pathlib import Path
 REQUIRED = {
     "acceptance-policy": 1, "adapter-manifest": 1, "artifact-manifest": 1,
     "capability-registry": 1, "fixture-environment": 1, "matrix-summary": 1,
-    "probe-snapshot": 2, "run-manifest": 1, "run-summary": 1, "timeline": 1,
+    "voice-test": 1, "probe-snapshot": 2, "run-manifest": 1, "run-summary": 1, "timeline": 1,
 }
 
 
