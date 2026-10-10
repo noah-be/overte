@@ -6,8 +6,9 @@ from pathlib import Path
 import sys
 import unittest
 import time
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from adapters.appium.adapter import AppiumAdapter
 from adapters.ios import native_permission
 from adapters.ios.adapter import IOSAdapter
 from contracts import validate_operation_result
@@ -63,13 +64,38 @@ class NativePermissionTest(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             adapter.invoke("selected","permission.set",{"permissionId":"microphone","state":"denied"})
 
-    def test_unattested_restart_and_snapshot_restart_remain_failures(self):
+    def test_unattested_restart_remains_a_failure(self):
         adapter,_=self.adapter();self.receipt["processAfter"]=124
         with self.assertRaisesRegex(RuntimeError,"ASSERTION.*restarted"):
-            adapter.invoke("selected","permission.snapshot",{"permissionId":"microphone"})
+            adapter.invoke("selected","permission.set",{"permissionId":"microphone","state":"granted"})
         adapter.reset_launch_state.assert_called_once()
         adapter.wait_first_ios_probe.assert_called_once()
         adapter.launch_ios_test_build.assert_not_called()
+
+    def test_snapshot_observes_native_audio_without_visiting_settings(self):
+        adapter,client=self.adapter()
+        value={"ok":True,"iosPermission":1,"iosForeground":True,
+               "sampleEpochMs":int(time.time()*1000)}
+        with patch.object(AppiumAdapter,"invoke",return_value=value) as exchange:
+            observed=adapter.invoke("selected","permission.snapshot",{"permissionId":"microphone"})
+        self.assertEqual("granted",observed["state"])
+        client.execute.assert_not_called()
+        self.assertEqual(("selected","voice.exchange"),exchange.call_args.args[:2])
+        self.assertEqual("status",exchange.call_args.args[2]["action"])
+        adapter.assert_ios_process_identity.assert_called()
+        adapter.assert_ios_process_identity.side_effect=["123","124"]
+        with patch.object(AppiumAdapter,"invoke",return_value=value),self.assertRaisesRegex(RuntimeError,"crossed process"):
+            adapter.invoke("selected","permission.snapshot",{"permissionId":"microphone"})
+
+    def test_native_audio_observation_rejects_unknown_stale_and_background_state(self):
+        value={"ok":True,"iosPermission":1,"iosForeground":True,
+               "sampleEpochMs":int(time.time()*1000)}
+        self.assertEqual("denied",native_permission.audio_snapshot({**value,"iosPermission":2})["state"])
+        for change in ({"iosPermission":0},{"iosPermission":3},{"iosPermission":True},
+                       {"iosForeground":False},{"ok":False},{"sampleEpochMs":1},
+                       {"sampleEpochMs":float("nan")},{"sampleEpochMs":True}):
+            with self.subTest(change=change),self.assertRaises(ValueError):
+                native_permission.audio_snapshot({**value,**change})
 
     def test_only_observed_settings_termination_with_a_verified_replacement_is_allowed(self):
         adapter,_=self.adapter()

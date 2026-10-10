@@ -532,6 +532,13 @@ class IOSAdapter(AppiumAdapter):
             return self.review_entity_script(selector, client, session, state, target)
         if operation in {"permission.snapshot", "permission.set"}:
             identity = self.assert_ios_process_identity(selector, client, session, state, target)
+            if operation == "permission.snapshot":
+                observed = self.invoke(selector, "voice.exchange", {
+                    "schemaVersion": 1, "commandId": "ios-" + uuid.uuid4().hex,
+                    "action": "status"})
+                if self.assert_ios_process_identity(selector, client, session, state, target) != identity:
+                    fail("native microphone observation crossed process identities")
+                return native_permission.audio_snapshot(observed)
             receipt = client.execute(session, "mobile: overteMicrophonePermission", arguments)
             observed = native_permission.observation(receipt, identity)
             if str(receipt["processAfter"]) != identity or receipt["stoppedByOperatingSystem"]:

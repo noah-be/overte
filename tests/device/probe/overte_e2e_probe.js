@@ -697,6 +697,10 @@
                     Audio.setServerEcho(false);
                     location.handleLookupString(request.domainUrl);
                 }
+            } else if (request.action === "status") {
+                // Read the actual native audio state without preparing a voice
+                // session or changing microphone, mute, echo or domain state.
+                result = Test.voiceTest(request);
             } else if (request.action === "reset") {
                 restoreVoice();
                 result = Test.voiceTest(request);

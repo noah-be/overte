@@ -43,6 +43,9 @@ Physical activation uses a WDA touch at the center of the freshly observed
 visible enabled control's native frame, followed by contact release even if
 the touch request fails. The module still observes the actual resulting
 tablet screen independently. No fixed-coordinate activation fallback is used.
+The local Wi-Fi driver can deliver this exact short widget tap through XCTest's
+native coordinate-tap endpoint; it rejects drag or long-press sequences on that
+path and still requires the native acknowledgment and unchanged foreground PID.
 
 The optional path needs a newly built and installed client plus successful
 physical-device validation. Host regression success alone does not establish
@@ -199,6 +202,15 @@ The explicit `nativePermission` binding is
 driver observes the selected installed app's actual switch in system Settings,
 requires unique native accessibility elements and verifies Settings' foreground
 process before input. Audio mute is not a substitute for OS permission.
+
+Read-only `permission.snapshot` uses a nonce-bound `Test.voiceTest` status
+request through the existing observed-client Documents channel. It requires
+the native audio permission to be definitively granted or denied, the native
+foreground flag, a sample no older than five seconds and the same independently
+verified process before and after the request. Status works without preparing
+a voice session and does not change mute, echo or domain state. This avoids
+extra Settings transitions between the two actual switch changes; each
+`permission.set` still touches and independently observes the real system switch.
 
 The physical iPad terminates the client when this permission changes. The
 adapter independently verifies the stopped process and the foreground

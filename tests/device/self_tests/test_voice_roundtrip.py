@@ -168,6 +168,11 @@ function apply(id,action,extra={}) {
     return applyVoice({schemaVersion:1,commandId:id,action:'voice-test',
         request:{schemaVersion:1,commandId:id,action,...extra}});
 }
+assert(apply('read-permission','status'));
+assert.equal(native.at(-1).action,'status');
+assert.equal(Audio.muted,false);assert.equal(Audio.avatarGain,-2);
+assert.equal(voiceOriginal,null);assert.equal(voiceWatchdog,null);
+assert.equal(location.url,undefined);
 assert(apply('prepare','prepare',{domainUrl:'hifi://fixture:40102'}));
 assert.equal(Audio.muted,true);assert.equal(Audio.avatarGain,0);
 assert.equal(Audio.localEcho,false);assert.equal(location.url,'hifi://fixture:40102');
