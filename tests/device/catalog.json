@@ -148,11 +148,11 @@
     },
     {
       "id": "permission-recovery",
-      "description": "Deny and grant microphone permission through the native OS path without losing the application process.",
+      "description": "Deny and grant microphone permission through the native OS path, verifying continuity or an observed iOS Settings restart and recovery.",
       "command": ["modules/permission_recovery.py"],
       "suites": ["permission-recovery"],
       "requires": ["app.foreground", "app.process", "permission.set", "permission.snapshot"],
-      "timeoutSeconds": 180
+      "timeoutSeconds": 300
     },
     {
       "id": "crash-recovery-under-load",
