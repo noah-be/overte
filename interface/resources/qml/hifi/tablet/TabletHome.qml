@@ -462,6 +462,7 @@ Item {
                 Accessible.role: Accessible.Button
                 Accessible.name: qsTr("Close tablet")
                 Accessible.description: qsTr("Return to the world controls")
+                Accessible.onPressAction: tabletProxy.hideAndroidTablet()
                 onClicked: tabletProxy.hideAndroidTablet()
                 Keys.onReturnPressed: tabletProxy.hideAndroidTablet()
                 Keys.onEnterPressed: tabletProxy.hideAndroidTablet()

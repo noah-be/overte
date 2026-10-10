@@ -91,7 +91,8 @@ class CoreSequenceTest(unittest.TestCase):
         reapply = probe.split("function applySceneLocation", 1)[1].split("}", 1)[0]
         self.assertIn("resetSceneObservation();", reapply)
         self.assertIn("!avatarAtExpectedSpawn()", reapply)
-        self.assertIn("Controller.Actions.TranslateY", probe)
+        self.assertIn("var actionChannels = Controller.Actions;", probe)
+        self.assertIn("actionChannels.TranslateY", probe)
         self.assertIn("DriveKeys.TRANSLATE_Y", probe)
         self.assertIn("velocity: vector(MyAvatar.velocity)", probe)
 
@@ -142,6 +143,47 @@ class CoreSequenceTest(unittest.TestCase):
             self.assertEqual("12", junit.attrib["tests"])
             self.assertEqual("0", junit.attrib["failures"])
             self.assertEqual("0", junit.attrib["errors"])
+
+    def test_collision_restores_spawn_after_a_displaced_previous_module(self):
+        with tempfile.TemporaryDirectory(prefix="overte-e2e-collision-recovery-") as temporary:
+            root = Path(temporary)
+            state_path = root / "state.json"
+            wrapper = root / "displaced_collision.py"
+            collision = DEVICE_ROOT / "modules/collision.py"
+            wrapper.write_text(
+                "import json, os, runpy, sys\n"
+                "from pathlib import Path\n"
+                "state_path = Path(os.environ['OVERTE_MOCK_E2E_STATE'])\n"
+                "state = json.loads(state_path.read_text())\n"
+                "state['position']['x'] = -1.6\n"
+                "state_path.write_text(json.dumps(state))\n"
+                f"sys.path.insert(0, {str(DEVICE_ROOT / 'modules')!r})\n"
+                f"runpy.run_path({str(collision)!r}, run_name='__main__')\n",
+                encoding="utf-8")
+            source = json.loads((DEVICE_ROOT / "catalog.json").read_text())
+            source["modules"] = [m for m in source["modules"]
+                                 if m["id"] in {"launch-smoke", "scene", "collision"}]
+            for module in source["modules"]:
+                module["command"][0] = str(wrapper if module["id"] == "collision"
+                                          else DEVICE_ROOT / module["command"][0])
+            catalog = root / "catalog.json"
+            catalog.write_text(json.dumps(source))
+            environment = os.environ.copy()
+            environment.update({"OVERTE_MOCK_E2E_STATE": str(state_path),
+                                "OVERTE_DEVICE_LAUNCH_SETTLE_SECONDS": "0",
+                                "OVERTE_E2E_SCENE_URL": "http://fixture.invalid/scene.json",
+                                "OVERTE_E2E_POLL_SECONDS": "0.05"})
+            result = subprocess.run([
+                sys.executable, str(DEVICE_ROOT / "run.py"),
+                "--adapter-manifest", str(DEVICE_ROOT / "adapters/mock/adapter.json"),
+                "--catalog", str(catalog), "--suite", "e2e-core", "--allow-virtual",
+                "--require-complete", "--output-dir", str(root / "results")],
+                env=environment, text=True, stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT, check=False)
+            self.assertEqual(0, result.returncode, result.stdout)
+            state = json.loads(state_path.read_text())
+            self.assertEqual(1, state["launchCount"])
+            self.assertEqual(2, state["sceneLoadCount"])
 
     def test_look_accepts_a_transient_observed_rotation_history(self):
         with tempfile.TemporaryDirectory(prefix="overte-e2e-transient-look-") as temporary:

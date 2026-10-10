@@ -21,6 +21,7 @@ QmlWrapper::QmlWrapper(QObject* qmlObject, QObject* parent)
 void QmlWrapper::writeProperty(QString propertyName, QVariant propertyValue) {
     if (QThread::currentThread() != thread()) {
         QMetaObject::invokeMethod(this, "writeProperty", Q_ARG(QString, propertyName), Q_ARG(QVariant, propertyValue));
+        return;
     }
     _qmlObject->setProperty(propertyName.toStdString().c_str(), propertyValue);
 }
@@ -28,6 +29,7 @@ void QmlWrapper::writeProperty(QString propertyName, QVariant propertyValue) {
 void QmlWrapper::writeProperties(QVariant propertyMap) {
     if (QThread::currentThread() != thread()) {
         QMetaObject::invokeMethod(this, "writeProperties", Q_ARG(QVariant, propertyMap));
+        return;
     }
     QVariantMap map = propertyMap.toMap();
     for (const QString& key : map.keys()) {

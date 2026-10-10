@@ -30,7 +30,7 @@ target = a[1] if len(a) > 2 and a[0] == "-s" else None
 cmd = a[2:] if target else a
 if cmd == ["get-state"]:
     print("device")
-elif len(cmd) == 3 and cmd[:2] == ["shell", "getprop"]:
+elif cmd[:2] == ["shell", "getprop"] and len(cmd) in (2, 3):
     defaults = {
         "ro.product.manufacturer": "Example",
         "ro.product.model": "Phone",
@@ -42,8 +42,11 @@ elif len(cmd) == 3 and cmd[:2] == ["shell", "getprop"]:
         "ro.opengles.version": "196610",
         "ro.kernel.qemu": "0",
     }
-    override = "OVERTE_MOCK_ADB_PROP_" + cmd[2].upper().replace(".", "_")
-    print(os.environ.get(override, defaults.get(cmd[2], "")))
+    names = [cmd[2]] if len(cmd) == 3 else defaults
+    for name in names:
+        override = "OVERTE_MOCK_ADB_PROP_" + name.upper().replace(".", "_")
+        value = os.environ.get(override, defaults.get(name, ""))
+        print(value if len(cmd) == 3 else "[" + name + "]: [" + value + "]")
 elif cmd == ["shell", "pm", "list", "features"]:
     print(os.environ.get("OVERTE_MOCK_ADB_FEATURES",
                          "feature:android.hardware.touchscreen"))
@@ -52,7 +55,7 @@ elif cmd == ["shell", "run-as", "io.github.noah_be.overte.phone", "cat",
     with open(os.environ["OVERTE_MOCK_ANDROID_PROBE"], encoding="utf-8") as source:
         print(source.read(), end="")
 elif cmd == ["shell", "run-as", "io.github.noah_be.overte.phone", "cat",
-             "files/overte-e2e/e2e-client-command.json"]:
+             "files/overte-e2e/android-control-command.json"]:
     path = os.environ["OVERTE_MOCK_ANDROID_COMMAND_FILE"]
     if os.path.exists(path):
         with open(path, encoding="utf-8") as source:
@@ -64,7 +67,7 @@ elif cmd == ["shell", "cat", "/proc/2468/stat"]:
     print("2468 (overte) S " + " ".join(["0"] * 18) + (" 101" if changed else " 100"))
 elif (len(cmd) == 2 and cmd[0] == "shell"
       and shlex.split(cmd[1])[:3] == ["run-as", "io.github.noah_be.overte.phone", "sh"]
-      and shlex.split(cmd[1])[-1] == "files/overte-e2e/e2e-client-command.json"):
+      and shlex.split(cmd[1])[-1] == "files/overte-e2e/android-control-command.json"):
     remote_arguments = shlex.split(cmd[1])
     if remote_arguments[3] != "-c" or remote_arguments[5] != "overte-e2e-write":
         raise SystemExit(8)
@@ -316,10 +319,30 @@ class AppiumAdapterTest(unittest.TestCase):
         }
         target["clientControl"] = {
             "kind": "android-run-as-command",
-            "relativePath": "files/overte-e2e/e2e-client-command.json",
+            "relativePath": "files/overte-e2e/android-control-command.json",
         }
         self.config.write_text(json.dumps(payload), encoding="utf-8")
         return target
+
+    def test_permission_restore_state_survives_separate_adapter_processes(self):
+        result = self.call("android", "invoke", "--target", "phone-alias",
+                           "--operation", "app.launch")
+        self.assertEqual(0, result.returncode, result.stdout)
+        state_path = next((self.root / "state").rglob("session.json"))
+        state = json.loads(state_path.read_text())
+        state["microphoneOriginalMode"] = "foreground"
+        state_path.write_text(json.dumps(state))
+        result = self.call("android", "invoke", "--target", "phone-alias",
+                           "--operation", "app.foreground")
+        self.assertEqual(0, result.returncode, result.stdout)
+        for invalid in ("arbitrary", True, {}):
+            with self.subTest(invalid=invalid):
+                state["microphoneOriginalMode"] = invalid
+                state_path.write_text(json.dumps(state))
+                result = self.call("android", "invoke", "--target", "phone-alias",
+                                   "--operation", "app.foreground")
+                self.assertNotEqual(0, result.returncode)
+                self.assertIn("microphone restore mode is invalid", result.stdout)
 
     def android_commands(self) -> list[dict]:
         path = self.root / "android-commands.jsonl"
@@ -454,9 +477,9 @@ class AppiumAdapterTest(unittest.TestCase):
                                "--arguments", json.dumps(arguments))
             self.assertEqual(0, result.returncode, f"{operation}: {result.stdout}")
         commands = self.android_commands()
-        self.assertEqual("navigation-enter-domain", commands[0]["action"])
+        self.assertEqual("enter-domain", commands[0]["action"])
         self.assertEqual("hifi://domain.example:40102", commands[0]["url"])
-        self.assertEqual({"action": "asset-load", "assetId": "fixture.image",
+        self.assertEqual({"action": "load-asset", "assetId": "fixture.image",
                           "entityName": "OVERTE_E2E_ASSET_LOAD_IMAGE",
                           "schemaVersion": 1, "url": fixture + "/image.png"},
                          {key: value for key, value in commands[1].items()
@@ -466,7 +489,28 @@ class AppiumAdapterTest(unittest.TestCase):
                          AppiumHandler.sound_commands[-1])
         self.assertEqual({"schemaVersion": 1, "commandId": "sound-channel-sound-123",
                           "action": "sound-channel",
-                          "url": fixture + "/sound-command.json"}, commands[2])
+                          "commandUrl": fixture + "/sound-command.json"}, commands[2])
+
+    def test_android_scene_reload_preserves_process_and_uses_owned_channel(self):
+        self.configure_controlled_android()
+        result = self.call("android", "invoke", "--target", "phone-alias",
+                           "--operation", "scene.load", "--arguments",
+                           json.dumps({"url": "overte-e2e://fixture/scene"}))
+        self.assertEqual(0, result.returncode, result.stdout)
+        commands = self.android_commands()
+        self.assertEqual("reload-scene", commands[-1]["action"])
+        self.assertFalse(any(script == "mobile: startActivity"
+                             for script, _ in AppiumHandler.executions))
+
+    def test_android_primary_action_uses_configured_native_touch(self):
+        payload = copy.deepcopy(self.targets)
+        payload["targets"][0]["controls"]["primary"] = [0.5, 0.5]
+        self.config.write_text(json.dumps(payload), encoding="utf-8")
+        result = self.call("android", "invoke", "--target", "phone-alias",
+                           "--operation", "input.primary", "--arguments", "{}")
+        self.assertEqual(0, result.returncode, result.stdout)
+        self.assertTrue(any(script == "mobile: clickGesture"
+                            for script, _ in AppiumHandler.executions))
 
     def test_android_new_operations_fail_closed(self):
         invalid = self.call("android", "invoke", "--target", "phone-alias",
