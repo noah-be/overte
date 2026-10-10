@@ -3,9 +3,9 @@
   "qualification": "SOURCE_IDENTITY_ONLY_NOT_REPRESENTATIVE_LOAD_ACCEPTANCE",
   "files": {
     "tests/device/fixture/scene.json": "7b5b6a19a9643ec8cb05a04ce585be49f82d64387c55706b493c1f9fef3e61c5",
-    "tests/device/fixture/fixture-manifest.json": "a04c02820987e261089bafa735fd65da3924446409ab3b0fb14222c771eb4476",
+    "tests/device/fixture/fixture-manifest.json": "3b1612163266b1510e1e1bcfb3339bff2083e472747ff2f4884ee3e6098e0367",
     "tests/device/fixture/scripted_interactable.js": "2d23eabff38539b8a86c7fad9f4091dc0fb6dc4795ff6fd50ab3b58fbf624724",
     "tests/device/fixture/asset-load-texture.png.base64": "c48433645b11a502377838ccf3470baf649298e7ab56827e3a15c8d274c8cc51",
-    "tests/device/fixture/audio/overte-e2e-tone.wav": "cb325e92a358cbd38a97d9cbfa1e02878ab190d6b29fda6922834b972f1e0e50"
+    "tests/device/fixture/audio/overte-e2e-tone.wav": "5a769b2b68931dc84e2e8e199f07a41f9f8dc406c19890c9587fdd5776b077f6"
   }
 }
