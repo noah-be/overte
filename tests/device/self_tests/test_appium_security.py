@@ -271,6 +271,27 @@ class AppiumAdapterTest(unittest.TestCase):
             self.assertEqual({"cleaned": True}, adapter.cleanup("shared-android"))
             self.assertEqual(1, sum(call[0] == "DELETE" for call in client.calls))
 
+    def test_physical_phone_is_attested_once_per_operation_and_never_cached(self):
+        configured = target("android", physical=True)
+        configured["capabilities"]["appium:udid"] = "test-phone-target"
+        configured["process"] = {"kind": "adb"}
+        adapter = self.load("android", [configured])
+        client = FakeClient()
+        with tempfile.TemporaryDirectory() as state_root, mock.patch.dict(
+                os.environ, {"OVERTE_DEVICE_STATE_ROOT": state_root}), mock.patch.object(
+                    APPIUM, "WebDriver", return_value=client), mock.patch.object(
+                    adapter, "attest_android_phone_profile", side_effect=[
+                        None, None, RuntimeError("unsupported physical Phone")]) as attest:
+            adapter.ensure_session("shared-android")
+            adapter.ensure_session("shared-android")
+            self.assertEqual(2, attest.call_count)
+            self.assertEqual(1, sum(call[:2] == ("POST", "/session") for call in client.calls))
+            before = list(client.calls)
+            with self.assertRaisesRegex(RuntimeError, "unsupported physical Phone"):
+                adapter.ensure_session("shared-android")
+            self.assertEqual(3, attest.call_count)
+            self.assertEqual(before, client.calls)  # reject before any cached session contact
+
     def test_cleanup_failure_retains_private_session_state(self):
         adapter = self.load("android", [target("android")])
 
@@ -460,7 +481,7 @@ class AppiumAdapterTest(unittest.TestCase):
         self.assertEqual({
             "__future__", "adapters", "argparse", "base64", "contracts", "ipaddress",
             "json", "math", "os", "pathlib", "stat", "sys", "tempfile", "time",
-            "urllib", "xml", "adb_transport", "hashlib", "uuid", "re",
+            "urllib", "xml", "adb_transport", "hashlib", "uuid", "re", "importlib",
         }, roots)
 
 

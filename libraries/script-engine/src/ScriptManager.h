@@ -1680,6 +1680,7 @@ protected:
     std::atomic<bool> _isStopping { false };
     std::atomic<bool> _isDoneRunning { false };
     std::atomic<bool> _hasRunStarted { false };
+    std::atomic<bool> _isInitializing { false };
     bool _areMetaTypesInitialized { false };
     bool _isInitialized { false };
     std::map<int, std::pair<std::unique_ptr<QTimer>, CallbackData>> _timerFunctionMap;
