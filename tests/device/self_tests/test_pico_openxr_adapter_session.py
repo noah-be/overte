@@ -214,6 +214,7 @@ class PicoOpenXrAdapterSessionTests(unittest.TestCase):
                 isolated_server_port()
         insecure = self.root / "insecure"
         insecure.mkdir(mode=0o755)
+        insecure.chmod(0o755)  # A restrictive caller umask must not repair this fixture.
         with mock.patch.dict(os.environ, {
                 "OVERTE_PICO_OPENXR_STATE_DIR": str(insecure)}, clear=True):
             with self.assertRaisesRegex(AdapterSessionError, "not private"):
