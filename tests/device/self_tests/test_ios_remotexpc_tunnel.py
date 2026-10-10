@@ -704,7 +704,10 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
             self.assertIn("error", command)
             self.assertEqual(runtime / "appium", options["cwd"])
             self.assertTrue(options["env"]["APPIUM_HOME"].startswith(str(state)))
-            self.assertNotIn(str(Path.home()), options["env"]["APPIUM_HOME"])
+            # TMPDIR may itself be under the user's home. The requirement is
+            # the isolated service state, never the user's Appium installation.
+            self.assertFalse(Path(options["env"]["APPIUM_HOME"]).is_relative_to(
+                Path.home() / ".appium"))
             self.assertEqual("42314", observed["registryPort"])
             self.assertEqual(0o600, observed["registryMode"])
             self.assertTrue(str(observed["dataHome"]).startswith(str(state)))

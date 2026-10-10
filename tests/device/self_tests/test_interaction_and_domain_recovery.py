@@ -16,7 +16,7 @@ DEVICE_ROOT = Path(__file__).resolve().parents[1]
 
 
 class InteractionAndDomainRecoveryTest(unittest.TestCase):
-    def run_suite(self, suite: str, environment: dict[str, str]):
+    def run_suite(self, suite: str, environment: dict[str, str], module_ids=None):
         temporary = tempfile.TemporaryDirectory(prefix=f"overte-{suite}-")
         root = Path(temporary.name)
         output = root / "results"
@@ -28,15 +28,39 @@ class InteractionAndDomainRecoveryTest(unittest.TestCase):
             "OVERTE_E2E_POLL_SECONDS": "0.05",
             **environment,
         })
+        catalog = DEVICE_ROOT / "catalog.json"
+        if module_ids is not None:
+            document = json.loads(catalog.read_text())
+            lookup = {m["id"]: m for m in document["modules"]}
+            document["modules"] = [lookup[identifier] for identifier in module_ids]
+            for module in document["modules"]:
+                module["command"][0] = str(DEVICE_ROOT / module["command"][0])
+            catalog = root / "regression-first-catalog.json"
+            catalog.write_text(json.dumps(document))
         result = subprocess.run([
             sys.executable, str(DEVICE_ROOT / "run.py"),
             "--adapter-manifest", str(DEVICE_ROOT / "adapters/mock/adapter.json"),
-            "--catalog", str(DEVICE_ROOT / "catalog.json"),
+            "--catalog", str(catalog),
             "--suite", suite, "--allow-virtual", "--require-complete",
             "--output-dir", str(output),
         ], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
            env=env, check=False)
         return temporary, root, output, result
+
+    def test_crash_recovery_rebinds_a_process_local_probe_sequence(self):
+        temporary, root, output, result = self.run_suite("crash-recovery-under-load", {
+            "OVERTE_E2E_SCENE_URL": "http://fixture.invalid/scene.json",
+            "OVERTE_DEVICE_LAUNCH_SETTLE_SECONDS": "0",
+        })
+        try:
+            self.assertEqual(0, result.returncode, result.stdout)
+            state = json.loads((root / "state.json").read_text())
+            self.assertEqual(2, state["launchCount"])
+            receipt = json.loads((output / "modules/crash-recovery-under-load/crash-recovery.json").read_text())
+            self.assertTrue(receipt["processChanged"])
+            self.assertTrue(receipt["sceneReady"])
+        finally:
+            temporary.cleanup()
 
     def test_world_interaction_observes_one_fresh_entity_press(self):
         temporary, root, output, result = self.run_suite("interaction-smoke", {
@@ -109,6 +133,29 @@ class InteractionAndDomainRecoveryTest(unittest.TestCase):
             self.assertTrue(evidence["processStable"])
             self.assertTrue(evidence["serverlessObserved"])
             self.assertGreaterEqual(evidence["stableReconnectSamples"], 3)
+        finally:
+            temporary.cleanup()
+
+    def test_roundtrip_can_run_before_the_previously_passed_domain_enter(self):
+        manifest = json.loads((DEVICE_ROOT / "fixture/domain-manifest.json").read_text())
+        domain_id = "11111111-2222-4333-8444-555555555555"
+        temporary, root, output, result = self.run_suite("domain-recovery", {
+            "OVERTE_E2E_SCENE_URL": "http://fixture.invalid/scene.json",
+            "OVERTE_E2E_DOMAIN_URL": "hifi://127.0.0.1:40282/0,2,4/0,0,0,1",
+            "OVERTE_E2E_DOMAIN_HOST": "127.0.0.1",
+            "OVERTE_E2E_DOMAIN_ID": domain_id,
+            "OVERTE_E2E_DOMAIN_MARKERS_JSON": json.dumps(manifest["requiredMarkers"]),
+            "OVERTE_MOCK_E2E_DOMAIN_ID": domain_id,
+        }, ["launch-smoke", "domain-roundtrip", "domain-enter"])
+        try:
+            self.assertEqual(0,result.returncode,result.stdout)
+            summary=json.loads((output / "summary.json").read_text())
+            self.assertEqual(["launch-smoke","domain-roundtrip","domain-enter"],
+                             [m["id"] for m in summary["results"]])
+            proof=json.loads((output / "modules/domain-roundtrip/domain-roundtrip.json").read_text())
+            self.assertTrue(proof["processStable"] and proof["serverlessObserved"])
+            self.assertEqual(domain_id,proof["domainId"])
+            self.assertEqual(1,json.loads((root / "state.json").read_text())["launchCount"])
         finally:
             temporary.cleanup()
 

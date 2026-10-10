@@ -10,7 +10,7 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tests/device"))
-from adapters.appium import adapter
+from ios.adapters import appium_adapter as adapter
 
 
 class Base:

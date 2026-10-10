@@ -472,7 +472,7 @@ def run_suite() -> int:
         for process in tuple(active_adapter_processes):
             stop_process(process, grace_seconds=1)
         stop_process(runner, grace_seconds=1)
-        stop_process(fixture, grace_seconds=1)
+        stop_process(fixture, grace_seconds=90 if suite == "voice-roundtrip" else 1)
 
     for signum in (signal.SIGINT, signal.SIGTERM):
         previous_handlers[signum] = signal.getsignal(signum)
@@ -514,10 +514,12 @@ def run_suite() -> int:
                     "--bind", bind, "--port", str(port), "--public-host", host,
                     "--ready-file", str(fixture_ready),
                 ]
+            if suite == "voice-roundtrip":
+                command += ["--voice-peer-config", environment("OVERTE_E2E_VOICE_PEER_CONFIG")]
             fixture = subprocess.Popen(
                 command, cwd=root, stdout=fixture_log_handle,
                 stderr=subprocess.STDOUT, text=True, **subprocess_group_options())
-            ready = wait_for_ready(fixture, fixture_ready)
+            ready = wait_for_ready(fixture, fixture_ready, timeout_seconds=150 if suite == "voice-roundtrip" else 90)
             if owned_fixture == "domain":
                 runner_environment.update(load_owned_fixture_environment(
                     fixture_metadata, ready))
@@ -566,7 +568,7 @@ def run_suite() -> int:
         for signum, handler in previous_handlers.items():
             signal.signal(signum, handler)
         stop_process(runner)
-        stop_process(fixture)
+        stop_process(fixture, grace_seconds=90 if suite == "voice-roundtrip" else 5)
         if fixture_log_handle is not None:
             fixture_log_handle.close()
         if fixture_metadata.exists():

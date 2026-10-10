@@ -240,6 +240,21 @@ complete fallback, even for Markdown or valid parent qualification. This is
 conservative: a listed path inherited unchanged from the parent also forces
 fallback. No new direct-sync, topology, or ruleset exception is introduced.
 
+
+The iOS ownership transition has seven exact native-only repair inputs: the
+iOS audio adapter pair, the native binding tests, the retained Appium adapter
+and its relocated test, and the existing product-owned RemoteXPC privacy
+fixture. This does not authorize shared probe, fixture, runner or protocol
+changes on the iOS leaf. Those changes must arrive through `main` and
+`apple-main`. New native adapters and self-tests live under
+`tests/device/ios/adapters/` and `tests/device/ios/self_tests/`; generic shared
+imports keep the parent implementation. Each attested native repair requires
+the complete fallback and the independent exact-candidate iOS build gate.
+The trusted iOS host gate installs the existing pinned host requirements in
+a separate test environment before executing native regressions, including
+independent permission-switch image checks. Product dependency caches and
+physical-device qualification remain separate.
+
 When all bindings match, a separate read-only validation workflow runs only the
 edge-specific hardware-free differential profile. The redundant Android and
 project-wide suites delegate to this required check, while topology, policy,

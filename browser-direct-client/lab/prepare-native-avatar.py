@@ -12,7 +12,7 @@ from manage import REPO, ROOT
 
 EXPECTED = {
     "defaultAvatar_full.fst": "0519e02f2f3d6afe19f680dd824a29f14a3baa65acb06b87ace33b1836717c50",
-    "mannequin/mannequin.fbx": "e247f3342ff109e17f7ae90916f81935d17ff4f51f60c60908094bb4f38db7da",
+    "mannequin/mannequin.fbx": "b9ca9d23f488bbc579968708895c8d998a0e49a5f24cbfc25157ffaebf14d7a8",
     "mannequin/lambert1_Base_Color.png": "70b544b69ea325ee03f726694d9392ea8a12ddc66d47559382d142da12b9bdc6",
     "mannequin/lambert1_Normal_OpenGL.png": "ead05dbdca83bc70c7546a3bd88ab2d58ccea85fed8f9f19b845cbfcd7b1fc05",
     "mannequin/lambert1_Roughness.png": "2f3c696977e1a8bf888b107f4935c0b3e0dca1bee2540cec8f780228468771a8",
@@ -38,7 +38,7 @@ def prepare() -> dict:
         shutil.copyfile(source / name, destination / name)
     manifest = {
         "label": "Actual native Overte mannequin copied unchanged for explicit participant test setup",
-        "source": "interface/resources/meshes; browser fixed manifest verified against native 2026.04.1",
+        "source": "interface/resources/meshes; reviewed fork mannequin with normalized skin weights; other assets retain native 2026.04.1 bytes",
         "skeletonModelURL": "https://127.0.0.1:46119/default-avatar/defaultAvatar_full.fst",
         "files": [{"path": name, "bytes": len(data), "sourceSHA256": EXPECTED[name],
                    "servedSHA256": hashlib.sha256((destination / name).read_bytes()).hexdigest()}
