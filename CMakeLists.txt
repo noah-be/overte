@@ -44,6 +44,10 @@ endif()
 
 
 project(overte)
+option(OVERTE_E2E_VOICE_TESTS "Enable synthetic voice E2E hooks in dedicated test builds" OFF)
+if(OVERTE_E2E_VOICE_TESTS)
+    add_compile_definitions(OVERTE_E2E_VOICE_TESTS)
+endif()
 include("cmake/init.cmake")
 include("cmake/compiler.cmake")
 
