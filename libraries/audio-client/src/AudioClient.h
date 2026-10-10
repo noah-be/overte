@@ -114,6 +114,7 @@ public:
     public:
         AudioOutputIODevice(LocalInjectorsStream& localInjectorsStream, MixedProcessedAudioStream& receivedAudioStream,
                 AudioClient* audio) :
+            QIODevice(audio),
             _localInjectorsStream(localInjectorsStream), _receivedAudioStream(receivedAudioStream),
             _audio(audio), _unfulfilledReads(0) {}
 
