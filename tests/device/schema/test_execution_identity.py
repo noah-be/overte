@@ -42,10 +42,12 @@ class ExecutionIdentityTests(unittest.TestCase):
 
     def execute(self, first=None, last=None, mutate=False, module_status='passed'):
         calls = 0
-        def adapter(command, action, selector):
+        def adapter(command, action, selector, timeout=30):
             nonlocal calls
             self.events.append(action)
-            if action == 'cleanup': return {}
+            if action == 'cleanup':
+                self.assertEqual(180, timeout)
+                return {}
             calls += 1
             claim = first if calls == 1 else last
             return copy.deepcopy({'executionIdentity': self.claim} if claim is None else claim)

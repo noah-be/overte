@@ -54,6 +54,12 @@ directory (or pass `--launch-config`):
 Keep executable and library locations outside the repository. With this
 configuration, `voice_peer.py start` needs no further arguments.
 
+The owned device fixture retains bounded startup-failure diagnostics under
+`voice-peer-diagnostics` in its private fixture output. It still stops its
+owned client and releases the audio reservation. Diagnostic files are local,
+mode 0600, and are excluded from public device evidence; controller tokens
+and generated authenticated runtime scripts are never copied there.
+
 ## Device handoff
 
 The PC appears as `OVERTE_VOICE_TEST_PC`. Both avatars must be in the same

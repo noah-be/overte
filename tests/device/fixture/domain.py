@@ -20,6 +20,7 @@ from urllib.request import urlopen
 import uuid
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from fixture.collaboration_broker import CollaborationBroker
+from fixture.owned_processes import OwnedProcesses
 
 
 ROOT = Path(__file__).resolve().parent
@@ -294,8 +295,9 @@ def wait_for_domain(process: subprocess.Popen, url: str, timeout_seconds: int) -
     deadline = time.monotonic() + timeout_seconds
     last_error = "domain HTTP endpoint was unavailable"
     while time.monotonic() < deadline:
-        if process.poll() is not None:
-            raise RuntimeError("domain-server exited before becoming ready")
+        exit_code = process.poll()
+        if exit_code is not None:
+            raise RuntimeError(f"domain-server exited before becoming ready (exit code {exit_code})")
         try:
             with urlopen(url, timeout=1) as response:
                 value = response.read(128).decode("ascii").strip()
@@ -425,6 +427,7 @@ def main() -> int:
         "HIFI_DOMAIN_SERVER_HTTP_PORT": str(args.http_port),
         "OVERTE_DOMAIN_SERVER_WS_PORT": str(args.domain_port),
     })
+    owned_processes = OwnedProcesses(environment)
 
     domain_log = (output / "domain-server.log").open("w", encoding="utf-8")
     assignment_log = (output / "assignment-client.log").open("w", encoding="utf-8")
@@ -447,6 +450,16 @@ def main() -> int:
         nonlocal domain_id, generation, stack_state
         if stack_state == "online":
             return
+        # The broker and assignment seed start afresh on each controlled
+        # restart. Reusing persisted entities would retain the previous seed
+        # and create two identically named shared objects. Preserve the domain
+        # identity/configuration while keeping each seed's content isolated.
+        content_runtime = runtime / f"stack-{generation + 1}"
+        content_runtime.mkdir(mode=0o700)
+        for name in ("data", "cache"):
+            (content_runtime / name).mkdir(mode=0o700)
+        environment.update(XDG_DATA_HOME=str(content_runtime / "data"),
+                           XDG_CACHE_HOME=str(content_runtime / "cache"))
         DomainResourceHandler.content_ready.clear()
         DomainResourceHandler.collaboration.reset()
         domain_process = subprocess.Popen(
@@ -508,6 +521,7 @@ def main() -> int:
         for process in reversed(assignment_processes):
             stop_process(process)
         stop_process(domain_process)
+        owned_processes.stop()
         assignment_agent_processes = []
         assignment_processes = []
         domain_process = None

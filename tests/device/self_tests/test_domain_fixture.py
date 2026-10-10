@@ -46,6 +46,12 @@ def stop(*_):
     stopping = True
 signal.signal(signal.SIGTERM, stop)
 if "--pool" in sys.argv and sys.argv[sys.argv.index("--pool") + 1] == "overte-e2e-domain":
+    # Model the real entity server's persisted content across an outage. A
+    # fresh assignment always seeds one shared object, so reused storage would
+    # accumulate a second one and invalidate independent synchronization.
+    persistence = pathlib.Path(os.environ["XDG_DATA_HOME"]) / "shared-entities.json"
+    previous = json.loads(persistence.read_text()) if persistence.exists() else []
+    persistence.write_text(json.dumps(previous + [{"name":"OVERTE_E2E_SHARED_COLOR"}]))
     config = pathlib.Path(os.environ["XDG_CONFIG_HOME"]).parents[1] / "domain-config.json"
     value = json.loads(config.read_text())
     script = value["scripts"]["persistent_scripts"][0]["url"]
@@ -155,6 +161,13 @@ class DomainFixtureTest(unittest.TestCase):
                     self.assertEqual(action, transition["state"])
                     self.assertGreaterEqual(transition["generation"], 2)
                 self.assertIsNone(process.poll())
+                seeds = list((output / "runtime").rglob("shared-entities.json"))
+                self.assertEqual(2, len(seeds), "both real controlled starts must retain their own seed")
+                self.assertEqual(2, len({p.parent for p in seeds}), "recovery must use fresh content storage")
+                for seed in seeds:
+                    self.assertEqual([{"name": "OVERTE_E2E_SHARED_COLOR"}],
+                                     json.loads(seed.read_text()),
+                                     "recovery must not duplicate persisted shared entities")
             finally:
                 process.terminate()
                 stdout, _ = process.communicate(timeout=10)
