@@ -5,8 +5,8 @@
 The archive cache remains outside the checkout. All native archives are expanded
 inside the checkout and cleaned using the explicit, content-bound policy before
 inventorying. Conan applies the same exclusions to actual compiler sources.
-Compilation refuses unexpected changes to the inventoried view, including
-scanner deletions; raw archives must never silently restore rejected files.
+Compilation accepts only the declared, content-bound scandelete removals from
+the inventoried view; raw archives must never restore the rejected files.
 """
 import hashlib
 import json
@@ -19,12 +19,12 @@ import zipfile
 
 def load_policy(path, manifest=None):
     policy = json.loads(Path(path).read_text())
-    if policy.get('schema_version') != 1:
+    if policy.get('schema_version') != 2:
         raise ValueError('unsupported source scan policy')
     if manifest is not None and digest(manifest) != policy['source_manifest_sha256']:
         raise ValueError('source cleanup policy does not match locked manifest')
     seen = set()
-    for rule in policy['remove'] + policy['scanignore']:
+    for rule in policy['remove'] + policy['scandelete'] + policy.get('patches', []):
         for key in ('archive_path', 'compiler_suffix'):
             relative = Path(rule[key])
             if relative.is_absolute() or '..' in relative.parts or not relative.parts:
@@ -36,13 +36,37 @@ def load_policy(path, manifest=None):
     return policy
 
 
+def patched_content(path, rule, allow_applied=False):
+    """Validate a complete input and output before a source-cleanup edit."""
+    if path.is_symlink() or not path.is_file():
+        raise ValueError('source cleanup patch input missing or unsafe: ' + str(path))
+    content = path.read_bytes()
+    actual = hashlib.sha256(content).hexdigest()
+    if allow_applied and actual == rule['patched_sha256']:
+        return content
+    if actual != rule['sha256']:
+        raise ValueError('source cleanup patch input changed: ' + str(path))
+    before, after = rule['before'].encode(), rule['after'].encode()
+    if not before or content.count(before) != 1:
+        raise ValueError('source cleanup patch does not match exactly once')
+    result = content.replace(before, after, 1)
+    if hashlib.sha256(result).hexdigest() != rule['patched_sha256']:
+        raise ValueError('source cleanup patch output changed')
+    return result
+
+
 def clean_view(root, policy):
-    """Only exact, content-bound removals; preserve source and license files."""
-    for rule in policy['remove'] + policy['scanignore']:
+    """Apply content-bound exclusions and declared installation-list repairs."""
+    for rule in policy['remove'] + policy['scandelete']:
         path = root / rule['archive_sha256'] / rule['archive_path']
         if path.is_symlink() or not path.is_file() or digest(path) != rule['sha256']:
             raise ValueError('source cleanup rule is stale: ' + rule['archive_path'])
-    # Validate every rule before changing any file.
+    patches = [(root / rule['archive_sha256'] / rule['archive_path'], rule)
+               for rule in policy.get('patches', [])]
+    edits = [(path, patched_content(path, rule)) for path, rule in patches]
+    # Validate every removal and edit before changing any file.
+    for path, content in edits:
+        path.write_bytes(content)
     for rule in policy['remove']:
         (root / rule['archive_sha256'] / rule['archive_path']).unlink()
 
@@ -55,7 +79,8 @@ def clean_compiler_sources(root, reference, policy):
     prefix is explicitly recorded in the policy. Missing inputs may already have
     been excluded by a recipe, but changed matching inputs fail closed.
     """
-    rules = [rule for rule in policy['remove'] if rule['reference'] == reference]
+    rules = [rule for rule in policy['remove'] + policy.get('scandelete', [])
+             if rule['reference'] == reference]
     by_name = {}
     for rule in rules:
         by_name.setdefault(Path(rule['compiler_suffix']).name, []).append(rule)
@@ -74,6 +99,19 @@ def clean_compiler_sources(root, reference, policy):
                     raise ValueError('compiler source cleanup input changed: ' + relative)
                 remove.append(path)
                 break
+    edits = []
+    for rule in policy.get('patches', []):
+        if rule['reference'] != reference:
+            continue
+        suffix = rule['compiler_suffix']
+        matches = [path for path in root.rglob(Path(suffix).name)
+                   if path.relative_to(root).as_posix() == suffix
+                   or path.relative_to(root).as_posix().endswith('/' + suffix)]
+        if len(matches) != 1:
+            raise ValueError('compiler source cleanup patch path is missing or ambiguous: ' + suffix)
+        edits.append((matches[0], patched_content(matches[0], rule, allow_applied=True)))
+    for path, content in edits:
+        path.write_bytes(content)
     for path in remove:
         path.unlink()
     return len(remove)
@@ -137,7 +175,13 @@ def expand(document, store, destination, checkout, policy=None):
         archives[sha] = source['store_path']
     if policy is not None:
         clean_view(destination, policy)
-    record = {'archives': archives, 'files': inventory(destination)}
+    # Leave these files present for F-Droid's scanner to delete. Record exact
+    # paths inside the hash-bound inventory, not glob permissions: metadata
+    # globs must never authorize deleting an unexpected compiler input.
+    deletions = [rule['archive_sha256'] + '/' + rule['archive_path']
+                 for rule in (policy or {}).get('scandelete', [])]
+    record = {'archives': archives, 'files': inventory(destination),
+              'scandelete': deletions}
     (destination / 'inventory.json').write_text(json.dumps(record, sort_keys=True) + '\n')
     return digest(destination / 'inventory.json')
 
@@ -152,7 +196,12 @@ def verify(store, destination, expected_inventory):
             raise ValueError('source archive changed after prebuild')
     actual = inventory(destination)
     actual.pop('inventory.json', None)
-    if actual != record['files']:
-        missing = sorted(set(record['files']) - set(actual))
+    deletions = set(record['scandelete'])
+    expected = {path: entry for path, entry in record['files'].items()
+                if path not in deletions}
+    if actual != expected:
+        missing = sorted(set(expected) - set(actual))
+        remaining = sorted(deletions & set(actual))
         raise ValueError('expanded source changed after prebuild; refusing to restore '
-                         'scanner-deleted inputs from archives. Missing examples: ' + str(missing[:5]))
+                         'scanner-deleted inputs from archives. Missing examples: ' + str(missing[:5])
+                         + '; declared scandelete files still present: ' + str(remaining[:5]))

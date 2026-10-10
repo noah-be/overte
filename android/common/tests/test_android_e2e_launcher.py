@@ -23,7 +23,7 @@ class AndroidE2ELauncherTest(unittest.TestCase):
             'CONTROL_MARKER = "android-control.json"',
             'CONTROL_COMMAND = "android-control-command.json"',
             'android-debug-file-v1',
-            'writeAtomically(CONTROL_MARKER, CONTROL_CONTRACT, launchDirectory)',
+            'CONTROL_CONTRACT + android.os.Process.myPid() + "}\\n", launchDirectory)',
             'writeAtomically(CONTROL_COMMAND, EMPTY_CONTROL_COMMAND, launchDirectory)',
             'putExtra("applicationArguments", arguments)',
             'new File(getFilesDir(), DIRECTORY)',

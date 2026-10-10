@@ -47,6 +47,8 @@
 #include <QtCore/QBuffer>
 #include <QtMultimedia/QAudioInput>
 #include <QtMultimedia/QAudioOutput>
+#include <QtCore/QCoreApplication>
+#include <QtCore/QEvent>
 
 #include <shared/QtHelpers.h>
 #include <ThreadHelpers.h>
@@ -1891,7 +1893,12 @@ float AudioClient::loudnessToLevel(float loudness) {
 #if defined(OVERTE_E2E_VOICE_TESTS)
 bool AudioClient::voiceTestLifecycleAllowed() const {
     if (!_audioLifecycleRunning || _audioPaused) { return false; }
+#if defined(Q_OS_IOS)
+    const auto native = overteIOSVoiceTestState();
+    return native.foreground && !native.interrupted && native.outcome != overte::audio::Outcome::Stopped;
+#else
     return true;
+#endif
 }
 
 bool AudioClient::prepareVoiceTest() {
@@ -1927,10 +1934,10 @@ void AudioClient::touchVoiceTest() {
 bool AudioClient::sendVoiceTest(const std::array<int, 12>& symbols) {
     Q_ASSERT(QThread::currentThread() == thread());
     if (!_voiceTestInputEnabled || !voiceTestLifecycleAllowed() || _voiceTestSignal.active()) { return false; }
-    // Drain due silent packets BEFORE installing the challenge. A late timer
-    // must not compress the leading silence into a burst at send acknowledgement.
-    handleVoiceTestInput();
-    if (!_voiceTestInputEnabled) { return false; }
+    // Each challenge owns a fresh epoch. Idle preparation and native mute
+    // transitions must not advance its leading silence or invalidate it.
+    _voiceTestPackets = 0;
+    _voiceTestElapsed.restart();
     _voiceTestSignal.send(symbols);
     touchVoiceTest();
     return true;
@@ -1960,7 +1967,14 @@ void AudioClient::handleVoiceTestInput() {
     // Qt coalesces missed timer events. Pace PCM by monotonic time, with at
     // most 100 ms of catch-up; larger stalls fail instead of retiming the tone.
     const quint64 due = static_cast<quint64>(_voiceTestElapsed.nsecsElapsed() / 10000000);
-    if (due - _voiceTestPackets > 10) { stopVoiceTestInput("voice-source-clock-late"); return; }
+    if (due - _voiceTestPackets > 10) {
+        if (_voiceTestSignal.active()) { stopVoiceTestInput("voice-source-clock-late"); return; }
+        // No challenge samples are pending while idle. Device reconfiguration
+        // can therefore rebase silence without hiding a truncated test tone.
+        _voiceTestPackets = 0;
+        _voiceTestElapsed.restart();
+        return;
+    }
     while (_voiceTestInputEnabled && _voiceTestPackets < due) {
         const int channels = _isStereoInput ? 2 : 1;
         if (_voiceTestChannels != channels) {
@@ -1992,6 +2006,14 @@ QVariantMap AudioClient::voiceTestStatus() const {
         { "inputError", _audioInput ? static_cast<int>(_audioInput->error()) : -1 },
         { "dummyTimerActive", _dummyAudioInput && _dummyAudioInput->isActive() }
     };
+#if defined(Q_OS_IOS)
+    const auto native = overteIOSVoiceTestState();
+    status["iosPermission"] = static_cast<int>(native.permission);
+    status["iosOutcome"] = static_cast<int>(native.outcome);
+    status["iosForeground"] = native.foreground;
+    status["iosInterrupted"] = native.interrupted;
+    status["iosCaptureAllowed"] = native.captureAllowed;
+#endif
     return status;
 }
 #endif
@@ -3001,9 +3023,20 @@ bool AudioClient::switchOutputToAudioDevice(const HifiAudioDeviceInfo outputDevi
 
     // cleanup any previously initialized device
     if (_audioOutput) {
-        _audioOutputIODevice.close();
-        _audioOutput->stop();
         _audioOutputInitialized = false;
+        // Stop the backend before closing its pull source. Retired sink events
+        // must not act on the replacement device.
+        disconnect(_audioOutput, nullptr, this, nullptr);
+        _audioOutput->stop();
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        // Qt queues pull callbacks on the source QIODevice. Disconnecting the
+        // stopped backend does not cancel calls already posted to that source.
+        // Source and sink share our thread, so none can execute concurrently
+        // here. Remove only this dedicated source's pending calls before reuse;
+        // keep AudioClient telemetry and the backend's drain notifications.
+        QCoreApplication::removePostedEvents(&_audioOutputIODevice, QEvent::MetaCall);
+#endif
+        _audioOutputIODevice.close();
 
         //must be deleted in next eventloop cycle when its called from notify()
         _audioOutput->deleteLater();

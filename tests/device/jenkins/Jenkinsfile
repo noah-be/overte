@@ -667,8 +667,8 @@ pipeline {
             when { expression { params.RUN_VOICE_ROUNDTRIP } }
             steps {
                 script {
-                    if (resolvedProfile() != 'appium-android') {
-                        error('Voice roundtrip requires an Android Phone target and a Linux PC fixture agent')
+                    if (!(resolvedProfile() in ['appium-ios', 'appium-android', 'android-pico-adb'])) {
+                        error('Voice roundtrip currently requires a mobile target and a Linux PC fixture agent')
                     }
                     // Global order: PC audio, profile, then device. The host fixture
                     // also locks its resource, including non-Jenkins consumers.

@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 import os
+import hashlib
+import json
 from pathlib import Path
 import secrets
 import tempfile
 import time
 
-from module_support import InfrastructureError, assert_process, fail, module_main, process_identity, write_json
+from module_support import ARTIFACT_DIR, InfrastructureError, assert_process, fail, module_main, process_identity, write_json
 from module_support import contract_operation
 from overte_session import OverteSession
 from voice_contract import wav
@@ -23,6 +25,27 @@ def native_status(value: dict) -> dict:
             "inputCallbacks", "dummyCallbacks", "inputPresent", "inputState", "inputError",
             "dummyTimerActive", "iosPermission", "iosOutcome", "iosForeground", "iosInterrupted", "iosCaptureAllowed")
     return {key: value[key] for key in keys if key in value}
+
+
+def preserve_pc_capture(state: Path, challenge: str, muted: bool) -> dict:
+    """Keep optional diagnostic bytes without changing the voice verdict."""
+    source, metadata = state / "receive-capture.wav", state / "receive-capture.json"
+    try:
+        if (source.is_symlink() or metadata.is_symlink() or not source.is_file()
+                or not metadata.is_file() or source.stat().st_size > 32*1024*1024
+                or metadata.stat().st_size > 65536):
+            return {}
+        binding = json.loads(metadata.read_text())
+        content = source.read_bytes()
+        digest = hashlib.sha256(content).hexdigest()
+        if binding.get("challenge") != challenge or binding.get("sha256") != digest:
+            return {}
+        name = "voice-device-to-pc-" + ("muted" if muted else "present") + ".wav"
+        destination = ARTIFACT_DIR / name
+        destination.write_bytes(content); destination.chmod(0o600)
+        return {"captureArtifact": name, "captureSha256": digest}
+    except (OSError, ValueError):
+        return {}
 
 
 def exchange(action: str, **fields) -> dict:
@@ -70,28 +93,40 @@ def wait_send(identity: str) -> dict:
 
 def run_roundtrip(state: Path, identity: str, domain_id: str) -> dict:
     evidence = {"schemaVersion": 1, "legs": [], "physicalAudioHardwareTested": False}
+    raw_capture_seconds = os.environ.get("OVERTE_E2E_VOICE_DEVICE_CAPTURE_SECONDS", "8")
+    if not raw_capture_seconds.isdigit() or not 6 <= int(raw_capture_seconds) <= 10:
+        raise InfrastructureError("device voice capture must last 6 through 10 seconds")
+    device_capture_seconds = int(raw_capture_seconds)
+    evidence["deviceCaptureSeconds"] = device_capture_seconds
+    pc_capture_seconds = OverteSession._float_environment(
+        "OVERTE_E2E_VOICE_PC_CAPTURE_SECONDS", 8.0, 5.34, 30.0)
     for muted in (False, True):
         # The receiver starts before the sender. A fresh nonce is used for every
         # leg, so previous playback or a retained capture cannot satisfy it.
         challenge = secrets.token_hex(16)
         require_peer(state, domain_id)
-        exchange("capture-start", seconds=8)
+        exchange("capture-start", seconds=device_capture_seconds)
         started = time.monotonic()
         sent = peer(state, "send-muted" if muted else "send", challenge=challenge)
         if sent.get("sent") is not True or sent.get("challenge") != challenge or sent.get("muted") is not muted:
             raise InfrastructureError("PC did not acknowledge the exact voice send state")
-        while time.monotonic() - started < 8.25:
+        while time.monotonic() - started < device_capture_seconds + 0.25:
             assert_process(identity, "voice receive")
             time.sleep(0.1)
         captured = exchange("capture-stop")
         with tempfile.TemporaryDirectory(prefix="overte-device-voice-") as private:
             capture = Path(private) / "received.wav"
-            capture.write_bytes(wav(captured))
+            content = wav(captured)
+            capture.write_bytes(content)
             capture.chmod(0o600)
             measured = analyze(capture, challenge, "absent" if muted else "present")
+        name = "voice-pc-to-device-" + ("muted" if muted else "present") + ".wav"
+        destination = ARTIFACT_DIR / name
+        destination.write_bytes(content); destination.chmod(0o600)
         leg = {"direction": "pc-to-device", "muted": muted, "measurement": measured,
                "deviceVersion": captured.get("version"), "pcVersion": sent.get("build"),
-               "pcBinarySha256": sent.get("clientSha256"), "pcRunnerSha256": sent.get("runnerSha256")}
+               "pcBinarySha256": sent.get("clientSha256"), "pcRunnerSha256": sent.get("runnerSha256"),
+               "captureArtifact": name, "captureSha256": hashlib.sha256(content).hexdigest()}
         evidence["legs"].append(leg)
         write_json("voice-roundtrip.json", evidence)
         if not measured["passed"]:
@@ -100,10 +135,8 @@ def run_roundtrip(state: Path, identity: str, domain_id: str) -> dict:
         challenge = secrets.token_hex(16)
         require_peer(state, domain_id)
         with ThreadPoolExecutor(max_workers=1) as workers:
-            # Wireless command delivery follows capture readiness. Keep the
-            # complete 4.84-second challenge inside the bounded capture even
-            # when several identity checks precede the native send command.
-            receiving = workers.submit(peer, state, "receive", challenge=challenge, seconds=10,
+            # Start reception before wireless delivery and retain a bounded capture.
+            receiving = workers.submit(peer, state, "receive", challenge=challenge, seconds=pc_capture_seconds,
                                        expect="absent" if muted else "present")
             deadline = time.monotonic() + 8
             while True:
@@ -117,6 +150,7 @@ def run_roundtrip(state: Path, identity: str, domain_id: str) -> dict:
                     raise InfrastructureError("PC receive capture did not become ready")
                 time.sleep(0.1)
             sent = exchange("send", challenge=challenge, muted=muted)
+            write_json("voice-device-send-ack.json", native_status(sent))
             if sent.get("muted") is not muted:
                 fail("device did not apply the requested microphone mute state")
             device = wait_send(identity)
@@ -124,7 +158,9 @@ def run_roundtrip(state: Path, identity: str, domain_id: str) -> dict:
             if measured.get("challenge") != challenge or measured.get("expected") != ("absent" if muted else "present"):
                 raise InfrastructureError("PC returned another challenge or expectation")
         leg = {"direction": "device-to-pc", "muted": muted, "measurement": measured,
-               "deviceVersion": device.get("version"), "nativeStatus": native_status(device)}
+               "deviceVersion": device.get("version"), "nativeStatus": native_status(device),
+               "nativeSendStatus": native_status(sent), "pcCaptureSeconds": pc_capture_seconds}
+        leg.update(preserve_pc_capture(state, challenge, muted))
         evidence["legs"].append(leg)
         write_json("voice-roundtrip.json", evidence)
         if not measured.get("passed"):

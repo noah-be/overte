@@ -19,8 +19,13 @@ function fixture() {
     let command = {schemaVersion:1,pending:false}, interval, editCount = 0, broken = false;
     const context = {
         Agent:{sessionUUID:'{'+actor+'}'}, print:()=>{},
+        EntityViewer:{
+            setPosition:p=>{assert.deepEqual(JSON.parse(JSON.stringify(p)),{x:0,y:0,z:0});},
+            setCenterRadius:r=>{assert.equal(r,1000);},
+            queryOctree:()=>{}},
         Script:{resolvePath:p=>p, setTimeout:f=>delayed.push(f), setInterval:f=>{interval=f;}},
         Entities:{serversExist:()=>true,canRez:()=>true,
+            findEntities:()=>Array.from(stored.keys()), deleteEntity:id=>stored.delete(id),
             addEntity:(p,host)=>{assert.equal(host,'domain');const id=String(stored.size+1);stored.set(id,JSON.parse(JSON.stringify(p)));return id;},
             getEntityProperties:id=>JSON.parse(JSON.stringify(stored.get(id))),
             editEntity:(id,p)=>{++editCount;stored.set(id,{...stored.get(id),...p});

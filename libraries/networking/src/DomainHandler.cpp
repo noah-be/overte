@@ -455,7 +455,13 @@ bool DomainHandler::canConnectWithoutAvatarEntities() {
 
 void DomainHandler::connectedToServerless(std::map<QString, QString> namedPaths) {
     _namedPaths = namedPaths;
-    setIsConnected(true);
+    // An error scene can load while the address still names a network domain.
+    // Confirming that scene as a network connection sends DomainListRequest
+    // with a stale session and makes validated replies fail the UUID guard.
+    // Only the network handshake may establish an online connection.
+    if (isServerless()) {
+        setIsConnected(true);
+    }
 }
 
 void DomainHandler::loadedErrorDomain(std::map<QString, QString> namedPaths) {

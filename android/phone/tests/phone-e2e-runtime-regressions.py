@@ -16,6 +16,7 @@ CHECKS = (
     "tests/device/contracts/tablet/test_phone_settings_click.py",
     "tests/device/contracts/lifecycle/test_phone_native_startup.py",
     "tests/device/contracts/test_phone_accessibility_tree.py",
+    "android/phone/tests/phone-voice-clock-test.py",
 )
 parser = argparse.ArgumentParser()
 parser.add_argument("--execute", action="store_true",

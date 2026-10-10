@@ -9,14 +9,20 @@ this suite; other real adapters remain gated.
 ## Controlled signal
 
 [`fixture/audio/overte-e2e-tone.wav`](fixture/audio/overte-e2e-tone.wav) is a
-deterministically generated 8.0-second, 440 Hz sine wave at 20% amplitude. It is
-mono, signed 16-bit little-endian PCM at 8,000 Hz and is 128,044 bytes including
+deterministically generated 16.0-second, 440 Hz sine wave at 20% amplitude. It is
+mono, signed 16-bit little-endian PCM at 8,000 Hz and is 256,044 bytes including
 the WAV header. Its SHA-256 is
-`cb325e92a358cbd38a97d9cbfa1e02878ab190d6b29fda6922834b972f1e0e50`.
+`5a769b2b68931dc84e2e8e199f07a41f9f8dc406c19890c9587fdd5776b077f6`.
 [`fixture/generate_sound_fixture.py`](fixture/generate_sound_fixture.py)
 reproduces the file using only the Python standard library. The non-native
 sample rate intentionally exercises `SoundProcessor::interpretAsWav()` and the
 `AudioSRC` conversion to Overte's internal 24 kHz rate.
+
+The duration allows two independent physical-device snapshots to observe active
+playback: the iPad transport measured 10.5 seconds across the command and
+resource checkpoints. Playback remains non-looping; the module still requires
+two fresh active samples followed by completion. The completion wait is bounded
+by the larger of the ordinary sound timeout and the decoded fixture duration.
 
 The fixture serves the file at `/audio/overte-e2e-tone.wav` with
 `Content-Type: audio/wav`, `Cache-Control: no-store`, and a content length. Its

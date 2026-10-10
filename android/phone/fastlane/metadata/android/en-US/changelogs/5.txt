@@ -1,0 +1,2 @@
+Includes F-Droid source cleanup directly in the app repository. Removes unused dependency manifests and a Qt deployment template consistently from scanned and compiled sources, without scanner exceptions or a separate F-Droid backport patch.
+Known issues remain: intermittent Go To/keyboard navigation crash (#933), and app restart required after microphone permission regrant.
