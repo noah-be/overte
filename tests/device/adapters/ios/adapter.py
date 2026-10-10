@@ -117,7 +117,8 @@ class IOSAdapter(AppiumAdapter):
         if json.loads(content) != payload:
             fail("owned fixture changed the client command")
         remote = (f"@{target['appId']}:documents/"
-                  f"{target['testBuild']['resultsDirectory']}/client-command-result.json")
+                  f"{target['testBuild']['resultsDirectory']}/"
+                  f"ios-client-command-{command_id[4:]}-result.json")
         deadline = time.monotonic() + 15
         while time.monotonic() < deadline:
             if self.assert_ios_process_identity(selector, client, session, state, target) != identity:
@@ -134,6 +135,9 @@ class IOSAdapter(AppiumAdapter):
                     and observed["commandId"] == command_id
                     and type(observed["sampleEpochMs"]) in (int, float)
                     and -1000 <= time.time() * 1000 - observed["sampleEpochMs"] <= 5000):
+                if self.assert_ios_process_identity(
+                        selector, client, session, state, target) != identity:
+                    fail("iOS client command receipt crossed process identities")
                 return command_id
             time.sleep(0.1)
         fail("fresh iOS client execution receipt was not observed")

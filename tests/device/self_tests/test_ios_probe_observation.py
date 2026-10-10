@@ -7,6 +7,12 @@ import subprocess
 import unittest
 
 
+def client_receipt_source(source):
+    start = source.index("    function saveClientCommandReceipt(now) {")
+    end = source.index("    function applyClientCommand(command) {", start)
+    return source[start:end]
+
+
 class NativeProbeObservation(unittest.TestCase):
     def test_actual_command_and_sampler_preserve_one_probe_per_owned_nonce(self):
         source = (Path(__file__).resolve().parents[1] / "probe/overte_e2e_probe.js").read_text()
@@ -48,6 +54,28 @@ assert.equal(saved['ios-probe-request-result.json'].commandId,next.commandId);
 assert.strictEqual(saved['ios-probe-request-result.json'].observation,probeSnapshot);
 '''.replace("FUNCTION", source[start:end]).replace("EMIT", emit)
         subprocess.run(["node", "-e", harness], check=True, timeout=5)
+
+    def test_native_command_receipts_are_immutable_and_preserve_other_platform_receipts(self):
+        source = (Path(__file__).resolve().parents[1] / "probe/overte_e2e_probe.js").read_text()
+        harness = r'''const assert=require('assert');
+let lastClientCommandId='', savedNativeClientReceiptIds={}, writes=[], saved={};
+const Test={saveObject:(value,name)=>{saved[name]={...value};writes.push(name);}};
+FUNCTION
+saveClientCommandReceipt(99); assert.equal(writes.length,0);
+const a='ios-'+'a'.repeat(32), b='ios-'+'b'.repeat(32);
+const path=id=>'ios-client-command-'+id.slice(4)+'-result.json';
+lastClientCommandId=a;saveClientCommandReceipt(100);saveClientCommandReceipt(101);
+assert.deepEqual(saved[path(a)],{schemaVersion:1,commandId:a,sampleEpochMs:100});
+assert.equal(writes.length,1); assert.equal(saved['client-command-result.json'],undefined);
+lastClientCommandId=b;saveClientCommandReceipt(200);
+lastClientCommandId=a;saveClientCommandReceipt(300);
+assert.equal(writes.length,2);assert.equal(saved[path(a)].sampleEpochMs,100);
+assert.equal(saved[path(b)].commandId,b);
+lastClientCommandId='other-platform-command';saveClientCommandReceipt(400);saveClientCommandReceipt(500);
+assert.equal(saved['client-command-result.json'].sampleEpochMs,500);
+assert.equal(lastClientCommandId,'other-platform-command');
+'''.replace("FUNCTION",client_receipt_source(source))
+        subprocess.run(["node","-e",harness],check=True,timeout=5)
 
     def test_production_domain_observation_distinguishes_loaded_http_scenes_from_live_domains(self):
         source = (Path(__file__).resolve().parents[1] / "probe/overte_e2e_probe.js").read_text()
@@ -96,7 +124,7 @@ delete Tablet.touchUiRuntimeMetrics;
 saved={};
 OBSERVE
 assert.equal(saved['ios-ui-observation.json'],undefined);
-'''.replace("OBSERVE", source[start:end])
+'''.replace("OBSERVE", client_receipt_source(source) + source[start:end])
         subprocess.run(["node", "-e", harness], check=True, timeout=5)
 
     @unittest.skipUnless(shutil.which("node"), "probe execution requires Node.js")
@@ -121,7 +149,7 @@ delete Test.iosNativeUiSnapshot;
 saved={};
 OBSERVE
 assert.equal(saved['ios-native-ui.json'],undefined);
-'''.replace("OBSERVE", source[start:end])
+'''.replace("OBSERVE", client_receipt_source(source) + source[start:end])
         subprocess.run(["node", "-e", harness], check=True, timeout=5)
 
     def test_actual_client_command_captures_native_geometry_once_and_ignores_host_coordinates(self):

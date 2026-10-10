@@ -70,6 +70,7 @@
     var clientCommandRequest = null;
     var clientCommandUnavailable = false;
     var lastClientCommandId = "";
+    var savedNativeClientReceiptIds = {};
     var pendingProbeRequestId = "";
     var lastProbeResponseId = "";
     var lastTextCommandId = "";
@@ -720,6 +721,22 @@
         return true;
     }
 
+    function saveClientCommandReceipt(now) {
+        if (lastClientCommandId === "") { return; }
+        var receipt = { schemaVersion: 1, commandId: lastClientCommandId,
+            sampleEpochMs: now };
+        if (/^ios-[0-9a-f]{32}$/.test(lastClientCommandId)) {
+            // AFC readers must never race periodic truncation of their receipt.
+            // Each actual native command owns one immutable private document.
+            if (savedNativeClientReceiptIds[lastClientCommandId]) { return; }
+            Test.saveObject(receipt, "ios-client-command-"
+                + lastClientCommandId.slice(4) + "-result.json");
+            savedNativeClientReceiptIds[lastClientCommandId] = true;
+        } else {
+            Test.saveObject(receipt, "client-command-result.json");
+        }
+    }
+
     function applyClientCommand(command) {
         if (command && command.schemaVersion === 1
                 && /^ios-[0-9a-f]{32}$/.test(command.commandId)
@@ -1274,10 +1291,7 @@
         // The fixture's HTTP echo proves delivery only. This independent
         // device-side receipt is emitted after the real client action; the
         // adapter requires the exact nonce, fresh timestamp and same PID.
-        if (lastClientCommandId !== "") {
-            Test.saveObject({ schemaVersion: 1, commandId: lastClientCommandId,
-                sampleEpochMs: now }, "client-command-result.json");
-        }
+        saveClientCommandReceipt(now);
         orientationHistory.push({
             sampleSequence: sampleSequence,
             orientation: vector(orientation)

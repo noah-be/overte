@@ -9,7 +9,7 @@ from the device, including after lifecycle operations.
 Owned HTTP commands deliver asset creation, domain navigation, audio mute,
 and the allow-listed audio warning setting to the shared in-client probe.
 Delivery alone is insufficient: the adapter requires an exact fresh
-`client-command-result.json` receipt from the running client's Documents
+`ios-client-command-<nonce>-result.json` receipt from the running client's Documents
 directory. The portable modules independently verify the resulting behavior.
 
 ## Native UI observation
@@ -246,3 +246,14 @@ The initial probe after a controlled client launch uses the existing 20-second
 startup bound; later samples use five seconds. Every accepted sample must still
 meet the unchanged probe freshness contract. Read-only probe requests preserve
 the last action receipt, including the scene loader's delayed spawn correction.
+
+Each native action receipt is written once for its exact random command nonce;
+periodic samples never truncate that document. The adapter keeps the original
+three-field receipt schema and five-second freshness bound and checks the same
+foreground process independently after the read. Persistent file errors remain
+failures. Other platforms retain their existing command observation file.
+
+Regression-first execution may run domain-roundtrip before domain-enter. Its
+module establishes the real controlled-domain prerequisite when necessary,
+then still proves departure, serverless state and stable reconnection in one
+unchanged foreground process.

@@ -102,5 +102,63 @@ class RequestBoundProbe(unittest.TestCase):
                                      timeout_seconds=invalid)
 
 
+class NativeCommandReceipts(unittest.TestCase):
+    def setUp(self):
+        from adapters.ios import adapter as ios_adapter
+        self.module = ios_adapter
+        self.adapter = ios_adapter.IOSAdapter.__new__(ios_adapter.IOSAdapter)
+        self.adapter.assert_ios_process_identity = Mock(return_value="42")
+        self.adapter.controlled_http_url = Mock()
+        self.target = {"appId": "org.example.client", "testBuild": {
+            "fixtureOrigin": "http://fixture.invalid:49121", "resultsDirectory": "owned"}}
+        self.command_id = "ios-" + "a" * 32
+        self.receipt = {"schemaVersion": 1, "commandId": self.command_id,
+                        "sampleEpochMs": 1000000}
+        self.client = Mock()
+        self.client.execute.side_effect = lambda *args: base64.b64encode(
+            json.dumps(self.receipt).encode()).decode()
+        response = Mock(status=200)
+        context = Mock()
+        context.__enter__ = Mock(return_value=response)
+        context.__exit__ = Mock(return_value=False)
+        def post(request, timeout):
+            response.read.return_value = request.data
+            return context
+        self.addCleanup(patch.stopall)
+        patch.object(ios_adapter, "urlopen", side_effect=post).start()
+        patch.object(ios_adapter.uuid, "uuid4", return_value=Mock(hex="a" * 32)).start()
+        patch.object(ios_adapter.time, "time", return_value=1000).start()
+
+    def command(self):
+        return self.adapter.command("owned",self.client,"session",{},self.target,
+                                    "navigate",url="hifi://fixture.invalid:40282")
+
+    def test_exact_nonce_filename_and_independent_process_after_read(self):
+        self.assertEqual(self.command_id,self.command())
+        self.client.execute.assert_called_once_with("session","mobile: pullFile",{
+            "remotePath":"@org.example.client:documents/owned/ios-client-command-"+
+                         "a"*32+"-result.json"})
+        self.assertEqual(3,self.adapter.assert_ios_process_identity.call_count)
+
+    def test_unchanged_freshness_schema_and_exact_nonce_still_required(self):
+        for change in ({"commandId":"ios-"+"b"*32},{"sampleEpochMs":1},
+                       {"schemaVersion":True},{"forged":True}):
+            with self.subTest(change=change):
+                self.receipt={"schemaVersion":1,"commandId":self.command_id,
+                              "sampleEpochMs":1000000}|change
+                with patch.object(self.module.time,"monotonic",side_effect=[0,0,16]), \
+                     patch.object(self.module.time,"sleep"), self.assertRaises(RuntimeError):
+                    self.command()
+
+    def test_process_replacement_after_read_and_persistent_file_errors_fail(self):
+        self.adapter.assert_ios_process_identity.side_effect=["42","42","43"]
+        with self.assertRaisesRegex(RuntimeError,"crossed process identities"):
+            self.command()
+        self.adapter.assert_ios_process_identity.side_effect=None
+        self.client.execute.side_effect=RuntimeError("persistent native read error")
+        with self.assertRaisesRegex(RuntimeError,"persistent native read error"):
+            self.command()
+
+
 if __name__ == "__main__":
     unittest.main()
