@@ -90,10 +90,11 @@ Source-built Conan build tools remain locked too; this changes the host's
 Debian tools, not the dependency graph's source identity.
 
 **Current validation boundary:** the published 0.1.3 (4) reference is tied to
-`ee32aaffe5c78358b4eb1bdfb539793258e53571`. This local follow-up changes source
-cleanup and is not covered by that release's full-build or device evidence.
-Do not replace its tag or APK. Keep the staged recipe disabled until the new
-source has been qualified and its reference-APK/version implications resolved.
+`ee32aaffe5c78358b4eb1bdfb539793258e53571`. The 0.1.4 (5) candidate includes
+source cleanup directly in the repository and requires no F-Droid backport patch.
+Do not replace the 0.1.3 tag or APK. Keep the staged recipe disabled until two
+independent clean builds match and the new signed reference has been verified.
+Earlier device results do not establish device qualification of this candidate.
 The 36000-second timeout is an upper limit, not evidence of performance on the
 official buildserver. No successful shared-runner/official-server test is claimed.
 
@@ -157,7 +158,7 @@ fallback to network-enabled compilation.
 
 ```sh
 python3 android/phone/fdroid/submission/build.py \
-  --commit "$(git rev-parse HEAD)" --version-code 4 --version-name 0.1.3 \
+  --commit "$(git rev-parse HEAD)" --version-code 5 --version-name 0.1.4 \
   --sdk "$ANDROID_SDK_ROOT" --work-dir /absolute/new/build-attempt --check
 ```
 
@@ -200,8 +201,8 @@ EXIF metadata was removed without changing image pixels.
 Current release configuration:
 
 - **Identity:** `Overte Mobile (Unofficial)`, application ID
-  `io.github.noah_be.overte.phone`. Published version: `0.1.2` (3); disabled
-  review candidate: `0.1.3` (4).
+  `io.github.noah_be.overte.phone`. Published version: `0.1.3` (4); disabled
+  review candidate: `0.1.4` (5).
   The internal Java/JNI namespace remains `org.overte.phone`; Android components
   therefore use fully qualified class names. Earlier local test APKs used a
   different application ID. They are separate installations, not upgrade inputs.
@@ -212,15 +213,15 @@ Current release configuration:
   Store description and initial changelog use the approved unofficial name;
   the description requires OpenGL ES 3.2 and does not list jumping separately.
 - **Device support:** API 26 minimum, target/compile API 36, ARM64 and OpenGL ES
-  3.2. SDK/NDK/CMake versions and the existing eight scanner deletions remain
-  unchanged. The supplied Navy artwork and two maintainer-created Phone
-  screenshots are included.
+  3.2. SDK/NDK/CMake versions remain unchanged. Twenty dependency-source deletion
+  globs supplement the existing eight scanner deletions. The supplied Navy artwork
+  and two maintainer-created Phone screenshots are included.
 - **Signing:** reproducible builds against the maintainer-signed published APK,
   with `AllowedAPKSigningKeys` binding the established release certificate.
   The local Android debug key remains test-only. No keys belong in the checkout.
 - **Publication:** disabled candidate, full commit binding, unsigned build output,
   ten-hour timeout ceiling and Android-specific tag update detection. The
-  published 0.1.2 reference remains unchanged. Qualify the new source revision
+  published 0.1.3 reference remains unchanged. Qualify the new source revision
   before requesting approval to publish a new tag, signed reference or metadata.
 
 The [earlier qualification record](VALIDATION.md) documents the old test identity

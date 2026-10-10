@@ -16,9 +16,9 @@ Binaries:
   https://github.com/noah-be/overte/releases/download/android-phone-release-v%v+%c/overte-mobile-%v-%c.apk
 
 Builds:
-  - versionName: 0.1.3
-    versionCode: 4
-    disable: Local review candidate; cleanup and new release build qualification pending
+  - versionName: 0.1.4
+    versionCode: 5
+    disable: Release candidate; independent clean builds and signed reference pending
     commit: @COMMIT@
     timeout: 36000
     subdir: android/phone
@@ -100,11 +100,11 @@ MaintainerNotes: |
   Full-build qualification after source cleanup is required before enabling.
   The maintainer-signed reference must match the source build and allowed key.
   Automatic updates select android-phone-release-v<versionName>+<versionCode>.
-  This local draft is not the published 0.1.3 recipe. Its changed source must be
-  qualified before any release or reference-APK decision; existing tags stay fixed.
+  Source cleanup is part of this release's repository contents. No F-Droid
+  backport patch is required. Existing release tags and reference APKs stay fixed.
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags ^android-phone-release-v[0-9]+\.[0-9]+\.[0-9]+\+[1-9][0-9]*$
 UpdateCheckData: '|\+([0-9]+)$||^android-phone-release-v([0-9]+\.[0-9]+\.[0-9]+)\+'
-CurrentVersion: 0.1.3
-CurrentVersionCode: 4
+CurrentVersion: 0.1.4
+CurrentVersionCode: 5
