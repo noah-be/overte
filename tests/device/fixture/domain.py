@@ -293,8 +293,9 @@ def wait_for_domain(process: subprocess.Popen, url: str, timeout_seconds: int) -
     deadline = time.monotonic() + timeout_seconds
     last_error = "domain HTTP endpoint was unavailable"
     while time.monotonic() < deadline:
-        if process.poll() is not None:
-            raise RuntimeError("domain-server exited before becoming ready")
+        exit_code = process.poll()
+        if exit_code is not None:
+            raise RuntimeError(f"domain-server exited before becoming ready (exit code {exit_code})")
         try:
             with urlopen(url, timeout=1) as response:
                 value = response.read(128).decode("ascii").strip()
