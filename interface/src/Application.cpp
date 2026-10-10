@@ -1050,7 +1050,11 @@ void Application::rotationModeChanged() const {
 }
 
 void Application::setIsServerlessMode(bool serverlessDomain) {
-    DependencyManager::get<NodeList>()->setSendDomainServerCheckInEnabled(!serverlessDomain);
+    auto nodeList = DependencyManager::get<NodeList>();
+    // A local error world is only the presentation of a failed network
+    // destination. Keep its real handshake retries active so it can recover.
+    nodeList->setSendDomainServerCheckInEnabled(
+        !serverlessDomain || !nodeList->getDomainHandler().isServerless());
     auto tree = getEntities()->getTree();
     if (tree) {
         tree->setIsServerlessMode(serverlessDomain);
