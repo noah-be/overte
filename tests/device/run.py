@@ -21,7 +21,7 @@ from execution_identity import ExecutionIdentity
 from contracts import (contains_private_identity, load_capability_registry,
                        load_tablet_product_policy,
                        validate_capabilities, validate_discovered_targets,
-                       validate_identifier)
+                       validate_identifier, validate_operation_result)
 
 if os.name == "nt":
     import msvcrt
@@ -105,11 +105,14 @@ def load_modules(path: Path, suite: str) -> list[dict]:
 
 
 def adapter_call(command: list[str], action: str, target: str | None = None,
-                 timeout: int = 30) -> object:
+                 timeout: int = 30, *, operation: str | None = None,
+                 environment: dict[str, str] | None = None) -> object:
     argv = [*command, action]
     if target is not None:
         argv += ["--target", target]
-    adapter_environment = os.environ.copy()
+    if operation is not None:
+        argv += ["--operation", operation, "--arguments", "{}"]
+    adapter_environment = os.environ.copy() if environment is None else environment.copy()
     adapter_environment.pop("OVERTE_E2E_TABLET_POLICY", None)
     try:
         # Adapter stderr is arbitrary device/native data, not a reviewed error
@@ -296,6 +299,97 @@ def run_module(module: dict, catalog: Path, environment: dict[str, str],
             "durationSeconds": round(time.monotonic() - started, 3), "output": output}
 
 
+def recover_stopped_app_after_failure(previous: dict, module: dict,
+        modules: list[dict], catalog: Path, environment: dict[str, str],
+        output: Path, selector: str, private_values: set[str],
+        adapter_command: list[str], capabilities: set[str]) -> None:
+    """Restore verified prerequisites between tests after observed process loss."""
+    if (environment.get("OVERTE_DEVICE_RECOVER_STOPPED_APP_AFTER_FAILURE") != "1"
+            or previous["status"] not in {"failed", "error"}):
+        return
+    process = validate_operation_result("app.process", adapter_call(
+        adapter_command, "invoke", selector, operation="app.process", environment=environment))
+    if process["running"] is True:
+        return
+    identifiers = ("launch-smoke", "scene")
+    if module["id"] in {"network-fault-recovery", "entity-sync", "multi-user",
+                         "voice-roundtrip", "domain-roundtrip"}:
+        identifiers += ("domain-enter",)
+    prerequisites = {item["id"]: item for item in modules
+                     if item["id"] in identifiers}
+    if len(prerequisites) != len(identifiers):
+        raise RuntimeError("Stopped-app recovery requires launch and verified-world prerequisites")
+    root = output / "preconditions" / module["id"]
+    root.mkdir(parents=True, mode=0o700)
+    receipt = {"schemaVersion": 1, "previousModule": previous["id"],
+               "previousStatus": previous["status"], "observedStopped": True,
+               "prerequisites": [], "verified": False}
+    path = root / "recovery.json"
+    path.write_text(json.dumps(receipt, indent=2) + "\n")
+    print("Restoring a stopped application and verified world before " + module["id"], flush=True)
+    for identifier in identifiers:
+        prerequisite = prerequisites[identifier]
+        if set(prerequisite.get("requires", [])) - capabilities:
+            raise RuntimeError("Stopped-app recovery prerequisites lack capabilities")
+        artifact = root / identifier
+        precondition_env = environment | {"OVERTE_DEVICE_ARTIFACT_DIR": str(artifact)}
+        result = run_module(prerequisite, catalog, precondition_env, artifact,
+                            selector, private_values, adapter_command, capabilities)
+        receipt["prerequisites"].append({"id": identifier, "status": result["status"]})
+        path.write_text(json.dumps(receipt, indent=2) + "\n")
+        if result["status"] != "passed":
+            raise RuntimeError("Stopped-app recovery failed its " + identifier + " prerequisite")
+    receipt["verified"] = True
+    path.write_text(json.dumps(receipt, indent=2) + "\n")
+
+
+def recover_domain_after_fault(previous: dict, module: dict,
+        modules: list[dict], catalog: Path, environment: dict[str, str],
+        output: Path, selector: str, private_values: set[str],
+        adapter_command: list[str], capabilities: set[str]) -> None:
+    """Isolate later tests from a failed outage without changing its result."""
+    if (environment.get("OVERTE_DEVICE_RECOVER_DOMAIN_AFTER_FAULT") != "1"
+            or previous["id"] != "network-fault-recovery"
+            or previous["status"] not in {"failed", "error"}):
+        return
+    identifiers = ("launch-smoke", "scene", "domain-enter")
+    prerequisites = {item["id"]: item for item in modules
+                     if item["id"] in identifiers}
+    if (len(prerequisites) != len(identifiers) or "app.stop" not in capabilities
+            or any(set(item.get("requires", [])) - capabilities
+                   for item in prerequisites.values())):
+        raise RuntimeError("Domain isolation requires stop, launch, world and domain prerequisites")
+    root = output / "preconditions" / module["id"] / "domain-isolation"
+    root.mkdir(parents=True, mode=0o700)
+    receipt = {"schemaVersion": 1, "previousModule": previous["id"],
+               "previousStatus": previous["status"], "stopped": False,
+               "prerequisites": [], "verified": False}
+    path = root / "recovery.json"
+    path.write_text(json.dumps(receipt, indent=2) + "\n")
+    stopped = validate_operation_result("app.stop", adapter_call(
+        adapter_command, "invoke", selector, operation="app.stop", environment=environment))
+    if stopped["stopped"] is not True:
+        raise RuntimeError("Domain isolation could not stop the previous process")
+    process = validate_operation_result("app.process", adapter_call(
+        adapter_command, "invoke", selector, operation="app.process", environment=environment))
+    if process["running"] is not False:
+        raise RuntimeError("Domain isolation still observes the previous process")
+    receipt["stopped"] = True
+    path.write_text(json.dumps(receipt, indent=2) + "\n")
+    print("Restoring verified world and domain between outage and " + module["id"], flush=True)
+    for identifier in identifiers:
+        artifact = root / identifier
+        result = run_module(prerequisites[identifier], catalog,
+                            environment | {"OVERTE_DEVICE_ARTIFACT_DIR": str(artifact)},
+                            artifact, selector, private_values, adapter_command, capabilities)
+        receipt["prerequisites"].append({"id": identifier, "status": result["status"]})
+        path.write_text(json.dumps(receipt, indent=2) + "\n")
+        if result["status"] != "passed":
+            raise RuntimeError("Domain isolation failed its " + identifier + " prerequisite")
+    receipt["verified"] = True
+    path.write_text(json.dumps(receipt, indent=2) + "\n")
+
+
 def write_junit(results: list[dict], path: Path, suite: str) -> None:
     root = ET.Element("testsuite", name=f"device-{suite}", tests=str(len(results)),
                       failures=str(sum(r["status"] == "failed" for r in results)),
@@ -417,17 +511,14 @@ def main() -> int:
                     identity.verify_description(description)
                 (output / "device.json").write_text(
                     json.dumps(description, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-                infrastructure_failure = False
+                blocked_reason = None
                 for module in modules:
-                    if infrastructure_failure:
+                    if blocked_reason:
                         results.append({
                             "id": module["id"], "description": module["description"],
                             "status": "skipped", "returncode": 77,
                             "durationSeconds": 0.0,
-                            "output": (
-                                "Blocked by an earlier device infrastructure failure; "
-                                "no device command was sent.\n"
-                            ),
+                            "output": blocked_reason + "; no device command was sent.\n",
                         })
                         continue
                     missing = sorted(set(module.get("requires", [])) - capabilities)
@@ -437,14 +528,40 @@ def main() -> int:
                                         "returncode": 75 if args.require_complete else 77,
                                         "durationSeconds": 0.0,
                                         "output": f"Missing capabilities: {', '.join(missing)}\n"})
+                        if (module["id"] == "scene"
+                                and environment.get("OVERTE_E2E_REQUIRE_FIXTURE_SCREENSHOT") == "1"):
+                            blocked_reason = "Blocked because controlled test world verification is unavailable"
                         continue
                     artifact = output / "modules" / module["id"]
                     module_env = environment | {"OVERTE_DEVICE_ARTIFACT_DIR": str(artifact)}
+                    if results:
+                        recover_domain_after_fault(results[-1], module, modules,
+                            catalog_path, environment, output, selector, private_values,
+                            command, capabilities)
+                        recover_stopped_app_after_failure(results[-1], module, modules,
+                            catalog_path, environment, output, selector, private_values,
+                            command, capabilities)
                     print(f"[{module['id']}] {module['description']}", flush=True)
                     result = run_module(module, catalog_path, module_env, artifact, selector,
                                         private_values, command, capabilities)
                     results.append(result)
-                    infrastructure_failure = result["status"] == "error"
+                    if (module["id"] == "scene" and result["status"] != "passed"
+                            and environment.get("OVERTE_E2E_REQUIRE_FIXTURE_SCREENSHOT") == "1"):
+                        blocked_reason = "Blocked because the controlled test world failed its prerequisites"
+                    elif result["status"] == "error":
+                        if environment.get("OVERTE_DEVICE_CONTINUE_AFTER_MODULE_ERROR") == "1":
+                            # Keep module-local errors without hiding unrelated
+                            # results. Require the reserved target to remain
+                            # inspectable before issuing further test commands.
+                            current = adapter_call(command, "describe", selector)
+                            if (not isinstance(current, dict) or "selector" in current
+                                    or contains_private_identity(current, private_values)):
+                                fail("adapter describe result is invalid after a module error")
+                            if identity is not None:
+                                identity.verify_description(current)
+                                identity.verify_artifact()
+                        else:
+                            blocked_reason = "Blocked by an earlier device infrastructure failure"
                 if identity is not None:
                     # Recheck the still-reserved target before cleanup. A native
                     # adapter must inspect installation, not echo our arguments.

@@ -6,6 +6,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
 from pathlib import Path
 import re
 import shlex
@@ -275,6 +276,23 @@ class AndroidOpenXrTransport:
         if expected_sequence is not None and status["acceptedSequence"] != expected_sequence:
             raise TransportError("native OpenXR input status sequence mismatch")
         status["acceptedNonce"] = "[redacted]"
+        artifact = os.environ.get("OVERTE_DEVICE_ARTIFACT_DIR")
+        if artifact:
+            # Preserve validated native error/consumption evidence without
+            # selectors, session nonces, payloads or command identifiers.
+            keys = ("enabled", "acceptedSequence", "state", "detail", "updatedEpochMs",
+                    "viewAppliedSequence", "vectorAppliedSequence", "booleanAppliedSequence",
+                    "leftThumbstickAppliedX", "leftThumbstickAppliedY", "leftSecondaryApplied",
+                    "rightSecondaryApplied")
+            observed = {key: status[key] for key in keys}
+            observed["observedHostEpochMs"] = int(time.time()*1000)
+            try:
+                destination = Path(artifact)/"openxr-native-status.private.jsonl"
+                descriptor = os.open(destination, os.O_WRONLY|os.O_CREAT|os.O_APPEND|os.O_NOFOLLOW, 0o600)
+                with os.fdopen(descriptor, 'a') as output:
+                    output.write(json.dumps(observed)+'\n')
+            except OSError:
+                pass
         return status
 
     def cleanup(self) -> None:
