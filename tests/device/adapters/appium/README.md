@@ -2,7 +2,11 @@
 
 The [shared implementation](../shared_appium/README.md) lives outside the
 iOS-owned adapter directory. This entrypoint remains compatible on `main`;
-`apple-ios` retains its native implementation here.
+`apple-ios` keeps its native implementation under `../../ios/adapters/appium_adapter.py`.
+The compatibility CLI routes `--platform ios` to that fixed product module when
+it is present. Generic imports always expose the shared classes. A shared
+checkout without the native module retains its ordinary iOS CLI and rejects
+native-binding requests before starting a driver.
 
 The adapter talks directly to Appium's W3C HTTP protocol using the Python
 standard library. No proprietary device cloud or language-specific Appium

@@ -424,22 +424,25 @@ class TopologyContracts(unittest.TestCase):
 class ProductRepairContracts(unittest.TestCase):
     """Exercise real gate and branch attestation code against fake GET responses."""
 
-    def fixture(self, changes=None):
+    def fixture(self, changes=None, target="android-vr-pico"):
         settings = config()
-        paths = settings["reconciliation_repair_paths"]["android-vr-pico"]
+        paths = settings["reconciliation_repair_paths"][target]
+        edge = settings["edges"][target]
+        parent = edge["parent"]
+        scope = edge["scope"]
         repo = {"id": REPOSITORY_ID, "full_name": REPOSITORY}
         pr = {
             "number": 610, "state": "open", "mergeable": True, "merge_commit_sha": MERGE,
-            "base": {"ref": "android-vr-pico", "sha": BASE, "repo": deepcopy(repo)},
-            "head": {"ref": "reconcile/android-pico/tablet-repair", "sha": HEAD, "repo": deepcopy(repo)},
+            "base": {"ref": target, "sha": BASE, "repo": deepcopy(repo)},
+            "head": {"ref": f"reconcile/{scope}/tablet-repair", "sha": HEAD, "repo": deepcopy(repo)},
         }
         event = {"repository": deepcopy(repo), "pull_request": deepcopy(pr)}
         privileged = [entry(".github/sync-test-reuse.json"), entry("tools/branch-policy/check.py")]
         tree = {"truncated": False, "tree": privileged}
         old = "8" * 40
         documents = {
-            f"repos/{REPOSITORY}/git/ref/heads/android-vr-pico": {"object": {"sha": BASE}},
-            f"repos/{REPOSITORY}/git/ref/heads/android-vr": {"object": {"sha": PARENT}},
+            f"repos/{REPOSITORY}/git/ref/heads/{target}": {"object": {"sha": BASE}},
+            f"repos/{REPOSITORY}/git/ref/heads/{parent}": {"object": {"sha": PARENT}},
             f"repos/{REPOSITORY}/git/commits/{HEAD}": {
                 "sha": HEAD, "parents": [{"sha": BASE}, {"sha": PARENT}]},
             f"repos/{REPOSITORY}/git/commits/{MERGE}": {
@@ -490,10 +493,34 @@ class ProductRepairContracts(unittest.TestCase):
             self.assertEqual(gate.inspect(SimpleNamespace(config=None, event=source, output=None)), 0)
             result = output.call_args.args[1]
             self.assertEqual(result["mode"], "fallback")
-            self.assertEqual(result["profile"], "android-pico")
+            self.assertEqual(result["profile"], settings["edges"][event["pull_request"]["base"]["ref"]]["differential"])
             self.assertEqual(result["evidence_run_id"], "")
             self.assertEqual(result["merge_sha"], MERGE)
             return result
+
+    def test_each_owned_ios_repair_requires_full_qualification(self):
+        paths = config()["reconciliation_repair_paths"]["apple-ios"]
+        for path in paths:
+            with self.subTest(path=path):
+                self.inspect(*self.fixture([{"filename": path, "status": "modified"}], target="apple-ios"))
+
+    def test_ios_repairs_cannot_modify_shared_or_unlisted_product_paths(self):
+        for path in ("tests/device/probe/overte_e2e_probe.js", "tests/device/run_control_plane_tests.py",
+                     "tests/device/ios/adapters/unknown.py", ".github/workflows/project-tests.yml"):
+            event, settings, api = self.fixture(target="apple-ios")
+            api.documents[f"repos/{REPOSITORY}/pulls/610/files?per_page=100&page=1"].append(
+                {"filename": path, "status": "modified"})
+            with self.subTest(path=path), self.assertRaises(gate.GateError):
+                self.classify(event, settings, api)
+
+    def test_ios_and_pico_repair_scopes_cannot_be_exchanged(self):
+        for target, foreign in (("apple-ios", "android-vr-pico"), ("android-vr-pico", "apple-ios")):
+            event, settings, api = self.fixture(target=target)
+            path = settings["reconciliation_repair_paths"][foreign][0]
+            api.documents[f"repos/{REPOSITORY}/pulls/610/files?per_page=100&page=1"].append(
+                {"filename": path, "status": "modified"})
+            with self.subTest(target=target), self.assertRaises(gate.GateError):
+                self.classify(event, settings, api)
 
     def test_attested_four_path_pico_repair_requires_full_fallback(self):
         event, settings, api = self.fixture()

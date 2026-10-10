@@ -222,6 +222,11 @@ function apply(id,action,extra={}) {
     return applyVoice({schemaVersion:1,commandId:id,action:'voice-test',
         request:{schemaVersion:1,commandId:id,action,...extra}});
 }
+assert(apply('read-permission','status'));
+assert.equal(native.at(-1).action,'status');
+assert.equal(Audio.muted,false);assert.equal(Audio.avatarGain,-2);
+assert.equal(voiceOriginal,null);assert.equal(voiceWatchdog,null);
+assert.equal(location.url,undefined);
 assert(apply('prepare','prepare',{domainUrl:'hifi://fixture:40102'}));
 assert.equal(Audio.muted,true);assert.equal(Audio.avatarGain,0);
 assert.equal(Audio.localEcho,false);assert.equal(location.url,'hifi://fixture:40102');
@@ -252,7 +257,8 @@ assert.equal(saved.at(-1).ok,false);assert.equal(Audio.muted,false);
     def test_actual_qt_hook_compiles_and_bounds_recording_lifecycle(self):
         source = (ROOT.parents[1] / "interface/src/scripting/TestScriptingInterface.cpp").read_text()
         start = source.index("QVariantMap TestScriptingInterface::voiceTest(")
-        end = source.index("\n#endif", start)
+        next_hook = source.find("\nQVariantMap TestScriptingInterface::acousticTest(", start)
+        end = next_hook if next_hook >= 0 else source.index("\n#endif", start)
         method = source[start:end]
         audio_source = (ROOT.parents[1] / "libraries/audio-client/src/AudioClient.cpp").read_text()
         input_start = audio_source.index("void AudioClient::handleAudioInput(QByteArray& audioBuffer) {")
@@ -310,6 +316,7 @@ class TestScriptingInterface : public QObject {
 public:
     QString _testResultsLocation, _voiceCapturePath;
     quint64 _voiceCaptureGeneration = 0;
+    bool _acousticPrepared = false;
     QVariantMap voiceTest(const QVariantMap&);
 };
 METHOD
@@ -551,6 +558,84 @@ class VoiceModuleTests(unittest.TestCase):
 
 @unittest.skipUnless(sys.platform == "linux", "PC fixture ownership is Linux-only")
 class OwnedFixtureTests(unittest.TestCase):
+    def test_independent_peer_coexists_with_shared_lease_and_preserves_its_owner(self):
+        with tempfile.TemporaryDirectory() as private:
+            root = Path(private)
+            config = root / "launch.json"
+            config.write_text("{}"); config.chmod(0o600)
+            processes = []
+            def popen(arguments, **_):
+                state = Path(arguments[arguments.index("--state-dir") + 1])
+                (state / "session.json").write_text("{}")
+                process = Mock(); process.poll.return_value = None
+                process.terminate.side_effect = lambda: (state / "session.json").unlink()
+                processes.append(process)
+                return process
+            samples, ticks = itertools.count(1), itertools.count()
+            def status(*_, **__):
+                return {"snapshotFresh": True, "audioRouted": True, "snapshotAgeSeconds": .1,
+                        "client": {"connected": True, "mixerReady": True, "sequence": next(samples)}}
+            with patch.dict(os.environ, {"XDG_STATE_HOME": str(root)}), \
+                    patch("voice_peer.fixture.invoke", side_effect=status), \
+                    patch("voice_peer.fixture.subprocess.Popen", side_effect=popen), \
+                    patch("voice_peer.fixture.time.monotonic", side_effect=lambda: next(ticks) * .25), \
+                    patch("voice_peer.fixture.time.sleep"):
+                shared = VoicePeerFixture(config, "hifi://localhost:40102")
+                independent = VoicePeerFixture(config, "hifi://localhost:40122", resource_name="ipad")
+                try:
+                    first = shared.start(); second = independent.start()
+                    self.assertNotEqual(first["OVERTE_E2E_VOICE_PEER_STATE"], second["OVERTE_E2E_VOICE_PEER_STATE"])
+                    with self.assertRaisesRegex(RuntimeError, "already reserved"):
+                        VoicePeerFixture(config, "hifi://localhost:40122", resource_name="ipad").start()
+                    independent.close()
+                    processes[0].terminate.assert_not_called()
+                    self.assertTrue(Path(first["OVERTE_E2E_VOICE_PEER_STATE"]).exists())
+                    with self.assertRaisesRegex(RuntimeError, "already reserved"):
+                        VoicePeerFixture(config, "hifi://localhost:40102").start()
+                finally:
+                    independent.close(); shared.close()
+
+    def test_independent_reservation_rejects_unsafe_or_ambiguous_names(self):
+        with tempfile.TemporaryDirectory() as private:
+            config = Path(private) / "launch.json"
+            config.write_text("{}"); config.chmod(0o600)
+            for value in ("", "../resource", "/resource", "iPad", "ipad slot", "x" * 65, True):
+                with self.subTest(value=value), self.assertRaises(ValueError):
+                    VoicePeerFixture(config, "hifi://localhost:40102", resource_name=value)
+
+    def test_failed_start_retains_private_diagnostics_and_still_cleans_owned_state(self):
+        with tempfile.TemporaryDirectory() as private:
+            root = Path(private)
+            config = root / "launch.json"
+            config.write_text("{}"); config.chmod(0o600)
+            diagnostics = root / "diagnostics"
+            process = Mock()
+            process.poll.return_value = None
+            owned_state = []
+            def popen(arguments, **_):
+                state = Path(arguments[arguments.index("--state-dir") + 1])
+                owned_state.append(state)
+                (state / "session.json").write_text("private-control-token")
+                (state / "peer-runtime.js").write_text("private-authenticated-script")
+                (state / "client.log").write_text("startup failure evidence")
+                process.terminate.side_effect = lambda: (state / "session.json").unlink()
+                return process
+            with patch.dict(os.environ, {"XDG_STATE_HOME": str(root)}), \
+                    patch("voice_peer.fixture.subprocess.Popen", side_effect=popen), \
+                    patch("voice_peer.fixture.invoke", side_effect=RuntimeError("owned PC voice operation failed")):
+                fixture = VoicePeerFixture(config, "hifi://localhost:40102", diagnostics_dir=diagnostics)
+                with self.assertRaisesRegex(RuntimeError, "owned PC voice operation failed"):
+                    fixture.start()
+                self.assertIsNone(fixture.lock)
+                self.assertFalse(owned_state[0].exists())
+                process.terminate.assert_called_once()
+                process.wait.assert_called_once_with(timeout=25)
+            self.assertEqual((diagnostics / "client.log").read_text(), "startup failure evidence")
+            self.assertEqual(diagnostics.stat().st_mode & 0o777, 0o700)
+            self.assertEqual((diagnostics / "client.log").stat().st_mode & 0o777, 0o600)
+            self.assertFalse((diagnostics / "session.json").exists())
+            self.assertFalse((diagnostics / "peer-runtime.js").exists())
+
     def test_fixture_stops_its_owned_peer_and_releases_global_audio_lock(self):
         with tempfile.TemporaryDirectory() as private:
             root = Path(private)
