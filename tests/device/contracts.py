@@ -224,7 +224,7 @@ def validate_operation_arguments(operation: str, value: object) -> dict:
     if operation == "voice.exchange":
         from voice_contract import command
         return command(value)
-    if operation in {"app.version", "collaboration.snapshot", "render.snapshot",
+    if operation in {"app.version", "collaboration.snapshot", "render.snapshot", "entity-script.review",
                      "tablet.snapshot", "text.snapshot"}:
         if value:
             raise ValueError(f"{operation} does not accept arguments")
@@ -409,8 +409,23 @@ def validate_operation_result(operation: str, value: object) -> dict:
         return result(value)
     if not isinstance(value, dict):
         raise ValueError(f"{operation} result must be an object")
-    if operation in {"audio.mute", "collaboration.edit", "input.fly", "input.jump", "input.look", "input.move", "input.primary",
-                     "permission.set",
+    if operation == "permission.set":
+        validate_performed_result(operation, value)
+        if set(value) not in ({"performed"}, {"performed", "recovery"}):
+            raise ValueError("permission.set has unexpected recovery evidence")
+        if "recovery" in value:
+            recovery = value["recovery"]
+            if (not isinstance(recovery, dict) or set(recovery) != {
+                    "kind", "permissionId", "processBefore", "processAfter", "stoppedByOperatingSystem"}
+                    or recovery["kind"] != "ios-settings-process-restart"
+                    or recovery["permissionId"] != "microphone"
+                    or recovery["stoppedByOperatingSystem"] is not True
+                    or any(type(recovery[k]) is not int or recovery[k] <= 0
+                           for k in ("processBefore", "processAfter"))
+                    or recovery["processBefore"] == recovery["processAfter"]):
+                raise ValueError("permission.set requires exact iOS Settings restart evidence")
+        return value
+    if operation in {"audio.mute", "collaboration.edit", "entity-script.review", "input.fly", "input.jump", "input.look", "input.move", "input.primary",
                      "tablet.activate", "tablet.close", "tablet.open", "text.dismiss",
                      "text.focus", "text.type", "setting.set"}:
         return validate_performed_result(operation, value)
@@ -536,6 +551,8 @@ def validate_probe_snapshot(value: object) -> dict:
         "sampleEpochMs", "sampleSequence", "scene", "schemaVersion", "sound",
         "tablet", "view",
     }
+    if "control" in value:
+        root_fields.add("control")
     if "controller" in value:
         root_fields.add("controller")
     if "control" in value:
@@ -554,6 +571,23 @@ def validate_probe_snapshot(value: object) -> dict:
         root_fields.add("scriptedEntity")
     if "verticalEvents" in value:
         root_fields.add("verticalEvents")
+    if "nativeMotion" in value:
+        root_fields.add("nativeMotion")
+        motion = value["nativeMotion"]
+        if not isinstance(motion, dict):
+            raise ValueError("probe nativeMotion must be an object")
+        _require_exact_fields(motion, {"processId", "sampleEpochMs", "sampleSequence"},
+                              "probe nativeMotion")
+        pid = motion["processId"]
+        if pid is not None and (type(pid) is not int or pid <= 0):
+            raise ValueError("probe nativeMotion requires a positive processId or null")
+        if any(type(motion[key]) is not int or motion[key] < 0
+               for key in ("sampleEpochMs", "sampleSequence")):
+            raise ValueError("probe nativeMotion requires non-negative integer sample identity")
+        if (motion["sampleSequence"] == 0) != (motion["sampleEpochMs"] == 0):
+            raise ValueError("probe nativeMotion observation sequence and epoch must agree")
+        if motion["sampleSequence"] > 0 and pid is None:
+            raise ValueError("probe nativeMotion observation requires a process binding")
     _require_exact_fields(value, root_fields, "probe snapshot")
     if (not isinstance(value.get("sampleEpochMs"), int)
             or isinstance(value["sampleEpochMs"], bool) or value["sampleEpochMs"] <= 0):
@@ -591,6 +625,19 @@ def validate_probe_snapshot(value: object) -> dict:
                 or not isinstance(control.get("lastCommandId"), str)):
             raise ValueError("probe control has an invalid Android debug contract")
 
+    control = value.get("control")
+    if control is not None:
+        if not isinstance(control, dict):
+            raise ValueError("probe control must be an object or null")
+        _require_exact_fields(control, {"channel", "lastCommandId", "probe", "schemaVersion"}, "probe control")
+        command_id = control.get("lastCommandId")
+        if (type(control.get("schemaVersion")) is not int or control["schemaVersion"] != 1
+                or control.get("channel") != "android-debug-file-v1"
+                or control.get("probe") != "overte_e2e_probe.js"
+                or not isinstance(command_id, str)
+                or command_id and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", command_id)):
+            raise ValueError("probe control has an invalid Android debug contract")
+
     domain = value["domain"]
     _require_exact_fields(
         domain, {"connected", "hostname", "id", "protocol", "serverless"},
@@ -602,8 +649,9 @@ def validate_probe_snapshot(value: object) -> dict:
         raise ValueError("probe domain requires connection, identity and protocol state")
     if domain["connected"] and (not domain["hostname"] or not domain["id"]):
         raise ValueError("connected probe domain requires hostname and id")
-    if domain["serverless"] and domain["protocol"] != "file":
-        raise ValueError("serverless probe domain requires file protocol")
+    if domain["serverless"] and (domain["protocol"] not in {"file", "http", "https"}
+                                 or domain["connected"]):
+        raise ValueError("serverless probe requires a file or HTTP(S) scene without a domain connection")
 
     input_state = value["input"]
     _require_exact_fields(

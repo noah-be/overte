@@ -208,13 +208,27 @@ class PicoOpenXrAdapterSession:
                 "OVERTE_PICO_OPENXR_ACK_SECONDS must be from 1 through 15")
         return value
 
-    def _wait_for_ack(self, nonce: str, sequence: int) -> dict:
+    @staticmethod
+    def _completed_jump_applied(status: dict, sequence: int) -> bool:
+        # A jump is a bounded pulse. WLAN acknowledgement may arrive after its
+        # normal neutral window; require real native consumption of this exact
+        # command. The behavioral module still proves jump height and landing.
+        return (status["state"] == "neutral"
+                and status.get("detail") in {"neutral-window", "watchdog"}
+                and status["booleanAppliedSequence"] == sequence
+                and status["rightSecondaryApplied"] is True)
+
+    def _wait_for_ack(self, nonce: str, sequence: int,
+                      operation: str) -> dict:
         deadline = time.monotonic() + self._ack_timeout()
         last_error: TransportError | None = None
         while time.monotonic() < deadline:
             try:
                 status = self.transport.read_status(
                     expected_nonce=nonce, expected_sequence=sequence)
+                if (operation == "input.jump"
+                        and self._completed_jump_applied(status, sequence)):
+                    return status
                 if status["state"] == "error" or status["enabled"] is not True:
                     raise AdapterSessionError("native Pico OpenXR input rejected the command")
                 return status
@@ -262,6 +276,22 @@ class PicoOpenXrAdapterSession:
             "native Pico OpenXR view override was not consumed by a view query"
         ) from last_error
 
+    def _controller_applied(self, status: dict, sequence: int, operation: str) -> bool:
+        if operation == "input.jump" and self._completed_jump_applied(status, sequence):
+            return True
+        if status["enabled"] is not True or status["state"] != "active":
+            return False
+        if operation == "input.move":
+            return (status["vectorAppliedSequence"] == sequence and
+                    (abs(float(status["leftThumbstickAppliedX"])) >= 0.01 or
+                     abs(float(status["leftThumbstickAppliedY"])) >= 0.01))
+        if operation in {"tablet.open", "tablet.close"}:
+            return (status["booleanAppliedSequence"] == sequence and
+                    status["leftSecondaryApplied"] is True)
+        return (operation in {"input.jump", "input.fly"} and
+                status["booleanAppliedSequence"] == sequence and
+                status["rightSecondaryApplied"] is True)
+
     def _wait_for_controller_application(self, nonce: str, sequence: int,
                                          operation: str) -> dict:
         deadline = time.monotonic() + self._ack_timeout()
@@ -270,27 +300,18 @@ class PicoOpenXrAdapterSession:
             try:
                 status = self.transport.read_status(
                     expected_nonce=nonce, expected_sequence=sequence)
+                if (operation == "input.jump"
+                        and self._completed_jump_applied(status, sequence)):
+                    return status
                 if status["state"] == "error" or status["enabled"] is not True:
                     raise AdapterSessionError(
                         "native Pico OpenXR controller override failed before consumption")
-                vector_applied = (operation == "input.move" and
-                                  status["vectorAppliedSequence"] == sequence and
-                                  (abs(float(status["leftThumbstickAppliedX"])) >= 0.01 or
-                                   abs(float(status["leftThumbstickAppliedY"])) >= 0.01))
-                left_secondary_applied = (
-                    operation in {"tablet.open", "tablet.close"} and
-                    status["booleanAppliedSequence"] == sequence and
-                    status["leftSecondaryApplied"] is True)
-                right_secondary_applied = (
-                    operation in {"input.jump", "input.fly"} and
-                    status["booleanAppliedSequence"] == sequence and
-                    status["rightSecondaryApplied"] is True)
-                boolean_applied = left_secondary_applied or right_secondary_applied
                 # Applied-sequence evidence intentionally survives the native
                 # neutral window. It proves historical consumption, but must
-                # not let a completed pulse masquerade as input that is still
-                # active when the behavioral test starts observing it.
-                if status["state"] == "active" and (vector_applied or boolean_applied):
+                # not let completed continuous input masquerade as still active.
+                # The separately handled jump pulse needs historical consumption
+                # followed by the independent height/landing proof.
+                if self._controller_applied(status, sequence, operation):
                     return status
             except TransportError as error:
                 last_error = error
@@ -329,15 +350,21 @@ class PicoOpenXrAdapterSession:
             # Persist immediately after the device-side grant commit. A later
             # acknowledgement timeout must never replay the committed sequence.
             self._save(state)
-            status = self._wait_for_ack(state["sessionNonce"], sequence)
+            status = self._wait_for_ack(state["sessionNonce"], sequence, operation)
             if operation == "input.look":
-                status = self._wait_for_view_application(
-                    state["sessionNonce"], sequence)
+                if not (status["state"] == "active" and
+                        status["viewAppliedSequence"] == sequence):
+                    status = self._wait_for_view_application(
+                        state["sessionNonce"], sequence)
             elif operation in {
                     "input.fly", "input.jump", "input.move",
                     "tablet.open", "tablet.close"}:
-                status = self._wait_for_controller_application(
-                    state["sessionNonce"], sequence, operation)
+                # One validated native acknowledgement can already prove
+                # exact command consumption. A redundant WLAN read may return
+                # only after the bounded input's watchdog has expired.
+                if not self._controller_applied(status, sequence, operation):
+                    status = self._wait_for_controller_application(
+                        state["sessionNonce"], sequence, operation)
         result = {
             "performed": True,
             "inputDomain": ("head-pose" if operation == "input.look"

@@ -85,6 +85,25 @@ class OpenXrControllerProtocolTests(unittest.TestCase):
         self.assertFalse(any(terminal["boolean"].values()))
         self.assertFalse(any(terminal["float"].values()))
 
+    def test_trigger_click_publishes_full_press_and_releases_both_signals(self) -> None:
+        for hand in ("left", "right"):
+            with self.subTest(hand=hand):
+                compiled = compile_envelope(self.envelope([{
+                    "id": "trigger-click", "operation": "controller.button",
+                    "arguments": {"hand": hand, "control": "trigger",
+                                  "holdMilliseconds": 500},
+                }]), self.profile)
+                self.assertIn("xrGetActionStateFloat", compiled["requiredInterception"])
+                consumer = PrototypeOpenXrInputConsumer(compiled)
+                consumer.sync_actions(100)
+                self.assertTrue(consumer.query("boolean", hand + "_trigger_click")["currentState"])
+                self.assertEqual(1.0, consumer.query("float", hand + "_trigger_value")["currentState"])
+                consumer.sync_actions(600)
+                self.assertFalse(consumer.query("boolean", hand + "_trigger_click")["currentState"])
+                self.assertEqual(0.0, consumer.query("float", hand + "_trigger_value")["currentState"])
+                consumer.sync_actions(compiled["watchdogDeadlineMs"])
+                self.assertFalse(consumer.enabled)
+
     def test_query_state_is_immutable_until_sync_and_watchdog_neutralizes(self) -> None:
         compiled = compile_envelope(self.envelope([{
             "id": "press-y", "operation": "controller.button",
@@ -214,8 +233,35 @@ class OpenXrControllerProtocolTests(unittest.TestCase):
         self.assertFalse(any(compiled["events"][-1]["state"]["boolean"].values()))
         self.assertIn("xrGetActionStateBoolean", compiled["requiredInterception"])
 
+    def test_primary_pointer_pose_survives_the_trigger_and_is_removed_at_release(self) -> None:
+        compiled = compile_envelope(self.envelope([{
+            "id": "primary", "operation": "input.primary", "arguments": {},
+        }]), self.profile)
+        consumer = PrototypeOpenXrInputConsumer(compiled)
+        consumer.sync_actions(150)
+        self.assertFalse(consumer.query("boolean", "right_trigger_click")["currentState"])
+        consumer.sync_actions(1500)
+        self.assertTrue(consumer.query("boolean", "right_trigger_click")["currentState"])
+        self.assertTrue(consumer.query("pose", "right_grip_pose")["isActive"])
+        consumer.sync_actions(compiled["watchdogDeadlineMs"])
+        self.assertFalse(consumer.enabled)
+        self.assertFalse(consumer.query("boolean", "right_trigger_click")["currentState"])
+        self.assertIsNone(consumer.query("pose", "right_grip_pose"))
+
+    def test_primary_requires_complete_bounded_normalized_geometry(self) -> None:
+        for arguments in ({'positionMeters': [0, 1, 0]},
+                          {'positionMeters': [4, 1, 0], 'orientation': [0, 0, 0, 1]},
+                          {'positionMeters': [0, 1, 0], 'orientation': [0, 0, 0, .5]}):
+            with self.subTest(arguments=arguments), self.assertRaises(ControllerContractError):
+                compile_envelope(self.envelope([{'id': 'primary',
+                    'operation': 'input.primary', 'arguments': arguments}]), self.profile)
+        compile_envelope(self.envelope([{'id': 'primary', 'operation': 'input.primary',
+            'arguments': {'positionMeters': [0, 1, -.5], 'orientation': [0, 0, 0, 1]}}]), self.profile)
+
     def test_invalid_or_unsafe_commands_fail_closed(self) -> None:
         cases = [
+            {"id": "unbounded-pointer", "operation": "input.primary",
+             "arguments": {"targetId": "arbitrary-entity"}},
             {"id": "system", "operation": "controller.button",
              "arguments": {"hand": "right", "control": "menu"}},
             {"id": "raw", "operation": "openxr.call",
