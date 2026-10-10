@@ -45,6 +45,7 @@ public:
     void touchEndEvent(const QTouchEvent* event);
     void touchUpdateEvent(const QTouchEvent* event);
     void touchGestureEvent(const QGestureEvent* event);
+    bool isWorldTapPosition(const QPointF& position);
 
     static const char* NAME;
 
