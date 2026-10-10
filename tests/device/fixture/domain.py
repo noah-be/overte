@@ -59,8 +59,10 @@ def validate_domain_fixture() -> dict:
     if (not isinstance(spawn, dict) or set(spawn) != {"x", "y", "z"}
             or not all(isinstance(spawn[axis], (int, float)) and not isinstance(spawn[axis], bool)
                        for axis in ("x", "y", "z"))
-            or spawn["y"] < 2.0):
-        raise ValueError("domain fixture spawn must be safely above the floor")
+            # AddressManager coordinates denote feet. The fixed floor ends at
+            # y=0; a two-metre gap cannot satisfy Phone's nearby support ray.
+            or spawn["y"] != 0.0 or abs(spawn["x"]) >= 9.0 or abs(spawn["z"]) >= 9.0):
+        raise ValueError("domain fixture spawn feet must be on its known floor surface")
     expected_path = f"/{spawn['x']},{spawn['y']},{spawn['z']}/0,0,0,1"
     if manifest.get("spawnPath") != expected_path:
         raise ValueError("domain fixture spawn path and position disagree")

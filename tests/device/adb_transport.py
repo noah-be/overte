@@ -103,13 +103,20 @@ class AdbTransport:
     def prop(self, target: str, name: str) -> str:
         return self.shell(target, "getprop", name, check=False).strip()
 
-    def properties(self, target: str) -> dict[str, str]:
-        """Read one actual device property snapshot over the selected transport."""
-        raw = self.shell(target, "getprop")
-        return dict(re.findall(r"^\[([^\]\r\n]+)\]: \[([^\r\n]*)\]$", raw, re.M))
+    def properties(self, target: str, names: tuple[str, ...] | None = None) -> dict[str, str]:
+        """Read one fresh property snapshot without logging private values."""
+        requested = set(names) if names is not None else None
+        values = {}
+        for line in self.shell(target, "getprop").splitlines():
+            match = re.fullmatch(r"\[([^\[\]]+)\]: \[(.*)\]", line)
+            if match and (requested is None or match[1] in requested):
+                if match[1] in values:
+                    raise RuntimeError("Android property snapshot contains duplicate entries")
+                values[match[1]] = match[2]
+        return values if names is None else {name: values.get(name, "") for name in names}
 
     def epoch_milliseconds(self, target: str) -> int:
-        """Use the physical device clock for native observation freshness."""
+        """Read the target clock so native samples do not use the host epoch."""
         value = self.shell(target, "date", "+%s%3N").strip()
         if not re.fullmatch(r"[1-9][0-9]{12}", value):
             raise RuntimeError("Android native clock is unavailable")

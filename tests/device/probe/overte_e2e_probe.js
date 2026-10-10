@@ -50,8 +50,9 @@
     var sampleIntervalMs = 250;
     var heartbeatIntervalMs = 5000;
     var previousLocationKey = "";
-    // About.platform names the product. The fixed debug launcher owns this
-    // local, versioned marker; resolve paths while the script context is live.
+    // About.platform is the product brand, not the operating system. Only the
+    // fixed debug launcher supplies this local, versioned control marker.
+    var controlledTextFixtureActive = false;
     var androidControlMarkerUrl = String(Script.resolvePath("android-control.json"));
     var androidControlCommandUrl = String(Script.resolvePath("android-control-command.json"));
     var androidFixtureUrl = String(Script.resolvePath("scene.json"))
@@ -87,6 +88,7 @@
     // the actual loaded address, rather than losing the reload confirmation.
     var lastSceneCommandId = reloadCommandIdFromAddress(location.href);
     var sampleSequence = 0;
+    var phoneTouchHistory = [];
     var orientationHistory = [];
     var verticalObservationPrevious = null;
     var verticalJumpActive = false;
@@ -252,15 +254,30 @@
     function controlledPeer() {
         var identifiers = AvatarList.getAvatarIdentifiers();
         var candidates = [];
+        var peerDiagnostic = { epochMs: Date.now(), avatarCount: identifiers.length,
+            avatars: [] };
         var index;
         for (index = 0; index < identifiers.length; index += 1) {
             if (String(identifiers[index]) === String(MyAvatar.sessionUUID)) {
                 continue;
             }
             var avatar = AvatarList.getAvatar(identifiers[index]);
+            if (androidControlAvailable) {
+                peerDiagnostic.avatars.push({
+                    available: Boolean(avatar),
+                    nameType: avatar ? typeof avatar.displayName : "unavailable",
+                    named: Boolean(avatar && String(avatar.displayName)),
+                    controlledPeer: Boolean(avatar && String(avatar.displayName) === "OVERTE_E2E_PEER"),
+                    voicePeer: Boolean(avatar && String(avatar.displayName) === "OVERTE_VOICE_TEST_PC"),
+                    position: avatar ? vector(avatar.position) : null
+                });
+            }
             if (avatar && String(avatar.displayName) === "OVERTE_E2E_PEER") {
                 candidates.push(avatar);
             }
+        }
+        if (androidControlAvailable) {
+            Test.saveObject(peerDiagnostic, "phone-peer-observation.json");
         }
         if (candidates.length !== 1) {
             return {
@@ -881,10 +898,27 @@
                 || command.commandId === lastAndroidControlCommandId) {
             return;
         }
+        if (command.action === "text-fixture"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action", "operation"])
+                && typeof Test.uiTest === "function"
+                && (command.operation === "focus" || command.operation === "snapshot" || command.operation === "dismiss")
+                && Test.uiTest(command)) {
+            if (command.operation === "focus") {
+                controlledTextFixtureActive = true;
+                Controller.setVPadHidden(true);
+            }
+            else if (command.operation === "dismiss") {
+                controlledTextFixtureActive = false;
+                Controller.setVPadHidden(controlledTabletOpen());
+            }
+            lastAndroidControlCommandId = String(command.commandId);
+            return;
+        }
         if (command.action === "reload-scene"
                 && objectKeysMatch(command,
                     ["schemaVersion", "commandId", "action"])) {
             lastAndroidControlCommandId = String(command.commandId);
+            lastSceneCommandId = lastAndroidControlCommandId;
             reloadControlledScene(lastAndroidControlCommandId);
             return;
         }
@@ -1154,6 +1188,23 @@
             }
         }
         pollAndroidControlMarker();
+        var nativePad = Controller.Hardware.TouchscreenVirtualPad;
+        if (androidControlAvailable && nativePad) {
+            var touch = {
+                epochMs: now, cameraMode: String(Camera.mode),
+                lx: Number(Controller.getValue(nativePad.LX)),
+                ly: Number(Controller.getValue(nativePad.LY)),
+                translateX: Number(Controller.getValue(Controller.Actions.TranslateX)),
+                translateZ: Number(Controller.getValue(Controller.Actions.TranslateZ))
+            };
+            var lastTouch = phoneTouchHistory.length ? phoneTouchHistory[phoneTouchHistory.length - 1] : null;
+            if (!lastTouch || touch.lx !== lastTouch.lx || touch.ly !== lastTouch.ly
+                    || touch.translateX !== lastTouch.translateX || touch.translateZ !== lastTouch.translateZ) {
+                phoneTouchHistory.push(touch);
+                if (phoneTouchHistory.length > 128) { phoneTouchHistory.shift(); }
+                Test.saveObject({samples: phoneTouchHistory}, "phone-touch-observation.json");
+            }
+        }
         pollClientCommand();
         pollSoundCommand();
         phase("controlPolling");
@@ -1286,6 +1337,9 @@
             // Separate private evidence keeps real native author identity out
             // of the portable, publishable snapshot. No client entity edit is
             // performed here: all values come from received entity properties.
+            Test.saveObject({ schemaVersion: 1, sampleEpochMs: now, sampleSequence: sampleSequence,
+                entityCount: sharedEntityCount,
+                observation: sharedEntityCount === 1 ? sharedObservation : null }, "phone-collaboration-observation.json");
             Test.saveObject({ schemaVersion: 1, sampleEpochMs: now, sampleSequence: sampleSequence,
                 entityCount: sharedEntityCount,
                 observation: sharedEntityCount === 1 ? sharedObservation : null }, "pico-collaboration-observation.json");
@@ -1502,6 +1556,12 @@
         Messages.messageReceived.disconnect(observeDispatcherPointers);
         Messages.unsubscribe(interactionPointerChannel);
         restoreVoice();
+        if (controlledTextFixtureActive && typeof Test.uiTest === "function") {
+            Test.uiTest({ schemaVersion: 1, commandId: "ffffffffffffffffffffffffffffffff",
+                action: "text-fixture", operation: "dismiss" });
+            Controller.setVPadHidden(controlledTabletOpen());
+            controlledTextFixtureActive = false;
+        }
         releaseControlledKey(controlledKeyCommandId);
         Controller.disableMapping(controlledInputMappingName);
         Entities.mousePressOnEntity.disconnect(observePrimaryInteraction);

@@ -9,6 +9,7 @@ import math
 import os
 from pathlib import Path
 import re
+import shlex
 import subprocess
 import sys
 import time
@@ -102,6 +103,35 @@ class AndroidAdapter:
         return "pico" in identity or "bytedance" in identity
 
     def eligible(self, target: str) -> bool:
+        if self.kind == "phone":
+            # Retain every live eligibility check, but read the immutable
+            # properties and touchscreen feature in one WLAN-ADB round trip.
+            # Separate queries before each probe and process read can consume
+            # an entire short audio or movement observation window.
+            properties = (
+                "ro.product.manufacturer", "ro.product.brand",
+                "ro.product.model", "ro.product.device",
+                "ro.build.characteristics", "ro.product.cpu.abilist",
+                "ro.build.version.sdk", "ro.opengles.version",
+            )
+            script = "\n".join("getprop " + name for name in properties)
+            script += "\npm list features"
+            lines = self.adb.execute(
+                ["shell", shlex.join(["sh", "-c", script])],
+                target=target, check=False).splitlines()
+            if len(lines) < len(properties):
+                return False
+            values = dict(zip(properties, lines[:len(properties)]))
+            identity = " ".join(lines[:4]).lower()
+            characteristics = values["ro.build.characteristics"].lower().split(",")
+            abis = values["ro.product.cpu.abilist"].split(",")
+            sdk = values["ro.build.version.sdk"]
+            gles = values["ro.opengles.version"]
+            return ("pico" not in identity and "bytedance" not in identity
+                    and not {"watch", "tv", "automotive", "vr"}.intersection(characteristics)
+                    and "arm64-v8a" in abis and sdk.isdigit() and int(sdk) >= 26
+                    and gles.isdigit() and int(gles) >= 196610
+                    and "feature:android.hardware.touchscreen" in lines[len(properties):])
         if self.kind == "pico":
             properties = self.adb.properties(target)
             identity = " ".join(properties.get(name, "") for name in (
@@ -120,11 +150,8 @@ class AndroidAdapter:
         abis = self.adb.prop(target, "ro.product.cpu.abilist").split(",")
         sdk = self.adb.prop(target, "ro.build.version.sdk")
         gles = self.adb.prop(target, "ro.opengles.version")
-        features = self.adb.shell(target, "pm", "list", "features", check=False).splitlines()
-        return (not {"watch", "tv", "automotive", "vr"}.intersection(characteristics)
-                and "arm64-v8a" in abis and sdk.isdigit() and int(sdk) >= 26
-                and gles.isdigit() and int(gles) >= 196610
-                and "feature:android.hardware.touchscreen" in features)
+        return (pico and "arm64-v8a" in abis and sdk.isdigit() and int(sdk) >= 26
+                and gles.isdigit() and int(gles) >= 196610)
 
     def capabilities(self, target: str | None = None) -> list[str]:
         values = ["app.foreground", "app.install", "app.launch", "app.process",
@@ -155,6 +182,11 @@ class AndroidAdapter:
             values += ["collaboration.edit", "collaboration.snapshot"]
         if self.upgrade_configuration_available():
             values.append("app.upgrade")
+        if self.kind == "phone" and os.environ.get("OVERTE_ANDROID_E2E_COLLABORATION") == "1":
+            if os.environ.get("OVERTE_ANDROID_E2E_DEBUG") != "1":
+                fail("independent collaboration requires the debug test client")
+            self.collaboration_request("state", allow_pending=True)
+            values += ["collaboration.edit", "collaboration.snapshot"]
         if self.kind == "pico" and os.environ.get("OVERTE_PICO_OPENXR_INPUT") == "1":
             # An explicit opt-in with incomplete isolation is a configuration
             # error, not a silent capability downgrade.
@@ -246,7 +278,7 @@ class AndroidAdapter:
         while time.monotonic() < deadline:
             actor = self.collaboration_request("state", allow_pending=True)
             raw = self.adb.read_debug_app_file(target, package,
-                                              "files/overte-e2e/pico-collaboration-observation.json", attempts=1)
+                                              f"files/overte-e2e/{self.kind}-collaboration-observation.json", attempts=1)
             observed = self.decode_json(raw)
             if actor and observed:
                 try:
@@ -318,7 +350,7 @@ class AndroidAdapter:
             after = self.adb.process_state(target, package)
             if after.get("running") is not True or after.get("identity") != identity:
                 return None
-            control = probe.get("control", {}) if probe is not None else {}
+            control = (probe.get("control") or {}) if probe is not None else {}
             if (marker_valid and probe is not None
                     and all(control.get(key) == value
                             for key, value in ANDROID_CONTROL_CONTRACT.items())
@@ -394,7 +426,7 @@ class AndroidAdapter:
         for attempt in range(attempts):
             snapshot = self.decode_json(self.adb.read_debug_app_file(
                 target, package, ANDROID_DEBUG_PROBE, attempts=1))
-            control = snapshot.get("control", {}) if snapshot is not None else {}
+            control = (snapshot.get("control") or {}) if snapshot is not None else {}
             self.require_same_process(target, identity, operation)
             if control.get("lastCommandId") == command_id:
                 return
@@ -516,12 +548,19 @@ class AndroidAdapter:
     def read_probe_snapshot(self, target: str, package: str,
                             after_sequence: int | None) -> dict:
         attempts, interval = self.probe_retry_policy()
+        diagnostic = {"requestedAfterSampleSequence": after_sequence}
         for attempt in range(attempts):
             raw = self.adb.read_debug_app_file(
                 target, package, ANDROID_DEBUG_PROBE, attempts=1)
             try:
+                candidate = json.loads(raw)
+                if isinstance(candidate, dict):
+                    diagnostic["lastSampleSequence"] = candidate.get("sampleSequence")
+                    epoch = candidate.get("sampleEpochMs")
+                    if isinstance(epoch, (int, float)) and not isinstance(epoch, bool):
+                        diagnostic["sampleAgeSeconds"] = (time.time() * 1000 - epoch) / 1000
                 snapshot = require_fresh_snapshot(
-                    json.loads(raw), self.probe_maximum_age_seconds())
+                    candidate, self.probe_maximum_age_seconds())
             except (json.JSONDecodeError, RuntimeError):
                 snapshot = None
             if snapshot is not None:
@@ -534,6 +573,31 @@ class AndroidAdapter:
                     return snapshot
             if attempt + 1 < attempts:
                 time.sleep(interval)
+        private_root = os.environ.get("OVERTE_DEVICE_STATE_ROOT")
+        if private_root:
+            path = Path(private_root) / "unavailable-probe-diagnostic.json"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(diagnostic) + "\n")
+            path.chmod(0o600)
+            if (self.kind == "phone"
+                    and os.environ.get("OVERTE_ANDROID_E2E_CAPTURE_STALE_STACK") == "1"):
+                # Keep real thread evidence private and bounded. Diagnostics
+                # must never turn an unavailable probe into a successful read.
+                try:
+                    pid = self.adb.shell(target, "pidof", package, check=False).strip()
+                    if pid.isdigit():
+                        stack = self.adb.execute(
+                            ["shell", "debuggerd", "-b", pid], target=target,
+                            timeout=12, check=False)
+                        if not stack.strip():
+                            stack = self.adb.execute(
+                                ["shell", "run-as", package, "debuggerd", "-b", pid],
+                                target=target, timeout=12, check=False)
+                        stack_path = Path(private_root) / "stale-probe-threads.private.log"
+                        stack_path.write_text(stack)
+                        stack_path.chmod(0o600)
+                except RuntimeError:
+                    pass
         fail("Android probe snapshot is unavailable, stale, or did not advance")
 
     def pico_text_operation(self, target: str, identity: str, action: str, values: dict) -> dict:
@@ -855,7 +919,7 @@ class AndroidAdapter:
             self.require(target)
         package = self.profile["package"]
         if operation in {"collaboration.edit", "collaboration.snapshot"}:
-            if self.kind != "pico" or os.environ.get("OVERTE_ANDROID_E2E_COLLABORATION") != "1":
+            if self.kind not in {"phone", "pico"} or os.environ.get("OVERTE_ANDROID_E2E_COLLABORATION") != "1":
                 fail("independent collaboration is not enabled")
             try:
                 values = validate_operation_arguments(operation, values)

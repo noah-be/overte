@@ -48,8 +48,11 @@ class FreshProbe:
 
     def next(self, deadline: float) -> dict:
         while time.monotonic() < deadline:
-            assert_process(self.identity, "sound playback probe sampling")
             sample = self.session.snapshot()
+            # Check the process after every read, including duplicate snapshots.
+            # A second identity round trip before that same read delays wireless
+            # sampling without adding an independent observation.
+            assert_process(self.identity, "sound playback probe sampling")
             sequence = sample.get("sampleSequence")
             epoch_ms = sample["sampleEpochMs"]
             if not isinstance(sequence, int) or isinstance(sequence, bool):
@@ -65,7 +68,6 @@ class FreshProbe:
                 fail("sound probe sampleEpochMs did not advance with sampleSequence")
             self.sequence = sequence
             self.epoch_ms = epoch_ms
-            assert_process(self.identity, "sound playback fresh probe sample")
             return sample
         fail("timed out waiting for a fresh sound probe sample")
 
@@ -140,7 +142,6 @@ def main() -> None:
     write_json("sound-command.json", result)
     if result.get("requested") is not True or result.get("commandId") != command_id:
         fail("sound.play did not acknowledge the exact sound command")
-    assert_process(identity, "sound command")
 
     command_sample = fresh.wait(
         "the probe to observe the exact sound command",

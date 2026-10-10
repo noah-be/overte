@@ -83,8 +83,8 @@ bool Application::event(QEvent* event) {
     }
 
     // Queued QObject invocations are independent of desktop menu readiness.
-    // In particular, native lifecycle delivery and the asynchronous desktop
-    // context callback must run before that callback can create the menu.
+    // Native lifecycle delivery and the asynchronous desktop context callback
+    // must run before that callback can create the menu.
     if (event->type() == QEvent::MetaCall) {
         return QApplication::event(event);
     }

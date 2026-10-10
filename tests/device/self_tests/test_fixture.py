@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import json
+import importlib.util
+from unittest.mock import patch
 import hashlib
 import io
 from pathlib import Path
@@ -20,6 +22,29 @@ SERVER = Path(__file__).resolve().parents[1] / "fixture" / "serve.py"
 
 
 class FixtureTest(unittest.TestCase):
+    def test_spawn_requires_support_at_the_actual_floor_surface(self):
+        spec = importlib.util.spec_from_file_location("ground_fixture", SERVER)
+        fixture = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(fixture)
+        with patch.object(sys, "path", [str(SERVER.parent)] + sys.path):
+            manifest = fixture.validate_fixture()
+        self.assertEqual(0, manifest["spawnPosition"]["y"])
+        for position in ({"x": 0, "y": 2, "z": 4},
+                         {"x": 0, "y": -1, "z": 4},
+                         {"x": 20, "y": 0, "z": 4}):
+            invalid = json.loads(json.dumps(manifest))
+            invalid["spawnPosition"] = position
+            invalid["spawnPath"] = "/{x},{y},{z}/0,0,0,1".format(**position)
+            scene = json.loads((SERVER.parent / "scene.json").read_text())
+            scene["Paths"]["/"] = invalid["spawnPath"]
+            original = Path.read_text
+            def read(path, *args, **kwargs):
+                if path == SERVER.parent / "fixture-manifest.json": return json.dumps(invalid)
+                if path == SERVER.parent / "scene.json": return json.dumps(scene)
+                return original(path, *args, **kwargs)
+            with self.subTest(position=position), patch.object(Path, "read_text", read):
+                with self.assertRaisesRegex(ValueError, "floor"):
+                    fixture.validate_fixture()
     def test_session_sound_duration_matches_actual_wav_and_preserves_default(self):
         base = SERVER.parent / "audio/overte-e2e-tone.wav"
         original = base.read_bytes()

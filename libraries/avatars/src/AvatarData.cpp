@@ -1832,6 +1832,7 @@ void AvatarData::setJointData(int index, const glm::quat& rotation, const glm::v
     QWriteLocker writeLock(&_jointDataLock);
     if (_jointData.size() <= index) {
         _jointData.resize(index + 1);
+        _hasNewJointDataVec.resize(static_cast<size_t>(_jointData.size()), false);
     }
     JointData& data = _jointData[index];
     data.rotation = rotation;
@@ -1855,6 +1856,7 @@ void AvatarData::clearJointData(int index) {
     // FIXME: I don't understand how this "clears" the joint data at index
     if (_jointData.size() <= index) {
         _jointData.resize(index + 1);
+        _hasNewJointDataVec.resize(static_cast<size_t>(_jointData.size()), false);
     }
     _jointData[index] = {};
 }
@@ -1977,6 +1979,7 @@ void AvatarData::setJointRotation(int index, const glm::quat& rotation) {
     QWriteLocker writeLock(&_jointDataLock);
     if (_jointData.size() <= index) {
         _jointData.resize(index + 1);
+        _hasNewJointDataVec.resize(static_cast<size_t>(_jointData.size()), false);
     }
     JointData& data = _jointData[index];
     data.rotation = rotation;
@@ -1990,6 +1993,7 @@ void AvatarData::setJointTranslation(int index, const glm::vec3& translation) {
     QWriteLocker writeLock(&_jointDataLock);
     if (_jointData.size() <= index) {
         _jointData.resize(index + 1);
+        _hasNewJointDataVec.resize(static_cast<size_t>(_jointData.size()), false);
     }
     JointData& data = _jointData[index];
     data.translation = translation;
@@ -2045,6 +2049,7 @@ void AvatarData::setJointRotations(const QVector<glm::quat>& jointRotations) {
     auto size = jointRotations.size();
     if (_jointData.size() < size) {
         _jointData.resize(size);
+        _hasNewJointDataVec.resize(static_cast<size_t>(_jointData.size()), false);
     }
     for (int i = 0; i < size; ++i) {
         auto& data = _jointData[i];
@@ -2067,6 +2072,7 @@ void AvatarData::setJointTranslations(const QVector<glm::vec3>& jointTranslation
     auto size = jointTranslations.size();
     if (_jointData.size() < size) {
         _jointData.resize(size);
+        _hasNewJointDataVec.resize(static_cast<size_t>(_jointData.size()), false);
     }
     for (int i = 0; i < size; ++i) {
         auto& data = _jointData[i];
@@ -2145,7 +2151,17 @@ void AvatarData::processAvatarIdentity(QDataStream& packetStream, bool& identity
         >> identity.sessionDisplayName
         >> identity.identityFlags
         ;
-    if (!packetStream.commitTransaction()) {
+    const bool identityDecoded = packetStream.commitTransaction();
+#if defined(Q_OS_ANDROID)
+    static std::atomic<int> identityDecodeTraceBudget { 16 };
+    if (identityDecodeTraceBudget.fetch_sub(1) > 0) {
+        qInfo().noquote().nospace() << "OVT_PHONE_LOADING phase=avatar_identity_decode status="
+            << int(packetStream.status()) << " decoded=" << int(identityDecoded)
+            << " name_length=" << identity.displayName.size()
+            << " session_name_length=" << identity.sessionDisplayName.size();
+    }
+#endif
+    if (!identityDecoded) {
         return;
     }
 

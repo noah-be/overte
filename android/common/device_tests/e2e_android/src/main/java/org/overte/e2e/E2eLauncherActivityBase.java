@@ -9,11 +9,16 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 /** Debug-source-set-only launcher for the fixed, repository-owned E2E assets. */
 public abstract class E2eLauncherActivityBase extends Activity {
@@ -34,6 +39,14 @@ public abstract class E2eLauncherActivityBase extends Activity {
 
     protected abstract Class<? extends Activity> interfaceActivity();
 
+    protected String[] additionalAssets() {
+        return new String[0];
+    }
+
+    protected String additionalAssetUrl(String asset, File directory) {
+        return Uri.fromFile(new File(directory, asset)).toString();
+    }
+
     protected void prepareAdditionalAssets(File directory) throws IOException {
         // Product launchers may include additional version-bound fixture assets.
     }
@@ -47,12 +60,22 @@ public abstract class E2eLauncherActivityBase extends Activity {
 
             File probe = copyAsset(PROBE_ASSET, launchDirectory);
             File scene = copyAsset(SCENE_ASSET, launchDirectory);
+            for (String asset : additionalAssets()) {
+                copyAsset(asset, launchDirectory);
+            }
+            bindAdditionalAssetReferences(scene, launchDirectory);
             prepareAdditionalAssets(launchDirectory);
             writeAtomically(CONTROL_MARKER,
                     CONTROL_CONTRACT + android.os.Process.myPid() + "}\n", launchDirectory);
             writeAtomically(CONTROL_COMMAND, EMPTY_CONTROL_COMMAND, launchDirectory);
             File previousProbe = new File(launchDirectory, "overte-probe.json");
             deleteIfPresent(previousProbe, "previous probe snapshot");
+            deleteIfPresent(new File(launchDirectory, "phone-collaboration-observation.json"),
+                    "previous independent collaboration observation");
+            deleteIfPresent(new File(launchDirectory, "phone-ui-status.json"),
+                    "previous native text observation");
+            deleteIfPresent(new File(launchDirectory, "phone-ui-diagnostic.json"),
+                    "previous native UI diagnostic");
 
             Uri sceneUrl = Uri.fromFile(scene).buildUpon()
                     .appendQueryParameter("location", SPAWN_VIEWPOINT)
@@ -68,6 +91,34 @@ public abstract class E2eLauncherActivityBase extends Activity {
             Log.e(TAG, "E2E launch preparation failed", exception);
         } finally {
             finish();
+        }
+    }
+
+    private void bindAdditionalAssetReferences(File scene, File directory) throws IOException {
+        if (additionalAssets().length == 0) { return; }
+        try (FileInputStream input = new FileInputStream(scene);
+             ByteArrayOutputStream bytes = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[8192];
+            int count;
+            while ((count = input.read(buffer)) != -1) {
+                bytes.write(buffer, 0, count);
+                if (bytes.size() > 65536) { throw new IOException("E2E scene exceeds its bound"); }
+            }
+            JSONObject document = new JSONObject(new String(bytes.toByteArray(), StandardCharsets.UTF_8));
+            JSONArray entities = document.getJSONArray("Entities");
+            for (int index = 0; index < entities.length(); index++) {
+                JSONObject entity = entities.getJSONObject(index);
+                for (String asset : additionalAssets()) {
+                    if (asset.equals(entity.optString("script"))) {
+                        // Entity script properties are not resolved against the
+                        // containing serverless JSON URL by the native loader.
+                        entity.put("script", additionalAssetUrl(asset, directory));
+                    }
+                }
+            }
+            writeAtomically(SCENE_ASSET, document.toString(), directory);
+        } catch (JSONException exception) {
+            throw new IOException("could not bind fixed E2E scene assets", exception);
         }
     }
 

@@ -112,6 +112,60 @@ class AdapterVoiceTests(unittest.TestCase):
                 self.assertEqual(adapter.write_control_command.call_args.args[3]["request"], value)
                 self.assertEqual(adapter.adb.read_debug_app_file.call_args.args[2], "files/overte-e2e/voice-result.json")
 
+    def test_adb_voice_requires_both_opt_ins(self):
+        from adapters.android.adapter import AndroidAdapter, PROFILES
+        for kind, debug, enabled, advertised in (
+                ("phone", "1", "1", True), ("phone", "0", "1", False),
+                ("phone", "1", "0", False), ("pico", "1", "1", True), ("pico", "0", "1", False), ("pico", "1", "0", False)):
+            with self.subTest(kind=kind, debug=debug, enabled=enabled), patch.dict(os.environ, {
+                    "OVERTE_ANDROID_E2E_DEBUG": debug, "OVERTE_E2E_VOICE_TESTS": enabled,
+                    "OVERTE_PICO_OPENXR_INPUT": "0"}):
+                adapter = object.__new__(AndroidAdapter)
+                adapter.kind, adapter.profile = kind, PROFILES[kind]
+                adapter.upgrade_configuration_available = Mock(return_value=False)
+                self.assertEqual("voice.exchange" in adapter.capabilities("private-test-target"), advertised)
+                if not advertised:
+                    adapter.require = Mock()
+                    adapter.require_controlled_debug_identity = Mock()
+                    with self.assertRaises(RuntimeError):
+                        adapter.invoke("private-test-target", "voice.exchange", {
+                            "schemaVersion": 1, "commandId": "fresh", "action": "status"})
+                    adapter.require_controlled_debug_identity.assert_not_called()
+
+    def test_android_appium_uses_the_same_owned_debug_file_transport(self):
+        from adapters.appium.adapter import AppiumAdapter
+        adapter = object.__new__(AppiumAdapter)
+        adapter.platform = "android"
+        target = {"platform": "android", "physical": True,
+                  "appId": "io.github.noah_be.overte.phone",
+                  "scene": {"kind": "android-debug-e2e"},
+                  "probe": {"kind": "android-run-as", "relativePath": AppiumAdapter.ANDROID_DEBUG_PROBE},
+                  "clientControl": {"kind": "android-run-as-command", "relativePath": AppiumAdapter.ANDROID_CLIENT_COMMAND},
+                  "process": {"kind": "adb", "selector": "private-test-target"},
+                  "capabilities": {}}
+        adapter.target = Mock(return_value=target)
+        adapter.ensure_session = Mock(return_value=(Mock(), "session", {}))
+        adapter.android_client_identity = Mock(return_value={"running": True, "identity": "123:99"})
+        response = {}
+        def deliver(_client, _session, _target, payload, _identity):
+            response.update(schemaVersion=1, commandId=payload["commandId"], ok=True, sampleEpochMs=100000)
+        adapter.write_android_client_command = Mock(side_effect=deliver)
+        value = {"schemaVersion": 1, "commandId": "fresh", "action": "status"}
+        with patch.dict(os.environ, {"OVERTE_E2E_VOICE_TESTS": "1"}), patch("adapters.voice_transport.time.time", return_value=100), patch("adb_transport.AdbTransport") as adb:
+            adb.return_value.read_debug_app_file.side_effect = lambda *_, **__: json.dumps(response)
+            self.assertTrue(adapter.invoke("private-test-target", "voice.exchange", value)["ok"])
+        self.assertEqual(adapter.write_android_client_command.call_args.args[3]["request"], value)
+        self.assertEqual(adb.return_value.read_debug_app_file.call_args.args[2], "files/overte-e2e/voice-result.json")
+        with patch.dict(os.environ, {"OVERTE_E2E_VOICE_TESTS": "0"}):
+            self.assertNotIn("voice.exchange", adapter.advertised_capabilities(target))
+        target["physical"] = False
+        with patch.dict(os.environ, {"OVERTE_E2E_VOICE_TESTS": "1"}):
+            self.assertNotIn("voice.exchange", adapter.advertised_capabilities(target))
+        target["physical"] = True
+        target["appId"] = "org.overte.pico"
+        with patch.dict(os.environ, {"OVERTE_E2E_VOICE_TESTS": "1"}):
+            self.assertNotIn("voice.exchange", adapter.advertised_capabilities(target))
+
     def test_ios_uses_documents_pcm_and_the_controlled_fixture(self):
         # apple-ios owns a richer Appium implementation; shared branches expose
         # the parent implementation through this same compatibility entrypoint.
@@ -136,7 +190,7 @@ class AdapterVoiceTests(unittest.TestCase):
             self.assertNotIn("voice.exchange", adapter.advertised_capabilities(target))
 
 
-class NativeVoiceSignalTests(unittest.TestCase):
+class VoiceProbeTests(unittest.TestCase):
     @unittest.skipUnless(shutil.which("c++") and shutil.which("pkg-config"), "native clock check requires a C++ compiler and Qt6 pkg-config")
     def test_actual_clock_survives_input_shutdown_and_cancels_on_lifecycle_loss(self):
         subprocess.run([sys.executable, str(ROOT / "contracts/audio/test_voice_clock.py")],

@@ -52,6 +52,8 @@ Script.require.cache = {};
 Script.require.resolve = function(){throw new Error('missing module')};
 Date.now = function(){return 10000};
 var lastSampleEpochMs = 10000, sampleIntervalMs = 250;
+// Pointer discovery is independent of the native/direct locomotion fallback.
+function observeDispatcherRay() {}
 """ + functions + update + """
 updateProbe(); current={y:1.4,air:true}; updateProbe();
 current={y:1,air:false}; updateProbe();
