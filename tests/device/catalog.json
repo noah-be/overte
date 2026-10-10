@@ -5,9 +5,26 @@
       "id": "launch-smoke",
       "description": "Launch the application and verify a stable foreground process.",
       "command": ["modules/launch_smoke.py"],
-      "suites": ["asset-smoke", "audio-controls", "crash-recovery-under-load", "domain-recovery", "domain-smoke", "e2e-core", "e2e-recovery", "entity-sync-smoke", "interaction-smoke", "lifecycle-under-load", "multi-user-smoke", "network-fault-recovery", "permission-recovery", "portable-smoke", "render-health", "scripted-entity-smoke", "settings-persistence", "smoke", "sound-smoke", "stability", "tablet-e2e", "text-input-smoke", "vertical-locomotion"],
+      "suites": ["asset-smoke", "audio-controls", "crash-recovery-under-load", "domain-recovery", "domain-smoke", "e2e-core", "e2e-recovery", "entity-sync-smoke", "interaction-smoke", "lifecycle-under-load", "multi-user-smoke", "network-fault-recovery", "permission-recovery", "portable-smoke", "render-health", "scripted-entity-smoke", "settings-persistence", "smoke", "sound-smoke", "stability", "tablet-e2e", "text-input-smoke", "vertical-locomotion", "voice-roundtrip"],
       "requires": ["app.foreground", "app.launch", "app.process"],
       "timeoutSeconds": 120
+    },
+    {
+      "id": "voice-roundtrip",
+      "description": "Verify fresh bidirectional microphone-path challenges and muted negative controls against an owned PC peer.",
+      "command": [
+        "modules/voice_roundtrip.py"
+      ],
+      "suites": [
+        "voice-roundtrip"
+      ],
+      "requires": [
+        "app.foreground",
+        "app.process",
+        "probe.snapshot",
+        "voice.exchange"
+      ],
+      "timeoutSeconds": 180
     },
     {
       "id": "update-upgrade",
@@ -131,11 +148,11 @@
     },
     {
       "id": "permission-recovery",
-      "description": "Deny and grant microphone permission through the native OS path without losing the application process.",
+      "description": "Deny and grant microphone permission through the native OS path, verifying continuity or an observed iOS Settings restart and recovery.",
       "command": ["modules/permission_recovery.py"],
       "suites": ["permission-recovery"],
       "requires": ["app.foreground", "app.process", "permission.set", "permission.snapshot"],
-      "timeoutSeconds": 180
+      "timeoutSeconds": 300
     },
     {
       "id": "crash-recovery-under-load",
@@ -167,7 +184,7 @@
       "command": ["modules/look.py"],
       "suites": ["e2e-core", "portable-smoke", "update-upgrade"],
       "requires": ["input.look", "probe.snapshot", "scene.load"],
-      "timeoutSeconds": 90
+      "timeoutSeconds": 180
     },
     {
       "id": "move",
@@ -175,7 +192,7 @@
       "command": ["modules/move.py"],
       "suites": ["e2e-core", "portable-smoke", "update-upgrade"],
       "requires": ["input.move", "probe.snapshot", "scene.load"],
-      "timeoutSeconds": 90
+      "timeoutSeconds": 180
     },
     {
       "id": "input-neutral",

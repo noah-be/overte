@@ -74,8 +74,10 @@ elif cmd == ["get-state"]:
                       if connection_state_path and os.path.exists(connection_state_path) else 0)
     if connection_state_path: open(connection_state_path,"w").write(str(connection_reads + 1))
     print("offline" if connection_reads < connection_offline_reads else "device")
-elif cmd[:2] == ["shell", "getprop"]:
-    prop=cmd[2]
+elif (cmd[:2] == ["shell", "getprop"]
+      or (len(cmd) == 2 and cmd[0] == "shell"
+          and shlex.split(cmd[1])[:2] == ["sh", "-c"]
+          and shlex.split(cmd[1])[2].startswith("getprop ro.product.manufacturer\n"))):
     pico=bool(target and target.startswith("pico-secret"))
     values={
       "ro.product.manufacturer": "PICO" if pico else "Example",
@@ -86,7 +88,15 @@ elif cmd[:2] == ["shell", "getprop"]:
       "ro.product.cpu.abilist": "arm64-v8a,armeabi-v7a",
       "ro.build.version.sdk": "36", "ro.build.version.release": "17",
       "ro.opengles.version": "196610", "ro.kernel.qemu": "0"}
-    print(values.get(prop, ""))
+    if cmd[:2] == ["shell", "getprop"]:
+        if len(cmd) > 2:
+            print(values.get(cmd[2], ""))
+        else:
+            print("\n".join("["+key+"]: ["+value+"]" for key,value in values.items()))
+    else:
+        for line in shlex.split(cmd[1])[2].splitlines():
+            if line.startswith("getprop "): print(values.get(line.split()[1], ""))
+            elif line == "pm list features": print("feature:android.hardware.touchscreen")
 elif cmd == ["shell", "pm", "list", "features"]: print("feature:android.hardware.touchscreen")
 elif cmd[:4] == ["shell", "pidof", "-s", "io.github.noah_be.overte.phone"] and process_state != "stopped": print("45" if process_state == "restarted" else "42")
 elif cmd[:4] == ["shell", "pidof", "-s", "org.overte.pico"] and process_state != "stopped": print("44" if process_state == "restarted" else "43")
@@ -99,6 +109,8 @@ elif cmd == ["shell", "dumpsys", "activity", "activities"]:
              ("org.overte.pico" if target and target.startswith("pico-secret") else "io.github.noah_be.overte.phone"))
     print("mResumedActivity: x u0 " + package + "/.Main t1")
 elif cmd[:3] == ["shell", "am", "force-stop"]:
+    if process_path: open(process_path,"w").write("stopped")
+elif cmd == ["shell", "run-as", "org.overte.pico", "kill", "-ABRT", "43"]:
     if process_path: open(process_path,"w").write("stopped")
 elif cmd[:4] == ["shell", "am", "start", "-W"]:
     if process_path: open(process_path,"w").write("running")
@@ -260,7 +272,8 @@ class AndroidAdapterTest(unittest.TestCase):
         self.environment = os.environ.copy()
         for name in (
                 "OVERTE_ANDROID_E2E_DEBUG", "OVERTE_PICO_OPENXR_INPUT",
-                "ANDROID_ADB_SERVER_PORT", "OVERTE_PICO_OPENXR_STATE_DIR"):
+                "ANDROID_ADB_SERVER_PORT", "OVERTE_PICO_OPENXR_STATE_DIR",
+                "OVERTE_PICO_APPIUM_TARGETS"):
             self.environment.pop(name, None)
         default_process = Path(self.temporary.name) / "default-process"
         default_process.write_text("running", encoding="utf-8")
@@ -271,11 +284,39 @@ class AndroidAdapterTest(unittest.TestCase):
     def tearDown(self):
         self.temporary.cleanup()
 
+    def test_pico_crash_accepts_contract_abort_and_stops_only_owned_process(self):
+        log = Path(self.temporary.name) / "crash-argv.jsonl"
+        self.environment.update({"OVERTE_ANDROID_E2E_DEBUG": "1",
+            "MOCK_ANDROID_CONTROL_AVAILABLE": "1", "MOCK_ADB_ARGV_LOG": str(log)})
+        result = subprocess.run([sys.executable, str(ADAPTER), "--kind", "pico", "invoke",
+            "--target", "pico-secret", "--operation", "app.crash",
+            "--arguments", '{"mode":"abort"}'], text=True, stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT, env=self.environment, check=False)
+        self.assertEqual(0, result.returncode, result.stdout)
+        self.assertEqual({"crashed": True}, json.loads(result.stdout))
+        calls = [json.loads(line) for line in log.read_text().splitlines()]
+        self.assertEqual(1, sum(call[-6:] == ["shell", "run-as", "org.overte.pico",
+            "kill", "-ABRT", "43"] for call in calls))
+
+    def test_pico_crash_rejects_noncontract_modes_without_sending_a_signal(self):
+        for arguments in ({}, {"mode": "kill"}, {"mode": "abort", "pid": 99}):
+            with self.subTest(arguments=arguments):
+                log = Path(self.temporary.name) / "rejected-crash-argv.jsonl"
+                log.write_text("")
+                self.environment.update({"OVERTE_ANDROID_E2E_DEBUG": "1",
+                    "MOCK_ANDROID_CONTROL_AVAILABLE": "1", "MOCK_ADB_ARGV_LOG": str(log)})
+                result = subprocess.run([sys.executable, str(ADAPTER), "--kind", "pico", "invoke",
+                    "--target", "pico-secret", "--operation", "app.crash",
+                    "--arguments", json.dumps(arguments)], text=True, stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT, env=self.environment, check=False)
+                self.assertNotEqual(0, result.returncode)
+                self.assertNotIn('"kill"', log.read_text())
+
     def test_android_control_reads_app_private_files_through_module_loader(self):
         probe = (ROOT / "probe/overte_e2e_probe.js").read_text(encoding="utf-8")
-        self.assertIn('Script.require("./android-control.json")', probe)
+        self.assertIn('Script.require(androidControlMarkerUrl)', probe)
         self.assertIn(
-            'Script.require("./android-control-command.json?sample="', probe)
+            'Script.require(androidControlCommandUrl + "?sample="', probe)
         self.assertNotIn('request.open("GET", Script.resolvePath("android-control', probe)
 
     def test_probe_retains_asynchronous_control_requests_until_completion(self):
@@ -284,8 +325,8 @@ class AndroidAdapterTest(unittest.TestCase):
             self.assertIn(f"var {name} = null;", probe)
             self.assertIn(f"{name} = request;", probe)
             self.assertIn(f"{name} = null;", probe)
-        self.assertIn('Script.require("./android-control.json")', probe)
-        self.assertIn('Script.require("./android-control-command.json?sample="', probe)
+        self.assertIn('Script.require(androidControlMarkerUrl)', probe)
+        self.assertIn('Script.require(androidControlCommandUrl + "?sample="', probe)
         for obsolete_name in ("clientCommandRequestPending",
                               "androidControlCommandRequestPending",
                               "androidControlMarkerRequestPending",
@@ -369,6 +410,46 @@ class AndroidAdapterTest(unittest.TestCase):
         self.addCleanup(process.communicate, timeout=5)
         self.addCleanup(process.terminate)
         return process, json.loads(ready.read_text(encoding="utf-8"))
+
+    def test_batched_phone_profile_retains_all_live_eligibility_checks(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("batched_android_profile", ADAPTER)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        adapter = module.AndroidAdapter("phone")
+
+        class LiveProfile:
+            def __init__(self):
+                self.values = ["Google", "google", "Pixel 6a", "bluejay",
+                               "default", "arm64-v8a", "37", "196610",
+                               "feature:android.hardware.touchscreen"]
+                self.calls = 0
+
+            def execute(self, arguments, *, target, check):
+                self.calls += 1
+                self.asserted_target = target
+                return "\n".join(self.values) + "\n"
+
+        live = LiveProfile()
+        adapter.adb = live
+        self.assertTrue(adapter.eligible("test-phone"))
+        self.assertEqual(1, live.calls)
+        valid = list(live.values)
+        for index, replacement in ((0, "PICO"), (1, "ByteDance"),
+                                   (4, "watch"), (4, "tv"), (4, "automotive"), (4, "vr"),
+                                   (5, "x86_64"), (6, "25"), (6, ""),
+                                   (7, "196609"), (7, ""),
+                                   (8, "feature:android.hardware.camera")):
+            live.values = list(valid)
+            live.values[index] = replacement
+            with self.subTest(index=index, replacement=replacement):
+                self.assertFalse(adapter.eligible("test-phone"))
+        live.values = valid[:3]
+        self.assertFalse(adapter.eligible("test-phone"))
+        live.values = list(valid)
+        self.assertTrue(adapter.eligible("test-phone"))
+        self.assertEqual("test-phone", live.asserted_target)
+        self.assertEqual(15, live.calls)
 
     def test_phone_profile_discovers_only_phone(self):
         result = self.verify("phone")
@@ -703,10 +784,14 @@ class AndroidAdapterTest(unittest.TestCase):
 
     def test_probe_executes_real_controlled_actions_and_reports_observations(self):
         probe = (ROOT / "probe/overte_e2e_probe.js").read_text(encoding="utf-8")
-        self.assertIn('Script.require("./android-control.json")', probe)
-        self.assertIn('Script.require("./android-control-command.json?sample="', probe)
-        self.assertNotIn('Script.resolvePath("android-control.json")', probe)
-        self.assertNotIn('Script.resolvePath("android-control-command.json")', probe)
+        self.assertIn('Script.require(androidControlMarkerUrl)', probe)
+        self.assertIn('Script.require(androidControlCommandUrl + "?sample="', probe)
+        self.assertLess(probe.index('Script.resolvePath("android-control.json")'),
+                        probe.index("function sample(now,"))
+        self.assertLess(probe.index('Script.resolvePath("android-control-command.json")'),
+                        probe.index("function sample(now,"))
+        self.assertEqual(1, probe.count('Script.resolvePath("android-control.json")'))
+        self.assertEqual(1, probe.count('Script.resolvePath("android-control-command.json")'))
         self.assertIn("location.handleLookupString(command.url)", probe)
         self.assertNotIn("location.href = command.url", probe)
         self.assertEqual(1, probe.count("androidAssetEntityId = Entities.addEntity("))
@@ -808,6 +893,7 @@ class AndroidAdapterTest(unittest.TestCase):
         self.assertEqual({"schemaVersion", "commandId", "action"}, set(command))
         self.assertTrue(command["commandId"].startswith("android-scene-reload-"))
         self.assertEqual("reload-scene", command["action"])
+        self.assertEqual(command["commandId"], json.loads(accepted.stdout)["commandId"])
         rejected = subprocess.run(
             [*common, "--arguments", json.dumps({
                 "url": "https://production.invalid/scene.json"})],
@@ -815,6 +901,75 @@ class AndroidAdapterTest(unittest.TestCase):
             env=self.environment, check=False)
         self.assertEqual(2, rejected.returncode, rejected.stdout)
         self.assertIn("only the embedded fixture URL", rejected.stdout)
+
+    def test_pico_native_ui_rejects_an_appium_target_outside_its_owned_boundary(self):
+        state = Path(self.temporary.name) / "ui-state"
+        state.mkdir(mode=0o700)
+        process = Path(self.temporary.name) / "ui-process"
+        process.write_text("stopped", encoding="utf-8")
+        config = Path(self.temporary.name) / "appium-targets.json"
+        self.environment.update({
+            "OVERTE_ANDROID_E2E_DEBUG": "1", "OVERTE_PICO_OPENXR_INPUT": "1",
+            "ANDROID_ADB_SERVER_PORT": "5041", "OVERTE_PICO_OPENXR_STATE_DIR": str(state),
+            "MOCK_ANDROID_CONTROL_AVAILABLE": "1", "MOCK_ANDROID_PROCESS_STATE": str(process),
+        })
+        common = [sys.executable, str(ADAPTER), "--kind", "pico", "invoke",
+                  "--target", "pico-secret", "--arguments", "{}", "--operation"]
+        launched = subprocess.run([*common, "app.launch"], capture_output=True, text=True,
+                                  env=self.environment, check=False)
+        self.assertEqual(0, launched.returncode, launched.stdout + launched.stderr)
+        self.environment["OVERTE_PICO_APPIUM_TARGETS"] = str(config)
+        for mismatch in ["port", "application", "auto-launch", "reset"]:
+            with self.subTest(mismatch=mismatch):
+                package = "org.overte.other" if mismatch == "application" else "org.overte.pico"
+                entry = {"selector": "pico-ui", "displayName": "Pico mock UI",
+                    "platform": "android", "enabled": True, "physical": True,
+                    "appId": package, "serverUrl": "http://127.0.0.1:9",
+                    "process": {"kind": "adb"}, "capabilities": {
+                        "platformName": "Android", "appium:automationName": "UiAutomator2",
+                        "appium:udid": "pico-secret", "appium:appPackage": package,
+                        "appium:adbPort": 5038 if mismatch == "port" else 5041,
+                        "appium:autoLaunch": mismatch == "auto-launch",
+                        "appium:noReset": mismatch != "reset"}}
+                config.write_text(json.dumps({"schemaVersion": 1, "targets": [entry]}))
+                config.chmod(0o600)
+                rejected = subprocess.run([*common, "accessibility.snapshot"],
+                    capture_output=True, text=True, env=self.environment, check=False)
+                self.assertEqual(2, rejected.returncode)
+                self.assertIn("does not match the isolated owned application", rejected.stderr)
+                self.assertNotIn("pico-secret", rejected.stdout + rejected.stderr)
+
+    def test_pico_process_absence_is_observable_across_an_explicit_stop_and_launch(self):
+        state = Path(self.temporary.name) / "state"
+        state.mkdir(mode=0o700)
+        process = Path(self.temporary.name) / "process-state"
+        process.write_text("stopped", encoding="utf-8")
+        argv_log = Path(self.temporary.name) / "process-argv.jsonl"
+        self.environment.update({
+            "OVERTE_ANDROID_E2E_DEBUG": "1", "OVERTE_PICO_OPENXR_INPUT": "1",
+            "ANDROID_ADB_SERVER_PORT": "5041",
+            "OVERTE_PICO_OPENXR_STATE_DIR": str(state),
+            "MOCK_ANDROID_CONTROL_AVAILABLE": "1",
+            "MOCK_ANDROID_PROCESS_STATE": str(process),
+            "MOCK_ADB_ARGV_LOG": str(argv_log),
+        })
+        def invoke(operation):
+            result = subprocess.run([
+                sys.executable, str(ADAPTER), "--kind", "pico", "invoke",
+                "--target", "pico-secret", "--operation", operation,
+                "--arguments", "{}"], capture_output=True, text=True,
+                env=self.environment, check=False)
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            return json.loads(result.stdout)
+        self.assertEqual({"running": False, "identity": None}, invoke("app.process"))
+        commands = [json.loads(line) for line in argv_log.read_text().splitlines()]
+        self.assertFalse(any(command[4:7] == ["shell", "am", "start"] for command in commands))
+        invoke("app.launch")
+        self.assertTrue(invoke("app.process")["running"])
+        invoke("app.stop")
+        self.assertEqual({"running": False, "identity": None}, invoke("app.process"))
+        invoke("app.launch")
+        self.assertTrue(invoke("app.process")["running"])
 
     def test_pico_openxr_opt_in_exposes_and_sequences_common_operations(self):
         state = Path(self.temporary.name) / "state"

@@ -1,0 +1,23 @@
+.portal-page-status {
+    border-left: 4px solid #2980b9;
+    background: #eef5fa;
+    margin-bottom: 1.5rem;
+    padding: 0.75rem 1rem;
+    font-size: 0.9rem;
+}
+
+.portal-page-status p {
+    margin: 0 0 0.35rem;
+}
+
+.portal-page-status p:last-child {
+    margin-bottom: 0;
+}
+
+.portal-date-separator {
+    padding: 0 0.4rem;
+}
+
+.wy-nav-content {
+    max-width: 1000px;
+}

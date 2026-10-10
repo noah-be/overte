@@ -31,19 +31,20 @@ Item {
 
 		MouseArea {
 			objectName: "nav.back"
+			function activate() {
+				if (enabled && parent.visible) { currentPage = "Settings"; }
+			}
 			anchors.fill: parent;
 			hoverEnabled: touchMetrics.hoverSupported
 			activeFocusOnTab: parent.visible
 			Accessible.role: Accessible.Button
 			Accessible.name: qsTr("Back to settings")
 			Accessible.description: qsTr("Return to the settings category list")
-			Accessible.onPressAction: currentPage = "Settings"
-			onClicked: {
-				currentPage = "Settings";
-			}
-			Keys.onReturnPressed: currentPage = "Settings"
-			Keys.onEnterPressed: currentPage = "Settings"
-			Keys.onSpacePressed: currentPage = "Settings"
+			Accessible.onPressAction: activate()
+			onClicked: activate()
+			Keys.onReturnPressed: activate()
+			Keys.onEnterPressed: activate()
+			Keys.onSpacePressed: activate()
 		}
 	}
 

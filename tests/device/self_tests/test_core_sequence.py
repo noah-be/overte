@@ -29,6 +29,52 @@ class CoreSequenceTest(unittest.TestCase):
     def snapshot() -> dict:
         return probe_snapshot()
 
+    def test_collision_restores_its_spawn_after_prior_unbalanced_movement(self):
+        with tempfile.TemporaryDirectory(prefix="overte-collision-isolation-") as temporary:
+            root = Path(temporary)
+            output = root / "results"
+            environment = os.environ.copy()
+            environment.update({
+                "OVERTE_MOCK_E2E_STATE": str(root / "state.json"),
+                "OVERTE_DEVICE_LOCK_ROOT": str(root / "locks"),
+                "OVERTE_DEVICE_LAUNCH_SETTLE_SECONDS": "0",
+                "OVERTE_E2E_SCENE_URL": "http://fixture.invalid/scene.json",
+                "OVERTE_E2E_TIMEOUT_SECONDS": "2",
+                "OVERTE_E2E_POLL_SECONDS": "0.05",
+            })
+            catalog = json.loads((DEVICE_ROOT / "catalog.json").read_text())
+            selected = {m["id"]: m for m in catalog["modules"]}
+            move = {"id": "leave-spawn", "description": "Leave the spawn through real adapter input.",
+                    "suites": ["collision-isolation"], "timeoutSeconds": 30,
+                    "requires": ["input.move", "probe.snapshot"],
+                    "command": [sys.executable, "-c",
+                        "from overte_session import OverteSession; s=OverteSession(); "
+                        "s.ensure_controlled_scene(); s.move('right', 2.0)"]}
+            catalog["modules"] = [selected["launch-smoke"], move, selected["collision"]]
+            for module in catalog["modules"]:
+                module["suites"] = ["collision-isolation"]
+                path = Path(module["command"][0])
+                if not path.is_absolute():
+                    module["command"][0] = str(DEVICE_ROOT / path)
+            catalog_file = root / "catalog.json"
+            catalog_file.write_text(json.dumps(catalog))
+            result = subprocess.run([sys.executable, str(DEVICE_ROOT / "run.py"),
+                "--adapter-manifest", str(DEVICE_ROOT / "adapters/mock/adapter.json"),
+                "--catalog", str(catalog_file), "--suite", "collision-isolation",
+                "--allow-virtual", "--require-complete", "--output-dir", str(output)],
+                env=environment, text=True, capture_output=True, timeout=45)
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            summary = json.loads((output / "summary.json").read_text())
+            self.assertTrue(all(m["status"] == "passed" for m in summary["results"]))
+            moved = json.loads((output / "modules/leave-spawn/move-right-neutral.json").read_text())
+            self.assertFalse(moved["scene"]["spawnLocationObserved"])
+            grounded = json.loads((output / "modules/collision/spawn-grounded.json").read_text())
+            self.assertTrue(grounded["scene"]["spawnLocationObserved"])
+            self.assertEqual({"x": 0.0, "y": 1.0, "z": 4.0}, grounded["avatar"]["position"])
+            state = json.loads((root / "state.json").read_text())
+            self.assertEqual(1, state["launchCount"])
+            self.assertEqual(2, state["sceneLoadCount"])
+
     def test_probe_contract_validates_connected_domain_identity_and_markers(self):
         snapshot = self.snapshot()
         snapshot["domain"] = {
@@ -67,11 +113,23 @@ class CoreSequenceTest(unittest.TestCase):
         self.assertIn('&& String(location.protocol) !== "file"', probe)
         scene_load = probe.split('command.action === "scene-load"', 1)[1].split(
             'command.action === "navigate"', 1)[0]
-        self.assertEqual(0, scene_load.count("Window.location = command.url"))
+        self.assertEqual(1, scene_load.count("Window.location = command.url"))
+        self.assertIn("if (Boolean(location.isConnected)",scene_load)
         self.assertEqual(1, scene_load.count("Window.location = scenePath"))
         self.assertIn("spawnLocationObserved: avatarAtSpawn", probe)
         self.assertIn("return Boolean(tablet.tabletShown || HMD.showTablet)", probe)
         self.assertIn('(name === "tablet" || !controlledTabletOpen())', probe)
+
+    def test_http_serverless_protocol_is_valid_without_a_domain_connection(self):
+        for protocol in ("file","http","https"):
+            snapshot=self.snapshot();snapshot['domain'].update(protocol=protocol,connected=False,serverless=True)
+            self.assertIs(validate_probe_snapshot(snapshot),snapshot)
+            snapshot['domain'].update(connected=True,hostname='actual-host',id='actual-domain')
+            with self.assertRaisesRegex(ValueError,'serverless'):
+                validate_probe_snapshot(snapshot)
+        snapshot=self.snapshot();snapshot['domain']['protocol']='hifi'
+        with self.assertRaisesRegex(ValueError,'serverless'):
+            validate_probe_snapshot(snapshot)
 
     def test_probe_normalizes_initial_and_controlled_reload_flight_state(self):
         probe = (DEVICE_ROOT / "probe/overte_e2e_probe.js").read_text(
@@ -91,7 +149,8 @@ class CoreSequenceTest(unittest.TestCase):
         reapply = probe.split("function applySceneLocation", 1)[1].split("}", 1)[0]
         self.assertIn("resetSceneObservation();", reapply)
         self.assertIn("!avatarAtExpectedSpawn()", reapply)
-        self.assertIn("Controller.Actions.TranslateY", probe)
+        self.assertIn("var actionChannels = Controller.Actions;", probe)
+        self.assertIn("actionChannels.TranslateY", probe)
         self.assertIn("DriveKeys.TRANSLATE_Y", probe)
         self.assertIn("velocity: vector(MyAvatar.velocity)", probe)
 
@@ -142,6 +201,47 @@ class CoreSequenceTest(unittest.TestCase):
             self.assertEqual("12", junit.attrib["tests"])
             self.assertEqual("0", junit.attrib["failures"])
             self.assertEqual("0", junit.attrib["errors"])
+
+    def test_collision_restores_spawn_after_a_displaced_previous_module(self):
+        with tempfile.TemporaryDirectory(prefix="overte-e2e-collision-recovery-") as temporary:
+            root = Path(temporary)
+            state_path = root / "state.json"
+            wrapper = root / "displaced_collision.py"
+            collision = DEVICE_ROOT / "modules/collision.py"
+            wrapper.write_text(
+                "import json, os, runpy, sys\n"
+                "from pathlib import Path\n"
+                "state_path = Path(os.environ['OVERTE_MOCK_E2E_STATE'])\n"
+                "state = json.loads(state_path.read_text())\n"
+                "state['position']['x'] = -1.6\n"
+                "state_path.write_text(json.dumps(state))\n"
+                f"sys.path.insert(0, {str(DEVICE_ROOT / 'modules')!r})\n"
+                f"runpy.run_path({str(collision)!r}, run_name='__main__')\n",
+                encoding="utf-8")
+            source = json.loads((DEVICE_ROOT / "catalog.json").read_text())
+            source["modules"] = [m for m in source["modules"]
+                                 if m["id"] in {"launch-smoke", "scene", "collision"}]
+            for module in source["modules"]:
+                module["command"][0] = str(wrapper if module["id"] == "collision"
+                                          else DEVICE_ROOT / module["command"][0])
+            catalog = root / "catalog.json"
+            catalog.write_text(json.dumps(source))
+            environment = os.environ.copy()
+            environment.update({"OVERTE_MOCK_E2E_STATE": str(state_path),
+                                "OVERTE_DEVICE_LAUNCH_SETTLE_SECONDS": "0",
+                                "OVERTE_E2E_SCENE_URL": "http://fixture.invalid/scene.json",
+                                "OVERTE_E2E_POLL_SECONDS": "0.05"})
+            result = subprocess.run([
+                sys.executable, str(DEVICE_ROOT / "run.py"),
+                "--adapter-manifest", str(DEVICE_ROOT / "adapters/mock/adapter.json"),
+                "--catalog", str(catalog), "--suite", "e2e-core", "--allow-virtual",
+                "--require-complete", "--output-dir", str(root / "results")],
+                env=environment, text=True, stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT, check=False)
+            self.assertEqual(0, result.returncode, result.stdout)
+            state = json.loads(state_path.read_text())
+            self.assertEqual(1, state["launchCount"])
+            self.assertEqual(2, state["sceneLoadCount"])
 
     def test_look_accepts_a_transient_observed_rotation_history(self):
         with tempfile.TemporaryDirectory(prefix="overte-e2e-transient-look-") as temporary:

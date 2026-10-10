@@ -211,3 +211,6 @@ bash -n "$script_dir/../build-ios.sh"
 cmake -P "$script_dir/qt-compat-test.cmake"
 cmake -P "$script_dir/qt5-compat-test.cmake"
 cmake -P "$script_dir/find-moltenvk-test.cmake"
+
+# Retain the existing native Appium regressions after their ownership relocation.
+python3 -B -m unittest discover -s "$script_dir/../../tests/device/ios/self_tests" -p "test_*.py"
