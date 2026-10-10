@@ -8,7 +8,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from adapters.android.collaboration_observation import actor_receipt, portable_observation
+from adapters.collaboration_observation import actor_receipt, portable_observation
 
 
 class CollaborationObservationTests(unittest.TestCase):
