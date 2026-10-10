@@ -286,12 +286,3 @@ controls remain mandatory. See [the voice contract](VOICE_ROUNDTRIP.md).
 Native product ownership tests belong in the product test profile. Shared
 self-tests exercise portable protocol and observation seams without requiring
 Android product sources on the platform-neutral branch.
-
-
-The Phone prepared-host runtime gate also runs
-`android/phone/tests/phone-voice-clock-test.py`. It retains the original
-source-derived Android pause, input shutdown, mute, reset, lease and late-clock
-regressions with its product-owned C++ fixture. The common
-`contracts/audio/test_voice_clock.py` keeps the current parent's portable/iOS
-clock coverage, so synchronization runs both contracts instead of replacing
-the Android lifecycle checks with another platform's fixture.

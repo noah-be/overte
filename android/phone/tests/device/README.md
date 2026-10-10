@@ -40,3 +40,12 @@ Focused synthetic tests (no device):
 
     PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
       -s android/phone/tests/device -p test_result_adapter.py
+
+
+The Phone prepared-host runtime gate also runs
+`android/phone/tests/phone-voice-clock-test.py`. It retains the original
+source-derived Android pause, input shutdown, mute, reset, lease and late-clock
+regressions with its product-owned C++ fixture. The common
+`tests/device/contracts/audio/test_voice_clock.py` keeps the current parent's portable/iOS
+clock coverage, so synchronization runs both contracts instead of replacing
+the Android lifecycle checks with another platform's fixture.
