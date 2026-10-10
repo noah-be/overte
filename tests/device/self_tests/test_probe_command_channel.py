@@ -70,7 +70,7 @@ class ProbeCommandChannelTest(unittest.TestCase):
             self.source,
         )
         self.assertIn('&& String(location.protocol) !== "file"', self.source)
-        self.assertIn("Window.location = command.url", self.source)
+        self.assertIn("location.handleLookupString(command.url)", self.source)
         self.assertIn("controlledSceneLocation(command.url)", self.source)
         self.assertIn("Window.location = scenePath", self.source)
         self.assertIn("applySceneLocation", self.source)
@@ -115,11 +115,150 @@ class ProbeCommandChannelTest(unittest.TestCase):
         self.assertEqual(400, rejected_key.exception.code)
         rejected_key.exception.close()
 
+    def test_native_text_setup_cannot_inject_values_or_submission_results(self):
+        command = {"schemaVersion": 1, "commandId": "ios-" + "a" * 32,
+                   "action": "text-fixture", "operation": "focus"}
+        self.assertEqual(self.post_command(command), command)
+        for override in ({"text": "injected"}, {"submittedCount": 1},
+                         {"operation": "type"}, {"schemaVersion": True},
+                         {"commandId": "unbound"}):
+            with self.subTest(override=override), self.assertRaises(HTTPError) as error:
+                self.post_command(command | override)
+            self.assertEqual(error.exception.code, 400)
+            error.exception.close()
+
+    def test_native_crash_command_cannot_choose_a_process_or_claim_a_result(self):
+        command = {"schemaVersion": 1, "commandId": "ios-" + "d" * 32, "action": "native-crash"}
+        self.assertEqual(self.post_command(command), command)
+        for override in ({"processId": 1}, {"cause": "SIGKILL"}, {"crashed": True},
+                         {"schemaVersion": True}, {"commandId": "unbound"}):
+            with self.subTest(override=override), self.assertRaises(HTTPError) as error:
+                self.post_command(command | override)
+            self.assertEqual(error.exception.code, 400)
+            error.exception.close()
+
+    def test_native_ui_request_cannot_supply_widgets_or_forge_native_observations(self):
+        command = {"schemaVersion": 1, "commandId": "ios-" + "e" * 32,
+                   "action": "native-ui-snapshot"}
+        self.assertEqual(self.post_command(command), command)
+        for override in ({"processId": 42}, {"elements": []}, {"observation": {}},
+                         {"schemaVersion": True}, {"commandId": "unbound"}):
+            with self.subTest(override=override), self.assertRaises(HTTPError) as error:
+                self.post_command(command | override)
+            self.assertEqual(error.exception.code, 400)
+            error.exception.close()
+
+    def test_native_geometry_request_cannot_supply_coordinates_or_claim_device_results(self):
+        command = {"schemaVersion": 1, "commandId": "ios-" + "f" * 32,
+                   "action": "native-geometry-snapshot"}
+        self.assertEqual(self.post_command(command), command)
+        for override in ({"nativeUi": {}}, {"window": {"width": 1, "height": 1}},
+                         {"observation": {}}, {"sampleEpochMs": 1}, {"processId": 42},
+                         {"schemaVersion": True}, {"commandId": "unbound"}):
+            with self.subTest(override=override), self.assertRaises(HTTPError) as error:
+                self.post_command(command | override)
+            self.assertEqual(error.exception.code, 400)
+            error.exception.close()
+
+    def test_native_probe_request_cannot_supply_client_state_or_claim_success(self):
+        command = {"schemaVersion": 1, "commandId": "ios-" + "a" * 32,
+                   "action": "native-probe-snapshot"}
+        self.assertEqual(self.post_command(command), command)
+        for override in ({"observation": {}}, {"passed": True}, {"processId": 42},
+                         {"schemaVersion": True}, {"commandId": "unbound"}):
+            with self.subTest(override=override), self.assertRaises(HTTPError) as error:
+                self.post_command(command | override)
+            self.assertEqual(error.exception.code, 400)
+            error.exception.close()
+
+    def test_entity_consent_command_cannot_forge_decisions_or_select_another_script(self):
+        command = {"schemaVersion": 1, "commandId": "ios-" + "c" * 32,
+                   "action": "entity-script-consent", "operation": "review",
+                   "source": "http://fixture.invalid:49121/scripted_interactable.js"}
+        self.assertEqual(self.post_command(command), command)
+        for override in ({"granted": True}, {"operation": "resolve"}, {"schemaVersion": True},
+                {"source": "http://fixture.invalid:49121/other.js"},
+                {"source": command["source"] + "?foreign"}, {"commandId": "unbound"}):
+            with self.subTest(override=override), self.assertRaises(HTTPError) as error:
+                self.post_command(command | override)
+            self.assertEqual(error.exception.code, 400)
+            error.exception.close()
+
     def test_adapter_owned_entity_is_removed_on_replacement_and_shutdown(self) -> None:
         self.assertGreaterEqual(
             self.source.count("Entities.deleteEntity(controlledAssetEntity)"), 2
         )
         self.assertIn("controlledAssetEntity = null", self.source)
+
+    def test_primary_fixture_cannot_inject_a_target_position_or_click_result(self):
+        command = {"schemaVersion": 1, "commandId": "ios-" + "b" * 32,
+                   "action": "primary-view", "operation": "prepare"}
+        self.assertEqual(self.post_command(command), command)
+        for override in ({"entityName":"foreign"},{"pressCount":1},{"point":{"x":0.5,"y":0.5}},
+                         {"operation":"click"},{"schemaVersion":True}):
+            with self.subTest(override=override),self.assertRaises(HTTPError) as error:
+                self.post_command(command | override)
+            self.assertEqual(error.exception.code,400)
+            error.exception.close()
+
+    def test_production_scene_command_leaves_domains_and_preserves_same_scene_viewpoint(self):
+        start = self.source.index("    function applyClientCommand(command) {")
+        end = self.source.index("    function pollClientCommand()", start)
+        harness = r'''
+const assert = require('assert');
+let lastTextCommandId='', lastClientCommandId='', lastSceneCommandId='';
+let resetCount=0;
+const location={isConnected:true,href:'hifi://127.0.0.1:40182/0,0,4'};
+const Window={}, Script={setTimeout:()=>{}};
+const applyVoice=()=>false;
+const objectKeysMatch=(v,k)=>Object.keys(v).sort().join('|')===k.sort().join('|');
+const httpUrl=v=>v.startsWith('http://');
+const controlledSceneLocation=()=>'/0,2,4';
+const addressWithoutReloadCommand=v=>v;
+const resetSceneObservation=()=>{resetCount++;};
+FUNCTION
+const command={schemaVersion:1,commandId:'scene-1',action:'scene-load',
+ url:'http://127.0.0.1:40180/scene.json?location=%2F0%2C2%2C4'};
+applyClientCommand(command);
+assert.equal(Window.location,command.url);
+assert.equal(resetCount,1);
+applyClientCommand(command);
+assert.equal(resetCount,1);
+location.isConnected=false;
+location.href=command.url;
+applyClientCommand({...command,commandId:'scene-2'});
+assert.equal(Window.location,'/0,2,4');
+assert.equal(lastSceneCommandId,'scene-2');
+location.href='http://127.0.0.1:40180/other-scene.json';
+applyClientCommand({...command,commandId:'scene-3'});
+assert.equal(Window.location,command.url);
+'''.replace("FUNCTION", self.source[start:end])
+        subprocess.run(["node", "-e", harness], check=True, timeout=5)
+
+    def test_production_peer_republishes_identity_after_the_mixer_arrives(self):
+        script = (DEVICE_ROOT/"fixture/domain_peer_agent.js").read_text()
+        harness = r'''
+const assert=require('assert');
+let mixer=false, name='', update, report, receipt;
+const Agent={isListeningToAudioStream:true,isAvatar:false};
+const Avatar={position:{}};
+Object.defineProperty(Avatar,'displayName',{get:()=>name,set:v=>{if(mixer){name=v;}}});
+const Script={update:{connect:fn=>{update=fn;}},scriptEnding:{connect:()=>{}},resolvePath:p=>p,
+ setInterval:fn=>{report=fn;return 1;},clearInterval:()=>{}};
+function XMLHttpRequest(){this.open=()=>{};this.setRequestHeader=()=>{};
+ this.send=v=>{receipt=JSON.parse(v);};}
+SCRIPT
+assert.equal(name,'');
+mixer=true;
+update(0.5);update(0.6);report();
+assert.equal(name,'OVERTE_E2E_PEER');
+assert.equal(receipt.avatarEnabled,true);
+assert.equal(receipt.updates,2);
+const previous=Avatar.position.x;
+update(0.6);
+assert.notEqual(Avatar.position.x,previous);
+'''.replace("SCRIPT",script)
+        subprocess.run(["node","-e",harness],check=True,timeout=5)
 
     @unittest.skipUnless(shutil.which("node"), "probe execution requires Node.js")
     def test_reload_identity_survives_navigation_and_probe_restart(self) -> None:

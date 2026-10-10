@@ -73,11 +73,19 @@ jobs:
     - name: Install host contract dependencies
       run: |-
         sudo apt-get update -qq
-        sudo apt-get install -y --no-install-recommends qt6-base-dev pkg-config libvulkan-dev qt6-declarative-dev qt6-declarative-dev-tools \
+        sudo apt-get install -y --no-install-recommends qt6-base-dev pkg-config libvulkan-dev qt6-declarative-dev qt6-declarative-dev-tools python3-venv \
           qml6-module-qtqml qml6-module-qtqml-models qml6-module-qtqml-workerscript \
           qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-layouts \
           qml6-module-qtquick-templates qml6-module-qtquick-window \
           qml6-module-qt-labs-settings qml6-module-qtquick-dialogs qml6-module-qttest
+    - name: Prepare isolated host evidence validators
+      env:
+        GH_TOKEN: ""
+        GITHUB_TOKEN: ""
+      run: |-
+        python3 -m venv build/ios-host-tests-env
+        build/ios-host-tests-env/bin/python -m pip install --disable-pip-version-check -r tests/requirements-host.txt
+        echo "$GITHUB_WORKSPACE/build/ios-host-tests-env/bin" >> "$GITHUB_PATH"
     - name: Run iOS host contracts
       env:
         OVERTE_QML_TEST_RUNNER: /usr/lib/qt6/bin/qmltestrunner

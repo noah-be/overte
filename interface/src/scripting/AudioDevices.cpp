@@ -90,7 +90,7 @@ static QString getTargetDevice(bool hmd, QAudio::Mode mode) {
 #endif
     QString deviceName;
     auto& setting = getSetting(hmd, mode);
-    if (setting.isSet()) {
+    if (setting.isSet() && !setting.get().trimmed().isEmpty()) {
         deviceName = setting.get();
     } else {
         deviceName = HifiAudioDeviceInfo::DEFAULT_DEVICE_NAME;
@@ -526,7 +526,7 @@ void AudioDevices::onDeviceSelected(QAudio::Mode mode, const HifiAudioDeviceInfo
 
 void AudioDevices::onDeviceChanged(QAudio::Mode mode, const HifiAudioDeviceInfo& device) {
     if (mode == QAudio::AudioInput) {
-        if (_requestedInputDevice == device) {
+        if (!_requestedInputDevice.getDevice().isNull() && _requestedInputDevice == device) {
             onDeviceSelected(QAudio::AudioInput, device,
                              _contextIsHMD ? _inputs._selectedHMDDevice : _inputs._selectedDesktopDevice,
                              _contextIsHMD);
@@ -534,7 +534,7 @@ void AudioDevices::onDeviceChanged(QAudio::Mode mode, const HifiAudioDeviceInfo&
         }
         _inputs.onDeviceChanged(device, _contextIsHMD);
     } else { // if (mode == QAudio::AudioOutput)
-        if (_requestedOutputDevice == device) {
+        if (!_requestedOutputDevice.getDevice().isNull() && _requestedOutputDevice == device) {
             onDeviceSelected(QAudio::AudioOutput, device,
                              _contextIsHMD ? _outputs._selectedHMDDevice : _outputs._selectedDesktopDevice,
                              _contextIsHMD);
