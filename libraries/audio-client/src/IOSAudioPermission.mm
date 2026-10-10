@@ -49,3 +49,9 @@ void overteIOSSetAudioMuted(bool muted) {
     auto value = std::atomic_load(&adapter);
     if (value) { value->muted(muted); }
 }
+#if defined(OVERTE_E2E_VOICE_TESTS)
+overte::audio::IOSVoiceTestState overteIOSVoiceTestState() {
+    auto value = std::atomic_load(&adapter);
+    return value ? value->voiceTestState() : overte::audio::IOSVoiceTestState {};
+}
+#endif

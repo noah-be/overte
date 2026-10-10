@@ -30,6 +30,8 @@ class ScriptRunCompletion(unittest.TestCase):
             'void ScriptManager::disconnectNonEssentialSignals('))
         header = (ROOT / 'libraries/script-engine/src/ScriptManager.h').read_text()
         state = next(line for line in header.splitlines() if 'std::atomic<bool> _hasRunStarted' in line)
+        state += '\n' + next(line for line in header.splitlines()
+                             if 'std::atomic<bool> _isInitializing' in line)
         flags = shlex.split(subprocess.check_output(['pkg-config', '--cflags', '--libs', 'Qt6Core'], text=True))
         moc = Path(subprocess.check_output(['pkg-config', '--variable=libexecdir', 'Qt6Core'], text=True).strip()) / 'moc'
         driver = Path(__file__).with_name('script-run-completion-test.cpp')
