@@ -129,8 +129,12 @@ class NativeUiEvidence(unittest.TestCase):
                         self.assertTrue(client.execute.call_args.args[2]["remotePath"].endswith(
                             "/ios-native-ui-request-result.json"))
                     else:
-                        with self.assertRaisesRegex(RuntimeError, "not available"):
+                        with self.assertRaisesRegex(RuntimeError, "not available") as rejected:
                             adapter.native_ui_snapshot(client, "owned", target)
+                        self.assertIsInstance(rejected.exception.__cause__, ValueError)
+                        if violation == "stale":
+                            self.assertEqual("native UIKit observation is stale",
+                                             str(rejected.exception.__cause__))
 
     def test_failed_physical_touch_still_releases_contact(self):
         adapter, client, target = self.adapter()

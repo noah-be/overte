@@ -29,6 +29,52 @@ class CoreSequenceTest(unittest.TestCase):
     def snapshot() -> dict:
         return probe_snapshot()
 
+    def test_collision_restores_its_spawn_after_prior_unbalanced_movement(self):
+        with tempfile.TemporaryDirectory(prefix="overte-collision-isolation-") as temporary:
+            root = Path(temporary)
+            output = root / "results"
+            environment = os.environ.copy()
+            environment.update({
+                "OVERTE_MOCK_E2E_STATE": str(root / "state.json"),
+                "OVERTE_DEVICE_LOCK_ROOT": str(root / "locks"),
+                "OVERTE_DEVICE_LAUNCH_SETTLE_SECONDS": "0",
+                "OVERTE_E2E_SCENE_URL": "http://fixture.invalid/scene.json",
+                "OVERTE_E2E_TIMEOUT_SECONDS": "2",
+                "OVERTE_E2E_POLL_SECONDS": "0.05",
+            })
+            catalog = json.loads((DEVICE_ROOT / "catalog.json").read_text())
+            selected = {m["id"]: m for m in catalog["modules"]}
+            move = {"id": "leave-spawn", "description": "Leave the spawn through real adapter input.",
+                    "suites": ["collision-isolation"], "timeoutSeconds": 30,
+                    "requires": ["input.move", "probe.snapshot"],
+                    "command": [sys.executable, "-c",
+                        "from overte_session import OverteSession; s=OverteSession(); "
+                        "s.ensure_controlled_scene(); s.move('right', 2.0)"]}
+            catalog["modules"] = [selected["launch-smoke"], move, selected["collision"]]
+            for module in catalog["modules"]:
+                module["suites"] = ["collision-isolation"]
+                path = Path(module["command"][0])
+                if not path.is_absolute():
+                    module["command"][0] = str(DEVICE_ROOT / path)
+            catalog_file = root / "catalog.json"
+            catalog_file.write_text(json.dumps(catalog))
+            result = subprocess.run([sys.executable, str(DEVICE_ROOT / "run.py"),
+                "--adapter-manifest", str(DEVICE_ROOT / "adapters/mock/adapter.json"),
+                "--catalog", str(catalog_file), "--suite", "collision-isolation",
+                "--allow-virtual", "--require-complete", "--output-dir", str(output)],
+                env=environment, text=True, capture_output=True, timeout=45)
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            summary = json.loads((output / "summary.json").read_text())
+            self.assertTrue(all(m["status"] == "passed" for m in summary["results"]))
+            moved = json.loads((output / "modules/leave-spawn/move-right-neutral.json").read_text())
+            self.assertFalse(moved["scene"]["spawnLocationObserved"])
+            grounded = json.loads((output / "modules/collision/spawn-grounded.json").read_text())
+            self.assertTrue(grounded["scene"]["spawnLocationObserved"])
+            self.assertEqual({"x": 0.0, "y": 1.0, "z": 4.0}, grounded["avatar"]["position"])
+            state = json.loads((root / "state.json").read_text())
+            self.assertEqual(1, state["launchCount"])
+            self.assertEqual(2, state["sceneLoadCount"])
+
     def test_probe_contract_validates_connected_domain_identity_and_markers(self):
         snapshot = self.snapshot()
         snapshot["domain"] = {

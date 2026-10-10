@@ -993,7 +993,12 @@ class OverteSession:
             self.set_tablet(False)
 
     def assert_collision_wall(self) -> tuple[dict, dict]:
-        self.ensure_controlled_scene()
+        current = self.ensure_controlled_scene()
+        if current["scene"]["spawnLocationObserved"] is not True:
+            # Earlier movement modules intentionally leave the spawn area.
+            # Establish this scenario's actual spawn through the existing
+            # scene reload before asserting collision from that position.
+            self.reload_controlled_scene()
         before = self.assert_spawn_grounded()
         wall = before["scene"]["collisionWall"]
         center = wall["center"]

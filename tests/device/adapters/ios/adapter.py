@@ -277,6 +277,7 @@ class IOSAdapter(AppiumAdapter):
         remote = (f"@{target['appId']}:documents/"
                   f"{target['testBuild']['resultsDirectory']}/ios-native-ui-request-result.json")
         deadline = time.monotonic() + 5
+        last_rejection = None
         while time.monotonic() < deadline:
             encoded = client.execute(session, "mobile: pullFile", {"remotePath": remote})
             try:
@@ -287,14 +288,15 @@ class IOSAdapter(AppiumAdapter):
                         or receipt["commandId"] != command_id):
                     raise ValueError("native UIKit snapshot did not match this request")
                 document = native_ui.validate(receipt["observation"], process["pid"])
-            except (ValueError, UnicodeError):
+            except (ValueError, UnicodeError) as error:
+                last_rejection = error
                 time.sleep(0.1)
                 continue
             after = self.native_process(client, session, target)
             if after != process:
                 raise RuntimeError("ASSERTION: native UIKit observation crossed process or foreground identities")
             return document
-        fail("fresh native UIKit accessibility observation was not available")
+        raise RuntimeError("fresh native UIKit accessibility observation was not available") from last_rejection
 
     def ios_tablet_observation(self, selector, client, session, state, target):
         if not self.native_ui_enabled(target):
