@@ -21,6 +21,8 @@ def main() -> None:
     if after == before:
         fail("crash recovery reused the old process identity")
     assert_foreground("crash recovery")
+    # Probe sequences belong to one process and restart from the new launcher.
+    session = OverteSession()
     recovered = session.ensure_controlled_scene()
     contract_operation("tablet.open")
     contract_operation("tablet.close")

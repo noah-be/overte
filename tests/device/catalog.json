@@ -5,9 +5,26 @@
       "id": "launch-smoke",
       "description": "Launch the application and verify a stable foreground process.",
       "command": ["modules/launch_smoke.py"],
-      "suites": ["asset-smoke", "audio-controls", "crash-recovery-under-load", "domain-recovery", "domain-smoke", "e2e-core", "e2e-recovery", "entity-sync-smoke", "interaction-smoke", "lifecycle-under-load", "multi-user-smoke", "network-fault-recovery", "permission-recovery", "portable-smoke", "render-health", "scripted-entity-smoke", "settings-persistence", "smoke", "sound-smoke", "stability", "tablet-e2e", "text-input-smoke", "vertical-locomotion"],
+      "suites": ["asset-smoke", "audio-controls", "crash-recovery-under-load", "domain-recovery", "domain-smoke", "e2e-core", "e2e-recovery", "entity-sync-smoke", "interaction-smoke", "lifecycle-under-load", "multi-user-smoke", "network-fault-recovery", "permission-recovery", "portable-smoke", "render-health", "scripted-entity-smoke", "settings-persistence", "smoke", "sound-smoke", "stability", "tablet-e2e", "text-input-smoke", "vertical-locomotion", "voice-roundtrip"],
       "requires": ["app.foreground", "app.launch", "app.process"],
       "timeoutSeconds": 120
+    },
+    {
+      "id": "voice-roundtrip",
+      "description": "Verify fresh bidirectional microphone-path challenges and muted negative controls against an owned PC peer.",
+      "command": [
+        "modules/voice_roundtrip.py"
+      ],
+      "suites": [
+        "voice-roundtrip"
+      ],
+      "requires": [
+        "app.foreground",
+        "app.process",
+        "probe.snapshot",
+        "voice.exchange"
+      ],
+      "timeoutSeconds": 180
     },
     {
       "id": "update-upgrade",

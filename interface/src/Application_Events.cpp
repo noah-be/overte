@@ -82,6 +82,13 @@ bool Application::event(QEvent* event) {
         return false;
     }
 
+    // Queued QObject invocations are independent of desktop menu readiness.
+    // In particular, native lifecycle delivery and the asynchronous desktop
+    // context callback must run before that callback can create the menu.
+    if (event->type() == QEvent::MetaCall) {
+        return QApplication::event(event);
+    }
+
     // This helps avoid deadlock issue early during Application initialization
     if (!_isMenuInitialized) {
         return QApplication::event(event);
@@ -326,6 +333,10 @@ void publishClientVisibility(bool native, bool foreground) {
 #endif
     const bool requested = native ? inputs.observeNative(foreground) : inputs.observeQt(foreground);
     const bool effective = overte::lifecycle::applicationGate().visible(requested).snapshot.foreground;
+#if defined(ANDROID_APP_PICO_INTERFACE) && defined(OVERTE_E2E_OPENXR_INPUT_V1)
+    app->setProperty(native ? "picoE2eNativeForeground" : "picoE2eQtForeground", foreground);
+    if (native) { app->setProperty("picoE2eNativeVisibilityObserved", true); }
+#endif
     // Native callbacks may precede setupEssentials. Do not create dependencies
     // early; the real startup observation republishes the retained inputs.
     if (DependencyManager::isSet<AddressManager>()) {

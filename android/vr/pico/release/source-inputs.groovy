@@ -11,7 +11,9 @@ return { File picoRoot ->
     def errors = new StringBuffer()
     def stdoutReader = process.consumeProcessOutputStream(output)
     def stderrReader = process.consumeProcessErrorStream(errors)
-    if (!process.waitFor(120, TimeUnit.SECONDS)) {
+    // The complete frozen inventory is hashed twice. Allow it to finish when
+    // other native builds share the disk/CPU; retain every byte and identity check.
+    if (!process.waitFor(600, TimeUnit.SECONDS)) {
         process.destroyForcibly()
         throw new IllegalStateException('PICO_SOURCE_INPUTS_TIMEOUT')
     }

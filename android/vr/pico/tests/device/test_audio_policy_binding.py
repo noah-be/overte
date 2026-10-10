@@ -27,7 +27,10 @@ class AudioPolicyBindingTest(unittest.TestCase):
 namespace Qt { constexpr int QueuedConnection = 1; }
 struct AudioClient {};
 struct Handle { explicit operator bool() const { return true; } AudioClient* data() { return nullptr; } };
-struct DependencyManager { template<class T> static Handle get() { return {}; } };
+struct DependencyManager {
+ template<class T> static bool isSet() { return true; }
+ template<class T> static Handle get() { return {}; }
+};
 static std::atomic<int> clearCount { 0 }, queuedCount { 0 }, deliveredCount { 0 };
 static bool failInitialization = false;
 void finishAndroidAudioDrain(bool) { ++clearCount; }

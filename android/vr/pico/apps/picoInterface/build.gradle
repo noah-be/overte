@@ -3,6 +3,14 @@ plugins {
 }
 
 def picoUnsigned = providers.gradleProperty('PICO_UNSIGNED').orNull == '1'
+// Package revisions can share the same native configuration while Ninja still
+// rebuilds every changed source. Keep this diagnostic override Debug-only.
+def picoDebugApkVersionName = providers.gradleProperty('picoDebugApkVersionName').orNull
+if (picoDebugApkVersionName != null && (
+        !(picoDebugApkVersionName ==~ /[A-Za-z0-9][A-Za-z0-9._-]{0,127}/) ||
+        !gradle.startParameter.taskNames.every { it.toLowerCase().contains('debug') })) {
+    throw new GradleException('picoDebugApkVersionName requires an explicit Debug build and a bounded package version')
+}
 def picoRoot = file('../..')
 def loadPicoSourceInputs = new GroovyShell().evaluate(new File(picoRoot, 'release/source-inputs.groovy'))
 def picoInputs = loadPicoSourceInputs(picoRoot)
@@ -26,7 +34,7 @@ android {
         minSdk 26
         targetSdk 35
         versionCode rootProject.ext.appVersionCode
-        versionName rootProject.ext.appVersionName
+        versionName picoDebugApkVersionName ?: rootProject.ext.appVersionName
 
         ndk {
             abiFilters 'arm64-v8a'
@@ -123,6 +131,8 @@ android {
             externalNativeBuild {
                 cmake {
                     arguments '-DOVERTE_PICO_E2E_OPENXR_INPUT=ON'
+                    arguments '-DOVERTE_E2E_VOICE_TESTS=' +
+                        (project.findProperty('overteVoiceTests') == 'true' ? 'ON' : 'OFF')
                 }
             }
             buildConfigField 'String', 'BACKTRACE_URL', '""'
@@ -135,6 +145,7 @@ android {
             externalNativeBuild {
                 cmake {
                     arguments '-DOVERTE_PICO_E2E_OPENXR_INPUT=OFF'
+                    arguments '-DOVERTE_E2E_VOICE_TESTS=OFF'
                 }
             }
             minifyEnabled false
@@ -173,6 +184,8 @@ android {
     applicationVariants.all { variant ->
         def e2eProbeAsset = file('../../../../../tests/device/probe/overte_e2e_probe.js')
         def e2eSceneAsset = file('../../../../../tests/device/fixture/scene.json')
+        def e2eTextInputAsset = file('../../../../../tests/device/fixture/ControlledTextInput.qml')
+        def e2eEntityScriptAsset = file('../../../../../tests/device/fixture/scripted_interactable.js')
         // The runtime unpacks these CMake-produced assets into its cache on startup.
         // Ensure they are generated before merging and include the manifest expected
         // by HifiUtils.upackAssets().
@@ -191,7 +204,7 @@ android {
         // package stale controller/UI logic after a script-only change.
         variant.mergeAssets.inputs.dir(file("${projectDir}/../../../../../scripts"))
         if (variant.buildType.name == 'debug') {
-            variant.mergeAssets.inputs.files(e2eProbeAsset, e2eSceneAsset)
+            variant.mergeAssets.inputs.files(e2eProbeAsset, e2eSceneAsset, e2eEntityScriptAsset, e2eTextInputAsset)
         }
 
         variant.mergeAssets.doLast {
@@ -299,6 +312,8 @@ android {
                 copy {
                     from e2eProbeAsset
                     from e2eSceneAsset
+                    from e2eTextInputAsset
+                    from e2eEntityScriptAsset
                     into mergedAssetsDir
                     eachFile { details ->
                         youngestLastModified = Math.max(youngestLastModified, details.lastModified)

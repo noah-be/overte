@@ -454,8 +454,11 @@ Item {
                 anchors.fill: parent
                 objectName: "OverteTabletClose"
                 activeFocusOnTab: visible
+                // Qt 5 on standalone headsets has no Accessible.id. Keep the
+                // native objectName and assign the newer identifier only when
+                // the attached accessibility object actually supports it.
                 Component.onCompleted: {
-                    if ("id" in Accessible) {
+                    if (typeof Accessible.id !== "undefined") {
                         Accessible.id = Qt.binding(function() { return objectName })
                     }
                 }

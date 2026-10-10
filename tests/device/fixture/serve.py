@@ -108,10 +108,14 @@ def validate_fixture() -> dict:
         raise ValueError("fixture collision wall does not match its manifest")
     if (not isinstance(interaction_target, dict)
             or not isinstance(interaction_contract, dict)
-            or set(interaction_contract) != {"dimensions", "name", "position"}
+            or set(interaction_contract) != {"dimensions", "name", "position", "grab"}
             or interaction_contract.get("name") != "OVERTE_E2E_INTERACTABLE"
             or interaction_target.get("collisionless") is not True
-            or interaction_target.get("locked") is not True
+            or interaction_target.get("locked") is not False
+            # The controlled script button must remain in place across clicks.
+            # Its properties stay mutable for the entity script's real effect.
+            or interaction_contract.get("grab") != {"grabbable": False}
+            or interaction_target.get("grab") != interaction_contract.get("grab")
             or interaction_target.get("position") != interaction_contract.get("position")
             or interaction_target.get("dimensions") != interaction_contract.get("dimensions")):
         raise ValueError("fixture interaction target does not match its manifest")
@@ -216,7 +220,17 @@ class RequestTelemetry:
 class FixtureServer(ThreadingHTTPServer):
     daemon_threads = True
 
-    def __init__(self, address: tuple[str, int], handler: object, manifest: dict):
+    def __init__(self, address: tuple[str, int], handler: object, manifest: dict,
+                 sound_duration_seconds: float | None = None):
+        self.sound_payload = (ROOT / manifest["sound"]["path"]).read_bytes()
+        if sound_duration_seconds is not None:
+            if isinstance(sound_duration_seconds, bool) or not 1 <= sound_duration_seconds <= 120:
+                raise ValueError("sound duration must be from 1 through 120 seconds")
+            from generate_sound_fixture import wav_bytes, SAMPLE_RATE
+            self.sound_payload = wav_bytes(sound_duration_seconds)
+            manifest = {**manifest, "sound": {**manifest["sound"],
+                "durationSeconds": int(SAMPLE_RATE * sound_duration_seconds) / SAMPLE_RATE,
+                "sha256": hashlib.sha256(self.sound_payload).hexdigest()}}
         super().__init__(address, handler)
         self.manifest = manifest
         self.telemetry = RequestTelemetry()
@@ -317,7 +331,7 @@ class FixtureHandler(SimpleHTTPRequestHandler):
             return
         sound_path = "/" + self.server.manifest["sound"]["path"]
         if request_path == sound_path:
-            payload = (ROOT / self.server.manifest["sound"]["path"]).read_bytes()
+            payload = self.server.sound_payload
             self.send_response(200)
             self.send_header("Content-Type", "audio/wav")
             self.send_header("Content-Length", str(len(payload)))
@@ -411,7 +425,14 @@ class FixtureState:
                 or not CLIENT_COMMAND_ID.fullmatch(command["commandId"])):
             raise ValueError("invalid client command envelope")
         action = command.get("action")
-        if action == "scene-load":
+        if action == "voice-test":
+            sys.path.insert(0, str(ROOT.parent))
+            from voice_contract import command as validate_voice_command
+            valid = set(command) == {"schemaVersion", "commandId", "action", "request"}
+            if valid:
+                request = validate_voice_command(command["request"])
+                valid = request["commandId"] == command["commandId"]
+        elif action == "scene-load":
             valid = (set(command) == {"schemaVersion", "commandId", "action", "url"}
                      and self._web_url(command.get("url")))
         elif action == "navigate":
@@ -505,9 +526,13 @@ def arguments() -> argparse.Namespace:
     parser.add_argument("--ready-file", type=Path,
                         help="atomically write connection metadata after binding")
     parser.add_argument("--check", action="store_true")
+    parser.add_argument("--sound-duration-seconds", type=float,
+                        help="session-owned PCM duration for slower device observation; default fixture remains unchanged")
     args = parser.parse_args()
     if not 0 <= args.port <= 65535:
         parser.error("--port must be from 0 through 65535")
+    if args.sound_duration_seconds is not None and not 1 <= args.sound_duration_seconds <= 120:
+        parser.error("--sound-duration-seconds must be from 1 through 120")
     return args
 
 
@@ -518,7 +543,8 @@ def main() -> int:
         print(f"PASS: controlled fixture contains {manifest['expectedEntityCount']} local entities")
         return 0
     handler = partial(FixtureHandler, directory=str(ROOT))
-    server = FixtureServer((args.bind, args.port), handler, manifest)
+    server = FixtureServer((args.bind, args.port), handler, manifest, args.sound_duration_seconds)
+    manifest = server.manifest
     host = args.public_host or args.bind
     if host in {"0.0.0.0", "::"}:
         raise ValueError("--public-host is required when binding all interfaces")

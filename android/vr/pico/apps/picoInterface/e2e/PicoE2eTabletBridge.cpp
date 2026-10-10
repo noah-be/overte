@@ -32,6 +32,7 @@ namespace {
 const QString SYSTEM_TABLET { QStringLiteral("com.highfidelity.interface.tablet.system") };
 const QString BRIDGE_DIRECTORY { QStringLiteral("/data/user/0/org.overte.pico/files/overte-e2e") };
 const QString OBSERVATION_PATH { BRIDGE_DIRECTORY + QStringLiteral("/tablet-ui-observation.json") };
+const QString DIAGNOSTIC_PATH { BRIDGE_DIRECTORY + QStringLiteral("/tablet-ui-diagnostic.json") };
 const QString COMMAND_PATH { BRIDGE_DIRECTORY + QStringLiteral("/tablet-ui-command.json") };
 const QString STATUS_PATH { BRIDGE_DIRECTORY + QStringLiteral("/tablet-ui-status.json") };
 const QString PROBE_PATH {
@@ -135,11 +136,15 @@ Observation observeTablet() {
     auto tablet = tabletInterface ? tabletInterface->getTablet(SYSTEM_TABLET) : nullptr;
     auto root = tablet ? tablet->getTabletRoot() : nullptr;
     const bool open = tablet && tablet->property("tabletShown").toBool();
+    int itemCount { 0 };
+    int visibleItemCount { 0 };
 
     walkItems(root, [&](QQuickItem* item, int depth) {
+        ++itemCount;
         if (!effectiveVisible(item)) {
             return;
         }
+        ++visibleItemCount;
         // Entry controls intentionally share IDs with their destination screens.
         // An explicit screen property must therefore outrank deeper objectName fallbacks.
         const QString semanticCandidate = item->property("semanticScreenId").toString();
@@ -184,6 +189,24 @@ Observation observeTablet() {
         { QStringLiteral("ready"), open && root && screenDepth >= 0 },
         { QStringLiteral("visibleControlIds"), controls },
     };
+    // Preserve actual scene-graph geometry when semantic discovery fails.
+    // This diagnostic is independent of the portable acceptance snapshot.
+    writeJson(DIAGNOSTIC_PATH, {
+        { QStringLiteral("updatedEpochMs"), static_cast<double>(QDateTime::currentMSecsSinceEpoch()) },
+        { QStringLiteral("tabletAvailable"), bool(tablet) },
+        { QStringLiteral("open"), open },
+        { QStringLiteral("rootAvailable"), bool(root) },
+        { QStringLiteral("rootObjectName"), root ? root->objectName() : QString() },
+        { QStringLiteral("rootWidth"), root ? root->width() : 0.0 },
+        { QStringLiteral("rootHeight"), root ? root->height() : 0.0 },
+        { QStringLiteral("rootVisible"), root && root->isVisible() },
+        { QStringLiteral("windowAvailable"), root && root->window() },
+        { QStringLiteral("windowWidth"), root && root->window() ? root->window()->width() : 0 },
+        { QStringLiteral("windowHeight"), root && root->window() ? root->window()->height() : 0 },
+        { QStringLiteral("itemCount"), itemCount },
+        { QStringLiteral("visibleItemCount"), visibleItemCount },
+        { QStringLiteral("screenDepth"), screenDepth },
+    });
     return result;
 }
 

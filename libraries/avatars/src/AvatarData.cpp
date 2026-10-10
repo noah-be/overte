@@ -1819,6 +1819,10 @@ void AvatarData::setRawJointData(QVector<JointData> data) {
     }
     QWriteLocker writeLock(&_jointDataLock);
     _jointData = data;
+    // Skeleton initialization and recording replace the complete pose, just
+    // like a received joint update. Keep dirty flags aligned with that pose.
+    _hasNewJointDataVec.assign(static_cast<size_t>(_jointData.size()), true);
+    _hasNewJointData = true;
 }
 
 void AvatarData::setJointData(int index, const glm::quat& rotation, const glm::vec3& translation) {
