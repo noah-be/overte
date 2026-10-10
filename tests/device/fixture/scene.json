@@ -3,70 +3,145 @@
   "Entities": [
     {
       "collisionless": false,
-      "color": {"blue": 190, "green": 190, "red": 190},
-      "dimensions": {"x": 20.0, "y": 4.0, "z": 20.0},
+      "color": {
+        "blue": 190,
+        "green": 190,
+        "red": 190
+      },
+      "dimensions": {
+        "x": 20.0,
+        "y": 4.0,
+        "z": 20.0
+      },
       "id": "{00000000-0000-4000-8000-000000000001}",
       "locked": true,
       "name": "OVERTE_E2E_FLOOR",
-      "position": {"x": 0.0, "y": -2.0, "z": 0.0},
+      "position": {
+        "x": 0.0,
+        "y": -2.0,
+        "z": 0.0
+      },
       "shape": "Cube",
       "type": "Box"
     },
     {
       "collisionless": true,
-      "color": {"blue": 40, "green": 40, "red": 230},
-      "dimensions": {"x": 4.0, "y": 2.0, "z": 0.2},
+      "color": {
+        "blue": 40,
+        "green": 40,
+        "red": 230
+      },
+      "dimensions": {
+        "x": 4.0,
+        "y": 2.0,
+        "z": 0.2
+      },
       "id": "{00000000-0000-4000-8000-000000000002}",
       "locked": true,
       "name": "OVERTE_E2E_NORTH",
-      "position": {"x": 0.0, "y": 1.0, "z": -6.0},
+      "position": {
+        "x": 0.0,
+        "y": 1.0,
+        "z": -6.0
+      },
       "shape": "Cube",
       "type": "Box"
     },
     {
       "collisionless": true,
-      "color": {"blue": 40, "green": 210, "red": 40},
-      "dimensions": {"x": 0.2, "y": 2.0, "z": 4.0},
+      "color": {
+        "blue": 40,
+        "green": 210,
+        "red": 40
+      },
+      "dimensions": {
+        "x": 0.2,
+        "y": 2.0,
+        "z": 4.0
+      },
       "id": "{00000000-0000-4000-8000-000000000003}",
       "locked": true,
       "name": "OVERTE_E2E_EAST",
-      "position": {"x": 6.0, "y": 1.0, "z": 0.0},
+      "position": {
+        "x": 6.0,
+        "y": 1.0,
+        "z": 0.0
+      },
       "shape": "Cube",
       "type": "Box"
     },
     {
       "collisionless": true,
-      "color": {"blue": 240, "green": 210, "red": 40},
-      "dimensions": {"x": 0.5, "y": 2.0, "z": 0.5},
+      "color": {
+        "blue": 240,
+        "green": 210,
+        "red": 40
+      },
+      "dimensions": {
+        "x": 0.5,
+        "y": 2.0,
+        "z": 0.5
+      },
       "id": "{00000000-0000-4000-8000-000000000004}",
       "locked": true,
       "name": "OVERTE_E2E_ORIGIN",
-      "position": {"x": 0.0, "y": 1.0, "z": 0.0},
+      "position": {
+        "x": 0.0,
+        "y": 1.0,
+        "z": 0.0
+      },
       "shape": "Cube",
       "type": "Box"
     },
     {
       "collisionless": false,
-      "color": {"blue": 180, "green": 80, "red": 180},
-      "dimensions": {"x": 8.0, "y": 4.0, "z": 0.5},
+      "color": {
+        "blue": 180,
+        "green": 80,
+        "red": 180
+      },
+      "dimensions": {
+        "x": 8.0,
+        "y": 4.0,
+        "z": 0.5
+      },
       "id": "{00000000-0000-4000-8000-000000000005}",
       "locked": true,
       "name": "OVERTE_E2E_COLLISION_WALL",
-      "position": {"x": 0.0, "y": 2.0, "z": 0.5},
+      "position": {
+        "x": 0.0,
+        "y": 2.0,
+        "z": 0.5
+      },
       "shape": "Cube",
       "type": "Box"
     },
     {
       "collisionless": true,
-      "color": {"blue": 40, "green": 150, "red": 255},
-      "dimensions": {"x": 0.8, "y": 0.8, "z": 0.2},
+      "color": {
+        "blue": 40,
+        "green": 150,
+        "red": 255
+      },
+      "dimensions": {
+        "x": 0.8,
+        "y": 0.8,
+        "z": 0.2
+      },
       "id": "{00000000-0000-4000-8000-000000000006}",
       "locked": false,
       "name": "OVERTE_E2E_INTERACTABLE",
-      "position": {"x": 0.0, "y": 1.6, "z": 2.5},
+      "position": {
+        "x": 0.0,
+        "y": 1.6,
+        "z": 2.5
+      },
       "script": "scripted_interactable.js",
       "shape": "Cube",
-      "type": "Box"
+      "type": "Box",
+      "grab": {
+        "grabbable": false
+      }
     }
   ],
   "Id": "{00000000-0000-4000-8000-000000000000}",

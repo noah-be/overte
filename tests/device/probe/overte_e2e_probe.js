@@ -45,6 +45,7 @@
     var probeErrorCount = 0;
     var lastProbeError = "";
     var lastSampleEpochMs = 0;
+    var lastCompletedSampleEpochMs = 0;
     var lastHeartbeatEpochMs = 0;
     var sampleIntervalMs = 250;
     var heartbeatIntervalMs = 5000;
@@ -58,6 +59,12 @@
         + "?location=/0,0,4/0,0,0,1";
     var androidControlEligible = /^file:/.test(androidControlMarkerUrl);
     var androidControlAvailable = false;
+    var androidControlProcessId = null;
+    var nativeMotionUrl = String(Script.resolvePath("avatar-motion-observation.json"));
+    var nativeMotionLastRequestEpochMs = 0;
+    var nativeMotionLastSequence = 0;
+    var nativeMotionUpdatedEpochMs = 0;
+    var nativeMotionAvailable = false;
     var lastAndroidControlCommandId = reloadCommandIdFromAddress(location.href);
     var androidAssetEntityId = null;
     var flightNormalizationAllowed = true;
@@ -77,7 +84,9 @@
     var clientCommandRequest = null;
     var clientCommandUnavailable = false;
     var lastClientCommandId = "";
-    var lastSceneCommandId = "";
+    // Serverless navigation can restart the probe. Recover the identity from
+    // the actual loaded address, rather than losing the reload confirmation.
+    var lastSceneCommandId = reloadCommandIdFromAddress(location.href);
     var sampleSequence = 0;
     var phoneTouchHistory = [];
     var orientationHistory = [];
@@ -121,6 +130,52 @@
     var interactionPressCount = 0;
     var interactionLastEntityName = "";
     var interactionLastPointerId = null;
+    // Read-only diagnostics of the real dispatcher rays. These observations
+    // never create a pointer, deliver an event, or count as a test assertion.
+    var interactionPointers = null;
+    var interactionPointerHistory = [];
+    var interactionPointerSequence = 0;
+    var interactionPointerLastSampleMs = 0;
+    var interactionPointerChannel = "Pico4-FarGrab-Depth";
+    function observeDispatcherPointers(channel, message, sender, localOnly) {
+        if (channel !== interactionPointerChannel || !localOnly) { return; }
+        try {
+            var config = JSON.parse(message);
+            if (config.action === "configurePointers"
+                    && typeof config.left === "number" && typeof config.right === "number") {
+                interactionPointers = [config.left, config.right];
+            }
+        } catch (error) { /* Ignore unrelated worker messages. */ }
+    }
+    Messages.subscribe(interactionPointerChannel);
+    Messages.messageReceived.connect(observeDispatcherPointers);
+    var interactionPointerDiscovery = Script.setInterval(function () {
+        if (interactionPointers === null) {
+            Messages.sendLocalMessage(interactionPointerChannel, JSON.stringify({ action: "ready" }));
+        }
+    }, 1000);
+    function observeDispatcherRay(now) {
+        if (interactionPointers === null || now - interactionPointerLastSampleMs < 100) { return; }
+        var trigger = Controller.getValue(Controller.Standard.RT);
+        if (trigger <= 0.01) { return; }
+        interactionPointerLastSampleMs = now;
+        try {
+            interactionPointerSequence += 1;
+            var pick = Pointers.getPrevPickResult(interactionPointers[1]);
+            interactionPointerHistory.push({
+                sampleSequence: interactionPointerSequence, sampleEpochMs: now,
+                trigger: trigger, triggerClick: Controller.getValue(Controller.Standard.RTClick),
+                pose: controllerPose(Controller.Standard.RightHand),
+                pick: pick, avatarPosition: MyAvatar.position,
+                sensorToWorld: MyAvatar.getSensorToWorldMatrix(),
+                pressCount: interactionPressCount
+            });
+            if (interactionPointerHistory.length > 64) { interactionPointerHistory.shift(); }
+            Test.saveObject({ schemaVersion: 1, source: "actual-dispatcher-ray",
+                processId: androidControlProcessId, updatedEpochMs: now,
+                samples: interactionPointerHistory }, "interaction-ray-observation.json");
+        } catch (error) { /* Diagnostic availability does not change test results. */ }
+    }
     var peerTrackingId = "";
     var peerPreviousPosition = null;
     var peerObservationCount = 0;
@@ -288,8 +343,7 @@
         };
     }
 
-    function openXrAxes() {
-        var openXr = Controller.Hardware.OpenXR;
+    function openXrAxes(openXr) {
         if (openXr === undefined) {
             return null;
         }
@@ -573,6 +627,7 @@
             ? androidFixtureUrl : location.href);
         var separator = baseAddress.indexOf("?") === -1 ? "?" : "&";
         resetSceneObservation();
+        lastSceneCommandId = String(commandId);
         Window.location = baseAddress + separator + "overteE2EReloadCommandId="
             + encodeURIComponent(String(commandId));
     }
@@ -681,7 +736,16 @@
                     Audio.systemInjectorGain = -96;
                     Audio.setLocalEcho(false);
                     Audio.setServerEcho(false);
-                    location.handleLookupString(request.domainUrl);
+                    // Keep an already established voice domain intact. Looking
+                    // it up again can enter the loading interstitial and pause
+                    // the native source after the test clock has been prepared.
+                    var domainPattern = new RegExp("^hifi://([^/?#]+)(?:[/?#]|$)", "i");
+                    var currentDomain = domainPattern.exec(String(location.href));
+                    var requestedDomain = domainPattern.exec(String(request.domainUrl));
+                    if (!location.isConnected || !currentDomain || !requestedDomain
+                            || currentDomain[1].toLowerCase() !== requestedDomain[1].toLowerCase()) {
+                        location.handleLookupString(request.domainUrl);
+                    }
                 }
             } else if (request.action === "reset") {
                 restoreVoice();
@@ -898,6 +962,13 @@
             lastAndroidControlCommandId = String(command.commandId);
             return;
         }
+        if (command.action === "audio-mute"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action", "muted"])
+                && typeof command.muted === "boolean") {
+            Audio.muted = command.muted;
+            lastAndroidControlCommandId = String(command.commandId);
+            return;
+        }
         if (command.action === "set-safe-setting"
                 && objectKeysMatch(command, ["schemaVersion", "commandId", "action",
                     "settingId", "enabled"])
@@ -934,6 +1005,10 @@
             androidControlAvailable = marker.schemaVersion === 1
                 && marker.channel === "android-debug-file-v1"
                 && marker.probe === "overte_e2e_probe.js";
+            if (androidControlAvailable && typeof marker.processId === "number"
+                    && marker.processId > 0) {
+                androidControlProcessId = marker.processId;
+            }
         } catch (error) {
             androidControlAvailable = false;
         }
@@ -988,8 +1063,8 @@
         }
     }
 
-    function observeVerticalMotion() {
-        var observation = {
+    function observeVerticalMotion(observation) {
+        observation = observation || {
             y: Number(MyAvatar.position.y),
             inAir: Boolean(MyAvatar.isInAir()),
             flying: Boolean(MyAvatar.isFlying())
@@ -1037,7 +1112,81 @@
         verticalObservationPrevious = observation;
     }
 
-    function sample(now) {
+    function consumeNativeMotion(history, now) {
+        if (!androidControlProcessId || !history || history.schemaVersion !== 1
+                || history.processId !== androidControlProcessId
+                || history.source !== "native-avatar-motion"
+                || !Array.isArray(history.samples)
+                || typeof history.updatedEpochMs !== "number"
+                || !isFinite(history.updatedEpochMs)
+                || history.updatedEpochMs > now + 1000
+                || now - history.updatedEpochMs > 5000) {
+            return;
+        }
+        history.samples.forEach(function (entry) {
+            var motion = entry.avatarMotion;
+            if (typeof entry.sampleSequence !== "number"
+                    || !isFinite(entry.sampleSequence)
+                    || entry.sampleSequence <= nativeMotionLastSequence
+                    || typeof entry.sampleEpochMs !== "number"
+                    || !isFinite(entry.sampleEpochMs)
+                    || entry.sampleEpochMs > now + 1000
+                    || now - entry.sampleEpochMs > 5000
+                    || !motion || !motion.position
+                    || typeof motion.position.y !== "number"
+                    || !isFinite(motion.position.y)
+                    || typeof motion.inAir !== "boolean"
+                    || typeof motion.flying !== "boolean") {
+                return;
+            }
+            nativeMotionLastSequence = entry.sampleSequence;
+            nativeMotionUpdatedEpochMs = entry.sampleEpochMs;
+            nativeMotionAvailable = true;
+            observeVerticalMotion({ y: motion.position.y,
+                inAir: motion.inAir, flying: motion.flying });
+        });
+    }
+
+    function pollNativeMotion(now) {
+        if (!androidControlProcessId || now - nativeMotionLastRequestEpochMs < 500) {
+            return;
+        }
+        nativeMotionLastRequestEpochMs = now;
+        var moduleId = nativeMotionUrl + "?sample=" + now;
+        try {
+            // The fixed private-file loader is supported by the Android script
+            // engine; local XMLHttpRequest does not complete on this runtime.
+            consumeNativeMotion(Script.require(moduleId), Date.now());
+        } catch (error) {
+            // Missing or malformed observations cannot produce events.
+        } finally {
+            // Each fresh URL is a one-use observation, not a persistent module.
+            // Release only our own entry; preserve all other script modules.
+            try {
+                delete Script.require.cache[Script.require.resolve(moduleId)];
+            } catch (error) {
+                // An unavailable native source has no resolvable cache entry.
+            }
+        }
+    }
+
+    function sample(now, verticalObservationMs) {
+        var phaseEpochMs = Date.now();
+        var timing = { schemaVersion: 1, startedEpochMs: phaseEpochMs,
+            processId: androidControlProcessId,
+            previousSampleIntervalMs: lastCompletedSampleEpochMs
+                ? now - lastCompletedSampleEpochMs : null,
+            verticalMotionObservationMs: verticalObservationMs, phasesMs: {} };
+        function phase(name) {
+            var completed = Date.now();
+            timing.phasesMs[name] = completed - phaseEpochMs;
+            phaseEpochMs = completed;
+            timing.completedPhase = name;
+            timing.updatedEpochMs = completed;
+            if (androidControlAvailable) {
+                Test.saveObject(timing, "pico-probe-timing-in-progress.json");
+            }
+        }
         pollAndroidControlMarker();
         var nativePad = Controller.Hardware.TouchscreenVirtualPad;
         if (androidControlAvailable && nativePad) {
@@ -1058,6 +1207,7 @@
         }
         pollClientCommand();
         pollSoundCommand();
+        phase("controlPolling");
         var currentAddress = String(location.href);
         var currentLocationKey = [String(location.protocol), String(location.hostname),
             String(location.domainID)].join("|");
@@ -1072,7 +1222,9 @@
         }
         previousLocationKey = currentLocationKey;
         normalizeInitialFlightState();
+        phase("locationAndFlight");
         var ids = Entities.findEntities(MyAvatar.position, 1000.0);
+        phase("entitySearch");
         var foundMarkers = {};
         var foundDomainMarkers = {};
         var sharedEntityCount = 0;
@@ -1134,6 +1286,7 @@
                 };
             }
         }
+        phase("entityProperties");
         if (ids.length === previousEntityCount) {
             stableEntitySamples += 1;
         } else {
@@ -1178,6 +1331,7 @@
                 soundState.finishReason = soundStopRequested ? "stopped" : "natural";
             }
         }
+        phase("avatarAndCamera");
         sampleSequence += 1;
         if (androidControlAvailable) {
             // Separate private evidence keeps real native author identity out
@@ -1186,6 +1340,9 @@
             Test.saveObject({ schemaVersion: 1, sampleEpochMs: now, sampleSequence: sampleSequence,
                 entityCount: sharedEntityCount,
                 observation: sharedEntityCount === 1 ? sharedObservation : null }, "phone-collaboration-observation.json");
+            Test.saveObject({ schemaVersion: 1, sampleEpochMs: now, sampleSequence: sampleSequence,
+                entityCount: sharedEntityCount,
+                observation: sharedEntityCount === 1 ? sharedObservation : null }, "pico-collaboration-observation.json");
         }
         orientationHistory.push({
             sampleSequence: sampleSequence,
@@ -1194,6 +1351,52 @@
         if (orientationHistory.length > 48) {
             orientationHistory.shift();
         }
+        phase("collaborationSnapshotAndHistory");
+        // QVariantMap exposure converts an entire channel directory on every
+        // property access. Read each directory once per sample; input values
+        // and poses still come from the live Controller API on every query.
+        var standardChannels = Controller.Standard;
+        var actionChannels = Controller.Actions;
+        var hardwareChannels = Controller.Hardware;
+        var observedController = {
+                route: {
+                    openxrAxes: openXrAxes(hardwareChannels.OpenXR),
+                    standardLy: Number(Controller.getValue(standardChannels.LY)),
+                    translateYAction: Number(Controller.getValue(actionChannels.TranslateY)),
+                    rawTranslateYDriveKey: Number(MyAvatar.getRawDriveKey(DriveKeys.TRANSLATE_Y)),
+                    translateYDriveKeyDisabled: Boolean(MyAvatar.isDriveKeyDisabled(DriveKeys.TRANSLATE_Y)),
+                    translateZAction: Number(Controller.getValue(actionChannels.TranslateZ)),
+                    rawTranslateZDriveKey: Number(MyAvatar.getRawDriveKey(DriveKeys.TRANSLATE_Z)),
+                    translateZDriveKeyDisabled: Boolean(MyAvatar.isDriveKeyDisabled(DriveKeys.TRANSLATE_Z))
+                },
+                axes: {
+                    lx: Number(Controller.getValue(standardChannels.LX)),
+                    ly: Number(Controller.getValue(standardChannels.LY)),
+                    rx: Number(Controller.getValue(standardChannels.RX)),
+                    ry: Number(Controller.getValue(standardChannels.RY)),
+                    leftTrigger: Number(Controller.getValue(standardChannels.LT)),
+                    rightTrigger: Number(Controller.getValue(standardChannels.RT)),
+                    leftGrip: Number(Controller.getValue(standardChannels.LeftGrip)),
+                    rightGrip: Number(Controller.getValue(standardChannels.RightGrip))
+                },
+                buttons: {
+                    menu: Boolean(Controller.getValue(hardwareChannels.OpenXR
+                        ? hardwareChannels.OpenXR.Start : standardChannels.Start)),
+                    leftPrimary: Boolean(Controller.getValue(standardChannels.LeftPrimaryThumb)),
+                    leftSecondary: Boolean(Controller.getValue(standardChannels.LeftSecondaryThumb)),
+                    leftThumbstick: Boolean(Controller.getValue(standardChannels.LS)),
+                    leftTrigger: Boolean(Controller.getValue(standardChannels.LTClick)),
+                    rightPrimary: Boolean(Controller.getValue(standardChannels.RightPrimaryThumb)),
+                    rightSecondary: Boolean(Controller.getValue(standardChannels.RightSecondaryThumb)),
+                    rightThumbstick: Boolean(Controller.getValue(standardChannels.RS)),
+                    rightTrigger: Boolean(Controller.getValue(standardChannels.RTClick))
+                },
+                poses: {
+                    left: controllerPose(standardChannels.LeftHand),
+                    right: controllerPose(standardChannels.RightHand)
+                }
+        };
+        phase("controller");
         Test.saveObject({
             schemaVersion: 2,
             sampleEpochMs: now,
@@ -1259,6 +1462,9 @@
                 flyingEnabled: Boolean(MyAvatar.getFlyingEnabled())
             },
             verticalEvents: verticalEvents,
+            nativeMotion: { processId: androidControlProcessId,
+                sampleSequence: nativeMotionLastSequence,
+                sampleEpochMs: nativeMotionUpdatedEpochMs },
             view: {
                 orientation: vector(orientation),
                 orientationHistory: orientationHistory
@@ -1279,43 +1485,7 @@
             },
             scriptedEntity: scriptedEntity,
             peer: controlledPeer(),
-            controller: {
-                route: {
-                    openxrAxes: openXrAxes(),
-                    standardLy: Number(Controller.getValue(Controller.Standard.LY)),
-                    translateYAction: Number(Controller.getValue(Controller.Actions.TranslateY)),
-                    rawTranslateYDriveKey: Number(MyAvatar.getRawDriveKey(DriveKeys.TRANSLATE_Y)),
-                    translateYDriveKeyDisabled: Boolean(MyAvatar.isDriveKeyDisabled(DriveKeys.TRANSLATE_Y)),
-                    translateZAction: Number(Controller.getValue(Controller.Actions.TranslateZ)),
-                    rawTranslateZDriveKey: Number(MyAvatar.getRawDriveKey(DriveKeys.TRANSLATE_Z)),
-                    translateZDriveKeyDisabled: Boolean(MyAvatar.isDriveKeyDisabled(DriveKeys.TRANSLATE_Z))
-                },
-                axes: {
-                    lx: Number(Controller.getValue(Controller.Standard.LX)),
-                    ly: Number(Controller.getValue(Controller.Standard.LY)),
-                    rx: Number(Controller.getValue(Controller.Standard.RX)),
-                    ry: Number(Controller.getValue(Controller.Standard.RY)),
-                    leftTrigger: Number(Controller.getValue(Controller.Standard.LT)),
-                    rightTrigger: Number(Controller.getValue(Controller.Standard.RT)),
-                    leftGrip: Number(Controller.getValue(Controller.Standard.LeftGrip)),
-                    rightGrip: Number(Controller.getValue(Controller.Standard.RightGrip))
-                },
-                buttons: {
-                    menu: Boolean(Controller.getValue(Controller.Standard.Start)),
-                    leftPrimary: Boolean(Controller.getValue(Controller.Standard.LeftPrimaryThumb)),
-                    leftSecondary: Boolean(Controller.getValue(Controller.Standard.LeftSecondaryThumb)),
-                    leftThumbstick: Boolean(Controller.getValue(Controller.Standard.LS)),
-                    leftTrigger: Boolean(Controller.getValue(Controller.Standard.LTClick)),
-                    rightPrimary: Boolean(Controller.getValue(Controller.Standard.RightPrimaryThumb)),
-                    rightSecondary: Boolean(Controller.getValue(Controller.Standard.RightSecondaryThumb)),
-                    rightThumbstick: Boolean(Controller.getValue(Controller.Standard.RS)),
-                    rightTrigger: Boolean(Controller.getValue(Controller.Standard.RTClick))
-                },
-                poses: {
-                    left: controllerPose(Controller.Standard.LeftHand),
-                    right: controllerPose(Controller.Standard.RightHand)
-                }
-            },
+            controller: observedController,
             asset: observeAsset(ids),
             sound: {
                 commandId: soundState.commandId,
@@ -1331,17 +1501,30 @@
                 finishReason: soundState.finishReason
             }
         }, "overte-probe.json");
+        phase("snapshotSerializationAndWrite");
+        timing.sampleSequence = sampleSequence;
+        timing.completedEpochMs = Date.now();
+        lastCompletedSampleEpochMs = now;
+        Test.saveObject(timing, "pico-probe-timing.json");
     }
 
     function updateProbe() {
-        observeVerticalMotion();
+        var observationStartedMs = Date.now();
+        observeDispatcherRay(observationStartedMs);
+        // Other Android products also publish the process marker but do not
+        // provide the Pico application-thread history. Keep their real direct
+        // observations until a valid native source is actually available.
+        if (!nativeMotionAvailable) {
+            observeVerticalMotion();
+        }
+        pollNativeMotion(observationStartedMs);
         var now = Date.now();
         if (lastSampleEpochMs !== 0 && now - lastSampleEpochMs < sampleIntervalMs) {
             return;
         }
         lastSampleEpochMs = now;
         try {
-            sample(now);
+            sample(now, now - observationStartedMs);
             lastProbeError = "";
         } catch (error) {
             probeErrorCount += 1;
@@ -1369,6 +1552,9 @@
     Script.update.connect(updateProbe);
     Script.scriptEnding.connect(function () {
         Script.update.disconnect(updateProbe);
+        Script.clearInterval(interactionPointerDiscovery);
+        Messages.messageReceived.disconnect(observeDispatcherPointers);
+        Messages.unsubscribe(interactionPointerChannel);
         restoreVoice();
         if (controlledTextFixtureActive && typeof Test.uiTest === "function") {
             Test.uiTest({ schemaVersion: 1, commandId: "ffffffffffffffffffffffffffffffff",

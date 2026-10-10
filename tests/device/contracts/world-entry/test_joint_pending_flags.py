@@ -51,6 +51,7 @@ struct QWriteLocker { std::mutex* mutex; QWriteLocker(std::mutex* m):mutex(m){m-
 constexpr int LOWEST_PSEUDO_JOINT_INDEX=1000;
 class AvatarData { public:
  QVector<JointData> _jointData; std::vector<bool> _hasNewJointDataVec;
+ bool _hasNewJointData = false;
  std::mutex _jointDataLock; void* thread() { return nullptr; }
 ''' + '\n'.join(s.replace('AvatarData::', '') + ';' for s in signatures) + r'''
 };
@@ -59,6 +60,8 @@ int main() {
  AvatarData avatar;
  avatar.setRawJointData(QVector<JointData>(2));
  assert(avatar._hasNewJointDataVec.size()==2);
+ assert(avatar._hasNewJointData);
+ assert(avatar._hasNewJointDataVec[0] && avatar._hasNewJointDataVec[1]);
  avatar._hasNewJointDataVec[1]=true;
  auto aligned=[&](size_t count){
   assert(size_t(avatar._jointData.size())==count);
