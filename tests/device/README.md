@@ -71,6 +71,18 @@ assertion failure.
 
 Enable long suites only after the short suites are reliable on the target.
 
+The Pico laboratory enables `OVERTE_E2E_REQUIRE_FIXTURE_SCREENSHOT=1`.
+Its scene prerequisite requires authored entity markers, grounded spawn,
+five fresh stable samples, advancing native OpenXR submissions, and an actual
+Android screenshot showing fixture geometry in both eye interiors. Gray floor,
+magenta collision wall, and orange interaction-target pixels supplement the
+semantic checks; a visible skybox alone cannot pass. Keep the headset facing
+the fixture's initial forward view during this prerequisite. The module saves
+`screenshot.png` and `fixture-image-observation.json` (including the image
+checksum) even when semantic scene readiness fails. If this prerequisite
+fails, the runner records subsequent modules as blocked skips and fails the
+run; those modules do not count as executed or passed.
+
 Modules that assert in-client effects use `OverteSession` and verify those
 effects through fresh schema-v2 `probe.snapshot` samples. A successful input
 command alone is never enough to pass a behavior.
@@ -256,3 +268,21 @@ workflow are in [`TOOLCHAIN.md`](TOOLCHAIN.md) and
 
 The optional [synthetic voice roundtrip](VOICE_ROUNDTRIP.md) uses the same runner,
 adapters, owned fixtures and PCM assertions for Phone, iPad and Pico test builds.
+
+### Rendered-world evidence for Pico movement
+
+Pico look, move, jump, flight and collision require actual screenshot bytes,
+fresh native/render frames, native window focus and a stable application
+process. The first image must contain the complete authored fixture; subsequent
+images must retain authored world geometry. Acknowledged input and movement in
+an empty scene cannot establish acceptance. Look and move retain both images
+for every direction, for 22 movement images across the full suite.
+
+Voice recordings retain exact private PCM/digest bindings for delayed delivery
+diagnostics. Device capture is bounded to 6–10 seconds; PC capture is bounded
+to 5.34–30 seconds. Fresh challenges, all-symbol checks and muted negative
+controls remain mandatory. See [the voice contract](VOICE_ROUNDTRIP.md).
+
+Native product ownership tests belong in the product test profile. Shared
+self-tests exercise portable protocol and observation seams without requiring
+Android product sources on the platform-neutral branch.

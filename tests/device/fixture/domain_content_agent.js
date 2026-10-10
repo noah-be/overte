@@ -40,6 +40,26 @@
     var sharedEntity = null;
     var lastCommand = "seed";
     var requestInFlight = false;
+    var ownedEntities = {};
+
+    function removePersistedDuplicates() {
+        // An entity server restores its previous snapshot before/after this
+        // assignment seeds. Reconcile actual owned entities as they arrive;
+        // never hide duplicate observations in the client or touch foreign data.
+        EntityViewer.queryOctree();
+        var ids = Entities.findEntities({ x: 0, y: 0, z: 0 }, 1000);
+        ids.forEach(function (id) {
+            var properties = Entities.getEntityProperties(id, ["name", "userData"]);
+            var selected = ownedEntities[properties.name];
+            if (!selected || String(id) === String(selected)) { return; }
+            var state;
+            try { state = JSON.parse(properties.userData); } catch (error) { return; }
+            var owned = properties.name === sharedName
+                ? state.contract === "overte-e2e-collaboration-v1" && state.actorId === actorId
+                : state.contract === contract && state.marker === properties.name;
+            if (owned) { Entities.deleteEntity(id); }
+        });
+    }
 
     function colorFor(value) {
         return value === "blue" ? { red: 40, green: 120, blue: 255 }
@@ -138,7 +158,7 @@
             properties.description = contract;
             properties.userData = JSON.stringify({ contract: contract, marker: marker.name });
             properties.lifetime = 7200;
-            Entities.addEntity(properties, "domain");
+            ownedEntities[marker.name] = Entities.addEntity(properties, "domain");
         });
         sharedEntity = Entities.addEntity({ name: sharedName, type: "Box",
             // Keep the replicated test entity in the spawn camera's view and
@@ -147,6 +167,9 @@
             color: colorFor("blue"), lifetime: 7200,
             userData: JSON.stringify({ contract: "overte-e2e-collaboration-v1", actorId: actorId,
                 revision: 0, value: "blue" }) }, "domain");
+        ownedEntities[sharedName] = sharedEntity;
+        removePersistedDuplicates();
+        Script.setInterval(removePersistedDuplicates, retryMilliseconds);
         reportShared("seed", { revision: 0, value: "blue" });
         Script.setInterval(pollShared, retryMilliseconds);
         seeded = true;
@@ -154,5 +177,10 @@
         print("OVERTE_E2E_DOMAIN_FIXTURE_READY markers=" + markers.length);
     }
 
+    // Assignment scripts have no automatic Interface view. Subscribe to the
+    // actual fixture region so reconciliation can see persisted server data.
+    EntityViewer.setPosition({ x: 0, y: 0, z: 0 });
+    EntityViewer.setCenterRadius(1000);
+    EntityViewer.queryOctree();
     seed();
 }());

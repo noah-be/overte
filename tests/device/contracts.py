@@ -536,6 +536,8 @@ def validate_probe_snapshot(value: object) -> dict:
         "sampleEpochMs", "sampleSequence", "scene", "schemaVersion", "sound",
         "tablet", "view",
     }
+    if "control" in value:
+        root_fields.add("control")
     if "controller" in value:
         root_fields.add("controller")
     if "control" in value:
@@ -554,6 +556,23 @@ def validate_probe_snapshot(value: object) -> dict:
         root_fields.add("scriptedEntity")
     if "verticalEvents" in value:
         root_fields.add("verticalEvents")
+    if "nativeMotion" in value:
+        root_fields.add("nativeMotion")
+        motion = value["nativeMotion"]
+        if not isinstance(motion, dict):
+            raise ValueError("probe nativeMotion must be an object")
+        _require_exact_fields(motion, {"processId", "sampleEpochMs", "sampleSequence"},
+                              "probe nativeMotion")
+        pid = motion["processId"]
+        if pid is not None and (type(pid) is not int or pid <= 0):
+            raise ValueError("probe nativeMotion requires a positive processId or null")
+        if any(type(motion[key]) is not int or motion[key] < 0
+               for key in ("sampleEpochMs", "sampleSequence")):
+            raise ValueError("probe nativeMotion requires non-negative integer sample identity")
+        if (motion["sampleSequence"] == 0) != (motion["sampleEpochMs"] == 0):
+            raise ValueError("probe nativeMotion observation sequence and epoch must agree")
+        if motion["sampleSequence"] > 0 and pid is None:
+            raise ValueError("probe nativeMotion observation requires a process binding")
     _require_exact_fields(value, root_fields, "probe snapshot")
     if (not isinstance(value.get("sampleEpochMs"), int)
             or isinstance(value["sampleEpochMs"], bool) or value["sampleEpochMs"] <= 0):
@@ -589,6 +608,19 @@ def validate_probe_snapshot(value: object) -> dict:
                 or control.get("channel") != "android-debug-file-v1"
                 or control.get("probe") != "overte_e2e_probe.js"
                 or not isinstance(control.get("lastCommandId"), str)):
+            raise ValueError("probe control has an invalid Android debug contract")
+
+    control = value.get("control")
+    if control is not None:
+        if not isinstance(control, dict):
+            raise ValueError("probe control must be an object or null")
+        _require_exact_fields(control, {"channel", "lastCommandId", "probe", "schemaVersion"}, "probe control")
+        command_id = control.get("lastCommandId")
+        if (type(control.get("schemaVersion")) is not int or control["schemaVersion"] != 1
+                or control.get("channel") != "android-debug-file-v1"
+                or control.get("probe") != "overte_e2e_probe.js"
+                or not isinstance(command_id, str)
+                or command_id and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", command_id)):
             raise ValueError("probe control has an invalid Android debug contract")
 
     domain = value["domain"]
