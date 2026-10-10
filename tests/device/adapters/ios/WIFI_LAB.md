@@ -212,6 +212,18 @@ a voice session and does not change mute, echo or domain state. This avoids
 extra Settings transitions between the two actual switch changes; each
 `permission.set` still touches and independently observes the real system switch.
 
+For a change, fresh native screenshots immediately before and after the
+acknowledged touch are decoded in the switch frame read from the owned app's
+native Settings row. The white knob position and green track independently
+determine each state; the requested state is never an input to the classifier.
+The initial pixels must agree with the initial accessibility value, and the
+unchanged row's visible features must identify the same app after the touch.
+Ambiguous pixels, changed geometry or a changed row fail the operation. This
+avoids the observed blocking accessibility snapshot after a permission change
+while retaining independent visual evidence. Pillow is pinned in the repository
+test requirements. The OS termination and recovered native audio checks below
+remain mandatory.
+
 The physical iPad terminates the client when this permission changes. The
 adapter independently verifies the stopped process and the foreground
 replacement, establishes a fresh client probe and returns the exact
