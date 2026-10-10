@@ -105,7 +105,9 @@ def check_known_avatar(input_sha: str, result: dict) -> bool:
                    and material["albedoTexture"] and material["opacityTexture"] == material["albedoTexture"]
                    for material in materials)
         return True
-    if input_sha == "e247f3342ff109e17f7ae90916f81935d17ff4f51f60c60908094bb4f38db7da":
+    # The fork normalization only changes skin weights; material bindings are unchanged.
+    if input_sha in {"e247f3342ff109e17f7ae90916f81935d17ff4f51f60c60908094bb4f38db7da",
+                     "b9ca9d23f488bbc579968708895c8d998a0e49a5f24cbfc25157ffaebf14d7a8"}:
         assert result["meshes"] == 2 and len(materials) == 3
         by_name = {material["name"]: material for material in materials}
         lambert = by_name["lambert1"]
