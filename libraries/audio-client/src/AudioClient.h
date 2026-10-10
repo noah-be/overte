@@ -14,6 +14,12 @@
 #ifndef hifi_AudioClient_h
 #define hifi_AudioClient_h
 
+#if defined(OVERTE_E2E_VOICE_TESTS)
+#include "VoiceTestSignal.h"
+#include "AcousticTestCapture.h"
+#include <QVariantMap>
+#endif
+
 #include <fstream>
 #include <memory>
 #include <vector>
@@ -111,6 +117,7 @@ public:
     public:
         AudioOutputIODevice(LocalInjectorsStream& localInjectorsStream, MixedProcessedAudioStream& receivedAudioStream,
                 AudioClient* audio) :
+            QIODevice(audio),
             _localInjectorsStream(localInjectorsStream), _receivedAudioStream(receivedAudioStream),
             _audio(audio), _unfulfilledReads(0) {}
 
@@ -195,6 +202,21 @@ public:
     void setRecording(bool isRecording) { _isRecording = isRecording; };
     bool getRecording() { return _isRecording; };
 
+#if defined(OVERTE_E2E_VOICE_TESTS)
+    // Called only on the audio thread by the gated Test interface.
+    VoiceTestSignal& voiceTestSignal() { return _voiceTestSignal; }
+    bool prepareVoiceTest();
+    bool sendVoiceTest(const std::array<int, 12>& symbols);
+    void resetVoiceTest();
+    void touchVoiceTest();
+    QVariantMap voiceTestStatus() const;
+#endif
+#if defined(OVERTE_E2E_VOICE_TESTS)
+    bool startAcousticCapture(int seconds);
+    QVariantMap acousticCaptureStatus() const;
+    QByteArray takeAcousticCapture();
+    void resetAcousticCapture();
+#endif
     bool startRecording(const QString& filename);
     void stopRecording();
     void setAudioPaused(bool pause);
@@ -555,6 +577,25 @@ private:
 
     QVector<AudioInjectorPointer> _activeLocalAudioInjectors;
 
+#if defined(OVERTE_E2E_VOICE_TESTS)
+    VoiceTestSignal _voiceTestSignal;
+    void handleVoiceTestInput();
+    void stopVoiceTestInput(const QString& error);
+    bool voiceTestLifecycleAllowed() const;
+    QTimer* _voiceTestInputTimer { nullptr };
+    QTimer* _voiceTestLeaseTimer { nullptr };
+    QElapsedTimer _voiceTestElapsed;
+    quint64 _voiceTestPackets { 0 };
+    int _voiceTestChannels { 0 };
+    quint64 _voiceTestCallbacks { 0 }, _voiceTestMicCallbacks { 0 }, _voiceTestDummyCallbacks { 0 };
+    bool _voiceTestInputEnabled { false }, _voiceTestDelivering { false };
+    QString _voiceTestSourceError;
+    std::unique_ptr<AudioGate> _voiceTestGate;
+#endif
+#if defined(OVERTE_E2E_VOICE_TESTS)
+    AcousticTestCapture _acousticCapture;
+    quint64 _acousticCaptureGeneration { 0 }, _acousticOutputRevision { 0 };
+#endif
     bool _isPlayingBackRecording { false };
     bool _audioPaused { false };
 

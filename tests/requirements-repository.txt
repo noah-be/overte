@@ -1,3 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
 # YAML parsing for the Repository Health Doctor's offline workflow contracts.
 PyYAML==6.0.3
+# Decode independently observed native permission-switch screenshots.
+Pillow==12.3.0

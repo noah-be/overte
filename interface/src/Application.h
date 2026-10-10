@@ -34,6 +34,9 @@
 
 #include "avatar/MyAvatar.h"
 #include "ConnectionMonitor.h"
+#if defined(Q_OS_IOS)
+#include "MobileWorldTap.h"
+#endif
 #include "CursorManager.h"
 #include "FancyCamera.h"
 #include "graphics/GraphicsEngine.h"
@@ -614,6 +617,9 @@ private slots:
 
 private:
     friend class Menu;
+#if defined(Q_OS_IOS) && defined(OVERTE_IOS_E2E_TEST_BUILD)
+    friend class TestScriptingInterface;
+#endif
     void beginEntityScriptConsentReview();
     void invalidateEntityScriptConsent();
     void enqueueEntityScriptConsent(const std::shared_ptr<EntityScriptConsentRequest>& request,
@@ -844,6 +850,10 @@ private:
     bool _resumeAfterLoginDialogActionTaken_Completed { false };
 
     bool _isForeground { true }; // starts out assumed to be in foreground
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+    // Inactive is an intermediate visibility state, not a completed shutdown.
+    bool _iosBackgrounded { false };
+#endif
 
     Setting::Handle<float> _hmdTabletScale;
     Setting::Handle<float> _desktopTabletScale;
@@ -889,6 +899,9 @@ private:
     bool _phoneBackKeyConsumed { false };
 #endif
     TouchEvent _lastTouchEvent;
+#if defined(Q_OS_IOS)
+    MobileWorldTap _iosWorldTap;
+#endif
     quint64 _lastAcceptedKeyPress { 0 };
 
     ThreadSafeValueCache<EntityItemID> _keyboardFocusedEntity;

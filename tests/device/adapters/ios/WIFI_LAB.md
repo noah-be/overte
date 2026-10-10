@@ -1,0 +1,308 @@
+# Native iPad lab extension
+
+[`IOSAdapter`](adapter.py) extends the [base Appium adapter](../appium/README.md)
+for an authenticated physical-device driver. The driver must implement actual
+`mobile: overteProcessInfo` and `mobile: overteAbortApp` operations for the
+configured application. Process identity and foreground observations come
+from the device, including after lifecycle operations.
+
+Owned HTTP commands deliver asset creation, domain navigation, audio mute,
+and the allow-listed audio warning setting to the shared in-client probe.
+Delivery alone is insufficient: the adapter requires an exact fresh
+`ios-client-command-<nonce>-result.json` receipt from the running client's Documents
+directory. The portable modules independently verify the resulting behavior.
+
+## Native UI observation
+
+An installed E2E client may expose the integer Info.plist marker
+`OverteE2ENativeUiObservationVersion=1`. Only fresh authenticated installation
+inventory may enable the optional target configuration:
+
+```json
+"nativeUiObservation": {"kind": "uikit-documents", "version": 1}
+```
+
+That test-only client exposes `Test.iosNativeUiSnapshot()` when launched with
+the existing explicit test script and results directory. The shared probe
+saves its read-only UIKit observation once per `native-ui-snapshot` request as
+`ios-native-ui-request-result.json`. The result contains the exact request nonce
+and the native observation; periodic probe samples do not replace this file.
+The adapter
+requires an exact schema, current sample, matching live foreground PID, and
+the closed Tablet Contract vocabulary. Absent controls remain absent; the
+observer never fills in expected controls or exports account/user text.
+
+iOS `Test.saveObject` publishes a complete JSON file with an atomic rename.
+The native AFC reader opens the file first and reads bounded current bytes
+until EOF, without pairing an earlier path-size query with a later file body.
+This keeps rapidly updated observations complete while the service connection
+is reused. Parse, schema, freshness and process-identity checks remain required.
+
+The audit XML represents observed UIKit controls. It is not an XCTest tree.
+Physical activation uses a WDA touch at the center of the freshly observed
+visible enabled control's native frame, followed by contact release even if
+the touch request fails. The module still observes the actual resulting
+tablet screen independently. No fixed-coordinate activation fallback is used.
+The local Wi-Fi driver can deliver this exact short widget tap through XCTest's
+native coordinate-tap endpoint; it rejects drag or long-press sequences on that
+path and still requires the native acknowledgment and unchanged foreground PID.
+
+The optional path needs a newly built and installed client plus successful
+physical-device validation. Host regression success alone does not establish
+device support. A client without the installed marker retains the base
+Appium observation path and any transport capability exclusions.
+
+## Local regression checks
+
+Wi-Fi physical input requests `native-geometry-snapshot` from the owned fixture.
+The client saves its actual `Tablet.touchUiRuntimeMetrics` and Qt window bounds
+once per request in `ios-ui-request-result.json`. The host requires the exact
+request nonce, a fresh timestamp, valid dimensions and safe insets, matching
+UIKit/Qt orientation, and the same independently observed configured foreground
+process before and after reading. The fixture cannot supply coordinates or a
+successful result. Periodic geometry export remains available for diagnostics;
+physical input consumes the stable request-bound observation instead.
+
+From the repository root:
+
+```sh
+python3 tests/run-unittest-suite.py tests/device/self_tests --pattern test_ios_native_ui.py
+python3 tests/run-unittest-suite.py tests/device/self_tests --pattern test_ios_probe_observation.py
+python3 tests/run-unittest-suite.py tests/device/self_tests --pattern test_ios_native_geometry.py
+python3 tests/run-unittest-suite.py tests/device/self_tests --pattern test_ios_extended_adapter.py
+```
+
+These regressions are included in the quick device control-plane profile.
+The complete real-device run must still require all 35 catalog modules and
+retain the tested client and runner versions.
+
+## Native text and rendering integration
+
+The exact installed integer `OverteE2ENativeWorldTapVersion=1` marker enables
+physical primary input. The owned fixture temporarily selects first-person
+camera mode and restores the prior mode afterwards. A read-only observer
+projects the unique controlled entity through the actual camera frustum and
+requires the client ray pick to hit that entity before the host sends a real
+touch. The portable modules independently check the resulting input event and
+entity-script mutation. No fixture command can set an input count or target
+screen coordinate.
+
+The exact installed integer `OverteE2ENativeIntegrationVersion=2` marker enables
+`nativeIntegration: {"kind": "ios-documents", "version": 2}`. Text setup uses a
+dedicated test panel containing the product `Uit.TextField`; only focus, clear,
+read and dismiss are available to the test bridge. Actual Unicode, backspace
+and submit events come from XCTest. GUI-thread observations must match the
+command nonce, foreground process and freshness bound. Typed values and submit
+counters are never supplied by the host observer.
+
+Renderer observations use the active Vulkan plugin, actual physical-device
+properties and current world-generation presentation records from the real
+WSI queue. The host additionally classifies a bounded contemporaneous physical
+screenshot of the central world region. A counter or a lit edge toolbar alone
+does not prove healthy visible rendering. Pillow is required for this local
+physical screenshot analysis. These operations still require native build,
+installation and real-device qualification.
+
+## Controlled entity script consent
+
+The observed installed integer `OverteE2EEntityScriptConsentVersion=1` marker
+enables `nativeEntityConsent: {"kind": "ios-documents", "version": 1}` and the
+optional `entity-script.review` operation. The scripted-entity module explicitly
+requests this operation before requiring actual script execution. A client
+without this marker does not advertise it; lack of executed script still fails
+the existing behavioral assertions.
+
+The E2E-only native hook opens the existing source-scoped review flow, requires
+the displayed production dialog for the exact controlled HTTP script and
+current world, and invokes that dialog's real QML Yes action. Its existing
+selected signal and Application listener retain ownership of the decision.
+The helper never resolves a consent token directly. A fresh, command/PID-bound
+native receipt must confirm each UI action; a delivery acknowledgement cannot
+substitute. The adapter validates the receipt's unchanged three-second freshness
+window immediately after reading it, then independently verifies the process.
+A slow Instruments query must not age evidence before it is validated.
+Wrong sources/worlds, invisible or expired dialogs and unexpected
+process changes fail. This is UI automation, not proof of a physical consent
+button tap or informed human intent. It grants no general entity-script policy.
+
+The module still independently requires downloaded-script preload evidence and
+one real world touch to change its own state, activation count and color.
+Background/world/account transitions retain the production consent revocation
+behavior. The adapter restores the tablet's prior open/closed state.
+
+## Independent entity synchronization
+
+An owned domain fixture may configure the private `collaboration` binding with
+its loopback state/edit endpoints, control token, domain UUID and lab domain
+URL. The assignment client edits one bounded fixture entity. The shared probe
+only reads replicated properties, including its real `lastEditedBy` author,
+color and revision. The host joins that private observation to the independent
+actor's exact receipt and current connected domain before exporting portable
+results. Native author UUIDs remain outside published probe/artifact data.
+The domain keeps its UUID across a controlled offline/recovery transition.
+
+## Prepared native upgrade pair
+
+An explicitly prepared private `nativeUpgrade` contract binds the configured
+bundle and signing team to two signed device IPAs. Each role (`source` and
+`candidate`) records an absolute owned file path, actual SHA-256, source revision
+and independently observed client version. All four artifact fields must differ.
+The local reviewed signer verifies the signature; the native installation
+service independently accepts or rejects the package. Structural archive
+checks alone do not establish signature validity or installed-byte identity.
+
+The adapter rejects foreign paths and version pairs before opening a device
+session. It transfers freshly verified package bytes only while the configured
+app is stopped. The local driver requires the selected, already paired physical
+USB device for both native AFC staging and installation; it rejects a network
+multiplexer connection, foreign device identity or absent cable before upload.
+There is no installation fallback to Wi-Fi. The private native completion
+receipt records the USB transport and verified physical device identity.
+Installation must acknowledge the exact prepared digest, and
+the upgraded process must independently report the candidate version. The
+portable module checks that its changed persisted setting survived the upgrade.
+The driver refreshes the actual executable path and Documents service after
+installation because the operating system can move the app container. No
+uninstall, data reset or fallback to a different bundle is part of this path.
+Installation and upgrade retain bounded 240-second operation deadlines.
+
+## Native console backpressure
+
+Repeated-message logging uses Apple's native unified logging transport on iOS,
+with the same closed diagnostic sanitizer as the Qt message handler. Dynamic
+payload and context do not reach the public OS sink. The formatted return value
+for callers remains unchanged. This avoids a developer stdout pipe blocking
+the shared log mutex and the main-thread flush timer during a scene transition.
+See [Apple's logging API](https://developer.apple.com/documentation/os/os_log_with_type?language=objc).
+
+The host regression compiles the actual LogHandler and Qt metadata, fills a
+real stdout pipe and requires both its writer and Qt timer to progress. Replacing
+the native transport with the old stdout branch reproduces the stall. Only the
+Apple transport boundary is substituted; this host proof does not establish
+physical-device qualification.
+
+## Native crash recovery binding
+
+Some device developer protocols reject SIGABRT with `Unsupported signal 6`.
+The native signal fallback retains that failure rather than substituting normal
+termination or SIGKILL. An observed installed integer
+`OverteE2ENativeCrashVersion=1` enables the optional `nativeCrash` binding
+`{"kind": "ios-documents", "version": 1}` and an E2E-only client crash hook.
+
+The owned fixture can deliver only a nonce-bound `native-crash` command; it
+cannot choose another process, signal or crash result. Immediately before the
+client calls real `std::abort()`, it atomically publishes an actual firing
+receipt. The adapter requires that fresh receipt for the original live PID and
+exact command, then independently observes that process exit. Delivery, arming,
+an ordinary app stop or a replacement PID cannot satisfy this operation. The
+portable module still requires a new process, loaded scene and usable tablet.
+The hook is absent from ordinary builds and refuses launches without the explicit
+test script. The host regression executes the actual hook and JSON writer in an
+isolated process and verifies genuine SIGABRT; device acceptance remains separate.
+
+## Native microphone permission recovery
+
+The explicit `nativePermission` binding is
+`{"kind": "ios-settings-ui", "permissionId": "microphone"}`. The local
+driver observes the selected installed app's actual switch in system Settings,
+requires unique native accessibility elements and verifies Settings' foreground
+process before input. Audio mute is not a substitute for OS permission.
+
+Read-only `permission.snapshot` uses a nonce-bound `Test.voiceTest` status
+request through the existing observed-client Documents channel. It requires
+the native audio permission to be definitively granted or denied, the native
+foreground flag, a sample no older than five seconds and the same independently
+verified process before and after the request. Status works without preparing
+a voice session and does not change mute, echo or domain state. This avoids
+extra Settings transitions between the two actual switch changes; each
+`permission.set` still touches and independently observes the real system switch.
+
+For a change, fresh native screenshots immediately before and after the
+acknowledged touch are decoded in the switch frame read from the owned app's
+native Settings row. The white knob position and green track independently
+determine each state; the requested state is never an input to the classifier.
+The initial pixels must agree with the initial accessibility value, and the
+unchanged row's visible features must identify the same app after the touch.
+Ambiguous pixels, changed geometry or a changed row fail the operation. This
+avoids the observed blocking accessibility snapshot after a permission change
+while retaining independent visual evidence. Pillow is pinned in the repository
+test requirements. The OS termination and recovered native audio checks below
+remain mandatory.
+
+The physical iPad terminates the client when this permission changes. The
+adapter independently verifies the stopped process and the foreground
+replacement, establishes a fresh client probe and returns the exact
+`ios-settings-process-restart` recovery receipt. The portable module validates
+that its original and replacement identities match that receipt. Unexplained
+restarts, snapshot-triggered restarts, stale observations and an unavailable
+replacement still fail. Platforms that return no recovery receipt retain the
+same-process requirement. The module restores the original permission in its
+cleanup block; its bounded 300-second deadline covers both real Settings
+transitions and restoration. Complete device qualification remains separate
+from host contract tests.
+
+## Domain fixture cleanup
+
+Independent laboratory slots can pass `--voice-peer-resource ipad` to the
+fixture orchestrator. This selects a dedicated PC peer lease while the existing
+runtime still creates a fresh profile, authenticated loopback controller and
+separate transmit/receive Pulse routes for each peer. The iPad Jenkins job must
+use its corresponding dedicated PC resource and distinct scene/domain ports.
+The default shared reservation and same-slot exclusivity remain in force.
+
+Linux fixture processes inherit a fresh private ownership nonce and the exact
+fixture configuration directory. Cleanup includes matching descendants even
+when a process has exited or a child creates a new session. Signals use process
+descriptors and recheck ownership before delivery to prevent PID reuse from
+targeting an unrelated process. Surviving owned descendants fail cleanup rather
+than being hidden by successful parent-process termination. Other hosts retain
+their existing process-group cleanup.
+
+## Stable native Wi-Fi probe transfer
+
+The local native Wi-Fi driver requests `native-probe-snapshot` before reading
+the portable client probe. The actual in-client sampler writes its next full
+observation once to `ios-probe-request-result.json`, with the exact request
+nonce. Subsequent periodic samples retain that response until a new request.
+This prevents AFC reads from racing the live file's truncate/write cycle.
+The existing probe schema and freshness checks remain unchanged, and the
+configured foreground process is independently checked before and after the
+transfer. Persistent AFC errors still fail. Only absent Android `control:null`
+metadata is omitted from the iOS observation. The periodic portable probe
+continues to serve other adapters.
+
+The initial probe after a controlled client launch uses the existing 20-second
+startup bound; later samples use five seconds. Every accepted sample must still
+meet the unchanged probe freshness contract. Read-only probe requests preserve
+the last action receipt, including the scene loader's delayed spawn correction.
+
+Each native action receipt is written once for its exact random command nonce;
+periodic samples never truncate that document. The adapter keeps the original
+three-field receipt schema and five-second freshness bound and checks the same
+foreground process independently after the read. Persistent file errors remain
+failures. Other platforms retain their existing command observation file.
+
+Regression-first execution may run domain-roundtrip before domain-enter. Its
+module establishes the real controlled-domain prerequisite when necessary,
+then still proves departure, serverless state and stable reconnection in one
+unchanged foreground process.
+
+## Owned developer connection lifetime
+
+The local driver establishes its authenticated Instruments connection before
+starting XCTest and retains it in the owned session stack. App termination,
+launch, fresh process/executable observations and Settings observations reuse
+that connection. A changed authenticated device route cannot reuse it, and only
+owned session cleanup closes it. This avoids additional developer capability
+handshakes competing with an active native test session.
+
+Settings automation reuses the exact native HTTP client that already proved
+ready for the configured WDA product. Each permission operation checks that
+identity and readiness again before input. The paired-device LAN route retains
+the authenticated remote-device identity; switching to a new application-port
+route after the client foregrounds is not assumed to work.
+
+These connection checks do not replace physical input acknowledgments, real
+permission changes, native process replacement or complete cleanup evidence.
+Independent read-only runner diagnostics retained after a failed input never
+supply test results or retry an input whose acknowledgment is missing.

@@ -28,12 +28,13 @@ class AssetLoadTest(unittest.TestCase):
     def test_only_implemented_real_adapters_may_advertise_asset_load(self):
         android = DEVICE_ROOT / "adapters/android/adapter.py"
         appium = DEVICE_ROOT / "adapters/shared_appium/adapter.py"
+        ios = DEVICE_ROOT / "adapters/ios/adapter.py"
         for path in (DEVICE_ROOT / "adapters").rglob("*"):
             if (not path.is_file() or path.suffix not in {".py", ".json"}
-                    or "mock" in path.parts or path in {android, appium}):
+                    or "mock" in path.parts or path in {android, appium, ios}):
                 continue
             self.assertNotIn("asset.load", path.read_text(encoding="utf-8"), str(path))
-        for path in (android, appium):
+        for path in (android, appium, ios):
             self.assertIn("asset.load", path.read_text(encoding="utf-8"))
 
     @classmethod

@@ -32,6 +32,11 @@
 #include <QRecursiveMutex>
 #include <vector>
 
+#if defined(Q_OS_IOS)
+#include <os/log.h>
+#include "../../../security/redaction/SafeDiagnostics.h"
+#endif
+
 #ifdef HAS_JOURNALD
 #include <systemd/sd-journal.h>
 #include <sys/uio.h>
@@ -104,6 +109,33 @@ const char* colorForLogType(LogMsgType msgType) {
 
 const char* colorReset() {
     return "\u001b[0m";
+}
+
+namespace {
+void writeConsoleMessage(LogMsgType type, const QString& formatted, const QString& message,
+                         const char* color = "", const char* resetColor = "") {
+#if defined(Q_OS_IOS)
+    // Developer-launched stdout can stop draining while the app backgrounds.
+    // Blocking fprintf there holds the shared log mutex and can stall the UI
+    // flusher long enough for iOS's scene-update watchdog to kill the client.
+    // Use the native logging transport with the existing closed sanitizer. The
+    // formatted return value provided to callers is unchanged.
+    os_log_type_t nativeType = OS_LOG_TYPE_DEFAULT;
+    switch (type) {
+        case LogInfo: nativeType = OS_LOG_TYPE_INFO; break;
+        case LogDebug:
+        case LogSuppressed: nativeType = OS_LOG_TYPE_DEBUG; break;
+        case LogCritical: nativeType = OS_LOG_TYPE_ERROR; break;
+        case LogFatal: nativeType = OS_LOG_TYPE_FAULT; break;
+        default: break;
+    }
+    const QByteArray input = message.size() <= 32 ? message.toUtf8() : QByteArray();
+    const char* safe = overte::security::sanitizeDiagnostic(input.constData(), static_cast<std::size_t>(input.size()));
+    os_log_with_type(OS_LOG_DEFAULT, nativeType, "%{public}s", safe);
+#else
+    fprintf(stdout, "%s%s%s", color, qPrintable(formatted), resetColor);
+#endif
+}
 }
 
 
@@ -311,10 +343,11 @@ QString LogHandler::printMessage(LogMsgType type, const QMessageLogContext& cont
 
             if (_keepRepeats || _previousMessage != message) {
                 if (_repeatCount > 0) {
-                    fprintf(stdout, "[Previous message was repeated %i times]\n", _repeatCount);
+                    const QString repeated = QString("[Previous message was repeated %1 times]\n").arg(_repeatCount);
+                    writeConsoleMessage(LogSuppressed, repeated, repeated);
                 }
 
-                fprintf(stdout, "%s%s%s", color, qPrintable(logMessage), resetColor);
+                writeConsoleMessage(type, logMessage, message, color, resetColor);
                 _repeatCount = 0;
             } else {
                 _repeatCount++;

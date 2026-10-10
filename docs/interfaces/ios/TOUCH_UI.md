@@ -30,6 +30,21 @@ Hardware-keyboard capability is currently conservative and fixed to false. A
 future native input-capability adapter should replace that default before
 external keyboard and hybrid pointer support can be considered complete.
 
+## iPad orientation policy
+
+The Full Client stays in landscape on iPad, including when the device is held
+upright. Both landscape directions are supported. Production and E2E bundles
+use the same iPad orientation declaration and full-screen compatibility setting;
+iPhone declarations and the separate native bootstrap remain unchanged.
+
+`ios/ui/IPadLandscapePolicy.mm` applies landscape preferences to the existing
+Qt root controller, without replacing its view or input handling. On iPadOS 26
+it also requests UIKit's interface-orientation lock after entering landscape.
+Apple may decline this lock in a resized or occluded scene, so verify the real
+window behavior separately and retain landscape content geometry. See Apple's
+[TN3192](https://developer.apple.com/documentation/technotes/tn3192-migrating-your-app-from-the-deprecated-uirequiresfullscreen-key).
+Do not report the lock as device-verified from a plist or host test alone.
+
 ## Validation matrix
 
 Simulator checks are useful regression evidence, but final acceptance requires
@@ -38,10 +53,10 @@ at least one supported physical iPhone and one supported physical iPad.
 | Area | Required coverage |
 | --- | --- |
 | Compact phone | iPhone portrait and landscape, including a notched/Dynamic Island safe area |
-| Tablet layouts | iPad portrait and landscape, window resizing, Split View, and Stage Manager where supported |
+| Tablet layouts | iPad launch and return stay landscape when physically held portrait or upside down; both landscape directions; resizing/Stage Manager where available without accepting a portrait content layout |
 | Text scaling | Dynamic Type at 1.0, 1.3, 1.5, and above the UI's supported cap |
 | Software keyboard | Show, hide, frame changes, focus transfer, and unobscured focused controls |
-| Geometry changes | Rotation, safe-area changes, and live surface-size updates |
+| Geometry changes | iPad landscape lock through physical rotation; iPhone supported rotation; safe-area changes and live surface-size updates |
 | External input | Hardware keyboard and pointer behavior, including transitions back to direct touch |
 | Accessibility | VoiceOver navigation, labels, focus order, and minimum touch-target usability |
 

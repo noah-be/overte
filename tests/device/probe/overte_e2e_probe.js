@@ -70,6 +70,12 @@
     var clientCommandRequest = null;
     var clientCommandUnavailable = false;
     var lastClientCommandId = "";
+    var savedNativeClientReceiptIds = {};
+    var pendingProbeRequestId = "";
+    var lastProbeResponseId = "";
+    var lastTextCommandId = "";
+    var primaryOriginalCameraMode = null;
+    var primaryViewCommandId = "";
     var lastSceneCommandId = "";
     var sampleSequence = 0;
     var orientationHistory = [];
@@ -168,6 +174,26 @@
         renderStats.newStats.connect(observeRenderedFrame);
     }
 
+    function controlledSharedObservation(properties) {
+        if (properties.name !== "OVERTE_E2E_SHARED_COLOR") { return null; }
+        var state;
+        try { state = JSON.parse(String(properties.userData)); } catch (error) { return null; }
+        var author = String(properties.lastEditedBy).replace(/[{}]/g, "").toLowerCase();
+        if (!state || state.contract !== "overte-e2e-collaboration-v1"
+                || state.actorId !== "OVERTE_E2E_ACTOR_FIXTURE"
+                || typeof state.revision !== "number" || !isFinite(state.revision)
+                || state.revision < 0 || state.revision > 9007199254740991 || state.revision % 1 !== 0
+                || (state.value !== "blue" && state.value !== "orange")
+                || !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(author)
+                || author === "00000000-0000-0000-0000-000000000000") { return null; }
+        var color = state.value === "blue"
+            ? { red: 40, green: 120, blue: 255 } : { red: 255, green: 150, blue: 40 };
+        if (!properties.color || properties.color.red !== color.red
+                || properties.color.green !== color.green || properties.color.blue !== color.blue) { return null; }
+        return { schemaVersion: 1, entityName: String(properties.name), actorId: state.actorId,
+            revision: state.revision, value: state.value, actorSessionId: author };
+    }
+
     function controlledPeer() {
         var identifiers = AvatarList.getAvatarIdentifiers();
         var candidates = [];
@@ -227,6 +253,38 @@
     }
 
     Entities.mousePressOnEntity.connect(observePrimaryInteraction);
+
+    function primaryViewObservation(now, sequence) {
+        var result = { schemaVersion: 1, sampleEpochMs: now, sampleSequence: sequence,
+            commandId: primaryViewCommandId, valid: false, entityName: "", point: null };
+        if (primaryOriginalCameraMode === null || String(Camera.mode) !== "first person") {
+            return result;
+        }
+        var ids = Entities.findEntities(MyAvatar.position, 1000.0);
+        var candidates = [];
+        ids.forEach(function (id) {
+            var properties = Entities.getEntityProperties(id, ["name", "position"]);
+            if (properties.name === interactionTargetName) { candidates.push({id:id, properties:properties}); }
+        });
+        if (candidates.length !== 1) { return result; }
+        var frustum = Camera.frustum;
+        var view = Mat4.inverse(Mat4.createFromRotAndTrans(frustum.orientation, frustum.position));
+        var cameraPoint = Mat4.transformPoint(view, candidates[0].properties.position);
+        if (cameraPoint.z >= 0) { return result; }
+        var clip = Mat4.transformPoint(frustum.projection, cameraPoint);
+        var u = (Number(clip.x) + 1) / 2;
+        var v = (1 - Number(clip.y)) / 2;
+        if (!isFinite(u) || !isFinite(v) || u <= 0.05 || u >= 0.95 || v <= 0.05 || v >= 0.95) {
+            return result;
+        }
+        var ray = Camera.computePickRay(u * Window.innerWidth, v * Window.innerHeight);
+        var hit = Entities.findRayIntersection(ray);
+        if (!hit.intersects || String(hit.entityID) !== String(candidates[0].id)) { return result; }
+        result.valid = true;
+        result.entityName = String(candidates[0].properties.name);
+        result.point = { x: u, y: v };
+        return result;
+    }
 
     function controllerPose(channel) {
         var pose = Controller.getPoseValue(channel);
@@ -585,9 +643,179 @@
         return true;
     }
 
+    var voiceOriginal = null;
+    var voiceWatchdog = null;
+    var voiceLocalEcho = false;
+    var voiceServerEcho = false;
+    function restoreVoice() {
+        if (typeof Test.voiceTest === "function") {
+            Test.voiceTest({ schemaVersion: 1, commandId: "voice-watchdog-reset", action: "reset" });
+            Test.saveObject({ schemaVersion: 1, commandId: "voice-watchdog-reset", ok: true }, "voice-result.json");
+        }
+        if (voiceOriginal) {
+            Object.keys(voiceOriginal).forEach(function (key) { Audio[key] = voiceOriginal[key]; });
+            voiceOriginal = null;
+            Audio.setLocalEcho(voiceLocalEcho);
+            Audio.setServerEcho(voiceServerEcho);
+        }
+        if (voiceWatchdog !== null) { Script.clearTimeout(voiceWatchdog); voiceWatchdog = null; }
+    }
+    function applyVoice(command) {
+        if (!command || command.schemaVersion !== 1
+                || !objectKeysMatch(command, ["schemaVersion", "commandId", "action", "request"])
+                || command.action !== "voice-test" || !command.commandId
+                || command.commandId === lastClientCommandId) { return false; }
+        lastClientCommandId = String(command.commandId);
+        var request = command.request;
+        var result = { schemaVersion: 1, commandId: command.commandId, ok: false,
+            error: "voice-test-not-enabled" };
+        if (typeof Test.voiceTest === "function" && request && request.commandId === command.commandId) {
+            if (request.action === "prepare") {
+                if (voiceOriginal !== null) {
+                    result.error = "voice-session-busy";
+                    Test.saveObject(result, "voice-result.json");
+                    return true;
+                }
+                result = Test.voiceTest(request);
+                if (result.ok) {
+                    voiceOriginal = {};
+                    voiceLocalEcho = Boolean(Audio.getLocalEcho());
+                    voiceServerEcho = Boolean(Audio.getServerEcho());
+                    ["muted", "pushToTalk", "noiseReduction", "acousticEchoCancellation", "avatarGain",
+                        "serverInjectorGain", "localInjectorGain", "systemInjectorGain"].forEach(function (key) {
+                        voiceOriginal[key] = Audio[key];
+                    });
+                    Audio.muted = true;
+                    Audio.pushToTalk = false;
+                    Audio.noiseReduction = false;
+                    Audio.acousticEchoCancellation = false;
+                    Audio.avatarGain = 0;
+                    Audio.serverInjectorGain = -96;
+                    Audio.localInjectorGain = -96;
+                    Audio.systemInjectorGain = -96;
+                    Audio.setLocalEcho(false);
+                    Audio.setServerEcho(false);
+                    location.handleLookupString(request.domainUrl);
+                }
+            } else if (request.action === "status") {
+                // Read the actual native audio state without preparing a voice
+                // session or changing microphone, mute, echo or domain state.
+                result = Test.voiceTest(request);
+            } else if (request.action === "reset") {
+                restoreVoice();
+                result = Test.voiceTest(request);
+            } else if (voiceOriginal !== null) {
+                if (request.action === "send") { Audio.muted = request.muted; }
+                result = Test.voiceTest(request);
+            } else { result.error = "voice-session-unprepared"; }
+            if (voiceOriginal !== null) {
+                if (voiceWatchdog !== null) { Script.clearTimeout(voiceWatchdog); }
+                voiceWatchdog = Script.setTimeout(restoreVoice, 120000);
+            }
+        }
+        result.sampleEpochMs = Date.now();
+        result.position = MyAvatar.position;
+        result.connected = Boolean(location.isConnected);
+        result.domainId = String(location.domainID);
+        result.version = String(About.buildVersion);
+        result.muted = Boolean(Audio.muted);
+        result.localEcho = Boolean(Audio.getLocalEcho());
+        result.serverEcho = Boolean(Audio.getServerEcho());
+        Test.saveObject(result, "voice-result.json");
+        return true;
+    }
+
+    function saveClientCommandReceipt(now) {
+        if (lastClientCommandId === "") { return; }
+        var receipt = { schemaVersion: 1, commandId: lastClientCommandId,
+            sampleEpochMs: now };
+        if (/^ios-[0-9a-f]{32}$/.test(lastClientCommandId)) {
+            // AFC readers must never race periodic truncation of their receipt.
+            // Each actual native command owns one immutable private document.
+            if (savedNativeClientReceiptIds[lastClientCommandId]) { return; }
+            Test.saveObject(receipt, "ios-client-command-"
+                + lastClientCommandId.slice(4) + "-result.json");
+            savedNativeClientReceiptIds[lastClientCommandId] = true;
+        } else {
+            Test.saveObject(receipt, "client-command-result.json");
+        }
+    }
+
     function applyClientCommand(command) {
+        if (command && command.schemaVersion === 1
+                && /^ios-[0-9a-f]{32}$/.test(command.commandId)
+                && command.action === "native-probe-snapshot"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action"])) {
+            // Observation must not supersede an in-flight scene/action receipt.
+            pendingProbeRequestId = String(command.commandId);
+            return;
+        }
+        if (command && command.schemaVersion === 1
+                && /^ios-[0-9a-f]{32}$/.test(command.commandId)
+                && command.commandId !== lastClientCommandId
+                && command.action === "native-geometry-snapshot"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action"])
+                && typeof Tablet.touchUiRuntimeMetrics === "object"
+                && Tablet.touchUiRuntimeMetrics !== null) {
+            // Preserve this actual native sample while the host reads it.
+            Test.saveObject({ schemaVersion: 1, commandId: String(command.commandId),
+                observation: { schemaVersion: 1, sampleEpochMs: Date.now(),
+                    sampleSequence: sampleSequence, nativeUi: Tablet.touchUiRuntimeMetrics,
+                    window: { width: Number(Window.innerWidth), height: Number(Window.innerHeight) }
+                } }, "ios-ui-request-result.json");
+            lastClientCommandId = String(command.commandId);
+            return;
+        }
+        if (command && command.schemaVersion === 1 && command.commandId
+                && command.commandId !== lastClientCommandId
+                && command.action === "native-ui-snapshot"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action"])
+                && typeof Test.iosNativeUiSnapshot === "function") {
+            // Keep the actual UIKit result stable while AFC consumes it.
+            // Each request receives a fresh native observation and nonce.
+            Test.saveObject({ schemaVersion: 1, commandId: String(command.commandId),
+                observation: Test.iosNativeUiSnapshot() }, "ios-native-ui-request-result.json");
+            lastClientCommandId = String(command.commandId);
+            return;
+        }
+        if (command && command.commandId !== lastClientCommandId && command.action === "native-crash"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action"])
+                && typeof Test.iosCrashTest === "function" && Test.iosCrashTest(command)) {
+            lastClientCommandId = String(command.commandId);
+            return;
+        }
+        if (command && command.commandId !== lastClientCommandId
+                && command.action === "entity-script-consent"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action", "operation", "source"])
+                && typeof Test.iosEntityScriptConsentTest === "function"
+                && Test.iosEntityScriptConsentTest(command)) {
+            lastClientCommandId = String(command.commandId);
+            return;
+        }
+        if (command && command.commandId !== lastTextCommandId && command.action === "text-fixture"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action", "operation"])
+                && typeof Test.iosTextTest === "function" && Test.iosTextTest(command)) {
+            lastTextCommandId = String(command.commandId);
+            return;
+        }
+        if (applyVoice(command)) { return; }
         if (!command || command.schemaVersion !== 1 || !command.commandId
                 || command.commandId === lastClientCommandId) {
+            return;
+        }
+        if (command.action === "primary-view"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action", "operation"])
+                && (command.operation === "prepare" || command.operation === "restore")) {
+            if (command.operation === "prepare") {
+                if (primaryOriginalCameraMode === null) { primaryOriginalCameraMode = String(Camera.mode); }
+                Camera.mode = "first person";
+                if (String(Camera.mode) !== "first person") { return; }
+            } else {
+                if (primaryOriginalCameraMode !== null) { Camera.mode = primaryOriginalCameraMode; }
+                primaryOriginalCameraMode = null;
+            }
+            primaryViewCommandId = String(command.commandId);
+            lastClientCommandId = String(command.commandId);
             return;
         }
         if (command.action === "key-hold"
@@ -605,11 +833,13 @@
             lastClientCommandId = sceneCommandId;
             lastSceneCommandId = sceneCommandId;
             resetSceneObservation();
-            // app.launch already loaded this exact controlled serverless
-            // scene. Applying the bounded location path keeps the single
-            // Interface process and, unlike assigning the full URL again,
-            // does not restart this probe before its readiness observation.
-            if (scenePath !== "") {
+            // A path-only viewpoint is valid only inside this serverless
+            // scene. From a domain it merely moves the avatar in that domain
+            // and never disconnects or loads the fixture.
+            if (Boolean(location.isConnected)
+                    || addressWithoutReloadCommand(location.href) !== addressWithoutReloadCommand(command.url)) {
+                Window.location = command.url;
+            } else if (scenePath !== "") {
                 Window.location = scenePath;
             }
             Script.setTimeout(function () {
@@ -625,7 +855,27 @@
                 && typeof command.url === "string"
                 && /^hifi:\/\/(?:[A-Za-z0-9.-]+|\[[0-9A-Fa-f:]+\]):[0-9]+(?:\/|$)/.test(command.url)) {
             lastClientCommandId = String(command.commandId);
-            Window.location = command.url;
+            location.handleLookupString(command.url);
+            return;
+        }
+        if (command.action === "set-safe-setting"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action",
+                    "settingId", "enabled"])
+                && command.settingId === "audio.warn-when-muted"
+                && typeof command.enabled === "boolean") {
+            Audio.warnWhenMuted = command.enabled;
+            if (Boolean(Audio.warnWhenMuted) === command.enabled) {
+                lastClientCommandId = String(command.commandId);
+            }
+            return;
+        }
+        if (command.action === "set-audio-mute"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action", "muted"])
+                && typeof command.muted === "boolean") {
+            Audio.muted = command.muted;
+            if (Boolean(Audio.muted) === command.muted) {
+                lastClientCommandId = String(command.commandId);
+            }
             return;
         }
         if (command.action === "asset-load"
@@ -706,6 +956,7 @@
     }
 
     function applyAndroidControlCommand(command) {
+        if (applyVoice(command)) { return; }
         if (!command || command.schemaVersion !== 1 || !command.commandId
                 || command.commandId === lastAndroidControlCommandId) {
             return;
@@ -917,6 +1168,8 @@
         var ids = Entities.findEntities(MyAvatar.position, 1000.0);
         var foundMarkers = {};
         var foundDomainMarkers = {};
+        var sharedEntityCount = 0;
+        var sharedObservation = null;
         var interactionTargetAvailable = false;
         var scriptedEntity = {
             targetAvailable: false, loaded: false, scriptUrl: "", activationCount: 0,
@@ -927,13 +1180,17 @@
         var index;
         for (index = 0; index < ids.length; index += 1) {
             var properties = Entities.getEntityProperties(ids[index], [
-                "name", "position", "dimensions", "script", "userData", "color"
+                "name", "position", "dimensions", "script", "userData", "color", "lastEditedBy"
             ]);
             if (fixtureMarkers.indexOf(properties.name) !== -1) {
                 foundMarkers[properties.name] = true;
             }
             if (domainMarkers.indexOf(properties.name) !== -1) {
                 foundDomainMarkers[properties.name] = true;
+            }
+            if (properties.name === "OVERTE_E2E_SHARED_COLOR") {
+                sharedEntityCount += 1;
+                sharedObservation = controlledSharedObservation(properties);
             }
             if (properties.name === "OVERTE_E2E_FLOOR") {
                 floorTopY = Number(properties.position.y) + Number(properties.dimensions.y) / 2.0;
@@ -1014,7 +1271,31 @@
                 soundState.finishReason = soundStopRequested ? "stopped" : "natural";
             }
         }
+        Test.saveObject(primaryViewObservation(now, sampleSequence + 1), "ios-primary-observation.json");
         sampleSequence += 1;
+        // Read-only entity replication evidence. Native author UUIDs remain
+        // in this app-private document and never enter the portable probe.
+        Test.saveObject({ schemaVersion: 1, sampleEpochMs: now, sampleSequence: sampleSequence,
+            entityCount: sharedEntityCount, observation: sharedEntityCount === 1 ? sharedObservation : null
+        }, "e2e-collaboration-observation.json");
+        if (typeof Test.iosRenderObservation === "function") {
+            Test.saveObject(Test.iosRenderObservation(), "ios-render-observation.json");
+        }
+        if (typeof Tablet.touchUiRuntimeMetrics === "object"
+                && Tablet.touchUiRuntimeMetrics !== null) {
+            // Independent live UIKit bounds and Qt viewport observations let
+            // the host validate real screen-coordinate HID input without
+            // asking XCTest to traverse the Qt accessibility window tree.
+            Test.saveObject({ schemaVersion: 1, sampleEpochMs: now,
+                sampleSequence: sampleSequence,
+                nativeUi: Tablet.touchUiRuntimeMetrics,
+                window: { width: Number(Window.innerWidth), height: Number(Window.innerHeight) }
+            }, "ios-ui-observation.json");
+        }
+        // The fixture's HTTP echo proves delivery only. This independent
+        // device-side receipt is emitted after the real client action; the
+        // adapter requires the exact nonce, fresh timestamp and same PID.
+        saveClientCommandReceipt(now);
         orientationHistory.push({
             sampleSequence: sampleSequence,
             orientation: vector(orientation)
@@ -1022,7 +1303,7 @@
         if (orientationHistory.length > 48) {
             orientationHistory.shift();
         }
-        Test.saveObject({
+        var probeSnapshot = {
             schemaVersion: 2,
             sampleEpochMs: now,
             sampleSequence: sampleSequence,
@@ -1042,14 +1323,16 @@
                 lastCommandId: lastAndroidControlCommandId
             } : null,
             domain: {
-                // A file-backed serverless scene can report location.isConnected
-                // even though no domain server or domain UUID exists.
+                // File and HTTP(S) serverless scenes report isConnected when
+                // their scene is loaded, without a domain server connection.
                 connected: Boolean(location.isConnected)
-                    && String(location.protocol) !== "file",
+                    && String(location.protocol) !== "file"
+                    && String(location.protocol) !== "http"
+                    && String(location.protocol) !== "https",
                 hostname: String(location.hostname),
                 id: String(location.domainID),
                 protocol: String(location.protocol),
-                serverless: String(location.protocol) === "file"
+                serverless: /^(file|http|https)$/.test(String(location.protocol))
             },
             input: effectiveInputState(),
             audio: {
@@ -1158,7 +1441,14 @@
                 finished: soundState.finished,
                 finishReason: soundState.finishReason
             }
-        }, "overte-probe.json");
+        };
+        Test.saveObject(probeSnapshot, "overte-probe.json");
+        if (pendingProbeRequestId !== "" && pendingProbeRequestId !== lastProbeResponseId) {
+            // Preserve exactly this real sample until the next owned request.
+            Test.saveObject({ schemaVersion: 1, commandId: pendingProbeRequestId,
+                observation: probeSnapshot }, "ios-probe-request-result.json");
+            lastProbeResponseId = pendingProbeRequestId;
+        }
     }
 
     function updateProbe() {
@@ -1197,6 +1487,8 @@
     Script.update.connect(updateProbe);
     Script.scriptEnding.connect(function () {
         Script.update.disconnect(updateProbe);
+        restoreVoice();
+        if (primaryOriginalCameraMode !== null) { Camera.mode = primaryOriginalCameraMode; }
         releaseControlledKey(controlledKeyCommandId);
         Controller.disableMapping(controlledInputMappingName);
         Entities.mousePressOnEntity.disconnect(observePrimaryInteraction);

@@ -460,7 +460,10 @@ def main() -> int:
             finally:
                 if not args.keep_running:
                     try:
-                        adapter_call(command, "cleanup", selector)
+                        # Native cleanup includes process exit, XCTest shutdown
+                        # and transport closure. Its outer deadline must also
+                        # allow an interrupted operation to restore its state.
+                        adapter_call(command, "cleanup", selector, timeout=180)
                     except Exception as error:
                         results.append({"id": "target-cleanup", "description": "Target cleanup",
                                         "status": "error", "returncode": 75,

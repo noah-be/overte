@@ -111,7 +111,7 @@ def validate_fixture() -> dict:
             or set(interaction_contract) != {"dimensions", "name", "position"}
             or interaction_contract.get("name") != "OVERTE_E2E_INTERACTABLE"
             or interaction_target.get("collisionless") is not True
-            or interaction_target.get("locked") is not True
+            or interaction_target.get("locked") is not False
             or interaction_target.get("position") != interaction_contract.get("position")
             or interaction_target.get("dimensions") != interaction_contract.get("dimensions")):
         raise ValueError("fixture interaction target does not match its manifest")
@@ -219,6 +219,7 @@ class FixtureServer(ThreadingHTTPServer):
     def __init__(self, address: tuple[str, int], handler: object, manifest: dict):
         super().__init__(address, handler)
         self.manifest = manifest
+        self.public_origin = f"http://{address[0]}:{self.server_address[1]}"
         self.telemetry = RequestTelemetry()
         self.fixture_state = FixtureState()
 
@@ -232,6 +233,22 @@ class FixtureHandler(SimpleHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
         parsed = urlsplit(self.path)
         request_path = parsed.path
+        if request_path == "/" + self.server.manifest["scene"]:
+            # The entity loader does not resolve a relative script path
+            # against an imported serverless scene. Bind the script to this
+            # controlled server's configured origin, never the Host header.
+            scene = json.loads((ROOT / self.server.manifest["scene"]).read_text(encoding="utf-8"))
+            scripted = self.server.manifest["scriptedInteraction"]["script"]
+            for entity in scene["Entities"]:
+                if entity.get("script") == scripted:
+                    entity["script"] = self.server.public_origin + "/" + scripted
+            payload = (json.dumps(scene, sort_keys=True) + "\n").encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+            return
         if request_path == "/healthz":
             payload = b'{"ready":true,"schemaVersion":1}\n'
             self.send_response(200)
@@ -411,7 +428,37 @@ class FixtureState:
                 or not CLIENT_COMMAND_ID.fullmatch(command["commandId"])):
             raise ValueError("invalid client command envelope")
         action = command.get("action")
-        if action == "scene-load":
+        if action == "voice-test":
+            sys.path.insert(0, str(ROOT.parent))
+            from voice_contract import command as validate_voice_command
+            valid = set(command) == {"schemaVersion", "commandId", "action", "request"}
+            if valid:
+                request = validate_voice_command(command["request"])
+                valid = request["commandId"] == command["commandId"]
+        elif action == "primary-view":
+            valid = (set(command) == {"schemaVersion", "commandId", "action", "operation"}
+                     and type(command["schemaVersion"]) is int
+                     and re.fullmatch(r"ios-[0-9a-f]{32}", command["commandId"]) is not None
+                     and command.get("operation") in {"prepare", "restore"})
+        elif action in {"native-crash", "native-ui-snapshot", "native-geometry-snapshot", "native-probe-snapshot"}:
+            valid = (set(command) == {"schemaVersion", "commandId", "action"}
+                     and type(command["schemaVersion"]) is int
+                     and re.fullmatch(r"ios-[0-9a-f]{32}", command["commandId"]) is not None)
+        elif action == "text-fixture":
+            valid = (set(command) == {"schemaVersion", "commandId", "action", "operation"}
+                     and type(command["schemaVersion"]) is int
+                     and re.fullmatch(r"ios-[0-9a-f]{32}", command["commandId"]) is not None
+                     and command.get("operation") in {"focus", "snapshot", "dismiss"})
+        elif action == "entity-script-consent":
+            source = urlsplit(command.get("source") if isinstance(command.get("source"), str) else "")
+            valid = (set(command) == {"schemaVersion", "commandId", "action", "operation", "source"}
+                     and type(command["schemaVersion"]) is int
+                     and re.fullmatch(r"ios-[0-9a-f]{32}", command["commandId"]) is not None
+                     and command.get("operation") in {"review", "allow"}
+                     and self._web_url(command.get("source"))
+                     and source.path == "/scripted_interactable.js"
+                     and not source.query and not source.fragment)
+        elif action == "scene-load":
             valid = (set(command) == {"schemaVersion", "commandId", "action", "url"}
                      and self._web_url(command.get("url")))
         elif action == "navigate":
@@ -436,6 +483,14 @@ class FixtureState:
         elif action == "sound-channel":
             valid = (set(command) == {"schemaVersion", "commandId", "action", "url"}
                      and self._web_url(command.get("url")))
+        elif action == "set-safe-setting":
+            valid = (set(command) == {"schemaVersion", "commandId", "action",
+                                      "settingId", "enabled"}
+                     and command.get("settingId") == "audio.warn-when-muted"
+                     and type(command.get("enabled")) is bool)
+        elif action == "set-audio-mute":
+            valid = (set(command) == {"schemaVersion", "commandId", "action", "muted"}
+                     and type(command.get("muted")) is bool)
         elif action == "key-hold":
             valid = (set(command) == {"schemaVersion", "commandId", "action",
                                       "key", "durationMs"}
@@ -523,6 +578,7 @@ def main() -> int:
     if host in {"0.0.0.0", "::"}:
         raise ValueError("--public-host is required when binding all interfaces")
     base_url = f"http://{host}:{server.server_address[1]}"
+    server.public_origin = base_url
     asset = manifest["asset"]
     sound_path = manifest["sound"]["path"]
     ready = {"schemaVersion": 1, "baseUrl": base_url,

@@ -47,6 +47,7 @@ target_sources(Overte PRIVATE
     "${CMAKE_CURRENT_LIST_DIR}/../web/ContainedWebView.mm"
     "${CMAKE_CURRENT_LIST_DIR}/../render/WorldObservation.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/../render/InstallWorldObservation.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/../ui/IPadLandscapePolicy.mm"
 )
 set_source_files_properties(
     "${CMAKE_CURRENT_LIST_DIR}/../src/SecureAccountStore.mm"
@@ -60,6 +61,9 @@ set_source_files_properties("${CMAKE_CURRENT_LIST_DIR}/../audio/AVAudioSessionAd
     TARGET_DIRECTORY Overte
     PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
 set_source_files_properties("${CMAKE_CURRENT_LIST_DIR}/../web/ContainedWebView.mm"
+    TARGET_DIRECTORY Overte
+    PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+set_source_files_properties("${CMAKE_CURRENT_LIST_DIR}/../ui/IPadLandscapePolicy.mm"
     TARGET_DIRECTORY Overte
     PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
 target_link_libraries(Overte "-framework WebKit")

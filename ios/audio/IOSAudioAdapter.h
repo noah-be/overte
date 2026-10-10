@@ -19,6 +19,10 @@ public:
     // request must still complete (Unknown) to release the single pending slot.
     virtual void requestPermission(std::function<bool()> stillCurrent,
                                    std::function<void(audio::Permission)> completion) = 0;
+#if defined(OVERTE_E2E_VOICE_TESTS)
+    virtual audio::IOSAcousticTestState acousticTestState() const { return {}; }
+    virtual bool setAcousticTestMode(bool enabled) { return !enabled; }
+#endif
 };
 
 class IOSAudioAdapter final : public audio::IOSAudioSessionAdapter,
@@ -37,6 +41,11 @@ public:
     void refreshPermission();
     void routeChanged();
     audio::Outcome outcome() const { return _gate.outcome(); }
+#if defined(OVERTE_E2E_VOICE_TESTS)
+    audio::IOSVoiceTestState voiceTestState() const override;
+    audio::IOSAcousticTestState acousticTestState() const override;
+    bool setAcousticTestMode(bool enabled) override;
+#endif
 private:
     bool apply(bool notify = true);
     void promptIfNeeded();
@@ -46,6 +55,9 @@ private:
     std::atomic<bool> _playback { false };
     std::atomic<std::uint64_t> _outputRevision { 0 };
     std::atomic<bool> _capture { false }, _promptRequested { false };
+#if defined(OVERTE_E2E_VOICE_TESTS)
+    std::atomic<bool> _voiceTestForeground { false }, _voiceTestInterrupted { false };
+#endif
     std::atomic<bool> _permissionQueryFailed { false };
     std::atomic<audio::Permission> _permission { audio::Permission::Unknown };
     std::atomic<std::uint64_t> _revision { 0 };

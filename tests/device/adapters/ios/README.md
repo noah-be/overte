@@ -35,3 +35,7 @@ helpers, canonical Appium/loader and pinned external Shared contracts.
 Focused tests use only test candidate/OS boundaries; no device is contacted.
 Reviewed installed-code identity, physical iPad/iPhone evidence and original
 IO-001/002/003/004/010 acceptance remain pending.
+
+The separate observation-only local device lab extension is documented in
+[WIFI_LAB.md](WIFI_LAB.md). It does not replace the installed-code identity
+requirements of this canonical bound preflight.

@@ -45,6 +45,8 @@
 #include <QtConcurrent/QtConcurrent>
 #include <QtCore/QThreadPool>
 #include <QtCore/QBuffer>
+#include <QtCore/QCoreApplication>
+#include <QtCore/QEvent>
 
 #include <shared/QtHelpers.h>
 #include <ThreadHelpers.h>
@@ -1253,6 +1255,9 @@ void AudioClient::stop() {
     // Synchronize callback unregistration before QObject/device teardown.
     overte::audio::setIOSAudioStateCallback({});
 #endif
+#if defined(OVERTE_E2E_VOICE_TESTS)
+    if (_voiceTestInputEnabled) { stopVoiceTestInput("voice-source-lifecycle-stopped"); }
+#endif
     {
         Lock lock(_checkDevicesMutex);
         if (!_audioLifecycleRunning) {
@@ -1896,7 +1901,151 @@ float AudioClient::loudnessToLevel(float loudness) {
     return glm::clamp(level, 0.0f, 1.0f);
 }
 
+#if defined(OVERTE_E2E_VOICE_TESTS)
+bool AudioClient::voiceTestLifecycleAllowed() const {
+    if (!_audioLifecycleRunning || _audioPaused) { return false; }
+#if defined(Q_OS_IOS)
+    const auto native = overteIOSVoiceTestState();
+    return native.foreground && !native.interrupted && native.outcome != overte::audio::Outcome::Stopped;
+#else
+    return true;
+#endif
+}
+
+bool AudioClient::prepareVoiceTest() {
+    Q_ASSERT(QThread::currentThread() == thread());
+    if (_voiceTestInputEnabled || !voiceTestLifecycleAllowed()) { return false; }
+    if (!_voiceTestInputTimer) {
+        _voiceTestInputTimer = new QTimer(this);
+        _voiceTestInputTimer->setTimerType(Qt::PreciseTimer);
+        connect(_voiceTestInputTimer, &QTimer::timeout, this, &AudioClient::handleVoiceTestInput);
+        _voiceTestLeaseTimer = new QTimer(this);
+        _voiceTestLeaseTimer->setSingleShot(true);
+        connect(_voiceTestLeaseTimer, &QTimer::timeout, this, [this] {
+            stopVoiceTestInput("voice-source-lease-expired");
+        });
+    }
+    _voiceTestChannels = _isStereoInput ? 2 : 1;
+    _voiceTestGate = std::make_unique<AudioGate>(AudioConstants::SAMPLE_RATE, _voiceTestChannels);
+    _voiceTestSignal.enable();
+    _voiceTestSourceError.clear();
+    _voiceTestPackets = _voiceTestCallbacks = _voiceTestMicCallbacks = _voiceTestDummyCallbacks = 0;
+    _voiceTestInputEnabled = true;
+    _voiceTestElapsed.start();
+    _voiceTestInputTimer->start(10);
+    touchVoiceTest();
+    return true;
+}
+
+void AudioClient::touchVoiceTest() {
+    Q_ASSERT(QThread::currentThread() == thread());
+    if (_voiceTestInputEnabled) { _voiceTestLeaseTimer->start(120000); }
+}
+
+bool AudioClient::sendVoiceTest(const std::array<int, 12>& symbols) {
+    Q_ASSERT(QThread::currentThread() == thread());
+    if (!_voiceTestInputEnabled || !voiceTestLifecycleAllowed() || _voiceTestSignal.active()) { return false; }
+    // Each challenge owns a fresh epoch. Idle preparation and native mute
+    // transitions must not advance its leading silence or invalidate it.
+    _voiceTestPackets = 0;
+    _voiceTestElapsed.restart();
+    _voiceTestSignal.send(symbols);
+    touchVoiceTest();
+    return true;
+}
+
+void AudioClient::stopVoiceTestInput(const QString& error) {
+    Q_ASSERT(QThread::currentThread() == thread());
+    if (_voiceTestInputTimer) { _voiceTestInputTimer->stop(); _voiceTestLeaseTimer->stop(); }
+    _voiceTestInputEnabled = false;
+    _voiceTestSignal.cancel();
+    _voiceTestGate.reset();
+    _voiceTestSourceError = error;
+    // An abandoned or failed test must not resume sending physical microphone
+    // PCM before the probe restores the saved user settings.
+    if (!error.isEmpty()) { setMuted(true); }
+}
+
+void AudioClient::resetVoiceTest() {
+    stopVoiceTestInput(QString());
+    _voiceTestSignal.reset();
+}
+
+void AudioClient::handleVoiceTestInput() {
+    if (!_voiceTestInputEnabled) { return; }
+    if (!voiceTestLifecycleAllowed()) { stopVoiceTestInput("voice-source-lifecycle-stopped"); return; }
+    static_assert(AudioConstants::NETWORK_FRAME_SAMPLES_PER_CHANNEL == 240, "voice test packet duration");
+    // Qt coalesces missed timer events. Pace PCM by monotonic time, with at
+    // most 100 ms of catch-up; larger stalls fail instead of retiming the tone.
+    const quint64 due = static_cast<quint64>(_voiceTestElapsed.nsecsElapsed() / 10000000);
+    if (due - _voiceTestPackets > 10) {
+        if (_voiceTestSignal.active()) { stopVoiceTestInput("voice-source-clock-late"); return; }
+        // No challenge samples are pending while idle. Device reconfiguration
+        // can therefore rebase silence without hiding a truncated test tone.
+        _voiceTestPackets = 0;
+        _voiceTestElapsed.restart();
+        return;
+    }
+    while (_voiceTestInputEnabled && _voiceTestPackets < due) {
+        const int channels = _isStereoInput ? 2 : 1;
+        if (_voiceTestChannels != channels) {
+            _voiceTestChannels = channels;
+            _voiceTestGate = std::make_unique<AudioGate>(AudioConstants::SAMPLE_RATE, channels);
+        }
+        QByteArray pcm(AudioConstants::NETWORK_FRAME_SAMPLES_PER_CHANNEL * channels * sizeof(int16_t), 0);
+        _voiceTestDelivering = true;
+        handleAudioInput(pcm);
+        _voiceTestDelivering = false;
+        ++_voiceTestPackets;
+        ++_voiceTestCallbacks;
+    }
+}
+
+QVariantMap AudioClient::voiceTestStatus() const {
+    Q_ASSERT(QThread::currentThread() == thread());
+    QVariantMap status {
+        { "sending", _voiceTestSignal.active() }, { "frames", _voiceTestSignal.frames() },
+        { "sourceEnabled", _voiceTestInputEnabled },
+        { "sourceClockActive", _voiceTestInputTimer && _voiceTestInputTimer->isActive() },
+        { "sourceError", _voiceTestSourceError }, { "nativeMuted", _isMuted },
+        { "audioLifecycleRunning", _audioLifecycleRunning }, { "audioPaused", _audioPaused },
+        { "testCallbacks", QVariant::fromValue(_voiceTestCallbacks) },
+        { "inputCallbacks", QVariant::fromValue(_voiceTestMicCallbacks) },
+        { "dummyCallbacks", QVariant::fromValue(_voiceTestDummyCallbacks) },
+        { "inputPresent", _audioInput != nullptr && _inputDevice != nullptr },
+        { "inputState", _audioInput ? static_cast<int>(_audioInput->state()) : -1 },
+        { "inputError", _audioInput ? static_cast<int>(_audioInput->error()) : -1 },
+        { "dummyTimerActive", _dummyAudioInput && _dummyAudioInput->isActive() }
+    };
+#if defined(Q_OS_IOS)
+    const auto native = overteIOSVoiceTestState();
+    status["iosPermission"] = static_cast<int>(native.permission);
+    status["iosOutcome"] = static_cast<int>(native.outcome);
+    status["iosForeground"] = native.foreground;
+    status["iosInterrupted"] = native.interrupted;
+    status["iosCaptureAllowed"] = native.captureAllowed;
+#endif
+    return status;
+}
+#endif
+
 void AudioClient::handleAudioInput(QByteArray& audioBuffer) {
+#if defined(OVERTE_E2E_VOICE_TESTS)
+    // Test mode owns the network PCM clock. Real/dummy/recorded callbacks
+    // cannot advance the nonce or send a second stream beside it.
+    if (_voiceTestInputEnabled && !_voiceTestDelivering) { return; }
+    static_assert(AudioConstants::SAMPLE_RATE == VoiceTestSignal::RATE, "voice test PCM rate");
+    const int voiceChannels = _isStereoInput ? 2 : 1;
+    _voiceTestSignal.replace(reinterpret_cast<int16_t*>(audioBuffer.data()),
+                            audioBuffer.size() / (2 * voiceChannels), voiceChannels);
+    // Preserve the mute-transition codec flush: synthetic PCM must not leak
+    // into its final non-silent packet. The source clock still advances.
+    if (_isMuted) { audioBuffer.fill(0); }
+#endif
+    AudioGate* inputGate = _audioGate;
+#if defined(OVERTE_E2E_VOICE_TESTS)
+    if (_voiceTestDelivering) { inputGate = _voiceTestGate.get(); }
+#endif
     if (!_audioPaused) {
 
         bool audioGateOpen = false;
@@ -1908,14 +2057,14 @@ void AudioClient::handleAudioInput(QByteArray& audioBuffer) {
 
             if (_isNoiseGateEnabled && _isNoiseReductionAutomatic) {
                 // The audio gate includes DC removal
-                audioGateOpen = _audioGate->render(samples, samples, numFrames);
+                audioGateOpen = inputGate->render(samples, samples, numFrames);
             } else if (_isNoiseGateEnabled && !_isNoiseReductionAutomatic &&
                        loudnessToLevel(_lastSmoothedRawInputLoudness) >= _noiseReductionThreshold) {
-                audioGateOpen = _audioGate->removeDC(samples, samples, numFrames);
+                audioGateOpen = inputGate->removeDC(samples, samples, numFrames);
             } else if (_isNoiseGateEnabled && !_isNoiseReductionAutomatic) {
                 audioGateOpen = false;
             } else {
-                audioGateOpen = _audioGate->removeDC(samples, samples, numFrames);
+                audioGateOpen = inputGate->removeDC(samples, samples, numFrames);
             }
 
             emit inputReceived(audioBuffer);
@@ -2045,7 +2194,74 @@ void AudioClient::drainAndroidAudioInput() {
 }
 #endif
 
+#if defined(OVERTE_E2E_VOICE_TESTS)
+bool AudioClient::startAcousticCapture(int seconds) {
+    Q_ASSERT(QThread::currentThread() == thread());
+#if defined(Q_OS_IOS)
+    const auto route = overteIOSAcousticTestState();
+    const auto native = overteIOSVoiceTestState();
+    if (_voiceTestInputEnabled || _voiceTestSignal.active() || _isMuted ||
+            !voiceTestLifecycleAllowed() || !native.captureAllowed ||
+            !route.builtInMicrophone || !route.builtInSpeaker || !route.measurementMode ||
+            getLocalEcho() || getServerEcho() || !_audioInput || !_inputDevice ||
+            _audioInput->state() != QAudio::ActiveState || _audioInput->error() != QAudio::NoError ||
+            _inputFormat.sampleFormat() != QAudioFormat::Int16) { return false; }
+    if (!_acousticCapture.start(_inputFormat.sampleRate(), _inputFormat.channelCount(), seconds)) { return false; }
+    _acousticOutputRevision = overteIOSAudioOutputRevision();
+    const auto generation = ++_acousticCaptureGeneration;
+    QTimer::singleShot((seconds + 1) * 1000, this, [this, generation] {
+        if (generation == _acousticCaptureGeneration) { _acousticCapture.stop(); }
+    });
+    return true;
+#else
+    Q_UNUSED(seconds);
+    return false;
+#endif
+}
+QVariantMap AudioClient::acousticCaptureStatus() const {
+    Q_ASSERT(QThread::currentThread() == thread());
+    bool routeStable = false;
+#if defined(Q_OS_IOS)
+    const auto route = overteIOSAcousticTestState();
+    const auto native = overteIOSVoiceTestState();
+    routeStable = route.builtInMicrophone && route.builtInSpeaker && route.measurementMode &&
+        native.captureAllowed && native.foreground && !native.interrupted &&
+        voiceTestLifecycleAllowed() && !_voiceTestInputEnabled &&
+        _acousticOutputRevision == overteIOSAudioOutputRevision();
+#endif
+    return { { "captureActive", _acousticCapture.active() },
+             { "captureComplete", _acousticCapture.complete() && routeStable },
+             { "captureInvalid", _acousticCapture.invalid() || !routeStable },
+             { "captureBytes", _acousticCapture.bytes() }, { "physicalInputCallbacks", _acousticCapture.callbacks() },
+             { "captureRate", _acousticCapture.rate() }, { "captureChannels", _acousticCapture.channels() } };
+}
+QByteArray AudioClient::takeAcousticCapture() {
+    Q_ASSERT(QThread::currentThread() == thread());
+    const QByteArray wav = acousticCaptureStatus().value("captureComplete").toBool() ? _acousticCapture.wav() : QByteArray();
+    resetAcousticCapture();
+    return wav;
+}
+void AudioClient::resetAcousticCapture() {
+    Q_ASSERT(QThread::currentThread() == thread());
+    ++_acousticCaptureGeneration;
+    _acousticCapture.reset();
+}
+#endif
+
 void AudioClient::processMicAudioInput(QByteArray& inputByteArray) {
+#if defined(OVERTE_E2E_VOICE_TESTS)
+    if (_voiceTestInputEnabled) { ++_voiceTestMicCallbacks; }
+#if defined(Q_OS_IOS)
+    if (_acousticCapture.active()) {
+        if (_voiceTestInputEnabled || !overteIOSMicrophonePermissionGranted() ||
+                _acousticOutputRevision != overteIOSAudioOutputRevision()) {
+            _acousticCapture.invalidate();
+        } else {
+            _acousticCapture.append(inputByteArray, _inputFormat.sampleRate(), _inputFormat.channelCount());
+        }
+    }
+#endif
+#endif
     // input samples required to produce exactly NETWORK_FRAME_SAMPLES of output
     const int inputSamplesRequired = (_inputToNetworkResampler ?
                                       _inputToNetworkResampler->getMinInput(AudioConstants::NETWORK_FRAME_SAMPLES_PER_CHANNEL) :
@@ -2177,6 +2393,9 @@ void AudioClient::processMicAudioInput(QByteArray& inputByteArray) {
 }
 
 void AudioClient::handleDummyAudioInput() {
+#if defined(OVERTE_E2E_VOICE_TESTS)
+    if (_voiceTestInputEnabled) { ++_voiceTestDummyCallbacks; }
+#endif
     const int numNetworkBytes = _isStereoInput
         ? AudioConstants::NETWORK_FRAME_BYTES_STEREO
         : AudioConstants::NETWORK_FRAME_BYTES_PER_CHANNEL;
@@ -2436,10 +2655,13 @@ void AudioClient::setMuted(bool muted, bool emitSignal) {
     if (_isMuted != muted) {
         _isMuted = muted;
 #if defined(Q_OS_IOS)
+        // Stop the running Qt microphone before changing AVAudioSession to a
+        // playback-only category. Reversing this order can fail activation and
+        // leave the native lifecycle gate Failed until a later interruption.
+        if (muted) { refreshIOSAudioInput(); }
         overteIOSSetAudioMuted(muted);
-#endif
-#if defined(Q_OS_IOS)
-        refreshIOSAudioInput();
+        // Opening input requires the new capture session to be active first.
+        if (!muted) { refreshIOSAudioInput(); }
 #endif
         if (emitSignal) {
             emit muteToggled(_isMuted);
@@ -2560,6 +2782,11 @@ void AudioClient::outputFormatChanged() {
 #if defined(Q_OS_IOS)
 void AudioClient::refreshIOSAudioInput() {
     Q_ASSERT(QThread::currentThread() == thread());
+#if defined(OVERTE_E2E_VOICE_TESTS)
+    if (_voiceTestInputEnabled && !voiceTestLifecycleAllowed()) {
+        stopVoiceTestInput("voice-source-lifecycle-stopped");
+    }
+#endif
     {
         Lock lock(_checkDevicesMutex);
         if (!_audioLifecycleRunning) { return; }
@@ -2745,7 +2972,12 @@ bool AudioClient::switchInputToAudioDevice(const HifiAudioDeviceInfo inputDevice
                 }
 #else
                 _audioInput = new HifiAudioSource(_inputDeviceInfo.getDevice(), _inputFormat, this);
+#if !defined(Q_OS_IOS)
                 _audioInput->setBufferSize(_numInputCallbackBytes);
+#endif
+                // iOS delivers hardware blocks larger than one network callback.
+                // Keep Qt's default ring capacity so those blocks are not truncated.
+                // readyRead still drains each block immediately; capacity is not latency.
                 // different audio input devices may have different volumes
                 emit inputVolumeChanged(_audioInput->volume());
 
@@ -2957,6 +3189,14 @@ bool AudioClient::switchOutputToAudioDevice(const HifiAudioDeviceInfo outputDevi
         // must not act on the replacement device.
         disconnect(_audioOutput, nullptr, this, nullptr);
         _audioOutput->stop();
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        // Qt queues pull callbacks on the source QIODevice. Disconnecting the
+        // stopped backend does not cancel calls already posted to that source.
+        // Source and sink share our thread, so none can execute concurrently
+        // here. Remove only this dedicated source's pending calls before reuse;
+        // keep AudioClient telemetry and the backend's drain notifications.
+        QCoreApplication::removePostedEvents(&_audioOutputIODevice, QEvent::MetaCall);
+#endif
         _audioOutputIODevice.close();
 
         //must be deleted in next eventloop cycle when its called from notify()

@@ -57,9 +57,11 @@ def commands(profile: str, self_test_jobs: int | None = None) -> list[tuple[str,
         # Portable production regressions require Qt6 Core/Concurrent/Gui development
         # packages and a host C++ compiler; no device or native client build.
         for path in (
+            "audio/test_audio_device_selection.py",
             "audio/test_injector_buffer_publication.py",
             "audio/test_injector_event_delivery.py",
             "audio/test_injector_preparation_lifetime.py",
+            "audio/test_output_pull_lifetime.py",
             "audio/test_recording_safety.py",
             "audio/test_sample_sound_controls.py",
             "dependency/test_cache.py",
@@ -68,6 +70,7 @@ def commands(profile: str, self_test_jobs: int | None = None) -> list[tuple[str,
             "lifecycle/test_domain_list_history.py",
             "lifecycle/test_domain_list_receiver.py",
             "lifecycle/test_v8_wrapper_teardown.py",
+            "lifecycle/test_entity_script_unload_scope.py",
             "graphics/entity-change-thread-test.py",
             "graphics/image-decode-budget-test.py",
             "graphics/image-decode-qt-codec-test.py",
@@ -78,7 +81,11 @@ def commands(profile: str, self_test_jobs: int | None = None) -> list[tuple[str,
         patterns = [
             "test_common_contracts.py", "test_governance_and_frontier.py",
             "test_execution_plan_pipeline.py", "test_harness.py",
-            "test_matrix_evaluator.py",
+            "test_matrix_evaluator.py", "test_voice_peer.py", "test_voice_roundtrip.py", "test_acoustic_loopback.py",
+            "test_ios_extended_adapter.py", "test_ios_native_touch.py",
+            "test_ios_hid_session.py", "test_ios_native_ui.py", "test_ios_native_files.py", "test_ios_native_integration.py", "test_ios_native_primary.py", "test_ios_native_upgrade.py",
+            "test_ios_native_viewport.py", "test_ios_native_geometry.py", "test_ios_native_probe.py", "test_ios_native_permission.py", "test_ios_native_permission_visual.py", "test_ios_native_consent.py", "test_ios_native_process.py", "test_ios_native_crash.py", "test_ios_probe_observation.py",
+            "test_probe_command_channel.py", "test_collaboration_broker.py", "test_collaboration_observation.py",
         ]
         stability = ROOT / "self_tests/test_stability_campaign.py"
         if stability.is_file():

@@ -18,6 +18,9 @@ import threading
 import time
 from urllib.request import urlopen
 import uuid
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from fixture.collaboration_broker import CollaborationBroker
+from fixture.owned_processes import OwnedProcesses
 
 
 ROOT = Path(__file__).resolve().parent
@@ -86,9 +89,24 @@ def validate_domain_fixture() -> dict:
 class DomainControlHandler(BaseHTTPRequestHandler):
     token = ""
     transition = None
+    collaboration = None
+
+    def do_GET(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
+        if self.path != "/v1/collaboration-state" or self.headers.get("X-Overte-E2E-Token") != self.token:
+            self.send_error(404)
+            return
+        try:
+            payload = (json.dumps(self.collaboration.state(), sort_keys=True) + "\n").encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+        except RuntimeError:
+            self.send_error(503, "independent actor is not ready")
 
     def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
-        if self.path != "/v1/domain-state" or self.headers.get(
+        if self.path not in {"/v1/domain-state", "/v1/collaboration-edit"} or self.headers.get(
                 "X-Overte-E2E-Token") != self.token:
             self.send_error(404)
             return
@@ -97,6 +115,15 @@ class DomainControlHandler(BaseHTTPRequestHandler):
             if not 0 < length <= 256:
                 raise ValueError("invalid request length")
             command = json.loads(self.rfile.read(length))
+            if self.path == "/v1/collaboration-edit":
+                result = self.collaboration.submit(command)
+                payload = (json.dumps(result, sort_keys=True) + "\n").encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+                return
             if (not isinstance(command, dict)
                     or set(command) != {"action", "schemaVersion"}
                     or command.get("schemaVersion") != 1
@@ -122,6 +149,8 @@ class DomainResourceHandler(SimpleHTTPRequestHandler):
     script_paths: set[str] = set()
     content_ready = threading.Event()
     expected_marker_count = 0
+    peer_state_path = None
+    collaboration = None
 
     def end_headers(self) -> None:
         self.send_header("Cache-Control", "no-store")
@@ -130,6 +159,14 @@ class DomainResourceHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
         path = self.path.split("?", 1)[0]
+        if path == "/actor-command":
+            payload = (json.dumps(self.collaboration.command(), sort_keys=True) + "\n").encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+            return
         if path == "/healthz":
             payload = b'{"ready":true,"schemaVersion":1}\n'
             self.send_response(200)
@@ -144,6 +181,34 @@ class DomainResourceHandler(SimpleHTTPRequestHandler):
         super().do_GET()
 
     def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
+        if self.path == "/actor-state":
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                if not 0 < length <= 512:
+                    raise ValueError("invalid actor observation size")
+                self.collaboration.report(json.loads(self.rfile.read(length)))
+                self.send_response(204)
+                self.end_headers()
+            except (ValueError, TypeError):
+                self.send_error(400, "invalid independent actor observation")
+            return
+        if self.path == "/peer-state":
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                if not 0 < length <= 256:
+                    raise ValueError("invalid peer telemetry size")
+                payload = json.loads(self.rfile.read(length))
+                if (set(payload) != {"schemaVersion", "avatarEnabled", "displayName", "updates"}
+                        or payload["schemaVersion"] != 1 or type(payload["avatarEnabled"]) is not bool
+                        or payload["displayName"] != "OVERTE_E2E_PEER"
+                        or type(payload["updates"]) is not int or payload["updates"] < 0):
+                    raise ValueError("invalid controlled peer telemetry")
+                atomic_json(self.peer_state_path, payload)
+                self.send_response(204)
+                self.end_headers()
+            except (ValueError, TypeError):
+                self.send_error(400, "invalid controlled peer telemetry")
+            return
         if self.path != "/domain-ready":
             self.send_error(404)
             return
@@ -228,8 +293,9 @@ def wait_for_domain(process: subprocess.Popen, url: str, timeout_seconds: int) -
     deadline = time.monotonic() + timeout_seconds
     last_error = "domain HTTP endpoint was unavailable"
     while time.monotonic() < deadline:
-        if process.poll() is not None:
-            raise RuntimeError("domain-server exited before becoming ready")
+        exit_code = process.poll()
+        if exit_code is not None:
+            raise RuntimeError(f"domain-server exited before becoming ready (exit code {exit_code})")
         try:
             with urlopen(url, timeout=1) as response:
                 value = response.read(128).decode("ascii").strip()
@@ -321,6 +387,9 @@ def main() -> int:
         f"/{manifest['bootstrapScript']}", f"/{manifest['peerScript']}"}
     DomainResourceHandler.expected_marker_count = manifest["expectedEntityCount"]
     DomainResourceHandler.content_ready = threading.Event()
+    DomainResourceHandler.peer_state_path = output / "peer-state.json"
+    DomainResourceHandler.collaboration = CollaborationBroker()
+    DomainControlHandler.collaboration = DomainResourceHandler.collaboration
     handler = partial(DomainResourceHandler, directory=str(ROOT))
     resources = ThreadingHTTPServer((args.bind, args.script_port), handler)
     resource_thread = threading.Thread(target=resources.serve_forever, daemon=True)
@@ -336,6 +405,7 @@ def main() -> int:
             "enable_packet_verification": False,
             "local_port": args.domain_port,
         },
+        "paths": {"/": {"viewpoint": manifest["spawnPath"]}},
         "scripts": {"persistent_scripts": [
             {"url": script_url, "num_instances": 1, "pool": "overte-e2e-domain"},
             {"url": peer_script_url, "num_instances": 1, "pool": "overte-e2e-peer"},
@@ -355,6 +425,7 @@ def main() -> int:
         "HIFI_DOMAIN_SERVER_HTTP_PORT": str(args.http_port),
         "OVERTE_DOMAIN_SERVER_WS_PORT": str(args.domain_port),
     })
+    owned_processes = OwnedProcesses(environment)
 
     domain_log = (output / "domain-server.log").open("w", encoding="utf-8")
     assignment_log = (output / "assignment-client.log").open("w", encoding="utf-8")
@@ -363,6 +434,9 @@ def main() -> int:
     domain_process = None
     assignment_processes: list[subprocess.Popen] = []
     assignment_agent_processes: list[subprocess.Popen] = []
+    # Offline/recovery must preserve this fixture's domain identity. The server
+    # generates a new UUID on every anonymous startup unless explicitly pinned.
+    expected_domain_id = str(uuid.uuid4())
     domain_id = None
     generation = 0
     stack_state = "offline"
@@ -374,9 +448,20 @@ def main() -> int:
         nonlocal domain_id, generation, stack_state
         if stack_state == "online":
             return
+        # The broker and assignment seed start afresh on each controlled
+        # restart. Reusing persisted entities would retain the previous seed
+        # and create two identically named shared objects. Preserve the domain
+        # identity/configuration while keeping each seed's content isolated.
+        content_runtime = runtime / f"stack-{generation + 1}"
+        content_runtime.mkdir(mode=0o700)
+        for name in ("data", "cache"):
+            (content_runtime / name).mkdir(mode=0o700)
+        environment.update(XDG_DATA_HOME=str(content_runtime / "data"),
+                           XDG_CACHE_HOME=str(content_runtime / "cache"))
         DomainResourceHandler.content_ready.clear()
+        DomainResourceHandler.collaboration.reset()
         domain_process = subprocess.Popen(
-            [str(domain_server), "--user-config", str(config_path),
+            [str(domain_server), "-d", expected_domain_id, "--user-config", str(config_path),
              "--logOptions", "nocolor,process_id,milliseconds"],
             **process_options(environment, domain_log))
         observed_id = wait_for_domain(
@@ -434,6 +519,7 @@ def main() -> int:
         for process in reversed(assignment_processes):
             stop_process(process)
         stop_process(domain_process)
+        owned_processes.stop()
         assignment_agent_processes = []
         assignment_processes = []
         domain_process = None
@@ -480,6 +566,8 @@ def main() -> int:
             "peerDisplayName": manifest["peerDisplayName"],
             "controlUrl": f"http://127.0.0.1:{control.server_address[1]}/v1/domain-state",
             "controlToken": control_token,
+            "collaborationEditUrl": f"http://127.0.0.1:{control.server_address[1]}/v1/collaboration-edit",
+            "collaborationStateUrl": f"http://127.0.0.1:{control.server_address[1]}/v1/collaboration-state",
         }
         if args.ready_file:
             atomic_json(args.ready_file.resolve(), ready)

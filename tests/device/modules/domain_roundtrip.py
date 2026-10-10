@@ -13,6 +13,13 @@ def main() -> None:
     identity = process_identity()
     connected_before = session.snapshot("roundtrip-domain-before.json")
     if connected_before["domain"]["connected"] is not True:
+        # Regression-first execution may precede the separate domain-enter test.
+        # Establish its real prerequisite without weakening the roundtrip proof.
+        session.enter_controlled_domain()
+        assert_process(identity, "controlled domain roundtrip preparation")
+        assert_foreground("controlled domain roundtrip preparation")
+        connected_before = session.snapshot("roundtrip-domain-before.json")
+    if connected_before["domain"]["connected"] is not True:
         fail("domain roundtrip did not start in a connected domain")
 
     serverless = session.load_controlled_scene()

@@ -761,6 +761,10 @@ class AppiumAdapter:
                 and target.get("testBuild")
                 and target.get("probe") == {"kind": "ios-documents"}):
             values.append("sound.play")
+        if (os.environ.get("OVERTE_E2E_VOICE_TESTS") == "1"
+                and target.get("platform") == "ios" and target.get("testBuild")
+                and target.get("probe") == {"kind": "ios-documents"}):
+            values.append("voice.exchange")
         controls = target.get("controls", {})
         if target.get("scene"):
             values.append("scene.load")
@@ -1764,6 +1768,22 @@ class AppiumAdapter:
     def invoke(self, selector: str, operation: str, values: dict) -> dict:
         target = self.target(selector)
         client, session, state = self.ensure_session(selector)
+        if operation == "voice.exchange":
+            if operation not in self.advertised_capabilities(target):
+                fail("voice exchange requires the explicitly enabled iOS test-build contract")
+            from adapters.voice_transport import appium_read, exchange, fixture_command
+            arguments = validate_operation_arguments(operation, values)
+            identity = self.assert_ios_process_identity(selector, client, session, state, target)
+            def check():
+                observed = self.assert_ios_process_identity(selector, client, session, state, target)
+                if observed != identity:
+                    fail("voice test iOS process changed")
+            contract = target["testBuild"]
+            url = contract["fixtureOrigin"] + "/e2e-client-command.json"
+            remote = f"@{target['appId']}:documents/{contract['resultsDirectory']}/voice-result.json"
+            return exchange(arguments,
+                lambda payload: fixture_command(url, payload["request"]),
+                lambda: appium_read(client, session, remote), check)
         if operation == "sound.play":
             try:
                 arguments = validate_operation_arguments(operation, values)
