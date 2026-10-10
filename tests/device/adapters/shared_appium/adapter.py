@@ -549,6 +549,10 @@ class AppiumAdapter:
                 values.append("voice.exchange")
             if os.environ.get("OVERTE_ANDROID_E2E_TEXT_INPUT") == "1":
                 values += ["text.dismiss", "text.focus", "text.snapshot", "text.type"]
+        if (os.environ.get("OVERTE_E2E_VOICE_TESTS") == "1"
+                and target.get("platform") == "ios" and target.get("testBuild")
+                and target.get("probe") == {"kind": "ios-documents"}):
+            values.append("voice.exchange")
         controls = target.get("controls", {})
         if controls.get("primary") is not None:
             values.append("input.primary")
@@ -1338,18 +1342,30 @@ class AppiumAdapter:
         if operation == "text.type":
             return self.android_type_text(client, session, target, arguments)
         if operation == "voice.exchange":
-            from adapters.voice_transport import exchange
-            from adb_transport import AdbTransport
-            identity = self.android_client_identity(client, session, target)
-            device = target["process"].get("selector") or target["capabilities"].get("appium:udid")
-            adb = AdbTransport()
+            if self.platform == "android":
+                from adapters.voice_transport import exchange
+                from adb_transport import AdbTransport
+                identity = self.android_client_identity(client, session, target)
+                device = target["process"].get("selector") or target["capabilities"].get("appium:udid")
+                adb = AdbTransport()
+                def check():
+                    if self.android_client_identity(client, session, target) != identity:
+                        fail("voice test Android process changed")
+                return exchange(arguments,
+                    lambda payload: self.write_android_client_command(client, session, target, payload, identity),
+                    lambda: adb.read_debug_app_file(device, target["appId"],
+                        "files/overte-e2e/voice-result.json", attempts=1), check)
+            from adapters.voice_transport import appium_read, exchange, fixture_command
+            identity = self.process_state(selector, client, session, state, target)
             def check():
-                if self.android_client_identity(client, session, target) != identity:
-                    fail("voice test Android process changed")
-            return exchange(arguments,
-                lambda payload: self.write_android_client_command(client, session, target, payload, identity),
-                lambda: adb.read_debug_app_file(device, target["appId"],
-                    "files/overte-e2e/voice-result.json", attempts=1), check)
+                if self.query_app_state(client, session, target) != 4 or self.process_state(selector, client, session, state, target) != identity:
+                    fail("voice test application process changed or left the foreground")
+            contract = target["testBuild"]
+            url = contract["fixtureOrigin"] + "/e2e-client-command.json"
+            deliver = lambda payload: fixture_command(url, payload["request"])
+            remote = f"@{target['appId']}:documents/{contract['resultsDirectory']}/voice-result.json"
+            read = lambda: appium_read(client, session, remote)
+            return exchange(arguments, deliver, read, check)
         if operation in {"navigation.enter-domain", "asset.load", "sound.play"}:
             if self.platform != "android" or not self.controlled_android_client(target):
                 fail("Appium target has no controlled client channel for this operation")

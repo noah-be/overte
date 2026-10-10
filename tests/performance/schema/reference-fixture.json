@@ -2,8 +2,8 @@
   "contract": "overte-sh008-reference-fixture-v1",
   "qualification": "SOURCE_IDENTITY_ONLY_NOT_REPRESENTATIVE_LOAD_ACCEPTANCE",
   "files": {
-    "tests/device/fixture/scene.json": "7b5b6a19a9643ec8cb05a04ce585be49f82d64387c55706b493c1f9fef3e61c5",
-    "tests/device/fixture/fixture-manifest.json": "3b1612163266b1510e1e1bcfb3339bff2083e472747ff2f4884ee3e6098e0367",
+    "tests/device/fixture/scene.json": "1e5de5bb79bc516779da43cdc866d9879169fdf35da50a7a0012c6188ddab7e5",
+    "tests/device/fixture/fixture-manifest.json": "46dd22c6760de206cc0c0f5111ff0ef01029a4b6ebd82b9603dac4af74bcfaa6",
     "tests/device/fixture/scripted_interactable.js": "2d23eabff38539b8a86c7fad9f4091dc0fb6dc4795ff6fd50ab3b58fbf624724",
     "tests/device/fixture/asset-load-texture.png.base64": "c48433645b11a502377838ccf3470baf649298e7ab56827e3a15c8d274c8cc51",
     "tests/device/fixture/audio/overte-e2e-tone.wav": "5a769b2b68931dc84e2e8e199f07a41f9f8dc406c19890c9587fdd5776b077f6"

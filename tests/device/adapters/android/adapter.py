@@ -17,6 +17,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 from urllib.parse import urlsplit
 import uuid
+import xml.etree.ElementTree as ET
 
 
 REPOSITORY = Path(__file__).resolve().parents[4]
@@ -31,8 +32,9 @@ from adapters.common import (EMBEDDED_FIXTURE_URL, emit, fail,  # noqa: E402
                              require_fresh_snapshot)
 from adapters.native_binding import PrivateParser, attach_binding, create_adapter  # noqa: E402
 from contracts import (validate_operation_arguments,  # noqa: E402
-                       validate_tablet_ui_snapshot, validate_operation_result)
+                       validate_tablet_ui_snapshot, validate_operation_result, validate_text_snapshot)
 from adapters.android.collaboration_observation import actor_receipt, portable_observation
+from adapters.android.input_geometry import primary_grip_pose
 from openxr_input.adapter_session import (  # noqa: E402
     PicoOpenXrAdapterSession, pico_openxr_opted_in,
     validate_pico_openxr_configuration,
@@ -130,7 +132,21 @@ class AndroidAdapter:
                     and "arm64-v8a" in abis and sdk.isdigit() and int(sdk) >= 26
                     and gles.isdigit() and int(gles) >= 196610
                     and "feature:android.hardware.touchscreen" in lines[len(properties):])
+        if self.kind == "pico":
+            properties = self.adb.properties(target)
+            identity = " ".join(properties.get(name, "") for name in (
+                "ro.product.manufacturer", "ro.product.brand", "ro.product.model",
+                "ro.product.device")).lower()
+            pico = "pico" in identity or "bytedance" in identity
+            abis = properties.get("ro.product.cpu.abilist", "").split(",")
+            sdk = properties.get("ro.build.version.sdk", "")
+            gles = properties.get("ro.opengles.version", "")
+            return (pico and "arm64-v8a" in abis and sdk.isdigit() and int(sdk) >= 26
+                    and gles.isdigit() and int(gles) >= 196610)
         pico = self.is_pico(target)
+        if pico:
+            return False
+        characteristics = self.adb.prop(target, "ro.build.characteristics").lower().split(",")
         abis = self.adb.prop(target, "ro.product.cpu.abilist").split(",")
         sdk = self.adb.prop(target, "ro.build.version.sdk")
         gles = self.adb.prop(target, "ro.opengles.version")
@@ -152,8 +168,18 @@ class AndroidAdapter:
                 "asset.load", "navigation.enter-domain", "probe.snapshot",
                 "scene.load", "setting.set", "sound.play",
             ]
-        if self.kind == "phone" and os.environ.get("OVERTE_ANDROID_E2E_DEBUG") == "1" and os.environ.get("OVERTE_E2E_VOICE_TESTS") == "1":
+            if self.kind == "pico":
+                values += ["app.crash", "permission.set", "permission.snapshot", "scene.reload", "audio.mute", "render.snapshot",
+                           "text.focus", "text.type", "text.snapshot", "text.dismiss"]
+                if os.environ.get("OVERTE_PICO_ACCESSIBILITY_QUALIFIED") == "1":
+                    values.append("accessibility.snapshot")
+        if os.environ.get("OVERTE_ANDROID_E2E_DEBUG") == "1" and os.environ.get("OVERTE_E2E_VOICE_TESTS") == "1":
             values.append("voice.exchange")
+        if self.kind == "pico" and os.environ.get("OVERTE_ANDROID_E2E_COLLABORATION") == "1":
+            if os.environ.get("OVERTE_ANDROID_E2E_DEBUG") != "1":
+                fail("independent collaboration requires the debug test client")
+            self.collaboration_request("state", allow_pending=True)
+            values += ["collaboration.edit", "collaboration.snapshot"]
         if self.upgrade_configuration_available():
             values.append("app.upgrade")
         if self.kind == "phone" and os.environ.get("OVERTE_ANDROID_E2E_COLLABORATION") == "1":
@@ -166,7 +192,7 @@ class AndroidAdapter:
             # error, not a silent capability downgrade.
             validate_pico_openxr_configuration()
             values += [
-                "input.fly", "input.jump", "input.look", "input.move",
+                "input.fly", "input.jump", "input.look", "input.move", "input.primary",
                 "tablet.activate", "tablet.close", "tablet.open",
                 "tablet.snapshot",
             ]
@@ -252,7 +278,7 @@ class AndroidAdapter:
         while time.monotonic() < deadline:
             actor = self.collaboration_request("state", allow_pending=True)
             raw = self.adb.read_debug_app_file(target, package,
-                                              "files/overte-e2e/phone-collaboration-observation.json", attempts=1)
+                                              f"files/overte-e2e/{self.kind}-collaboration-observation.json", attempts=1)
             observed = self.decode_json(raw)
             if actor and observed:
                 try:
@@ -310,8 +336,9 @@ class AndroidAdapter:
         for attempt in range(attempts):
             marker = self.decode_json(self.adb.read_debug_app_file(
                 target, package, ANDROID_CONTROL_MARKER, attempts=1))
+            marker_valid = self.control_marker_matches(marker, identity)
             probe = None
-            if marker == ANDROID_CONTROL_CONTRACT:
+            if marker_valid:
                 probe = self.decode_json(self.adb.read_debug_app_file(
                     target, package, ANDROID_DEBUG_PROBE, attempts=1))
                 if probe is not None:
@@ -324,7 +351,7 @@ class AndroidAdapter:
             if after.get("running") is not True or after.get("identity") != identity:
                 return None
             control = (probe.get("control") or {}) if probe is not None else {}
-            if (marker == ANDROID_CONTROL_CONTRACT and probe is not None
+            if (marker_valid and probe is not None
                     and all(control.get(key) == value
                             for key, value in ANDROID_CONTROL_CONTRACT.items())
                     and probe.get("application", {}).get("running") is True):
@@ -332,6 +359,17 @@ class AndroidAdapter:
             if attempt + 1 < attempts:
                 time.sleep(interval)
         return None
+
+    @staticmethod
+    def control_marker_matches(marker: dict | None, identity: str) -> bool:
+        if marker == ANDROID_CONTROL_CONTRACT:
+            return True
+        if not isinstance(marker, dict) or set(marker) != set(ANDROID_CONTROL_CONTRACT) | {"processId"}:
+            return False
+        pid = identity.split(":", 1)[0]
+        return (all(marker.get(key) == value for key, value in ANDROID_CONTROL_CONTRACT.items())
+                and type(marker["processId"]) is int and re.fullmatch(r"[1-9][0-9]*", pid) is not None
+                and marker["processId"] == int(pid))
 
     def require_controlled_debug_identity(self, target: str) -> str:
         if os.environ.get("OVERTE_ANDROID_E2E_DEBUG") != "1":
@@ -562,6 +600,36 @@ class AndroidAdapter:
                     pass
         fail("Android probe snapshot is unavailable, stale, or did not advance")
 
+    def pico_text_operation(self, target: str, identity: str, action: str, values: dict) -> dict:
+        package = self.profile["package"]
+        command_id = "pico-text-" + uuid.uuid4().hex
+        requested = self.adb.epoch_milliseconds(target)
+        command = {"schemaVersion": 1, "commandId": command_id, "action": action, **values}
+        self.adb.write_debug_app_file(target, package,
+            "files/overte-e2e/text-input-command.json", json.dumps(command, ensure_ascii=False) + "\n")
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            response = self.decode_json(self.adb.read_debug_app_file(target, package,
+                "files/overte-e2e/text-input-status.json", attempts=1))
+            if response and response.get("commandId") == command_id:
+                now = self.adb.epoch_milliseconds(target)
+                if (set(response) != {"schemaVersion", "commandId", "performed", "error", "updatedEpochMs", "snapshot"}
+                        or type(response["schemaVersion"]) is not int or response["schemaVersion"] != 1
+                        or response["performed"] is not True or response["error"]
+                        or not isinstance(response["updatedEpochMs"], (int,float))
+                        or isinstance(response["updatedEpochMs"], bool)
+                        or not requested <= response["updatedEpochMs"] <= now
+                        or now-response["updatedEpochMs"] > 5000):
+                    fail("Native Pico editor rejected the command or returned stale evidence")
+                self.require_same_process(target, identity, "native text editing")
+                try:
+                    return validate_text_snapshot(response["snapshot"])
+                except ValueError as error:
+                    fail(str(error))
+            self.require_same_process(target, identity, "native text editing")
+            time.sleep(.1)
+        fail("Native Pico editor response timed out")
+
     def read_pico_tablet_snapshot(self, target: str, identity: str) -> dict:
         attempts, interval = self.probe_retry_policy()
         package = self.profile["package"]
@@ -743,7 +811,100 @@ class AndroidAdapter:
         destination.chmod(0o600)
         return {"artifact": destination.name}
 
+    def pico_appium_accessibility_source(self, target: str) -> str:
+        """Read real Android virtual nodes without waiting for an animated VR UI to idle."""
+        from adapters.shared_appium.adapter import AppiumAdapter, WebDriver
+        from openxr_input.android_transport import AndroidOpenXrTransport
+        configured = os.environ["OVERTE_PICO_APPIUM_TARGETS"]
+        if self.pico_configuration is None:
+            fail("Pico native UI reads require the isolated OpenXR target configuration")
+        previous = os.environ.get("OVERTE_APPIUM_TARGETS")
+        os.environ["OVERTE_APPIUM_TARGETS"] = configured
+        try:
+            entries = list(AppiumAdapter("android").targets.values())
+        finally:
+            if previous is None:
+                os.environ.pop("OVERTE_APPIUM_TARGETS", None)
+            else:
+                os.environ["OVERTE_APPIUM_TARGETS"] = previous
+        if len(entries) != 1:
+            fail("Pico native UI configuration must select exactly one Android target")
+        entry = entries[0]
+        caps = dict(entry["capabilities"])
+        if (entry.get("enabled") is not True or entry.get("physical") is not True
+                or entry.get("appId") != self.profile["package"]
+                or caps.get("appium:adbPort") != self.pico_configuration[0]
+                or caps.get("appium:autoLaunch") is not False
+                or caps.get("appium:noReset") is not True):
+            fail("Pico native UI configuration does not match the isolated owned application")
+        transport = AndroidOpenXrTransport(self.adb.executable, target,
+                                           server_port=self.pico_configuration[0])
+        transport.require_exclusive_target()
+        identity = self.require_controlled_debug_identity(target)
+        caps.update({"appium:dontStopAppOnReset": True, "appium:skipUnlock": True})
+        client = WebDriver(entry["serverUrl"])
+        session = None
+        try:
+            created = client.call("POST", "/session", {"capabilities": {"alwaysMatch": caps}})
+            if not isinstance(created, dict) or not isinstance(created.get("sessionId"), str):
+                fail("Pico native UI session was not created")
+            session = created["sessionId"]
+            transport.require_exclusive_target()
+            client.call("POST", f"/session/{session}/appium/settings", {"settings": {
+                "waitForIdleTimeout": 0, "enableMultiWindows": True}})
+            # The application's real Android provider refreshes asynchronously.
+            time.sleep(1.0)
+            deadline = time.monotonic() + 20.0
+            while time.monotonic() < deadline:
+                source = client.call("GET", f"/session/{session}/source")
+                if not isinstance(source, str) or len(source.encode("utf-8")) > 2 * 1024 * 1024:
+                    fail("Pico native UI source is invalid or oversized")
+                self.require_same_process(target, identity, "native accessibility readiness")
+                try:
+                    tree = ET.fromstring(source)
+                except ET.ParseError:
+                    fail("Pico native UI source is invalid XML")
+                # Android may return an empty hierarchy while a newly attached
+                # service builds its window cache. Wait for real owned semantic
+                # nodes, without using the test's expected control identifiers.
+                if any(node.get("package") == self.profile["package"]
+                       and node.get("resource-id", "").startswith(self.profile["package"] + ":id/")
+                       for node in tree.iter()):
+                    return source
+                time.sleep(0.25)
+            fail("Pico native accessibility service did not expose owned semantic nodes")
+        finally:
+            if session is not None:
+                client.call("DELETE", f"/session/{session}")
+
     def invoke(self, target: str, operation: str, values: dict) -> dict:
+        if operation == "accessibility.snapshot":
+            if self.kind != "pico" or values:
+                fail("Pico accessibility.snapshot requires no arguments")
+            identity = self.require_controlled_debug_identity(target)
+            remote = "/data/local/tmp/overte-e2e-accessibility.xml"
+            # Use the Android accessibility service's actual virtual-node tree.
+            # Never synthesize nodes from the test's expected identifiers.
+            if os.environ.get("OVERTE_PICO_APPIUM_TARGETS"):
+                source = self.pico_appium_accessibility_source(target)
+            else:
+                self.adb.shell(target, "rm", "-f", remote)
+                try:
+                    self.adb.shell(target, "uiautomator", "dump", "--compressed", remote)
+                    source = self.adb.shell(target, "cat", remote)
+                finally:
+                    self.adb.shell(target, "rm", "-f", remote, check=False)
+            try:
+                tree = ET.fromstring(source)
+            except ET.ParseError:
+                fail("Android native accessibility tree is invalid XML")
+            package = self.profile["package"]
+            if not any(node.get("package") == package for node in tree.iter()):
+                fail("Android accessibility tree does not contain the running Pico application")
+            self.require_same_process(target, identity, "accessibility.snapshot")
+            if self.adb.foreground_package(target) != package:
+                fail("Pico application left the foreground during accessibility capture")
+            return {"source": source}
         pico_probe_identity = None
         if (self.kind == "pico" and pico_openxr_opted_in()
                 and operation == "probe.snapshot"):
@@ -758,7 +919,7 @@ class AndroidAdapter:
             self.require(target)
         package = self.profile["package"]
         if operation in {"collaboration.edit", "collaboration.snapshot"}:
-            if self.kind != "phone" or os.environ.get("OVERTE_ANDROID_E2E_COLLABORATION") != "1":
+            if self.kind not in {"phone", "pico"} or os.environ.get("OVERTE_ANDROID_E2E_COLLABORATION") != "1":
                 fail("independent collaboration is not enabled")
             try:
                 values = validate_operation_arguments(operation, values)
@@ -769,6 +930,40 @@ class AndroidAdapter:
                 return self.collaboration_snapshot(target, identity)
             self.collaboration_request("edit", {"schemaVersion": 1, **values})
             self.require_same_process(target, identity, "independent entity edit request")
+            return {"performed": True}
+        if operation in {"app.crash", "permission.set", "permission.snapshot"}:
+            if self.kind != "pico" or os.environ.get("OVERTE_ANDROID_E2E_DEBUG") != "1":
+                fail("Pico recovery operations require the controlled Debug test client")
+            validate_operation_arguments(operation, values)
+            identity = self.require_controlled_debug_identity(target)
+            if operation == "app.crash":
+                state = self.adb.process_state(target, package)
+                pid = identity.split(":", 1)[0]
+                if state.get("identity") != identity or not re.fullmatch(r"[1-9][0-9]*", pid):
+                    fail("Pico crash target process changed")
+                self.adb.shell(target, "run-as", package, "kill", "-ABRT", pid)
+                self.wait_for_process_stopped(target)
+                if pico_openxr_opted_in():
+                    self.pico_input_session(target).discard_local_state()
+                return {"crashed": True}
+            from adapters.pico4.permission_observation import permission_modes, permission_snapshot
+            if operation == "permission.snapshot":
+                result = permission_snapshot(self.adb, target, package)
+                self.require_same_process(target, identity, operation)
+                return result
+            import hashlib
+            state_root = Path(os.environ["OVERTE_PICO_OPENXR_STATE_DIR"])
+            if not state_root.is_dir() or state_root.stat().st_mode & 0o077:
+                fail("Pico permission recovery requires a private laboratory state directory")
+            state_path = state_root / ("permission-" + hashlib.sha256((target + identity).encode()).hexdigest()[:24] + ".json")
+            if not state_path.exists():
+                state_path.write_text(json.dumps(permission_modes(self.adb, target, package)))
+                state_path.chmod(0o600)
+            original = json.loads(state_path.read_text())["uid"]
+            mode = "ignore" if values["state"] == "denied" else (
+                original if original in {"allow", "foreground", "default"} else "allow")
+            self.adb.shell(target, "cmd", "appops", "set", "--uid", package, "RECORD_AUDIO", mode)
+            self.require_same_process(target, identity, operation)
             return {"performed": True}
         if operation == "voice.exchange":
             if operation not in self.capabilities(target):
@@ -913,11 +1108,10 @@ class AndroidAdapter:
             return {"applied": True}
         if operation == "app.process":
             state = self.adb.process_state(target, package)
-            if self.kind == "pico" and pico_openxr_opted_in():
+            if self.kind == "pico" and pico_openxr_opted_in() and state.get("running") is True:
                 identity = state.get("identity")
-                if (state.get("running") is not True or not isinstance(identity, str)
-                        or not identity):
-                    fail("Pico E2E launcher process is not running")
+                if not isinstance(identity, str) or not identity:
+                    fail("Pico E2E launcher process identity is unavailable")
                 self.pico_input_session(target).require_process_identity(identity)
             return state
         if operation == "app.foreground":
@@ -929,7 +1123,7 @@ class AndroidAdapter:
             return {"backgrounded": True}
         if operation == "telemetry.snapshot":
             return self.adb.telemetry_snapshot(target, package)
-        if operation == "scene.load":
+        if operation in {"scene.load", "scene.reload"}:
             url = values.get("url")
             if url != EMBEDDED_FIXTURE_URL:
                 fail("Android debug scene.load accepts only the embedded fixture URL")
@@ -944,7 +1138,8 @@ class AndroidAdapter:
             })
             self.wait_for_control_command(
                 target, identity, operation, command_id)
-            return {"requested": True, "verification": "fixture-markers"}
+            return {"requested": True, "commandId": command_id,
+                    "verification": "fixture-markers"}
         if operation == "probe.snapshot":
             if os.environ.get("OVERTE_ANDROID_E2E_DEBUG") != "1":
                 fail("probe.snapshot requires an E2E-enabled debug APK")
@@ -960,6 +1155,39 @@ class AndroidAdapter:
                     or after_sequence < 0)):
                 fail("afterSampleSequence must be a non-negative integer")
             return self.read_probe_snapshot(target, package, after_sequence)
+        if operation in {"text.focus", "text.type", "text.snapshot", "text.dismiss"}:
+            if self.kind != "pico":
+                fail("Native text editing is not configured for this target")
+            try:
+                values = validate_operation_arguments(operation, values)
+            except ValueError as error:
+                fail(str(error))
+            identity = self.require_controlled_debug_identity(target)
+            result = self.pico_text_operation(target, identity, operation.split(".",1)[1], values)
+            return result if operation == "text.snapshot" else {"performed": True}
+        if operation == "render.snapshot":
+            if self.kind != "pico" or values:
+                fail("render.snapshot requires the configured Pico native renderer and no arguments")
+            from adapters.pico4.render_observation import render_snapshot
+            identity = self.require_controlled_debug_identity(target)
+            result = render_snapshot(self.adb, target, package, identity)
+            self.require_same_process(target, identity, operation)
+            return validate_operation_result(operation, result)
+        if operation == "audio.mute":
+            if self.kind != "pico":
+                fail("audio.mute is not configured for this target")
+            try:
+                values = validate_operation_arguments(operation, values)
+            except ValueError as error:
+                fail(str(error))
+            identity = self.require_controlled_debug_identity(target)
+            command_id = f"pico-audio-mute-{uuid.uuid4().hex}"
+            self.write_control_command(target, identity, operation, {
+                "schemaVersion": 1, "commandId": command_id,
+                "action": "audio-mute", "muted": values["muted"],
+            })
+            self.wait_for_control_command(target, identity, operation, command_id)
+            return {"performed": True}
         if operation == "setting.set":
             try:
                 values = validate_operation_arguments(operation, values)
@@ -983,14 +1211,23 @@ class AndroidAdapter:
             identity = self.require_pico_session_identity(target)
             return self.activate_pico_tablet_control(target, identity, values)
         if operation in {
-                "input.fly", "input.jump", "input.look", "input.move",
+                "input.fly", "input.jump", "input.look", "input.move", "input.primary",
                 "tablet.open", "tablet.close"}:
             identity = self.require_pico_session_identity(target)
             staged_values = dict(values)
-            if operation == "input.look":
+            if operation == "input.primary":
+                raw = self.adb.read_debug_app_file(target, self.profile['package'],
+                    'files/overte-e2e/input-geometry-observation.json', attempts=1)
+                try:
+                    staged_values = primary_grip_pose(json.loads(raw),
+                        int(identity.split(':', 1)[0]), self.adb.epoch_milliseconds(target))
+                except (ValueError, TypeError):
+                    fail('Pico native input geometry cannot safely aim the primary gesture')
+                self.require_same_process(target, identity, 'primary gesture geometry')
+            elif operation == "input.look":
                 # Keep the target-owned OpenXR override observable across slow
                 # physical headset sampling without expanding the common API.
-                staged_values.setdefault("durationSeconds", 20.0)
+                staged_values.setdefault("durationSeconds", 6.0)
             elif operation == "input.move":
                 staged_values.setdefault("strength", 0.4)
             elif operation == "input.fly":

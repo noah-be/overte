@@ -4,8 +4,10 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import math
 import os
+import re
 import time
 from typing import Callable
 from urllib.error import HTTPError, URLError
@@ -16,7 +18,7 @@ import uuid
 from contracts import (TABLET_CONTRACT_VERSION, load_tablet_ui_contract,
                        validate_operation_arguments, validate_operation_result,
                        validate_probe_snapshot)
-from module_support import (InfrastructureError, assert_foreground, assert_process,
+from module_support import (ARTIFACT_DIR, InfrastructureError, assert_foreground, assert_process,
                             fail, operation, process_identity, wait_for_process,
                             wait_for_process_stopped, write_json)
 
@@ -42,6 +44,67 @@ class OverteSession:
         "up": (0.0, 0.25, "x", 1.0),
     }
     INTERACTION_TARGET = "OVERTE_E2E_INTERACTABLE"
+
+    def assert_visible_movement_world(self, label: str) -> None:
+        """Bind an actual stereoscopic fixture image to a live movement step."""
+        if not self.pico_openxr:
+            return
+        if not re.fullmatch(r"[a-z][a-z0-9-]{0,63}", label):
+            raise InfrastructureError("movement image label is invalid")
+        from adapters.pico4.fixture_image import inspect_fixture_image
+        identity = process_identity()
+        assert_foreground("movement world capture")
+        native = self._invoke("render.snapshot", {})
+        if (native["hardwareAccelerated"] is not True
+                or native["surfaceVisible"] is not True or native["blackFrame"] is True):
+            fail("movement requires a healthy visible native presentation")
+        probe = self.snapshot()
+        if probe["application"]["foreground"] is not True:
+            fail("movement requires the application window to have focus")
+        previous_native = getattr(self, "_movement_world_native_sequence", 0)
+        previous_renderer = getattr(self, "_movement_world_renderer_count", 0)
+        if (native["frameSequence"] <= previous_native
+                or probe["render"]["frameCount"] <= previous_renderer):
+            fail("movement world renderer frames did not advance")
+        scene = probe["scene"]
+        if (scene.get("ready") is not True or scene.get("spawnValidated") is not True
+                or scene.get("fixtureMarkerCount") != len(self.FIXTURE_MARKERS)
+                or scene.get("fixtureMarkers") != list(self.FIXTURE_MARKERS)):
+            fail("movement requires the actual controlled fixture geometry")
+        # The probe records its start time before collecting the renderer state.
+        # A frame presented during collection is therefore legitimately newer.
+        frame_offset = probe["sampleEpochMs"] - probe["render"]["lastFrameEpochMs"]
+        if abs(frame_offset) > 2000:
+            fail("movement world renderer frame is stale")
+        capture = operation("artifact.screenshot", {})
+        source = ARTIFACT_DIR / capture["artifact"]
+        if source.parent != ARTIFACT_DIR or not source.is_file() or source.is_symlink():
+            raise InfrastructureError("movement world screenshot is unavailable")
+        content = source.read_bytes()
+        destination = ARTIFACT_DIR / (label + "-world.png")
+        destination.write_bytes(content)
+        destination.chmod(0o600)
+        image = inspect_fixture_image(content)
+        # Initially identify the complete fixture. Once moving in that same
+        # live scene, a wall may occlude the other objects; still require an
+        # authored orange or magenta object in both eyes, never just sky/floor.
+        image["visibilityRequirement"] = "complete-fixture" if previous_native == 0 else "authored-geometry"
+        visible = image["fixtureVisible"] if previous_native == 0 else image["geometryVisible"]
+        image.update({"artifact": destination.name, "screenshotSha256": hashlib.sha256(content).hexdigest(),
+                      "capturedEpochMs": int(time.time()*1000), "probeSampleSequence": probe["sampleSequence"],
+                      "rendererFrameCount": probe["render"]["frameCount"],
+                      "nativeFrameSequence": native["frameSequence"],
+                      "previousNativeFrameSequence": previous_native,
+                      "previousRendererFrameCount": previous_renderer,
+                      "applicationWindowFocused": probe["application"]["foreground"],
+                      "processIdentity": identity})
+        write_json(label + "-world-observation.json", image)
+        assert_process(identity, "movement world capture")
+        assert_foreground("movement world capture")
+        if visible is not True:
+            fail("movement world image does not show fixture geometry in both eyes")
+        self._movement_world_native_sequence = native["frameSequence"]
+        self._movement_world_renderer_count = probe["render"]["frameCount"]
 
     @staticmethod
     def _float_environment(name: str, default: float, minimum: float, maximum: float) -> float:
@@ -111,7 +174,8 @@ class OverteSession:
 
     def verify_pico_fixture(self, initial: dict) -> list[dict]:
         """Record the Pico fixture geometry and five fresh stable samples."""
-        if not self.pico_openxr:
+        if (not self.pico_openxr
+                and os.environ.get("OVERTE_E2E_REQUIRE_FIXTURE_SCREENSHOT") != "1"):
             return [initial]
         scene = initial["scene"]
         feet_position = initial["avatar"].get("feetPosition")
@@ -462,6 +526,7 @@ class OverteSession:
             fail("look direction is unsupported")
         horizontal, vertical, axis, sign = self.LOOK_INPUTS[direction]
         before = self.input_neutral_snapshot(f"look-{direction}-before.json")
+        self.assert_visible_movement_world(f"look-{direction}-before")
         command = self._invoke(
             "input.look", {"horizontal": horizontal, "vertical": vertical})
         write_json(f"look-{direction}-command.json", command)
@@ -473,6 +538,7 @@ class OverteSession:
         )
         write_json(f"look-{direction}-after.json", after)
         neutral = self.input_neutral_snapshot(f"look-{direction}-neutral.json")
+        self.assert_visible_movement_world(f"look-{direction}-after")
         return before, after, neutral
 
     def look_direction_delta(self, before: dict, after: dict, direction: str) -> float:
@@ -876,6 +942,7 @@ class OverteSession:
 
     def move(self, direction: str, duration_seconds: float = 1.5) -> tuple[dict, dict, dict]:
         before = self.input_neutral_snapshot(f"move-{direction}-before.json")
+        self.assert_visible_movement_world(f"move-{direction}-before")
         self._invoke("input.move", {
             "direction": direction,
             "durationSeconds": duration_seconds,
@@ -890,10 +957,39 @@ class OverteSession:
         neutral = self.input_neutral_snapshot(f"move-{direction}-neutral.json")
         if self.movement_projection(before, neutral, direction) < minimum:
             fail(f"avatar did not retain the required {direction} displacement")
+        self.assert_visible_movement_world(f"move-{direction}-after")
         return before, after, neutral
 
+    def vertical_ground_snapshot(self, artifact: str) -> dict:
+        snapshot = self.stable_ground_snapshot(artifact)
+        if not self.pico_openxr:
+            return snapshot
+        minimum_clearance = self._float_environment(
+            "OVERTE_E2E_MIN_VERTICAL_WALL_CLEARANCE_METERS", 1.0, 0.1, 20.0)
+
+        def free_spawn(value: dict) -> bool:
+            scene = value["scene"]
+            wall = scene["collisionWall"]
+            near_face = float(wall["center"]["z"]) + float(wall["dimensions"]["z"]) / 2
+            return (scene["spawnLocationObserved"] is True
+                    and scene["avatarAboveFloor"] is True
+                    and not value["avatar"]["inAir"] and not value["avatar"]["flying"]
+                    and float(value["avatar"]["position"]["z"]) - near_face >= minimum_clearance)
+
+        # A failed-first order can separate jump and flight from scene-reload,
+        # or place either after collision. Restore the real fixture baseline
+        # independently instead of relying on a previously run module.
+        if not free_spawn(snapshot):
+            self.reload_controlled_scene()
+            snapshot = self.assert_spawn_grounded()
+            write_json(artifact, snapshot)
+        if not free_spawn(snapshot):
+            fail("controlled scene reload did not restore free vertical locomotion space")
+        return snapshot
+
     def jump(self) -> tuple[dict, dict, dict]:
-        before = self.stable_ground_snapshot("jump-before.json")
+        before = self.vertical_ground_snapshot("jump-before.json")
+        self.assert_visible_movement_world("jump-before")
         identity = process_identity()
         before_events = before.get("verticalEvents")
         if before_events is None:
@@ -932,10 +1028,16 @@ class OverteSession:
         )
         write_json("jump-landed.json", landed)
         assert_process(identity, "jump and landing")
+        self.assert_visible_movement_world("jump-after")
         return before, airborne, landed
 
-    def fly(self, duration_seconds: float = 2.0) -> tuple[dict, dict]:
-        before = self.stable_ground_snapshot("fly-before.json")
+    def fly(self, duration_seconds: float | None = None) -> tuple[dict, dict]:
+        if duration_seconds is None:
+            # Keep the Pico's real two-press ascent below the four-meter wall
+            # so the controlled world remains in view during flight.
+            duration_seconds = 1.1 if self.pico_openxr else 2.0
+        before = self.vertical_ground_snapshot("fly-before.json")
+        self.assert_visible_movement_world("fly-before")
         identity = process_identity()
         if before["avatar"]["flyingEnabled"] is not True:
             fail("avatar flying is not enabled")
@@ -956,6 +1058,7 @@ class OverteSession:
         )
         write_json("fly-active.json", flying)
         assert_process(identity, "active flight")
+        self.assert_visible_movement_world("fly-after")
         return before, flying
 
     def set_tablet(self, opened: bool) -> dict:
@@ -993,8 +1096,15 @@ class OverteSession:
             self.set_tablet(False)
 
     def assert_collision_wall(self) -> tuple[dict, dict]:
-        self.ensure_controlled_scene()
+        initial = self.ensure_controlled_scene()
+        # A preceding movement module may time out away from the wall's
+        # validated approach point. Restore only a displaced/ungrounded spawn.
+        if (initial["scene"]["spawnLocationObserved"] is not True
+                or initial["scene"]["avatarAboveFloor"] is not True
+                or initial["avatar"]["inAir"] or initial["avatar"]["flying"]):
+            self.reload_controlled_scene()
         before = self.assert_spawn_grounded()
+        self.assert_visible_movement_world("collision-before")
         wall = before["scene"]["collisionWall"]
         center = wall["center"]
         dimensions = wall["dimensions"]
@@ -1016,6 +1126,7 @@ class OverteSession:
             fail("avatar passed through the collision wall")
         if z > near_face_z + stopping_tolerance:
             fail("avatar stopped before reaching the collision wall")
+        self.assert_visible_movement_world("collision-after")
         return before, after
 
     def reload_scene(self) -> tuple[dict, dict]:
