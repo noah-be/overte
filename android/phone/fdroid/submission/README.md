@@ -95,6 +95,16 @@ source cleanup directly in the repository and requires no F-Droid backport patch
 Do not replace the 0.1.3 tag or APK. Keep the staged recipe disabled until two
 independent clean builds match and the new signed reference has been verified.
 Earlier device results do not establish device qualification of this candidate.
+
+**Integration record (2026-10-10):** version 0.1.4 (5) was subsequently
+published from the immutable source commit
+`5915c19a9a479be257da50e37df29f0dd3b7eabf`, retained by
+[`android-phone-release-v0.1.4+5`](https://github.com/noah-be/overte/releases/tag/android-phone-release-v0.1.4%2B5).
+The maintained Phone branch incorporates later runtime work as well as this
+source-cleanup history. That newer integration tree is not the published 0.1.4
+source and has no inherited byte-identical APK qualification. Keep the template
+disabled for a newly staged source revision; a later release needs its own
+version and evidence. The original tag, APK and F-Droid recipe remain fixed.
 The 36000-second timeout is an upper limit, not evidence of performance on the
 official buildserver. No successful shared-runner/official-server test is claimed.
 
