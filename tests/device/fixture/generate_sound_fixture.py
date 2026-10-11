@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import io
 import math
 from pathlib import Path
 import struct
@@ -16,17 +17,32 @@ OUTPUT = ROOT / "audio" / "overte-e2e-tone.wav"
 SAMPLE_RATE = 8000
 CHANNELS = 1
 SAMPLE_WIDTH_BYTES = 2
-DURATION_SECONDS = 8.0
+# Real iPad snapshot transport took 10.5 seconds to collect the two independent
+# command/resource observations. Keep playback active across that evidence chain.
+DURATION_SECONDS = 16.0
 FREQUENCY_HZ = 440.0
 AMPLITUDE = 0.2
 
 
-def pcm_bytes() -> bytes:
-    frames = int(SAMPLE_RATE * DURATION_SECONDS)
+def pcm_bytes(duration_seconds: float = DURATION_SECONDS) -> bytes:
+    if (isinstance(duration_seconds, bool) or not isinstance(duration_seconds, (int, float))
+            or not 0 < duration_seconds <= 120):
+        raise ValueError("sound duration must be greater than zero and at most 120 seconds")
+    frames = int(SAMPLE_RATE * duration_seconds)
     scale = int((2 ** 15 - 1) * AMPLITUDE)
     return b"".join(struct.pack(
         "<h", round(scale * math.sin(2.0 * math.pi * FREQUENCY_HZ * index / SAMPLE_RATE))
     ) for index in range(frames))
+
+
+def wav_bytes(duration_seconds: float = DURATION_SECONDS) -> bytes:
+    content = io.BytesIO()
+    with wave.open(content, "wb") as output:
+        output.setnchannels(CHANNELS)
+        output.setsampwidth(SAMPLE_WIDTH_BYTES)
+        output.setframerate(SAMPLE_RATE)
+        output.writeframes(pcm_bytes(duration_seconds))
+    return content.getvalue()
 
 
 def write_fixture(path: Path = OUTPUT) -> str:

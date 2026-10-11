@@ -63,6 +63,10 @@ public:
         _clientTransportSuspended.store(!foreground, std::memory_order_release);
         _domainHandler.setClientDiscoveryVisibility(foreground);
     }
+    bool isClientTransportSuspended() const {
+        return _clientTransportSuspended.load(std::memory_order_acquire);
+    }
+    bool isShuttingDown() const { return _isShuttingDown; }
     NodeType_t getOwnerType() const { return _ownerType.load(); }
     void setOwnerType(NodeType_t ownerType) { _ownerType.store(ownerType); }
 

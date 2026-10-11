@@ -53,6 +53,46 @@ class FakeTransport:
 
 
 class PicoOpenXrAdapterSessionTests(unittest.TestCase):
+    def test_consumed_ack_is_not_lost_to_a_redundant_read_after_watchdog_expiry(self):
+        cases = [('input.look', {'horizontal': 0.25, 'vertical': 0.0}),
+                 ('input.move', {'direction': 'forward', 'durationSeconds': 1.5}),
+                 ('input.fly', {'durationSeconds': 3.0})]
+        for operation, arguments in cases:
+            with self.subTest(operation=operation):
+                directory = self.root/operation
+                directory.mkdir(mode=0o700)
+                transport = FakeTransport()
+                session = PicoOpenXrAdapterSession(transport, 'fixture-target', directory)
+                session.begin('42:100')
+                original = transport.read_status
+                calls = []
+                def delayed(**kwargs):
+                    status = original(**kwargs)
+                    calls.append(status)
+                    if len(calls)>1:
+                        status.update(state='error', enabled=False, detail='watchdog')
+                    return status
+                with mock.patch.object(transport, 'read_status', side_effect=delayed):
+                    result = session.stage('42:100', operation, arguments)
+                self.assertTrue(result['performed'])
+                self.assertEqual(len(calls), 1)
+
+    def test_an_accepted_but_unconsumed_ack_cannot_replace_actual_controller_consumption(self):
+        self.session.begin('42:100')
+        original = self.transport.read_status
+        calls = []
+        def unconsumed(**kwargs):
+            status = original(**kwargs)
+            status['vectorAppliedSequence'] = 0
+            calls.append(status)
+            if len(calls)>1:
+                status.update(state='error', enabled=False, detail='watchdog')
+            return status
+        with mock.patch.object(self.transport, 'read_status', side_effect=unconsumed):
+            with self.assertRaises(AdapterSessionError):
+                self.session.stage('42:100', 'input.move', {'direction':'forward','durationSeconds':1.5})
+        self.assertEqual(len(calls), 2)
+
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory(prefix="pico-openxr-session-")
         self.root = Path(self.temporary.name)
@@ -114,6 +154,42 @@ class PicoOpenXrAdapterSessionTests(unittest.TestCase):
         self.assertFalse(jumped["neutralBeforeCommand"])
         self.assertTrue(flew["neutralBeforeCommand"])
 
+    def test_completed_jump_requires_exact_native_consumption(self) -> None:
+        self.session.begin("42:100")
+        original = self.transport.read_status
+        def completed(**kwargs):
+            status = original(**kwargs)
+            if kwargs.get("expected_sequence") is not None:
+                status.update(state="neutral", enabled=False, detail="watchdog")
+            return status
+        with mock.patch.object(self.transport, "read_status", side_effect=completed):
+            result = self.session.stage("42:100", "input.jump", {})
+        self.assertEqual("neutral", result["nativeState"])
+        self.assertTrue(result["openXrRightSecondaryApplied"])
+
+    def test_completed_jump_rejects_unconsumed_wrong_expired_and_failed_status(self) -> None:
+        base = {"state": "neutral", "enabled": False, "detail": "watchdog",
+                "booleanAppliedSequence": 1, "rightSecondaryApplied": True}
+        for change in [{"booleanAppliedSequence": 0},
+                       {"booleanAppliedSequence": 2},
+                       {"rightSecondaryApplied": False},
+                       {"detail": "expired-or-clock"}, {"state": "error"}]:
+            with self.subTest(change=change):
+                status = dict(base, **change)
+                self.assertFalse(self.session._completed_jump_applied(status, 1))
+
+    def test_completed_flight_cannot_substitute_for_active_input(self) -> None:
+        self.session.begin("42:100")
+        original = self.transport.read_status
+        def completed(**kwargs):
+            status = original(**kwargs)
+            if kwargs.get("expected_sequence") is not None:
+                status.update(state="neutral", enabled=False, detail="watchdog")
+            return status
+        with mock.patch.object(self.transport, "read_status", side_effect=completed):
+            with self.assertRaisesRegex(AdapterSessionError, "rejected"):
+                self.session.stage("42:100", "input.fly", {"durationSeconds": 3.0})
+
     def test_cleanup_is_neutral_and_idempotent(self) -> None:
         self.session.begin("42:100")
         self.session.stage("42:100", "tablet.open", {})
@@ -138,6 +214,7 @@ class PicoOpenXrAdapterSessionTests(unittest.TestCase):
                 isolated_server_port()
         insecure = self.root / "insecure"
         insecure.mkdir(mode=0o755)
+        insecure.chmod(0o755)  # A restrictive caller umask must not repair this fixture.
         with mock.patch.dict(os.environ, {
                 "OVERTE_PICO_OPENXR_STATE_DIR": str(insecure)}, clear=True):
             with self.assertRaisesRegex(AdapterSessionError, "not private"):

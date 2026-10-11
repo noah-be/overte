@@ -213,6 +213,23 @@ def validate_envelope(raw: Any, profile_raw: Any) -> dict[str, Any]:
                 raise ControllerContractError("Pico common movement direction is unsupported")
             _number(arguments["durationSeconds"], "move durationSeconds", 0.1, 8.0)
             _number(arguments.get("strength", 0.8), "move strength", 0.2, 1.0)
+        elif operation == "input.primary":
+            _exact_keys(arguments, set(), {"positionMeters", "orientation"},
+                        f"commands[{index}].arguments")
+            if ('positionMeters' in arguments) != ('orientation' in arguments):
+                raise ControllerContractError('primary gesture requires a complete grip pose')
+            if 'positionMeters' in arguments:
+                position, orientation = arguments['positionMeters'], arguments['orientation']
+                if not isinstance(position, list) or len(position) != 3:
+                    raise ControllerContractError('primary position must contain three values')
+                if not isinstance(orientation, list) or len(orientation) != 4:
+                    raise ControllerContractError('primary orientation must contain four values')
+                for value in position:
+                    _number(value, 'primary position', -3, 3)
+                norm = math.sqrt(sum(_number(v, 'primary orientation', -1, 1)**2
+                                     for v in orientation))
+                if abs(norm-1) > 1e-4:
+                    raise ControllerContractError('primary orientation must be normalized')
         elif operation == "input.jump":
             _exact_keys(arguments, set(), set(),
                         f"commands[{index}].arguments")
@@ -269,6 +286,10 @@ def compile_envelope(envelope_raw: Any, profile_raw: Any) -> dict[str, Any]:
             action = profile["controls"]["buttons"][key]
             state["boolean"][action] = True
             required.add("xrGetActionStateBoolean")
+            if arguments["control"] == "trigger":
+                trigger = profile["controls"]["scalars"][f"{hand}.trigger"]
+                state["float"][trigger] = 1.0
+                required.add("xrGetActionStateFloat")
         elif operation in SCALAR_OPERATIONS:
             hand = arguments["hand"]
             duration = int(arguments.get("holdMilliseconds", 250))
@@ -329,6 +350,23 @@ def compile_envelope(envelope_raw: Any, profile_raw: Any) -> dict[str, Any]:
                          -strength if direction == "backward" else 0.0)
             state["vector2f"][action] = [runtime_x, runtime_y]
             required.add("xrGetActionStateVector2f")
+        elif operation == "input.primary":
+            duration = 800
+            action = profile["controls"]["buttons"]["right.trigger"]
+            state["pose"][profile["controls"]["poses"]["right.grip"]] = {
+                "active": True, "baseReferenceSpace": "stage",
+                "locationFlags": ["orientationTracked", "orientationValid", "positionTracked", "positionValid"],
+                "orientation": list(arguments.get("orientation",
+                    [-0.3928474792, 0.3928474792, 0.5879378012, -0.5879378012])),
+                "positionMeters": list(arguments.get("positionMeters", [0.0, 1.6, -0.35])),
+            }
+            state["float"][profile["controls"]["scalars"]["right.trigger"]] = 0.2
+            events.append({"atMs":start, "state":deepcopy(state)})
+            start += 1200
+            state["boolean"][action] = True
+            state["float"][profile["controls"]["scalars"]["right.trigger"]] = 1.0
+            required.update({"xrCreateActionSpace", "xrCreateReferenceSpace", "xrGetActionStatePose",
+                             "xrLocateSpace", "xrGetActionStateFloat", "xrGetActionStateBoolean"})
         elif operation == "input.jump":
             duration = JUMP_HOLD_MS
             action = profile["controls"]["buttons"]["right.secondary"]
@@ -360,6 +398,9 @@ def compile_envelope(envelope_raw: Any, profile_raw: Any) -> dict[str, Any]:
         elif operation == "input.move":
             input_domain = "controller-action"
             verification = "probe.avatar.position"
+        elif operation == "input.primary":
+            input_domain = "controller-action"
+            verification = "probe.interaction.pressCount"
         elif operation == "input.jump":
             input_domain = "controller-action"
             verification = "probe.avatar.inAir"

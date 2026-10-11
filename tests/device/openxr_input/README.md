@@ -34,6 +34,7 @@ They share activation, sequencing, and watchdog transport only.
 | --- | --- | --- |
 | `input.look` | additive VIEW-reference-space orientation offset | `view.orientation` changes |
 | `input.move` | bounded `XrActionStateVector2f` overlay | `avatar.position` changes |
+| `input.primary` | bounded right-grip pose followed by a right-trigger press | exactly one entity pointer event |
 | `input.jump` | bounded right-secondary boolean pulse | avatar rises and returns to the floor |
 | `input.fly` | atomic right-secondary takeoff pulse plus bounded second hold | avatar enters flight and gains altitude |
 | `tablet.open` / `tablet.close` | bounded boolean action pulse after a probe precondition | `tablet.open` reaches the requested state |

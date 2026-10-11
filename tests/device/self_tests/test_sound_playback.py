@@ -115,9 +115,9 @@ class SoundPlaybackTest(unittest.TestCase):
             sound = response.read()
             self.assertEqual("audio/wav", response.headers.get_content_type())
             self.assertEqual("no-store", response.headers["Cache-Control"])
-        self.assertEqual(128044, len(sound))
+        self.assertEqual(256044, len(sound))
         with wave.open(io.BytesIO(sound), "rb") as decoded:
-            self.assertEqual(8.0, decoded.getnframes() / decoded.getframerate())
+            self.assertEqual(16.0, decoded.getnframes() / decoded.getframerate())
             self.assertEqual(8000, decoded.getframerate())
             self.assertEqual(1, decoded.getnchannels())
             self.assertEqual(2, decoded.getsampwidth())
@@ -190,18 +190,21 @@ class SoundPlaybackTest(unittest.TestCase):
         android = ROOT / "adapters/android/adapter.py"
         appium = ROOT / "adapters/appium/adapter.py"
         shared_appium = ROOT / "adapters/shared_appium/adapter.py"
+        ios_appium = ROOT / "ios/adapters/appium_adapter.py"
         target_owned = {
             ROOT / "adapters/linux",
             ROOT / "adapters/windows",
         }
-        for path in (ROOT / "adapters").rglob("*"):
+        paths = list((ROOT / "adapters").rglob("*"))
+        paths += list((ROOT / "ios/adapters").rglob("*"))
+        for path in paths:
             if (not path.is_file() or path.suffix not in {".py", ".json"}
                     or "mock" in path.parts
-                    or path in {android, appium, shared_appium}
+                    or path in {android, appium, shared_appium, ios_appium}
                     or any(root in path.parents for root in target_owned)):
                 continue
             self.assertNotIn("sound.play", path.read_text(encoding="utf-8"), str(path))
-        for path in (android, shared_appium):
+        for path in (android, shared_appium) + ((ios_appium,) if ios_appium.is_file() else ()):
             self.assertIn("sound.play", path.read_text(encoding="utf-8"))
 
     def test_complete_sound_suite_passes_with_independent_evidence(self):
@@ -214,7 +217,7 @@ class SoundPlaybackTest(unittest.TestCase):
             module = output / "modules" / "sound-playback"
             metrics = json.loads((module / "metrics.json").read_text(encoding="utf-8"))
             self.assertEqual(2, metrics["activeFreshSamples"])
-            self.assertEqual(128044, metrics["requestedBytes"])
+            self.assertEqual(256044, metrics["requestedBytes"])
             self.assertEqual("natural", metrics["finishReason"])
             active = json.loads((module / "sound-active-samples.json")
                                 .read_text(encoding="utf-8"))

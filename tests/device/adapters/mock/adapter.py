@@ -372,6 +372,8 @@ def invoke(operation: str, arguments: dict) -> dict:
         state["crashed"] = False
         if not was_running:
             state["launchCount"] += 1
+            state["sampleSequence"] = 0
+            state["orientationHistory"] = []
             if (state["launchCount"] > 1
                     and "setting-not-persisted" in failures()):
                 state["audioWarnWhenMuted"] = True
@@ -586,7 +588,7 @@ def invoke(operation: str, arguments: dict) -> dict:
     elif operation == "text.focus":
         state["textValue"] = ""
         state["textFocused"] = True
-        state["textKeyboardVisible"] = True
+        state["textKeyboardVisible"] = "text-keyboard-missing" not in failures()
         result = {"performed": True}
     elif operation == "text.type":
         if not state["textFocused"]:

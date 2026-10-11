@@ -21,6 +21,9 @@ def main() -> None:
     if after == before:
         fail("crash recovery reused the old process identity")
     assert_foreground("crash recovery")
+    # Probe sequence numbers belong to the crashed process. Bind a new cursor
+    # only after independently verifying the replacement process identity.
+    session = OverteSession()
     recovered = session.ensure_controlled_scene()
     contract_operation("tablet.open")
     contract_operation("tablet.close")

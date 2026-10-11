@@ -36,10 +36,18 @@ is named `OVERTE_E2E_PEER` and follows a deterministic bounded path. The probe
 requires exactly one such peer and records its ephemeral session UUID,
 position, observation count, and cumulative replicated movement. The module
 requires movement, observes departure, reconnects, and requires the same peer
-session plus fresh movement. No account identity or production avatar data is
-used.
+session plus fresh movement. Focused and regression-first runs establish the
+controlled domain themselves when a preceding scene module left serverless
+mode; they do not depend on an earlier domain-entry module. No account identity
+or production avatar data is used.
 
 ## `network-fault-recovery`
+
+Focused and regression-first runs can begin in the serverless fixture. The
+module establishes and verifies the controlled domain before interrupting it
+when no domain is connected; it does not require an earlier `domain-enter`
+module. Initial, connected, disconnected and recovered observations remain
+separate evidence, with unchanged process and exact recovery requirements.
 
 `fixture/domain.py` publishes an authenticated loopback-only control endpoint
 in its private ready file. The module requests `offline`, observes
@@ -47,6 +55,12 @@ disconnection while Interface and its process remain alive, requests `online`,
 and requires fresh samples for automatic reconnection to the same domain UUID,
 host, and marker set. A `finally` recovery request restores the owned fixture.
 The random token is omitted from console output and artifacts.
+
+Each controlled stack start uses a fresh private data/cache directory while
+retaining its configuration and pinned domain UUID. The independent actor
+broker and seeded content therefore reset together; persisted shared entities
+from a previous stack cannot accumulate duplicate fixture objects. Previous
+stack data remains available for diagnosis.
 
 ## `audio-controls` and `settings-persistence`
 

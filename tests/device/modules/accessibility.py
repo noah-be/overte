@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Record the native accessibility tree and require configured stable labels."""
+"""Record the native accessibility tree and require configured stable labels.
+
+The Android phone's real framework tree traverses PhoneAccessibilityBridge
+(Java provider and native Qt frame delivery). This is hardware evidence for
+that boundary; the separate Qt contracts exercise its source tree and actions.
+"""
 
 from __future__ import annotations
 

@@ -54,7 +54,12 @@
         "id": {"type": "string"},
         "protocol": {"type": "string"},
         "serverless": {"type": "boolean"}
-      }
+      },
+      "allOf": [{
+        "if": {"properties": {"serverless": {"const": true}}, "required": ["serverless"]},
+        "then": {"properties": {"protocol": {"enum": ["file", "http", "https"]},
+                                 "connected": {"const": false}}}
+      }]
     },
     "input": {
       "type": "object",

@@ -3,6 +3,14 @@
 #include "IOSAudioAdapter.h"
 
 namespace overte::ios {
+#if defined(OVERTE_E2E_VOICE_TESTS)
+audio::IOSVoiceTestState IOSAudioAdapter::voiceTestState() const {
+    const auto permission = _permission.load();
+    const auto outcome = _gate.outcome();
+    return { permission, outcome, _voiceTestForeground.load(), _voiceTestInterrupted.load(),
+             _capture && permission == audio::Permission::Granted && outcome == audio::Outcome::Capturing };
+}
+#endif
 bool IOSAudioAdapter::apply(bool notify) {
     const auto revision = ++_revision;
     std::lock_guard<std::recursive_mutex> operationLock(_applyMutex);
@@ -138,6 +146,9 @@ bool IOSAudioAdapter::activate() {
     _gate.requestStart();
     const bool allowed = _gate.mayActivate();
     const bool success = apply();
+#if defined(OVERTE_E2E_VOICE_TESTS)
+    if (success && allowed) { _voiceTestInterrupted = false; }
+#endif
     if (success && allowed) { promptIfNeeded(); }
     return success && allowed;
 }
@@ -166,6 +177,9 @@ void IOSAudioAdapter::routeChanged() {
     }
 }
 void IOSAudioAdapter::foreground(bool active) {
+#if defined(OVERTE_E2E_VOICE_TESTS)
+    _voiceTestForeground = active;
+#endif
     if (!active) { invalidatePermissionRequest(); }
     _capture = false;
     _gate.foreground(active);
@@ -174,6 +188,9 @@ void IOSAudioAdapter::foreground(bool active) {
     if (active) { promptIfNeeded(); }
 }
 void IOSAudioAdapter::interruption(bool began, bool shouldResume) {
+#if defined(OVERTE_E2E_VOICE_TESTS)
+    _voiceTestInterrupted = began || !shouldResume;
+#endif
     if (began || !shouldResume) { invalidatePermissionRequest(); }
     _capture = false;
     _gate.interruption(began);

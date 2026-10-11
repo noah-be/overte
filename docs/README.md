@@ -4,6 +4,10 @@ This is the entry point for work on the experimental fork. The
 [repository roadmap](ROADMAP.md) owns product priority; this guide explains how
 to find the code and verify a focused change.
 
+The [documentation portal](portal/index.md) provides a searchable Sphinx site,
+starting with automated tests and the local Jenkins laboratory. See
+[building and maintaining the portal](portal/maintaining.md) for a local preview.
+
 ## Choose the right checkout
 
 Use [source ownership](SOURCE_LAYOUT.md) to select the branch that owns your

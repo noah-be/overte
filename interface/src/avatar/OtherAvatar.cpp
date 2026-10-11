@@ -269,6 +269,8 @@ void OtherAvatar::setCollisionWithOtherAvatarsFlags() {
 }
 
 void OtherAvatar::interpolateJoints() {
+    // Network parsing can replace or resize the pose while the avatar renders.
+    QWriteLocker writeLock(&_jointDataLock);
     auto now = usecTimestampNow();
 
     // there's no history to interpolate from,
@@ -342,6 +344,7 @@ finishRigSetup:
     glm::mat4 rootTransform = glm::scale(_skeletonModel->getScale()) * glm::translate(_skeletonModel->getOffset());
     _skeletonModel->getRig().copyJointsFromJointData(_jointData);
     _skeletonModel->getRig().computeExternalPoses(rootTransform);
+    writeLock.unlock();
     locationChanged(); // joints changed, so if there are any children, update them.
     relayJointDataToChildren();
 }
@@ -373,38 +376,40 @@ void OtherAvatar::simulate(float deltaTime, bool inView) {
         PROFILE_RANGE(simulation, "updateJoints");
         if (inView) {
             Head* head = getHead();
-            if (_hasNewJointData) {
-                quint64 currentTime = usecTimestampNow();
+            {
+                QWriteLocker writeLock(&_jointDataLock);
+                if (_hasNewJointData) {
+                    quint64 currentTime = usecTimestampNow();
 
-                QReadLocker readLock(&_jointDataLock);
-                Q_ASSERT(_hasNewJointDataVec.size() == static_cast<size_t>(_jointData.size()));
-                // Reset joint history if joint count changed.
-                if (_jointHistory.size() != static_cast<size_t>(_jointData.size())) {
-                    _jointHistory.clear();
-                    _jointHistory.resize(_jointData.size());
-                    for (size_t i = 0; i < _jointHistory.size(); i++) {
-                        _jointHistory[i].push_back({currentTime, _jointData[i]});
+                    Q_ASSERT(_hasNewJointDataVec.size() == static_cast<size_t>(_jointData.size()));
+                    // Reset joint history if joint count changed.
+                    if (_jointHistory.size() != static_cast<size_t>(_jointData.size())) {
+                        _jointHistory.clear();
+                        _jointHistory.resize(_jointData.size());
+                        for (size_t i = 0; i < _jointHistory.size(); i++) {
+                            _jointHistory[i].push_back({currentTime, _jointData[i]});
+                        }
+                        qDebug() << "clearing joint history";
                     }
-                    qDebug() << "clearing joint history";
-                }
 
-                for (size_t i = 0; i < _hasNewJointDataVec.size(); i++) {
-                    if (_hasNewJointDataVec[i]) {
-                        _hasNewJointDataVec[i] = false;
-                        _jointHistory[i].push_back({currentTime, _jointData[i]});
-                        // Cleanup old data and shorten the vector.
-                        if (_jointHistory[i].size() > OTHER_AVATAR_JOINT_HISTORY_SIZE) {
-                            for (size_t historyIndex = 0; historyIndex < OTHER_AVATAR_JOINT_HISTORY_LOOK_BACK; historyIndex++) {
-                                _jointHistory[i][historyIndex] = _jointHistory[i][static_cast<qsizetype>(historyIndex + _jointHistory[i].size() - OTHER_AVATAR_JOINT_HISTORY_LOOK_BACK)];
+                    for (size_t i = 0; i < _hasNewJointDataVec.size(); i++) {
+                        if (_hasNewJointDataVec[i]) {
+                            _hasNewJointDataVec[i] = false;
+                            _jointHistory[i].push_back({currentTime, _jointData[i]});
+                            // Cleanup old data and shorten the vector.
+                            if (_jointHistory[i].size() > OTHER_AVATAR_JOINT_HISTORY_SIZE) {
+                                for (size_t historyIndex = 0; historyIndex < OTHER_AVATAR_JOINT_HISTORY_LOOK_BACK; historyIndex++) {
+                                    _jointHistory[i][historyIndex] = _jointHistory[i][static_cast<qsizetype>(historyIndex + _jointHistory[i].size() - OTHER_AVATAR_JOINT_HISTORY_LOOK_BACK)];
+                                }
+                                _jointHistory[i].resize(OTHER_AVATAR_JOINT_HISTORY_LOOK_BACK);
                             }
-                            _jointHistory[i].resize(OTHER_AVATAR_JOINT_HISTORY_LOOK_BACK);
                         }
                     }
-                }
 
-                _jointDataSimulationRate.increment();
-                _hasNewJointData = false;
-                appliedNewJointData = true;
+                    _jointDataSimulationRate.increment();
+                    _hasNewJointData = false;
+                    appliedNewJointData = true;
+                }
             }
 
             glm::vec3 headPosition = getWorldPosition();

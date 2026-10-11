@@ -12,6 +12,7 @@ import sys
 import tempfile
 import time
 import unittest
+import uuid
 from urllib.request import Request, urlopen
 
 
@@ -19,11 +20,12 @@ ROOT = Path(__file__).resolve().parents[1]
 CONTROLLER = ROOT / "fixture" / "domain.py"
 
 FAKE_DOMAIN = r'''#!/usr/bin/env python3
-import http.server, os, signal
+import http.server, os, signal, sys, uuid
+identity = sys.argv[sys.argv.index("-d") + 1] if "-d" in sys.argv else str(uuid.uuid4())
 class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/id":
-            payload = b"11111111-2222-4333-8444-555555555555\n"
+            payload = (identity + "\n").encode()
             self.send_response(200); self.send_header("Content-Length", str(len(payload)))
             self.end_headers(); self.wfile.write(payload)
         else:
@@ -44,6 +46,12 @@ def stop(*_):
     stopping = True
 signal.signal(signal.SIGTERM, stop)
 if "--pool" in sys.argv and sys.argv[sys.argv.index("--pool") + 1] == "overte-e2e-domain":
+    # Model the real entity server's persisted content across an outage. A
+    # fresh assignment always seeds one shared object, so reused storage would
+    # accumulate a second one and invalidate independent synchronization.
+    persistence = pathlib.Path(os.environ["XDG_DATA_HOME"]) / "shared-entities.json"
+    previous = json.loads(persistence.read_text()) if persistence.exists() else []
+    persistence.write_text(json.dumps(previous + [{"name":"OVERTE_E2E_SHARED_COLOR"}]))
     config = pathlib.Path(os.environ["XDG_CONFIG_HOME"]).parents[1] / "domain-config.json"
     value = json.loads(config.read_text())
     script = value["scripts"]["persistent_scripts"][0]["url"]
@@ -76,6 +84,28 @@ class DomainFixtureTest(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stdout)
         self.assertIn("assignment-owned markers", result.stdout)
 
+    def test_domain_spawn_uses_feet_on_the_known_floor_surface(self):
+        manifest = json.loads((ROOT / "fixture/domain-manifest.json").read_text())
+        self.assertEqual(0.0, manifest["spawnPosition"]["y"])
+        self.assertEqual("/0.0,0.0,4.0/0,0,0,1", manifest["spawnPath"])
+        # Use the actual validator against negative fixture manifests.
+        import importlib.util
+        from unittest.mock import patch
+        spec = importlib.util.spec_from_file_location("fixture_domain_test", CONTROLLER)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        for y in (-0.1, 2.0):
+            invalid = json.loads(json.dumps(manifest))
+            invalid["spawnPosition"]["y"] = y
+            invalid["spawnPath"] = f"/0.0,{y},4.0/0,0,0,1"
+            original = Path.read_text
+            def read(path, *args, **kwargs):
+                if path.name == "domain-manifest.json": return json.dumps(invalid)
+                return original(path, *args, **kwargs)
+            with self.subTest(y=y), patch.object(Path, "read_text", read):
+                with self.assertRaisesRegex(ValueError, "known floor surface"):
+                    module.validate_domain_fixture()
+
     @unittest.skipIf(os.name == "nt", "executable-script fixture is POSIX-specific")
     def test_controller_owns_stack_and_publishes_exact_ready_contract(self):
         with tempfile.TemporaryDirectory(prefix="overte-domain-controller-test-") as temporary:
@@ -107,8 +137,7 @@ class DomainFixtureTest(unittest.TestCase):
                     stdout, _ = process.communicate(timeout=2)
                     self.fail("domain fixture did not become ready:\n" + stdout)
                 metadata = json.loads(ready.read_text(encoding="utf-8"))
-                self.assertEqual("11111111-2222-4333-8444-555555555555",
-                                 metadata["domainId"])
+                self.assertEqual(metadata["domainId"], str(uuid.UUID(metadata["domainId"])))
                 self.assertTrue(metadata["domainUrl"].startswith("hifi://127.0.0.1:"))
                 self.assertEqual(4, metadata["expectedEntityCount"])
                 self.assertEqual("OVERTE_E2E_PEER", metadata["peerDisplayName"])
@@ -132,11 +161,20 @@ class DomainFixtureTest(unittest.TestCase):
                     self.assertEqual(action, transition["state"])
                     self.assertGreaterEqual(transition["generation"], 2)
                 self.assertIsNone(process.poll())
+                seeds = list((output / "runtime").rglob("shared-entities.json"))
+                self.assertEqual(2, len(seeds), "both real controlled starts must retain their own seed")
+                self.assertEqual(2, len({p.parent for p in seeds}), "recovery must use fresh content storage")
+                for seed in seeds:
+                    self.assertEqual([{"name": "OVERTE_E2E_SHARED_COLOR"}],
+                                     json.loads(seed.read_text()),
+                                     "recovery must not duplicate persisted shared entities")
             finally:
                 process.terminate()
                 stdout, _ = process.communicate(timeout=10)
             self.assertEqual(0, process.returncode, stdout)
             self.assertTrue((output / "domain-config.json").is_file())
+            saved_config = json.loads((output / "domain-config.json").read_text())
+            self.assertEqual("/0.0,0.0,4.0/0,0,0,1", saved_config["paths"]["/"]["viewpoint"])
             self.assertTrue((output / "domain-server.log").is_file())
             self.assertTrue((output / "assignment-client.log").is_file())
             self.assertTrue((output / "assignment-agent.log").is_file())

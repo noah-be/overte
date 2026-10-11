@@ -1572,7 +1572,9 @@ void Application::setupSignalsAndOperators() {
         // setup a timer for domain-server check ins
         QTimer* domainCheckInTimer = new QTimer(this);
         connect(domainCheckInTimer, &QTimer::timeout, [this, nodeList] {
-            if (!isServerlessMode()) {
+            // A local error world is presentation for the selected network
+            // domain. Its entity tree must not suppress real reconnection.
+            if (!nodeList->getDomainHandler().isServerless()) {
                 nodeList->sendDomainServerCheckIn();
             }
         });

@@ -63,7 +63,7 @@ def wait_ready(path: Path, process: subprocess.Popen, timeout: float = 60.0) -> 
     raise RuntimeError("fixture orchestrator readiness timed out")
 
 
-def stop_process(process: subprocess.Popen | None) -> None:
+def stop_process(process: subprocess.Popen | None, grace_seconds: int = 15) -> None:
     if process is None or process.poll() is not None:
         return
     if os.name == "nt":
@@ -74,7 +74,7 @@ def stop_process(process: subprocess.Popen | None) -> None:
     else:
         process.terminate()
     try:
-        process.wait(timeout=15)
+        process.wait(timeout=grace_seconds)
     except subprocess.TimeoutExpired:
         if os.name != "nt":
             try:
@@ -95,6 +95,8 @@ def start_fixture(args: argparse.Namespace, mode: str,
         "--output-dir", str(fixture_output), "--ready-file", str(ready_path),
         "--bind", args.fixture_bind, "--fixture-port", str(args.fixture_port),
     ]
+    if getattr(args, "voice_peer_requested", False):
+        command += ["--voice-peer-config", os.environ["OVERTE_E2E_VOICE_PEER_CONFIG"]]
     if args.public_host:
         command += ["--public-host", args.public_host]
     if mode == "scene":
@@ -123,13 +125,13 @@ def start_fixture(args: argparse.Namespace, mode: str,
     finally:
         log.close()
     try:
-        ready = wait_ready(ready_path, process)
+        ready = wait_ready(ready_path, process, timeout=150 if getattr(args, "voice_peer_requested", False) else 60)
         expected_domain = mode == "domain"
         if ready["sceneReady"] is not True or ready["domainReady"] is not expected_domain:
             raise RuntimeError("fixture readiness does not match the execution plan")
         return process, load_environment(Path(ready["environmentFile"]))
     except Exception:
-        stop_process(process)
+        stop_process(process, grace_seconds=90 if getattr(args, "voice_peer_requested", False) else 15)
         raise
 
 
@@ -236,6 +238,7 @@ def main() -> int:
     policy = load_policy(args.policy.resolve(), catalog)
     profiles = load_profiles(args.profiles.resolve(), catalog)
     suites = select_suites(policy, profiles, args.platform, args.suite, args.minimum_state)
+    args.voice_peer_requested = "voice-roundtrip" in suites
     environment = os.environ.copy()
     if args.upgrade_from_version:
         environment["OVERTE_E2E_UPGRADE_FROM_VERSION"] = args.upgrade_from_version
@@ -390,7 +393,7 @@ def main() -> int:
                          "result": "pipeline-driver.json"})
     finally:
         sequence = event(timeline, sequence, "fixtures", "stopping")
-        stop_process(fixture_process)
+        stop_process(fixture_process, grace_seconds=90 if args.voice_peer_requested else 15)
         event(timeline, sequence, "pipeline", "interrupted" if interrupted else
               "passed" if final_code == 0 else "failed")
         for handled_signal, previous in previous_handlers.items():

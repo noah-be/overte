@@ -13,7 +13,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from adapters import native_binding
-from adapters.appium import adapter
+from ios.adapters import appium_adapter as adapter
 
 FIXTURE = '''
 def configure_parser(parser): parser.add_argument("--native-proof", required=True)

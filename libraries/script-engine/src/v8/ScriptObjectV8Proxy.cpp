@@ -13,6 +13,7 @@
 //
 
 #include "ScriptObjectV8Proxy.h"
+#include "QmlPropertyThreadGate.h"
 #include <v8-template.h>
 
 #include <QElapsedTimer>
@@ -677,7 +678,7 @@ V8ScriptValue ScriptObjectV8Proxy::property(const V8ScriptValue& object, const V
             ScriptPropertyContextV8Wrapper ourContext(scriptThis, _engine->currentContext());
             ScriptContextGuard guard(&ourContext);
 
-            QVariant varValue = prop.read(qobject);
+            QVariant varValue = overte::readQmlProperty(qobject, prop);
             return _engine->castVariantToValue(varValue);
         }
         case METHOD_TYPE: {
@@ -758,7 +759,7 @@ void ScriptObjectV8Proxy::setProperty(V8ScriptValue& object, const V8ScriptStrin
         isolate->ThrowError(v8::String::NewFromUtf8(isolate, QString("Cannot convert %1 to %2").arg(valTypeName, propTypeName).toStdString().c_str()).ToLocalChecked());
         return;
     }
-    prop.write(qobject, varValue);
+    overte::writeQmlProperty(qobject, prop, varValue);
 }
 
 ScriptVariantV8Proxy::ScriptVariantV8Proxy(ScriptEngineV8* engine, const QVariant& variant, V8ScriptValue scriptProto, ScriptObjectV8Proxy* proto) :

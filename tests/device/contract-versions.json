@@ -10,7 +10,8 @@
     "probe-snapshot": {"current": 2, "reads": [2]},
     "run-manifest": {"current": 1, "reads": [1]},
     "run-summary": {"current": 1, "reads": [1]},
-    "timeline": {"current": 1, "reads": [1]}
+    "timeline": {"current": 1, "reads": [1]},
+    "voice-test": {"current": 1, "reads": [1]}
   },
   "migrationRules": {
     "breakingChange": "increment current and retain an explicit reader or migration for every still-supported producer",
