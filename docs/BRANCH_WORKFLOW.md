@@ -254,6 +254,10 @@ The trusted iOS host gate installs the existing pinned host requirements in
 a separate test environment before executing native regressions, including
 independent permission-switch image checks. Product dependency caches and
 physical-device qualification remain separate.
+The fixed native qualification deployment, integrated build entry point, and
+native host-test runner are also attested iOS repairs. Each requires complete
+fallback; the deployed qualification workflow must still match the trusted
+canonical template and pass the independent exact-candidate IPA gate.
 
 When all bindings match, a separate read-only validation workflow runs only the
 edge-specific hardware-free differential profile. The redundant Android and
