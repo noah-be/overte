@@ -30,5 +30,9 @@ class ApplicationConsent(unittest.TestCase):
             flags=shlex.split(subprocess.check_output(['pkg-config','--cflags','--libs','Qt6Quick','Qt6Widgets'],text=True))
             subprocess.run(['c++','-DANDROID_APP_PICO_INTERFACE','-std=c++17','-fPIC','-pthread','-I',str(ROOT/'libraries/script-engine/src'),'-I',str(ROOT/'interface/src/scripting'),str(cpp),'-o',str(d/'test'),*flags],check=True,timeout=30)
             env=dict(os.environ,QT_QPA_PLATFORM='offscreen',QT_QUICK_BACKEND='software')
-            subprocess.run(['unshare','--user','--map-root-user','--net',str(d/'test'),'--testScript','controlled-test.js'],env=env,check=True,timeout=10)
+            runner=os.environ.get('OVERTE_HOST_TEST_NETWORK_RUNNER')
+            isolation=[runner] if runner else ['unshare','--user','--map-root-user','--net']
+            # The hosted launcher drops sudo privileges; pass Qt's headless
+            # settings inside the namespace because sudo resets the environment.
+            subprocess.run([*isolation,'env','QT_QPA_PLATFORM=offscreen','QT_QUICK_BACKEND=software',str(d/'test'),'--testScript','controlled-test.js'],env=env,check=True,timeout=10)
 if __name__=='__main__':unittest.main()
