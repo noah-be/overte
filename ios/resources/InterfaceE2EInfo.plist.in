@@ -31,10 +31,15 @@
     <key>NSMicrophoneUsageDescription</key>
     <string>Overte uses the microphone for spatial voice communication after you grant permission.</string>
     <key>OverteE2ETestBuildContractVersion</key><integer>1</integer>
+    <key>OverteE2ENativeUiObservationVersion</key><integer>1</integer>
+    <key>OverteE2ENativeIntegrationVersion</key><integer>2</integer>
+    <key>OverteE2EEntityScriptConsentVersion</key><integer>1</integer>
+    <key>OverteE2ENativeCrashVersion</key><integer>1</integer>
+    <key>OverteE2ENativeWorldTapVersion</key><integer>1</integer>
     <key>UIFileSharingEnabled</key><true/>
     <key>UILaunchScreen</key>
     <dict><key>UIColorName</key><string>AccentColor</string></dict>
-    <key>UIRequiresFullScreen</key><false/>
+    <key>UIRequiresFullScreen</key><true/>
     <key>UIRequiredDeviceCapabilities</key><array><string>arm64</string></array>
     <key>UISupportedInterfaceOrientations</key>
     <array>
@@ -44,8 +49,6 @@
     </array>
     <key>UISupportedInterfaceOrientations~ipad</key>
     <array>
-        <string>UIInterfaceOrientationPortrait</string>
-        <string>UIInterfaceOrientationPortraitUpsideDown</string>
         <string>UIInterfaceOrientationLandscapeLeft</string>
         <string>UIInterfaceOrientationLandscapeRight</string>
     </array>

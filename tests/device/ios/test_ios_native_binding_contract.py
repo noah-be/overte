@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from adapters import native_binding
 from ios.adapters import appium_adapter as adapter
+from adapters.appium import adapter as compatibility
 
 FIXTURE = '''
 def configure_parser(parser): parser.add_argument("--native-proof", required=True)
@@ -41,13 +42,17 @@ class IOSNativeBinding(unittest.TestCase):
         patch.start(); self.addCleanup(patch.stop)
 
     def call(self, action, extra=()):
-        output = io.StringIO()
-        with contextlib.redirect_stdout(output):
-            result = adapter.main(["--platform", "ios", "--native-binding", "--native-proof", "test-only",
-                                   action, "--target", "private-test-target", *extra])
-        self.assertEqual(result, 0)
-        self.assertNotIn("private-test-target", output.getvalue())
-        return json.loads(output.getvalue())
+        responses = []
+        for entrypoint in (adapter, compatibility):
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                result = entrypoint.main(["--platform", "ios", "--native-binding", "--native-proof", "test-only",
+                                          action, "--target", "private-test-target", *extra])
+            self.assertEqual(result, 0)
+            self.assertNotIn("private-test-target", output.getvalue())
+            responses.append(json.loads(output.getvalue()))
+        self.assertEqual(responses[0], responses[1])
+        return responses[0]
 
     def test_actual_dispatch_and_prefix_candidate_arguments(self):
         self.assertEqual(self.call("discover"), [])
@@ -65,6 +70,8 @@ class IOSNativeBinding(unittest.TestCase):
     def test_incompatible_platform_and_shared_argument_mutation(self):
         with self.assertRaisesRegex(ValueError, "PRODUCT_REJECTED"):
             adapter.cli(["--platform", "android", "--native-binding", "describe"])
+        with self.assertRaisesRegex(ValueError, "PRODUCT_REJECTED"):
+            compatibility.main(["--platform", "android", "--native-binding", "describe"])
         self.path.write_text(FIXTURE.replace('"--native-proof", required=True', '"--native-proof", dest="platform", required=True'))
         with self.assertRaisesRegex(ValueError, "SHARED_ARGUMENT_MUTATION"):
             self.call("describe")

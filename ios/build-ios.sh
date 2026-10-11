@@ -454,6 +454,7 @@ configure_project() {
         "-DOVERTE_IOS_ENABLE_SIGNING=$signing"
         "-DOVERTE_IOS_BOOTSTRAP_ONLY=$bootstrap_only"
         "-DOVERTE_IOS_E2E_TEST_BUILD=$([[ $e2e_test_build -eq 1 ]] && echo ON || echo OFF)"
+        "-DOVERTE_E2E_VOICE_TESTS=$([[ $e2e_test_build -eq 1 ]] && echo ON || echo OFF)"
         "-DOVERTE_IOS_WORLD_OBSERVATION_BUILD=$([[ $world_observations -eq 1 ]] && echo ON || echo OFF)"
     )
     if [[ -n "$compiler_launcher" ]]; then

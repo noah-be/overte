@@ -891,6 +891,11 @@ void Application::beforeEnterBackground() {
 #endif
     auto nodeList = DependencyManager::get<NodeList>();
     nodeList->setSendDomainServerCheckInEnabled(false);
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+    // Local worlds have no domain server to repopulate a cleared entity tree.
+    // Keep their scene/session while rendering and audio pause below.
+    if (isServerlessMode()) { return; }
+#endif
     nodeList->reset("Entering background", true);
     clearDomainOctreeDetails();
 }
@@ -917,7 +922,11 @@ void Application::enterForeground() {
     }
 #endif
     auto nodeList = DependencyManager::get<NodeList>();
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+    nodeList->setSendDomainServerCheckInEnabled(!isServerlessMode());
+#else
     nodeList->setSendDomainServerCheckInEnabled(true);
+#endif
 }
 
 #if defined(Q_OS_ANDROID)

@@ -779,6 +779,15 @@ void Application::initialize(const QCommandLineParser &parser) {
         auto deadlockWatchdogThread = new DeadlockWatchdogThread();
         deadlockWatchdogThread->setMainThreadID(QThread::currentThreadId());
         connect(deadlockWatchdogThread, &QThread::started, [] { setThreadName("DeadlockWatchdogThread"); });
+#if defined(Q_OS_IOS)
+        // Install before starting the watchdog, rather than waiting for the
+        // later UI initialization. Inactive includes Control Center and lock.
+        connect(this, &QGuiApplication::applicationStateChanged, this,
+                [](Qt::ApplicationState state) {
+                    DeadlockWatchdogThread::setApplicationActive(state == Qt::ApplicationActive);
+                }, Qt::DirectConnection);
+        DeadlockWatchdogThread::setApplicationActive(applicationState() == Qt::ApplicationActive);
+#endif
         deadlockWatchdogThread->start();
 
         // Pause the deadlock watchdog when we sleep, or it might

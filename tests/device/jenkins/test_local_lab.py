@@ -33,6 +33,7 @@ class LocalLabBootstrapTest(unittest.TestCase):
 
             weak = temporary / "weak"
             weak.mkdir(mode=0o755)
+            weak.chmod(0o755)  # Test an actually weak mode under any caller umask.
             with self.assertRaisesRegex(RuntimeError, "group or other"):
                 LAB.secure_directory(weak)
 

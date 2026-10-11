@@ -1637,6 +1637,11 @@ void Application::resumeAfterLoginDialogActionTaken() {
 #endif
     _startUpFinished = true;
     getRefreshRateManager().setRefreshRateRegime(RefreshRateManager::RefreshRateRegime::FOCUS_ACTIVE);
+#if defined(Q_OS_IOS)
+    // A background transition during startup could not stop uninitialized
+    // resources. Apply the current state once those resources are ready.
+    activeChanged(applicationState());
+#endif
 }
 
 QSharedPointer<OffscreenUi> Application::getOffscreenUI() {

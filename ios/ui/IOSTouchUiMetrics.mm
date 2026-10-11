@@ -3,6 +3,7 @@
 
 #include "../../interface/src/IOSTouchUiMetrics.h"
 #include "KeyboardGeometry.h"
+#include "IPadLandscapePolicy.h"
 
 #import <UIKit/UIKit.h>
 
@@ -11,6 +12,7 @@
 #include <cstring>
 
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QAccessible>
 #include <QJSEngine>
 #include <QMetaObject>
@@ -492,6 +494,8 @@ void IOSTouchUiMetrics::refresh(void* keyboardNotification) {
         return;
     }
 
+    applyIPadLandscapePolicy(window);
+
     UIEdgeInsets insets = window.safeAreaInsets;
     CGRect bounds = window.bounds;
     qreal imeInset = _imeInsetBottom;
@@ -830,3 +834,105 @@ void suppressIOSKeyboardAssistant() {
         });
     }
 }
+
+#if defined(OVERTE_IOS_E2E_TEST_BUILD)
+QVariantMap observeIOSNativeAccessibility(QVariantMap* diagnostic) {
+    if (!NSThread.isMainThread) {
+        __block QVariantMap sample;
+        dispatch_sync(dispatch_get_main_queue(), ^{
+            sample = observeIOSNativeAccessibility(diagnostic);
+        });
+        if (diagnostic != nullptr) {
+            (*diagnostic)["callerWasMainThread"] = false;
+        }
+        return sample;
+    }
+
+    QVariantMap result {
+        { "schemaVersion", 1 }, { "valid", false },
+        { "processId", static_cast<qint64>(NSProcessInfo.processInfo.processIdentifier) },
+        { "sampleEpochMs", QDateTime::currentMSecsSinceEpoch() },
+        { "elements", QVariantList {} }
+    };
+    if (diagnostic != nullptr) {
+        *diagnostic = {
+            { "schemaVersion", 1 }, { "processId", result["processId"] },
+            { "sampleEpochMs", result["sampleEpochMs"] },
+            { "callerWasMainThread", true }, { "samplingOnMainThread", static_cast<bool>(NSThread.isMainThread) },
+            { "applicationState", static_cast<int>(UIApplication.sharedApplication.applicationState) },
+            { "reason", "sampling" }, { "viewsVisited", 0 }, { "controlsObserved", 0 }
+        };
+        int activeScenes { 0 };
+        int inactiveScenes { 0 };
+        for (UIScene* scene in UIApplication.sharedApplication.connectedScenes) {
+            if (![scene isKindOfClass:UIWindowScene.class]) { continue; }
+            if (scene.activationState == UISceneActivationStateForegroundActive) { ++activeScenes; }
+            if (scene.activationState == UISceneActivationStateForegroundInactive) { ++inactiveScenes; }
+        }
+        (*diagnostic)["foregroundActiveScenes"] = activeScenes;
+        (*diagnostic)["foregroundInactiveScenes"] = inactiveScenes;
+    }
+    const auto rejected = [&](const char* reason) {
+        if (diagnostic != nullptr) { (*diagnostic)["reason"] = QString::fromLatin1(reason); }
+        return result;
+    };
+    UIWindow* window = activeWindow();
+    if (window == nil) {
+        return rejected("no-active-window");
+    }
+    if (CGRectIsEmpty(window.bounds)) {
+        return rejected("empty-window-bounds");
+    }
+    NSMutableArray<UIView*>* pending = [NSMutableArray arrayWithObject:window];
+    QVariantList elements;
+    int visited { 0 };
+    while (pending.count > 0) {
+        UIView* view = pending.lastObject;
+        [pending removeLastObject];
+        ++visited;
+        if (diagnostic != nullptr) { (*diagnostic)["viewsVisited"] = visited; }
+        if (visited > 5000) {
+            return rejected("view-limit");
+        }
+        if (view.hidden || view.alpha <= 0.01 || view.accessibilityElementsHidden) {
+            continue;
+        }
+        [pending addObjectsFromArray:view.subviews];
+        NSString* identifier = view.accessibilityIdentifier;
+        // Export only existing owned control identifiers. Never expose user
+        // text, unrelated application views or inferred expected controls.
+        if (![view isKindOfClass:OverteIOSE2EAccessibilityButton.class] ||
+                !view.isAccessibilityElement || identifier == nil ||
+                ![identifier hasPrefix:@"OverteTablet"] || identifier.length > 128) {
+            continue;
+        }
+        const CGRect rawFrame = [view convertRect:view.bounds toView:window];
+        if (!std::isfinite(rawFrame.origin.x) || !std::isfinite(rawFrame.origin.y) ||
+                !std::isfinite(rawFrame.size.width) || !std::isfinite(rawFrame.size.height) ||
+                CGRectIsEmpty(rawFrame) || !CGRectIntersectsRect(rawFrame, window.bounds)) {
+            continue;
+        }
+        const CGRect frame = CGRectIntersection(rawFrame, window.bounds);
+        if (elements.size() >= 128) {
+            if (diagnostic != nullptr) { (*diagnostic)["controlsObserved"] = 128; }
+            return rejected("control-limit");
+        }
+        const bool enabled = ![view isKindOfClass:UIControl.class] || ((UIControl*)view).enabled;
+        elements.append(QVariantMap {
+            { "identifier", QString::fromUtf8(identifier.UTF8String) },
+            { "visible", true }, { "enabled", enabled },
+            { "frame", QVariantMap {
+                { "x", frame.origin.x }, { "y", frame.origin.y },
+                { "width", frame.size.width }, { "height", frame.size.height }
+            } }
+        });
+    }
+    result["elements"] = elements;
+    result["valid"] = true;
+    if (diagnostic != nullptr) {
+        (*diagnostic)["reason"] = "valid";
+        (*diagnostic)["controlsObserved"] = static_cast<int>(elements.size());
+    }
+    return result;
+}
+#endif

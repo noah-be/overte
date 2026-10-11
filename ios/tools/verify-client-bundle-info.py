@@ -60,6 +60,11 @@ def validate(app: Path, expected_bundle_id: str, platform: str, minimum_ios: str
     if not executable.is_file() or executable.stat().st_mode & 0o111 == 0:
         raise ValueError("client executable is missing or not executable")
 
+    if set(info.get("UISupportedInterfaceOrientations~ipad", [])) != {
+        "UIInterfaceOrientationLandscapeLeft", "UIInterfaceOrientationLandscapeRight"
+    } or info.get("UIRequiresFullScreen") is not True:
+        raise ValueError("client bundle must retain the iPad landscape policy")
+
     marketing = str(info.get("CFBundleShortVersionString", ""))
     build = str(info.get("CFBundleVersion", ""))
     if APPLE_VERSION.fullmatch(marketing) is None:

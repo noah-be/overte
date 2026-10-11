@@ -406,6 +406,10 @@ def main() -> None:
                     "LSRequiresIPhoneOS": True,
                     "MinimumOSVersion": "17.0",
                     "UIDeviceFamily": [1, 2],
+                    "UIRequiresFullScreen": True,
+                    "UISupportedInterfaceOrientations~ipad": [
+                        "UIInterfaceOrientationLandscapeLeft", "UIInterfaceOrientationLandscapeRight"
+                    ],
                     "UIRequiredDeviceCapabilities": ["arm64"],
                     "CFBundleURLTypes": [
                         {"CFBundleURLSchemes": ["hifi", "hifiapp"]}

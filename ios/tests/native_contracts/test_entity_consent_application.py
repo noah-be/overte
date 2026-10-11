@@ -1,0 +1,38 @@
+"""Actual Application consent methods with Qt dispatch and explicit UI seams."""
+from pathlib import Path
+import os,shlex,subprocess,tempfile,unittest
+ROOT=Path(__file__).resolve().parents[3]
+class ApplicationConsent(unittest.TestCase):
+    def test_actual_application_consent(self):
+        source=(ROOT/'interface/src/Application_UI.cpp').read_text()
+        source='void Application::invalidateEntityScriptConsent() {'+source.split('void Application::invalidateEntityScriptConsent() {',1)[1].split('bool Application::askToLoadScript(',1)[0]
+        domain=(ROOT/'interface/src/Application.cpp').read_text()
+        source += 'void Application::domainURLChanged(QUrl domainURL) {'+domain.split('void Application::domainURLChanged(QUrl domainURL) {',1)[1].split('void Application::domainConnectionRefused(',1)[0]
+        entities=(ROOT/'interface/src/Application_Entities.cpp').read_text()
+        source += 'void Application::resettingDomain() {'+entities.split('void Application::resettingDomain() {',1)[1].split('void Application::queryOctree(',1)[0]
+        if os.environ.get('OVERTE_CONSENT_REVOKE_REDUNDANT_DOMAIN'):
+            source=source.replace('void Application::domainURLChanged(QUrl domainURL) {','void Application::domainURLChanged(QUrl domainURL) { invalidateEntityScriptConsent();')
+        if os.environ.get('OVERTE_CONSENT_UI_SKIP_SESSION_CHECK'):
+
+            source=source.replace('request->active() && request->belongsTo(_entityScriptConsentScope) &&','true &&')
+        fixture=Path(__file__).with_name('entity-consent-application-test.cpp').read_text().replace('// ACTUAL_SOURCE',source)
+        qml=(ROOT/'interface/resources/qml/dialogs/TabletMessageBox.qml').read_text()
+        click='function click(button) {'+qml.split('function click(button) {',1)[1].split('    function exec()',1)[0]
+        fixture=fixture.replace('// PRODUCTION_DIALOG_CLICK',click)
+        native=(ROOT/'interface/src/scripting/TestScriptingInterface.cpp').read_text()
+        native='bool TestScriptingInterface::iosEntityScriptConsentTest('+native.split('bool TestScriptingInterface::iosEntityScriptConsentTest(',1)[1].split('QVariantMap TestScriptingInterface::iosNativeUiSnapshot()',1)[0]
+        fixture=fixture.replace('// ACTUAL_IOS_CONSENT_SOURCE',native)
+        with tempfile.TemporaryDirectory(prefix='consent-application-') as directory:
+            d=Path(directory);cpp=d/'test.cpp';cpp.write_text(fixture)
+            libexec=subprocess.check_output(['pkg-config','--variable=libexecdir','Qt6Core'],text=True).strip()
+            if not libexec: raise RuntimeError('Qt6Core did not declare its host tool directory')
+            subprocess.run([str(Path(libexec)/'moc'),str(cpp),'-o',str(d/'test.moc')],check=True,timeout=10)
+            flags=shlex.split(subprocess.check_output(['pkg-config','--cflags','--libs','Qt6Quick','Qt6Widgets'],text=True))
+            subprocess.run(['c++','-DANDROID_APP_PICO_INTERFACE','-std=c++17','-fPIC','-pthread','-I',str(ROOT/'libraries/script-engine/src'),'-I',str(ROOT/'interface/src/scripting'),str(cpp),'-o',str(d/'test'),*flags],check=True,timeout=30)
+            env=dict(os.environ,QT_QPA_PLATFORM='offscreen',QT_QUICK_BACKEND='software')
+            runner=os.environ.get('OVERTE_HOST_TEST_NETWORK_RUNNER')
+            isolation=[runner] if runner else ['unshare','--user','--map-root-user','--net']
+            # The hosted launcher drops sudo privileges; pass Qt's headless
+            # settings inside the namespace because sudo resets the environment.
+            subprocess.run([*isolation,'env','QT_QPA_PLATFORM=offscreen','QT_QUICK_BACKEND=software',str(d/'test'),'--testScript','controlled-test.js'],env=env,check=True,timeout=10)
+if __name__=='__main__':unittest.main()

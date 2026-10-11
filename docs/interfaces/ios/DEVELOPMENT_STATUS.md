@@ -129,11 +129,9 @@ active override is recorded by `OVERTE_IOS_QML_OVERRIDE_GATE`. If an override
 uses relative imports, mirror those dependencies as well. Remove `.enabled` to
 return atomically to bundled QML.
 
-There is a separate orientation-product conflict to resolve first: Android
-acceptance requires the touch app to start and remain landscape regardless of
-Auto-Rotate, while the current iOS matrix still requires portrait/landscape
-rotation, Split View, and Stage Manager. Decide the desired orientation for
-iPhone and iPad separately before implementing or testing an iOS orientation
-lock. Shared Touch UI contract changes originate from main; only any remaining
-native iOS focus, keyboard, or orientation adaptation originates from
-`apple-ios`.
+The iPad orientation decision was made on 2026-10-07: the Full Client must stay
+landscape even when the device is held upright. The iPad bundle and UIKit policy
+implement this requirement; iPhone policy remains unchanged. Physical acceptance
+must verify the lock at startup, during tablet/keyboard use and after background
+return. See [the touch matrix](TOUCH_UI.md). Shared Touch UI contract changes
+originate from main; native iOS orientation adaptation remains on `apple-ios`.

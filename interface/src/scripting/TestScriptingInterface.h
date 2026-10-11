@@ -14,8 +14,11 @@
 
 #include <functional>
 #include <QtCore/QObject>
+#include <QtCore/QSharedPointer>
 #include <QtCore/QVariantMap>
 #include <ScriptValue.h>
+
+class AudioInjector;
 
 class TestScriptingInterface : public QObject {
     Q_OBJECT
@@ -146,6 +149,15 @@ public slots:
     void saveObject(QVariant v, const QString& filename);
 #if defined(OVERTE_E2E_VOICE_TESTS)
     Q_INVOKABLE QVariantMap voiceTest(const QVariantMap& command);
+    Q_INVOKABLE QVariantMap acousticTest(const QVariantMap& command);
+#endif
+#if defined(Q_OS_IOS) && defined(OVERTE_IOS_E2E_TEST_BUILD)
+    // Read actual native accessibility widgets without traversing Qt's AX tree.
+    Q_INVOKABLE QVariantMap iosNativeUiSnapshot();
+    Q_INVOKABLE bool iosTextTest(const QVariantMap& command);
+    Q_INVOKABLE bool iosEntityScriptConsentTest(const QVariantMap& command);
+    Q_INVOKABLE bool iosCrashTest(const QVariantMap& command);
+    Q_INVOKABLE QVariantMap iosRenderObservation();
 #endif
 
     /*@jsdoc
@@ -188,6 +200,10 @@ private:
 #if defined(OVERTE_E2E_VOICE_TESTS)
     QString _voiceCapturePath;
     quint64 _voiceCaptureGeneration { 0 };
+    bool _acousticPrepared { false };
+    quint64 _acousticGeneration { 0 };
+    QSharedPointer<AudioInjector> _acousticInjector;
+    QString _acousticChallenge;
 #endif
 };
 

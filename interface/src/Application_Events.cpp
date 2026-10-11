@@ -225,6 +225,12 @@ bool Application::event(QEvent* event) {
         case QEvent::TouchUpdate:
             touchUpdateEvent(static_cast<QTouchEvent*>(event));
             return true;
+#if defined(Q_OS_IOS)
+        case QEvent::TouchCancel:
+            _iosWorldTap.cancel();
+            touchEndEvent(static_cast<QTouchEvent*>(event));
+            return true;
+#endif
         case QEvent::Gesture:
             touchGestureEvent((QGestureEvent*)event);
             return true;
@@ -399,7 +405,8 @@ void Application::activeChanged(Qt::ApplicationState state) {
     switch (state) {
         case Qt::ApplicationActive:
 #if defined(Q_OS_IOS) || defined(OVERTE_IOS)
-            if (!_isForeground && !_aboutToQuit && _startUpFinished) {
+            if (_iosBackgrounded && !_aboutToQuit && _startUpFinished) {
+                _iosBackgrounded = false;
                 enterForeground();
             }
 #endif
@@ -415,7 +422,8 @@ void Application::activeChanged(Qt::ApplicationState state) {
             // leaving the app. Do not keep reporting the client as foreground
             // merely because neither state enters the switch default.
 #if defined(Q_OS_IOS) || defined(OVERTE_IOS)
-            if (_isForeground && !_aboutToQuit && _startUpFinished) {
+            if (!_iosBackgrounded && !_aboutToQuit && _startUpFinished) {
+                _iosBackgrounded = true;
                 beforeEnterBackground();
                 enterBackground();
             }
@@ -727,6 +735,9 @@ void Application::keyReleaseEvent(QKeyEvent* event) {
 }
 
 void Application::focusOutEvent(QFocusEvent* event) {
+#if defined(Q_OS_IOS)
+    _iosWorldTap.cancel();
+#endif
     const auto& inputPlugins = PluginManager::getInstance()->getInputPlugins();
     for(const auto& inputPlugin : inputPlugins) {
         if (inputPlugin->isActive()) {
@@ -919,6 +930,7 @@ void Application::touchBeginEvent(QTouchEvent* event) {
     // the tablet is open, so forwarding after isTouchCaptured() makes every
     // internal control unreachable.
     if (forwardMobileTouchToOffscreenUi(event, PointerEvent::Press, getOffscreenUI())) {
+        _iosWorldTap.cancel();
         return;
     }
 #endif
@@ -931,9 +943,23 @@ void Application::touchBeginEvent(QTouchEvent* event) {
 
     // if one of our scripts have asked to capture this event, then stop processing it
     if (_controllerScriptingInterface->isTouchCaptured()) {
+#if defined(Q_OS_IOS)
+        _iosWorldTap.cancel();
+#endif
         return;
     }
 
+#if defined(Q_OS_IOS)
+    const auto& points = event->points();
+    if (points.size() == 1) {
+        const auto& point = points.first();
+        _iosWorldTap.begin(point.id(), point.position().x(), point.position().y(), event->timestamp(),
+            !_touchscreenVirtualPadDevice || !_touchscreenVirtualPadDevice->isActive()
+            || _touchscreenVirtualPadDevice->isWorldTapPosition(point.position()));
+    } else {
+        _iosWorldTap.cancel();
+    }
+#endif
     if (_keyboardMouseDevice->isActive()) {
         _keyboardMouseDevice->touchBeginEvent(event);
     }
@@ -949,6 +975,7 @@ void Application::touchBeginEvent(QTouchEvent* event) {
 void Application::touchEndEvent(QTouchEvent* event) {
 #if defined(Q_OS_IOS)
     if (forwardMobileTouchToOffscreenUi(event, PointerEvent::Release, getOffscreenUI())) {
+        _iosWorldTap.cancel();
         return;
     }
 #endif
@@ -959,6 +986,9 @@ void Application::touchEndEvent(QTouchEvent* event) {
 
     // if one of our scripts have asked to capture this event, then stop processing it
     if (_controllerScriptingInterface->isTouchCaptured()) {
+#if defined(Q_OS_IOS)
+        _iosWorldTap.cancel();
+#endif
         return;
     }
 
@@ -972,12 +1002,36 @@ void Application::touchEndEvent(QTouchEvent* event) {
         _touchscreenVirtualPadDevice->touchEndEvent(event);
     }
     // put any application specific touch behavior below here..
+#if defined(Q_OS_IOS)
+    const auto& points = event->points();
+    if (event->type() == QEvent::TouchEnd && points.size() == 1) {
+        const auto& point = points.first();
+        const bool eligible = !_touchscreenVirtualPadDevice || !_touchscreenVirtualPadDevice->isActive()
+            || _touchscreenVirtualPadDevice->isWorldTapPosition(point.position());
+        if (_iosWorldTap.release(point.id(), point.position().x(), point.position().y(),
+                                event->timestamp(), eligible)) {
+            // Use the regular entity picking and script input paths. No entity
+            // identifier or script callback is selected by the touch adapter.
+            QMouseEvent press(QEvent::MouseButtonPress, point.position(), point.position(), point.globalPosition(),
+                Qt::LeftButton, Qt::LeftButton, event->modifiers(), Qt::MouseEventSynthesizedByApplication,
+                event->pointingDevice());
+            QMouseEvent release(QEvent::MouseButtonRelease, point.position(), point.position(), point.globalPosition(),
+                Qt::LeftButton, Qt::NoButton, event->modifiers(), Qt::MouseEventSynthesizedByApplication,
+                event->pointingDevice());
+            mousePressEvent(&press);
+            mouseReleaseEvent(&release);
+        }
+    } else {
+        _iosWorldTap.cancel();
+    }
+#endif
 }
 
 void Application::touchUpdateEvent(QTouchEvent* event) {
 #if defined(Q_OS_IOS)
     if (event->type() == QEvent::TouchUpdate &&
             forwardMobileTouchToOffscreenUi(event, PointerEvent::Move, getOffscreenUI())) {
+        _iosWorldTap.cancel();
         return;
     }
 #endif
@@ -990,9 +1044,25 @@ void Application::touchUpdateEvent(QTouchEvent* event) {
 
     // if one of our scripts have asked to capture this event, then stop processing it
     if (_controllerScriptingInterface->isTouchCaptured()) {
+#if defined(Q_OS_IOS)
+        _iosWorldTap.cancel();
+#endif
         return;
     }
 
+#if defined(Q_OS_IOS)
+    if (event->type() == QEvent::TouchUpdate) {
+        const auto& points = event->points();
+        if (points.size() == 1) {
+            const auto& point = points.first();
+            _iosWorldTap.update(point.id(), point.position().x(), point.position().y(), event->timestamp(),
+                !_touchscreenVirtualPadDevice || !_touchscreenVirtualPadDevice->isActive()
+                || _touchscreenVirtualPadDevice->isWorldTapPosition(point.position()));
+        } else {
+            _iosWorldTap.cancel();
+        }
+    }
+#endif
     if (_keyboardMouseDevice->isActive()) {
         _keyboardMouseDevice->touchUpdateEvent(event);
     }

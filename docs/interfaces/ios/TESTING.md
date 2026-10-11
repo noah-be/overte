@@ -10,6 +10,23 @@ python3 -m py_compile ios/tools/*.py ios/tests/*.py ios/conanfile.py
 bash -n ios/build-ios.sh ios/ci/*.sh ios/tests/run-tests.sh
 ```
 
+`foreground-watchdog-test.py` exercises the production suspension gate with a
+controlled clock and a concurrent resume/check interleaving. The watchdog remains
+active for genuine foreground timeouts and independent graphics pause/resume
+cannot override the background gate. This host check must be followed by real
+short and greater-than-120-second background/foreground and lock/unlock trials.
+
+`application-background-transition-test.py` executes the actual Qt state handler
+with resource-operation spies. It covers Active -> Inactive -> Hidden/Suspended,
+repeated notifications, temporary inactivity without background entry, startup
+completion while hidden, and shutdown. Visibility and completed resource pause
+are tracked independently so each stop has exactly one matching restart.
+
+The Full Client bundle validator also rejects missing or portrait-enabled iPad
+orientation declarations. On-device tests must launch while held upright, rotate
+with the tablet and keyboard visible, and return from background: the client
+must retain landscape geometry and usable controls.
+
 These checks do not prove an Apple build or launch.
 
 ## Simulator
@@ -34,3 +51,27 @@ The shared touch UI has additional layout, safe-area, keyboard, text-scaling,
 external-input, and accessibility cases in the
 [iOS touch UI validation matrix](TOUCH_UI.md). Bootstrap smoke results do not
 replace integrated-client or physical-device acceptance for those cases.
+
+### Entity-script cleanup after backgrounding
+
+Build 728 exposed a separate V8 scope failure when a queued entity-script unload
+arrived after the script manager's run scope had ended. All three unload entry
+points now acquire the engine scope on the owning thread before copying script
+values or taking the entity-details lock. This preserves normal cleanup and the
+existing VM abort policy.
+
+Run `python3 tests/device/contracts/lifecycle/test_entity_script_unload_scope.py`
+on a host with Qt6 Core development files. The complete production unload
+methods are exercised with real Qt queued delivery and an explicit script-value
+copy seam, both outside and inside an existing engine scope. The full portable
+device control-plane gate includes this regression. It does not replace native
+V8 or physical iPad background/foreground tests.
+
+### Local-world background recovery
+
+Run `python3 ios/tests/serverless-background-test.py` to exercise the actual
+mobile preparation, pause and resume methods. On iOS, a loaded serverless scene
+and its session must survive backgrounding: there is no domain server to rebuild
+an erased tree. Domain check-ins remain disabled on resume. Online scenes retain
+the existing reset/reconnect path; both paths still pause/resume audio and display.
+Test the bundled tutorial and an online world separately on the physical iPad.

@@ -90,6 +90,9 @@ static QString getTargetDevice(bool hmd, HifiAudioDeviceMode mode) {
 #endif
     QString deviceName;
     auto& setting = getSetting(hmd, mode);
+    // Lifecycle teardown notifications used to persist an empty device name.
+    // An empty preference cannot identify hardware; recover the default without
+    // overwriting any valid saved selection.
     if (setting.isSet() && !setting.get().trimmed().isEmpty()) {
         deviceName = setting.get();
     } else {
