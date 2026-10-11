@@ -14,7 +14,11 @@ def main() -> None:
     assert_foreground("before text input")
     world_before = session.snapshot("text-world-before.json")
     session.focus_text_input()
-    empty = session.text_snapshot()
+    empty = session.wait_for_text(
+        lambda value: not value["value"] and value["focused"] is True
+        and value["keyboardVisible"] is True,
+        "a cleared focused text field and the visible platform keyboard",
+    )
     write_json("text-focused.json", empty)
     if empty["value"] or empty["focused"] is not True:
         fail("controlled text field was not focused and cleared")

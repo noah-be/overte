@@ -30,6 +30,8 @@ TestCase {
         ;["back", "home", "close"].forEach(function(action) {
             var button = findChild(navigation, "nav." + action)
             verify(button !== null)
+            verify(button.implicitTextWidth + 16 <= button.width,
+                "Navigation label must fit inside its touch target")
             var topLeft = button.mapToItem(navigation, 0, 0)
             var bottomRight = button.mapToItem(navigation, button.width, button.height)
             verify(topLeft.x >= 0 && bottomRight.x <= navigation.width)

@@ -23,6 +23,11 @@ class SelectionTests(unittest.TestCase):
 #include <QString>
 #include <cassert>
 enum class HifiAudioDeviceMode { Input, Output };
+namespace QAudio {
+    using Mode = HifiAudioDeviceMode;
+    constexpr auto AudioInput = HifiAudioDeviceMode::Input;
+    constexpr auto AudioOutput = HifiAudioDeviceMode::Output;
+}
 struct Device { int id; bool isNull() const { return id == 0; } };
 struct HifiAudioDeviceInfo {
     int id { 0 };

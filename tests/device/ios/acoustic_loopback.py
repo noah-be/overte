@@ -22,7 +22,7 @@ import wave
 
 DEVICE_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(DEVICE_ROOT))
-from adapters.appium.adapter import WebDriver, WebDriverRequestError  # noqa: E402
+from ios.adapters.appium_adapter import WebDriver, WebDriverRequestError  # noqa: E402
 from adapters.native_binding import PrivateParser  # noqa: E402
 from adapters.voice_transport import appium_read  # noqa: E402
 from voice_contract import wav  # noqa: E402

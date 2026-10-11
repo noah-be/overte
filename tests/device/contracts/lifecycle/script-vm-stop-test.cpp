@@ -10,6 +10,7 @@
 #include <thread>
 #include <v8.h>
 #include <libplatform/libplatform.h>
+#include "libraries/shared/src/Finally.h"
 #include "libraries/networking/src/RequestCancellation.h"
 
 // Engine construction/destruction is an explicit ownership seam. The actual
@@ -22,7 +23,14 @@ struct ScriptEngineV8 {
 struct ScriptManager : QObject, std::enable_shared_from_this<ScriptManager> {
     std::shared_ptr<ScriptEngineV8> _engine;
     std::atomic<bool> _isStopping { false };
+#include "manager-init-state.inc"
     bool _isFinished { false };
+    bool isStopping() const { return _isStopping; }
+    bool isStopped() const { return false; }
+    void initialize(const std::function<void()>& registration) {
+#include "manager-init-phase.inc"
+        registration();
+    }
     overte::network::RequestScope _scriptLoadContext;
     int delivered { 0 };
     void runningStateChanged() { ++delivered; }
@@ -35,12 +43,14 @@ struct EntrySignal {
     std::condition_variable changed;
     bool entered { false };
     bool exited { false };
+    bool stopDelivered { false };
 };
 
 int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
     const bool stopping = std::string(argv[1]) != "normal";
     const bool duplicate = std::string(argv[1]) == "duplicate";
+    const bool initializing = std::string(argv[1]) == "initializing";
     auto platform = v8::platform::NewDefaultPlatform();
     v8::V8::InitializePlatform(platform.get());
     v8::V8::Initialize();
@@ -63,6 +73,25 @@ int main(int argc, char** argv) {
         v8::HandleScope handles(isolate);
         auto context = v8::Context::New(isolate);
         v8::Context::Scope enteredContext(context);
+        if (initializing) {
+            manager->initialize([&] {
+                std::unique_lock<std::mutex> guard(signal.mutex);
+                signal.entered = true;
+                signal.changed.notify_all();
+                assert(signal.changed.wait_for(guard, std::chrono::seconds(1),
+                    [&] { return signal.stopDelivered; }));
+                // Real V8 property creation remains available until native
+                // initialization exits, even though manager stop is latched.
+                assert(!manager->_engine->isEvaluationAborted());
+                auto key = v8::String::NewFromUtf8Literal(isolate, "require");
+                assert(context->Global()->Set(context, key, v8::Integer::New(isolate, 1)).FromJust());
+                assert(context->Global()->Get(context, key).ToLocalChecked()->IsInt32());
+            });
+            assert(manager->_engine->isEvaluationAborted());
+            { std::lock_guard<std::mutex> guard(signal.mutex); signal.exited = true; }
+            signal.changed.notify_all();
+            return;
+        }
         auto announce = v8::Function::New(context, [](const v8::FunctionCallbackInfo<v8::Value>& info) {
             auto* signal = static_cast<EntrySignal*>(info.Data().As<v8::External>()->Value());
             { std::lock_guard<std::mutex> guard(signal->mutex); signal->entered = true; }
@@ -89,6 +118,8 @@ int main(int argc, char** argv) {
         manager->stop(true);
         if (duplicate) manager->stop(true);
         assert(manager->_isStopping && !manager->_isFinished && manager->delivered == 0);
+        { std::lock_guard<std::mutex> guard(signal.mutex); signal.stopDelivered = true; }
+        signal.changed.notify_all();
     }
     {
         std::unique_lock<std::mutex> guard(signal.mutex);

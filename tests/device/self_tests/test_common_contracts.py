@@ -18,6 +18,23 @@ from tests.device.self_tests.test_vertical_locomotion import snapshot
 
 
 class CommonContractTest(unittest.TestCase):
+    def test_native_motion_diagnostic_requires_typed_process_and_sample_binding(self):
+        valid = snapshot()
+        valid["nativeMotion"] = {"processId": 123, "sampleEpochMs": 9500, "sampleSequence": 42}
+        self.assertIs(valid, validate_probe_snapshot(valid))
+        for motion in ({"processId": None, "sampleEpochMs": 0, "sampleSequence": 0},
+                       {"processId": 123, "sampleEpochMs": 0, "sampleSequence": 0}):
+            valid["nativeMotion"] = motion
+            self.assertIs(valid, validate_probe_snapshot(valid))
+        for motion in ({"processId": None, "sampleEpochMs": 9500, "sampleSequence": 42},
+                       {"processId": True, "sampleEpochMs": 9500, "sampleSequence": 42},
+                       {"processId": 123, "sampleEpochMs": 0, "sampleSequence": 42},
+                       {"processId": 123, "sampleEpochMs": 9500, "sampleSequence": "42"},
+                       {"processId": 123, "sampleEpochMs": 9500, "sampleSequence": 42, "extra": 1}):
+            valid["nativeMotion"] = motion
+            with self.assertRaises(ValueError):
+                validate_probe_snapshot(valid)
+
     def test_install_and_visual_artifact_contracts_are_closed(self):
         self.assertEqual(
             {"path": "/private/candidate.bin"},
@@ -150,6 +167,20 @@ class CommonContractTest(unittest.TestCase):
             with self.subTest(invalid=invalid):
                 with self.assertRaises(ValueError):
                     validate_probe_snapshot(invalid)
+
+    def test_probe_accepts_optional_android_control_and_rejects_invalid_markers(self):
+        valid = snapshot()
+        valid['control'] = None
+        self.assertIs(valid, validate_probe_snapshot(valid))
+        valid['control'] = {'schemaVersion': 1, 'channel': 'android-debug-file-v1',
+                            'probe': 'overte_e2e_probe.js', 'lastCommandId': ''}
+        self.assertIs(valid, validate_probe_snapshot(valid))
+        for key, value in [('schemaVersion', 2), ('channel', 'untrusted'),
+                           ('probe', 'other.js'), ('lastCommandId', None)]:
+            invalid = copy.deepcopy(valid)
+            invalid['control'][key] = value
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                validate_probe_snapshot(invalid)
 
     def test_probe_orientation_history_is_bounded_ordered_and_current(self):
         valid = snapshot()

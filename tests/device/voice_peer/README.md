@@ -155,3 +155,9 @@ missing symbols, short/truncated captures, and inverted stereo. Ownership
 contracts reject missing/wrong streams, stale snapshots, and reused module
 handles. These hardware-free tests run in the quick and full control-plane
 profiles. A live PC check remains a separate measured operation.
+
+The fixture orchestrator accepts `--voice-peer-resource <name>` with
+`--voice-peer-config` to reserve an explicitly independent PC peer. Each name
+must identify a separate configured peer; source and microphone isolation
+requirements still apply. Its bounded failure diagnostics use the private
+`voice-peer-diagnostics` directory under that run's fixture output.

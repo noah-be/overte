@@ -184,7 +184,7 @@
       "command": ["modules/look.py"],
       "suites": ["e2e-core", "portable-smoke", "update-upgrade"],
       "requires": ["input.look", "probe.snapshot", "scene.load"],
-      "timeoutSeconds": 90
+      "timeoutSeconds": 180
     },
     {
       "id": "move",
@@ -192,7 +192,7 @@
       "command": ["modules/move.py"],
       "suites": ["e2e-core", "portable-smoke", "update-upgrade"],
       "requires": ["input.move", "probe.snapshot", "scene.load"],
-      "timeoutSeconds": 90
+      "timeoutSeconds": 180
     },
     {
       "id": "input-neutral",

@@ -1,5 +1,9 @@
 # Project testing
 
+For a task-oriented entry point, use the
+[automated testing portal](../docs/portal/testing/index.md). This page remains
+the authoritative guide for project-runner commands and prerequisites.
+
 Run commands from the repository root. The shared runner provides repository
 checks, a complete portable host profile, and an optional configured native
 layer. Physical-device acceptance has separate commands and evidence requirements.
@@ -34,9 +38,6 @@ Android branch suites also need Java/Javac. Python 3.11 is
 required by repository helpers using `hashlib.file_digest`; use the CI versions
 above when reproducing CI behavior. The quick profile compiles small portable
 production C++ regressions and checks CMake test registration using stub targets.
-The iOS observation-publication regression additionally requires `pkg-config`
-and Qt 6 Core development files. It executes the actual portable file-writing
-method with real Qt files; it does not compile UIKit or prove device behavior.
 JavaScript syntax checks use two bounded subprocesses and preserve complete,
 ordered diagnostics; neither JavaScript nor shell source is executed by syntax checks.
 Local Unix sockets must be available for the input-protocol tests.
@@ -55,12 +56,38 @@ python3 -m pip install -r tests/requirements-repository.txt
 The dependency is used by offline Doctor contract tests; it grants no network or
 GitHub access to the quick suite. CI installs the same requirements explicitly.
 
-For the complete host control-plane gate, also provide `pkg-config`, Qt 6
+For the complete host control-plane gate, also provide `pkg-config`, GLM headers, Qt 6
 development packages, Qt Quick Test tools, and `unshare` with permission to
 create user and network namespaces. Artifact validation runs real CLIs without
 network access; unavailable isolation fails those tests. The workflow contains
 the exact Ubuntu package list. These host Qt contracts are separate from the
 complete client's platform-specific Qt/Conan dependency graph.
+
+The phone pad projection regression requires the real GLM headers (`libglm-dev`
+on Ubuntu). A prepared local package can instead be selected with
+`OVERTE_TEST_GLM_INCLUDE` pointing at its include directory. The host requirements
+also pin Pillow for the native-frame black-interior negative control. The full
+gate includes phone placement, pad projection, joint storage, QML property/thread
+delivery, and actual Qt Quick accessibility/product-text regressions.
+The phone startup and Settings click regressions additionally require Qt 5 Core, Gui, Qml, Quick and Test
+development packages and the Qt Quick 2 QML module (`qtdeclarative5-dev` and
+`qml-module-qtquick2`, `qml-module-qtquick-controls2`, `qml-module-qtquick-layouts`
+and `qml-module-qtquick-window2` on Ubuntu). They reproduce the early attached-property cache
+failure with real Qt 5, verify native ownership across the temporary parser
+application, and verify short Settings clicks through the actual parented QML load.
+They also check that the General Preferences cancel control and the shared Back
+control have distinct identifiers. The Phone editor regression compiles the
+production QtEditText Java source with host Android boundaries and proves that
+landscape input preserves editor options while disabling fullscreen extraction.
+Java delivery and native JNI-boundary checks preserve observed keyboard visibility
+independently of the occluding inset, including visibility-only transitions.
+The APK provenance gate inspects packaged DEX definitions and rejects missing or
+duplicate Qt Java replacement classes. The Gradle Qt-jar task binds its exclusion
+list as an explicit cache input. Physical Phone attestation still runs before each
+adapter operation; its property reads use one fresh snapshot, and session reuse
+does not repeat the same attestation or cache it across operations.
+A verified, extracted Fedora Qt 5 host package may be selected with
+`OVERTE_TEST_QT5_SYSROOT`; these dependencies do not replace the Android runtime.
 
 Platform-only synchronization checks install the same QML and Qt 6 host packages
 before running their product suites. Android Phone regressions require Qt 6 Core
@@ -166,9 +193,6 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `python-test-runner` | `quick` | `python3 tests/run-project-tests.py --suite python-test-runner` |
 | `repository-checks` | `quick` | `python3 tests/run-project-tests.py --suite repository-checks` |
 | `ios-build-qualification` | `quick` | `python3 tests/run-project-tests.py --suite ios-build-qualification` |
-| `ios-native-accessibility` | `quick` | `python3 tests/run-project-tests.py --suite ios-native-accessibility` |
-| `ios-observation-publication` | `quick` | `python3 tests/run-project-tests.py --suite ios-observation-publication` |
-| `ios-world-tap` | `quick` | `python3 tests/run-project-tests.py --suite ios-world-tap` |
 | `repository-policy` | `quick` | `python3 tests/run-project-tests.py --suite repository-policy` |
 | `policy-consistency` | `quick` | `python3 tests/run-project-tests.py --suite policy-consistency` |
 | `documentation-contracts` | `quick` | `python3 tests/run-project-tests.py --suite documentation-contracts` |

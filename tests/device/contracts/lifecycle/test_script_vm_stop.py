@@ -23,9 +23,17 @@ class ScriptVMStop(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='overte-vm-stop-') as temporary:
             scratch = Path(temporary)
             (scratch / 'methods.inc').write_text(abort + stop)
+            initialization = manager.split('    _isInitializing.store(true);', 1)[1]
+            initialization = ('    _isInitializing.store(true);' +
+                              initialization.split('    _isInitialized = true;', 1)[0])
+            (scratch / 'manager-init-phase.inc').write_text(initialization)
             engine_header = (ROOT / 'libraries/script-engine/src/v8/ScriptEngineV8.h').read_text()
             state = next(line for line in engine_header.splitlines() if 'std::atomic<bool> _abortRequested' in line)
             state += '\n' + next(line for line in engine_header.splitlines() if 'bool isEvaluationAborted() const' in line)
+            manager_header = (ROOT / 'libraries/script-engine/src/ScriptManager.h').read_text()
+            (scratch / 'manager-init-state.inc').write_text(next(
+                line for line in manager_header.splitlines()
+                if 'std::atomic<bool> _isInitializing' in line))
             engine_source = (ROOT / 'libraries/script-engine/src/v8/ScriptEngineV8.cpp').read_text()
             abort = 'void ScriptEngineV8::abortEvaluation(' + engine_source.split('void ScriptEngineV8::abortEvaluation(', 1)[1].split('\n}', 1)[0] + '\n}\n'
             (scratch / 'abort-state.inc').write_text(state)
@@ -36,11 +44,23 @@ class ScriptVMStop(unittest.TestCase):
                 str(Path(__file__).with_name('script-vm-stop-test.cpp')), '-L', str(library),
                 '-Wl,-rpath,' + str(library), '-lnode', '-o', str(binary), *flags],
                 check=True, timeout=40)
-            for mode in ('normal', 'stop', 'duplicate'):
+            for mode in ('normal', 'stop', 'duplicate', 'initializing'):
                 with self.subTest(mode=mode):
                     result = subprocess.run(['unshare', '--user', '--map-root-user', '--net',
                         str(binary), mode], text=True, capture_output=True, timeout=5)
                     self.assertEqual(result.returncode, 0, result.stderr)
+            # The original immediate abort must fail the native-registration
+            # regression while still using the actual initialization guard.
+            (scratch / 'methods.inc').write_text(abort + stop.replace(
+                'engine && !_isInitializing.load()', 'engine'))
+            subprocess.run(['c++', '-std=c++17', '-fPIC', '-pthread', '-I', str(ROOT),
+                '-I', str(scratch), '-isystem', str(prefix / 'usr/include/node'),
+                str(Path(__file__).with_name('script-vm-stop-test.cpp')), '-L', str(library),
+                '-Wl,-rpath,' + str(library), '-lnode', '-o', str(binary), *flags],
+                check=True, timeout=40)
+            result = subprocess.run(['unshare', '--user', '--map-root-user', '--net',
+                str(binary), 'initializing'], capture_output=True, timeout=5)
+            self.assertNotEqual(result.returncode, 0)
 
 
 if __name__ == '__main__':

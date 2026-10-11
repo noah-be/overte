@@ -112,6 +112,60 @@ class AdapterVoiceTests(unittest.TestCase):
                 self.assertEqual(adapter.write_control_command.call_args.args[3]["request"], value)
                 self.assertEqual(adapter.adb.read_debug_app_file.call_args.args[2], "files/overte-e2e/voice-result.json")
 
+    def test_adb_voice_requires_both_opt_ins(self):
+        from adapters.android.adapter import AndroidAdapter, PROFILES
+        for kind, debug, enabled, advertised in (
+                ("phone", "1", "1", True), ("phone", "0", "1", False),
+                ("phone", "1", "0", False), ("pico", "1", "1", True), ("pico", "0", "1", False), ("pico", "1", "0", False)):
+            with self.subTest(kind=kind, debug=debug, enabled=enabled), patch.dict(os.environ, {
+                    "OVERTE_ANDROID_E2E_DEBUG": debug, "OVERTE_E2E_VOICE_TESTS": enabled,
+                    "OVERTE_PICO_OPENXR_INPUT": "0"}):
+                adapter = object.__new__(AndroidAdapter)
+                adapter.kind, adapter.profile = kind, PROFILES[kind]
+                adapter.upgrade_configuration_available = Mock(return_value=False)
+                self.assertEqual("voice.exchange" in adapter.capabilities("private-test-target"), advertised)
+                if not advertised:
+                    adapter.require = Mock()
+                    adapter.require_controlled_debug_identity = Mock()
+                    with self.assertRaises(RuntimeError):
+                        adapter.invoke("private-test-target", "voice.exchange", {
+                            "schemaVersion": 1, "commandId": "fresh", "action": "status"})
+                    adapter.require_controlled_debug_identity.assert_not_called()
+
+    def test_android_appium_uses_the_same_owned_debug_file_transport(self):
+        from adapters.appium.adapter import AppiumAdapter
+        adapter = object.__new__(AppiumAdapter)
+        adapter.platform = "android"
+        target = {"platform": "android", "physical": True,
+                  "appId": "io.github.noah_be.overte.phone",
+                  "scene": {"kind": "android-debug-e2e"},
+                  "probe": {"kind": "android-run-as", "relativePath": AppiumAdapter.ANDROID_DEBUG_PROBE},
+                  "clientControl": {"kind": "android-run-as-command", "relativePath": AppiumAdapter.ANDROID_CLIENT_COMMAND},
+                  "process": {"kind": "adb", "selector": "private-test-target"},
+                  "capabilities": {}}
+        adapter.target = Mock(return_value=target)
+        adapter.ensure_session = Mock(return_value=(Mock(), "session", {}))
+        adapter.android_client_identity = Mock(return_value={"running": True, "identity": "123:99"})
+        response = {}
+        def deliver(_client, _session, _target, payload, _identity):
+            response.update(schemaVersion=1, commandId=payload["commandId"], ok=True, sampleEpochMs=100000)
+        adapter.write_android_client_command = Mock(side_effect=deliver)
+        value = {"schemaVersion": 1, "commandId": "fresh", "action": "status"}
+        with patch.dict(os.environ, {"OVERTE_E2E_VOICE_TESTS": "1"}), patch("adapters.voice_transport.time.time", return_value=100), patch("adb_transport.AdbTransport") as adb:
+            adb.return_value.read_debug_app_file.side_effect = lambda *_, **__: json.dumps(response)
+            self.assertTrue(adapter.invoke("private-test-target", "voice.exchange", value)["ok"])
+        self.assertEqual(adapter.write_android_client_command.call_args.args[3]["request"], value)
+        self.assertEqual(adb.return_value.read_debug_app_file.call_args.args[2], "files/overte-e2e/voice-result.json")
+        with patch.dict(os.environ, {"OVERTE_E2E_VOICE_TESTS": "0"}):
+            self.assertNotIn("voice.exchange", adapter.advertised_capabilities(target))
+        target["physical"] = False
+        with patch.dict(os.environ, {"OVERTE_E2E_VOICE_TESTS": "1"}):
+            self.assertNotIn("voice.exchange", adapter.advertised_capabilities(target))
+        target["physical"] = True
+        target["appId"] = "org.overte.pico"
+        with patch.dict(os.environ, {"OVERTE_E2E_VOICE_TESTS": "1"}):
+            self.assertNotIn("voice.exchange", adapter.advertised_capabilities(target))
+
     def test_ios_uses_documents_pcm_and_the_controlled_fixture(self):
         # apple-ios owns a richer Appium implementation; shared branches expose
         # the parent implementation through this same compatibility entrypoint.
@@ -136,7 +190,7 @@ class AdapterVoiceTests(unittest.TestCase):
             self.assertNotIn("voice.exchange", adapter.advertised_capabilities(target))
 
 
-class NativeVoiceSignalTests(unittest.TestCase):
+class VoiceProbeTests(unittest.TestCase):
     @unittest.skipUnless(shutil.which("c++") and shutil.which("pkg-config"), "native clock check requires a C++ compiler and Qt6 pkg-config")
     def test_actual_clock_survives_input_shutdown_and_cancels_on_lifecycle_loss(self):
         subprocess.run([sys.executable, str(ROOT / "contracts/audio/test_voice_clock.py")],
@@ -182,6 +236,17 @@ assert.equal(Audio.muted,true);assert.equal(native.at(-1).action,'send');
 apply('reset','reset');assert.equal(Audio.muted,false);assert.equal(Audio.pushToTalk,true);
 assert.equal(Audio.noiseReduction,true);assert.equal(Audio.avatarGain,-2);assert.equal(Audio.localEcho,true);
 assert(!saved.at(-1).wavBase64);
+location.href='hifi://fixture:40102/0,1,0';location.url='retained-established-domain';
+apply('same-domain','prepare',{domainUrl:'hifi://fixture:40102'});
+assert.equal(location.url,'retained-established-domain');
+apply('same-domain-reset','reset');
+apply('different-port','prepare',{domainUrl:'hifi://fixture:40103'});
+assert.equal(location.url,'hifi://fixture:40103');
+apply('different-port-reset','reset');
+location.isConnected=false;
+apply('disconnected-domain','prepare',{domainUrl:'hifi://fixture:40102'});
+assert.equal(location.url,'hifi://fixture:40102');
+apply('disconnected-domain-reset','reset');
 delete Test.voiceTest;
 apply('release','prepare',{domainUrl:'hifi://fixture:40102'});
 assert.equal(saved.at(-1).ok,false);assert.equal(Audio.muted,false);
@@ -192,7 +257,8 @@ assert.equal(saved.at(-1).ok,false);assert.equal(Audio.muted,false);
     def test_actual_qt_hook_compiles_and_bounds_recording_lifecycle(self):
         source = (ROOT.parents[1] / "interface/src/scripting/TestScriptingInterface.cpp").read_text()
         start = source.index("QVariantMap TestScriptingInterface::voiceTest(")
-        end = source.index("\nQVariantMap TestScriptingInterface::acousticTest(", start)
+        next_hook = source.find("\nQVariantMap TestScriptingInterface::acousticTest(", start)
+        end = next_hook if next_hook >= 0 else source.index("\n#endif", start)
         method = source[start:end]
         audio_source = (ROOT.parents[1] / "libraries/audio-client/src/AudioClient.cpp").read_text()
         input_start = audio_source.index("void AudioClient::handleAudioInput(QByteArray& audioBuffer) {")
@@ -349,6 +415,50 @@ int main() {
 
 
 class VoiceModuleTests(unittest.TestCase):
+    def test_ten_second_device_window_is_used_for_both_native_captures(self):
+        windows = []
+        with patch.dict(os.environ, {"OVERTE_E2E_VOICE_DEVICE_CAPTURE_SECONDS": "10"}):
+            evidence, _ = self.exercise(capture_windows=windows)
+        self.assertEqual(windows, [10, 10])
+        self.assertEqual(evidence["deviceCaptureSeconds"], 10)
+        self.assertEqual(len(evidence["legs"]), 4)
+
+    def test_invalid_device_capture_window_is_rejected_before_touching_the_peer(self):
+        for value in ("5", "11", "10.5", "invalid"):
+            with patch.dict(os.environ, {"OVERTE_E2E_VOICE_DEVICE_CAPTURE_SECONDS": value}), patch.object(MODULE, "peer") as peer:
+                with self.assertRaises(MODULE.InfrastructureError):
+                    MODULE.run_roundtrip(Path("unused"), "process", "domain")
+                peer.assert_not_called()
+
+    def test_delayed_complete_challenge_needs_the_full_capture_window(self):
+        # Preserve the detector's exact fresh challenge and all-symbol
+        # requirements. An eight-second capture really loses the tail of a
+        # challenge delivered after four seconds of transport delay.
+        data = array.array("h", [0]) * (4 * dsp.RATE)
+        data.extend(dsp.samples(CHALLENGE))
+        with tempfile.TemporaryDirectory() as private:
+            path = Path(private) / "delayed.wav"
+            for seconds, expected in ((8, False), (10, True), (12, True)):
+                capture = array.array("h", data[:seconds * dsp.RATE])
+                capture.extend([0] * (seconds * dsp.RATE - len(capture)))
+                with wave.open(str(path), "wb") as output:
+                    output.setparams((1, 2, dsp.RATE, 0, "NONE", "not compressed"))
+                    output.writeframes(capture.tobytes())
+                self.assertEqual(dsp.analyze(path, CHALLENGE)["passed"], expected)
+
+    def test_late_reverse_channel_needs_the_complete_pc_capture_window(self):
+        data = array.array("h", [0]) * (8 * dsp.RATE)
+        data.extend(dsp.samples(CHALLENGE))
+        with tempfile.TemporaryDirectory() as private:
+            path = Path(private) / "late-reverse.wav"
+            for seconds, expected in ((12, False), (16, True)):
+                capture = array.array("h", data[:seconds*dsp.RATE])
+                capture.extend([0]*(seconds*dsp.RATE-len(capture)))
+                with wave.open(str(path), "wb") as output:
+                    output.setparams((1,2,dsp.RATE,0,"NONE","not compressed"))
+                    output.writeframes(capture.tobytes())
+                self.assertEqual(dsp.analyze(path, CHALLENGE)["passed"], expected)
+
     def test_native_clock_failure_is_saved_and_cannot_pass_with_complete_frames(self):
         def response(_, request):
             return {"schemaVersion": 1, "commandId": request["commandId"], "ok": False,
@@ -379,7 +489,7 @@ class VoiceModuleTests(unittest.TestCase):
             MODULE.main()
         self.assertEqual(calls, ["prepare", "status", "reset"])
 
-    def exercise(self, corrupt=False):
+    def exercise(self, corrupt=False, capture_windows=None):
         sent = {}
         pending = {}
         observed_ids = []
@@ -402,6 +512,8 @@ class VoiceModuleTests(unittest.TestCase):
                 return {"passed": True, "challenge": values["challenge"], "expected": values["expect"]}
             raise AssertionError(action)
         def exchange(action, **values):
+            if action == "capture-start" and capture_windows is not None:
+                capture_windows.append(values["seconds"])
             if action == "send":
                 observed_ids.append(values["challenge"])
                 event.set()
@@ -421,7 +533,7 @@ class VoiceModuleTests(unittest.TestCase):
                 return {"wavBase64": base64.b64encode(data).decode(), "sha256": hashlib.sha256(data).hexdigest(), "version": "device-test-version"}
             return {"ok": True, "muted": values.get("muted", True)}
         ticks = itertools.count()
-        with patch.object(MODULE, "peer", side_effect=peer), patch.object(MODULE, "exchange", side_effect=exchange), patch.object(MODULE, "assert_process"), patch.object(MODULE, "write_json", side_effect=lambda _, evidence: legs.append(json.loads(json.dumps(evidence)))), patch.object(MODULE.time, "monotonic", side_effect=lambda: next(ticks) * 0.5), patch.object(MODULE.time, "sleep", side_effect=lambda _: event.wait(0.001)):
+        with tempfile.TemporaryDirectory(prefix="voice-module-artifacts-") as artifacts, patch.object(MODULE, "ARTIFACT_DIR", Path(artifacts)), patch.object(MODULE, "peer", side_effect=peer), patch.object(MODULE, "exchange", side_effect=exchange), patch.object(MODULE, "assert_process"), patch.object(MODULE, "write_json", side_effect=lambda _, evidence: legs.append(json.loads(json.dumps(evidence)))), patch.object(MODULE.time, "monotonic", side_effect=lambda: next(ticks) * 0.5), patch.object(MODULE.time, "sleep", side_effect=lambda _: event.wait(0.001)):
             evidence = MODULE.run_roundtrip(Path("unused"), "process", "domain")
         return evidence, observed_ids
 

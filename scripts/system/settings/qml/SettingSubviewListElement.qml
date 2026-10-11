@@ -24,7 +24,7 @@ Item {
 
 	function activate() {
 		if (!root.visible || !root.enabled) { return false; }
-		Tablet.playSound(TabletEnums.ButtonClicked);
+		Tablet.playSound(TabletEnums.ButtonClick);
 		if (targetPage !== "") {
 			toScript({type:"switchApp", appUrl: targetPage});
 			return;

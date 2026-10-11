@@ -25,6 +25,15 @@
       "android/vr/pico/tests/pico-tablet-settings-test.js",
       "interface/resources/qml/hifi/tablet/+android_picoInterface/TabletGeneralPreferencesPolicy.qml",
       "interface/resources/qml/hifi/tablet/TabletHome.qml"
+    ],
+    "apple-ios": [
+      "ios/audio/IOSAudioAdapter.cpp",
+      "ios/audio/IOSAudioAdapter.h",
+      "ios/tests/appium-native-binding-test.py",
+      "tests/device/ios/test_ios_native_binding_contract.py",
+      "tests/device/ios/adapters/appium_adapter.py",
+      "tests/device/ios/self_tests/test_appium_adapter.py",
+      "tests/device/self_tests/test_ios_remotexpc_tunnel.py"
     ]
   },
   "qualified_inputs": [

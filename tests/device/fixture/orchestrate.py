@@ -108,6 +108,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--bind", default="127.0.0.1")
     parser.add_argument("--public-host")
     parser.add_argument("--fixture-port", type=int, default=0)
+    parser.add_argument("--sound-duration-seconds", type=float)
     parser.add_argument("--voice-peer-config", type=Path)
     parser.add_argument("--voice-peer-resource", help="Explicit independent PC peer reservation name; default retains the shared reservation.")
     parser.add_argument("--scene-only", action="store_true")
@@ -120,6 +121,8 @@ def parse_args() -> argparse.Namespace:
     args = parser.parse_args()
     if not 1 <= args.startup_timeout_seconds <= 300:
         parser.error("--startup-timeout-seconds must be from 1 through 300")
+    if args.sound_duration_seconds is not None and not 1 <= args.sound_duration_seconds <= 120:
+        parser.error("--sound-duration-seconds must be from 1 through 120")
     if args.scene_only and (args.domain_server or args.assignment_client):
         parser.error("--scene-only cannot be combined with domain executables")
     if args.voice_peer_resource and not args.voice_peer_config:
@@ -170,6 +173,8 @@ def main() -> int:
                    "--port", str(args.fixture_port), "--ready-file", str(scene_ready_path)]
         if args.public_host:
             command += ["--public-host", args.public_host]
+        if args.sound_duration_seconds is not None:
+            command += ["--sound-duration-seconds", str(args.sound_duration_seconds)]
         popen_options = {"stdin": subprocess.DEVNULL, "stdout": log,
                          "stderr": subprocess.STDOUT}
         if os.name == "nt":

@@ -62,7 +62,7 @@ attestation of the installed signed bytes.
 Verify the host workflow with:
 
 ```bash
-python3 tests/run-unittest-suite.py tests/device/self_tests --pattern test_audio_output.py
+python3 tests/run-unittest-suite.py tests/device/ios/self_tests --pattern test_audio_output.py
 python3 tests/run-project-tests.py --profile quick --timeout 240
 git diff --check
 ```

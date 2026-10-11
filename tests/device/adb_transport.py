@@ -52,10 +52,25 @@ class AdbTransport:
                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                     timeout=timeout, check=False)
         except subprocess.TimeoutExpired as error:
-            raise RuntimeError("ADB operation timed out") from error
+            raise RuntimeError("ADB operation timed out: " + self.operation_label(arguments)) from error
         if check and result.returncode != 0:
             raise RuntimeError("ADB operation failed")
         return result.stdout.replace("\r", "")
+
+    @staticmethod
+    def operation_label(arguments: list[str]) -> str:
+        """Closed command categories; never include selectors or payloads."""
+        if arguments[:3] == ["shell", "am", "start"]:
+            return "activity launch"
+        if arguments[:3] == ["shell", "am", "force-stop"]:
+            return "application stop"
+        if arguments[:2] == ["shell", "pidof"]:
+            return "process inspection"
+        if arguments[:3] == ["shell", "dumpsys", "activity"]:
+            return "foreground inspection"
+        if arguments[:2] == ["shell", "run-as"] or arguments[:2] == ["exec-out", "run-as"]:
+            return "controlled app file access"
+        return "command"
 
     def execute_bytes(self, arguments: list[str], *, target: str | None = None,
                       timeout: int = 20, check: bool = True) -> bytes:
@@ -87,6 +102,25 @@ class AdbTransport:
 
     def prop(self, target: str, name: str) -> str:
         return self.shell(target, "getprop", name, check=False).strip()
+
+    def properties(self, target: str, names: tuple[str, ...] | None = None) -> dict[str, str]:
+        """Read one fresh property snapshot without logging private values."""
+        requested = set(names) if names is not None else None
+        values = {}
+        for line in self.shell(target, "getprop").splitlines():
+            match = re.fullmatch(r"\[([^\[\]]+)\]: \[(.*)\]", line)
+            if match and (requested is None or match[1] in requested):
+                if match[1] in values:
+                    raise RuntimeError("Android property snapshot contains duplicate entries")
+                values[match[1]] = match[2]
+        return values if names is None else {name: values.get(name, "") for name in names}
+
+    def epoch_milliseconds(self, target: str) -> int:
+        """Read the target clock so native samples do not use the host epoch."""
+        value = self.shell(target, "date", "+%s%3N").strip()
+        if not re.fullmatch(r"[1-9][0-9]{12}", value):
+            raise RuntimeError("Android native clock is unavailable")
+        return int(value)
 
     def authorized_targets(self) -> list[str]:
         lines = self.execute(["devices", "-l"]).splitlines()
@@ -180,16 +214,35 @@ class AdbTransport:
         return int(match.group(1)) if match else None
 
     def telemetry_snapshot(self, target: str, package: str) -> dict:
-        memory = self.shell(target, "dumpsys", "meminfo", package, check=False)
-        total = re.search(r"^\s*TOTAL\s+(\d+)\s+(\d+)", memory, re.MULTILINE)
+        before = self.process_state(target, package)
+        identity = before.get("identity")
+        if before.get("running") is not True or not isinstance(identity, str) or not re.fullmatch(r"[1-9][0-9]*:[0-9]+", identity):
+            raise RuntimeError("memory telemetry requires a stable running application process")
+        pid = identity.split(":", 1)[0]
+        memory = self.shell(target, "dumpsys", "meminfo", pid, check=False)
+        status = self.shell(target, "run-as", package, "cat", f"/proc/{pid}/status", check=False)
+        pss = self.integer_match(r"^\s*TOTAL\s+(\d+)(?:\s|$)", memory)
+        if pss is None:
+            pss = self.integer_match(r"^\s*TOTAL(?: PSS)?:\s*(\d+)", memory)
+        rss = self.integer_match(r"^VmRSS:\s*(\d+)\s+kB\s*$", status)
+        if rss is None:
+            rss = self.integer_match(r"\bTOTAL RSS:\s*(\d+)", memory)
+        if pss is None or rss is None:
+            rollup = self.shell(target, "run-as", package, "cat", f"/proc/{pid}/smaps_rollup", check=False)
+            if pss is None:
+                pss = self.integer_match(r"^Pss:\s*(\d+)\s+kB\s*$", rollup)
+            if rss is None:
+                rss = self.integer_match(r"^Rss:\s*(\d+)\s+kB\s*$", rollup)
         battery = self.shell(target, "dumpsys", "battery", check=False)
         thermal = self.shell(target, "dumpsys", "thermalservice", check=False)
+        if self.process_state(target, package).get("identity") != identity:
+            raise RuntimeError("application process changed during memory telemetry")
         return {
             "batteryLevel": self.integer_match(r"^\s*level:\s*(\d+)", battery),
             "batteryTemperatureDeciC": self.integer_match(
                 r"^\s*temperature:\s*(\d+)", battery),
-            "memoryPssKb": int(total.group(1)) if total else None,
-            "memoryRssKb": int(total.group(2)) if total else None,
+            "memoryPssKb": pss,
+            "memoryRssKb": rss,
             "thermalStatus": self.integer_match(
                 r"(?:Thermal Status:|mStatus=)\s*(\d+)", thermal),
         }

@@ -561,8 +561,8 @@
       "gitBlob": "82602aed829f4cd584123f1697c5865ffff8c241",
       "bytes": 2960,
       "modified": true,
-      "modifications": "Add immutable original Woody Apache-2.0 license/import metadata and High Fidelity/Haptic Monkey attribution to the bundled avatar manifest and license prelude; retain all six fixed native asset bytes and SHA-256 digests unchanged.",
-      "currentSha256": "55b5a04406476f72d80cb28077618b8b27626dae05b41afa3ac824f0ba1ed749"
+      "modifications": "Retain immutable original Woody Apache-2.0 license/import metadata and High Fidelity/Haptic Monkey attribution. Bind the reviewed fork FBX skin-weight normalization at b4e7ddd976ce3e019b781540ed6186a7d31bf1d3 to its exact size and SHA-256; retain the other five native asset digests and distinguish the updated FBX from native 2026.04.1.",
+      "currentSha256": "892e814f8ea4f41be82518b1c75d290dc51cb5430341aa00853388f3af4feae7"
     },
     {
       "source": "browser-client/tools/build-notices.mjs",

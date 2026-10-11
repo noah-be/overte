@@ -1,4 +1,5 @@
 import QtQuick 2.15
+import QtQuick.Window 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.3
 import controlsUit 1.0 as HifiControls
@@ -39,7 +40,10 @@ ScrollView {
 	// Append children made using this custom element to the ColumnLayout.
 	Component.onCompleted: {
 		if (root.contentItem) {
-			root.contentItem.pressDelay = touchMetrics.pressDelay
+			// The Phone host forwards touch as mouse events. Qt 5 ScrollView
+			// drops a quick click when its child press is delayed; scrolling
+			// still acquires the pointer through Flickable's drag threshold.
+			root.contentItem.pressDelay = 0
 			root.contentItem.flickDeceleration = touchMetrics.flickDeceleration
 			root.contentItem.maximumFlickVelocity = touchMetrics.maximumFlickVelocity
 		}

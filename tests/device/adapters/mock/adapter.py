@@ -588,7 +588,7 @@ def invoke(operation: str, arguments: dict) -> dict:
     elif operation == "text.focus":
         state["textValue"] = ""
         state["textFocused"] = True
-        state["textKeyboardVisible"] = True
+        state["textKeyboardVisible"] = "text-keyboard-missing" not in failures()
         result = {"performed": True}
     elif operation == "text.type":
         if not state["textFocused"]:

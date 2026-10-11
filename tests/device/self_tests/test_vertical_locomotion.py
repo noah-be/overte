@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import Mock, patch
 import xml.etree.ElementTree as ET
 
 
@@ -126,7 +127,57 @@ raise SystemExit(result.returncode)
     return manifest, evidence
 
 
+def vertical_session():
+    with patch.dict(os.environ, {
+        "OVERTE_DEVICE_ADAPTER_MANIFEST": "unused.json",
+        "OVERTE_DEVICE_TARGET_SELECTOR": "owned-test-alias",
+        "OVERTE_DEVICE_ARTIFACT_DIR": ".",
+    }):
+        from overte_session import OverteSession
+        return OverteSession()
+
+
 class VerticalLocomotionTest(unittest.TestCase):
+    def test_pico_restores_displaced_vertical_baseline_without_starting_input(self):
+        for method in ("jump", "fly"):
+            with self.subTest(method=method):
+                near = snapshot(position={"x": 0.0, "y": 1.0, "z": 1.3})
+                near["scene"]["spawnLocationObserved"] = False
+                restored = snapshot()
+                session = vertical_session()
+                session.pico_openxr = True
+                session.stable_ground_snapshot = Mock(return_value=near)
+                session.reload_controlled_scene = Mock(return_value=restored)
+                session.assert_spawn_grounded = Mock(return_value=restored)
+                session.assert_visible_movement_world = Mock(side_effect=RuntimeError("stop before input"))
+                session._invoke = Mock()
+                with patch("overte_session.write_json"), self.assertRaisesRegex(RuntimeError, "stop before input"):
+                    getattr(session, method)()
+                session.reload_controlled_scene.assert_called_once_with()
+                session.assert_spawn_grounded.assert_called_once_with()
+                session._invoke.assert_not_called()
+
+    def test_pico_vertical_baseline_rejects_unsuccessful_restore(self):
+        near = snapshot(position={"x": 0.0, "y": 1.0, "z": 1.3})
+        near["scene"]["spawnLocationObserved"] = False
+        session = vertical_session()
+        session.pico_openxr = True
+        session.stable_ground_snapshot = Mock(return_value=near)
+        session.reload_controlled_scene = Mock(return_value=near)
+        session.assert_spawn_grounded = Mock(return_value=near)
+        with patch("overte_session.write_json"), self.assertRaisesRegex(RuntimeError, "free vertical"):
+            session.vertical_ground_snapshot("baseline.json")
+
+    def test_free_vertical_baseline_and_other_platforms_do_not_reload(self):
+        for pico, initial in ((True, snapshot()), (False, snapshot(position={"x": 0., "y": 1., "z": 1.3}))):
+            with self.subTest(pico=pico):
+                session = vertical_session()
+                session.pico_openxr = pico
+                session.stable_ground_snapshot = Mock(return_value=initial)
+                session.reload_controlled_scene = Mock()
+                self.assertEqual(initial, session.vertical_ground_snapshot("baseline.json"))
+                session.reload_controlled_scene.assert_not_called()
+
     def test_collision_direction_targets_world_negative_z_for_any_cardinal_heading(self):
         environment = os.environ.copy()
         environment.update({

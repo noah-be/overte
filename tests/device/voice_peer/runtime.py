@@ -192,7 +192,7 @@ class Peer:
         with self.client_path.open("rb") as binary:
             self.client_digest = hashlib.file_digest(binary, "sha256").hexdigest()
         script = self.root / "peer-runtime.js"
-        config = {"url": url, "token": self.token, "session": self.session}
+        config = {"url": url, "token": self.token, "session": self.session, "domain": self.domain}
         script.write_text("var VOICE_PEER_CONFIG = " + json.dumps(config) + ";\n"
                           + Path(__file__).with_name("peer.js").read_text(), encoding="utf-8")
         script.chmod(0o600)
@@ -208,14 +208,19 @@ class Peer:
             "XDG_DATA_HOME": str(self.root / "data"),
             "XDG_CACHE_HOME": str(self.root / "cache"),
         })
+        # Register mixer callbacks before entering the domain. Connecting via
+        # --url directly can deliver the first audio packet before peer.js loads.
+        startup = self.root / "voice-startup.json"
+        startup.write_text(json.dumps({"DataVersion": 3, "Entities": [], "Version": 1}))
+        startup.chmod(0o600)
         # An isolated profile and explicit Pulse stream ownership avoid changing
         # host defaults, existing Overte preferences, or another application's audio.
         args = [str(self.client_path), "--allowMultipleInstances", "--no-updater",
-                "--no-launcher", "--no-login-suggestion", "--display=Desktop",
+                "--no-launcher", "--no-login-suggestion", "--display", "Desktop",
                 "--suppress-settings-reset", "--cache", str(self.root / "cache"),
                 "--defaultScriptsOverride", str(empty),
                 "--testScript", str(script), "--testResultsLocation", str(self.root / "client-results"),
-                "--url", self.domain]
+                "--url", startup.as_uri()]
         log = (self.root / "client.log").open("wb")
         try:
             self.client = subprocess.Popen(args, env=env, stdout=log, stderr=log,
@@ -374,15 +379,32 @@ class Peer:
                 if expect not in ("present", "absent") or not request.get("challenge"):
                     raise ValueError("receive requires an explicit challenge and present/absent expectation")
                 self.configure(muted=True)
+                audio_stats = []
+                previous_sequence = None
                 with self.artifacts() as root:
                     with self.routes.capture(root) as wav:
                         with self.guard:
                             self.receiving_challenge = challenge
                         deadline = time.monotonic() + seconds
                         while time.monotonic() < deadline:
-                            self.ready()
+                            observed = self.ready().get("client") or {}
+                            sequence_number = observed.get("sequence")
+                            stats = observed.get("audioStats")
+                            if (sequence_number != previous_sequence and isinstance(stats, dict)
+                                    and len(audio_stats) < 128):
+                                audio_stats.append({"peerSequence": sequence_number, **stats})
+                                previous_sequence = sequence_number
                             time.sleep(0.1)
                     result = analyze(wav, challenge, expect)
+                    result["pcAudioStats"] = audio_stats
+                    # Retain the exact owned loopback PCM until the device
+                    # module copies it; the next receive replaces this pair.
+                    content = wav.read_bytes()
+                    retained = self.root / "receive-capture.wav"
+                    retained.write_bytes(content)
+                    retained.chmod(0o600)
+                    write_json(self.root / "receive-capture.json", {
+                        "challenge": challenge, "sha256": hashlib.sha256(content).hexdigest()})
             else:
                 with self.artifacts() as root:
                     wav = root / "challenge.wav"

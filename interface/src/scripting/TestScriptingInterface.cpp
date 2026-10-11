@@ -54,6 +54,13 @@
 #include <QTimer>
 #endif
 
+#if defined(OVERTE_E2E_VOICE_TESTS)
+#include <AudioClient.h>
+#include <QCryptographicHash>
+#include <QRegularExpression>
+#include <QTimer>
+#endif
+
 Q_LOGGING_CATEGORY(trace_test, "trace.test")
 
 TestScriptingInterface* TestScriptingInterface::getInstance() {

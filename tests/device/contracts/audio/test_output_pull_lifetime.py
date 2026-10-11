@@ -1,3 +1,5 @@
+# Copyright 2026 Overte e.V.
+# SPDX-License-Identifier: Apache-2.0
 """Exercise production pull-source ownership and retirement with real Qt events.
 
 The sink is an explicit backend seam; this does not qualify CoreAudio hardware.
@@ -125,7 +127,7 @@ class OutputPullLifetime(unittest.TestCase):
                     binary = directory / name
                     cpp.write_text(FIXTURE.replace("/* SOURCE_DECLARATION */", decl)
                                    .replace("/* RETIREMENT */", retire))
-                    subprocess.run(["c++", "-std=c++17", "-fPIC", "-pthread", "-DQ_OS_IOS",
+                    subprocess.run(["c++", "-std=c++17", "-fPIC", "-pthread",
                                     str(cpp), "-o", str(binary), *flags], check=True, timeout=40)
                     # Prevent expected mutation assertions from writing host cores.
                     result = subprocess.run(["bash", "-c", 'ulimit -c 0; exec "$1"',

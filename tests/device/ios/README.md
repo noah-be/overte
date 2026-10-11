@@ -356,3 +356,23 @@ and versioned-runtime chain must remain symlink-free, non-writable, and owned by
 that same visible system-root identity.
 A tool version change requires a new versioned installation
 and an explicit administrator gate; obsolete versions are removed separately.
+
+## Native source ownership
+
+Native transport and UI extensions live in [`adapters/`](adapters/), with
+regressions in `self_tests/`. The shared Appium CLI delegates iOS requests to
+`adapters/appium_adapter.py`; generic imports retain the parent implementation.
+The parent-owned `../adapters/ios/binding.py` remains the candidate handoff loader.
+
+The [internal output test](AUDIO_OUTPUT.md) verifies physical output PCM at
+system volume zero. The [acoustic loopback](ACOUSTIC_LOOPBACK.md) checks the
+built-in speaker and microphone with dedicated test builds. Host fixtures do
+not establish physical-device results.
+
+Run all native host regressions with `bash ios/tests/run-tests.sh` from the
+repository root. Native C++ fixtures live in `ios/tests/native_contracts/`.
+
+The native adapters form a namespace package. A package marker here would
+shadow the shared `adapters` namespace when legacy signing helpers add the
+iOS utility directory to Python's search path. Native imports use the explicit
+`ios.adapters` package and shared imports retain their original modules.

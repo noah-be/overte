@@ -419,6 +419,17 @@ bool TouchscreenVirtualPadDevice::isWorldTapPosition(const QPointF& position) {
     return !moveTouchBeginIsValid(point) && _buttonsManager.touchBeginInvalidForAllButtons(point);
 }
 
+bool TouchscreenVirtualPadDevice::isWorldTapPosition(const QPointF& position) {
+    auto& manager = VirtualPad::Manager::instance();
+    if (!manager.isEnabled() || manager.isHidden()) {
+        return true;
+    }
+    const glm::vec2 point(position.x(), position.y());
+    // A stationary contact in the look region can select an entity. The
+    // joystick and every button retain exclusive ownership of their contacts.
+    return !moveTouchBeginIsValid(point) && _buttonsManager.touchBeginInvalidForAllButtons(point);
+}
+
 void TouchscreenVirtualPadDevice::processUnusedTouches(std::map<int, TouchType> unusedTouchesInEvent) {
     std::vector<int> touchesToDelete;
     for (auto const& touchEntry : _unusedTouches) {

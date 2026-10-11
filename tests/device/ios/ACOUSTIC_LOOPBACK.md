@@ -105,8 +105,8 @@ GitHub issues.
 ## Host verification
 
 ```bash
-python3 tests/run-unittest-suite.py tests/device/self_tests --pattern test_acoustic_loopback.py
-python3 tests/device/contracts/audio/test_ios_input_buffer.py
+python3 tests/run-unittest-suite.py tests/device/ios/self_tests --pattern test_acoustic_loopback.py
+python3 ios/tests/native_contracts/test_ios_input_buffer.py
 python3 tests/run-project-tests.py --profile quick --timeout 240
 git diff --check
 ```
