@@ -24,7 +24,9 @@ class ApplicationConsent(unittest.TestCase):
         fixture=fixture.replace('// ACTUAL_IOS_CONSENT_SOURCE',native)
         with tempfile.TemporaryDirectory(prefix='consent-application-') as directory:
             d=Path(directory);cpp=d/'test.cpp';cpp.write_text(fixture)
-            subprocess.run(['/usr/lib64/qt6/libexec/moc',str(cpp),'-o',str(d/'test.moc')],check=True,timeout=10)
+            libexec=subprocess.check_output(['pkg-config','--variable=libexecdir','Qt6Core'],text=True).strip()
+            if not libexec: raise RuntimeError('Qt6Core did not declare its host tool directory')
+            subprocess.run([str(Path(libexec)/'moc'),str(cpp),'-o',str(d/'test.moc')],check=True,timeout=10)
             flags=shlex.split(subprocess.check_output(['pkg-config','--cflags','--libs','Qt6Quick','Qt6Widgets'],text=True))
             subprocess.run(['c++','-DANDROID_APP_PICO_INTERFACE','-std=c++17','-fPIC','-pthread','-I',str(ROOT/'libraries/script-engine/src'),'-I',str(ROOT/'interface/src/scripting'),str(cpp),'-o',str(d/'test'),*flags],check=True,timeout=30)
             env=dict(os.environ,QT_QPA_PLATFORM='offscreen',QT_QUICK_BACKEND='software')
