@@ -64,7 +64,10 @@ the exact Ubuntu package list. These host Qt contracts are separate from the
 complete client's platform-specific Qt/Conan dependency graph.
 
 The phone pad projection regression requires the real GLM headers (`libglm-dev`
-on Ubuntu). A prepared local package can instead be selected with
+on Ubuntu). The isolated synchronization validation workflow installs this package
+and the listed Qt 5 development/QML packages for both complete fallback and
+product differential checks.
+A prepared local package can instead be selected with
 `OVERTE_TEST_GLM_INCLUDE` pointing at its include directory. The host requirements
 also pin Pillow for the native-frame black-interior negative control. The full
 gate includes phone placement, pad projection, joint storage, QML property/thread
