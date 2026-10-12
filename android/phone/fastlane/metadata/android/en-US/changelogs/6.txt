@@ -1,0 +1,2 @@
+Aligns source cleanup with F-Droid directory-level scanning. Removes additional unused Node, Qt and OpenSSL test fixtures consistently from scanned and compiled sources.
+Known issues remain: intermittent Go To/keyboard navigation crash (#933), and app restart required after microphone permission regrant.

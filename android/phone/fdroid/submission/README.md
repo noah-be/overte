@@ -90,13 +90,19 @@ Source-built Conan build tools remain locked too; this changes the host's
 Debian tools, not the dependency graph's source identity.
 
 **Current validation boundary:** the published 0.1.3 (4) reference is tied to
-`ee32aaffe5c78358b4eb1bdfb539793258e53571`. The 0.1.4 (5) candidate includes
+`ee32aaffe5c78358b4eb1bdfb539793258e53571`. The 0.1.5 (6) candidate includes
 source cleanup directly in the repository and requires no F-Droid backport patch.
 Do not replace the 0.1.3 tag or APK. Keep the staged recipe disabled until two
 independent clean builds match and the new signed reference has been verified.
 Earlier device results do not establish device qualification of this candidate.
 The 36000-second timeout is an upper limit, not evidence of performance on the
 official buildserver. No successful shared-runner/official-server test is claimed.
+
+This candidate is based on the published 0.1.4 source
+`5915c19a9a479be257da50e37df29f0dd3b7eabf` and adds only the directory-scandelete
+cleanup correction and release metadata. It excludes later application changes
+from the development branch. Existing release tags and APKs remain unchanged.
+The new source revision requires fresh build and signed-reference qualification.
 
 The work directory, Conan cache and Gradle home stay outside the checkout.
 `prebuild` calls `--acquire-only`: it downloads the hash-locked archives and
@@ -169,7 +175,7 @@ fallback to network-enabled compilation.
 
 ```sh
 python3 android/phone/fdroid/submission/build.py \
-  --commit "$(git rev-parse HEAD)" --version-code 5 --version-name 0.1.4 \
+  --commit "$(git rev-parse HEAD)" --version-code 6 --version-name 0.1.5 \
   --sdk "$ANDROID_SDK_ROOT" --work-dir /absolute/new/build-attempt --check
 ```
 
@@ -213,7 +219,7 @@ Current release configuration:
 
 - **Identity:** `Overte Mobile (Unofficial)`, application ID
   `io.github.noah_be.overte.phone`. Published version: `0.1.3` (4); disabled
-  review candidate: `0.1.4` (5).
+  review candidate: `0.1.5` (6).
   The internal Java/JNI namespace remains `org.overte.phone`; Android components
   therefore use fully qualified class names. Earlier local test APKs used a
   different application ID. They are separate installations, not upgrade inputs.
