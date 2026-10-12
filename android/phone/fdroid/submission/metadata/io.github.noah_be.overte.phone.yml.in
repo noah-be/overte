@@ -39,26 +39,7 @@ Builds:
         --version-code $$VERCODE$$ --version-name $$VERSION$$ --sdk $$SDK$$
         --work-dir "$PWD/../../../.overte-phone-fdroid-build"
     scandelete:
-      - fdroid-source-closure/*/qtwebchannel-*/examples/webchannel/*/package.json
-      - fdroid-source-closure/*/meson-*/test cases/rust/*/subprojects/*/Cargo.toml
-      - fdroid-source-closure/*/meson-*/test cases/rust/*/subprojects/*/src/*/Cargo.toml
-      - fdroid-source-closure/*/meson-*/test cases/rust/*/subprojects/*/subprojects/*/Cargo.toml
-      - fdroid-source-closure/*/SPIRV-Tools-*/*/*/package.json
-      - fdroid-source-closure/*/qtscxml-*/tests/3rdparty/*/*/package.json
-      - fdroid-source-closure/*/hwloc-*/contrib/*/package.json
-      - fdroid-source-closure/*/node-*/deps/amaro/package.json
-      - fdroid-source-closure/*/node-*/deps/corepack/package.json
-      - fdroid-source-closure/*/node-*/deps/npm/package.json
-      - fdroid-source-closure/*/node-*/deps/a*/*/package.json
-      - fdroid-source-closure/*/node-*/deps/undici/*/package.json
-      - fdroid-source-closure/*/node-*/deps/npm/node_modules/*/package.json
-      - fdroid-source-closure/*/node-*/deps/npm/node_modules/*/*/package.json
-      - fdroid-source-closure/*/node-*/deps/npm/node_modules/*/*/*/package.json
-      - fdroid-source-closure/*/node-*/deps/npm/node_modules/*/*/*/*/package.json
-      - fdroid-source-closure/*/node-*/deps/npm/node_modules/*/*/*/*/*/package.json
-      - fdroid-source-closure/*/node-*/deps/v8/third_party/ittapi/ittapi-rs/Cargo.toml
-      - fdroid-source-closure/*/draco-*/javascript/npm/*/package.json
-      - fdroid-source-closure/*/qtbase-*/src/android/java/src/org/qtproject/qt5/android/bindings/QtLoader.java
+      - fdroid-source-closure
       - android/common/tests/javascript/package.json
       - scripts/communityScripts/libraries/materialdesignicons/package.json
       - scripts/developer/tests/unit_tests/package.json
@@ -88,9 +69,9 @@ MaintainerNotes: |
   loopback-only network. There is no online compilation fallback.
   The 36000-second limit is a ceiling, not a measured official-buildserver result.
   Standard Debian trixie tools are used; no repository code runs under sudo.
-  Globbed scandelete entries remove unused vendored installation manifests and
-  Qt's unused Android deployment-template loader. Phone uses its own Java bindings
-  and the runtime QtAndroid.jar. There are no scanignore entries.
+  Directory-level scandelete removes unused dependency test fixtures, vendored
+  installation manifests and Qt's unused Android deployment-template loader.
+  Phone uses its own Java bindings and the runtime QtAndroid.jar. There are no scanignore entries.
   source-scan-policy.json removes content-bound binary fixtures/platform tools
   in both the scanner view and Conan post_source, before compiling either context.
   Conan also removes every declared scandelete file, with exact paths and hashes,

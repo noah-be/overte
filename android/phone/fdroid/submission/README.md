@@ -23,7 +23,7 @@ acquires the same Gradle 8.13 distribution, checks the existing SHA-256, and run
 its executable directly. No wrapper scan exception is required.
 
 The metadata uses `scandelete` for unused files in F-Droid's disposable
-checkout, including globbed dependency manifests and an unused Qt deployment
+checkout, including dependency test fixtures, manifests and an unused Qt deployment
 loader template. The maintained source archives remain hash-pinned. There is
 no `scanignore` and no bypass of APK scanning. The compiler-source cleanup
 removes the same declared files before native compilation (see below).
@@ -103,10 +103,12 @@ The work directory, Conan cache and Gradle home stay outside the checkout.
 Gradle inputs, prepares the dependency source caches, and expands all native
 source archives into `fdroid-source-closure/` inside the checkout. The existing
 1551 content-bound binary-fixture/platform-tool/wrapper exclusions are applied
-before inventorying; the 264 declared `scandelete` files remain for F-Droid's
+before inventorying; the 553 declared `scandelete` files remain for F-Droid's
 normal scanner to inspect and delete. The metadata expresses those deletions
-as 20 file globs; it has no `scanignore`. F-Droid uses non-recursive globbing,
-so nested npm manifests require separate patterns for their different depths.
+with one directory-level `scandelete: fdroid-source-closure` entry; it has no
+`scanignore`. This authorizes F-Droid to remove findings anywhere in that
+directory; it does not unconditionally delete the directory. The content-bound
+inventory still rejects deletion of any file outside the reviewed policy.
 
 `build` calls `--build-only` and never acquires inputs. It requires the same
 prebuild commit, version, policy, manifest, Gradle distribution and inventory.
@@ -114,7 +116,7 @@ The inventory records exact deletion paths and original file hashes. After
 scanning, precisely those files must be absent and every remaining source must
 match; extra, modified or unexpectedly missing files stop the build. The
 inventory cannot be rewritten to accept a scanner finding. Conan's actual
-`post_source` hook removes the same 1551 + 264 files from the separately
+`post_source` hook removes the same 1551 + 553 files from the separately
 extracted compiler sources, checking their original hashes before deletion.
 The external archive cache cannot silently restore rejected compiler inputs.
 
@@ -127,7 +129,16 @@ Conan's compiler source cleanup. The manifest stays deleted; library sources,
 configure options and runtime behavior are unchanged. Conan already discards
 the installed web-tool data from the dependency package.
 
-The newly deleted files are:
+The scanner-deleted files are:
+
+- 289 additional test fixtures/manifests detected by directory-level deletion:
+  236 in Node and its bundled dependencies, 48 Qt QVariant serialization
+  fixtures, and five OpenSSL test fixtures. These were previously warnings
+  under F-Droid's test-path handling; directory-level `scandelete` removes them
+  before that warning fallback. The locked recipes build the Node shared
+  library, Qt with `-nomake tests`, and OpenSSL with `no-tests`. Node uses
+  external OpenSSL and zlib. Exact archive paths and SHA-256 hashes bind these
+  deletions in both source trees.
 
 - 263 `package.json`/`Cargo.toml` installation manifests. npm and Corepack
   installation are disabled. Node embeds the JavaScript files declared by
@@ -213,9 +224,9 @@ Current release configuration:
   Store description and initial changelog use the approved unofficial name;
   the description requires OpenGL ES 3.2 and does not list jumping separately.
 - **Device support:** API 26 minimum, target/compile API 36, ARM64 and OpenGL ES
-  3.2. SDK/NDK/CMake versions remain unchanged. Twenty dependency-source deletion
-  globs supplement the existing eight scanner deletions. The supplied Navy artwork
-  and two maintainer-created Phone screenshots are included.
+  3.2. SDK/NDK/CMake versions remain unchanged. One dependency-source directory
+  deletion rule supplements the existing eight scanner deletions. The supplied
+  Navy artwork and two maintainer-created Phone screenshots are included.
 - **Signing:** reproducible builds against the maintainer-signed published APK,
   with `AllowedAPKSigningKeys` binding the established release certificate.
   The local Android debug key remains test-only. No keys belong in the checkout.

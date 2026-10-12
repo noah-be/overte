@@ -109,33 +109,48 @@ class ScannerInputTests(unittest.TestCase):
                 scan.clean_compiler_sources(root, 'library/1', policy)
             self.assertTrue((root / 'outside').exists())
 
-    def test_scandelete_globs_cover_the_content_bound_policy(self):
+    def test_directory_scandelete_covers_the_content_bound_policy(self):
         policy = scan.load_policy(HERE / 'source-scan-policy.json',
                                   HERE.parent / 'manifests/source-closure.lock.json')
         template = (HERE / 'metadata/io.github.noah_be.overte.phone.yml.in').read_text()
         self.assertNotIn('    scanignore:', template)
         patterns = [line.strip()[2:] for line in template.splitlines()
-                    if line.strip().startswith('- fdroid-source-closure/')]
-        self.assertLess(len(patterns), len(policy['scandelete']))
+                    if line.strip().startswith('- fdroid-source-closure')]
+        self.assertEqual(['fdroid-source-closure'], patterns)
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            expected = set()
+            view = root / 'fdroid-source-closure'
+            view.mkdir()
+            # F-Droid resolves globs, then matches findings by path prefix.
+            # Directory coverage is deliberately broader than the inventory.
+            matches = glob.glob(str(root / patterns[0]))
+            self.assertEqual([str(view)], matches)
             for rule in policy['scandelete']:
-                self.assertIn(Path(rule['archive_path']).name,
-                              ['package.json', 'Cargo.toml', 'QtLoader.java'])
-                path = root / 'fdroid-source-closure' / rule['archive_sha256'] / rule['archive_path']
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.touch()
-                expected.add(str(path))
-            # F-Droid's getpaths_map uses non-recursive glob.glob, not a
-            # recursive ** matcher. Exercise those semantics for nested npm.
-            matches = set()
-            for pattern in patterns:
-                found = glob.glob(str(root / pattern))
-                self.assertTrue(found, pattern)
-                self.assertTrue(all(Path(p).is_file() for p in found))
-                matches.update(found)
-            self.assertEqual(expected, matches)
+                path = view / rule['archive_sha256'] / rule['archive_path']
+                self.assertTrue(str(path).startswith(matches[0] + '/'))
+
+    def test_binary_fixture_deletion_is_content_bound_in_both_views(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            document, store, checkout, view, sha = self.fixture(root)
+            rule = {'reference': 'library/1', 'archive_sha256': sha,
+                    'archive_path': 'library/test/fixture.wasm',
+                    'compiler_suffix': 'test/fixture.wasm',
+                    'sha256': scan.hashlib.sha256(b'\x00asm\x01\x00\x00\x00').hexdigest()}
+            policy = {'remove': [], 'scandelete': [rule]}
+            inventory_sha = scan.expand(document, store, view, checkout, policy)
+            with self.assertRaisesRegex(ValueError, 'scandelete files still present'):
+                scan.verify(store, view, inventory_sha)
+            (view / sha / rule['archive_path']).unlink()
+            scan.verify(store, view, inventory_sha)
+            compiler = root / 'compiler'
+            scan.unpack(store / sha / 'source', compiler)
+            self.assertEqual(1, scan.clean_compiler_sources(compiler, 'library/1', policy))
+            self.assertEqual(scan.inventory(view / sha), scan.inventory(compiler))
+            # Broad metadata does not authorize removal of an unlisted source.
+            (view / sha / 'library/source.c').unlink()
+            with self.assertRaisesRegex(ValueError, 'expanded source changed'):
+                scan.verify(store, view, inventory_sha)
 
     def fixture(self, root):
         archive = root / 'source.tar.gz'
@@ -146,6 +161,10 @@ class ScannerInputTests(unittest.TestCase):
             out.addfile(info, io.BytesIO(content))
             info = tarfile.TarInfo('library/examples/package.json')
             content = b'{"name":"unused-example"}\n'
+            info.size = len(content)
+            out.addfile(info, io.BytesIO(content))
+            info = tarfile.TarInfo('library/test/fixture.wasm')
+            content = b'\x00asm\x01\x00\x00\x00'
             info.size = len(content)
             out.addfile(info, io.BytesIO(content))
         sha = scan.digest(archive)

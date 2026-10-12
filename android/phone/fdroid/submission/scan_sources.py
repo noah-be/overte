@@ -176,8 +176,8 @@ def expand(document, store, destination, checkout, policy=None):
     if policy is not None:
         clean_view(destination, policy)
     # Leave these files present for F-Droid's scanner to delete. Record exact
-    # paths inside the hash-bound inventory, not glob permissions: metadata
-    # globs must never authorize deleting an unexpected compiler input.
+    # paths inside the hash-bound inventory, not directory/glob permissions:
+    # metadata must never authorize deleting an unexpected compiler input.
     deletions = [rule['archive_sha256'] + '/' + rule['archive_path']
                  for rule in (policy or {}).get('scandelete', [])]
     record = {'archives': archives, 'files': inventory(destination),
