@@ -7,3 +7,8 @@ android.sourceSets.main.java.srcDir new File(project.overteSnapshotRoot, 'java')
 android.sourceSets.main.res.srcDir new File(project.overteSnapshotRoot, 'res')
 // Already locked and source-acquired by the shared WebKit dependency graph.
 dependencies { implementation 'androidx.core:core:1.1.0' }
+
+// Keep only the Java endpoint whose class/method names are used by C++ JNI.
+android.buildTypes.configureEach {
+    proguardFiles new File(project.overteSnapshotRoot, 'proguard-rules.pro')
+}

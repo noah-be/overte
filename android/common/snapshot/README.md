@@ -62,3 +62,19 @@ These checks do not establish APK packaging, provider configuration on an actual
 phone, MediaStore behavior, chooser delivery ordering or device lifecycle
 acceptance. Those require a complete source-bound product build and real device
 Save/Share/cancel/failure tests.
+
+## JNI names in release builds
+
+The Gradle helper applies this module's `proguard-rules.pro` to every build type.
+Only the Java entry class called by native JNI is retained by name with its
+methods; other implementation classes remain eligible for R8 optimization.
+Do not remove these rules when enabling release minification.
+
+`android/common/tests/jni-shrinker-test.py` optionally compiles all three real
+Java endpoints against Android SDK/AndroidX artifacts, optimizes them with an
+explicit R8 JAR and checks every native lookup and callback descriptor. An
+unprotected negative control loses the endpoints. Supply `--r8-jar`,
+`--android-jar`, `--webkit-jar`, `--core-jar` and `--annotation-jar`; the JDK is
+discovered from `javac`, or set with `--java-home`. JVM classfile output uses the
+actual JDK LambdaMetafactory declaration because Android's API stub omits it.
+This host check does not qualify the product's AGP release APK or device runtime.
