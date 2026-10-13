@@ -58,6 +58,12 @@ SUITES = (
         sys.executable, "tests/check-documentation.py", "--all")),
     Suite("safe-landing-lifecycle", "host", (
         sys.executable, "tests/safe-landing/test_safe_landing_lifecycle.py")),
+    Suite("embedded-web-policy", "host", (
+        sys.executable, "tests/device/contracts/web/test_embedded_web_policy.py")),
+    Suite("embedded-web-qml", "host", (
+        sys.executable, "tests/device/contracts/web/test_embedded_web_qml.py")),
+    Suite("account-auth-dispatch", "host", (
+        sys.executable, "tests/device/contracts/lifecycle/test_account_auth_dispatch.py")),
     Suite("native-smoke", "quick", (
         sys.executable, "tests/device/contracts/world-entry/test_phone_spawn_gate.py")),
     Suite("native-ci-policy", "quick", (sys.executable, "tests/native-ci-test.py")),
