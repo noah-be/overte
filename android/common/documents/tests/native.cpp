@@ -74,5 +74,19 @@ int main(int argc,char** argv) {
     result(env,duplicates,{secondPath,QFileInfo(duplicateFile).canonicalFilePath()});drain();assert(selected==3 && urls.size()==2);
     auto gone=std::make_unique<FileDialogHelper>();auto old=gone->openDocuments("destroy",{},false);assert(!old.isEmpty());gone.reset();
     result(env,old,{path});drain();assert(selected==3 && QFileInfo(path).isReadable());
+    const auto treePath=part+"/Actual model folder";assert(QDir().mkpath(treePath+"/textures"));
+    QFile model(treePath+"/scene.gltf");assert(model.open(QFile::WriteOnly));model.write("{\"uri\":\"textures/image.png\"}");model.close();
+    QFile texture(treePath+"/textures/image.png");assert(texture.open(QFile::WriteOnly));texture.write("texture");texture.close();
+    const auto tree=helper.openDocumentTree("Import model folder");assert(!tree.isEmpty());
+    result(env,tree,{QFileInfo(treePath).canonicalFilePath()});drain();assert(selected==4 && urls.size()==1 && QFileInfo(urls[0].toLocalFile()).isDir());
+    assert(QFileInfo(urls[0].toLocalFile()+"/textures/image.png").isReadable());
+    assert(QFile::link(path,treePath+"/alias.js"));
+    const auto badTree=helper.openDocumentTree("Reject alias");result(env,badTree,{treePath});drain();assert(failed==6);
+    assert(QFile::remove(treePath+"/alias.js"));
+    const auto treeCancel=helper.openDocumentTree("Cancel tree");assert(helper.cancelDocuments(treeCancel));
+    result(env,treeCancel,{treePath});drain();assert(selected==4 && cancelled==2);
+    assert(FileDialogHelper::MAX_DOCUMENT_ENTRIES==1024 && FileDialogHelper::MAX_DOCUMENT_DEPTH==16);
+    for(int i=0;i<33;++i) { QFile extra(treePath+QString("/extra%1").arg(i));assert(extra.open(QFile::WriteOnly));extra.close(); }
+    const auto manyTree=helper.openDocumentTree("Reject too many files");result(env,manyTree,{treePath});drain();assert(failed==7);
     puts("PASS: actual Main FileDialogHelper, Android JNI operator, Qt-owner callbacks, retained Unicode-safe paths, cancellation and late/foreign rejection; OS endpoint is a fixture");
 }

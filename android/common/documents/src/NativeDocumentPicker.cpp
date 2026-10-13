@@ -3,6 +3,7 @@
 #include <FileDialogHelper.h>
 #include <QCoreApplication>
 #include <QDir>
+#include <QDirIterator>
 #include <QFileInfo>
 #include <QHash>
 #include <QMutex>
@@ -16,7 +17,7 @@ namespace {
 std::atomic<JavaVM*> machine { nullptr };
 std::atomic<jclass> backend { nullptr };
 QMutex pendingMutex;
-struct Pending { FileDialogHelper::DocumentSelection callback; bool multiple { false }; };
+struct Pending { FileDialogHelper::DocumentSelection callback; bool multiple { false }; bool tree { false }; };
 QHash<QString, Pending> pending;
 QString importRoot() { return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/ImportedDocuments"; }
 struct Jni {
@@ -76,32 +77,60 @@ QList<QUrl> validated(const QStringList& paths) {
     }
     return result;
 }
+QList<QUrl> validatedTree(const QStringList& paths) {
+    if (paths.size() != 1) return {};
+    const QFileInfo root(importRoot()), directory(paths[0]);
+    const QFileInfo selection(directory.absolutePath());
+    if (!root.isDir() || root.isSymLink() || root.canonicalFilePath().isEmpty()
+            || !directory.isDir() || directory.isSymLink() || !directory.isReadable()
+            || directory.canonicalFilePath() != paths[0] || selection.isSymLink()
+            || !QRegularExpression("^selection-[0-9]+$").match(selection.fileName()).hasMatch()
+            || QFileInfo(selection.absolutePath()).canonicalFilePath() != root.canonicalFilePath()) return {};
+    QDirIterator entries(paths[0], QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System,
+                         QDirIterator::Subdirectories);
+    int nodes = 0, files = 0; qint64 total = 0;
+    while (entries.hasNext()) {
+        const QFileInfo entry(entries.next());
+        const auto relative = QDir(paths[0]).relativeFilePath(entry.filePath());
+        if (++nodes > FileDialogHelper::MAX_DOCUMENT_ENTRIES || entry.isSymLink() || !entry.isReadable()
+                || entry.canonicalFilePath() != entry.absoluteFilePath()
+                || !entry.canonicalFilePath().startsWith(paths[0] + '/')
+                || relative.count('/')+1 > FileDialogHelper::MAX_DOCUMENT_DEPTH) return {};
+        if (entry.isFile()) {
+            if (++files > 32 || entry.size() > 256LL * 1024 * 1024
+                    || (total += entry.size()) > 512LL * 1024 * 1024) return {};
+        } else if (!entry.isDir()) return {};
+    }
+    return { QUrl::fromLocalFile(paths[0]) };
+}
 void complete(const QString& request, const QStringList& paths, const QString& error) {
     QPointer<QObject> receiver(QCoreApplication::instance()); if (!receiver) return;
     QMetaObject::invokeMethod(receiver, [request, paths, error] {
         Pending operation;
         { QMutexLocker guard(&pendingMutex); operation = pending.take(request); }
         if (!operation.callback) return;
-        const auto urls = error.isEmpty() && (operation.multiple || paths.size() <= 1) ? validated(paths) : QList<QUrl>();
+        const auto urls = error.isEmpty() && (operation.multiple || paths.size() <= 1)
+            ? (operation.tree ? validatedTree(paths) : validated(paths)) : QList<QUrl>();
         operation.callback(urls, !error.isEmpty() ? error.left(256) :
                  !paths.isEmpty() && urls.size() != paths.size() ?
                  QStringLiteral("The document picker returned an invalid retained file.") : QString());
     }, Qt::QueuedConnection);
 }
 bool begin(const QString& request, const QString& caption, const QString& filter, bool multiple,
-           FileDialogHelper::DocumentSelection callback) {
+           FileDialogHelper::DocumentSelection callback, bool tree = false) {
     if (!QRegularExpression("^[a-zA-Z0-9-]{1,128}$").match(request).hasMatch() || !callback) return false;
     const auto root = importRoot();
     if (!QDir().mkpath(root) || QFileInfo(root).isSymLink()) return false;
     Jni jni; if (!jni.env || !backend.load()) return false;
-    { QMutexLocker guard(&pendingMutex); if (pending.contains(request)) return false; pending.insert(request, { std::move(callback), multiple }); }
+    { QMutexLocker guard(&pendingMutex); if (pending.contains(request)) return false; pending.insert(request, { std::move(callback), multiple, tree }); }
     jstring id = jni.string(request), location = jni.string(QFileInfo(root).canonicalFilePath());
     jstring title = jni.string(caption.left(256)), types = jni.string(filter.left(4096));
     bool posted = false;
     if (id && location && title && types) {
         jvalue arguments[5]; arguments[0].l = id; arguments[1].l = location;
         arguments[2].l = title; arguments[3].l = types; arguments[4].z = multiple;
-        posted = call("request", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Z)V", arguments);
+        posted = tree ? call("requestTree", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V", arguments)
+                      : call("request", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Z)V", arguments);
     }
     if (jni.env->ExceptionCheck()) jni.env->ExceptionClear();
     for (auto value : { id, location, title, types }) if (value) jni.env->DeleteLocalRef(value);
@@ -120,7 +149,14 @@ extern "C" JNIEXPORT void JNICALL Java_org_overte_documents_DocumentAdapter_nati
     JavaVM* vm = nullptr; if (env->GetJavaVM(&vm) != JNI_OK) return;
     if (!backend.load()) { auto reference = static_cast<jclass>(env->NewGlobalRef(type)); if (!reference) return; backend.store(reference); }
     machine.store(vm);
-    FileDialogHelper::setDocumentPickerOperator(begin, cancel);
+    FileDialogHelper::setDocumentPickerOperator([](const QString& id, const QString& caption, const QString& filter,
+            bool multiple, FileDialogHelper::DocumentSelection callback) {
+        return begin(id, caption, filter, multiple, std::move(callback));
+    }, cancel);
+    FileDialogHelper::setDocumentTreePickerOperator([](const QString& id, const QString& caption,
+            FileDialogHelper::DocumentSelection callback) {
+        return begin(id, caption, {}, false, std::move(callback), true);
+    }, cancel);
 }
 extern "C" JNIEXPORT void JNICALL Java_org_overte_documents_DocumentAdapter_nativeCompleted(
         JNIEnv* env, jclass, jstring request, jobjectArray paths, jstring error) {
