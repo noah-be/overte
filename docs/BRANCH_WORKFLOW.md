@@ -210,6 +210,12 @@ suite runner and its subprocesses use that same interpreter, including Conan
 for actual package-store fixture builds. Parent qualification does not install
 Python dependencies into a later isolated validation runner.
 
+The complete fallback disables automatic Git maintenance and garbage collection
+only within its disposable test invocation. This prevents detached Git writers
+from racing strict temporary-repository cleanup, including in older candidate
+tests. Candidate source files, assertion failures, and cleanup errors remain
+unchanged; the runner does not alter global Git configuration.
+
 Dispatched validation is correlated by both the gate's `GITHUB_RUN_ID` and
 `GITHUB_RUN_ATTEMPT` (`gate-<run-id>-attempt-<attempt>`). The `dispatch-and-wait`
 command requires `--gate-run-id` and takes the attempt from `--gate-run-attempt`
