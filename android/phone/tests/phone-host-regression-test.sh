@@ -300,8 +300,14 @@ require_text "$gradle" "exclude 'developer/[*][*]'" \
     'phone packaging omits developer-only script fixtures'
 require_text "$gradle" "exclude 'tutorials/[*][*]'" \
     'phone packaging omits tutorial-only script examples'
-require_text "$gradle" "exclude 'communityScripts/[*][*]'" \
-    'phone packaging omits the unreachable desktop community-app bundle'
+require_text "$gradle" "details[.]path[.]startsWith\('communityScripts/'\)" \
+    'phone packaging keeps unrelated community apps excluded'
+require_text "$gradle" '!phoneCommunityRuntimeAssets[.]contains\(details[.]path\)' \
+    'phone packaging admits only the reviewed Chat runtime files'
+require_text "$gradle" '!phoneCommunityRuntimeAssets[.]any' \
+    'phone packaging admits the required Chat parent directories'
+reject_text "$gradle" "exclude 'communityScripts/[*][*]'" \
+    'phone packaging preserves the startup Chat dependency closure'
 reject_text "$phone_defaults" 'makeUserConnection' \
     'touchscreen phone defaults do not start the VR handshake service'
 require_text "$gradle" "exclude 'system/assets/sounds/4beat_sweep[.]wav'" \

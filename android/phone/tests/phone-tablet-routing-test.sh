@@ -207,14 +207,15 @@ for unsupported in \
         system/tablet-ui/tabletUI.js \
         system/tablet-users.js \
         system/more/app-more.js \
-        system/tablet-position/tabletPosition.js \
-        system/create/edit.js; do
+        system/tablet-position/tabletPosition.js; do
     if grep -Fq -- "$unsupported" "$phone_defaults"; then
         printf 'FAIL: unvalidated tablet app is enabled in the Android MVP: %s\n' "$unsupported" >&2
         exit 1
     fi
 done
 printf 'PASS: VR-only and unsupported remote-web tablet apps remain disabled\n'
+require "$phone_defaults" 'Script[.]load\("/~/system/create/edit[.]js"\)' \
+    'native Create starts in its own engine while legacy HTML/HMD presenters remain excluded'
 require "$phone_defaults" 'system/\+android_phoneInterface/phoneEmote[.]js' \
     'the Android tablet enables the native-QML phone Emote app'
 if grep -Fq -- 'system/emote.js' "$phone_defaults"; then

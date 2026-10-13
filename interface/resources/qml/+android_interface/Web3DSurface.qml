@@ -14,15 +14,17 @@ Item {
     id: root
     anchors.fill: parent
     property string url: ""
-    property string scriptUrl: null
+    property string scriptUrl: ""
     property bool useBackground: true
     property string userAgent: ""
+    property bool _ready: false
 
     onUrlChanged: {
-        load(root.url, root.scriptUrl, root.useBackground, root.userAgent);
+        if (_ready) { load(root.url, root.scriptUrl, root.useBackground, root.userAgent); }
     }
 
     onScriptUrlChanged: {
+        if (!_ready) { return; }
         if (loader.item) {
             if (root.webViewLoaded) {
                 loader.item.scriptUrl = root.scriptUrl;
@@ -33,6 +35,7 @@ Item {
     }
 
     onUseBackgroundChanged: {
+        if (!_ready) { return; }
         if (loader.item) {
             if (root.webViewLoaded) {
                 loader.item.useBackground = root.useBackground;
@@ -43,6 +46,7 @@ Item {
     }
 
     onUserAgentChanged: {
+        if (!_ready) { return; }
         if (loader.item) {
             if (root.webViewLoaded) {
                 loader.item.userAgent = root.userAgent;
@@ -52,14 +56,7 @@ Item {
         }
     }
 
-    // Handle message traffic from our loaded QML to the script that launched us
-    onItemChanged: {
-        if (loader.item && loader.item.sendToScript) {
-            loader.item.sendToScript.connect(sendToScript);
-        }
-    }
-
-    property var item: null
+    readonly property var item: loader.item
     property bool webViewLoaded: false
 
     // Handle message traffic from the script that launched us to the loaded QML
@@ -74,13 +71,19 @@ Item {
         anchors.fill: parent
     }
 
+    Connections {
+        target: loader.item
+        ignoreUnknownSignals: true
+        function onSendToScript(message) { root.sendToScript(message); }
+    }
+
     function load(url, scriptUrl, useBackground, userAgent) {
-        // Ensure we reset any existing item to "about:blank" to ensure web audio stops: DEV-2375
+        // Release the previous native page before replacing its source grant.
         if (loader.item && root.webViewLoaded) {
-            loader.item.url = "about:blank"
+            if (loader.item.stop) { loader.item.stop(); }
         }
 
-        if (url.match(/\.qml$/)) {
+        if (/\.qml(?:[?#].*)?$/.test(url)) {
             root.webViewLoaded = false;
             loader.setSource(url);
         } else {
@@ -95,6 +98,7 @@ Item {
     }
 
     Component.onCompleted: {
+        _ready = true;
         load(root.url, root.scriptUrl, root.useBackground, root.userAgent);
     }
 

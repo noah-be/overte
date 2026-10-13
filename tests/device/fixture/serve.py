@@ -244,6 +244,8 @@ class FixtureServer(ThreadingHTTPServer):
         self.public_origin = f"http://{address[0]}:{self.server_address[1]}"
         self.telemetry = RequestTelemetry()
         self.fixture_state = FixtureState()
+        from parity_http import load_reference
+        self.parity_manifest, self.parity_payload = load_reference(ROOT)
 
 
 class FixtureHandler(SimpleHTTPRequestHandler):
@@ -252,9 +254,20 @@ class FixtureHandler(SimpleHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Origin", "*")
         super().end_headers()
 
+    def do_HEAD(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
+        if urlsplit(self.path).path == "/parity/reference.mp4":
+            from parity_http import send_reference
+            send_reference(self, head=True)
+            return
+        super().do_HEAD()
+
     def do_GET(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
         parsed = urlsplit(self.path)
         request_path = parsed.path
+        if request_path == "/parity/reference.mp4":
+            from parity_http import send_reference
+            send_reference(self)
+            return
         if request_path == "/" + self.server.manifest["scene"]:
             # The entity loader does not resolve a relative script path
             # against an imported serverless scene. Bind the script to this
@@ -596,6 +609,8 @@ def main() -> int:
     args = arguments()
     manifest = validate_fixture()
     if args.check:
+        from parity_http import load_reference
+        load_reference(ROOT)
         print(f"PASS: controlled fixture contains {manifest['expectedEntityCount']} local entities")
         return 0
     handler = partial(FixtureHandler, directory=str(ROOT))
@@ -625,6 +640,14 @@ def main() -> int:
              "soundCommandUrl": f"{base_url}/sound-command.json",
              "soundRequestsUrl": f"{base_url}/sound-requests.json",
              "sound": manifest["sound"]}
+    ready["webParity"] = {
+        "pageUrl": f"{base_url}/parity/index.html",
+        "scriptUrl": f"{base_url}/parity/client.js",
+        "injectionUrl": f"{base_url}/parity/injected.js",
+        "mediaUrl": f"{base_url}/parity/reference.mp4",
+        "media": server.parity_manifest,
+        "acceptance": "pending exact-artifact client observation",
+    }
     if args.ready_file:
         args.ready_file.parent.mkdir(parents=True, exist_ok=True)
         temporary = args.ready_file.with_suffix(args.ready_file.suffix + ".tmp")

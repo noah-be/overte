@@ -18,9 +18,9 @@ Item {
     property bool keyboardRaised: false
     onKeyboardRaisedChanged: {
         if(!keyboardRaised) {
-            webroot.unfocus();
+            web.unfocus();
         } else {
-            webroot.stopUnfocus();
+            web.stopUnfocus();
         }
     }
     property bool punctuationMode: false
@@ -66,7 +66,7 @@ Item {
                 MouseArea {
                     anchors.fill: parent
                     onClicked: {
-                        if (historyIndex > 0) {
+                        if (web.webViewCore.canGoBack || historyIndex > 0) {
                             goBack();
                         } else {
                             closeWebEngine();
@@ -95,7 +95,7 @@ Item {
             color: hifi.colors.baseGray
             font.pixelSize: 12
             verticalAlignment: Text.AlignLeft
-            text: web.url
+            text: typeof web.webViewCore.currentUrl !== "undefined" ? web.webViewCore.currentUrl : web.url
             anchors {
                 top: nav.bottom
                 horizontalCenter: parent.horizontalCenter;
@@ -112,7 +112,9 @@ Item {
     }
 
     function goBack() {
-        if (historyIndex > 0) {
+        if (web.webViewCore.canGoBack) {
+            web.webViewCore.goBack();
+        } else if (historyIndex > 0) {
             historyIndex--;
             loadUrl(history[historyIndex]);
         }
@@ -131,16 +133,16 @@ Item {
     }
 
     function goForward() {
-        if (historyIndex < history.length - 1) {
+        if (web.webViewCore.canGoForward) {
+            web.webViewCore.goForward();
+        } else if (historyIndex < history.length - 1) {
             historyIndex++;
             loadUrl(history[historyIndex]);
         }
     }
 
     function reloadPage() {
-        view.reloadAndBypassCache()
-        view.setActiveFocusOnPress(true);
-        view.setEnabled(true);
+        web.webViewCore.reloadAndBypassCache();
     }
 
     function loadUrl(url) {
@@ -154,6 +156,7 @@ Item {
 
     FlickableWebViewCore {
         id: web
+        userScriptUrl: root.scriptURL
         width: parent.width
         height: keyboardEnabled && keyboardRaised ? parent.height - keyboard.height - root.headerHeight : parent.height - root.headerHeight
         anchors.top: buttons.bottom
@@ -161,7 +164,6 @@ Item {
         onUrlChanged: {
             // Record history, skipping null and duplicate items.
             var urlString = url + "";
-            urlString = urlString.replace(/\//g, "%2F");  // Consistent representation of "/"s to avoid false differences.
             if (urlString.length > 0 && (historyIndex === -1 || urlString !== history[historyIndex])) {
                 historyIndex++;
                 history = history.slice(0, historyIndex);
@@ -179,6 +181,12 @@ Item {
         onNewViewRequestedCallback: {
             request.openIn(webViewCore);
         }
+    }
+
+    Connections {
+        target: web
+        ignoreUnknownSignals: true
+        function onNativeClosed() { root.closeWebEngine(); }
     }
 
     HiFiControls.Keyboard {
