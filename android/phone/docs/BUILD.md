@@ -795,3 +795,36 @@ and the launcher activity is `org.overte.phone.PermissionsActivity`.
 
 For permanent Pixel laboratory qualification, native binding requirements and
 regression-first full runs, see [Pixel E2E qualification](PIXEL_E2E.md).
+
+### Embedded tablet browser
+
+Phone registers the Android parent's `Overte.Android` backend in `phoneInterface`
+and places a real embedded WebView inside the measured Qt surface. Full scene
+bounds and QML clip bounds map through the actual surface dimensions. The 48-pixel
+Qt navigation toolbar and other Qt controls stay outside the native browser.
+The native browser owns tablet DOM input and its OS input connection. Foreground,
+window focus and Activity destruction invalidate the common runtime's grants.
+The file picker uses explicit OS document selection, temporary content URIs and
+one-shot request leases; results wait for actual foreground return. No camera,
+microphone or geolocation permissions are granted to browser documents.
+
+The pinned AndroidX WebKit dependency, transitive runtime artifacts and matching
+source archives belong to the F-Droid acquisition graph and Gradle lock. HTTP
+embedded documents are allowed explicitly by the Phone manifest; the common
+navigation policy still rejects credentials and privileged schemes, and WebView
+mixed content remains disabled. A provider that lacks the required frame-aware
+bridge features shows an update action while leaving the document usable.
+
+Run `python3 android/phone/tests/phone-embedded-web-test.py` for compiled production
+geometry behavior. Its optional `--android-jar`, `--qt-jar` and `--webkit-jar`
+arguments compile the actual Phone Activity, Host, Qt bindings and common browser
+against those artifacts. This checks Java API compatibility only. The test
+inventory records `PhoneEmbeddedWeb.cpp` as an Android Qt/JNI runtime boundary.
+
+A complete Phone app build and exact-artifact device checks are still required:
+provider bridge/iframe rejection, file picker cancellation and Activity recreation,
+IME selection/composition and keyboard insets, embedded user-driven video/audio,
+background suspension, toolbar/Back behavior and scaled/clipped placement. The
+texture renderer does not establish hardware video parity. Foreign-document
+texture IME and arbitrary rotated native overlays remain unqualified. F-Droid
+source-only acceptance additionally requires the existing cold-build gates.

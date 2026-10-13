@@ -61,6 +61,11 @@
       "name": "android-embedded-web",
       "entrypoint": "android/common/web/tests/run.py",
       "interpreter": "python"
+    },
+    {
+      "name": "phone-embedded-web",
+      "entrypoint": "android/phone/tests/phone-embedded-web-test.py",
+      "interpreter": "python"
     }
   ]
 }

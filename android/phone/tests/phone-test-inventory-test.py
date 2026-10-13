@@ -10,6 +10,7 @@ import sys
 ALLOWED_RUNTIME_BOUNDARIES = {
     "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneInterfaceActivity.java",
     "android/phone/apps/phoneInterface/src/PhoneUrlHandler.cpp",
+    "android/phone/apps/phoneInterface/src/PhoneEmbeddedWeb.cpp",
 }
 
 

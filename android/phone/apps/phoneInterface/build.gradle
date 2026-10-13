@@ -731,3 +731,7 @@ tasks.configureEach { task ->
         }
     }
 }
+
+// Use the Android parent's runtime and pinned WebKit dependency.
+ext.overteEmbeddedWebRoot = file('../../../common/web')
+apply from: new File(overteEmbeddedWebRoot, 'target.gradle')
