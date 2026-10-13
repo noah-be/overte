@@ -324,11 +324,13 @@ QString FileDialogHelper::beginDocuments(const QString& caption, const QString& 
 bool FileDialogHelper::cancelDocuments(const QString& requestId) {
     if (requestId.isEmpty() || requestId != _documentRequestId) return false;
     if (_nativeDocumentPending) {
+        // The destructor passes _documentRequestId itself; preserve its value before clearing it.
+        const QString canceledRequestId = requestId;
         DocumentPickerCancel cancel = std::move(_documentCancel);
         _documentRequestId.clear();
         _nativeDocumentPending = false;
-        if (cancel) cancel(requestId);
-        emit documentSelectionCanceled(requestId);
+        if (cancel) cancel(canceledRequestId);
+        emit documentSelectionCanceled(canceledRequestId);
     } else if (_documentDialog) {
         _documentDialog->reject();
     }
