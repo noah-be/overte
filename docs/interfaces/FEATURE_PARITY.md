@@ -7,6 +7,24 @@ to touch or VR. A missing app, static web placeholder, disabled working feature
 or dormant adapter does not establish parity. Existing stronger features must
 remain available.
 
+## Milestone tracking
+
+The current parity work has one milestone per client in the authorized fork:
+
+| Client | Milestone |
+| --- | --- |
+| iOS / iPadOS | [IOS-P2: Genuine Cross-Client Feature Parity](https://github.com/noah-be/overte/milestone/6) |
+| Android Phone | [PHONE-P2: Genuine Cross-Client Feature Parity](https://github.com/noah-be/overte/milestone/4) |
+| Pico VR | [PICO-P2: Genuine Cross-Client Feature Parity](https://github.com/noah-be/overte/milestone/5) |
+
+Each milestone records completed source/host implementation separately from
+open native builds, remaining integration and fourteen current-artifact device
+acceptance criteria. Closing a source task does not establish device parity.
+The completed personal-alpha milestones retain their original history. Issue
+completion follows the owner's authorization and the evidence for its scope;
+the owner explicitly requested the open/closed implementation inventory on
+2026-10-13. Future candidate acceptance still needs actual candidate-bound proof.
+
 ## Baseline and required outcomes
 
 The source comparison used these exact fork revisions:
@@ -132,4 +150,5 @@ promotion before this dependency is integrated.
 The coordinator may claim complete feature parity only after every requirement
 above is implemented, available through its real caller and verified at the
 appropriate scope on all three exact artifacts. A successful preparatory slice
-does not complete this goal. The owner retains GitHub issue completion.
+does not complete this goal. Further GitHub issue completion requires the
+owner's authorization.

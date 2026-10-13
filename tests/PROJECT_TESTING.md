@@ -63,6 +63,12 @@ network access; unavailable isolation fails those tests. The workflow contains
 the exact Ubuntu package list. These host Qt contracts are separate from the
 complete client's platform-specific Qt/Conan dependency graph.
 
+The actual embedded-Web channel contracts also need matching Qt WebChannel
+development headers (`qt6-webchannel-dev` in the Ubuntu reference environment).
+The Scripts/Assets document views import `Qt.labs.folderlistmodel`; install
+`qml-module-qt-labs-folderlistmodel` and
+`qml6-module-qt-labs-folderlistmodel` for the Qt 5 and Qt 6 behavior runs.
+
 The host profile also compiles the real shared embedded-HTML policy and the
 actual account-authentication signal bindings for Pico, Phone, desktop and the
 retained legacy Android path. These checks require Qt Core development files
