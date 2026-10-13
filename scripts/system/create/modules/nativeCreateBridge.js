@@ -94,14 +94,19 @@ function createBridge(context) {
         var ids = selectedIDs();
         var values = ids.map(function (id) {
             var value = context.entities.getEntityProperties(id);
-            if (value.rotation) { value.rotation = context.euler(value.rotation); }
-            if (value.localRotation) { value.localRotation = context.euler(value.localRotation); }
+            if (context.propertyView) { value = context.propertyView(value); }
+            else {
+                if (value.rotation) { value.rotation = context.euler(value.rotation); }
+                if (value.localRotation) { value.localRotation = context.euler(value.localRotation); }
+            }
             return { id: id, type: value.type, editable: canEdit(id, false),
                 properties: editableProperties(value), locked: value.locked === true,
                 canLock: !value.locked && canEdit(id, false) && context.entities.canAdjustLocks(),
                 canUnlock: value.locked === true && canEdit(id, true) };
         });
-        send("selection", { entities: values, canUndo: context.history.canUndo(), canRedo: context.history.canRedo() });
+        send("selection", { entities: values,
+            canUndo: context.history.canUndo() && (!context.canReplayHistory || context.canReplayHistory("undo")),
+            canRedo: context.history.canRedo() && (!context.canReplayHistory || context.canReplayHistory("redo")) });
     }
     function acceptList(data) {
         if (!context.isActive()) { return; }
@@ -113,6 +118,27 @@ function createBridge(context) {
             knownIDs = Object.create(null);
             send("list", { entities: [], selectedIDs: [] });
         }
+    }
+    function sendSettings(settings) {
+        if (context.isActive()) { send("settings", settings); }
+    }
+    function applySettings(params) {
+        var enums = { createAppMode: ["object", "voxel"], voxelEditMode: ["single", "sphere", "cube"],
+            voxelEditDynamics: ["click", "continuous"], voxelPointerMode: ["laser", "brush"] };
+        var keys = Object.keys(params);
+        if (!keys.length || keys.some(function(key) {
+            if (Object.prototype.hasOwnProperty.call(enums, key)) { return enums[key].indexOf(params[key]) === -1; }
+            if (key === "voxelRemove") { return typeof params[key] !== "boolean"; }
+            if (key === "voxelSphereSize") { return !finite(params[key]) || params[key] <= 0 || params[key] > 100; }
+            if (key === "voxelBrushLength") { return !finite(params[key]) || params[key] < 0 || params[key] > 100; }
+            return true;
+        })) { status("Invalid voxel tool settings.", true); return; }
+        if (!hostAllowed("domain") && !hostAllowed("avatar") && params.createAppMode !== "object") {
+            status("You do not have voxel editing permission.", true); return;
+        }
+        context.numericFocus(false);
+        context.applyEditSettings(params);
+        status(params.createAppMode === "object" ? "Object editing enabled." : "Voxel settings applied.");
     }
 
     function importEntities(params, trustedFile) {
@@ -172,6 +198,7 @@ function createBridge(context) {
         if (method === "ready" || method === "refresh") {
             context.refresh();
             selection();
+            if (context.editSettings) { sendSettings(context.editSettings()); }
         } else if (method === "select") {
             if (!Array.isArray(params.ids) || params.ids.length > 256 || params.ids.some(function (id) {
                 return typeof id !== "string" || !knownIDs[id];
@@ -199,7 +226,8 @@ function createBridge(context) {
         } else if (method === "create") {
             patch = properties(params.properties, true);
             var host = params.host || "domain";
-            if (!patch || TYPES.indexOf(patch.type) === -1 || !hostAllowed(host)) {
+            if (!patch || TYPES.indexOf(patch.type) === -1 || !hostAllowed(host)
+                    || (patch.locked === true && !context.entities.canAdjustLocks())) {
                 status("Invalid entity type, properties or creation permission.", true); return true;
             }
             var entityID = context.create(patch, host);
@@ -228,6 +256,8 @@ function createBridge(context) {
             tools[params.action]();
             context.refresh();
             selection();
+        } else if (method === "settings") {
+            if (context.applyEditSettings) { applySettings(params); }
         } else if (method === "import") {
             importEntities(params, false);
         } else if (method === "browse") {
@@ -253,7 +283,8 @@ function createBridge(context) {
         browsing = false;
         context.cancelBrowse();
     }
-    var bridge = { handle: handle, selection: selection, acceptList: acceptList, reset: reset };
+    var bridge = { handle: handle, selection: selection, acceptList: acceptList, reset: reset,
+        sendSettings: sendSettings, reportStatus: status };
     return bridge;
 }
 
