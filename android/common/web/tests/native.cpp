@@ -20,10 +20,27 @@ int main(int argc, char** argv) {
     auto plain = geometry.sceneBounds(); assert(plain.size() == QSizeF(100, 70));
     transformed.setScale(2); auto scaled = geometry.sceneBounds(); assert(scaled.size() == QSizeF(200, 140));
     transformed.setRotation(90); auto rotated = geometry.sceneBounds(); assert(qAbs(rotated.width() - 140) < .001 && qAbs(rotated.height() - 200) < .001);
+    transformed.setRotation(0); transformed.setScale(1); transformed.setClip(true);
+    geometry.setPosition(QPointF(5, 48)); transformed.setWidth(80); transformed.setHeight(90);
+    assert(geometry.sceneBounds().size() == QSizeF(100, 70));
+    assert(geometry.sceneClipBounds() == QRectF(15, 68, 75, 42));
+    transformed.setScale(2);
+    assert(geometry.sceneClipBounds().size() == QSizeF(150, 84));
+    transformed.setClip(false); assert(geometry.sceneClipBounds() == geometry.sceneBounds());
+    transformed.setClip(true); geometry.setY(1000); assert(geometry.sceneClipBounds().isEmpty());
     Probe item; item.acceptForeground(true); item.setSourceIdentity("fixture-owned-surface");
     item.setUrl("https://one.test/document"); item.componentComplete();
     auto grant = item.generation(); assert(grant);
     item.acceptPage(grant, 1, QUrl("https://one.test/document"));
+    assert(!item.allowsFileChooser(grant, 1, QUrl("https://one.test/document")));
+    Probe tablet; tablet.acceptForeground(true); tablet.setSurface(NativeWebViewItem::Tablet);
+    tablet.setPresentation(NativeWebViewItem::Texture); tablet.setSourceIdentity("fixture-tablet");
+    tablet.setUrl("https://one.test/document"); tablet.componentComplete();
+    auto tabletGrant = tablet.generation(); tablet.acceptPage(tabletGrant, 1, QUrl("https://one.test/document"));
+    assert(tablet.allowsFileChooser(tabletGrant, 1, QUrl("https://one.test/document")));
+    assert(!tablet.allowsFileChooser(tabletGrant, 2, QUrl("https://one.test/document")));
+    assert(!tablet.allowsFileChooser(tabletGrant, 1, QUrl("https://one.test/other")));
+    tablet.setVisible(false); assert(!tablet.allowsFileChooser(tabletGrant, 1, QUrl("https://one.test/document")));
     auto send = [&](quint64 generation, quint64 page, const QUrl& origin, bool main, const QByteArray& payload) {
         return item.acceptMessage(generation, page, QUrl("https://one.test/document"), origin, main, "editor", payload);
     };
@@ -35,10 +52,12 @@ int main(int argc, char** argv) {
         R"({"active":true,"text":"hello world","cursor":5,"anchor":0,"kind":"text"})"));
     QCoreApplication::processEvents();
     assert(item.inputMethodQuery(Qt::ImSurroundingText).toString() == "hello world");
+    assert(item.editorFocused() && !item.editorNumeric() && !item.editorPassword());
     assert(item.inputMethodQuery(Qt::ImCurrentSelection).toString() == "hello");
     assert(send(grant, 1, QUrl("https://one.test"), true,
         R"({"active":true,"sensitive":true,"text":"must-never-be-retained","cursor":3,"anchor":0})"));
     QCoreApplication::processEvents(); assert(item.inputMethodQuery(Qt::ImSurroundingText).toString().isEmpty());
+    assert(item.editorFocused() && item.editorPassword());
     QJsonObject initialization; auto* transport = item.findChild<NativeWebTransport*>(); assert(transport);
     QObject::connect(transport, &NativeWebTransport::outbound, [&](const QJsonObject& message) { if (message.value("type").toInt() == 10) initialization = message; });
     auto channel = [&](const QJsonObject& object) { return item.acceptMessage(grant, 1, QUrl("https://one.test/document"), QUrl("https://one.test"), true, "channel", QJsonDocument(object).toJson(QJsonDocument::Compact)); };
@@ -57,8 +76,10 @@ int main(int argc, char** argv) {
     assert(item.allowsNavigation(grant, QUrl("https://foreign.test/page"), true, "POST"));
     assert(!item.allowsNavigation(grant, QUrl("file:///private/anything"), true, "GET"));
     item.acceptPage(grant, 2, QUrl("https://foreign.test/page"));
+    item.acceptState(grant, 2, QUrl("https://foreign.test/page"), false, true, false, true, 0);
+    QCoreApplication::processEvents(); assert(item.errorText().isEmpty() && !item.warningText().isEmpty());
     assert(!send(grant, 1, QUrl("https://one.test"), true, "{}"));
-    item.setVisible(false); assert(!item.generation()); assert(!item.emitScriptEvent("hidden event"));
+    item.setVisible(false); assert(!item.editorFocused() && !item.editorPassword()); assert(!item.generation()); assert(!item.emitScriptEvent("hidden event"));
     item.setVisible(true); assert(item.generation() != grant);
     assert(!send(grant, 2, QUrl("https://one.test"), true, "{}"));
     QTemporaryDir root, outside; assert(root.isValid() && outside.isValid());
@@ -86,6 +107,10 @@ int main(int argc, char** argv) {
         adapter->setProperty("surface", "tablet"); adapter->setProperty("userAgent", "host-test-agent");
         auto views = adapter->findChildren<NativeWebViewItem*>(); assert(views.size() == 1);
         assert(views[0]->surface() == NativeWebViewItem::Tablet);
+        assert(views[0]->presentation() == NativeWebViewItem::NativeOverlay);
+        adapter->setProperty("presentation", "texture");
+        assert(views[0]->presentation() == NativeWebViewItem::Texture);
+        adapter->setProperty("presentation", "auto");
         assert(views[0]->presentation() == NativeWebViewItem::NativeOverlay);
         assert(views[0]->userAgent() == "host-test-agent");
         assert(views[0]->hasFocus());

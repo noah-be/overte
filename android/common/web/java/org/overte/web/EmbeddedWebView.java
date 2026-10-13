@@ -80,6 +80,8 @@ public final class EmbeddedWebView {
     private static native void nativeInitialize();
     private static native void nativeForeground(boolean active);
     private static native long nativeGeneration(long handle);
+    private static native boolean nativeBridgeAllowed(long handle, long grant, long page, String document);
+    private static native boolean nativeFileChooserAllowed(long handle, long grant, long page, String document);
     private static native boolean nativeNavigation(long handle, long grant, String url, boolean mainFrame, String method);
     private static native boolean nativeMessage(long handle, long grant, long page, String document,
                                                String origin, boolean mainFrame, String type, String payload);
@@ -116,7 +118,8 @@ public final class EmbeddedWebView {
     }
     @SuppressLint("SetJavaScriptEnabled")
     public static void create(long handle, long grant, String url, String userAgent,
-            boolean background, boolean overlay, int x, int y, int width, int height, String bootstrap) {
+            boolean background, boolean overlay, int x, int y, int width, int height,
+            int clipX, int clipY, int clipWidth, int clipHeight, String bootstrap) {
         MAIN.post(() -> {
             EmbeddedWebHost owner = host.get();
             if (nativeGeneration(handle) != grant || owner == null || owner.activity() == null || width <= 1 || height <= 1) {
@@ -142,13 +145,14 @@ public final class EmbeddedWebView {
                 Instance instance = new Instance(handle, view, overlay, bootstrap);
                 instance.document.begin(grant);
                 instance.bounds = new Rect(x, y, x + width, y + height);
+                instance.clip = new Rect(clipX, clipY, clipX + clipWidth, clipY + clipHeight);
                 instance.resize(width, height);
                 VIEWS.put(handle, instance);
                 instance.configureBridge(url);
                 view.setWebViewClient(instance.client);
                 view.setWebChromeClient(instance.chrome);
                 if (overlay) {
-                    if (!owner.placeTabletView(view, instance.bounds)) instance.status = OVERLAY_UNAVAILABLE;
+                    if (!owner.placeTabletView(view, instance.bounds, instance.clip)) instance.status = OVERLAY_UNAVAILABLE;
                 } else { view.setLayerType(View.LAYER_TYPE_SOFTWARE, null); }
                 view.loadUrl(url);
                 if (!overlay) MAIN.post(instance.frame);
@@ -193,13 +197,27 @@ public final class EmbeddedWebView {
             else { instance.view.onResume(); instance.authorize(); instance.publish(); }
         });
     }
-    public static void resize(long handle, int x, int y, int width, int height) {
+    public static void resize(long handle, int x, int y, int width, int height, int clipX, int clipY, int clipWidth, int clipHeight) {
         post(handle, instance -> {
             instance.bounds = new Rect(x, y, x + width, y + height);
+            instance.clip = new Rect(clipX, clipY, clipX + clipWidth, clipY + clipHeight);
             instance.resize(width, height);
             EmbeddedWebHost owner = host.get();
-            if (instance.overlay && owner != null && !owner.placeTabletView(instance.view, instance.bounds)) {
+            if (instance.overlay && owner != null && !owner.placeTabletView(instance.view, instance.bounds, instance.clip)) {
                 instance.status = OVERLAY_UNAVAILABLE; instance.publish();
+            }
+        });
+    }
+    public static void relayout(EmbeddedWebHost expected) {
+        MAIN.post(() -> {
+            if (host.get() != expected) return;
+            for (Instance instance : VIEWS.values()) {
+                if (!instance.active || !instance.overlay || instance.view.getContext() != expected.activity()) continue;
+                boolean placed = expected.placeTabletView(instance.view, instance.bounds, instance.clip);
+                if (placed && instance.status == OVERLAY_UNAVAILABLE) {
+                    instance.status = instance.bridge ? READY : BRIDGE_UNAVAILABLE;
+                    instance.publish();
+                }
             }
         });
     }
@@ -241,7 +259,8 @@ public final class EmbeddedWebView {
         input(handle, instance -> {
             long now = SystemClock.uptimeMillis();
             if (action == MotionEvent.ACTION_DOWN) { instance.downTime = now; instance.pressed = true; }
-            MotionEvent event = MotionEvent.obtain(instance.pressed ? instance.downTime : now, now, action, x, y, 0);
+            MotionEvent event = MotionEvent.obtain(instance.pressed ? instance.downTime : now, now, action, instance.overlay ? x : instance.textureScale.pointer(x),
+                instance.overlay ? y : instance.textureScale.pointer(y), 0);
             try { instance.view.dispatchTouchEvent(event); }
             finally { event.recycle(); }
             if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) instance.pressed = false;
@@ -259,7 +278,8 @@ public final class EmbeddedWebView {
         final boolean overlay;
         final String bootstrap;
         final WebDocumentState document = new WebDocumentState();
-        Rect bounds;
+        Rect bounds, clip;
+        WebTextureScale textureScale;
         Bitmap bitmap;
         Canvas canvas;
         ByteBuffer pixels;
@@ -327,17 +347,23 @@ public final class EmbeddedWebView {
         }
         void resize(int width, int height) {
             if (width <= 1 || height <= 1) return;
-            int w = overlay ? width : Math.min(2048, width), h = overlay ? height : Math.min(2048, height);
-            view.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY));
-            view.layout(0, 0, w, h);
+            textureScale = overlay ? null : new WebTextureScale(width, height, view.getResources().getDisplayMetrics().density);
+            int w = overlay ? width : textureScale.width, h = overlay ? height : textureScale.height;
+            int layoutWidth = overlay ? width : textureScale.layoutWidth, layoutHeight = overlay ? height : textureScale.layoutHeight;
+            view.forceLayout();
+            view.measure(View.MeasureSpec.makeMeasureSpec(layoutWidth, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(layoutHeight, View.MeasureSpec.EXACTLY));
+            view.layout(0, 0, layoutWidth, layoutHeight);
             if (overlay) return;
             if (bitmap != null) bitmap.recycle();
-            bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888); canvas = new Canvas(bitmap);
+            bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888); canvas = new Canvas(bitmap); canvas.scale(1.0f / textureScale.density, 1.0f / textureScale.density);
             pixels = ByteBuffer.allocateDirect(w * h * 4);
         }
         void publish() {
-            nativeState(handle, document.grant(), document.page(), view.getUrl(), loading, view.canGoBack(), view.canGoForward(), bridge, status);
-            EmbeddedWebHost owner = host.get(); if (owner != null && active) owner.statusChanged(view, status);
+            int presentationStatus = status;
+            if (presentationStatus == READY && bridge && !loading
+                    && !nativeBridgeAllowed(handle, document.grant(), document.page(), view.getUrl())) presentationStatus = 9;
+            nativeState(handle, document.grant(), document.page(), view.getUrl(), loading, view.canGoBack(), view.canGoForward(), bridge, presentationStatus);
+            EmbeddedWebHost owner = host.get(); if (owner != null && active) owner.statusChanged(view, presentationStatus);
         }
         void fail(int failure) {
             status = failure; publish(); EmbeddedWebHost owner = host.get(); if (owner != null) owner.diagnostic(failure);
@@ -396,12 +422,13 @@ public final class EmbeddedWebView {
                 EmbeddedWebHost owner = host.get();
                 long page = document.page(), lease = ++pickerLease;
                 String sourceIdentity = requestedUrl, documentIdentity = view.getUrl();
-                if (!overlay || !visible || owner == null || !owner.isForeground()) { result.onReceiveValue(null); return true; }
+                if (!visible || owner == null || !owner.isForeground()
+                        || !nativeFileChooserAllowed(handle, document.grant(), page, documentIdentity)) { result.onReceiveValue(null); return true; }
                 WebFileChoiceLease selected = new WebFileChoiceLease(Instance.this, owner, page, sourceIdentity, documentIdentity);
                 ValueCallback<Uri[]> guarded = values -> {
                     int decision = selected.consume(Instance.this, host.get(), document.page(), requestedUrl, view.getUrl(),
                         lease == pickerLease, active, visible, owner.isForeground(),
-                        nativeNavigation(handle, document.grant(), view.getUrl(), true, "GET"));
+                        nativeFileChooserAllowed(handle, document.grant(), document.page(), view.getUrl()));
                     if (decision == 0) return;
                     if (lease == pickerLease) ++pickerLease;
                     result.onReceiveValue(decision == 2 ? values : null);
