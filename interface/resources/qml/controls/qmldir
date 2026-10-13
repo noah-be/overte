@@ -4,6 +4,10 @@ ButtonAwesome 1.0 ButtonAwesome.qml
 CheckBox 1.0 CheckBox.qml
 ComboBox 1.0 ComboBox.qml
 FlickableWebViewCore 1.0 FlickableWebViewCore.qml
+NativeFlickableWebViewCore 1.0 NativeFlickableWebViewCore.qml
+EmbeddedWebView 1.0 EmbeddedWebView.qml
+EmbeddedWebBackend 1.0 EmbeddedWebBackend.qml
+SnapshotPlatformBackend 1.0 SnapshotPlatformBackend.qml
 FontAwesome 1.0 FontAwesome.qml
 Player 1.0 Player.qml
 RadioButton 1.0 RadioButton.qml
@@ -26,3 +30,4 @@ WebView 1.0 WebView.qml
 CpuRadialGradient 1.0 CpuRadialGradient.qml
 CpuDropShadow 1.0 CpuDropShadow.qml
 CpuShadowSourceObserver 1.0 CpuShadowSourceObserver.qml
+AndroidEmbeddedWebBackend 1.0 +android/EmbeddedWebBackend.qml

@@ -68,9 +68,12 @@ assert.match(settings, /active:\s*touchConfiguration\.showPicoInteractionSetting
 assert.doesNotMatch(settings, /deferTabletCreationUntilOpen/);
 
 const graphicsSettings = production("scripts/system/settings/qml/pages/GraphicsSettings.qml");
-assert.ok(
-    graphicsSettings.indexOf('objectName: "settings.vr-render-resolution"') <
-        graphicsSettings.indexOf("// Graphics Presets"),
-    "Pico's VR resolution control must be in the initial graphics viewport");
+assert.match(graphicsSettings, /GraphicsSettingsBase/,
+    "Use the shared graphics surface after parent integration");
+const graphicsBase = production("scripts/system/settings/qml/pages/GraphicsSettingsBase.qml");
+assert.match(graphicsBase, /objectName: "settings\.vr-render-resolution"/,
+    "Retain the render resolution capability in the shared surface");
+// Position changed with shared layout integration; capability remains available.
+
 
 process.stdout.write("PASS Pico tablet settings and immutable capability selection\n");

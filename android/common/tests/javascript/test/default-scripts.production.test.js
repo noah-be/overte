@@ -13,6 +13,7 @@ const expected = [
     "system/+android_interface/touchscreenvirtualpad.js",
     "system/+android_phoneInterface/mobileActionBar.js",
     "system/+android_phoneInterface/mobileTabletApps.js",
+    "system/+android_phoneInterface/phoneGraphics.js",
     "system/+android_phoneInterface/phoneEmote.js",
     "system/bubble.js",
     "system/pal.js",
@@ -21,11 +22,20 @@ const expected = [
     "system/quickGoto.js"
 ];
 
+const isolatedApps = [
+    "/~/system/create/edit.js",
+    "/~/system/snapshot.js",
+    "/~/communityScripts/armored-chat/armored_chat.js",
+    "/~/communityScripts/chatBubbles/chatBubbles.js",
+    "/~/communityScripts/notificationCore/notificationCore.js"
+];
+
 function start() {
     const calls = [];
     const Script = {
         require(value) { calls.push(["require", value]); },
-        include(value) { calls.push(["include", value]); }
+        include(value) { calls.push(["include", value]); },
+        load(value) { calls.push(["load", value]); }
     };
     const LODManager = { automaticLODAdjust: true, lodAngleDeg: 99 };
     const context = vm.createContext({ Script, LODManager });
@@ -35,10 +45,11 @@ function start() {
     return { ...execution, calls, LODManager };
 }
 
-test("phone bootstrap loads the control dependency before its minimal production set", () => {
+test("phone bootstrap loads the control dependency before its services and isolated applications", () => {
     const state = start();
     assert.deepEqual(state.calls[0], ["require", "/~/system/+android_interface/androidControls.js"]);
-    assert.deepEqual(state.calls.slice(1), expected.map((file) => ["include", file]));
+    assert.deepEqual(state.calls.slice(1, 1 + expected.length), expected.map((file) => ["include", file]));
+    assert.deepEqual(state.calls.slice(1 + expected.length), isolatedApps.map((file) => ["load", file]));
     assert.equal(state.context.ANDROID_PHONE_INTERFACE, true);
     assert.deepEqual(Array.from(state.context.PHONE_DEFAULT_SCRIPTS), expected);
 });
@@ -52,6 +63,8 @@ test("phone bootstrap applies conservative mobile LOD defaults", () => {
 test("explicit bootstrap restart retains deterministic script ordering", () => {
     const state = start();
     state.context.startPhoneDefaults();
-    assert.deepEqual(state.calls.slice(1 + expected.length),
+    assert.deepEqual(state.calls.slice(1 + expected.length + isolatedApps.length),
         expected.map((file) => ["include", file]));
+    assert.deepEqual(state.calls.filter(call => call[0] === "load"),
+        isolatedApps.map((file) => ["load", file]), "service restart does not duplicate independent app engines");
 });

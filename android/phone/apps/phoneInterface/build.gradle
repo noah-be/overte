@@ -508,6 +508,27 @@ android {
             }
             assetList.add('android_rcc_bundle.rcc')
 
+            // Only the startup Chat modules and their relative QML/image/audio inputs.
+            def phoneCommunityRuntimeAssets = [
+                'communityScripts/armored-chat/armored_chat.js',
+                'communityScripts/armored-chat/armored_chat.qml',
+                'communityScripts/armored-chat/armored_chat_quick_message.qml',
+                'communityScripts/armored-chat/img/icon_black.png',
+                'communityScripts/armored-chat/img/icon_white.png',
+                'communityScripts/armored-chat/img/ui/send_black.png',
+                'communityScripts/armored-chat/img/ui/send_white.png',
+                'communityScripts/armored-chat/img/ui/settings_black.png',
+                'communityScripts/armored-chat/img/ui/settings_white.png',
+                'communityScripts/armored-chat/img/ui/social_black.png',
+                'communityScripts/armored-chat/img/ui/social_white.png',
+                'communityScripts/armored-chat/img/ui/world_black.png',
+                'communityScripts/armored-chat/img/ui/world_white.png',
+                'communityScripts/armored-chat/qml/ChatMessage.qml',
+                'communityScripts/chatBubbles/assets/notify.wav',
+                'communityScripts/chatBubbles/chatBubbles.js',
+                'communityScripts/notificationCore/notificationCore.js',
+                'communityScripts/notificationCore/resources/click.wav',
+            ] as Set
             project.sync {
                 from new File(projectDir, '../../../../scripts')
                 into new File(mergedAssetsDir, 'scripts')
@@ -523,12 +544,15 @@ android {
                 // otherwise dominates the compressed scripts payload.
                 exclude 'simplifiedUI/**'
                 exclude 'simplifiedUIBootstrapper.js'
-                // Developer tests, tutorial examples, and the desktop
-                // community-app bundle are not reachable from the dedicated
-                // phone startup set.
+                // Preserve the example/app exclusions while admitting only the
+                // three native Chat engines and their reviewed runtime inputs.
                 exclude 'developer/**'
                 exclude 'tutorials/**'
-                exclude 'communityScripts/**'
+                exclude { details ->
+                    details.path.startsWith('communityScripts/') &&
+                        !phoneCommunityRuntimeAssets.contains(details.path) &&
+                        !phoneCommunityRuntimeAssets.any { it.startsWith(details.path + '/') }
+                }
                 // The touchscreen client has no tracked hands, grip inputs,
                 // or haptics for the desktop/VR handshake service.
                 exclude 'system/makeUserConnection.js'

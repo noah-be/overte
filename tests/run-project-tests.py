@@ -58,6 +58,24 @@ SUITES = (
         sys.executable, "tests/check-documentation.py", "--all")),
     Suite("safe-landing-lifecycle", "host", (
         sys.executable, "tests/safe-landing/test_safe_landing_lifecycle.py")),
+    Suite("embedded-web-policy", "host", (
+        sys.executable, "tests/device/contracts/web/test_embedded_web_policy.py")),
+    Suite("embedded-web-qml", "host", (
+        sys.executable, "tests/device/contracts/web/test_embedded_web_qml.py")),
+    Suite("account-auth-dispatch", "host", (
+        sys.executable, "tests/device/contracts/lifecycle/test_account_auth_dispatch.py")),
+    Suite("recorded-voice-native", "host", (
+        sys.executable, "tests/device/contracts/audio/test_recorded_voice_test.py")),
+    Suite("recorded-voice-qml", "host", (
+        sys.executable, "tests/device/contracts/audio/test_recorded_voice_qml.py")),
+    Suite("snapshot-native", "host", (
+        sys.executable, "tests/device/contracts/snapshot/test_snapshot_native.py")),
+    Suite("snapshot-qml", "host", (
+        sys.executable, "tests/device/contracts/snapshot/test_snapshot_qml.py")),
+    Suite("document-tree-native", "host", (
+        sys.executable, "tests/device/contracts/script_assets/test_document_tree_abi.py")),
+    Suite("obj-material-native", "host", (
+        sys.executable, "tests/device/contracts/script_assets/test_obj_material_bundle.py")),
     Suite("native-smoke", "quick", (
         sys.executable, "tests/device/contracts/world-entry/test_phone_spawn_gate.py")),
     Suite("native-ci-policy", "quick", (sys.executable, "tests/native-ci-test.py")),

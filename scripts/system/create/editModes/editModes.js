@@ -30,8 +30,8 @@ EditTools = function(options) {
     
     var createToolsWindow = options.createToolsWindow;
     
-    that.emitUpdate = function() {
-        var dataString = JSON.stringify({
+    that.getSettings = function() {
+        return {
                 createAppMode : createAppMode,
                 voxelEditMode : voxelEditMode,
                 voxelSphereSize : voxelSphereSize,
@@ -39,7 +39,12 @@ EditTools = function(options) {
                 voxelRemove : voxelRemove,
                 voxelPointerMode : voxelPointerMode,
                 voxelBrushLength : voxelBrushLength,
-            });
+            };
+    };
+    that.emitUpdate = function() {
+        var settings = that.getSettings();
+        if (typeof that.onNativeUpdate === "function") { that.onNativeUpdate(settings); }
+        var dataString = JSON.stringify(settings);
         webView.emitScriptEvent(dataString);
         createToolsWindow.emitScriptEvent(dataString);
     };
@@ -116,31 +121,31 @@ EditTools = function(options) {
         
         var needsUpdate = false;
         
-        if (data.createAppMode) {
+        if (data.createAppMode !== undefined) {
             createAppMode = data.createAppMode;
             needsUpdate = true;
         }
-        if (data.voxelEditMode) {
+        if (data.voxelEditMode !== undefined) {
             voxelEditMode = data.voxelEditMode;
             needsUpdate = true;
         }
-         if (data.voxelSphereSize) {
+         if (data.voxelSphereSize !== undefined) {
             voxelSphereSize = data.voxelSphereSize;
             needsUpdate = true;
         }
-         if (data.voxelEditDynamics) {
+         if (data.voxelEditDynamics !== undefined) {
             voxelEditDynamics = data.voxelEditDynamics;
             needsUpdate = true;
         }
-         if (data.voxelRemove) {
+         if (data.voxelRemove !== undefined) {
             voxelRemove = data.voxelRemove;
             needsUpdate = true;
         }
-         if (data.voxelPointerMode) {
+         if (data.voxelPointerMode !== undefined) {
             voxelPointerMode = data.voxelPointerMode;
             needsUpdate = true;
         }
-         if (data.voxelBrushLength) {
+         if (data.voxelBrushLength !== undefined) {
             voxelBrushLength = data.voxelBrushLength;
             needsUpdate = true;
         }
@@ -173,9 +178,21 @@ EditTools = function(options) {
     that.addListener = function(callback) {
         listeners.push(callback);
     };
+    that.applyNativeSettings = function(data) {
+        var settings = that.getSettings();
+        Object.keys(data).forEach(function(key) { settings[key] = data[key]; });
+        settings.type = "update-edit-tools";
+        webEventReceived(JSON.stringify(settings));
+        that.emitUpdate();
+    };
     
     function cleanup() {
+        webView.webEventReceived.disconnect(webEventReceived);
+        createToolsWindow.webEventReceived.removeListener(webEventReceived);
+        listeners = [];
+        that.onNativeUpdate = null;
     }
+    Script.scriptEnding.connect(cleanup);
     
     return that;
 }

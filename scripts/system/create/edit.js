@@ -32,6 +32,9 @@
     var picoNumericRepeatTimer = null;
     var picoNumericEditing = false;
     var picoNumericEditDirty = false;
+    var nativeCreate = null;
+    var nativeCreateEnabled = false;
+    var nativeBrowseCallback = null;
 
     function sendPicoNumericStep(direction) {
         Tablet.getTablet("com.highfidelity.interface.tablet.system").sendToQml({
@@ -181,6 +184,7 @@
      */
     var shouldUseEditTabletApp = function() {
         return HMD.active
+            || Tablet.getTablet("com.highfidelity.interface.tablet.system").toolbarMode === false
             || (typeof ANDROID_PHONE_INTERFACE !== "undefined" && ANDROID_PHONE_INTERFACE)
             || (!HMD.active && !Settings.getValue("desktopTabletBecomesToolbar", true));
     };
@@ -266,6 +270,7 @@
 
     var editVoxels = new EditVoxels();
     editVoxels.editTools = editTools;
+    createApp.editVoxels = editVoxels;
 
     editTools.addListener(editVoxels.updateEditSettings);
     editTools.addListener(selectionManager.updateEditSettings);
@@ -287,6 +292,7 @@
         entityShapeVisualizer.setEntities(selectionManager.selections);
         createApp.entityShapeVisualizerLocalEntityToExclude = entityShapeVisualizer.getLocalEntityToExclude();
         sendPicoPropertiesSelection();
+        if (nativeCreate) { nativeCreate.selection(); }
     });
 
     function sendPicoPropertiesSelection() {
@@ -432,16 +438,18 @@
             return;
         }
 
-        var hasRezPermissions = (Entities.canRez() || Entities.canRezTmp());
+        var hasRezPermissions = (Entities.canRez() || Entities.canRezTmp() || Entities.canRezAvatarEntities());
         createButton.editProperties({
             icon: (hasRezPermissions ? CREATE_ENABLED_ICON : CREATE_DISABLED_ICON),
             captionColor: (hasRezPermissions ? "#ffffff" : "#888888"),
         });
+        finishPicoNumericEditing();
 
         if (!hasRezPermissions && isActive) {
-            that.setActive(false);
-            tablet.gotoHomeScreen();
+            toolBar.setActive(false);
+            Tablet.getTablet("com.highfidelity.interface.tablet.system").gotoHomeScreen();
         }
+        if (nativeCreate) { nativeCreate.selection(); }
     }
 
     // Copies the properties in `b` into `a`. `a` will be modified.
@@ -714,6 +722,11 @@
             tablet = null;
 
         function createNewEntity(requestedProperties, entityHostType="domain") {
+            if (entityHostType === "avatar" ? !Entities.canRezAvatarEntities()
+                    : (entityHostType !== "local" && !Entities.canRez() && !Entities.canRezTmp())) {
+                Window.notifyEditError(INSUFFICIENT_PERMISSIONS_ERROR_MSG);
+                return null;
+            }
             var dimensions = requestedProperties.dimensions ? requestedProperties.dimensions : DEFAULT_DIMENSIONS;
             var position = createApp.getPositionToCreateEntity();
             var entityID = null;
@@ -863,7 +876,7 @@
                 SelectionManager.saveProperties();
                 createApp.pushCommandForSelections([{
                     entityID: entityID,
-                    properties: properties
+                    properties: Entities.getEntityProperties(entityID)
                 }], [], true);
 
             } else {
@@ -891,6 +904,7 @@
         function cleanup() {
             that.setActive(false);
             if (tablet) {
+                tablet.fromQml.disconnect(fromQml);
                 tablet.tabletShownChanged.disconnect(onPicoTabletShownChanged);
                 tablet.removeButton(activeButton);
             }
@@ -992,6 +1006,7 @@
                     },
                 });
 
+                if (!polyVoxID) { return; }
                 Entities.editEntity(polyVoxID, {
                     position: voxelPosition
                 });
@@ -1120,6 +1135,12 @@
                 print("Ignoring malformed Create QML message");
                 return;
             }
+            if (message.method.indexOf("nativeCreate.") === 0) {
+                if (isActive && message.method === "nativeCreate.ready") { nativeCreateEnabled = true; }
+                if (nativeCreate) { nativeCreate.handle(message); }
+                return;
+            }
+            if (!isActive) { return; }
             var tablet = Tablet.getTablet("com.highfidelity.interface.tablet.system");
             if (message.method.indexOf("Dialog") !== -1) {
                 tablet.popFromStack();
@@ -1283,15 +1304,15 @@
             });
 
             Entities.canAdjustLocksChanged.connect(function (canAdjustLocks) {
-                if (isActive && !canAdjustLocks) {
-                    that.setActive(false);
-                }
+                if (isActive && !canAdjustLocks && !nativeCreateEnabled) { that.setActive(false); }
+                if (nativeCreate) { nativeCreate.selection(); }
                 checkEditPermissionsAndUpdate();
             });
 
             Entities.canRezChanged.connect(checkEditPermissionsAndUpdate);
             Entities.canRezTmpChanged.connect(checkEditPermissionsAndUpdate);
-            var hasRezPermissions = (Entities.canRez() || Entities.canRezTmp());
+            Entities.canRezAvatarEntitiesChanged.connect(checkEditPermissionsAndUpdate);
+            var hasRezPermissions = (Entities.canRez() || Entities.canRezTmp() || Entities.canRezAvatarEntities());
 
             Entities.deletingEntity.connect(checkDeletedEntityAndUpdate);
 
@@ -1317,7 +1338,7 @@
             createToolsWindow.fromQml.addListener(fromQml);
 
             createButton.clicked.connect(function() {
-                if ( ! (Entities.canRez() || Entities.canRezTmp()) ) {
+                if ( ! (Entities.canRez() || Entities.canRezTmp() || Entities.canRezAvatarEntities()) ) {
                     Window.notifyEditError(INSUFFICIENT_PERMISSIONS_ERROR_MSG);
                     return;
                 }
@@ -1446,6 +1467,11 @@
         };
 
         that.setActive = function (active) {
+            if (!active) {
+                finishPicoNumericEditing();
+                nativeCreateEnabled = false;
+                if (nativeCreate) { nativeCreate.reset(); }
+            }
             Settings.setValue(EDIT_SETTING, active);
             if (active) {
                 Controller.captureEntityClickEvents();
@@ -1457,7 +1483,7 @@
             if (active === isActive) {
                 return;
             }
-            if (active && !Entities.canRez() && !Entities.canRezTmp()) {
+            if (active && !Entities.canRez() && !Entities.canRezTmp() && !Entities.canRezAvatarEntities()) {
                 Window.notifyEditError(INSUFFICIENT_PERMISSIONS_ERROR_MSG);
                 return;
             }
@@ -2381,9 +2407,10 @@
 
     function importSVO(importURL, importEntityHostType) {
         importEntityHostType = importEntityHostType || "domain";
-        if (!Entities.canRez() && !Entities.canRezTmp()) {
+        if (importEntityHostType === "avatar" ? !Entities.canRezAvatarEntities()
+                : (!Entities.canRez() && !Entities.canRezTmp())) {
             Window.notifyEditError(INSUFFICIENT_PERMISSIONS_IMPORT_ERROR_MSG);
-            return;
+            return [];
         }
 
         Overlays.editOverlay(importingSVOTextOverlay, {
@@ -2393,93 +2420,130 @@
             visible: true
         });
 
-        var success = Clipboard.importEntities(importURL);
+        var importedIDs = [];
+        try {
+            var success = Clipboard.importEntities(importURL);
 
-        if (success) {
-            var VERY_LARGE = 10000;
-            var isLargeImport = Clipboard.getClipboardContentsLargestDimension() >= VERY_LARGE;
-            var position = Vec3.ZERO;
-            if (!isLargeImport) {
-                position = createApp.getPositionToCreateEntity(Clipboard.getClipboardContentsLargestDimension() / 2);
-            }
-            if (position !== null && position !== undefined) {
-                var pastedEntityIDs = Clipboard.pasteEntities(position, importEntityHostType);
+            if (success) {
+                var VERY_LARGE = 10000;
+                var isLargeImport = Clipboard.getClipboardContentsLargestDimension() >= VERY_LARGE;
+                var position = Vec3.ZERO;
                 if (!isLargeImport) {
-                    // The first entity in Clipboard gets the specified position with the rest being relative to it. Therefore, move
-                    // entities after they're imported so that they're all the correct distance in front of and with geometric mean
-                    // centered on the avatar/camera direction.
-                    var deltaPosition = Vec3.ZERO;
-                    var entityPositions = [];
-                    var entityParentIDs = [];
-
-                    var propType = Entities.getEntityProperties(pastedEntityIDs[0], ["type"]).type;
-                    var NO_ADJUST_ENTITY_TYPES = ["Zone", "Light", "ParticleEffect", "ProceduralParticleEffect", "Sound", "Canvas", "Script"];
-                    if (NO_ADJUST_ENTITY_TYPES.indexOf(propType) === -1) {
-                        var targetDirection;
-                        if (Camera.mode === "entity" || Camera.mode === "independent") {
-                            targetDirection = Camera.orientation;
-                        } else {
-                            targetDirection = MyAvatar.orientation;
-                        }
-                        targetDirection = Vec3.multiplyQbyV(targetDirection, Vec3.UNIT_Z);
-
-                        var targetPosition = createApp.getPositionToCreateEntity();
-                        var deltaParallel = HALF_TREE_SCALE;  // Distance to move entities parallel to targetDirection.
-                        var deltaPerpendicular = Vec3.ZERO;  // Distance to move entities perpendicular to targetDirection.
-                        for (var i = 0, length = pastedEntityIDs.length; i < length; i++) {
-                            var curLoopEntityProps = Entities.getEntityProperties(pastedEntityIDs[i], ["position", "dimensions",
-                                "registrationPoint", "rotation", "parentID"]);
-                            var adjustedPosition = adjustPositionPerBoundingBox(targetPosition, targetDirection,
-                                curLoopEntityProps.registrationPoint, curLoopEntityProps.dimensions, curLoopEntityProps.rotation);
-                            var delta = Vec3.subtract(adjustedPosition, curLoopEntityProps.position);
-                            var distance = Vec3.dot(delta, targetDirection);
-                            deltaParallel = Math.min(distance, deltaParallel);
-                            deltaPerpendicular = Vec3.sum(Vec3.subtract(delta, Vec3.multiply(distance, targetDirection)),
-                                deltaPerpendicular);
-                            entityPositions[i] = curLoopEntityProps.position;
-                            entityParentIDs[i] = curLoopEntityProps.parentID;
-                        }
-                        deltaPerpendicular = Vec3.multiply(1 / pastedEntityIDs.length, deltaPerpendicular);
-                        deltaPosition = Vec3.sum(Vec3.multiply(deltaParallel, targetDirection), deltaPerpendicular);
+                    position = createApp.getPositionToCreateEntity(Clipboard.getClipboardContentsLargestDimension() / 2);
+                }
+                if (position !== null && position !== undefined) {
+                    var pastedEntityIDs = Clipboard.pasteEntities(position, importEntityHostType);
+                    if (!pastedEntityIDs || pastedEntityIDs.length === 0) {
+                        Window.notifyEditError("No entities were imported.");
+                        return [];
                     }
+                    if (!isLargeImport) {
+                        // The first entity in Clipboard gets the specified position with the rest being relative to it. Therefore, move
+                        // entities after they're imported so that they're all the correct distance in front of and with geometric mean
+                        // centered on the avatar/camera direction.
+                        var deltaPosition = Vec3.ZERO;
+                        var entityPositions = [];
+                        var entityParentIDs = [];
 
-                    if (grid.getSnapToGrid()) {
-                        var firstEntityProps = Entities.getEntityProperties(pastedEntityIDs[0], ["position", "dimensions",
-                            "registrationPoint"]);
-                        var positionPreSnap = Vec3.sum(deltaPosition, firstEntityProps.position);
-                        position = grid.snapToSurface(grid.snapToGrid(positionPreSnap, false, firstEntityProps.dimensions,
-                                firstEntityProps.registrationPoint), firstEntityProps.dimensions, firstEntityProps.registrationPoint);
-                        deltaPosition = Vec3.subtract(position, firstEntityProps.position);
-                    }
+                        var propType = Entities.getEntityProperties(pastedEntityIDs[0], ["type"]).type;
+                        var NO_ADJUST_ENTITY_TYPES = ["Zone", "Light", "ParticleEffect", "ProceduralParticleEffect", "Sound", "Canvas", "Script"];
+                        if (NO_ADJUST_ENTITY_TYPES.indexOf(propType) === -1) {
+                            var targetDirection;
+                            if (Camera.mode === "entity" || Camera.mode === "independent") {
+                                targetDirection = Camera.orientation;
+                            } else {
+                                targetDirection = MyAvatar.orientation;
+                            }
+                            targetDirection = Vec3.multiplyQbyV(targetDirection, Vec3.UNIT_Z);
 
-                    if (!Vec3.equal(deltaPosition, Vec3.ZERO)) {
-                        for (var editEntityIndex = 0, numEntities = pastedEntityIDs.length; editEntityIndex < numEntities; editEntityIndex++) {
-                            if (Uuid.isNull(entityParentIDs[editEntityIndex])) {
-                                Entities.editEntity(pastedEntityIDs[editEntityIndex], {
-                                    position: Vec3.sum(deltaPosition, entityPositions[editEntityIndex])
-                                });
+                            var targetPosition = createApp.getPositionToCreateEntity();
+                            var deltaParallel = HALF_TREE_SCALE;  // Distance to move entities parallel to targetDirection.
+                            var deltaPerpendicular = Vec3.ZERO;  // Distance to move entities perpendicular to targetDirection.
+                            for (var i = 0, length = pastedEntityIDs.length; i < length; i++) {
+                                var curLoopEntityProps = Entities.getEntityProperties(pastedEntityIDs[i], ["position", "dimensions",
+                                    "registrationPoint", "rotation", "parentID"]);
+                                var adjustedPosition = adjustPositionPerBoundingBox(targetPosition, targetDirection,
+                                    curLoopEntityProps.registrationPoint, curLoopEntityProps.dimensions, curLoopEntityProps.rotation);
+                                var delta = Vec3.subtract(adjustedPosition, curLoopEntityProps.position);
+                                var distance = Vec3.dot(delta, targetDirection);
+                                deltaParallel = Math.min(distance, deltaParallel);
+                                deltaPerpendicular = Vec3.sum(Vec3.subtract(delta, Vec3.multiply(distance, targetDirection)),
+                                    deltaPerpendicular);
+                                entityPositions[i] = curLoopEntityProps.position;
+                                entityParentIDs[i] = curLoopEntityProps.parentID;
+                            }
+                            deltaPerpendicular = Vec3.multiply(1 / pastedEntityIDs.length, deltaPerpendicular);
+                            deltaPosition = Vec3.sum(Vec3.multiply(deltaParallel, targetDirection), deltaPerpendicular);
+                        }
+
+                        if (grid.getSnapToGrid()) {
+                            var firstEntityProps = Entities.getEntityProperties(pastedEntityIDs[0], ["position", "dimensions",
+                                "registrationPoint"]);
+                            var positionPreSnap = Vec3.sum(deltaPosition, firstEntityProps.position);
+                            position = grid.snapToSurface(grid.snapToGrid(positionPreSnap, false, firstEntityProps.dimensions,
+                                    firstEntityProps.registrationPoint), firstEntityProps.dimensions, firstEntityProps.registrationPoint);
+                            deltaPosition = Vec3.subtract(position, firstEntityProps.position);
+                        }
+
+                        if (!Vec3.equal(deltaPosition, Vec3.ZERO)) {
+                            for (var editEntityIndex = 0, numEntities = pastedEntityIDs.length; editEntityIndex < numEntities; editEntityIndex++) {
+                                if (Uuid.isNull(entityParentIDs[editEntityIndex])) {
+                                    Entities.editEntity(pastedEntityIDs[editEntityIndex], {
+                                        position: Vec3.sum(deltaPosition, entityPositions[editEntityIndex])
+                                    });
+                                }
                             }
                         }
                     }
-                }
 
-                if (isActive) {
-                    selectionManager.setSelections(pastedEntityIDs, this);
+                    if (isActive) {
+                        selectionManager.setSelections(pastedEntityIDs, this);
+                    }
+                    importedIDs = pastedEntityIDs;
+                } else {
+                    Window.notifyEditError("Can't import entities: entities would be out of bounds.");
                 }
             } else {
-                Window.notifyEditError("Can't import entities: entities would be out of bounds.");
+                Window.notifyEditError("There was an error importing the entity file.");
             }
-        } else {
-            Window.notifyEditError("There was an error importing the entity file.");
-        }
 
-        Overlays.editOverlay(importingSVOTextOverlay, {
-            visible: false
-        });
-        Overlays.editOverlay(importingSVOImageOverlay, {
-            visible: false
-        });
+        } finally {
+            Overlays.editOverlay(importingSVOTextOverlay, {
+                visible: false
+            });
+            Overlays.editOverlay(importingSVOImageOverlay, {
+                visible: false
+            });
+        }
+        return importedIDs;
     }
+
+    // Shared native and advanced-web imports use one placement/undo path.
+    createApp.importNativeEntities = function(options) {
+        var ids = [];
+        try {
+            if (options.host === "avatar" ? !Entities.canRezAvatarEntities()
+                    : (!Entities.canRez() && !Entities.canRezTmp())) {
+                return { ok: false, error: "You do not have permission to import entities.", ids: [] };
+            }
+            if (options.position === undefined) {
+                ids = importSVO(options.url, options.host);
+            } else if (Clipboard.importEntities(options.url)) {
+                ids = Clipboard.pasteEntities(options.position, options.host) || [];
+                if (isActive && ids.length) { selectionManager.setSelections(ids, this); }
+            }
+            if (!ids.length) { return { ok: false, error: "No entities were imported.", ids: [] }; }
+            var created = ids.map(function(id) {
+                return { entityID: id, properties: Entities.getEntityProperties(id) };
+            });
+            createApp.pushCommandForSelections(created, [], true);
+            SelectionManager.saveProperties();
+            entityListTool.sendUpdate();
+            return { ok: true, ids: ids };
+        } catch (error) {
+            return { ok: false, error: "Entity import failed.", ids: [] };
+        }
+    };
     Window.svoImportRequested.connect(importSVO);
 
     Menu.menuItemEvent.connect(handleMenuEvent);
@@ -2576,7 +2640,7 @@
             for (var i = 0; i < children.length; i++) {
                 var childProperties = children[i].properties;
                 childProperties.parentID = newParentID;
-                var newChildID = Entities.addEntity(childProperties);
+                var newChildID = Entities.addEntity(childProperties, childProperties.entityHostType || "domain");
                 recursiveAdd(newChildID, children[i]);
             }
         }
@@ -2658,6 +2722,7 @@
     function updateUndoRedoMenuItems() {
         Menu.setMenuEnabled("Edit > Undo", createApp.undoHistory.canUndo());
         Menu.setMenuEnabled("Edit > Redo", createApp.undoHistory.canRedo());
+        if (nativeCreate) { nativeCreate.selection(); }
     }
     createApp.undoHistory = new UndoHistory(updateUndoRedoMenuItems);
     updateUndoRedoMenuItems();
@@ -2677,7 +2742,7 @@
         for (i = 0; i < createEntities.length; i++) {
             entityID = createEntities[i].entityID;
             entityProperties = createEntities[i].properties;
-            var newEntityID = Entities.addEntity(entityProperties);
+            var newEntityID = Entities.addEntity(entityProperties, entityProperties.entityHostType || "domain");
             recursiveAdd(newEntityID, createEntities[i]);
             DELETED_ENTITY_MAP[entityID] = newEntityID;
             if (data.selectCreated) {
@@ -2717,10 +2782,22 @@
         }
     }
 
+    createApp.pushVoxelStroke = function(edits) {
+        function data(key) {
+            return { createEntities: [], deleteEntities: [], selectCreated: false,
+                editEntities: edits.map(function(edit) {
+                    return { entityID: edit.entityID, properties: { voxelData: edit[key].voxelData },
+                        entityHostType: edit.before.entityHostType, owningAvatarID: edit.before.owningAvatarID };
+                }) };
+        }
+        createApp.undoHistory.pushCommand(applyEntityProperties, data("before"), applyEntityProperties, data("after"));
+        if (nativeCreate) { nativeCreate.reportStatus("Voxel stroke saved.", false); }
+    };
+
     // For currently selected entities, push a command to the UndoStack that uses the current entity properties for the
     // redo command, and the saved properties for the undo command.  Also, include create and delete entity data.
     createApp.pushCommandForSelections = function (createdEntityData, deletedEntityData, doNotSaveEditProperties) {
-        doNotSaveEditProperties = false;
+        doNotSaveEditProperties = doNotSaveEditProperties === true;
         var undoData = {
             editEntities: [],
             createEntities: deletedEntityData || [],
@@ -2882,19 +2959,7 @@
                 var entity = {};
                 entity.id = selectionManager.selections[i];
                 entity.properties = Entities.getEntityProperties(selectionManager.selections[i]);
-                if (entity.properties.rotation !== undefined) {
-                    entity.properties.rotation = Quat.safeEulerAngles(entity.properties.rotation);
-                }
-                if (entity.properties.localRotation !== undefined) {
-                    entity.properties.localRotation = Quat.safeEulerAngles(entity.properties.localRotation);
-                }
-                if (entity.properties.emitOrientation !== undefined) {
-                    entity.properties.emitOrientation = Quat.safeEulerAngles(entity.properties.emitOrientation);
-                }
-                if (entity.properties.keyLight !== undefined && entity.properties.keyLight.direction !== undefined) {
-                    entity.properties.keyLight.direction = Vec3.toPolar(entity.properties.keyLight.direction);
-                    entity.properties.keyLight.direction.z = 0.0;
-                }
+                entity.properties = propertiesForEditor(entity.properties);
                 if (selectionManager.selections.length === 1) {
                     entity.properties.children = createApp.getChildEntitiesList(entity.id);
                 }
@@ -3217,29 +3282,10 @@
             } else if (data.type === "importUiImport") {
                 if ((data.entityHostType === "domain" && Entities.canAdjustLocks() && Entities.canRez()) || 
                     (data.entityHostType === "avatar" && Entities.canRezAvatarEntities())) {
-                    if (data.positioningMode === "avatar") {
-                        importSVO(data.jsonURL, data.entityHostType);
-                    } else {
-                        if (Clipboard.importEntities(data.jsonURL)) {
-                            let importedPastedEntities = Clipboard.pasteEntities(data.position, data.entityHostType);
-                            if (importedPastedEntities.length === 0) {
-                                emitScriptEvent({
-                                    type: 'importUi_IMPORT_ERROR',
-                                    reason: "No Entity has been imported."
-                                });
-                            } else {
-                                if (isActive) {
-                                    selectionManager.setSelections(importedPastedEntities, this);
-                                }
-                                emitScriptEvent({type: 'importUi_IMPORT_CONFIRMATION'});
-                            }
-                        } else {
-                            emitScriptEvent({
-                                type: 'importUi_IMPORT_ERROR',
-                                reason: "Import Entities has failed."
-                            });
-                        }
-                    }
+                    var imported = createApp.importNativeEntities({ url: data.jsonURL,
+                        host: data.entityHostType, position: data.positioningMode === "avatar" ? undefined : data.position });
+                    emitScriptEvent(imported.ok ? { type: "importUi_IMPORT_CONFIRMATION" }
+                        : { type: "importUi_IMPORT_ERROR", reason: imported.error });
                 } else {
                     emitScriptEvent({
                         type: 'importUi_IMPORT_ERROR',
@@ -3294,6 +3340,14 @@
         createToolsWindow.webEventReceived.addListener(this, onWebEventReceived);
 
         webView.webEventReceived.connect(this, onWebEventReceived);
+
+        // The native surface uses the same property conversion and undo backend
+        // as the desktop page after its selection/ownership validation.
+        that.applyNativeProperties = function(entityID, properties, preview) {
+            if (!preview) { SelectionManager.saveProperties(); }
+            onWebEventReceived(JSON.stringify({ type: "update", ids: [entityID],
+                properties: properties, onlyUpdateEntities: preview === true }));
+        };
 
         return that;
     };
@@ -3455,6 +3509,7 @@
 
             Entities.canRezChanged.disconnect(checkEditPermissionsAndUpdate);
             Entities.canRezTmpChanged.disconnect(checkEditPermissionsAndUpdate);
+            Entities.canRezAvatarEntitiesChanged.disconnect(checkEditPermissionsAndUpdate);
         }
 
         Controller.mousePressEvent.connect(self.mousePressEvent);
@@ -3567,6 +3622,98 @@
     };
 
     var propertiesTool = new PropertiesTool();
+
+    function propertiesForEditor(properties) {
+        ["rotation", "localRotation", "emitOrientation"].forEach(function(key) {
+            if (properties[key] !== undefined) { properties[key] = Quat.safeEulerAngles(properties[key]); }
+        });
+        if (properties.keyLight && properties.keyLight.direction) {
+            properties.keyLight.direction = Vec3.toPolar(properties.keyLight.direction);
+            properties.keyLight.direction.z = 0.0;
+        }
+        return properties;
+    }
+
+    function cancelNativeBrowse() {
+        if (nativeBrowseCallback) {
+            Window.browseChanged.disconnect(nativeBrowseCallback);
+            nativeBrowseCallback = null;
+        }
+    }
+
+    nativeCreate = Script.require("./modules/nativeCreateBridge.js").createBridge({
+        entities: Entities, avatar: MyAvatar, selection: selectionManager,
+        history: createApp.undoHistory, app: createApp, grid: grid, display: selectionDisplay,
+        canReplayHistory: function(action) {
+            if (editVoxels.isStrokePending()) { return false; }
+            var history = createApp.undoHistory;
+            var command = history.history[history.lastExecutedIndex + (action === "redo" ? 1 : 0)];
+            if (!command) { return false; }
+            var data = action === "undo" ? command.undoArgs : command.redoArgs;
+            return data.editEntities.concat(data.createEntities, data.deleteEntities).every(function(entry) {
+                var properties = entry.properties;
+                if (!properties) { return true; }
+                var id = DELETED_ENTITY_MAP[entry.entityID] || entry.entityID;
+                var current = Entities.getEntityProperties(id);
+                if (current.locked && properties.locked !== false) { return false; }
+                if (properties.locked !== undefined && current.type && properties.locked !== current.locked
+                        && !Entities.canAdjustLocks()) { return false; }
+                if (!current.type && data.editEntities.indexOf(entry) !== -1) { return false; }
+                var host = current.entityHostType || entry.entityHostType || properties.entityHostType;
+                var owner = current.owningAvatarID || entry.owningAvatarID || properties.owningAvatarID;
+                if (host === "avatar" || properties.avatarEntity) {
+                    return Entities.canRezAvatarEntities()
+                        && (owner === MyAvatar.sessionUUID || owner === MyAvatar.SELF_ID);
+                }
+                return host === "local" || Entities.canRez() || Entities.canRezTmp();
+            });
+        },
+        isActive: function() { return isActive && nativeCreateEnabled; },
+        send: function(message) { Tablet.getTablet("com.highfidelity.interface.tablet.system").sendToQml(message); },
+        euler: Quat.safeEulerAngles,
+        propertyView: propertiesForEditor,
+        editSettings: editTools.getSettings,
+        applyEditSettings: editTools.applyNativeSettings,
+        refresh: function() { entityListTool.sendUpdate(); },
+        create: function(properties, host) { return fcreateNewEntity(properties, host); },
+        applyProperties: function(id, properties, preview) {
+            propertiesTool.applyNativeProperties(id, properties, preview);
+            if (preview) { picoNumericEditDirty = true; }
+        },
+        numericFocus: function(focused) {
+            if (!focused) { finishPicoNumericEditing(); return; }
+            if (!picoNumericEditing) {
+                SelectionManager.saveProperties();
+                picoNumericEditing = true;
+                picoNumericEditDirty = false;
+            }
+            setPicoNumericFocus(true);
+        },
+        isNumericEditing: function() { return picoNumericEditing; },
+        importEntities: function(options) { return createApp.importNativeEntities(options); },
+        browse: function(callback) {
+            cancelNativeBrowse();
+            nativeBrowseCallback = function(file) { cancelNativeBrowse(); callback(file); };
+            Window.browseChanged.connect(nativeBrowseCallback);
+            Window.browseAsync("Select .json to Import", "", "*.json");
+        },
+        cancelBrowse: cancelNativeBrowse,
+        exportSelection: function() { entityListTool.handleNativeEvent({ type: "export" }); },
+        showAssets: function() { Window.showAssetServer(); }
+    });
+    entityListTool.onNativeEvent = nativeCreate.acceptList;
+    editTools.onNativeUpdate = function(settings) {
+        nativeCreate.sendSettings(settings);
+    };
+    editVoxels.onStrokeStatus = function(text, error) { nativeCreate.reportStatus(text, error); };
+    editVoxels.onStrokeSettled = function() { nativeCreate.selection(); };
+    Script.scriptEnding.connect(function() {
+        nativeCreate.reset();
+        entityListTool.onNativeEvent = null;
+        editTools.onNativeUpdate = null;
+        editVoxels.onStrokeStatus = null;
+        editVoxels.onStrokeSettled = null;
+    });
 
     selectionDisplay.onSpaceModeChange = function(spaceMode) {
         entityListTool.setSpaceMode(spaceMode);
