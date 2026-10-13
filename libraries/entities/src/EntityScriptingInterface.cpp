@@ -1285,6 +1285,20 @@ bool EntityScriptingInterface::isLoaded(const QUuid& id) {
     return toReturn;
 }
 
+bool EntityScriptingInterface::isVoxelDataReady(const QUuid& id) {
+    if (!_entityTree) {
+        return false;
+    }
+    bool ready { false };
+    _entityTree->withReadLock([&] {
+        auto entity = std::dynamic_pointer_cast<PolyVoxEntityItem>(_entityTree->findEntityByEntityItemID(id));
+        if (entity) {
+            ready = entity->isVoxelDataReady();
+        }
+    });
+    return ready;
+}
+
 bool EntityScriptingInterface::isAddedEntity(const QUuid& id) {
     bool toReturn = false;
     _entityTree->withReadLock([&] {

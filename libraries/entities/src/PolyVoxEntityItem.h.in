@@ -60,6 +60,9 @@ public:
     static const PolyVoxSurfaceStyle DEFAULT_VOXEL_SURFACE_STYLE;
 
     QByteArray getVoxelData() const;
+    // Non-rendering entities cannot confirm asynchronous volume compression.
+    virtual bool isVoxelDataReady() const { return false; }
+
     virtual void setVoxelData(const QByteArray& voxelData);
     glm::vec3 getVoxelVolumeSize() const;
     virtual void setVoxelVolumeSize(const glm::vec3& voxelVolumeSize);

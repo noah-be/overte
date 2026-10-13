@@ -91,6 +91,68 @@ Item {
             page.fromScript({ method: "nativeCreate.status", params: { text: "Import failed", error: true } })
             compare(findChild(page, "NativeCreateStatus").text, "Import failed")
         }
+        function test_typedPropertiesUseRealPointerAndNestedValues() {
+            page.currentTab = 2
+            requests.clear()
+            page.fromScript({ method: "nativeCreate.selection", params: { entities: [{
+                id: "model-typed", type: "Model", editable: true, properties: {
+                    name: "Model", modelURL: "https://example.test/old.fbx",
+                    animation: { fps: 30, running: false }, voxelData: "opaque compressed data"
+                } }] } })
+            var search = findChild(page, "NativeCreatePropertySearch")
+            search.text = "modelURL"
+            wait(20)
+            click("NativeCreateProperty_modelURL")
+            var url = findChild(page, "NativeCreateProperty_modelURL")
+            url.selectAll()
+            keyClick(Qt.Key_N)
+            keyClick(Qt.Key_E)
+            keyClick(Qt.Key_W)
+            click("NativeCreateApply")
+            compare(last().params.properties.modelURL, "new")
+
+            search.text = "animation.running"
+            wait(20)
+            click("NativeCreateFlag_animation.running")
+            click("NativeCreateApply")
+            compare(last().params.properties.animation.running, true)
+            compare(last().params.properties.animation.fps, 30)
+
+            search.text = "animation.fps"
+            wait(20)
+            click("NativeCreateProperty_animation.fps")
+            page.fromScript({ method: "picoAdjustFocusedNumber", params: { direction: 1 } })
+            compare(last().method, "nativeCreate.preview")
+            compare(last().params.properties.animation.fps, 30.01)
+            compare(last().params.properties.animation.running, true)
+            verify(page.typedFieldRows.every(function(row) { return row.path !== "voxelData" }))
+        }
+        function test_voxelControlsUseRealPointerEvents() {
+            page.currentTab = 3
+            page.fromScript({ method: "nativeCreate.settings", params: {
+                createAppMode: "voxel", voxelEditMode: "sphere", voxelRemove: false,
+                voxelSphereSize: 0.3, voxelBrushLength: 0.5,
+                voxelEditDynamics: "click", voxelPointerMode: "laser"
+            } })
+            requests.clear()
+            click("NativeCreateVoxelRemove")
+            compare(last().method, "nativeCreate.settings")
+            compare(last().params.voxelRemove, true)
+            click("NativeCreateVoxelRemove")
+            compare(last().params.voxelRemove, false)
+            var diameter = findChild(page, "NativeCreateVoxelDiameter")
+            click("NativeCreateVoxelDiameter")
+            diameter.selectAll()
+            keyClick(Qt.Key_2)
+            click("NativeCreateVoxelApply")
+            compare(last().params.voxelSphereSize, 2)
+            compare(last().params.voxelBrushLength, 0.5)
+            diameter.text = "invalid"
+            requests.clear()
+            click("NativeCreateVoxelApply")
+            compare(requests.count, 0)
+            verify(page.statusError)
+        }
         function test_narrowLayout() {
             page.width = 320
             page.height = 600
