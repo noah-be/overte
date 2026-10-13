@@ -125,13 +125,14 @@ def verify_build_execution(jobs, run_id, attempt, head):
     ids = [job.get("id") for job in selected]
     require(all(type(value) is int and value > 0 for value in ids) and len(set(ids)) == len(ids),
             "missing or duplicate actual producer job IDs")
-    producer_attempt = selected[0].get("run_attempt")
-    require(type(producer_attempt) is int and producer_attempt > 0
-            and all(type(job.get("run_attempt")) is int and job["run_attempt"] == producer_attempt
+    snapshot_attempt = selected[0].get("run_attempt")
+    require(type(snapshot_attempt) is int and snapshot_attempt > 0
+            and all(type(job.get("run_attempt")) is int and job["run_attempt"] == snapshot_attempt
                     for job in selected), "selected producer jobs have inconsistent attempts")
-    # Failed-only retry retains the original successful build jobs. The later
-    # qualifier must not relabel them as freshly compiled in its own attempt.
-    require(producer_attempt == attempt or (producer_attempt == 1 and attempt == 2),
+    # A failed-only retry can retain earlier API records or create new snapshot
+    # IDs/attempt fields carrying the original successful execution timestamps.
+    # This field is API snapshot identity, not original execution provenance.
+    require(snapshot_attempt == attempt or (snapshot_attempt == 1 and attempt == 2),
             "unsupported producer/qualifier attempt ordering")
     for job in selected:
         require(type(job.get("run_id")) is int and job.get("run_id") == run_id
@@ -145,8 +146,10 @@ def verify_build_execution(jobs, run_id, attempt, head):
                 require(len(matches) == 1 and matches[0].get("status") == "completed"
                         and matches[0].get("conclusion") == "success",
                         f"selected build step missing, skipped or failed: {name}")
-    return {"runId": run_id, "producerRunAttempt": producer_attempt, "qualifierRunAttempt": attempt,
-            "headRevision": head, "jobIds": ids,
+    return {"runId": run_id, "apiSnapshotRunAttempt": snapshot_attempt, "qualifierRunAttempt": attempt,
+            "headRevision": head, "apiSnapshotJobIds": ids,
+            "originalExecutionRunAttempt": None, "originalExecutionJobIds": None,
+            "originalExecutionIdentityVerification": "not-observed-by-legacy-invocation",
             "artifactIdVerification": "not-observed-by-legacy-invocation",
             "originalArtifactZipDigestVerification": "not-observed-by-legacy-invocation"}
 
