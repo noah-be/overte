@@ -772,6 +772,21 @@ QUuid EntityScriptingInterface::addModelEntity(const QString& name, const QStrin
     return addEntity(properties);
 }
 
+QUuid EntityScriptingInterface::addImageEntity(const QString& name, const QString& imageUrl, bool grabbable,
+                                              const glm::vec3& position) {
+    EntityItemProperties properties;
+    properties.setType(EntityTypes::Image);
+    properties.setName(name);
+    properties.setImageURL(imageUrl);
+    properties.setKeepAspectRatio(false);
+    properties.setDynamic(false);
+    properties.setCollisionless(true);
+    properties.setUserData(grabbable ? GRABBABLE_USER_DATA : NOT_GRABBABLE_USER_DATA);
+    properties.setPosition(position);
+    properties.setLastEditedBy(DependencyManager::get<NodeList>()->getSessionUUID());
+    return addEntity(properties);
+}
+
 QUuid EntityScriptingInterface::cloneEntity(const QUuid& entityIDToClone) {
     EntityItemID newEntityID;
     EntityItemProperties properties = getEntityProperties(entityIDToClone);

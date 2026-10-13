@@ -87,6 +87,23 @@ Set `OVERTE_VOICE_TEST_QT_CORE=Qt5Core` or `Qt6Core` to select the native fixtur
 SDK; an extracted Qt SDK also uses the standard `PKG_CONFIG_PATH`,
 `PKG_CONFIG_SYSROOT_DIR` and `LD_LIBRARY_PATH` variables.
 
+The `snapshot-native` host suite compiles the actual animated-capture and upload
+callbacks with Qt Core, Gui, Concurrent and Network, plus matching `moc`. Only
+application/render/preferences and HTTP transport boundaries are substituted.
+It executes the unchanged production GIF encoder using the attributed pinned
+public-domain fixture, real image decoding, storage-authority checks, delayed
+render cancellation and replacement, and atomic terminal races. The
+`snapshot-qml` suite requires Qt Quick Controls 2 and Layouts in addition to
+Qt Quick Test. It clicks the production native review and tests generic and
+QFileSelector-selected system export boundaries. The shared JavaScript suite
+also executes the production SNAP script for all four capture modes, desktop
+compatibility, errors and closing while capture or upload is pending.
+Set `OVERTE_SNAPSHOT_TEST_QT=Qt5` or `Qt6` to select the native fixture SDK.
+The same extracted-SDK variables documented for voice tests apply. GLM uses
+the existing `OVERTE_TEST_GLM_INCLUDE` override when it is not installed globally.
+These checks do not prove Photos/system chooser behavior, GPU capture or image
+upload against a real metaverse. Native device acceptance remains separate.
+
 The phone pad projection regression requires the real GLM headers (`libglm-dev`
 on Ubuntu). The isolated synchronization validation workflow installs this package
 and the listed Qt 5 development/QML packages for both complete fallback and
@@ -246,6 +263,8 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `account-auth-dispatch` | `host` | `python3 tests/run-project-tests.py --suite account-auth-dispatch` |
 | `recorded-voice-native` | `host` | `python3 tests/run-project-tests.py --suite recorded-voice-native` |
 | `recorded-voice-qml` | `host` | `python3 tests/run-project-tests.py --suite recorded-voice-qml` |
+| `snapshot-native` | `host` | `python3 tests/run-project-tests.py --suite snapshot-native` |
+| `snapshot-qml` | `host` | `python3 tests/run-project-tests.py --suite snapshot-qml` |
 | `native-smoke` | `quick` | `python3 tests/run-project-tests.py --suite native-smoke` |
 | `native-ci-policy` | `quick` | `python3 tests/run-project-tests.py --suite native-ci-policy` |
 | `native-registration` | `quick` | `python3 tests/run-project-tests.py --suite native-registration` |

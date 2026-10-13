@@ -15,12 +15,17 @@
 #include <QObject>
 #include <QtNetwork/QNetworkReply>
 #include <QtCore/QUrl>
+#include <RequestCancellation.h>
 
 class SnapshotUploader : public QObject {
     Q_OBJECT
 public:
     SnapshotUploader(QUrl inWorldLocation, QString pathname);
+    overte::network::RequestTicket nextTicket() { return _requests.next(); }
+signals:
+    void finished(const QString& path, const QString& status, const QString& error);
 public slots:
+    void cancel();
     void uploadSuccess(QNetworkReply* reply);
     void uploadFailure(QNetworkReply* reply);
     void createStorySuccess(QNetworkReply* reply);
@@ -28,5 +33,8 @@ public slots:
 private:
     QUrl _inWorldLocation;
     QString _pathname;
+    overte::network::RequestScope _requests;
+    bool _finished { false };
+    void complete(bool error, const QString& reply);
 };
 #endif // hifi_SnapshotUploader_h

@@ -68,6 +68,10 @@ SUITES = (
         sys.executable, "tests/device/contracts/audio/test_recorded_voice_test.py")),
     Suite("recorded-voice-qml", "host", (
         sys.executable, "tests/device/contracts/audio/test_recorded_voice_qml.py")),
+    Suite("snapshot-native", "host", (
+        sys.executable, "tests/device/contracts/snapshot/test_snapshot_native.py")),
+    Suite("snapshot-qml", "host", (
+        sys.executable, "tests/device/contracts/snapshot/test_snapshot_qml.py")),
     Suite("native-smoke", "quick", (
         sys.executable, "tests/device/contracts/world-entry/test_phone_spawn_gate.py")),
     Suite("native-ci-policy", "quick", (sys.executable, "tests/native-ci-test.py")),
