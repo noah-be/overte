@@ -8,6 +8,11 @@
       "interpreter": "bash"
     },
     {
+      "name": "android-package-store",
+      "entrypoint": "android/common/conan/test_package_store.py",
+      "interpreter": "python"
+    },
+    {
       "name": "android-package-binding",
       "entrypoint": "android/common/conan/test_package_folder.py",
       "interpreter": "python"
