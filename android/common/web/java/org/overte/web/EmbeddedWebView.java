@@ -82,6 +82,7 @@ public final class EmbeddedWebView {
     private static native void nativeForeground(boolean active);
     private static native long nativeGeneration(long handle);
     private static native boolean nativeBridgeAllowed(long handle, long grant, long page, String document);
+    private static native boolean nativeEditorAllowed(long handle, long grant, long page, String document);
     private static native boolean nativeFileChooserAllowed(long handle, long grant, long page, String document);
     private static native boolean nativeNavigation(long handle, long grant, String url, boolean mainFrame, String method);
     private static native boolean nativeMessage(long handle, long grant, long page, String document,
@@ -120,7 +121,7 @@ public final class EmbeddedWebView {
     @SuppressLint("SetJavaScriptEnabled")
     public static void create(long handle, long grant, String url, String userAgent,
             boolean background, boolean overlay, int x, int y, int width, int height,
-            int clipX, int clipY, int clipWidth, int clipHeight, String bootstrap) {
+            int clipX, int clipY, int clipWidth, int clipHeight, String bootstrap, String editorBootstrap) {
         MAIN.post(() -> {
             EmbeddedWebHost owner = host.get();
             if (nativeGeneration(handle) != grant || owner == null || owner.activity() == null || width <= 1 || height <= 1) {
@@ -143,7 +144,7 @@ public final class EmbeddedWebView {
                 if (userAgent != null && !userAgent.isEmpty()) settings.setUserAgentString(userAgent);
                 CookieManager.getInstance().setAcceptThirdPartyCookies(view, false);
                 view.setBackgroundColor(background ? Color.WHITE : Color.TRANSPARENT);
-                Instance instance = new Instance(handle, view, overlay, bootstrap);
+                Instance instance = new Instance(handle, view, overlay, bootstrap, editorBootstrap);
                 instance.document.begin(grant);
                 instance.bounds = new Rect(x, y, x + width, y + height);
                 instance.clip = new Rect(clipX, clipY, clipX + clipWidth, clipY + clipHeight);
@@ -178,6 +179,7 @@ public final class EmbeddedWebView {
         EmbeddedWebHost owner = host.get();
         if (owner != null && instance.overlay) owner.removeTabletView(instance.view);
         if (instance.script != null) instance.script.remove();
+        if (instance.editorScript != null) instance.editorScript.remove();
         instance.view.stopLoading(); instance.view.loadUrl("about:blank"); instance.view.destroy();
         if (instance.bitmap != null) instance.bitmap.recycle();
         nativeCreated(handle, false);
@@ -247,6 +249,18 @@ public final class EmbeddedWebView {
             instance.view.evaluateJavascript(javascript, null);
         });
     }
+    public static void edit(long handle, long grant, long page, String expectedDocument, String command) {
+        input(handle, instance -> {
+            if (command == null || command.getBytes(StandardCharsets.UTF_8).length > 65536
+                    || !instance.document.admits(grant, page, true, 1)
+                    || !nativeEditorAllowed(handle, grant, page, expectedDocument)
+                    || !nativeEditorAllowed(handle, grant, page, instance.view.getUrl())) return;
+            try {
+                String encoded = new JSONObject(command).toString();
+                instance.view.evaluateJavascript("window.__overteEditor&&window.__overteEditor.edit(" + encoded + ");", null);
+            } catch (org.json.JSONException invalid) { /* Only a bounded editor command object is accepted. */ }
+        });
+    }
     public static void evaluateResult(long handle, long grant, long page, long request, String javascript) {
         post(handle, instance -> {
             if (!instance.document.admits(grant, page, true, 1)) return;
@@ -269,65 +283,80 @@ public final class EmbeddedWebView {
         final long handle;
         final WebView view;
         final boolean overlay;
-        final String bootstrap;
+        final String bootstrap, editorBootstrap;
         final WebDocumentState document = new WebDocumentState();
         Rect bounds, clip;
         WebTextureScale textureScale;
         Bitmap bitmap;
         Canvas canvas;
         ByteBuffer pixels;
-        ScriptHandler script;
+        ScriptHandler script, editorScript;
         boolean active = true, visible = true, loading, bridge;
         final WebPointerState pointerState = new WebPointerState();
         int status;
         long pickerLease;
         String requestedUrl = "about:blank";
-        Instance(long handle, WebView view, boolean overlay, String bootstrap) {
-            this.handle = handle; this.view = view; this.overlay = overlay; this.bootstrap = bootstrap;
+        Instance(long handle, WebView view, boolean overlay, String bootstrap, String editorBootstrap) {
+            this.handle = handle; this.view = view; this.overlay = overlay; this.bootstrap = bootstrap; this.editorBootstrap = editorBootstrap;
         }
         void configureBridge(String url) {
             requestedUrl = url;
             if (script != null) { script.remove(); script = null; }
+            if (editorScript != null) { editorScript.remove(); editorScript = null; }
             if (bridge) WebViewCompat.removeWebMessageListener(view, "__overteNative");
+            if (bridge) WebViewCompat.removeWebMessageListener(view, "__overteEditorNative");
             bridge = WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)
                 && WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT);
             status = bridge ? READY : BRIDGE_UNAVAILABLE;
             if (!bridge) return;
             String origin = origin(url);
             if (origin == null) { bridge = false; status = BRIDGE_UNAVAILABLE; return; }
+            // The private editor listener never exposes a Qt channel or a script grant.
+            // Every message is still checked against the actual main-frame origin and document epoch natively.
+            WebViewCompat.addWebMessageListener(view, "__overteEditorNative", Collections.singleton("*"),
+                (source, message, sourceOrigin, mainFrame, reply) -> receive(source, message, sourceOrigin, mainFrame, true));
+            editorScript = WebViewCompat.addDocumentStartJavaScript(view, editorBootstrap, Collections.singleton("*"));
             WebViewCompat.addWebMessageListener(view, "__overteNative", Collections.singleton(origin),
-                (source, message, sourceOrigin, mainFrame, reply) -> {
-                    if (source != view || !active || message.getType() != WebMessageCompat.TYPE_STRING) return;
-                    String encoded = message.getData();
-                    if (encoded == null || encoded.length() > 65536) return;
-                    int bytes = encoded.getBytes(StandardCharsets.UTF_8).length;
-                    try {
-                        JSONObject envelope = new JSONObject(encoded);
-                        long grant = Long.parseLong(envelope.getString("grant"));
-                        long page = Long.parseLong(envelope.getString("page"));
-                        if (!document.admits(grant, page, mainFrame, bytes)) return;
-                        String type = envelope.getString("type");
-                        String payload = type.equals("channel") ? envelope.getString("payload")
-                            : envelope.getJSONObject("payload").toString();
-                        nativeMessage(handle, grant, page, view.getUrl(), sourceOrigin.toString(), mainFrame, type, payload);
-                    } catch (Exception invalid) { /* No untrusted payload is logged. */ }
-                });
+                (source, message, sourceOrigin, mainFrame, reply) -> receive(source, message, sourceOrigin, mainFrame, false));
             script = WebViewCompat.addDocumentStartJavaScript(view, bootstrap, Collections.singleton(origin));
+        }
+        void receive(WebView source, WebMessageCompat message, Uri sourceOrigin, boolean mainFrame, boolean editor) {
+            if (source != view || !active || message.getType() != WebMessageCompat.TYPE_STRING) return;
+            String encoded = message.getData();
+            if (encoded == null || encoded.length() > 65536) return;
+            int bytes = encoded.getBytes(StandardCharsets.UTF_8).length;
+            try {
+                JSONObject envelope = new JSONObject(encoded);
+                long grant = Long.parseLong(envelope.getString("grant"));
+                long page = Long.parseLong(envelope.getString("page"));
+                if (!document.admits(grant, page, mainFrame, bytes)) return;
+                String type = editor ? "editor" : envelope.getString("type");
+                if (!editor && !"channel".equals(type)) return;
+                String payload = editor ? envelope.getJSONObject("payload").toString() : envelope.getString("payload");
+                nativeMessage(handle, grant, page, view.getUrl(), sourceOrigin.toString(), mainFrame, type, payload);
+            } catch (Exception invalid) { /* No untrusted payload is logged. */ }
         }
         void authorize() {
             if (!active || !visible || !bridge || loading) return;
             EmbeddedWebHost owner = host.get();
             if (owner == null || !owner.isForeground()) return;
-            String javascript = "window.__overteTransport&&window.__overteTransport.authorize("
-                + JSONObject.quote(Long.toString(document.grant())) + ","
-                + JSONObject.quote(Long.toString(document.page())) + ");"
-                + "window.__overteEditor&&window.__overteEditor.publish();";
+            String arguments = JSONObject.quote(Long.toString(document.grant())) + ","
+                + JSONObject.quote(Long.toString(document.page()));
+            String javascript = "";
+            if (nativeBridgeAllowed(handle, document.grant(), document.page(), view.getUrl())) {
+                javascript += "window.__overteTransport&&window.__overteTransport.authorize(" + arguments + ");";
+            }
+            if (nativeEditorAllowed(handle, document.grant(), document.page(), view.getUrl())) {
+                javascript += "window.__overteEditorTransport&&window.__overteEditorTransport.authorize(" + arguments + ");"
+                    + "window.__overteEditor&&window.__overteEditor.publish();";
+            }
             view.evaluateJavascript(javascript, null);
         }
         void editorPublish() { view.evaluateJavascript("window.__overteEditor&&window.__overteEditor.publish();", null); }
         void suspend() {
             cancelInput();
-            view.evaluateJavascript("document.querySelectorAll('video,audio').forEach(function(m){m.pause();});", null); view.evaluateJavascript("window.__overteTransport&&window.__overteTransport.suspend();", null);
+            view.evaluateJavascript("document.querySelectorAll('video,audio').forEach(function(m){m.pause();});", null);
+            view.evaluateJavascript("window.__overteTransport&&window.__overteTransport.suspend();window.__overteEditorTransport&&window.__overteEditorTransport.suspend();", null);
             view.onPause();
         }
         void dispatchPointer(int action, float x, float y) {

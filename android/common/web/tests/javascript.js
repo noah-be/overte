@@ -17,6 +17,24 @@ context.qt.webChannelTransport.onmessage = message => { inbound = JSON.parse(mes
 context.__overteTransport.receive("9223372036854775000", "4", { ignored: true }); assert.equal(inbound, undefined);
 context.__overteTransport.receive("9223372036854775000", "5", { received: true }); assert.equal(inbound.received, true);
 context.__overteTransport.suspend(); context.qt.webChannelTransport.send("{}"); assert.equal(emitted.length, 1);
+assert.equal(context.__overteTransport.editor, undefined, "Overte channel cannot carry editor messages");
+const privateMessages = [];
+const privateDocument = { __overteEditorNative: { postMessage(data) { privateMessages.push(JSON.parse(data)); } } };
+privateDocument.window = privateDocument; privateDocument.top = privateDocument;
+vm.runInContext(fs.readFileSync(path.join(resources, "editor-transport.js"), "utf8"), vm.createContext(privateDocument));
+assert.equal(privateDocument.qt, undefined, "private transport never installs Qt WebChannel");
+assert.equal(privateDocument.__overteTransport, undefined, "foreign document has no Overte transport");
+privateDocument.__overteEditorTransport.editor({ active: true }); assert.equal(privateMessages.length, 0);
+privateDocument.__overteEditorTransport.authorize("9223372036854775000", "7");
+privateDocument.__overteEditorTransport.editor({ active: true, text: "foreign input" });
+assert.equal(privateMessages[0].grant, "9223372036854775000"); assert.equal(privateMessages[0].page, "7");
+assert.equal(privateMessages[0].payload.text, "foreign input"); assert.equal(privateMessages[0].type, undefined);
+privateDocument.__overteEditorTransport.suspend();
+privateDocument.__overteEditorTransport.editor({ active: true }); assert.equal(privateMessages.length, 1);
+const subframe = { window: null, top: {}, __overteEditorNative: privateDocument.__overteEditorNative };
+subframe.window = subframe;
+vm.runInContext(fs.readFileSync(path.join(resources, "editor-transport.js"), "utf8"), vm.createContext(subframe));
+assert.equal(subframe.__overteEditorTransport, undefined, "subframes cannot install the editor helper");
 const states = [], events = [];
 class Input {
     constructor(text, type = "text") { this.value = text; this.type = type; this.selectionStart = this.selectionEnd = text.length; }
@@ -28,7 +46,7 @@ class Input {
 const editor = { HTMLInputElement: Input, HTMLTextAreaElement: class extends Input {},
     CompositionEvent: class { constructor(type, values) { Object.assign(this, { type }, values); } },
     InputEvent: class { constructor(type, values) { Object.assign(this, { type }, values); } },
-    __overteTransport: { editor(state) { states.push(state); } }, document: {
+    __overteEditorTransport: { editor(state) { states.push(state); } }, document: {
         activeElement: new Input("hello world"), addEventListener() {}
     } };
 editor.window = editor; editor.top = editor;

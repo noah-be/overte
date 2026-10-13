@@ -83,6 +83,24 @@ surrounding rich-text nodes. Exact browser IME behavior, preedit formatting,
 undo/redo, custom editors and caret placement need device qualification; these
 host tests do not establish Android provider behavior.
 
+Private editor state uses its own AndroidX message listener and document-start
+helper, independent of the original document's Overte bridge origin. Ordinary
+cross-origin navigation therefore retains texture text input without granting
+the new document a Qt WebChannel, EventBridge or owner-script capability. The
+private listener's origin wildcard permits future navigation; it does not grant
+messages authority. Native code validates the provider-reported main-frame
+origin against the current document, active source generation, exact document
+epoch, permitted navigation and 64 KiB limit, and repeats lifetime checks before
+queued delivery. Subframes, opaque origins, privileged URLs and old document
+messages are rejected. Password contents remain in the DOM. IME commands enter
+through a separate bounded JSON-object method with fixed editor invocation,
+never the owner-authorized arbitrary JavaScript API. Suspension revokes both
+transports; the editor bootstrap never installs `qt` or an Overte transport.
+Both paths require the same explicit provider features; no raw JavaScript
+interface substitutes for authoritative frame metadata. See the official
+[AndroidX listener metadata](https://developer.android.com/reference/androidx/webkit/WebViewCompat.WebMessageListener)
+and [document-start/origin rules](https://developer.android.com/reference/androidx/webkit/WebViewCompat).
+
 ## Verification
 
 Dependency-light registered suite:
