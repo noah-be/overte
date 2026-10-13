@@ -19,6 +19,16 @@ public final class DocumentCopyTest {
         check(!DocumentCopy.matchesFilter("bad.js","Models (*.gltf *.glb *.fbx)"));
         check(DocumentCopy.matchesFilter("actual.txt","All files (*)"));
         check(DocumentCopy.matchesFilter("archive.TAR.GZ","Archives (*.tar.gz)"));
+        java.nio.file.Path folder=java.nio.file.Files.createTempDirectory("document-layout-");
+        try {
+            java.util.List<java.nio.file.Path> unique=DocumentCopy.destinations(folder,java.util.List.of("scene.gltf","mesh.bin","texture.png"));
+            for (java.nio.file.Path file:unique) check(file.getParent().equals(folder));
+            java.util.List<java.nio.file.Path> duplicates=DocumentCopy.destinations(folder,java.util.List.of("scene.gltf","same.png","same.png"));
+            check(duplicates.get(0).getParent().equals(folder));
+            check(!duplicates.get(1).equals(duplicates.get(2)) && !duplicates.get(1).getParent().equals(folder));
+            check(duplicates.get(1).getFileName().toString().equals("same.png") && duplicates.get(2).getFileName().toString().equals("same.png"));
+            java.nio.file.Files.delete(duplicates.get(1).getParent());java.nio.file.Files.delete(duplicates.get(2).getParent());
+        } finally { java.nio.file.Files.delete(folder); }
         final boolean[] closed={false}; ByteArrayOutputStream output=new ByteArrayOutputStream() {
             @Override public void close() { closed[0]=true; }
         };

@@ -60,17 +60,19 @@ QList<QUrl> validated(const QStringList& paths) {
     for (int index = 0; index < paths.size(); ++index) {
         const QFileInfo file(paths[index]);
         const QFileInfo part(file.absolutePath());
-        const QFileInfo selection(part.absolutePath());
+        const bool duplicate = QRegularExpression("^duplicate-[0-9]+$").match(part.fileName()).hasMatch();
+        const QFileInfo selection(duplicate ? part.absolutePath() : part.filePath());
         const QFileInfo parent(selection.absolutePath());
         if (!file.isFile() || file.isSymLink() || !file.isReadable() || file.size() > 256LL * 1024 * 1024
                 || file.canonicalFilePath() != paths[index] || part.isSymLink() || selection.isSymLink()
-                || !part.isDir() || !selection.isDir() || part.fileName() != QString::number(index)
+                || !part.isDir() || !selection.isDir()
                 || !QRegularExpression("^selection-[0-9]+$").match(selection.fileName()).hasMatch()
                 || parent.canonicalFilePath() != canonicalRoot || parent.isSymLink()
                 || (total += file.size()) > 512LL * 1024 * 1024) return {};
         if (!selectionPath.isEmpty() && selection.canonicalFilePath() != selectionPath) return {};
         selectionPath = selection.canonicalFilePath();
-        result.append(QUrl::fromLocalFile(paths[index]));
+        const auto url = QUrl::fromLocalFile(paths[index]); if (result.contains(url)) return {};
+        result.append(url);
     }
     return result;
 }
