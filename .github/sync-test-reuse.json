@@ -27,9 +27,15 @@
       "interface/resources/qml/hifi/tablet/TabletHome.qml"
     ],
     "apple-ios": [
+      ".github/workflows/ios-build-qualification.yml",
+      ".github/workflows/ios-integrated.yml",
       "ios/audio/IOSAudioAdapter.cpp",
       "ios/audio/IOSAudioAdapter.h",
       "ios/tests/appium-native-binding-test.py",
+      "ios/tests/run-tests.sh",
+      "ios/tests/ios-touch-ui-adapter-contract-test.py",
+      "ios/tests/native_contracts/mute-caller-test.cpp",
+      "ios/tests/native_contracts/test_mute_caller.py",
       "tests/device/ios/test_ios_native_binding_contract.py",
       "tests/device/ios/adapters/appium_adapter.py",
       "tests/device/ios/self_tests/test_appium_adapter.py",

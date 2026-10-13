@@ -1089,6 +1089,12 @@ ModalDialogListener* OffscreenUi::getOpenFileNameAsync(void* ignored, const QStr
     return DependencyManager::get<OffscreenUi>()->fileOpenDialogAsync(caption, dir, filter, selectedFilter, options);
 }
 
+ModalDialogListener* OffscreenUi::getOpenFileBundleAsync(const QString& caption, const QString& dir, const QString& primaryFilter) {
+    QVariantMap properties {{ "caption", caption }, { "dir", QUrl::fromLocalFile(dir) },
+        { "filter", QStringLiteral("All files (*)") }, { "bundleMode", true }, { "primaryFilter", primaryFilter }};
+    return DependencyManager::get<OffscreenUi>()->fileDialogAsync(properties);
+}
+
 QString OffscreenUi::getSaveFileName(void* ignored, const QString &caption, const QString &dir, const QString &filter, QString *selectedFilter, QFileDialog::Options options) {
     Q_UNUSED(ignored)
     return DependencyManager::get<OffscreenUi>()->fileSaveDialog(caption, dir, filter, selectedFilter, options);

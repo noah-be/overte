@@ -19,6 +19,7 @@
 #include <sstream>
 
 #include <QtCore/QBuffer>
+#include <QtCore/QDir>
 #include <QtCore/QIODevice>
 #include <QtCore/QEventLoop>
 #include <QtNetwork/QNetworkAccessManager>
@@ -252,7 +253,7 @@ bool OBJSerializer::isValidTexture(const hifi::ByteArray &filename) {
     return DependencyManager::get<ResourceManager>()->resourceExists(candidateUrl);
 }
 
-void OBJSerializer::parseMaterialLibrary(QIODevice* device) {
+void OBJSerializer::parseMaterialLibrary(QIODevice* device, const hifi::URL& libraryUrl, bool relativeLibrary) {
     OBJTokenizer tokenizer(device);
     QString matName = SMART_DEFAULT_MATERIAL_NAME;
     OBJMaterial& currentMaterial = materials[matName];
@@ -342,6 +343,21 @@ void OBJSerializer::parseMaterialLibrary(QIODevice* device) {
                 qCDebug(modelformat) << "OBJSerializer WARNING: currently ignoring tga texture " << filename << " in " << _url;
                 #endif
                 break;
+            }
+            // Preserve MTL hierarchy relative to the OBJ so an explicit FST texdir can still redirect textures.
+            // Explicit external references retain their absolute URL and origin.
+            if (!filename.isEmpty()) {
+                const hifi::URL reference(QString::fromUtf8(filename).replace('\\', '/'));
+                const auto resolved = libraryUrl.resolved(reference);
+                if (relativeLibrary && reference.isRelative() && !reference.path().startsWith('/')) {
+                    hifi::URL relativeTexture;
+                    relativeTexture.setPath(QDir(_url.adjusted(QUrl::RemoveFilename).path()).relativeFilePath(resolved.path()));
+                    relativeTexture.setQuery(resolved.query());
+                    relativeTexture.setFragment(resolved.fragment());
+                    filename = relativeTexture.toEncoded();
+                } else {
+                    filename = resolved.toEncoded();
+                }
             }
             if (token == "map_Kd") {
                 currentMaterial.diffuseTextureFilename = filename;
@@ -464,6 +480,35 @@ std::tuple<bool, hifi::ByteArray> requestData(hifi::URL& url) {
         return std::make_tuple(true, request->getData());
     } else {
         return std::make_tuple(false, hifi::ByteArray());
+    }
+}
+
+void OBJSerializer::loadMaterialLibraries() {
+    for (const auto& libraryName : librariesSeen.keys()) {
+        const hifi::URL relative(QString::fromUtf8(libraryName).replace('\\', '/'));
+        hifi::URL libraryUrl = _url.resolved(relative);
+        bool relativeLibrary = relative.isRelative() && !relative.path().startsWith('/');
+        qCDebug(modelformat) << "OBJSerializer material library" << libraryName;
+        bool success;
+        hifi::ByteArray data;
+        std::tie(success, data) = requestData(libraryUrl);
+        if (!success) {
+            // Some existing exports reference a machine-local path but ship a flattened MTL beside the OBJ.
+            // Keep that fallback after attempting the original hierarchy.
+            hifi::URL flattened = _url.resolved(hifi::URL(relative.fileName()));
+            if (flattened != libraryUrl) {
+                libraryUrl = flattened;
+                relativeLibrary = true;
+                std::tie(success, data) = requestData(libraryUrl);
+            }
+        }
+        if (success) {
+            QBuffer buffer { &data };
+            buffer.open(QIODevice::ReadOnly);
+            parseMaterialLibrary(&buffer, libraryUrl, relativeLibrary);
+        } else {
+            qCDebug(modelformat) << "OBJSerializer WARNING:" << libraryName << "did not answer";
+        }
     }
 }
 
@@ -873,21 +918,7 @@ HFMModel::Pointer OBJSerializer::read(const hifi::ByteArray& data, const hifi::V
         materials[SMART_DEFAULT_MATERIAL_NAME] = preDefinedMaterial;
     }
     if (needsMaterialLibrary) {
-        foreach (QString libraryName, librariesSeen.keys()) {
-            // Throw away any path part of libraryName, and merge against original url.
-            hifi::URL libraryUrl = _url.resolved(hifi::URL(libraryName).fileName());
-            qCDebug(modelformat) << "OBJSerializer material library" << libraryName;
-            bool success;
-            hifi::ByteArray data;
-            std::tie<bool, hifi::ByteArray>(success, data) = requestData(libraryUrl);
-            if (success) {
-                QBuffer buffer { &data };
-                buffer.open(QIODevice::ReadOnly);
-                parseMaterialLibrary(&buffer);
-            } else {
-                qCDebug(modelformat) << "OBJSerializer WARNING:" << libraryName << "did not answer";
-            }
-        }
+        loadMaterialLibraries();
     }
 
     foreach (QString materialID, materials.keys()) {

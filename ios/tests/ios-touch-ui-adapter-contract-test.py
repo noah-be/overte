@@ -36,7 +36,10 @@ OFFSCREEN_UI = (ROOT / "libraries/ui/src/OffscreenUi.cpp").read_text()
 OFFSCREEN_SURFACE = (ROOT / "libraries/qml/src/qml/OffscreenSurface.cpp").read_text()
 RENDER_HEADER = (ROOT / "interface/src/scripting/RenderScriptingInterface.h").read_text()
 RENDER_SOURCE = (ROOT / "interface/src/scripting/RenderScriptingInterface.cpp").read_text()
-GRAPHICS_SETTINGS = (ROOT / "scripts/system/settings/qml/pages/GraphicsSettings.qml").read_text()
+GRAPHICS_SETTINGS_PATH = ROOT / "scripts/system/settings/qml/pages/GraphicsSettingsBase.qml"
+if not GRAPHICS_SETTINGS_PATH.is_file():
+    GRAPHICS_SETTINGS_PATH = ROOT / "scripts/system/settings/qml/pages/GraphicsSettings.qml"
+GRAPHICS_SETTINGS = GRAPHICS_SETTINGS_PATH.read_text()
 TABLET_HOME = (ROOT / "interface/resources/qml/hifi/tablet/TabletHome.qml").read_text()
 TABLET_ROOT = (ROOT / "interface/resources/qml/hifi/tablet/TabletRoot.qml").read_text()
 TABLET_ADDRESS = (ROOT / "interface/resources/qml/hifi/tablet/TabletAddressDialog.qml").read_text()

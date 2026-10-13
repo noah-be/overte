@@ -53,6 +53,16 @@ struct AudioClient : QObject {
     unsigned starts = 0, stops = 0;
     bool fail = false;
     bool _isMuted = false, _shouldEchoLocally = true, _reverb = false, _audioGateOpen = true;
+    // The local preview is independently checked by recorded-voice-native;
+    // this seam verifies its cancellation cannot enter a retired output sink.
+    bool _recordedVoiceTestActive = false, _audioPaused = false;
+    int previewCancellations = 0;
+    void finishRecordedVoiceTest(const QString& phase, const QString& error) {
+        assert(phase == "cancelled" && error == "input-or-lifecycle-changed");
+        _recordedVoiceTestActive = false;
+        _loopbackPendingAudio.clear();
+        ++previewCancellations;
+    }
     Sink* _loopbackAudioOutput = nullptr;
     QByteArray _loopbackPendingAudio;
     struct { bool hasReverb() const { return false; } } _receivedAudioStream;
@@ -86,6 +96,11 @@ int main() {
     a._audioOutputInitialized = true;
     a.handleLocalEchoAndReverb(input);
     assert(a.echoCalls == 1); // healthy echo still reaches the mixer
+    a._recordedVoiceTestActive = true;
+    a._audioPaused = true;
+    a.handleLocalEchoAndReverb(input);
+    assert(a.echoCalls == 1 && !a._recordedVoiceTestActive && a.previewCancellations == 1);
+    a._audioPaused = false;
     a._audioOutput = nullptr;
     a._audioOutputInitialized = false;
 

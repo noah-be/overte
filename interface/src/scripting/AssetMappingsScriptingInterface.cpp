@@ -14,6 +14,13 @@
 #include "AssetMappingsScriptingInterface.h"
 
 #include <QtCore/QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QRegularExpression>
+#include <QUuid>
+#include <QTimer>
+#include <FileDialogHelper.h>
+#include <QDir>
 #include <QtCore/QThread>
 #include <QtQml/QJSEngine>
 
@@ -142,6 +149,124 @@ void AssetMappingsScriptingInterface::uploadFile(QString path, QString mapping, 
     });
 
     upload->start();
+}
+
+struct AssetMappingsScriptingInterface::BundleUpload {
+    QString id, primary, destination;
+    QStringList files, relative, hashes, published;
+    QJSValue progress, completed;
+    int index { 0 };
+    bool publishing { false }, canceled { false };
+};
+
+QString AssetMappingsScriptingInterface::uploadBundle(QStringList paths, QStringList relativePaths, QString destination,
+                                                     QString primaryPath, QJSValue progress, QJSValue completed) {
+    if (!_bundleUploads.isEmpty()) return {};
+    auto state = std::make_shared<BundleUpload>();
+    state->id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    state->files = paths; state->relative = relativePaths; state->primary = primaryPath;
+    state->progress = progress; state->completed = completed;
+    destination = destination.trimmed();
+    if (!destination.startsWith('/')) destination.prepend('/');
+    if (!destination.endsWith('/')) destination.append('/');
+    state->destination = destination;
+    _bundleUploads.insert(state->id, state);
+    QTimer::singleShot(0, this, [this, state] {
+        QList<QUrl> files;
+        for (const auto& path : state->files) files.append(QUrl::fromLocalFile(path));
+        const auto safe = [](const QString& path) {
+            if (path.isEmpty() || path.contains('\\') || path.contains(QChar(0))) return false;
+            for (const auto& part : path.split('/')) if (part == "." || part == "..") return false;
+            return true;
+        };
+        if (state->files.isEmpty() || state->files.size() != state->relative.size()
+                || !safe(state->destination) || !state->relative.contains(state->primary)) {
+            finishBundle(state, "Invalid bundle files, destination or main file."); return;
+        }
+        QSet<QString> mappings;
+        for (const auto& relative : state->relative) {
+            auto mapping = state->destination + relative;
+            if (!safe(relative) || relative.startsWith('/') || QDir::isAbsolutePath(relative) || relative.contains(':')
+                    || relative.endsWith('/') || relative.split('/').contains(QString())
+                    || relative.split('/').size() > FileDialogHelper::MAX_DOCUMENT_DEPTH
+                    || mappings.contains(mapping) || isKnownMapping(mapping) || isKnownFolder(mapping)) {
+                finishBundle(state, "Choose a new destination: a bundle path is invalid, duplicated or already exists."); return;
+            }
+            mappings.insert(mapping);
+        }
+        // Derive the chosen root from a real file and its original relative name;
+        // every other file must have the same root and unchanged hierarchy.
+        auto firstPath = QFileInfo(state->files.first()).absoluteFilePath();
+        const auto suffix = '/' + state->relative.first();
+        if (!firstPath.endsWith(suffix)) { finishBundle(state, "Bundle names must match the selected files."); return; }
+        FileDialogHelper helper;
+        auto bundle = helper.documentBundle(files, QUrl::fromLocalFile(firstPath.left(firstPath.size() - suffix.size())));
+        if (!bundle.value("error").toString().isEmpty() || bundle.value("relativePaths").toStringList() != state->relative) {
+            finishBundle(state, "Bundle files must preserve their original relative names and folder."); return;
+        }
+        int main = state->relative.indexOf(state->primary);
+        state->relative.append(state->relative.takeAt(main));
+        state->files.append(state->files.takeAt(main));
+        advanceBundle(state);
+    });
+    return state->id;
+}
+
+bool AssetMappingsScriptingInterface::cancelUploadBundle(const QString& requestId) {
+    auto state = _bundleUploads.value(requestId);
+    if (!state) return false;
+    // An in-flight server operation settles before the terminal callback; no next operation starts.
+    state->canceled = true;
+    return true;
+}
+
+void AssetMappingsScriptingInterface::finishBundle(const std::shared_ptr<BundleUpload>& state, const QString& error) {
+    if (!_bundleUploads.remove(state->id)) return;
+    if (state->completed.isCallable()) {
+        QJsonArray paths;
+        for (const auto& path : state->published) paths.append(path);
+        const auto summary = QString::fromUtf8(QJsonDocument(paths).toJson(QJsonDocument::Compact));
+        state->completed.call({ error, summary, error.isEmpty() ? state->destination + state->primary : QString() });
+    }
+}
+
+void AssetMappingsScriptingInterface::advanceBundle(const std::shared_ptr<BundleUpload>& state) {
+    if (!_bundleUploads.contains(state->id)) return;
+    if (state->canceled) { finishBundle(state, "Upload canceled."); return; }
+    if (!DependencyManager::get<NodeList>()->getThisNodeCanWriteAssets()) { finishBundle(state, "Asset write permission was revoked."); return; }
+    if (state->index == state->files.size()) {
+        if (state->publishing) { finishBundle(state, {}); return; }
+        state->publishing = true; state->index = 0;
+    }
+    if (state->progress.isCallable()) state->progress.call({ state->index, state->publishing ? "Publishing mappings" : "Uploading files" });
+    // Progress handlers can close the UI, cancel or change permissions before the next operation.
+    if (state->canceled) { finishBundle(state, "Upload canceled."); return; }
+    if (!DependencyManager::get<NodeList>()->getThisNodeCanWriteAssets()) { finishBundle(state, "Asset write permission was revoked."); return; }
+    if (!state->publishing) {
+        auto* upload = DependencyManager::get<AssetClient>()->createUpload(state->files[state->index]);
+        connect(upload, &AssetUpload::finished, upload, &QObject::deleteLater);
+        connect(upload, &AssetUpload::finished, this, [this, state](AssetUpload* upload, const QString& hash) {
+            const auto error = upload->getErrorString();
+            if (!error.isEmpty() || !QRegularExpression("^[a-fA-F0-9]{64}$").match(hash).hasMatch()) {
+                finishBundle(state, error.isEmpty() ? "Invalid uploaded asset hash." : error); return;
+            }
+            state->hashes.append(hash); ++state->index; advanceBundle(state);
+        });
+        upload->start();
+    } else {
+        const auto mapping = state->destination + state->relative[state->index];
+        // Recheck local mapping knowledge immediately before publishing. Remote races remain server-authoritative.
+        if (isKnownMapping(mapping)) { finishBundle(state, "An asset mapping appeared while uploading; it was not overwritten."); return; }
+        auto* request = DependencyManager::get<AssetClient>()->createSetMappingRequest(mapping, state->hashes[state->index]);
+        connect(request, &SetMappingRequest::finished, request, &QObject::deleteLater);
+        connect(request, &SetMappingRequest::finished, this, [this, state](SetMappingRequest* request) {
+            const auto error = request->getErrorString();
+            if (error.isEmpty()) state->published.append(request->getPath());
+            if (!error.isEmpty()) { finishBundle(state, error); return; }
+            ++state->index; advanceBundle(state);
+        });
+        request->start();
+    }
 }
 
 void AssetMappingsScriptingInterface::deleteMappings(QStringList paths, QJSValue callback) {

@@ -254,6 +254,20 @@ The trusted iOS host gate installs the existing pinned host requirements in
 a separate test environment before executing native regressions, including
 independent permission-switch image checks. Product dependency caches and
 physical-device qualification remain separate.
+The fixed native qualification deployment, integrated build entry point, and
+native host-test runner are also attested iOS repairs. Each requires complete
+fallback; the deployed qualification workflow must still match the trusted
+canonical template and pass the independent exact-candidate IPA gate.
+
+Three existing iOS host-contract fixtures may also be repaired during that
+attested parent integration: `ios/tests/ios-touch-ui-adapter-contract-test.py`,
+`ios/tests/native_contracts/mute-caller-test.cpp`, and
+`ios/tests/native_contracts/test_mute_caller.py`. They adapt the existing tests
+to the parent's shared Graphics Settings body and recorded-preview mute
+cancellation ABI. Retain the Graphics assertions, microphone/session ordering,
+owner-thread checks and cancellation behavior. All three exact paths force
+complete fallback and the independent iOS application build gate. Additional
+test files and production changes still use their ordinary owning-layer PRs.
 
 When all bindings match, a separate read-only validation workflow runs only the
 edge-specific hardware-free differential profile. The redundant Android and
