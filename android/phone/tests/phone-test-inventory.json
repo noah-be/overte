@@ -22,7 +22,8 @@
       "interface/resources/qml/hifi/tablet/TabletGeneralPreferences.qml",
       "interface/resources/qml/hifi/tablet/TabletTouchConfiguration.qml",
       "interface/resources/qml/hifi/tablet/tabletWindows/TabletPreferencesLayout.qml",
-      "android/phone/apps/phoneInterface/src/main/java/org/qtproject/qt5/android/QtEditText.java"
+      "android/phone/apps/phoneInterface/src/main/java/org/qtproject/qt5/android/QtEditText.java",
+      "scripts/system/settings/qml/pages/+android_phoneInterface/*.qml"
     ]
   },
   "required_catalog_suites": [
@@ -195,6 +196,13 @@
     ],
     "android/phone/apps/phoneInterface/src/main/java/org/qtproject/qt5/android/QtEditText.java": [
       "android/phone/tests/test_phone_ime.py"
+    ],
+    "scripts/system/+android_phoneInterface/phoneGraphics.js": [
+      "android/phone/tests/phone-graphics-controller-test.js"
+    ],
+    "scripts/system/settings/qml/pages/+android_phoneInterface/GraphicsSettings.qml": [
+      "android/phone/tests/phone-graphics-test.py",
+      "android/phone/tests/qml/graphics/tst_phonegraphics.qml"
     ]
   },
   "runtime_boundaries": {
