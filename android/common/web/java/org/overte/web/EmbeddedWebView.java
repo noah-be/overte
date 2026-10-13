@@ -3,8 +3,8 @@
 package org.overte.web;
 
 import android.annotation.SuppressLint;
+import android.app.Activity;
 import android.graphics.Bitmap;
-import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Rect;
 import android.net.Uri;
@@ -48,7 +48,11 @@ public final class EmbeddedWebView {
     private static final ConcurrentHashMap<Long, Instance> VIEWS = new ConcurrentHashMap<>();
     private static final WebInputGate INPUT = new WebInputGate();
     private static WeakReference<EmbeddedWebHost> host = new WeakReference<>(null);
-    private static boolean wholeDocumentDraw;
+    private static final ConcurrentHashMap<Long, PendingCreation> CREATING = new ConcurrentHashMap<>();
+    private static final class PendingCreation {
+        final EmbeddedWebHost owner; final Activity activity; WebTextureRenderer renderer;
+        PendingCreation(EmbeddedWebHost owner) { this.owner = owner; this.activity = owner.activity(); }
+    }
     private EmbeddedWebView() { }
 
     /** Call on the Android UI thread after the product native library is loaded. */
@@ -67,7 +71,7 @@ public final class EmbeddedWebView {
         for (Instance instance : new ArrayList<>(VIEWS.values())) {
             instance.document.grant(nativeGeneration(instance.handle));
             if (!foreground) { instance.suspend(); }
-            else if (instance.visible) { instance.view.onResume(); instance.authorize(); instance.publish(); }
+            else if (instance.visible) { instance.view.onResume(); instance.authorize(); instance.armTexture(); instance.publish(); }
         }
     }
     public static void detach(EmbeddedWebHost owner) {
@@ -113,7 +117,7 @@ public final class EmbeddedWebView {
         post(handle, instance -> {
             EmbeddedWebHost owner = host.get();
             if (instance != target.get() || !INPUT.permits(ticket, owner) || !instance.visible
-                    || !owner.isForeground() || owner.activity() != instance.view.getContext()
+                    || !owner.isForeground() || (instance.owner != owner || owner.activity() != instance.activity)
                     || !owner.activity().hasWindowFocus()) return;
             command.run(instance);
         });
@@ -128,66 +132,113 @@ public final class EmbeddedWebView {
                 nativeCreated(handle, false); return;
             }
             destroyOnMain(handle);
-            WebView view = null;
+            PendingCreation creation = new PendingCreation(owner);
+            CREATING.put(handle, creation);
+            Runnable finish = () -> {
+                if (CREATING.get(handle) != creation) return;
+                CREATING.remove(handle, creation);
+                if (host.get() != creation.owner || creation.owner.activity() != creation.activity
+                        || nativeGeneration(handle) != grant || creation.activity.isDestroyed()) {
+                    if (creation.renderer != null) creation.renderer.close();
+                    nativeCreated(handle, false); return;
+                }
+                WebView view = null;
+                try {
+                    view = new WebView(overlay ? creation.activity : creation.renderer.context());
+                    WebSettings settings = view.getSettings();
+                    settings.setJavaScriptEnabled(true); settings.setDomStorageEnabled(true);
+                    settings.setAllowFileAccess(false); settings.setAllowContentAccess(false);
+                    settings.setAllowFileAccessFromFileURLs(false); settings.setAllowUniversalAccessFromFileURLs(false);
+                    settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+                    settings.setJavaScriptCanOpenWindowsAutomatically(false); settings.setSupportMultipleWindows(false);
+                    settings.setGeolocationEnabled(false); settings.setMediaPlaybackRequiresUserGesture(true);
+                    if (android.os.Build.VERSION.SDK_INT >= 26) settings.setSafeBrowsingEnabled(true);
+                    settings.setUseWideViewPort(true);
+                    if (userAgent != null && !userAgent.isEmpty()) settings.setUserAgentString(userAgent);
+                    CookieManager.getInstance().setAcceptThirdPartyCookies(view, false);
+                    view.setBackgroundColor(background ? Color.WHITE : Color.TRANSPARENT);
+                    Instance instance = new Instance(handle, view, overlay, bootstrap, editorBootstrap, creation.owner, creation.activity, creation.renderer);
+                    instance.document.begin(grant);
+                    instance.bounds = new Rect(x, y, x + width, y + height);
+                    instance.clip = new Rect(clipX, clipY, clipX + clipWidth, clipY + clipHeight);
+                    instance.resize(width, height);
+                    VIEWS.put(handle, instance);
+                    instance.configureBridge(url);
+                    view.setWebViewClient(instance.client);
+                    view.setWebChromeClient(instance.chrome);
+                    if (overlay) {
+                        if (!owner.placeTabletView(view, instance.bounds, instance.clip)) instance.status = OVERLAY_UNAVAILABLE;
+                    } else { creation.renderer.attach(view); }
+                    view.loadUrl(url);
+                    nativeCreated(handle, true);
+                    instance.publish();
+                } catch (RuntimeException | OutOfMemoryError failure) {
+                    if (VIEWS.containsKey(handle)) destroyOnMain(handle);
+                    else {
+                        if (view != null) view.destroy();
+                        if (creation.renderer != null) creation.renderer.close();
+                    }
+                    owner.diagnostic(RUNTIME_FAILED); nativeCreated(handle, false);
+                }
+            };
             try {
-                if (!wholeDocumentDraw) { WebView.enableSlowWholeDocumentDraw(); wholeDocumentDraw = true; }
-                view = new WebView(owner.activity());
-                WebSettings settings = view.getSettings();
-                settings.setJavaScriptEnabled(true); settings.setDomStorageEnabled(true);
-                settings.setAllowFileAccess(false); settings.setAllowContentAccess(false);
-                settings.setAllowFileAccessFromFileURLs(false); settings.setAllowUniversalAccessFromFileURLs(false);
-                settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
-                settings.setJavaScriptCanOpenWindowsAutomatically(false); settings.setSupportMultipleWindows(false);
-                settings.setGeolocationEnabled(false); settings.setMediaPlaybackRequiresUserGesture(true);
-                if (android.os.Build.VERSION.SDK_INT >= 26) settings.setSafeBrowsingEnabled(true);
-                settings.setUseWideViewPort(true);
-                if (userAgent != null && !userAgent.isEmpty()) settings.setUserAgentString(userAgent);
-                CookieManager.getInstance().setAcceptThirdPartyCookies(view, false);
-                view.setBackgroundColor(background ? Color.WHITE : Color.TRANSPARENT);
-                Instance instance = new Instance(handle, view, overlay, bootstrap, editorBootstrap);
-                instance.document.begin(grant);
-                instance.bounds = new Rect(x, y, x + width, y + height);
-                instance.clip = new Rect(clipX, clipY, clipX + clipWidth, clipY + clipHeight);
-                instance.resize(width, height);
-                VIEWS.put(handle, instance);
-                instance.configureBridge(url);
-                view.setWebViewClient(instance.client);
-                view.setWebChromeClient(instance.chrome);
-                if (overlay) {
-                    if (!owner.placeTabletView(view, instance.bounds, instance.clip)) instance.status = OVERLAY_UNAVAILABLE;
-                } else { view.setLayerType(View.LAYER_TYPE_SOFTWARE, null); }
-                view.loadUrl(url);
-                if (!overlay) MAIN.post(instance.frame);
-                nativeCreated(handle, true);
-                instance.publish();
+                if (overlay) finish.run();
+                else creation.renderer = new WebTextureRenderer(creation.activity,width,height,new WebTextureRenderer.Callback() {
+                    @Override public void ready(WebTextureRenderer renderer) { finish.run(); }
+                    @Override public void resized() {
+                        Instance instance = VIEWS.get(handle);
+                        if (instance != null && instance.renderer == creation.renderer) instance.armTexture();
+                    }
+                    @Override public void frame(WebFrameGate.Ticket ticket, ByteBuffer pixels, int w, int h) {
+                        Instance instance = VIEWS.get(handle);
+                        if (instance == null || instance.renderer != creation.renderer || !instance.active || !instance.visible
+                                || host.get() != creation.owner || creation.owner.activity() != creation.activity
+                                || !creation.owner.isForeground() || nativeGeneration(handle) != ticket.grant
+                                || !instance.document.admits(ticket.grant,ticket.page,true,1)
+                                || !ticket.document.equals(instance.view.getUrl())) return;
+                        nativeFrame(handle,ticket.grant,ticket.page,pixels,w,h);
+                    }
+                    @Override public void failed() {
+                        if (CREATING.remove(handle,creation)) { owner.diagnostic(RUNTIME_FAILED); nativeCreated(handle,false); }
+                        else {
+                            Instance instance = VIEWS.get(handle);
+                            if (instance != null && instance.renderer == creation.renderer) instance.fail(RUNTIME_FAILED);
+                        }
+                    }
+                });
             } catch (RuntimeException | OutOfMemoryError failure) {
-                if (VIEWS.containsKey(handle)) destroyOnMain(handle);
-                else if (view != null) view.destroy();
-                owner.diagnostic(RUNTIME_FAILED); nativeCreated(handle, false);
+                if (CREATING.remove(handle,creation)) {
+                    if (creation.renderer != null) creation.renderer.close();
+                    owner.diagnostic(RUNTIME_FAILED); nativeCreated(handle,false);
+                }
             }
         });
     }
     public static void destroy(long handle) { MAIN.post(() -> destroyOnMain(handle)); }
     private static void destroyAll() {
-        requireMain(); for (long handle : new ArrayList<>(VIEWS.keySet())) destroyOnMain(handle);
+        requireMain(); for (long handle : new ArrayList<>(CREATING.keySet())) destroyOnMain(handle);
+        for (long handle : new ArrayList<>(VIEWS.keySet())) destroyOnMain(handle);
     }
     private static void destroyOnMain(long handle) {
+        PendingCreation pending = CREATING.remove(handle);
+        if (pending != null && pending.renderer != null) pending.renderer.close();
         Instance instance = VIEWS.remove(handle);
-        if (instance == null) return;
+        if (instance == null) { if (pending != null) nativeCreated(handle,false); return; }
         instance.active = false; instance.document.close();
-        instance.cancelInput(); MAIN.removeCallbacks(instance.frame);
+        instance.cancelInput();
+        if (instance.renderer != null) instance.renderer.close();
         EmbeddedWebHost owner = host.get();
         if (owner != null && instance.overlay) owner.removeTabletView(instance.view);
         if (instance.script != null) instance.script.remove();
         if (instance.editorScript != null) instance.editorScript.remove();
         instance.view.stopLoading(); instance.view.loadUrl("about:blank"); instance.view.destroy();
-        if (instance.bitmap != null) instance.bitmap.recycle();
         nativeCreated(handle, false);
     }
     public static void load(long handle, long grant, String url) {
         post(handle, instance -> {
             if (nativeGeneration(handle) != grant) return;
-            instance.document.begin(grant); instance.cancelInput(); instance.configureBridge(url);
+            instance.document.begin(grant); instance.cancelInput();
+            if (instance.renderer != null) instance.renderer.invalidate(); instance.configureBridge(url);
             instance.view.loadUrl(url);
         });
     }
@@ -197,7 +248,7 @@ public final class EmbeddedWebView {
             instance.document.grant(grant); instance.document.visible(visible); instance.visible = visible;
             instance.view.setVisibility(visible ? View.VISIBLE : View.GONE);
             if (!visible) { instance.suspend(); instance.publish(); }
-            else { instance.view.onResume(); instance.authorize(); instance.publish(); }
+            else { instance.view.onResume(); instance.authorize(); instance.armTexture(); instance.publish(); }
         });
     }
     public static void resize(long handle, int x, int y, int width, int height, int clipX, int clipY, int clipWidth, int clipHeight) {
@@ -215,7 +266,7 @@ public final class EmbeddedWebView {
         MAIN.post(() -> {
             if (host.get() != expected) return;
             for (Instance instance : VIEWS.values()) {
-                if (!instance.active || !instance.overlay || instance.view.getContext() != expected.activity()) continue;
+                if (!instance.active || !instance.overlay || instance.activity != expected.activity()) continue;
                 boolean placed = expected.placeTabletView(instance.view, instance.bounds, instance.clip);
                 if (placed && instance.status == OVERLAY_UNAVAILABLE) {
                     instance.status = instance.bridge ? READY : BRIDGE_UNAVAILABLE;
@@ -287,17 +338,19 @@ public final class EmbeddedWebView {
         final WebDocumentState document = new WebDocumentState();
         Rect bounds, clip;
         WebTextureScale textureScale;
-        Bitmap bitmap;
-        Canvas canvas;
-        ByteBuffer pixels;
+        final EmbeddedWebHost owner;
+        final Activity activity;
+        final WebTextureRenderer renderer;
         ScriptHandler script, editorScript;
         boolean active = true, visible = true, loading, bridge;
         final WebPointerState pointerState = new WebPointerState();
         int status;
         long pickerLease;
         String requestedUrl = "about:blank";
-        Instance(long handle, WebView view, boolean overlay, String bootstrap, String editorBootstrap) {
+        Instance(long handle, WebView view, boolean overlay, String bootstrap, String editorBootstrap,
+                EmbeddedWebHost owner, Activity activity, WebTextureRenderer renderer) {
             this.handle = handle; this.view = view; this.overlay = overlay; this.bootstrap = bootstrap; this.editorBootstrap = editorBootstrap;
+            this.owner = owner; this.activity = activity; this.renderer = renderer;
         }
         void configureBridge(String url) {
             requestedUrl = url;
@@ -354,6 +407,7 @@ public final class EmbeddedWebView {
         }
         void editorPublish() { view.evaluateJavascript("window.__overteEditor&&window.__overteEditor.publish();", null); }
         void suspend() {
+            if (renderer != null) renderer.pause();
             cancelInput();
             view.evaluateJavascript("document.querySelectorAll('video,audio').forEach(function(m){m.pause();});", null);
             view.evaluateJavascript("window.__overteTransport&&window.__overteTransport.suspend();window.__overteEditorTransport&&window.__overteEditorTransport.suspend();", null);
@@ -386,10 +440,14 @@ public final class EmbeddedWebView {
             view.forceLayout();
             view.measure(View.MeasureSpec.makeMeasureSpec(layoutWidth, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(layoutHeight, View.MeasureSpec.EXACTLY));
             view.layout(0, 0, layoutWidth, layoutHeight);
-            if (overlay) return;
-            if (bitmap != null) bitmap.recycle();
-            bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888); canvas = new Canvas(bitmap); canvas.scale(1.0f / textureScale.density, 1.0f / textureScale.density);
-            pixels = ByteBuffer.allocateDirect(w * h * 4);
+            if (renderer != null) renderer.resize(w,h);
+        }
+        void armTexture() {
+            if (renderer != null && active && visible && !loading && host.get() == owner
+                    && owner.activity() == activity && owner.isForeground()) {
+                renderer.resume();
+                renderer.arm(view,document.grant(),document.page(),view.getUrl());
+            }
         }
         void publish() {
             int presentationStatus = status;
@@ -402,18 +460,6 @@ public final class EmbeddedWebView {
             status = failure; publish(); EmbeddedWebHost owner = host.get(); if (owner != null) owner.diagnostic(failure);
             destroyOnMain(handle);
         }
-        final Runnable frame = new Runnable() { public void run() {
-            if (!active) return;
-            EmbeddedWebHost owner = host.get();
-            if (visible && owner != null && owner.isForeground() && bitmap != null) {
-                try {
-                    bitmap.eraseColor(Color.TRANSPARENT); view.draw(canvas); pixels.rewind();
-                    bitmap.copyPixelsToBuffer(pixels); pixels.rewind();
-                    nativeFrame(handle, document.grant(), document.page(), pixels, bitmap.getWidth(), bitmap.getHeight());
-                } catch (RuntimeException | OutOfMemoryError failure) { fail(RUNTIME_FAILED); return; }
-            }
-            MAIN.postDelayed(this, 100);
-        }};
         final WebViewClient client = new WebViewClient() {
             @Override public boolean shouldOverrideUrlLoading(WebView source, WebResourceRequest request) {
                 return !nativeNavigation(handle, document.grant(), request.getUrl().toString(), request.isForMainFrame(), request.getMethod());
@@ -432,13 +478,16 @@ public final class EmbeddedWebView {
             }
             @Override public void onPageStarted(WebView source, String url, Bitmap favicon) {
                 document.begin(document.grant()); loading = true;
+                if (renderer != null) renderer.invalidate();
                 nativePage(handle, document.grant(), document.page(), url); publish();
             }
             @Override public void onPageFinished(WebView source, String url) {
                 if (!active || !url.equals(view.getUrl())) return;
-                loading = false; authorize(); publish();
+                loading = false; authorize(); armTexture(); publish();
             }
-            @Override public void doUpdateVisitedHistory(WebView source, String url, boolean reload) { publish(); }
+            @Override public void doUpdateVisitedHistory(WebView source, String url, boolean reload) {
+                if (renderer != null) { renderer.invalidate(); armTexture(); } publish();
+            }
             @Override public void onReceivedSslError(WebView source, SslErrorHandler handler, SslError error) {
                 handler.cancel(); status = LOAD_FAILED; loading = false; publish();
             }
