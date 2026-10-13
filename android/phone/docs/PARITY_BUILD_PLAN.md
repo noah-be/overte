@@ -1,7 +1,7 @@
 # Exact-source Phone parity build
 
-This plan builds the complete ARM64 debug application from the reviewed Phone
-feature commit, without publishing, tagging, installing or starting a device.
+This plan describes the complete ARM64 application build from the reviewed
+Phone feature commit, without publishing, tagging, installing or starting a device.
 The coordinator schedules the build and freezes the clean source worktree until
 it finishes. A successful Java or desktop Qt compilation is not an APK result.
 
@@ -10,7 +10,7 @@ it finishes. A successful Java or desktop Qt compilation is not an APK result.
 The local Phone doctor passes with no warnings using JDK 21.0.12.1, Android SDK
 36, Build-Tools 36.0.0, NDK 27.3.13750724 and SDK CMake 3.31.6. Conan 2.25.2 and
 Ninja 1.13.2 are present. The worktree does not yet have a verified Phone 16 KiB
-generator/sentinel graph; it must be restored before application compilation.
+generator/sentinel graph satisfying its current dependency recipe.
 
 The fork's existing `android-phone-16k-deps-v3` release exposes
 `android-phone-16k-conan.tgz` (1,476,694,358 bytes). Its release digest matches the
@@ -40,11 +40,28 @@ branch's updated source-only producer uses `4fd1f62ee1914f2f3ec4fe298a07c283`
 and OpenEXR 3.2.12. A successful prebuilt restore is not qualification of either
 source-only producer. Do not replace one pin with another to satisfy a check.
 
-The coordinator's active staging restore currently records an earlier source
-revision. Keep its caches and temporary files unchanged until it finishes.
-After successful restore, freeze the final application checkout and regenerate
-its two prepared graphs offline from that exact source, using the already
-restored binaries and original profiles:
+The coordinator completed the original Phone archive download, SHA256 check
+and actual Conan restore. The subsequent offline graph fails: the archived
+Node 22 recipe revision `261cd4344c058c7f08a0fb892519880a` requires OpenSSL
+1.1.1q, while the current shared recipe forces OpenSSL 3.5.8. The archive does
+not contain that recipe. This is a dependency graph failure, not an incomplete
+download. Preserve the restored cache and original archive; do not repeat the
+download or lower the OpenSSL requirement.
+
+The historical Android/Pico source graph contains OpenSSL 3.5.8 revision
+`e2ab566b1c764e543d69c8a6fa0def5b`, Node 22 revision
+`a76ae5683eb20fbde3f88e16d8bea96e` and Qt revision `d75aeab99c3d3426df7ec9b39bc73aa8`.
+These are genuine separately produced identities. They do not qualify the
+current Phone source graph: Phone uses Qt `4fd1f62ee1914f2f3ec4fe298a07c283`,
+libpng 1.6.58, OpenEXR 3.2.12 and Node Release, whereas the historical target
+uses libpng 1.6.44, OpenEXR 3.1.9 and Node Debug. A package transport receipt
+does not turn those historical packages into a current Phone producer receipt.
+No fully qualified producer for the current Phone graph has been demonstrated.
+
+The following original prebuilt preparation commands therefore currently fail
+closed on OpenSSL and must not be presented as a ready application lane. They
+remain the diagnostic consumer sequence if matching prebuilt dependencies are
+independently produced and qualified later:
 
 ```bash
 conan install android/common/conan/conanfile-pico.py \
@@ -68,7 +85,7 @@ The content sentinel, complete package ELF gate and original archive checksum
 remain required. This is a current consumer of prebuilt dependencies, not a new
 dependency Build receipt or source-only cold build.
 
-## Build runner and sequence
+## Prebuilt application runner, currently blocked
 
 Use the local Linux host with a coordinator-assigned build resource slot and
 the existing Phone worktree. The trusted Actions workflow currently accepts
@@ -143,4 +160,56 @@ video/audio. World bitmap capture does not establish hardware video support.
 The current world path uses private VirtualDisplay/Presentation hardware
 composition and SurfaceTexture/EGL readback; moving MP4 pixels still require
 the real-device test rather than a player clock or host scenegraph fixture.
-The independent F-Droid source-only cold build remains a separate qualification.
+## Current source producer and complete application route
+
+The executable current-source route is
+`android/phone/fdroid/scripts/cold-build.sh`, not
+`android/phone/fdroid/scripts/build-release.sh build`: the latter deliberately
+returns `DEFERRED_SHARED_BINDING` and does not compile an application.
+
+The cold route verifies the current source closure, recipe exports, lock files,
+SDK and toolchain bindings. It starts an empty private Conan cache, builds the
+bootstrap, Linux host tools and Android target with `--no-remote --build='*'`,
+stages the actual host tools, and writes the Phone sentinel only after the
+complete dependency ELF checks. It then sets `OVERTE_FDROID_CONAN_DIR` to that
+new target graph and runs the full `:phoneInterface:assembleRelease` task in the
+same network-isolated runner. This route intentionally cannot reuse the
+historical 62-package transport as a purported cold build.
+
+The pinned Podman image is
+`1b2da099cf7c03f6ea4b751cf8f148784f12db71fdaabb2b6330d60ba1572dda`.
+Actual coordinator probes report GCC 15.3.0, Java 17.0.20.1, CMake 3.31.6 and
+Conan 2.25.2. The local host GCC 16.2.1 must not be reported as that producer's
+GCC 15. The current Phone closure's recipe/index/lock/toolchain identities
+validate, but its complete archived source bytes and new producer invocations
+still require their own checks.
+
+After the coordinator schedules this separate producer and freezes the final
+clean Phone revision, assign an existing verified complete source store to
+`PARITY_SOURCE_STORE` and a new absolute attempt path to `PARITY_ATTEMPT_ROOT`.
+From the frozen repository root, preserve the output of each stage separately:
+
+```bash
+test "$(git rev-parse HEAD)" = "$PARITY_SOURCE_REVISION"
+test -z "$(git status --porcelain)"
+export ANDROID_SDK_ROOT=/home/user/Android/Sdk
+export OVERTE_SOURCE_CLOSURE_STORE="$PARITY_SOURCE_STORE"
+export OVERTE_ATTEMPT_ROOT="$PARITY_ATTEMPT_ROOT"
+export OVERTE_GRADLE_STORE=/tmp/overte-phone-web-gradle-store
+android/phone/fdroid/scripts/cold-build.sh --preflight
+android/phone/fdroid/scripts/cold-build.sh --run
+```
+
+Preflight verifies the actual store's source bytes; a missing or outdated store
+stops before production. The run copies only the frozen committed source and
+the hash-verified Gradle store into the new attempt. It preserves the source
+revision and original identities, resource monitoring and protected attempt
+marker. An interrupted active attempt must be observed, not restarted; use
+`--resume` only for the same protected incomplete source revision.
+
+The expected artifact is
+`$PARITY_ATTEMPT_ROOT/source/android/phone/apps/phoneInterface/build/outputs/apk/release/phoneInterface-release-unsigned.apk`.
+The helper records its SHA256 only after the complete Gradle task succeeds;
+there is no signing, publishing or installation step. Its proof version code
+and version name do not authorize a distribution release. Native application
+production and device acceptance remain unexecuted at this checkpoint.
