@@ -72,3 +72,48 @@ startup verifies that checksum. The server supports exact single byte ranges
 native browser streaming/seek. No codec executable is required just to serve
 or run the repository checks. Local decoding/HTTP checks qualify this input;
 they cannot qualify a mobile browser's compositor or audio route.
+
+## Native video pixel observations
+
+`tests/device/media_observation.py` recognizes the encoded counter, expected
+color phase and moving square in native PNG/JPEG captures. Select one fixed,
+front-facing rectangle containing the complete video image, excluding player
+controls and surrounding DOM. Its minimum size is 96×54 pixels and its aspect
+ratio must match the reference. Improve the capture geometry for small or
+perspective-distorted world surfaces instead of reporting a product failure.
+
+From the repository root, an adapter or evidence reviewer can use:
+
+```python
+from pathlib import Path
+import sys
+
+sys.path.insert(0, "tests/device")
+from media_observation import inspect_playback
+
+# Use actual increasing monotonic capture times and independently captured files.
+samples = [(when, Path(filename).read_bytes()) for when, filename in captures]
+observation = inspect_playback(samples, (left, top, right, bottom))
+```
+
+Install the pinned host requirements from `tests/requirements-host.txt`; this
+analyzer uses Pillow. Six to 96 samples spanning at least five seconds must
+show at least six distinct encoded frames and all three color phases. A frozen
+video texture with moving surrounding DOM, changing player time, or a frozen
+encoded square cannot satisfy the observation. Preserve captures and their
+checksums alongside the selected rectangle and timestamps.
+
+The result always has `deviceAcceptance: false`. It observes reference pixels;
+capture provenance, exact installed source/artifact bindings, fixed camera,
+pause/resume/seek, lifecycle silence and physical audibility still require the
+independent actions above. This helper does not advertise adapter capabilities
+or change the acceptance registry.
+
+Run its hardware-free regressions with:
+
+```bash
+python3 tests/device/self_tests/test_media_observation.py
+```
+
+The full control-plane self-test discovery includes these regressions. Generated
+test images and local reference-MP4 decoding verify the analyzer, not a device.
