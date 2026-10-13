@@ -6,7 +6,7 @@ public final class WebLifetimeTest {
     public static void main(String[] arguments) {
         WebTextureScale scale = new WebTextureScale(4096, 2048, 2.5f);
         check(scale.width == 2048 && scale.height == 1024 && scale.layoutWidth == 5120 && scale.layoutHeight == 2560);
-        check(scale.pointer(100) == 250);
+        check(scale.pointer(100) == 125);
         scale = new WebTextureScale(400, 300, 1.5f);
         check(scale.width == 400 && scale.layoutWidth == 600 && scale.layoutHeight == 450 && scale.pointer(20) == 30);
         for (float invalid : new float[]{0, -1, Float.NaN, Float.POSITIVE_INFINITY, 100}) {

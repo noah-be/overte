@@ -3,6 +3,8 @@
 #include "NativeWebViewItem.h"
 #include <QFile>
 #include <QGuiApplication>
+#include <QQuickWindow>
+#include <QQuickRenderControl>
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QTemporaryDir>
@@ -12,11 +14,33 @@
 #include <QDir>
 #include <memory>
 #include <cassert>
+#include <cstdio>
 class Probe : public NativeWebViewItem {
 public: using NativeWebViewItem::inputMethodQuery;
 };
 int main(int argc, char** argv) {
+    qputenv("QT_QUICK_BACKEND", "software");
     QGuiApplication app(argc, argv);
+    // Exercise actual native frame ingestion, Qt texture painting and premultiplied BGRA.
+    QQuickRenderControl control; QQuickWindow raster(&control); raster.resize(8,8); raster.setColor(Qt::transparent);
+    Probe pixels; pixels.setParentItem(raster.contentItem()); pixels.setSize(QSizeF(8,8));
+    pixels.acceptForeground(true); pixels.setSourceIdentity("pixel-fixture");
+    pixels.setUrl("https://one.test/frame"); pixels.componentComplete();
+    auto pixelGrant = pixels.generation(); pixels.acceptPage(pixelGrant,1,QUrl("https://one.test/frame"));
+    const unsigned char bgra[] = {0,0,255,255, 0,128,0,128, 255,0,0,255, 255,255,255,255};
+    pixels.acceptFrame(pixelGrant,1,bgra,sizeof(bgra),2,2);
+    control.initialize(nullptr); control.polishItems(); control.sync(); control.render();
+    QImage painted = control.grab(); assert(!painted.isNull());
+    assert(painted.pixelColor(1,1).red() > 240 && painted.pixelColor(1,1).blue() < 10);
+    assert(painted.pixelColor(6,1).green() > 240 && painted.pixelColor(6,1).alpha() >= 120 && painted.pixelColor(6,1).alpha() <= 136);
+    assert(painted.pixelColor(1,6).blue() > 240 && painted.pixelColor(1,6).red() < 10);
+    const unsigned char rejected[] = {0,0,0,255};
+    pixels.acceptFrame(pixelGrant+1,1,rejected,sizeof(rejected),1,1);
+    pixels.acceptFrame(pixelGrant,2,rejected,sizeof(rejected),1,1);
+    control.polishItems(); control.sync(); control.render();
+    assert(control.grab().pixelColor(1,1).red() > 240);
+    pixels.setParentItem(nullptr); control.invalidate();
+    std::puts("PASS: actual native frame ingestion and Qt scene graph pixels preserve BGRA/row orientation/premultiplied alpha; stale source/page frames rejected");
     QQuickItem transformed; transformed.setPosition(QPointF(10, 20)); transformed.setWidth(300); transformed.setHeight(200);
     NativeWebViewItem geometry(&transformed); geometry.setPosition(QPointF(5, 48)); geometry.setWidth(100); geometry.setHeight(70);
     auto plain = geometry.sceneBounds(); assert(plain.size() == QSizeF(100, 70));

@@ -249,7 +249,7 @@ void NativeWebViewItem::acceptState(quint64 grant, quint64 page, const QUrl& doc
 }
 void NativeWebViewItem::acceptFrame(quint64 grant, quint64 page, const void* pixels, qsizetype bytes, int width, int height) {
     if (!pixels || width <= 0 || height <= 0 || width > 2048 || height > 2048 || bytes < qsizetype(width) * height * 4) return;
-    { QMutexLocker guard(&_mutex); if (!current(grant, page)) return; _image = QImage(static_cast<const uchar*>(pixels), width, height, QImage::Format_ARGB32).copy(); }
+    { QMutexLocker guard(&_mutex); if (!current(grant, page)) return; _image = QImage(static_cast<const uchar*>(pixels), width, height, QImage::Format_ARGB32_Premultiplied).copy(); }
     QMetaObject::invokeMethod(this, [this] { update(); }, Qt::QueuedConnection);
 }
 void NativeWebViewItem::acceptCreated(bool created) {
