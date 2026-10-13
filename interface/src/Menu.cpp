@@ -159,14 +159,11 @@ Menu::Menu() {
     editMenu->addSeparator();
 
     // Edit > Asset Browser
-    auto assetServerAction = addActionToQMenuAndActionHash(editMenu, MenuOption::AssetServer,
+    addActionToQMenuAndActionHash(editMenu, MenuOption::AssetServer,
                                                            static_cast<int>(Qt::CTRL | Qt::SHIFT) | static_cast<int>(Qt::Key_A),
                                                            qApp, SLOT(showAssetServerWidget()));
-    {
-        auto nodeList = DependencyManager::get<NodeList>();
-        QObject::connect(nodeList.data(), &NodeList::canWriteAssetsChanged, assetServerAction, &QAction::setEnabled);
-        assetServerAction->setEnabled(nodeList->getThisNodeCanWriteAssets());
-    }
+    // Browsing and importing are independent of Asset Server write permission.
+    // The shared surface and server authorize each mutation separately.
 
     // Edit > Avatar Packager
 #ifndef Q_OS_ANDROID

@@ -348,6 +348,10 @@ public slots:
      *     <code>".jpeg"</code>, <code>".png"</code>, or <code>".webp"</code> &mdash; or if not provided then in the format chosen in general settings, 
      *     Default is PNG. Animated images are saved in GIF format.</p>
      *
+     * @param {string} [requestId=""] - Optional capture ticket (ASCII letters, digits, underscore or hyphen, at most 64
+     *     characters). A unique non-empty ticket reports Snapshot.captureStatusChanged and can be cancelled through
+     *     Snapshot.cancelCapture. Existing callers and Window signals retain their behavior. Native review captures
+     *     use the app-owned Snapshot directory.
      * @example <caption>Using the snapshot function and signals.</caption>
      * function onStillSnapshotTaken(path, notify) {
      *     print("Still snapshot taken: " + path);
@@ -372,7 +376,7 @@ public slots:
      * var filename = "example-snapshot";
      * Window.takeSnapshot(notify, animated, aspect, filename);
      */
-    void takeSnapshot(bool notify = true, bool includeAnimated = false, float aspectRatio = 0.0f, const QString& filename = QString());
+    void takeSnapshot(bool notify = true, bool includeAnimated = false, float aspectRatio = 0.0f, const QString& filename = QString(), const QString& requestId = QString());
 
     /*@jsdoc
      * Takes a still snapshot of the current view from the secondary camera that can be set up through the {@link Render} API.
@@ -405,8 +409,10 @@ public slots:
      *     <p>Still images are saved in JPEG, PNG or WEBP format according to the extension provided &mdash; <code>".jpg"</code>, 
      *     <code>".jpeg"</code>, <code>".png"</code>, or <code>".webp"</code> &mdash; or if not provided then in the format chosen in general settings, 
      *     Default is PNG. Animated images are saved in GIF format.</p>
+     * @param {string} [requestId=""] - Optional unique capture ticket, as in Window.takeSnapshot. Cancellation invalidates
+     *     queued render/convert callbacks and restores secondary-camera state before another capture.
      */
-    void takeSecondaryCamera360Snapshot(const glm::vec3& cameraPosition, const bool& cubemapOutputFormat = false, const bool& notify = true, const QString& filename = QString());
+    void takeSecondaryCamera360Snapshot(const glm::vec3& cameraPosition, const bool& cubemapOutputFormat = false, const bool& notify = true, const QString& filename = QString(), const QString& requestId = QString());
 
     /*@jsdoc
      * Emits a {@link Window.connectionAdded|connectionAdded} or a {@link Window.connectionError|connectionError} signal that

@@ -368,6 +368,9 @@ public slots:
     Q_INVOKABLE QUuid addModelEntity(const QString& name, const QString& modelUrl, const QString& textures, const QString& shapeType, bool dynamic,
                                      bool collisionless, bool grabbable, const glm::vec3& position, const glm::vec3& gravity);
 
+    // QML images use the same native addEntity ownership and permission path.
+    Q_INVOKABLE QUuid addImageEntity(const QString& name, const QString& imageUrl, bool grabbable, const glm::vec3& position);
+
     /*@jsdoc
      * Creates a clone of an entity. The clone has the same properties as the original except that: it has a modified
      * <code>name</code> property, clone-related properties are set per the original entity's clone-related
@@ -614,6 +617,18 @@ public slots:
      * @returns {boolean} <code>true</code> if the entity's assets have been loaded, otherwise <code>false</code>.
      */
     Q_INVOKABLE bool isLoaded(const QUuid& id);
+
+    /*@jsdoc
+     * Checks whether a PolyVox entity has finished processing its voxel data.
+     * Local voxel setters return before asynchronous mesh baking and compression finish.
+     * A true result indicates that the current compressed voxelData is ready to read;
+     * a subsequent edit can make it pending again. This read does not authorize editing.
+     * @function Entities.isVoxelDataReady
+     * @param {Uuid} id - The PolyVox entity ID.
+     * @returns {boolean} False for a missing entity, another entity type, a pending edit,
+     * or an implementation without a rendering worker; true for completed voxel data.
+     */
+    Q_INVOKABLE bool isVoxelDataReady(const QUuid& id);
 
     /*@jsdoc
      * Checks if there is an entity with a specified ID.

@@ -1,0 +1,43 @@
+#!/usr/bin/env python3
+"""Compile and execute the actual additive native tree/Offscreen ABI; no platform picker or product build."""
+import os
+import re
+from pathlib import Path
+import shlex
+import subprocess
+import tempfile
+
+ROOT = Path(__file__).resolve().parents[4]
+FIXTURES = Path(__file__).resolve().parent
+qt = Path(os.environ.get('OVERTE_QT5_ROOT', str(Path.home() / '.local/overte-qt5/root')))
+qt5_available = (qt / 'usr/lib64/pkgconfig/Qt5QuickTest.pc').is_file() or subprocess.run(
+    ['pkg-config', '--exists', 'Qt5QuickTest'], check=False).returncode == 0
+major = os.environ.get('OVERTE_NATIVE_QT_MAJOR', '5' if qt5_available else '6')
+assert major in ('5', '6')
+environment = os.environ | {'QT_QPA_PLATFORM': 'offscreen', 'QT_QUICK_BACKEND': 'software',
+    'QT_LOGGING_RULES': '*.warning=true;*.info=false',
+    'OVERTE_QML_SOURCE_ROOT': str(ROOT / 'interface/resources/qml')}
+libraries = []
+if major == '5' and (qt / 'usr/lib64/pkgconfig/Qt5QuickTest.pc').is_file():
+    environment.update({'PKG_CONFIG_PATH': str(qt / 'usr/lib64/pkgconfig'), 'PKG_CONFIG_SYSROOT_DIR': str(qt),
+        'LD_LIBRARY_PATH': str(qt / 'usr/lib64'), 'QML2_IMPORT_PATH': str(qt / 'usr/lib64/qt5/qml'),
+        'QT_PLUGIN_PATH': str(qt / 'usr/lib64/qt5/plugins')})
+    tools = qt / 'usr/lib64/qt5/bin'
+    libraries = ['-L' + str(qt / 'usr/lib64')]
+else:
+    tools = Path(subprocess.check_output(['pkg-config', '--variable=libexecdir' if major == '6' else '--variable=host_bins', 'Qt' + major + 'Core'], env=environment, text=True).strip())
+flags = shlex.split(subprocess.check_output(['pkg-config', '--cflags', '--libs',
+    *['Qt' + major + name for name in ('QuickTest', 'Quick', 'Widgets', 'Test')]], env=environment, text=True))
+with tempfile.TemporaryDirectory(prefix='overte-native-tree-abi-') as temporary:
+    stage = Path(temporary)
+    source = (ROOT / 'libraries/ui/src/OffscreenUi.cpp').read_text()
+    start = source.index('ModalDialogListener* OffscreenUi::getOpenFileBundleAsync(')
+    end = source.index('\nQString OffscreenUi::getSaveFileName(', start)
+    (stage / 'offscreen-bundle-route.inc').write_text(source[start:end])
+    subprocess.run([str(tools / 'moc'), str(ROOT / 'libraries/ui/src/FileDialogHelper.h'), '-o', str(stage / 'moc.cpp')], check=True)
+    binary = stage / 'tree-abi'
+    subprocess.run(['c++', '-std=c++17', '-fPIC', '-UNDEBUG', str(FIXTURES / 'tree-abi.cpp'),
+        str(ROOT / 'libraries/ui/src/FileDialogHelper.cpp'), str(ROOT / 'libraries/ui/src/ui/Logging.cpp'),
+        str(stage / 'moc.cpp'), '-I' + str(stage), '-I' + str(ROOT / 'libraries/ui/src'),
+        *libraries, '-o', str(binary), *flags], env=environment, check=True, timeout=90)
+    subprocess.run([str(binary)], env=environment, check=True, timeout=30)
