@@ -1,67 +1,46 @@
+// Copyright 2026 Overte e.V.
+// SPDX-License-Identifier: Apache-2.0
 import QtQuick 2.7
 import QtQuick.Controls 2.3
 
-StackView {
-    id: editRoot
+Item {
+    id: root
     objectName: "stack"
+    signal sendToScript(var message)
 
-    signal sendToScript(var message);
-
-    topPadding: 40
-    leftPadding: 0
-    rightPadding: 0
-    bottomPadding: 0
-
-    property var itemProperties: {"y": editRoot.topPadding,
-                                  "width": editRoot.availableWidth,
-                                  "height": editRoot.availableHeight }
-    Component.onCompleted: {
-        tab.currentIndex = 0
+    Loader {
+        id: page
+        anchors.fill: parent
+        sourceComponent: Qt.platform.os === "android" || Qt.platform.os === "ios"
+            ? nativePage : desktopPage
     }
-
-    background: Rectangle {
-        color: "#404040" //default background color
-        EditTabView {
-            id: tab
-            anchors.fill: parent
-            currentIndex: -1
-            onCurrentIndexChanged: {
-                // This Android Qt build has no QtWebEngine. Entity creation is
-                // native and works, but the desktop LIST/PROPERTIES/TOOLS/
-                // IMPORT pages are HTML WebViews. Do not replace the working
-                // Create page with ProxyWebView's unsupported-feature screen.
-                if (Qt.platform.os === "android" && currentIndex !== 0 && currentIndex !== 2) {
-                    currentIndex = 0;
-                    return;
-                }
-                editRoot.replace(null, tab.itemAt(currentIndex).visualItem,
-                                 itemProperties,
-                                 StackView.Immediate)
+    Component {
+        id: nativePage
+        StackView {
+            id: nativeStack
+            initialItem: NativeCreate { onSendToScript: root.sendToScript(message) }
+            function fromScript(message) {
+                if (currentItem && currentItem.fromScript) { currentItem.fromScript(message) }
             }
+            function pushSource(path) {
+                var dialog = push(path, {}, StackView.Immediate)
+                if (dialog && dialog.sendToScript) { dialog.sendToScript.connect(root.sendToScript) }
+            }
+            function popSource() { pop(StackView.Immediate) }
         }
     }
-
-    function pushSource(path) {
-        var item = Qt.createComponent(path);
-        editRoot.push(item, itemProperties,
-                      StackView.Immediate);
-        editRoot.currentItem.sendToScript.connect(editRoot.sendToScript);
+    Component {
+        id: desktopPage
+        EditDesktop { onSendToScript: root.sendToScript(message) }
     }
 
-    function popSource() {
-        editRoot.pop(StackView.Immediate);
-    }
-
-    // Passes script messages to the item on the top of the stack
     function fromScript(message) {
-        var currentItem = editRoot.currentItem;
-        if (currentItem && currentItem.fromScript)
-            currentItem.fromScript(message);
+        if (page.item && page.item.fromScript) { page.item.fromScript(message) }
     }
-
-    Component.onDestruction: {
-        if (KeyboardScriptingInterface.raised) {
-            KeyboardScriptingInterface.raised = false;
-        }
+    function pushSource(path) {
+        if (page.item && page.item.pushSource) { page.item.pushSource(path) }
+    }
+    function popSource() {
+        if (page.item && page.item.popSource) { page.item.popSource() }
     }
 }
