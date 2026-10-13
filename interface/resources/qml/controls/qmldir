@@ -7,6 +7,7 @@ FlickableWebViewCore 1.0 FlickableWebViewCore.qml
 NativeFlickableWebViewCore 1.0 NativeFlickableWebViewCore.qml
 EmbeddedWebView 1.0 EmbeddedWebView.qml
 EmbeddedWebBackend 1.0 EmbeddedWebBackend.qml
+SnapshotPlatformBackend 1.0 SnapshotPlatformBackend.qml
 FontAwesome 1.0 FontAwesome.qml
 Player 1.0 Player.qml
 RadioButton 1.0 RadioButton.qml
