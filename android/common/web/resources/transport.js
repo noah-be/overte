@@ -22,12 +22,7 @@
                     && typeof transport.onmessage === "function") {
                 transport.onmessage({ data: JSON.stringify(message) });
             }
-        },
-        editor: function (state) {
-            if (authorized) {
-                window.__overteNative.postMessage(JSON.stringify({ grant: grant, page: page,
-                    type: "editor", payload: state }));
-            }
+
         }
     };
 }());

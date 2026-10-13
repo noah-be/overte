@@ -25,11 +25,11 @@
     }
     function publish() {
         var element = document.activeElement;
-        if (!editable(element)) { window.__overteTransport.editor({ active: false }); return; }
+        if (!editable(element)) { window.__overteEditorTransport.editor({ active: false }); return; }
         var sensitive = element.type === "password", text = element.value === undefined ? element.textContent : element.value;
         var selected = selection(element), start = Math.max(0, selected[1] - 8192), bounds = element.getBoundingClientRect();
         // Password contents never cross the DOM/native boundary.
-        window.__overteTransport.editor({ active: true, sensitive: sensitive,
+        window.__overteEditorTransport.editor({ active: true, sensitive: sensitive,
             text: sensitive ? "" : text.slice(start, start + 16384), cursor: selected[1] - start, anchor: selected[0] - start, absoluteCursor: selected[1],
             x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height,
             kind: element.type || "text" });
