@@ -180,4 +180,133 @@ TestCase {
         // The production QFileDialog and helper complete into this QML listener;
         // mobile provider UI is a separate adapter/device boundary.
     }
+    function test_bundleSelectionTreeAndActualRelativeScript() {
+        TestServices.writeCompanions(); TestServices.installTreePicker();
+        var browser=production("dialogs/NativeFileBrowser.qml");
+        browser.bundleMode=true; browser.primaryFilter="\\.js$";
+        browser.selectedBundle.connect(function(manifest){selectedUrls=[manifest.primary];});
+        click(browser,"systemDocumentTree"); verify(browser.requestId.length>0);
+        TestServices.completeTreePicker();tryVerify(function(){return browser.bundle!==null;});
+        verify(browser.bundle.relativePaths.indexOf("nested/helper.js")>=0);
+        control(browser,"bundlePrimary").currentIndex=browser.bundle.relativePaths.indexOf("main.js");
+        click(browser,"bundleConfirm");compare(selectedUrls.length,1);
+        var scripts=production("hifi/dialogs/TabletRunningScripts.qml");
+        scripts.loadScript(String(selectedUrls[0]));
+        compare(TestServices.localScriptResult(),42);
+        verify(scripts.status.indexOf("Loading main.js")===0);
+    }
+    function test_bundleUploadPreservesRealBytesAndModelReferences() {
+        TestServices.writeCompanions();TestServices.permissions(true,true);
+        var assets=production("hifi/dialogs/TabletAssetServer.qml");
+        click(assets,"assetUpload");
+        var browser=control(assets,"nativeFileBrowser");
+        browser.reviewBundle([],"file://"+TestServices.fixtureDirectory);
+        control(browser,"bundlePrimary").currentIndex=browser.bundle.relativePaths.indexOf("scene.gltf");
+        click(browser,"bundleConfirm");
+        var dialog=control(assets,"bundleDestinationDialog");tryVerify(function(){return dialog.visible;});
+        var field=control(assets,"assetBundleDestination");field.text="/family/";field.forceActiveFocus();wait(20);verify(TestServices.keyboardRaised);
+        var confirm=dialog.standardButton(Dialog.Ok);mouseClick(confirm,confirm.width/2,confirm.height/2);
+        tryVerify(function(){return !assets.busy && assets.uploadedPrimaryUrl.length>0;});
+        var paths=TestServices.publishedBundle();verify(paths.length>=6);compare(paths[paths.length-1],"/family/scene.gltf");
+        var model=TestServices.inspectUploadedModel("/family/");
+        verify(model.gltf);verify(model.image);verify(model.obj);
+        click(assets,"assetUploadedImport");confirm=control(assets,"modelDialog").standardButton(Dialog.Ok);
+        mouseClick(confirm,confirm.width/2,confirm.height/2);wait(20);
+        compare(TestServices.entityCalls[0].url,"atp:/family/scene.gltf");
+        verify(assets.status.indexOf("Added")===0);
+    }
+    function test_bundleObjCompanionsAndOriginalRelativeNames() {
+        TestServices.writeCompanions();TestServices.permissions(true,true);
+        var assets=production("hifi/dialogs/TabletAssetServer.qml");click(assets,"assetUpload");
+        var browser=control(assets,"nativeFileBrowser");browser.reviewBundle([],"file://"+TestServices.fixtureDirectory);
+        control(browser,"bundlePrimary").currentIndex=browser.bundle.relativePaths.indexOf("scene.obj");click(browser,"bundleConfirm");
+        var dialog=control(assets,"bundleDestinationDialog");tryVerify(function(){return dialog.visible;});
+        control(assets,"assetBundleDestination").text="/obj/";
+        var confirm=dialog.standardButton(Dialog.Ok);mouseClick(confirm,confirm.width/2,confirm.height/2);
+        tryVerify(function(){return !assets.busy && assets.uploadedPrimaryUrl.length>0;});
+        var published=TestServices.publishedBundle();compare(published[published.length-1],"/obj/scene.obj");
+        var inspected=TestServices.inspectUploadedModel("/obj/");verify(inspected.obj);verify(inspected.image);
+        click(assets,"assetUploadedImport");confirm=control(assets,"modelDialog").standardButton(Dialog.Ok);mouseClick(confirm,confirm.width/2,confirm.height/2);
+        compare(TestServices.entityCalls[0].url,"atp:/obj/scene.obj");
+        var files=fileDialogHelper.documentBundle([],"file://"+TestServices.fixtureDirectory);
+        var paths=files.urls.map(function(url){return fileDialogHelper.urlToPath(url);});
+        var changed=files.relativePaths.slice();changed[0]="renamed.bin";var outcome="";
+        Assets.uploadBundle(paths,changed,"/changed/","scene.gltf",function(){},function(error){outcome=error;});
+        tryVerify(function(){return outcome.length>0;});compare(TestServices.publishedBundle().length,published.length);
+    }
+    function test_desktopBundleWindowAndMainFileListener() {
+        TestServices.writeCompanions();var dialog=production("dialogs/FileDialog.qml");
+        dialog.bundleMode=true;dialog.primaryFilter="\\.js$";
+        dialog.selectedFile.connect(function(url){testCase.selectedUrls=[url];});
+        var browser=control(dialog,"nativeFileBrowser");browser.reviewBundle([],"file://"+TestServices.fixtureDirectory);
+        control(browser,"bundlePrimary").currentIndex=browser.bundle.relativePaths.indexOf("main.js");
+        click(dialog,"bundleConfirm");compare(selectedUrls.length,1);verify(String(selectedUrls[0]).endsWith("/main.js"));
+    }
+    function test_normalSingleUploadRouteRemainsAvailable() {
+        TestServices.permissions(true,true);var assets=production("hifi/dialogs/TabletAssetServer.qml");
+        click(assets,"assetSingleUpload");var browser=control(assets,"nativeFileBrowser");verify(!browser.bundleMode);
+        browser.finish(["file://"+TestServices.fixtureFile]);compare(TestServices.assetCalls[0].kind,"upload");
+        compare(TestServices.assetCalls[0].mapping,"/ordinary.js");
+        TestServices.permissions(false,true);verify(!control(assets,"assetSingleUpload").enabled);
+    }
+    function test_bundleFailureAndCancelReportActualPartialOutcome() {
+        TestServices.writeCompanions();TestServices.permissions(true,true);TestServices.failBundleMapping(1);
+        var assets=production("hifi/dialogs/TabletAssetServer.qml");
+        assets.pendingBundle=fileDialogHelper.documentBundle([],"file://"+TestServices.fixtureDirectory);
+        assets.pendingBundle.primaryPath="scene.gltf";
+        control(assets,"assetBundleDestination").text="/partial/";assets.uploadBundle();
+        tryVerify(function(){return !assets.busy;});
+        compare(TestServices.publishedBundle().length,1);verify(assets.status.indexOf("Published mappings: 1")>=0);
+        compare(assets.uploadedPrimaryUrl,"");
+        TestServices.failBundleMapping(-1);
+        assets.pendingBundle=fileDialogHelper.documentBundle([],"file://"+TestServices.fixtureDirectory);assets.pendingBundle.primaryPath="scene.gltf";
+        control(assets,"assetBundleDestination").text="/canceled/";assets.uploadBundle();
+        verify(assets.bundleRequest.length>0);Assets.cancelUploadBundle(assets.bundleRequest);
+        tryVerify(function(){return !assets.busy;});verify(assets.status.indexOf("canceled")>=0);
+        compare(TestServices.publishedBundle().length,1);
+    }
+
+    function test_normalScriptBundleCallerListenerAndExpiredOwner() {
+        TestServices.writeCompanions();
+        var dialog=TestServices.openRetainedScriptDialog();verify(dialog.bundleMode);
+        dialog.reviewBundle([],"file://"+TestServices.fixtureDirectory);
+        control(dialog,"bundlePrimary").currentIndex=dialog.bundle.relativePaths.indexOf("main.js");
+        click(dialog,"bundleConfirm");
+        compare(TestServices.actualCallerScriptCalls().length,1);compare(TestServices.actualCallerScriptResult(),42);
+        dialog=TestServices.openActualScriptDialog();
+        dialog.reviewBundle([],"file://"+TestServices.fixtureDirectory);
+        control(dialog,"bundlePrimary").currentIndex=dialog.bundle.relativePaths.indexOf("main.js");
+        click(dialog,"bundleConfirm");
+        compare(TestServices.actualCallerScriptCalls().length,1);
+        dialog=TestServices.openRetainedScriptDialog();click(dialog,"fileCancel");
+        compare(TestServices.actualCallerScriptCalls().length,1);
+    }
+
+    function test_bundleTreeBoundsCancelAndWrongProviderResult() {
+        var limits=TestServices.exerciseBundleBounds();
+        for(var key in limits) verify(limits[key],key);
+        TestServices.installTreePicker();
+        var browser=production("dialogs/NativeFileBrowser.qml");browser.bundleMode=true;
+        click(browser,"systemDocumentTree");TestServices.completePicker();
+        tryVerify(function(){return browser.error.length>0;});verify(!browser.bundle);
+        click(browser,"systemDocumentTree");browser.helper.cancelDocuments(browser.requestId);wait(20);
+        verify(TestServices.pickerCanceled);TestServices.completeTreePicker();wait(20);verify(!browser.bundle);
+    }
+    function test_bundlePermissionConflictAndPageDestruction() {
+        TestServices.writeCompanions();TestServices.permissions(true,true);
+        var manifest=fileDialogHelper.documentBundle([],"file://"+TestServices.fixtureDirectory);
+        var paths=manifest.urls.map(function(url){return fileDialogHelper.urlToPath(url);});
+        var outcome=null;
+        Assets.uploadBundle(paths,manifest.relativePaths,"/revoked/","scene.gltf",function(){TestServices.permissions(false,true);},function(error,published){outcome={error:error,published:JSON.parse(published)};});
+        tryVerify(function(){return outcome!==null;});verify(outcome.error.indexOf("revoked")>=0);compare(outcome.published.length,0);
+        TestServices.permissions(true,true);outcome=null;
+        Assets.uploadBundle([paths[0]],["exists.fbx"],"/","exists.fbx",function(){},function(error){outcome=error;});
+        tryVerify(function(){return outcome!==null;});verify(outcome.indexOf("already exists")>=0);
+        var assets=production("hifi/dialogs/TabletAssetServer.qml");assets.pendingBundle=manifest;assets.pendingBundle.primaryPath="scene.gltf";
+        control(assets,"assetBundleDestination").text="/closed/";TestServices.holdBundleUploads(true);assets.uploadBundle();wait(20);assets.destroy();wait(30);TestServices.releaseBundleUploads();wait(20);
+        compare(TestServices.publishedBundle().length,0);
+        var available=Assets.uploadBundle(paths,manifest.relativePaths,"/after-close/","scene.gltf",function(){},function(){ });verify(available.length>0);
+        verify(Assets.cancelUploadBundle(available));wait(30);
+    }
+
 }
