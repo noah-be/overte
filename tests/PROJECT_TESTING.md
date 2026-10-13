@@ -118,6 +118,15 @@ completion. The actual OffscreenUi bundle route executes with its surface
 manager substituted. Set `OVERTE_NATIVE_QT_MAJOR=5` or `6` to select the SDK.
 These checks do not prove a platform document provider or a complete client build.
 
+The `obj-material-native` host suite compiles the production OBJ tokenizer,
+geometry/material parser and resource request bodies with actual Qt Core/Gui
+and GLM. It executes generated HFM textures through the production material
+consumer, covering relative MTL hierarchy, multiple materials, explicit FST
+texture-base overrides, external URLs, decoded PNG bytes and the existing
+flattened-export fallback. Resource providers and HFM/render storage remain
+explicit host boundaries; live asset-server and device rendering acceptance
+remain separate. The same Qt-major and GLM include overrides apply.
+
 The phone pad projection regression requires the real GLM headers (`libglm-dev`
 on Ubuntu). The isolated synchronization validation workflow installs this package
 and the listed Qt 5 development/QML packages for both complete fallback and
@@ -280,6 +289,7 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `snapshot-native` | `host` | `python3 tests/run-project-tests.py --suite snapshot-native` |
 | `snapshot-qml` | `host` | `python3 tests/run-project-tests.py --suite snapshot-qml` |
 | `document-tree-native` | `host` | `python3 tests/run-project-tests.py --suite document-tree-native` |
+| `obj-material-native` | `host` | `python3 tests/run-project-tests.py --suite obj-material-native` |
 | `native-smoke` | `quick` | `python3 tests/run-project-tests.py --suite native-smoke` |
 | `native-ci-policy` | `quick` | `python3 tests/run-project-tests.py --suite native-ci-policy` |
 | `native-registration` | `quick` | `python3 tests/run-project-tests.py --suite native-registration` |
