@@ -23,8 +23,11 @@
     var chatOverlayWindow;
     var appButton;
     var quickMessage;
+    var tabletMode = false;
+    var chatSource = Script.resolvePath("./armored_chat.qml");
     const channels = ["domain", "local"];
     var messageHistory = Settings.getValue("ArmoredChat-Messages", []) || [];
+    if (!Array.isArray(messageHistory)) { messageHistory = []; }
     var maxLocalDistance = 20; // Maximum range for the local chat
     var palData = AvatarManager.getPalData().data;
     var isTyping = false;
@@ -56,6 +59,10 @@
 
     function startup() {
         tablet = Tablet.getTablet("com.highfidelity.interface.tablet.system");
+        // Touch and headset clients use the normal system tablet. Script-engine
+        // globals from defaultScripts are not available in this separate engine.
+        tabletMode = HMD.active || tablet.toolbarMode === false;
+        readSettings();
 
         appButton = tablet.addButton({
             icon: Script.resolvePath("./img/icon_white.png"),
@@ -69,19 +76,43 @@
         Script.scriptEnding.connect(function () {
             console.log("Shutting Down");
             tablet.removeButton(appButton);
-            chatOverlayWindow.close();
+            appButton.clicked.disconnect(toggleMainChatWindow);
+            Controller.keyPressEvent.disconnect(keyPressEvent);
+            Messages.messageReceived.disconnect(receivedMessage);
+            Messages.unsubscribe("Chat");
+            Messages.unsubscribe("chat");
+            if (isTyping) { endTyping(); }
+            if (tabletMode) {
+                tablet.fromQml.disconnect(fromTabletQML);
+                tablet.screenChanged.disconnect(onScreenChanged);
+                tablet.tabletShownChanged.disconnect(onTabletShownChanged);
+                if (appIsVisible) { tablet.gotoHomeScreen(); }
+            } else {
+                chatOverlayWindow.close();
+                quickMessage.close();
+            }
         });
 
         // Overlay button toggle
         appButton.clicked.connect(toggleMainChatWindow);
 
-        quickMessage = new OverlayWindow({
-            source: Script.resolvePath("./armored_chat_quick_message.qml"),
-        });
-
-        _openWindow();
+        if (tabletMode) {
+            tablet.fromQml.connect(fromTabletQML);
+            tablet.screenChanged.connect(onScreenChanged);
+            tablet.tabletShownChanged.connect(onTabletShownChanged);
+        } else {
+            quickMessage = new OverlayWindow({
+                source: Script.resolvePath("./armored_chat_quick_message.qml"),
+            });
+            _openWindow();
+        }
     }
     function toggleMainChatWindow() {
+        if (tabletMode) {
+            if (appIsVisible) { tablet.gotoHomeScreen(); }
+            else { tablet.loadQMLSource(chatSource); }
+            return;
+        }
         appIsVisible = !appIsVisible;
         appButton.editProperties({ isActive: appIsVisible });
         chatOverlayWindow.visible = appIsVisible;
@@ -90,6 +121,28 @@
         if (chatOverlayWindow.title == "" && appIsVisible) {
             _openWindow();
         }
+    }
+    function onScreenChanged(type, source) {
+        appIsVisible = type === "QML" && source === chatSource;
+        appButton.editProperties({ isActive: appIsVisible });
+        if (!appIsVisible && isTyping) { endTyping(); }
+    }
+    function fromTabletQML(event) {
+        if (!appIsVisible || !event || typeof event !== "object") { return; }
+        if (event.type === "chat.close") { tablet.gotoHomeScreen(); return; }
+        fromQML(event);
+    }
+    function onTabletShownChanged() {
+        if (!tablet.tabletShown && appIsVisible) {
+            endTyping();
+            tablet.sendToQml({ type: "chat.hidden" });
+        }
+    }
+    function endTyping() {
+        if (isTyping) {
+            Messages.sendMessage("Chat-Typing", JSON.stringify({ action: "typing_stop" }));
+        }
+        isTyping = false;
     }
     function _openWindow() {
         chatOverlayWindow = new Desktop.createWindow(
@@ -111,26 +164,28 @@
         // Is the message a chat message?
         channel = channel.toLowerCase();
         if (channel !== "chat") return;
-        message = JSON.parse(message);
-
-        if (message.action !== "send_chat_message") return;
+        try { message = JSON.parse(message); } catch (error) { return; }
+        if (!message || typeof message !== "object" || message.forApp) return;
+        // Accept the legacy packet before testing its newer action field.
+        message = floofChatCompatibilityConversion(message);
+        if (message.action !== "send_chat_message" || typeof message.message !== "string") return;
 
         // Get the message data
         const currentTimestamp = _getTimestamp();
         const timeArray = _formatTimestamp(currentTimestamp);
 
         if (!message.channel) message.channel = "domain"; // We don't know where to put this message. Assume it is a domain wide message.
-        if (message.forApp) return; // Floofchat
-
-        // Floofchat compatibility hook
-        message = floofChatCompatibilityConversion(message);
+        if (typeof message.channel !== "string") return;
         message.channel = message.channel.toLowerCase();
+        message.displayName = typeof message.displayName === "string" ? message.displayName : "Unknown";
 
         // Check the channel. If the channel is not one we have, do nothing.
         if (!channels.includes(message.channel)) return;
 
         // If message is local, and if player is too far away from location, do nothing.
-        if (message.channel == "local" && isTooFar(message.position)) return;
+        if (message.channel == "local" && (!message.position
+                || ![message.position.x, message.position.y, message.position.z].every(Number.isFinite)
+                || isTooFar(message.position))) return;
 
         // Format the timestamp 
         message.timeString = timeArray[0];
@@ -173,12 +228,18 @@
         }
     }
     function fromQML(event) {
+        if (!event || typeof event !== "object") { return; }
         switch (event.type) {
             case "send_message":
                 _sendMessage(event.message, event.channel);
                 break;
             case "setting_change":
-
+                if (!["external_window", "maximum_messages", "join_notification", "use_chat_bubbles"].includes(event.setting)) return;
+                if (event.setting === "maximum_messages") {
+                    if (!Number.isFinite(event.value)) return;
+                    event.value = Math.max(1, Math.min(1000, Math.floor(event.value)));
+                } else if (typeof event.value !== "boolean") return;
+                if (tabletMode && event.setting === "external_window") return;
                 // Set the setting value, and save the config
                 settings[event.setting] = event.value; // Update local settings
                 _saveSettings(); // Save local settings
@@ -223,26 +284,19 @@
                         isTyping = true;
                         break;
                     case "end_typing":
-                        if (isTyping) {
-                            Messages.sendMessage(
-                                "Chat-Typing",
-                                JSON.stringify({
-                                    action: "typing_stop"
-                                })
-                            );
-                        }
-                        isTyping = false;
+                        endTyping();
                         break;
                 }
                 break;
             case "initialized":
                 // https://github.com/overte-org/overte/issues/824
-                chatOverlayWindow.visible = appIsVisible; // The "visible" field in the Desktop.createWindow does not seem to work. Force set it to the initial state (false)
+                if (!tabletMode) { chatOverlayWindow.visible = appIsVisible; }
                 _loadSettings();
                 break;
         }
     }
     function keyPressEvent(event) {
+        if (tabletMode) return;
         switch (JSON.stringify(event.key)) {
             case "16777220": // Enter key
                 if (HMD.active) return; // Don't allow in VR
@@ -254,7 +308,7 @@
         }
     }
     function _sendMessage(message, channel) {
-        if (message.length == 0) return;
+        if (typeof message !== "string" || message.trim().length === 0 || !channels.includes(channel)) return;
 
         Messages.sendMessage(
             "chat",
@@ -308,20 +362,30 @@
         }, 1500);
     }
     function _loadSettings() {
-        settings = Settings.getValue("ArmoredChat-Config", settings);
-
-        if (messageHistory) {
-            // Load message history
-            messageHistory.forEach((message) => {
-                const timeArray = _formatTimestamp(message.timestamp);
-                message.timeString = timeArray[0];
-                message.dateString = timeArray[1];
-                _emitEvent({ type: "show_message", ...message });
-            });
+        readSettings();
+        if (!tabletMode) {
+            chatOverlayWindow.presentationMode = settings.external_window
+                ? Desktop.PresentationMode.NATIVE : Desktop.PresentationMode.VIRTUAL;
         }
+        _emitEvent({ type: "initial_settings", settings: settings, tabletMode: tabletMode });
+        _emitEvent({ type: "clear_messages" });
+        Messages.sendLocalMessage("ChatBubbles-Config", JSON.stringify({ enabled: settings.use_chat_bubbles }));
 
-        // Send current settings to the app
-        _emitEvent({ type: "initial_settings", settings: settings });
+        messageHistory.forEach((message) => {
+            const timeArray = _formatTimestamp(message.timestamp);
+            message.timeString = timeArray[0];
+            message.dateString = timeArray[1];
+            _emitEvent({ type: "show_message", ...message });
+        });
+    }
+    function readSettings() {
+        var stored = Settings.getValue("ArmoredChat-Config", {}) || {};
+        Object.keys(settings).forEach(function(key) {
+            if (key === "maximum_messages") {
+                if (Number.isFinite(stored[key])) { settings[key] = Math.max(1, Math.min(1000, Math.floor(stored[key]))); }
+            } else if (typeof stored[key] === "boolean") { settings[key] = stored[key]; }
+        });
+        messageHistory = messageHistory.slice(-settings.maximum_messages);
     }
     function _saveSettings() {
         console.log("Saving config");
@@ -352,7 +416,9 @@
      * @param {("show_message"|"clear_messages"|"notification"|"initial_settings")} packet.type - The type of packet it is
      */
     function _emitEvent(packet = { type: "" }) {
-        chatOverlayWindow.sendToQml(packet);
+        if (tabletMode) {
+            if (appIsVisible) { tablet.sendToQml(packet); }
+        } else { chatOverlayWindow.sendToQml(packet); }
     }
 
     //
@@ -365,7 +431,8 @@
                 position: message.position,
                 message: message.message,
                 displayName: message.displayName,
-                channel: message.channel.toLowerCase(),
+                channel: typeof message.channel === "string" ? message.channel.toLowerCase() : "domain",
+                action: "send_chat_message",
             };
         }
         return message;

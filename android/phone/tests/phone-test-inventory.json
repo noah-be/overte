@@ -195,6 +195,9 @@
     ],
     "android/phone/apps/phoneInterface/src/main/java/org/qtproject/qt5/android/QtEditText.java": [
       "android/phone/tests/test_phone_ime.py"
+    ],
+    "scripts/system/+android_phoneInterface/phoneGraphics.js": [
+      "tests/javascript/test/phone-graphics.production.test.js"
     ]
   },
   "runtime_boundaries": {
@@ -224,6 +227,9 @@
     ],
     "system/quickGoto.js": [
       "android/common/tests/javascript/test/quick-goto.production.test.js"
+    ],
+    "system/+android_phoneInterface/phoneGraphics.js": [
+      "tests/javascript/test/phone-graphics.production.test.js"
     ]
   }
 }
