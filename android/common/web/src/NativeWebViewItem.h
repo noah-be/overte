@@ -97,6 +97,7 @@ public:
     QRectF sceneClipBounds() const;
     quint64 generation() const;
     bool allowsBridgeDocument(quint64 grant, quint64 page, const QUrl& document) const;
+    bool allowsEditorDocument(quint64 grant, quint64 page, const QUrl& document) const;
     bool allowsFileChooser(quint64 grant, quint64 page, const QUrl& document) const;
     bool allowsNavigation(quint64 grant, const QUrl& target, bool mainFrame, const QString& method) const;
     bool acceptMessage(quint64 grant, quint64 page, const QUrl& document, const QUrl& origin,

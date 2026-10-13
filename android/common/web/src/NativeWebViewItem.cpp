@@ -160,14 +160,19 @@ void NativeWebViewItem::create() {
     if (!_handle || !isComponentComplete() || _created || _pending || width() <= 1 || height() <= 1 || !isVisible() || !isEnabled()) return;
     Jni jni; if (!jni.env || !backend.load() || !generation()) { retryCreation(); return; }
     QUrl browser; { QMutexLocker guard(&_mutex); browser = _mapping.toBrowser(_session.url()); }
-    const QString script = resourceText(":/overte/android/web/resources/transport.js") + '\n' + _bootstrap + '\n' + resourceText(":/overte/android/web/resources/editor.js");
+    const QString script = resourceText(":/overte/android/web/resources/transport.js") + '\n' + _bootstrap;
+    const QString editorScript = resourceText(":/overte/android/web/resources/editor-transport.js") + '\n' + resourceText(":/overte/android/web/resources/editor.js");
     jstring url = jni.string(browser.toString(QUrl::FullyEncoded)), agent = jni.string(_userAgent), bootstrap = jni.string(script);
     if (!url || !agent || !bootstrap) { if (jni.env->ExceptionCheck()) jni.env->ExceptionClear(); retryCreation(); return; }
-    const auto bounds = sceneBounds().toAlignedRect(), clip = sceneClipBounds().toAlignedRect(); jvalue args[15]; args[0].j = _handle; args[1].j = generation(); args[2].l = url; args[3].l = agent;
+    jstring editorBootstrap = jni.string(editorScript);
+    if (!editorBootstrap) { if (jni.env->ExceptionCheck()) jni.env->ExceptionClear(); jni.env->DeleteLocalRef(url); jni.env->DeleteLocalRef(agent); jni.env->DeleteLocalRef(bootstrap); retryCreation(); return; }
+    const auto bounds = sceneBounds().toAlignedRect(), clip = sceneClipBounds().toAlignedRect(); jvalue args[16]; args[0].j = _handle; args[1].j = generation(); args[2].l = url; args[3].l = agent;
     args[4].z = _background; args[5].z = _presentation == NativeOverlay; args[6].i = bounds.x(); args[7].i = bounds.y();
     args[8].i = bounds.width(); args[9].i = bounds.height();
     args[10].i = clip.x(); args[11].i = clip.y(); args[12].i = clip.width(); args[13].i = clip.height(); args[14].l = bootstrap;
-    _pending = call("create", "(JJLjava/lang/String;Ljava/lang/String;ZZIIIIIIIILjava/lang/String;)V", args);
+    args[15].l = editorBootstrap;
+    _pending = call("create", "(JJLjava/lang/String;Ljava/lang/String;ZZIIIIIIIILjava/lang/String;Ljava/lang/String;)V", args);
+    jni.env->DeleteLocalRef(editorBootstrap);
     jni.env->DeleteLocalRef(url); jni.env->DeleteLocalRef(agent); jni.env->DeleteLocalRef(bootstrap);
     if (!_pending) retryCreation();
 }
@@ -185,6 +190,11 @@ bool NativeWebViewItem::allowsBridgeDocument(quint64 grant, quint64 page, const 
     return current(grant, page) && sourceURL(document) == sourceURL(_document)
         && _session.allowsBridge(grant, sourceURL(document), true, 1);
 }
+bool NativeWebViewItem::allowsEditorDocument(quint64 grant, quint64 page, const QUrl& document) const {
+    QMutexLocker guard(&_mutex);
+    return current(grant, page) && document.adjusted(QUrl::RemoveFragment) == _document.adjusted(QUrl::RemoveFragment)
+        && _session.allowsNavigation(grant, sourceURL(document), true, "GET");
+}
 bool NativeWebViewItem::allowsFileChooser(quint64 grant, quint64 page, const QUrl& document) const {
     QMutexLocker guard(&_mutex);
     return _tabletGrant && current(grant, page) && sourceURL(document) == sourceURL(_document)
@@ -200,8 +210,10 @@ void NativeWebViewItem::acceptPage(quint64 grant, quint64 page, const QUrl& docu
 bool NativeWebViewItem::acceptMessage(quint64 grant, quint64 page, const QUrl& document, const QUrl& origin,
                                      bool mainFrame, const QString& type, const QByteArray& payload) {
     { QMutexLocker guard(&_mutex);
-      if (!current(grant, page) || !overte::web::EmbeddedWebSession::sameOrigin(document, origin)
-          || !_session.allowsBridge(grant, sourceURL(document), mainFrame, payload.size())
+      if (!current(grant, page) || !mainFrame || payload.isEmpty() || payload.size() > int(overte::web::EmbeddedWebSession::MAX_BRIDGE_BYTES)
+          || !overte::web::EmbeddedWebSession::sameOrigin(document, origin)
+          || (type == "channel" ? !_session.allowsBridge(grant, sourceURL(document), mainFrame, payload.size())
+                                : !_session.allowsNavigation(grant, sourceURL(document), true, "GET"))
           || document.adjusted(QUrl::RemoveFragment) != _document.adjusted(QUrl::RemoveFragment)
           || (type != "channel" && type != "editor")) return false; }
     const auto parsed = QJsonDocument::fromJson(payload); if (!parsed.isObject()) return false;
@@ -217,8 +229,9 @@ bool NativeWebViewItem::acceptMessage(quint64 grant, quint64 page, const QUrl& d
                 || object.value("signal").toInt(-1) != _bridge->metaObject()->indexOfSignal("scriptEventReceived(QVariant)")) return false;
         } else if (messageType != 3 && messageType != 4) return false;
     }
-    QPointer<NativeWebViewItem> self(this); QMetaObject::invokeMethod(this, [self, grant, page, type, object = parsed.object()] {
-        if (!self) return; { QMutexLocker guard(&self->_mutex); if (!self->current(grant, page)) return; }
+    QPointer<NativeWebViewItem> self(this); QMetaObject::invokeMethod(this, [self, grant, page, document, type, object = parsed.object()] {
+        if (!self) return;
+        if (type == "editor" ? !self->allowsEditorDocument(grant, page, document) : !self->allowsBridgeDocument(grant, page, document)) return;
         if (type == "channel") self->_transport->receive(object); else self->updateEditor(object);
     }, Qt::QueuedConnection); return true;
 }
@@ -365,7 +378,17 @@ void NativeWebViewItem::wheelEvent(QWheelEvent* event) {
     const auto dy = event->angleDelta().y(); runJavaScript(QStringLiteral("window.scrollBy(0,%1);").arg(-dy)); event->accept();
 }
 void NativeWebViewItem::editorCommand(const QJsonObject& command) { if (!_editorActive || !hasActiveFocus()) return;
-    runJavaScript("window.__overteEditor&&window.__overteEditor.edit(" + QString::fromUtf8(QJsonDocument(command).toJson(QJsonDocument::Compact)) + ");"); }
+    quint64 grant, page; QUrl document;
+    { QMutexLocker guard(&_mutex); grant = _session.generation(); page = _page; document = _document; }
+    if (!allowsEditorDocument(grant, page, document)) return;
+    Jni jni; if (!jni.env || !backend.load()) return;
+    jstring url = jni.string(document.toString(QUrl::FullyEncoded));
+    jstring data = jni.string(QString::fromUtf8(QJsonDocument(command).toJson(QJsonDocument::Compact)));
+    if (url && data) { jvalue args[5]; args[0].j = _handle; args[1].j = grant; args[2].j = page; args[3].l = url; args[4].l = data;
+        call("edit", "(JJJLjava/lang/String;Ljava/lang/String;)V", args); }
+    if (jni.env->ExceptionCheck()) jni.env->ExceptionClear();
+    if (url) jni.env->DeleteLocalRef(url); if (data) jni.env->DeleteLocalRef(data);
+}
 void NativeWebViewItem::keyPressEvent(QKeyEvent* event) {
     if (!_editorActive || (event->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier))) { event->ignore(); return; }
     if (event->key() == Qt::Key_Backspace) editorCommand({{"action", "backspace"}});
@@ -481,6 +504,10 @@ extern "C" JNIEXPORT jboolean JNICALL Java_org_overte_web_EmbeddedWebView_native
 extern "C" JNIEXPORT jboolean JNICALL Java_org_overte_web_EmbeddedWebView_nativeBridgeAllowed(JNIEnv* env, jclass, jlong handle, jlong grant, jlong page, jstring document) {
     auto target = QUrl(string(env, document)); QMutexLocker guard(&registryMutex); auto* item = registry.value(handle);
     return item && item->allowsBridgeDocument(grant, page, target);
+}
+extern "C" JNIEXPORT jboolean JNICALL Java_org_overte_web_EmbeddedWebView_nativeEditorAllowed(JNIEnv* env, jclass, jlong handle, jlong grant, jlong page, jstring document) {
+    auto target = QUrl(string(env, document)); QMutexLocker guard(&registryMutex); auto* item = registry.value(handle);
+    return item && item->allowsEditorDocument(grant, page, target);
 }
 extern "C" JNIEXPORT jboolean JNICALL Java_org_overte_web_EmbeddedWebView_nativeFileChooserAllowed(JNIEnv* env, jclass, jlong handle, jlong grant, jlong page, jstring document) {
     auto target = QUrl(string(env, document)); QMutexLocker guard(&registryMutex); auto* item = registry.value(handle);
