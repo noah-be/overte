@@ -42,6 +42,7 @@
     "scripts/+android_phoneInterface/defaultScripts.js": ["android/common/tests/javascript/test/default-scripts.production.test.js"],
     "scripts/system/+android_phoneInterface/mobileActionBar.js": ["android/common/tests/javascript/test/mobile-action-bar.production.test.js"],
     "scripts/system/+android_phoneInterface/mobileTabletApps.js": ["android/common/tests/javascript/test/mobile-tablet-apps.production.test.js"],
+    "scripts/system/+android_phoneInterface/phoneGraphics.js": ["tests/javascript/test/phone-graphics.production.test.js"],
     "scripts/system/+android_phoneInterface/phoneEmote.js": ["android/common/tests/javascript/test/phone-emote.production.test.js"],
     "scripts/system/+android_phoneInterface/PhoneEmote.qml": ["android/common/tests/qml/tst_phone_emote.qml"],
     "android/phone/apps/phoneInterface/src/main/AndroidManifest.xml": ["android/phone/tests/phone-data-protection-test.py", "android/phone/tests/phone-host-regression-test.sh"],
@@ -80,6 +81,7 @@
   "default_script_tested": {
     "system/+android_phoneInterface/mobileActionBar.js": ["android/common/tests/javascript/test/mobile-action-bar.production.test.js"],
     "system/+android_phoneInterface/mobileTabletApps.js": ["android/common/tests/javascript/test/mobile-tablet-apps.production.test.js"],
+    "system/+android_phoneInterface/phoneGraphics.js": ["tests/javascript/test/phone-graphics.production.test.js"],
     "system/+android_phoneInterface/phoneEmote.js": ["android/common/tests/javascript/test/phone-emote.production.test.js"],
     "system/places/places.js": ["android/common/tests/javascript/test/places.production.test.js"],
     "system/quickGoto.js": ["android/common/tests/javascript/test/quick-goto.production.test.js"]
