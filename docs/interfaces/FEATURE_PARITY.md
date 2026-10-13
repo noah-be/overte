@@ -37,7 +37,7 @@ boundary and screen-space IME capabilities; this is not browser/device evidence.
 | World HTML | Real document/JavaScript/DOM, pointer/text/scroll, scriptUrl and bidirectional EventBridge; loading/error/navigation/media behavior | Native adapters and shared wiring in progress |
 | Tablet HTML | Useful normal browser/app path with history, trusted native interaction/media, packaged apps and EventBridge | Native adapters and shared wiring in progress |
 | Graphics | Usable world-effect controls and persistent choices; verify lights, haze, procedural materials and mirrors in the same world | Phone controls tested on host; integration/device effects pending |
-| Audio | Mutual voice, playback/mute and permissions/routing; retain live echo and add bounded local recorded/replay/status/cancel on all clients | Shared recorded-test integration pending |
+| Audio | Mutual voice, playback/mute and permissions/routing; retain live echo and add bounded local recorded/replay/status/cancel on all clients | Shared recorded preview and native-driven UI wired; product integration and device audio acceptance pending |
 | Chat/Snapshot | Normal app entries with useful message send/receive/history and actual capture/preview/save/share outcomes | Shared app gaps retained in scope; implementation pending |
 | Scripts/assets | Load/stop/manage ordinary scripts and assets through usable native controls; verify concrete script results and runtime differences | Actual mobile journeys pending |
 | Lifecycle/input | Touch/controller/keyboard accessibility, back/close/focus, background/resume/restart, no orphan page audio or stale native input | Per-adapter host checks; three-artifact device acceptance pending |

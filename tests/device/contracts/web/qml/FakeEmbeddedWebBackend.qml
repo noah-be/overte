@@ -15,6 +15,7 @@ Item {
     property bool canGoBack: true
     property bool canGoForward: true
     property string error: ""
+    property string warning: ""
     property bool bridgeAvailable: false
     property var initial: ({})
     property var events: []

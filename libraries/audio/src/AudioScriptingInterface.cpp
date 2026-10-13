@@ -44,15 +44,21 @@ void registerAudioMetaTypes(ScriptEngine* engine) {
 
 void AudioScriptingInterface::setLocalAudioInterface(AbstractAudioInterface* audioInterface) {
     if (_localAudioInterface) {
+        QMetaObject::invokeMethod(_localAudioInterface, "cancelRecordedVoiceTest", Qt::QueuedConnection);
         disconnect(_localAudioInterface, &AbstractAudioInterface::isStereoInputChanged,
                    this, &AudioScriptingInterface::isStereoInputChanged);
+        disconnect(_localAudioInterface, &AbstractAudioInterface::recordedVoiceTestStatusChanged,
+                   this, nullptr);
     }
     
     _localAudioInterface = audioInterface;
+    updateRecordedVoiceTestStatus({ { "phase", "idle" }, { "error", "" } });
 
     if (_localAudioInterface) {
         connect(_localAudioInterface, &AbstractAudioInterface::isStereoInputChanged,
                 this, &AudioScriptingInterface::isStereoInputChanged);
+        connect(_localAudioInterface, &AbstractAudioInterface::recordedVoiceTestStatusChanged,
+                this, &AudioScriptingInterface::updateRecordedVoiceTestStatus);
     }
 }
 
@@ -135,4 +141,31 @@ void AudioScriptingInterface::toggleLocalEcho() {
     if (_localAudioInterface) {
         QMetaObject::invokeMethod(_localAudioInterface, "toggleLocalEcho");
     }
+}
+
+void AudioScriptingInterface::startRecordedVoiceTest() {
+    if (_localAudioInterface) {
+        QMetaObject::invokeMethod(_localAudioInterface, "startRecordedVoiceTest", Qt::QueuedConnection);
+    } else {
+        updateRecordedVoiceTestStatus({ { "phase", "error" }, { "error", "unsupported" } });
+    }
+}
+
+void AudioScriptingInterface::cancelRecordedVoiceTest() {
+    if (_localAudioInterface) {
+        QMetaObject::invokeMethod(_localAudioInterface, "cancelRecordedVoiceTest", Qt::QueuedConnection);
+    }
+}
+
+QVariantMap AudioScriptingInterface::getRecordedVoiceTestStatus() const {
+    QMutexLocker lock(&_recordedVoiceTestMutex);
+    return _recordedVoiceTestStatus;
+}
+
+void AudioScriptingInterface::updateRecordedVoiceTestStatus(const QVariantMap& status) {
+    {
+        QMutexLocker lock(&_recordedVoiceTestMutex);
+        _recordedVoiceTestStatus = status;
+    }
+    emit recordedVoiceTestStatusChanged(status);
 }

@@ -13,6 +13,7 @@
 #define hifi_AbstractAudioInterface_h
 
 #include <QtCore/QObject>
+#include <QtCore/QVariantMap>
 #include <QtMultimedia/qaudiooutput.h>
 
 #include <udt/PacketHeaders.h>
@@ -51,12 +52,20 @@ public slots:
     virtual void setLocalEcho(bool localEcho) = 0;
     virtual void toggleLocalEcho() = 0;
 
+    // Optional client-only, bounded microphone preview. Other audio adapters
+    // report unsupported instead of claiming a successful recording.
+    virtual void startRecordedVoiceTest() {
+        emit recordedVoiceTestStatusChanged({ { "phase", "error" }, { "error", "unsupported" } });
+    }
+    virtual void cancelRecordedVoiceTest() {}
+
     virtual bool getServerEcho() = 0;
     virtual void setServerEcho(bool serverEcho) = 0;
     virtual void toggleServerEcho() = 0;
 
 signals:
     void isStereoInputChanged(bool isStereo);
+    void recordedVoiceTestStatusChanged(const QVariantMap& status);
 };
 
 Q_DECLARE_METATYPE(AbstractAudioInterface*)

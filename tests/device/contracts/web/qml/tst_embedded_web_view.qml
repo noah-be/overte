@@ -36,6 +36,31 @@ Item {
             return item;
         }
         function init() { eventBridge.received = []; webEvents.clear(); nativeClosed.clear(); scriptMessages.clear(); }
+        function test_providerWarningReservesSpaceAndPreservesDocument() {
+            var web = create(webComponent, { url: "https://example.test" });
+            tryVerify(function() { return web.backend !== null; });
+            var banner = findChild(web, "EmbeddedWebWarning");
+            var fatal = findChild(web, "EmbeddedWebError");
+            web.backend.warning = "Document is available; native bridge provider needs updating.";
+            tryVerify(function() { return banner.visible && banner.height > 0; });
+            verify(!fatal.visible);
+            compare(web.error, "");
+            verify(web.backend.visible && web.backend.height > 0);
+            tryCompare(findChild(web, "EmbeddedWebDocument"), "y", banner.height);
+            var result = "";
+            web.runJavaScript("document.title", function(value) { result = value; });
+            compare(result, "native-result");
+            web.backend.warning = "";
+            tryCompare(findChild(web, "EmbeddedWebDocument"), "y", 0);
+        }
+        function test_fatalErrorRetainsVisibleFailureSurface() {
+            var web = create(webComponent, { url: "https://example.test" });
+            tryVerify(function() { return web.backend !== null; });
+            web.backend.warning = "Provider warning";
+            web.backend.error = "The native document failed to load.";
+            verify(findChild(web, "EmbeddedWebError").visible);
+            verify(!findChild(web, "EmbeddedWebWarning").visible);
+        }
         function test_configureBeforeNavigationAndUpdate() {
             var web = create(webComponent, { url: "https://example.test/start", scriptUrl: "https://example.test/client.js",
                 sourceIdentity: "entity-one", userAgent: "Overte test", surface: "world-entity", eventBridgeJavaScript: "real-bootstrap" });
