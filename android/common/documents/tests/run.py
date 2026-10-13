@@ -20,8 +20,10 @@ a=p.parse_args()
 with tempfile.TemporaryDirectory(prefix='overte-documents-') as temporary:
     stage=Path(temporary)
     subprocess.run(['javac','-d',str(stage),str(MODULE/'java/org/overte/documents/DocumentCopy.java'),
+                    str(MODULE/'java/org/overte/documents/DocumentTree.java'),
                     *map(str,(MODULE/'tests/java').rglob('*.java'))],check=True)
     subprocess.run(['java','-cp',str(stage),'org.overte.documents.DocumentCopyTest'],check=True)
+    subprocess.run(['java','-cp',str(stage),'org.overte.documents.DocumentTreeTest'],check=True)
     if a.android_jar:
         subprocess.run(['javac','-cp',str(a.android_jar),'-d',str(stage),
                         *map(str,(MODULE/'java').rglob('*.java')),
