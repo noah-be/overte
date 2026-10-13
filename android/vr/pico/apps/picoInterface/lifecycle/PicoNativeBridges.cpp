@@ -10,6 +10,12 @@ extern "C" jboolean Java_org_overte_pico_PicoAccessibilityBridge_nativeRequestFr
     JNIEnv*, jclass, jobject, jint, jint, jint);
 extern "C" jboolean Java_org_overte_pico_PicoAccessibilityBridge_nativePerformAction(
     JNIEnv*, jclass, jint, jstring, jstring);
+extern "C" void Java_org_overte_documents_DocumentAdapter_nativeInitialize(JNIEnv*, jclass);
+extern "C" void Java_org_overte_documents_DocumentAdapter_nativeCompleted(
+    JNIEnv*, jclass, jstring, jobjectArray, jstring);
+extern "C" void Java_org_overte_snapshot_SnapshotAdapter_nativeInitialize(JNIEnv*, jclass);
+extern "C" void Java_org_overte_snapshot_SnapshotAdapter_nativeCompleted(
+    JNIEnv*, jclass, jlong, jlong, jstring, jstring);
 
 namespace overte::pico {
 namespace {
@@ -70,7 +76,7 @@ bool installNativeBridges() {
             ? static_cast<jclass>(env->CallObjectMethod(loader, loadClass, className)) : nullptr;
         if (env->ExceptionCheck()) { env->ExceptionClear(); return nullptr; }
         if (!klass) { return nullptr; }
-        const bool ok = env->RegisterNatives(klass, methods, count) == JNI_OK;
+        const bool ok = count == 0 || env->RegisterNatives(klass, methods, count) == JNI_OK;
         if (env->ExceptionCheck()) { env->ExceptionClear(); return nullptr; }
         return ok ? klass : nullptr;
     };
@@ -84,16 +90,35 @@ bool installNativeBridges() {
         { const_cast<char*>("nativePerformAction"), const_cast<char*>("(ILjava/lang/String;Ljava/lang/String;)Z"),
           reinterpret_cast<void*>(&Java_org_overte_pico_PicoAccessibilityBridge_nativePerformAction) },
     };
+    JNINativeMethod documents[] = {
+        { const_cast<char*>("nativeInitialize"), const_cast<char*>("()V"),
+          reinterpret_cast<void*>(&Java_org_overte_documents_DocumentAdapter_nativeInitialize) },
+        { const_cast<char*>("nativeCompleted"), const_cast<char*>("(Ljava/lang/String;[Ljava/lang/String;Ljava/lang/String;)V"),
+          reinterpret_cast<void*>(&Java_org_overte_documents_DocumentAdapter_nativeCompleted) },
+    };
+    JNINativeMethod snapshots[] = {
+        { const_cast<char*>("nativeInitialize"), const_cast<char*>("()V"),
+          reinterpret_cast<void*>(&Java_org_overte_snapshot_SnapshotAdapter_nativeInitialize) },
+        { const_cast<char*>("nativeCompleted"), const_cast<char*>("(JJLjava/lang/String;Ljava/lang/String;)V"),
+          reinterpret_cast<void*>(&Java_org_overte_snapshot_SnapshotAdapter_nativeCompleted) },
+    };
     const auto visibilityClass = bind("org.overte.pico.PicoClientVisibility", visibility, 1);
     const auto accessibilityClass = bind("org.overte.pico.PicoAccessibilityBridge", accessibility, 2);
-    if (!visibilityClass || !accessibilityClass || !localActivity) { return false; }
+    const auto documentClass = bind("org.overte.documents.DocumentAdapter", documents, 2);
+    const auto snapshotClass = bind("org.overte.snapshot.SnapshotAdapter", snapshots, 2);
+    const auto documentHostClass = bind("org.overte.pico.PicoNativeDocumentHost", nullptr, 0);
+    if (!visibilityClass || !accessibilityClass || !documentClass || !snapshotClass ||
+            !documentHostClass || !localActivity) { return false; }
     const auto ready = env->GetStaticMethodID(visibilityClass, "nativeBindingsReady", "(Ljava/lang/Object;)Z");
+    const auto documentsReady = env->GetStaticMethodID(documentHostClass, "nativeBindingsReady", "(Ljava/lang/Object;)Z");
     if (env->ExceptionCheck()) { env->ExceptionClear(); return false; }
-    if (!ready) { return false; }
+    if (!ready || !documentsReady) { return false; }
+    const bool documentsAdmitted = env->CallStaticBooleanMethod(documentHostClass, documentsReady, localActivity) == JNI_TRUE;
+    if (env->ExceptionCheck()) { env->ExceptionClear(); return false; }
     const bool admitted = env->CallStaticBooleanMethod(visibilityClass, ready, localActivity) == JNI_TRUE;
     if (env->ExceptionCheck()) { env->ExceptionClear(); return false; }
     // Admission is still distinct from GUI-thread application. That receiver
     // applies the existing generation and combined visibility gates.
-    return admitted;
+    return admitted && documentsAdmitted;
 }
 }

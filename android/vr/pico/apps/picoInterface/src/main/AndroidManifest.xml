@@ -24,6 +24,15 @@
 
         <meta-data android:name="pvr.app.type" android:value="vr" />
 
+        <provider android:name="org.overte.snapshot.SnapshotFileProvider"
+            android:authorities="${applicationId}.snapshot.files"
+            android:exported="false" android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/overte_snapshot_paths" />
+        </provider>
+        <receiver android:name="org.overte.snapshot.SnapshotShareReceiver"
+            android:exported="false" />
+
         <activity
             android:name=".PermissionsActivity"
             android:excludeFromRecents="true"

@@ -12,6 +12,7 @@ setup_hifi_library()
 pico_bind_qt_host_tools(picoInterface)
 get_target_property(PICO_INTERFACE_SOURCES picoInterface SOURCES)
 list(FILTER PICO_INTERFACE_SOURCES EXCLUDE REGEX "PicoWebViewItem\\.(cpp|h)$")
+list(FILTER PICO_INTERFACE_SOURCES EXCLUDE REGEX "PicoEmbeddedWeb\\.cpp$")
 # The Activity loads picoOpenXR before invoking these JNI methods. Keep its
 # OpenXR VM/Activity state and JNI exports in that single owning library.
 list(FILTER PICO_INTERFACE_SOURCES EXCLUDE REGEX "OpenXRLoader\\.(cpp|h)$")
@@ -58,6 +59,9 @@ target_include_directories(gl PRIVATE
 )
 
 add_subdirectory("${CMAKE_SOURCE_DIR}/interface" "libraries/interface")
+include("${CMAKE_CURRENT_SOURCE_DIR}/../../../../common/web/target.cmake")
+overte_target_embedded_web(picoOpenXR)
+set_target_properties(picoOpenXR PROPERTIES AUTORCC ON)
 get_target_property(PICO_INTERFACE_SOURCES interface SOURCES)
 list(FILTER PICO_INTERFACE_SOURCES EXCLUDE REGEX "Application_Setup\\.cpp$")
 set_property(TARGET interface PROPERTY SOURCES "${PICO_INTERFACE_SOURCES}")
@@ -78,6 +82,13 @@ target_sources(interface PRIVATE
 # Application setup consumes the single account-store instance in picoOpenXR.
 # Link its owning library directly so libinterface resolves that symbol.
 target_link_libraries(interface picoOpenXR)
+# These adapters consume full-client UI/storage and are initialized only after
+# PicoNativeBridges binds the live Activity's JNI classes. Keep early OpenXR free
+# of full-client dependencies.
+include("${CMAKE_CURRENT_SOURCE_DIR}/../../../../common/documents/target.cmake")
+overte_target_documents(interface)
+include("${CMAKE_CURRENT_SOURCE_DIR}/../../../../common/snapshot/target.cmake")
+overte_target_snapshot(interface)
 if(OVERTE_PICO_E2E_OPENXR_INPUT)
     target_compile_definitions(interface PRIVATE OVERTE_E2E_OPENXR_INPUT_V1=1)
     target_sources(interface PRIVATE

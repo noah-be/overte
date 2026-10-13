@@ -19,11 +19,13 @@ class ActivityTeardownTest(unittest.TestCase):
         focus = 'public void onWindowFocusChanged(' + source.split(
             'public void onWindowFocusChanged(', 1)[1].split('\n    }', 1)[0] + '\n    }\n'
         lifecycle = source[source.index('    public void onResume()'):source.index('    @Override\n    public void onWindowFocusChanged')]
+        result_handler = 'protected void onActivityResult(' + source.split('protected void onActivityResult(', 1)[1].split('\n    }', 1)[0] + '\n    }\n'
         web_source = (JAVA / 'OffscreenWebView.java').read_text()
         ingress = web_source[web_source.index('    static void setInputForeground('):web_source.index('    private static void postInputCommand(')]
         driver = '''package org.overte.pico;
 public final class PicoActivityTeardownTest {
-    static int web, audio, xr, qt, errors, cancelled;
+    static int web, audio, xr, qt, errors, cancelled, documentResults, webResults, qtResults;
+    static class Intent {}
     static boolean failWeb, failAudio, failInput, audioAllowed;
     enum Event { REDACTED }
     static class RedactingDiagnostics { static void e(Event event) { ++errors; } }
@@ -45,19 +47,37 @@ public final class PicoActivityTeardownTest {
         static void detach(Object owner) {}
         static void foreground(Object owner, boolean active) {}
     }
+    // The common AndroidX provider is an explicit Android boundary here.
+    static class PicoEmbeddedWebHost {
+        boolean fileResult(int code,int result,Intent data) { ++webResults; return code==502; }
+        void detach() {}
+        void foreground(boolean active) {}
+        void windowFocus() {}
+    }
+    static class PicoNativeDocumentHost {
+        boolean activityResult(int code,int result,Intent data) { ++documentResults; return code==501; }
+        void detach() {}
+        void foreground(boolean active) {}
+        void windowFocus() {}
+    }
+    static class PicoAccessibilityMonitor { void start() {} void stop() {} }
     static class QtBoundary {
+        protected void onActivityResult(int code,int result,Intent data) { ++qtResults; }
         protected void onDestroy() { ++qt; }
         public void onResume() {}
         public void onPause() {}
         public void onWindowFocusChanged(boolean focused) {}
     }
     static class PicoInterfaceActivity extends QtBoundary {
+        PicoNativeDocumentHost nativeDocuments = new PicoNativeDocumentHost();
+        PicoEmbeddedWebHost embeddedWeb = new PicoEmbeddedWebHost();
+        PicoAccessibilityMonitor accessibility = new PicoAccessibilityMonitor();
         boolean resumed, focused = true;
         boolean hasWindowFocus() { return focused; }
         static PicoInterfaceActivity getInstance() { return INSTANCE.current(); }
         static final PicoActivityInstancePolicy<PicoInterfaceActivity> INSTANCE = new PicoActivityInstancePolicy<>();
         void releaseOpenXRActivity() { ++xr; }
-''' + destroy + helper + focus + lifecycle + '''
+''' + destroy + helper + focus + lifecycle + result_handler + '''
     }
     static void need(boolean condition) { if (!condition) throw new AssertionError(); }
     public static void main(String[] args) {
@@ -85,6 +105,9 @@ public final class PicoActivityTeardownTest {
         failWeb = false; failAudio = false; failInput = false;
         PicoInterfaceActivity current = new PicoInterfaceActivity();
         PicoInterfaceActivity.INSTANCE.register(current);
+        current.onActivityResult(501,0,null); need(documentResults==1 && webResults==0 && qtResults==0);
+        current.onActivityResult(502,0,null); need(documentResults==2 && webResults==1 && qtResults==0);
+        current.onActivityResult(503,0,null); need(documentResults==3 && webResults==2 && qtResults==1);
         current.onResume();
         PicoWebInputGate gate = OffscreenWebView.INPUT_GATE;
         PicoWebInputGate.Ticket ticket = gate.capture();

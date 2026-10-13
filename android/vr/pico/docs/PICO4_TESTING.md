@@ -8,6 +8,10 @@ interaction, tablet/Create UI, serverless worlds, performance tooling, and the
 headset automation scripts without requiring an Android SDK, emulator, or
 headset.
 
+The native Emote app has a registered JavaScript regression and a separate
+real-QML pointer test. See [Pico client apps](pico-client-apps.md) for their
+commands and the corresponding headset acceptance steps.
+
 ## Quick start
 
 Run the complete suite from the repository root:
@@ -76,3 +80,26 @@ it to one or more capabilities in `pico4-coverage.json`. Prefer behavior tests
 for extracted platform-independent logic. Use source contracts only for JNI,
 Android, Qt, or OpenXR paths that cannot execute on the host, and assert safety
 invariants rather than formatting details.
+
+## Native embedded web JNI host check
+
+Run `python3 android/vr/pico/tests/pico-embedded-web-test.py` for the actual Qt5
+Pico-selected world/tablet texture, keyboard and lifecycle checks. To verify the
+JNI method ABI against the compiled production Java, additionally run:
+
+```sh
+python3 android/vr/pico/tests/pico-embedded-web-test.py --api-only --jni-create \
+  --android-jar /absolute/path/to/platforms/android-36/android.jar \
+  --webkit-jar /absolute/path/to/androidx-webkit-1.12.1.jar \
+  --qt-jar /absolute/path/to/qualified/QtAndroid.jar
+```
+
+The three paths must be existing reviewed SDK artifacts. The test first compiles
+the production Pico Activity/Host, shared web runtime and real Qt bindings
+against those APIs; only generated APK resources and PermissionsActivity are
+excluded. It then calls the production native endpoint through a real host JVM,
+checks the distinct bridge and editor bootstrap arguments, and rejects the
+previous compiled create ABI. Only Android Handler/Looper scheduling is replaced
+at the host boundary; the Android WebView, OS prompts and device lifecycle are
+not executed. This check does not build or attest a current Pico APK. Preserve
+artifact hashes and original dependency provenance separately.

@@ -18,12 +18,18 @@ class ProductionJavaCompileTest(unittest.TestCase):
         sdk = Path(os.environ.get('ANDROID_SDK_ROOT', str(Path.home() / 'Android/Sdk')))
         stubs = [HERE / 'java-stubs' / name for name in (
             'org/qtproject/qt5/android/bindings/QtActivity.java',
-            'io/highfidelity/utils/HifiUtils.java', 'org/overte/pico/R.java')]
+            'io/highfidelity/utils/HifiUtils.java', 'org/overte/pico/R.java',
+            'org/overte/web/EmbeddedWebView.java',
+            'org/overte/documents/DocumentAdapter.java', 'org/overte/snapshot/SnapshotAdapter.java')]
         with tempfile.TemporaryDirectory(prefix='pico-production-javac-') as scratch:
             subprocess.run(['javac', '-encoding', 'UTF-8', '-cp',
                 str(sdk / 'platforms/android-36/android.jar'), '-d', scratch,
                 *map(str, sorted(JAVA.glob('*.java'))), *map(str, stubs),
-                str(ROOT / 'security/redaction/java/org/overte/security/SafeDiagnostics.java')],
+                str(ROOT / 'android/common/web/java/org/overte/web/EmbeddedWebHost.java'),
+                str(ROOT / 'android/common/web/java/org/overte/web/WebFilePickerState.java'),
+                str(ROOT / 'security/redaction/java/org/overte/security/SafeDiagnostics.java'),
+                str(ROOT / 'android/common/documents/java/org/overte/documents/DocumentHost.java'),
+                str(ROOT / 'android/common/snapshot/java/org/overte/snapshot/SnapshotHost.java')],
                 check=True, timeout=60)
 
 if __name__ == '__main__':

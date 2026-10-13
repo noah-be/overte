@@ -135,3 +135,72 @@ independently pinned; a graph-info result is not a completed build receipt.
 This is qualified warm reuse, not a fresh cold build or authenticated external
 attestation. Actual immutable payload SHA256, ELF/SONAME/NEEDED/provider/16KiB,
 SBOM and runtime acceptance remain mandatory and distinct.
+
+## Separate producer lineages (explicit v3 contract)
+
+`overte-pico-qualified-inputs-v3` keeps the existing payload, Qt/tool/architecture,
+consumer and runtime checks. V1 and V2 retain their existing validators unchanged.
+V3 additionally requires all three final phases (`bootstrap`, `host-tools`, `target`)
+to belong to `dependencySourceRevision`, with actual completed V3 worker receipts.
+Old receipts and graph binary states are preserved; transport/restore evidence never
+establishes production, and an imported package still needs its original Build origin.
+
+`producerRevisions` maps each full Git revision to `sourceRevision`, `sourceFiles`
+and `sourceFilesSha256`. The hash uses UTF-8 JSON with sorted keys, compact separators
+and ASCII escaping. Each complete owning producer file map is checked against the
+immutable blobs in that exact local Git commit. Only the current producer map is
+compared to the current checkout bytes before and after resolution. Historical maps are independently checked;
+copying the current map onto an old receipt is rejected. The runtime patch and every
+source-ledger/export-index recipe byte are also joined to their own producer map.
+This requires the actual historical Git objects locally; a missing object is a failure.
+
+Each `coldOrigins`, ordered `localBuilds` and `phases` entry specifies `sourceRevision`,
+`producerSourceFilesSha256`, `phase`, `attemptRoot`, and paths for `sourceClosure`,
+`recipeIndex`, `actualGraph`, `expectedGraph` and `checkpoint`. Its `bindings` object
+pins the SHA256 of each artifact, independently of the enclosing payload inventory.
+Original cold graphs still pass the unchanged SH009 completed Build validator.
+Local/final entries additionally pin `receipt`; the receipt must be the original
+`overte-pico-local-producer-receipt-v1` for historical production or the new
+`overte-pico-local-producer-receipt-v3`. It binds its own producer map, zero exit,
+isolated network, jobs and actual/readiness graphs. A completion receipt from a
+different source revision or a transport receipt cannot qualify it.
+
+Per-entry `buildConfigurationIds` and `buildConfigurations` retain the original
+configuration descriptor names. Each descriptor includes `sourceRevision`,
+`sourcePath` (`android/vr/pico/conan/openxr-16k`), `sha256` and `stagedPath`. Both the
+original Git blob at that revision and staged bytes must match. The worker receipt
+must name exactly the same descriptors. Different historical configurations need
+separate entries, rather than replacing their receipt's fields.
+
+New V3 receipts additionally bind `producerSourceFilesSha256`, `checkpointSha256`,
+`sourceClosureSha256`, `recipeIndexSha256`, `configurationSha256`, `buildLogSha256`,
+`workerExitSha256` and `invocationSha256`. Entry paths and `bindings` must include
+`buildLog`, `workerExit` and `invocation`. The actual exit file must contain zero.
+The invocation JSON binds the source revision/map hash, phase, attempt root, jobs,
+network, zero exit, nonempty command argument list and `configurationSha256` (the
+canonical JSON hash of that entry's configuration map). Its `bindings` pins the
+actual graph, readiness, checkpoint, source closure, index, build log and exit file.
+The receipt then pins that invocation; no circular receipt/self hash is required.
+Historical V1 receipts are read without adding these new fields or changing hashes.
+
+Every Cache package recursively joins to a previously proven Build with identical
+Ref/RREV, package ID, PREV, settings/options and full dependency edge identities.
+Only comparison of otherwise identical Linux/x86_64 packages normalizes `host` and
+`build` roles. Current actual context still matches the current readiness exactly;
+Android, other architectures and changed dependencies are never normalized.
+Transitive child PREVs must also match the original Build. Intermediate unused Skip
+nodes establish no origin, and a consumed parent cannot rely on an unproven skipped
+child. Final Skip nodes, missing phases, wrong origins and graph cycles are rejected.
+Per-graph memoization hashes each dependency subtree once and retains its height;
+cycle and 64-node path checks still apply before cached reuse. Evidence is bounded
+at 192 cold origins, 256 local builds, 32768 total nodes and 262144 dependency edges.
+The final result preserves observed Cache/Build states and names its original
+production source, checkpoint and worker receipt where present. It remains byte and
+relationship verification, not authenticated producer attestation, a cold build,
+current APK qualification or physical device acceptance.
+
+Run `python3 android/vr/pico/tests/test_qualified_reuse_v3.py` for the actual consumer
+and validator with temporary real Git histories and explicitly synthetic Conan/ELF
+records. It checks map/revision swaps, tampering, original receipt/configuration
+bindings, recursive PREV changes, transport confusion and missing final phases.
+These test records are not production receipts or native build results.
