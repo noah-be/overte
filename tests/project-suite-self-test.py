@@ -62,6 +62,7 @@ class ProjectSuiteCliTests(unittest.TestCase):
             "device-control-plane-full", "safe-landing-lifecycle",
             "embedded-web-policy", "embedded-web-qml", "account-auth-dispatch",
             "recorded-voice-native", "recorded-voice-qml", "snapshot-native", "snapshot-qml",
+            "document-tree-native",
         })
         self.assertEqual(set(native), set(quick) | {"native-ctest"})
         self.assertIn("fixture-platform", host)
