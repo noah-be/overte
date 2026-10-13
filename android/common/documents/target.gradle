@@ -1,0 +1,4 @@
+// Copyright 2026 Overte contributors.
+// SPDX-License-Identifier: Apache-2.0
+if (!project.hasProperty('overteDocumentsRoot')) throw new GradleException('overteDocumentsRoot is required')
+android.sourceSets.main.java.srcDir new File(project.overteDocumentsRoot, 'java')
