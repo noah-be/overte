@@ -188,6 +188,7 @@ public:
 
     // Compatibility with QFileDialog::getOpenFileName
     static QString getOpenFileName(void* ignored, const QString &caption = QString(), const QString &dir = QString(), const QString &filter = QString(), QString *selectedFilter = 0, QFileDialog::Options options = QFileDialog::Options());
+    static ModalDialogListener* getOpenFileBundleAsync(const QString& caption, const QString& dir, const QString& primaryFilter);
     static ModalDialogListener* getOpenFileNameAsync(void* ignored, const QString &caption = QString(), const QString &dir = QString(), const QString &filter = QString(), QString *selectedFilter = 0, QFileDialog::Options options = QFileDialog::Options());
 
     // Compatibility with QFileDialog::getSaveFileName

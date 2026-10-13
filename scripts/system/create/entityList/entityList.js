@@ -90,6 +90,7 @@ var EntityListTool = function(shouldUseEditTabletApp, selectionManager) {
     that.setVisible(false);
 
     function emitJSONScriptEvent(data) {
+        if (typeof that.onNativeEvent === "function") { that.onNativeEvent(data); }
         var dataString;
         PROFILE("Script-JSON.stringify", function() {
             dataString = JSON.stringify(data);
@@ -235,6 +236,7 @@ var EntityListTool = function(shouldUseEditTabletApp, selectionManager) {
                         SelectionDisplay.allToolEntities, 
                         allOverlays,
                         that.createApp.entityShapeVisualizerLocalEntityToExclude,
+                        that.createApp.editVoxels ? that.createApp.editVoxels.getLocalEntityToExclude() : [],
                         tabletLocalEntityToExclude
                     );
                     for (var i = localIds.length - 1; i >= 0; i--) {
@@ -483,6 +485,8 @@ var EntityListTool = function(shouldUseEditTabletApp, selectionManager) {
 
     };
 
+    // Native transport delegates to the established list/export command path.
+    that.handleNativeEvent = function(data) { onWebEventReceived(JSON.stringify(data)); };
     webView.webEventReceived.connect(onWebEventReceived);
     entityListWindow.webEventReceived.addListener(onWebEventReceived);
     that.interactiveWindowHidden = entityListWindow.interactiveWindowHidden;

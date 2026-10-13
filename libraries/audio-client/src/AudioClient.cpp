@@ -846,6 +846,11 @@ void AudioClient::audioMixerKilled() {
 }
 
 void AudioClient::setAudioPaused(bool pause) {
+    if (QThread::currentThread() != thread()) {
+        QMetaObject::invokeMethod(this, [this, pause] { setAudioPaused(pause); }, Qt::QueuedConnection);
+        return;
+    }
+    if (pause && _recordedVoiceTestActive) { finishRecordedVoiceTest("cancelled", "backgrounded"); }
     if (_audioPaused != pause) {
         _audioPaused = pause;
 
@@ -1251,6 +1256,7 @@ void AudioClient::stop() {
     // Synchronize callback unregistration before QObject/device teardown.
     overte::audio::setIOSAudioStateCallback({});
 #endif
+    if (_recordedVoiceTestActive) { finishRecordedVoiceTest("cancelled", "lifecycle-stopped"); }
 #if defined(OVERTE_E2E_VOICE_TESTS)
     if (_voiceTestInputEnabled) { stopVoiceTestInput("voice-source-lifecycle-stopped"); }
 #endif
@@ -1736,19 +1742,127 @@ void AudioClient::processWebrtcNearEnd(int16_t* samples, int numFrames, int numC
 
 #endif // WEBRTC_AUDIO
 
-void AudioClient::handleLocalEchoAndReverb(QByteArray& inputByteArray) {
-#if defined(ANDROID_APP_PHONE_INTERFACE)
-    const auto voiceTestGeneration = _phoneVoiceTestGeneration.load();
-    if (voiceTestGeneration != _phoneVoiceTestObservedGeneration || !_shouldEchoLocally) {
-        _phoneVoiceTest.reset();
-        _phoneVoiceTestObservedGeneration = voiceTestGeneration;
-    }
+bool AudioClient::recordedVoiceTestInputAvailable() const {
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    if (_androidAudioInputActive) { return true; }
 #endif
+    return _audioInput && _inputDevice && _audioInput->state() != QAudio::StoppedState &&
+        _audioInput->error() == QAudio::NoError;
+}
+
+void AudioClient::publishRecordedVoiceTestStatus(const QString& phase, const QString& error) {
+    emit recordedVoiceTestStatusChanged({ { "phase", phase }, { "error", error },
+        { "capturedBytes", static_cast<qint64>(_recordedVoiceTest.capturedBytes()) },
+        { "playedBytes", static_cast<qint64>(_recordedVoiceTest.playedBytes()) },
+        { "totalBytes", _recordedVoiceTestLimit } });
+}
+
+void AudioClient::finishRecordedVoiceTest(const QString& phase, const QString& error) {
+    _recordedVoiceTestActive = false;
+    if (_recordedVoiceTestTimer) { _recordedVoiceTestTimer->stop(); }
+    // This sink is dedicated to loopback; never reset the world's output sink.
+    _loopbackPendingAudio.clear();
+    if (_loopbackAudioOutput) { _loopbackAudioOutput->reset(); }
+    _loopbackOutputDevice = nullptr;
+    publishRecordedVoiceTestStatus(phase, error);
+    _recordedVoiceTest.reset();
+    _recordedVoiceTestLimit = 0;
+    _recordedVoiceTestDrainElapsed.invalidate();
+}
+
+void AudioClient::cancelRecordedVoiceTest() {
+    if (QThread::currentThread() != thread()) {
+        QMetaObject::invokeMethod(this, [this] { cancelRecordedVoiceTest(); }, Qt::QueuedConnection);
+        return;
+    }
+    if (_recordedVoiceTestActive) { finishRecordedVoiceTest("cancelled"); }
+}
+
+void AudioClient::setLocalEcho(bool localEcho) {
+    if (QThread::currentThread() != thread()) {
+        QMetaObject::invokeMethod(this, [this, localEcho] { setLocalEcho(localEcho); }, Qt::QueuedConnection);
+        return;
+    }
+    // The existing echo API remains live echo. Recorded preview is explicit
+    // and never changes the user's current live-echo setting.
+    if (_recordedVoiceTestActive) { finishRecordedVoiceTest("cancelled", "live-echo-changed"); }
+    _shouldEchoLocally = localEcho;
+}
+
+void AudioClient::startRecordedVoiceTest() {
+    if (QThread::currentThread() != thread()) {
+        QMetaObject::invokeMethod(this, [this] { startRecordedVoiceTest(); }, Qt::QueuedConnection);
+        return;
+    }
+    if (_recordedVoiceTestActive) { finishRecordedVoiceTest("cancelled", "restarted"); }
+    _recordedVoiceTest.reset();
+    _recordedVoiceTestLimit = 0;
+    QString error;
+    if (_isMuted) { error = "microphone-muted"; }
+    else if (!_audioLifecycleRunning || _audioPaused) { error = "audio-inactive"; }
+    else if (_shouldEchoLocally) { error = "live-echo-enabled"; }
+    else if (_isPlayingBackRecording || !recordedVoiceTestInputAvailable()) { error = "input-unavailable"; }
+    else if (!_audioOutput || !_loopbackAudioOutput || !_audioOutputInitialized.load(std::memory_order_acquire)) {
+        error = "output-unavailable";
+    }
+    else if (_outputFormat.channelCount() <= 0 || _outputFormat.sampleRate() <= 0) { error = "invalid-format"; }
+    if (!error.isEmpty()) { publishRecordedVoiceTestStatus("error", error); return; }
+    _recordedVoiceTestLimit = _outputFormat.bytesForDuration(3 * USECS_PER_SECOND);
+    if (_recordedVoiceTestLimit <= 0 || _recordedVoiceTestLimit > 16 * 1024 * 1024) {
+        _recordedVoiceTestLimit = 0;
+        publishRecordedVoiceTestStatus("error", "invalid-format");
+        return;
+    }
+    _loopbackPendingAudio.clear();
+    _loopbackAudioOutput->reset();
+    _loopbackOutputDevice = nullptr;
+    _recordedVoiceTestActive = true;
+    _recordedVoiceTestElapsed.start();
+    _recordedVoiceTestDrainElapsed.invalidate();
+    if (!_recordedVoiceTestTimer) {
+        _recordedVoiceTestTimer = new QTimer(this);
+        _recordedVoiceTestTimer->setInterval(250);
+        connect(_recordedVoiceTestTimer, &QTimer::timeout, this, [this] {
+            if (!_recordedVoiceTestActive) { return; }
+            if (!_audioLifecycleRunning || _audioPaused || _isMuted || !recordedVoiceTestInputAvailable()) {
+                finishRecordedVoiceTest("cancelled", "input-or-lifecycle-changed");
+            } else if (!_audioOutputInitialized.load(std::memory_order_acquire) ||
+                    !_loopbackAudioOutput || _loopbackAudioOutput->error() != QAudio::NoError) {
+                finishRecordedVoiceTest("error", "output-unavailable");
+            } else if (_recordedVoiceTest.finished() && _loopbackPendingAudio.isEmpty()) {
+                if (!_recordedVoiceTestDrainElapsed.isValid()) { _recordedVoiceTestDrainElapsed.start(); }
+                // Wait until the native sink has consumed the final pushed
+                // samples; writing to its queue is not audible completion.
+                if (_recordedVoiceTestDrainElapsed.elapsed() >= 250 &&
+                        (_loopbackAudioOutput->state() == QAudio::IdleState ||
+                         _loopbackAudioOutput->bytesFree() >= _loopbackAudioOutput->bufferSize())) {
+                    finishRecordedVoiceTest("completed");
+                } else if (_recordedVoiceTestElapsed.elapsed() > 12000) {
+                    finishRecordedVoiceTest("error", "playback-stalled");
+                } else { publishRecordedVoiceTestStatus("draining"); }
+            } else if (_recordedVoiceTestElapsed.elapsed() > 12000 ||
+                    (!_recordedVoiceTest.playing() && _recordedVoiceTestElapsed.elapsed() > 6000)) {
+                finishRecordedVoiceTest("error", "capture-or-playback-stalled");
+            } else {
+                publishRecordedVoiceTestStatus(_recordedVoiceTest.playing() ? "playing" : "capturing");
+            }
+        });
+    }
+    _recordedVoiceTestTimer->start();
+    publishRecordedVoiceTestStatus("capturing");
+}
+
+void AudioClient::handleLocalEchoAndReverb(QByteArray& inputByteArray) {
+    if (_recordedVoiceTestActive && (_isMuted || _audioPaused || !_audioLifecycleRunning)) {
+        finishRecordedVoiceTest("cancelled", "input-or-lifecycle-changed");
+        return;
+    }
+    const bool localPreview = _shouldEchoLocally || _recordedVoiceTestActive;
     // If there is server echo, reverb will be applied to the recieved audio stream so no need to have it here.
     bool hasReverb = _reverb || _receivedAudioStream.hasReverb();
-    if ((_isMuted && !_shouldEchoLocally) || !_audioOutput || !_loopbackAudioOutput ||
+    if ((_isMuted && !localPreview) || !_audioOutput || !_loopbackAudioOutput ||
             !_audioOutputInitialized.load(std::memory_order_acquire) ||
-            (!_shouldEchoLocally && !hasReverb) || (!_shouldEchoLocally && !_audioGateOpen)) {
+            (!localPreview && !hasReverb) || (!localPreview && !_audioGateOpen)) {
         _loopbackPendingAudio.clear();
         return;
     }
@@ -1794,28 +1908,6 @@ void AudioClient::handleLocalEchoAndReverb(QByteArray& inputByteArray) {
 
     loopBackByteArray.resize(numLoopbackSamples * AudioConstants::SAMPLE_SIZE);
 
-#if defined(ANDROID_APP_PHONE_INTERFACE)
-    if (_shouldEchoLocally) {
-        static quint64 lastVoiceDiagnostic { 0 };
-        const auto now = usecTimestampNow();
-        if (now - lastVoiceDiagnostic >= USECS_PER_SECOND) {
-            lastVoiceDiagnostic = now;
-            int peak = 0;
-            for (int i = 0; i < numLoopbackSamples; ++i) {
-                peak = std::max(peak, std::abs(static_cast<int>(loopbackSamples[i])));
-            }
-            // Closed numeric diagnostics only; no audio, names or routes.
-            qCWarning(audioclient) << "OVT_PHONE_TABLET_VOICE"
-                << static_cast<int>(_isMuted) << static_cast<int>(_audioGateOpen)
-                << peak << static_cast<int>(_phoneVoiceTest.capturedBytes())
-                << static_cast<int>(_phoneVoiceTest.playedBytes())
-                << _inputFormat.sampleRate() << _outputFormat.sampleRate()
-                << static_cast<int>(_loopbackAudioOutput->state())
-                << static_cast<int>(_loopbackAudioOutput->error());
-        }
-    }
-#endif
-
     // Keep the loopback output active while the noise gate is closed. Starting
     // and starving a push-mode HifiAudioSink at every speech boundary produces
     // audible clicks on Android. Silence preserves the gate behavior without
@@ -1827,7 +1919,7 @@ void AudioClient::handleLocalEchoAndReverb(QByteArray& inputByteArray) {
 #endif
 
     // apply stereo reverb at the source, to the loopback audio
-    if (!_shouldEchoLocally && hasReverb) {
+    if (!localPreview && hasReverb) {
         updateReverbOptions();
         _sourceReverb.render(loopbackSamples, loopbackSamples, numLoopbackSamples/2);
     }
@@ -1856,21 +1948,29 @@ void AudioClient::handleLocalEchoAndReverb(QByteArray& inputByteArray) {
     // Android capture delivery can be batched when the main thread is busy.
     // HifiAudioSink may then accept only part of a push-mode write. Retain the
     // remainder instead of dropping it and introducing a discontinuity.
-#if defined(ANDROID_APP_PHONE_INTERFACE)
-    if (_shouldEchoLocally) {
-        const auto testOutput = _phoneVoiceTest.process(outputBytes->constData(),
-            outputBytes->size(), _outputFormat.bytesForDuration(3 * USECS_PER_SECOND), true);
-        _loopbackPendingAudio.append(testOutput.data(), static_cast<int>(testOutput.size()));
+    if (_recordedVoiceTestActive) {
+        if (!_recordedVoiceTest.finished()) {
+            const auto testOutput = _recordedVoiceTest.process(outputBytes->constData(),
+                outputBytes->size(), static_cast<std::size_t>(_recordedVoiceTestLimit), true);
+            if (_recordedVoiceTest.playing() && !_recordedVoiceTest.hasSignal()) {
+                finishRecordedVoiceTest("error", "no-microphone-signal");
+                return;
+            }
+            _loopbackPendingAudio.append(testOutput.data(), static_cast<int>(testOutput.size()));
+        }
+        // Once replay ends, drain only the saved remainder. Continuing to
+        // push microphone-sized silence would keep a real sink active forever.
     } else {
         _loopbackPendingAudio.append(*outputBytes);
     }
-#else
-    _loopbackPendingAudio.append(*outputBytes);
-#endif
 
     const int frameBytes = deviceChannelCount * AudioConstants::SAMPLE_SIZE;
     const int maxPendingBytes = static_cast<int>(_outputFormat.bytesForDuration(250 * USECS_PER_MSEC));
     if (_loopbackPendingAudio.size() > maxPendingBytes) {
+        if (_recordedVoiceTestActive) {
+            finishRecordedVoiceTest("error", "playback-queue-overflow");
+            return;
+        }
         int bytesToDrop = _loopbackPendingAudio.size() - maxPendingBytes;
         bytesToDrop = ((bytesToDrop + frameBytes - 1) / frameBytes) * frameBytes;
         _loopbackPendingAudio.remove(0, bytesToDrop);
@@ -1885,6 +1985,10 @@ void AudioClient::handleLocalEchoAndReverb(QByteArray& inputByteArray) {
         if (bytesWritten > 0) {
             _loopbackPendingAudio.remove(0, static_cast<int>(bytesWritten));
         } else if (bytesWritten < 0) {
+            if (_recordedVoiceTestActive) {
+                finishRecordedVoiceTest("error", "playback-write-failed");
+                return;
+            }
             qCWarning(audioclient) << "Failed to write loopback audio" << _loopbackAudioOutput->error();
         }
     }
@@ -2578,12 +2682,11 @@ void AudioClient::sendMuteEnvironmentPacket() {
 }
 
 void AudioClient::setMuted(bool muted, bool emitSignal) {
-#if defined(Q_OS_IOS)
     if (QThread::currentThread() != thread()) {
         QMetaObject::invokeMethod(this, [this, muted, emitSignal] { setMuted(muted, emitSignal); }, Qt::QueuedConnection);
         return;
     }
-#endif
+    if (muted && _recordedVoiceTestActive) { finishRecordedVoiceTest("cancelled", "microphone-muted"); }
     if (_isMuted != muted) {
         _isMuted = muted;
 #if defined(Q_OS_IOS)
@@ -2729,6 +2832,7 @@ void AudioClient::refreshIOSAudioInput() {
 
 bool AudioClient::switchInputToAudioDevice(const HifiAudioDeviceInfo inputDeviceInfo, bool isShutdownRequest) {
     Q_ASSERT_X(QThread::currentThread() == thread(), Q_FUNC_INFO, "Function invoked on wrong thread");
+    if (_recordedVoiceTestActive) { finishRecordedVoiceTest("cancelled", "input-changed"); }
 
     qCDebug(audioclient) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     bool supportedFormat = false;
@@ -3043,6 +3147,7 @@ void AudioClient::noteAwakening() {
 
 bool AudioClient::switchOutputToAudioDevice(const HifiAudioDeviceInfo outputDeviceInfo, bool isShutdownRequest) {
     Q_ASSERT_X(QThread::currentThread() == thread(), Q_FUNC_INFO, "Function invoked on wrong thread");
+    if (_recordedVoiceTestActive) { finishRecordedVoiceTest("cancelled", "output-changed"); }
     
     qCDebug(audioclient) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     bool supportedFormat = false;
