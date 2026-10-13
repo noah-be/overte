@@ -51,6 +51,11 @@
       "name": "android-snapshot",
       "entrypoint": "android/common/snapshot/tests/run.py",
       "interpreter": "python"
+    },
+    {
+      "name": "android-documents",
+      "entrypoint": "android/common/documents/tests/run.py",
+      "interpreter": "python"
     }
   ]
 }
