@@ -10,6 +10,12 @@
 #include <QTimer>
 #include <QImage>
 #include <QLoggingCategory>
+#include <QtCore/QElapsedTimer>
+#include <QtCore/QCryptographicHash>
+// Phone builds use their production diagnostics header at the host boundary.
+#if __has_include(<PhoneLoadingDiagnostics.h>)
+#include <PhoneLoadingDiagnostics.h>
+#endif
 #include <shared/HifiTypes.h>
 #include <glm/glm.hpp>
 #include <sstream>
