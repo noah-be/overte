@@ -46,6 +46,11 @@
       "name": "android-embedded-web",
       "entrypoint": "android/common/web/tests/run.py",
       "interpreter": "python"
+    },
+    {
+      "name": "android-snapshot",
+      "entrypoint": "android/common/snapshot/tests/run.py",
+      "interpreter": "python"
     }
   ]
 }
