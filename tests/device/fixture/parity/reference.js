@@ -19,7 +19,8 @@
         show("fileStatus", file ? "Selected " + file.size + " bytes (" + (file.type || "unknown type") + ")" : "No file selected");
         if (file && /^image\//.test(file.type)) {
             imageUrl = URL.createObjectURL(file);
-            node("filePreview").src = imageUrl;
+            // Keep file content in a blob and encode the URL for its DOM attribute context.
+            node("filePreview").src = encodeURI(imageUrl);
             node("filePreview").style.display = "block";
         }
     };

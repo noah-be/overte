@@ -4,6 +4,9 @@
 public final class DocumentBoundary {
     public static String request, root, caption, filter, cancelled;
     public static boolean multiple;
+    public static void requestTree(String id, String location, String title) {
+        request=id; root=location; caption=title; filter=""; multiple=false;
+    }
     public static void request(String id, String location, String title, String types, boolean many) {
         request=id; root=location; caption=title; filter=types; multiple=many;
     }
