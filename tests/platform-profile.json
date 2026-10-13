@@ -3,6 +3,11 @@
   "platform": "android",
   "suites": [
     {
+      "name": "android-package-binding",
+      "entrypoint": "android/common/conan/test_package_folder.py",
+      "interpreter": "python"
+    },
+    {
       "name": "pico4-device-free",
       "entrypoint": "android/vr/pico/tests/pico-device-free-test.sh",
       "interpreter": "bash"
