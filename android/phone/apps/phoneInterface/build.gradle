@@ -739,3 +739,7 @@ apply from: new File(overteEmbeddedWebRoot, 'target.gradle')
 // Snapshot exports share the Android parent provider and native validation.
 ext.overteSnapshotRoot = file('../../../common/snapshot')
 apply from: new File(overteSnapshotRoot, 'target.gradle')
+
+// Provider documents materialize through the parent's FileDialogHelper operator.
+ext.overteDocumentsRoot = file('../../../common/documents')
+apply from: new File(overteDocumentsRoot, 'target.gradle')

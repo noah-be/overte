@@ -64,3 +64,6 @@ target_sources(${TARGET_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src/PhoneEmbe
 
 include("${CMAKE_CURRENT_SOURCE_DIR}/../../../common/snapshot/target.cmake")
 overte_target_snapshot(${TARGET_NAME})
+
+include("${CMAKE_CURRENT_SOURCE_DIR}/../../../common/documents/target.cmake")
+overte_target_documents(${TARGET_NAME})

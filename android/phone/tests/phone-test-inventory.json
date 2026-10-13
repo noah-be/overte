@@ -213,6 +213,9 @@
     ],
     "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneSnapshotHost.java": [
       "android/phone/tests/phone-embedded-web-test.py"
+    ],
+    "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneDocumentsHost.java": [
+      "android/phone/tests/phone-embedded-web-test.py"
     ]
   },
   "runtime_boundaries": {
