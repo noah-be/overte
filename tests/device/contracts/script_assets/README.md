@@ -106,6 +106,18 @@ local provider copies stay owned by the platform adapter for later script execut
 and asynchronous uploads. The Add uploaded model action uses the existing rez path.
 Read-only asset browse/import and rename/delete/mapping/baking remain available.
 
+The focused test_obj_material_bundle.py compiles and executes the complete production
+OBJSerializer::read, tokenizer, geometry/group, face, MTL and requestData bodies. Real
+GLM and the production HFM Texture/Material/MeshPart value declarations are used;
+GPU material setters, unrelated transform/sampler fields and model storage remain
+explicit host boundaries. The produced HFM texture passes through the actual
+NetworkMaterial::getTextureUrl body and its requested PNG bytes decode with Qt.
+ATP/local paths, multiple MTL bases, all supported MTL texture fields, missing libraries
+and the existing flattened-export fallback execute against an asynchronous local
+ResourceManager provider boundary. Relative HFM filenames retain the explicit FST
+texdir/textureBaseURL override; explicit external references retain their origin. This does not qualify GPU drawing or a live server.
+Set OVERTE_TEST_GLM_INCLUDE to real GLM headers when they are not installed systemwide.
+
 The standalone test_document_tree_abi.py executes the production Qt helper and
 Offscreen bundle route with real files, separate tree/file operators, foreign-thread
 completion, stale callbacks and owner destruction on Qt5/Qt6. Actual Android/iOS
