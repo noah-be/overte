@@ -106,3 +106,28 @@ python3 android/common/web/tests/run.py --native \
 module does not carry a second policy. Provider capability, foreground races,
 DOM IME, approved local docs, browser history, EventBridge and user-driven video/
 audio must also pass on the exact Phone/Pico application artifact and hardware.
+
+Native overlays receive separate scene bounds and the intersection of QML clip
+ancestors. The three-argument Host placement callback must apply that clip along
+with the actual platform surface clip; its two-argument compatibility fallback
+cannot establish clipping acceptance. Scene rectangles describe bounding boxes,
+so arbitrary rotated overlays still need product qualification. Hosts may call
+`EmbeddedWebView.relayout(this)` when their native surface dimensions arrive or
+change; this retries placement without rebinding a document or source grant.
+
+The selected Android backend supports `presentation: "auto"`, `"texture"`, or
+`"native-overlay"`. Auto uses an overlay for tablets and textures for world
+entities. A visible texture tablet can invoke the OS file picker only after the
+native policy verifies its current Tablet grant, exact page and document. World
+entities cannot obtain picker permission by changing presentation.
+
+Texture layout and pointer input use the same actual Android display density;
+Canvas drawing converts back to CSS-size texture pixels. The image stays within
+2048 pixels per edge with preserved aspect ratio, while native layout is capped
+at 8192 pixels per edge. Slow whole-document drawing is enabled before the first
+WebView. These host checks do not qualify scrolling or media on a target device.
+The backend exposes read-only `editorFocused`, `editorNumeric`, `editorPassword`
+and `editorFocusChanged(active,numeric,password)` for product keyboard routing.
+Focus clears on navigation, hiding, backgrounding and native focus loss. Text
+input on a document outside the bridge's originating origin still requires a
+separate private editor transport and remains unqualified.

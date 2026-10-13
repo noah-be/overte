@@ -4,6 +4,32 @@ package org.overte.web;
 public final class WebLifetimeTest {
     private static void check(boolean value) { if (!value) throw new AssertionError(); }
     public static void main(String[] arguments) {
+        WebTextureScale scale = new WebTextureScale(4096, 2048, 2.5f);
+        check(scale.width == 2048 && scale.height == 1024 && scale.layoutWidth == 5120 && scale.layoutHeight == 2560);
+        check(scale.pointer(100) == 250);
+        scale = new WebTextureScale(400, 300, 1.5f);
+        check(scale.width == 400 && scale.layoutWidth == 600 && scale.layoutHeight == 450 && scale.pointer(20) == 30);
+        for (float invalid : new float[]{0, -1, Float.NaN, Float.POSITIVE_INFINITY, 100}) {
+            boolean denied = false;
+            try { new WebTextureScale(2048, 1024, invalid); } catch (IllegalArgumentException expected) { denied = true; }
+            check(denied);
+        }
+        java.util.ArrayList<String> selections = new java.util.ArrayList<>();
+        WebFilePickerState<String> picker = new WebFilePickerState<>();
+        int request = picker.begin(selections::add);
+        check(request != 0 && picker.begin(selections::add) == 0);
+        check(!picker.receive(request + 1, "foreign", true));
+        check(picker.receive(request, "selected", false) && selections.isEmpty());
+        check(!picker.receive(request, "duplicate", true)); picker.deliver(true);
+        check(selections.size() == 1 && "selected".equals(selections.get(0)));
+        picker.deliver(true); picker.cancel(); check(selections.size() == 1);
+        int nextRequest = picker.begin(selections::add); check(nextRequest > request);
+        check(!picker.receive(request, "old", true)); picker.cancel();
+        check(selections.size() == 2 && selections.get(1) == null);
+        WebFilePickerState<String> replacement = new WebFilePickerState<>();
+        int third = replacement.begin(selections::add); check(third > nextRequest);
+        check(!replacement.receive(nextRequest, "old Activity", true));
+        check(replacement.receive(third, null, true) && selections.size() == 3 && selections.get(2) == null);
         Object first = new Object(), second = new Object();
         WebInputGate gate = new WebInputGate();
         check(gate.capture() == null); gate.update(first, true);
