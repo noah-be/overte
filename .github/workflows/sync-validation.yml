@@ -90,6 +90,15 @@ jobs:
             qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-layouts \
             qml6-module-qtquick-templates qml6-module-qtquick-window \
             qml6-module-qt-labs-settings qml6-module-qtquick-dialogs qml6-module-qttest
+      - name: Prepare isolated product Python validators
+        if: inputs.mode == 'reuse' && inputs.profile != 'documentation' && inputs.profile != 'tool-dependencies'
+        working-directory: candidate
+        env:
+          GH_TOKEN: ""
+          GITHUB_TOKEN: ""
+        run: |
+          python3 -m venv build/host-tests-env
+          build/host-tests-env/bin/python -m pip install --disable-pip-version-check -r ../trusted/tests/requirements-host.txt
       - name: Run product suites not covered by shared parent qualification
         if: inputs.mode == 'reuse' && inputs.profile != 'documentation' && inputs.profile != 'tool-dependencies'
         working-directory: candidate
@@ -97,7 +106,7 @@ jobs:
           GH_TOKEN: ""
           GITHUB_TOKEN: ""
         run: >-
-          python3 tests/run-project-tests.py --platform-only --timeout 240
+          build/host-tests-env/bin/python tests/run-project-tests.py --platform-only --timeout 240
           --junit build/test-results/sync-platform-tests.xml
       - name: Check only affected tool dependencies and behavior
         if: inputs.mode == 'reuse' && inputs.profile == 'tool-dependencies'
