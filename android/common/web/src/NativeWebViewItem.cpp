@@ -74,7 +74,7 @@ NativeWebViewItem::NativeWebViewItem(QQuickItem* parent) : QQuickItem(parent),
     { QMutexLocker guard(&registryMutex);
       if (nextHandle > 0) { _handle = nextHandle; nextHandle = nextHandle == std::numeric_limits<jlong>::max() ? 0 : nextHandle + 1; registry.insert(_handle, this); } }
     _session.setForeground(foreground.load());
-    setFlag(ItemHasContents, true); setFlag(ItemAcceptsInputMethod, true); setAcceptedMouseButtons(Qt::LeftButton);
+    setFlag(ItemHasContents, true); setFlag(ItemAcceptsInputMethod, true); setAcceptedMouseButtons(Qt::LeftButton); setAcceptHoverEvents(true);
     _channel->registerObject("eventBridge", _bridge);
     _channel->registerObject("eventBridgeWrapper", new NativeBridgeWrapper(_bridge, this));
     _channel->connectTo(_transport);
@@ -354,10 +354,13 @@ void NativeWebViewItem::pointer(int action, const QPointF& position) {
     QPointF pixel = position; { QMutexLocker guard(&_mutex); if (!_image.isNull() && width() > 0 && height() > 0) pixel = QPointF(position.x() * _image.width()/width(), position.y() * _image.height()/height()); }
     jvalue args[4]; args[0].j = _handle; args[1].i = action; args[2].f = pixel.x(); args[3].f = pixel.y(); call("pointer", "(JIFF)V", args);
 }
-void NativeWebViewItem::mousePressEvent(QMouseEvent* event) { forceActiveFocus(Qt::MouseFocusReason); _pressed = true; pointer(0, event->localPos()); event->accept(); }
-void NativeWebViewItem::mouseMoveEvent(QMouseEvent* event) { pointer(2, event->localPos()); event->accept(); }
-void NativeWebViewItem::mouseReleaseEvent(QMouseEvent* event) { pointer(1, event->localPos()); _pressed = false; event->accept(); }
+void NativeWebViewItem::mousePressEvent(QMouseEvent* event) { forceActiveFocus(Qt::MouseFocusReason); if (_pressed) pointer(3, {}); _pressed = true; pointer(0, event->localPos()); event->accept(); }
+void NativeWebViewItem::mouseMoveEvent(QMouseEvent* event) { if (!_pressed) { event->ignore(); return; } pointer(2, event->localPos()); event->accept(); }
+void NativeWebViewItem::mouseReleaseEvent(QMouseEvent* event) { if (!_pressed) { event->ignore(); return; } pointer(1, event->localPos()); _pressed = false; event->accept(); }
 void NativeWebViewItem::mouseUngrabEvent() { if (_pressed) { pointer(3, {}); _pressed = false; } }
+void NativeWebViewItem::hoverEnterEvent(QHoverEvent* event) { pointer(9, event->posF()); event->accept(); }
+void NativeWebViewItem::hoverMoveEvent(QHoverEvent* event) { pointer(7, event->posF()); event->accept(); }
+void NativeWebViewItem::hoverLeaveEvent(QHoverEvent* event) { pointer(10, event->posF()); event->accept(); }
 void NativeWebViewItem::wheelEvent(QWheelEvent* event) {
     const auto dy = event->angleDelta().y(); runJavaScript(QStringLiteral("window.scrollBy(0,%1);").arg(-dy)); event->accept();
 }

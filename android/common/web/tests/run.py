@@ -27,6 +27,7 @@ with tempfile.TemporaryDirectory(prefix='overte-embedded-web-') as temporary:
         str(WEB / 'java/org/overte/web/WebFileChoiceLease.java'),
         str(WEB / 'java/org/overte/web/WebTextureScale.java'),
         str(WEB / 'java/org/overte/web/WebFilePickerState.java'),
+        str(WEB / 'java/org/overte/web/WebPointerState.java'),
         str(WEB / 'tests/java/org/overte/web/WebLifetimeTest.java')], check=True)
     subprocess.run(['java', '-cp', str(stage), 'org.overte.web.WebLifetimeTest'], check=True)
     if args.android_jar or args.webkit_jar:
