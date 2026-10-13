@@ -258,7 +258,11 @@ class ConanCacheManagerTest(unittest.TestCase):
             encoding="utf-8")
         for source in (pico, phone, non_qt):
             self.assertIn('conan_home="${CONAN_HOME:-${HOME}/.conan2}"', source)
-        self.assertIn('${CONAN_HOME:-${HOME}/.conan2}/p', phone_entry)
+        if 'common/conan/package-folder.py' in phone_entry:
+            self.assertIn('phone-16k-debug/generators/draco-debug-armv8-data.cmake', phone_entry)
+            self.assertIn('python3 "$android_root/common/conan/package-folder.py" "$generator" draco', phone_entry)
+        else:
+            self.assertIn('${CONAN_HOME:-${HOME}/.conan2}/p', phone_entry)
         self.assertIn('PHONE_SHARED_CONAN_HOME:-${HOME}/.conan2', phone_entry)
         self.assertNotIn("env -i", pico)
         self.assertNotIn("unset CONAN_HOME", pico + phone_entry + phone + non_qt)
