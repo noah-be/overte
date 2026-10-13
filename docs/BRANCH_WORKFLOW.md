@@ -239,6 +239,15 @@ complete fallback, even for Markdown or valid parent qualification. This is
 conservative: a listed path inherited unchanged from the parent also forces
 fallback. No new direct-sync, topology, or ruleset exception is introduced.
 
+The Phone preview-cancellation transition registers only the existing
+`android/phone/tests/phone-voice-clock-fixture.cpp` and
+`android/phone/tests/phone-voice-clock-test.py` paths. They allow the Phone-owned
+clock fixture to follow the current Android audio interface during an attested
+direct-parent reconciliation. Product implementation, neighboring tests and
+shared audio changes are outside this registration. Each path independently
+forces the complete fallback; the registration does not qualify an APK or a
+physical-device journey.
+
 
 The iOS ownership transition has seven exact native-only repair inputs: the
 iOS audio adapter pair, the native binding tests, the retained Appium adapter
