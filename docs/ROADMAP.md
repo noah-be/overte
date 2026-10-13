@@ -55,12 +55,18 @@ audit found gaps in Create/Emote entry points, world/tablet HTML, graphics contr
 recorded voice testing and automatic Pico login. Shared omissions and runtime
 limits remain visible in the contract.
 
-**Single next action:** Integrate the shared native web/editor contracts into all
-three client paths, then qualify the resulting named artifacts on real devices.
+**Single next action:** Qualify and integrate the reviewed common and platform
+source through the regular parent hierarchy before building the exact native
+candidates.
 
 This work is coordinated through three High-reasoning client sessions with
-isolated worktrees and a shared integration owner. It does not create or close
-GitHub issues or a new native GitHub milestone implicitly.
+isolated worktrees and a shared integration owner. On 2026-10-13 the owner
+explicitly requested the three client milestones and their open/closed issue
+inventory: [IOS-P2](https://github.com/noah-be/overte/milestone/6),
+[PHONE-P2](https://github.com/noah-be/overte/milestone/4) and
+[PICO-P2](https://github.com/noah-be/overte/milestone/5).
+Completed source/host tasks and open current-artifact acceptance criteria are
+separate; the completed personal-alpha history is retained.
 
 ## NEXT
 
@@ -143,9 +149,9 @@ resumption milestone.
 
 | Product | Priority | Current status | Next milestone |
 | --- | --- | --- | --- |
-| Pico 4 | NOW (shared parity) | [Personal alpha completed](https://github.com/noah-be/overte/milestone/1) | CLIENT-PARITY: shared features and artifact-bound acceptance |
-| iPad | NOW (shared parity) | [Personal alpha completed](https://github.com/noah-be/overte/milestone/3) | CLIENT-PARITY: shared features and artifact-bound acceptance; iPhone coverage later |
-| Android Phone | NOW (shared parity) | [Personal alpha completed](https://github.com/noah-be/overte/milestone/2); known limitations retained | CLIENT-PARITY; PHONE-V1 broader coverage remains later |
+| Pico 4 | NOW (shared parity) | [Personal alpha completed](https://github.com/noah-be/overte/milestone/1) | [PICO-P2](https://github.com/noah-be/overte/milestone/5): shared features and artifact-bound acceptance |
+| iPad | NOW (shared parity) | [Personal alpha completed](https://github.com/noah-be/overte/milestone/3) | [IOS-P2](https://github.com/noah-be/overte/milestone/6): shared features and artifact-bound acceptance; iPhone coverage later |
+| Android Phone | NOW (shared parity) | [Personal alpha completed](https://github.com/noah-be/overte/milestone/2); known limitations retained | [PHONE-P2](https://github.com/noah-be/overte/milestone/4); PHONE-V1 broader coverage remains later |
 
 The linked milestones hold detailed acceptance criteria and evidence. Historical
 records and technical ownership belong in the linked documentation rather than
@@ -153,7 +159,8 @@ this priority overview.
 
 ## Working rules
 
-- Exactly one repository milestone may be in `NOW`.
+- Keep one coordinated portfolio goal in `NOW`; its client milestones track the
+  same CLIENT-PARITY goal rather than independent competing priorities.
 - Use one active portfolio goal. CLIENT-PARITY has three client workstreams and
   the required shared/platform integration work; the owner explicitly authorized
   this parallel coordination.
@@ -178,8 +185,9 @@ this priority overview.
 Use stable identifiers in roadmaps and pull requests:
 
 - `R<n>` for repository-wide maintenance;
-- `PICO-P<n>` and `PHONE-P<n>` for Android personal-alpha milestones;
-- `IOS-P<n>` for iPhone and iPad personal-alpha milestones;
+- `PICO-P<n>` and `PHONE-P<n>` for Android product stages; P1 is personal alpha
+  and P2 is the current cross-client parity stage;
+- `IOS-P<n>` for iPhone and iPad product stages with the same P1/P2 distinction;
 - `<TARGET>-V<n>` for broader preview milestones.
 
 Pull requests should name the milestone they advance and the exit criterion
