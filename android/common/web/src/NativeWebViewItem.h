@@ -119,6 +119,7 @@ protected:
     QSGNode* updatePaintNode(QSGNode* node, UpdatePaintNodeData*) override;
     void mousePressEvent(QMouseEvent*) override; void mouseMoveEvent(QMouseEvent*) override;
     void mouseReleaseEvent(QMouseEvent*) override; void mouseUngrabEvent() override;
+    void hoverEnterEvent(QHoverEvent*) override; void hoverMoveEvent(QHoverEvent*) override; void hoverLeaveEvent(QHoverEvent*) override;
     void wheelEvent(QWheelEvent*) override; void keyPressEvent(QKeyEvent*) override;
     void inputMethodEvent(QInputMethodEvent*) override;
     QVariant inputMethodQuery(Qt::InputMethodQuery query) const override;

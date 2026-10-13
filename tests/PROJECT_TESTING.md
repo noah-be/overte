@@ -74,6 +74,19 @@ substituted, including the first EventBridge message before channel idle,
 single message delivery, source replacement, and keyboard transitions.
 Set `OVERTE_QML_TEST_RUNNER` to select a matching Qt Quick Test executable.
 
+The `recorded-voice-native` host suite requires Qt Core development files and
+matching `moc`. It executes the actual AudioClient capture/playback callback and
+AudioScriptingInterface methods with real Qt signals, queued calls and timers;
+the operating-system audio sink/source and resampler boundaries are substituted.
+The `recorded-voice-qml` suite uses the same Qt Quick Test prerequisites as
+`embedded-web-qml` and clicks the actual shared voice controls and buttons in
+both controller/desktop and direct-touch configurations. These checks do not
+prove microphone permissions, hardware routing, native sink behavior or sound
+on a phone, iPhone/iPad or Pico headset.
+Set `OVERTE_VOICE_TEST_QT_CORE=Qt5Core` or `Qt6Core` to select the native fixture's
+SDK; an extracted Qt SDK also uses the standard `PKG_CONFIG_PATH`,
+`PKG_CONFIG_SYSROOT_DIR` and `LD_LIBRARY_PATH` variables.
+
 The phone pad projection regression requires the real GLM headers (`libglm-dev`
 on Ubuntu). The isolated synchronization validation workflow installs this package
 and the listed Qt 5 development/QML packages for both complete fallback and
@@ -231,6 +244,8 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `embedded-web-policy` | `host` | `python3 tests/run-project-tests.py --suite embedded-web-policy` |
 | `embedded-web-qml` | `host` | `python3 tests/run-project-tests.py --suite embedded-web-qml` |
 | `account-auth-dispatch` | `host` | `python3 tests/run-project-tests.py --suite account-auth-dispatch` |
+| `recorded-voice-native` | `host` | `python3 tests/run-project-tests.py --suite recorded-voice-native` |
+| `recorded-voice-qml` | `host` | `python3 tests/run-project-tests.py --suite recorded-voice-qml` |
 | `native-smoke` | `quick` | `python3 tests/run-project-tests.py --suite native-smoke` |
 | `native-ci-policy` | `quick` | `python3 tests/run-project-tests.py --suite native-ci-policy` |
 | `native-registration` | `quick` | `python3 tests/run-project-tests.py --suite native-registration` |
