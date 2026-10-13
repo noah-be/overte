@@ -60,7 +60,7 @@ class ProjectSuiteCliTests(unittest.TestCase):
         self.assertEqual(set(quick) - set(host), {"device-e2e-contracts", "native-smoke"})
         self.assertEqual(set(host) - set(quick), {
             "device-control-plane-full", "safe-landing-lifecycle",
-            "embedded-web-policy", "account-auth-dispatch",
+            "embedded-web-policy", "embedded-web-qml", "account-auth-dispatch",
         })
         self.assertEqual(set(native), set(quick) | {"native-ctest"})
         self.assertIn("fixture-platform", host)

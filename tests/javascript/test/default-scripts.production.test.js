@@ -25,7 +25,8 @@ function start() {
     const calls = [];
     const Script = {
         require(value) { calls.push(["require", value]); },
-        include(value) { calls.push(["include", value]); }
+        include(value) { calls.push(["include", value]); },
+        load(value) { calls.push(["load", value]); }
     };
     const LODManager = { automaticLODAdjust: true, lodAngleDeg: 99 };
     const execution = runProductionScript(source, { Script, LODManager });
@@ -35,7 +36,8 @@ function start() {
 test("phone bootstrap loads the control dependency before its minimal production set", () => {
     const state = start();
     assert.deepEqual(state.calls[0], ["require", "/~/system/+android_interface/androidControls.js"]);
-    assert.deepEqual(state.calls.slice(1), expected.map((file) => ["include", file]));
+    assert.deepEqual(state.calls.slice(1, 1 + expected.length), expected.map((file) => ["include", file]));
+    assert.deepEqual(state.calls[1 + expected.length], ["load", "/~/system/create/edit.js"]);
     assert.equal(state.context.ANDROID_PHONE_INTERFACE, true);
     assert.deepEqual(Array.from(state.context.PHONE_DEFAULT_SCRIPTS), expected);
 });
@@ -49,6 +51,6 @@ test("phone bootstrap applies conservative mobile LOD defaults", () => {
 test("explicit bootstrap restart retains deterministic script ordering", () => {
     const state = start();
     state.context.startPhoneDefaults();
-    assert.deepEqual(state.calls.slice(1 + expected.length),
+    assert.deepEqual(state.calls.slice(2 + expected.length),
         expected.map((file) => ["include", file]));
 });

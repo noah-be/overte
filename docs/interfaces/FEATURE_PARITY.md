@@ -20,6 +20,13 @@ The source comparison used these exact fork revisions:
 The following requirements remain open until verified on integrated artifacts.
 Source wiring and host checks are recorded separately from device acceptance.
 
+The shared QML web callers now execute through the selected native backend;
+normal touch startup also loads Create in its own script engine. The registered
+`embedded-web-qml` host suite executes the actual tablet and world callers with
+Qt Quick, including pre-idle EventBridge traffic, navigation controls, keyboard
+transitions, source replacement and Close. It substitutes the native browser
+boundary and screen-space IME capabilities; this is not browser/device evidence.
+
 | Feature | Required useful outcome | Acceptance status |
 | --- | --- | --- |
 | World/navigation | Enter the same reference world, move/interact, use Places and Go To/Back, recover from failed navigation | Pending three-artifact device comparison |

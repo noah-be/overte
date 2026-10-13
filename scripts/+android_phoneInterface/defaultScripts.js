@@ -41,6 +41,9 @@ function startPhoneDefaults() {
 
 startPhoneDefaults();
 
+// Create owns its script globals and undo history in a separate engine.
+Script.load("/~/system/create/edit.js");
+
 // Match the conservative LOD defaults already proven by the legacy Android
 // interface on thermally constrained mobile GPUs.
 LODManager.automaticLODAdjust = false;
