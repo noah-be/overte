@@ -57,14 +57,50 @@ with tempfile.TemporaryDirectory(prefix='overte-native-script-assets-') as tempo
     (stage / 'image-api-declaration.inc').write_text(declaration)
     constants = re.findall(r'^const QString (?:NOT_)?GRABBABLE_USER_DATA = .+;', api, re.MULTILINE)
     (stage / 'image-api-constants.inc').write_text('\n'.join(constants))
+    start = api.index('QUuid EntityScriptingInterface::addModelEntity(')
+    end = api.index('\nQUuid EntityScriptingInterface::addImageEntity(', start)
+    (stage / 'model-api-body.inc').write_text(api[start:end])
+    (stage / 'model-api-declaration.inc').write_text(re.search(r'Q_INVOKABLE QUuid addModelEntity\([^;]+;',
+        (ROOT / 'libraries/entities/src/EntityScriptingInterface.h').read_text()).group())
+    batch = (ROOT / 'interface/src/scripting/AssetMappingsScriptingInterface.cpp').read_text()
+    start = batch.index('struct AssetMappingsScriptingInterface::BundleUpload')
+    end = batch.index('\nvoid AssetMappingsScriptingInterface::deleteMappings', start)
+    (stage / 'bundle-api-body.inc').write_text(batch[start:end].replace('AssetMappingsScriptingInterface::', 'AssetsApi::'))
+    header = (ROOT / 'interface/src/scripting/AssetMappingsScriptingInterface.h').read_text()
+    declarations = re.findall(r'Q_INVOKABLE (?:QString uploadBundle|bool cancelUploadBundle)[^;]+;', header)
+    assert len(declarations) == 2
+    (stage / 'bundle-api-declarations.inc').write_text('\n'.join(declarations))
+    (stage / 'AssetUpload.h').write_bytes((ROOT / 'libraries/networking/src/AssetUpload.h').read_bytes())
+    (stage / 'AssetUpload.cpp').write_bytes((ROOT / 'libraries/networking/src/AssetUpload.cpp').read_bytes())
+    (stage / 'AssetClient.h').write_text('#include "bundle-network.h"\n')
+    (stage / 'NetworkLogging.h').write_text('#include <QLoggingCategory>\nQ_DECLARE_LOGGING_CATEGORY(asset_client)\n')
+    manager = (ROOT / 'libraries/script-engine/src/ScriptManager.cpp').read_text()
+    start = manager.index('QUrl ScriptManager::resolvePath(')
+    end = manager.index('\nQUrl ScriptManager::resourcesPath()', start)
+    (stage / 'script-resolver-body.inc').write_text('inline ' + manager[start:end])
+    offscreen = (ROOT / 'libraries/ui/src/OffscreenUi.cpp').read_text()
+    listener_start = offscreen.index('class FileDialogListener :')
+    listener_end = offscreen.index('\nQString OffscreenUi::fileDialog(', listener_start)
+    bundle_start = offscreen.index('ModalDialogListener* OffscreenUi::getOpenFileBundleAsync(')
+    bundle_end = offscreen.index('\nQString OffscreenUi::getSaveFileName(', bundle_start)
+    (stage / 'bundle-dialogs.h').write_text((FIXTURES / 'bundle-dialogs.h.in').read_text()
+        .replace('@LISTENER@', offscreen[listener_start:listener_end]).replace('@ROUTE@', 'inline ' + offscreen[bundle_start:bundle_end]))
+    caller_start = route.index('void Application::loadDialog()')
+    caller_end = route.index('\nvoid Application::loadScriptURLDialog()', caller_start)
+    (stage / 'bundle-script-caller.inc').write_text(route[caller_start:caller_end])
     source = FIXTURES / 'native-services.cpp'
     for header, target in ((source, stage / 'native-services.moc'),
-        (ROOT / 'libraries/ui/src/FileDialogHelper.h', stage / 'files-moc.cpp')):
-        subprocess.run([str(tools / 'moc'), str(header), '-I' + str(stage), '-o', str(target)], check=True)
+        (ROOT / 'libraries/ui/src/FileDialogHelper.h', stage / 'files-moc.cpp'),
+        (stage / 'AssetUpload.h', stage / 'upload-moc.cpp'),
+        (FIXTURES / 'bundle-network.h', stage / 'peer-moc.cpp'),
+        (FIXTURES / 'bundle-script.h', stage / 'script-moc.cpp'),
+        (stage / 'bundle-dialogs.h', stage / 'dialog-moc.cpp')):
+        subprocess.run([str(tools / 'moc'), str(header), '-I' + str(stage), '-I' + str(FIXTURES), '-o', str(target)], check=True)
     binary = stage / 'native-script-assets'
     subprocess.run(['c++', '-std=c++17', '-fPIC', '-UNDEBUG', str(source),
         str(ROOT / 'libraries/ui/src/FileDialogHelper.cpp'), str(ROOT / 'libraries/ui/src/ui/Logging.cpp'),
-        str(stage / 'files-moc.cpp'), '-I' + str(stage), '-I' + str(ROOT / 'libraries/ui/src'),
+        str(stage / 'files-moc.cpp'), str(stage / 'AssetUpload.cpp'), str(stage / 'upload-moc.cpp'), str(stage / 'peer-moc.cpp'), str(stage / 'script-moc.cpp'), str(stage / 'dialog-moc.cpp'),
+        '-I' + str(FIXTURES), '-I' + str(stage), '-I' + str(ROOT / 'libraries/ui/src'),
         *libraries, '-o', str(binary), *flags], env=environment, check=True, timeout=90)
     result = subprocess.run([str(binary), '-file-selector', 'android_picoInterface', '-file-selector', 'android_interface',
         '-import', str(ROOT / 'interface/resources/qml'), '-import', str(ROOT / 'tests/device/qml/imports'),
@@ -72,5 +108,5 @@ with tempfile.TemporaryDirectory(prefix='overte-native-script-assets-') as tempo
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=60)
     print(result.stdout, end='')
     result.check_returncode()
-    if re.search(r'TypeError:|ReferenceError:|Binding loop|Could not convert argument|Cannot assign|Invalid attempt to destroy', result.stdout):
+    if re.search(r'received signal|TypeError:|ReferenceError:|Binding loop|Could not convert argument|Cannot assign|Invalid attempt to destroy', result.stdout):
         raise RuntimeError('Production QML emitted an execution error')

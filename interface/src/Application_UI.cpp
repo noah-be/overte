@@ -503,9 +503,9 @@ void Application::showDialog(const QUrl& widgetUrl, const QUrl& tabletUrl, const
 }
 
 void Application::loadDialog() {
-    ModalDialogListener* dlg = OffscreenUi::getOpenFileNameAsync(_primaryWidget, tr("Open Script"),
-                                                                 getPreviousScriptLocation(),
-                                                                 tr("JavaScript Files (*.js)"));
+    ModalDialogListener* dlg = OffscreenUi::getOpenFileBundleAsync(tr("Open Script and Companion Files"),
+                                                                  getPreviousScriptLocation(), QStringLiteral("\\.js$"));
+    if (!dlg) return;
     connect(dlg, &ModalDialogListener::response, this, [=, this] (QVariant answer) {
         disconnect(dlg, &ModalDialogListener::response, this, nullptr);
         const QString& response = answer.toString();
