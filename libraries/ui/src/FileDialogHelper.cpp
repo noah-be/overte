@@ -10,6 +10,12 @@
 //
 #include "FileDialogHelper.h"
 #include "ui/Logging.h"
+#include <QFileDialog>
+#include <QMutex>
+#include <QMutexLocker>
+#include <QThread>
+#include <QUuid>
+
 
 #include <QtCore/QDir>
 #include <QtCore/QFile>
@@ -134,4 +140,111 @@ void FileDialogHelper::monitorDirectory(const QString& path) {
         _fsWatcherPath = path;
         connect(&_fsWatcher, &QFileSystemWatcher::directoryChanged, this, &FileDialogHelper::contentsChanged);
     }
+}
+
+
+namespace {
+QMutex documentPickerMutex;
+FileDialogHelper::DocumentPickerOperator documentPicker;
+FileDialogHelper::DocumentPickerCancel documentPickerCancel;
+}
+
+void FileDialogHelper::setDocumentPickerOperator(DocumentPickerOperator picker, DocumentPickerCancel cancel) {
+    QMutexLocker guard(&documentPickerMutex);
+    documentPicker = std::move(picker);
+    documentPickerCancel = std::move(cancel);
+}
+
+FileDialogHelper::~FileDialogHelper() {
+    if (!_documentRequestId.isEmpty()) cancelDocuments(_documentRequestId);
+    delete _documentDialog.data();
+}
+
+void FileDialogHelper::finishDocuments(const QString& requestId, const QList<QUrl>& urls, const QString& failure) {
+    if (requestId.isEmpty() || requestId != _documentRequestId) return;
+    const bool providerSelection = _nativeDocumentPending;
+    _documentCancel = {};
+    _documentRequestId.clear();
+    _nativeDocumentPending = false;
+    QString error = failure;
+    if (!_multipleDocuments && urls.size() > 1) error = tr("The document picker returned more than one file for a single-file request.");
+    if (providerSelection && urls.size() > MAX_DOCUMENT_COUNT) error = tr("The document selection exceeds the 32-file limit.");
+    qint64 total = 0;
+    if (error.isEmpty()) {
+        for (const auto& url : urls) {
+            const qint64 size = QFileInfo(url.toLocalFile()).size();
+            if (providerSelection && (size > MAX_DOCUMENT_BYTES || size > MAX_DOCUMENT_TOTAL_BYTES - total)) {
+                error = tr("The document selection exceeds the import size limits.");
+                break;
+            }
+            total += size;
+            if (!url.isLocalFile() || !QFileInfo(url.toLocalFile()).isFile() || !QFileInfo(url.toLocalFile()).isReadable()) {
+                error = tr("The document picker did not provide a readable local file.");
+                break;
+            }
+        }
+    }
+    if (!error.isEmpty()) emit documentSelectionFailed(requestId, error);
+    else if (urls.isEmpty()) emit documentSelectionCanceled(requestId);
+    else emit documentsSelected(requestId, urls);
+}
+
+QString FileDialogHelper::openDocuments(const QString& caption, const QString& filter, bool multiple) {
+    if (!_documentRequestId.isEmpty()) return {};
+    const QString requestId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    _documentRequestId = requestId;
+    _multipleDocuments = multiple;
+    DocumentPickerOperator picker;
+    { QMutexLocker guard(&documentPickerMutex); picker = documentPicker; _documentCancel = documentPickerCancel; }
+    if (picker) {
+        _nativeDocumentPending = true;
+        QPointer<FileDialogHelper> owner(this);
+        DocumentSelection completed = [owner, requestId](const QList<QUrl>& urls, const QString& error) {
+            if (!owner) return;
+            QMetaObject::invokeMethod(owner, [owner, requestId, urls, error] {
+                if (owner) owner->finishDocuments(requestId, urls, error);
+            }, Qt::QueuedConnection);
+        };
+        if (picker(requestId, caption, filter, multiple, completed)) return requestId;
+        _documentCancel = {};
+        _documentRequestId.clear();
+        _nativeDocumentPending = false;
+        return {};
+    }
+#if defined(Q_OS_ANDROID) || defined(Q_OS_IOS)
+    // A widgets overlay or guessed QPA content provider is not a mobile picker.
+    _documentRequestId.clear();
+    return {};
+#else
+    auto* dialog = new QFileDialog(nullptr, caption);
+    _documentDialog = dialog;
+    dialog->setObjectName("overteDocumentPicker");
+    dialog->setFileMode(multiple ? QFileDialog::ExistingFiles : QFileDialog::ExistingFile);
+    dialog->setAcceptMode(QFileDialog::AcceptOpen);
+    dialog->setNameFilter(filter.isEmpty() ? QStringLiteral("All files (*)") : filter);
+    dialog->setSupportedSchemes({ QStringLiteral("file") });
+    connect(dialog, &QDialog::finished, this, [this, dialog, requestId](int result) {
+        if (_documentDialog != dialog || _documentRequestId != requestId) return;
+        auto selected = result == QDialog::Accepted ? dialog->selectedUrls() : QList<QUrl>();
+        _documentDialog.clear();
+        dialog->deleteLater();
+        finishDocuments(requestId, selected, {});
+    });
+    dialog->open();
+    return requestId;
+#endif
+}
+
+bool FileDialogHelper::cancelDocuments(const QString& requestId) {
+    if (requestId.isEmpty() || requestId != _documentRequestId) return false;
+    if (_nativeDocumentPending) {
+        DocumentPickerCancel cancel = std::move(_documentCancel);
+        _documentRequestId.clear();
+        _nativeDocumentPending = false;
+        if (cancel) cancel(requestId);
+        emit documentSelectionCanceled(requestId);
+    } else if (_documentDialog) {
+        _documentDialog->reject();
+    }
+    return true;
 }

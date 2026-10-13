@@ -368,6 +368,9 @@ public slots:
     Q_INVOKABLE QUuid addModelEntity(const QString& name, const QString& modelUrl, const QString& textures, const QString& shapeType, bool dynamic,
                                      bool collisionless, bool grabbable, const glm::vec3& position, const glm::vec3& gravity);
 
+    // QML images use the same native addEntity ownership and permission path.
+    Q_INVOKABLE QUuid addImageEntity(const QString& name, const QString& imageUrl, bool grabbable, const glm::vec3& position);
+
     /*@jsdoc
      * Creates a clone of an entity. The clone has the same properties as the original except that: it has a modified
      * <code>name</code> property, clone-related properties are set per the original entity's clone-related
