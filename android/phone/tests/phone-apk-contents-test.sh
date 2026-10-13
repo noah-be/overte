@@ -97,6 +97,10 @@ required.update({entry: b'linked-runtime' for entry in checker.LINKED_NATIVE_ENT
 required.update({entry: b'qmldir' for entry in declared_asset_markers})
 required.update({'assets/' + entry: b'required-cache-asset'
                  for entry in checker.REQUIRED_CACHED_ASSETS})
+# Stage the actual startup/Chat bytes, including relative QML, icons and sounds.
+for entry in checker.REQUIRED_CACHED_ASSETS:
+    if entry.startswith('scripts/'):
+        required['assets/' + entry] = (checker_path.parents[3] / entry).read_bytes()
 cache_paths = sorted(checker.REQUIRED_CACHED_ASSETS | {'kept.txt'})
 def cache_manifest_for(paths, contents=required):
     digest = hashlib.sha256()
@@ -391,6 +395,27 @@ with zipfile.ZipFile(root / 'missing-required-cache-entry.apk', 'w') as archive:
     for entry, data in required.items():
         archive.writestr(entry, data)
 
+critical_script_assets = sorted(
+    {'scripts/system/+android_phoneInterface/phoneGraphics.js',
+     'scripts/system/create/edit.js', 'scripts/system/snapshot.js'}
+    | {'scripts/' + entry for entry in checker.PHONE_COMMUNITY_RUNTIME_ASSETS})
+assert len(critical_script_assets) == 21
+with (root / 'startup-asset-fixtures.txt').open('w', encoding='utf-8') as fixture_list:
+    for index, omitted in enumerate(critical_script_assets):
+        # A real asset can be present yet unavailable to native cache extraction.
+        for mode in ('missing-file', 'missing-cache'):
+            fixture_name = f'startup-{index}-{mode}.apk'
+            manifest = cache_manifest if mode == 'missing-file' else cache_manifest_for(
+                [entry for entry in cache_paths if entry != omitted])
+            with zipfile.ZipFile(root / fixture_name, 'w') as archive:
+                archive.writestr('assets/cache_assets.txt', manifest)
+                for entry, data in required.items():
+                    if mode != 'missing-file' or entry != 'assets/' + omitted:
+                        archive.writestr(entry, data)
+            expected_error = ('cache assets are absent' if mode == 'missing-file'
+                              else 'omits required extracted assets: ' + omitted)
+            fixture_list.write(f'{fixture_name}\t{expected_error}\n')
+
 invalid_manifests = {
     'cache-legacy-timestamp.apk': '123\nkept.txt\n',
     'cache-traversal.apk': ('a' * 64) + '\n../escape\n',
@@ -437,6 +462,14 @@ PY
 
 "$checker" "$fixture_dir/complete.apk" >/dev/null
 "$checker" "$fixture_dir/complete.aab" >/dev/null
+while IFS=$'\t' read -r fixture expected_error; do
+    if "$checker" "$fixture_dir/$fixture" >"$fixture_dir/startup-out" 2>&1; then
+        printf 'FAIL: incomplete startup/Chat payload was accepted: %s\n' "$fixture" >&2
+        exit 1
+    fi
+    grep -Fq "$expected_error" "$fixture_dir/startup-out"
+done < "$fixture_dir/startup-asset-fixtures.txt"
+
 if "$checker" "$fixture_dir/cache-digest-mismatch.apk" \
         >"$fixture_dir/digest-out" 2>&1; then
     echo 'FAIL: APK with mismatched cache content digest was accepted' >&2

@@ -21,6 +21,7 @@
 #include "AudioInjector.h"
 #include <DependencyManager.h>
 #include "Sound.h"
+#include <QMutex>
 
 class ScriptAudioInjector;
 class ScriptEngine;
@@ -151,6 +152,25 @@ public:
     Q_INVOKABLE void setLocalEcho(bool localEcho);
 
     /*@jsdoc
+     * Records three seconds of microphone audio in memory and plays it locally.
+     * Requires an already unmuted, active input. Does not change mute, send the
+     * recording to the mixer, write a file, or enable live echo.
+     * @function Audio.startRecordedVoiceTest
+     */
+    Q_INVOKABLE void startRecordedVoiceTest();
+    /*@jsdoc
+     * Cancels the local voice preview and discards its in-memory samples.
+     * @function Audio.cancelRecordedVoiceTest
+     */
+    Q_INVOKABLE void cancelRecordedVoiceTest();
+    /*@jsdoc
+     * Returns the phase, error and actual captured/played byte counts of the
+     * local voice preview. Completion is reported by the audio backend.
+     * @function Audio.getRecordedVoiceTestStatus
+     */
+    Q_INVOKABLE QVariantMap getRecordedVoiceTestStatus() const;
+
+    /*@jsdoc
      * Toggles the echoing of microphone audio back to you by the client. When enabled, microphone audio is echoed even if
      * you're muted or not using push-to-talk.
      * @function Audio.toggleLocalEcho
@@ -226,6 +246,8 @@ protected:
 
 signals:
 
+    void recordedVoiceTestStatusChanged(const QVariantMap& status);
+
     /*@jsdoc
      * Triggered when the client is muted by the mixer because their loudness value for the noise background has reached the
      * threshold set for the domain (in the server settings).
@@ -291,7 +313,10 @@ signals:
     void isStereoInputChanged(bool isStereo);
 
 private:
+    void updateRecordedVoiceTestStatus(const QVariantMap& status);
     AbstractAudioInterface* _localAudioInterface { nullptr };
+    mutable QMutex _recordedVoiceTestMutex;
+    QVariantMap _recordedVoiceTestStatus { { "phase", "idle" }, { "error", "" } };
 };
 
 void registerAudioMetaTypes(ScriptEngine* engine);

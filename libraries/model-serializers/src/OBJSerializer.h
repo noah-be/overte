@@ -111,7 +111,8 @@ private:
     QHash<hifi::ByteArray, bool> librariesSeen;
     bool parseOBJGroup(OBJTokenizer& tokenizer, const hifi::VariantHash& mapping, HFMModel& hfmModel,
                        float& scaleGuess, bool combineParts);
-    void parseMaterialLibrary(QIODevice* device);
+    void loadMaterialLibraries();
+    void parseMaterialLibrary(QIODevice* device, const hifi::URL& libraryUrl, bool relativeLibrary);
     void parseTextureLine(const hifi::ByteArray& textureLine, hifi::ByteArray& filename, OBJMaterialTextureOptions& textureOptions);
     bool isValidTexture(const hifi::ByteArray &filename); // true if the file exists. TODO?: check content-type header and that it is a supported format.
 

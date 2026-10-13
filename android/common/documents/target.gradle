@@ -1,0 +1,9 @@
+// Copyright 2026 Overte contributors.
+// SPDX-License-Identifier: Apache-2.0
+if (!project.hasProperty('overteDocumentsRoot')) throw new GradleException('overteDocumentsRoot is required')
+android.sourceSets.main.java.srcDir new File(project.overteDocumentsRoot, 'java')
+
+// Keep only the Java endpoint whose class/method names are used by C++ JNI.
+android.buildTypes.configureEach {
+    proguardFiles new File(project.overteDocumentsRoot, 'proguard-rules.pro')
+}
