@@ -56,6 +56,11 @@
       "name": "phone-e2e-runtime-regressions",
       "entrypoint": "android/phone/tests/phone-e2e-runtime-regressions.py",
       "interpreter": "python"
+    },
+    {
+      "name": "android-embedded-web",
+      "entrypoint": "android/common/web/tests/run.py",
+      "interpreter": "python"
     }
   ]
 }

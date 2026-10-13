@@ -4,11 +4,11 @@
 > This roadmap describes an unofficial, AI-assisted hobby fork. It is not an
 > Overte project commitment or a statement of official platform support.
 
-- **Updated:** 2026-09-25
-- **Current milestone:** `PICO-P1` — Pico 4 personal alpha
-- **Next:** `IOS-P1` — iPad personal alpha
+- **Updated:** 2026-10-13
+- **Current work:** `CLIENT-PARITY` — equivalent useful features across iOS, Android Phone and Pico
+- **Next:** artifact-bound cross-client acceptance
 - **Later:** `PHONE-V1` — broader Android Phone device coverage
-- **Completed:** `PHONE-P1` — Android Phone personal alpha; `R0` — repository baseline
+- **Completed:** `PHONE-P1`, `PICO-P1`, `IOS-P1` — personal alphas; `R0` — repository baseline
 
 ## North star
 
@@ -42,26 +42,32 @@ complete desktop parity, or a promise of support to other users.
 
 ## NOW
 
-### PICO-P1 — Pico 4 personal alpha
+### CLIENT-PARITY — Cross-client feature parity
 
-**Goal:** Meet the common personal-alpha definition on one explicitly named
-physical Pico 4, including worn-headset rendering, controllers, interaction,
-audio, lifecycle, and thermal behavior.
+**Goal:** Make the useful feature set available through normal startup and
+platform-appropriate controls on `apple-ios`, `android-phone` and
+`android-vr-pico`. Preserve stronger existing capabilities; matching placeholders
+or disabling working features does not satisfy parity.
 
-The detailed exit criteria and evidence boundary are authoritative on the
-`android-vr-pico` product branch and the
-[PICO-P1 milestone](https://github.com/noah-be/overte/milestone/1).
+The [shared feature contract](interfaces/FEATURE_PARITY.md) defines outcomes,
+ownership, implementation dependencies and the acceptance boundary. The source
+audit found gaps in Create/Emote entry points, world/tablet HTML, graphics control,
+recorded voice testing and automatic Pico login. Shared omissions and runtime
+limits remain visible in the contract.
 
-**Single next action:** Review the eleven open Pico acceptance criteria against
-existing evidence and identify the physical-device candidate for the first
-remaining acceptance check.
+**Single next action:** Integrate the shared native web/editor contracts into all
+three client paths, then qualify the resulting named artifacts on real devices.
+
+This work is coordinated through three High-reasoning client sessions with
+isolated worktrees and a shared integration owner. It does not create or close
+GitHub issues or a new native GitHub milestone implicitly.
 
 ## NEXT
 
-**IOS-P1 — iPad personal alpha.** After `PICO-P1`, reconcile the documented
-bootstrap boundary with the integrated client, then meet the common definition
-on one explicitly named physical iPad. iPhone coverage follows later. See the
-[IOS-P1 milestone](https://github.com/noah-be/overte/milestone/3).
+Build the exact integrated candidates and run the same reference-world journeys
+on the three devices. Record source revision, artifact identity, configuration,
+environment and actual outcomes, including negative/lifecycle cases. Host tests
+alone cannot establish device equivalence.
 
 ## LATER
 
@@ -74,6 +80,20 @@ Signing, store publication, and wider device support can proceed separately
 once the corresponding personal alpha is repeatable.
 
 ## COMPLETED
+
+### IOS-P1 — iPad personal alpha (2026-10-10)
+
+The owner completed the personal-alpha milestone. The
+[closed IOS-P1 milestone](https://github.com/noah-be/overte/milestone/3) contains
+eleven closed acceptance issues and no open issues. Its accepted scope remains
+personal alpha; it does not certify the new full cross-client parity goal.
+
+### PICO-P1 — Pico 4 personal alpha (2026-09-27)
+
+The owner completed the personal-alpha milestone. The
+[closed PICO-P1 milestone](https://github.com/noah-be/overte/milestone/1) contains
+eleven closed acceptance issues and no open issues. Its accepted scope remains
+personal alpha; new parity work preserves the existing VR behavior.
 
 ### PHONE-P1 — Android Phone personal alpha (2026-09-25)
 
@@ -123,9 +143,9 @@ resumption milestone.
 
 | Product | Priority | Current status | Next milestone |
 | --- | --- | --- | --- |
-| Pico 4 | NOW | Physical-device acceptance still open | [PICO-P1: personal alpha](https://github.com/noah-be/overte/milestone/1) |
-| iPad | NEXT | Integrated client experimental; physical-device acceptance still open | [IOS-P1: personal alpha](https://github.com/noah-be/overte/milestone/3); iPhone coverage later |
-| Android Phone | LATER (broader coverage) | [Personal alpha completed](https://github.com/noah-be/overte/milestone/2); known limitations retained | PHONE-V1: broader device coverage |
+| Pico 4 | NOW (shared parity) | [Personal alpha completed](https://github.com/noah-be/overte/milestone/1) | CLIENT-PARITY: shared features and artifact-bound acceptance |
+| iPad | NOW (shared parity) | [Personal alpha completed](https://github.com/noah-be/overte/milestone/3) | CLIENT-PARITY: shared features and artifact-bound acceptance; iPhone coverage later |
+| Android Phone | NOW (shared parity) | [Personal alpha completed](https://github.com/noah-be/overte/milestone/2); known limitations retained | CLIENT-PARITY; PHONE-V1 broader coverage remains later |
 
 The linked milestones hold detailed acceptance criteria and evidence. Historical
 records and technical ownership belong in the linked documentation rather than
@@ -134,8 +154,12 @@ this priority overview.
 ## Working rules
 
 - Exactly one repository milestone may be in `NOW`.
-- Use one primary product track and at most one maintenance track at a time.
-- Keep at most three active topic branches; classify or archive the rest.
+- Use one active portfolio goal. CLIENT-PARITY has three client workstreams and
+  the required shared/platform integration work; the owner explicitly authorized
+  this parallel coordination.
+- Keep branches focused on their ownership layer and retire only fully integrated
+  work. The parallel parity goal requires isolated product and parent worktrees;
+  do not delete unintegrated branches to meet an arbitrary count.
 - Import upstream Overte changes only through the reviewed, one-way
   [`upstream intake policy`](UPSTREAM_INTAKE.md), from upstream `master` to
   fork `main`.

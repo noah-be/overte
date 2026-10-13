@@ -63,6 +63,17 @@ network access; unavailable isolation fails those tests. The workflow contains
 the exact Ubuntu package list. These host Qt contracts are separate from the
 complete client's platform-specific Qt/Conan dependency graph.
 
+The host profile also compiles the real shared embedded-HTML policy and the
+actual account-authentication signal bindings for Pico, Phone, desktop and the
+retained legacy Android path. These checks require Qt Core development files
+and Qt's `moc`; they do not instantiate a native browser or authenticate a device.
+The `embedded-web-qml` host suite requires Qt Quick Test's `qmltestrunner`
+(Qt 5.15 or Qt 6), Qt Quick, and Qt Test QML modules. It executes the actual
+shared tablet/world callers with only the operating-system browser boundary
+substituted, including the first EventBridge message before channel idle,
+single message delivery, source replacement, and keyboard transitions.
+Set `OVERTE_QML_TEST_RUNNER` to select a matching Qt Quick Test executable.
+
 The phone pad projection regression requires the real GLM headers (`libglm-dev`
 on Ubuntu). The isolated synchronization validation workflow installs this package
 and the listed Qt 5 development/QML packages for both complete fallback and
@@ -217,6 +228,9 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `device-control-plane-full` | `host` | `python3 tests/run-project-tests.py --suite device-control-plane-full` |
 | `documentation` | `quick` | `python3 tests/run-project-tests.py --suite documentation` |
 | `safe-landing-lifecycle` | `host` | `python3 tests/run-project-tests.py --suite safe-landing-lifecycle` |
+| `embedded-web-policy` | `host` | `python3 tests/run-project-tests.py --suite embedded-web-policy` |
+| `embedded-web-qml` | `host` | `python3 tests/run-project-tests.py --suite embedded-web-qml` |
+| `account-auth-dispatch` | `host` | `python3 tests/run-project-tests.py --suite account-auth-dispatch` |
 | `native-smoke` | `quick` | `python3 tests/run-project-tests.py --suite native-smoke` |
 | `native-ci-policy` | `quick` | `python3 tests/run-project-tests.py --suite native-ci-policy` |
 | `native-registration` | `quick` | `python3 tests/run-project-tests.py --suite native-registration` |
