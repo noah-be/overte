@@ -38,6 +38,11 @@ test("phone bootstrap loads the control dependency before its minimal production
     assert.deepEqual(state.calls[0], ["require", "/~/system/+android_interface/androidControls.js"]);
     assert.deepEqual(state.calls.slice(1, 1 + expected.length), expected.map((file) => ["include", file]));
     assert.deepEqual(state.calls[1 + expected.length], ["load", "/~/system/create/edit.js"]);
+    assert.deepEqual(state.calls.slice(2 + expected.length), [
+        ["load", "/~/communityScripts/armored-chat/armored_chat.js"],
+        ["load", "/~/communityScripts/chatBubbles/chatBubbles.js"],
+        ["load", "/~/communityScripts/notificationCore/notificationCore.js"]
+    ]);
     assert.equal(state.context.ANDROID_PHONE_INTERFACE, true);
     assert.deepEqual(Array.from(state.context.PHONE_DEFAULT_SCRIPTS), expected);
 });
@@ -51,6 +56,6 @@ test("phone bootstrap applies conservative mobile LOD defaults", () => {
 test("explicit bootstrap restart retains deterministic script ordering", () => {
     const state = start();
     state.context.startPhoneDefaults();
-    assert.deepEqual(state.calls.slice(2 + expected.length),
+    assert.deepEqual(state.calls.slice(5 + expected.length),
         expected.map((file) => ["include", file]));
 });
