@@ -91,6 +91,11 @@
       "name": "android-documents",
       "entrypoint": "android/common/documents/tests/run.py",
       "interpreter": "python"
+    },
+    {
+      "name": "phone-parity-packet",
+      "entrypoint": "android/phone/device-tests/parity/test_packet.py",
+      "interpreter": "python"
     }
   ]
 }

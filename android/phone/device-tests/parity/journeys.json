@@ -1,0 +1,638 @@
+{
+  "schemaVersion": 1,
+  "product": "android-phone",
+  "mode": "operator-assisted-current-artifact",
+  "milestone": "https://github.com/noah-be/overte/milestone/4",
+  "fixture": "tests/device/fixture/parity/README.md",
+  "scope": "Journey definitions and packet completeness do not establish device acceptance.",
+  "journeys": [
+    {
+      "id": "world-navigation",
+      "issue": 1124,
+      "title": "World and navigation",
+      "entry": "Normal launch, Places, Go To/Back",
+      "existingSuites": [
+        "domain-smoke",
+        "interaction-smoke",
+        "vertical-locomotion"
+      ],
+      "automationGaps": [
+        "Normal Places and address controls; failed destination recovery"
+      ],
+      "steps": [
+        {
+          "id": "world-navigation.1",
+          "action": "Enter the shared reference domain from Places. Walk, look and touch its known interaction target.",
+          "expected": "The same world is visible, motion responds to touch and the target visibly reacts.",
+          "evidenceKinds": [
+            "screen-recording"
+          ]
+        },
+        {
+          "id": "world-navigation.2",
+          "action": "Go To a second known destination, use Back, then attempt a deliberately unavailable destination.",
+          "expected": "Back returns to the reference world; failure is actionable and returning works without restarting.",
+          "evidenceKinds": [
+            "screen-recording"
+          ]
+        }
+      ],
+      "cleanup": "Return to the reference world; release every touch."
+    },
+    {
+      "id": "authentication",
+      "issue": 1125,
+      "title": "Account and domain authentication",
+      "entry": "Normal account and domain login dialogs",
+      "existingSuites": [],
+      "automationGaps": [
+        "Account/domain dialog semantics; protected credential handling"
+      ],
+      "steps": [
+        {
+          "id": "authentication.1",
+          "action": "Use the lab-owned automatic authentication challenge and then the normal manual Login entry.",
+          "expected": "Both useful dialogs appear; keyboard and confirmation work without revealing credentials in evidence.",
+          "evidenceKinds": [
+            "sanitized-log"
+          ]
+        },
+        {
+          "id": "authentication.2",
+          "action": "Cancel both dialogs; log out, restart and re-enter the protected reference domain.",
+          "expected": "Cancel leaves usable navigation; logout removes the authenticated state; restart/recovery has no stale dialog or credential reuse.",
+          "evidenceKinds": [
+            "screen-recording"
+          ]
+        }
+      ],
+      "cleanup": "Log out the lab account; stop recordings before entering any credential."
+    },
+    {
+      "id": "avatar-people",
+      "issue": 1126,
+      "title": "Avatar and People",
+      "entry": "Normal Avatar and People entries",
+      "existingSuites": [
+        "multi-user-smoke"
+      ],
+      "automationGaps": [
+        "Avatar selection, scale, wearables and peer connection UI"
+      ],
+      "steps": [
+        {
+          "id": "avatar-people.1",
+          "action": "Select the supplied avatar URL and a bookmark, change scale and add/remove the harmless reference wearable.",
+          "expected": "Visible avatar, size and wearable change as chosen; a bad URL gives a recoverable error.",
+          "evidenceKinds": [
+            "screen-recording"
+          ]
+        },
+        {
+          "id": "avatar-people.2",
+          "action": "Meet the same controlled peer, open People and use the normal connect interaction.",
+          "expected": "Both sides see the intended avatar/peer and confirm the connection without losing existing People actions.",
+          "evidenceKinds": [
+            "peer-observation"
+          ]
+        }
+      ],
+      "cleanup": "Restore original avatar/scale/wearables; disconnect only the lab connection."
+    },
+    {
+      "id": "create",
+      "issue": 1127,
+      "title": "Native Create editor",
+      "entry": "Normal Create entry",
+      "existingSuites": [
+        "interaction-smoke"
+      ],
+      "automationGaps": [
+        "Real property editor, tools, permissions and entity import"
+      ],
+      "steps": [
+        {
+          "id": "create.1",
+          "action": "Open Create, create a primitive, model and image, then list/select each.",
+          "expected": "Native useful controls remain touch-accessible; matching entities appear in the world and list.",
+          "evidenceKinds": [
+            "screen-recording"
+          ]
+        },
+        {
+          "id": "create.2",
+          "action": "Edit position/name and type-specific properties, delete/undo, and exercise one voxel/tool operation.",
+          "expected": "Changes and undo are visibly applied to the intended entity; tools remain available.",
+          "evidenceKinds": [
+            "screen-recording"
+          ]
+        },
+        {
+          "id": "create.3",
+          "action": "Import the harmless entity fixture and repeat a mutation without permission.",
+          "expected": "Import creates the expected content; denial is useful and makes no unauthorized mutation.",
+          "evidenceKinds": [
+            "screen-recording"
+          ]
+        }
+      ],
+      "cleanup": "Remove only created fixture entities and restore permissions."
+    },
+    {
+      "id": "emote",
+      "issue": 1128,
+      "title": "Ten bundled emotes",
+      "entry": "Normal Emote entry",
+      "existingSuites": [],
+      "automationGaps": [
+        "All ten animation outcomes, loading and stop lifecycle"
+      ],
+      "steps": [
+        {
+          "id": "emote.1",
+          "action": "For each of the ten bundled entries, observe loading/status, Play and avatar animation.",
+          "expected": "Each named entry produces its intended visible animation, not merely a selected button.",
+          "evidenceKinds": [
+            "screen-recording"
+          ]
+        },
+        {
+          "id": "emote.2",
+          "action": "Repeat Play/Stop/toggle, close/reopen, reload its script and restart the client.",
+          "expected": "Stopping returns the avatar to normal; there are no duplicate buttons, active orphan animation or handlers.",
+          "evidenceKinds": [
+            "screen-recording"
+          ]
+        }
+      ],
+      "cleanup": "Stop emotes and return the avatar to its normal pose."
+    },
+    {
+      "id": "world-web",
+      "issue": 1129,
+      "title": "World HTML, bridge and hardware MP4",
+      "entry": "Running Scripts: shared ordinary web-reference script; visible world Web entity",
+      "existingSuites": [],
+      "automationGaps": [
+        "Real final World texture pixels; provider capability; origin/epoch fences"
+      ],
+      "steps": [
+        {
+          "id": "world-web.1",
+          "action": "Load the repository web reference and touch its DOM counter, Unicode/number/invented-password/multiline fields; select/replace/composition-edit, scroll to marker4.",
+          "expected": "Real document changes and native IME selection/composition work; keyboard opening does not clear focus or move the toolbar over the document.",
+          "evidenceKinds": [
+            "screen-recording"
+          ]
+        },
+        {
+          "id": "world-web.2",
+          "action": "Approve the explicit scriptURL through the normal consent flow and observe injection.",
+          "expected": "The world document reports the real injected script while preserving normal consent.",
+          "evidenceKinds": [
+            "screen-recording"
+          ]
+        },
+        {
+          "id": "world-web.3",
+          "action": "Send the script echo, navigate to the second same-origin page, Back and Reload.",
+          "expected": "The actual ordinary Overte script roundtrip answers; navigation/history/loading behave correctly.",
+          "evidenceKinds": [
+            "screen-recording"
+          ]
+        },
+        {
+          "id": "world-web.4",
+          "action": "Navigate to a second fixture server port and use ordinary DOM/IME/media there; then request echo and return.",
+          "expected": "Foreign documents keep useful input/media but echo times out; original-origin echo returns. No foreign Overte grant is created.",
+          "evidenceKinds": [
+            "screen-recording"
+          ]
+        },
+        {
+          "id": "world-web.5",
+          "action": "Activate the world document file input and exercise close/source replacement while native input is pending. Test actual OS selection separately on the visible Tablet grant.",
+          "expected": "World scope does not gain a Tablet file-picker grant. Refusal remains honest; no stale input/bridge callback is delivered after replacing or closing this world owner.",
+          "evidenceKinds": [
+            "screen-recording"
+          ]
+        },
+        {
+          "id": "world-web.6",
+          "action": "Press Play, observe several encoded red/green/blue cycles, moving square and burned-in video counters; seek4s, pause/resume. Record the visible video rectangle in its real product presentation.",
+          "expected": "The encoded MP4 pixels themselves move and change color, and the physical Phone output is audible. currentTime, DOM animation, server requests and renderer counters alone are insufficient.",
+          "evidenceKinds": [
+            "screen-recording",
+            "audio-recording"
+          ]
+        },
+        {
+          "id": "world-web.7",
+          "action": "Play the looping tone; hide, close, replace, background/resume and stop the owning ordinary client script.",
+          "expected": "Audio silences when required and resumes only through intended user action; no stale input/bridge/frame callback survives replacement. The fixture does not cooperatively pause itself.",
+          "evidenceKinds": [
+            "screen-recording",
+            "audio-recording"
+          ]
+        }
+      ],
+      "cleanup": "Stop the diagnostic script; ensure its temporary Web entity/button disappear and audio is silent."
+    },
+    {
+      "id": "tablet-web",
+      "issue": 1130,
+      "title": "Tablet HTML and native media",
+      "entry": "Normal tablet browser/app path, plus reference WEB TEST button",
+      "existingSuites": [
+        "tablet-e2e",
+        "text-input-smoke"
+      ],
+      "automationGaps": [
+        "Native WebView overlay geometry, provider, packaged HTML and media"
+      ],
+      "steps": [
+        {
+          "id": "tablet-web.1",
+          "action": "Load the repository web reference and touch its DOM counter, Unicode/number/invented-password/multiline fields; select/replace/composition-edit, scroll to marker4.",
+          "expected": "Real document changes and native IME selection/composition work; keyboard opening does not clear focus or move the toolbar over the document.",
+          "evidenceKinds": [
+            "screen-recording"
+          ]
+        },
+        {
+          "id": "tablet-web.2",
+          "action": "Send the script echo, navigate to the second same-origin page, Back and Reload.",
+          "expected": "The actual ordinary Overte script roundtrip answers; navigation/history/loading behave correctly.",
+          "evidenceKinds": [
+            "screen-recording"
+          ]
+        },
+        {
+          "id": "tablet-web.3",
+          "action": "Navigate to a second fixture server port and use ordinary DOM/IME/media there; then request echo and return.",
+          "expected": "Foreign documents keep useful input/media but echo times out; original-origin echo returns. No foreign Overte grant is created.",
+          "evidenceKinds": [
+            "screen-recording"
+          ]
+        },
+        {
+          "id": "tablet-web.4",
+          "action": "Choose a nonprivate reference image in the real OS provider, confirm preview, repeat and Cancel; background while the picker is open.",
+          "expected": "Actual chosen bytes preview; cancel is distinct; returning resumes the exact current request. Replacing/closing the owner while pending cannot rebind a late result.",
+          "evidenceKinds": [
+            "screen-recording"
+          ]
+        },
+        {
+          "id": "tablet-web.5",
+          "action": "Press Play, observe several encoded red/green/blue cycles, moving square and burned-in video counters; seek4s, pause/resume. Record the visible video rectangle in its real product presentation.",
+          "expected": "The encoded MP4 pixels themselves move and change color, and the physical Phone output is audible. currentTime, DOM animation, server requests and renderer counters alone are insufficient.",
+          "evidenceKinds": [
+            "screen-recording",
+            "audio-recording"
+          ]
+        },
+        {
+          "id": "tablet-web.6",
+          "action": "Play the looping tone; hide, close, replace, background/resume and stop the owning ordinary client script.",
+          "expected": "Audio silences when required and resumes only through intended user action; no stale input/bridge/frame callback survives replacement. The fixture does not cooperatively pause itself.",
+          "evidenceKinds": [
+            "screen-recording",
+            "audio-recording"
+          ]
+        },
+        {
+          "id": "tablet-web.7",
+          "action": "Open one existing packaged HTML app through its normal entry and navigate its actual EventBridge action.",
+          "expected": "The packaged document loads through the approved application-resource mapping; its real script action works without arbitrary filesystem access.",
+          "evidenceKinds": [
+            "screen-recording"
+          ]
+        },
+        {
+          "id": "tablet-web.8",
+          "action": "Use Back/Close around keyboard and provider operations, including a provider lacking bridge capability if available.",
+          "expected": "The48px toolbar/clipping remain correct; the document remains usable with an actionable bridge warning; unavailable bridge is explicitly blocked, never treated as a pass.",
+          "evidenceKinds": [
+            "screen-recording"
+          ]
+        }
+      ],
+      "cleanup": "Close the page; cancel any pending picker; stop only the reference script."
+    },
+    {
+      "id": "graphics",
+      "issue": 1131,
+      "title": "Graphics controls and world effects",
+      "entry": "Settings > Graphics",
+      "existingSuites": [
+        "settings-persistence"
+      ],
+      "automationGaps": [
+        "Visible effect comparison and complete graphics policy"
+      ],
+      "steps": [
+        {
+          "id": "graphics.1",
+          "action": "Open Graphics and record the default safe Phone budget in the identical effects world.",
+          "expected": "The normal entry exists; no VR/controller controls appear; safe resolution/fps limits remain useful.",
+          "evidenceKinds": [
+            "screenshot"
+          ]
+        },
+        {
+          "id": "graphics.2",
+          "action": "Individually toggle lights, haze, procedural materials and mirrors; inspect the same known world content.",
+          "expected": "Each corresponding visible effect actually changes; mirror reflects the moving avatar, lights illuminate and haze/materials visibly differ.",
+          "evidenceKinds": [
+            "screen-recording"
+          ]
+        },
+        {
+          "id": "graphics.3",
+          "action": "Restart, confirm chosen settings persist, then restore the defaults.",
+          "expected": "Choices persist and restored defaults return without silently enabling expensive effects.",
+          "evidenceKinds": [
+            "screenshot"
+          ]
+        }
+      ],
+      "cleanup": "Restore saved graphics choices and confirm the world remains usable."
+    },
+    {
+      "id": "audio",
+      "issue": 1132,
+      "title": "Voice, live echo and bounded recorded preview",
+      "entry": "Normal Audio/voice controls",
+      "existingSuites": [
+        "voice-roundtrip",
+        "audio-controls",
+        "permission-recovery"
+      ],
+      "automationGaps": [
+        "Local preview/native routes; real audible live echo"
+      ],
+      "steps": [
+        {
+          "id": "audio.1",
+          "action": "Exchange fresh spoken challenges with the same owned peer; mute/unmute both sides.",
+          "expected": "Each physical endpoint hears the intended opposite speaker; mute negative controls stay silent.",
+          "evidenceKinds": [
+            "audio-recording",
+            "peer-observation"
+          ]
+        },
+        {
+          "id": "audio.2",
+          "action": "Exercise microphone denial/recovery and the available speaker/headset route.",
+          "expected": "Denied permission has a useful recovery path; restored permission and selected route produce the intended physical audio.",
+          "evidenceKinds": [
+            "screen-recording",
+            "audio-recording"
+          ]
+        },
+        {
+          "id": "audio.3",
+          "action": "Enable live echo, speak, disable; start the three-second recorded preview and wait through capture/replay.",
+          "expected": "Live echo remains immediate; recorded preview has visible native-driven recording/replay status and actual bounded audible replay.",
+          "evidenceKinds": [
+            "screen-recording",
+            "audio-recording"
+          ]
+        },
+        {
+          "id": "audio.4",
+          "action": "Cancel during recording and playback, background/resume and close.",
+          "expected": "Capture/playback stop promptly; no stale preview or orphan microphone survives; normal voice can resume.",
+          "evidenceKinds": [
+            "screen-recording",
+            "audio-recording"
+          ]
+        }
+      ],
+      "cleanup": "Disable live echo/preview, restore route/mute and leave the test call."
+    },
+    {
+      "id": "chat",
+      "issue": 1133,
+      "title": "Normal Chat and persistent history",
+      "entry": "Normal Chat entry",
+      "existingSuites": [],
+      "automationGaps": [
+        "Actual message protocol, peer receive and persistence"
+      ],
+      "steps": [
+        {
+          "id": "chat.1",
+          "action": "Open Chat, enter harmless Unicode text using the Phone keyboard and exchange messages with the same owned peer.",
+          "expected": "The peer receives exactly one message and its reply is shown; send does not move the avatar or lose input.",
+          "evidenceKinds": [
+            "screen-recording",
+            "peer-observation"
+          ]
+        },
+        {
+          "id": "chat.2",
+          "action": "Close/reopen, restart, exercise history/settings and flood only a bounded lab sample.",
+          "expected": "Expected bounded history/settings persist; long/invalid inputs have useful outcomes without duplicate handlers.",
+          "evidenceKinds": [
+            "screen-recording"
+          ]
+        }
+      ],
+      "cleanup": "Clear only lab history if the product permits; restore settings."
+    },
+    {
+      "id": "snapshot",
+      "issue": 1134,
+      "title": "Capture, preview and native export",
+      "entry": "Normal SNAP entry",
+      "existingSuites": [],
+      "automationGaps": [
+        "Actual still/GIF/360 pixels; MediaStore/chooser outcomes"
+      ],
+      "steps": [
+        {
+          "id": "snapshot.1",
+          "action": "Capture still, animated and360/cubemap samples of the shared reference world; inspect previews.",
+          "expected": "The still depicts the actual world, GIF frames move and360/cubemap orientation/content is correct; preview can be dismissed.",
+          "evidenceKinds": [
+            "screen-recording",
+            "result-file"
+          ]
+        },
+        {
+          "id": "snapshot.2",
+          "action": "Save through the actual Android storage route and open the saved result from an independent normal app.",
+          "expected": "Save reports success only after complete publication; external image/GIF opens with intended contents, not merely a queued write.",
+          "evidenceKinds": [
+            "screen-recording",
+            "result-file"
+          ]
+        },
+        {
+          "id": "snapshot.3",
+          "action": "Share through the system chooser, choose a harmless test receiver; repeat and Cancel.",
+          "expected": "System handoff uses an OS content URI with narrow read access, never file://; completed and cancelled are distinct. Receiver persistence is not assumed.",
+          "evidenceKinds": [
+            "screen-recording"
+          ]
+        },
+        {
+          "id": "snapshot.4",
+          "action": "Exercise invalid/error storage, Cancel capture/export, and close/background while a chooser is pending.",
+          "expected": "Useful errors/cancel remain visible; a stale callback cannot complete a newer ticket; successful originals remain available.",
+          "evidenceKinds": [
+            "screen-recording"
+          ]
+        },
+        {
+          "id": "snapshot.5",
+          "action": "Exercise the existing permitted upload/audience action and its permission-denied case.",
+          "expected": "Actual intended upload/audience result occurs, or a useful honest denial; no fictitious upload is reported.",
+          "evidenceKinds": [
+            "screen-recording",
+            "peer-observation"
+          ]
+        }
+      ],
+      "cleanup": "Cancel active requests; remove only copies deliberately saved/uploaded for this fixture."
+    },
+    {
+      "id": "scripts",
+      "issue": 1135,
+      "title": "Scripts and preserved companions",
+      "entry": "Normal Scripts entry",
+      "existingSuites": [],
+      "automationGaps": [
+        "OS folder selection; actual V8 results and relative include"
+      ],
+      "steps": [
+        {
+          "id": "scripts.1",
+          "action": "Load the harmless ordinary URL script and local script through the real native provider.",
+          "expected": "Concrete expected world/tablet result appears; list/running status matches actual execution.",
+          "evidenceKinds": [
+            "screen-recording"
+          ]
+        },
+        {
+          "id": "scripts.2",
+          "action": "Choose the supplied folder with main.js and nested included/data files, review and explicitly select its main file.",
+          "expected": "Relative names/hierarchy are preserved; only the chosen main executes, and its actual companion-dependent result appears.",
+          "evidenceKinds": [
+            "screen-recording"
+          ]
+        },
+        {
+          "id": "scripts.3",
+          "action": "Restart/stop/manage it; Cancel provider selection, deny/fail provider access and background while pending.",
+          "expected": "No duplicate or orphan script remains; cancellation/error is useful and late results cannot replace the current selection.",
+          "evidenceKinds": [
+            "screen-recording"
+          ]
+        },
+        {
+          "id": "scripts.4",
+          "action": "Select folders exceeding file/byte/entry/depth limits and a duplicate/unsafe relative-name fixture if the provider can represent it.",
+          "expected": "The whole invalid selection is rejected visibly, with no truncated partial import. Ordinary JavaScript results do not imply WASM/JIT parity.",
+          "evidenceKinds": [
+            "screen-recording"
+          ]
+        }
+      ],
+      "cleanup": "Stop only fixture scripts and remove their temporary entities/buttons."
+    },
+    {
+      "id": "assets",
+      "issue": 1136,
+      "title": "Assets, model companions and mutations",
+      "entry": "Normal Assets entry",
+      "existingSuites": [
+        "asset-smoke"
+      ],
+      "automationGaps": [
+        "Live asset mapping/batch; rendered glTF/OBJ textures"
+      ],
+      "steps": [
+        {
+          "id": "assets.1",
+          "action": "Browse the shared read-only assets and rez the same allowed model/image.",
+          "expected": "Normal browsing and touch controls work; expected model/image is visibly rendered; unauthorized mutation is denied.",
+          "evidenceKinds": [
+            "screen-recording"
+          ]
+        },
+        {
+          "id": "assets.2",
+          "action": "Choose the model folder; upload glTF plus external bin/textures, then OBJ plus nested MTL/textures, explicitly selecting each main.",
+          "expected": "Companions are preserved/published before the main mapping; visible geometry and distinct texture/material regions match the fixture, not just transferred hashes.",
+          "evidenceKinds": [
+            "screen-recording",
+            "result-file"
+          ]
+        },
+        {
+          "id": "assets.3",
+          "action": "Rename/delete a lab mapping and exercise the existing baking action with permitted and denied accounts.",
+          "expected": "Actual mapping/result changes are visible or a useful honest permission/bake limitation is recorded.",
+          "evidenceKinds": [
+            "screen-recording"
+          ]
+        },
+        {
+          "id": "assets.4",
+          "action": "Cancel or fail midway through provider copy and companion upload; repeat background/resume and duplicate names.",
+          "expected": "No primary mapping appears after partial failure; copies remain useful for the successful selection; unrelated originals/mappings are untouched.",
+          "evidenceKinds": [
+            "screen-recording"
+          ]
+        }
+      ],
+      "cleanup": "Delete only created lab mappings/entities; retain successful input copies until scripts/uploads no longer need them."
+    },
+    {
+      "id": "lifecycle-input",
+      "issue": 1137,
+      "title": "Lifecycle, input and accessibility",
+      "entry": "Normal touch/keyboard/Back/Close controls",
+      "existingSuites": [
+        "lifecycle-stability",
+        "stability",
+        "text-input-smoke",
+        "tablet-e2e"
+      ],
+      "automationGaps": [
+        "Native overlay/provider/media lifecycle, accessibility semantics"
+      ],
+      "steps": [
+        {
+          "id": "lifecycle-input.1",
+          "action": "Use touch and hardware/IME keyboard to open apps, move, select/edit and Back/Close; inspect accessibility controls.",
+          "expected": "Visible controls are reachable/labelled; no VR controls, stuck touch, accidental world motion or hidden overlay remains.",
+          "evidenceKinds": [
+            "screen-recording"
+          ]
+        },
+        {
+          "id": "lifecycle-input.2",
+          "action": "Repeat background/resume while typing/composing, playing web tone, selecting a file and exporting a snapshot.",
+          "expected": "Correct current operations recover or cancel; orphan audio stops; the exact old owner cannot receive a new owner result.",
+          "evidenceKinds": [
+            "screen-recording",
+            "audio-recording"
+          ]
+        },
+        {
+          "id": "lifecycle-input.3",
+          "action": "Replace Web source rapidly, close/reopen apps, restart and re-enter the reference world.",
+          "expected": "No stale frames, bridge messages, keyboard text, duplicate script handlers or native view survives; normal controls remain usable.",
+          "evidenceKinds": [
+            "screen-recording"
+          ]
+        }
+      ],
+      "cleanup": "Release all inputs, stop only test scripts/audio and return to a known usable state."
+    }
+  ]
+}
