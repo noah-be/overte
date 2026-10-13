@@ -7,5 +7,5 @@ function(overte_target_embedded_web target)
         "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/embedded-web.qrc")
     target_include_directories(${target} PRIVATE "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/src"
         "${CMAKE_SOURCE_DIR}/libraries/shared/src")
-    target_link_libraries(${target} PRIVATE Qt5::Quick Qt5::WebChannel Qt5::Network)
+    target_link_libraries(${target} Qt5::Quick Qt5::WebChannel Qt5::Network)
 endfunction()

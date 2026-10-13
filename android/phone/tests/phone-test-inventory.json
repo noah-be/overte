@@ -198,7 +198,8 @@
       "android/phone/tests/test_phone_ime.py"
     ],
     "scripts/system/+android_phoneInterface/phoneGraphics.js": [
-      "android/phone/tests/phone-graphics-controller-test.js"
+      "android/phone/tests/phone-graphics-controller-test.js",
+      "tests/javascript/test/phone-graphics.production.test.js"
     ],
     "scripts/system/settings/qml/pages/+android_phoneInterface/GraphicsSettings.qml": [
       "android/phone/tests/phone-graphics-test.py",
@@ -248,7 +249,8 @@
       "android/common/tests/javascript/test/quick-goto.production.test.js"
     ],
     "system/+android_phoneInterface/phoneGraphics.js": [
-      "android/phone/tests/phone-graphics-controller-test.js"
+      "android/phone/tests/phone-graphics-controller-test.js",
+      "tests/javascript/test/phone-graphics.production.test.js"
     ]
   }
 }
