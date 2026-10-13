@@ -12,7 +12,10 @@ class PhoneVoiceTestBuffer {
 public:
     std::size_t capturedBytes() const { return _recording.size(); }
     std::size_t playedBytes() const { return _position; }
-    void reset() { _recording.clear(); _limit = 0; _position = 0; _playing = false; }
+    bool playing() const { return _playing; }
+    bool finished() const { return _playing && _position == _recording.size(); }
+    bool hasSignal() const { return _hasSignal; }
+    void reset() { _recording.clear(); _limit = 0; _position = 0; _playing = false; _hasSignal = false; }
 
     std::vector<char> process(const char* input, std::size_t size, std::size_t limit,
                              bool normalizePcm16 = false) {
@@ -22,6 +25,11 @@ public:
         if (!_playing) {
             const auto count = std::min(size, _limit - _recording.size());
             _recording.insert(_recording.end(), input, input + count);
+            for (std::size_t i = 0; i + sizeof(int16_t) <= count; i += sizeof(int16_t)) {
+                int16_t value;
+                std::memcpy(&value, input + i, sizeof(value));
+                _hasSignal = _hasSignal || value != 0;
+            }
             _playing = _recording.size() == _limit;
             if (_playing && normalizePcm16) {
                 int peak = 0;
@@ -55,4 +63,5 @@ private:
     std::size_t _limit { 0 };
     std::size_t _position { 0 };
     bool _playing { false };
+    bool _hasSignal { false };
 };

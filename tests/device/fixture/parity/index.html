@@ -1,0 +1,43 @@
+<!doctype html>
+<!-- Copyright 2026 Overte e.V. SPDX-License-Identifier: Apache-2.0 -->
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Overte web parity reference</title>
+<style>
+body{font:18px sans-serif;background:#20252c;color:#fff;margin:12px}h1{font-size:24px}
+button,input,textarea,a{font:inherit;min-height:48px;box-sizing:border-box}button,a{display:inline-block;margin:4px;padding:10px}
+input,textarea{display:block;width:100%;margin:8px 0}section{border:1px solid #778;padding:10px;margin:12px 0}
+video{width:100%;max-width:576px;background:#000}output{display:block;overflow-wrap:anywhere;margin:8px 0}
+#scroll{height:180px;overflow:auto;border:1px solid #aaa}#scroll div{height:90px;padding:8px;background:#343b48}
+</style></head><body>
+<h1>Overte web parity reference</h1>
+<output id="document">Document starting…</output>
+<section><h2>Pointer and text</h2>
+<button id="increment">Increment DOM counter</button><output id="counter">0</output>
+<label>Text / Unicode<input id="text" placeholder="Type Überte 🙂"></label>
+<label>Number<input id="number" type="number" inputmode="decimal" placeholder="12.5"></label>
+<label>Disposable password test<input id="password" type="password" placeholder="Use invented test text"></label>
+<label>Multiline<textarea id="multiline" rows="3" placeholder="Two lines"></textarea></label>
+<output id="inputStatus">No input observed</output>
+<div id="scroll"><div>Scroll marker 1</div><div>Scroll marker 2</div><div>Scroll marker 3</div><div>Scroll marker 4 · end</div></div>
+<output id="scrollStatus">Scroll position 0</output>
+<label>Choose your own test image<input id="file" type="file" accept="image/*"></label>
+<output id="fileStatus">No file selected</output><img id="filePreview" alt="Selected image preview" style="max-width:100%;max-height:180px;display:none">
+</section>
+<section><h2>Encoded video and audio</h2>
+<p>Expected: red → green → blue every two seconds, frame numbers 000–071, moving white square and a 440 Hz tone.</p>
+<video id="video" src="reference.mp4" controls playsinline loop preload="metadata"></video>
+<button id="play">Play with sound</button><button id="pause">Pause</button><button id="seek">Seek to blue (4 s)</button>
+<output id="mediaStatus">Media not started</output>
+<p>The time below is a browser diagnostic. Observe actual moving pixels and sound on the world surface and tablet.</p>
+</section>
+<section><h2>Native EventBridge</h2>
+<button id="bridge">Send echo request</button><output id="bridgeStatus">No echo received</output>
+<output id="injection">Source scriptUrl not observed</output>
+</section>
+<section><h2>Navigation</h2><a href="index.html?page=second">Same-origin second document</a>
+<button id="back">History back</button><button id="reload">Reload</button>
+<label>Second controlled server URL<input id="foreign" type="url" placeholder="http://your-fixture-host:second-port/parity/index.html"></label>
+<button id="navigate">Navigate to second origin</button><output id="navigationStatus"></output>
+<p>After a foreign-origin navigation, pointer/text/media remain usable. Echo must stop until returning to the granted origin.</p>
+</section>
+<script src="reference.js"></script></body></html>
