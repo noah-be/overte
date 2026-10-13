@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
-# Host-only evidence validators; install in a test venv, never a product build cache.
+# Host evidence validators and contract tools; keep test caches separate from product builds.
 -r requirements-repository.txt
 -r ../tools/sbom/requirements-validation.txt
 Pillow==12.3.0
+conan==2.25.2
