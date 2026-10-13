@@ -122,6 +122,13 @@ jobs:
         env:
           GH_TOKEN: ""
           GITHUB_TOKEN: ""
+          # Candidate tests may predate fixture-local maintenance isolation.
+          # Scope these overrides to this disposable complete-test invocation.
+          GIT_CONFIG_COUNT: "2"
+          GIT_CONFIG_KEY_0: maintenance.auto
+          GIT_CONFIG_VALUE_0: "false"
+          GIT_CONFIG_KEY_1: gc.auto
+          GIT_CONFIG_VALUE_1: "0"
         run: |
           set -euo pipefail
           # Match the other complete host jobs on disposable GitHub runners.

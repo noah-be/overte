@@ -764,6 +764,20 @@ class HostWorkflowRoutingContracts(unittest.TestCase):
         self.assertNotIn('continue-on-error', prepare)
         self.assertNotIn('continue-on-error', product)
 
+    def test_complete_fallback_isolates_disposable_git_background_writers(self):
+        import yaml
+        steps = yaml.safe_load(SYNC_VALIDATION_WORKFLOW.read_text())['jobs']['validate']['steps']
+        fallback = next(step for step in steps if step['name'] == 'Run the complete common fallback')
+        self.assertEqual(fallback['working-directory'], 'candidate')
+        self.assertEqual(fallback['env'], {
+            'GH_TOKEN': '', 'GITHUB_TOKEN': '', 'GIT_CONFIG_COUNT': '2',
+            'GIT_CONFIG_KEY_0': 'maintenance.auto', 'GIT_CONFIG_VALUE_0': 'false',
+            'GIT_CONFIG_KEY_1': 'gc.auto', 'GIT_CONFIG_VALUE_1': '0',
+        })
+        self.assertIn('--profile host --timeout 240 --host-timeout 900', fallback['run'])
+        self.assertNotIn('git config --global', fallback['run'])
+        self.assertNotIn('continue-on-error', fallback)
+
     def test_parent_evidence_stays_bound_to_the_successful_exact_push(self):
         source = self.workflows["parent"]
         self.assertIn("ref: ${{ github.sha }}", source)
