@@ -9,6 +9,7 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import subprocess
+import sys
 import tarfile
 
 MAX_FILES = 100000
@@ -310,8 +311,9 @@ class PackageStore:
         env = os.environ | {'CONAN_HOME': str(cache)}
         logs = []
         def run(*args, json_result=False):
-            result = subprocess.run(['conan', *args], env=env, text=True, capture_output=True, timeout=240)
-            logs.append({'command': ['conan', *args], 'exitCode': result.returncode,
+            command = [sys.executable, '-m', 'conans.conan', *args]
+            result = subprocess.run(command, env=env, text=True, capture_output=True, timeout=240)
+            logs.append({'command': command, 'exitCode': result.returncode,
                          'stdout': result.stdout, 'stderr': result.stderr})
             require(result.returncode == 0, 'actual Conan operation failed: ' + ' '.join(args))
             return json.loads(result.stdout) if json_result else result.stdout
