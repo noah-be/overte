@@ -21,6 +21,8 @@ Windows.ModalWindow {
     property alias options: browser.options
     property alias selectDirectory: browser.selectDirectory
     property alias showHidden: browser.showHidden
+    property alias bundleMode: browser.bundleMode
+    property alias primaryFilter: browser.primaryFilter
     property alias multiSelect: browser.multiSelect
     property alias saveDialog: browser.saveDialog
     property alias helper: browser.helper

@@ -19,6 +19,9 @@ Rectangle {
     property var currentDirectory: fileDialogHelper.home()
     property bool assetWriteAllowed: Entities.canWriteAssets()
     property bool importAllowed: Entities.canRez() || Entities.canRezTmp()
+    property var pendingBundle: null
+    property string bundleRequest: ""
+    property string uploadedPrimaryUrl: ""
     property bool busy: false
     property string status: ""
     property var lifecycle: ({active: true})
@@ -140,10 +143,44 @@ Rectangle {
         if (url) { uploadFile(url, true); return; }
         var browser = fileBrowser.createObject(root, {dir: currentDirectory});
         if (!browser) { status = "The file browser is unavailable."; return; }
-        browser.selectedFile.connect(function(selected) { currentDirectory = browser.dir; Qt.callLater(function() { root.uploadFile(selected, false); }); });
+        browser.selectedBundle.connect(function(manifest) {
+            currentDirectory = browser.dir; pendingBundle = manifest;
+            bundleDestination.text = selectedPath ? selectedPath.slice(0, selectedPath.lastIndexOf("/") + 1) : "/";
+            Qt.callLater(function() { bundleDialog.open(); });
+        });
+    }
+    function uploadSingleClicked() {
+        if (!writable() || busy) return;
+        var browser = fileBrowser.createObject(root, {dir: currentDirectory, bundleMode: false, caption: "Select one asset to upload"});
+        if (!browser) { status = "The file browser is unavailable."; return; }
+        browser.selectedFile.connect(function(url) { currentDirectory = browser.dir; root.uploadFile(url, false); });
+    }
+    function uploadBundle() {
+        if (!writable() || busy || !pendingBundle) return;
+        var lifetime = lifecycle;
+        var files = pendingBundle.urls.map(function(url) { return fileDialogHelper.urlToPath(url); });
+        uploadedPrimaryUrl = ""; busy = true; status = "Preparing bundle upload...";
+        bundleRequest = Assets.uploadBundle(files, pendingBundle.relativePaths, bundleDestination.text, pendingBundle.primaryPath,
+            function(index, phase) { if (lifetime.active) status = phase + " · " + (index + 1) + "/" + files.length; },
+            function(error, published, primary) {
+                if (!lifetime.active) return;
+                bundleRequest = ""; busy = false;
+                var count = JSON.parse(published).length;
+                status = error ? "Bundle upload stopped: " + error + " Published mappings: " + count + "." : "Uploaded " + count + " files with their relative paths.";
+                if (!error) uploadedPrimaryUrl = "atp:" + primary.split("/").map(encodeURIComponent).join("/");
+                pendingBundle = null; reload();
+            });
+        if (!bundleRequest) { busy = false; status = "The upload service is busy or unavailable."; }
+    }
+    function importUploadedMain() {
+        if (!Entities.canRez() && !Entities.canRezTmp()) { status = "You do not have permission to create entities."; return; }
+        modelUrl.text = uploadedPrimaryUrl;
+        modelName = decodeURIComponent(uploadedPrimaryUrl.split("/").pop());
+        modelPosition = Vec3.sum(MyAvatar.position, Vec3.multiply(2, Quat.getForward(MyAvatar.orientation)));
+        shape.currentIndex = 2; dynamic.checked = false; modelDialog.open();
     }
     Component.onCompleted: { assetMappingsModel.autoRefreshEnabled = true; reload(); }
-    Component.onDestruction: { lifecycle.active = false; assetMappingsModel.autoRefreshEnabled = false; }
+    Component.onDestruction: { lifecycle.active = false; if (bundleRequest) Assets.cancelUploadBundle(bundleRequest); assetMappingsModel.autoRefreshEnabled = false; }
     Connections {
         target: root.assetMappingsModel
         function onErrorGettingMappings(message) { root.status = "Could not browse assets: " + message; }
@@ -159,7 +196,7 @@ Rectangle {
         function onCanRezTmpChanged() { root.importAllowed = Entities.canRez() || Entities.canRezTmp(); }
     }
     HifiControls.TouchUiMetrics { id: metrics }
-    Component { id: fileBrowser; NativeFileBrowser {} }
+    Component { id: fileBrowser; NativeFileBrowser { bundleMode: true; caption: "Select an asset and its companion files" } }
     DropArea { anchors.fill: parent; onDropped: function(drop) { if (drop.hasUrls && drop.urls.length === 1 && root.writable()) { root.uploadFile(drop.urls[0], true); drop.acceptProposedAction(); } } }
     ColumnLayout {
         anchors.fill: parent; anchors.margins: 12; spacing: 8
@@ -179,7 +216,10 @@ Rectangle {
         CheckBox { objectName: "assetBaking"; text: "Use baked version"; enabled: root.assetWriteAllowed && !root.busy && root.bakingAvailable(); checked: root.currentIndex !== null && root.bakingAvailable() && root.assetProxyModel.data(root.currentIndex, 261) !== "Not Baked"; onToggled: root.setBakingEnabled(checked) }
         Flow {
             Layout.fillWidth: true; spacing: 8
-            Button { objectName: "assetUpload"; text: "Upload"; implicitHeight: 48; enabled: root.assetWriteAllowed && !root.busy; onClicked: root.uploadClicked() }
+            Button { objectName: "assetBundleCancel"; text: "Cancel upload"; implicitHeight: 48; visible: !!root.bundleRequest; onClicked: { Assets.cancelUploadBundle(root.bundleRequest); root.status = "Canceling upload; waiting for the current server operation..."; } }
+            Button { objectName: "assetUploadedImport"; text: "Add uploaded model"; implicitHeight: 48; visible: /\.(fbx|obj|gltf|glb|vrm)$/i.test(root.uploadedPrimaryUrl); enabled: root.importAllowed && !root.busy; onClicked: root.importUploadedMain() }
+            Button { objectName: "assetUpload"; text: "Upload with companions"; implicitHeight: 48; enabled: root.assetWriteAllowed && !root.busy; onClicked: root.uploadClicked() }
+            Button { objectName: "assetSingleUpload"; text: "Upload one file"; implicitHeight: 48; enabled: root.assetWriteAllowed && !root.busy; onClicked: root.uploadSingleClicked() }
             Button { objectName: "assetRename"; text: "Rename"; implicitHeight: 48; enabled: root.assetWriteAllowed && !root.busy && root.selectedItemCount === 1; onClicked: { renamePath.text = root.selectedPath; renameDialog.open(); } }
             Button { objectName: "assetDelete"; text: "Delete"; implicitHeight: 48; enabled: root.assetWriteAllowed && !root.busy && root.selectedItemCount > 0; onClicked: deleteDialog.open() }
             Button { objectName: "assetMapping"; text: "Set Mapping"; implicitHeight: 48; enabled: root.assetWriteAllowed && !root.busy; onClicked: mappingDialog.open() }
@@ -265,6 +305,21 @@ Rectangle {
         }
         onClosed: tree.view.forceActiveFocus()
         onAccepted: root.setMapping(mappingPath.text, mappingHash.text)
+    }
+    Dialog {
+        id: bundleDialog; objectName: "bundleDestinationDialog"; title: "Choose an asset destination folder"
+        modal: true; focus: true; width: Math.min(root.width - 24, 500)
+        x: (root.width - width) / 2; y: Math.max(0, (root.height - height) / 2)
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        Column {
+            width: parent.width; spacing: 8
+            Label { text: "Relative paths will be preserved. Choose a new folder: bundle uploads stop at known existing mappings. Concurrent server changes may still affect the destination."; width: parent.width; wrapMode: Text.WordWrap }
+            TextField { id: bundleDestination; objectName: "assetBundleDestination"; width: parent.width; implicitHeight: 48; placeholderText: "/my-model/"; Keys.onEscapePressed: function(event) { bundleDialog.reject(); event.accepted = true; } }
+            NativeKeyboardHost { width: parent.width; inputFocused: bundleDialog.visible && bundleDestination.activeFocus }
+        }
+        onAccepted: root.uploadBundle()
+        onRejected: root.pendingBundle = null
+        onClosed: tree.view.forceActiveFocus()
     }
     Dialog {
         id: modelDialog

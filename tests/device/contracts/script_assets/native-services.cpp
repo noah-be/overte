@@ -2,6 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // Engine/network/headset boundaries only. Tree models and FileDialogHelper are production Qt.
 #include <QApplication>
+#include <memory>
+#include <QJsonDocument>
+#include <QJsonArray>
+#include <QJsonObject>
+#include <QDataStream>
+#include <QImage>
+#include <QRegularExpression>
 #include <QFileDialog>
 #include <QMenu>
 #include <QLineEdit>
@@ -18,22 +25,30 @@
 #include <QtTest/QTest>
 #include <QUuid>
 #include "FileDialogHelper.h"
+#include "bundle-network.h"
+Q_LOGGING_CATEGORY(asset_client,"test.asset-client")
+#include "bundle-script.h"
+#include "bundle-dialogs.h"
 
 class ScriptApi : public QObject {
     Q_OBJECT
     Q_PROPERTY(QAbstractItemModel* scriptsModelFilter READ model CONSTANT)
     Q_PROPERTY(QString defaultScriptsPath READ defaults CONSTANT)
 public:
-    QStandardItemModel tree; QSortFilterProxyModel proxy; QVariantList calls;
+    QStandardItemModel tree; QSortFilterProxyModel proxy; QVariantList calls; QVariant localResult;
     ScriptApi() { auto* folder = new QStandardItem("examples"); auto* script = new QStandardItem("ordinary.js"); script->setData("https://example.invalid/ordinary.js", 256); folder->appendRow(script); tree.appendRow(folder); proxy.setSourceModel(&tree); }
     QAbstractItemModel* model() { return &proxy; }
     QString defaults() const { return "https://example.invalid/defaults"; }
     Q_INVOKABLE QVariantList getRunning() { return { QVariantMap{{"url","https://example.invalid/ordinary.js"},{"path","https://example.invalid/ordinary.js"}}, QVariantMap{{"url","https://example.invalid/defaultScripts.js"},{"path","https://example.invalid/defaultScripts.js"}} }; }
-    Q_INVOKABLE void loadOneScript(QString url) { calls.append(QVariantMap{{"kind","load"},{"url",url}}); }
+    Q_INVOKABLE void loadOneScript(QString url) { calls.append(QVariantMap{{"kind","load"},{"url",url}});
+        if(QUrl(url).isLocalFile()) { ScriptManager engine; auto result=engine.run(QUrl(url)); localResult=result.toVariant(); if(result.isError())emit scriptLoadError(url,result.toString()); }
+    }
+    void loadScript(const QString& path,bool,bool,bool,bool) {loadOneScript(QUrl::fromLocalFile(path).toString());}
     Q_INVOKABLE bool stopScript(QString url, bool restart = false) { calls.append(QVariantMap{{"kind","stop"},{"url",url},{"restart",restart}}); return true; }
     Q_INVOKABLE void reloadAllScripts() { calls.append(QVariantMap{{"kind","reloadAll"}}); }
 signals: void scriptCountChanged(); void scriptLoadError(QString url, QString error);
 };
+using ScriptEngines = ScriptApi;
 class AssetModel : public QStandardItemModel {
     Q_OBJECT
     Q_PROPERTY(bool autoRefreshEnabled MEMBER automatic)
@@ -56,7 +71,7 @@ public:
         tree.appendRow(folder);
     }
     QAbstractItemModel* model() { return &proxy; } QObject* mapping() { return &tree; }
-    Q_INVOKABLE bool isKnownMapping(QString path) { return path == "/exists.fbx"; }
+    Q_INVOKABLE bool isKnownMapping(QString path) { return path == "/exists.fbx" || DependencyManager::get<AssetClient>()->mappings.contains(path); }
     Q_INVOKABLE bool isKnownFolder(QString path) { return path == "/models/"; }
     void done(QJSValue callback) { callback.call({error}); }
     Q_INVOKABLE void deleteMappings(QStringList paths,QJSValue callback) { calls.append(QVariantMap{{"kind","delete"},{"paths",paths}});done(callback); }
@@ -64,16 +79,28 @@ public:
     Q_INVOKABLE void setMapping(QString path,QString hash,QJSValue callback) { calls.append(QVariantMap{{"kind","mapping"},{"path",path},{"hash",hash}});done(callback); }
     Q_INVOKABLE void setBakingEnabled(QStringList paths,bool enabled,QJSValue callback) { calls.append(QVariantMap{{"kind","baking"},{"paths",paths},{"enabled",enabled}});done(callback); }
     Q_INVOKABLE void uploadFile(QString path,QString mapping,QJSValue started,QJSValue callback,bool dropping=false) { calls.append(QVariantMap{{"kind","upload"},{"path",path},{"mapping",mapping},{"dropping",dropping}});started.call();done(callback); }
+    #include "bundle-api-declarations.inc"
+private:
+    struct BundleUpload;
+    QHash<QString,std::shared_ptr<BundleUpload>> _bundleUploads;
+    void advanceBundle(const std::shared_ptr<BundleUpload>& state);
+    void finishBundle(const std::shared_ptr<BundleUpload>& state,const QString& error);
+
 };
+#include "bundle-api-body.inc"
 // Explicit vector/property/session boundaries. The declaration and entire
 // production addImageEntity body are compiled below, without reimplementing it.
 namespace glm { struct vec3 { float x {0}, y {0}, z {0}; }; }
 Q_DECLARE_METATYPE(glm::vec3)
-namespace EntityTypes { enum Type { Image }; }
+namespace EntityTypes { enum Type { Image, Model }; }
 struct EntityItemProperties {
     QVariantMap values;
-    void setType(EntityTypes::Type) { values["kind"] = "image"; }
+    void setType(EntityTypes::Type type) { values["kind"] = type==EntityTypes::Image ? "image" : "model"; }
     void setName(QString value) { values["name"] = value; }
+    void setModelURL(QString value) { values["url"] = value; }
+    void setShapeTypeFromString(QString value) { values["shape"] = value; }
+    void setTextures(QString value) { values["textures"] = value; }
+    void setGravity(glm::vec3 value) { values["gravity"] = QVariantMap{{"x",value.x},{"y",value.y},{"z",value.z}}; }
     void setImageURL(QString value) { values["url"] = value; }
     void setKeepAspectRatio(bool value) { values["keepAspectRatio"] = value; }
     void setDynamic(bool value) { values["dynamic"] = value; }
@@ -82,15 +109,6 @@ struct EntityItemProperties {
     void setPosition(glm::vec3 value) { values["position"] = QVariantMap{{"x",value.x},{"y",value.y},{"z",value.z}}; }
     void setLastEditedBy(QUuid value) { values["lastEditedBy"] = value; }
 };
-struct NodeList : QObject {
-    Q_OBJECT
-public:
-    bool getThisNodeCanWriteAssets() { return false; }
-    QUuid getSessionUUID() { return QUuid("11111111-2222-3333-4444-555555555555"); }
-    void revokeWrites() { emit canWriteAssetsChanged(false); }
-    signals: void canWriteAssetsChanged(bool);
-};
-struct DependencyManager { template<class T> static T* get() { static T service; return &service; } };
 #include "image-api-constants.inc"
 class EntityScriptingInterface : public QObject {
     Q_OBJECT
@@ -99,10 +117,13 @@ public:
     Q_INVOKABLE bool canWriteAssets() { return write; } Q_INVOKABLE bool canRez() { return rez; } Q_INVOKABLE bool canRezTmp() { return false; }
     #include "image-api-declaration.inc"
     QUuid addEntity(const EntityItemProperties& properties) { calls.append(properties.values); return deny || !rez ? QUuid() : QUuid::createUuid(); }
-    Q_INVOKABLE QUuid addModelEntity(QString name,QString url,QString textures,QString shape,bool dynamic,bool collisionless,bool grabbable,const glm::vec3& position,const glm::vec3& gravity) { calls.append(QVariantMap{{"kind","model"},{"name",name},{"url",url},{"shape",shape},{"dynamic",dynamic},{"position",QVariantMap{{"x",position.x},{"y",position.y},{"z",position.z}}}});return deny?QUuid():QUuid::createUuid(); }
+    #include "model-api-declaration.inc"
+    struct {int addedEntityCount {0};} _activityTracking;
+
 signals: void canWriteAssetsChanged(bool);void canRezChanged(bool);void canRezTmpChanged(bool);
 };
 #include "image-api-body.inc"
+#include "model-api-body.inc"
 class NativeContext : public QObject {
     Q_OBJECT
     Q_PROPERTY(bool active MEMBER active CONSTANT)
@@ -196,6 +217,7 @@ struct OffscreenBoundary {
 class Application : public QObject {
     Q_OBJECT
 public:
+    using QObject::QObject;
     bool login {false}, hmd {false};
     OffscreenBoundary ui;
     bool getLoginDialogPoppedUp() { return login; }
@@ -203,10 +225,14 @@ public:
     OffscreenBoundary* getOffscreenUI() { return &ui; }
 public slots:
     void showAssetServerWidget(QString filePath = {});
+    void loadDialog();
+    QString getPreviousScriptLocation(){return DependencyManager::get<OffscreenUi>()->currentDirectory;}
+    void setPreviousScriptLocation(const QString& path){DependencyManager::get<OffscreenUi>()->currentDirectory=path;}
 signals:
     void uploadRequest(QString file);
 };
 #include "asset-route.inc"
+#include "bundle-script-caller.inc"
 namespace MenuOption { const QString AssetServer = "Asset Browser"; }
 #undef qApp
 #define qApp routeApplication
@@ -245,8 +271,8 @@ public:
     Services(){qRegisterMetaType<glm::vec3>("glm::vec3");QFile file(fixtureFile());file.open(QFile::WriteOnly);file.write("print('fixture');");file.close();QDir(temporary.path()).mkdir("nested");}
     QVariantList scriptCalls(){return scripts.calls;}QVariantList assetCalls(){return assets.calls;}QVariantList entityCalls(){return entities.calls;}
     QString fixtureFile(){return temporary.path()+"/ordinary.js";}QString fixtureDirectory(){return temporary.path();}bool keyboardRaised(){return context.raised;}bool pickerCanceled(){return canceled;}int fileDialogCount(){return context.fileDialogs;}int urlDialogCount(){return context.urlDialogs;}
-    Q_INVOKABLE void reset(){scripts.calls.clear();assets.calls.clear();assets.error.clear();assets.populate();entities.calls.clear();entities.write=false;entities.rez=true;entities.deny=false;context.developer=false;context.threeD=true;context.raised=false;context.punctuation=false;context.fileDialogs=context.urlDialogs=0;canceled=false;emit context.keyboardChanged();}
-    Q_INVOKABLE void permissions(bool write,bool rez){entities.write=write;entities.rez=rez;emit entities.canWriteAssetsChanged(write);emit entities.canRezChanged(rez);}
+    Q_INVOKABLE void reset(){scripts.calls.clear();DependencyManager::get<ScriptEngines>()->calls.clear();DependencyManager::get<ScriptEngines>()->localResult=QVariant();assets.calls.clear();assets.error.clear();assets.populate();entities.calls.clear();entities.write=false;entities.rez=true;entities.deny=false;context.developer=false;context.threeD=true;context.raised=false;context.punctuation=false;context.fileDialogs=context.urlDialogs=0;canceled=false;auto* peer=DependencyManager::get<AssetClient>();peer->blobs.clear();peer->mappings.clear();peer->published.clear();peer->uploads=0;peer->failAt=-1;peer->holdUploads=false;peer->pending.clear();DependencyManager::get<NodeList>()->write=false;emit context.keyboardChanged();}
+    Q_INVOKABLE void permissions(bool write,bool rez){entities.write=write;entities.rez=rez;DependencyManager::get<NodeList>()->write=write;emit entities.canWriteAssetsChanged(write);emit entities.canRezChanged(rez);}
     Q_INVOKABLE void developer(bool value){context.developer=value;}
     Q_INVOKABLE void denyImport(bool value){entities.deny=value;}
     Q_INVOKABLE void backendError(QString message){assets.error=message;}
@@ -257,11 +283,76 @@ public:
     Q_INVOKABLE void keyboard3D(bool value){context.threeD=value;emit context.keyboardChanged();}
     Q_INVOKABLE void bindSurface(QObject* item) {
         auto* surface = qobject_cast<QQuickItem*>(item);
-        if (surface) { desktop.setParentItem(surface); context.inputWindow = surface->window(); }
+        if (surface) { desktop.setParentItem(surface); context.inputWindow = surface->window(); auto* picker=DependencyManager::get<OffscreenUi>();picker->parentItem=surface;picker->engine=qmlEngine(surface); }
     }
     Q_INVOKABLE void installPicker(){FileDialogHelper::setDocumentPickerOperator([this](const QString&id,const QString&,const QString&,bool,FileDialogHelper::DocumentSelection callback){pendingId=id;pending=callback;return true;},[this](const QString&id){if(id==pendingId)canceled=true;});}
     Q_INVOKABLE void completePicker(bool fail=false){if(pending)pending(fail?QList<QUrl>{QUrl("content://not-materialized")}:QList<QUrl>{QUrl::fromLocalFile(fixtureFile())},{});}
-    Q_INVOKABLE void removePicker(){FileDialogHelper::setDocumentPickerOperator({},{});}
+    Q_INVOKABLE void removePicker(){FileDialogHelper::setDocumentPickerOperator({},{});FileDialogHelper::setDocumentTreePickerOperator({},{});}
+    Q_INVOKABLE void installTreePicker(){FileDialogHelper::setDocumentTreePickerOperator([this](const QString&id,const QString&,FileDialogHelper::DocumentSelection callback){pendingId=id;pending=callback;return true;},[this](const QString&id){if(id==pendingId)canceled=true;});}
+    Q_INVOKABLE void completeTreePicker(){if(pending)pending({QUrl::fromLocalFile(fixtureDirectory())},{});}
+    Q_INVOKABLE QStringList publishedBundle(){return DependencyManager::get<AssetClient>()->published;}
+    Q_INVOKABLE void holdBundleUploads(bool hold){DependencyManager::get<AssetClient>()->holdUploads=hold;}
+    Q_INVOKABLE void releaseBundleUploads(){auto* peer=DependencyManager::get<AssetClient>();peer->holdUploads=false;auto pending=peer->pending;peer->pending.clear();for(auto& reply:pending)reply();}
+    Q_INVOKABLE void failBundleMapping(int index){DependencyManager::get<AssetClient>()->failAt=index;}
+    Q_INVOKABLE QString uploadedBytes(QString path){QFile file(DependencyManager::get<AssetClient>()->store.path()+path);return file.open(QFile::ReadOnly)?QString::fromUtf8(file.readAll()):QString();}
+    Q_INVOKABLE QObject* openActualScriptDialog() { auto* picker=DependencyManager::get<OffscreenUi>();picker->currentDirectory=fixtureDirectory();Application caller;caller.loadDialog();return picker->selectedDialog; }
+    Q_INVOKABLE QObject* openRetainedScriptDialog() { auto* picker=DependencyManager::get<OffscreenUi>();picker->currentDirectory=fixtureDirectory();auto* caller=new Application(this);caller->loadDialog();return picker->selectedDialog; }
+    Q_INVOKABLE QVariantList actualCallerScriptCalls(){return DependencyManager::get<ScriptEngines>()->calls;}
+    Q_INVOKABLE QVariant actualCallerScriptResult(){return DependencyManager::get<ScriptEngines>()->localResult;}
+    Q_INVOKABLE QVariant localScriptResult(){return scripts.localResult;}
+    Q_INVOKABLE void writeCompanions(){
+        auto write=[this](const QString& name,const QByteArray& bytes){QFile f(fixtureDirectory()+"/"+name);QDir().mkpath(QFileInfo(f).absolutePath());Q_ASSERT(f.open(QFile::WriteOnly));Q_ASSERT(f.write(bytes)==bytes.size());};
+        write("main.js","Script.include('nested/helper.js'); if (answer !== 42) throw new Error('missing companion'); answer;");
+        write("nested/helper.js","var answer = 42;");
+        write("scene.gltf", R"({"asset":{"version":"2.0"},"buffers":[{"uri":"nested/mesh.bin","byteLength":44}],"bufferViews":[{"buffer":0,"byteOffset":0,"byteLength":36,"target":34962},{"buffer":0,"byteOffset":36,"byteLength":6,"target":34963}],"accessors":[{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3","min":[0,0,0],"max":[1,1,0]},{"bufferView":1,"componentType":5123,"count":3,"type":"SCALAR"}],"images":[{"uri":"nested/image.png"}],"textures":[{"source":0}],"materials":[{"pbrMetallicRoughness":{"baseColorTexture":{"index":0},"metallicFactor":0}}],"meshes":[{"primitives":[{"attributes":{"POSITION":0},"indices":1,"material":0}]}],"nodes":[{"mesh":0}],"scenes":[{"nodes":[0]}],"scene":0})");
+        QByteArray geometry; QDataStream stream(&geometry,QIODevice::WriteOnly);
+        stream.setByteOrder(QDataStream::LittleEndian);stream.setFloatingPointPrecision(QDataStream::SinglePrecision);
+        for(float value : {0.f,0.f,0.f,1.f,0.f,0.f,0.f,1.f,0.f}) stream << value;
+        stream << quint16(0) << quint16(1) << quint16(2) << quint16(0);
+        write("nested/mesh.bin",geometry);
+        QImage texture(2,2,QImage::Format_RGBA8888);texture.fill(QColor(20,100,220));
+        Q_ASSERT(texture.save(fixtureDirectory()+"/nested/image.png"));
+        write("scene.obj","mtllib nested/material.mtl\nv 0 0 0\nv 1 0 0\nv 0 1 0\nvt 0 0\nvt 1 0\nvt 0 1\nusemtl triangle\nf 1/1 2/2 3/3\n");
+        write("nested/material.mtl","newmtl triangle\nKd 1 1 1\nmap_Kd image.png\n");
+    }
+    Q_INVOKABLE QVariantMap inspectUploadedModel(QString root) {
+        const auto folder=DependencyManager::get<AssetClient>()->store.path()+root;
+        auto read=[&](const QString& relative){QFile f(folder+relative);return f.open(QFile::ReadOnly)?f.readAll():QByteArray();};
+        const auto model=QJsonDocument::fromJson(read("scene.gltf")).object();
+        const auto buffer=model["buffers"].toArray().first().toObject();
+        const auto geometry=read(buffer["uri"].toString());
+        QDataStream stream(geometry);stream.setByteOrder(QDataStream::LittleEndian);stream.setFloatingPointPrecision(QDataStream::SinglePrecision);
+        QList<float> positions;for(int i=0;i<9;++i){float value;stream>>value;positions.append(value);}
+        quint16 a,b,c;stream>>a>>b>>c;
+        QImage image;image.loadFromData(read(model["images"].toArray().first().toObject()["uri"].toString()));
+        const auto obj=read("scene.obj");
+        const auto mtl=obj.split('\n').first().mid(7);const auto material=read(QString::fromUtf8(mtl));
+        QImage objImage;objImage.loadFromData(read(QFileInfo(QString::fromUtf8(mtl)).path()+"/image.png"));
+        return {{"gltf",model["asset"].toObject()["version"].toString()=="2.0" && geometry.size()==buffer["byteLength"].toInt()
+                    && positions==QList<float>{0,0,0,1,0,0,0,1,0} && a==0 && b==1 && c==2 && !model["meshes"].toArray().isEmpty()},
+            {"image",image.size()==QSize(2,2) && image.pixelColor(0,0)==QColor(20,100,220)},
+            {"obj",obj.contains("f 1/1 2/2 3/3") && material.contains("map_Kd image.png") && objImage==image}};
+    }
+    Q_INVOKABLE QVariantMap exerciseBundleBounds() {
+        QTemporaryDir folder; FileDialogHelper helper;
+        auto file=[&](QString name,qint64 size=1){QFile f(folder.path()+"/"+name);QDir().mkpath(QFileInfo(f).absolutePath());Q_ASSERT(f.open(QFile::WriteOnly));Q_ASSERT(f.resize(size));};
+        auto inspect=[&]{return helper.documentBundle({},QUrl::fromLocalFile(folder.path()));};
+        for(int i=0;i<32;++i)file(QString::number(i)+".bin");
+        bool thirtyTwo=inspect().value("error").toString().isEmpty();
+        file("33.bin");bool count=!inspect().value("error").toString().isEmpty();QFile::remove(folder.path()+"/33.bin");
+        QFile::link(folder.path()+"/0.bin",folder.path()+"/alias.bin");bool link=!inspect().value("error").toString().isEmpty();QFile::remove(folder.path()+"/alias.bin");
+        file("0.bin",FileDialogHelper::MAX_DOCUMENT_BYTES+1);bool bytes=!inspect().value("error").toString().isEmpty();file("0.bin");
+        for(int i=0;i<3;++i)file(QString::number(i)+".bin",200*1024*1024);
+        bool total=!inspect().value("error").toString().isEmpty();
+        QDir(folder.path()).removeRecursively();QDir().mkpath(folder.path());
+        for(int i=0;i<1025;++i)QDir(folder.path()).mkdir(QString::number(i));
+        bool entries=!inspect().value("error").toString().isEmpty();
+        QDir(folder.path()).removeRecursively();QDir().mkpath(folder.path());
+        QString nested;for(int i=0;i<15;++i)nested+="level/";file(nested+"main.js");
+        bool depthBoundary=inspect().value("error").toString().isEmpty();file(nested+"deeper/helper.js");
+        bool depth=!inspect().value("error").toString().isEmpty();
+        return {{"thirtyTwo",thirtyTwo},{"count",count},{"symlink",link},{"bytes",bytes},{"total",total},{"entries",entries},{"depthBoundary",depthBoundary},{"depth",depth}};
+    }
     Q_INVOKABLE QVariantMap exerciseAssetMenuRoutes() {
         Application app;
         MenuBoundary menu; menu.routeApplication = &app;

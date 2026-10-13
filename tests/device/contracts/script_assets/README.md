@@ -27,10 +27,21 @@ asserts the resulting local URL, rather than merely accepting a method call.
 The production Asset Browser menu block and complete Application route method
 also execute with real QAction and explicit surface/login/HMD boundaries.
 
-Script engines and asset networking are native QObject boundaries recording the
-actual QML API calls and returning success/failure callbacks. The new Image API's
-actual header declaration, complete implementation and grabbable constants compile
-and execute through QML. Entity property storage, vector representation, session
+The ordinary Application::loadDialog body and FileDialogListener execute with the
+production TabletFileDialog, including main-file review, cancellation and expired
+Application owner. The production ScriptManager::resolvePath resolves an actual
+relative JavaScript include; Qt's JavaScript engine reads and evaluates both files.
+This host adapter does not qualify Overte's full V8 engine, script consent or session.
+
+The complete production uploadBundle implementation and AssetUpload execute through
+QML, reading and hashing real files. An explicit asynchronous server peer receives
+the uploaded bytes and materializes mappings in a temporary directory. Tests verify
+valid glTF triangle buffer bytes, actual PNG decode, OBJ/MTL texture relationships,
+main-last publication, errors, permission revocation, cancellation and page destruction.
+This peer is a network boundary, not a live asset server or rendered-model qualification.
+The single-file upload route and its existing destination/overwrite dialog remain
+available separately. The Image and Model APIs' actual header declarations, complete
+implementations and grabbable constants compile and execute through QML. Entity property storage, vector representation, session
 lookup and generic addEntity are explicit unit boundaries. This proves forwarding,
 position/session preservation and visible denial handling, not a complete entity
 engine build or server authorization. The existing addEntity/addModelEntity
@@ -68,9 +79,37 @@ provider behavior: Qt5 also implements Android file dialogs through C++ JNI.
 This slice does not claim that a guessed QPA content URL is readable by the engine.
 Android/iOS adapters and product lifecycle hooks arrive through their owners and
 the regular parent hierarchy. Generic local save remains available; this is not
-an OS document export adapter. Current Script and Asset callers request one file.
-External glTF/OBJ textures, companion files and directory grants are not qualified
-as complete mobile multi-file import by this host contract.
+an OS document export adapter.
+
+## Main file and companion files
+
+Normal script loading reviews a main JavaScript file and selected companions, then
+passes the main local URL to the existing ScriptEngines load/consent route. Users
+can select files across local subdirectories or choose a system folder. Folder
+selection uses the additive DocumentTreePickerOperator, separate setter/cancel and
+openDocumentTree(caption); the file operator ABI is unchanged. A tree completion
+returns exactly one durable local directory URL. Platform adapters preserve original
+names, hierarchy, hidden and empty directories and reject the whole selection on
+copy errors or cancellation. Main checks actual files again: at most 32 files,
+256 MiB per file, 512 MiB total, 1024 entries including directories and 16 relative
+components including filename (root excluded), with no symbolic links or escapes.
+No large second copy runs in the QML thread.
+
+Asset bundle review chooses the main file and a destination root. The batch validates
+unchanged relative names/root, uploads all bytes, and uses the existing SetMappingRequest
+for companions before the main mapping. Write permission remains mandatory and is
+checked before every operation. A known destination collision stops the batch;
+concurrent server changes remain server-authoritative. Cancel and mapping failure
+report the actual count of published mappings and stop further operations after an
+in-flight request settles; this protocol provides no atomic rollback. Successful
+local provider copies stay owned by the platform adapter for later script execution
+and asynchronous uploads. The Add uploaded model action uses the existing rez path.
+Read-only asset browse/import and rename/delete/mapping/baking remain available.
+
+The standalone test_document_tree_abi.py executes the production Qt helper and
+Offscreen bundle route with real files, separate tree/file operators, foreign-thread
+completion, stale callbacks and owner destruction on Qt5/Qt6. Actual Android/iOS
+folder grants, copying and provider UI remain separate platform/device evidence.
 
 ## Required product evidence
 
