@@ -159,9 +159,9 @@ void NativeWebViewItem::create() {
     const QString script = resourceText(":/overte/android/web/resources/transport.js") + '\n' + _bootstrap + '\n' + resourceText(":/overte/android/web/resources/editor.js");
     jstring url = jni.string(browser.toString(QUrl::FullyEncoded)), agent = jni.string(_userAgent), bootstrap = jni.string(script);
     if (!url || !agent || !bootstrap) { if (jni.env->ExceptionCheck()) jni.env->ExceptionClear(); retryCreation(); return; }
-    auto position = mapToScene(QPointF()); jvalue args[11]; args[0].j = _handle; args[1].j = generation(); args[2].l = url; args[3].l = agent;
-    args[4].z = _background; args[5].z = _presentation == NativeOverlay; args[6].i = qRound(position.x()); args[7].i = qRound(position.y());
-    args[8].i = qRound(width()); args[9].i = qRound(height()); args[10].l = bootstrap;
+    auto bounds = sceneBounds(); jvalue args[11]; args[0].j = _handle; args[1].j = generation(); args[2].l = url; args[3].l = agent;
+    args[4].z = _background; args[5].z = _presentation == NativeOverlay; args[6].i = qRound(bounds.x()); args[7].i = qRound(bounds.y());
+    args[8].i = qRound(bounds.width()); args[9].i = qRound(bounds.height()); args[10].l = bootstrap;
     _pending = call("create", "(JJLjava/lang/String;Ljava/lang/String;ZZIIIILjava/lang/String;)V", args);
     jni.env->DeleteLocalRef(url); jni.env->DeleteLocalRef(agent); jni.env->DeleteLocalRef(bootstrap);
     if (!_pending) retryCreation();
@@ -261,12 +261,16 @@ void NativeWebViewItem::trackGeometry() {
         _geometryConnections.push_back(connect(ancestor, &QQuickItem::xChanged, this, &NativeWebViewItem::updateGeometry));
         _geometryConnections.push_back(connect(ancestor, &QQuickItem::yChanged, this, &NativeWebViewItem::updateGeometry));
         _geometryConnections.push_back(connect(ancestor, &QQuickItem::scaleChanged, this, &NativeWebViewItem::updateGeometry));
+        _geometryConnections.push_back(connect(ancestor, &QQuickItem::rotationChanged, this, &NativeWebViewItem::updateGeometry));
+        _geometryConnections.push_back(connect(ancestor, &QQuickItem::widthChanged, this, &NativeWebViewItem::updateGeometry));
+        _geometryConnections.push_back(connect(ancestor, &QQuickItem::heightChanged, this, &NativeWebViewItem::updateGeometry));
+        _geometryConnections.push_back(connect(ancestor, &QQuickItem::transformOriginChanged, this, &NativeWebViewItem::updateGeometry));
         _geometryConnections.push_back(connect(ancestor, &QQuickItem::parentChanged, this, &NativeWebViewItem::trackGeometry));
     }
     updateGeometry();
 }
-void NativeWebViewItem::updateGeometry() { if (!_created) { create(); return; } auto position = mapToScene(QPointF());
-    jvalue args[5]; args[0].j = _handle; args[1].i = qRound(position.x()); args[2].i = qRound(position.y()); args[3].i = qRound(width()); args[4].i = qRound(height());
+void NativeWebViewItem::updateGeometry() { if (!_created) { create(); return; } auto bounds = sceneBounds();
+    jvalue args[5]; args[0].j = _handle; args[1].i = qRound(bounds.x()); args[2].i = qRound(bounds.y()); args[3].i = qRound(bounds.width()); args[4].i = qRound(bounds.height());
     call("resize", "(JIIII)V", args); }
 void NativeWebViewItem::geometryChanged(const QRectF& geometry, const QRectF& old) { QQuickItem::geometryChanged(geometry, old); updateGeometry(); }
 QSGNode* NativeWebViewItem::updatePaintNode(QSGNode* old, UpdatePaintNodeData*) {

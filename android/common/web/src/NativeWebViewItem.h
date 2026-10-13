@@ -85,6 +85,7 @@ public:
     Q_INVOKABLE bool runJavaScript(const QString& source, const QJSValue& callback = QJSValue());
     Q_INVOKABLE bool emitScriptEvent(const QVariant& message);
     // JNI entry points: registry lifetime is held by the caller; no Android call while locked.
+    QRectF sceneBounds() const { return mapRectToScene(boundingRect()); }
     quint64 generation() const;
     bool allowsNavigation(quint64 grant, const QUrl& target, bool mainFrame, const QString& method) const;
     bool acceptMessage(quint64 grant, quint64 page, const QUrl& document, const QUrl& origin,

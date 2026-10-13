@@ -189,7 +189,7 @@ public final class EmbeddedWebView {
             if (nativeGeneration(handle) != grant) return;
             instance.document.grant(grant); instance.document.visible(visible); instance.visible = visible;
             instance.view.setVisibility(visible ? View.VISIBLE : View.GONE);
-            if (!visible) instance.suspend();
+            if (!visible) { instance.suspend(); instance.publish(); }
             else { instance.view.onResume(); instance.authorize(); instance.publish(); }
         });
     }
@@ -266,7 +266,7 @@ public final class EmbeddedWebView {
         ScriptHandler script;
         boolean active = true, visible = true, loading, bridge, pressed;
         int status;
-        long downTime;
+        long downTime, pickerLease;
         String requestedUrl = "about:blank";
         Instance(long handle, WebView view, boolean overlay, String bootstrap) {
             this.handle = handle; this.view = view; this.overlay = overlay; this.bootstrap = bootstrap;
@@ -394,11 +394,17 @@ public final class EmbeddedWebView {
             @Override public void onGeolocationPermissionsShowPrompt(String origin, android.webkit.GeolocationPermissions.Callback callback) { callback.invoke(origin, false, false); }
             @Override public boolean onShowFileChooser(WebView source, ValueCallback<Uri[]> result, FileChooserParams request) {
                 EmbeddedWebHost owner = host.get();
-                long grant = document.grant(), page = document.page();
+                long page = document.page(), lease = ++pickerLease;
+                String sourceIdentity = requestedUrl, documentIdentity = view.getUrl();
                 if (!overlay || !visible || owner == null || !owner.isForeground()) { result.onReceiveValue(null); return true; }
+                WebFileChoiceLease selected = new WebFileChoiceLease(Instance.this, owner, page, sourceIdentity, documentIdentity);
                 ValueCallback<Uri[]> guarded = values -> {
-                    if (active && document.admits(grant, page, true, 1) && host.get() == owner && owner.isForeground()) result.onReceiveValue(values);
-                    else result.onReceiveValue(null);
+                    int decision = selected.consume(Instance.this, host.get(), document.page(), requestedUrl, view.getUrl(),
+                        lease == pickerLease, active, visible, owner.isForeground(),
+                        nativeNavigation(handle, document.grant(), view.getUrl(), true, "GET"));
+                    if (decision == 0) return;
+                    if (lease == pickerLease) ++pickerLease;
+                    result.onReceiveValue(decision == 2 ? values : null);
                 };
                 if (!owner.chooseFiles(guarded, request)) { guarded.onReceiveValue(null); status = FILE_CHOOSER_UNAVAILABLE; publish(); }
                 return true;
