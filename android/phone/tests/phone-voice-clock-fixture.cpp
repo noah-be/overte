@@ -42,6 +42,14 @@ public:
  QMutex _checkDevicesMutex,_deviceMutex,_checkPeakValuesMutex;
  QTimer* _checkDevicesTimer=nullptr;QTimer* _checkPeakValuesTimer=nullptr;
  bool _audioLifecycleRunning=true,_isMuted=false,_isStereoInput=false,_audioPaused=false;
+ // Local PCM preview has its own production tests. This fixture represents
+ // only its cancellation boundary, independently of the synthetic clock.
+ bool _recordedVoiceTestActive=false;
+ std::vector<QString> previewCancellations;
+ void finishRecordedVoiceTest(const QString& phase,const QString& error){
+  assert(QThread::currentThread()==thread() && phase=="cancelled");
+  _recordedVoiceTestActive=false;previewCancellations.push_back(error);
+ }
  bool _isNoiseGateEnabled=false,_isNoiseReductionAutomatic=false,_audioGateOpen=true,_shouldEchoToServer=false;
  float _lastInputLoudness=0,_lastRawInputLoudness=0,_lastSmoothedRawInputLoudness=0,_noiseReductionThreshold=0;
  DeviceSource* _audioInput=nullptr;
@@ -104,7 +112,13 @@ int main(int argc,char**argv){
  audio._dummyAudioInput=new QTimer(&audio);audio._dummyAudioInput->start(10);
  audio._audioGate=new AudioGate(24000,1);
  assert(audio.prepareVoiceTest());assert(!audio.prepareVoiceTest());
- audio.setMuted(true);audio.switchInputToAudioDevice({},true);
+ // The protected Phone source predates local preview. Once its native member
+ // arrives from the parent, all three cancellation assertions are mandatory.
+ constexpr bool hasRecordedPreview=HAS_RECORDED_PREVIEW;
+ audio._recordedVoiceTestActive=hasRecordedPreview;audio.setMuted(true);
+ if(hasRecordedPreview){assert(!audio._recordedVoiceTestActive && audio.previewCancellations==std::vector<QString>{"microphone-muted"});}
+ audio._recordedVoiceTestActive=hasRecordedPreview;audio.switchInputToAudioDevice({},true);
+ if(hasRecordedPreview){assert(!audio._recordedVoiceTestActive && audio.previewCancellations==std::vector<QString>({"microphone-muted","input-changed"}));}
  assert(!audio._audioInput && !audio._dummyAudioInput && !audio._audioGate);
  assert(audio.sendVoiceTest(symbols));
  waitMs(5100);
@@ -135,7 +149,9 @@ int main(int argc,char**argv){
  audio.resetVoiceTest();assert(audio.prepareVoiceTest());audio._voiceTestLeaseTimer->start(20);waitMs(40);
  assert(audio.voiceTestStatus()["sourceError"].toString()=="voice-source-lease-expired");assert(audio._isMuted);
  audio.resetVoiceTest();assert(audio.prepareVoiceTest());assert(audio.sendVoiceTest(symbols));
- audio.stop();waitMs(30);assert(!audio._voiceTestSignal.active());
+ audio._recordedVoiceTestActive=hasRecordedPreview;audio.stop();
+ if(hasRecordedPreview){assert(!audio._recordedVoiceTestActive && audio.previewCancellations==std::vector<QString>({"microphone-muted","input-changed","lifecycle-stopped"}));}
+ waitMs(30);assert(!audio._voiceTestSignal.active());
  assert(audio.voiceTestStatus()["frames"].toInt()<VoiceTestSignal::FRAMES);
  assert(audio.voiceTestStatus()["sourceError"].toString()=="voice-source-lifecycle-stopped");
  assert(!audio.voiceTestStatus()["sourceClockActive"].toBool());audio.resetVoiceTest();
