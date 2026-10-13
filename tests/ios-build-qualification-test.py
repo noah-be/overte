@@ -129,12 +129,14 @@ class QualificationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             CHECK.verify_build_execution(records()[:-1], 123, 1, SOURCE)
 
-    def test_failed_only_qualifier_keeps_original_producer_identity(self):
+    def test_failed_only_qualifier_reports_actual_api_snapshot_identity(self):
         jobs = records()
         result = CHECK.verify_build_execution(jobs, 123, 2, SOURCE)
-        self.assertEqual(result["producerRunAttempt"], 1)
+        self.assertEqual(result["apiSnapshotRunAttempt"], 1)
         self.assertEqual(result["qualifierRunAttempt"], 2)
-        self.assertEqual(result["jobIds"], [1, 2, 3, 4, 5])
+        self.assertEqual(result["apiSnapshotJobIds"], [1, 2, 3, 4, 5])
+        self.assertIsNone(result["originalExecutionRunAttempt"])
+        self.assertIsNone(result["originalExecutionJobIds"])
         self.assertEqual(jobs, records())
         self.assertEqual(result["artifactIdVerification"], "not-observed-by-legacy-invocation")
         self.assertEqual(result["originalArtifactZipDigestVerification"],
@@ -146,7 +148,7 @@ class QualificationTests(unittest.TestCase):
             ipa, manifest = fixture(directory)
             result = CHECK.report(needs(), SOURCE, 688, 123, 2, directory, records())
             self.assertEqual(result["runAttempt"], 2)
-            self.assertEqual(result["producer"]["producerRunAttempt"], 1)
+            self.assertEqual(result["producer"]["apiSnapshotRunAttempt"], 1)
             self.assertEqual(result["artifact"]["sha256"], hashlib.sha256(ipa.read_bytes()).hexdigest())
             payload = json.loads(manifest.read_text())
             payload["sourceRevision"] = "c" * 40
@@ -178,7 +180,35 @@ class QualificationTests(unittest.TestCase):
                 CHECK.verify_build_execution(jobs, 123, qualifier, SOURCE)
         for job in jobs:
             job["run_attempt"] = 3
-        self.assertEqual(CHECK.verify_build_execution(jobs, 123, 3, SOURCE)["producerRunAttempt"], 3)
+        self.assertEqual(CHECK.verify_build_execution(jobs, 123, 3, SOURCE)["apiSnapshotRunAttempt"], 3)
+
+    def test_cloned_attempt_two_api_does_not_claim_new_execution(self):
+        jobs = records()
+        for job in jobs:
+            job.update(id=job["id"] + 100, run_attempt=2,
+                       started_at="2026-10-13T19:58:16Z", completed_at="2026-10-13T21:27:42Z")
+            for step in job["steps"]:
+                step.update(started_at="2026-10-13T20:09:31Z", completed_at="2026-10-13T21:27:30Z")
+        before = copy.deepcopy(jobs)
+        result = CHECK.verify_build_execution(jobs, 123, 2, SOURCE)
+        self.assertEqual(result["apiSnapshotRunAttempt"], 2)
+        self.assertEqual(result["apiSnapshotJobIds"], [101, 102, 103, 104, 105])
+        self.assertIsNone(result["originalExecutionRunAttempt"])
+        self.assertIsNone(result["originalExecutionJobIds"])
+        self.assertEqual(result["originalExecutionIdentityVerification"],
+                         "not-observed-by-legacy-invocation")
+        self.assertNotIn("producerRunAttempt", result)
+        self.assertNotIn("jobIds", result)
+        self.assertEqual(jobs, before)
+
+    def test_clone_snapshot_success_cannot_hide_failed_native_steps(self):
+        for index in range(4):
+            jobs = records()
+            for job in jobs:
+                job.update(id=job["id"] + 100, run_attempt=2)
+            jobs[-1]["steps"][index]["conclusion"] = "failure"
+            with self.subTest(index=index), self.assertRaises(ValueError):
+                CHECK.verify_build_execution(jobs, 123, 2, SOURCE)
 
     def test_pending_api_steps_fail_despite_completed_job_and_artifact(self):
         for index in range(4):

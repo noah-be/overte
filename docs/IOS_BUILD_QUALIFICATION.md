@@ -38,18 +38,33 @@ artifact upload steps; an overall green reusable job alone is insufficient.
 
 A failed-only retry of the qualifier can retain the successful producer jobs
 from attempt 1 while the qualifier runs in attempt 2. The verifier requires the
-five exact selected jobs to have unique positive API job IDs and one consistent
-producing attempt, belonging to the same run and PR head. It supports the narrow
-attempt-1 producer / attempt-2 qualifier case and same-attempt execution; mixed
-producer attempts, backwards ordering and other earlier-attempt combinations
+five exact selected jobs to have unique positive API snapshot job IDs and one
+consistent API snapshot attempt, belonging to the same run and PR head. A retry
+may also create new job IDs and `run_attempt: 2` records carrying the unchanged
+original successful step timestamps. The API attempt and job IDs alone do not
+prove a new compilation. The verifier supports attempt-1 API snapshots with an
+attempt-2 qualifier and same-attempt API snapshots; mixed snapshot attempts,
+backwards ordering and other earlier-attempt combinations
 fail. Every mandatory native step must still be `completed` with conclusion
 `success`. Missing or nonterminal API step data fails even when the overall job
 and package logs show success. A later API correction does not retroactively
 change an earlier failed qualification.
 
 The report preserves `runAttempt` as the qualifying attempt and separately
-records `producerRunAttempt`, `qualifierRunAttempt` and the original producer
-job IDs. It never attributes the original compilation to a later qualifier.
+records `apiSnapshotRunAttempt`, `qualifierRunAttempt` and `apiSnapshotJobIds`.
+It explicitly leaves `originalExecutionRunAttempt` and `originalExecutionJobIds`
+null, with `originalExecutionIdentityVerification` set to
+`not-observed-by-legacy-invocation`. The legacy invocation has no original
+execution receipt to establish those fields; timestamps or a new API job ID
+must not be substituted for that receipt. Preserve independently captured
+original attempt-1 job/step receipts when comparing inherited retry snapshots.
+Those separate observations do not retroactively rewrite historical reports.
+The report never attributes a fresh compilation to a later API snapshot.
+GitHub's [rerun documentation](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs)
+specifies reuse of the original event's `GITHUB_SHA` and `GITHUB_REF`. Preserve
+the separate [job API](https://docs.github.com/en/rest/actions/workflow-jobs)
+attempt records when examining a retry; same-source qualification and original
+execution identity are different observations.
 This compatibility change leaves the canonical workflow byte-identical and
 does not trigger a rerun. Before a diagnosed failed-only retry, verify that the
 run, PR head, compiled candidate and successful original producer jobs are
