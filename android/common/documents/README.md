@@ -16,9 +16,12 @@ remain pending until the same Activity is genuinely foreground. Explicit helper
 cancellation/destruction revokes the request; late returns are discarded.
 
 ContentResolver copies every selected provider document into native-owned
-`QStandardPaths::AppDataLocation/ImportedDocuments/selection-…/<index>/<name>`.
+`QStandardPaths::AppDataLocation/ImportedDocuments/selection-…/<name>`.
 The copied files retain valid original DISPLAY_NAME names, Unicode and file
-extensions, including duplicate names in separate per-index directories. Missing,
+extensions. Unique names remain siblings so explicitly selected relative resources
+stay together; duplicate names use distinct `duplicate-…` subdirectories. This
+does not imply permission to an entire original project directory or qualified
+multi-file model import. Missing,
 unsafe or unrepresentable names fail visibly. Qt extension filters are checked
 against the actual display name; the native picker remains broad because provider
 MIME types are not reliable for JavaScript and model formats. Provider URLs and

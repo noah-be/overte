@@ -47,7 +47,7 @@ int main(int argc,char** argv) {
     auto chars=env->GetStringChars(value,nullptr);QString root=QString::fromUtf16(reinterpret_cast<const ushort*>(chars),env->GetStringLength(value));
     env->ReleaseStringChars(value,chars);env->DeleteLocalRef(value);
     assert(root.endsWith("/ImportedDocuments"));assert(env->GetStaticBooleanField(backend,env->GetStaticFieldID(backend,"multiple","Z")));
-    const auto part=root+"/selection-123/0";assert(QDir().mkpath(part));
+    const auto part=root+"/selection-123";assert(QDir().mkpath(part));
     QFile document(part+"/User 模型 script #?.js");assert(document.open(QFile::WriteOnly));document.write("print('retained')");document.close();
     const auto path=QFileInfo(document).canonicalFilePath();
     std::thread worker([&]{JNIEnv* thread=nullptr;assert(vm->AttachCurrentThread(reinterpret_cast<void**>(&thread),nullptr)==JNI_OK);
@@ -63,12 +63,16 @@ int main(int argc,char** argv) {
     auto wrong=helper.openDocuments("wrong order",{},false);result(env,wrong,{path,path});drain();assert(failed==3);
     auto huge=helper.openDocuments("too many",{},true);QStringList many;for(int i=0;i<33;++i)many.append(path);
     result(env,huge,many);drain();assert(failed==4);
-    const auto secondPart=root+"/selection-123/1";assert(QDir().mkpath(secondPart));
-    QFile secondFile(secondPart+"/script.js");assert(secondFile.open(QFile::WriteOnly));secondFile.write("second");secondFile.close();
+    const auto secondPart=root+"/selection-123";assert(QDir().mkpath(secondPart));
+    QFile secondFile(secondPart+"/second script.js");assert(secondFile.open(QFile::WriteOnly));secondFile.write("second");secondFile.close();
     const auto secondPath=QFileInfo(secondFile).canonicalFilePath();
     auto single=helper.openDocuments("single",{},false);result(env,single,{path,secondPath});drain();assert(failed==5);
     auto multiple=helper.openDocuments("multiple",{},true);result(env,multiple,{path,secondPath});drain();assert(selected==2 && urls.size()==2);
+    const auto duplicatePart=root+"/selection-123/duplicate-123";assert(QDir().mkpath(duplicatePart));
+    QFile duplicateFile(duplicatePart+"/second script.js");assert(duplicateFile.open(QFile::WriteOnly));duplicateFile.write("duplicate");duplicateFile.close();
+    auto duplicates=helper.openDocuments("duplicates",{},true);
+    result(env,duplicates,{secondPath,QFileInfo(duplicateFile).canonicalFilePath()});drain();assert(selected==3 && urls.size()==2);
     auto gone=std::make_unique<FileDialogHelper>();auto old=gone->openDocuments("destroy",{},false);assert(!old.isEmpty());gone.reset();
-    result(env,old,{path});drain();assert(selected==2 && QFileInfo(path).isReadable());
+    result(env,old,{path});drain();assert(selected==3 && QFileInfo(path).isReadable());
     puts("PASS: actual Main FileDialogHelper, Android JNI operator, Qt-owner callbacks, retained Unicode-safe paths, cancellation and late/foreign rejection; OS endpoint is a fixture");
 }

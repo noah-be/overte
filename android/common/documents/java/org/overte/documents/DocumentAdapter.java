@@ -147,12 +147,17 @@ public final class DocumentAdapter {
         try {
             if (request.cancelled.get()) return;
             directory=Files.createTempDirectory(request.root.toPath(),"selection-"); request.directory=directory;
+            ArrayList<String> names=new ArrayList<>();
+            for (Uri uri:selected) {
+                if (request.cancelled.get()) throw new DocumentCopy.Failure("Document selection was cancelled.");
+                names.add(name(request,uri));
+            }
+            java.util.List<Path> destinations=DocumentCopy.destinations(directory,names);
             ArrayList<String> paths=new ArrayList<>(); long total=0;
             for (int index=0; index<selected.length; ++index) {
                 if (request.cancelled.get()) throw new IOException("Document selection was cancelled.");
-                // Each original display name gets its own directory; duplicate names stay intact.
-                Path part=Files.createDirectory(directory.resolve(Integer.toString(index)));
-                Path destination=part.resolve(name(request,selected[index]));
+                // Unique names remain siblings; duplicate names never overwrite each other.
+                Path destination=destinations.get(index);
                 try (InputStream input=request.resolver.openInputStream(selected[index])) {
                     total += DocumentCopy.copy(input,Files.newOutputStream(destination,StandardOpenOption.CREATE_NEW,StandardOpenOption.WRITE,
                         LinkOption.NOFOLLOW_LINKS),DocumentCopy.MAX_TOTAL-total,request.cancelled::get);

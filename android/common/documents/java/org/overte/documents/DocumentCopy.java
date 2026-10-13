@@ -30,6 +30,24 @@ final class DocumentCopy {
         while(patterns.find()) { specified=true; if(lower.endsWith("."+patterns.group(1).toLowerCase(java.util.Locale.ROOT))) return true; }
         return !specified;
     }
+    static java.util.List<java.nio.file.Path> destinations(java.nio.file.Path directory, java.util.List<String> names) throws IOException {
+        if (names.size() > MAX_DOCUMENTS) throw new Failure("Select at most 32 documents.");
+        java.util.Map<String,Integer> frequencies=new java.util.HashMap<>();
+        for (String value:names) frequencies.merge(name(value),1,Integer::sum);
+        java.util.ArrayList<java.nio.file.Path> result=new java.util.ArrayList<>();
+        for (String value:names) {
+            java.nio.file.Path parent=directory;
+            if (frequencies.get(value) > 1) {
+                do {
+                    parent=java.nio.file.Files.createTempDirectory(directory,"duplicate-");
+                    if (!frequencies.containsKey(parent.getFileName().toString())) break;
+                    java.nio.file.Files.delete(parent);
+                } while (true);
+            }
+            result.add(parent.resolve(value));
+        }
+        return result;
+    }
     static long copy(InputStream input, OutputStream output, long remaining, BooleanSupplier cancelled) throws IOException {
         try (InputStream source=input; OutputStream destination=output) {
             if (source == null || destination == null) throw new Failure("The selected document could not be opened.");
