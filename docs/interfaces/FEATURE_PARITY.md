@@ -109,6 +109,13 @@ configuration, environment, journey outcomes and actual logs/observations.
 Separate Debug/E2E from Release and do not replace a user journey with a green
 manifest, source-string check or fake native boundary.
 
+The [shared web/media reference](../../tests/device/fixture/parity/README.md)
+provides identical original video/audio, DOM/input/navigation/file-choice and
+real EventBridge echo content for the world and tablet. Its checked media bytes
+and HTTP streaming tests qualify the input. The listed visual/audio/actions
+must still be observed on each exact client artifact; they do not establish
+device acceptance by themselves.
+
 The shared policy has a compiled host regression:
 
 ```bash
