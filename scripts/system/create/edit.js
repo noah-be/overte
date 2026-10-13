@@ -270,6 +270,7 @@
 
     var editVoxels = new EditVoxels();
     editVoxels.editTools = editTools;
+    createApp.editVoxels = editVoxels;
 
     editTools.addListener(editVoxels.updateEditSettings);
     editTools.addListener(selectionManager.updateEditSettings);
@@ -2721,6 +2722,7 @@
     function updateUndoRedoMenuItems() {
         Menu.setMenuEnabled("Edit > Undo", createApp.undoHistory.canUndo());
         Menu.setMenuEnabled("Edit > Redo", createApp.undoHistory.canRedo());
+        if (nativeCreate) { nativeCreate.selection(); }
     }
     createApp.undoHistory = new UndoHistory(updateUndoRedoMenuItems);
     updateUndoRedoMenuItems();
@@ -2779,6 +2781,18 @@
             selectionManager.saveProperties();
         }
     }
+
+    createApp.pushVoxelStroke = function(edits) {
+        function data(key) {
+            return { createEntities: [], deleteEntities: [], selectCreated: false,
+                editEntities: edits.map(function(edit) {
+                    return { entityID: edit.entityID, properties: { voxelData: edit[key].voxelData },
+                        entityHostType: edit.before.entityHostType, owningAvatarID: edit.before.owningAvatarID };
+                }) };
+        }
+        createApp.undoHistory.pushCommand(applyEntityProperties, data("before"), applyEntityProperties, data("after"));
+        if (nativeCreate) { nativeCreate.reportStatus("Voxel stroke saved.", false); }
+    };
 
     // For currently selected entities, push a command to the UndoStack that uses the current entity properties for the
     // redo command, and the saved properties for the undo command.  Also, include create and delete entity data.
@@ -2945,19 +2959,7 @@
                 var entity = {};
                 entity.id = selectionManager.selections[i];
                 entity.properties = Entities.getEntityProperties(selectionManager.selections[i]);
-                if (entity.properties.rotation !== undefined) {
-                    entity.properties.rotation = Quat.safeEulerAngles(entity.properties.rotation);
-                }
-                if (entity.properties.localRotation !== undefined) {
-                    entity.properties.localRotation = Quat.safeEulerAngles(entity.properties.localRotation);
-                }
-                if (entity.properties.emitOrientation !== undefined) {
-                    entity.properties.emitOrientation = Quat.safeEulerAngles(entity.properties.emitOrientation);
-                }
-                if (entity.properties.keyLight !== undefined && entity.properties.keyLight.direction !== undefined) {
-                    entity.properties.keyLight.direction = Vec3.toPolar(entity.properties.keyLight.direction);
-                    entity.properties.keyLight.direction.z = 0.0;
-                }
+                entity.properties = propertiesForEditor(entity.properties);
                 if (selectionManager.selections.length === 1) {
                     entity.properties.children = createApp.getChildEntitiesList(entity.id);
                 }
@@ -3621,6 +3623,17 @@
 
     var propertiesTool = new PropertiesTool();
 
+    function propertiesForEditor(properties) {
+        ["rotation", "localRotation", "emitOrientation"].forEach(function(key) {
+            if (properties[key] !== undefined) { properties[key] = Quat.safeEulerAngles(properties[key]); }
+        });
+        if (properties.keyLight && properties.keyLight.direction) {
+            properties.keyLight.direction = Vec3.toPolar(properties.keyLight.direction);
+            properties.keyLight.direction.z = 0.0;
+        }
+        return properties;
+    }
+
     function cancelNativeBrowse() {
         if (nativeBrowseCallback) {
             Window.browseChanged.disconnect(nativeBrowseCallback);
@@ -3632,6 +3645,7 @@
         entities: Entities, avatar: MyAvatar, selection: selectionManager,
         history: createApp.undoHistory, app: createApp, grid: grid, display: selectionDisplay,
         canReplayHistory: function(action) {
+            if (editVoxels.isStrokePending()) { return false; }
             var history = createApp.undoHistory;
             var command = history.history[history.lastExecutedIndex + (action === "redo" ? 1 : 0)];
             if (!command) { return false; }
@@ -3639,17 +3653,27 @@
             return data.editEntities.concat(data.createEntities, data.deleteEntities).every(function(entry) {
                 var properties = entry.properties;
                 if (!properties) { return true; }
-                if (properties.entityHostType === "avatar" || properties.avatarEntity) {
+                var id = DELETED_ENTITY_MAP[entry.entityID] || entry.entityID;
+                var current = Entities.getEntityProperties(id);
+                if (current.locked && properties.locked !== false) { return false; }
+                if (properties.locked !== undefined && current.type && properties.locked !== current.locked
+                        && !Entities.canAdjustLocks()) { return false; }
+                if (!current.type && data.editEntities.indexOf(entry) !== -1) { return false; }
+                var host = current.entityHostType || entry.entityHostType || properties.entityHostType;
+                var owner = current.owningAvatarID || entry.owningAvatarID || properties.owningAvatarID;
+                if (host === "avatar" || properties.avatarEntity) {
                     return Entities.canRezAvatarEntities()
-                        && (properties.owningAvatarID === MyAvatar.sessionUUID
-                            || properties.owningAvatarID === MyAvatar.SELF_ID);
+                        && (owner === MyAvatar.sessionUUID || owner === MyAvatar.SELF_ID);
                 }
-                return properties.entityHostType === "local" || Entities.canRez() || Entities.canRezTmp();
+                return host === "local" || Entities.canRez() || Entities.canRezTmp();
             });
         },
         isActive: function() { return isActive && nativeCreateEnabled; },
         send: function(message) { Tablet.getTablet("com.highfidelity.interface.tablet.system").sendToQml(message); },
         euler: Quat.safeEulerAngles,
+        propertyView: propertiesForEditor,
+        editSettings: editTools.getSettings,
+        applyEditSettings: editTools.applyNativeSettings,
         refresh: function() { entityListTool.sendUpdate(); },
         create: function(properties, host) { return fcreateNewEntity(properties, host); },
         applyProperties: function(id, properties, preview) {
@@ -3678,9 +3702,17 @@
         showAssets: function() { Window.showAssetServer(); }
     });
     entityListTool.onNativeEvent = nativeCreate.acceptList;
+    editTools.onNativeUpdate = function(settings) {
+        nativeCreate.sendSettings(settings);
+    };
+    editVoxels.onStrokeStatus = function(text, error) { nativeCreate.reportStatus(text, error); };
+    editVoxels.onStrokeSettled = function() { nativeCreate.selection(); };
     Script.scriptEnding.connect(function() {
         nativeCreate.reset();
         entityListTool.onNativeEvent = null;
+        editTools.onNativeUpdate = null;
+        editVoxels.onStrokeStatus = null;
+        editVoxels.onStrokeSettled = null;
     });
 
     selectionDisplay.onSpaceModeChange = function(spaceMode) {

@@ -236,6 +236,7 @@ var EntityListTool = function(shouldUseEditTabletApp, selectionManager) {
                         SelectionDisplay.allToolEntities, 
                         allOverlays,
                         that.createApp.entityShapeVisualizerLocalEntityToExclude,
+                        that.createApp.editVoxels ? that.createApp.editVoxels.getLocalEntityToExclude() : [],
                         tabletLocalEntityToExclude
                     );
                     for (var i = localIds.length - 1; i >= 0; i--) {
