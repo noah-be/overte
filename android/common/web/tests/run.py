@@ -28,8 +28,12 @@ with tempfile.TemporaryDirectory(prefix='overte-embedded-web-') as temporary:
         str(WEB / 'java/org/overte/web/WebTextureScale.java'),
         str(WEB / 'java/org/overte/web/WebFilePickerState.java'),
         str(WEB / 'java/org/overte/web/WebPointerState.java'),
-        str(WEB / 'tests/java/org/overte/web/WebLifetimeTest.java')], check=True)
+        str(WEB / 'java/org/overte/web/WebFrameGate.java'),
+        str(WEB / 'java/org/overte/web/WebFramePixels.java'),
+        str(WEB / 'tests/java/org/overte/web/WebLifetimeTest.java'),
+        str(WEB / 'tests/java/org/overte/web/WebFrameTest.java')], check=True)
     subprocess.run(['java', '-cp', str(stage), 'org.overte.web.WebLifetimeTest'], check=True)
+    subprocess.run(['java', '-cp', str(stage), 'org.overte.web.WebFrameTest'], check=True)
     if args.android_jar or args.webkit_jar:
         if not args.android_jar or not args.webkit_jar:
             parser.error('--android-jar and --webkit-jar must be supplied together')

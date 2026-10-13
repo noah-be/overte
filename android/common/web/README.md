@@ -47,11 +47,28 @@ when dismissed. This path preserves browser media rendering, user gestures and
 native DOM keyboard/composition. External OS browser opening is a separate
 explicit user command and does not qualify embedded-tablet acceptance.
 
-World entities use `QQuickItem` scene graph textures: at most 2048 by 2048 pixels,
-updated about every 100 ms. Software bitmap capture is **not proof of HTML video
-rendering**. Keep the existing Pico world renderer until the replacement is
-qualified. A hardware compositor/texture transport and exact-device media
-results remain required for world video parity.
+World entities and texture tablets attach a hardware WebView to an app-owned,
+private `OWN_CONTENT_ONLY` VirtualDisplay and a non-focusable Presentation. The
+SurfaceTexture is consumed on an EGL handler, sampled into a bounded FBO and
+read back at most about every 100 ms (maximum 2048 pixels per edge). This follows
+[Chromium's supported snapshot path](https://chromium.googlesource.com/chromium/src/+/refs/tags/141.0.7360.13/android_webview/docs/software_draw_deprecated.md):
+software Canvas snapshots omit video/WebGL. Phone's visible native tablet overlay
+continues to render directly in its Activity.
+
+Every asynchronous frame retains its original source/page/document/surface
+lease. A WebView visual-state callback drains previous buffers, requests the
+next hardware draw and requires a newer SurfaceTexture timestamp. Resize,
+navigation, pause, hidden state, replacement and destruction invalidate old
+visual/readback callbacks. VirtualDisplay output stops while suspended. Resizing
+recreates the Presentation window (Android cancels windows whose display metrics
+changed) while retaining the document. GL resources belong to one handler; its
+context/surface are released without terminating Qt's shared EGL display.
+Readback explicitly flips GL rows and packs RGBA into premultiplied BGRA for Qt.
+
+SDK/API compilation, real frame-lease race tests and actual Qt scene graph pixel
+checks qualify source/host behavior only. User-driven original MP4 moving pixels,
+audio, exact provider/codec behavior, transparent pages, multiple surfaces and
+thermal/resource budgets still require tests on the actual Phone/Pico artifacts.
 
 HTTP(S) navigation excludes embedded credentials and privileged schemes. Known
 packaged resources map to a reserved HTTPS origin and a nonreused surface handle;
@@ -139,16 +156,17 @@ entities. A visible texture tablet can invoke the OS file picker only after the
 native policy verifies its current Tablet grant, exact page and document. World
 entities cannot obtain picker permission by changing presentation.
 
-Texture layout and pointer input use the same actual Android display density;
-Canvas drawing converts back to CSS-size texture pixels. The image stays within
-2048 pixels per edge with preserved aspect ratio, while native layout is capped
-at 8192 pixels per edge. Slow whole-document drawing is enabled before the first
-WebView. These host checks do not qualify scrolling or media on a target device.
+The private display uses 160 dpi, giving its WebView an explicit density of one;
+CSS viewport, hardware output and pointer coordinates therefore agree. Texture
+size stays within 2048 pixels per edge with preserved aspect ratio. Pointer
+conversion includes the downscale ratio for oversized requested surfaces.
+Scrolling uses the attached hardware ViewRoot; no manual Canvas/whole-document
+drawing is requested. These host checks do not qualify scrolling/media on a device.
 The backend exposes read-only `editorFocused`, `editorNumeric`, `editorPassword`
 and `editorFocusChanged(active,numeric,password)` for product keyboard routing.
 Focus clears on navigation, hiding, backgrounding and native focus loss. Text
-input on a document outside the bridge's originating origin still requires a
-separate private editor transport and remains unqualified.
+input on foreign documents uses the independent private editor transport without
+granting the Overte channel or owner script execution; target IME remains unqualified.
 
 ## JNI names in release builds
 
