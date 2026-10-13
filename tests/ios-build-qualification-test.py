@@ -232,6 +232,11 @@ class CandidateTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.git("init", "-q")
+        # These disposable repositories must have no detached writers during
+        # strict TemporaryDirectory cleanup. Keep the setting local to each
+        # fixture; candidate routing and artifact checks remain unchanged.
+        self.git("config", "maintenance.auto", "false")
+        self.git("config", "gc.auto", "0")
         self.git("config", "user.name", "Test")
         self.git("config", "user.email", "test@example.invalid")
         (self.root / "readme.md").write_text("Initial\n")
