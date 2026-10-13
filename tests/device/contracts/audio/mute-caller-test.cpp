@@ -30,6 +30,14 @@ struct Adapter:overte::audio::IOSAudioSessionAdapter {
 class AudioClient:public QObject {
 public:
  bool _isMuted=false;int signalCount=0,refreshes=0;
+ // The local recorder is tested by recorded-voice-native; here its boundary
+ // verifies that caller-thread marshalling also protects preview cancellation.
+ bool _recordedVoiceTestActive=false;int previewCancellations=0;
+ void finishRecordedVoiceTest(const QString& phase,const QString& error){
+  assert(QThread::currentThread()==thread());
+  assert(phase=="cancelled" && error=="microphone-muted");
+  _recordedVoiceTestActive=false;++previewCancellations;
+ }
  void refreshIOSAudioInput(){++refreshes;}
  void muteToggled(bool value){assert(QThread::currentThread()==thread());assert(value==_isMuted);++signalCount;}
  void setMuted(bool,bool=true);
@@ -48,9 +56,12 @@ int main(int argc,char**argv){
 #endif
  assert(overte::audio::installIOSAudioSessionAdapter(adapter));
  AudioClient client;assert(overteIOSMicrophonePermissionGranted());
+ client._recordedVoiceTestActive=true;
  std::thread worker([&]{client.setMuted(true);});worker.join();
  assert(!client._isMuted&&overteIOSMicrophonePermissionGranted());
+ assert(client._recordedVoiceTestActive && client.previewCancellations==0);
  QCoreApplication::processEvents();assert(client._isMuted&&client.signalCount==1&&!overteIOSMicrophonePermissionGranted());
+ assert(!client._recordedVoiceTestActive && client.previewCancellations==1);
  client.setMuted(false,false);assert(!client._isMuted&&client.signalCount==1&&overteIOSMicrophonePermissionGranted());
  client.setMuted(false);assert(client.signalCount==1);
  QPointer<AudioClient> doomed=new AudioClient;

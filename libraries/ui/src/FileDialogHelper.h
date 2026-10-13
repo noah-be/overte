@@ -11,12 +11,16 @@
 
 #include <QtCore/QFileSystemWatcher>
 #include <QtCore/QObject>
+#include <QtCore/QPointer>
 #include <QtCore/QStandardPaths>
 #include <QtCore/QString>
 #include <QtCore/QStringList>
 #include <QtCore/QUrl>
+#include <QtCore/QVariantMap>
 
 #include <functional>
+
+class QFileDialog;
 
 class FileDialogHelper : public QObject {
     Q_OBJECT
@@ -47,6 +51,34 @@ public:
         AppLocalDataLocation = DataLocation
     };
 
+    ~FileDialogHelper() override;
+
+    // Native provider adapters enforce these bounds while copying. Desktop
+    // QFileDialog paths retain their existing behavior without copying limits.
+    static constexpr int MAX_DOCUMENT_COUNT = 32;
+    static constexpr int MAX_DOCUMENT_ENTRIES = 1024;
+    static constexpr int MAX_DOCUMENT_DEPTH = 16;
+    static constexpr qint64 MAX_DOCUMENT_BYTES = 256 * 1024 * 1024;
+    static constexpr qint64 MAX_DOCUMENT_TOTAL_BYTES = 512 * 1024 * 1024;
+    using DocumentSelection = std::function<void(const QList<QUrl>&, const QString&)>;
+    using DocumentPickerOperator = std::function<bool(const QString&, const QString&, const QString&, bool, DocumentSelection)>;
+    using DocumentTreePickerOperator = std::function<bool(const QString&, const QString&, DocumentSelection)>;
+    using DocumentPickerCancel = std::function<void(const QString&)>;
+    // Platform adapters materialize provider bytes and retain the resulting
+    // local files. No content/provider URL enters the script or asset engine.
+    static void setDocumentPickerOperator(DocumentPickerOperator picker, DocumentPickerCancel cancel);
+
+    // Tree completion returns one durable local directory preserving all descendants.
+    static void setDocumentTreePickerOperator(DocumentTreePickerOperator picker, DocumentPickerCancel cancel);
+    Q_INVOKABLE QString openDocumentTree(const QString& caption);
+    // Manifest validation preserves relative paths; successful provider files remain owned by its adapter.
+    Q_INVOKABLE QVariantMap documentBundle(const QList<QUrl>& urls, const QUrl& root = QUrl());
+
+    // Empty return means busy/unavailable; otherwise signals carry this request ID.
+    Q_INVOKABLE QString openDocuments(const QString& caption, const QString& filter, bool multiple = false);
+
+    Q_INVOKABLE bool cancelDocuments(const QString& requestId);
+
     Q_INVOKABLE QUrl home();
     Q_INVOKABLE QStringList standardPath(StandardLocation location);
     Q_INVOKABLE QString writableLocation(StandardLocation location);
@@ -70,8 +102,19 @@ public:
 
 signals:
     void contentsChanged();
+    void documentsSelected(const QString& requestId, const QList<QUrl>& urls);
+    void documentSelectionCanceled(const QString& requestId);
+    void documentSelectionFailed(const QString& requestId, const QString& message);
 
 private:
+    QPointer<QFileDialog> _documentDialog;
+    QString _documentRequestId;
+    bool _nativeDocumentPending { false };
+    bool _documentTree { false };
+    QString beginDocuments(const QString& caption, const QString& filter, bool multiple, bool tree);
+    bool _multipleDocuments { false };
+    DocumentPickerCancel _documentCancel;
+    void finishDocuments(const QString& requestId, const QList<QUrl>& urls, const QString& error);
     QFileSystemWatcher _fsWatcher;
     QString _fsWatcherPath;
     static std::function<void(const QString&)> _openDirectoryOperator;

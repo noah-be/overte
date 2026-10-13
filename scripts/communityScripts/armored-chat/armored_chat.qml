@@ -1,12 +1,49 @@
 import QtQuick 2.7
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.3
-import controlsUit 1.0 as HifiControlsUit
 import "./qml"
 
 Rectangle {
+    id: root
     color: Qt.rgba(0.1,0.1,0.1,1)
     signal sendToScript(var message);
+
+    property bool tabletMode: false
+    property bool keyboardEnabled: false
+    property bool keyboardRaised: false
+    property bool punctuationMode: false
+    property var keyboardItem: null
+    property int maximumMessages: 200
+    property int nextMessageSequence: 0
+    property alias messageInput: textArea
+    property alias localHistory: localMessages
+    property alias domainHistory: domainMessages
+    onKeyboardRaisedChanged: {
+        if (tabletMode && typeof KeyboardScriptingInterface !== "undefined" && KeyboardScriptingInterface.use3DKeyboard) {
+            KeyboardScriptingInterface.raised = keyboardEnabled && keyboardRaised
+        }
+    }
+    onKeyboardEnabledChanged: {
+        if (tabletMode && keyboardEnabled && !keyboardItem && typeof KeyboardScriptingInterface !== "undefined"
+                && !KeyboardScriptingInterface.use3DKeyboard) {
+            keyboardItem = Qt.createQmlObject('import QtQuick 2.7; import controlsUit 1.0; Keyboard {'
+                + ' anchors.bottom: parent.bottom; raised: parent.keyboardEnabled && parent.keyboardRaised;'
+                + ' numeric: parent.punctuationMode }', root, "TabletChatKeyboard")
+        }
+    }
+    Component.onDestruction: {
+        if (tabletMode && typeof KeyboardScriptingInterface !== "undefined" && KeyboardScriptingInterface.use3DKeyboard) {
+            KeyboardScriptingInterface.raised = false
+        }
+    }
+    Button {
+        objectName: "chatClose"
+        visible: root.tabletMode
+        text: qsTr("BACK")
+        width: 100
+        height: 48
+        onClicked: root.toScript({ type: "chat.close" })
+    }
 
     property string pageVal: "local"
     property string last_message_user: ""
@@ -28,7 +65,8 @@ Rectangle {
     // User view
     Item {
         anchors.fill: parent;
-        width: parent.width;
+        anchors.topMargin: root.tabletMode ? 48 : 0
+        anchors.bottomMargin: root.keyboardItem && root.keyboardItem.raised ? root.keyboardItem.height : 0
 
         // Navigation Bar
         Rectangle {
@@ -208,6 +246,7 @@ Rectangle {
 
                     TextArea {
                         id: textArea
+                        objectName: "chatMessageInput"
                         width: parent.width - 60;
                         height: parent.height;
                         wrapMode: Text.Wrap
@@ -220,9 +259,8 @@ Rectangle {
                         leftPadding: 5
                         rightPadding: 5
                         font.pixelSize: 18
-                        text: text
 
-                        Keys.onPressed: {
+                        Keys.onPressed: function(event) {
                             if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && !(event.modifiers & Qt.ShiftModifier)) {
                                 event.accepted = true;
                                 toScript({type: "send_message", message: text, channel: pageVal});
@@ -237,12 +275,14 @@ Rectangle {
                             }
                         }
                         onFocusChanged: {
+                            if (root.tabletMode) { root.keyboardRaised = focus; return; }
                             if (!HMD.active) return;
                             if (focus) return ApplicationInterface.showVRKeyboardForHudUI(true);
                             ApplicationInterface.showVRKeyboardForHudUI(false);
                         }
                     }
                     Button {
+                        objectName: "chatSend"
                         width: 60
                         height:parent.height
 
@@ -257,7 +297,7 @@ Rectangle {
                             toScript({type: "send_message", message: parent.children[0].text, channel: pageVal});
                             textArea.text = ""
                         }
-                        Keys.onPressed: {
+                        Keys.onPressed: function(event) {
                             if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
                                 toScript({type: "send_message", message: parent.children[0].text, channel: pageVal});
                                 textArea.text = ""
@@ -282,8 +322,9 @@ Rectangle {
 
                 // External Window
                 Rectangle {
+                    visible: !root.tabletMode
                     width: parent.width
-                    height: 40
+                    height: visible ? 40 : 0
                     color: "transparent"
 
                     Text{
@@ -298,7 +339,7 @@ Rectangle {
                         anchors.right: parent.right
                         anchors.verticalCenter: parent.verticalCenter
 
-                        onCheckedChanged: {
+                        onToggled: {
                             toScript({type: 'setting_change', setting: 'external_window', value: checked})
                         }
                     }
@@ -318,18 +359,19 @@ Rectangle {
                     }
 
                     
-                    HifiControlsUit.SpinBox {
+                    SpinBox {
                         id: s_maximum_messages
                         anchors.right: parent.right
                         anchors.verticalCenter: parent.verticalCenter
-                        decimals: 0
-                        width: 100
+                        width: 110
                         height: parent.height
-                        realFrom: 1
-                        realTo: 1000
-                        backgroundColor: "#cccccc"
+                        from: 1
+                        to: 1000
+                        editable: true
 
-                        onValueChanged: {
+                        onValueModified: {
+                            root.maximumMessages = value
+                            root.trimHistory()
                             toScript({type: 'setting_change', setting: 'maximum_messages', value: value})
                         }
                     }
@@ -379,7 +421,7 @@ Rectangle {
                         anchors.right: parent.right
                         anchors.verticalCenter: parent.verticalCenter
 
-                        onCheckedChanged: {
+                        onToggled: {
                             toScript({type: 'setting_change', setting: 'join_notification', value: checked})
                         }
                     }
@@ -403,7 +445,7 @@ Rectangle {
                         anchors.right: parent.right
                         anchors.verticalCenter: parent.verticalCenter
 
-                        onCheckedChanged: {
+                        onToggled: {
                             toScript({type: 'setting_change', setting: 'use_chat_bubbles', value: checked})
                         }
                     }
@@ -423,15 +465,24 @@ Rectangle {
         message = embedImages(message);
 
         if (type === "notification"){ 
-            domainMessages.append({ text: message, username, date, type });
+            domainMessages.append({ text: message, username, date, type, sequence: nextMessageSequence++ });
+            trimHistory();
             scrollToBottom();
             return;
         }
 
-        if (channel === "local") localMessages.append({ text: message, username, date, type });
-        if (channel === "domain") domainMessages.append({ text: message, username, date, type });
+        if (channel === "local") localMessages.append({ text: message, username, date, type, sequence: nextMessageSequence++ });
+        if (channel === "domain") domainMessages.append({ text: message, username, date, type, sequence: nextMessageSequence++ });
+        trimHistory();
 
         scrollToBottom();
+    }
+    function trimHistory() {
+        while (localMessages.count + domainMessages.count > maximumMessages) {
+            if (!domainMessages.count || (localMessages.count
+                    && localMessages.get(0).sequence < domainMessages.get(0).sequence)) { localMessages.remove(0); }
+            else { domainMessages.remove(0); }
+        }
     }
 
     function formatContent(mess) {
@@ -469,6 +520,10 @@ Rectangle {
     function fromScript(message) {
 
         switch (message.type){
+            case "chat.hidden":
+                textArea.focus = false;
+                keyboardRaised = false;
+                break;
             case "show_message":
                 addMessage(message.displayName, message.message, `${message.timeString} - ${message.dateString}`, message.channel, "chat");
                 break;
@@ -480,10 +535,15 @@ Rectangle {
                 domainMessages.clear();
                 break;
             case "initial_settings":
-                if (message.settings.external_window) s_external_window.checked = true;
-                if (message.settings.maximum_messages) s_maximum_messages.value = message.settings.maximum_messages;
-                if (message.settings.join_notification) s_join_notification.checked = true;
-                if (message.settings.use_chat_bubbles) s_chat_bubbles.checked = true;
+                root.tabletMode = message.tabletMode === true;
+                s_external_window.checked = message.settings.external_window === true;
+                if (message.settings.maximum_messages) {
+                    maximumMessages = message.settings.maximum_messages;
+                    s_maximum_messages.value = maximumMessages;
+                    trimHistory();
+                }
+                s_join_notification.checked = message.settings.join_notification === true;
+                s_chat_bubbles.checked = message.settings.use_chat_bubbles === true;
                 break;
         }
     }
