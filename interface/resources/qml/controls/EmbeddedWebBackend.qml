@@ -17,6 +17,7 @@ Item {
     readonly property bool canGoBack: false
     readonly property bool canGoForward: false
     readonly property string error: qsTr("Embedded web content is unavailable on this client.")
+    readonly property string warning: ""
     readonly property bool bridgeAvailable: false
     signal webEventReceived(var message)
     signal nativeClosed()
