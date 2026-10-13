@@ -57,7 +57,7 @@ boundary and screen-space IME capabilities; this is not browser/device evidence.
 | Graphics | Usable world-effect controls and persistent choices; verify lights, haze, procedural materials and mirrors in the same world | Phone controls tested on host; integration/device effects pending |
 | Audio | Mutual voice, playback/mute and permissions/routing; retain live echo and add bounded local recorded/replay/status/cancel on all clients | Shared recorded preview and native-driven UI integrated; device audio acceptance pending |
 | Chat/Snapshot | Normal app entries with useful message send/receive/history and actual capture/preview/save/share outcomes | Chat and shared native Snapshot integrated with touch startup; actual Qt5/Qt6 behavior/capture/storage checks pass; platform export adapters and device acceptance pending |
-| Scripts/assets | Load/stop/manage ordinary scripts and assets through usable native controls; verify concrete script results and runtime differences | Actual mobile journeys pending |
+| Scripts/assets | Load/stop/manage ordinary scripts and assets, preserve relative companion files and choose the main file through usable native controls; verify concrete script results and runtime differences | Shared bundle controls and production API bodies pass on host; OBJ parser passes on host; full runtime and device journeys pending |
 | Lifecycle/input | Touch/controller/keyboard accessibility, back/close/focus, background/resume/restart, no orphan page audio or stale native input | Per-adapter host checks; three-artifact device acceptance pending |
 
 Performance budgets, rendering resolution and touch/controller mechanics may
@@ -66,6 +66,27 @@ Native and Overte script runtimes also differ: the baseline iOS V8 disables JIT
 and exposed WebAssembly. A successful ordinary JavaScript test does not prove
 arbitrary WASM-dependent script compatibility. Report actual API/user results
 and remaining limits rather than inferring runtime parity from build flags.
+
+## Script and asset bundles
+
+The common native script and asset controls now preserve the selected folder's
+relative hierarchy, present a main-file review, execute only the chosen main
+script and upload model companions before publishing the primary mapping.
+The folder/file operators remain separate; native ownership cancellation retains
+the actual request ID. Bundle validation checks real local files and limits
+selection to 32 files, 256 MiB per file, 512 MiB total, 1,024 enumerated entries
+and 16 relative path components, rejecting aliases and path escapes.
+
+The host checks execute the production dialog caller, relative script resolver,
+file validation and upload-batch bodies with actual Qt, local bytes and decoded
+images. The host JavaScript engine and asynchronous asset-server peer are
+explicit test boundaries. Full V8 execution, live asset mappings, rendered
+models and iOS/Android document providers still require current native artifacts
+and device acceptance. The separate OBJ parser check executes actual geometry/material parsing and
+passes the resulting HFM textures through the material consumer, preserving
+nested paths and explicit texture-base overrides. Resource providers and
+rendering remain host boundaries; matching transferred bytes alone does not
+establish a rendered-model result.
 
 ## Ownership and integration
 
