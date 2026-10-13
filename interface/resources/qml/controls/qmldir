@@ -4,6 +4,9 @@ ButtonAwesome 1.0 ButtonAwesome.qml
 CheckBox 1.0 CheckBox.qml
 ComboBox 1.0 ComboBox.qml
 FlickableWebViewCore 1.0 FlickableWebViewCore.qml
+NativeFlickableWebViewCore 1.0 NativeFlickableWebViewCore.qml
+EmbeddedWebView 1.0 EmbeddedWebView.qml
+EmbeddedWebBackend 1.0 EmbeddedWebBackend.qml
 FontAwesome 1.0 FontAwesome.qml
 Player 1.0 Player.qml
 RadioButton 1.0 RadioButton.qml

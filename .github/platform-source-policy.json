@@ -132,7 +132,9 @@
     "scripts/system/tablet-ui/mobileTabletApps.js",
     "interface/resources/qml/hifi/tablet/TabletNavigation.qml",
     "interface/resources/qml/hifi/tablet/TabletPageLoader.qml",
-    "interface/resources/qml/hifi/tablet/TabletSurfaceGeometry.qml"
+    "interface/resources/qml/hifi/tablet/TabletSurfaceGeometry.qml",
+    "scripts/system/+android_phoneInterface/phoneGraphics.js",
+    "scripts/system/settings/qml/pages/+android_phoneInterface/GraphicsSettings.qml"
   ],
   "shared_mobile_selectors": [
     "+android_interface",
