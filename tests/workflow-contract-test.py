@@ -742,6 +742,28 @@ class HostWorkflowRoutingContracts(unittest.TestCase):
                      'Run the complete common fallback'):
             self.assertLess(index, next(i for i, step in enumerate(steps) if step.get('name') == name))
 
+    def test_reused_product_suites_share_the_prepared_python_interpreter(self):
+        import yaml
+        steps = yaml.safe_load(SYNC_VALIDATION_WORKFLOW.read_text())['jobs']['validate']['steps']
+        name = 'Prepare isolated product Python validators'
+        index = next(i for i, step in enumerate(steps) if step.get('name') == name)
+        prepare = steps[index]
+        product = next(step for step in steps if step['name'].startswith('Run product suites'))
+        self.assertEqual(prepare['if'], product['if'])
+        self.assertEqual(prepare['working-directory'], 'candidate')
+        self.assertEqual(product['working-directory'], prepare['working-directory'])
+        self.assertLess(index, steps.index(product))
+        interpreter = 'build/host-tests-env/bin/python'
+        self.assertIn('python3 -m venv build/host-tests-env', prepare['run'])
+        self.assertIn(interpreter + ' -m pip install --disable-pip-version-check '
+                      '-r ../trusted/tests/requirements-host.txt', prepare['run'])
+        self.assertEqual(product['run'].split()[0], interpreter)
+        self.assertIn('--platform-only --timeout 240', product['run'])
+        self.assertEqual(product['env'], {'GH_TOKEN': '', 'GITHUB_TOKEN': ''})
+        self.assertEqual(prepare['env'], product['env'])
+        self.assertNotIn('continue-on-error', prepare)
+        self.assertNotIn('continue-on-error', product)
+
     def test_parent_evidence_stays_bound_to_the_successful_exact_push(self):
         source = self.workflows["parent"]
         self.assertIn("ref: ${{ github.sha }}", source)
