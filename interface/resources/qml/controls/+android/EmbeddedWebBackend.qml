@@ -3,7 +3,7 @@
 import QtQuick 2.7
 import Overte.Android 1.0
 
-Item {
+FocusScope {
     id: root
     property string url: ""
     property string scriptUrl: ""
@@ -32,6 +32,7 @@ Item {
     NativeWebView {
         id: nativeView
         anchors.fill: parent
+        focus: true
         url: root.url
         scriptUrl: root.scriptUrl
         userAgent: root.userAgent
