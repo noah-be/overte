@@ -566,16 +566,16 @@ bool WindowScriptingInterface::setDisplayTexture(const QString& name) {
     return  qApp->getActiveDisplayPlugin()->setDisplayTexture(name);   // Plugins that don't know how, answer false.
 }
 
-void WindowScriptingInterface::takeSnapshot(bool notify, bool includeAnimated, float aspectRatio, const QString& filename) {
-    qApp->takeSnapshot(notify, includeAnimated, aspectRatio, filename);
+void WindowScriptingInterface::takeSnapshot(bool notify, bool includeAnimated, float aspectRatio, const QString& filename, const QString& requestId) {
+    qApp->takeSnapshot(notify, includeAnimated, aspectRatio, filename, requestId);
 }
 
 void WindowScriptingInterface::takeSecondaryCameraSnapshot(const bool& notify, const QString& filename) {
     qApp->takeSecondaryCameraSnapshot(notify, filename);
 }
 
-void WindowScriptingInterface::takeSecondaryCamera360Snapshot(const glm::vec3& cameraPosition, const bool& cubemapOutputFormat, const bool& notify, const QString& filename) {
-    qApp->takeSecondaryCamera360Snapshot(cameraPosition, cubemapOutputFormat, notify, filename);
+void WindowScriptingInterface::takeSecondaryCamera360Snapshot(const glm::vec3& cameraPosition, const bool& cubemapOutputFormat, const bool& notify, const QString& filename, const QString& requestId) {
+    qApp->takeSecondaryCamera360Snapshot(cameraPosition, cubemapOutputFormat, notify, filename, requestId);
 }
 
 void WindowScriptingInterface::shareSnapshot(const QString& path, const QUrl& href) {
