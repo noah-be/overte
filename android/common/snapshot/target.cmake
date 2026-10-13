@@ -6,5 +6,5 @@ function(overte_target_snapshot target)
         "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/src/NativeSnapshotAdapter.h")
     target_include_directories(${target} PRIVATE "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/src"
         "${CMAKE_SOURCE_DIR}/interface/src/ui")
-    target_link_libraries(${target} PRIVATE Qt5::Core Qt5::Qml)
+    target_link_libraries(${target} Qt5::Core Qt5::Qml)
 endfunction()
