@@ -63,9 +63,7 @@
 #include "AudioIOStats.h"
 #include "AudioFileWav.h"
 #include "HifiAudioDeviceInfo.h"
-#if defined(ANDROID_APP_PHONE_INTERFACE)
 #include "PhoneVoiceTestBuffer.h"
-#endif
 
 #if defined(WEBRTC_AUDIO)
 #  define WEBRTC_APM_DEBUG_DUMP 0
@@ -261,13 +259,10 @@ public slots:
     bool isAcousticEchoCancellationEnabled() const { return _isAECEnabled; }
 
     virtual bool getLocalEcho() override { return _shouldEchoLocally; }
-    virtual void setLocalEcho(bool localEcho) override {
-        _shouldEchoLocally = localEcho;
-#if defined(ANDROID_APP_PHONE_INTERFACE)
-        ++_phoneVoiceTestGeneration;
-#endif
-    }
+    virtual void setLocalEcho(bool localEcho) override;
     virtual void toggleLocalEcho() override { setLocalEcho(!_shouldEchoLocally); }
+    void startRecordedVoiceTest() override;
+    void cancelRecordedVoiceTest() override;
 
     virtual bool getServerEcho() override { return _shouldEchoToServer; }
     virtual void setServerEcho(bool serverEcho) override { _shouldEchoToServer = serverEcho; }
@@ -420,11 +415,15 @@ private:
     QAudioOutput* _loopbackAudioOutput{ nullptr };
     QIODevice* _loopbackOutputDevice{ nullptr };
     QByteArray _loopbackPendingAudio;
-#if defined(ANDROID_APP_PHONE_INTERFACE)
-    PhoneVoiceTestBuffer _phoneVoiceTest;
-    std::atomic<unsigned> _phoneVoiceTestGeneration { 0 };
-    unsigned _phoneVoiceTestObservedGeneration { 0 };
-#endif
+    PhoneVoiceTestBuffer _recordedVoiceTest;
+    bool _recordedVoiceTestActive { false };
+    qint64 _recordedVoiceTestLimit { 0 };
+    QTimer* _recordedVoiceTestTimer { nullptr };
+    QElapsedTimer _recordedVoiceTestElapsed;
+    QElapsedTimer _recordedVoiceTestDrainElapsed;
+    void finishRecordedVoiceTest(const QString& phase, const QString& error = QString());
+    void publishRecordedVoiceTestStatus(const QString& phase, const QString& error = QString());
+    bool recordedVoiceTestInputAvailable() const;
     AudioRingBuffer _inputRingBuffer{ 0 };
     LocalInjectorsStream _localInjectorsStream{ 0 , 1 };
     // In order to use _localInjectorsStream as a lock-free pipe,

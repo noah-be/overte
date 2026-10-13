@@ -1,0 +1,13 @@
+// Copyright 2026 Overte contributors.
+// SPDX-License-Identifier: Apache-2.0
+// Set ext.overteEmbeddedWebRoot to this reviewed directory before applying.
+if (!project.hasProperty('overteEmbeddedWebRoot')) {
+    throw new GradleException('overteEmbeddedWebRoot is required')
+}
+android.sourceSets.main.java.srcDir new File(project.overteEmbeddedWebRoot, 'java')
+dependencies { implementation 'androidx.webkit:webkit:1.12.1' }
+
+// Keep only the Java endpoint whose class/method names are used by C++ JNI.
+android.buildTypes.configureEach {
+    proguardFiles new File(project.overteEmbeddedWebRoot, 'proguard-rules.pro')
+}

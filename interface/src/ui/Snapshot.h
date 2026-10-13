@@ -20,12 +20,18 @@
 #include <QUrl>
 #include <QTimer>
 #include <QtGui/QImage>
+#include <QHash>
+#include <QMutex>
+#include <QPointer>
+#include <array>
+#include "SnapshotCapture.h"
 
 #include <SettingHandle.h>
 #include <DependencyManager.h>
 
 class QFile;
 class QTemporaryFile;
+class SnapshotUploader;
 
 class SnapshotMetaData {
 public:
@@ -41,7 +47,8 @@ private:
 /*@jsdoc
  * The <code>Snapshot</code> API provides access to the path that snapshots are saved to. This path is that provided in 
  * Settings &gt; General &gt; Snapshots. Snapshots may be taken using <code>Window</code> API functions such as 
- * {@link Window.takeSnapshot}.
+ * {@link Window.takeSnapshot}. Mobile clients save captures in the application-owned Snapshot directory.
+ * The native review previews only files validated against that directory; it does not grant a web page filesystem access.
  *
  * @namespace Snapshot
  * 
@@ -55,11 +62,12 @@ class Snapshot : public QObject, public Dependency {
     SINGLETON_DEPENDENCY
 public:
     Snapshot();
+    ~Snapshot() override;
     QString saveSnapshot(QImage image, const QString& filename, const QString& pathname = QString());
     void save360Snapshot(const glm::vec3& cameraPosition,
                          const bool& cubemapOutputFormat,
                          const bool& notify,
-                         const QString& filename);
+                         const QString& filename, const SnapshotCapture& capture = {});
     QTemporaryFile* saveTempSnapshot(QImage image);
     SnapshotMetaData* parseSnapshotData(QString snapshotPath);
 
@@ -68,8 +76,31 @@ public:
     Setting::Handle<QString> _snapshotFormat{ "snapshotFormat" };
     Setting::Handle<QString> _animatedSnapshotFormat{ "animatedSnapshotFormat" };
     void uploadSnapshot(const QString& filename, const QUrl& href = QUrl(""));
+    SnapshotCapture beginCapture(const QString& requestId);
+    void captureStatus(const SnapshotCapture&, const QString& phase, const QString& path = {}, const QString& error = {});
 
 signals:
+    /*@jsdoc
+     * Reports a ticketed capture phase: processing, complete, cancelled, or error.
+     * Cancellation invalidates queued render and encode callbacks; a completed app-owned file is retained.
+     * @function Snapshot.captureStatusChanged
+     * @param {string} requestId - The capture request identifier supplied to Window.
+     * @param {string} phase - The current phase.
+     * @param {string} path - The saved or processing file, if available.
+     * @param {string} error - A failure code, or an empty string.
+     * @returns {Signal}
+     */
+    void captureStatusChanged(const QString& requestId, const QString& phase, const QString& path, const QString& error);
+    /*@jsdoc
+     * Reports success, cancelled, or error for a native upload. Cancellation suppresses
+     * further callbacks and follow-up story requests; already received server data cannot be withdrawn.
+     * @function Snapshot.uploadStatusChanged
+     * @param {string} path - The original snapshot path.
+     * @param {string} status - The terminal status.
+     * @param {string} error - A failure code, or an empty string.
+     * @returns {Signal}
+     */
+    void uploadStatusChanged(const QString& path, const QString& status, const QString& error);
 
     /*@jsdoc
      * Triggered when the path that snapshots are saved to is changed.
@@ -85,6 +116,32 @@ signals:
     void snapshotLocationSet(const QString& value);
 
 public slots:
+    /*@jsdoc
+     * Whether this client uses the native mobile Snapshot review.
+     * @function Snapshot.nativeReviewEnabled
+     * @returns {boolean} Whether the native review is selected.
+     */
+    Q_INVOKABLE bool nativeReviewEnabled() const;
+    /*@jsdoc
+     * Cancels an active ticketed capture without deleting completed snapshot files.
+     * @function Snapshot.cancelCapture
+     * @param {string} requestId - The active capture request identifier.
+     */
+    Q_INVOKABLE void cancelCapture(const QString& requestId);
+    /*@jsdoc
+     * Returns a native image preview URL only for an existing app-owned snapshot.
+     * This does not grant browser document or script authority.
+     * @function Snapshot.snapshotFileUrl
+     * @param {string} path - The app-owned capture path.
+     * @returns {string} The validated local URL, or an empty URL.
+     */
+    Q_INVOKABLE QUrl snapshotFileUrl(const QString& path) const;
+    /*@jsdoc
+     * Requests cancellation of the active image/story upload for a snapshot.
+     * @function Snapshot.cancelUpload
+     * @param {string} path - The original snapshot path.
+     */
+    Q_INVOKABLE void cancelUpload(const QString& path);
 
     /*@jsdoc
      * Gets the path that snapshots are saved to.
@@ -176,12 +233,25 @@ private:
     bool _oldEnabled;
     QVariant _oldAttachedEntityId;
     QVariant _oldOrientation;
+    QVariant _oldPosition;
+    QVariant _oldMirrorProjection;
+    QVariant _oldPortalProjection;
+    int _oldTextureWidth { 0 };
+    int _oldTextureHeight { 0 };
     QVariant _oldvFoV;
     QVariant _oldNearClipPlaneDistance;
     QVariant _oldFarClipPlaneDistance;
     QImage _imageArray[6];
-    void convertToCubemap();
-    void convertToEquirectangular();
+    void restoreSecondaryCamera();
+    static QImage convertToCubemap(std::array<QImage, 6> images, SnapshotCapture capture);
+    static QImage convertToEquirectangular(std::array<QImage, 6> images, SnapshotCapture capture);
+    void complete360(const QImage&, const QString&, bool, const SnapshotCapture&);
+    SnapshotCapture _capture360;
+    QMutex _captureMutex;
+    QHash<QString, SnapshotCapture> _captures;
+    QHash<QString, QPointer<SnapshotUploader>> _uploads;
+    bool _uploadContextConnected { false };
+    void cancelUploads();
 };
 
 #endif // hifi_Snapshot_h

@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "file": "reference.mp4",
+  "contentType": "video/mp4",
+  "bytes": 50750,
+  "sha256": "dbfe374cd12fcd3ad6d4da651b250453b8ec44c4febc7b5c358cc6f7f4675e9b",
+  "width": 192,
+  "height": 108,
+  "fps": 12,
+  "frames": 72,
+  "durationSeconds": 6,
+  "videoCodec": "h264-baseline",
+  "audioCodec": "aac",
+  "sampleRate": 22050,
+  "channels": 1,
+  "frequencyHz": 440,
+  "visual": "red/green/blue at 0/2/4 seconds, encoded frame counter 000..071 and moving white square"
+}

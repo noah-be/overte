@@ -43,6 +43,13 @@ public:
  QMutex _checkDevicesMutex,_deviceMutex,_checkPeakValuesMutex;
  QTimer* _checkDevicesTimer=nullptr;QTimer* _checkPeakValuesTimer=nullptr;
  bool _audioLifecycleRunning=true,_isMuted=false,_isStereoInput=false,_audioPaused=false;
+ // The local PCM preview is a separate subsystem, exercised by the registered
+ // recorded-voice-native suite. Here only its cancellation boundary is needed.
+ bool _recordedVoiceTestActive=false;
+ std::vector<QString> previewCancellations;
+ void finishRecordedVoiceTest(const QString& phase,const QString& error){
+  assert(phase=="cancelled");_recordedVoiceTestActive=false;previewCancellations.push_back(error);
+ }
  bool _isNoiseGateEnabled=false,_isNoiseReductionAutomatic=false,_audioGateOpen=true,_shouldEchoToServer=false;
  float _lastInputLoudness=0,_lastRawInputLoudness=0,_lastSmoothedRawInputLoudness=0,_noiseReductionThreshold=0;
  DeviceSource* _audioInput=nullptr;
@@ -112,7 +119,10 @@ int main(int argc,char**argv){
  assert(audio.voiceTestStatus()["sourceError"].toString().isEmpty());
  assert(audio.voiceTestStatus()["sourceEnabled"].toBool());
  QThread::msleep(150);
- audio.setMuted(true);audio.switchInputToAudioDevice({},true);
+ audio._recordedVoiceTestActive=true;audio.setMuted(true);
+ assert(!audio._recordedVoiceTestActive && audio.previewCancellations.back()=="microphone-muted");
+ audio._recordedVoiceTestActive=true;audio.switchInputToAudioDevice({},true);
+ assert(!audio._recordedVoiceTestActive && audio.previewCancellations.back()=="input-changed");
  assert(!audio._audioInput && !audio._dummyAudioInput && !audio._audioGate);
  assert(audio.sendVoiceTest(symbols));
  assert(audio._voiceTestSignal.frames()==0 && audio._voiceTestPackets==0);
@@ -151,7 +161,9 @@ int main(int argc,char**argv){
  audio.resetVoiceTest();assert(audio.prepareVoiceTest());audio._voiceTestLeaseTimer->start(20);waitMs(40);
  assert(audio.voiceTestStatus()["sourceError"].toString()=="voice-source-lease-expired");assert(audio._isMuted);
  audio.resetVoiceTest();assert(audio.prepareVoiceTest());assert(audio.sendVoiceTest(symbols));
- audio.stop();waitMs(30);assert(!audio._voiceTestSignal.active());
+ audio._recordedVoiceTestActive=true;audio.stop();
+ assert(!audio._recordedVoiceTestActive && audio.previewCancellations.back()=="lifecycle-stopped");
+ waitMs(30);assert(!audio._voiceTestSignal.active());
  assert(audio.voiceTestStatus()["frames"].toInt()<VoiceTestSignal::FRAMES);
  assert(audio.voiceTestStatus()["sourceError"].toString()=="voice-source-lifecycle-stopped");
  assert(!audio.voiceTestStatus()["sourceClockActive"].toBool());audio.resetVoiceTest();

@@ -12,7 +12,7 @@ CPP = ROOT / 'android/vr/pico/apps/picoInterface/src/PicoWebViewItem.cpp'
 
 class NativeWebCreationTest(unittest.TestCase):
     def test_actual_qml_property_reaches_native_url_setter(self):
-        qml = (ROOT / 'interface/resources/qml/+android_picoInterface/Web3DSurface.qml').read_text()
+        qml = (ROOT / 'interface/resources/qml/+android_picoInterface/PicoLegacyWebSurface.qml').read_text()
         self.assertIn('import Overte.Pico 1.0', qml)
         item = qml.split('PicoWebView {', 1)[1].split('}', 1)[0]
         self.assertIn('url: root.url', item)
