@@ -45,6 +45,15 @@ target_sources(Overte PRIVATE
     "${CMAKE_CURRENT_LIST_DIR}/../audio/AVAudioSessionAdapter.mm"
     "${CMAKE_CURRENT_LIST_DIR}/../web/NativeWebAdapter.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/../web/ContainedWebView.mm"
+    "${CMAKE_CURRENT_LIST_DIR}/../web/WKWebSnapshot.h"
+    "${CMAKE_CURRENT_LIST_DIR}/../web/WKWebSnapshot.mm"
+    "${CMAKE_CURRENT_LIST_DIR}/../web/IOSWebChannel.h"
+    "${CMAKE_CURRENT_LIST_DIR}/../web/IOSWebChannel.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/../web/IOSWebView.h"
+    "${CMAKE_CURRENT_LIST_DIR}/../web/IOSWebView.mm"
+    "${CMAKE_CURRENT_LIST_DIR}/../snapshot/IOSSnapshotAdapter.h"
+    "${CMAKE_CURRENT_LIST_DIR}/../snapshot/IOSSnapshotAdapter.mm"
+    "${CMAKE_CURRENT_LIST_DIR}/../documents/IOSDocumentPicker.mm"
     "${CMAKE_CURRENT_LIST_DIR}/../render/WorldObservation.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/../render/InstallWorldObservation.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/../ui/IPadLandscapePolicy.mm"
@@ -63,10 +72,25 @@ set_source_files_properties("${CMAKE_CURRENT_LIST_DIR}/../audio/AVAudioSessionAd
 set_source_files_properties("${CMAKE_CURRENT_LIST_DIR}/../web/ContainedWebView.mm"
     TARGET_DIRECTORY Overte
     PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+set_source_files_properties("${CMAKE_CURRENT_LIST_DIR}/../web/WKWebSnapshot.mm"
+    TARGET_DIRECTORY Overte
+    PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+set_source_files_properties("${CMAKE_CURRENT_LIST_DIR}/../web/IOSWebView.mm"
+    TARGET_DIRECTORY Overte
+    PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+target_include_directories(Overte PRIVATE "${CMAKE_CURRENT_LIST_DIR}/../../libraries/shared/src")
 set_source_files_properties("${CMAKE_CURRENT_LIST_DIR}/../ui/IPadLandscapePolicy.mm"
     TARGET_DIRECTORY Overte
     PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+set_source_files_properties("${CMAKE_CURRENT_LIST_DIR}/../snapshot/IOSSnapshotAdapter.mm"
+    TARGET_DIRECTORY Overte
+    PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
 target_link_libraries(Overte "-framework WebKit")
+target_link_libraries(Overte "-framework Photos")
+set_source_files_properties("${CMAKE_CURRENT_LIST_DIR}/../documents/IOSDocumentPicker.mm"
+    TARGET_DIRECTORY Overte
+    PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+target_link_libraries(Overte "-framework UniformTypeIdentifiers")
 target_link_libraries(Overte "-framework Security" "-framework LocalAuthentication")
 
 # Real Full Client caller: a foreground-only, 30-second native metrics sampler.

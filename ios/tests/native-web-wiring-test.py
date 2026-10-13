@@ -16,11 +16,27 @@ class Wiring(unittest.TestCase):
 
     def test_actual_target_and_startup(self):
         cmake = (ROOT / "ios/integration/CMakeLists.txt").read_text()
-        for path in ("../web/NativeWebAdapter.cpp", "../web/ContainedWebView.mm"):
+        for path in ("../web/NativeWebAdapter.cpp", "../web/ContainedWebView.mm",
+                     "../web/WKWebSnapshot.h", "../web/WKWebSnapshot.mm"):
             self.assertIn(path, cmake)
         self.assertIn('target_link_libraries(Overte "-framework WebKit")', cmake)
         self.assertIn("Q_COREAPP_STARTUP_FUNCTION(installContainedWeb)", self.source)
         self.assertIn("overte::web::installNativeWebAdapter(&nativeAdapter())", self.source)
+
+    def test_embedded_endpoint_is_registered_and_uses_real_shared_bridge(self):
+        cmake = (ROOT / "ios/integration/CMakeLists.txt").read_text()
+        native = (ROOT / "ios/web/IOSWebView.mm").read_text()
+        for path in ("../web/IOSWebView.h", "../web/IOSWebView.mm",
+                     "../web/IOSWebChannel.cpp", "../web/IOSWebChannel.h"):
+            self.assertIn(path, cmake)
+        self.assertIn('qmlRegisterType<overte::ios::IOSWebView>("Overte.iOS", 1, 0, "IOSWebView")', native)
+        self.assertIn("Q_COREAPP_STARTUP_FUNCTION(registerIOSWebView)", native)
+        self.assertIn("eventBridgeJavaScriptToInject", native)
+        self.assertIn("web::EmbeddedWebSession policy", native)
+        self.assertIn("state.view loadFileURL:url allowingReadAccessToURL:", native)
+        self.assertIn("setURLSchemeHandler:state.qrcHandler", native)
+        self.assertNotIn("@available(iOS 18.4", native)
+        self.assertNotIn("runOpenPanelWithParameters:", native)
 
     def test_arc_reaches_target_in_other_cmake_directory(self):
         source = (ROOT / "ios/integration/CMakeLists.txt").read_text()
@@ -30,7 +46,9 @@ class Wiring(unittest.TestCase):
             f'get_source_file_property(arc "{ROOT / "ios" / name}" TARGET_DIRECTORY Overte COMPILE_OPTIONS)\n'
             'if(NOT arc STREQUAL "-fobjc-arc")\nmessage(FATAL_ERROR "ARC not visible to Overte")\nendif()'
             for name in ("src/SecureAccountStore.mm", "src/RedactingDiagnostics.mm",
-                         "audio/AVAudioSessionAdapter.mm", "web/ContainedWebView.mm"))
+                         "audio/AVAudioSessionAdapter.mm", "web/ContainedWebView.mm",
+                         "web/WKWebSnapshot.mm", "web/IOSWebView.mm", "snapshot/IOSSnapshotAdapter.mm",
+                         "documents/IOSDocumentPicker.mm"))
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             (root / "interface").mkdir()

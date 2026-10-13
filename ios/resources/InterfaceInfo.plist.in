@@ -27,7 +27,13 @@
     <key>NSLocalNetworkUsageDescription</key>
     <string>Overte uses the local network when connecting to nearby virtual-world services.</string>
     <key>NSAppTransportSecurity</key>
-    <dict><key>NSAllowsLocalNetworking</key><true/></dict>
+    <dict>
+        <key>NSAllowsLocalNetworking</key><true/>
+        <!-- Ordinary HTML browsing has its own bounded native policy. -->
+        <key>NSAllowsArbitraryLoadsInWebContent</key><true/>
+    </dict>
+    <key>NSPhotoLibraryAddUsageDescription</key>
+    <string>Overte saves a selected snapshot to Photos only when you choose Save to device.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>Overte uses the microphone for spatial voice communication after you grant permission.</string>
     <key>UILaunchScreen</key>
