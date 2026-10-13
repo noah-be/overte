@@ -110,6 +110,14 @@ the existing `OVERTE_TEST_GLM_INCLUDE` override when it is not installed globall
 These checks do not prove Photos/system chooser behavior, GPU capture or image
 upload against a real metaverse. Native device acceptance remains separate.
 
+The `document-tree-native` host suite compiles the real `FileDialogHelper` with
+matching Qt Core, Quick, Quick Test, Widgets and Test development packages and
+`moc`. It exercises directory hierarchy, symbolic-link rejection, independent
+file/tree operators, request cancellation, destroyed owners and cross-thread
+completion. The actual OffscreenUi bundle route executes with its surface
+manager substituted. Set `OVERTE_NATIVE_QT_MAJOR=5` or `6` to select the SDK.
+These checks do not prove a platform document provider or a complete client build.
+
 The phone pad projection regression requires the real GLM headers (`libglm-dev`
 on Ubuntu). The isolated synchronization validation workflow installs this package
 and the listed Qt 5 development/QML packages for both complete fallback and
@@ -271,6 +279,7 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `recorded-voice-qml` | `host` | `python3 tests/run-project-tests.py --suite recorded-voice-qml` |
 | `snapshot-native` | `host` | `python3 tests/run-project-tests.py --suite snapshot-native` |
 | `snapshot-qml` | `host` | `python3 tests/run-project-tests.py --suite snapshot-qml` |
+| `document-tree-native` | `host` | `python3 tests/run-project-tests.py --suite document-tree-native` |
 | `native-smoke` | `quick` | `python3 tests/run-project-tests.py --suite native-smoke` |
 | `native-ci-policy` | `quick` | `python3 tests/run-project-tests.py --suite native-ci-policy` |
 | `native-registration` | `quick` | `python3 tests/run-project-tests.py --suite native-registration` |
