@@ -20,6 +20,7 @@ FocusScope {
     readonly property bool canGoBack: backend ? backend.canGoBack : false
     readonly property bool canGoForward: backend ? backend.canGoForward : false
     readonly property string error: backend ? backend.error : ""
+    readonly property string warning: backend && typeof backend.warning !== "undefined" ? backend.warning : ""
     readonly property bool bridgeAvailable: backend ? backend.bridgeAvailable : false
     property bool _ready: false
     signal webEventReceived(var message)
@@ -75,11 +76,30 @@ FocusScope {
     Component.onDestruction: stop()
     Loader {
         id: loader
-        anchors.fill: parent
+        objectName: "EmbeddedWebDocument"
+        anchors { left: parent.left; right: parent.right; top: warningBanner.bottom; bottom: parent.bottom }
         active: root.url.length > 0
         focus: true
     }
     Rectangle {
+        id: warningBanner
+        objectName: "EmbeddedWebWarning"
+        anchors { left: parent.left; right: parent.right; top: parent.top }
+        visible: root.warning.length > 0 && !root.error.length
+        height: visible ? warningText.implicitHeight + 12 : 0
+        color: "#373029"
+        Quick.Text {
+            id: warningText
+            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 6 }
+            text: root.warning
+            color: "white"
+            font.pixelSize: 14
+            wrapMode: Text.Wrap
+            Accessible.name: text
+        }
+    }
+    Rectangle {
+        objectName: "EmbeddedWebError"
         anchors.fill: parent
         visible: root.error.length > 0
         color: "#262626"
