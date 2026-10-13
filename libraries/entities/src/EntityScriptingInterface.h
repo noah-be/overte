@@ -616,6 +616,18 @@ public slots:
     Q_INVOKABLE bool isLoaded(const QUuid& id);
 
     /*@jsdoc
+     * Checks whether a PolyVox entity has finished processing its voxel data.
+     * Local voxel setters return before asynchronous mesh baking and compression finish.
+     * A true result indicates that the current compressed voxelData is ready to read;
+     * a subsequent edit can make it pending again. This read does not authorize editing.
+     * @function Entities.isVoxelDataReady
+     * @param {Uuid} id - The PolyVox entity ID.
+     * @returns {boolean} False for a missing entity, another entity type, a pending edit,
+     * or an implementation without a rendering worker; true for completed voxel data.
+     */
+    Q_INVOKABLE bool isVoxelDataReady(const QUuid& id);
+
+    /*@jsdoc
      * Checks if there is an entity with a specified ID.
      * @function Entities.isAddedEntity
      * @param {Uuid} id - The ID to check.

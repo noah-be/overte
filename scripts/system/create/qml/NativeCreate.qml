@@ -20,6 +20,10 @@ Rectangle {
     property bool canUndo: false
     property bool canRedo: false
     property var focusedNumber: null
+    property var typedFieldRows: []
+    property var voxelSettings: ({ createAppMode: "object", voxelEditMode: "single",
+        voxelSphereSize: 0.3, voxelEditDynamics: "click", voxelRemove: false,
+        voxelPointerMode: "laser", voxelBrushLength: 0.5 })
     // OffscreenQmlSurface locates these properties on focus and requests the
     // established headset keyboard. Touch clients retain their OS IME.
     property bool keyboardEnabled: false
@@ -59,8 +63,11 @@ Rectangle {
             if (!selected || selected.id !== previousID) {
                 focusedNumber = null
                 send("numericFocus", { focused: false })
+                typedFieldRows = selected ? propertyFields(selected.properties) : []
             }
             selectionChanged()
+        } else if (message.method === "nativeCreate.settings") {
+            voxelSettings = value
         } else if (message.method === "nativeCreate.status") {
             statusText = value.text || ""
             statusError = value.error === true
@@ -82,6 +89,39 @@ Rectangle {
         var update = JSON.parse(JSON.stringify(changed))
         update[key] = value
         changed = update
+    }
+    function propertyFields(properties) {
+        var rows = []
+        var common = ["name", "position", "rotation", "dimensions", "color", "visible", "dynamic", "collisionless", "voxelData"]
+        function walk(value, path, depth) {
+            if (depth > 6 || value === null || Array.isArray(value)) { return }
+            if (typeof value === "object") {
+                Object.keys(value).sort().forEach(function(key) {
+                    if (path || common.indexOf(key) === -1) { walk(value[key], path ? path + "." + key : key, depth + 1) }
+                })
+            } else if (["string", "number", "boolean"].indexOf(typeof value) !== -1) {
+                rows.push({ path: path, kind: typeof value,
+                    label: path.replace(/\./g, " / ").replace(/([a-z])([A-Z])/g, "$1 $2") })
+            }
+        }
+        walk(properties, "", 0)
+        return rows
+    }
+    function propertyValue(path) {
+        var names = path.split(".")
+        var value = changed[names[0]] !== undefined ? changed[names[0]] : selected && selected.properties[names[0]]
+        for (var i = 1; i < names.length && value !== undefined && value !== null; i++) { value = value[names[i]] }
+        return value
+    }
+    function changePath(path, value) {
+        var names = path.split(".")
+        if (names.length === 1) { change(path, value); return }
+        var initial = changed[names[0]] !== undefined ? changed[names[0]] : selected.properties[names[0]]
+        var group = JSON.parse(JSON.stringify(initial || {}))
+        var item = group
+        for (var i = 1; i < names.length - 1; i++) { item = item[names[i]] }
+        item[names[names.length - 1]] = value
+        change(names[0], group)
     }
     function componentValue(key, component) {
         var value = changed[key] || (selected && selected.properties[key]) || {}
@@ -346,7 +386,7 @@ Rectangle {
                         Flow {
                             Layout.fillWidth: true
                             Repeater {
-                                model: ["visible", "dynamic", "collisionless"]
+                                model: ["visible", "dynamic", "collisionless", "voxelData"]
                                 CheckBox {
                                     id: flag
                                     text: modelData
@@ -358,6 +398,73 @@ Rectangle {
                         }
                         Button { objectName: "NativeCreateApply"; text: qsTr("Apply properties"); Layout.fillWidth: true; onClicked: root.apply() }
                         Button { objectName: "NativeCreateDelete"; text: qsTr("Delete selected entity"); Layout.fillWidth: true; onClicked: root.tool("delete") }
+                        Label { text: qsTr("Type-specific and other properties"); color: "white" }
+                        TextField {
+                            id: propertySearch
+                            objectName: "NativeCreatePropertySearch"
+                            Layout.fillWidth: true
+                            placeholderText: qsTr("Find URL, text, animation, lighting, audio, physics…")
+                        }
+                        ListView {
+                            id: typedProperties
+                            objectName: "NativeCreateTypedProperties"
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 360
+                            clip: true
+                            model: root.typedFieldRows.filter(function(field) {
+                                return field.path.toLowerCase().indexOf(propertySearch.text.toLowerCase()) !== -1
+                            })
+                            delegate: Column {
+                                width: typedProperties.width
+                                height: 108
+                                spacing: 4
+                                Text { text: modelData.label; color: "white"; width: parent.width; elide: Text.ElideRight }
+                                CheckBox {
+                                    id: typedFlag
+                                    objectName: "NativeCreateFlag_" + modelData.path
+                                    visible: modelData.kind === "boolean"
+                                    palette.windowText: "white"
+                                    text: qsTr("Enabled")
+                                    onClicked: root.changePath(modelData.path, checked)
+                                    Component.onCompleted: checked = root.propertyValue(modelData.path) === true
+                                    Connections { target: root; onSelectionChanged: typedFlag.checked = root.propertyValue(modelData.path) === true }
+                                }
+                                TextArea {
+                                    id: typedValue
+                                    objectName: "NativeCreateProperty_" + modelData.path
+                                    visible: modelData.kind !== "boolean"
+                                    width: parent.width
+                                    height: 76
+                                    wrapMode: TextEdit.Wrap
+                                    selectByMouse: true
+                                    inputMethodHints: modelData.kind === "number" ? Qt.ImhFormattedNumbersOnly : Qt.ImhNone
+                                    onTextChanged: {
+                                        if (!activeFocus) { return }
+                                        if (modelData.kind === "number") {
+                                            if (text.trim() && isFinite(Number(text))) { root.changePath(modelData.path, Number(text)) }
+                                        } else { root.changePath(modelData.path, text) }
+                                    }
+                                    onActiveFocusChanged: {
+                                        if (activeFocus && modelData.kind === "number") { root.focusedNumber = typedValue }
+                                        else if (root.focusedNumber === typedValue) { root.focusedNumber = null }
+                                        root.send("numericFocus", { focused: root.focusedNumber !== null })
+                                    }
+                                    function stepNumber(direction) {
+                                        if (!text.trim() || !isFinite(Number(text))) { return }
+                                        text = String(Number(text) + direction * 0.01)
+                                        root.changePath(modelData.path, Number(text))
+                                        root.send("preview", { id: root.selected.id, properties: root.changed })
+                                    }
+                                    function refresh() {
+                                        if (!activeFocus) { var value = root.propertyValue(modelData.path); text = value === undefined ? "" : String(value) }
+                                    }
+                                    Component.onCompleted: refresh()
+                                    Connections { target: root; onSelectionChanged: typedValue.refresh() }
+                                }
+                            }
+                            ScrollBar.vertical: ScrollBar {}
+                        }
+                        Button { objectName: "NativeCreateApplyTyped"; text: qsTr("Apply property changes"); Layout.fillWidth: true; onClicked: root.apply() }
                         Label { text: qsTr("Advanced properties (JSON)"); color: "white" }
                         TextArea {
                             id: advanced
@@ -383,10 +490,89 @@ Rectangle {
 
             ScrollView {
                 clip: true
-                Flow {
+                ColumnLayout {
                     width: parent.parent.width
                     spacing: 6
-                    Repeater {
+                    Label { text: qsTr("Editing mode"); color: "white" }
+                    ComboBox {
+                        objectName: "NativeCreateEditMode"
+                        Layout.fillWidth: true
+                        model: [qsTr("Objects"), qsTr("Voxels")]
+                        currentIndex: root.voxelSettings.createAppMode === "voxel" ? 1 : 0
+                        onActivated: root.send("settings", { createAppMode: currentIndex === 1 ? "voxel" : "object" })
+                    }
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        visible: root.voxelSettings.createAppMode === "voxel"
+                        RowLayout {
+                            Layout.fillWidth: true
+                            ComboBox {
+                                objectName: "NativeCreateVoxelShape"
+                                Layout.fillWidth: true
+                                model: [qsTr("Single voxel"), qsTr("Sphere"), qsTr("Cube")]
+                                currentIndex: ["single", "sphere", "cube"].indexOf(root.voxelSettings.voxelEditMode)
+                                onActivated: root.send("settings", { voxelEditMode: ["single", "sphere", "cube"][currentIndex] })
+                            }
+                            CheckBox {
+                                objectName: "NativeCreateVoxelRemove"
+                                text: qsTr("Remove")
+                                palette.windowText: "white"
+                                checked: root.voxelSettings.voxelRemove === true
+                                onClicked: root.send("settings", { voxelRemove: checked })
+                            }
+                        }
+                        RowLayout {
+                            Layout.fillWidth: true
+                            ComboBox {
+                                objectName: "NativeCreateVoxelDynamics"
+                                Layout.fillWidth: true
+                                model: [qsTr("One click"), qsTr("Continuous stroke")]
+                                currentIndex: root.voxelSettings.voxelEditDynamics === "continuous" ? 1 : 0
+                                onActivated: root.send("settings", { voxelEditDynamics: currentIndex === 1 ? "continuous" : "click" })
+                            }
+                            ComboBox {
+                                objectName: "NativeCreateVoxelPointer"
+                                Layout.fillWidth: true
+                                model: [qsTr("Ray"), qsTr("Controller brush")]
+                                currentIndex: root.voxelSettings.voxelPointerMode === "brush" ? 1 : 0
+                                onActivated: root.send("settings", { voxelPointerMode: currentIndex === 1 ? "brush" : "laser" })
+                            }
+                        }
+                        TextField {
+                            id: voxelDiameter
+                            objectName: "NativeCreateVoxelDiameter"
+                            Layout.fillWidth: true
+                            placeholderText: qsTr("Brush diameter (meters)")
+                            text: String(root.voxelSettings.voxelSphereSize)
+                            inputMethodHints: Qt.ImhFormattedNumbersOnly
+                        }
+                        TextField {
+                            id: voxelReach
+                            objectName: "NativeCreateVoxelReach"
+                            Layout.fillWidth: true
+                            placeholderText: qsTr("Controller brush reach (meters)")
+                            text: String(root.voxelSettings.voxelBrushLength)
+                            inputMethodHints: Qt.ImhFormattedNumbersOnly
+                        }
+                        Button {
+                            objectName: "NativeCreateVoxelApply"
+                            Layout.fillWidth: true
+                            text: qsTr("Apply brush size and reach")
+                            onClicked: {
+                                if (!voxelDiameter.text.trim() || !voxelReach.text.trim()
+                                        || !isFinite(Number(voxelDiameter.text)) || !isFinite(Number(voxelReach.text))) {
+                                    root.statusText = qsTr("Enter finite brush size and reach"); root.statusError = true; return
+                                }
+                                root.send("settings", { voxelSphereSize: Number(voxelDiameter.text), voxelBrushLength: Number(voxelReach.text) })
+                            }
+                        }
+                        Text { Layout.fillWidth: true; wrapMode: Text.Wrap; color: "#d9e2e8";
+                            text: qsTr("Point at an unlocked PolyVox volume in the world. Touch/click or use the controller trigger to draw; switch back to Objects to select entities.") }
+                    }
+                    Flow {
+                        Layout.fillWidth: true
+                        spacing: 6
+                        Repeater {
                         model: [
                             ["duplicate", qsTr("Duplicate")], ["copy", qsTr("Copy")], ["paste", qsTr("Paste")],
                             ["delete", qsTr("Delete")], ["parent", qsTr("Parent")], ["unparent", qsTr("Unparent")],
@@ -404,6 +590,7 @@ Rectangle {
                             text: modelData[1]
                             font.pixelSize: 12
                             onClicked: root.tool(modelData[0])
+                        }
                         }
                     }
                 }

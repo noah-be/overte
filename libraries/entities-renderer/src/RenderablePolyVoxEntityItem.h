@@ -88,6 +88,7 @@ public:
                                                   QVariantMap& extraInfo,
                                                   bool precisionPicking) const override;
 
+    bool isVoxelDataReady() const override;
     virtual void setVoxelData(const QByteArray& voxelData) override;
     virtual void setVoxelVolumeSize(const glm::vec3& voxelVolumeSize) override;
     virtual void setVoxelSurfaceStyle(uint16_t voxelSurfaceStyle) override;

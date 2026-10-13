@@ -12,5 +12,5 @@ test("real native Create QML supports pointer editing and narrow tablet layout",
     });
     if (result.error && result.error.code === "ENOENT") { t.skip("Qt Quick Test runner unavailable"); return; }
     assert.equal(result.status, 0, result.stdout + result.stderr);
-    assert.match(result.stdout, /5 passed, 0 failed/);
+    assert.match(result.stdout, /7 passed, 0 failed/);
 });
