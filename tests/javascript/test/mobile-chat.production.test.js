@@ -62,6 +62,12 @@ test("closed apps keep bounded history and replay it exactly once on reopen", ()
     assert.equal(replay.filter(p => p.type === "clear_messages").length, 1);
     assert.deepEqual(replay.filter(p => p.type === "show_message").map(p => p.message), ["second", "third"]);
 });
+test("saved chat preferences apply before the first mobile app opening", () => {
+    const s = start({ config: { maximum_messages: 1 } });
+    s.receive({ ...packet, message: "first" }); s.receive({ ...packet, message: "latest" });
+    assert.deepEqual(Array.from(s.values.get("ArmoredChat-Messages"), p => p.message), ["latest"]);
+    assert.equal(s.tablet.qmlMessages.length, 0);
+});
 test("only active chat sends; malformed and distant messages do not break reception", () => {
     const s = start();
     s.tablet.fromQml.emit({ type: "send_message", message: "foreign", channel: "domain" });
@@ -105,4 +111,10 @@ test("desktop retains external window and Enter quick-message behavior", () => {
     s.windows[1].fromQml.emit({ type: "setting_change", setting: "external_window", value: true });
     assert.equal(s.windows[1].presentationMode, 1); s.Script.end();
     assert.ok(s.windows.every(w => w.closedByScript));
+});
+test("stored external-window preference is restored without a settings writeback", () => {
+    const s = start({ desktop: true, config: { external_window: true } });
+    s.windows[1].fromQml.emit({ type: "initialized" });
+    assert.equal(s.windows[1].presentationMode, 1);
+    assert.equal(s.windows[1].packets[0].settings.external_window, true);
 });

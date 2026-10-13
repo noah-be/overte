@@ -62,6 +62,7 @@
         // Touch and headset clients use the normal system tablet. Script-engine
         // globals from defaultScripts are not available in this separate engine.
         tabletMode = HMD.active || tablet.toolbarMode === false;
+        readSettings();
 
         appButton = tablet.addButton({
             icon: Script.resolvePath("./img/icon_white.png"),
@@ -361,6 +362,23 @@
         }, 1500);
     }
     function _loadSettings() {
+        readSettings();
+        if (!tabletMode) {
+            chatOverlayWindow.presentationMode = settings.external_window
+                ? Desktop.PresentationMode.NATIVE : Desktop.PresentationMode.VIRTUAL;
+        }
+        _emitEvent({ type: "initial_settings", settings: settings, tabletMode: tabletMode });
+        _emitEvent({ type: "clear_messages" });
+        Messages.sendLocalMessage("ChatBubbles-Config", JSON.stringify({ enabled: settings.use_chat_bubbles }));
+
+        messageHistory.forEach((message) => {
+            const timeArray = _formatTimestamp(message.timestamp);
+            message.timeString = timeArray[0];
+            message.dateString = timeArray[1];
+            _emitEvent({ type: "show_message", ...message });
+        });
+    }
+    function readSettings() {
         var stored = Settings.getValue("ArmoredChat-Config", {}) || {};
         Object.keys(settings).forEach(function(key) {
             if (key === "maximum_messages") {
@@ -368,20 +386,6 @@
             } else if (typeof stored[key] === "boolean") { settings[key] = stored[key]; }
         });
         messageHistory = messageHistory.slice(-settings.maximum_messages);
-        _emitEvent({ type: "initial_settings", settings: settings, tabletMode: tabletMode });
-        _emitEvent({ type: "clear_messages" });
-        Messages.sendLocalMessage("ChatBubbles-Config", JSON.stringify({ enabled: settings.use_chat_bubbles }));
-
-        if (messageHistory) {
-            // Load message history
-            messageHistory.forEach((message) => {
-                const timeArray = _formatTimestamp(message.timestamp);
-                message.timeString = timeArray[0];
-                message.dateString = timeArray[1];
-                _emitEvent({ type: "show_message", ...message });
-            });
-        }
-
     }
     function _saveSettings() {
         console.log("Saving config");
