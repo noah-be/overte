@@ -8,6 +8,8 @@
 #include <QTemporaryDir>
 #include <QQmlEngine>
 #include <QQmlComponent>
+#include <QQmlFileSelector>
+#include <QDir>
 #include <memory>
 #include <cassert>
 class Probe : public NativeWebViewItem {
@@ -118,6 +120,14 @@ int main(int argc, char** argv) {
         assert(views[0]->presentation() == NativeWebViewItem::Texture);
         assert(adapter->metaObject()->indexOfMethod("emitScriptEvent(QVariant)") >= 0);
         assert(adapter->metaObject()->indexOfMethod("goForward()") >= 0);
+        engine.addImportPath(QFileInfo(QString::fromLocal8Bit(argv[2])).absoluteDir().absoluteFilePath("../.."));
+        QQmlFileSelector selector(&engine); selector.setExtraSelectors({ "android" });
+        QQmlComponent module(&engine);
+        module.setData("import QtQuick 2.7\nimport controls 1.0 as Controls\nControls.AndroidEmbeddedWebBackend { surface: \"tablet\"; presentation: \"texture\" }", QUrl());
+        if (!module.isReady()) qWarning() << module.errors();
+        assert(module.isReady()); std::unique_ptr<QObject> exported(module.create()); assert(exported);
+        auto* exportedView = exported->findChild<NativeWebViewItem*>(); assert(exportedView);
+        assert(exportedView->surface() == NativeWebViewItem::Tablet && exportedView->presentation() == NativeWebViewItem::Texture);
     }
     return 0;
 }

@@ -29,3 +29,4 @@ WebView 1.0 WebView.qml
 CpuRadialGradient 1.0 CpuRadialGradient.qml
 CpuDropShadow 1.0 CpuDropShadow.qml
 CpuShadowSourceObserver 1.0 CpuShadowSourceObserver.qml
+AndroidEmbeddedWebBackend 1.0 +android/EmbeddedWebBackend.qml
