@@ -58,5 +58,13 @@
             <meta-data android:name="android.app.auto_screen_scale_factor" android:value="true" />
             <meta-data android:name="android.app.extract_android_style" android:value="none" />
         </activity>
+        <provider android:name="org.overte.snapshot.SnapshotFileProvider"
+            android:authorities="${applicationId}.snapshot.files"
+            android:exported="false" android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/overte_snapshot_paths" />
+        </provider>
+        <receiver android:name="org.overte.snapshot.SnapshotShareReceiver"
+            android:exported="false" />
     </application>
 </manifest>

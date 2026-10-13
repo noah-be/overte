@@ -61,3 +61,6 @@ target_link_libraries(${TARGET_NAME} android log m interface ui Qt5::AndroidExtr
 include("${CMAKE_CURRENT_SOURCE_DIR}/../../../common/web/target.cmake")
 overte_target_embedded_web(${TARGET_NAME})
 target_sources(${TARGET_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src/PhoneEmbeddedWeb.cpp")
+
+include("${CMAKE_CURRENT_SOURCE_DIR}/../../../common/snapshot/target.cmake")
+overte_target_snapshot(${TARGET_NAME})

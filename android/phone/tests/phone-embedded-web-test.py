@@ -11,6 +11,7 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--android-jar', type=Path)
 parser.add_argument('--qt-jar', type=Path)
 parser.add_argument('--webkit-jar', type=Path)
+parser.add_argument('--core-jar', type=Path)
 args = parser.parse_args()
 with tempfile.TemporaryDirectory(prefix='phone-embedded-web-') as stage:
     sources = [ROOT / f'android/phone/apps/phoneInterface/src/main/java/org/overte/phone/{name}.java'
@@ -20,17 +21,25 @@ with tempfile.TemporaryDirectory(prefix='phone-embedded-web-') as stage:
     subprocess.run(['javac', '-d', stage, *map(str, sources)], check=True)
     for name in ('PhoneWebGeometry',):
         subprocess.run(['java', '-cp', stage, f'org.overte.phone.{name}HostTest'], check=True)
-    artifacts = [args.android_jar, args.qt_jar, args.webkit_jar]
+    snapshot = Path(stage) / 'snapshot-host'
+    snapshot.mkdir()
+    host_sources = list((ROOT / 'android/phone/tests/instrumentation/snapshot').rglob('*.java'))
+    host_sources += [ROOT / 'android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneSnapshotHost.java',
+                     ROOT / 'android/common/snapshot/java/org/overte/snapshot/SnapshotHost.java']
+    subprocess.run(['javac', '-d', str(snapshot), *map(str, host_sources)], check=True)
+    subprocess.run(['java', '-cp', str(snapshot), 'org.overte.phone.PhoneSnapshotHostTest'], check=True)
+    artifacts = [args.android_jar, args.qt_jar, args.webkit_jar, args.core_jar]
     if any(artifacts):
         if not all(path and path.is_file() for path in artifacts):
-            parser.error('API compilation requires all three actual artifact paths')
-        # Compile PhoneEmbeddedWebHost and PhoneInterfaceActivity with production Qt
+            parser.error('API compilation requires all four actual artifact paths')
+        # Compile PhoneEmbeddedWebHost, PhoneSnapshotHost and PhoneInterfaceActivity with production Qt
         # bindings and common runtime. PermissionsActivity alone needs generated APK R.
         production = list((ROOT / 'android/phone/apps/phoneInterface/src/main/java').rglob('*.java'))
         production = [path for path in production if path.name != 'PermissionsActivity.java']
         production += list((ROOT / 'android/common/libraries/qt/src/main/java').rglob('*.java'))
         production += list((ROOT / 'android/common/web/java').rglob('*.java'))
+        production += list((ROOT / 'android/common/snapshot/java').rglob('*.java'))
         production += list((ROOT / 'security/redaction/java').rglob('*.java'))
         subprocess.run(['javac', '-classpath', ':'.join(map(str, artifacts)), '-d', stage,
                         *map(str, production)], check=True)
-        print('PASS: production Phone Activity/Host, Qt bindings and common Web compile against actual SDK artifacts')
+        print('PASS: production Phone Activity/Host, Qt bindings and common Web/Snapshot compile against actual SDK artifacts')
