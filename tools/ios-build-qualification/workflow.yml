@@ -73,11 +73,11 @@ jobs:
     - name: Install host contract dependencies
       run: |-
         sudo apt-get update -qq
-        sudo apt-get install -y --no-install-recommends qt6-base-dev pkg-config libvulkan-dev qt6-declarative-dev qt6-declarative-dev-tools qt6-webchannel-dev python3-venv \
+        sudo apt-get install -y --no-install-recommends qt6-base-dev pkg-config libvulkan-dev libglm-dev qt6-declarative-dev qt6-declarative-dev-tools qt6-webchannel-dev python3-venv \
           qml6-module-qtqml qml6-module-qtqml-models qml6-module-qtqml-workerscript \
           qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-layouts \
           qml6-module-qtquick-templates qml6-module-qtquick-window \
-          qml6-module-qt-labs-settings qml6-module-qtquick-dialogs qml6-module-qttest
+          qml6-module-qt-labs-settings qml6-module-qt-labs-folderlistmodel qml6-module-qtquick-dialogs qml6-module-qttest
     - name: Prepare isolated host evidence validators
       env:
         GH_TOKEN: ""
