@@ -33,6 +33,41 @@ build cache. The Android Qt/JNI jar used for isolated API testing came from an
 older Pico handoff; the actual application must consume the Qt jar and runtime
 restored with the verified Phone dependency graph.
 
+The three relevant Qt recipe identities are distinct. The approved Phone
+prebuilt graph uses `4fc772a2dbcd84731eb6ff9904e6e358`; the Android/Pico
+source-only producer uses `d75aeab99c3d3426df7ec9b39bc73aa8`; this Phone
+branch's updated source-only producer uses `4fd1f62ee1914f2f3ec4fe298a07c283`
+and OpenEXR 3.2.12. A successful prebuilt restore is not qualification of either
+source-only producer. Do not replace one pin with another to satisfy a check.
+
+The coordinator's active staging restore currently records an earlier source
+revision. Keep its caches and temporary files unchanged until it finishes.
+After successful restore, freeze the final application checkout and regenerate
+its two prepared graphs offline from that exact source, using the already
+restored binaries and original profiles:
+
+```bash
+conan install android/common/conan/conanfile-pico.py \
+  -of android/common/conan/phone-16k-debug \
+  -pr:h android/common/conan/profiles/phone-arm64-16k \
+  -pr:b android/common/conan/profiles/phone-prebuilt-linux-x86_64 \
+  --no-remote --build=never
+conan install android/common/conan/conanfile-pico.py \
+  -of android/common/conan/phone-nonqt-16k-debug \
+  -pr:h android/common/conan/profiles/phone-nonqt-arm64-16k \
+  -pr:b android/common/conan/profiles/phone-prebuilt-linux-x86_64 \
+  --no-remote --build=never
+android/phone/finalize-phone-16k-deps.sh
+android/phone/build.sh prepare
+```
+
+Save these new invocation logs with the final source SHA and retain the original
+archive/producer identities. Phone preparation selects Draco from its exact
+prepared CMakeDeps package binding; another ARM64 cache package is rejected.
+The content sentinel, complete package ELF gate and original archive checksum
+remain required. This is a current consumer of prebuilt dependencies, not a new
+dependency Build receipt or source-only cold build.
+
 ## Build runner and sequence
 
 Use the local Linux host with a coordinator-assigned build resource slot and
@@ -105,4 +140,7 @@ separately coordinated device run must qualify origin/frame/epoch bridge fences,
 same- and cross-origin DOM input and IME composition, overlay clipping/insets,
 chooser Activity return, provider failure recovery and user-driven embedded
 video/audio. World bitmap capture does not establish hardware video support.
+The current world path uses private VirtualDisplay/Presentation hardware
+composition and SurfaceTexture/EGL readback; moving MP4 pixels still require
+the real-device test rather than a player clock or host scenegraph fixture.
 The independent F-Droid source-only cold build remains a separate qualification.

@@ -3,6 +3,11 @@
   "platform": "android",
   "suites": [
     {
+      "name": "phone-package-binding",
+      "entrypoint": "android/phone/tests/phone-prepare-architecture-test.sh",
+      "interpreter": "bash"
+    },
+    {
       "name": "android-package-binding",
       "entrypoint": "android/common/conan/test_package_folder.py",
       "interpreter": "python"
