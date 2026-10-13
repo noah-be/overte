@@ -8,8 +8,10 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
+from unittest import mock
 
 spec = importlib.util.spec_from_file_location('package_store', Path(__file__).with_name('package-store.py'))
 module = importlib.util.module_from_spec(spec)
@@ -86,7 +88,8 @@ class Fixture(ConanFile):
 
     @classmethod
     def run_cli(cls, *args, env=None):
-        result = subprocess.run(['conan', *args], env=env or cls.env, text=True, capture_output=True, timeout=90)
+        result = subprocess.run([sys.executable, '-m', 'conans.conan', *args],
+                                env=env or cls.env, text=True, capture_output=True, timeout=90)
         if result.returncode:
             raise RuntimeError(result.stderr)
         return result.stdout
@@ -146,6 +149,19 @@ class Fixture(ConanFile):
         self.assertEqual(module.digest(Path(self.node['package_folder']) / 'lib/libstorefixture.a'),
                          module.digest(self.package / 'lib/libstorefixture.a'))
         self.assertTrue(all(p['exitCode'] == 0 for p in result['operations']))
+
+    def test_current_python_conan_used_when_path_cli_is_unusable(self):
+        # An explicit virtualenv Python does not put its console scripts on
+        # PATH. A different global CLI must not replace its pinned Conan.
+        canary = self.case / 'unusable-cli'
+        canary.mkdir()
+        command = canary / 'conan'
+        command.write_text('#!/bin/sh\nexit 97\n')
+        command.chmod(0o755)
+        path = str(canary) + os.pathsep + os.environ.get('PATH', '')
+        with mock.patch.dict(os.environ, {'PATH': path}):
+            self.assertEqual(subprocess.run(['conan', '--version']).returncode, 97)
+            self.test_actual_conan_restore_install_and_link()
 
     def test_manifest_content_and_missing_file_rejected(self):
         library = self.package / 'lib/libstorefixture.a'
