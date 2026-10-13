@@ -15,6 +15,11 @@ public: using NativeWebViewItem::inputMethodQuery;
 };
 int main(int argc, char** argv) {
     QGuiApplication app(argc, argv);
+    QQuickItem transformed; transformed.setPosition(QPointF(10, 20)); transformed.setWidth(300); transformed.setHeight(200);
+    NativeWebViewItem geometry(&transformed); geometry.setPosition(QPointF(5, 48)); geometry.setWidth(100); geometry.setHeight(70);
+    auto plain = geometry.sceneBounds(); assert(plain.size() == QSizeF(100, 70));
+    transformed.setScale(2); auto scaled = geometry.sceneBounds(); assert(scaled.size() == QSizeF(200, 140));
+    transformed.setRotation(90); auto rotated = geometry.sceneBounds(); assert(qAbs(rotated.width() - 140) < .001 && qAbs(rotated.height() - 200) < .001);
     Probe item; item.acceptForeground(true); item.setSourceIdentity("fixture-owned-surface");
     item.setUrl("https://one.test/document"); item.componentComplete();
     auto grant = item.generation(); assert(grant);
@@ -83,6 +88,7 @@ int main(int argc, char** argv) {
         assert(views[0]->surface() == NativeWebViewItem::Tablet);
         assert(views[0]->presentation() == NativeWebViewItem::NativeOverlay);
         assert(views[0]->userAgent() == "host-test-agent");
+        assert(views[0]->hasFocus());
         adapter->setProperty("surface", "world-entity");
         assert(views[0]->presentation() == NativeWebViewItem::Texture);
         assert(adapter->metaObject()->indexOfMethod("emitScriptEvent(QVariant)") >= 0);

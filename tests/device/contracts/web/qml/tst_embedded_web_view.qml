@@ -3,7 +3,7 @@
 import QtQuick 2.7
 import QtTest 1.2
 import "../controls"
-import "../+android_interface" as World
+import ".." as World
 
 Item {
     width: 480

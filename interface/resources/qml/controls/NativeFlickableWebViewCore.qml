@@ -1,7 +1,7 @@
 // Copyright 2026 Overte contributors.
 // SPDX-License-Identifier: Apache-2.0
 import QtQuick 2.7
-import QtQuick.Controls 2.2
+import QtQuick.Controls 2.2 as QuickControls
 
 Item {
     id: flick
@@ -29,7 +29,7 @@ Item {
         width: parent.width
         height: 48
         spacing: 4
-        Button {
+        QuickControls.Button {
             objectName: "EmbeddedWebBack"
             width: (navigation.width - 12) / 4
             height: navigation.height
@@ -38,7 +38,7 @@ Item {
             focusPolicy: Qt.NoFocus
             onClicked: webView.goBack()
         }
-        Button {
+        QuickControls.Button {
             objectName: "EmbeddedWebForward"
             width: (navigation.width - 12) / 4
             height: navigation.height
@@ -47,7 +47,7 @@ Item {
             focusPolicy: Qt.NoFocus
             onClicked: webView.goForward()
         }
-        Button {
+        QuickControls.Button {
             objectName: "EmbeddedWebReload"
             width: (navigation.width - 12) / 4
             height: navigation.height
@@ -56,7 +56,7 @@ Item {
             focusPolicy: Qt.NoFocus
             onClicked: webView.reload()
         }
-        Button {
+        QuickControls.Button {
             objectName: "EmbeddedWebClose"
             width: (navigation.width - 12) / 4
             height: navigation.height
