@@ -59,6 +59,8 @@ export PHONE_VERIFY_TMPDIR="$PARITY_BUILD_ROOT/verification-tmp"
 export PHONE_BUILD_TMPDIR="$PARITY_BUILD_ROOT/package-tmp"
 export PHONE_BUILD_JOBS=4
 
+CONAN_HOME="$PHONE_SHARED_CONAN_HOME" conan profile detect
+conan profile detect
 android/phone/build.sh doctor
 android/phone/build.sh deps --download
 android/phone/build.sh prepare
@@ -68,6 +70,8 @@ android/phone/build.sh build --stacktrace
 
 Before dependency restore, the coordinator may seed the new Gradle cache from
 the verified acquisition store. Keep both Conan caches private and distinct.
+The two initial detections create each fresh cache's default host profile for
+the doctor; dependency restoration still uses the reviewed explicit profiles.
 Restore uses checksum verification and `--build=never`; missing dependencies,
 stale sentinels or alignment failures stop the build. Do not enable the legacy
 4 KiB override. If the pinned archive cannot satisfy the graph, report the
