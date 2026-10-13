@@ -1,6 +1,7 @@
 // Copyright 2026 Overte contributors.
 // SPDX-License-Identifier: Apache-2.0
 import QtQuick 2.7
+import QtQuick 2.7 as Quick
 
 // OS file selectors replace this type with the corresponding native backend.
 Item {
@@ -28,7 +29,7 @@ Item {
     function reloadAndBypassCache() { return false; }
     function stop() {}
     function unfocus() {}
-    Text {
+    Quick.Text {
         anchors.centerIn: parent
         width: Math.max(0, parent.width - 32)
         wrapMode: Text.Wrap
