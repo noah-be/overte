@@ -513,6 +513,36 @@ class ProductRepairContracts(unittest.TestCase):
             with self.subTest(path=path), self.assertRaises(gate.GateError):
                 self.classify(event, settings, api)
 
+    def test_ios_parent_contract_fixture_repairs_require_full_fallback(self):
+        paths = (
+            "ios/tests/ios-touch-ui-adapter-contract-test.py",
+            "ios/tests/native_contracts/mute-caller-test.cpp",
+            "ios/tests/native_contracts/test_mute_caller.py",
+        )
+        changes = [{"filename": path, "status": "modified"} for path in paths]
+        event, settings, api = self.fixture(changes, target="apple-ios")
+        request = self.classify(event, settings, api)
+        self.assertEqual(request.repair_paths, tuple(sorted(paths)))
+        self.inspect(event, settings, api)
+
+    def test_ios_parent_contract_repairs_cannot_carry_product_or_neighbor_changes(self):
+        repairs = [
+            {"filename": "ios/tests/ios-touch-ui-adapter-contract-test.py", "status": "modified"},
+            {"filename": "ios/tests/native_contracts/mute-caller-test.cpp", "status": "modified"},
+            {"filename": "ios/tests/native_contracts/test_mute_caller.py", "status": "modified"},
+        ]
+        for path in (
+                "ios/tests/native_contracts/unknown.cpp",
+                "ios/tests/ios-touch-ui-adapter-contract-extra.py",
+                "ios/metrics/IOSTouchUiMetrics.mm",
+                "libraries/audio-client/src/AudioClient.cpp",
+                "scripts/system/settings/qml/pages/GraphicsSettingsBase.qml",
+                "android/vr/pico/tests/pico-tablet-settings-test.js",
+                "tools/sync-test-reuse/gate.py"):
+            changes = repairs + [{"filename": path, "status": "modified"}]
+            with self.subTest(path=path), self.assertRaises(gate.GateError):
+                self.classify(*self.fixture(changes, target="apple-ios"))
+
     def test_ios_and_pico_repair_scopes_cannot_be_exchanged(self):
         for target, foreign in (("apple-ios", "android-vr-pico"), ("android-vr-pico", "apple-ios")):
             event, settings, api = self.fixture(target=target)
