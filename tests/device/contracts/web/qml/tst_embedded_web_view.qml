@@ -105,10 +105,9 @@ Item {
             tryVerify(function() { return web.backend !== null; });
             compare(web.backend.surface, "tablet");
             tablet.stopUnfocus();
-            compare(web.backend.operations.length, 1);
-            compare(web.backend.operations[0], "unfocus");
+            compare(web.backend.operations.length, 0);
             web.goBack(); web.goForward(); web.reload(); web.reloadAndBypassCache();
-            compare(web.backend.operations.slice(1).join(","), "back,forward,reload,bypass");
+            compare(web.backend.operations.join(","), "back,forward,reload,bypass");
             var result = "";
             web.runJavaScript("document.title", function(value) { result = value; });
             compare(result, "native-result");
@@ -128,7 +127,7 @@ Item {
             verify(nativeView !== null);
             compare(nativeView.scriptUrl, screen.scriptURL);
             screen.keyboardRaised = true;
-            compare(nativeView.operations[nativeView.operations.length - 1], "unfocus");
+            compare(nativeView.operations.indexOf("unfocus"), -1);
             nativeView.nativeClosed();
             compare(tabletRoot.returned, 1);
 
@@ -137,7 +136,7 @@ Item {
             verify(nativeView !== null);
             compare(nativeView.scriptUrl, browser.scriptURL);
             browser.keyboardRaised = true;
-            compare(nativeView.operations[nativeView.operations.length - 1], "unfocus");
+            compare(nativeView.operations.indexOf("unfocus"), -1);
             browser.goBack(); browser.goForward(); browser.reloadPage();
             compare(nativeView.operations.slice(-3).join(","), "back,forward,bypass");
             compare(browser.history[0], "https://example.test/window");

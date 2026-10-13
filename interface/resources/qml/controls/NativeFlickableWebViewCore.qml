@@ -20,8 +20,9 @@ Item {
     signal nativeClosed()
     function stop() { webView.stop(); }
     function unfocus() { webView.unfocus(); }
-    // Tablet keyboard transitions must preserve the current browser document.
-    function stopUnfocus() { unfocus(); }
+    // Legacy callers cancel a pending unfocus timer when raising the keyboard.
+    // Native surfaces have no such timer; dropping focus would close the editor.
+    function stopUnfocus() {}
     function openNative() { return webView.openNative(); }
     function onLoadingChanged(loadRequest) {}
     Row {
