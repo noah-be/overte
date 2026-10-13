@@ -786,20 +786,28 @@ bool Application::takeSnapshotOperators(std::queue<SnapshotOperator>& snapshotOp
     return hasPrimarySnapshot;
 }
 
-void Application::takeSnapshot(bool notify, bool includeAnimated, float aspectRatio, const QString& filename) {
-    addSnapshotOperator(std::make_tuple([notify, includeAnimated, aspectRatio, filename](const QImage& snapshot) {
-        qApp->postLambdaEvent([snapshot, notify, includeAnimated, aspectRatio, filename] {
-            QString path = DependencyManager::get<Snapshot>()->saveSnapshot(snapshot, filename, TestScriptingInterface::getInstance()->getTestResultsLocation());
+void Application::takeSnapshot(bool notify, bool includeAnimated, float aspectRatio, const QString& filename, const QString& requestId) {
+    const auto capture = DependencyManager::get<Snapshot>()->beginCapture(requestId);
+    if (!capture) { return; }
+    addSnapshotOperator(std::make_tuple([notify, includeAnimated, aspectRatio, filename, capture](const QImage& snapshot) {
+        qApp->postLambdaEvent([snapshot, notify, includeAnimated, aspectRatio, filename, capture] {
+            if (!capture->current()) { return; }
+            QString path = DependencyManager::get<Snapshot>()->saveSnapshot(snapshot, filename, capture->id.isEmpty() ? TestScriptingInterface::getInstance()->getTestResultsLocation() : QString());
+
+            if (path.isEmpty()) { DependencyManager::get<Snapshot>()->captureStatus(capture, "error", {}, "save-failed"); return; }
 
             // If we're not doing an animated snapshot as well...
             if (!includeAnimated) {
                 if (!path.isEmpty()) {
                     // Tell the dependency manager that the capture of the still snapshot has taken place.
                     emit DependencyManager::get<WindowScriptingInterface>()->stillSnapshotTaken(path, notify);
+                    DependencyManager::get<Snapshot>()->captureStatus(capture, "complete", path);
                 }
             } else if (!SnapshotAnimated::isAlreadyTakingSnapshotAnimated()) {
                 // Get an animated GIF snapshot and save it
-                SnapshotAnimated::saveSnapshotAnimated(path, aspectRatio, DependencyManager::get<WindowScriptingInterface>());
+                SnapshotAnimated::saveSnapshotAnimated(path, aspectRatio, DependencyManager::get<WindowScriptingInterface>(), capture);
+            } else {
+                DependencyManager::get<Snapshot>()->captureStatus(capture, "error", {}, "animated-capture-busy");
             }
         });
     }, aspectRatio, true));
@@ -815,9 +823,12 @@ void Application::takeSecondaryCameraSnapshot(const bool& notify, const QString&
     }, 0.0f, false));
 }
 
-void Application::takeSecondaryCamera360Snapshot(const glm::vec3& cameraPosition, const bool& cubemapOutputFormat, const bool& notify, const QString& filename) {
-    postLambdaEvent([notify, filename, cubemapOutputFormat, cameraPosition] {
-        DependencyManager::get<Snapshot>()->save360Snapshot(cameraPosition, cubemapOutputFormat, notify, filename);
+void Application::takeSecondaryCamera360Snapshot(const glm::vec3& cameraPosition, const bool& cubemapOutputFormat, const bool& notify, const QString& filename, const QString& requestId) {
+    const auto capture = DependencyManager::get<Snapshot>()->beginCapture(requestId);
+    if (!capture) { return; }
+    postLambdaEvent([notify, filename, cubemapOutputFormat, cameraPosition, capture] {
+        if (!capture->current()) { return; }
+        DependencyManager::get<Snapshot>()->save360Snapshot(cameraPosition, cubemapOutputFormat, notify, filename, capture);
     });
 }
 

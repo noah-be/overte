@@ -45,6 +45,7 @@ EditVoxels = function() {
     var editSingleVoxels = false;
     var editSpheres = false;
     var editCubes = false;
+    var continuousEditing = false;
     var editAdd = true; // Remove voxels if false
     var inverseOperation = false; // True when middle mouse button or grip is pressed
     var brushPointer = false;
@@ -68,10 +69,13 @@ EditVoxels = function() {
     // True when original operation added voxels, false otherwise
     var lastEditValue = 255;
     var isOnUpdateConnected = false;
-    var isSphereResizingStarted = true;
+    var isSphereResizingStarted = false;
     var sphereResizingInitialHandDistance = 0.1;
     var sphereInitialRadius = editSphereRadius;
     var sphereEntityID = null;
+    var stroke = {};
+    var strokeTimer = null;
+    var strokePolls = 0;
 
     that.triggerClickMapping = Controller.newMapping(Script.resolvePath('') + '-click-voxels');
     that.triggerPressMapping = Controller.newMapping(Script.resolvePath('') + '-press-voxels');
@@ -90,6 +94,62 @@ EditVoxels = function() {
     
     that.setActive = function(active) {
         isActive = (active === true);
+        if (!isActive) {
+            mouseReleaseEvent({});
+            stopSphereResizing();
+            that.triggeredHand = that.pressedHand = NO_HAND;
+            that.disableTriggerMapping();
+        } else { that.enableTriggerMapping(); }
+    }
+    that.isStrokePending = function() { return Object.keys(stroke).length > 0; };
+    that.getLocalEntityToExclude = function() { return sphereEntityID ? [sphereEntityID] : []; };
+
+    function editable(properties) {
+        if (properties.type !== "PolyVox" || properties.locked) { return false; }
+        if (properties.avatarEntity || properties.entityHostType === "avatar") {
+            return Entities.canRezAvatarEntities()
+                && (properties.owningAvatarID === MyAvatar.sessionUUID || properties.owningAvatarID === MyAvatar.SELF_ID);
+        }
+        return properties.entityHostType === "local" || Entities.canRez() || Entities.canRezTmp();
+    }
+
+    function rememberChange(id, before, changed) {
+        if (!changed) { return false; }
+        if (!stroke[id]) { stroke[id] = before; }
+        strokePolls = 0;
+        return true;
+    }
+
+    // Readiness comes from the renderer's locked state, never elapsed time or
+    // unchanged compressed bytes: workers can publish an intermediate result.
+    function settleStroke() {
+        if (isEditing) { return; }
+        var ids = Object.keys(stroke);
+        if (!ids.length) { return; }
+        strokePolls++;
+        var supported = typeof Entities.isVoxelDataReady === "function";
+        var ready = supported && ids.every(function(id) { return Entities.isVoxelDataReady(id); });
+        var after = ready ? ids.map(function(id) { return Entities.getEntityProperties(id); }) : [];
+        ready = ready && after.every(function(properties, index) {
+            return properties.type === "PolyVox" && Entities.isVoxelDataReady(ids[index]);
+        });
+        var completed = null;
+        if (ready) {
+            completed = ids.map(function(id, index) { return { entityID: id, before: stroke[id], after: after[index] }; })
+                .filter(function(edit) { return edit.before.voxelData !== edit.after.voxelData; });
+        } else if (supported && strokePolls < 50) { return; }
+        else if (typeof that.onStrokeStatus === "function") {
+            that.onStrokeStatus("Voxel changes did not settle; undo is unavailable for this stroke.", true);
+        }
+        stroke = {};
+        Script.clearInterval(strokeTimer);
+        strokeTimer = null;
+        if (completed && completed.length && selectionManager.createApp && selectionManager.createApp.pushVoxelStroke) {
+            selectionManager.createApp.pushVoxelStroke(completed);
+        } else if (completed && typeof that.onStrokeStatus === "function") {
+            that.onStrokeStatus("Voxel stroke did not change saved data.", false);
+        }
+        if (typeof that.onStrokeSettled === "function") { that.onStrokeSettled(); }
     }
     
     that.updateEditSettings = function(data) {
@@ -99,14 +159,12 @@ EditVoxels = function() {
                 editEnabled = true;
             } else {
                 editEnabled = false;
+                mouseReleaseEvent({});
+                stopSphereResizing();
             }
         }
         
         if (data.voxelEditMode) {
-            editAdd = true;
-            if (data.voxelRemove) {
-                editAdd = false;
-            }
             if (data.voxelEditMode === "single") {
                 editSpheres = false;
                 editSingleVoxels = true;
@@ -121,6 +179,8 @@ EditVoxels = function() {
                 editCubes = true;
             }
         }
+        if (data.voxelRemove !== undefined) { editAdd = !data.voxelRemove; }
+        if (data.voxelEditDynamics !== undefined) { continuousEditing = data.voxelEditDynamics === "continuous"; }
         
         if (data.voxelSphereSize) {
             editSphereRadius = parseFloat(data.voxelSphereSize) / 2.0;
@@ -134,8 +194,8 @@ EditVoxels = function() {
             }
         }
         
-        if (data.voxelBrushLength) {
-            voxelBrushLength = parseFloat(data.voxelBrushLength);
+        if (data.voxelBrushLength !== undefined) {
+            brushLength = parseFloat(data.voxelBrushLength);
         }
         
     }
@@ -162,8 +222,11 @@ EditVoxels = function() {
             print("=============== eV::attemptVoxelChangeForEntity BEG =======================");
         }
 
+        if (!stroke[entityID] && typeof Entities.isVoxelDataReady === "function"
+                && !Entities.isVoxelDataReady(entityID)) { return false; }
         var properties = Entities.getEntityProperties(entityID);
-        if (properties.type != "PolyVox") {
+        if (!editable(properties) || (!stroke[entityID] && typeof Entities.isVoxelDataReady === "function"
+                && !Entities.isVoxelDataReady(entityID))) {
             return false;
         }
         
@@ -217,7 +280,7 @@ EditVoxels = function() {
                 print("floorVector(toDrawPosition): " + JSON.stringify(floorVector(toDrawPosition)));
             }
             oldEditPosition = floorVector(toDrawPosition);
-            if (Entities.setVoxel(entityID, oldEditPosition, lastEditValue)){
+            if (rememberChange(entityID, properties, Entities.setVoxel(entityID, oldEditPosition, lastEditValue))){
                 Audio.playSystemSound((lastEditValue === 255) ? soundAdd : soundDelete);
                 return true;
             }else{
@@ -233,7 +296,7 @@ EditVoxels = function() {
             }
             oldEditPosition = floorVector(toDrawPosition);
             var toDrawPositionWorld = Entities.voxelCoordsToWorldCoords(entityID, oldEditPosition);
-            if (Entities.setVoxelSphere(entityID, toDrawPositionWorld, editSphereRadius, lastEditValue)){
+            if (rememberChange(entityID, properties, Entities.setVoxelSphere(entityID, toDrawPositionWorld, editSphereRadius, lastEditValue))){
                 Audio.playSystemSound((lastEditValue === 255) ? soundAdd : soundDelete);
                 return true;
             }else{
@@ -254,7 +317,7 @@ EditVoxels = function() {
             var cubeSizeVecLocal = Entities.worldCoordsToVoxelCoords(entityID, cubeSizeWorld);
             cubeSize = ceilVector(Vec3.subtract(cubeSizeVecLocal, zeroVecLocal));
             var lowPosition = Vec3.subtract(oldEditPosition, Vec3.multiply(cubeSize, 0.5));
-            if (Entities.setVoxelsInCuboid(entityID, lowPosition, cubeSize, lastEditValue)){
+            if (rememberChange(entityID, properties, Entities.setVoxelsInCuboid(entityID, lowPosition, cubeSize, lastEditValue))){
                 Audio.playSystemSound((lastEditValue === 255) ? soundAdd : soundDelete);
                 return true;
             }else{
@@ -302,6 +365,22 @@ EditVoxels = function() {
     function generalComputePickRay(x, y) {
         return controllerComputePickRay() || Camera.computePickRay(x, y);
     }
+    function brushChange(pickRay) {
+        var point = Vec3.sum(pickRay.origin, Vec3.multiply(pickRay.direction, brushLength));
+        var ids = Entities.findEntities(point, editSphereRadius + 1.0);
+        var changed = false;
+        ids.forEach(function(id) {
+            changed = attemptVoxelChangeForEntity(id, pickRay.direction, point) || changed;
+        });
+        return changed;
+    }
+
+    function pointingAtUI(hand) {
+        var left = selectionManager.pointingAtTabletLeft || selectionManager.pointingAtDesktopWindowLeft;
+        var right = selectionManager.pointingAtTabletRight || selectionManager.pointingAtDesktopWindowRight;
+        return (hand === controllerStandard.LeftHand && left)
+            || (hand === controllerStandard.RightHand && right) || (hand === NO_HAND && (left || right));
+    }
 
     function mousePressEvent(event) {
         var wantDebug = false;
@@ -309,6 +388,8 @@ EditVoxels = function() {
         if (!editEnabled || !isActive) {
             return false;
         }
+        var hand = triggered() ? that.triggeredHand : that.pressedHand;
+        if (pointingAtUI(hand)) { return; }
 
         if (wantDebug) {
             print("=============== eV::mousePressEvent BEG =======================");
@@ -337,6 +418,14 @@ EditVoxels = function() {
         continuousStartTimer = 0;
 
         var pickRay = generalComputePickRay(event.x, event.y);
+        if (!pickRay) { return; }
+        if (brushPointer && hand !== NO_HAND) {
+            if (brushChange(pickRay)) {
+                isEditing = true;
+                if (continuousEditing) { Script.update.connect(onUpdateHandler); isOnUpdateConnected = true; }
+            }
+            return;
+        }
         var intersection = Entities.findRayIntersection(pickRay, Picks.PICK_DOMAIN_ENTITIES | Picks.PICK_AVATAR_ENTITIES | Picks.PICK_LOCAL_ENTITIES); // accurate picking
 
         if (wantDebug) {
@@ -346,8 +435,7 @@ EditVoxels = function() {
 
         if (intersection.intersects) {
             if (attemptVoxelChangeForEntity(intersection.entityID, pickRay.direction, intersection.intersection)) {
-                Script.update.connect(onUpdateHandler);
-                isOnUpdateConnected = true;
+                if (continuousEditing) { Script.update.connect(onUpdateHandler); isOnUpdateConnected = true; }
                 isEditing = true;
                 editedVoxelEntity = intersection.entityID;
                 if (wantDebug) {
@@ -382,9 +470,10 @@ EditVoxels = function() {
         if(isOnUpdateConnected){
             Script.update.disconnect(onUpdateHandler);
             isOnUpdateConnected = false;
-            isEditing = false;
-            editedVoxelEntity = null;
         }
+        isEditing = false;
+        editedVoxelEntity = null;
+        if (Object.keys(stroke).length && strokeTimer === null) { strokeTimer = Script.setInterval(settleStroke, 100); }
         return;
     }
 
@@ -412,7 +501,7 @@ EditVoxels = function() {
     
     function makeClickHandler(hand) {
         return function (clicked) {
-            if (!editEnabled) {
+            if (!editEnabled || !isActive) {
                 return;
             }
             // Don't allow both hands to trigger at the same time
@@ -431,7 +520,7 @@ EditVoxels = function() {
 
     function makePressHandler(hand) {
         return function (value) {
-            if (!editEnabled) {
+            if (!editEnabled || !isActive) {
                 return;
             }
             if (value >= TRIGGER_ON_VALUE && !triggered()) {
@@ -449,7 +538,7 @@ EditVoxels = function() {
     function getDistanceBetweenControllers(){
         var poseLeft = getControllerWorldLocation(controllerStandard.LeftHand, true);
         var poseRight = getControllerWorldLocation(controllerStandard.RightHand, true);
-        return Vec3.distance(poseLeft.translation, poseRight.translation);
+        return poseLeft.valid && poseRight.valid ? Vec3.distance(poseLeft.translation, poseRight.translation) : 0;
     }
     function getEditSpherePosition( radius ){
         var poseLeft = getControllerWorldLocation(controllerStandard.LeftHand, true);
@@ -461,6 +550,7 @@ EditVoxels = function() {
     function updateSphereResizing(delta) {
         var wantDebug = false;
         var newDistance = getDistanceBetweenControllers();
+        if (!isFinite(newDistance) || newDistance <= 0.001) { stopSphereResizing(); return; }
         var newRadius = (sphereInitialRadius / sphereResizingInitialHandDistance) * newDistance;
         var newPosition = getEditSpherePosition(newRadius);
         var newDimensions = Vec3.multiply({ x: 1.0, y: 1.0, z: 1.0 }, newRadius * 2.0);
@@ -475,7 +565,7 @@ EditVoxels = function() {
             dimensions: newDimensions
         });
         if( that.editTools ) {
-            editTools.setVoxelSphereSize(newRadius * 2);
+            that.editTools.setVoxelSphereSize(newRadius * 2);
         }
         editSphereRadius = newRadius;
     }
@@ -487,6 +577,7 @@ EditVoxels = function() {
         }
         Script.update.connect(updateSphereResizing);
         sphereResizingInitialHandDistance = getDistanceBetweenControllers();
+        if (sphereResizingInitialHandDistance <= 0.001) { Script.update.disconnect(updateSphereResizing); return false; }
         sphereInitialRadius = editSphereRadius;
         var spherePosition = getEditSpherePosition(sphereInitialRadius);
         var sphereDimensions = Vec3.multiply({ x: 1.0, y: 1.0, z: 1.0 }, sphereInitialRadius * 2.0);
@@ -501,7 +592,8 @@ EditVoxels = function() {
             collisionless: true,
             ignorePickIntersection: true,
             grab: { grabbable: false },
-        }, "domain");
+        }, "local");
+        return true;
     }
 
     function stopSphereResizing() {
@@ -514,11 +606,12 @@ EditVoxels = function() {
             Entities.deleteEntity(sphereEntityID);
         }
         sphereEntityID = null;
+        isSphereResizingStarted = false;
     }
 
     function makeGripPressHandler(hand) {
         return function (value) {
-            if (!editEnabled) {
+            if (!editEnabled || !isActive) {
                 return;
             }
             if (value > 0.5) {
@@ -536,8 +629,7 @@ EditVoxels = function() {
             }
             if ( isLeftGripPressed && isRightGripPressed) {
                 if( !isSphereResizingStarted ) {
-                    isSphereResizingStarted = true;
-                    startSphereResizing();
+                    isSphereResizingStarted = startSphereResizing();
                 }
             } else {
                 if( isSphereResizingStarted ) {
@@ -551,7 +643,12 @@ EditVoxels = function() {
     function onUpdateHandler(delta){
         var wantDebug = false;
 
-        if (isEditing === false || editedVoxelEntity === null){
+        if (!editEnabled || !isActive || !isEditing) {
+            mouseReleaseEvent({});
+            return;
+        }
+        if (!brushPointer && (editedVoxelEntity === null || !editable(Entities.getEntityProperties(editedVoxelEntity)))) {
+            mouseReleaseEvent({});
             return;
         }
 
@@ -572,9 +669,8 @@ EditVoxels = function() {
             pickRay = controllerComputePickRay();
         }
 
-        if (pickRay === null) {
-            return;
-        }
+        if (!pickRay || pointingAtUI(hand)) { return; }
+        if (brushPointer && hand !== NO_HAND) { brushChange(pickRay); return; }
 
 
         // Compute intersection of pick ray with given plane in local coordinates
@@ -610,10 +706,12 @@ EditVoxels = function() {
             default:
                 return;
         }
-        intersectionPoint = Vec3.sum(Vec3.multiply(pickRayDirInVoxelSpace, directionMultiplier), voxelPickRayOrigin);
-        newEditPosition = floorVector(Vec3.sum(intersectionPoint, offsetVector));
+        if (!isFinite(directionMultiplier) || !isFinite(offsetVector.x)
+                || !isFinite(offsetVector.y) || !isFinite(offsetVector.z)) { return; }
+        var intersectionPoint = Vec3.sum(Vec3.multiply(pickRayDirInVoxelSpace, directionMultiplier), voxelPickRayOrigin);
+        var newEditPosition = floorVector(Vec3.sum(intersectionPoint, offsetVector));
 
-        if (newEditPosition === oldEditPosition) {
+        if (Vec3.equal(newEditPosition, oldEditPosition)) {
             return;
         }
 
@@ -645,6 +743,10 @@ EditVoxels = function() {
     }
 
     function cleanup() {
+        mouseReleaseEvent({});
+        stopSphereResizing();
+        if (strokeTimer !== null) { Script.clearInterval(strokeTimer); strokeTimer = null; }
+        stroke = {};
         Controller.mousePressEvent.disconnect(mousePressEvent);
         Controller.mouseReleaseEvent.disconnect(mouseReleaseEvent);
         Controller.keyPressEvent.disconnect(keyPressEvent);
