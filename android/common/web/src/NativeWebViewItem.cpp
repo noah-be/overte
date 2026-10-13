@@ -90,6 +90,9 @@ NativeWebViewItem::NativeWebViewItem(QQuickItem* parent) : QQuickItem(parent),
     connect(this, &QQuickItem::enabledChanged, this, &NativeWebViewItem::synchronizeVisibility);
     connect(this, &QQuickItem::xChanged, this, &NativeWebViewItem::updateGeometry);
     connect(this, &QQuickItem::yChanged, this, &NativeWebViewItem::updateGeometry);
+    connect(this, &QQuickItem::scaleChanged, this, &NativeWebViewItem::updateGeometry);
+    connect(this, &QQuickItem::rotationChanged, this, &NativeWebViewItem::updateGeometry);
+    connect(this, &QQuickItem::transformOriginChanged, this, &NativeWebViewItem::updateGeometry);
     connect(this, &QQuickItem::parentChanged, this, &NativeWebViewItem::trackGeometry);
     trackGeometry();
 }
@@ -129,11 +132,12 @@ QString NativeWebViewItem::scriptRoot(const QUrl& source) const {
 }
 void NativeWebViewItem::navigate() {
     if (!isComponentComplete()) return;
-    _callbacks.clear();
+    _callbacks.clear(); resetEditor();
     QUrl source(_url); const auto root = scriptRoot(source); QUrl browser;
     { QMutexLocker guard(&_mutex);
       _mapping = overte::android::web::NativeResourceMapping(root, _handle);
       source = _mapping.canonicalSource(source);
+      _tabletGrant = _surface == Tablet;
       _session.open(source, _surface == Tablet ? overte::web::Surface::Tablet : overte::web::Surface::WorldEntity, _sourceIdentity, root);
       _session.setVisible(isVisible() && isEnabled()); _page = 0; _document = QUrl(); browser = _mapping.toBrowser(source); }
     const bool authorized = !_sourceIdentity.trimmed().isEmpty() &&
@@ -159,10 +163,11 @@ void NativeWebViewItem::create() {
     const QString script = resourceText(":/overte/android/web/resources/transport.js") + '\n' + _bootstrap + '\n' + resourceText(":/overte/android/web/resources/editor.js");
     jstring url = jni.string(browser.toString(QUrl::FullyEncoded)), agent = jni.string(_userAgent), bootstrap = jni.string(script);
     if (!url || !agent || !bootstrap) { if (jni.env->ExceptionCheck()) jni.env->ExceptionClear(); retryCreation(); return; }
-    auto bounds = sceneBounds(); jvalue args[11]; args[0].j = _handle; args[1].j = generation(); args[2].l = url; args[3].l = agent;
-    args[4].z = _background; args[5].z = _presentation == NativeOverlay; args[6].i = qRound(bounds.x()); args[7].i = qRound(bounds.y());
-    args[8].i = qRound(bounds.width()); args[9].i = qRound(bounds.height()); args[10].l = bootstrap;
-    _pending = call("create", "(JJLjava/lang/String;Ljava/lang/String;ZZIIIILjava/lang/String;)V", args);
+    const auto bounds = sceneBounds().toAlignedRect(), clip = sceneClipBounds().toAlignedRect(); jvalue args[15]; args[0].j = _handle; args[1].j = generation(); args[2].l = url; args[3].l = agent;
+    args[4].z = _background; args[5].z = _presentation == NativeOverlay; args[6].i = bounds.x(); args[7].i = bounds.y();
+    args[8].i = bounds.width(); args[9].i = bounds.height();
+    args[10].i = clip.x(); args[11].i = clip.y(); args[12].i = clip.width(); args[13].i = clip.height(); args[14].l = bootstrap;
+    _pending = call("create", "(JJLjava/lang/String;Ljava/lang/String;ZZIIIIIIIILjava/lang/String;)V", args);
     jni.env->DeleteLocalRef(url); jni.env->DeleteLocalRef(agent); jni.env->DeleteLocalRef(bootstrap);
     if (!_pending) retryCreation();
 }
@@ -175,11 +180,21 @@ QUrl NativeWebViewItem::sourceURL(const QUrl& browser) const { return _mapping.t
 bool NativeWebViewItem::allowsNavigation(quint64 grant, const QUrl& target, bool mainFrame, const QString& method) const {
     QMutexLocker guard(&_mutex); return _session.allowsNavigation(grant, sourceURL(target), mainFrame, method);
 }
+bool NativeWebViewItem::allowsBridgeDocument(quint64 grant, quint64 page, const QUrl& document) const {
+    QMutexLocker guard(&_mutex);
+    return current(grant, page) && sourceURL(document) == sourceURL(_document)
+        && _session.allowsBridge(grant, sourceURL(document), true, 1);
+}
+bool NativeWebViewItem::allowsFileChooser(quint64 grant, quint64 page, const QUrl& document) const {
+    QMutexLocker guard(&_mutex);
+    return _tabletGrant && current(grant, page) && sourceURL(document) == sourceURL(_document)
+        && _session.allowsNavigation(grant, sourceURL(document), true, "GET");
+}
 void NativeWebViewItem::acceptPage(quint64 grant, quint64 page, const QUrl& document) {
     QMutexLocker guard(&_mutex);
     if (!_session.allowsNavigation(grant, sourceURL(document), true, "GET") || !page || page <= _page) return;
     _page = page; _document = document;
-    QMetaObject::invokeMethod(this, [this] { _callbacks.clear(); _editorActive = false; _editorText.clear();
+    QMetaObject::invokeMethod(this, [this] { _callbacks.clear(); resetEditor();
         if (auto* input = QGuiApplication::inputMethod()) input->update(Qt::ImQueryInput); }, Qt::QueuedConnection);
 }
 bool NativeWebViewItem::acceptMessage(quint64 grant, quint64 page, const QUrl& document, const QUrl& origin,
@@ -233,7 +248,7 @@ void NativeWebViewItem::acceptCreated(bool created) {
 }
 void NativeWebViewItem::acceptForeground(bool active) {
     { QMutexLocker guard(&_mutex); _session.setForeground(active); }
-    if (!active) QMetaObject::invokeMethod(this, [this] { _callbacks.clear(); _bridgeAvailable = false; _loading = false; emit stateChanged(); _editorActive = false; _editorText.clear();
+    if (!active) QMetaObject::invokeMethod(this, [this] { _callbacks.clear(); _bridgeAvailable = false; _loading = false; emit stateChanged(); resetEditor();
         if (auto* input = QGuiApplication::inputMethod()) { input->update(Qt::ImQueryInput); input->hide(); } }, Qt::QueuedConnection);
     if (active) QMetaObject::invokeMethod(this, [this] { if (!_created) create(); }, Qt::QueuedConnection);
 }
@@ -251,7 +266,7 @@ QString NativeWebViewItem::resourceMime(quint64 grant, const QUrl& browser) cons
 }
 void NativeWebViewItem::synchronizeVisibility() {
     quint64 grant; { QMutexLocker guard(&_mutex); _session.setVisible(isVisible() && isEnabled()); grant = _session.generation(); }
-    if (!isVisible() || !isEnabled()) { _callbacks.clear(); _bridgeAvailable = false; _editorActive = false; _editorText.clear(); emit stateChanged(); }
+    if (!isVisible() || !isEnabled()) { _callbacks.clear(); _bridgeAvailable = false; resetEditor(); emit stateChanged(); }
     if (!_created) { create(); return; } jvalue args[3]; args[0].j = _handle; args[1].j = grant; args[2].z = isVisible() && isEnabled();
     call("visibility", "(JJZ)V", args);
 }
@@ -264,14 +279,24 @@ void NativeWebViewItem::trackGeometry() {
         _geometryConnections.push_back(connect(ancestor, &QQuickItem::rotationChanged, this, &NativeWebViewItem::updateGeometry));
         _geometryConnections.push_back(connect(ancestor, &QQuickItem::widthChanged, this, &NativeWebViewItem::updateGeometry));
         _geometryConnections.push_back(connect(ancestor, &QQuickItem::heightChanged, this, &NativeWebViewItem::updateGeometry));
+        _geometryConnections.push_back(connect(ancestor, &QQuickItem::clipChanged, this, &NativeWebViewItem::updateGeometry));
         _geometryConnections.push_back(connect(ancestor, &QQuickItem::transformOriginChanged, this, &NativeWebViewItem::updateGeometry));
         _geometryConnections.push_back(connect(ancestor, &QQuickItem::parentChanged, this, &NativeWebViewItem::trackGeometry));
     }
     updateGeometry();
 }
-void NativeWebViewItem::updateGeometry() { if (!_created) { create(); return; } auto bounds = sceneBounds();
-    jvalue args[5]; args[0].j = _handle; args[1].i = qRound(bounds.x()); args[2].i = qRound(bounds.y()); args[3].i = qRound(bounds.width()); args[4].i = qRound(bounds.height());
-    call("resize", "(JIIII)V", args); }
+QRectF NativeWebViewItem::sceneClipBounds() const {
+    auto bounds = sceneBounds();
+    for (auto* ancestor = parentItem(); ancestor; ancestor = ancestor->parentItem()) {
+        if (ancestor->clip()) bounds = bounds.intersected(ancestor->mapRectToScene(ancestor->boundingRect()));
+    }
+    return bounds;
+}
+void NativeWebViewItem::updateGeometry() { if (!_created) { create(); return; }
+    const auto bounds = sceneBounds().toAlignedRect(), clip = sceneClipBounds().toAlignedRect();
+    jvalue args[9]; args[0].j = _handle; args[1].i = bounds.x(); args[2].i = bounds.y(); args[3].i = bounds.width(); args[4].i = bounds.height();
+    args[5].i = clip.x(); args[6].i = clip.y(); args[7].i = clip.width(); args[8].i = clip.height();
+    call("resize", "(JIIIIIIII)V", args); }
 void NativeWebViewItem::geometryChanged(const QRectF& geometry, const QRectF& old) { QQuickItem::geometryChanged(geometry, old); updateGeometry(); }
 QSGNode* NativeWebViewItem::updatePaintNode(QSGNode* old, UpdatePaintNodeData*) {
     auto* node = static_cast<QSGSimpleTextureNode*>(old); if (_presentation == NativeOverlay) { delete node; return nullptr; }
@@ -322,7 +347,7 @@ void NativeWebViewItem::stop() { jvalue args[1]; args[0].j = _handle; call("stop
 void NativeWebViewItem::reload() { jvalue args[1]; args[0].j = _handle; call("reload", "(J)V", args); }
 void NativeWebViewItem::goForward() { jvalue args[1]; args[0].j = _handle; call("goForward", "(J)V", args); }
 void NativeWebViewItem::reloadAndBypassCache() { jvalue args[1]; args[0].j = _handle; call("reloadAndBypassCache", "(J)V", args); }
-void NativeWebViewItem::unfocus() { setFocus(false); _editorActive = false; jvalue args[2]; args[0].j = _handle; args[1].z = false; call("focus", "(JZ)V", args); }
+void NativeWebViewItem::unfocus() { setFocus(false); resetEditor(); jvalue args[2]; args[0].j = _handle; args[1].z = false; call("focus", "(JZ)V", args); }
 void NativeWebViewItem::openNative() { jvalue args[1]; args[0].j = _handle; call("openNative", "(J)V", args); }
 void NativeWebViewItem::goBack() { jvalue args[1]; args[0].j = _handle; call("goBack", "(J)V", args); }
 void NativeWebViewItem::pointer(int action, const QPointF& position) {
@@ -359,12 +384,20 @@ void NativeWebViewItem::inputMethodEvent(QInputMethodEvent* event) {
     }
     editorCommand(command); event->accept();
 }
+void NativeWebViewItem::resetEditor() {
+    const bool changed = _editorActive; _editorActive = false; _editorText.clear();
+    if (changed) { emit editorStateChanged(); emit editorFocusChanged(false, false, false); }
+}
 void NativeWebViewItem::updateEditor(const QJsonObject& state) {
+    const bool previousActive = editorFocused(), previousNumeric = editorNumeric(), previousPassword = editorPassword();
     _editorActive = state.value("active").toBool(); _sensitive = state.value("sensitive").toBool();
     _editorText = _sensitive ? QString() : state.value("text").toString().left(16384);
     _cursor = qBound(0, state.value("cursor").toInt(), _editorText.size()); _anchor = qBound(0, state.value("anchor").toInt(), _editorText.size());
     _surroundingStart = qMax(0, state.value("absoluteCursor").toInt() - state.value("cursor").toInt());
     _editorKind = state.value("kind").toString(); _cursorRect = QRectF(state.value("x").toDouble(), state.value("y").toDouble(), state.value("width").toDouble(), state.value("height").toDouble());
+    if (previousActive != editorFocused() || previousNumeric != editorNumeric() || previousPassword != editorPassword()) {
+        emit editorStateChanged(); emit editorFocusChanged(editorFocused(), editorNumeric(), editorPassword());
+    }
     if (_presentation == NativeOverlay) return; // The native WebView owns its OS input connection.
     if (auto* input = QGuiApplication::inputMethod()) { input->update(Qt::ImQueryInput); if (_editorActive && hasActiveFocus()) input->show(); else input->hide(); }
 }
@@ -377,13 +410,24 @@ QVariant NativeWebViewItem::inputMethodQuery(Qt::InputMethodQuery query) const {
     if (query == Qt::ImCursorPosition) return _cursor;
     if (query == Qt::ImAnchorPosition) return _anchor;
     if (query == Qt::ImCurrentSelection) return _editorText.mid(qMin(_cursor, _anchor), qAbs(_cursor - _anchor));
-    if (query == Qt::ImCursorRectangle) return _cursorRect;
+    if (query == Qt::ImCursorRectangle) {
+        if (_presentation == Texture && !_image.isNull()) {
+            const auto x = width() / _image.width(), y = height() / _image.height();
+            return QRectF(_cursorRect.x() * x, _cursorRect.y() * y, _cursorRect.width() * x, _cursorRect.height() * y);
+        }
+        return _cursorRect;
+    }
     if (query == Qt::ImHints) return int(_sensitive ? Qt::ImhHiddenText | Qt::ImhSensitiveData | Qt::ImhNoPredictiveText :
+        _editorKind == "number" ? Qt::ImhFormattedNumbersOnly : _editorKind == "tel" ? Qt::ImhDialableCharactersOnly :
         _editorKind == "email" ? Qt::ImhEmailCharactersOnly : _editorKind == "url" ? Qt::ImhUrlCharactersOnly : Qt::ImhNone);
     return QQuickItem::inputMethodQuery(query);
 }
 void NativeWebViewItem::focusInEvent(QFocusEvent* event) { QQuickItem::focusInEvent(event); jvalue args[2]; args[0].j = _handle; args[1].z = true; call("focus", "(JZ)V", args); }
-void NativeWebViewItem::focusOutEvent(QFocusEvent* event) { _editorActive = false; QQuickItem::focusOutEvent(event); jvalue args[2]; args[0].j = _handle; args[1].z = false; call("focus", "(JZ)V", args); }
+void NativeWebViewItem::focusOutEvent(QFocusEvent* event) { resetEditor(); QQuickItem::focusOutEvent(event); jvalue args[2]; args[0].j = _handle; args[1].z = false; call("focus", "(JZ)V", args); }
+QString NativeWebViewItem::errorText() const {
+    return (_status == 2 || _status == 3 || _status == 4 || _status == 6) ? statusText() : QString();
+}
+QString NativeWebViewItem::warningText() const { return errorText().isEmpty() ? statusText() : QString(); }
 QString NativeWebViewItem::statusText() const { switch (_status) {
     case 1: return tr("This WebView provider cannot provide this page's Overte bridge. Update Android System WebView.");
     case 2: return tr("The page could not be loaded."); case 3: return tr("The WebView stopped. Reopen the page.");
@@ -430,6 +474,14 @@ extern "C" JNIEXPORT jlong JNICALL Java_org_overte_web_EmbeddedWebView_nativeGen
 extern "C" JNIEXPORT jboolean JNICALL Java_org_overte_web_EmbeddedWebView_nativeNavigation(JNIEnv* env, jclass, jlong handle, jlong grant, jstring url, jboolean mainFrame, jstring method) {
     auto target = QUrl(string(env, url)); auto verb = string(env, method); QMutexLocker guard(&registryMutex); auto* item = registry.value(handle);
     return item && item->allowsNavigation(grant, target, mainFrame, verb);
+}
+extern "C" JNIEXPORT jboolean JNICALL Java_org_overte_web_EmbeddedWebView_nativeBridgeAllowed(JNIEnv* env, jclass, jlong handle, jlong grant, jlong page, jstring document) {
+    auto target = QUrl(string(env, document)); QMutexLocker guard(&registryMutex); auto* item = registry.value(handle);
+    return item && item->allowsBridgeDocument(grant, page, target);
+}
+extern "C" JNIEXPORT jboolean JNICALL Java_org_overte_web_EmbeddedWebView_nativeFileChooserAllowed(JNIEnv* env, jclass, jlong handle, jlong grant, jlong page, jstring document) {
+    auto target = QUrl(string(env, document)); QMutexLocker guard(&registryMutex); auto* item = registry.value(handle);
+    return item && item->allowsFileChooser(grant, page, target);
 }
 extern "C" JNIEXPORT jboolean JNICALL Java_org_overte_web_EmbeddedWebView_nativeMessage(JNIEnv* env, jclass, jlong handle, jlong grant, jlong page, jstring document, jstring origin, jboolean mainFrame, jstring type, jstring payload) {
     auto target = QUrl(string(env, document)); auto source = QUrl(string(env, origin)); auto kind = string(env, type); auto data = string(env, payload).toUtf8();

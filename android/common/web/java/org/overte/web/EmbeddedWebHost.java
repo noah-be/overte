@@ -15,6 +15,10 @@ public interface EmbeddedWebHost {
     boolean isForeground();
     /** Rect is in the offscreen QML scene. The product applies its actual screen transform. */
     boolean placeTabletView(WebView view, Rect sceneBounds);
+    /** Clip is the intersection of QML clip ancestors in the same scene coordinates. */
+    default boolean placeTabletView(WebView view, Rect sceneBounds, Rect sceneClip) {
+        return placeTabletView(view, sceneBounds);
+    }
     void removeTabletView(WebView view);
     /** Must prompt through the OS; never return an arbitrary application file. */
     boolean chooseFiles(ValueCallback<Uri[]> result, WebChromeClient.FileChooserParams request);

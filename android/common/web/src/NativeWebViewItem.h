@@ -56,8 +56,12 @@ class NativeWebViewItem : public QQuickItem {
     Q_PROPERTY(bool loading READ loading NOTIFY stateChanged)
     Q_PROPERTY(bool canGoBack READ canGoBack NOTIFY stateChanged)
     Q_PROPERTY(bool canGoForward READ canGoForward NOTIFY stateChanged)
-    Q_PROPERTY(QString error READ statusText NOTIFY stateChanged)
+    Q_PROPERTY(QString error READ errorText NOTIFY stateChanged)
+    Q_PROPERTY(QString warning READ warningText NOTIFY stateChanged)
     Q_PROPERTY(bool bridgeAvailable READ bridgeAvailable NOTIFY stateChanged)
+    Q_PROPERTY(bool editorFocused READ editorFocused NOTIFY editorStateChanged)
+    Q_PROPERTY(bool editorNumeric READ editorNumeric NOTIFY editorStateChanged)
+    Q_PROPERTY(bool editorPassword READ editorPassword NOTIFY editorStateChanged)
     Q_PROPERTY(QString statusText READ statusText NOTIFY stateChanged)
 public:
     enum Surface { Tablet, WorldEntity }; Q_ENUM(Surface)
@@ -77,7 +81,11 @@ public:
     Presentation presentation() const { return _presentation; } void setPresentation(Presentation value);
     bool loading() const { return _loading; } bool canGoBack() const { return _canGoBack; }
     bool canGoForward() const { return _canGoForward; }
+    bool editorFocused() const { return _editorActive; }
+    bool editorNumeric() const { return _editorActive && (_editorKind == "number" || _editorKind == "tel"); }
+    bool editorPassword() const { return _editorActive && _sensitive; }
     bool bridgeAvailable() const { return _bridgeAvailable; } QString statusText() const;
+    QString errorText() const; QString warningText() const;
     void componentComplete() override;
     Q_INVOKABLE void stop(); Q_INVOKABLE void reload(); Q_INVOKABLE void goBack();
     Q_INVOKABLE void goForward(); Q_INVOKABLE void reloadAndBypassCache(); Q_INVOKABLE void unfocus();
@@ -86,7 +94,10 @@ public:
     Q_INVOKABLE bool emitScriptEvent(const QVariant& message);
     // JNI entry points: registry lifetime is held by the caller; no Android call while locked.
     QRectF sceneBounds() const { return mapRectToScene(boundingRect()); }
+    QRectF sceneClipBounds() const;
     quint64 generation() const;
+    bool allowsBridgeDocument(quint64 grant, quint64 page, const QUrl& document) const;
+    bool allowsFileChooser(quint64 grant, quint64 page, const QUrl& document) const;
     bool allowsNavigation(quint64 grant, const QUrl& target, bool mainFrame, const QString& method) const;
     bool acceptMessage(quint64 grant, quint64 page, const QUrl& document, const QUrl& origin,
                        bool mainFrame, const QString& type, const QByteArray& payload);
@@ -99,6 +110,7 @@ public:
     QByteArray resource(quint64 grant, const QUrl& browser) const;
     QString resourceMime(quint64 grant, const QUrl& browser) const;
 signals:
+    void editorStateChanged(); void editorFocusChanged(bool active, bool numeric, bool password);
     void urlChanged(); void scriptUrlChanged(); void userAgentChanged(); void useBackgroundChanged();
     void webEventReceived(const QVariant& message);
     void sourceIdentityChanged(); void surfaceChanged(); void presentationChanged(); void stateChanged();
@@ -116,6 +128,7 @@ private:
     bool evaluate(const QString& script, quint64 grant, quint64 page);
     void pointer(int action, const QPointF& position);
     void editorCommand(const QJsonObject& command);
+    void resetEditor();
     void updateEditor(const QJsonObject& state);
     void injectUserScript(quint64 grant, quint64 page, const QUrl& url, int redirects = 0);
     bool current(quint64 grant, quint64 page) const;
@@ -123,6 +136,7 @@ private:
     QString scriptRoot(const QUrl& source) const;
     QString _currentUrl, _url, _scriptUrl, _userAgent, _sourceIdentity, _bootstrap;
     bool _background { true }, _created { false }, _pending { false }, _retryPending { false }, _pressed { false };
+    bool _tabletGrant { false };
     bool _loading { false }, _canGoBack { false }, _canGoForward { false }, _bridgeAvailable { false };
     int _status { 0 }, _attempts { 0 };
     Surface _surface { WorldEntity }; Presentation _presentation { Texture };
