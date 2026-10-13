@@ -83,6 +83,7 @@ int main(int argc, char** argv) {
         assert(views[0]->surface() == NativeWebViewItem::Tablet);
         assert(views[0]->presentation() == NativeWebViewItem::NativeOverlay);
         assert(views[0]->userAgent() == "host-test-agent");
+        assert(views[0]->hasFocus());
         adapter->setProperty("surface", "world-entity");
         assert(views[0]->presentation() == NativeWebViewItem::Texture);
         assert(adapter->metaObject()->indexOfMethod("emitScriptEvent(QVariant)") >= 0);
