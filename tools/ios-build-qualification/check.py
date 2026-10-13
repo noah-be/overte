@@ -115,13 +115,26 @@ def verify_jobs(needs, source):
 
 def verify_build_execution(jobs, run_id, attempt, head):
     """An overall green reusable job cannot hide skipped compile/package steps."""
+    require(type(run_id) is int and run_id > 0 and type(attempt) is int and attempt > 0
+            and isinstance(head, str) and SHA.fullmatch(head), "invalid qualifier identity")
     names = {"iOS host contracts", "qt / qt-ios-source", "client / Host contracts",
              "client / Static JITless V8 checkpoint", "client / Toolchain, dependencies, build and package"}
     selected = [job for job in jobs if job.get("name") in names]
     require(len(selected) == len(names) and {job["name"] for job in selected} == names,
             "missing or duplicate selected build jobs")
+    ids = [job.get("id") for job in selected]
+    require(all(type(value) is int and value > 0 for value in ids) and len(set(ids)) == len(ids),
+            "missing or duplicate actual producer job IDs")
+    producer_attempt = selected[0].get("run_attempt")
+    require(type(producer_attempt) is int and producer_attempt > 0
+            and all(type(job.get("run_attempt")) is int and job["run_attempt"] == producer_attempt
+                    for job in selected), "selected producer jobs have inconsistent attempts")
+    # Failed-only retry retains the original successful build jobs. The later
+    # qualifier must not relabel them as freshly compiled in its own attempt.
+    require(producer_attempt == attempt or (producer_attempt == 1 and attempt == 2),
+            "unsupported producer/qualifier attempt ordering")
     for job in selected:
-        require(job.get("run_id") == run_id and job.get("run_attempt") == attempt
+        require(type(job.get("run_id")) is int and job.get("run_id") == run_id
                 and job.get("head_sha") == head, "job belongs to another run, attempt or PR head")
         require(job.get("status") == "completed" and job.get("conclusion") == "success",
                 f"selected job did not succeed: {job['name']}")
@@ -129,8 +142,13 @@ def verify_build_execution(jobs, run_id, attempt, head):
             for name in ("Build experimental full client", "Verify required Interface QML plugins in full-client link",
                          "Package numbered unsigned client IPA", "Upload short-lived unsigned E2E client handoff"):
                 matches = [step for step in job.get("steps", []) if step.get("name") == name]
-                require(len(matches) == 1 and matches[0].get("conclusion") == "success",
+                require(len(matches) == 1 and matches[0].get("status") == "completed"
+                        and matches[0].get("conclusion") == "success",
                         f"selected build step missing, skipped or failed: {name}")
+    return {"runId": run_id, "producerRunAttempt": producer_attempt, "qualifierRunAttempt": attempt,
+            "headRevision": head, "jobIds": ids,
+            "artifactIdVerification": "not-observed-by-legacy-invocation",
+            "originalArtifactZipDigestVerification": "not-observed-by-legacy-invocation"}
 
 
 def sha256(path):
@@ -191,13 +209,13 @@ def report(needs, source, build_number, run_id, attempt, directory, jobs):
     required = outputs["required"] == "true"
     require(all(type(value) is int and value > 0 for value in (build_number, run_id, attempt)),
             "invalid run identity")
-    if required:
-        verify_build_execution(jobs, run_id, attempt, outputs.get("head", source))
+    producer = verify_build_execution(jobs, run_id, attempt, outputs.get("head", source)) if required else None
     artifact = verify_ipa(directory, source, build_number) if required else None
     return {"schema": 1, "repository": REPOSITORY, "repositoryId": REPOSITORY_ID,
             "context": CONTEXT, "sourceRevision": source, "sourceTree": outputs["tree"],
             "baseRevision": outputs.get("base"), "headRevision": outputs.get("head"),
             "runId": run_id, "runAttempt": attempt, "buildNumber": build_number,
+            "producer": producer,
             "checks": "passed", "ipa": "verified" if required else "not-required",
             "reason": outputs["reason"], "artifact": artifact,
             "installation": "not-performed", "deviceAcceptance": "not-performed"}
