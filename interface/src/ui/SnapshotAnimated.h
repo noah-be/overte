@@ -19,6 +19,7 @@
 #include <GifCreator.h>
 #include <qtimer.h>
 #include <SettingHandle.h>
+#include "SnapshotCapture.h"
 #include "scripting/WindowScriptingInterface.h"
 
 // If the snapshot width or the framerate are too high for the
@@ -45,14 +46,17 @@ private:
     static QSharedPointer<WindowScriptingInterface> snapshotAnimatedDM;
     static float aspectRatio;
 
-    static GifWriter snapshotAnimatedGifWriter;
+    static SnapshotCapture snapshotCapture;
+    static SnapshotCapture encodingCapture;
+    static bool snapshotFramePending;
 
     static void captureFrames();
-    static void processFrames();
+    static bool processFrames(QVector<QImage> frames, QVector<qint64> delays, QString path, SnapshotCapture capture);
     static void clearTempVariables();
 public:
-    static void saveSnapshotAnimated(QString pathStill, float aspectRatio, QSharedPointer<WindowScriptingInterface> dm);
-    static bool isAlreadyTakingSnapshotAnimated() { return snapshotAnimatedFirstFrameTimestamp != 0; };
+    static void saveSnapshotAnimated(QString pathStill, float aspectRatio, QSharedPointer<WindowScriptingInterface> dm, const SnapshotCapture& capture = {});
+    static void cancelCapture(const SnapshotCapture& capture);
+    static bool isAlreadyTakingSnapshotAnimated() { return bool(encodingCapture) || (snapshotCapture && snapshotCapture->current()); };
     static Setting::Handle<bool> alsoTakeAnimatedSnapshot;
     static Setting::Handle<float> snapshotAnimatedDuration;
 };
