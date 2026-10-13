@@ -18,6 +18,20 @@ public final class WebLifetimeTest {
         document.visible(false); check(!document.admits(4, next, true, 4));
         document.visible(true); document.grant(6); check(!document.admits(4, next, true, 4));
         check(document.admits(6, next, true, 4)); document.close(); check(!document.admits(6, next, true, 4));
+        Object view = new Object();
+        WebFileChoiceLease selected = new WebFileChoiceLease(view, first, 7, "source-A", "https://one.test/page");
+        check(selected.consume(view, first, 7, "source-A", "https://one.test/page", true, true, true, true, true) == 2);
+        check(selected.consume(view, first, 7, "source-A", "https://one.test/page", true, true, true, true, true) == 0);
+        selected = new WebFileChoiceLease(view, first, 7, "source-A", "https://one.test/page");
+        check(selected.consume(view, first, 8, "source-A", "https://one.test/page", true, true, true, true, true) == 1);
+        selected = new WebFileChoiceLease(view, first, 7, "source-A", "https://one.test/page");
+        check(selected.consume(view, second, 7, "source-A", "https://one.test/page", true, true, true, true, true) == 1);
+        selected = new WebFileChoiceLease(view, first, 7, "source-A", "https://one.test/page");
+        check(selected.consume(view, first, 7, "source-B", "https://one.test/page", true, true, true, true, true) == 1);
+        selected = new WebFileChoiceLease(view, first, 7, "source-A", "https://one.test/page");
+        check(selected.consume(view, first, 7, "source-A", "https://foreign.test/page", true, true, true, true, true) == 1);
+        selected = new WebFileChoiceLease(view, first, 7, "source-A", "https://one.test/page");
+        check(selected.consume(view, first, 7, "source-A", "https://one.test/page", true, true, true, true, false) == 1);
         System.out.println("PASS: queued input ownership, page epochs, foreground grants and bounded messages");
     }
 }
