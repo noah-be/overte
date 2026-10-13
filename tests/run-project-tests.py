@@ -74,6 +74,8 @@ SUITES = (
         sys.executable, "tests/device/contracts/snapshot/test_snapshot_qml.py")),
     Suite("document-tree-native", "host", (
         sys.executable, "tests/device/contracts/script_assets/test_document_tree_abi.py")),
+    Suite("obj-material-native", "host", (
+        sys.executable, "tests/device/contracts/script_assets/test_obj_material_bundle.py")),
     Suite("native-smoke", "quick", (
         sys.executable, "tests/device/contracts/world-entry/test_phone_spawn_gate.py")),
     Suite("native-ci-policy", "quick", (sys.executable, "tests/native-ci-test.py")),
