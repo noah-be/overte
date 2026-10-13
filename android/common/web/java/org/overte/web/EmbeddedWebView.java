@@ -13,6 +13,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.view.MotionEvent;
+import android.view.InputDevice;
 import android.view.View;
 import android.webkit.CookieManager;
 import android.webkit.PermissionRequest;
@@ -256,15 +257,7 @@ public final class EmbeddedWebView {
         });
     }
     public static void pointer(long handle, int action, float x, float y) {
-        input(handle, instance -> {
-            long now = SystemClock.uptimeMillis();
-            if (action == MotionEvent.ACTION_DOWN) { instance.downTime = now; instance.pressed = true; }
-            MotionEvent event = MotionEvent.obtain(instance.pressed ? instance.downTime : now, now, action, instance.overlay ? x : instance.textureScale.pointer(x),
-                instance.overlay ? y : instance.textureScale.pointer(y), 0);
-            try { instance.view.dispatchTouchEvent(event); }
-            finally { event.recycle(); }
-            if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) instance.pressed = false;
-        });
+        input(handle, instance -> instance.dispatchPointer(action, x, y));
     }
     public static void focus(long handle, boolean focused) {
         input(handle, instance -> {
@@ -284,9 +277,10 @@ public final class EmbeddedWebView {
         Canvas canvas;
         ByteBuffer pixels;
         ScriptHandler script;
-        boolean active = true, visible = true, loading, bridge, pressed;
+        boolean active = true, visible = true, loading, bridge;
+        final WebPointerState pointerState = new WebPointerState();
         int status;
-        long downTime, pickerLease;
+        long pickerLease;
         String requestedUrl = "about:blank";
         Instance(long handle, WebView view, boolean overlay, String bootstrap) {
             this.handle = handle; this.view = view; this.overlay = overlay; this.bootstrap = bootstrap;
@@ -336,12 +330,22 @@ public final class EmbeddedWebView {
             view.evaluateJavascript("document.querySelectorAll('video,audio').forEach(function(m){m.pause();});", null); view.evaluateJavascript("window.__overteTransport&&window.__overteTransport.suspend();", null);
             view.onPause();
         }
+        void dispatchPointer(int action, float x, float y) {
+            if (!Float.isFinite(x) || !Float.isFinite(y)) return;
+            if (action == MotionEvent.ACTION_DOWN && pointerState.pressed()) dispatchPointer(MotionEvent.ACTION_CANCEL, 0, 0);
+            long now = SystemClock.uptimeMillis(), down = pointerState.downTime();
+            if (!pointerState.accept(action, now)) return;
+            boolean hover = WebPointerState.hover(action);
+            if (action == MotionEvent.ACTION_DOWN) down = pointerState.downTime();
+            MotionEvent event = MotionEvent.obtain(hover ? now : down, now, action,
+                overlay ? x : textureScale.pointer(x), overlay ? y : textureScale.pointer(y), 0);
+            event.setSource(hover ? InputDevice.SOURCE_MOUSE : InputDevice.SOURCE_TOUCHSCREEN);
+            try { if (hover) view.dispatchGenericMotionEvent(event); else view.dispatchTouchEvent(event); }
+            finally { event.recycle(); }
+        }
         void cancelInput() {
-            if (pressed) {
-                MotionEvent event = MotionEvent.obtain(downTime, SystemClock.uptimeMillis(), MotionEvent.ACTION_CANCEL, 0, 0, 0);
-                try { view.dispatchTouchEvent(event); } finally { event.recycle(); }
-                pressed = false;
-            }
+            if (pointerState.pressed()) dispatchPointer(MotionEvent.ACTION_CANCEL, 0, 0);
+            if (pointerState.hovering()) dispatchPointer(MotionEvent.ACTION_HOVER_EXIT, 0, 0);
             view.evaluateJavascript("window.__overteEditor&&window.__overteEditor.blur();", null);
             view.clearFocus();
         }

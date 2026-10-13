@@ -30,6 +30,14 @@ public final class WebLifetimeTest {
         int third = replacement.begin(selections::add); check(third > nextRequest);
         check(!replacement.receive(nextRequest, "old Activity", true));
         check(replacement.receive(third, null, true) && selections.size() == 3 && selections.get(2) == null);
+        WebPointerState pointer = new WebPointerState();
+        check(!pointer.accept(2, 1) && !pointer.accept(1, 1) && !pointer.accept(3, 1));
+        check(pointer.accept(9, 2) && pointer.hovering() && !pointer.pressed());
+        check(pointer.accept(7, 3) && pointer.accept(10, 4) && !pointer.hovering());
+        check(pointer.accept(0, 5) && pointer.pressed() && pointer.downTime() == 5);
+        check(pointer.accept(2, 6) && pointer.accept(3, 7) && !pointer.pressed());
+        check(pointer.accept(0, 8) && pointer.downTime() == 8 && pointer.accept(1, 9));
+        check(!pointer.accept(1, 10) && !pointer.accept(42, 10));
         Object first = new Object(), second = new Object();
         WebInputGate gate = new WebInputGate();
         check(gate.capture() == null); gate.update(first, true);
