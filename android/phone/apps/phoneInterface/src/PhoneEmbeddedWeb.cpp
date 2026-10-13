@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <jni.h>
 #include <memory>
-#include <QAndroidJniObject>
+#include <QtAndroidExtras/QAndroidJniObject>
 #include <QCoreApplication>
 #include <QPointer>
 #include <QTimer>
