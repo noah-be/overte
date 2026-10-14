@@ -393,7 +393,7 @@ assert module.select_artifact(pr_artifacts, "client-objects", 42, "apple-ios") i
 # still runs for each request, including every repository/branch provenance gate.
 with tempfile.TemporaryDirectory(prefix="artifact-index-test-") as index_temp:
     index = Path(index_temp) / "index.json"
-    env = {"GITHUB_TOKEN": "test-token", "GITHUB_REPOSITORY": "noah-be/overte",
+    env = {"GITHUB_TOKEN": "test-token", "GITHUB_REPOSITORY": "noah-l-frank/overte",
            "OVERTE_ARTIFACT_INDEX_CACHE": str(index)}
     with mock.patch.dict(os.environ, env), mock.patch.object(module.time, "time", return_value=1000):
         response = json.dumps({"artifacts": artifacts}).encode()
