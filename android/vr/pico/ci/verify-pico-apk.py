@@ -165,13 +165,15 @@ def verify_network_policy(args):
     try:
         if any(not p.is_file() or p.is_symlink() or p.stat().st_size > 256 * 1024 for p in paths):
             fail("missing or invalid source network capability")
-        source_hashes = {str(p): sha256_file(p) for p in paths}
+        source_bytes = {p: p.read_bytes() for p in paths}
+        source_hashes = {str(p): hashlib.sha256(data).hexdigest() for p, data in source_bytes.items()}
         spec = importlib.util.spec_from_file_location("overte_parent_web_network_policy", paths[0])
         policy = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(policy)
-        capability_text = paths[1].read_text(encoding="utf-8")
-        policy.validate_source(paths[3].read_text(encoding="utf-8"),
-                               paths[2].read_text(encoding="utf-8"), capability_text)
+        # Execute the exact hashed source bytes, never an unrelated cached pyc.
+        exec(compile(source_bytes[paths[0]], str(paths[0]), "exec"), policy.__dict__)
+        capability_text = source_bytes[paths[1]].decode("utf-8")
+        policy.validate_source(source_bytes[paths[3]].decode("utf-8"),
+                               source_bytes[paths[2]].decode("utf-8"), capability_text)
         analyzer = str(Path(resolve_tool(args.apkanalyzer, "apkanalyzer")).resolve())
         aapt2 = str(Path(resolve_tool(args.aapt2, "aapt2")).resolve())
         tools = decoder_inputs(analyzer)
