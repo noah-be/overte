@@ -4,6 +4,7 @@
 """Portable policies/DOM tests; opt-in actual Qt/JNI/Android API compilation."""
 import argparse
 import os
+import signal
 from pathlib import Path
 import shlex
 import subprocess
@@ -85,8 +86,12 @@ with tempfile.TemporaryDirectory(prefix='overte-embedded-web-') as temporary:
             import resource
             resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
             old = dict(environment, OVERTE_TEST_OLD_ACTIVE_VISIBILITY='1')
-            failed = subprocess.run(command, env=old)
-            if failed.returncode == 0:
-                raise AssertionError('actual old active-only hide boundary was not detected')
+            failed = subprocess.run(command, env=old, capture_output=True, text=True)
+            expected = 'field("hiddenRevision") == jlong(wire.lifecycleRevision()) && field("hiddenRevision") != jlong(before)'
+            if (failed.returncode != -signal.SIGABRT or 'Assertion' not in failed.stderr
+                    or expected not in failed.stderr or 'failed' not in failed.stderr):
+                raise AssertionError('expected inactive-hide assertion was not observed: '
+                    + str(failed.returncode) + '\n' + failed.stdout + failed.stderr)
+            sys.stderr.write(failed.stderr)
             print('PASS: actual Qt/JNI original active-only hide comparison rejected by production-dispatch regression')
     subprocess.run(['node', str(WEB / 'tests/javascript.js'), *([str(channel)] if channel else [])], check=True)
