@@ -12,6 +12,7 @@
 
 #include "AccountManager.h"
 #include "OAuthTokenValidation.h"
+#include "CredentialTransportPolicy.h"
 
 #include <memory>
 
@@ -716,7 +717,7 @@ void AccountManager::requestAccessToken(const QString& login, const QString& pas
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
 
     if (!requestOwner || !requestContext.current()) { return; }
-    QNetworkReply* requestReply = networkAccessManager.post(request, postData);
+    QNetworkReply* requestReply = overte::network::postCredentials(networkAccessManager, request, postData);
     overte::network::watchRequest(requestReply, requestContext);
     observeAccountTokenDeadline(requestReply);
     if (!requestOwner || !requestContext.current()) { requestReply->deleteLater(); return; }
@@ -752,7 +753,7 @@ void AccountManager::requestAccessTokenWithAuthCode(const QString& authCode, con
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
 
     if (!requestOwner || !requestContext.current()) { return; }
-    QNetworkReply* requestReply = networkAccessManager.post(request, postData);
+    QNetworkReply* requestReply = overte::network::postCredentials(networkAccessManager, request, postData);
     overte::network::watchRequest(requestReply, requestContext);
     observeAccountTokenDeadline(requestReply);
     if (!requestOwner || !requestContext.current()) { requestReply->deleteLater(); return; }
@@ -786,7 +787,7 @@ void AccountManager::requestAccessTokenWithSteam(QByteArray authSessionTicket) {
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
 
     if (!requestOwner || !requestContext.current()) { return; }
-    QNetworkReply* requestReply = networkAccessManager.post(request, postData);
+    QNetworkReply* requestReply = overte::network::postCredentials(networkAccessManager, request, postData);
     overte::network::watchRequest(requestReply, requestContext);
     observeAccountTokenDeadline(requestReply);
     if (!requestOwner || !requestContext.current()) { requestReply->deleteLater(); return; }
@@ -821,7 +822,7 @@ void AccountManager::requestAccessTokenWithOculus(const QString& nonce, const QS
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
 
     if (!requestOwner || !requestContext.current()) { return; }
-    QNetworkReply* requestReply = networkAccessManager.post(request, postData);
+    QNetworkReply* requestReply = overte::network::postCredentials(networkAccessManager, request, postData);
     overte::network::watchRequest(requestReply, requestContext);
     observeAccountTokenDeadline(requestReply);
     if (!requestOwner || !requestContext.current()) { requestReply->deleteLater(); return; }
@@ -862,7 +863,7 @@ void AccountManager::refreshAccessToken() {
         request.setUrl(grantURL);
         request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
 
-        QNetworkReply* requestReply = networkAccessManager.post(request, postData);
+        QNetworkReply* requestReply = overte::network::postCredentials(networkAccessManager, request, postData);
         overte::network::watchRequest(requestReply, requestContext);
         observeAccountTokenDeadline(requestReply);
         if (!requestOwner || !requestContext.current()) { requestReply->deleteLater(); return; }

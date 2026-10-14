@@ -6,6 +6,7 @@
 #include <QtNetwork/QNetworkAccessManager>
 #include "libraries/networking/src/RequestCancellation.h"
 #include "libraries/networking/src/OAuthTokenValidation.h"
+#include "libraries/networking/src/CredentialTransportPolicy.h"
 #include "security/redaction/SafeDiagnostics.h"
 #include <cassert>
 #include <cstring>
@@ -196,6 +197,23 @@ int main(int argc, char** argv) {
                 break;
         }
     };
+    // Complete production terminal receivers, not just the request fixture:
+    // denied credential transport fails asynchronously and cannot install data.
+    for (int provider = 0; provider < 5; ++provider) {
+        AccountManager denied;
+        denied._authURL = QUrl("http://auth-private.invalid");
+        int success = 0, failure = 0;
+        QObject::connect(&denied, &AccountManager::loginComplete, [&] { ++success; });
+        QObject::connect(&denied, &AccountManager::loginFailed, [&] { ++failure; });
+        const int created = network.created.size();
+        start(denied, provider);
+        assert(network.created.size() == created && success == 0 && failure == 0);
+        QCoreApplication::processEvents();
+        assert(success == 0 && failure == int(provider != 4));
+        assert(!denied._isWaitingForAccessToken && !denied._isWaitingForTokenRefresh);
+        assert(denied._accountInfo.token.token.isEmpty());
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    }
     // A newer login intent on the SAME endpoint supersedes an older reply,
     // even when the older transport completes last with valid credentials.
     for (int firstProvider = 0; firstProvider < 4; ++firstProvider) {
