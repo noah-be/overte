@@ -77,6 +77,7 @@ private:
     void onTimeout();
     void buildWebSurface(const EntityItemPointer& entity, const QString& newSourceURL);
     void destroyWebSurface();
+    void synchronizeWebVisibility(bool visible);
     glm::vec2 getWindowSize(const TypedEntityPointer& entity) const;
 
     int _geometryId{ 0 };
@@ -89,6 +90,8 @@ private:
     ContentType _contentType { ContentType::NoContent };
 
     QSharedPointer<OffscreenQmlSurface> _webSurface { nullptr };
+    QSharedPointer<int> _webSurfaceLease;
+    bool _webSurfaceVisible { true };
     bool _cachedWebSurface { false };
     gpu::TexturePointer _texture;
     QString _tryingToBuildURL;
