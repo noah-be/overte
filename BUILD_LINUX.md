@@ -81,7 +81,7 @@ sudo apt install python3 python3-distro
 
 Clone this repository:
 ```bash
-git clone https://github.com/noah-be/overte.git
+git clone https://github.com/noah-l-frank/overte.git
 cd overte
 ```
 
