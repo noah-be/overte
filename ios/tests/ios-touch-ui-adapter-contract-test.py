@@ -197,15 +197,15 @@ load_settings = APPLICATION[
 ]
 for mobile_budget_contract in (
     "constexpr int IOS_TARGET_FPS { 30 }",
-    "IOS_MAX_VIEWPORT_RESOLUTION_SCALE { 0.8f }",
-    "iosRenderSettings->setShadowsEnabled(false)",
-    "iosRenderSettings->setBloomEnabled(false)",
-    "iosRenderSettings->setAmbientOcclusionEnabled(false)",
-    "iosRenderSettings->setAntialiasingMode(AntialiasingSetupConfig::Mode::NONE)",
-    "setWorldDetailQuality(WORLD_DETAIL_LOW)",
-    "RefreshRateManager::RefreshRateRegime::FOCUS_ACTIVE, IOS_TARGET_FPS",
-    "RefreshRateManager::RefreshRateRegime::FOCUS_INACTIVE, IOS_TARGET_FPS",
-    "RefreshRateManager::RefreshRateRegime::STARTUP, IOS_TARGET_FPS",
+    "IOS_DEFAULT_VIEWPORT_RESOLUTION_SCALE { 0.8f }",
+    "iosRenderSettings->setShadowsEnabled(iosSavedShadows)",
+    "iosRenderSettings->setBloomEnabled(iosSavedBloom)",
+    "iosRenderSettings->setAmbientOcclusionEnabled(iosSavedAmbientOcclusion)",
+    "iosRenderSettings->setAntialiasingMode(iosSavedAntialiasing)",
+    "setWorldDetailQuality(iosSavedWorldDetail)",
+    "RefreshRateManager::RefreshRateRegime::FOCUS_ACTIVE, iosSavedFocusActive",
+    "RefreshRateManager::RefreshRateRegime::FOCUS_INACTIVE, iosSavedFocusInactive",
+    "RefreshRateManager::RefreshRateRegime::STARTUP, iosSavedStartup",
     "OVERTE_IOS_RENDER_PROFILE stage=mobile-budget-applied",
 ):
     assert mobile_budget_contract in load_settings
