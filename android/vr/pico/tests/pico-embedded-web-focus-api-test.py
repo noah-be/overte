@@ -51,7 +51,9 @@ def main():
     (args.output/'actual-inputs.json').write_text(json.dumps({
         'picoSource':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
         'picoWorkingDiffSha256':hashlib.sha256(subprocess.check_output(['git','diff','HEAD'],cwd=ROOT)).hexdigest(),
-        'commonSource':actual,'commonRole':'Explicit test preview; protected direct-parent propagation remains required',
+        'commonSource':actual,'commonSourceRoot':str(common),
+        'commonRole':('In-tree checkout' if common==ROOT else 'Explicit external dependency checkout'),
+        'commonIntegrationStatus':'Not attested by checkout path',
         'testSources':{str(p):digest(p) for p in [Path(__file__).resolve(),ROOT/'android/vr/pico/tests/focus/PicoEmbeddedWebFocusApiTest.java']},
         'gradleInputs':{str(p):digest(p) for p in [args.gradle]+([args.offline_init] if args.offline_init else [])},
         'sources':{str(p):digest(p) for p in sources},'apiJars':{str(p):digest(p) for p in jars},
