@@ -453,19 +453,8 @@
     }
 
     function getFederationData() {
-        /*
-        //If federation.json is got from the Metaverse Server (not implemented yet)
-        var fedDirectoryUrl = AccountServices.metaverseServerURL + "/federation.json";
-        var extractedFedData = getContent(fedDirectoryUrl);
-        */
-
-        /*
-        //If federation.json is got from a web storage
-        var fedDirectoryUrl = ROOT + "federation.json"; + "?version=" + Math.floor(Math.random() * 999999);
-        var extractedFedData = getContent(fedDirectoryUrl);
-        */
-
-        //if federation.json is local, on the user installation
+        // The federation list is packaged locally. Selected servers' directory
+        // content is fetched asynchronously by fetchMetaverse.
         var extractedFedData = JSON.stringify(Script.require("./federation.json"));
 
         return extractedFedData;
