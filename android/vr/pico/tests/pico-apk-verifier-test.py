@@ -367,6 +367,34 @@ class PicoBinaryNetworkTests(unittest.TestCase):
         with self.assertRaisesRegex(self.module.VerificationError, "network capability"):
             self.verify(self.fixture(manifest=manifest))
 
+    def test_parent_execution_uses_bound_source_bytes_not_cached_code(self):
+        import py_compile
+        import importlib.util
+        parent = self.directory / "explicit-parent-cache-boundary"
+        for relative in ("network_policy.py", "network-capability.json",
+                         "res/xml/" + NETWORK_NAME + ".xml"):
+            destination = parent / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes((self.module.WEB_ROOT / relative).read_bytes())
+        helper = parent / "network_policy.py"
+        original = helper.read_bytes()
+        # A real timestamp/size-valid pyc from different code must not replace
+        # the source bytes bound by this verifier's receipt.
+        stale = b"raise RuntimeError('unexpected cached policy execution')\n"
+        helper.write_bytes(stale + b" " * (len(original) - len(stale)))
+        stamp = helper.stat()
+        py_compile.compile(str(helper), doraise=True)
+        helper.write_bytes(original)
+        os.utime(helper, ns=(stamp.st_atime_ns, stamp.st_mtime_ns))
+        cached = importlib.util.cache_from_source(str(helper))
+        self.assertTrue(Path(cached).is_file())
+        self.module.WEB_ROOT = parent
+        result = self.verify(self.fixture())
+        import hashlib
+        self.assertEqual(result["source_inputs_sha256"][str(helper)], hashlib.sha256(original).hexdigest())
+        self.assertEqual(result["capability"]["androidCleartextScope"], "application")
+
+
     def test_actual_artifact_mutation_is_rejected_by_full_verifier(self):
         import argparse
         from unittest.mock import patch
