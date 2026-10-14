@@ -48,10 +48,15 @@ test("phone bootstrap loads the control dependency before its minimal production
     assert.deepEqual(Array.from(state.context.PHONE_DEFAULT_SCRIPTS), expected);
 });
 
-test("phone bootstrap applies conservative mobile LOD defaults", () => {
+test("touch bootstrap preserves native loaded LOD preferences", () => {
     const state = start();
+    assert.equal(state.LODManager.automaticLODAdjust, true);
+    assert.equal(state.LODManager.lodAngleDeg, 99);
+    state.LODManager.automaticLODAdjust = false;
+    state.LODManager.lodAngleDeg = 0.9;
+    state.context.startPhoneDefaults();
     assert.equal(state.LODManager.automaticLODAdjust, false);
-    assert.equal(state.LODManager.lodAngleDeg, 0.248);
+    assert.equal(state.LODManager.lodAngleDeg, 0.9);
 });
 
 test("explicit bootstrap restart retains deterministic script ordering", () => {
