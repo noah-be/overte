@@ -78,6 +78,7 @@ Rectangle {
 
 		// Graphics 
 		Loader {
+			id: graphicsPageLoader
 			active: touchConfiguration.showGraphicsSettings
 			Layout.fillWidth: true
 			Layout.fillHeight: true
@@ -103,6 +104,11 @@ Rectangle {
 	// Messages from script
 	function fromScript(message) {
 		if (!message || typeof message !== "object") { return false; }
+		if (message.type === "phone.graphics.state" && graphicsPageLoader.item &&
+				typeof graphicsPageLoader.item.fromScript === "function") {
+			graphicsPageLoader.item.fromScript(message);
+			return true;
+		}
 		switch (message.type){
 			case "loadPage":
 				return openLocalPage(message.page);

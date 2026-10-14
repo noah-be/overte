@@ -217,6 +217,18 @@ parent delta, and accepts exactly one matching non-expired qualification from a
 successful `push` run of the expected workflow. It re-reads both permanent refs
 after verification so a target or parent race fails closed.
 
+Reused product suites run in a separate candidate Python environment populated
+from the trusted default branch's pinned `tests/requirements-host.txt`. The
+suite runner and its subprocesses use that same interpreter, including Conan
+for actual package-store fixture builds. Parent qualification does not install
+Python dependencies into a later isolated validation runner.
+
+The complete fallback disables automatic Git maintenance and garbage collection
+only within its disposable test invocation. This prevents detached Git writers
+from racing strict temporary-repository cleanup, including in older candidate
+tests. Candidate source files, assertion failures, and cleanup errors remain
+unchanged; the runner does not alter global Git configuration.
+
 Dispatched validation is correlated by both the gate's `GITHUB_RUN_ID` and
 `GITHUB_RUN_ATTEMPT` (`gate-<run-id>-attempt-<attempt>`). The `dispatch-and-wait`
 command requires `--gate-run-id` and takes the attempt from `--gate-run-attempt`
@@ -240,6 +252,15 @@ complete fallback, even for Markdown or valid parent qualification. This is
 conservative: a listed path inherited unchanged from the parent also forces
 fallback. No new direct-sync, topology, or ruleset exception is introduced.
 
+The Phone preview-cancellation transition registers only the existing
+`android/phone/tests/phone-voice-clock-fixture.cpp` and
+`android/phone/tests/phone-voice-clock-test.py` paths. They allow the Phone-owned
+clock fixture to follow the current Android audio interface during an attested
+direct-parent reconciliation. Product implementation, neighboring tests and
+shared audio changes are outside this registration. Each path independently
+forces the complete fallback; the registration does not qualify an APK or a
+physical-device journey.
+
 
 The iOS ownership transition has seven exact native-only repair inputs: the
 iOS audio adapter pair, the native binding tests, the retained Appium adapter
@@ -254,6 +275,20 @@ The trusted iOS host gate installs the existing pinned host requirements in
 a separate test environment before executing native regressions, including
 independent permission-switch image checks. Product dependency caches and
 physical-device qualification remain separate.
+The fixed native qualification deployment, integrated build entry point, and
+native host-test runner are also attested iOS repairs. Each requires complete
+fallback; the deployed qualification workflow must still match the trusted
+canonical template and pass the independent exact-candidate IPA gate.
+
+Three existing iOS host-contract fixtures may also be repaired during that
+attested parent integration: `ios/tests/ios-touch-ui-adapter-contract-test.py`,
+`ios/tests/native_contracts/mute-caller-test.cpp`, and
+`ios/tests/native_contracts/test_mute_caller.py`. They adapt the existing tests
+to the parent's shared Graphics Settings body and recorded-preview mute
+cancellation ABI. Retain the Graphics assertions, microphone/session ordering,
+owner-thread checks and cancellation behavior. All three exact paths force
+complete fallback and the independent iOS application build gate. Additional
+test files and production changes still use their ordinary owning-layer PRs.
 
 When all bindings match, a separate read-only validation workflow runs only the
 edge-specific hardware-free differential profile. The redundant Android and
