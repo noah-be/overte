@@ -13,15 +13,21 @@
 #include <QtCore/QThread>
 #include <QtCore/QUuid>
 #include <QtNetwork/QHttpMultiPart>
+#include <QtCore/QUrlQuery>
 #include <QtNetwork/QNetworkAccessManager>
+#include "libraries/networking/src/CredentialTransportPolicy.h"
 #include "libraries/networking/src/RequestCancellation.h"
 #include "security/redaction/SafeDiagnostics.h"
 #include "callback-parameters.inc"
-namespace AccountManagerAuth { enum Type { None, Required, Optional }; }
+namespace AccountManagerAuth { enum Type { None, Required, Optional, Credentials }; }
 Q_DECLARE_METATYPE(AccountManagerAuth::Type)
 Q_DECLARE_METATYPE(JSONCallbackParameters)
 Q_LOGGING_CATEGORY(networking, "request-scope-test")
 const bool VERBOSE_HTTP_REQUEST_DEBUGGING = false;
+const QByteArray ACCESS_TOKEN_AUTHORIZATION_HEADER("Authorization");
+QString uuidStringWithoutCurlyBraces(const QUuid& id) { return id.toString(QUuid::WithoutBraces); }
+QUrl getMetaverseServerURL() { return QUrl("https://public-api.invalid"); }
+QString getMetaverseServerURLPath(bool trailing = false) { return trailing ? "/api/" : "/api"; }
 const QByteArray METAVERSE_SESSION_ID_HEADER("Test-Session-Only");
 const QUuid initialSession("{11111111-2222-3333-4444-555555555555}");
 const QUuid updatedSession("{66666666-7777-8888-9999-aaaaaaaaaaaa}");
@@ -37,7 +43,10 @@ public:
 class FakeNetwork : public QNetworkAccessManager {
 public:
     QPointer<FakeReply> last;
-    QNetworkReply* createRequest(Operation, const QNetworkRequest&, QIODevice*) override {
+    QNetworkRequest observed;
+    Operation observedOperation {};
+    QNetworkReply* createRequest(Operation operation, const QNetworkRequest& request, QIODevice*) override {
+        observed = request; observedOperation = operation;
         ++sent; last = new FakeReply(this); return last;
     }
 };
@@ -47,16 +56,24 @@ QNetworkAccessManager& NetworkAccessManager::getInstance() { return *fakeNetwork
 class AccountManager : public QObject {
 public:
 #include "account-session-field.inc"
-    QNetworkRequest createRequest(const QString&, AccountManagerAuth::Type) { return QNetworkRequest(); }
+    QUrl _authURL { "https://api.invalid" };
+    bool tokenValid = false;
+    QString _userAgentGetter() { return "contract-test"; }
+    bool hasValidAccessToken() const { return tokenValid; }
+    struct AccountInfo {
+        struct Token { QByteArray authorizationHeaderValue() const { return "Bearer token-canary"; } } token;
+        const Token& getAccessToken() const { return token; }
+    } _accountInfo;
+    QNetworkRequest createRequest(QString, AccountManagerAuth::Type);
     void sendRequest(const QString&, AccountManagerAuth::Type, QNetworkAccessManager::Operation,
                      const JSONCallbackParameters&, const QByteArray&, QHttpMultiPart*, const QVariantMap&);
 };
 class Receiver : public QObject {
     Q_OBJECT
 public:
-    int delivered = 0;
+    int delivered = 0, failed = 0;
     Q_INVOKABLE void success(QNetworkReply*) { ++delivered; }
-    Q_INVOKABLE void error(QNetworkReply*) { ++delivered; }
+    Q_INVOKABLE void error(QNetworkReply* reply) { ++delivered; ++failed; assert(reply->error() != QNetworkReply::NoError); }
 };
 class AddressManager : public QObject {
 public:
@@ -110,6 +127,55 @@ int main(int argc, char** argv) {
     overte::network::RequestTicket destroyed;
     { overte::network::RequestScope shortScope; destroyed = shortScope.next(); assert(destroyed.current()); }
     assert(!destroyed.current());
+    // Complete production request creation and dispatch. Optional anonymous
+    // HTTP remains usable, while every bearer-bearing operation is rejected
+    // before QNetworkAccessManager receives it, with its normal error callback.
+    const auto beforeCredentialMatrix = sent;
+    manager._authURL = QUrl("http://public-api.invalid");
+    manager.tokenValid = false;
+    callback = JSONCallbackParameters(&receiver, "success", "error");
+    for (auto auth : {AccountManagerAuth::None, AccountManagerAuth::Optional}) {
+        manager.sendRequest("/public", auth, QNetworkAccessManager::GetOperation,
+            callback, {}, nullptr, {});
+        assert(!transport.observed.hasRawHeader(ACCESS_TOKEN_AUTHORIZATION_HEADER));
+        assert(transport.observed.attribute(QNetworkRequest::RedirectPolicyAttribute).toInt() ==
+            QNetworkRequest::NoLessSafeRedirectPolicy);
+        transport.last->finish(); events();
+    }
+    assert(sent == beforeCredentialMatrix + 2);
+    manager.tokenValid = true;
+    for (auto auth : {AccountManagerAuth::Optional, AccountManagerAuth::Required, AccountManagerAuth::Credentials}) {
+        for (auto operation : {QNetworkAccessManager::GetOperation, QNetworkAccessManager::PostOperation,
+                QNetworkAccessManager::PutOperation, QNetworkAccessManager::DeleteOperation}) {
+            const auto before = sent;
+            const auto failedBefore = receiver.failed;
+            manager.sendRequest("/private", auth, operation, callback, "private-body-canary", nullptr, {});
+            assert(sent == before && receiver.failed == failedBefore);
+            events();
+            assert(sent == before && receiver.failed == failedBefore + 1);
+        }
+    }
+    {
+        QPointer<QHttpMultiPart> multipart = new QHttpMultiPart;
+        const auto before = sent;
+        manager.sendRequest("/private", AccountManagerAuth::Required,
+            QNetworkAccessManager::PostOperation, callback, {}, multipart, {});
+        events(); events();
+        assert(sent == before && !multipart);
+    }
+    manager._authURL = QUrl("https://api.invalid");
+    for (auto operation : {QNetworkAccessManager::GetOperation, QNetworkAccessManager::PostOperation,
+            QNetworkAccessManager::PutOperation, QNetworkAccessManager::DeleteOperation}) {
+        const auto before = sent;
+        manager.sendRequest("/private", AccountManagerAuth::Required, operation, callback, {}, nullptr, {});
+        assert(sent == before + 1);
+        assert(transport.observedOperation == (operation == QNetworkAccessManager::DeleteOperation ?
+            QNetworkAccessManager::CustomOperation : operation));
+        assert(transport.observed.rawHeader(ACCESS_TOKEN_AUTHORIZATION_HEADER) == "Bearer token-canary");
+        assert(transport.observed.attribute(QNetworkRequest::RedirectPolicyAttribute).toInt() ==
+            QNetworkRequest::ManualRedirectPolicy);
+        transport.last->finish(); events();
+    }
     AddressManager addresses;
     addresses.setClientLookupVisibility(false);
     assert(!addresses.apiCallbackParameters().requestTicket.current());

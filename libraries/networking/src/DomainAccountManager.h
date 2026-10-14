@@ -38,7 +38,7 @@ struct DomainAccountDetails {
 class DomainAccountManager : public QObject, public Dependency {
     Q_OBJECT
 public:
-    enum class LoginOutcome { Succeeded, Failed, Cancelled, TimedOut, ResponseRejected };
+    enum class LoginOutcome { Succeeded, Failed, Cancelled, TimedOut, ResponseRejected, TransportRejected };
     Q_ENUM(LoginOutcome)
     DomainAccountManager();
     ~DomainAccountManager() override;
