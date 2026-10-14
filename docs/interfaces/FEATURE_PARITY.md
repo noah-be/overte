@@ -67,6 +67,17 @@ and exposed WebAssembly. A successful ordinary JavaScript test does not prove
 arbitrary WASM-dependent script compatibility. Report actual API/user results
 and remaining limits rather than inferring runtime parity from build flags.
 
+## Directory transport
+
+PLACES uses the same sequential asynchronous directory requests for flat touch,
+Pico's native page and the desktop web page. Refresh, screen replacement and
+script stop invalidate the previous request generation; late responses cannot
+replace the current result. Transport errors, timeouts and malformed responses
+mark the failed server and continue to the next selected federation entry.
+The production-script tests exercise all three UI routes with the transport
+boundary replaced. Native control completeness and current-artifact navigation
+remain separate acceptance requirements.
+
 ## Script and asset bundles
 
 The common native script and asset controls now preserve the selected folder's
