@@ -833,7 +833,8 @@ class RenamedOwnerHistoryTests(unittest.TestCase):
         value = copy.deepcopy(self.value)
         value["completion_decisions"][0]["approved_by"] = "noah-be"
         row = issue(value)
-        row.update(state="closed", state_reason="completed")
+        row.update(state="closed", state_reason="completed", labels=[
+            {"name": name} for name in intake.expected_labels(value, POLICY, state=None)])
         self.api.rows[100] = row
         return value, row
 
@@ -845,6 +846,68 @@ class RenamedOwnerHistoryTests(unittest.TestCase):
         self.assertEqual((saved["state"], saved["state_reason"]), ("closed", "completed"))
         self.assertEqual(intake.parse(saved, POLICY)["completion_decisions"], original_decisions)
         self.assertEqual(guard.plan(saved, POLICY, [])["patch"], {})
+
+    def test_old_login_needs_exact_saved_context_and_cannot_create_or_migrate(self):
+        value, row = self.historical()
+        self.assertTrue(intake.validate(value, POLICY))
+        self.assertEqual(intake.validate(value, POLICY, preserved_decisions=value["completion_decisions"]), [])
+        self.assertEqual(intake.inspect_issue(row, POLICY)["errors"], [])
+        report = intake.overview(self.api.client, POLICY)["milestones"][0]
+        self.assertTrue(report["candidate_results"][0]["owner_approved_completion"])
+        self.assertEqual(report["candidate_results"][0]["result"], "no-candidate")
+        with self.assertRaises(intake.IntakeError): intake.create(self.api.client, value, POLICY)
+        with self.assertRaises(intake.IntakeError):
+            intake.migrate(self.api.client, 100, value, POLICY, intake.snapshot(row), True)
+        self.assertEqual(self.api.writes, [])
+
+    def test_changed_old_decision_is_not_preserved_context(self):
+        value, row = self.historical()
+        old = copy.deepcopy(value["completion_decisions"])
+        for key, replacement in (("approved_at", "2026-09-08T12:00:00Z"),
+                                 ("limitations", "Different limitation"),
+                                 ("evidence", ["Different evidence"]),
+                                 ("criterion_sha256", "a" * 64)):
+            with self.subTest(key=key):
+                changed = copy.deepcopy(value); changed["completion_decisions"][0][key] = replacement
+                self.assertTrue(intake.validate(changed, POLICY, preserved_decisions=old))
+                with self.assertRaises(intake.IntakeError):
+                    intake.update(self.api.client, 100, changed, POLICY, intake.snapshot(row),
+                                  close_reason="completed", owner_approved=True)
+        self.assertEqual(self.api.writes, [])
+
+    def test_cli_preserves_saved_history_without_a_local_policy_override(self):
+        value, row = self.historical()
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "draft.json"; path.write_text(json.dumps(value))
+            argv = ["overte-issue", "update", "100", str(path), "--snapshot", intake.snapshot(row), "--apply"]
+            with mock.patch.object(sys, "argv", argv), \
+                 mock.patch.object(intake, "Client", return_value=self.api.client), \
+                 mock.patch.object(intake, "load_policy", return_value=POLICY) as load, \
+                 mock.patch.dict(os.environ, {"XDG_CACHE_HOME": directory}), \
+                 contextlib.redirect_stdout(io.StringIO()) as output:
+                self.assertEqual(intake.main(), 0)
+                load.assert_called_once_with(self.api.client, None)
+            self.assertTrue(json.loads(output.getvalue())["verified"])
+        self.assertEqual(intake.parse(self.api.rows[100], POLICY)["completion_decisions"], value["completion_decisions"])
+        self.assertEqual(len(self.api.writes), 1)
+
+    def test_cli_rejects_new_old_login_and_changed_history_with_owner_approval(self):
+        for changed_history in (False, True):
+            with self.subTest(changed_history=changed_history), tempfile.TemporaryDirectory() as directory:
+                self.setUp(); value, row = self.historical()
+                if changed_history:
+                    value["completion_decisions"][0]["approved_by"] = "noah-l-frank"
+                else:
+                    value["completion_decisions"].append({**value["completion_decisions"][0], "id": "new-old-name"})
+                path = Path(directory) / "draft.json"; path.write_text(json.dumps(value))
+                argv = ["overte-issue", "update", "100", str(path), "--snapshot", intake.snapshot(row),
+                        "--close", "completed", "--owner-approved", "--apply"]
+                with mock.patch.object(sys, "argv", argv), \
+                     mock.patch.object(intake, "Client", return_value=self.api.client), \
+                     mock.patch.object(intake, "load_policy", return_value=POLICY), \
+                     mock.patch.dict(os.environ, {"XDG_CACHE_HOME": directory}):
+                    with self.assertRaises(intake.IntakeError): intake.main()
+                self.assertEqual(self.api.writes, [])
 
     def test_old_login_cannot_authorize_a_newly_appended_decision(self):
         for existing in (False, True):

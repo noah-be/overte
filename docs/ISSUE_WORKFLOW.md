@@ -296,8 +296,17 @@ reviewed control-plane rollout.
 Existing original-description archives, test records, completion decisions and
 linked historical evidence retain their recorded names and hashes. The policy's
 `owner_completion.historical_approvers` permits reading saved decisions attributed
-to the same account's former login `noah-be`; it does not authorize a newly
-appended decision with that login. New decisions must name `noah-l-frank` and still
-require explicit owner approval, unchanged criteria and append-only history.
+to the same account's former login `noah-be`, only with an explicit, position-matched
+unchanged prefix from the issue readback. Draft-only validation does not accept
+that login, and it cannot authorize a newly appended decision. New decisions must
+name `noah-l-frank` and still require explicit owner approval, unchanged criteria
+and append-only history.
 As before, recorded approval is not a cryptographic identity attestation, and a
 historical disposition is not a fresh candidate or device acceptance result.
+
+The API and event guard can observe the records currently saved in an issue;
+they cannot prove when those bytes were first inserted, or whether a direct API
+writer fabricated an approval. They preserve that observed history without
+claiming pre-rename provenance. The helper's update path rechecks the saved
+snapshot and append-only prefix, and requires the current login for each new
+decision. No historical record is rewritten to manufacture a new owner identity.

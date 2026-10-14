@@ -159,7 +159,7 @@ def field_headings(draft, policy):
     return {k: mapping[k] for k in list(dict.fromkeys(order + list(mapping)))}
 
 
-def validate(draft, policy, state="inbox", completion=False, not_planned=False):
+def validate(draft, policy, state="inbox", completion=False, not_planned=False, preserved_decisions=()):
     errors = []
     if not isinstance(draft, dict):
         return ["Draft must be a JSON object"]
@@ -189,7 +189,7 @@ def validate(draft, policy, state="inbox", completion=False, not_planned=False):
     except (ValueError, TypeError, KeyError) as exc:
         errors.append("test_runs: " + str(exc))
     try:
-        acceptance.check_decisions(draft, policy)
+        acceptance.check_decisions(draft, policy, preserved_decisions)
     except (ValueError, TypeError, KeyError) as exc:
         errors.append("completion_decisions: " + str(exc))
     extras = draft.get("extra_labels", [])
@@ -251,8 +251,8 @@ def validate(draft, policy, state="inbox", completion=False, not_planned=False):
     return errors
 
 
-def require_valid(draft, policy, state="inbox", completion=False, not_planned=False):
-    errors = validate(draft, policy, state, completion, not_planned)
+def require_valid(draft, policy, state="inbox", completion=False, not_planned=False, preserved_decisions=()):
+    errors = validate(draft, policy, state, completion, not_planned, preserved_decisions)
     if errors:
         raise IntakeError("Draft rejected before writing:\n- " + "\n- ".join(errors))
 
@@ -447,10 +447,11 @@ def update(client, number, draft, policy, expected_snapshot, state=None, close_r
         raise IntakeError("New completion decisions must name the current policy's project owner")
     if decisions != old_decisions and not owner_approved:
         raise IntakeError("Recording an owner decision requires explicit --owner-approved authorization")
-    if owner_approved and (close_reason != "completed" or not acceptance.owner_completed(draft, policy)):
+    if owner_approved and (close_reason != "completed" or not acceptance.owner_completed(draft, policy, old_decisions)):
         raise IntakeError("--owner-approved requires completed closure and a decision for the unchanged criterion")
     effective_reason = original.get("state_reason") if preserve_closed else close_reason
-    require_valid(draft, policy, state, completion=effective_reason == "completed", not_planned=effective_reason == "not_planned")
+    require_valid(draft, policy, state, completion=effective_reason == "completed", not_planned=effective_reason == "not_planned",
+                  preserved_decisions=old_decisions)
     old_marker = MARKER.search(original.get("body") or "")
     if old_marker and old_marker[1] != draft["request_id"]:
         raise IntakeError("Preserve the existing request_id")
@@ -484,7 +485,8 @@ def inspect_issue(issue, policy):
             raise IntakeError("Preserved original description is missing")
         workflows = [x.removeprefix("workflow: ") for x in labels(issue) if x.startswith("workflow:")]
         state = workflows[0] if len(workflows) == 1 else "inbox"
-        errors = validate(draft, policy, state, issue["state"] == "closed" and issue.get("state_reason") == "completed", issue["state"] == "closed" and issue.get("state_reason") == "not_planned")
+        errors = validate(draft, policy, state, issue["state"] == "closed" and issue.get("state_reason") == "completed", issue["state"] == "closed" and issue.get("state_reason") == "not_planned",
+                          preserved_decisions=draft.get("completion_decisions", []))
         if issue["state"] == "open" and len(workflows) != 1:
             errors.append("Open issues require exactly one workflow label")
         if issue["state"] == "closed" and workflows:
@@ -614,12 +616,12 @@ def overview(client, policy):
         for criterion in criteria:
             try:
                 draft = parse(criterion, policy)
-                require_valid(draft, policy)
+                require_valid(draft, policy, preserved_decisions=draft.get("completion_decisions", []))
                 result = acceptance.status(draft, candidate)
             except (IntakeError, ValueError, TypeError, KeyError):
                 result = "needs-correction"
             results.append({**brief(criterion), "result": result,
-                            "owner_approved_completion": acceptance.owner_completed(draft, policy) if result != "needs-correction" else False})
+                            "owner_approved_completion": acceptance.owner_completed(draft, policy, draft.get("completion_decisions", [])) if result != "needs-correction" else False})
         milestones.append({"number": milestone["number"], "title": milestone["title"], "criteria": len(criteria),
                            "recorded_completed_criteria": completed, "other_issues": len(members) - len(criteria),
                            "candidate": candidate, "candidate_passed_criteria": sum(x["result"] == "passed" for x in results),
@@ -690,7 +692,14 @@ def main():
             result = migrate(client, args.number, draft, policy, args.snapshot, args.apply)
     else:
         draft = json.loads(Path(args.file).read_text())
-        require_valid(draft, policy, getattr(args, "state", None) or "inbox", getattr(args, "close", None) == "completed", getattr(args, "close", None) == "not_planned")
+        preserved_decisions = []
+        if args.command == "update":
+            original = client.issue(args.number)
+            if snapshot(original) != args.snapshot:
+                raise IntakeError("Issue changed since show; read it again and preserve concurrent edits")
+            preserved_decisions = parse(original, policy).get("completion_decisions", [])
+        require_valid(draft, policy, getattr(args, "state", None) or "inbox", getattr(args, "close", None) == "completed", getattr(args, "close", None) == "not_planned",
+                      preserved_decisions=preserved_decisions)
         if args.command == "validate" and args.render:
             print(render(draft, policy)); return 0
         if args.command == "validate" or not args.apply:

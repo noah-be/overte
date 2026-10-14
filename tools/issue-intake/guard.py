@@ -22,7 +22,8 @@ def plan(issue, policy, open_issues, event_number=None, candidate=None):
         draft = parse(issue, policy)
         if policy.get("history_label") in names and not draft.get("legacy"):
             raise IntakeError("Preserved original description is missing")
-        errors = validate(draft, policy, state, completion, issue["state"] == "closed" and issue.get("state_reason") == "not_planned")
+        errors = validate(draft, policy, state, completion, issue["state"] == "closed" and issue.get("state_reason") == "not_planned",
+                          preserved_decisions=draft.get("completion_decisions", []))
     except (IntakeError, ValueError, TypeError, KeyError) as exc:
         draft = None
         errors = [str(exc)]
