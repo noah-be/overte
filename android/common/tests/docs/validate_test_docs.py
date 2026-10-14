@@ -8,6 +8,44 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
+PROFILE_START = "<!-- android-test-profile:start -->"
+PROFILE_END = "<!-- android-test-profile:end -->"
+
+def expected_profile(facts: dict[str, object], scope: str) -> dict[str, object]:
+    return {"scope": scope, "qmlFunctions": facts["qml_tests"],
+            "qmlRows": facts["qml_rows"], "robolectricBehaviors": facts["robo_methods"],
+            "robolectricExecutions": facts["robo_executions"],
+            "junitCases": facts["harness_executions"],
+            "sdkMatrices": {key: list(value) for key, value in facts["robo_matrices"].items()},
+            "robolectricClasses": facts["robo_classes"]}
+
+def validate_profile(parent: str, phone: str, facts: dict[str, object]) -> list[str]:
+    # A product declaration is authoritative when present. Never let an old
+    # parent paragraph or coincidentally matching numbers mask a stale override.
+    own = PROFILE_START in phone or PROFILE_END in phone
+    text, scope = (phone, "android-phone") if own else (parent, "android-parent")
+    if (text.count(PROFILE_START) != 1 or text.count(PROFILE_END) != 1
+            or text.find(PROFILE_START) >= text.find(PROFILE_END)):
+        return ["missing or duplicate authoritative Android test profile"]
+    fragment = text.split(PROFILE_START, 1)[1].split(PROFILE_END, 1)[0].strip()
+    match = re.fullmatch(r"```json\s*\n(.*?)\n```", fragment, re.DOTALL)
+    if not match:
+        return ["malformed authoritative Android test profile"]
+    def unique(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("duplicate profile key")
+            result[key] = value
+        return result
+    try:
+        actual = json.loads(match.group(1), object_pairs_hook=unique)
+    except (ValueError, TypeError):
+        return ["invalid authoritative Android test profile JSON"]
+    expected = expected_profile(facts, scope)
+    if json.dumps(actual, sort_keys=True) != json.dumps(expected, sort_keys=True):
+        return ["authoritative Android test profile differs from actual checkout classes, SDK matrix or counts"]
+    return []
 
 def resolve_test_includes(root: Path, patterns: list[str]) -> list[Path]:
     """Expand actual Gradle include patterns without hiding missing or duplicate classes."""
@@ -35,6 +73,7 @@ def source_facts(root: Path = ROOT) -> dict[str, object]:
     included = re.findall(r"include '([^']+RobolectricTest\.java)'", build)
     robo_methods = robo_executions = 0
     robo_matrices = {}
+    robo_classes = {}
     matrix_labels = {
         "org/overte/phone/": "Phone",
         "io/highfidelity/hifiinterface/": "legacy Interface",
@@ -57,6 +96,7 @@ def source_facts(root: Path = ROOT) -> dict[str, object]:
             raise ValueError(f"inconsistent Robolectric SDK matrix for {labels[0]}")
         robo_methods += methods
         robo_executions += methods * len(sdks)
+        robo_classes[relative] = {"behaviors": methods, "sdks": list(sdks)}
     all_test_includes = re.findall(r"include '([^']+Test\.java)'", build)
     harness_executions = robo_executions
     for candidate in resolve_test_includes(root, sorted(set(all_test_includes) - set(included))):
@@ -81,29 +121,22 @@ def source_facts(root: Path = ROOT) -> dict[str, object]:
     return {"tiers": tiers, "qml_tests": qml_tests, "qml_rows": qml_tests + 2*qml_cases,
             "robo_methods": robo_methods, "robo_executions": robo_executions,
             "robo_matrices": robo_matrices,
+            "robo_classes": robo_classes,
             "harness_executions": harness_executions,
             "mutation_quick": len(calls)-extended, "mutation_extended": len(calls),
             "js_thresholds": js_thresholds}
 
-def validate(testing: str, coverage: str, facts: dict[str, object]) -> list[str]:
-    errors = []
+def validate(testing: str, coverage: str, facts: dict[str, object], phone: str = "") -> list[str]:
+    errors = validate_profile(testing, phone, facts)
     for tier in sorted(facts["tiers"]):
         command = f"common/tests/run-tests.sh {tier}"
         if command not in testing:
             errors.append(f"ANDROID_TESTING.md lacks catalog tier command: {command}")
-    claims = [(coverage, rf"{facts['qml_tests']} explicit `test_\*` functions.*?{facts['qml_rows']} QtTest result rows", "QML count"),
-              (testing+"\n"+coverage, rf"{facts['robo_methods']} Robolectric\s+source behaviors.*?\({facts['robo_executions']} executions\)", "Robolectric count"),
-              (testing+"\n"+coverage, rf"{facts['harness_executions']} granular JUnit cases", "Robolectric harness JUnit count"),
-              (coverage, rf"kills {facts['mutation_quick']}/{facts['mutation_quick']} curated mutants", "quick mutation count"),
+    claims = [(coverage, rf"kills {facts['mutation_quick']}/{facts['mutation_quick']} curated mutants", "quick mutation count"),
               (coverage, rf"kills\s+{facts['mutation_extended']}/{facts['mutation_extended']}", "extended mutation count")]
     for text, pattern, label in claims:
         if not re.search(pattern, text, re.DOTALL):
             errors.append(f"stale or missing {label} documentation")
-    combined_docs = testing + "\n" + coverage
-    for application, sdks in facts.get("robo_matrices", {}).items():
-        matrix = "/".join(str(sdk) for sdk in sdks)
-        if f"{application} (API {matrix})" not in combined_docs:
-            errors.append(f"stale or missing Robolectric SDK matrix for {application}")
     names = {"places-main":"places.js", "portal":"portal.js", "action-bar":"mobileActionBar.js",
              "phone-emote":"phoneEmote.js"}
     for key, filename in names.items():
@@ -123,7 +156,8 @@ def validate(testing: str, coverage: str, facts: dict[str, object]) -> list[str]
 def main() -> int:
     testing = (ROOT / "common/docs/ANDROID_TESTING.md").read_text()
     coverage = (ROOT / "common/docs/ANDROID_TEST_COVERAGE.md").read_text()
-    errors = validate(testing, coverage, source_facts())
+    phone = ROOT / "phone/docs/BUILD.md"
+    errors = validate(testing, coverage, source_facts(), phone.read_text() if phone.exists() else "")
     if errors:
         print("Test documentation contract failed:\n" + "\n".join(f"- {e}" for e in errors), file=sys.stderr)
         return 1
