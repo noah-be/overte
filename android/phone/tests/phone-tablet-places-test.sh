@@ -47,9 +47,9 @@ if grep -Eq 'PICO_PLACES_TELEPORT|print\([^)]*(messageObj[.]address|messageObj[.
     exit 1
 fi
 printf 'PASS: Places does not log user destinations or place names\n'
-require "$places" 'httpRequest[.]status[[:space:]]*<[[:space:]]*200' \
+require "$places" 'completeRequest\(request[.]status >= 200 && request[.]status < 300\)' \
     'Places rejects unsuccessful HTTP responses'
-require "$places" 'finally[[:space:]]*\{' \
+require "$places" 'httpRequest[[:space:]]*=[[:space:]]*null;' \
     'Places releases request state after success or failure'
 require "$places" 'function abortActiveRequest\(\)' \
     'Places centralizes pending-request cancellation'
