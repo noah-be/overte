@@ -19,16 +19,16 @@
     {
       "rule": "gitleaks-generic-api-key",
       "path": "android/phone/fdroid/manifests/recipe-source.lock.json",
-      "sha256": "46044f9b676266b7a71ff6b8ee62159292cf86ce498047b2a7ce8dc847578759",
-      "reason": "Reviewed 2026-10-09: this source-closure digest map changes only the SHA-256 bindings for Phone Gradle and CMake files. Both new 64-digit hexadecimal values match the actual source files. All other fields, paths and Discord-related digests are unchanged; the Discord bindings still match their source files. No credential, URL or authentication material was added. The reported matches are source-file digests, not API keys or Discord tokens. This review is bound to the complete manifest digest; any further file change requires renewed review.",
+      "sha256": "d9be7d0b3e7c1ef238a565da1a5f76687e22703690ed6e48cce0f9544854a691",
+      "reason": "Semantically re-reviewed 2026-10-14 against the protected Phone ledger: the sole changed JSON field is bound_files, with exactly four consumer bindings for Phone CMake, Phone Gradle, Gradle acquisition, and its dependency lock. All 45 values are 64-hex SHA-256 digests matching the actual regular source files. All producer, source, recipe and historical qualification fields remain unchanged. No credential, URL or authentication material was added. The inherited detector findings refer to source-file digests, not API keys or Discord tokens. This semantic review does not claim a new Gitleaks execution or new producer qualification. The complete manifest digest binds this review; any further byte change requires renewed review.",
       "owner": "Android quality gate qualification review",
       "expires": "2026-12-18"
     },
     {
       "rule": "gitleaks-discord-api-token",
       "path": "android/phone/fdroid/manifests/recipe-source.lock.json",
-      "sha256": "46044f9b676266b7a71ff6b8ee62159292cf86ce498047b2a7ce8dc847578759",
-      "reason": "Reviewed 2026-10-09: this source-closure digest map changes only the SHA-256 bindings for Phone Gradle and CMake files. Both new 64-digit hexadecimal values match the actual source files. All other fields, paths and Discord-related digests are unchanged; the Discord bindings still match their source files. No credential, URL or authentication material was added. The reported matches are source-file digests, not API keys or Discord tokens. This review is bound to the complete manifest digest; any further file change requires renewed review.",
+      "sha256": "d9be7d0b3e7c1ef238a565da1a5f76687e22703690ed6e48cce0f9544854a691",
+      "reason": "Semantically re-reviewed 2026-10-14 against the protected Phone ledger: the sole changed JSON field is bound_files, with exactly four consumer bindings for Phone CMake, Phone Gradle, Gradle acquisition, and its dependency lock. All 45 values are 64-hex SHA-256 digests matching the actual regular source files. All producer, source, recipe and historical qualification fields remain unchanged. No credential, URL or authentication material was added. The inherited detector findings refer to source-file digests, not API keys or Discord tokens. This semantic review does not claim a new Gitleaks execution or new producer qualification. The complete manifest digest binds this review; any further byte change requires renewed review.",
       "owner": "Android quality gate qualification review",
       "expires": "2026-12-18"
     },
