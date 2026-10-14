@@ -12,7 +12,7 @@ CPP = ROOT / 'android/vr/pico/apps/picoInterface/src/PicoWebViewItem.cpp'
 
 class NativeWebCreationTest(unittest.TestCase):
     def test_actual_qml_property_reaches_native_url_setter(self):
-        qml = (ROOT / 'interface/resources/qml/+android_picoInterface/Web3DSurface.qml').read_text()
+        qml = (ROOT / 'interface/resources/qml/+android_picoInterface/PicoLegacyWebSurface.qml').read_text()
         self.assertIn('import Overte.Pico 1.0', qml)
         item = qml.split('PicoWebView {', 1)[1].split('}', 1)[0]
         self.assertIn('url: root.url', item)
@@ -26,7 +26,7 @@ class NativeWebCreationTest(unittest.TestCase):
         def between(start, end):
             return source[source.index(start):source.index(end, source.index(start))]
         methods = between('void PicoWebViewItem::setUrl(', 'void PicoWebViewItem::setUserAgent(')
-        methods += between('void PicoWebViewItem::createWebView()', 'QImage PicoWebViewItem::frameImage()')
+        methods += between('void PicoWebViewItem::createWebView()', 'void PicoWebViewItem::syncVisibility()')
         fields = CPP.with_suffix('.h').read_text().split('    QString _url;', 1)[1].split('    bool _pointerPressed', 1)[0]
         driver = r'''
 #include <QCoreApplication>
@@ -34,6 +34,10 @@ class NativeWebCreationTest(unittest.TestCase):
 #include <QTimer>
 #include <QString>
 #include <QList>
+#include <QMutex>
+#include <QMutexLocker>
+#include <QImage>
+#include <limits>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -64,6 +68,14 @@ class PicoWebViewItem : public QObject {
 public:
     QString _url;
 ''' + fields + r'''
+    // Render/editor effects are boundaries here; whole native Qt/QML test
+    // exercises the real signals, epoch and editor state implementation.
+    QMutex _imageMutex;
+    QImage _image;
+    qint64 _nativeEpoch = 0;
+    bool _nativeRendering = false;
+    void clearEditorState() {}
+    void renderingChanged() {}
     bool complete = true;
     int changed = 0;
     PicoWebViewItem() { _nativeHandle = 7; }
@@ -72,6 +84,7 @@ public:
     int pixelHeight() const { return 480; }
     void urlChanged() { ++changed; }
     void setUseBackground(bool value) { _useBackground = value; }
+    void syncVisibility() {} // Effective Quick visibility is exercised by the whole-item Qt/JNI test.
     void setUrl(const QString&);
     void createWebView();
     void scheduleCreationRetry();
@@ -151,7 +164,7 @@ int main(int argc, char** argv) {
 }
 '''
         flags = shlex.split(subprocess.check_output(
-            ['pkg-config', '--cflags', '--libs', 'Qt6Core'], text=True))
+            ['pkg-config', '--cflags', '--libs', 'Qt6Core', 'Qt6Gui'], text=True))
         with tempfile.TemporaryDirectory(prefix='pico-web-creation-') as scratch:
             scratch = Path(scratch)
             cpp = scratch / 'original.cpp'

@@ -1,5 +1,7 @@
-import QtQuick 2.5
-import Overte.Pico 1.0
+// Copyright 2026 Overte contributors.
+// SPDX-License-Identifier: Apache-2.0
+import QtQuick 2.7
+import controlsUit 1.0 as Controls
 
 Item {
     id: root
@@ -8,112 +10,80 @@ Item {
     property string scriptUrl: ""
     property bool useBackground: true
     property string userAgent: ""
-
-    onUrlChanged: load(root.url, root.scriptUrl, root.useBackground, root.userAgent)
-    onScriptUrlChanged: {
-        if (loader.item && root.webViewLoaded) {
-            loader.item.scriptUrl = root.scriptUrl;
-        } else if (!loader.item) {
-            load(root.url, root.scriptUrl, root.useBackground, root.userAgent);
-        }
-    }
-    onUseBackgroundChanged: {
-        if (loader.item && root.webViewLoaded) {
-            loader.item.useBackground = root.useBackground;
-        } else if (!loader.item) {
-            load(root.url, root.scriptUrl, root.useBackground, root.userAgent);
-        }
-    }
-    onUserAgentChanged: {
-        if (loader.item && root.webViewLoaded) {
-            loader.item.userAgent = root.userAgent;
-        } else if (!loader.item) {
-            load(root.url, root.scriptUrl, root.useBackground, root.userAgent);
-        }
-    }
-
-    property var item: null
-    property bool webViewLoaded: false
+    readonly property var item: loader.item
+    readonly property bool webViewLoaded: !/\.qml(?:[?#].*)?$/.test(url)
+    property bool keyboardEnabled: true
+    property bool keyboardRaised: false
+    property bool punctuationMode: false
+    property bool passwordField: false
+    property bool _ready: false
+    property string _source: ""
+    signal sendToScript(var message)
 
     function fromScript(message) {
-        if (loader.item && loader.item.fromScript) {
-            loader.item.fromScript(message);
-        }
+        if (loader.item && loader.item.fromScript) { loader.item.fromScript(message); }
     }
-
-    Loader { id: loader; anchors.fill: parent }
-
-    function load(url, scriptUrl, useBackground, userAgent) {
-        if (loader.item && root.webViewLoaded) {
+    function _set(name, value) {
+        if (loader.item && loader.item[name] !== value) { loader.item[name] = value; }
+    }
+    function _load() {
+        if (!_ready) { return; }
+        keyboardRaised = false;
+        punctuationMode = false;
+        passwordField = false;
+        // Keep Pico's working inline-HTML renderer. The common source grant
+        // intentionally excludes data documents from privileged WebChannel use.
+        // A direct physical load and Qt's logical selector entry have different
+        // bases. Resolve the sibling shared component from either entry.
+        var base = Qt.resolvedUrl(".").toString();
+        var commonBase = base.replace(/\+android_picoInterface\/$/, "");
+        var source = /^data:text\/html(?:[;,]|$)/i.test(url)
+            ? base + "PicoLegacyWebSurface.qml"
+            : commonBase + "+android_interface/Web3DSurface.qml";
+        if (_source === source) {
+            _set("url", url);
+            return;
+        }
+        if (loader.item) {
+            // Blank the legacy page before releasing its native handle/audio.
             loader.item.url = "about:blank";
         }
-        if (url.match(/\.qml$/)) {
-            root.webViewLoaded = false;
-            loader.sourceComponent = undefined;
-            loader.setSource(url);
-        } else {
-            root.webViewLoaded = true;
-            loader.setSource("");
-            loader.sourceComponent = picoWebSurface;
+        _source = source;
+        loader.setSource(source, { url: url, scriptUrl: scriptUrl,
+                                  useBackground: useBackground, userAgent: userAgent });
+    }
+    onUrlChanged: _load()
+    onScriptUrlChanged: _set("scriptUrl", scriptUrl)
+    onUseBackgroundChanged: _set("useBackground", useBackground)
+    onUserAgentChanged: _set("userAgent", userAgent)
+    onKeyboardRaisedChanged: {
+        if (!keyboardRaised && loader.item && loader.item.item && loader.item.item.unfocus) {
+            loader.item.item.unfocus();
         }
     }
-
-    Component {
-        id: picoWebSurface
-        Item {
-            Canvas {
-                id: webCanvas
-                anchors.fill: parent
-                enabled: false
-                property string frameSource: ""
-                property string previousSource: ""
-                onImageLoaded: requestPaint()
-                onPaint: {
-                    if (frameSource !== "") {
-                        var context = getContext("2d");
-                        context.clearRect(0, 0, width, height);
-                        context.drawImage(frameSource, 0, 0, width, height);
-                    }
-                }
-                onPainted: {
-                    if (previousSource !== "" && previousSource !== frameSource) {
-                        unloadImage(previousSource);
-                    }
-                    previousSource = frameSource;
-                    refreshTimer.restart();
-                }
-            }
-            Timer {
-                id: refreshTimer
-                interval: 100
-                repeat: false
-                running: true
-                onTriggered: {
-                    var nextSource = webView.frameSource;
-                    if (nextSource === "") {
-                        restart();
-                    } else {
-                        webCanvas.frameSource = nextSource;
-                        webCanvas.loadImage(nextSource);
-                    }
-                }
-            }
-            PicoWebView {
-                id: webView
-                anchors.fill: parent
-                url: root.url
-                scriptUrl: root.scriptUrl
-                useBackground: root.useBackground
-                userAgent: root.userAgent
-            }
-            property alias url: webView.url
-            property alias scriptUrl: webView.scriptUrl
-            property alias useBackground: webView.useBackground
-            property alias userAgent: webView.userAgent
-            function destroy() { }
+    Component.onCompleted: { _ready = true; _load(); }
+    Component.onDestruction: keyboardRaised = false
+    Loader {
+        id: loader
+        width: parent.width
+        height: keyboardEnabled && keyboardRaised ? Math.max(0, parent.height - keyboard.height) : parent.height
+    }
+    Connections {
+        target: loader.item
+        ignoreUnknownSignals: true
+        function onSendToScript(message) { root.sendToScript(message); }
+        function onEditorStateChanged() {
+            var editor = loader.item && loader.item.item;
+            root.punctuationMode = editor ? editor.editorNumeric : false;
+            root.passwordField = editor ? editor.editorPassword : false;
+            root.keyboardRaised = root.keyboardEnabled && editor && editor.editorFocused;
         }
     }
-
-    Component.onCompleted: load(root.url, root.scriptUrl, root.useBackground, root.userAgent)
-    signal sendToScript(var message)
+    Controls.Keyboard {
+        id: keyboard
+        raised: root.keyboardEnabled && root.keyboardRaised
+        numeric: root.punctuationMode
+        password: root.passwordField
+        anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+    }
 }

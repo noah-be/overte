@@ -3,6 +3,11 @@ import java.util.ArrayList;
 import java.util.List;
 /** Test-only deterministic main-loop scheduling; no thread or Android runtime. */
 public final class Handler {
+    private static final List<Runnable> posted = new ArrayList<>();
+    public boolean post(Runnable action) { posted.add(action); return true; }
+    public static void drainPosted() {
+        while (!posted.isEmpty()) posted.remove(0).run();
+    }
     private static final List<Runnable> pending = new ArrayList<>();
     public Handler(Looper ignored) {}
     public boolean postDelayed(Runnable action, long delay) {

@@ -14,6 +14,8 @@
 
     <application
         android:name="org.qtproject.qt5.android.bindings.QtApplication"
+        android:usesCleartextTraffic="true"
+        android:networkSecurityConfig="@xml/overte_embedded_web_network_security_config"
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -23,6 +25,18 @@
         android:theme="@style/OverteStartupTheme">
 
         <meta-data android:name="pvr.app.type" android:value="vr" />
+        <!-- Android transport scope is application-wide, not per WebView. -->
+        <meta-data android:name="org.overte.web.NETWORK_CAPABILITY"
+            android:value="overte.android.embedded-web.http-https.v1" />
+
+        <provider android:name="org.overte.snapshot.SnapshotFileProvider"
+            android:authorities="${applicationId}.snapshot.files"
+            android:exported="false" android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/overte_snapshot_paths" />
+        </provider>
+        <receiver android:name="org.overte.snapshot.SnapshotShareReceiver"
+            android:exported="false" />
 
         <activity
             android:name=".PermissionsActivity"

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Original queued WebView input entry methods, test-only Android/render boundaries."""
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -28,10 +29,11 @@ class WebInputQueueTest(unittest.TestCase):
                 if (!active) cancelAllInput();
             }'''
         methods = between('    public static void pointer(', '    private static void releaseTextFocus(')
-        methods += between('    public static void focus(', '    private static final class Instance')
+        methods += between('    private static void requestTextFocus(', '    private static final class Instance')
         driver = '''package org.overte.pico;
 import java.util.*;
 import java.lang.reflect.Field;
+import android.view.MotionEvent;
 import java.lang.ref.WeakReference;
 import java.util.concurrent.ConcurrentHashMap;
 public class WebInputQueueDriver {
@@ -76,7 +78,10 @@ public class WebInputQueueDriver {
         void evaluateJavascript(String script, Callback callback) { ++scrolls; callback.complete(""); }
     }
     static class Instance {
-        boolean active = true;
+        boolean active = true, visible = true, rendering = true;
+        long epoch = 1, visibilityRevision = 1;
+        boolean mayRender() { return active && visible && rendering; }
+        void publishEditorState() {} // Actual metadata/Qt tests cover this Android provider boundary.
         float pendingScroll;
         final View view;
         Instance(PicoInterfaceActivity owner) { view = new View(owner); }
@@ -133,7 +138,7 @@ public class WebInputQueueDriver {
         with tempfile.TemporaryDirectory(prefix='pico-web-input-queue-') as scratch:
             path = Path(scratch) / 'WebInputQueueDriver.java'
             path.write_text(driver)
-            subprocess.run(['javac', '-d', scratch, str(path), str(JAVA / 'PicoWebInputGate.java')], check=True, timeout=20)
+            subprocess.run(['javac', '-cp', str(Path(os.environ.get('ANDROID_SDK_ROOT', str(Path.home() / 'Android/Sdk'))) / 'platforms/android-26/android.jar'), '-d', scratch, str(path), str(JAVA / 'PicoWebInputGate.java')], check=True, timeout=20)
             result = subprocess.run(['java', '-cp', scratch, 'org.overte.pico.WebInputQueueDriver'],
                                     capture_output=True, text=True, timeout=5)
             self.assertEqual(result.returncode, 0, result.stderr)

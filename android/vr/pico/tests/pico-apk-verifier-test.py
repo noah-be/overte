@@ -2,6 +2,10 @@
 """Host tests for the Pico APK verifier using synthetic APK archives."""
 
 import json
+import importlib.util
+import os
+import shutil
+import sys
 from pathlib import Path
 import stat
 import subprocess
@@ -24,10 +28,51 @@ E2E_LAYER_MANIFEST = "assets/openxr/1/api_layers/explicit.d/overte_e2e_input.jso
 E2E_BUILD_MARKER = b"OVERTE_E2E_OPENXR_INPUT_V1"
 
 
+
+def network_test_parent():
+    """Preview is a test-only dependency, never an APK-verifier product option."""
+    if (ROOT / "android/common/web/network_policy.py").is_file():
+        return ROOT
+    selected = os.environ.get("OVERTE_PICO_NETWORK_TEST_PARENT")
+    expected = os.environ.get("OVERTE_PICO_NETWORK_TEST_PARENT_REVISION")
+    if not selected or not expected:
+        raise RuntimeError("normal network parent is pending; explicitly bind the test preview")
+    parent = Path(selected).resolve()
+    actual = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=parent, text=True).strip()
+    if actual != expected or subprocess.check_output(
+            ["git", "status", "--porcelain", "--", "android/common/web"], cwd=parent):
+        raise RuntimeError("network test preview source mismatch")
+    return parent
+
+
+def verifier_module():
+    spec = importlib.util.spec_from_file_location("pico_apk_verifier", VERIFIER)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.WEB_ROOT = network_test_parent() / "android/common/web"
+    return module
+
+
+NETWORK_NAME = "overte_embedded_web_network_security_config"
+NETWORK_FILE = "res/xml/" + NETWORK_NAME + ".xml"
+NETWORK_MANIFEST = """<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="org.overte.pico" android:versionCode="7" android:versionName="0.4.0"><uses-sdk android:minSdkVersion="26" android:targetSdkVersion="35"/>
+    <application android:usesCleartextTraffic="true" android:networkSecurityConfig="@xml/overte_embedded_web_network_security_config">
+    <meta-data android:name="org.overte.web.NETWORK_CAPABILITY" android:value="overte.android.embedded-web.http-https.v1"/>
+    </application></manifest>"""
+
+
 class PicoApkVerifierTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.directory = Path(self.temporary.name)
+        self.parent = network_test_parent()
+        self.network_config = (self.parent / "android/common/web/res/xml" / (NETWORK_NAME + ".xml")).read_text()
+        self.aapt2 = self._tool("aapt2", "printf '  resource 0x7f010000 xml/" + NETWORK_NAME + "\\n    () (file) " + NETWORK_FILE + " type=XML\\n'\n")
+        self.analyzer = self.directory / "apkanalyzer-stub"
+        self.analyzer.write_text("#!/usr/bin/env python3\nimport sys\n" +
+            "print(" + repr(NETWORK_MANIFEST) + " if sys.argv[1] == 'manifest' else " + repr(self.network_config) + ")\n")
+        self.analyzer.chmod(0o755)
         self.aapt = self._tool(
             "aapt",
             "printf \"package: name='${MOCK_PACKAGE:-org.overte.pico}' versionCode='7' versionName='0.4.0'\\n\"\n"
@@ -54,6 +99,7 @@ class PicoApkVerifierTests(unittest.TestCase):
         apk = self.directory / "pico.apk"
         with zipfile.ZipFile(apk, "w") as archive:
             archive.writestr("AndroidManifest.xml", b"synthetic")
+            archive.writestr(NETWORK_FILE, self.network_config)
             for library in REQUIRED_LIBRARIES:
                 if library != omit:
                     contents = b"elf"
@@ -89,8 +135,18 @@ class PicoApkVerifierTests(unittest.TestCase):
         import os
         variables = os.environ.copy()
         variables.update(env or {})
+        # Run the actual CLI implementation; only the unpropagated parent path
+        # is injected in this explicit host test process. Product CLI has no override.
+        driver = ("import importlib.util,sys;from pathlib import Path;"
+                  "s=importlib.util.spec_from_file_location('verifier',sys.argv[1]);"
+                  "m=importlib.util.module_from_spec(s);s.loader.exec_module(m);"
+                  "m.WEB_ROOT=Path(sys.argv[2])/'android/common/web';"
+                  "sys.argv=sys.argv[2:];"
+                  "exec(\"try: m.main()\\nexcept m.VerificationError as e: print('error: '+str(e),file=sys.stderr);sys.exit(2)\")")
         return subprocess.run(
-            [str(VERIFIER), str(apk), "--aapt", str(self.aapt), "--apksigner", str(self.apksigner), *extra_args],
+            [sys.executable, "-c", driver, str(VERIFIER), str(self.parent), str(apk),
+             "--aapt", str(self.aapt), "--apksigner", str(self.apksigner),
+             "--aapt2", str(self.aapt2), "--apkanalyzer", str(self.analyzer), *extra_args],
             text=True, capture_output=True, env=variables, check=False,
         )
 
@@ -227,6 +283,213 @@ class PicoApkVerifierTests(unittest.TestCase):
         result = self._run(apk)
         self.assertEqual(result.returncode, 2)
         self.assertNotIn('private-fixture', result.stderr)
+
+
+
+class PicoBinaryNetworkTests(unittest.TestCase):
+    """Actual SDK binary resource decoding; no app/native build or device effect."""
+
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory(prefix="pico-network-resource-test-")
+        self.directory = Path(self.temporary.name)
+        self.module = verifier_module()
+        sdk = Path(os.environ.get("ANDROID_SDK_ROOT", str(Path.home() / "Android/Sdk")))
+        self.aapt2 = sdk / "build-tools/36.0.0/aapt2"
+        self.aapt = sdk / "build-tools/36.0.0/aapt"
+        self.analyzer = sdk / "cmdline-tools/latest/bin/apkanalyzer"
+        self.android = sdk / "platforms/android-36/android.jar"
+        for path in (self.aapt, self.aapt2, self.analyzer, self.android):
+            self.assertTrue(path.is_file(), "Actual SDK resource/decoder prerequisite missing")
+        self.config = (self.module.WEB_ROOT / "res/xml" / (NETWORK_NAME + ".xml")).read_text()
+
+    def tearDown(self):
+        self.temporary.cleanup()
+
+    def fixture(self, manifest=NETWORK_MANIFEST, configs=None, optimize=False):
+        res = self.directory / "res"
+        for name, text in (configs or {"xml/" + NETWORK_NAME + ".xml": self.config}).items():
+            path = res / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text)
+        source = self.directory / "AndroidManifest.xml"
+        source.write_text(manifest)
+        compiled = self.directory / "compiled.zip"
+        apk = self.directory / "resource-only.apk"
+        subprocess.run([str(self.aapt2), "compile", "--dir", str(res), "-o", str(compiled)],
+                       check=True, capture_output=True, timeout=30)
+        subprocess.run([str(self.aapt2), "link", "-I", str(self.android), "--manifest", str(source),
+                        "-o", str(apk), str(compiled)], check=True, capture_output=True, timeout=30)
+        if optimize:
+            optimized = self.directory / "optimized-resource-only.apk"
+            subprocess.run([str(self.aapt2), "optimize", "--shorten-resource-paths", "-o", str(optimized), str(apk)],
+                           check=True, capture_output=True, timeout=30)
+            apk = optimized
+        return apk
+
+    def verify(self, apk):
+        from types import SimpleNamespace
+        return self.module.verify_network_policy(SimpleNamespace(
+            apk=apk, aapt2=str(self.aapt2), apkanalyzer=str(self.analyzer)))
+
+    def test_actual_binary_policy_and_optimized_paths_bind_all_consumed_bytes(self):
+        result = self.verify(self.fixture(optimize=True))
+        self.assertEqual(result["capability"]["androidCleartextScope"], "application")
+        self.assertFalse(result["physical_http_or_tls_qualified"])
+        configs = set(result["packaged_xml_sha256"]) - {"AndroidManifest.xml"}
+        self.assertEqual(configs, set(result["decoded_xml_sha256"]))
+        self.assertEqual(len(configs), 1)
+        self.assertNotEqual(configs, {NETWORK_FILE})
+        self.assertGreater(len(result["decoder_inputs_sha256"]), 2)
+        self.assertEqual(len(result["source_inputs_sha256"]), 4)
+        for digest in [*result["packaged_xml_sha256"].values(), result["resource_inventory_sha256"]]:
+            self.assertRegex(digest, r"^[0-9a-f]{64}$")
+
+    def test_actual_qualifier_override_cannot_add_user_ca(self):
+        configs = {"xml/" + NETWORK_NAME + ".xml": self.config,
+                   "xml-v28/" + NETWORK_NAME + ".xml": self.config.replace('src="system"', 'src="user"')}
+        with self.assertRaisesRegex(self.module.VerificationError, "network capability"):
+            self.verify(self.fixture(configs=configs))
+
+    def test_actual_duplicate_marker_fails_closed(self):
+        marker = '<meta-data android:name="org.overte.web.NETWORK_CAPABILITY" android:value="overte.android.embedded-web.http-https.v1"/>'
+        with self.assertRaisesRegex(self.module.VerificationError, "network capability"):
+            self.verify(self.fixture(manifest=NETWORK_MANIFEST.replace(marker, marker + marker)))
+
+    def test_actual_wrong_resource_id_fails_closed(self):
+        configs = {"xml/" + NETWORK_NAME + ".xml": self.config, "xml/other.xml": self.config}
+        with self.assertRaisesRegex(self.module.VerificationError, "network capability"):
+            self.verify(self.fixture(manifest=NETWORK_MANIFEST.replace('@xml/' + NETWORK_NAME, '@xml/other'), configs=configs))
+
+    def test_actual_missing_marker_fails_closed(self):
+        manifest = NETWORK_MANIFEST.replace('org.overte.web.NETWORK_CAPABILITY', 'unrelated.marker')
+        with self.assertRaisesRegex(self.module.VerificationError, "network capability"):
+            self.verify(self.fixture(manifest=manifest))
+
+    def test_parent_execution_uses_bound_source_bytes_not_cached_code(self):
+        import py_compile
+        import importlib.util
+        parent = self.directory / "explicit-parent-cache-boundary"
+        for relative in ("network_policy.py", "network-capability.json",
+                         "res/xml/" + NETWORK_NAME + ".xml"):
+            destination = parent / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes((self.module.WEB_ROOT / relative).read_bytes())
+        helper = parent / "network_policy.py"
+        original = helper.read_bytes()
+        # A real timestamp/size-valid pyc from different code must not replace
+        # the source bytes bound by this verifier's receipt.
+        stale = b"raise RuntimeError('unexpected cached policy execution')\n"
+        helper.write_bytes(stale + b" " * (len(original) - len(stale)))
+        stamp = helper.stat()
+        py_compile.compile(str(helper), doraise=True)
+        helper.write_bytes(original)
+        os.utime(helper, ns=(stamp.st_atime_ns, stamp.st_mtime_ns))
+        cached = importlib.util.cache_from_source(str(helper))
+        self.assertTrue(Path(cached).is_file())
+        self.module.WEB_ROOT = parent
+        result = self.verify(self.fixture())
+        import hashlib
+        self.assertEqual(result["source_inputs_sha256"][str(helper)], hashlib.sha256(original).hexdigest())
+        self.assertEqual(result["capability"]["androidCleartextScope"], "application")
+
+
+    def test_actual_artifact_mutation_is_rejected_by_full_verifier(self):
+        import argparse
+        from unittest.mock import patch
+        apk = self.fixture()
+        with zipfile.ZipFile(apk, "a") as archive:
+            for name in REQUIRED_LIBRARIES:
+                archive.writestr("lib/arm64-v8a/" + name, b"explicit host native boundary")
+        signer = self.directory / "apksigner-stub"
+        signer.write_text("#!/bin/sh\nprintf 'Number of signers: 1\\nSigner #1 certificate SHA-256 digest: %064d\\n' 0\n")
+        signer.chmod(0o755)
+        parser = argparse.ArgumentParser()
+        self.module.add_candidate_arguments(parser)
+        args = parser.parse_args([str(apk), "--aapt", str(self.aapt), "--aapt2", str(self.aapt2),
+                                  "--apkanalyzer", str(self.analyzer), "--apksigner", str(signer)])
+        consumed = []
+        real_tool = self.module.run_tool
+        def track_archive(command):
+            consumed.append(Path(command[-1]))
+            return real_tool(command)
+        with patch.object(self.module, "run_tool", side_effect=track_archive):
+            verified = self.module.verify_candidate(args)
+        self.assertEqual(len(set(consumed)), 1)
+        self.assertNotEqual(consumed[0], apk)
+        self.assertFalse(consumed[0].exists(), "Successful snapshot must be removed")
+        self.assertEqual(verified["network_capability"]["archive_sha256"], verified["sha256"])
+        self.assertEqual(verified["network_capability"]["capability"]["androidCleartextScope"], "application")
+        actual = self.module._verify_network_policy
+        def mutate(arguments):
+            result = actual(arguments)
+            with zipfile.ZipFile(apk, "a") as archive:
+                archive.writestr("late-change.txt", b"changed")
+            return result
+        with patch.object(self.module, "_verify_network_policy", side_effect=mutate):
+            with self.assertRaisesRegex(self.module.VerificationError, "candidate bytes changed"):
+                self.module.verify_candidate(args)
+
+    def test_replace_restore_on_original_cannot_substitute_decoder_bytes(self):
+        from unittest.mock import patch
+        import hashlib
+        valid = self.fixture().read_bytes()
+        apk = self.fixture(configs={"xml/" + NETWORK_NAME + ".xml":
+                                   self.config.replace('src="system"', 'src="user"')})
+        invalid = apk.read_bytes()
+        self.assertNotEqual(hashlib.sha256(valid).digest(), hashlib.sha256(invalid).digest())
+        actual = self.module.run_tool
+        attempted = []
+        snapshots = []
+        def replace_restore(command):
+            if "--file" in command:
+                attempted.append(True)
+                snapshots.append(Path(command[-1]))
+                apk.write_bytes(valid)
+                try:
+                    return actual(command)
+                finally:
+                    apk.write_bytes(invalid)
+            return actual(command)
+        with patch.object(self.module, "run_tool", side_effect=replace_restore):
+            with self.assertRaisesRegex(self.module.VerificationError, "network capability"):
+                self.verify(apk)
+        self.assertTrue(attempted, "The actual SDK decoder must execute during replacement")
+        self.assertEqual(apk.read_bytes(), invalid)
+        self.assertTrue(all(path != apk and not path.exists() for path in snapshots))
+
+    def test_actual_sdk_classifies_archive_extension_before_generic_xml(self):
+        import hashlib
+        apk = self.fixture()
+        generic = self.directory / "identical-resource-only.zip"
+        shutil.copy2(apk, generic)
+        self.assertEqual(hashlib.sha256(apk.read_bytes()).digest(), hashlib.sha256(generic.read_bytes()).digest())
+        binary = subprocess.run([str(self.analyzer), "resources", "xml", "--file", NETWORK_FILE, str(apk)],
+                                capture_output=True, text=True, timeout=30)
+        zipped = subprocess.run([str(self.analyzer), "resources", "xml", "--file", NETWORK_FILE, str(generic)],
+                                capture_output=True, text=True, timeout=30)
+        self.assertEqual(binary.returncode, 0, binary.stderr)
+        self.assertIn("network-security-config", binary.stdout)
+        self.assertNotEqual(zipped.returncode, 0)
+        with self.assertRaisesRegex(self.module.VerificationError, "command failed"):
+            self.verify(generic)
+
+    def test_decoder_must_deliver_every_selected_configuration(self):
+        from unittest.mock import patch
+        configs = {"xml/" + NETWORK_NAME + ".xml": self.config,
+                   "xml-v28/" + NETWORK_NAME + ".xml": self.config}
+        apk = self.fixture(configs=configs)
+        real = self.module.run_tool
+        decoded = []
+        def decode(command):
+            if "--file" in command:
+                decoded.append(command[command.index("--file") + 1])
+                if len(decoded) == 2:
+                    self.module.fail("command failed")
+            return real(command)
+        with patch.object(self.module, "run_tool", side_effect=decode):
+            with self.assertRaisesRegex(self.module.VerificationError, "command failed"):
+                self.verify(apk)
+        self.assertEqual(len(decoded), 2)
 
 
 if __name__ == "__main__":

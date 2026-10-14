@@ -40,7 +40,7 @@ def resolve(root, binding_path, expected_binding, expected_source):
     binding_path = Path(binding_path)
     require(not binding_path.is_symlink() and digest_file(binding_path) == expected_binding, 'PICO_BINDING_HASH')
     spec = read_sbom(binding_path)
-    require(spec.get('contract') in ('overte-pico-source-inputs-v1', 'overte-pico-qualified-inputs-v2') and
+    require(spec.get('contract') in ('overte-pico-source-inputs-v1', 'overte-pico-qualified-inputs-v2', 'overte-pico-qualified-inputs-v3') and
             spec.get('sourceRevision') == expected_source, 'PICO_BINDING_SOURCE')
     files = spec.get('files')
     require(type(files) is dict and 0 < len(files) <= 100000, 'PICO_PAYLOAD_INVENTORY')
@@ -85,15 +85,16 @@ def resolve(root, binding_path, expected_binding, expected_source):
         item = spec['phases'][phase]
         actual, expected, checkpoint = [checked(path(item[k])) for k in ('actualGraph', 'expectedGraph', 'checkpoint')]
         require(read_checkpoint(checkpoint)['attempt_root'] == str(root), 'PICO_ATTEMPT_ROOT')
-        if spec['contract'] == 'overte-pico-qualified-inputs-v2':
+        if spec['contract'] in ('overte-pico-qualified-inputs-v2', 'overte-pico-qualified-inputs-v3'):
             module_spec = importlib.util.spec_from_file_location('pico_qualified_reuse',
-                REPO / 'android/vr/pico/release/qualified-reuse.py')
-            module = importlib.util.module_from_spec(module_spec)
-            module_spec.loader.exec_module(module)
+                REPO / ('android/vr/pico/release/qualified-reuse-v3.py' if spec['contract'].endswith('-v3') else
+                        'android/vr/pico/release/qualified-reuse.py'))
+            reuse_module = importlib.util.module_from_spec(module_spec)
+            module_spec.loader.exec_module(reuse_module)
             require(spec.get('attemptRoot') == str(root), 'PICO_ATTEMPT_ROOT')
-            module.verify_producer_files(REPO, spec)
-            phases[phase] = module.verify(spec, lambda value: checked(path(value)), phase,
-                                         expected_source, closure, index)
+            reuse_module.verify_producer_files(REPO, spec)
+            phases[phase] = reuse_module.verify(spec, lambda value: checked(path(value)), phase,
+                                         expected_source, closure, index, *([REPO] if spec['contract'].endswith('-v3') else []))
         else:
             phases[phase] = verify_sources(closure, actual, expected, checkpoint, expected_source, phase,
                 files[expected.relative_to(root).as_posix()], files[closure.relative_to(root).as_posix()],
@@ -152,7 +153,7 @@ def resolve(root, binding_path, expected_binding, expected_source):
     # Qt's cross build installs its actually built x86_64 uic in the target
     # package. V2 can use that graph/receipt-bound executable explicitly;
     # legacy V1 keeps its original host-package contract.
-    uic_package = qt if spec['contract'] == 'overte-pico-qualified-inputs-v2' else host_qt
+    uic_package = qt if spec['contract'] in ('overte-pico-qualified-inputs-v2', 'overte-pico-qualified-inputs-v3') else host_qt
     tools['uic'] = elf(uic_package / 'bin/uic', 62, True)
     for name, relative in SHADER_TOOLS.items():
         _, folder = package('host-tools', name)
@@ -192,6 +193,8 @@ def resolve(root, binding_path, expected_binding, expected_source):
     # Recheck the frozen binding and all supplied bytes after resolution.
     for relative in files: checked(path(relative, source_inventory=True))
     require(digest_file(binding_path) == expected_binding, 'PICO_INPUT_CHANGED')
+    if spec['contract'] == 'overte-pico-qualified-inputs-v3':
+        reuse_module.verify_producer_files(REPO, spec)
     return {'status': 'PICO_INPUT_BYTES_BOUND_NATIVE_VERIFICATION_PENDING',
         'sourceRevision': expected_source, 'bindingSha256': expected_binding,
         'graphRoot': str(root), 'generators': str(generators), 'qtPackage': str(qt),
