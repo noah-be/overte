@@ -24,6 +24,7 @@ class SettingsUpload(unittest.TestCase):
             ['pkg-config', '--cflags', 'Qt6Core', 'Qt6Network'], text=True))
         includes = '\n'.join('#include "' + path + '"' for path in (
             'libraries/networking/src/AccountManager.h',
+            'libraries/networking/src/CredentialTransportPolicy.h',
             'libraries/networking/src/NetworkLogging.h',
             'security/redaction/SafeDiagnostics.h'))
         includes += '\n#include <QtCore/QPointer>\n#include <QtCore/QJsonDocument>\n'
