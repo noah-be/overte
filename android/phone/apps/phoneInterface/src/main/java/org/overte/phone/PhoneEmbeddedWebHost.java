@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import org.overte.web.EmbeddedWebHost;
 import org.overte.web.EmbeddedWebView;
 import org.overte.web.WebFilePickerState;
+import org.qtproject.qt5.android.QtNative;
 
 /** Native tablet content stays inside the real Qt surface; product UI stays outside it. */
 final class PhoneEmbeddedWebHost implements EmbeddedWebHost {
@@ -37,21 +38,25 @@ final class PhoneEmbeddedWebHost implements EmbeddedWebHost {
     private final WebFilePickerState<Uri[]> files = new WebFilePickerState<>();
     PhoneEmbeddedWebHost(PhoneInterfaceActivity activity) { this.activity = activity; }
     void initialize() {
-        if (initialized) return;
+        if (initialized || !ownsActivity()) return;
         activity.prepareNativeWeb();
         EmbeddedWebView.initialize(this); initialized = true;
     }
     void foreground(boolean value) {
         resumed = value;
-        if (initialized) EmbeddedWebView.setForeground(this, isForeground());
-        files.deliver(isForeground());
+        // A late pause must still stop this host's pages before its successor
+        // initializes. The common runtime rejects a host that no longer owns it.
+        if (initialized && (!value || ownsActivity())) EmbeddedWebView.setForeground(this, isForeground());
+        files.deliver(inputAllowed());
     }
     void windowFocus() {
-        if (initialized) EmbeddedWebView.setForeground(this, isForeground());
-        files.deliver(isForeground()); reposition();
+        if (!initialized || !ownsActivity()) return;
+        EmbeddedWebView.setInputFocused(this, inputAllowed());
+        files.deliver(inputAllowed()); reposition();
     }
     void scene(int width, int height) { sceneWidth = width; sceneHeight = height; reposition(); }
     void detach() {
+        resumed = false;
         files.cancel();
         if (initialized) EmbeddedWebView.detach(this);
         initialized = false;
@@ -59,7 +64,9 @@ final class PhoneEmbeddedWebHost implements EmbeddedWebHost {
         overlay = null; cards.clear();
     }
     @Override public Activity activity() { return activity; }
-    @Override public boolean isForeground() { return resumed && activity.hasWindowFocus() && !activity.isFinishing(); }
+    private boolean ownsActivity() { return QtNative.activity() == activity; }
+    private boolean inputAllowed() { return initialized && isForeground() && activity.hasWindowFocus(); }
+    @Override public boolean isForeground() { return resumed && ownsActivity() && !activity.isFinishing() && !activity.isDestroyed(); }
     private View qtSurface(View view) {
         if (view.getClass().getName().equals("org.qtproject.qt5.android.QtSurface")) return view;
         if (view instanceof ViewGroup) {
@@ -70,6 +77,7 @@ final class PhoneEmbeddedWebHost implements EmbeddedWebHost {
     }
     @Override public boolean placeTabletView(WebView view, Rect bounds) { return placeTabletView(view, bounds, bounds); }
     @Override public boolean placeTabletView(WebView view, Rect bounds, Rect sceneClip) {
+        if (!ownsActivity()) return false;
         ViewGroup content = activity.findViewById(android.R.id.content);
         if (content == null) return false;
         if (overlay == null) {
@@ -115,23 +123,25 @@ final class PhoneEmbeddedWebHost implements EmbeddedWebHost {
         return true;
     }
     private void reposition() {
+        if (!ownsActivity()) return;
         for (Card card : new ArrayList<>(cards.values())) position(card);
         if (initialized) EmbeddedWebView.relayout(this);
     }
     @Override public void removeTabletView(WebView view) { Card card = cards.remove(view); if (card != null && overlay != null) overlay.removeView(card.frame); }
     boolean back() {
+        if (!inputAllowed()) return false;
         for (Card card : cards.values()) {
             if (card.frame.getVisibility() == View.VISIBLE && card.web.hasFocus() && card.web.canGoBack()) { card.web.goBack(); return true; }
         }
         return false;
     }
     @Override public boolean openExternal(Uri url) {
-        if (!isForeground() || !("https".equals(url.getScheme()) || "http".equals(url.getScheme())) || url.getUserInfo() != null) return false;
+        if (!inputAllowed() || !("https".equals(url.getScheme()) || "http".equals(url.getScheme())) || url.getUserInfo() != null) return false;
         try { activity.startActivity(Intent.createChooser(new Intent(Intent.ACTION_VIEW, url).addCategory(Intent.CATEGORY_BROWSABLE), "Open in browser")); return true; }
         catch (ActivityNotFoundException | SecurityException unavailable) { return false; }
     }
     @Override public boolean chooseFiles(ValueCallback<Uri[]> result, WebChromeClient.FileChooserParams request) {
-        if (!isForeground() || request.getMode() != WebChromeClient.FileChooserParams.MODE_OPEN && request.getMode() != WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE) return false;
+        if (!inputAllowed() || request.getMode() != WebChromeClient.FileChooserParams.MODE_OPEN && request.getMode() != WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE) return false;
         int requestCode = files.begin(result::onReceiveValue);
         if (requestCode == 0) return false;
         Intent picker = new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*");
@@ -146,17 +156,18 @@ final class PhoneEmbeddedWebHost implements EmbeddedWebHost {
         catch (ActivityNotFoundException | SecurityException unavailable) { files.cancel(); return false; }
     }
     boolean fileResult(int requestCode, int resultCode, Intent data) {
-        if (!files.owns(requestCode)) return false;
+        if (!initialized || !ownsActivity() || !files.owns(requestCode)) return false;
         ArrayList<Uri> values = new ArrayList<>();
         if (resultCode == Activity.RESULT_OK && data != null) {
             ClipData clips = data.getClipData();
             if (clips != null) for (int index = 0; index < Math.min(16, clips.getItemCount()); ++index) addSelected(values, clips.getItemAt(index).getUri());
             else addSelected(values, data.getData());
         }
-        return files.receive(requestCode, values.isEmpty() ? null : values.toArray(new Uri[0]), isForeground());
+        return files.receive(requestCode, values.isEmpty() ? null : values.toArray(new Uri[0]), inputAllowed());
     }
     private static void addSelected(ArrayList<Uri> values, Uri value) { if (value != null && "content".equals(value.getScheme()) && value.getAuthority() != null) values.add(value); }
     @Override public void statusChanged(WebView view, int status) {
+        if (!ownsActivity()) return;
         Card card = cards.get(view); if (card == null) return;
         card.message.setText(message(status)); card.banner.setVisibility(status == 0 ? View.GONE : View.VISIBLE);
         card.update.setVisibility(status == EmbeddedWebView.BRIDGE_UNAVAILABLE ? View.VISIBLE : View.GONE);
