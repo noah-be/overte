@@ -50,7 +50,7 @@ for (const debug of [false, true]) {
     assert.strictEqual(emotes[0][0], "load", "Emote cleanup belongs to its own script engine");
     assert.ok(fs.existsSync(path.resolve(root, "scripts", emotes[0][1])),
         "Emote uses bundled shared content");
-    const separateApps = ["system/snapshot.js", "communityScripts/armored-chat/armored_chat.js",
+    const separateApps = ["system/goto.js", "system/snapshot.js", "communityScripts/armored-chat/armored_chat.js",
         "communityScripts/chatBubbles/chatBubbles.js", "communityScripts/notificationCore/notificationCore.js"];
     for (const app of separateApps) {
         const loaded = pico.calls.filter(([, name]) => name === app);
@@ -62,6 +62,60 @@ for (const debug of [false, true]) {
         "Keep all existing VR entry points and startup order");
     assert.deepStrictEqual(pico.values, legacy.values, "Preserve reviewed Pico startup settings");
     assert.deepStrictEqual(pico.avatar, legacy.avatar, "Preserve movement/avatar defaults");
+}
+
+// Execute the existing shared app, including its tablet/toolbar and dialog seams.
+// Dialog APIs here are explicit boundary replacements, not QObject export proof.
+// Actual Qt rendering and physical controller input remain device qualification.
+for (const hud of [false, true]) {
+    for (const finishOpen of [false, true]) {
+        const clicked = signal();
+        const ending = signal();
+        const addressShown = signal();
+        const properties = [];
+        let toggles = 0;
+        let dialogOpen = false;
+        let added = 0;
+        let removed = 0;
+        const button = { clicked, editProperties: value => properties.push(value) };
+        function setDialogOpen(value) { toggles++; dialogOpen = value; addressShown.emit(value); }
+        const host = {
+            addButton: value => { assert.strictEqual(value.text || value.objectName, "GOTO"); added++; return button; },
+            removeButton: value => { assert.strictEqual(value, hud ? "GOTO" : button); removed++; }
+        };
+        vm.runInNewContext(fs.readFileSync(path.join(root, "scripts/system/goto.js"), "utf8"), {
+            Settings: { getValue: key => { assert.strictEqual(key, "HUDUIEnabled"); return hud; } },
+            Tablet: { getTablet: name => { assert.strictEqual(name, "com.highfidelity.interface.tablet.system"); return host; } },
+            Toolbars: { getToolbar: name => { assert.strictEqual(name, "com.highfidelity.interface.toolbar.system"); return host; } },
+            DialogsManager: {
+                addressBarShown: addressShown,
+                showAddressBar: () => setDialogOpen(true), hideAddressBar: () => setDialogOpen(false),
+                // Legacy shared GOTO calls this missing export until its Main fix lands.
+                toggleAddressBar: () => setDialogOpen(!dialogOpen)
+            },
+            Script: { resolvePath: name => path.resolve(root, "scripts/system", name), scriptEnding: ending }
+        });
+        assert.strictEqual(added, 1, "Existing GOTO app creates exactly one normal entry");
+        assert.strictEqual(clicked.count, 1);
+        clicked.emit();
+        assert.strictEqual(toggles, 1, "Shared button dispatches the explicitly substituted host dialog seam");
+        assert.strictEqual(dialogOpen, true);
+        assert.strictEqual(properties.at(-1).isActive, true);
+        if (!finishOpen) {
+            clicked.emit();
+            assert.strictEqual(toggles, 2);
+            assert.strictEqual(dialogOpen, false);
+            assert.strictEqual(properties.at(-1).isActive, false);
+        }
+        ending.emit();
+        assert.strictEqual(toggles, 2, "Cleanup closes an open GOTO dialog without reopening a closed one");
+        assert.strictEqual(dialogOpen, false, "Stopped GOTO leaves its own open dialog closed");
+        assert.strictEqual(removed, 1);
+        assert.strictEqual(clicked.count, 0);
+        assert.strictEqual(addressShown.count, 0);
+        clicked.emit(); addressShown.emit(true);
+        assert.strictEqual(toggles, 2, "Disposed entry cannot dispatch a stale dialog action");
+    }
 }
 
 const clicked = signal();
