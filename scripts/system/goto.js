@@ -10,7 +10,7 @@
 //  Distributed under the Apache License, Version 2.0.
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
-/* globals Tablet, Toolbars, Script, HMD, DialogsManager */
+/* globals Tablet, Toolbars, Script, Settings, DialogsManager */
 
 (function() { // BEGIN LOCAL_SCOPE
 
@@ -20,12 +20,12 @@ var toolBar = null;
 var tablet = null;
 var onGotoScreen = false;
 function onAddressBarShown(visible) {
+    onGotoScreen = visible;
     button.editProperties({isActive: visible});
 }
 
 function onClicked(){
     DialogsManager.toggleAddressBar();
-    onGotoScreen = !onGotoScreen;
 }
 
 if (Settings.getValue("HUDUIEnabled")) {
@@ -50,7 +50,7 @@ DialogsManager.addressBarShown.connect(onAddressBarShown);
 
 Script.scriptEnding.connect(function () {
     if (onGotoScreen) {
-        DialogsManager.toggleAddressBar();
+        DialogsManager.hideAddressBar();
     }
     button.clicked.disconnect(onClicked);
     if (tablet) {

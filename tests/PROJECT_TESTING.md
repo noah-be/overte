@@ -78,6 +78,15 @@ The host profile also compiles the real shared embedded-HTML policy and the
 actual account-authentication signal bindings for Pico, Phone, desktop and the
 retained legacy Android path. These checks require Qt Core development files
 and Qt's `moc`; they do not instantiate a native browser or authenticate a device.
+The `goto-dialog-script` host suite compiles the complete production
+`DialogsManagerScriptingInterface` with real Qt Core/QML and matching `moc`,
+exposes that QObject to a `QJSEngine`, and runs the actual `scripts/system/goto.js`.
+Only the native UI receiver and tablet/toolbar controls are substituted. It
+checks queued dispatch, rapid toggles, external close followed by script stop,
+ordinary stop, missing close notifications, and signal/button cleanup in both
+toolbar and tablet modes. Set `OVERTE_GOTO_TEST_QT=Qt5` or `Qt6` to select the
+fixture SDK; extracted SDKs use standard pkg-config and runtime-library paths.
+These host results do not prove physical controller input or rendered navigation.
 The `embedded-web-qml` host suite requires Qt Quick Test's `qmltestrunner`
 (Qt 5.15 or Qt 6), Qt Quick, and Qt Test QML modules. It executes the actual
 shared tablet/world callers with only the operating-system browser boundary
@@ -289,6 +298,7 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `embedded-web-policy` | `host` | `python3 tests/run-project-tests.py --suite embedded-web-policy` |
 | `embedded-web-qml` | `host` | `python3 tests/run-project-tests.py --suite embedded-web-qml` |
 | `account-auth-dispatch` | `host` | `python3 tests/run-project-tests.py --suite account-auth-dispatch` |
+| `goto-dialog-script` | `host` | `python3 tests/run-project-tests.py --suite goto-dialog-script` |
 | `recorded-voice-native` | `host` | `python3 tests/run-project-tests.py --suite recorded-voice-native` |
 | `recorded-voice-qml` | `host` | `python3 tests/run-project-tests.py --suite recorded-voice-qml` |
 | `snapshot-native` | `host` | `python3 tests/run-project-tests.py --suite snapshot-native` |
