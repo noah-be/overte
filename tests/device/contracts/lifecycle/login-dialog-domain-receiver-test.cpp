@@ -95,6 +95,9 @@ QPointer<AccountLoginStateBinding<AccountManager>> phoneAccountLoginBinding;
 #if TEST_PHONE
 #define ANDROID_APP_PHONE_INTERFACE
 #endif
+#if TEST_PICO
+#define ANDROID_APP_PICO_INTERFACE
+#endif
 #if TEST_IOS
 #define Q_OS_IOS
 #endif
@@ -148,8 +151,8 @@ int main(int argc, char** argv) {
         assert(!view->property("loggingInGlyph").value<QJSValue>().property("visible").toBool());
         assert(phoneLoginState.requestPending());
 
-        // Account and focus routing stay excluded on Pico, enabled elsewhere.
-        const int accountExpected = !TEST_ANDROID || TEST_PHONE;
+        // Supported clients receive account and focus events; legacy Android stays unchanged.
+        const int accountExpected = !TEST_ANDROID || TEST_PHONE || TEST_PICO;
         emit account->loginComplete(QUrl("https://example.invalid"));
         emit account->loginFailed();
         emit app.loginDialogFocusEnabled();

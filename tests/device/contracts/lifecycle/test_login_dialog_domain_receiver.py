@@ -35,10 +35,19 @@ class DomainReceiver(unittest.TestCase):
         functions = '\n'.join(block(qml, 'function ' + name + '(') for name in
                               ('onHandleLoginCompleted', 'onHandleLoginFailed', 'onHandleDomainLoginFailed'))
         success = block(qml, 'function loadingSuccess(')
+        qt = os.environ.get('OVERTE_LOGIN_TEST_QT', 'Qt6')
+        self.assertIn(qt, ('Qt5', 'Qt6'))
         flags = shlex.split(subprocess.check_output(
-            ['pkg-config', '--cflags', '--libs', 'Qt6Core', 'Qt6Qml', 'Qt6Network'], text=True))
+            ['pkg-config', '--cflags', '--libs', qt + 'Core', qt + 'Qml', qt + 'Network'], text=True))
+        if qt == 'Qt5' and os.environ.get('PKG_CONFIG_SYSROOT_DIR'):
+            library = subprocess.check_output(
+                ['pkg-config', '--variable=libdir', qt + 'Core'], text=True).strip()
+            flags = ['-L' + library, *flags]
+        tool_variable = 'libexecdir' if qt == 'Qt6' else 'host_bins'
         moc = pathlib.Path(subprocess.check_output(
-            ['pkg-config', '--variable=libexecdir', 'Qt6Core'], text=True).strip()) / 'moc'
+            ['pkg-config', '--variable=' + tool_variable, qt + 'Core'], text=True).strip()) / 'moc'
+        if not moc.is_file() and os.environ.get('PKG_CONFIG_SYSROOT_DIR'):
+            moc = pathlib.Path(os.environ['PKG_CONFIG_SYSROOT_DIR']) / str(moc).lstrip('/')
         here = pathlib.Path(__file__).parent
         variant = os.environ.get('OVERTE_LOGIN_VARIANT', 'main')
         self.assertIn(variant, ('main', 'apple'))
@@ -55,12 +64,13 @@ class DomainReceiver(unittest.TestCase):
                                                    .replace('/* ORIGINAL_SUCCESS */', success))
             subprocess.run([str(moc), str(here / 'login-dialog-domain-receiver-test.cpp'),
                             '-o', str(directory / 'receiver.moc')], check=True, timeout=15)
-            for platform in ('pico', 'phone', 'desktop', 'ios'):
+            for platform in ('pico', 'phone', 'desktop', 'ios', 'legacy-android'):
                 with self.subTest(platform=platform):
                     binary = directory / platform
                     subprocess.run(['c++', '-std=c++17', '-fPIC', '-I', str(ROOT), '-I', str(directory),
-                                    '-DTEST_ANDROID=' + str(int(platform in ('pico', 'phone'))),
+                                    '-DTEST_ANDROID=' + str(int(platform in ('pico', 'phone', 'legacy-android'))),
                                     '-DTEST_PHONE=' + str(int(platform == 'phone')),
+                                    '-DTEST_PICO=' + str(int(platform == 'pico')),
                                     '-DTEST_IOS=' + str(int(platform == 'ios')),
                                     '-DTEST_EXPECT_PENDING=' + str(int(platform == 'phone' or
                                                                    (platform == 'ios' and variant == 'apple'))),

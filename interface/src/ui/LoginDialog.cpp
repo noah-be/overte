@@ -102,7 +102,7 @@ LoginDialog::LoginDialog(QQuickItem *parent) : OffscreenQmlDialog(parent) {
             }
         }, Qt::QueuedConnection);
     // the login hasn't been dismissed yet if the user isn't logged in and is encouraged to login.
-#if !defined(Q_OS_ANDROID) || defined(ANDROID_APP_PHONE_INTERFACE)
+#if !defined(Q_OS_ANDROID) || defined(ANDROID_APP_PHONE_INTERFACE) || defined(ANDROID_APP_PICO_INTERFACE)
     connect(accountManager.data(), &AccountManager::loginComplete,
         this, &LoginDialog::handleLoginCompleted);
     connect(accountManager.data(), &AccountManager::loginFailed,

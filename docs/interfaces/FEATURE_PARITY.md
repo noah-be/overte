@@ -110,7 +110,10 @@ transport denial retains a scoped native reason: account and domain QML recovery
 show an HTTPS endpoint error rather than blaming the password. A new account
 attempt, endpoint change or logout clears the previous account reason. Existing
 provider form context and stale/closed-domain suppression remain intact. These checks
-do not establish a TLS handshake, a signed app, visible current-artifact login recovery or a
+also exercise Pico's actual account completion/failure connections using its
+production build switch, alongside the existing Phone/iOS/Desktop routes and
+the unchanged legacy Android exclusion, on both Qt5 and Qt6.
+They do not establish a TLS handshake, a signed app, visible current-artifact login recovery or a
 current-artifact device journey. Client propagation and device acceptance remain
 open.
 
