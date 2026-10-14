@@ -45,6 +45,11 @@ def main() -> None:
         normal = plistlib.load(stream)
     with (IOS / "resources/InterfaceE2EInfo.plist.in").open("rb") as stream:
         e2e = plistlib.load(stream)
+    # Both real bundle templates permit browser HTTP while preserving the
+    # existing local-network grant and avoiding a whole-application exemption.
+    expected_transport = {"NSAllowsLocalNetworking": True, "NSAllowsArbitraryLoadsInWebContent": True}
+    assert normal["NSAppTransportSecurity"] == expected_transport
+    assert e2e["NSAppTransportSecurity"] == expected_transport
     validator.validate(normal, "disabled")
     validator.validate(e2e, "enabled")
     for info, expected in ((normal, "enabled"), (e2e, "disabled")):
@@ -68,6 +73,10 @@ def main() -> None:
                 "Payload/Overte.app/Overte",
                 b"binary prefix " + validator.E2E_BINARY_MARKER + b" binary suffix",
             )
+        for archive_path in (normal_archive, e2e_archive):
+            with zipfile.ZipFile(archive_path) as archive:
+                packaged = plistlib.loads(archive.read("Payload/Overte.app/Info.plist"))
+                assert packaged["NSAppTransportSecurity"] == expected_transport
         validator.validate_archive(normal_archive, "Payload/Overte.app", "disabled")
         validator.validate_archive(e2e_archive, "Payload/Overte.app", "enabled")
         for archive, expected in (

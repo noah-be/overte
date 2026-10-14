@@ -18,14 +18,14 @@ class NativeWebTests(unittest.TestCase):
                 '-I',str(ROOT),str(ROOT/'interface/src/NativeWebPolicy.cpp'),
                 str(Path(__file__).with_name('test_native_web.cpp')),'-o',str(binary),*flags],
                 check=True,timeout=60)
-            subprocess.run([str(binary),str(ROOT/'interface/resources/qml/controls/+ios/FlickableWebViewCore.qml')],
+            subprocess.run([str(binary),str(ROOT/'interface/resources/qml/controls/+ios/ContainedTextWebViewCore.qml')],
                 check=True,timeout=20,env=os.environ|{'QT_QPA_PLATFORM':'offscreen','QT_QUICK_BACKEND':'software'})
 
     def test_application_binding_and_no_automatic_web_or_fake_success(self):
         source = (ROOT/'interface/src/Application.cpp').read_text()
         self.assertIn('return overte::web::openNativeWeb(url);',source)
         self.assertIn('overte::web::closeNativeWeb(ticket);',source)
-        qml = (ROOT/'interface/resources/qml/controls/+ios/FlickableWebViewCore.qml').read_text()
+        qml = (ROOT/'interface/resources/qml/controls/+ios/ContainedTextWebViewCore.qml').read_text()
         self.assertNotIn('import QtWebView',qml)
         self.assertNotIn('WebView {',qml)
         self.assertNotIn('loadingChangedCallback(',qml.split('signal loadingChangedCallback(var loadRequest)',1)[1])

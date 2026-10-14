@@ -203,7 +203,9 @@ def test_plists() -> None:
     interface_info_path = IOS_ROOT / "resources" / "InterfaceInfo.plist.in"
     with interface_info_path.open("rb") as stream:
         interface_info = plistlib.load(stream)
-    assert interface_info["NSAppTransportSecurity"] == {"NSAllowsLocalNetworking": True}
+    assert interface_info["NSAppTransportSecurity"] == {
+        "NSAllowsLocalNetworking": True, "NSAllowsArbitraryLoadsInWebContent": True
+    }
     assert "NSAllowsArbitraryLoads" not in interface_info["NSAppTransportSecurity"]
     assert "NSExceptionDomains" not in interface_info["NSAppTransportSecurity"]
     interface_schemes = interface_info["CFBundleURLTypes"][0]["CFBundleURLSchemes"]
@@ -465,7 +467,10 @@ def test_cmake_boundary() -> None:
     profile = SOURCE_ROOT / "libraries/ui/src/CapabilityProfile.h"
     require_text(profile, r'case Product::IOS: result = \{"ios", "mobile", "touch", "android_phoneInterface", "android_interface", "webview"\}', "iOS selector order must retain mobile touch and Phone presentation")
 
-    ios_webview = SOURCE_ROOT / "interface" / "resources" / "qml" / "controls" / "+ios" / "FlickableWebViewCore.qml"
+    ios_html = SOURCE_ROOT / "interface" / "resources" / "qml" / "controls" / "+ios" / "FlickableWebViewCore.qml"
+    require_text(ios_html, r'import controls 1.0 as SharedControls', "iOS HTML must use the selected shared native core")
+    require_text(ios_html, r'SharedControls.NativeFlickableWebViewCore', "iOS HTML must have a real native core")
+    ios_webview = SOURCE_ROOT / "interface" / "resources" / "qml" / "controls" / "+ios" / "ContainedTextWebViewCore.qml"
     require_text(ios_webview, r'ApplicationInterface.openContainedNativeWeb\(bridge.url.toString\(\)\)', "iOS web surfaces must request the native contained browser")
     require_text(ios_webview, r'ApplicationInterface.closeContainedNativeWeb\(nativeTicket\)', "iOS web surfaces must retire their native ticket")
     offscreen_qml_surface = SOURCE_ROOT / "libraries" / "ui" / "src" / "ui" / "OffscreenQmlSurface.cpp"
@@ -791,7 +796,9 @@ def test_cmake_boundary() -> None:
         integrated_plist = plistlib.load(stream)
     assert integrated_plist["NSMicrophoneUsageDescription"]
     assert integrated_plist["NSLocalNetworkUsageDescription"]
-    assert integrated_plist["NSAppTransportSecurity"] == {"NSAllowsLocalNetworking": True}
+    assert integrated_plist["NSAppTransportSecurity"] == {
+        "NSAllowsLocalNetworking": True, "NSAllowsArbitraryLoadsInWebContent": True
+    }
     assert "NSBonjourServices" not in integrated_plist, "full client does not browse or advertise Bonjour"
     assert integrated_plist["LSRequiresIPhoneOS"] is True
     assert "UIApplicationSceneManifest" not in integrated_plist, "full client plist must not name bootstrap-only delegates"

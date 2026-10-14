@@ -1724,6 +1724,34 @@ void Application::loadSettings(const QCommandLineParser& parser) {
         }
     }
 
+#if defined(Q_OS_IOS)
+    // Capture existing choices before loadSettings and the performance preset
+    // persist defaults. Safe mobile values apply only to unset preferences.
+    constexpr int IOS_TARGET_FPS { 30 };
+    constexpr float IOS_DEFAULT_VIEWPORT_RESOLUTION_SCALE { 0.8f };
+    const Settings iosGraphicsPreferences;
+    const auto iosSavedRenderMethod = iosGraphicsPreferences.value(QStringLiteral("renderMethod"), QVariant{});
+    const auto iosSavedHaze = iosGraphicsPreferences.value(QStringLiteral("hazeEnabled"), QVariant{});
+    const bool iosSavedShadows = iosGraphicsPreferences.value(QStringLiteral("shadowsEnabled"), false).toBool();
+    const bool iosSavedBloom = iosGraphicsPreferences.value(QStringLiteral("bloomEnabled"), false).toBool();
+    const bool iosSavedAmbientOcclusion = iosGraphicsPreferences.value(QStringLiteral("ambientOcclusionEnabled"), false).toBool();
+    const auto iosSavedAntialiasing = static_cast<AntialiasingSetupConfig::Mode>(
+        iosGraphicsPreferences.value(QStringLiteral("antialiasingMode"), static_cast<int>(AntialiasingSetupConfig::Mode::NONE)).toInt());
+    const auto iosSavedWorldDetail = static_cast<WorldDetailQuality>(std::min(std::max(
+        iosGraphicsPreferences.value(QStringLiteral("lodManager/desktopWorldDetailQuality"), static_cast<int>(WORLD_DETAIL_LOW)).toInt(),
+        static_cast<int>(WORLD_DETAIL_LOW)), static_cast<int>(WORLD_DETAIL_HIGH)));
+    const float iosStoredScale = iosGraphicsPreferences.value(QStringLiteral("viewportResolutionScale"), IOS_DEFAULT_VIEWPORT_RESOLUTION_SCALE).toFloat();
+    const float iosSavedScale = std::isfinite(iosStoredScale) && iosStoredScale > 0.0f
+        ? iosStoredScale : IOS_DEFAULT_VIEWPORT_RESOLUTION_SCALE;
+    const auto iosStoredRefreshProfile = static_cast<RefreshRateManager::RefreshRateProfile>(
+        iosGraphicsPreferences.value(QStringLiteral("refreshRateProfile"), static_cast<int>(RefreshRateManager::RefreshRateProfile::CUSTOM)).toInt());
+    const auto iosSavedRefreshProfile = RefreshRateManager::isValidRefreshRateProfile(iosStoredRefreshProfile)
+        ? iosStoredRefreshProfile : RefreshRateManager::RefreshRateProfile::CUSTOM;
+    const int iosSavedFocusActive = iosGraphicsPreferences.value(QStringLiteral("customRefreshRateFocusActive"), IOS_TARGET_FPS).toInt();
+    const int iosSavedFocusInactive = iosGraphicsPreferences.value(QStringLiteral("customRefreshRateFocusInactive"), IOS_TARGET_FPS).toInt();
+    const int iosSavedStartup = iosGraphicsPreferences.value(QStringLiteral("customRefreshRateStartup"), IOS_TARGET_FPS).toInt();
+#endif
+
     // Load settings of the RenderScritpingInterface
     // Do that explicitely before being used
     RenderScriptingInterface::getInstance()->loadSettings();
@@ -1733,41 +1761,39 @@ void Application::loadSettings(const QCommandLineParser& parser) {
     getPerformanceManager().setupPerformancePresetSettings(_firstRun.get());
 
 #if defined(Q_OS_IOS)
-    // iPads are passively cooled and the XCUITest runner shares the same
-    // thermal budget as Interface.  A persisted desktop/realtime preset can
-    // otherwise drive the client at 60 Hz until iPadOS suspends the test
-    // runner under thermal pressure.  Apply a predictable mobile ceiling after
-    // the performance preset while preserving any user-selected render scale
-    // that is already lower than the supported iOS default.
-    constexpr int IOS_TARGET_FPS { 30 };
-    constexpr float IOS_MAX_VIEWPORT_RESOLUTION_SCALE { 0.8f };
+    // Keep the established 30 Hz / 0.8 / low-detail initial mobile profile,
+    // without overwriting a later user choice or an existing laboratory profile.
+    // NativeMetrics applies the existing transient thermal/low-power/unavailable
+    // cap to the effective frame rate; it does not rewrite these preferences.
     auto iosRenderSettings = RenderScriptingInterface::getInstance();
-    iosRenderSettings->setShadowsEnabled(false);
-    iosRenderSettings->setBloomEnabled(false);
-    iosRenderSettings->setAmbientOcclusionEnabled(false);
-    iosRenderSettings->setAntialiasingMode(AntialiasingSetupConfig::Mode::NONE);
-    if (iosRenderSettings->getViewportResolutionScale() > IOS_MAX_VIEWPORT_RESOLUTION_SCALE) {
-        iosRenderSettings->setViewportResolutionScale(IOS_MAX_VIEWPORT_RESOLUTION_SCALE);
+    if (iosSavedRenderMethod.isValid()) {
+        iosRenderSettings->setRenderMethod(static_cast<RenderScriptingInterface::RenderMethod>(iosSavedRenderMethod.toInt()));
     }
-    DependencyManager::get<LODManager>()->setWorldDetailQuality(WORLD_DETAIL_LOW);
+    if (iosSavedHaze.isValid()) { iosRenderSettings->setHazeEnabled(iosSavedHaze.toBool()); }
+    iosRenderSettings->setShadowsEnabled(iosSavedShadows);
+    iosRenderSettings->setBloomEnabled(iosSavedBloom);
+    iosRenderSettings->setAmbientOcclusionEnabled(iosSavedAmbientOcclusion);
+    iosRenderSettings->setAntialiasingMode(iosSavedAntialiasing);
+    iosRenderSettings->setViewportResolutionScale(iosSavedScale);
+    DependencyManager::get<LODManager>()->setWorldDetailQuality(iosSavedWorldDetail);
 
     auto& iosRefreshRateManager = getRefreshRateManager();
     iosRefreshRateManager.setCustomRefreshRate(
-        RefreshRateManager::RefreshRateRegime::FOCUS_ACTIVE, IOS_TARGET_FPS);
+        RefreshRateManager::RefreshRateRegime::FOCUS_ACTIVE, iosSavedFocusActive);
     iosRefreshRateManager.setCustomRefreshRate(
-        RefreshRateManager::RefreshRateRegime::FOCUS_INACTIVE, IOS_TARGET_FPS);
+        RefreshRateManager::RefreshRateRegime::FOCUS_INACTIVE, iosSavedFocusInactive);
     iosRefreshRateManager.setCustomRefreshRate(
-        RefreshRateManager::RefreshRateRegime::STARTUP, IOS_TARGET_FPS);
-    iosRefreshRateManager.setRefreshRateProfile(RefreshRateManager::RefreshRateProfile::CUSTOM);
+        RefreshRateManager::RefreshRateRegime::STARTUP, iosSavedStartup);
+    iosRefreshRateManager.setRefreshRateProfile(iosSavedRefreshProfile);
     logIOSRuntimeMarker(
         "OVERTE_IOS_RENDER_PROFILE stage=mobile-budget-applied",
-        "target_fps=", IOS_TARGET_FPS,
+        "default_target_fps=", IOS_TARGET_FPS,
         "scale=", iosRenderSettings->getViewportResolutionScale(),
         "shadows=", iosRenderSettings->getShadowsEnabled(),
         "bloom=", iosRenderSettings->getBloomEnabled(),
         "ambient_occlusion=", iosRenderSettings->getAmbientOcclusionEnabled(),
         "antialiasing=", iosRenderSettings->getAntialiasingMode() != AntialiasingSetupConfig::Mode::NONE,
-        "world_detail=", WORLD_DETAIL_LOW);
+        "world_detail=", iosSavedWorldDetail);
 #endif
 
 #if defined(Q_OS_ANDROID)
