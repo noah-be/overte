@@ -53,6 +53,7 @@ class NativeWebViewItem : public QQuickItem {
     Q_PROPERTY(Surface surface READ surface WRITE setSurface NOTIFY surfaceChanged)
     Q_PROPERTY(Presentation presentation READ presentation WRITE setPresentation NOTIFY presentationChanged)
     Q_PROPERTY(QString eventBridgeJavaScript READ eventBridgeJavaScript WRITE setEventBridgeJavaScript)
+    Q_PROPERTY(bool reloadRequired READ reloadRequired NOTIFY stateChanged)
     Q_PROPERTY(bool loading READ loading NOTIFY stateChanged)
     Q_PROPERTY(bool canGoBack READ canGoBack NOTIFY stateChanged)
     Q_PROPERTY(bool canGoForward READ canGoForward NOTIFY stateChanged)
@@ -79,6 +80,7 @@ public:
     bool useBackground() const { return _background; } void setUseBackground(bool value);
     Surface surface() const { return _surface; } void setSurface(Surface value);
     Presentation presentation() const { return _presentation; } void setPresentation(Presentation value);
+    bool reloadRequired() const { return _suspendedDocument; }
     bool loading() const { return _loading; } bool canGoBack() const { return _canGoBack; }
     bool canGoForward() const { return _canGoForward; }
     bool editorFocused() const { return _editorActive; }
@@ -96,6 +98,9 @@ public:
     QRectF sceneBounds() const { return mapRectToScene(boundingRect()); }
     QRectF sceneClipBounds() const;
     quint64 generation() const;
+    quint64 lifecycleRevision() const;
+    void acceptSuspended(quint64 revision, const QUrl& document, bool back, bool forward, quint64 birth);
+    void requestResume(quint64 revision, const QUrl& document, quint64 birth);
     bool allowsBridgeDocument(quint64 grant, quint64 page, const QUrl& document) const;
     bool allowsEditorDocument(quint64 grant, quint64 page, const QUrl& document) const;
     bool allowsFileChooser(quint64 grant, quint64 page, const QUrl& document) const;
@@ -105,7 +110,7 @@ public:
     void acceptPage(quint64 grant, quint64 page, const QUrl& document);
     void acceptState(quint64 grant, quint64 page, const QUrl& document, bool loading, bool back, bool forward, bool bridge, int status);
     void acceptFrame(quint64 grant, quint64 page, const void* pixels, qsizetype bytes, int width, int height);
-    void acceptCreated(bool created);
+    void acceptCreated(bool created, quint64 revision);
     void acceptResult(quint64 grant, quint64 page, quint64 request, const QByteArray& json);
     void acceptForeground(bool active);
     QByteArray resource(quint64 grant, const QUrl& browser) const;
@@ -138,11 +143,16 @@ private:
     QString scriptRoot(const QUrl& source) const;
     QString _currentUrl, _url, _scriptUrl, _userAgent, _sourceIdentity, _bootstrap;
     bool _background { true }, _created { false }, _pending { false }, _retryPending { false }, _pressed { false };
-    bool _tabletGrant { false };
+    bool _tabletGrant { false }, _suspendedDocument { false }, _sourceAuthorized { false };
+    QUrl _resumeDocument;
     bool _loading { false }, _canGoBack { false }, _canGoForward { false }, _bridgeAvailable { false };
     int _status { 0 }, _attempts { 0 };
     Surface _surface { WorldEntity }; Presentation _presentation { Texture };
     qint64 _handle { 0 };
+    quint64 _creationRevision { 0 };
+    Surface _creationSurface { WorldEntity }; Presentation _creationPresentation { Texture };
+    QString _creationIdentity;
+    QUrl _creationSource;
     quint64 _page { 0 }, _injectedPage { 0 }, _scriptVersion { 0 };
     mutable QMutex _mutex;
     overte::web::EmbeddedWebSession _session;

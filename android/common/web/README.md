@@ -183,3 +183,42 @@ unprotected negative control loses the endpoints. Supply `--r8-jar`,
 discovered from `javac`, or set with `--java-home`. JVM classfile output uses the
 actual JDK LambdaMetafactory declaration because Android's API stub omits it.
 This host check does not qualify the product's AGP release APK or device runtime.
+
+## WebAudio lifecycle
+
+The shared runtime uses the already pinned AndroidX `MUTE_AUDIO` capability per
+WebView. The default is muted before the first load. Hide, background,
+navigation, source revocation and destruction mute before optional DOM actions
+or presentation shutdown. A current visual/document ticket may unmute only the
+exact visible foreground instance and Activity. Browser user-gesture policy
+remains enabled. This output fence is independent of the Overte bridge grant;
+ordinary foreign HTTP(S) pages do not acquire bridge authority.
+
+Inactive lifecycle revisions are distinct from the active-only bridge check.
+Queued dispatch checks the exact instance, owner, Activity and raw revision.
+Creation callbacks carry their original revision; a changed source or
+presentation closes only that obsolete instance. Every new WebView gets a fresh
+revision, including explicit reload of a previously closed page.
+
+A provider without reliable native mute can use a visible document. Its first
+actual suspend, including navigation away from a running page, closes only that
+WebView. The UI explains the lost transient state and provides a pointer,
+keyboard and accessibility `Reload page (GET)` action. Returning to visibility
+alone never restores it. Only bounded navigation URLs survive; no POST body,
+form values, JavaScript objects or running contexts are restored. Such an older
+provider does not offer full state-preserving parity. A failed native mute uses
+the same local close path. Other WebViews and Overte voice are unaffected.
+
+Native mute prevents audible output; it does not prove that AudioContext,
+AudioWorklet or JavaScript execution has terminated. Destruction ends the
+fallback document, but exact-artifact provider behavior and acoustic silence
+still require device qualification. No global timers, AudioManager stream mute
+or shared renderer-process kill is used.
+
+`tests/run.py --native --reproduce-old-hide` executes the actual Qt item,
+QML adapter, JVM and JNI into the production lifecycle dispatcher. It also
+reproduces the original active-only hide rejection as an expected negative.
+Only Android WebView/Looper effects are represented at that boundary. The
+portable production-controller tests cover two-page isolation, unsupported and
+throwing providers, stale callbacks and bounded URL history. These tests do not
+execute Chromium DOM or establish real audio silence.
