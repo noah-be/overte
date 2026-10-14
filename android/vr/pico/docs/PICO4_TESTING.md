@@ -144,15 +144,19 @@ separately before claiming entity-hide lifecycle acceptance.
 
 The Pico startup profile loads the existing bundled `system/goto.js` once in
 its own engine. The shared app supplies its tablet/toolbar entry and owns its
-address-dialog calls and cleanup. Those calls depend on the callable Main-owned
-`DialogsManager` scripting API; this startup change does not qualify that API.
+address-dialog calls and cleanup. The callable Main-owned `DialogsManager`
+scripting API and queued hide repair are inherited from the protected parent;
+the startup check remains an explicit host API boundary replacement.
 PLACES remains available for the normal directory and Home entries.
 
 `node android/vr/pico/tests/pico-emote-test.js` executes both normal/debug startup
 and the actual shared GOTO app with explicit tablet/toolbar/dialog API boundary
-replacements, including its own button close and cleanup. They do not establish
-a real Script-to-Qt dialog call or external-dialog-close cleanup. Those paths
-require the shared native QObject/queued-call regression and device observations.
+replacements, including button/external close, explicit hide requests, actual
+visibility transitions and disconnected cleanup. They do not establish a real
+Script-to-Qt dialog call. Run the inherited shared native QObject/queued-call
+regression with `python3 tests/device/contracts/lifecycle/test_goto_dialog_script.py`
+as a separate production API check. Physical dialog operation remains device
+qualification.
 These host checks also do not establish visible HMD controls, physical
 controller/keyboard operation, navigation success or installed APK asset bytes.
 Those observations remain part of current-artifact acceptance criterion #1144.

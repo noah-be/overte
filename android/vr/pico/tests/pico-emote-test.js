@@ -68,17 +68,24 @@ for (const debug of [false, true]) {
 // Dialog APIs here are explicit boundary replacements, not QObject export proof.
 // Actual Qt rendering and physical controller input remain device qualification.
 for (const hud of [false, true]) {
-    for (const finishOpen of [false, true]) {
+    for (const finish of ["open", "button-closed", "externally-closed"]) {
         const clicked = signal();
         const ending = signal();
         const addressShown = signal();
         const properties = [];
-        let toggles = 0;
+        let toggleRequests = 0;
+        let hideRequests = 0;
+        let showRequests = 0;
+        let transitions = 0;
         let dialogOpen = false;
         let added = 0;
         let removed = 0;
         const button = { clicked, editProperties: value => properties.push(value) };
-        function setDialogOpen(value) { toggles++; dialogOpen = value; addressShown.emit(value); }
+        function setDialogOpen(value) {
+            if (dialogOpen !== value) transitions++;
+            dialogOpen = value;
+            addressShown.emit(value);
+        }
         const host = {
             addButton: value => { assert.strictEqual(value.text || value.objectName, "GOTO"); added++; return button; },
             removeButton: value => { assert.strictEqual(value, hud ? "GOTO" : button); removed++; }
@@ -89,32 +96,46 @@ for (const hud of [false, true]) {
             Toolbars: { getToolbar: name => { assert.strictEqual(name, "com.highfidelity.interface.toolbar.system"); return host; } },
             DialogsManager: {
                 addressBarShown: addressShown,
-                showAddressBar: () => setDialogOpen(true), hideAddressBar: () => setDialogOpen(false),
-                // Legacy shared GOTO calls this missing export until its Main fix lands.
-                toggleAddressBar: () => setDialogOpen(!dialogOpen)
+                showAddressBar: () => { showRequests++; setDialogOpen(true); },
+                hideAddressBar: () => { hideRequests++; setDialogOpen(false); },
+                toggleAddressBar: () => { toggleRequests++; setDialogOpen(!dialogOpen); }
             },
             Script: { resolvePath: name => path.resolve(root, "scripts/system", name), scriptEnding: ending }
         });
         assert.strictEqual(added, 1, "Existing GOTO app creates exactly one normal entry");
         assert.strictEqual(clicked.count, 1);
         clicked.emit();
-        assert.strictEqual(toggles, 1, "Shared button dispatches the explicitly substituted host dialog seam");
+        assert.strictEqual(toggleRequests, 1, "Shared button dispatches the explicitly substituted host dialog seam");
+        assert.strictEqual(transitions, 1);
         assert.strictEqual(dialogOpen, true);
         assert.strictEqual(properties.at(-1).isActive, true);
-        if (!finishOpen) {
+        if (finish === "button-closed") {
             clicked.emit();
-            assert.strictEqual(toggles, 2);
+            assert.strictEqual(toggleRequests, 2);
             assert.strictEqual(dialogOpen, false);
             assert.strictEqual(properties.at(-1).isActive, false);
+        } else if (finish === "externally-closed") {
+            setDialogOpen(false);
+            assert.strictEqual(toggleRequests, 1, "External visibility does not dispatch another toggle");
+            assert.strictEqual(properties.at(-1).isActive, false, "External close updates the normal entry");
         }
+        const expectedToggleRequests = finish === "button-closed" ? 2 : 1;
+        assert.strictEqual(hideRequests, 0);
         ending.emit();
-        assert.strictEqual(toggles, 2, "Cleanup closes an open GOTO dialog without reopening a closed one");
+        assert.strictEqual(hideRequests, 1, "Cleanup explicitly hides even an already closed dialog");
+        assert.strictEqual(toggleRequests, expectedToggleRequests, "Cleanup never toggles or reopens GOTO");
+        assert.strictEqual(showRequests, 0);
+        assert.strictEqual(transitions, 2, "Idempotent hide requests do not invent another visibility change");
         assert.strictEqual(dialogOpen, false, "Stopped GOTO leaves its own open dialog closed");
         assert.strictEqual(removed, 1);
         assert.strictEqual(clicked.count, 0);
         assert.strictEqual(addressShown.count, 0);
+        const editsAfterStop = properties.length;
         clicked.emit(); addressShown.emit(true);
-        assert.strictEqual(toggles, 2, "Disposed entry cannot dispatch a stale dialog action");
+        assert.strictEqual(toggleRequests, expectedToggleRequests, "Disposed entry cannot dispatch a stale dialog action");
+        assert.strictEqual(hideRequests, 1);
+        assert.strictEqual(transitions, 2);
+        assert.strictEqual(properties.length, editsAfterStop, "Disposed visibility subscription cannot update the removed entry");
     }
 }
 
