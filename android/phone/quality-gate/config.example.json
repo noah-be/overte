@@ -5,6 +5,7 @@
   "version_name": null,
   "builder_image": null,
   "sdk_root": null,
+  "artifact_sdk_bindings": null,
   "source_store": null,
   "gradle_store": null,
   "gradle_store_manifest_sha256": null,
