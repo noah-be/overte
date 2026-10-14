@@ -44,6 +44,8 @@ public class LegacyWebLifecycleDriver {
     static class PicoInterfaceActivity {
         static PicoInterfaceActivity current;
         static PicoInterfaceActivity getInstance() { return current; }
+        boolean focused = true;
+        boolean hasWindowFocus() { return focused; }
     }
     static class PicoWebUrlPolicy {
         static String navigation(String value) { return value; } // URL policy has its own actual tests.
@@ -69,7 +71,9 @@ public class LegacyWebLifecycleDriver {
     static class WebView {
         final PicoInterfaceActivity owner;
         int pauses, resumes, draws, mediaPauses, destroys, loads;
-        boolean mediaPlaying;
+        boolean mediaPlaying, editor;
+        Runnable duringEditor;
+        boolean hasFocus() { return true; }
         String url, fault;
         Runnable duringDraw;
         WebView(PicoInterfaceActivity owner) { this.owner = owner; }
@@ -91,6 +95,24 @@ public class LegacyWebLifecycleDriver {
         void setBackgroundColor(int value) {} void setUserAgentString(String value) {}
         void forceLayout() {} void invalidate() {} void measure(int width, int height) {} void layout(int a,int b,int c,int d) {}
         void dispatchGenericMotionEvent(MotionEvent event) {} void dispatchTouchEvent(MotionEvent event) {}
+    }
+    // This frame/lifecycle harness replaces Android editor detection only.
+    // The separate API test executes PicoWebEditorState against real Android APIs.
+    static class PicoWebEditorState {
+        static final PicoWebEditorState INACTIVE = new PicoWebEditorState();
+        final boolean focused, numeric=false, password=false;
+        PicoWebEditorState() { this(false); }
+        PicoWebEditorState(boolean value) { focused=value; }
+        static PicoWebEditorState inspect(WebView view, boolean admitted) {
+            if (view.duringEditor != null) view.duringEditor.run();
+            return admitted && view.editor ? new PicoWebEditorState(true) : INACTIVE;
+        }
+        boolean same(PicoWebEditorState other) { return focused == other.focused; }
+    }
+    static boolean publishedEditor;
+    static long editorEpoch, editorRevision;
+    static void nativeEditorState(long h,long e,long r,boolean f,boolean n,boolean p) {
+        publishedEditor=f; editorEpoch=e; editorRevision=r;
     }
     static class View {
         static class MeasureSpec { static final int EXACTLY = 1; static int makeMeasureSpec(int size,int mode) { return size; } }
@@ -137,6 +159,21 @@ public class LegacyWebLifecycleDriver {
         page.view.mediaPlaying = sibling.view.mediaPlaying = true;
         Runnable oldFrame = page.pendingFrame;
         oldFrame.run(); need(frames == 1 && page.view.draws == 1, "positive frame missing");
+        // Controlled provider metadata; the ORIGINAL production caller checks
+        // input, frame, owner and current document admission before publishing.
+        setInputForeground(first,true); textFocus=page; page.view.editor=true;
+        page.publishEditorState();
+        need(publishedEditor && editorEpoch==page.epoch && editorRevision>0,"admitted editor metadata missing");
+        page.view.duringEditor = () -> setInputForeground(first,false);
+        page.publishEditorState();
+        need(!publishedEditor,"input revoked during metadata observation but published active");
+        page.view.duringEditor=null;
+        setInputForeground(first,true); textFocus=page;
+        page.view.duringEditor=() -> { page.stopRendering(); page.updateRendering(); };
+        page.publishEditorState();
+        need(!publishedEditor,"document replaced during metadata observation but old state published");
+        page.view.duringEditor=null; page.publishEditorState();
+        need(publishedEditor,"fresh document editor did not recover");
         // DOM/editor focus changes only cancel input; a playing visible page continues.
         setInputForeground(first,false);
         page.pendingFrame.run(); need(frames == 2 && page.view.mediaPlaying, "keyboard focus incorrectly suspended media");

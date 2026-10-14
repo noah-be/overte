@@ -65,6 +65,8 @@ public final class OffscreenWebView {
     private static native void nativeFrame(
         long nativeHandle, long epoch, ByteBuffer pixels, int width, int height);
     private static native void nativeLifecycle(long nativeHandle, long epoch, boolean rendering);
+    private static native void nativeEditorState(
+        long nativeHandle, long epoch, long revision, boolean focused, boolean numeric, boolean password);
 
     private interface InstanceCommand {
         void run(Instance instance);
@@ -227,6 +229,14 @@ public final class OffscreenWebView {
                         }
                         return true;
                     }
+                    @Override public void onPageStarted(WebView source, String target, Bitmap icon) {
+                        Instance current = INSTANCES.get(nativeHandle);
+                        if (current == null || !current.active || current.view != source) return;
+                        // Navigation retires editor/frame callbacks from the previous document.
+                        releaseTextFocus(current);
+                        current.stopRendering();
+                        current.updateRendering();
+                    }
                     @Override public void onPageFinished(WebView finishedView, String finishedUrl) {
                         Instance current = INSTANCES.get(nativeHandle);
                         if (current == null || !current.active || current.view != finishedView) return;
@@ -358,15 +368,12 @@ public final class OffscreenWebView {
         final String safeUrl = PicoWebUrlPolicy.navigation(url);
         postCommand(nativeHandle, "navigation", instance -> {
             releaseTextFocus(instance);
+            instance.stopRendering();
             instance.cancelActiveTouch();
             instance.pendingScroll = 0.0f;
             // Invalid replacement content must not leave the previous page interactive.
             instance.pendingUrl = safeUrl == null ? "about:blank" : safeUrl;
-            if (instance.rendering) {
-                String pending = instance.pendingUrl;
-                instance.pendingUrl = null;
-                instance.view.loadUrl(pending);
-            }
+            instance.updateRendering();
         });
     }
 
@@ -395,13 +402,19 @@ public final class OffscreenWebView {
 
     public static void pointer(long nativeHandle, int action, float x, float y) {
         postInputCommand(nativeHandle, "pointer dispatch", instance -> {
+            // A click after asynchronous creation/navigation can retain Qt
+            // focus without another focusIn event. Reacquire only this admitted
+            // native editor owner before delivering the real pointer event.
+            if (action == MotionEvent.ACTION_DOWN) requestTextFocus(instance);
             instance.dispatchPointer(action, x, y);
+            instance.publishEditorState();
         });
     }
 
     private static void releaseTextFocus(Instance instance) {
         if (textFocus != instance) return;
         textFocus = null;
+        instance.clearEditorState();
         InputConnection input = instance.view.onCreateInputConnection(new EditorInfo());
         if (input != null) {
             input.finishComposingText();
@@ -409,11 +422,20 @@ public final class OffscreenWebView {
         instance.view.clearFocus();
     }
 
+    private static void requestTextFocus(Instance instance) {
+        if (textFocus == instance && instance.view.hasFocus()) return;
+        if (textFocus != null) releaseTextFocus(textFocus);
+        PicoInterfaceActivity owner = PicoInterfaceActivity.getInstance();
+        PicoWebInputGate.Ticket ticket = INPUT_GATE.capture();
+        if (ticket == null || !instance.mayRender() || instance.view.getContext() != owner) return;
+        if (instance.view.requestFocus() && INPUT_GATE.permits(ticket, owner) && instance.mayRender()) textFocus = instance;
+    }
+
     public static void focus(long nativeHandle, boolean focused) {
         postInputCommand(nativeHandle, "editor focus", instance -> {
             if (!focused) { releaseTextFocus(instance); return; }
-            if (textFocus != null && textFocus != instance) releaseTextFocus(textFocus);
-            if (instance.view.requestFocus()) textFocus = instance;
+            requestTextFocus(instance);
+            instance.publishEditorState();
         });
     }
 
@@ -505,6 +527,37 @@ public final class OffscreenWebView {
         boolean reportedFirstFrame;
         float pendingScroll;
         final PicoTouchState touchState = new PicoTouchState();
+        PicoWebEditorState editorState = PicoWebEditorState.INACTIVE;
+
+        void publishEditorState() {
+            PicoInterfaceActivity owner = PicoInterfaceActivity.getInstance();
+            PicoWebInputGate.Ticket ticket = INPUT_GATE.capture();
+            final long observedEpoch = epoch, observedVisibility = visibilityRevision;
+            boolean admitted = mayRender() && textFocus == this && ticket != null
+                && owner != null && owner.hasWindowFocus() && INPUT_GATE.permits(ticket, owner);
+            PicoWebEditorState next = PicoWebEditorState.inspect(view, admitted);
+            // Native APIs can synchronously dispatch callbacks; recheck the same lease.
+            if (!mayRender() || epoch != observedEpoch || visibilityRevision != observedVisibility
+                    || ticket == null || !INPUT_GATE.permits(ticket, owner)) next = PicoWebEditorState.INACTIVE;
+            if (editorState.same(next)) return;
+            sendEditorState(next);
+        }
+
+        void clearEditorState() { sendEditorState(PicoWebEditorState.INACTIVE); }
+
+        void sendEditorState(PicoWebEditorState next) {
+            editorState = next;
+            long revision = frameEpoch();
+            if (revision == 0) {
+                editorState = PicoWebEditorState.INACTIVE;
+                epoch = 0; rendering = false;
+                Runnable callback = pendingFrame; pendingFrame = null;
+                if (callback != null) MAIN.removeCallbacks(callback);
+                nativeLifecycle(nativeHandle, Long.MAX_VALUE, false);
+                return;
+            }
+            nativeEditorState(nativeHandle, epoch, revision, next.focused, next.numeric, next.password);
+        }
 
         final Runnable renderFrame = new Runnable() {
             @Override public void run() {
@@ -530,6 +583,9 @@ public final class OffscreenWebView {
                     // Recheck admission after rasterization: an Activity pause
                     // can invalidate its epoch from another thread meanwhile.
                     if (!mayRender() || renderedEpoch != epoch || renderedVisibility != visibilityRevision
+                            || !FRAME_GATE.permits(ticket, PicoInterfaceActivity.getInstance())) return;
+                    publishEditorState();
+                    if (!mayRender() || epoch != renderedEpoch || visibilityRevision != renderedVisibility
                             || !FRAME_GATE.permits(ticket, PicoInterfaceActivity.getInstance())) return;
                     nativeFrame(nativeHandle, renderedEpoch, pixels, bitmap.getWidth(), bitmap.getHeight());
                     if (!reportedFirstFrame) {
@@ -582,6 +638,7 @@ public final class OffscreenWebView {
         }
 
         void stopRendering() {
+            clearEditorState();
             epoch = frameEpoch();
             rendering = false;
             Runnable callback = pendingFrame;

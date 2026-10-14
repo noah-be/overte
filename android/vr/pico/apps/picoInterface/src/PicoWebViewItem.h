@@ -14,6 +14,9 @@ class PicoWebViewItem : public QQuickItem {
     Q_PROPERTY(QString userAgent READ userAgent WRITE setUserAgent)
     Q_PROPERTY(QString frameSource READ frameSource)
     Q_PROPERTY(bool rendering READ rendering NOTIFY renderingChanged)
+    Q_PROPERTY(bool editorFocused READ editorFocused NOTIFY editorStateChanged)
+    Q_PROPERTY(bool editorNumeric READ editorNumeric NOTIFY editorStateChanged)
+    Q_PROPERTY(bool editorPassword READ editorPassword NOTIFY editorStateChanged)
 
 public:
     explicit PicoWebViewItem(QQuickItem* parent = nullptr);
@@ -29,6 +32,11 @@ public:
     void acceptFrame(qint64 epoch, const void* pixels, qsizetype byteCount, int width, int height);
     void acceptLifecycle(qint64 epoch, bool rendering);
     bool rendering() const;
+    bool editorFocused() const;
+    bool editorNumeric() const;
+    bool editorPassword() const;
+    void acceptEditorState(qint64 epoch, qint64 revision, bool focused, bool numeric, bool password);
+    Q_INVOKABLE void unfocus();
     void acceptCreationResult(bool created);
     void componentComplete() override;
 
@@ -36,6 +44,7 @@ signals:
     void urlChanged();
     void useBackgroundChanged();
     void renderingChanged();
+    void editorStateChanged();
 
 protected:
     void geometryChanged(const QRectF& newGeometry, const QRectF& oldGeometry) override;
@@ -59,6 +68,7 @@ private:
     void scheduleCreationRetry();
     void sendPointer(int action, const QPointF& position);
     bool canEditText() const;
+    void clearEditorState();
     void sendEditorText(const QString& text, bool composing);
     int pixelWidth() const;
     int pixelHeight() const;
@@ -79,4 +89,6 @@ private:
     qint64 _nativeEpoch { -1 };
     bool _nativeRendering { false };
     bool _surfaceVisible { true };
+    qint64 _editorRevision { 0 };
+    bool _editorFocused { false }, _editorNumeric { false }, _editorPassword { false };
 };

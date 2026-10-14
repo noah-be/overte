@@ -29,6 +29,8 @@ Item {
     function _load() {
         if (!_ready) { return; }
         keyboardRaised = false;
+        punctuationMode = false;
+        passwordField = false;
         // Keep Pico's working inline-HTML renderer. The common source grant
         // intentionally excludes data documents from privileged WebChannel use.
         // A direct physical load and Qt's logical selector entry have different
@@ -70,6 +72,12 @@ Item {
         target: loader.item
         ignoreUnknownSignals: true
         function onSendToScript(message) { root.sendToScript(message); }
+        function onEditorStateChanged() {
+            var editor = loader.item && loader.item.item;
+            root.punctuationMode = editor ? editor.editorNumeric : false;
+            root.passwordField = editor ? editor.editorPassword : false;
+            root.keyboardRaised = root.keyboardEnabled && editor && editor.editorFocused;
+        }
     }
     Controls.Keyboard {
         id: keyboard

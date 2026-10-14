@@ -141,6 +141,16 @@ PicoWebViewItem::~PicoWebViewItem() {
 void PicoWebViewItem::setUrl(const QString& value) {
     if (_url == value) { return; }
     _url = value;
+    clearEditorState();
+    if (_webViewCreated) {
+        QMutexLocker locker(&_imageMutex);
+        // Java load starts a newer epoch; queued old-document editor/frames must
+        // already be inadmissible while Android's main queue processes it.
+        if (_nativeEpoch < std::numeric_limits<qint64>::max()) ++_nativeEpoch;
+        _nativeRendering = false;
+        _image = QImage();
+    }
+    emit renderingChanged();
     emit urlChanged();
     if (!_webViewCreated) {
         // A changed target is a new bounded attempt, even after the previous
@@ -283,6 +293,7 @@ void PicoWebViewItem::acceptCreationResult(bool created) {
 }
 
 void PicoWebViewItem::syncVisibility() {
+    if (!isVisible() || !isEnabled()) clearEditorState();
     const bool visible = isVisible() && isEnabled();
     {
         QMutexLocker locker(&_imageMutex);
@@ -300,6 +311,44 @@ bool PicoWebViewItem::rendering() const {
     return _nativeRendering && _surfaceVisible;
 }
 
+bool PicoWebViewItem::editorFocused() const { QMutexLocker lock(&_imageMutex); return _editorFocused; }
+bool PicoWebViewItem::editorNumeric() const { QMutexLocker lock(&_imageMutex); return _editorNumeric; }
+bool PicoWebViewItem::editorPassword() const { QMutexLocker lock(&_imageMutex); return _editorPassword; }
+
+void PicoWebViewItem::clearEditorState() {
+    {
+        QMutexLocker lock(&_imageMutex);
+        if (!_editorFocused && !_editorNumeric && !_editorPassword) return;
+        _editorFocused = _editorNumeric = _editorPassword = false;
+    }
+    emit editorStateChanged();
+}
+
+void PicoWebViewItem::unfocus() { setFocus(false); clearEditorState(); }
+
+void PicoWebViewItem::acceptEditorState(qint64 epoch, qint64 revision, bool focused, bool numeric, bool password) {
+    {
+        QMutexLocker lock(&_imageMutex);
+        if (!_nativeRendering || !_surfaceVisible || epoch != _nativeEpoch
+                || revision <= 0 || revision <= _editorRevision) return;
+        _editorRevision = revision;
+        _editorFocused = focused;
+        _editorNumeric = focused && numeric;
+        _editorPassword = focused && password;
+    }
+    QPointer<PicoWebViewItem> item(this);
+    QMetaObject::invokeMethod(this, [item, epoch, revision] {
+        if (!item) return;
+        {
+            QMutexLocker lock(&item->_imageMutex);
+            if (item->_nativeEpoch != epoch || item->_editorRevision != revision
+                    || !item->_nativeRendering || !item->_surfaceVisible) return;
+        }
+        if (!item->hasActiveFocus() || !item->isEnabled()) { item->clearEditorState(); return; }
+        emit item->editorStateChanged();
+    }, Qt::QueuedConnection);
+}
+
 void PicoWebViewItem::acceptLifecycle(qint64 epoch, bool rendering) {
     {
         QMutexLocker locker(&_imageMutex);
@@ -308,6 +357,7 @@ void PicoWebViewItem::acceptLifecycle(qint64 epoch, bool rendering) {
         if (epoch == _nativeEpoch && !_nativeRendering && rendering) { return; }
         _nativeEpoch = epoch;
         _nativeRendering = rendering;
+        _editorFocused = _editorNumeric = _editorPassword = false;
         _image = QImage();
     }
     QPointer<PicoWebViewItem> item(this);
@@ -317,6 +367,7 @@ void PicoWebViewItem::acceptLifecycle(qint64 epoch, bool rendering) {
             QMutexLocker locker(&item->_imageMutex);
             if (item->_nativeEpoch != epoch) { return; }
         }
+        emit item->editorStateChanged();
         emit item->renderingChanged();
     }, Qt::QueuedConnection);
 }
@@ -491,6 +542,7 @@ void PicoWebViewItem::focusInEvent(QFocusEvent* event) {
 }
 
 void PicoWebViewItem::focusOutEvent(QFocusEvent* event) {
+    clearEditorState();
     jvalue args[2]; args[0].j = _nativeHandle; args[1].z = JNI_FALSE;
     callStatic("focus", "(JZ)V", args);
     QQuickItem::focusOutEvent(event);
@@ -513,6 +565,16 @@ Java_org_overte_pico_OffscreenWebView_nativeLifecycle(
     QMutexLocker locker(&itemRegistryMutex);
     if (auto* item = itemRegistry.value(handle, nullptr)) {
         item->acceptLifecycle(epoch, rendering);
+    }
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_org_overte_pico_OffscreenWebView_nativeEditorState(
+        JNIEnv*, jclass, jlong handle, jlong epoch, jlong revision,
+        jboolean focused, jboolean numeric, jboolean password) {
+    QMutexLocker locker(&itemRegistryMutex);
+    if (auto* item = itemRegistry.value(handle, nullptr)) {
+        item->acceptEditorState(epoch, revision, focused, numeric, password);
     }
 }
 

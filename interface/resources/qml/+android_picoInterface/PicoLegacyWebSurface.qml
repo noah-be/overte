@@ -32,7 +32,8 @@ Item {
         }
     }
 
-    property var item: null
+    readonly property var item: loader.item ? loader.item.webItem : null
+    signal editorStateChanged()
     property bool webViewLoaded: false
 
     function fromScript(message) {
@@ -120,6 +121,11 @@ Item {
                         refreshTimer.restart();
                     }
                 }
+            }
+            property alias webItem: webView
+            Connections {
+                target: webView
+                function onEditorStateChanged() { root.editorStateChanged(); }
             }
             property alias url: webView.url
             property alias scriptUrl: webView.scriptUrl
