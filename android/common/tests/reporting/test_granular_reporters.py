@@ -18,6 +18,29 @@ def executable(path: Path, content: str) -> None:
 
 
 class GranularReporterTest(unittest.TestCase):
+    def test_common_qml_zero_exit_cannot_hide_error_failure_or_skip_junit(self):
+        for counter in ('errors', 'failures', 'skipped', None):
+            with self.subTest(counter=counter), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                runner = root / 'qmltestrunner'
+                executable(runner, '''
+previous=""
+for argument in "$@"; do
+  if [[ "$previous" == -o && "$argument" == /*,junitxml ]]; then
+    printf '%s' "$FIXTURE_JUNIT" >"${argument%,junitxml}"
+  fi
+  previous="$argument"
+done
+''')
+                original = ('<testsuite tests="1" ' + counter + '="1"><testcase result="pass"/></testsuite>'
+                            if counter else '<testsuite tests="1"><testcase name="standard-qt6"/></testsuite>')
+                result = subprocess.run([ANDROID_ROOT / 'common/tests/qml/run-qml-tests.sh'],
+                    env=os.environ | {'OVERTE_QML_TEST_RUNNER': str(runner),
+                                      'OVERTE_TEST_REPORT_DIR': str(root / 'reports'), 'FIXTURE_JUNIT': original},
+                    text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                self.assertEqual(1 if counter else 0, result.returncode, result.stdout)
+                self.assertEqual(original, (root / 'reports/qml/TEST-qml.xml').read_text())
+
     def test_fixed_phone_runtime_is_required_and_results_cannot_disappear(self):
         for mode in ('parent-only', 'pass', 'failure', 'skip', 'missing-report', 'zero-tests', 'false-success', 'partial'):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory:
