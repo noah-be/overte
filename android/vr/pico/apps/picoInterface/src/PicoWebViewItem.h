@@ -13,6 +13,7 @@ class PicoWebViewItem : public QQuickItem {
     Q_PROPERTY(bool useBackground READ useBackground WRITE setUseBackground NOTIFY useBackgroundChanged)
     Q_PROPERTY(QString userAgent READ userAgent WRITE setUserAgent)
     Q_PROPERTY(QString frameSource READ frameSource)
+    Q_PROPERTY(bool rendering READ rendering NOTIFY renderingChanged)
 
 public:
     explicit PicoWebViewItem(QQuickItem* parent = nullptr);
@@ -25,13 +26,16 @@ public:
     void setUseBackground(bool value);
     QString frameSource() const;
     QImage frameImage() const;
-    void acceptFrame(const void* pixels, qsizetype byteCount, int width, int height);
+    void acceptFrame(qint64 epoch, const void* pixels, qsizetype byteCount, int width, int height);
+    void acceptLifecycle(qint64 epoch, bool rendering);
+    bool rendering() const;
     void acceptCreationResult(bool created);
     void componentComplete() override;
 
 signals:
     void urlChanged();
     void useBackgroundChanged();
+    void renderingChanged();
 
 protected:
     void geometryChanged(const QRectF& newGeometry, const QRectF& oldGeometry) override;
@@ -51,6 +55,7 @@ protected:
 
 private:
     void createWebView();
+    void syncVisibility();
     void scheduleCreationRetry();
     void sendPointer(int action, const QPointF& position);
     bool canEditText() const;
@@ -71,4 +76,7 @@ private:
     mutable QMutex _imageMutex;
     QImage _image;
     quint64 _frameSerial { 0 };
+    qint64 _nativeEpoch { -1 };
+    bool _nativeRendering { false };
+    bool _surfaceVisible { true };
 };

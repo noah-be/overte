@@ -53,7 +53,7 @@ struct JniScope {
         JavaVM* vm = webViewJavaVm.load(std::memory_order_acquire);
         if (!vm) { return; }
         if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK) {
-            attached = vm->AttachCurrentThread(&env, nullptr) == JNI_OK;
+            attached = vm->functions->AttachCurrentThread(vm, reinterpret_cast<void**>(&env), nullptr) == JNI_OK;
         }
     }
     ~JniScope() {
@@ -123,6 +123,8 @@ PicoWebViewItem::PicoWebViewItem(QQuickItem* parent) : QQuickItem(parent) {
     setAcceptHoverEvents(true);
     setAcceptedMouseButtons(Qt::LeftButton);
     setFlag(ItemAcceptsInputMethod, true);
+    connect(this, &QQuickItem::visibleChanged, this, &PicoWebViewItem::syncVisibility);
+    connect(this, &QQuickItem::enabledChanged, this, &PicoWebViewItem::syncVisibility);
 }
 
 PicoWebViewItem::~PicoWebViewItem() {
@@ -249,6 +251,7 @@ void PicoWebViewItem::acceptCreationResult(bool created) {
         return;
     }
     _webViewCreationRetries = 0;
+    syncVisibility();
 
     // URL and properties may have changed while Java was creating the WebView.
     // Reapply the current state after registration so no pending update is lost.
@@ -279,6 +282,45 @@ void PicoWebViewItem::acceptCreationResult(bool created) {
     jni.env->DeleteLocalRef(agent);
 }
 
+void PicoWebViewItem::syncVisibility() {
+    const bool visible = isVisible() && isEnabled();
+    {
+        QMutexLocker locker(&_imageMutex);
+        _surfaceVisible = visible;
+        if (!visible) { _nativeRendering = false; _image = QImage(); }
+    }
+    emit renderingChanged();
+    if (!_webViewCreated) { return; }
+    jvalue args[2]; args[0].j = _nativeHandle; args[1].z = visible;
+    callStatic("setVisible", "(JZ)V", args);
+}
+
+bool PicoWebViewItem::rendering() const {
+    QMutexLocker locker(&_imageMutex);
+    return _nativeRendering && _surfaceVisible;
+}
+
+void PicoWebViewItem::acceptLifecycle(qint64 epoch, bool rendering) {
+    {
+        QMutexLocker locker(&_imageMutex);
+        if (epoch < 0 || epoch < _nativeEpoch) { return; }
+        // A stopped epoch cannot be reopened by a delayed equal-epoch callback.
+        if (epoch == _nativeEpoch && !_nativeRendering && rendering) { return; }
+        _nativeEpoch = epoch;
+        _nativeRendering = rendering;
+        _image = QImage();
+    }
+    QPointer<PicoWebViewItem> item(this);
+    QMetaObject::invokeMethod(this, [item, epoch] {
+        if (!item) { return; }
+        {
+            QMutexLocker locker(&item->_imageMutex);
+            if (item->_nativeEpoch != epoch) { return; }
+        }
+        emit item->renderingChanged();
+    }, Qt::QueuedConnection);
+}
+
 QImage PicoWebViewItem::frameImage() const {
     QMutexLocker locker(&_imageMutex);
     return _image;
@@ -292,7 +334,7 @@ QString PicoWebViewItem::frameSource() const {
         // transparent background or leave its centre empty while still drawing
         // controls elsewhere. The presence of a copied frame, rather than one
         // arbitrarily sampled pixel, is the readiness signal.
-        if (_image.isNull()) {
+        if (!_nativeRendering || !_surfaceVisible || _image.isNull()) {
             return {};
         }
         frameSerial = _frameSerial;
@@ -301,7 +343,7 @@ QString PicoWebViewItem::frameSource() const {
         .arg(static_cast<qlonglong>(_nativeHandle), 0, 16).arg(frameSerial);
 }
 
-void PicoWebViewItem::acceptFrame(const void* pixels, qsizetype byteCount, int width, int height) {
+void PicoWebViewItem::acceptFrame(qint64 epoch, const void* pixels, qsizetype byteCount, int width, int height) {
     constexpr qsizetype BYTES_PER_PIXEL { 4 };
     if (!pixels || width <= 0 || height <= 0 ||
             width > std::numeric_limits<qsizetype>::max() / height / BYTES_PER_PIXEL ||
@@ -310,6 +352,7 @@ void PicoWebViewItem::acceptFrame(const void* pixels, qsizetype byteCount, int w
     }
     {
         QMutexLocker locker(&_imageMutex);
+        if (!_nativeRendering || !_surfaceVisible || epoch != _nativeEpoch) { return; }
         _image = QImage(static_cast<const uchar*>(pixels), width, height,
                         QImage::Format_ARGB32).copy();
         ++_frameSerial;
@@ -455,12 +498,21 @@ void PicoWebViewItem::focusOutEvent(QFocusEvent* event) {
 
 extern "C" JNIEXPORT void JNICALL
 Java_org_overte_pico_OffscreenWebView_nativeFrame(JNIEnv* env, jclass, jlong handle,
-                                                   jobject buffer, jint width, jint height) {
+                                                   jlong epoch, jobject buffer, jint width, jint height) {
     QMutexLocker locker(&itemRegistryMutex);
     auto* item = itemRegistry.value(handle, nullptr);
     if (item && buffer) {
-        item->acceptFrame(env->GetDirectBufferAddress(buffer),
+        item->acceptFrame(epoch, env->GetDirectBufferAddress(buffer),
                           env->GetDirectBufferCapacity(buffer), width, height);
+    }
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_org_overte_pico_OffscreenWebView_nativeLifecycle(
+        JNIEnv*, jclass, jlong handle, jlong epoch, jboolean rendering) {
+    QMutexLocker locker(&itemRegistryMutex);
+    if (auto* item = itemRegistry.value(handle, nullptr)) {
+        item->acceptLifecycle(epoch, rendering);
     }
 }
 

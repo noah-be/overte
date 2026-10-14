@@ -22,6 +22,8 @@ public final class PicoInterfaceActivity extends QtActivity {
         new PicoActivityInstancePolicy<>();
     private boolean resumed;
     private PicoAccessibilityBridge accessibility;
+    private PicoEmbeddedWebHost embeddedWeb;
+    private PicoNativeDocumentHost nativeDocuments;
 
     static {
         // Shared emits canonical OpenSSL 3 filenames/SONAMEs. Preload crypto
@@ -42,6 +44,8 @@ public final class PicoInterfaceActivity extends QtActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         INSTANCE.register(this);
+        nativeDocuments = PicoNativeDocumentHost.attach(this);
+        runShutdownStep("Legacy web lifecycle", () -> OffscreenWebView.setForeground(this, false));
         runShutdownStep("Web input", () -> OffscreenWebView.setInputForeground(this, false));
         PicoClientVisibility.attach(this);
         APPLICATION_PARAMETERS = PicoInterfaceActivityPolicy.applicationParameters(
@@ -67,6 +71,8 @@ public final class PicoInterfaceActivity extends QtActivity {
         super.onCreate(savedInstanceState);
         accessibility = new PicoAccessibilityBridge(this);
         OffscreenWebView.initializeNativeBridge();
+        embeddedWeb = new PicoEmbeddedWebHost(this);
+        runShutdownStep("Embedded web initialization", embeddedWeb::initialize);
         AndroidAudioInput.initializeNativeBridge();
     }
 
@@ -130,7 +136,10 @@ public final class PicoInterfaceActivity extends QtActivity {
     protected void onDestroy() {
         final boolean ownsLifecycle = INSTANCE.current() == this;
         if (accessibility != null) accessibility.stop();
+        if (embeddedWeb != null) runShutdownStep("Embedded web", embeddedWeb::detach);
+        if (nativeDocuments != null) runShutdownStep("Native documents", nativeDocuments::detach);
         if (ownsLifecycle) {
+            runShutdownStep("Legacy web lifecycle", () -> OffscreenWebView.setForeground(this, false));
             runShutdownStep("Web input", () -> OffscreenWebView.setInputForeground(this, false));
         }
         PicoClientVisibility.detach(this);
@@ -193,7 +202,10 @@ public final class PicoInterfaceActivity extends QtActivity {
     public void onResume() {
         super.onResume();
         resumed = true;
+        if (nativeDocuments != null) runShutdownStep("Native documents", () -> nativeDocuments.foreground(true));
+        if (embeddedWeb != null) runShutdownStep("Embedded web", () -> embeddedWeb.foreground(true));
         if (accessibility != null) accessibility.start();
+        runShutdownStep("Legacy web lifecycle", () -> OffscreenWebView.setForeground(this, hasWindowFocus()));
         runShutdownStep("Web input", () -> OffscreenWebView.setInputForeground(this, hasWindowFocus()));
         if (INSTANCE.current() == this) PicoClientVisibility.foreground(this, true);
         if (INSTANCE.current() == this) AndroidAudioInput.setForeground(hasWindowFocus());
@@ -202,7 +214,10 @@ public final class PicoInterfaceActivity extends QtActivity {
     @Override
     public void onPause() {
         resumed = false;
+        if (nativeDocuments != null) runShutdownStep("Native documents", () -> nativeDocuments.foreground(false));
+        if (embeddedWeb != null) runShutdownStep("Embedded web", () -> embeddedWeb.foreground(false));
         if (accessibility != null) accessibility.stop();
+        runShutdownStep("Legacy web lifecycle", () -> OffscreenWebView.setForeground(this, false));
         runShutdownStep("Web input", () -> OffscreenWebView.setInputForeground(this, false));
         if (INSTANCE.current() == this) PicoClientVisibility.foreground(this, false);
         if (INSTANCE.current() == this) AndroidAudioInput.setForeground(false);
@@ -212,10 +227,20 @@ public final class PicoInterfaceActivity extends QtActivity {
     @Override
     public void onWindowFocusChanged(boolean focused) {
         super.onWindowFocusChanged(focused);
+        if (nativeDocuments != null) runShutdownStep("Native documents focus", nativeDocuments::windowFocus);
+        if (embeddedWeb != null) runShutdownStep("Embedded web focus", embeddedWeb::windowFocus);
         if (INSTANCE.current() == this) {
+            runShutdownStep("Legacy web lifecycle", () -> OffscreenWebView.setForeground(this, resumed && focused));
             runShutdownStep("Web input", () -> OffscreenWebView.setInputForeground(this, resumed && focused));
             AndroidAudioInput.setForeground(resumed && focused);
         }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (nativeDocuments != null && nativeDocuments.activityResult(requestCode, resultCode, data)) return;
+        if (embeddedWeb != null && embeddedWeb.fileResult(requestCode, resultCode, data)) return;
+        super.onActivityResult(requestCode, resultCode, data);
     }
 
     @Override
