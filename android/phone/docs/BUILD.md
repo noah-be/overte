@@ -802,10 +802,14 @@ Phone registers the Android parent's `Overte.Android` backend in `phoneInterface
 and places a real embedded WebView inside the measured Qt surface. Full scene
 bounds and QML clip bounds map through the actual surface dimensions. The 48-pixel
 Qt navigation toolbar and other Qt controls stay outside the native browser.
-The native browser owns tablet DOM input and its OS input connection. Foreground,
-window focus and Activity destruction invalidate the common runtime's grants.
+The native browser owns tablet DOM input and its OS input connection. Actual
+Activity background and destruction suspend the common media lifecycle. Window
+focus changes call the independent input hook and invalidate pointer/IME tickets
+without suspending media, rendering or bridge grants. Foreground requires the
+resumed current Qt Activity; input and picker entry/return additionally require
+real window focus.
 The file picker uses explicit OS document selection, temporary content URIs and
-one-shot request leases; results wait for actual foreground return. No camera,
+one-shot request leases; results wait for actual foreground and input-focus return. No camera,
 microphone or geolocation permissions are granted to browser documents.
 
 The pinned AndroidX WebKit dependency, transitive runtime artifacts and matching
@@ -820,6 +824,22 @@ geometry behavior. Its optional `--android-jar`, `--qt-jar`, `--webkit-jar` and 
 arguments compile the actual Phone Activity, Host, Qt bindings and common browser
 against those artifacts. This checks Java API compatibility only. The test
 inventory records `PhoneEmbeddedWeb.cpp` as an Android Qt/JNI runtime boundary.
+
+Before regular parent propagation, API compilation may read an explicit clean
+Android preview with `--common-web-preview <checkout> --expected-common-sha <sha>`.
+It compiles that production Web source, not a substitute API class. The test-only
+`android/phone/tests/web-focus-preview.init.gradle` supplies the same prerequisite
+to the existing locked JVM harness with `-PoverteWebPreviewRoot=<checkout>` and
+`-PoverteWebPreviewSha=<sha>`; it verifies SHA/cleanliness before selecting sources.
+This is an unpropagated test prerequisite, not Phone parent ancestry or native
+application qualification. Omit the preview after normal parent propagation.
+
+`PhoneEmbeddedWebFocusRobolectricTest` runs the actual final Phone Activity/Host
+through window-focus, pause/destroy, stale-owner and picker-return cases. Qt native
+library startup and common JNI/Chromium effects are explicit observation
+boundaries. The minimal test assets are generated in a temporary ZIP and removed
+on success or failure. Native media silence and provider behavior remain outside
+this host dispatch test; no TLS implementation or package policy is changed.
 
 A complete Phone app build and exact-artifact device checks are still required:
 provider bridge/iframe rejection, file picker cancellation and Activity recreation,
