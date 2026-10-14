@@ -2,14 +2,25 @@
 """Fail-closed structural and signing verification for a Pico 4 APK."""
 
 import argparse
+import copy
+from contextlib import contextmanager
 import hashlib
+import importlib.util
 import json
+import os
 from pathlib import Path, PurePosixPath
 import re
 import shutil
 import subprocess
 import sys
+import stat
+import tempfile
 import zipfile
+
+
+SOURCE_ROOT = Path(__file__).resolve().parents[4]
+WEB_ROOT = SOURCE_ROOT / "android/common/web"
+PICO_MANIFEST = SOURCE_ROOT / "android/vr/pico/apps/picoInterface/src/main/AndroidManifest.xml"
 
 
 EXPECTED_PACKAGE = "org.overte.pico"
@@ -75,6 +86,130 @@ def run_tool(command):
     if len(result.stdout) > 1024 * 1024:
         fail("tool output exceeds verifier bound")
     return result.stdout
+
+
+def sha256_file(path):
+    checksum = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            checksum.update(chunk)
+    return checksum.hexdigest()
+
+
+@contextmanager
+def bound_apk(apk):
+    """Give every archive reader one private copy of the originally hashed bytes."""
+    if apk is None:
+        fail("candidate APK is required")
+    if not apk.is_file() or apk.is_symlink():
+        fail("APK is not a regular non-symlink file")
+    with tempfile.TemporaryDirectory(prefix="overte-pico-verifier-") as temporary:
+        snapshot = Path(temporary) / apk.name
+        checksum = hashlib.sha256()
+        copied = 0
+        descriptor = os.open(apk, os.O_RDONLY | os.O_NOFOLLOW)
+        with os.fdopen(descriptor, "rb") as source, snapshot.open("xb") as output:
+            metadata = os.fstat(source.fileno())
+            if not stat.S_ISREG(metadata.st_mode) or not 0 < metadata.st_size <= MAX_APK_BYTES:
+                fail("APK size exceeds verifier bound")
+            for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                copied += len(chunk)
+                if copied > MAX_APK_BYTES:
+                    fail("APK size exceeds verifier bound")
+                checksum.update(chunk)
+                output.write(chunk)
+        digest = checksum.hexdigest()
+        if copied != metadata.st_size or sha256_file(apk) != digest:
+            fail("candidate bytes changed during verification")
+        snapshot.chmod(0o400)
+        yield snapshot, digest
+        if sha256_file(snapshot) != digest or sha256_file(apk) != digest:
+            fail("candidate bytes changed during verification")
+
+
+def decoder_inputs(path):
+    """Bind an SDK launcher and its actual Java runtime dependencies, when present."""
+    path = Path(path).resolve()
+    files = {str(path): sha256_file(path)}
+    sdk = path.parent.parent
+    if path.name == "apkanalyzer" and (sdk / "lib/apkanalyzer-classpath.jar").is_file():
+        for item in [sdk / "source.properties", *sorted((sdk / "lib").rglob("*.jar"))]:
+            if not item.is_file():
+                fail("incomplete APK XML decoder inputs")
+            files[str(item)] = sha256_file(item)
+        java = (Path(os.environ["JAVA_HOME"]) / "bin/java" if os.environ.get("JAVA_HOME")
+                else Path(resolve_tool(None, "java"))).resolve()
+        for item in (java, java.parent.parent / "release", java.parent.parent / "lib/modules",
+                     java.parent.parent / "lib/server/libjvm.so"):
+            if not item.is_file():
+                fail("incomplete APK XML decoder JVM inputs")
+            files[str(item)] = sha256_file(item)
+    return files
+
+
+def verify_network_policy(args):
+    """Bind standalone policy checks to one private archive, including the SDK."""
+    with bound_apk(args.apk) as (snapshot, digest):
+        bound_args = copy.copy(args)
+        bound_args.apk = snapshot
+        result = _verify_network_policy(bound_args)
+        result["archive_sha256"] = digest
+        return result
+
+
+def _verify_network_policy(args):
+    """Consume the parent policy against source and every actual packaged variant.
+
+    No preview path or policy override is exposed by the product CLI. Host tests
+    explicitly substitute WEB_ROOT until the normal VR parent is integrated.
+    """
+    paths = [WEB_ROOT / "network_policy.py", WEB_ROOT / "network-capability.json",
+             WEB_ROOT / "res/xml/overte_embedded_web_network_security_config.xml", PICO_MANIFEST]
+    try:
+        if any(not p.is_file() or p.is_symlink() or p.stat().st_size > 256 * 1024 for p in paths):
+            fail("missing or invalid source network capability")
+        source_bytes = {p: p.read_bytes() for p in paths}
+        source_hashes = {str(p): hashlib.sha256(data).hexdigest() for p, data in source_bytes.items()}
+        spec = importlib.util.spec_from_file_location("overte_parent_web_network_policy", paths[0])
+        policy = importlib.util.module_from_spec(spec)
+        # Execute the exact hashed source bytes, never an unrelated cached pyc.
+        exec(compile(source_bytes[paths[0]], str(paths[0]), "exec"), policy.__dict__)
+        capability_text = source_bytes[paths[1]].decode("utf-8")
+        policy.validate_source(source_bytes[paths[3]].decode("utf-8"),
+                               source_bytes[paths[2]].decode("utf-8"), capability_text)
+        analyzer = str(Path(resolve_tool(args.apkanalyzer, "apkanalyzer")).resolve())
+        aapt2 = str(Path(resolve_tool(args.aapt2, "aapt2")).resolve())
+        tools = decoder_inputs(analyzer)
+        tools.update(decoder_inputs(aapt2))
+        manifest = run_tool([analyzer, "manifest", "print", str(args.apk)])
+        inventory = run_tool([aapt2, "dump", "resources", str(args.apk)])
+        selected = policy.packaged_config_paths(manifest, inventory)
+        if len(selected) > 128:
+            fail("too many packaged network configuration variants")
+        configs = {}
+        raw = {}
+        with zipfile.ZipFile(args.apk) as archive:
+            raw["AndroidManifest.xml"] = hashlib.sha256(archive.read("AndroidManifest.xml")).hexdigest()
+            for name in selected:
+                entry = archive.getinfo(name)
+                if entry.file_size > 256 * 1024:
+                    fail("oversized packaged network configuration")
+                raw[name] = hashlib.sha256(archive.read(entry)).hexdigest()
+                configs[name] = run_tool([analyzer, "resources", "xml", "--file", name, str(args.apk)])
+        grant = policy.validate_artifact(manifest, inventory, configs, capability_text)
+        if any(sha256_file(Path(path)) != digest for path, digest in {**source_hashes, **tools}.items()):
+            fail("network capability inputs changed during verification")
+        return {"capability": grant, "source_inputs_sha256": source_hashes,
+                "decoder_inputs_sha256": tools, "packaged_xml_sha256": raw,
+                "decoded_xml_sha256": {name: hashlib.sha256(text.encode()).hexdigest()
+                                       for name, text in configs.items()},
+                "decoded_manifest_sha256": hashlib.sha256(manifest.encode()).hexdigest(),
+                "resource_inventory_sha256": hashlib.sha256(inventory.encode()).hexdigest(),
+                "physical_http_or_tls_qualified": False}
+    except VerificationError:
+        raise
+    except (OSError, ValueError, KeyError, zipfile.BadZipFile, SyntaxError):
+        fail("invalid source or packaged network capability")
 
 
 def inspect_zip(apk):
@@ -188,6 +323,8 @@ def add_candidate_arguments(parser, *, native_binding=False):
         parser.add_argument("--apk", dest="named_apk", type=Path,
                             help="named form of the candidate APK input")
     parser.add_argument("--aapt", help="path to Android aapt")
+    parser.add_argument("--aapt2", help="path to Android aapt2 resource decoder")
+    parser.add_argument("--apkanalyzer", help="path to Android binary XML decoder")
     parser.add_argument("--apksigner", help="path to Android apksigner")
     parser.add_argument("--source-revision", help="40-character Git commit used for the APK build")
     parser.add_argument("--expected-version-code")
@@ -217,6 +354,17 @@ def add_candidate_arguments(parser, *, native_binding=False):
 
 
 def verify_candidate(args):
+    """Read structure, signing, identity and policy from the same bounded snapshot."""
+    with bound_apk(args.apk) as (snapshot, digest):
+        bound_args = copy.copy(args)
+        bound_args.apk = snapshot
+        result = _verify_candidate(bound_args)
+        if result["sha256"] != digest:
+            fail("candidate bytes changed during verification")
+        return result
+
+
+def _verify_candidate(args):
     """Original verification implementation, without CLI output or device I/O."""
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'release'))
     from pico_candidate_identity import EVIDENCE_KEYS, validate_candidate_identity
@@ -244,6 +392,7 @@ def verify_candidate(args):
         fail("APK size exceeds verifier bound")
     aapt = resolve_tool(args.aapt, "aapt")
     apksigner = resolve_tool(args.apksigner, "apksigner")
+    original_digest = sha256_file(args.apk)
     entries, native_libraries, e2e_input_layer = inspect_zip(args.apk)
     if args.expect_e2e_input_layer and not e2e_input_layer:
         fail("Debug APK is missing the required E2E OpenXR input layer")
@@ -264,6 +413,8 @@ def verify_candidate(args):
         if signer_digest != expected_signer:
             fail("APK signer certificate does not match the protected release signer")
 
+    network_capability = _verify_network_policy(args)
+    network_capability["archive_sha256"] = original_digest
     identity = validate_candidate_identity(args, metadata) if identity_supplied else None
     build_evidence = None
     if identity:
@@ -277,6 +428,8 @@ def verify_candidate(args):
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             checksum.update(chunk)
     digest = checksum.hexdigest()
+    if original_digest != digest:
+        fail("candidate bytes changed during verification")
     if identity and identity['artifactSha256'] != digest:
         fail("candidate bytes changed during verification")
     manifest = {
@@ -289,6 +442,7 @@ def verify_candidate(args):
         "native_libraries": native_libraries,
         "e2e_input_layer": e2e_input_layer,
         "signature_verified": True,
+        "network_capability": network_capability,
         "signer_certificate_sha256": signer_digest,
         "identity_status": identity['status'] if identity else 'NOT_PROVIDED_VERIFICATION_PENDING',
     }

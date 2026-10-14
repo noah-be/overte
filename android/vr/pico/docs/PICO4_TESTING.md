@@ -156,3 +156,65 @@ require the shared native QObject/queued-call regression and device observations
 These host checks also do not establish visible HMD controls, physical
 controller/keyboard operation, navigation success or installed APK asset bytes.
 Those observations remain part of current-artifact acceptance criterion #1144.
+
+## Explicit browser network capability
+
+Pico selects the shared Android resource and
+`overte.android.embedded-web.http-https.v1` marker in its application manifest.
+This grants cleartext at **application scope**, not at one WebView. The shared
+policy retains system CAs only. SSL-error cancellation, mixed-content denial,
+bridge/origin/file/lifetime fences and Main credential HTTPS enforcement remain
+separate requirements; native Qt/OpenSSL is not constrained by Android XML.
+
+The owning APK verifier now requires source and actual packaged policy checks:
+
+```sh
+python3 android/vr/pico/ci/verify-pico-apk.py candidate.apk \
+  --aapt /path/to/sdk/build-tools/36.0.0/aapt \
+  --aapt2 /path/to/sdk/build-tools/36.0.0/aapt2 \
+  --apkanalyzer /path/to/sdk/cmdline-tools/latest/bin/apkanalyzer \
+  --apksigner /path/to/sdk/build-tools/36.0.0/apksigner
+```
+
+Existing version/signer/identity/build-evidence arguments remain required by
+qualified release callers. Network verification has no bypass flag. It decodes
+the actual binary manifest, resolves the selected resource ID and every
+configuration variant from AAPT2, and uses the actual SDK apkanalyzer for all
+selected binary XML. The unchanged parent validator checks every decoded
+configuration. Resource-only host fixtures use the `.apk` extension because
+SDK apkanalyzer 22.0 classifies `.zip` inputs as generic archives; a real
+byte-identical `.apk`/`.zip` regression captures that boundary. The receipt binds
+source files,
+raw and decoded XML, the complete archive SHA, resource inventory, SDK executables, decoder JARs and JVM
+inputs. At most 128 policy variants are accepted; every selected variant is
+validated without truncation.
+
+`pico-apk-verifier-test.py` retains the existing synthetic structural/signing
+boundaries and also compiles resource-only fixtures with real SDK36 AAPT2,
+then executes the actual manifest/resource decoder and verifier. Optimized
+filenames, qualifier overrides, wrong IDs, missing/duplicate markers, failed
+variant delivery and changed artifact bytes are exercised. These fixtures have
+no app/native build or device effect and establish no HTTP/TLS/media behavior.
+
+Until the normal Android-to-VR-to-Pico parent arrives, these host tests require
+an explicit immutable preview dependency:
+
+```sh
+OVERTE_PICO_NETWORK_TEST_PARENT=/path/to/reviewed/android-parent \
+OVERTE_PICO_NETWORK_TEST_PARENT_REVISION=<exact-40-character-commit> \
+python3 android/vr/pico/tests/pico-apk-verifier-test.py
+```
+
+The test checks that revision and rejects modified shared files. No preview path
+exists in the product verifier CLI; a missing actual parent fails closed.
+The prior version-32 APK remains source `9eb67e1` without this capability.
+Normal parent integration, a new exact-source artifact and physical HTTP/HTTPS,
+release, hardware video and WebAudio acceptance remain open.
+
+All APK structure, signing, identity and network readers use the same private,
+size-bounded archive snapshot, rather than repeatedly opening the caller's APK.
+The SDK sees the original file extension and basename in that private directory.
+The original and snapshot hashes are checked before success; temporary copies
+are removed after success or failure. The real SDK regression replaces and
+restores an invalid user-CA input during decoding and verifies that it remains
+rejected, rather than accepting decoded system-CA XML from different bytes.
