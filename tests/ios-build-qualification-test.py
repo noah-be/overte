@@ -42,9 +42,10 @@ def records():
              'client / Static JITless V8 checkpoint', 'client / Toolchain, dependencies, build and package']
     steps = ['Build experimental full client', 'Verify required Interface QML plugins in full-client link',
              'Package numbered unsigned client IPA', 'Upload short-lived unsigned E2E client handoff']
-    return [{'name': name, 'run_id': 123, 'run_attempt': 1, 'head_sha': SOURCE,
+    return [{'id': index + 1, 'name': name, 'run_id': 123, 'run_attempt': 1, 'head_sha': SOURCE,
              'status': 'completed', 'conclusion': 'success',
-             'steps': [{'name': step, 'conclusion': 'success'} for step in steps]} for name in names]
+             'steps': [{'name': step, 'status': 'completed', 'conclusion': 'success'} for step in steps]}
+            for index, name in enumerate(names)]
 
 
 def fixture(directory, info_changes=None, **changes):
@@ -127,6 +128,117 @@ class QualificationTests(unittest.TestCase):
                 CHECK.verify_build_execution(value, 123, 1, SOURCE)
         with self.assertRaises(ValueError):
             CHECK.verify_build_execution(records()[:-1], 123, 1, SOURCE)
+
+    def test_failed_only_qualifier_reports_actual_api_snapshot_identity(self):
+        jobs = records()
+        result = CHECK.verify_build_execution(jobs, 123, 2, SOURCE)
+        self.assertEqual(result["apiSnapshotRunAttempt"], 1)
+        self.assertEqual(result["qualifierRunAttempt"], 2)
+        self.assertEqual(result["apiSnapshotJobIds"], [1, 2, 3, 4, 5])
+        self.assertIsNone(result["originalExecutionRunAttempt"])
+        self.assertIsNone(result["originalExecutionJobIds"])
+        self.assertEqual(jobs, records())
+        self.assertEqual(result["artifactIdVerification"], "not-observed-by-legacy-invocation")
+        self.assertEqual(result["originalArtifactZipDigestVerification"],
+                         "not-observed-by-legacy-invocation")
+
+    def test_failed_only_report_still_checks_exact_inner_ipa(self):
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            ipa, manifest = fixture(directory)
+            result = CHECK.report(needs(), SOURCE, 688, 123, 2, directory, records())
+            self.assertEqual(result["runAttempt"], 2)
+            self.assertEqual(result["producer"]["apiSnapshotRunAttempt"], 1)
+            self.assertEqual(result["artifact"]["sha256"], hashlib.sha256(ipa.read_bytes()).hexdigest())
+            payload = json.loads(manifest.read_text())
+            payload["sourceRevision"] = "c" * 40
+            manifest.write_text(json.dumps(payload))
+            with self.assertRaisesRegex(ValueError, "sourceRevision"):
+                CHECK.report(needs(), SOURCE, 688, 123, 2, directory, records())
+
+    def test_actual_job_ids_are_mandatory_and_unique(self):
+        for invalid in (None, 0, -1, True, "1"):
+            jobs = records()
+            jobs[-1]["id"] = invalid
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                CHECK.verify_build_execution(jobs, 123, 2, SOURCE)
+        jobs = records()
+        jobs[-1]["id"] = jobs[0]["id"]
+        with self.assertRaises(ValueError):
+            CHECK.verify_build_execution(jobs, 123, 2, SOURCE)
+
+    def test_mixed_or_future_producer_attempts_are_rejected(self):
+        jobs = records()
+        jobs[-1]["run_attempt"] = 2
+        with self.assertRaisesRegex(ValueError, "inconsistent"):
+            CHECK.verify_build_execution(jobs, 123, 2, SOURCE)
+        for producer, qualifier in ((2, 1), (1, 3), (3, 2), (True, 2), (0, 2)):
+            jobs = records()
+            for job in jobs:
+                job["run_attempt"] = producer
+            with self.subTest(producer=producer, qualifier=qualifier), self.assertRaises(ValueError):
+                CHECK.verify_build_execution(jobs, 123, qualifier, SOURCE)
+        for job in jobs:
+            job["run_attempt"] = 3
+        self.assertEqual(CHECK.verify_build_execution(jobs, 123, 3, SOURCE)["apiSnapshotRunAttempt"], 3)
+
+    def test_cloned_attempt_two_api_does_not_claim_new_execution(self):
+        jobs = records()
+        for job in jobs:
+            job.update(id=job["id"] + 100, run_attempt=2,
+                       started_at="2026-10-13T19:58:16Z", completed_at="2026-10-13T21:27:42Z")
+            for step in job["steps"]:
+                step.update(started_at="2026-10-13T20:09:31Z", completed_at="2026-10-13T21:27:30Z")
+        before = copy.deepcopy(jobs)
+        result = CHECK.verify_build_execution(jobs, 123, 2, SOURCE)
+        self.assertEqual(result["apiSnapshotRunAttempt"], 2)
+        self.assertEqual(result["apiSnapshotJobIds"], [101, 102, 103, 104, 105])
+        self.assertIsNone(result["originalExecutionRunAttempt"])
+        self.assertIsNone(result["originalExecutionJobIds"])
+        self.assertEqual(result["originalExecutionIdentityVerification"],
+                         "not-observed-by-legacy-invocation")
+        self.assertNotIn("producerRunAttempt", result)
+        self.assertNotIn("jobIds", result)
+        self.assertEqual(jobs, before)
+
+    def test_clone_snapshot_success_cannot_hide_failed_native_steps(self):
+        for index in range(4):
+            jobs = records()
+            for job in jobs:
+                job.update(id=job["id"] + 100, run_attempt=2)
+            jobs[-1]["steps"][index]["conclusion"] = "failure"
+            with self.subTest(index=index), self.assertRaises(ValueError):
+                CHECK.verify_build_execution(jobs, 123, 2, SOURCE)
+
+    def test_pending_api_steps_fail_despite_completed_job_and_artifact(self):
+        for index in range(4):
+            for status in (None, "pending", "in_progress", "skipped"):
+                jobs = records()
+                jobs[-1]["steps"][index]["status"] = status
+                # Even an incongruous success conclusion cannot hide a
+                # nonterminal mandatory step.
+                with self.subTest(index=index, status=status), self.assertRaises(ValueError):
+                    CHECK.verify_build_execution(jobs, 123, 2, SOURCE)
+
+    def test_duplicate_jobs_and_native_steps_fail_on_retry(self):
+        jobs = records()
+        jobs.append(copy.deepcopy(jobs[-1]))
+        with self.assertRaises(ValueError):
+            CHECK.verify_build_execution(jobs, 123, 2, SOURCE)
+        jobs = records()
+        jobs[-1]["steps"].append(copy.deepcopy(jobs[-1]["steps"][0]))
+        with self.assertRaises(ValueError):
+            CHECK.verify_build_execution(jobs, 123, 2, SOURCE)
+
+    def test_retry_does_not_accept_other_run_or_head(self):
+        for key, invalid in (("run_id", 124), ("run_id", True), ("head_sha", "c" * 40)):
+            jobs = records()
+            jobs[0][key] = invalid
+            with self.subTest(key=key, invalid=invalid), self.assertRaises(ValueError):
+                CHECK.verify_build_execution(jobs, 123, 2, SOURCE)
+        for invalid in (0, True, "2"):
+            with self.assertRaises(ValueError):
+                CHECK.verify_build_execution(records(), 123, invalid, SOURCE)
 
     def test_required_repository_router_rejects_a_skippable_final_gate(self):
         event = {"pull_request": {"base": {"ref": "apple-ios"}}}
@@ -232,6 +344,11 @@ class CandidateTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.git("init", "-q")
+        # These disposable repositories must have no detached writers during
+        # strict TemporaryDirectory cleanup. Keep the setting local to each
+        # fixture; candidate routing and artifact checks remain unchanged.
+        self.git("config", "maintenance.auto", "false")
+        self.git("config", "gc.auto", "0")
         self.git("config", "user.name", "Test")
         self.git("config", "user.email", "test@example.invalid")
         (self.root / "readme.md").write_text("Initial\n")
