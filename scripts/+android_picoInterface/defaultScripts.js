@@ -73,6 +73,8 @@ var DEFAULT_SCRIPTS_COMBINED = [
     "system/firstPersonHMD.js"
 ];
 var DEFAULT_SCRIPTS_SEPARATE = [
+    // Reuse the bundled GOTO app and its normal address dialog/cleanup.
+    "system/goto.js",
     // The Create app is bundled locally. Keep its large editor script in its
     // own engine so initialization cannot stall the core tablet/UI scripts.
     "system/create/edit.js",

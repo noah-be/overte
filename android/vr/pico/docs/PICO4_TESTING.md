@@ -103,3 +103,17 @@ previous compiled create ABI. Only Android Handler/Looper scheduling is replaced
 at the host boundary; the Android WebView, OS prompts and device lifecycle are
 not executed. This check does not build or attest a current Pico APK. Preserve
 artifact hashes and original dependency provenance separately.
+
+## Normal GOTO startup entry
+
+The Pico startup profile loads the existing bundled `system/goto.js` once in
+its own engine. Its GOTO tablet button opens the existing address dialog through
+`DialogsManager.toggleAddressBar`; the shared app retains its toolbar mode and
+owns address-dialog cleanup while removing its entry and signal connections on
+stop. PLACES remains available for the normal directory and Home entries.
+
+`node android/vr/pico/tests/pico-emote-test.js` executes both normal/debug startup
+and the actual shared GOTO app at its tablet/toolbar/dialog seams, including close
+and cleanup. These host checks do not establish visible HMD controls, physical
+controller/keyboard operation, navigation success or installed APK asset bytes.
+Those observations remain part of current-artifact acceptance criterion #1144.
