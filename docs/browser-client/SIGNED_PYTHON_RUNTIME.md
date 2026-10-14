@@ -29,6 +29,16 @@ SHA-256 digests. The official snapshot is
 `https://snapshot.ubuntu.com/ubuntu/20261002T063000Z/`.
 `prepare_signed_library.py` downloads only its fixed inputs, rejects redirects
 and verifies exact byte counts and digests before creating a fresh private cache.
+Downloads use at most three attempts, each with the existing 15-second network
+timeout and delays of one and two seconds. Only transient HTTP statuses
+408, 429, 500, 502, 503 and 504, timeouts and connection failures retry. Redirects,
+TLS trust failures, changed response URLs, wrong lengths and wrong digests
+remain final failures. Each successful attempt must verify the same original
+source-pinned bytes. Download failures report only a fixed reason, attempt count
+and, when available, an HTTP status; private paths, URLs, response bodies and
+exception text are omitted. A successful download still requires the independent
+signature, index, package and member authentication below.
+
 The keyring is extracted from a separately pinned official `ubuntu-keyring`
 package. The hosted runner's writable `/usr/share/keyrings` is not a trust root.
 
