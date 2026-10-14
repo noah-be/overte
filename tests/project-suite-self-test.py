@@ -61,7 +61,7 @@ class ProjectSuiteCliTests(unittest.TestCase):
         self.assertEqual(set(host) - set(quick), {
             "device-control-plane-full", "safe-landing-lifecycle",
             "embedded-web-policy", "embedded-web-qml", "account-auth-dispatch",
-            "web-entity-visibility",
+            "web-entity-visibility", "places-native-qml",
             "lod-preferences",
             "goto-dialog-script",
             "recorded-voice-native", "recorded-voice-qml", "snapshot-native", "snapshot-qml",
