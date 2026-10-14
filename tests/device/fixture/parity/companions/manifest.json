@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "license": "Apache-2.0",
+  "scope": "Identical original input data for ordinary Create, Scripts and Assets workflows; no device acceptance or automatic import.",
+  "entryPoints": {
+    "create": "create-entities.json",
+    "scripts": "script-bundle/main.js",
+    "gltf": "gltf-bundle/main.gltf",
+    "obj": "obj-bundle/main.obj"
+  },
+  "files": {
+    "create-entities.json": "58feb1d96e51dec74b4d00e8367f2e6ba1ee6f44b4a88101ecdad552d53d59d7",
+    "gltf-bundle/main.gltf": "999b3c0619343e74171d9d497b18acb76ff0c9b4df39617ccfdf5ff37c4f9fd8",
+    "gltf-bundle/mesh/triangle.bin": "6dd9b09362f07e5b511ea0bea4908c670406c2bd8cd2b062d6be09bd0b1ec002",
+    "gltf-bundle/textures/checker.png": "99841f8e73dc3c3315f266f409023bf1783220228b5a644d1066d698fdaa4823",
+    "obj-bundle/main.obj": "307a5db0461d3068e05b447da6820e50fdba3de34ce859786136c2a5404755ea",
+    "obj-bundle/materials/palette.mtl": "0d20c95b3f623bbe854dfb24155442fcccb19647eb361685e586867952348278",
+    "obj-bundle/textures/checker.png": "99841f8e73dc3c3315f266f409023bf1783220228b5a644d1066d698fdaa4823",
+    "script-bundle/main.js": "78269bd08f3ff78510764fcefba9107c5e2090b7465912144f77089bf30b89fd",
+    "script-bundle/nested/color.js": "fd2295e2234c87601fe52236ff36c41561d79f3f735d46f7913ce62e3edf5cf5",
+    "script-bundle/nested/shape.js": "0fd07c5a1774b67d103214e348c2b0fedf3ec5c3f220c511f747375ddd6a608b"
+  }
+}

@@ -455,8 +455,8 @@ class ProductRepairContracts(unittest.TestCase):
                 "base_commit": {"sha": PARENT}, "merge_base_commit": {"sha": old}},
             f"repos/{REPOSITORY}/compare/{old}...{PARENT}": {
                 "base_commit": {"sha": old}, "merge_base_commit": {"sha": old},
-                "files": [{"filename": paths[1]}, {"filename": paths[3]},
-                          {"filename": ".github/sync-test-reuse.json"}]},
+                "files": [{"filename": paths[index]} for index in (1, 3) if index < len(paths)]
+                         + [{"filename": ".github/sync-test-reuse.json"}]},
         }
         for ancestor in (BASE, PARENT):
             documents[f"repos/{REPOSITORY}/compare/{ancestor}...{HEAD}"] = {
@@ -504,6 +504,55 @@ class ProductRepairContracts(unittest.TestCase):
             with self.subTest(path=path):
                 self.inspect(*self.fixture([{"filename": path, "status": "modified"}], target="apple-ios"))
 
+    def test_phone_clock_repairs_require_full_qualification(self):
+        paths = (
+            "android/phone/tests/phone-voice-clock-fixture.cpp",
+            "android/phone/tests/phone-voice-clock-test.py",
+        )
+        self.assertEqual(config()["reconciliation_repair_paths"]["android-phone"], list(paths))
+        event, settings, api = self.fixture(target="android-phone")
+        sync = self.classify(event, settings, api)
+        self.assertEqual(sync.repair_paths, tuple(sorted(paths)))
+        self.assertNotIn(paths[0], sync.parent_changed_paths)
+        self.assertIn(paths[1], sync.parent_changed_paths)
+        self.inspect(event, settings, api)
+        for path in paths:
+            with self.subTest(path=path):
+                self.inspect(*self.fixture([{"filename": path, "status": "modified"}],
+                                          target="android-phone"))
+
+    def test_phone_clock_repairs_cannot_carry_neighbor_or_shared_changes(self):
+        for path in (
+                "android/phone/tests/phone-voice-clock-extra.cpp",
+                "android/phone/apps/phoneInterface/src/PhoneAudio.cpp",
+                "android/common/src/AndroidAudioAdapter.cpp",
+                "libraries/audio-client/src/AudioClient.cpp",
+                "tests/device/run_control_plane_tests.py",
+                "scripts/+android_phoneInterface/defaultScripts.js",
+                ".github/workflows/project-tests.yml",
+                "tools/sync-test-reuse/gate.py"):
+            event, settings, api = self.fixture(target="android-phone")
+            api.documents[f"repos/{REPOSITORY}/pulls/610/files?per_page=100&page=1"].append(
+                {"filename": path, "status": "modified"})
+            with self.subTest(path=path), self.assertRaises(gate.GateError):
+                self.classify(event, settings, api)
+
+    def test_phone_repair_attestation_rejects_wrong_parents_and_privileged_drift(self):
+        for mutation in ("parents", "head-tree", "merge-tree", "parent-ref", "foreign-head"):
+            event, settings, api = self.fixture(target="android-phone")
+            if mutation == "parents":
+                api.documents[f"repos/{REPOSITORY}/git/commits/{HEAD}"]["parents"].reverse()
+            elif mutation in ("head-tree", "merge-tree"):
+                sha = HEAD if mutation == "head-tree" else MERGE
+                api.documents[f"repos/{REPOSITORY}/git/trees/{sha}?recursive=1"]["tree"][0]["sha"] = "9" * 40
+            elif mutation == "parent-ref":
+                api.documents[f"repos/{REPOSITORY}/git/ref/heads/android-main"]["object"]["sha"] = "9" * 40
+            else:
+                for pr in (event["pull_request"], api.documents[f"repos/{REPOSITORY}/pulls/610"]):
+                    pr["head"]["repo"]["id"] = REPOSITORY_ID + 1
+            with self.subTest(mutation=mutation), self.assertRaises(gate.GateError):
+                self.classify(event, settings, api)
+
     def test_ios_repairs_cannot_modify_shared_or_unlisted_product_paths(self):
         for path in ("tests/device/probe/overte_e2e_probe.js", "tests/device/run_control_plane_tests.py",
                      "tests/device/ios/adapters/unknown.py", ".github/workflows/project-tests.yml"):
@@ -513,8 +562,39 @@ class ProductRepairContracts(unittest.TestCase):
             with self.subTest(path=path), self.assertRaises(gate.GateError):
                 self.classify(event, settings, api)
 
-    def test_ios_and_pico_repair_scopes_cannot_be_exchanged(self):
-        for target, foreign in (("apple-ios", "android-vr-pico"), ("android-vr-pico", "apple-ios")):
+    def test_ios_parent_contract_fixture_repairs_require_full_fallback(self):
+        paths = (
+            "ios/tests/ios-touch-ui-adapter-contract-test.py",
+            "ios/tests/native_contracts/mute-caller-test.cpp",
+            "ios/tests/native_contracts/test_mute_caller.py",
+        )
+        changes = [{"filename": path, "status": "modified"} for path in paths]
+        event, settings, api = self.fixture(changes, target="apple-ios")
+        request = self.classify(event, settings, api)
+        self.assertEqual(request.repair_paths, tuple(sorted(paths)))
+        self.inspect(event, settings, api)
+
+    def test_ios_parent_contract_repairs_cannot_carry_product_or_neighbor_changes(self):
+        repairs = [
+            {"filename": "ios/tests/ios-touch-ui-adapter-contract-test.py", "status": "modified"},
+            {"filename": "ios/tests/native_contracts/mute-caller-test.cpp", "status": "modified"},
+            {"filename": "ios/tests/native_contracts/test_mute_caller.py", "status": "modified"},
+        ]
+        for path in (
+                "ios/tests/native_contracts/unknown.cpp",
+                "ios/tests/ios-touch-ui-adapter-contract-extra.py",
+                "ios/metrics/IOSTouchUiMetrics.mm",
+                "libraries/audio-client/src/AudioClient.cpp",
+                "scripts/system/settings/qml/pages/GraphicsSettingsBase.qml",
+                "android/vr/pico/tests/pico-tablet-settings-test.js",
+                "tools/sync-test-reuse/gate.py"):
+            changes = repairs + [{"filename": path, "status": "modified"}]
+            with self.subTest(path=path), self.assertRaises(gate.GateError):
+                self.classify(*self.fixture(changes, target="apple-ios"))
+
+    def test_product_repair_scopes_cannot_be_exchanged(self):
+        targets = ("apple-ios", "android-vr-pico", "android-phone")
+        for target, foreign in ((target, foreign) for target in targets for foreign in targets if target != foreign):
             event, settings, api = self.fixture(target=target)
             path = settings["reconciliation_repair_paths"][foreign][0]
             api.documents[f"repos/{REPOSITORY}/pulls/610/files?per_page=100&page=1"].append(
