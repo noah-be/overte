@@ -46,6 +46,59 @@ TREE = "5" * 40
 WORKFLOW_BLOB = "6" * 40
 
 
+class GitHubApiDiagnosticsTests(unittest.TestCase):
+    def test_command_failures_report_only_exit_and_http_status(self):
+        for status in (401, 403, 404, 429, 500, 502, 503):
+            with self.subTest(status=status):
+                private = "synthetic-private-field-never-log"
+                error = subprocess.CalledProcessError(
+                    1, ["gh", "api", "-f", private], output=private,
+                    stderr=f"gh: {private} (HTTP {status})\n")
+                with mock.patch.object(gate.subprocess, "run", side_effect=error) as run:
+                    with self.assertRaises(gate.GateError) as caught:
+                        gate.GitHubApi().json("repos/noah-be/overte/git/ref/heads/android-vr")
+                self.assertIn(f"command exit=1 http={status}", str(caught.exception))
+                self.assertNotIn(private, str(caught.exception))
+                self.assertIs(caught.exception.__cause__, error)
+                self.assertEqual(run.call_count, 1, "diagnosis must not add automatic retries")
+
+    def test_transport_error_does_not_invent_an_http_status(self):
+        error = subprocess.CalledProcessError(1, ["gh"], stderr="synthetic-sensitive-dns-message")
+        with mock.patch.object(gate.subprocess, "run", side_effect=error):
+            with self.assertRaises(gate.GateError) as caught:
+                gate.GitHubApi().json("repos/noah-be/overte")
+        self.assertIn("command exit=1 http=unknown", str(caught.exception))
+        self.assertNotIn("synthetic-sensitive-dns-message", str(caught.exception))
+
+    def test_invalid_json_is_distinct_without_response_text(self):
+        private = "synthetic-private-response"
+        with mock.patch.object(gate.subprocess, "run", return_value=SimpleNamespace(stdout=private)):
+            with self.assertRaises(gate.GateError) as caught:
+                gate.GitHubApi().json("repos/noah-be/overte")
+        self.assertIn("invalid-json", str(caught.exception))
+        self.assertNotIn(private, str(caught.exception))
+
+    def test_os_failure_has_errno_without_private_path(self):
+        with mock.patch.object(gate.subprocess, "run", side_effect=OSError(2, "synthetic-private-path")):
+            with self.assertRaises(gate.GateError) as caught:
+                gate.GitHubApi().json("repos/noah-be/overte")
+        self.assertIn("os-error errno=2", str(caught.exception))
+        self.assertNotIn("synthetic-private-path", str(caught.exception))
+
+    def test_binary_failure_preserves_evidence_error_and_safe_diagnosis(self):
+        error = subprocess.CalledProcessError(1, ["gh"], stderr=b"synthetic-private-body (HTTP 404)")
+        with mock.patch.object(gate.subprocess, "run", side_effect=error):
+            with self.assertRaises(gate.EvidenceError) as caught:
+                gate.GitHubApi().bytes("repos/noah-be/overte/actions/artifacts/123/zip")
+        self.assertIn("command exit=1 http=404", str(caught.exception))
+        self.assertNotIn("synthetic-private-body", str(caught.exception))
+
+    def test_success_and_empty_success_preserve_existing_values(self):
+        for stdout, expected in (("{\"ok\": true}", {"ok": True}), ("", {})):
+            with mock.patch.object(gate.subprocess, "run", return_value=SimpleNamespace(stdout=stdout)):
+                self.assertEqual(gate.GitHubApi().json("repos/noah-be/overte"), expected)
+
+
 class MappingApi:
     def __init__(self, documents=None, binary=b""):
         self.documents = documents or {}

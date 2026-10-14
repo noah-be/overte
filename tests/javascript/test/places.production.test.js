@@ -9,10 +9,11 @@ const {
 
 const source = path.resolve(__dirname, "../../../scripts/system/places/places.js");
 
-function createXhrFactory(syncResponse) {
+function createXhrFactory(options = {}) {
     const requests = [];
     class FakeXMLHttpRequest {
         constructor() {
+            if (options.throwOperation === "constructor") throw new Error("transport constructor");
             this.readyState = 0;
             this.status = 0;
             this.responseText = "";
@@ -24,16 +25,15 @@ function createXhrFactory(syncResponse) {
             this.method = method;
             this.url = url;
             this.async = async;
+            if (options.throwOperation === "open") throw new Error("transport open");
         }
-        setRequestHeader(name, value) { this.headers[name] = value; }
+        setRequestHeader(name, value) {
+            if (options.throwOperation === "header") throw new Error("transport header");
+            this.headers[name] = value;
+        }
         send(body) {
             this.body = body;
-            if (this.async === false && syncResponse) {
-                const response = syncResponse(this.url);
-                if (response instanceof Error) throw response;
-                this.status = response.status;
-                this.responseText = typeof response.payload === "string" ? response.payload : JSON.stringify(response.payload);
-            }
+            if (options.throwOperation === "send") throw new Error("transport send");
         }
         abort() { this.aborted = true; }
         respond(status, payload) {
@@ -54,7 +54,7 @@ function startPlaces(options = {}) {
     const Tablet = createTabletApi();
     const tablet = Tablet.getTablet("com.highfidelity.interface.tablet.system");
     const Messages = createMessagesApi();
-    const xhr = createXhrFactory(options.syncResponse);
+    const xhr = createXhrFactory(options);
     const entityAdds = [];
     const entityDeletes = [];
     let nextEntity = 1;
@@ -144,6 +144,75 @@ function directoryPlace(overrides = {}) {
         ...overrides
     };
 }
+
+const directoryModes = [
+    ["flat touch", { androidPhone: true, has3DHTML: true }],
+    ["Pico native", { androidPhone: false, has3DHTML: false }],
+    ["desktop web", { androidPhone: false, has3DHTML: true }]
+];
+
+test("all production directory modes stay usable while awaiting asynchronous data", () => {
+    for (const [name, options] of directoryModes) {
+        const harness = startPlaces(options);
+        const request = harness.xhr.requests[0];
+        assert.equal(request.async, true, name);
+        assert.equal(request.timeout, 10_000);
+        const messages = () => options.has3DHTML && !options.androidPhone
+            ? harness.tablet.scriptEvents : harness.tablet.qmlMessages;
+        assert.equal(messages().some((message) => message.action === "PLACE_DATA"), false, name);
+        const event = { channel: "com.overte.places", action: "TELEPORT", address: "hifi://before-response" };
+        if (options.has3DHTML && !options.androidPhone) {
+            harness.tablet.webEventReceived.emit(JSON.stringify(event));
+        } else {
+            harness.tablet.fromQml.emit(event);
+        }
+        assert.equal(harness.Window.location, "hifi://before-response", name);
+        request.respond(200, { data: { places: [directoryPlace()] } });
+        assert.equal(messages().find((message) => message.action === "PLACE_DATA").data[0].name, "Overte Hub", name);
+    }
+});
+
+test("all production directory modes reject callbacks after close and shutdown", () => {
+    for (const [name, options] of directoryModes) {
+        const harness = startPlaces(options);
+        const request = harness.xhr.requests[0];
+        assert.equal(request.async, true, name);
+        harness.tablet.screenChanged.emit("QML", "unrelated.qml");
+        assert.equal(request.aborted, true, name);
+        const qmlBefore = harness.tablet.qmlMessages.length;
+        const webBefore = harness.tablet.scriptEvents.length;
+        request.respond(200, { data: { places: [directoryPlace({ name: "Stale" })] } });
+        harness.Script.end();
+        request.fail("timeout");
+        assert.equal(harness.tablet.qmlMessages.length, qmlBefore, name);
+        assert.equal(harness.tablet.scriptEvents.length, webBefore, name);
+    }
+});
+
+test("all directory modes replace stale refreshes and complete each generation once", () => {
+    for (const [name, options] of directoryModes) {
+        const harness = startPlaces(options);
+        const stale = harness.xhr.requests[0];
+        const event = { channel: "com.overte.places", action: "READY_FOR_CONTENT" };
+        if (options.has3DHTML && !options.androidPhone) {
+            harness.tablet.webEventReceived.emit(JSON.stringify(event));
+        } else {
+            harness.tablet.fromQml.emit(event);
+        }
+        assert.equal(stale.aborted, true, name);
+        const fresh = harness.xhr.requests[1];
+        stale.respond(200, { data: { places: [directoryPlace({ name: "Stale" })] } });
+        fresh.respond(200, { data: { places: [directoryPlace({ name: "Fresh" })] } });
+        fresh.fail();
+        fresh.fail("timeout");
+        const messages = options.has3DHTML && !options.androidPhone
+            ? harness.tablet.scriptEvents : harness.tablet.qmlMessages;
+        const results = messages.filter((message) => message.action === "PLACE_DATA");
+        assert.equal(results.length, 1, name);
+        assert.equal(results[0].data[0].name, "Fresh", name);
+        assert.equal(results[0].metaverseServers[0].error, false, name);
+    }
+});
 
 test("production Places delivers a successful asynchronous directory response", () => {
     const { tablet, xhr } = startPlaces();
@@ -337,17 +406,21 @@ test("production Places enforces portal distance and count limits and expires po
     assert.equal(harness.entityAdds.length, 16);
 });
 
-test("production Places supports the desktop web and synchronous directory path", () => {
+test("production Places supports desktop web with serial asynchronous directory requests", () => {
     const harness = startPlaces({
         androidPhone: false, has3DHTML: true,
         federation: [{ node: "https://other.test" }],
-        metaversesToFetch: ["https://other.test"],
-        syncResponse: (url) => new URL(url).origin === "https://meta.test"
-            ? { status: 200, payload: { data: { places: [directoryPlace({ id: "desktop", name: "Desktop" })] } } }
-            : { status: 500, payload: "unavailable" }
+        metaversesToFetch: ["https://other.test"]
     });
     assert.equal(harness.tablet.navigation[0].type, "web");
-    assert.equal(harness.tablet.scriptEvents.find((message) => message.action === "PLACE_DATA").data[0].name, "Desktop");
+    assert.equal(harness.xhr.requests.length, 1);
+    harness.xhr.requests[0].respond(200, { data: { places: [directoryPlace({ id: "desktop", name: "Desktop" })] } });
+    assert.equal(harness.xhr.requests.length, 2);
+    harness.xhr.requests[1].respond(500, "unavailable");
+    assert.equal(harness.xhr.requests.every((request) => request.async), true);
+    const result = harness.tablet.scriptEvents.find((message) => message.action === "PLACE_DATA");
+    assert.equal(result.data[0].name, "Desktop");
+    assert.equal(result.metaverseServers.find((server) => server.url === "https://other.test").error, true);
     assert.equal(harness.button.properties.isActive, true);
     harness.button.click();
     assert.equal(harness.tablet.navigation.at(-1).type, "home");
@@ -355,15 +428,40 @@ test("production Places supports the desktop web and synchronous directory path"
     assert.equal(harness.tablet.webEventReceived.listenerCount, 0);
 });
 
-test("production Places keeps desktop requests fail-closed for invalid JSON and thrown transports", () => {
-    for (const syncResponse of [
-        () => ({ status: 200, payload: "{broken" }),
-        () => { throw new Error("transport"); }
-    ]) {
-        const harness = startPlaces({ androidPhone: false, has3DHTML: true, syncResponse });
-        const result = harness.tablet.scriptEvents.find((message) => message.action === "PLACE_DATA");
-        assert.ok(result);
-        assert.equal(result.data.some((place) => place.id), false);
+test("all production directory modes complete safely for invalid JSON and thrown transports", () => {
+    for (const [name, options] of directoryModes) {
+        const malformed = startPlaces(options);
+        malformed.xhr.requests[0].respond(200, "{broken");
+        const messages = (harness) => options.has3DHTML && !options.androidPhone
+            ? harness.tablet.scriptEvents : harness.tablet.qmlMessages;
+        assert.equal(messages(malformed).find((message) => message.action === "PLACE_DATA").metaverseServers[0].error, true, name);
+        for (const throwOperation of ["constructor", "open", "header", "send"]) {
+            const harness = startPlaces({ ...options, throwOperation });
+            const result = messages(harness).find((message) => message.action === "PLACE_DATA");
+            assert.ok(result, `${name}: ${throwOperation}`);
+            assert.equal(result.metaverseServers[0].error, true);
+            assert.equal(result.data.some((place) => place.id), false);
+        }
+    }
+});
+
+test("all directory modes advance past asynchronous errors to a healthy federated server", () => {
+    for (const [name, options] of directoryModes) {
+        for (const failure of ["http", "error", "timeout"]) {
+            const harness = startPlaces({ ...options,
+                federation: [{ node: "https://other.test" }], metaversesToFetch: ["https://other.test"] });
+            const failed = harness.xhr.requests[0];
+            if (failure === "http") failed.respond(503, "unavailable");
+            else failed.fail(failure);
+            assert.equal(harness.xhr.requests.length, 2, `${name}: ${failure}`);
+            harness.xhr.requests[1].respond(200, { data: { places: [directoryPlace({ name: "Healthy" })] } });
+            const messages = options.has3DHTML && !options.androidPhone
+                ? harness.tablet.scriptEvents : harness.tablet.qmlMessages;
+            const results = messages.filter((message) => message.action === "PLACE_DATA");
+            assert.equal(results.length, 1);
+            assert.equal(results[0].data[0].name, "Healthy");
+            assert.equal(results[0].metaverseServers.find((server) => server.url === "https://meta.test").error, true);
+        }
     }
 });
 
@@ -406,9 +504,9 @@ test("production Places sends validated portal requests and ignores duplicate re
 
 test("production Places handles invalid desktop response shapes and malformed web events", () => {
     const harness = startPlaces({
-        androidPhone: false, has3DHTML: true,
-        syncResponse: () => ({ status: 200, payload: { data: { places: "invalid" } } })
+        androidPhone: false, has3DHTML: true
     });
+    harness.xhr.requests[0].respond(200, { data: { places: "invalid" } });
     assert.equal(harness.tablet.scriptEvents.find((message) => message.action === "PLACE_DATA").metaverseServers[0].error, true);
     harness.tablet.webEventReceived.emit("{bad json");
     harness.tablet.webEventReceived.emit("null");

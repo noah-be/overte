@@ -64,6 +64,10 @@ SUITES = (
         sys.executable, "tests/device/contracts/web/test_embedded_web_qml.py")),
     Suite("account-auth-dispatch", "host", (
         sys.executable, "tests/device/contracts/lifecycle/test_account_auth_dispatch.py")),
+    Suite("lod-preferences", "host", (
+        sys.executable, "tests/device/contracts/lifecycle/test_lod_preferences.py")),
+    Suite("goto-dialog-script", "host", (
+        sys.executable, "tests/device/contracts/lifecycle/test_goto_dialog_script.py")),
     Suite("recorded-voice-native", "host", (
         sys.executable, "tests/device/contracts/audio/test_recorded_voice_test.py")),
     Suite("recorded-voice-qml", "host", (
