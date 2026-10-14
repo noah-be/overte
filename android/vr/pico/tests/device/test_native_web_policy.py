@@ -22,7 +22,7 @@ class NativeWebPolicyTest(unittest.TestCase):
             subprocess.run(['javac', '-encoding', 'UTF-8', '-cp',
                 str(sdk / 'platforms/android-26/android.jar'), '-d', scratch,
                 *[str(JAVA / name) for name in ('PicoRestartUrlPolicy.java', 'PicoWebUrlPolicy.java',
-                    'PicoTouchState.java', 'PicoWebInputGate.java', 'OffscreenWebView.java', 'RedactingDiagnostics.java', 'PicoTextInput.java')],
+                    'PicoTouchState.java', 'PicoWebInputGate.java', 'OffscreenWebView.java', 'PicoWebEditorState.java', 'RedactingDiagnostics.java', 'PicoTextInput.java')],
                 str(ROOT / 'security/redaction/java/org/overte/security/SafeDiagnostics.java'),
                 str(HERE / 'java-stubs/org/overte/pico/PicoInterfaceActivity.java')],
                 check=True, timeout=30)

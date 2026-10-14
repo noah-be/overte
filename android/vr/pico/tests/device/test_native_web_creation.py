@@ -34,6 +34,10 @@ class NativeWebCreationTest(unittest.TestCase):
 #include <QTimer>
 #include <QString>
 #include <QList>
+#include <QMutex>
+#include <QMutexLocker>
+#include <QImage>
+#include <limits>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -64,6 +68,14 @@ class PicoWebViewItem : public QObject {
 public:
     QString _url;
 ''' + fields + r'''
+    // Render/editor effects are boundaries here; whole native Qt/QML test
+    // exercises the real signals, epoch and editor state implementation.
+    QMutex _imageMutex;
+    QImage _image;
+    qint64 _nativeEpoch = 0;
+    bool _nativeRendering = false;
+    void clearEditorState() {}
+    void renderingChanged() {}
     bool complete = true;
     int changed = 0;
     PicoWebViewItem() { _nativeHandle = 7; }
@@ -152,7 +164,7 @@ int main(int argc, char** argv) {
 }
 '''
         flags = shlex.split(subprocess.check_output(
-            ['pkg-config', '--cflags', '--libs', 'Qt6Core'], text=True))
+            ['pkg-config', '--cflags', '--libs', 'Qt6Core', 'Qt6Gui'], text=True))
         with tempfile.TemporaryDirectory(prefix='pico-web-creation-') as scratch:
             scratch = Path(scratch)
             cpp = scratch / 'original.cpp'

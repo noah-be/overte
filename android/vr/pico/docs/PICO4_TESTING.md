@@ -156,3 +156,55 @@ require the shared native QObject/queued-call regression and device observations
 These host checks also do not establish visible HMD controls, physical
 controller/keyboard operation, navigation success or installed APK asset bytes.
 Those observations remain part of current-artifact acceptance criterion #1144.
+
+## Inline HTML native editor and HMD keyboard
+
+Inline `data:text/html` uses Pico's contained legacy surface. Its public Android
+WebView editor APIs report only active/numeric/password metadata; no field text,
+selection contents, DOM script transport or EventBridge rights are added.
+The state follows the exact surface/document epoch, input owner and increasing
+callback revision. Replacement, blur, hide, disabled state and teardown retire
+old editor callbacks. Native composition and selection edit limits remain;
+controller clicks reacquire this admitted native view after asynchronous setup.
+
+Run the whole production Qt5 native item and selected Pico QML caller:
+
+```sh
+python3 android/vr/pico/tests/device/test_legacy_web_qt.py
+python3 android/vr/pico/tests/device/test_legacy_web_lifecycle.py
+python3 android/vr/pico/tests/device/test_web_input_queue.py
+python3 android/vr/pico/tests/device/test_native_web_policy.py
+```
+
+The Qt test executes actual C++/moc, JNI, QML signals, keyboard properties/layout,
+Unicode/composition transport and rejected stale callbacks. Android provider
+metadata and the HMD keyboard renderer are explicit host boundaries. Its
+`OVERTE_PICO_EDITOR_ORIGINAL=1` diagnostic reads unchanged original527 sources
+and reproduces the missing native-item forwarding assertion; that deliberate
+negative run is not a passing product test.
+
+The separate Android API26/35 tests require Java21, pinned Gradle8.13,
+Robolectric4.16.1 and the original resolved Android test AAR classes. Use the
+normal reviewed wrapper; an existing private offline artifact store can be
+selected through its explicit test-only initialization script:
+
+```sh
+python3 android/vr/pico/tests/pico-inline-editor-api-test.py \
+  --output /absolute/new/private/editor-api-attempt
+```
+
+This test executes real EditorInfo/InputConnection APIs, input-type mappings
+and unchanged composition/selection. Its controlled WebView provider supplies
+focus/editor metadata because Robolectric has no live Chromium DOM provider.
+The Java-frame caller test independently checks its actual owner/input/frame
+admission, including revocation during metadata observation. Neither boundary
+is presented as an observed DOM focus, real controller keyboard or HMD result.
+
+Current-artifact acceptance must tap actual text, number, password and multiline
+fields on inline world HTML using the normal controller. Observe keyboard modes,
+text/cursor/composition, blur, hide/show and replacement; queued old document
+callbacks must not reopen the keyboard or edit a successor field. Repeat
+background/resume separately from ordinary window-focus changes. Existing
+physical-key editing and unrelated active surfaces must continue working.
+The software inline video path and noncooperative WebAudio qualification remain
+separate open requirements; this editor change does not qualify either.
