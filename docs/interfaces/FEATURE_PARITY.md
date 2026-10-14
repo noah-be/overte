@@ -263,3 +263,23 @@ above is implemented, available through its real caller and verified at the
 appropriate scope on all three exact artifacts. A successful preparatory slice
 does not complete this goal. Further GitHub issue completion requires the
 owner's authorization.
+
+
+### Native Places controls
+
+The packaged native Places screen exposes saved bookmark listing, current-location
+creation, rename, deletion and visit; Back/Forward/Home, set Home and address copy;
+place search and persisted maturity filtering; directory fetch/pin/add controls,
+per-server failures and protocol warnings. It uses the existing shared Places
+script messages and persistence. Commands are queued across its 200 ms rate limit
+so a server update and subsequent refresh cannot silently drop one another.
+Packaged category-Z utility entries stay accessible independently of the directory
+maturity filter. Unchanged bookmark names send no destructive rename, and duplicate
+names cannot overwrite another bookmark from the native editor.
+
+`places-native-qml` executes the unmodified production component and adaptive
+metrics in Qt Quick Test. Actual controls, text input, model filtering, narrow
+surface layout, popup actions and ordered messages are tested. Canonical Places
+JavaScript cases separately exercise the production backend. These host boundaries
+do not establish actual device navigation, saved-data durability, network results,
+permission to create a portal or touch/headset/IME qualification.
