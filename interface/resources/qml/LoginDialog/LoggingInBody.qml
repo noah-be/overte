@@ -393,7 +393,9 @@ Item {
                 root.tryDestroy();
                 return;
             }
-            var message = reason === "timeout"
+            var message = reason === "insecure_transport"
+                ? qsTr("Domain sign-in requires an HTTPS authentication endpoint. Contact the domain owner to update it.")
+                : reason === "timeout"
                 ? qsTr("Domain sign-in timed out. Check your connection and try again.")
                 : qsTr("Domain sign-in failed. Check your connection and credentials, then try again.");
             bodyLoader.setSource("LinkAccountBody.qml", {
@@ -406,6 +408,15 @@ Item {
             console.log("Login Failed");
             loggingInSpinner.visible = false;
             loggingInGlyph.visible = false;
+            if (loginDialog.getAccountLoginTransportRejected()) {
+                bodyLoader.setSource("LinkAccountBody.qml", {
+                    "loginDialog": loginDialog, "root": root, "bodyLoader": bodyLoader,
+                    "withSteam": loggingInBody.withSteam, "withOculus": loggingInBody.withOculus,
+                    "linkSteam": loggingInBody.linkSteam, "linkOculus": loggingInBody.linkOculus,
+                    "errorString": qsTr("Sign-in requires an HTTPS authentication endpoint. Check the configured server address.")
+                });
+                return;
+            }
             var errorString = "";
             if (loggingInBody.linkOculus && loggingInBody.withOculus) {
                 errorString = "Username or password is incorrect.";
