@@ -43,7 +43,7 @@ public:
     QPointer<LodToolsDialog> getLodToolsDialog() const { return _lodToolsDialog; }
     QPointer<OctreeStatsDialog> getOctreeStatsDialog() const { return _octreeStatsDialog; }
     QPointer<TestingDialog> getTestingDialog() const { return _testingDialog; }
-    void emitAddressBarShown(bool visible) { emit addressBarShown(visible); }
+    void emitAddressBarShown(bool visible) { setAddressBarVisible(visible); }
     void setAddressBarVisible(bool addressBarVisible);
     void setMetaverseLoginState();
     void setDomainLoginState();

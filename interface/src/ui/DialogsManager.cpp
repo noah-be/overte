@@ -85,6 +85,11 @@ void DialogsManager::showAddressBar() {
 
 void DialogsManager::hideAddressBar() {
 #if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)
+    auto offscreenUi = DependencyManager::get<OffscreenUi>();
+    if (!offscreenUi || !offscreenUi->isVisible("AddressBarDialog")) {
+        setAddressBarVisible(false);
+        return;
+    }
     AddressBarDialog::hide();
     qApp->setKeyboardFocusEntity(UNKNOWN_ENTITY_ID);
     setAddressBarVisible(false);
@@ -94,10 +99,12 @@ void DialogsManager::hideAddressBar() {
     auto tabletScriptingInterface = DependencyManager::get<TabletScriptingInterface>();
     auto tablet = dynamic_cast<TabletProxy*>(tabletScriptingInterface->getTablet("com.highfidelity.interface.tablet.system"));
 
-    if (tablet->isPathLoaded(TABLET_ADDRESS_DIALOG)) {
-        tablet->gotoHomeScreen();
-        hmd->closeTablet();
+    if (!tablet->isPathLoaded(TABLET_ADDRESS_DIALOG)) {
+        setAddressBarVisible(false);
+        return;
     }
+    tablet->gotoHomeScreen();
+    hmd->closeTablet();
     qApp->setKeyboardFocusEntity(UNKNOWN_ENTITY_ID);
     setAddressBarVisible(false);
 #endif

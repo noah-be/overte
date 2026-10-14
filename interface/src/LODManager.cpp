@@ -406,8 +406,15 @@ void LODManager::loadSettings() {
         hmdQuality = WORLD_DETAIL_HIGH;
     }
 
+#if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)
+    // Apply touch-client defaults only when the native preference is unset.
+    // The shared startup script must not persistently overwrite user choices.
+    _automaticLODAdjust = automaticLODAdjust.get(false);
+    _lodHalfAngle = lodHalfAngle.get(glm::radians(0.248f * 0.5f));
+#else
     _automaticLODAdjust = automaticLODAdjust.get();
     _lodHalfAngle = lodHalfAngle.get();
+#endif
 
     setWorldDetailQuality(desktopQuality, false);
     setWorldDetailQuality(hmdQuality, true);
