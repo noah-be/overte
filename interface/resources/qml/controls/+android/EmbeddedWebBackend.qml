@@ -13,6 +13,7 @@ FocusScope {
     property string sourceIdentity: ""
     property string surface: "world-entity"
     property string presentation: "auto"
+    readonly property bool reloadRequired: nativeView.reloadRequired
     readonly property string currentUrl: nativeView.currentUrl
     readonly property bool loading: nativeView.loading
     readonly property bool canGoBack: nativeView.canGoBack
@@ -53,4 +54,24 @@ FocusScope {
         onWebEventReceived: root.webEventReceived(message)
         onStateChanged: root.loadingChangedWithStatus({ status: loading ? 0 : (error.length ? 3 : 2), errorString: error })
     }
+    Rectangle {
+        id: reloadOffer
+        objectName: "EmbeddedWebReloadGET"
+        visible: nativeView.reloadRequired
+        anchors.centerIn: parent
+        width: Math.min(parent.width, 280)
+        height: 52
+        color: "#303030"
+        radius: 4
+        Accessible.role: Accessible.Button
+        Accessible.name: qsTr("Reload page")
+        Accessible.onPressAction: requestReload()
+        activeFocusOnTab: true
+        function requestReload() { if (root.visible && root.enabled) { nativeView.reload(); } }
+        Keys.onSpacePressed: requestReload()
+        Keys.onReturnPressed: requestReload()
+        Text { anchors.centerIn: parent; text: qsTr("Reload page"); color: "white" }
+        MouseArea { anchors.fill: parent; onClicked: reloadOffer.requestReload() }
+    }
+
 }

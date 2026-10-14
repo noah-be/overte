@@ -15,6 +15,13 @@
 #include <memory>
 #include <cassert>
 #include <cstdio>
+#include <jni.h>
+extern "C" void Java_org_overte_web_EmbeddedWebView_nativeInputFocus(JNIEnv*, jclass, jlong, jlong, jlong, jboolean);
+extern "C" void Java_org_overte_web_EmbeddedWebView_nativeInitialize(JNIEnv*, jclass);
+extern "C" jlong Java_org_overte_web_EmbeddedWebView_nativeLifecycleRevision(JNIEnv*, jclass, jlong);
+extern "C" jlong Java_org_overte_web_EmbeddedWebView_nativeGeneration(JNIEnv*, jclass, jlong);
+extern "C" void Java_org_overte_web_EmbeddedWebView_nativeResumeRequest(JNIEnv*, jclass, jlong, jlong, jlong, jstring);
+extern "C" void Java_org_overte_web_EmbeddedWebView_nativeCreated(JNIEnv*, jclass, jlong, jlong, jboolean);
 class Probe : public NativeWebViewItem {
 public: using NativeWebViewItem::inputMethodQuery;
 };
@@ -173,6 +180,17 @@ int main(int argc, char** argv) {
         assert(views[0]->presentation() == NativeWebViewItem::NativeOverlay);
         assert(views[0]->userAgent() == "host-test-agent");
         assert(views[0]->hasFocus());
+        auto* reloadOffer = adapter->findChild<QObject*>("EmbeddedWebReloadGET"); assert(reloadOffer);
+        views[0]->acceptForeground(true); views[0]->setSourceIdentity("qml-reload-owner");
+        views[0]->setUrl("https://reload.test/page");
+        views[0]->acceptSuspended(views[0]->lifecycleRevision(),QUrl("https://reload.test/page"),false,false,0);
+        QCoreApplication::processEvents();
+        assert(views[0]->reloadRequired() && reloadOffer->property("visible").toBool());
+        assert(reloadOffer->metaObject()->indexOfMethod("requestReload()") >= 0);
+        auto reloadRevision = views[0]->lifecycleRevision();
+        assert(QMetaObject::invokeMethod(reloadOffer,"requestReload",Qt::DirectConnection));
+        QCoreApplication::processEvents(); assert(views[0]->lifecycleRevision() > reloadRevision);
+        std::puts("PASS: actual Android QML fallback exposes an explicit GET reload action and invokes production native reload; no browser restoration claimed");
         adapter->setProperty("surface", "world-entity");
         assert(views[0]->presentation() == NativeWebViewItem::Texture);
         assert(adapter->metaObject()->indexOfMethod("emitScriptEvent(QVariant)") >= 0);
@@ -185,6 +203,82 @@ int main(int argc, char** argv) {
         assert(module.isReady()); std::unique_ptr<QObject> exported(module.create()); assert(exported);
         auto* exportedView = exported->findChild<NativeWebViewItem*>(); assert(exportedView);
         assert(exportedView->surface() == NativeWebViewItem::Tablet && exportedView->presentation() == NativeWebViewItem::Texture);
+    }
+    if (argc > 3) {
+        JavaVM* machine = nullptr; JNIEnv* env = nullptr;
+        QByteArray classpath = "-Djava.class.path=" + QByteArray(argv[3]);
+        JavaVMOption option; option.optionString = classpath.data();
+        JavaVMInitArgs settings {}; settings.version = JNI_VERSION_1_8; settings.nOptions = 1; settings.options = &option;
+        assert(JNI_CreateJavaVM(&machine, reinterpret_cast<void**>(&env), &settings) == JNI_OK);
+        auto boundary = env->FindClass("org/overte/web/WebLifecycleBoundary"); assert(boundary);
+        JNINativeMethod methods[] = {
+            { const_cast<char*>("revision"), const_cast<char*>("(J)J"), reinterpret_cast<void*>(qEnvironmentVariableIsSet("OVERTE_TEST_OLD_ACTIVE_VISIBILITY") ? Java_org_overte_web_EmbeddedWebView_nativeGeneration : Java_org_overte_web_EmbeddedWebView_nativeLifecycleRevision) },
+            { const_cast<char*>("active"), const_cast<char*>("(J)J"), reinterpret_cast<void*>(Java_org_overte_web_EmbeddedWebView_nativeGeneration) },
+            { const_cast<char*>("resume"), const_cast<char*>("(JJJLjava/lang/String;)V"), reinterpret_cast<void*>(Java_org_overte_web_EmbeddedWebView_nativeResumeRequest) },
+            { const_cast<char*>("created"), const_cast<char*>("(JJZ)V"), reinterpret_cast<void*>(Java_org_overte_web_EmbeddedWebView_nativeCreated) }
+        };
+        assert(env->RegisterNatives(boundary, methods, 4) == JNI_OK);
+        Java_org_overte_web_EmbeddedWebView_nativeInitialize(env, boundary);
+        Probe wire; wire.setSize(QSizeF(100,100)); wire.acceptForeground(true);
+        wire.setSourceIdentity("wire-owned-source"); wire.setUrl("https://wire.test/page"); wire.componentComplete();
+        QCoreApplication::processEvents();
+        assert(!env->ExceptionCheck());
+        auto field = [&](const char* name) { return env->GetStaticLongField(boundary, env->GetStaticFieldID(boundary,name,"J")); };
+        const auto handle = field("handle"); const auto before = wire.generation(); assert(handle > 0 && before > 0);
+        const QUrl wireDocument("https://wire.test/page");
+        const auto birth = field("creationRevision");
+        wire.acceptPage(before,1,wireDocument); QCoreApplication::processEvents();
+        const QByteArray inputState = R"({"active":true,"text":"typed","cursor":5,"anchor":5})";
+        assert(wire.acceptMessage(before,1,wireDocument,QUrl("https://wire.test"),true,"editor",inputState));
+        Java_org_overte_web_EmbeddedWebView_nativeInputFocus(env,boundary,handle,birth,wire.lifecycleRevision(),false);
+        QCoreApplication::processEvents(); assert(!wire.editorFocused());
+        assert(wire.generation() == before && wire.allowsEditorDocument(before,1,wireDocument));
+        assert(!wire.acceptMessage(before,1,wireDocument,QUrl("https://wire.test"),true,"editor",inputState));
+        Java_org_overte_web_EmbeddedWebView_nativeInputFocus(env,boundary,handle,birth,wire.lifecycleRevision(),true);
+        assert(wire.acceptMessage(before,1,wireDocument,QUrl("https://wire.test"),true,"editor",inputState));
+        Java_org_overte_web_EmbeddedWebView_nativeInputFocus(env,boundary,handle,birth,wire.lifecycleRevision(),false);
+        Java_org_overte_web_EmbeddedWebView_nativeInputFocus(env,boundary,handle,birth,wire.lifecycleRevision(),true);
+        QCoreApplication::processEvents(); assert(!wire.editorFocused()); // A queued old focus state cannot survive lose/regain.
+        assert(wire.acceptMessage(before,1,wireDocument,QUrl("https://wire.test"),true,"editor",inputState));
+        Java_org_overte_web_EmbeddedWebView_nativeInputFocus(env,boundary,handle,birth+1,wire.lifecycleRevision(),false);
+        QCoreApplication::processEvents(); assert(wire.editorFocused()); // A stale instance cannot revoke current input.
+        std::puts("PASS: actual Qt/JNI focus-only revocation rejects queued old editors without changing active document/bridge generation");
+        wire.setVisible(false); assert(!wire.generation());
+        assert(!env->ExceptionCheck());
+        assert(field("hiddenRevision") == jlong(wire.lifecycleRevision()) && field("hiddenRevision") != jlong(before));
+        assert(field("hiddenActive") == 0);
+        assert(env->GetStaticIntField(boundary,env->GetStaticFieldID(boundary,"hidden","I")) == 1);
+        wire.setVisible(true); assert(wire.generation() > before);
+        wire.acceptSuspended(wire.lifecycleRevision(),QUrl("https://wire.test/page"),true,false,field("creationRevision"));
+        QCoreApplication::processEvents(); assert(wire.reloadRequired() && !wire.warningText().isEmpty());
+        int count = env->GetStaticIntField(boundary,env->GetStaticFieldID(boundary,"creates","I"));
+        wire.setVisible(false); wire.setVisible(true); QCoreApplication::processEvents();
+        assert(env->GetStaticIntField(boundary,env->GetStaticFieldID(boundary,"creates","I")) == count);
+        wire.requestResume(wire.lifecycleRevision()-1,QUrl("https://wire.test/reloaded"),field("creationRevision"));
+        QCoreApplication::processEvents(); assert(wire.reloadRequired());
+        wire.reload(); QCoreApplication::processEvents(); QCoreApplication::processEvents();
+        assert(!wire.reloadRequired());
+        assert(env->GetStaticIntField(boundary,env->GetStaticFieldID(boundary,"creates","I")) == count+1);
+        auto loaded = static_cast<jstring>(env->GetStaticObjectField(boundary,env->GetStaticFieldID(boundary,"loadedUrl","Ljava/lang/String;")));
+        const char* url = env->GetStringUTFChars(loaded,nullptr); assert(QByteArray(url) == "https://wire.test/page");
+        env->ReleaseStringUTFChars(loaded,url); env->DeleteLocalRef(loaded);
+        wire.acceptForeground(false); assert(!wire.generation() && wire.lifecycleRevision() > 0);
+        auto delayed = env->GetStaticFieldID(boundary,"delayCreated","Z");
+        env->SetStaticBooleanField(boundary,delayed,true);
+        Probe pending; pending.setSize(QSizeF(100,100)); pending.acceptForeground(true);
+        pending.setSourceIdentity("delayed-source"); pending.setUrl("https://wire.test/old"); pending.componentComplete();
+        const auto oldHandle = field("handle"); const auto oldRevision = field("creationRevision");
+        pending.setUrl("https://wire.test/new");
+        env->SetStaticBooleanField(boundary,delayed,false);
+        Java_org_overte_web_EmbeddedWebView_nativeCreated(env,boundary,oldHandle,oldRevision,true);
+        QCoreApplication::processEvents(); QCoreApplication::processEvents();
+        loaded = static_cast<jstring>(env->GetStaticObjectField(boundary,env->GetStaticFieldID(boundary,"loadedUrl","Ljava/lang/String;")));
+        url = env->GetStringUTFChars(loaded,nullptr); assert(QByteArray(url) == "https://wire.test/new");
+        env->ReleaseStringUTFChars(loaded,url); env->DeleteLocalRef(loaded);
+        const auto freshRevision = pending.lifecycleRevision(); assert(freshRevision > oldRevision);
+        Java_org_overte_web_EmbeddedWebView_nativeCreated(env,boundary,oldHandle,oldRevision,false);
+        QCoreApplication::processEvents(); assert(pending.lifecycleRevision() == freshRevision && !env->ExceptionCheck());
+        std::puts("PASS: actual Qt hide event crosses JVM/JNI into production lifecycle dispatcher after active grant becomes0; Android WebView/Looper represented, not DOM/audio");
     }
     return 0;
 }
