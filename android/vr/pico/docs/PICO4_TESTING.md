@@ -185,7 +185,7 @@ configuration. Resource-only host fixtures use the `.apk` extension because
 SDK apkanalyzer 22.0 classifies `.zip` inputs as generic archives; a real
 byte-identical `.apk`/`.zip` regression captures that boundary. The receipt binds
 source files,
-raw and decoded XML, resource inventory, SDK executables, decoder JARs and JVM
+raw and decoded XML, the complete archive SHA, resource inventory, SDK executables, decoder JARs and JVM
 inputs. At most 128 policy variants are accepted; every selected variant is
 validated without truncation.
 
@@ -210,3 +210,11 @@ exists in the product verifier CLI; a missing actual parent fails closed.
 The prior version-32 APK remains source `9eb67e1` without this capability.
 Normal parent integration, a new exact-source artifact and physical HTTP/HTTPS,
 release, hardware video and WebAudio acceptance remain open.
+
+All APK structure, signing, identity and network readers use the same private,
+size-bounded archive snapshot, rather than repeatedly opening the caller's APK.
+The SDK sees the original file extension and basename in that private directory.
+The original and snapshot hashes are checked before success; temporary copies
+are removed after success or failure. The real SDK regression replaces and
+restores an invalid user-CA input during decoding and verifies that it remains
+rejected, rather than accepting decoded system-CA XML from different bytes.

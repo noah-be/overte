@@ -407,17 +407,55 @@ class PicoBinaryNetworkTests(unittest.TestCase):
         self.module.add_candidate_arguments(parser)
         args = parser.parse_args([str(apk), "--aapt", str(self.aapt), "--aapt2", str(self.aapt2),
                                   "--apkanalyzer", str(self.analyzer), "--apksigner", str(signer)])
-        verified = self.module.verify_candidate(args)
+        consumed = []
+        real_tool = self.module.run_tool
+        def track_archive(command):
+            consumed.append(Path(command[-1]))
+            return real_tool(command)
+        with patch.object(self.module, "run_tool", side_effect=track_archive):
+            verified = self.module.verify_candidate(args)
+        self.assertEqual(len(set(consumed)), 1)
+        self.assertNotEqual(consumed[0], apk)
+        self.assertFalse(consumed[0].exists(), "Successful snapshot must be removed")
+        self.assertEqual(verified["network_capability"]["archive_sha256"], verified["sha256"])
         self.assertEqual(verified["network_capability"]["capability"]["androidCleartextScope"], "application")
-        actual = self.module.verify_network_policy
+        actual = self.module._verify_network_policy
         def mutate(arguments):
             result = actual(arguments)
             with zipfile.ZipFile(apk, "a") as archive:
                 archive.writestr("late-change.txt", b"changed")
             return result
-        with patch.object(self.module, "verify_network_policy", side_effect=mutate):
+        with patch.object(self.module, "_verify_network_policy", side_effect=mutate):
             with self.assertRaisesRegex(self.module.VerificationError, "candidate bytes changed"):
                 self.module.verify_candidate(args)
+
+    def test_replace_restore_on_original_cannot_substitute_decoder_bytes(self):
+        from unittest.mock import patch
+        import hashlib
+        valid = self.fixture().read_bytes()
+        apk = self.fixture(configs={"xml/" + NETWORK_NAME + ".xml":
+                                   self.config.replace('src="system"', 'src="user"')})
+        invalid = apk.read_bytes()
+        self.assertNotEqual(hashlib.sha256(valid).digest(), hashlib.sha256(invalid).digest())
+        actual = self.module.run_tool
+        attempted = []
+        snapshots = []
+        def replace_restore(command):
+            if "--file" in command:
+                attempted.append(True)
+                snapshots.append(Path(command[-1]))
+                apk.write_bytes(valid)
+                try:
+                    return actual(command)
+                finally:
+                    apk.write_bytes(invalid)
+            return actual(command)
+        with patch.object(self.module, "run_tool", side_effect=replace_restore):
+            with self.assertRaisesRegex(self.module.VerificationError, "network capability"):
+                self.verify(apk)
+        self.assertTrue(attempted, "The actual SDK decoder must execute during replacement")
+        self.assertEqual(apk.read_bytes(), invalid)
+        self.assertTrue(all(path != apk and not path.exists() for path in snapshots))
 
     def test_actual_sdk_classifies_archive_extension_before_generic_xml(self):
         import hashlib

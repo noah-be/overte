@@ -2,6 +2,8 @@
 """Fail-closed structural and signing verification for a Pico 4 APK."""
 
 import argparse
+import copy
+from contextlib import contextmanager
 import hashlib
 import importlib.util
 import json
@@ -11,6 +13,8 @@ import re
 import shutil
 import subprocess
 import sys
+import stat
+import tempfile
 import zipfile
 
 
@@ -92,6 +96,37 @@ def sha256_file(path):
     return checksum.hexdigest()
 
 
+@contextmanager
+def bound_apk(apk):
+    """Give every archive reader one private copy of the originally hashed bytes."""
+    if apk is None:
+        fail("candidate APK is required")
+    if not apk.is_file() or apk.is_symlink():
+        fail("APK is not a regular non-symlink file")
+    with tempfile.TemporaryDirectory(prefix="overte-pico-verifier-") as temporary:
+        snapshot = Path(temporary) / apk.name
+        checksum = hashlib.sha256()
+        copied = 0
+        descriptor = os.open(apk, os.O_RDONLY | os.O_NOFOLLOW)
+        with os.fdopen(descriptor, "rb") as source, snapshot.open("xb") as output:
+            metadata = os.fstat(source.fileno())
+            if not stat.S_ISREG(metadata.st_mode) or not 0 < metadata.st_size <= MAX_APK_BYTES:
+                fail("APK size exceeds verifier bound")
+            for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                copied += len(chunk)
+                if copied > MAX_APK_BYTES:
+                    fail("APK size exceeds verifier bound")
+                checksum.update(chunk)
+                output.write(chunk)
+        digest = checksum.hexdigest()
+        if copied != metadata.st_size or sha256_file(apk) != digest:
+            fail("candidate bytes changed during verification")
+        snapshot.chmod(0o400)
+        yield snapshot, digest
+        if sha256_file(snapshot) != digest or sha256_file(apk) != digest:
+            fail("candidate bytes changed during verification")
+
+
 def decoder_inputs(path):
     """Bind an SDK launcher and its actual Java runtime dependencies, when present."""
     path = Path(path).resolve()
@@ -113,6 +148,16 @@ def decoder_inputs(path):
 
 
 def verify_network_policy(args):
+    """Bind standalone policy checks to one private archive, including the SDK."""
+    with bound_apk(args.apk) as (snapshot, digest):
+        bound_args = copy.copy(args)
+        bound_args.apk = snapshot
+        result = _verify_network_policy(bound_args)
+        result["archive_sha256"] = digest
+        return result
+
+
+def _verify_network_policy(args):
     """Consume the parent policy against source and every actual packaged variant.
 
     No preview path or policy override is exposed by the product CLI. Host tests
@@ -309,6 +354,17 @@ def add_candidate_arguments(parser, *, native_binding=False):
 
 
 def verify_candidate(args):
+    """Read structure, signing, identity and policy from the same bounded snapshot."""
+    with bound_apk(args.apk) as (snapshot, digest):
+        bound_args = copy.copy(args)
+        bound_args.apk = snapshot
+        result = _verify_candidate(bound_args)
+        if result["sha256"] != digest:
+            fail("candidate bytes changed during verification")
+        return result
+
+
+def _verify_candidate(args):
     """Original verification implementation, without CLI output or device I/O."""
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'release'))
     from pico_candidate_identity import EVIDENCE_KEYS, validate_candidate_identity
@@ -357,7 +413,8 @@ def verify_candidate(args):
         if signer_digest != expected_signer:
             fail("APK signer certificate does not match the protected release signer")
 
-    network_capability = verify_network_policy(args)
+    network_capability = _verify_network_policy(args)
+    network_capability["archive_sha256"] = original_digest
     identity = validate_candidate_identity(args, metadata) if identity_supplied else None
     build_evidence = None
     if identity:
