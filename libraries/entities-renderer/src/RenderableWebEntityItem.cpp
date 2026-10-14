@@ -39,7 +39,7 @@ using namespace render::entities;
 
 const QString WebEntityRenderer::QML = "Web3DSurface.qml";
 const char* WebEntityRenderer::URL_PROPERTY = "url";
-const char* WebEntityRenderer::SCRIPT_URL_PROPERTY = "scriptURL";
+const char* WebEntityRenderer::SCRIPT_URL_PROPERTY = "scriptUrl";
 const char* WebEntityRenderer::GLOBAL_POSITION_PROPERTY = "globalPosition";
 const char* WebEntityRenderer::USE_BACKGROUND_PROPERTY = "useBackground";
 const char* WebEntityRenderer::USER_AGENT_PROPERTY = "userAgent";

@@ -108,7 +108,11 @@ its source URL is unchanged.
 The `web-entity-visibility` host suite compiles complete production renderer
 update/build/release bodies and the real shared browser policy. Qt5/Qt6 Quick
 roots and descendants exercise hide/show, late creation, cache reuse, owner
-deletion and source replacement. Entity properties, cache acquisition and
+deletion and source replacement. The actual renderer property constants also
+execute against the base and Android world roots' exact QML property declarations,
+so assigning an undeclared dynamic property cannot substitute for `scriptUrl`.
+Visual loader behavior is covered separately by `embedded-web-qml`; this
+property test does not execute the downloaded script. Entity properties, cache acquisition and
 scene/GPU endpoints are explicit fixtures. SDK compilation, real native media
 effects and physical installed-artifact observations remain separate checks.
 

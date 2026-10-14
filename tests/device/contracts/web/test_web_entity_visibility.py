@@ -8,6 +8,7 @@ use actual Qt and production policy; this is not an SDK/device/media test.
 import os
 from pathlib import Path
 import shlex
+import re
 import subprocess
 import tempfile
 import unittest
@@ -57,16 +58,35 @@ class WorldWebVisibility(unittest.TestCase):
         header = (ROOT / 'libraries/entities-renderer/src/RenderableWebEntityItem.h').read_text()
         members = '\n'.join(line for line in header.splitlines() if
                             '_webSurfaceLease;' in line or '_webSurfaceVisible ' in line)
+        constants_source = source
+        constants_baseline = os.environ.get('OVERTE_WEB_PROPERTY_BASELINE')
+        if constants_baseline:
+            constants_source = subprocess.check_output(['git', 'show', constants_baseline+':'+path], cwd=ROOT, text=True)
+        constants = '\n'.join(next(line for line in constants_source.splitlines()
+                                   if line.startswith('const char* WebEntityRenderer::'+name+' = '))
+                              for name in ('URL_PROPERTY', 'SCRIPT_URL_PROPERTY', 'USE_BACKGROUND_PROPERTY',
+                                           'USER_AGENT_PROPERTY', 'GLOBAL_POSITION_PROPERTY'))
+        # Read the actual property declarations shared by the base and Android
+        # world roots. Visual loaders remain covered by embedded-web-qml.
+        properties = []
+        for relative in ('Web3DSurface.qml', '+android_interface/Web3DSurface.qml'):
+            qml = (ROOT / 'interface/resources/qml' / relative).read_text()
+            properties.append('\n'.join(line.strip() for line in qml.splitlines()
+                              if re.match(r'\s*property (?:string|bool) (?:url|scriptUrl|useBackground|userAgent):', line)))
+        self.assertEqual(properties[0], properties[1])
         with tempfile.TemporaryDirectory(prefix='overte-web-entity-visibility-') as temporary:
             stage = Path(temporary)
             (stage / 'production-visibility-methods.inc').write_text(methods)
             (stage / 'production-visibility-members.inc').write_text(members)
+            (stage / 'production-visibility-constants.inc').write_text(constants)
+            schema = stage / 'ProductionWorldRoot.qml'
+            schema.write_text('import QtQuick 2.7\nItem {\n'+properties[0]+'\n}\n')
             fixture = HERE / 'web-entity-visibility-test.cpp'
             subprocess.run([str(moc), str(fixture), '-o', str(stage / 'web-entity-visibility-test.moc')], check=True, timeout=30)
             binary = stage / 'visibility'
             subprocess.run(['c++', '-std=c++17', '-Wall', '-Wextra', '-Werror', '-Wno-unused-parameter', '-fPIC', '-pthread',
                             '-I'+str(ROOT), '-I'+str(stage), str(fixture), '-o', str(binary), *flags], check=True, timeout=60)
-            subprocess.run([str(binary)], check=True, timeout=15, env=os.environ | {
+            subprocess.run([str(binary), str(schema)], check=True, timeout=15, env=os.environ | {
                 'QT_QPA_PLATFORM': 'offscreen', 'QT_QUICK_BACKEND': 'software'})
 
 

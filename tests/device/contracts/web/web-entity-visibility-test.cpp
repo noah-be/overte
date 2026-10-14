@@ -6,6 +6,8 @@
 #include <QGuiApplication>
 #include <QQuickItem>
 #include <QQuickWindow>
+#include <QQmlComponent>
+#include <QQmlEngine>
 #include <QSharedPointer>
 #include <QWeakPointer>
 #include <QPointer>
@@ -22,6 +24,7 @@
 
 using overte::web::EmbeddedWebSession;
 const QUrl DOCUMENT("https://world.example/app.html");
+static QString rootSchema;
 namespace glm { struct vec2 { float x { 64 }, y { 64 }; }; }
 namespace hifi { namespace scripting { void setLocalAccessSafeThread(bool) {} }
 namespace qml {
@@ -49,6 +52,7 @@ class OffscreenQmlSurface : public hifi::qml::OffscreenSurface {
 public:
     QPointer<QQuickItem> root;
     QQuickWindow window;
+    QQmlEngine engine;
     DocumentProbe* document {};
     ContextBoundary context;
     QQuickItem* getRootItem() const { return root; }
@@ -58,7 +62,15 @@ public:
     void setMaxFps(int) {}
     void createRoot() {
         delete root;
-        root = new QQuickItem(window.contentItem());
+        QQmlComponent component(&engine, QUrl::fromLocalFile(rootSchema));
+        if (component.isError()) {
+            std::cerr << component.errorString().toStdString();
+            std::abort();
+        }
+        root = qobject_cast<QQuickItem*>(component.create());
+        assert(root);
+        QQmlEngine::setObjectOwnership(root, QQmlEngine::CppOwnership);
+        root->setParentItem(window.contentItem());
         root->QObject::setParent(this);
         document = new DocumentProbe(root);
         emit rootItemCreated(root);
@@ -71,6 +83,7 @@ public slots:
 struct EntityBoundary {
     bool visible { true };
     QString url { DOCUMENT.toString() };
+    QString scriptUrl;
     bool getVisible() const { return visible; }
     QString getSourceUrl() const { return url; }
     int getInputMode() const { return 0; }
@@ -80,7 +93,7 @@ struct EntityBoundary {
     bool getWantsKeyboardFocus() const { return true; }
     int getPulseProperties() const { return 0; }
     bool getLocalSafeContext() const { return false; }
-    QString getScriptURL() const { return {}; }
+    QString getScriptURL() const { return scriptUrl; }
     int getMaxFPS() const { return 10; }
     bool getUseBackground() const { return false; }
     QString getUserAgent() const { return {}; }
@@ -161,11 +174,7 @@ signals:
     void requestRenderUpdate();
 };
 QSharedPointer<OffscreenQmlSurface> WebEntityRenderer::nextSurface;
-const char* WebEntityRenderer::URL_PROPERTY = "url";
-const char* WebEntityRenderer::SCRIPT_URL_PROPERTY = "scriptURL";
-const char* WebEntityRenderer::USE_BACKGROUND_PROPERTY = "useBackground";
-const char* WebEntityRenderer::USER_AGENT_PROPERTY = "userAgent";
-const char* WebEntityRenderer::GLOBAL_POSITION_PROPERTY = "globalPosition";
+#include "production-visibility-constants.inc"
 #include "web-entity-visibility-test.moc"
 #include "production-visibility-methods.inc"
 
@@ -182,6 +191,8 @@ static void update(WebEntityRenderer& renderer, const EntityItemPointer& entity)
 
 int main(int argc, char** argv) {
     QGuiApplication app(argc, argv);
+    assert(argc == 2);
+    rootSchema = QString::fromLocal8Bit(argv[1]);
     {
         auto surface = makeSurface();
         auto entity = EntityItemPointer::create(); entity->visible = false;
@@ -198,6 +209,11 @@ int main(int argc, char** argv) {
         entity->visible = true; update(renderer, entity);
         assert(surface->document->session.active());
         assert(!surface->document->session.allowsBridge(grant, DOCUMENT, true, 10));
+        // Actual production C++ setter must address the real QML declaration,
+        // rather than silently adding an unrelated dynamic QObject property.
+        entity->scriptUrl = "https://source.example/entity.js"; update(renderer, entity);
+        assert(surface->root->metaObject()->indexOfProperty("scriptUrl") >= 0);
+        assert(surface->root->property("scriptUrl").toString() == entity->scriptUrl);
     }
     {
         auto surface = makeSurface(false);
