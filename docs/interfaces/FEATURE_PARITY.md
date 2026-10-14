@@ -67,6 +67,33 @@ and exposed WebAssembly. A successful ordinary JavaScript test does not prove
 arbitrary WASM-dependent script compatibility. Report actual API/user results
 and remaining limits rather than inferring runtime parity from build flags.
 
+## Touch LOD preferences
+
+The shared Phone/iOS startup script preserves the LOD preferences loaded by the
+native client, including when its scripts are restarted. Native LOD loading
+uses the established conservative touch defaults (automatic adjustment off,
+0.248 degrees) only for unset preferences. Existing saved values retain their
+meaning; Desktop and Pico keep their existing native defaults.
+
+The registered `lod-preferences` host suite compiles actual load/save/setter
+bodies and the production typed Setting::Handle header for Phone, iOS, Pico and
+Desktop branches. It verifies partial preferences, the existing mobile profile,
+changed user choices and separate process restarts with real Qt INI storage.
+The asynchronous setting manager and display-rate endpoints are explicit host
+boundaries. SDK builds, actual shared-script installation, graphics effects and
+physical preference persistence remain separate artifact-bound acceptance.
+
+## Directory transport
+
+PLACES uses the same sequential asynchronous directory requests for flat touch,
+Pico's native page and the desktop web page. Refresh, screen replacement and
+script stop invalidate the previous request generation; late responses cannot
+replace the current result. Transport errors, timeouts and malformed responses
+mark the failed server and continue to the next selected federation entry.
+The production-script tests exercise all three UI routes with the transport
+boundary replaced. Native control completeness and current-artifact navigation
+remain separate acceptance requirements.
+
 ## Script and asset bundles
 
 The common native script and asset controls now preserve the selected folder's

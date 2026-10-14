@@ -345,36 +345,7 @@
         portalList = [];
         nbrPlacesNoProtocolMatch = 0;
         nbrPlaceProtocolKnown = 0;
-        var extractedData;
-
-        if (isAndroidPhone) {
-            fetchPhoneMetaverse(0, generation);
-            return;
-        }
-        
-        for (var i = 0; i < metaverseServers.length; i++ ) {
-            if (metaverseServers[i].fetch === true) {
-                extractedData = getContent(metaverseServers[i].url + "/api/v1/places?status=online&per_page=1000");
-                if (extractedData === "") {
-                    metaverseServers[i].error = true;
-                } else {
-                    metaverseServers[i].error = false;
-                }
-                try {
-                    placesData = JSON.parse(extractedData);
-                    if (placesData && placesData.data && Array.isArray(placesData.data.places)) {
-                        processData(metaverseServers[i]);
-                    } else {
-                        metaverseServers[i].error = true;
-                    }
-                } catch(e) {
-                    placesData = {};
-                }
-                httpRequest = null;
-            }
-        }
-
-        finishPortalList();
+        fetchMetaverse(0, generation);
     };
 
     function finishPortalList() {
@@ -400,7 +371,7 @@
         getLocationBookmarks();
     }
 
-    function fetchPhoneMetaverse(index, generation) {
+    function fetchMetaverse(index, generation) {
         if (shuttingDown || !appStatus || generation !== requestGeneration) {
             return;
         }
@@ -414,8 +385,7 @@
         }
 
         var metaverse = metaverseServers[index];
-        var request = new XMLHttpRequest();
-        httpRequest = request;
+        var request;
         var completed = false;
 
         function completeRequest(success) {
@@ -440,20 +410,26 @@
                     metaverse.error = true;
                 }
             }
-            fetchPhoneMetaverse(index + 1, generation);
+            fetchMetaverse(index + 1, generation);
         }
 
-        request.open("GET", metaverse.url + "/api/v1/places?status=online&per_page=1000", true);
-        request.setRequestHeader("Cache-Control", "no-cache");
-        request.timeout = REQUEST_TIMEOUT;
-        request.onreadystatechange = function () {
-            if (request.readyState === 4) {
-                completeRequest(request.status >= 200 && request.status < 300);
-            }
-        };
-        request.onerror = function () { completeRequest(false); };
-        request.ontimeout = function () { completeRequest(false); };
-        request.send(null);
+        try {
+            request = new XMLHttpRequest();
+            httpRequest = request;
+            request.open("GET", metaverse.url + "/api/v1/places?status=online&per_page=1000", true);
+            request.setRequestHeader("Cache-Control", "no-cache");
+            request.timeout = REQUEST_TIMEOUT;
+            request.onreadystatechange = function () {
+                if (request.readyState === 4) {
+                    completeRequest(request.status >= 200 && request.status < 300);
+                }
+            };
+            request.onerror = function () { completeRequest(false); };
+            request.ontimeout = function () { completeRequest(false); };
+            request.send(null);
+        } catch (error) {
+            completeRequest(false);
+        }
     }
 
     function sendToPlacesUi(message) {
@@ -477,19 +453,8 @@
     }
 
     function getFederationData() {
-        /*
-        //If federation.json is got from the Metaverse Server (not implemented yet)
-        var fedDirectoryUrl = AccountServices.metaverseServerURL + "/federation.json";
-        var extractedFedData = getContent(fedDirectoryUrl);
-        */
-
-        /*
-        //If federation.json is got from a web storage
-        var fedDirectoryUrl = ROOT + "federation.json"; + "?version=" + Math.floor(Math.random() * 999999);
-        var extractedFedData = getContent(fedDirectoryUrl);
-        */
-
-        //if federation.json is local, on the user installation
+        // The federation list is packaged locally. Selected servers' directory
+        // content is fetched asynchronously by fetchMetaverse.
         var extractedFedData = JSON.stringify(Script.require("./federation.json"));
 
         return extractedFedData;
@@ -592,24 +557,6 @@
     function renameLocationBookmark(originalName, name, url) {
         LocationBookmarks.addBookmark(name, url);
         LocationBookmarks.removeBookmark(originalName);
-    }
-
-    function getContent(url) {
-        try {
-            httpRequest = new XMLHttpRequest();
-            httpRequest.open("GET", url, false); // false for synchronous request
-            httpRequest.setRequestHeader("Cache-Control", "no-cache");
-            httpRequest.timeout = REQUEST_TIMEOUT;
-            httpRequest.send(null);
-            if (httpRequest.status < 200 || httpRequest.status >= 300) {
-                return "";
-            }
-            return httpRequest.responseText || "";
-        } catch (error) {
-            return "";
-        } finally {
-            httpRequest = null;
-        }
     }
 
     function processData(metaverseInfo){
