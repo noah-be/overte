@@ -20,6 +20,15 @@ var AppUi = Script.require('appUi');
 // temporarily block it so it doesn't conflict with the snap app shortcut
 var ContextMenu = Script.require('contextMenu');
 
+var nativeReview = typeof Snapshot.nativeReviewEnabled === "function" && Snapshot.nativeReviewEnabled();
+var nativeReviewRevision = 0;
+var nativeCaptureId = "";
+var nativeCaptureCounter = 0;
+var nativeCaptureMode = "still";
+var nativeCaptureTimers = [];
+var nativeUploadPaths = {};
+var nativeOverlaysHidden = false;
+
 var SNAPSHOT_DELAY = 500; // 500ms
 var FINISH_SOUND_DELAY = 350;
 var resetOverlays;
@@ -43,7 +52,13 @@ try {
     // Due to an issue where if the user spams 'script reload', this call could cause an exception
     // preventing our scriptEnding to not properly be initialized resulting in the tablet button
     // duplicating itself where you end up with a bunch of SNAP buttons on your toolbar
-    request = Script.require('request').request;
+    var transportRequest = Script.require('request').request;
+    request = function (options, callback) {
+        var revision = nativeReviewRevision;
+        transportRequest(options, function (error, response) {
+            if (!nativeReview || revision === nativeReviewRevision) { callback(error, response); }
+        });
+    };
 } catch(err) {
     print('Failed to resolve request api, error: ' + err);
 }
@@ -71,10 +86,14 @@ function onMessage(message) {
     //    same time, show the user all of them, and have the user deselect any that they do not want to share.
     //    So we'll ultimately be receiving a set of objects, perhaps with different post processing for each.
 
-    if (message.type !== "snapshot") {
+    if (!message || message.type !== "snapshot") {
         return;
     }
 
+    if (nativeReview && METAVERSE_BASE !== Account.metaverseServerURL) {
+        METAVERSE_BASE = Account.metaverseServerURL;
+        nativeReviewRevision++;
+    }
     switch (message.action) {
         case 'ready': // DOM is ready and page has loaded
             ui.sendMessage({
@@ -132,8 +151,14 @@ function onMessage(message) {
             print("Changing Snapshot Capture Settings to Capture Still Only");
             Settings.setValue("alsoTakeAnimatedSnapshot", false);
             break;
+        case 'cancelSnapshotCapture':
+            if (nativeReview) { cancelNativeCapture(true); }
+            break;
+        case 'cancelSnapshotUpload':
+            if (nativeReview && nativeUploadPaths[message.path]) { Snapshot.cancelUpload(message.path); }
+            break;
         case 'takeSnapshot':
-            takeSnapshot();
+            takeSnapshot(message.mode, message.filename);
             break;
         case 'shareSnapshotForUrl':
             isDomainOpen(Settings.getValue("previousSnapshotDomainID"), function (canShare) {
@@ -142,9 +167,11 @@ function onMessage(message) {
                 if (!isGif) {
                     isUploadingPrintableStill = canShare && Account.isLoggedIn();
                 }
+                if (!canShare && nativeReview) { ui.sendMessage({ type: 'snapshot', action: 'snapshotError', error: 'This domain does not permit snapshot uploads.' }); }
                 if (canShare) {                  
                     if (isLoggedIn) {
                         print('Sharing snapshot with audience "for_url":', message.data);
+                        if (nativeReview) { nativeUploadPaths[message.data] = true; }
                         Window.shareSnapshot(message.data, Settings.getValue("previousSnapshotHref"));                      
                         if (isGif) {
                             mostRecentGifSnapshotFilename = getFilenameFromPath(message.data);
@@ -421,7 +448,71 @@ function snapshotUploaded(isError, reply) {
     isUploadingPrintableStill = false;
 }
 var href, snapshotDomainID;
-function takeSnapshot() {
+function clearNativeCaptureTimers() {
+    nativeCaptureTimers.forEach(function (timer) { Script.clearTimeout(timer); });
+    nativeCaptureTimers = [];
+}
+
+function restoreNativeOverlays(openReview) {
+    if (nativeOverlaysHidden) {
+        nativeOverlaysHidden = false;
+        Reticle.visible = reticleVisible;
+        Reticle.allowMouseCapture = true;
+        if (resetOverlays) { Menu.setIsOptionChecked("Show Overlays", true); }
+    }
+    if (openReview && ui.isOpen) { HMD.openTablet(); }
+    setTakePhotoControllerMappingStatus(!!ui.isOpen);
+}
+
+function cancelNativeCapture(openReview) {
+    clearNativeCaptureTimers();
+    var request = nativeCaptureId;
+    nativeCaptureId = "";
+    if (request) { Snapshot.cancelCapture(request); }
+    restoreNativeOverlays(openReview);
+    if (request) { ui.sendMessage({ type: "snapshot", action: "captureStatus", phase: "cancelled" }); }
+}
+
+function scheduleNativeCapture(callback, delay) {
+    var request = nativeCaptureId;
+    nativeCaptureTimers.push(Script.setTimeout(function () {
+        if (nativeCaptureId === request) { callback(); }
+    }, delay));
+}
+
+function onNativeCaptureStatus(request, phase, path, error) {
+    if (request !== nativeCaptureId) { return; }
+    if (phase === "processing" && path && nativeCaptureMode === "animated") {
+        processingGifStarted(path);
+    } else if (phase === "complete") {
+        clearNativeCaptureTimers();
+        if (nativeCaptureMode === "animated") { processingGifCompleted(path); }
+        else { stillSnapshotTaken(path, false); }
+        nativeCaptureId = "";
+        restoreNativeOverlays(true);
+    } else if (phase === "error" || phase === "cancelled") {
+        clearNativeCaptureTimers();
+        nativeCaptureId = "";
+        restoreNativeOverlays(true);
+    }
+    ui.sendMessage({ type: "snapshot", action: "captureStatus", phase: phase, error: error || "" });
+}
+
+function onNativeUploadStatus(path, status, error) {
+    if (!nativeUploadPaths[path]) { return; }
+    delete nativeUploadPaths[path];
+    ui.sendMessage({ type: "snapshot", action: "uploadStatus", path: path, status: status, error: error || "" });
+}
+
+function takeSnapshot(mode, title) {
+    if (nativeReview) {
+        if (nativeCaptureId) { return; }
+        nativeReviewRevision++;
+        nativeCaptureMode = ["still", "animated", "panorama", "cubemap"].indexOf(mode) !== -1 ? mode
+            : Settings.getValue("alsoTakeAnimatedSnapshot", true) ? "animated" : "still";
+        nativeCaptureId = "snap_" + Date.now() + "_" + (++nativeCaptureCounter);
+        Settings.setValue("alsoTakeAnimatedSnapshot", nativeCaptureMode === "animated");
+    }
     ui.sendMessage({
         type: "snapshot",
         action: "clearPreviousImages"
@@ -459,7 +550,8 @@ function takeSnapshot() {
     }
     
     var includeAnimated = Settings.getValue("alsoTakeAnimatedSnapshot", true);
-    if (includeAnimated) {
+    if (nativeReview) { nativeOverlaysHidden = true; }
+    else if (includeAnimated) {
         Window.processingGifStarted.connect(processingGifStarted);
     } else {
         Window.stillSnapshotTaken.connect(stillSnapshotTaken);
@@ -472,6 +564,28 @@ function takeSnapshot() {
 
     var snapActivateSound = SoundCache.getSound(Script.resourcesPath() + "sounds/snapshot/snap.wav");
 
+    // Native requests retain the existing capture APIs with a cancellable
+    // ticket. Cancel invalidates both pending delays and actual render/encode work.
+    if (nativeReview) {
+        var request = nativeCaptureId;
+        var base = typeof title === "string" ? title.replace(/[^A-Za-z0-9 _-]/g, "_").slice(0, 48) : "";
+        var filename = (base || "overte-snapshot") + "-" + request + "." + (Snapshot.getSnapshotFormat() || "png");
+        scheduleNativeCapture(function () {
+            Audio.playSound(snapActivateSound, { position: MyAvatar.position, localOnly: true, volume: 0.3 });
+            HMD.closeTablet();
+            setTakePhotoControllerMappingStatus(false);
+            scheduleNativeCapture(function () {
+                if (nativeCaptureMode === "panorama" || nativeCaptureMode === "cubemap") {
+                    Window.takeSecondaryCamera360Snapshot(MyAvatar.position, nativeCaptureMode === "cubemap", false, filename, request);
+                } else { Window.takeSnapshot(false, includeAnimated, 1.91, filename, request); }
+            }, Math.max(SNAPSHOT_DELAY, 2000 / Math.max(1, Rates.render)));
+        }, FINISH_SOUND_DELAY);
+        scheduleNativeCapture(function () {
+            Snapshot.cancelCapture(request);
+            onNativeCaptureStatus(request, "error", "", "capture-timeout");
+        }, 60000);
+        return;
+    }
     // take snapshot (with no notification)
     Script.setTimeout(function () {
         Audio.playSound(snapActivateSound, {
@@ -491,6 +605,11 @@ function takeSnapshot() {
 }
     
 function isDomainOpen(id, callback) {
+    var revision = nativeReviewRevision;
+    var originalCallback = callback;
+    callback = function (value) {
+        if (!nativeReview || revision === nativeReviewRevision) { originalCallback(value); }
+    };
     print("Checking open status of domain with ID:", id);
     var status = false;
     if (id) {
@@ -529,7 +648,7 @@ function stillSnapshotTaken(pathStillSnapshot, notify) {
     if (resetOverlays) {
         Menu.setIsOptionChecked("Show Overlays", true);
     }
-    Window.stillSnapshotTaken.disconnect(stillSnapshotTaken);
+    if (!nativeReview) { Window.stillSnapshotTaken.disconnect(stillSnapshotTaken); }
 
     // A Snapshot Review dialog might be left open indefinitely after taking the picture,
     // during which time the user may have moved. So stash that info in the dialog so that
@@ -548,6 +667,7 @@ function stillSnapshotTaken(pathStillSnapshot, notify) {
             containsGif: false,
             processingGif: false,
             canShare: canShare,
+            canBlast: location.domainID === snapshotDomainID,
             isLoggedIn: isLoggedIn
         };
         imageData = [{ localPath: pathStillSnapshot, href: href }];
@@ -572,8 +692,10 @@ function snapshotDirChanged(snapshotPath) {
 }
 
 function processingGifStarted(pathStillSnapshot) {
-    Window.processingGifStarted.disconnect(processingGifStarted);
-    Window.processingGifCompleted.connect(processingGifCompleted);
+    if (!nativeReview) {
+        Window.processingGifStarted.disconnect(processingGifStarted);
+        Window.processingGifCompleted.connect(processingGifCompleted);
+    }
     isLoggedIn = Account.isLoggedIn();
     // show hud
     Reticle.visible = reticleVisible;
@@ -592,6 +714,7 @@ function processingGifStarted(pathStillSnapshot) {
             processingGif: true,
             loadingGifPath: Script.resourcesPath() + 'icons/loadingDark.gif',
             canShare: canShare,
+            canBlast: location.domainID === snapshotDomainID,
             isLoggedIn: isLoggedIn
         };
         imageData = [{ localPath: pathStillSnapshot, href: href }];
@@ -606,7 +729,7 @@ function processingGifStarted(pathStillSnapshot) {
 
 function processingGifCompleted(pathAnimatedSnapshot) {
     isLoggedIn = Account.isLoggedIn();
-    Window.processingGifCompleted.disconnect(processingGifCompleted);
+    if (!nativeReview) { Window.processingGifCompleted.disconnect(processingGifCompleted); }
 
     Settings.setValue("previousAnimatedSnapPath", pathAnimatedSnapshot);
 
@@ -645,6 +768,7 @@ function maybeDeleteSnapshotStories() {
     storyIDsToMaybeDelete = [];
 }
 function onUsernameChanged() {
+    if (nativeReview) { nativeReviewRevision++; METAVERSE_BASE = Account.metaverseServerURL; }
     fillImageDataFromPrevious();
     isDomainOpen(Settings.getValue("previousSnapshotDomainID"), function (canShare) {
         ui.sendMessage({
@@ -775,6 +899,14 @@ function onHMDChanged(isHMDMode) {
 }
 
 function onClosingWindow () {
+    if (nativeReview) {
+        nativeReviewRevision++;
+        cancelNativeCapture(false);
+        Object.keys(nativeUploadPaths).forEach(function (path) { Snapshot.cancelUpload(path); });
+        nativeUploadPaths = {};
+        shareAfterLogin = false;
+        snapshotToShareAfterLogin = [];
+    }
     setTakePhotoControllerMappingStatus(false);
 }
 
@@ -782,7 +914,7 @@ function startup() {
     ui = new AppUi({
         buttonName: "SNAP",
         sortOrder: 5,
-        home: Script.resolvePath("html/SnapshotReview.html"),
+        home: Script.resolvePath(nativeReview ? "snapshot/NativeSnapshotReview.qml" : "html/SnapshotReview.html"),
         onOpened: fillImageDataFromPrevious,
         onMessage: onMessage,
         onClosed: onClosingWindow
@@ -794,11 +926,20 @@ function startup() {
     GlobalServices.myUsernameChanged.connect(onUsernameChanged);
     Snapshot.snapshotLocationSet.connect(snapshotLocationSet);
     Window.snapshotShared.connect(snapshotUploaded);
+    if (nativeReview) {
+        Snapshot.captureStatusChanged.connect(onNativeCaptureStatus);
+        Snapshot.uploadStatusChanged.connect(onNativeUploadStatus);
+    }
     registerButtonMappings();
 }
 startup();
 
 function shutdown() {
+    if (nativeReview) {
+        onClosingWindow();
+        Snapshot.captureStatusChanged.disconnect(onNativeCaptureStatus);
+        Snapshot.uploadStatusChanged.disconnect(onNativeUploadStatus);
+    }
     Window.snapshotShared.disconnect(snapshotUploaded);
     Snapshot.snapshotLocationSet.disconnect(snapshotLocationSet);
     GlobalServices.myUsernameChanged.disconnect(onUsernameChanged);

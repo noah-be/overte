@@ -8,6 +8,14 @@ class MuteCaller(unittest.TestCase):
  def test_actual_mute(self):
   source=(ROOT/'libraries/audio-client/src/AudioClient.cpp').read_text()
   method=block(source,'void AudioClient::setMuted(')
+  header=(ROOT/'libraries/audio-client/src/AudioClient.h').read_text()
+  preview_state = '_recordedVoiceTestActive' in header
+  preview_finish = 'finishRecordedVoiceTest(' in header
+  self.assertEqual(preview_state, preview_finish, 'incomplete recorded-preview header ABI')
+  if preview_state:
+   self.assertIn('_recordedVoiceTestActive', method)
+   self.assertIn('finishRecordedVoiceTest(', method)
+  preview_flags = ['-DOVERTE_TEST_RECORDED_PREVIEW='+str(int(preview_state))]
   if os.environ.get('OVERTE_MUTE_SKIP_BRIDGE'):method=method.replace('overteIOSSetAudioMuted(muted);','')
   if os.environ.get('OVERTE_MUTE_SKIP_QUEUE'):method=method.replace('QThread::currentThread() != thread()','false')
   flags=shlex.split(subprocess.check_output(['pkg-config','--cflags','--libs','Qt6Core'],text=True))
@@ -21,7 +29,7 @@ class MuteCaller(unittest.TestCase):
     (d/'startup.inc').write_text('void initialAudio(bool _isMuted) {\n'+startup+'\n}')
    else:(d/'startup.inc').write_text('void initialAudio(bool muted) { overteIOSSetAudioMuted(muted); overteIOSActivateAudioSession(); }')
    extra=['-DACTUAL_IOS_ADAPTER=1',str(ROOT/'ios/audio/IOSAudioAdapter.cpp')] if actual else []
-   subprocess.run(['c++','-std=c++17','-fPIC','-pthread','-I'+str(ROOT),'-I'+str(d),*extra,str(Path(__file__).with_name('mute-caller-test.cpp')),'-x','c++',str(ROOT/'libraries/audio-client/src/IOSAudioPermission.mm'),'-o',str(d/'test'),*flags],check=True,timeout=30)
+   subprocess.run(['c++','-std=c++17','-fPIC','-pthread','-I'+str(ROOT),'-I'+str(d),*extra,*preview_flags,str(Path(__file__).with_name('mute-caller-test.cpp')),'-x','c++',str(ROOT/'libraries/audio-client/src/IOSAudioPermission.mm'),'-o',str(d/'test'),*flags],check=True,timeout=30)
    runner=os.environ.get('OVERTE_HOST_TEST_NETWORK_RUNNER')
    isolation=[runner] if runner else ['unshare','--user','--map-root-user','--net']
    subprocess.run([*isolation,str(d/'test')],check=True,timeout=10)

@@ -1127,6 +1127,16 @@ void RenderablePolyVoxEntityItem::initializePolyVox() {
     setVoxelVolumeSize(_voxelVolumeSize);
 }
 
+bool RenderablePolyVoxEntityItem::isVoxelDataReady() const {
+    bool ready { false };
+    withReadLock([&] {
+        // Ready follows compression and shape baking. Dirty flags may be set
+        // again by local or network edits before update advances the state.
+        ready = _state == PolyVoxState::Ready && !_volDataDirty && !_voxelDataDirty;
+    });
+    return ready;
+}
+
 void RenderablePolyVoxEntityItem::setVoxelData(const QByteArray& voxelData) {
     // accept compressed voxel information from the entity-server
     bool changed = false;

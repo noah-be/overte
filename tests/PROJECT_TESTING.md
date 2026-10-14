@@ -63,8 +63,80 @@ network access; unavailable isolation fails those tests. The workflow contains
 the exact Ubuntu package list. These host Qt contracts are separate from the
 complete client's platform-specific Qt/Conan dependency graph.
 
+The actual embedded-Web channel contracts also need matching Qt WebChannel
+development headers: `libqt5webchannel5-dev` for the actual Pico Qt 5 backend
+and `qt6-webchannel-dev` for Qt 6 in the Ubuntu reference environment. Ordinary
+project CI, parent qualification and downstream validation install both and
+check the matching Quick, WebChannel and Network pkg-config modules before
+running contracts. An unavailable module is a prerequisite failure; keep the
+actual selected backend test enabled.
+The Scripts/Assets document views import `Qt.labs.folderlistmodel`; install
+`qml-module-qt-labs-folderlistmodel` and
+`qml6-module-qt-labs-folderlistmodel` for the Qt 5 and Qt 6 behavior runs.
+
+The host profile also compiles the real shared embedded-HTML policy and the
+actual account-authentication signal bindings for Pico, Phone, desktop and the
+retained legacy Android path. These checks require Qt Core development files
+and Qt's `moc`; they do not instantiate a native browser or authenticate a device.
+The `embedded-web-qml` host suite requires Qt Quick Test's `qmltestrunner`
+(Qt 5.15 or Qt 6), Qt Quick, and Qt Test QML modules. It executes the actual
+shared tablet/world callers with only the operating-system browser boundary
+substituted, including the first EventBridge message before channel idle,
+single message delivery, source replacement, and keyboard transitions.
+Set `OVERTE_QML_TEST_RUNNER` to select a matching Qt Quick Test executable.
+
+The `recorded-voice-native` host suite requires Qt Core development files and
+matching `moc`. It executes the actual AudioClient capture/playback callback and
+AudioScriptingInterface methods with real Qt signals, queued calls and timers;
+the operating-system audio sink/source and resampler boundaries are substituted.
+The `recorded-voice-qml` suite uses the same Qt Quick Test prerequisites as
+`embedded-web-qml` and clicks the actual shared voice controls and buttons in
+both controller/desktop and direct-touch configurations. These checks do not
+prove microphone permissions, hardware routing, native sink behavior or sound
+on a phone, iPhone/iPad or Pico headset.
+Set `OVERTE_VOICE_TEST_QT_CORE=Qt5Core` or `Qt6Core` to select the native fixture's
+SDK; an extracted Qt SDK also uses the standard `PKG_CONFIG_PATH`,
+`PKG_CONFIG_SYSROOT_DIR` and `LD_LIBRARY_PATH` variables.
+
+The `snapshot-native` host suite compiles the actual animated-capture and upload
+callbacks with Qt Core, Gui, Concurrent and Network, plus matching `moc`. Only
+application/render/preferences and HTTP transport boundaries are substituted.
+It executes the unchanged production GIF encoder using the attributed pinned
+public-domain fixture, real image decoding, storage-authority checks, delayed
+render cancellation and replacement, and atomic terminal races. The
+`snapshot-qml` suite requires Qt Quick Controls 2 and Layouts in addition to
+Qt Quick Test. It clicks the production native review and tests generic and
+QFileSelector-selected system export boundaries. The shared JavaScript suite
+also executes the production SNAP script for all four capture modes, desktop
+compatibility, errors and closing while capture or upload is pending.
+Set `OVERTE_SNAPSHOT_TEST_QT=Qt5` or `Qt6` to select the native fixture SDK.
+The same extracted-SDK variables documented for voice tests apply. GLM uses
+the existing `OVERTE_TEST_GLM_INCLUDE` override when it is not installed globally.
+These checks do not prove Photos/system chooser behavior, GPU capture or image
+upload against a real metaverse. Native device acceptance remains separate.
+
+The `document-tree-native` host suite compiles the real `FileDialogHelper` with
+matching Qt Core, Quick, Quick Test, Widgets and Test development packages and
+`moc`. It exercises directory hierarchy, symbolic-link rejection, independent
+file/tree operators, request cancellation, destroyed owners and cross-thread
+completion. The actual OffscreenUi bundle route executes with its surface
+manager substituted. Set `OVERTE_NATIVE_QT_MAJOR=5` or `6` to select the SDK.
+These checks do not prove a platform document provider or a complete client build.
+
+The `obj-material-native` host suite compiles the production OBJ tokenizer,
+geometry/material parser and resource request bodies with actual Qt Core/Gui
+and GLM. It executes generated HFM textures through the production material
+consumer, covering relative MTL hierarchy, multiple materials, explicit FST
+texture-base overrides, external URLs, decoded PNG bytes and the existing
+flattened-export fallback. Resource providers and HFM/render storage remain
+explicit host boundaries; live asset-server and device rendering acceptance
+remain separate. The same Qt-major and GLM include overrides apply.
+
 The phone pad projection regression requires the real GLM headers (`libglm-dev`
-on Ubuntu). A prepared local package can instead be selected with
+on Ubuntu). The isolated synchronization validation workflow installs this package
+and the listed Qt 5 development/QML packages for both complete fallback and
+product differential checks.
+A prepared local package can instead be selected with
 `OVERTE_TEST_GLM_INCLUDE` pointing at its include directory. The host requirements
 also pin Pillow for the native-frame black-interior negative control. The full
 gate includes phone placement, pad projection, joint storage, QML property/thread
@@ -214,6 +286,15 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `device-control-plane-full` | `host` | `python3 tests/run-project-tests.py --suite device-control-plane-full` |
 | `documentation` | `quick` | `python3 tests/run-project-tests.py --suite documentation` |
 | `safe-landing-lifecycle` | `host` | `python3 tests/run-project-tests.py --suite safe-landing-lifecycle` |
+| `embedded-web-policy` | `host` | `python3 tests/run-project-tests.py --suite embedded-web-policy` |
+| `embedded-web-qml` | `host` | `python3 tests/run-project-tests.py --suite embedded-web-qml` |
+| `account-auth-dispatch` | `host` | `python3 tests/run-project-tests.py --suite account-auth-dispatch` |
+| `recorded-voice-native` | `host` | `python3 tests/run-project-tests.py --suite recorded-voice-native` |
+| `recorded-voice-qml` | `host` | `python3 tests/run-project-tests.py --suite recorded-voice-qml` |
+| `snapshot-native` | `host` | `python3 tests/run-project-tests.py --suite snapshot-native` |
+| `snapshot-qml` | `host` | `python3 tests/run-project-tests.py --suite snapshot-qml` |
+| `document-tree-native` | `host` | `python3 tests/run-project-tests.py --suite document-tree-native` |
+| `obj-material-native` | `host` | `python3 tests/run-project-tests.py --suite obj-material-native` |
 | `native-smoke` | `quick` | `python3 tests/run-project-tests.py --suite native-smoke` |
 | `native-ci-policy` | `quick` | `python3 tests/run-project-tests.py --suite native-ci-policy` |
 | `native-registration` | `quick` | `python3 tests/run-project-tests.py --suite native-registration` |

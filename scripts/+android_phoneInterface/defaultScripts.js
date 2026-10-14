@@ -22,6 +22,7 @@ var PHONE_DEFAULT_SCRIPTS = [
     "system/+android_interface/touchscreenvirtualpad.js",
     "system/+android_phoneInterface/mobileActionBar.js",
     "system/+android_phoneInterface/mobileTabletApps.js",
+    "system/+android_phoneInterface/phoneGraphics.js",
     "system/+android_phoneInterface/phoneEmote.js",
     "system/bubble.js",
     "system/pal.js",
@@ -39,6 +40,15 @@ function startPhoneDefaults() {
 }
 
 startPhoneDefaults();
+
+// Create owns its script globals and undo history in a separate engine.
+Script.load("/~/system/create/edit.js");
+// Snapshot keeps capture cancellation and review state in its own engine.
+Script.load("/~/system/snapshot.js");
+// Chat keeps its subscriptions, persistent history and UI in its own engine.
+Script.load("/~/communityScripts/armored-chat/armored_chat.js");
+Script.load("/~/communityScripts/chatBubbles/chatBubbles.js");
+Script.load("/~/communityScripts/notificationCore/notificationCore.js");
 
 // Match the conservative LOD defaults already proven by the legacy Android
 // interface on thermally constrained mobile GPUs.

@@ -306,6 +306,17 @@ jobs:
             qml6-module-qtquick-templates qml6-module-qtquick-window \
             qml6-module-qt-labs-settings qml6-module-qtquick-dialogs qml6-module-qttest
 
+      - name: Prepare isolated host evidence validators
+        env:
+          GH_TOKEN: ""
+          GITHUB_TOKEN: ""
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends python3-venv
+          python3 -m venv build/ios-host-tests-env
+          build/ios-host-tests-env/bin/python -m pip install --disable-pip-version-check -r tests/requirements-host.txt
+          echo "$GITHUB_WORKSPACE/build/ios-host-tests-env/bin" >> "$GITHUB_PATH"
+
       - name: Run Linux preparation contracts
         env:
           OVERTE_QML_TEST_RUNNER: /usr/lib/qt6/bin/qmltestrunner
