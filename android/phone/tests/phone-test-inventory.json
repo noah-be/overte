@@ -96,7 +96,7 @@
       "android/common/tests/native/phone_touch_ui_metrics_test.cpp"
     ],
     "scripts/+android_phoneInterface/defaultScripts.js": [
-      "android/common/tests/javascript/test/default-scripts.production.test.js"
+      "tests/javascript/test/default-scripts.production.test.js"
     ],
     "scripts/system/+android_phoneInterface/mobileActionBar.js": [
       "android/common/tests/javascript/test/mobile-action-bar.production.test.js"
@@ -243,14 +243,14 @@
       "android/common/tests/javascript/test/phone-emote.production.test.js"
     ],
     "system/places/places.js": [
-      "android/common/tests/javascript/test/places.production.test.js"
+      "tests/javascript/test/places.production.test.js"
     ],
     "system/quickGoto.js": [
       "android/common/tests/javascript/test/quick-goto.production.test.js"
     ],
     "system/+android_phoneInterface/phoneGraphics.js": [
-      "android/phone/tests/phone-graphics-controller-test.js",
-      "tests/javascript/test/phone-graphics.production.test.js"
+      "tests/javascript/test/phone-graphics.production.test.js",
+      "android/phone/tests/phone-graphics-controller-test.js"
     ]
   }
 }
