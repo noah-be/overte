@@ -78,6 +78,10 @@ sourceSets {
             include 'org/overte/pico/AndroidAudioInput.java'
             include 'org/overte/pico/AndroidAudioInputPolicy.java'
             include 'org/overte/pico/PicoAudioCaptureState.java'
+            // Compile the actual Pico audio lifecycle and diagnostics closure.
+            include 'org/overte/pico/PicoAudioShutdown.java'
+            include 'org/overte/pico/PicoAudioLifecycle.java'
+            include 'org/overte/pico/RedactingDiagnostics.java'
             include 'io/highfidelity/questInterface/PermissionsChecker.java'
         }
         compileClasspath += sourceSets.boundary.output
