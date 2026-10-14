@@ -1,0 +1,38 @@
+// Copyright 2026 Overte contributors.
+// SPDX-License-Identifier: Apache-2.0
+// Offscreen surface creation is a host boundary; production caller, listener and QML execute unchanged.
+#pragma once
+#include "bundle-network.h"
+#include <QQmlComponent>
+#include <QQmlEngine>
+#include <QQuickItem>
+#include <QPointer>
+class ModalDialogListener : public QObject {
+    Q_OBJECT
+public:
+    QPointer<QQuickItem> _dialog;
+    explicit ModalDialogListener(QQuickItem* item):_dialog(item) { }
+    void finish(const QString& answer) { emit response(answer); }
+signals: void response(QVariant answer);
+};
+@LISTENER@
+class OffscreenUi : public QObject {
+public:
+    QPointer<QQuickItem> parentItem;
+    QQmlEngine* engine {nullptr};
+    QPointer<QQuickItem> selectedDialog;
+    QString currentDirectory;
+    static ModalDialogListener* getOpenFileBundleAsync(const QString& caption,const QString& dir,const QString& primaryFilter);
+    ModalDialogListener* fileDialogAsync(const QVariantMap& properties) {
+        if(!parentItem||!engine)return nullptr;
+        QQmlComponent component(engine,QUrl::fromLocalFile(QString::fromUtf8(qgetenv("OVERTE_QML_SOURCE_ROOT"))+"/dialogs/TabletFileDialog.qml"));
+        Q_ASSERT(component.isReady());
+        auto* object=component.createWithInitialProperties(properties);
+        auto* item=qobject_cast<QQuickItem*>(object);Q_ASSERT(item);
+        item->setParentItem(parentItem);item->setParent(parentItem);QQmlEngine::setObjectOwnership(item,QQmlEngine::JavaScriptOwnership);
+        selectedDialog=item;
+        auto* listener=new FileDialogListener(item);listener->setParent(item);
+        return listener;
+    }
+};
+@ROUTE@

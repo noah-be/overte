@@ -58,6 +58,18 @@ Item {
 
     }
 
+    Connections {
+        target: webroot
+        ignoreUnknownSignals: true
+        function onNativeClosed() {
+            if (typeof tabletRoot !== "undefined") {
+                tabletRoot.returnToPreviousApp();
+            } else {
+                root.visible = false;
+            }
+        }
+    }
+
     HiFiControls.Keyboard {
         id: keyboard
         raised: parent.keyboardEnabled && parent.keyboardRaised

@@ -366,12 +366,12 @@ public:
     void addSnapshotOperator(const SnapshotOperator& snapshotOperator);
     bool takeSnapshotOperators(std::queue<SnapshotOperator>& snapshotOperators);
 
-    void takeSnapshot(bool notify, bool includeAnimated = false, float aspectRatio = 0.0f, const QString& filename = QString());
+    void takeSnapshot(bool notify, bool includeAnimated = false, float aspectRatio = 0.0f, const QString& filename = QString(), const QString& requestId = QString());
     void takeSecondaryCameraSnapshot(const bool& notify, const QString& filename = QString());
     void takeSecondaryCamera360Snapshot(const glm::vec3& cameraPosition,
                                         const bool& cubemapOutputFormat,
                                         const bool& notify,
-                                        const QString& filename = QString());
+                                        const QString& filename = QString(), const QString& requestId = QString());
     void shareSnapshot(const QString& filename, const QUrl& href = QUrl(""));
 
 

@@ -1,1005 +1,359 @@
-//
-//  TabletAssetServer.qml
-//
-//  Created by Vlad Stelmahovsky on  3/3/17
-//  Copyright 2017 High Fidelity, Inc.
-//
-//  Distributed under the Apache License, Version 2.0.
-//  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
-//
-
-import QtQuick 2.5
-import QtQuick.Controls 1.4
-import QtQuick.Controls.Styles 1.4
-import QtQuick.Dialogs 1.2 as OriginalDialogs
-import Qt.labs.settings 1.0
-
-import stylesUit 1.0
+// Copyright 2017 High Fidelity, Inc.
+// Copyright 2026 Overte contributors.
+// SPDX-License-Identifier: Apache-2.0
+import QtQuick 2.7
+import QtQuick.Controls 2.3
+import QtQuick.Layouts 1.3
 import controlsUit 1.0 as HifiControls
-import "../../windows"
-import ".."
+import "../../dialogs"
 
 Rectangle {
     id: root
     objectName: "AssetServer"
-
+    color: "#292929"
+    implicitWidth: 600
+    implicitHeight: 700
     property string title: "Asset Browser"
-    property bool keyboardRaised: false
-
-    signal sendToScript(var message);
-    property bool isHMD: false
-
-    color: hifi.colors.baseGray
-
-    property int colorScheme: hifi.colorSchemes.dark
-
-    HifiConstants { id: hifi }
-
-    property var scripts: ScriptDiscoveryService;
-    property var assetProxyModel: Assets.proxyModel;
-    property var assetMappingsModel: Assets.mappingModel;
-    property var currentDirectory;
-    property var selectedItemCount: treeView.selection.selectedIndexes.length;
-    property int updatesCount: 0; // this is used for notifying model-dependent bindings about model updates
-
-    Settings {
-        category: "Overlay.AssetServer"
-        property alias directory: root.currentDirectory
+    property var assetProxyModel: Assets.proxyModel
+    property var assetMappingsModel: Assets.mappingModel
+    property var currentDirectory: fileDialogHelper.home()
+    property bool assetWriteAllowed: Entities.canWriteAssets()
+    property bool importAllowed: Entities.canRez() || Entities.canRezTmp()
+    property var pendingBundle: null
+    property string bundleRequest: ""
+    property string uploadedPrimaryUrl: ""
+    property bool busy: false
+    property string status: ""
+    property var lifecycle: ({active: true})
+    readonly property int updatesCount: tree.revision
+    readonly property int selectedItemCount: tree.selectedIndexes.length
+    readonly property var currentIndex: tree.currentIndex
+    readonly property string selectedUrl: currentIndex !== null ? String(assetProxyModel.data(currentIndex, 259) || "") : ""
+    readonly property string selectedPath: currentIndex !== null ? String(assetProxyModel.data(currentIndex, 256) || "") : ""
+    signal sendToScript(var message)
+    function writable() {
+        assetWriteAllowed = Entities.canWriteAssets();
+        if (!assetWriteAllowed) status = "You can browse assets; writing requires Asset Server permission.";
+        return assetWriteAllowed;
     }
-
-    Component.onCompleted: {
-        isHMD = HMD.active;
-        ApplicationInterface.uploadRequest.connect(uploadClicked);
-        assetMappingsModel.errorGettingMappings.connect(handleGetMappingsError);
-        assetMappingsModel.autoRefreshEnabled = true;
-        assetMappingsModel.updated.connect(function() {
-            ++updatesCount;
-        });
-
-        reload();
+    function reload() { assetMappingsModel.refresh(); }
+    function selectedPaths() {
+        return tree.selectedIndexes.map(function(index) { return String(assetProxyModel.data(index, 256) || ""); }).filter(function(path) { return path.length > 0; });
     }
-
-    Component.onDestruction: {
-        assetMappingsModel.autoRefreshEnabled = false;
+    function normalizedPath(path) {
+        path = String(path).trim();
+        if (path.charAt(0) !== "/") path = "/" + path;
+        if (path.split("/").some(function(part) { return part === "." || part === ".."; })) return "";
+        return path;
     }
-
-    function letterbox(headerGlyph, headerText, message) {
-        letterboxMessage.headerGlyph = headerGlyph;
-        letterboxMessage.headerText = headerText;
-        letterboxMessage.text = message;
-        letterboxMessage.visible = true;
-        letterboxMessage.popupRadius = 0;
-    }
-
-    function errorMessageBox(message) {
-        return tabletRoot.messageBox({
-            icon: hifi.icons.warning,
-            defaultButton: OriginalDialogs.StandardButton.Ok,
-            title: "Error",
-            text: message
-        });
-    }
-
-    function doDeleteFile(paths) {
-        console.log("Asset browser - deleting mappings.");
-
-        Assets.deleteMappings(paths, function(err) {
-            if (err) {
-                console.log("Asset browser - deleting mappings failed.");
-
-                var box = errorMessageBox("There was an error deleting:\n" + paths + "\n" + err);
-                box.selected.connect(reload);
-            } else {
-                console.log("Asset browser - deleting mappings completed.");
-                reload();
-            }
-        });
-
-    }
-
-    function doRenameFile(oldPath, newPath) {
-
-        if (newPath[0] !== "/") {
-            newPath = "/" + newPath;
-        }
-
-        if (oldPath[oldPath.length - 1] === '/' && newPath[newPath.length - 1] != '/') {
-            // this is a folder rename but the user neglected to add a trailing slash when providing a new path
-            newPath = newPath + "/";
-        }
-
-        if (Assets.isKnownFolder(newPath)) {
-            var box = errorMessageBox("Cannot overwrite existing directory.");
-            box.selected.connect(reload);
-            return;
-        }
-
-        console.log("Asset browser - renaming mapping.");
-
-        Assets.renameMapping(oldPath, newPath, function(err) {
-            if (err) {
-                console.log("Asset browser - renaming mapping failed.");
-                var box = errorMessageBox("There was an error renaming:\n" + oldPath + " to " + newPath + "\n" + err);
-                box.selected.connect(reload);
-            } else {
-                console.log("Asset browser - renaming mapping completed.");
-            }
-
+    function resultHandler(operation, done) {
+        var lifetime = lifecycle;
+        return function(error) {
+            if (!lifetime.active) return;
+            busy = false;
+            status = error ? operation + " failed: " + String(error) : operation + " complete.";
+            if (done) done(error);
             reload();
-        });
+        };
     }
-
-    function fileExists(path) {
-        return Assets.isKnownMapping(path);
+    function doDeleteFile(paths) {
+        if (!writable() || busy || !paths.length) return;
+        busy = true;
+        Assets.deleteMappings(paths, resultHandler("Delete"));
     }
-
-    function askForOverwrite(path, callback) {
-        var object = tabletRoot.messageBox({
-            icon: hifi.icons.question,
-            buttons: OriginalDialogs.StandardButton.Yes | OriginalDialogs.StandardButton.No,
-            defaultButton: OriginalDialogs.StandardButton.No,
-            title: "Overwrite File",
-            text: path + "\n" + "This file already exists. Do you want to overwrite it?"
-        });
-        object.selected.connect(function(button) {
-            if (button === OriginalDialogs.StandardButton.Yes) {
-                callback();
-            }
-        });
-    }
-
-    function canAddToWorld(path) {
-        var supportedExtensions = [/\.fbx\b/i, /\.obj\b/i, /\.jpg\b/i, /\.png\b/i, /\.gltf\b/i, /\.glb\b/i, /\.vrm\b/i];
-
-        if (selectedItemCount > 1) {
-            return false;
+    function doRenameFile(oldPath, newPath) {
+        if (!writable() || busy || !oldPath) return;
+        newPath = normalizedPath(newPath);
+        if (!newPath || newPath === "/") { status = "Enter a valid asset path."; return; }
+        if (oldPath.slice(-1) === "/" && newPath.slice(-1) !== "/") newPath += "/";
+        if (Assets.isKnownFolder(newPath)) { status = "Cannot overwrite an existing folder."; return; }
+        if (Assets.isKnownMapping(newPath) && newPath !== oldPath) {
+            pendingRenameOld = oldPath; pendingRenameNew = newPath; overwriteDialog.open(); return;
         }
-
-        return supportedExtensions.reduce(function(total, current) {
-            return total | new RegExp(current).test(path);
-        }, false);
+        busy = true;
+        Assets.renameMapping(oldPath, newPath, resultHandler("Rename"));
     }
-
-    function canRename() {
-        if (treeView.selection.hasSelection && selectedItemCount == 1) {
-            return true;
-        } else {
-            return false;
-        }
+    property string pendingRenameOld: ""
+    property string pendingRenameNew: ""
+    function setMapping(path, hash) {
+        if (!writable() || busy) return;
+        path = normalizedPath(path); hash = String(hash).trim().toLowerCase();
+        if (!path || path === "/" || !/^[a-f0-9]{64}$/.test(hash)) { status = "Provide an asset path and a 64-digit SHA-256 hash."; return; }
+        busy = true;
+        Assets.setMapping(path, hash, resultHandler("Mapping"));
     }
-
-    function clear() {
-        Assets.mappingModel.clear();
+    function bakingAvailable() {
+        var revision = tree.revision;
+        var indexes = tree.selectedIndexes;
+        if (tree.currentIndex === null || !indexes.length) return false;
+        var states = indexes.map(function(index) { return assetProxyModel.data(index, 261); });
+        return states.indexOf("--") === -1 && states.every(function(state) { return (state !== "Not Baked") === (states[0] !== "Not Baked"); });
     }
-
-    function reload() {
-        Assets.mappingModel.refresh();
+    function setBakingEnabled(enabled) {
+        if (!writable() || busy || !bakingAvailable()) return;
+        busy = true;
+        Assets.setBakingEnabled(selectedPaths(), enabled, resultHandler("Baking selection"));
     }
-
-    function handleGetMappingsError(errorString) {
-        errorMessageBox("There was a problem retrieving the list of assets from your Asset Server.\n" + errorString);
+    function canAddToWorld(url) { return selectedItemCount === 1 && /\.(fbx|obj|gltf|glb|vrm|jpg|jpeg|png)(?:[?#]|$)/i.test(url); }
+    function importSucceeded(id) {
+        status = !id || !String(id).replace(/[0{}-]/g, "") ? "Import failed: entity creation was denied or unavailable." : "Added asset to the world.";
     }
-
     function addToWorld() {
-        var defaultURL = assetProxyModel.data(treeView.selection.currentIndex, 0x103);
-
-        if (!defaultURL || !canAddToWorld(defaultURL)) {
-            return;
-        }
-
+        if (!canAddToWorld(selectedUrl)) return;
+        if (!Entities.canRez() && !Entities.canRezTmp()) { status = "You do not have permission to create entities."; return; }
         var grabbable = MenuInterface.isOptionChecked("Create Entities As Grabbable (except Zones, Particles, and Lights)");
-
-        if (defaultURL.endsWith(".jpg") || defaultURL.endsWith(".png")) {
-            Entities.addEntity({
-                type: "Image",
-                name: assetProxyModel.data(treeView.selection.currentIndex),
-                imageURL: defaultURL,
-                keepAspectRatio: false,
-                dynamic: false,
-                collisionless: true,
-                grabbable: grabbable,
-                position: Vec3.sum(MyAvatar.position, Vec3.multiply(2, Quat.getForward(MyAvatar.orientation))),
-                gravity: Vec3.multiply(Vec3.fromPolar(Math.PI / 2, 0), 0)
-            });
+        var position = Vec3.sum(MyAvatar.position, Vec3.multiply(2, Quat.getForward(MyAvatar.orientation)));
+        var name = String(assetProxyModel.data(currentIndex, 0));
+        if (/\.(jpg|jpeg|png)(?:[?#]|$)/i.test(selectedUrl)) {
+            importSucceeded(Entities.addImageEntity(name, selectedUrl, grabbable, position));
         } else {
-            var SHAPE_TYPE_NONE = 0;
-            var SHAPE_TYPE_SIMPLE_HULL = 1;
-            var SHAPE_TYPE_SIMPLE_COMPOUND = 2;
-            var SHAPE_TYPE_STATIC_MESH = 3;
-            var SHAPE_TYPE_BOX = 4;
-            var SHAPE_TYPE_SPHERE = 5;
-
-            var SHAPE_TYPES = [];
-            SHAPE_TYPES[SHAPE_TYPE_NONE] = "No Collision";
-            SHAPE_TYPES[SHAPE_TYPE_SIMPLE_HULL] = "Basic - Whole model";
-            SHAPE_TYPES[SHAPE_TYPE_SIMPLE_COMPOUND] = "Good - Sub-meshes";
-            SHAPE_TYPES[SHAPE_TYPE_STATIC_MESH] = "Exact - All polygons";
-            SHAPE_TYPES[SHAPE_TYPE_BOX] = "Box";
-            SHAPE_TYPES[SHAPE_TYPE_SPHERE] = "Sphere";
-
-            var SHAPE_TYPE_DEFAULT = SHAPE_TYPE_SIMPLE_COMPOUND;
-            var DYNAMIC_DEFAULT = false;
-            var prompt = tabletRoot.customInputDialog({
-                textInput: {
-                    label: "Model URL",
-                    text: defaultURL
-                },
-                comboBox: {
-                    label: "Automatic Collisions",
-                    index: SHAPE_TYPE_DEFAULT,
-                    items: SHAPE_TYPES
-                },
-                checkBox: {
-                    label: "Dynamic",
-                    checked: DYNAMIC_DEFAULT,
-                    disableForItems: [
-                        SHAPE_TYPE_STATIC_MESH
-                    ],
-                    checkStateOnDisable: false,
-                    warningOnDisable: "Models with 'Exact' automatic collisions cannot be dynamic, and should not be used as floors"
-                }
-            });
-
-            prompt.selected.connect(function (jsonResult) {
-                if (jsonResult) {
-                    var result = JSON.parse(jsonResult);
-                    var url = result.textInput.trim();
-                    var shapeType;
-                    var collisionless = false;
-                    switch (result.comboBox) {
-                        case SHAPE_TYPE_SIMPLE_HULL:
-                            shapeType = "simple-hull";
-                            break;
-                        case SHAPE_TYPE_SIMPLE_COMPOUND:
-                            shapeType = "simple-compound";
-                            break;
-                        case SHAPE_TYPE_STATIC_MESH:
-                            shapeType = "static-mesh";
-                            break;
-                        case SHAPE_TYPE_BOX:
-                            shapeType = "box";
-                            break;
-                        case SHAPE_TYPE_SPHERE:
-                            shapeType = "sphere";
-                            break;
-                        default:
-                            shapeType = "none";
-                            collisionless = true;
-                    }
-
-                    var dynamic = result.checkBox !== null ? result.checkBox : DYNAMIC_DEFAULT;
-                    if (shapeType === "static-mesh" && dynamic) {
-                        // The prompt should prevent this case
-                        print("Error: model cannot be both static mesh and dynamic.  This should never happen.");
-                    } else if (url) {
-                        var name = assetProxyModel.data(treeView.selection.currentIndex);
-                        var addPosition = Vec3.sum(MyAvatar.position, Vec3.multiply(2, Quat.getForward(MyAvatar.orientation)));
-                        var gravity;
-                        if (dynamic) {
-                            // Create a vector <0, -10, 0>.  { x: 0, y: -10, z: 0 } won't work because Qt is dumb and this is a
-                            // different scripting engine from QTScript.
-                            gravity = Vec3.multiply(Vec3.fromPolar(Math.PI / 2, 0), 10);
-                        } else {
-                            gravity = Vec3.multiply(Vec3.fromPolar(Math.PI / 2, 0), 0);
-                        }
-
-                        print("Asset browser - adding asset to world.");
-
-                        // Entities.addEntity doesn't work from QML, so we use this.
-                        Entities.addModelEntity(name, url, "", shapeType, dynamic, collisionless, grabbable, addPosition, gravity);
-                    }
-                }
-            });
+            modelUrl.text = selectedUrl;
+            modelName = name;
+            modelPosition = position;
+            shape.currentIndex = 2;
+            dynamic.checked = false;
+            modelDialog.open();
         }
     }
-
-    function copyURLToClipboard(index) {
-        if (!index) {
-            index = treeView.selection.currentIndex;
-        }
-
-        var url = assetProxyModel.data(treeView.selection.currentIndex, 0x103);
-        if (!url) {
-            return;
-        }
-        Window.copyToClipboard(url);
+    property string modelName: ""
+    property var modelPosition
+    function importModel() {
+        if (!Entities.canRez() && !Entities.canRezTmp()) { status = "You do not have permission to create entities."; return; }
+        var types = ["none", "simple-hull", "simple-compound", "static-mesh", "box", "sphere"];
+        var type = types[shape.currentIndex];
+        if (type === "static-mesh" && dynamic.checked) { status = "A static mesh cannot be dynamic."; return; }
+        var gravity = Vec3.multiply(Vec3.fromPolar(Math.PI / 2, 0), dynamic.checked ? 10 : 0);
+        importSucceeded(Entities.addModelEntity(modelName, modelUrl.text.trim(), "", type, dynamic.checked, type === "none",
+            MenuInterface.isOptionChecked("Create Entities As Grabbable (except Zones, Particles, and Lights)"), modelPosition, gravity));
     }
-
-    function renameEl(index, data) {
-        if (!index) {
-            return false;
-        }
-
-        var path = assetProxyModel.data(index, 0x100);
-        if (!path) {
-            return false;
-        }
-
-        var destinationPath = path.split('/');
-        destinationPath[destinationPath.length - (path[path.length - 1] === '/' ? 2 : 1)] = data;
-        destinationPath = destinationPath.join('/').trim();
-
-        if (path === destinationPath) {
-            return;
-        }
-        if (!fileExists(destinationPath)) {
-            doRenameFile(path, destinationPath);
-        }
+    function uploadFile(url, dropping) {
+        if (!writable() || busy) return;
+        var local = fileDialogHelper.urlToPath(url);
+        if (!local || !fileDialogHelper.urlIsFile(url)) { status = "Select a readable local document."; return; }
+        var folder = selectedPath ? selectedPath.slice(0, selectedPath.lastIndexOf("/") + 1) : "/";
+        var name = local.replace(/\\/g, "/").split("/").pop();
+        var lifetime = lifecycle;
+        busy = true;
+        status = "Preparing upload...";
+        Assets.uploadFile(local, folder + name, function() { if (lifetime.active) status = "Uploading " + name; },
+            resultHandler("Upload", function(error) { if (error === -1) status = "Upload canceled."; }), dropping === true);
     }
-    function renameFile(index) {
-        if (!index) {
-            index = treeView.selection.currentIndex;
-        }
-
-        var path = assetProxyModel.data(index, 0x100);
-        if (!path) {
-            return;
-        }
-
-        var object = tabletRoot.inputDialog({
-            label: "Enter new path:",
-            current: path,
-            placeholderText: "Enter path here"
-        });
-        object.selected.connect(function(destinationPath) {
-            destinationPath = destinationPath.trim();
-
-            if (path === destinationPath) {
-                return;
-            }
-            if (fileExists(destinationPath)) {
-                askForOverwrite(destinationPath, function() {
-                    doRenameFile(path, destinationPath);
-                });
-            } else {
-                doRenameFile(path, destinationPath);
-            }
+    function uploadClicked(url) {
+        if (!writable() || busy) return;
+        if (url) { uploadFile(url, true); return; }
+        var browser = fileBrowser.createObject(root, {dir: currentDirectory});
+        if (!browser) { status = "The file browser is unavailable."; return; }
+        browser.selectedBundle.connect(function(manifest) {
+            currentDirectory = browser.dir; pendingBundle = manifest;
+            bundleDestination.text = selectedPath ? selectedPath.slice(0, selectedPath.lastIndexOf("/") + 1) : "/";
+            Qt.callLater(function() { bundleDialog.open(); });
         });
     }
-    function deleteFile(index) {
-        var paths = [];
-
-        if (!index) {
-            for (var i = 0; i < selectedItemCount; ++i) {
-                 index = treeView.selection.selectedIndexes[i];
-                 paths[i] = assetProxyModel.data(index, 0x100);
-            }
-        }
-
-        if (!paths) {
-            return;
-        }
-
-        var modalMessage = "";
-        var items = selectedItemCount.toString();
-        var isFolder = assetProxyModel.data(treeView.selection.currentIndex, 0x101);
-        var typeString = isFolder ? 'folder' : 'file';
-
-        if (selectedItemCount > 1) {
-            modalMessage = "You are about to delete " + items + " items \nDo you want to continue?";
-        } else {
-            modalMessage = "You are about to delete the following " + typeString + ":\n" + paths + "\nDo you want to continue?";
-        }
-
-        var object = tabletRoot.messageBox({
-            icon: hifi.icons.question,
-            buttons: OriginalDialogs.StandardButton.Yes + OriginalDialogs.StandardButton.No,
-            defaultButton: OriginalDialogs.StandardButton.Yes,
-            title: "Delete",
-            text: modalMessage
-        });
-        object.selected.connect(function(button) {
-            if (button === OriginalDialogs.StandardButton.Yes) {
-                doDeleteFile(paths);
-            }
-        });
+    function uploadSingleClicked() {
+        if (!writable() || busy) return;
+        var browser = fileBrowser.createObject(root, {dir: currentDirectory, bundleMode: false, caption: "Select one asset to upload"});
+        if (!browser) { status = "The file browser is unavailable."; return; }
+        browser.selectedFile.connect(function(url) { currentDirectory = browser.dir; root.uploadFile(url, false); });
     }
-
-    Timer {
-        id: doUploadTimer
-        property var url
-        property bool isConnected: false
-        interval: 5
-        repeat: false
-        running: false
-    }
-
-    property bool uploadOpen: false;
-    Timer {
-        id: timer
-    }
-    function uploadClicked(fileUrl) {
-        if (uploadOpen) {
-            return;
-        }
-        uploadOpen = true;
-
-        function doUpload(url, dropping) {
-            var fileUrl = fileDialogHelper.urlToPath(url);
-
-            var path = assetProxyModel.data(treeView.selection.currentIndex, 0x100);
-            var directory = path ? path.slice(0, path.lastIndexOf('/') + 1) : "/";
-            var filename = fileUrl.slice(fileUrl.lastIndexOf('/') + 1);
-
-            Assets.uploadFile(fileUrl, directory + filename,
-                function() {
-                    // Upload started
-                    uploadSpinner.visible = true;
-                    uploadButton.enabled = false;
-                    uploadProgressLabel.text = "In progress...";
-                },
-                function(err, path) {
-                    if (err === "") {
-                        uploadProgressLabel.text = "Upload Complete";
-                        timer.interval = 1000;
-                        timer.repeat = false;
-                        timer.triggered.connect(function() {
-                            uploadSpinner.visible = false;
-                            uploadButton.enabled = true;
-                            uploadOpen = false;
-                        });
-                        timer.start();
-                        console.log("Asset browser - upload completed.");
-                        reload();
-                    } else {
-                        uploadSpinner.visible = false;
-                        uploadButton.enabled = true;
-                        uploadOpen = false;
-
-                        if (err !== -1) {
-                            console.log("Asset browser - upload failed.");
-                            var box = errorMessageBox("There was an error uploading:\n" + fileUrl + "\n" + err);
-                            box.selected.connect(reload);
-                        }
-                    }
-            }, dropping);
-        }
-
-        function initiateUpload(url) {
-            doUpload(doUploadTimer.url, false);
-        }
-
-        if (fileUrl) {
-            doUpload(fileUrl, true);
-        } else {
-            var browser = tabletRoot.fileDialog({
-                selectDirectory: false,
-                dir: currentDirectory
+    function uploadBundle() {
+        if (!writable() || busy || !pendingBundle) return;
+        var lifetime = lifecycle;
+        var files = pendingBundle.urls.map(function(url) { return fileDialogHelper.urlToPath(url); });
+        uploadedPrimaryUrl = ""; busy = true; status = "Preparing bundle upload...";
+        bundleRequest = Assets.uploadBundle(files, pendingBundle.relativePaths, bundleDestination.text, pendingBundle.primaryPath,
+            function(index, phase) { if (lifetime.active) status = phase + " · " + (index + 1) + "/" + files.length; },
+            function(error, published, primary) {
+                if (!lifetime.active) return;
+                bundleRequest = ""; busy = false;
+                var count = JSON.parse(published).length;
+                status = error ? "Bundle upload stopped: " + error + " Published mappings: " + count + "." : "Uploaded " + count + " files with their relative paths.";
+                if (!error) uploadedPrimaryUrl = "atp:" + primary.split("/").map(encodeURIComponent).join("/");
+                pendingBundle = null; reload();
             });
-
-            browser.canceled.connect(function() {
-                uploadOpen = false;
-            });
-
-            browser.selectedFile.connect(function(url) {
-                currentDirectory = browser.dir;
-
-                // Initiate upload from a timer so that file browser dialog can close beforehand.
-                doUploadTimer.url = url;
-                if (!doUploadTimer.isConnected) {
-                    doUploadTimer.triggered.connect(function() { initiateUpload(); });
-                    doUploadTimer.isConnected = true;
-                }
-                doUploadTimer.start();
-            });
+        if (!bundleRequest) { busy = false; status = "The upload service is busy or unavailable."; }
+    }
+    function importUploadedMain() {
+        if (!Entities.canRez() && !Entities.canRezTmp()) { status = "You do not have permission to create entities."; return; }
+        modelUrl.text = uploadedPrimaryUrl;
+        modelName = decodeURIComponent(uploadedPrimaryUrl.split("/").pop());
+        modelPosition = Vec3.sum(MyAvatar.position, Vec3.multiply(2, Quat.getForward(MyAvatar.orientation)));
+        shape.currentIndex = 2; dynamic.checked = false; modelDialog.open();
+    }
+    Component.onCompleted: { assetMappingsModel.autoRefreshEnabled = true; reload(); }
+    Component.onDestruction: { lifecycle.active = false; if (bundleRequest) Assets.cancelUploadBundle(bundleRequest); assetMappingsModel.autoRefreshEnabled = false; }
+    Connections {
+        target: root.assetMappingsModel
+        function onErrorGettingMappings(message) { root.status = "Could not browse assets: " + message; }
+    }
+    Connections {
+        target: ApplicationInterface
+        function onUploadRequest(url) { root.uploadClicked(url); }
+    }
+    Connections {
+        target: Entities
+        function onCanWriteAssetsChanged(allowed) { root.assetWriteAllowed = allowed; }
+        function onCanRezChanged() { root.importAllowed = Entities.canRez() || Entities.canRezTmp(); }
+        function onCanRezTmpChanged() { root.importAllowed = Entities.canRez() || Entities.canRezTmp(); }
+    }
+    HifiControls.TouchUiMetrics { id: metrics }
+    Component { id: fileBrowser; NativeFileBrowser { bundleMode: true; caption: "Select an asset and its companion files" } }
+    DropArea { anchors.fill: parent; onDropped: function(drop) { if (drop.hasUrls && drop.urls.length === 1 && root.writable()) { root.uploadFile(drop.urls[0], true); drop.acceptProposedAction(); } } }
+    ColumnLayout {
+        anchors.fill: parent; anchors.margins: 12; spacing: 8
+        Label { text: root.title; font.pixelSize: 22; color: "white"; Layout.fillWidth: true }
+        Label { text: root.assetWriteAllowed ? "Browse and manage domain assets" : "Browse domain assets · writing unavailable"; color: "#cccccc"; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+        Flow {
+            Layout.fillWidth: true; spacing: 8
+            Button { objectName: "assetRefresh"; text: "Refresh"; implicitHeight: 48; onClicked: root.reload() }
+            Button { objectName: "assetImport"; text: "Add to World"; implicitHeight: 48; enabled: root.importAllowed && root.canAddToWorld(root.selectedUrl); onClicked: root.addToWorld() }
+            Button { objectName: "assetCopyUrl"; text: "Copy URL"; implicitHeight: 48; enabled: root.selectedUrl.length > 0; onClicked: Window.copyToClipboard(root.selectedUrl) }
+        }
+        TextField { id: search; objectName: "assetFilter"; placeholderText: "Filter assets and folders"; Layout.fillWidth: true; implicitHeight: 48; onTextChanged: tree.filterText = text }
+        CheckBox { text: "Select multiple"; checked: tree.multiSelect; onToggled: tree.multiSelect = checked }
+        NativeModelTree { id: tree; objectName: "assetTree"; Layout.fillWidth: true; Layout.fillHeight: true; sourceModel: root.assetProxyModel; folderRole: 257; statusRole: 261 }
+        Label { text: root.selectedUrl; color: "#cccccc"; elide: Text.ElideMiddle; Layout.fillWidth: true }
+        Label { text: root.updatesCount, root.currentIndex !== null ? String(root.assetProxyModel.data(root.currentIndex, 262) || "") : ""; visible: text.length > 0; color: "#ffaaaa"; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+        CheckBox { objectName: "assetBaking"; text: "Use baked version"; enabled: root.assetWriteAllowed && !root.busy && root.bakingAvailable(); checked: root.currentIndex !== null && root.bakingAvailable() && root.assetProxyModel.data(root.currentIndex, 261) !== "Not Baked"; onToggled: root.setBakingEnabled(checked) }
+        Flow {
+            Layout.fillWidth: true; spacing: 8
+            Button { objectName: "assetBundleCancel"; text: "Cancel upload"; implicitHeight: 48; visible: !!root.bundleRequest; onClicked: { Assets.cancelUploadBundle(root.bundleRequest); root.status = "Canceling upload; waiting for the current server operation..."; } }
+            Button { objectName: "assetUploadedImport"; text: "Add uploaded model"; implicitHeight: 48; visible: /\.(fbx|obj|gltf|glb|vrm)$/i.test(root.uploadedPrimaryUrl); enabled: root.importAllowed && !root.busy; onClicked: root.importUploadedMain() }
+            Button { objectName: "assetUpload"; text: "Upload with companions"; implicitHeight: 48; enabled: root.assetWriteAllowed && !root.busy; onClicked: root.uploadClicked() }
+            Button { objectName: "assetSingleUpload"; text: "Upload one file"; implicitHeight: 48; enabled: root.assetWriteAllowed && !root.busy; onClicked: root.uploadSingleClicked() }
+            Button { objectName: "assetRename"; text: "Rename"; implicitHeight: 48; enabled: root.assetWriteAllowed && !root.busy && root.selectedItemCount === 1; onClicked: { renamePath.text = root.selectedPath; renameDialog.open(); } }
+            Button { objectName: "assetDelete"; text: "Delete"; implicitHeight: 48; enabled: root.assetWriteAllowed && !root.busy && root.selectedItemCount > 0; onClicked: deleteDialog.open() }
+            Button { objectName: "assetMapping"; text: "Set Mapping"; implicitHeight: 48; enabled: root.assetWriteAllowed && !root.busy; onClicked: mappingDialog.open() }
+        }
+        BusyIndicator { running: root.busy; visible: running; Layout.preferredHeight: 36 }
+        Label { objectName: "assetStatus"; text: root.status; color: "#cccccc"; wrapMode: Text.WordWrap; Layout.fillWidth: true; visible: text.length > 0 }
+        NativeKeyboardHost { id: inputKeyboard; Layout.fillWidth: true; Layout.preferredHeight: implicitHeight; inputFocused: search.activeFocus }
+    }
+    Dialog {
+        id: renameDialog
+        objectName: "renameDialog"
+        title: "Rename asset or folder"
+        modal: true; focus: true
+        width: Math.min(root.width - 24, 500)
+        x: (root.width - width) / 2
+        y: Math.max(0, (root.height - height) / 2)
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        Column {
+            width: parent.width
+            TextField {
+                id: renamePath
+                objectName: "assetRenamePath"
+                width: parent.width; implicitHeight: 48
+                Keys.onEscapePressed: function(event) { renameDialog.reject(); event.accepted = true; }
+            }
+            NativeKeyboardHost { width: parent.width; inputFocused: renameDialog.visible && renamePath.activeFocus }
+        }
+        onClosed: tree.view.forceActiveFocus()
+        onAccepted: root.doRenameFile(root.selectedPath, renamePath.text)
+    }
+    Dialog {
+        id: overwriteDialog
+        title: "Overwrite existing mapping?"
+        modal: true; focus: true
+        width: Math.min(root.width - 24, 500)
+        x: (root.width - width) / 2
+        y: Math.max(0, (root.height - height) / 2)
+        standardButtons: Dialog.Yes | Dialog.No
+        onAccepted: {
+            if (root.writable() && !root.busy) {
+                root.busy = true;
+                Assets.renameMapping(root.pendingRenameOld, root.pendingRenameNew, root.resultHandler("Rename"));
+            }
         }
     }
-
-    // The letterbox used for popup messages
-    LetterboxMessage {
-        id: letterboxMessage;
-        z: 999; // Force the popup on top of everything else
+    Dialog {
+        id: deleteDialog
+        title: "Delete selected mappings?"
+        modal: true; focus: true
+        width: Math.min(root.width - 24, 500)
+        x: (root.width - width) / 2
+        y: Math.max(0, (root.height - height) / 2)
+        standardButtons: Dialog.Yes | Dialog.No
+        Label { text: root.selectedPaths().join("\n"); wrapMode: Text.WordWrap; width: Math.max(100, Math.min(root.width - 60, 500)) }
+        onAccepted: root.doDeleteFile(root.selectedPaths())
     }
-
-    Column {
-        width: parent.width
-        spacing: 10
-
-        HifiControls.TabletContentSection {
-            id: assetDirectory
-            name: "Asset Directory"
-            isFirst: true
-
-            HifiControls.VerticalSpacer {}
-
-            Row {
-                id: buttonRow
-                width: parent.width
-                height: 30
-                spacing: hifi.dimensions.contentSpacing.x
-
-                HifiControls.Button {
-                    text: "Add To World"
-                    color: hifi.buttons.blue
-                    colorScheme: root.colorScheme
-                    width: 120
-
-                    enabled: canAddToWorld(assetProxyModel.data(treeView.selection.currentIndex, 0x100))
-
-                    onClicked: root.addToWorld()
-                }
-
-                HifiControls.Button {
-                    text: "Rename"
-                    color: hifi.buttons.black
-                    colorScheme: root.colorScheme
-                    width: 80
-
-                    onClicked: root.renameFile()
-                    enabled: canRename()
-                }
-
-                HifiControls.Button {
-                    id: deleteButton
-
-                    text: "Delete"
-                    color: hifi.buttons.red
-                    colorScheme: root.colorScheme
-                    width: 80
-
-                    onClicked: root.deleteFile()
-                    enabled: treeView.selection.hasSelection
-                }
+    Dialog {
+        id: mappingDialog
+        objectName: "mappingDialog"
+        title: "Set asset mapping"
+        modal: true; focus: true
+        width: Math.min(root.width - 24, 500)
+        x: (root.width - width) / 2
+        y: Math.max(0, (root.height - height) / 2)
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        Column {
+            width: parent.width
+            TextField {
+                id: mappingPath
+                objectName: "assetMappingPath"
+                width: parent.width; implicitHeight: 48
+                placeholderText: "/asset/path"
+                Keys.onEscapePressed: function(event) { mappingDialog.reject(); event.accepted = true; }
             }
+            TextField {
+                id: mappingHash
+                objectName: "assetMappingHash"
+                width: parent.width; implicitHeight: 48
+                placeholderText: "SHA-256 hash"
+                Keys.onEscapePressed: function(event) { mappingDialog.reject(); event.accepted = true; }
+            }
+            NativeKeyboardHost { width: parent.width; inputFocused: mappingDialog.visible && (mappingPath.activeFocus || mappingHash.activeFocus) }
         }
-
-        HifiControls.Tree {
-            id: treeView
-            anchors.margins: hifi.dimensions.contentMargin.x + 2  // Extra for border
-            anchors.left: parent.left
-            anchors.right: parent.right
-
-            treeModel: assetProxyModel
-            selectionMode: SelectionMode.ExtendedSelection
-            headerVisible: true
-            sortIndicatorVisible: true
-
-            colorScheme: root.colorScheme
-
-            modifyEl: renameEl
-
-            TableViewColumn {
-                id: nameColumn
-                title: "Name:"
-                role: "name"
-                width: treeView.width - bakedColumn.width;
+        onClosed: tree.view.forceActiveFocus()
+        onAccepted: root.setMapping(mappingPath.text, mappingHash.text)
+    }
+    Dialog {
+        id: bundleDialog; objectName: "bundleDestinationDialog"; title: "Choose an asset destination folder"
+        modal: true; focus: true; width: Math.min(root.width - 24, 500)
+        x: (root.width - width) / 2; y: Math.max(0, (root.height - height) / 2)
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        Column {
+            width: parent.width; spacing: 8
+            Label { text: "Relative paths will be preserved. Choose a new folder: bundle uploads stop at known existing mappings. Concurrent server changes may still affect the destination."; width: parent.width; wrapMode: Text.WordWrap }
+            TextField { id: bundleDestination; objectName: "assetBundleDestination"; width: parent.width; implicitHeight: 48; placeholderText: "/my-model/"; Keys.onEscapePressed: function(event) { bundleDialog.reject(); event.accepted = true; } }
+            NativeKeyboardHost { width: parent.width; inputFocused: bundleDialog.visible && bundleDestination.activeFocus }
+        }
+        onAccepted: root.uploadBundle()
+        onRejected: root.pendingBundle = null
+        onClosed: tree.view.forceActiveFocus()
+    }
+    Dialog {
+        id: modelDialog
+        objectName: "modelDialog"
+        title: "Import model"
+        modal: true; focus: true
+        width: Math.min(root.width - 24, 500)
+        x: (root.width - width) / 2
+        y: Math.max(0, (root.height - height) / 2)
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        Column {
+            width: parent.width; spacing: 8
+            TextField {
+                id: modelUrl
+                objectName: "assetModelUrl"
+                width: parent.width; implicitHeight: 48
+                Keys.onEscapePressed: function(event) { modelDialog.reject(); event.accepted = true; }
             }
-            TableViewColumn {
-                id: bakedColumn
-                title: "Use Baked?"
-                role: "baked"
-                width: 170
+            ComboBox {
+                id: shape
+                objectName: "assetModelShape"
+                width: parent.width; implicitHeight: 48
+                model: ["No Collision", "Basic · whole model", "Good · sub-meshes", "Exact · static polygons", "Box", "Sphere"]
             }
-
-            onSortIndicatorOrderChanged: {
-                Assets.sortProxyModel(sortIndicatorColumn, sortIndicatorOrder);
+            CheckBox {
+                id: dynamic
+                objectName: "assetModelDynamic"
+                text: "Dynamic"
+                enabled: shape.currentIndex !== 3
+                onEnabledChanged: { if (!enabled) checked = false; }
             }
-
-            itemDelegate: Loader {
-                id: itemDelegateLoader
-
-                anchors {
-                    left: parent ? parent.left : undefined
-                    leftMargin: (styleData.column === 0 ? (2 + styleData.depth) : 1) * hifi.dimensions.tablePadding
-                    right: parent ? parent.right : undefined
-                    rightMargin: hifi.dimensions.tablePadding
-                    verticalCenter: parent ? parent.verticalCenter : undefined
-                }
-
-                function convertToGlyph(text) {
-                    switch (text) {
-                        case "Not Baked":
-                            return hifi.glyphs.circleSlash;
-                        case "Baked":
-                            return hifi.glyphs.checkmark;
-                        case "Error":
-                            return hifi.glyphs.alert;
-                        default:
-                            return "";
-                    }
-                }
-
-                function getComponent() {
-                    if ((styleData.column === 0) && styleData.selected) {
-                        return textFieldComponent;
-                    } else if (convertToGlyph(styleData.value) != "") {
-                        return glyphComponent;
-                    } else {
-                        return labelComponent;
-                    }
-
-                }
-                sourceComponent: getComponent()
-
-                Component {
-                    id: labelComponent
-                    FiraSansSemiBold {
-                        text: styleData.value
-                        size: hifi.fontSizes.tableText
-                        color: colorScheme == hifi.colorSchemes.light
-                                ? (styleData.selected ? hifi.colors.black : hifi.colors.baseGrayHighlight)
-                                : (styleData.selected ? hifi.colors.black : hifi.colors.lightGrayText)
-
-                        horizontalAlignment: styleData.column === 1 ? TextInput.AlignHCenter : TextInput.AlignLeft
-
-                        elide: Text.ElideMiddle
-
-                        MouseArea {
-                            id: mouseArea
-                            anchors.fill: parent
-
-                            acceptedButtons: Qt.NoButton
-                            hoverEnabled: true
-
-                            onEntered: {
-                                if (parent.truncated) {
-                                    treeLabelToolTip.show(parent);
-                                }
-                            }
-                            onExited: treeLabelToolTip.hide();
-                        }
-                    }
-                }
-                Component {
-                    id: glyphComponent
-
-                    HiFiGlyphs {
-                        text: convertToGlyph(styleData.value)
-                        size: hifi.dimensions.frameIconSize
-                        color: colorScheme == hifi.colorSchemes.light
-                                ? (styleData.selected ? hifi.colors.black : hifi.colors.baseGrayHighlight)
-                                : (styleData.selected ? hifi.colors.black : hifi.colors.lightGrayText)
-
-                        elide: Text.ElideRight
-                        horizontalAlignment: TextInput.AlignHCenter
-
-                        HifiControls.ToolTip {
-                            anchors.fill: parent
-
-                            visible: styleData.value === "Error"
-
-                            toolTip: assetProxyModel.data(styleData.index, 0x106)
-                        }
-                    }
-                }
-                Component {
-                    id: textFieldComponent
-
-                    TextField {
-                        id: textField
-                        readOnly: !activeFocus
-
-                        text: styleData.value
-
-                        font.family: "Fira Sans SemiBold"
-                        font.pixelSize: hifi.fontSizes.textFieldInput
-                        height: hifi.dimensions.tableRowHeight
-
-                        style: TextFieldStyle {
-                            textColor: readOnly
-                                        ? hifi.colors.black
-                                        : (treeView.isLightColorScheme ?  hifi.colors.black :  hifi.colors.white)
-                            background: Rectangle {
-                                visible: !readOnly
-                                color: treeView.isLightColorScheme ? hifi.colors.white : hifi.colors.black
-                                border.color: hifi.colors.primaryHighlight
-                                border.width: 1
-                            }
-                            selectedTextColor: hifi.colors.black
-                            selectionColor: hifi.colors.primaryHighlight
-                            padding.left: readOnly ? 0 : hifi.dimensions.textPadding
-                            padding.right: readOnly ? 0 : hifi.dimensions.textPadding
-                        }
-
-                        validator: RegExpValidator {
-                            regExp: /[^/]+/
-                        }
-
-                        Keys.onPressed: {
-                            if (event.key == Qt.Key_Escape) {
-                                text = styleData.value;
-                                unfocusHelper.forceActiveFocus();
-                                event.accepted = true;
-                            }
-                        }
-                        onAccepted:  {
-                            if (acceptableInput && styleData.selected) {
-                                if (!treeView.modifyEl(treeView.selection.currentIndex, text)) {
-                                    text = styleData.value;
-                                }
-                                unfocusHelper.forceActiveFocus();
-                            }
-                        }
-
-                        onReadOnlyChanged: {
-                            // Have to explicily set keyboardRaised because automatic setting fails because readOnly is true at the time.
-                            keyboardRaised = activeFocus;
-                        }
-                    }
-                }
-            }// End_OF( itemLoader )
-
-            Rectangle {
-                id: treeLabelToolTip
-                visible: false
-                z: 100 // Render on top
-
-                width: toolTipText.width + 2 * hifi.dimensions.textPadding
-                height: hifi.dimensions.tableRowHeight
-                color: colorScheme == hifi.colorSchemes.light ? hifi.colors.tableRowLightOdd : hifi.colors.tableRowDarkOdd
-                border.color: colorScheme == hifi.colorSchemes.light ? hifi.colors.black : hifi.colors.lightGrayText
-
-                FiraSansSemiBold {
-                    id: toolTipText
-                    anchors.centerIn: parent
-
-                    size: hifi.fontSizes.tableText
-                    color: colorScheme == hifi.colorSchemes.light ? hifi.colors.black : hifi.colors.lightGrayText
-                }
-
-                Timer {
-                    id: showTimer
-                    interval: 1000
-                    onTriggered: { treeLabelToolTip.visible = true; }
-                }
-                function show(item) {
-                    var coord = item.mapToItem(parent, item.x, item.y);
-
-                    toolTipText.text = item.text;
-                    treeLabelToolTip.x = coord.x - hifi.dimensions.textPadding;
-                    treeLabelToolTip.y = coord.y;
-                    showTimer.start();
-                }
-                function hide() {
-                    showTimer.stop();
-                    treeLabelToolTip.visible = false;
-                }
-            }// End_OF( treeLabelToolTip )
-
-            MouseArea {
-                propagateComposedEvents: true
-                anchors.fill: parent
-                acceptedButtons: Qt.RightButton
-                onClicked: {
-                    if (treeView.selection.hasSelection && !HMD.active) {  // Popup only displays properly on desktop
-                        // Only display the popup if the click triggered within
-                        // the selection.
-                        var clickedIndex = treeView.indexAt(mouse.x, mouse.y);
-                        var displayContextMenu = false;
-                        for ( var i = 0; i < selectedItemCount; ++i) {
-                            var currentSelectedIndex = treeView.selection.selectedIndexes[i];
-                            if (clickedIndex === currentSelectedIndex) {
-                                contextMenu.popup();
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-
-            Menu {
-                id: contextMenu
-                title: "Edit"
-                property var url: ""
-
-                MenuItem {
-                    text: "Copy URL"
-                    enabled: (selectedItemCount == 1)
-                    onTriggered: {
-                        copyURLToClipboard(treeView.selection.currentIndex);
-                    }
-                }
-
-                MenuItem {
-                    text: "Rename"
-                    enabled: (selectedItemCount == 1)
-                    onTriggered: {
-                        renameFile(treeView.selection.currentIndex);
-                    }
-                }
-
-                MenuItem {
-                    text: "Delete"
-                    enabled: (selectedItemCount > 0)
-                    onTriggered: {
-                        deleteFile();
-                    }
-                }
-            }// End_OF( contextMenu )
-        }// End_OF( treeView )
-
-        Row {
-            id: infoRow
-            anchors.left: treeView.left
-            anchors.right: treeView.right
-            anchors.bottomMargin: hifi.dimensions.contentSpacing.y
-
-            RalewayRegular {
-                anchors.verticalCenter: parent.verticalCenter
-
-                function makeText() {
-                    var numPendingBakes = assetMappingsModel.numPendingBakes;
-                    if (selectedItemCount > 1 || numPendingBakes === 0) {
-                        return selectedItemCount + " items selected";
-                    } else {
-                        return numPendingBakes + " bakes pending"
-                    }
-                }
-
-                size: hifi.fontSizes.sectionName
-                font.capitalization: Font.AllUppercase
-                text: makeText()
-                color: hifi.colors.lightGrayText
-            }
-
-            HifiControls.HorizontalSpacer { }
-
-            HifiControls.CheckBox {
-                id: bakingCheckbox
-                anchors.leftMargin: 2 * hifi.dimensions.contentSpacing.x
-                anchors.verticalCenter: parent.verticalCenter
-
-                text: " Use baked version"
-                colorScheme: root.colorScheme
-                enabled: isEnabled()
-                checked: isChecked()
-                onClicked: {
-                    var mappings = [];
-                    for (var i in treeView.selection.selectedIndexes) {
-                        var index = treeView.selection.selectedIndexes[i];
-                        var path = assetProxyModel.data(index, 0x100);
-                        mappings.push(path);
-                    }
-                    print("Asset browser - updating baking selection.");
-                    Assets.setBakingEnabled(mappings, checked, function() {
-                        reload();
-                    });
-
-                    checked = Qt.binding(isChecked);
-                }
-
-                function getStatus() {
-                    // kind of hack for ensuring getStatus() will be re-evaluated on updatesCount changes
-                    return updatesCount, assetProxyModel.data(treeView.selection.currentIndex, 0x105);
-                }
-
-                function isEnabled() {
-                    if (!treeView.selection.hasSelection) {
-                        return false;
-                    }
-
-                    var status = getStatus();
-                    if (status === "--") {
-                        return false;
-                    }
-                    var bakingEnabled = status !== "Not Baked";
-
-                    for (var i in treeView.selection.selectedIndexes) {
-                        var thisStatus = assetProxyModel.data(treeView.selection.selectedIndexes[i], 0x105);
-                        if (thisStatus === "--") {
-                            return false;
-                        }
-                        var thisBakingEnalbed = (thisStatus !== "Not Baked");
-
-                        if (bakingEnabled !== thisBakingEnalbed) {
-                            return false;
-                        }
-                    }
-
-                    return true;
-                }
-                function isChecked() {
-                    if (!treeView.selection.hasSelection) {
-                        return false;
-                    }
-
-                    var status = getStatus();
-                    return isEnabled() && status !== "Not Baked";
-                }
-            }
-
-            Item {
-                anchors.verticalCenter: parent.verticalCenter
-                width: infoGlyph.size;
-                height: infoGlyph.size;
-
-                HiFiGlyphs {
-                    id: infoGlyph;
-                    anchors.fill: parent;
-                    horizontalAlignment: Text.AlignHCenter;
-                    verticalAlignment: Text.AlignVCenter;
-                    text: hifi.glyphs.question;
-                    size: 35;
-                    color:  hifi.colors.lightGrayText;
-                }
-                MouseArea {
-                    anchors.fill: parent;
-                    hoverEnabled: true;
-                    onEntered: infoGlyph.color = hifi.colors.blueHighlight;
-                    onExited: infoGlyph.color =  hifi.colors.lightGrayText;
-                    onClicked: letterbox(hifi.glyphs.question,
-                                            "What is baking?",
-                                            "Baking compresses and optimizes files for faster network transfer and display. We recommend you bake your content to reduce initial load times for your visitors.");
-                    }
-            }
-        }// End_OF( infoRow )
-
-        HifiControls.TabletContentSection {
-            id: uploadSection
-            name: "Upload A File"
-            spacing: hifi.dimensions.contentSpacing.y
-            //anchors.bottom: parent.bottom
-            height: 65
-            anchors.left: parent.left
-            anchors.right: parent.right
-
-            Item {
-                height: parent.height
-                width: parent.width
-                HifiControls.Button {
-                    id: uploadButton
-                    anchors.right: parent.right
-
-                    text: "Choose File"
-                    color: hifi.buttons.blue
-                    colorScheme: root.colorScheme
-                    height: 30
-                    width: 155
-
-                    onClicked: uploadClickedTimer.running = true
-
-                    // For some reason trigginer an API that enters
-                    // an internal event loop directly from the button clicked
-                    // trigger below causes the appliction to behave oddly.
-                    // Most likely because the button onClicked handling is never
-                    // completed until the function returns.
-                    // FIXME find a better way of handling the input dialogs that
-                    // doesn't trigger this.
-                    Timer {
-                        id: uploadClickedTimer
-                        interval: 5
-                        repeat: false
-                        running: false
-                        onTriggered: uploadClicked();
-                    }
-                }
-
-                Item {
-                    id: uploadSpinner
-                    visible: false
-                    anchors.top: parent.top
-                    anchors.left: parent.left
-                    width: 40
-                    height: 32
-
-                    Image {
-                        id: image
-                        width: 24
-                        height: 24
-                        source: "../../../images/Loading-Outer-Ring.png"
-                        RotationAnimation on rotation {
-                            loops: Animation.Infinite
-                            from: 0
-                            to: 360
-                            duration: 2000
-                        }
-                    }
-                    Image {
-                        width: 24
-                        height: 24
-                        source: "../../../images/Loading-Inner-H.png"
-                    }
-                    HifiControls.Label {
-                        id: uploadProgressLabel
-                        anchors.left: image.right
-                        anchors.leftMargin: 10
-                        anchors.verticalCenter: image.verticalCenter
-                        text: "In progress..."
-                        colorScheme: root.colorScheme
-                    }
-                }
-            }
-        }// End_OF( uploadSection )
+            NativeKeyboardHost { width: parent.width; inputFocused: modelDialog.visible && modelUrl.activeFocus }
+        }
+        onClosed: tree.view.forceActiveFocus()
+        onAccepted: root.importModel()
     }
 }
-

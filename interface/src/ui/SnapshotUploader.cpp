@@ -23,7 +23,24 @@ SnapshotUploader::SnapshotUploader(QUrl inWorldLocation, QString pathname) :
     _pathname(pathname) {
 }
 
+void SnapshotUploader::cancel() {
+    if (_finished) { return; }
+    _finished = true;
+    _requests.setActive(false);
+    emit finished(_pathname, "cancelled", "upload-cancelled");
+    deleteLater();
+}
+
+void SnapshotUploader::complete(bool error, const QString& reply) {
+    if (_finished || !_requests.snapshot().current()) { return; }
+    _finished = true;
+    emit DependencyManager::get<WindowScriptingInterface>()->snapshotShared(error, reply);
+    emit finished(_pathname, error ? "error" : "success", error ? "upload-failed" : QString());
+    deleteLater();
+}
+
 void SnapshotUploader::uploadSuccess(QNetworkReply* reply) {
+    if (_finished || !_requests.snapshot().current()) { return; }
     const QString STORY_UPLOAD_URL = "/api/v1/user_stories";
 
     // parse the reply for the thumbnail_url
@@ -36,7 +53,7 @@ void SnapshotUploader::uploadSuccess(QNetworkReply* reply) {
         QString imageUrl = dataObject.value("image_url").toString();
         QString snapshotID = dataObject.value("id").toString();
         QString originalImageFileName = dataObject.value("original_image_file_name").toString();
-        auto addressManager = DependencyManager::get<AddressManager>();
+        if (thumbnailUrl.isEmpty() || imageUrl.isEmpty()) { complete(true, "Invalid snapshot upload response"); return; }
         QString placeName = _inWorldLocation.authority(); // We currently only upload shareable places, in which case this is just host.
         QString currentPath = _inWorldLocation.path();
 
@@ -61,6 +78,7 @@ void SnapshotUploader::uploadSuccess(QNetworkReply* reply) {
 
         auto accountManager = DependencyManager::get<AccountManager>();
         JSONCallbackParameters callbackParams(this, "createStorySuccess", "createStoryFailure");
+        callbackParams.requestTicket = nextTicket();
 
         accountManager->sendRequest(STORY_UPLOAD_URL,
             AccountManagerAuth::Required,
@@ -69,38 +87,42 @@ void SnapshotUploader::uploadSuccess(QNetworkReply* reply) {
             QJsonDocument(rootObject).toJson());
 
     } else {
-        emit DependencyManager::get<WindowScriptingInterface>()->snapshotShared(true, contents);
-        this->deleteLater();
+        complete(true, contents);
     }
 }
 
 void SnapshotUploader::uploadFailure(QNetworkReply* reply) {
+    if (_finished || !_requests.snapshot().current()) { return; }
     QString replyString = reply->readAll();
-    qDebug() << "Error " << reply->errorString() << " uploading snapshot " << _pathname << " from " << _inWorldLocation;
+    qWarning() << "Snapshot upload failed";
     if (replyString.size() == 0) {
         replyString = reply->errorString();
     }
     replyString = replyString.left(1000); // Only print first 1000 characters of error
-    qDebug() << "Snapshot upload reply error (truncated):" << replyString;
-    emit DependencyManager::get<WindowScriptingInterface>()->snapshotShared(true, replyString); // maybe someday include _inWorldLocation, _filename?
-    this->deleteLater();
+    complete(true, replyString);
 }
 
 void SnapshotUploader::createStorySuccess(QNetworkReply* reply) {
+    if (_finished || !_requests.snapshot().current()) { return; }
     QString replyString = reply->readAll();
-    emit DependencyManager::get<WindowScriptingInterface>()->snapshotShared(false, replyString);
-    this->deleteLater();
+    QJsonParseError error;
+    const auto document = QJsonDocument::fromJson(replyString.toUtf8(), &error);
+    const auto story = document.object().value("user_story").toObject();
+    if (error.error != QJsonParseError::NoError || !story.contains("id") ||
+            story.value("details").toObject().value("image_url").toString().isEmpty()) {
+        complete(true, "Invalid snapshot story response"); return;
+    }
+    complete(false, replyString);
 }
 
 void SnapshotUploader::createStoryFailure(QNetworkReply* reply) {
+    if (_finished || !_requests.snapshot().current()) { return; }
     QString replyString = reply->readAll();
-    qDebug() << "Error " << reply->errorString() << " uploading snapshot story " << _pathname << " from " << _inWorldLocation;
+    qWarning() << "Snapshot story upload failed";
     if (replyString.size() == 0) {
         replyString = reply->errorString();
     }
     replyString = replyString.left(1000); // Only print first 1000 characters of error
-    qDebug() << "Snapshot story upload reply error (truncated):" << replyString;
-    emit DependencyManager::get<WindowScriptingInterface>()->snapshotShared(true, replyString);
-    this->deleteLater();
+    complete(true, replyString);
 }
 
