@@ -28,7 +28,7 @@ import org.robolectric.Shadows;
 /** Actual Phone Activity/Host dispatch; Qt/JNI and native WebView effects are explicit observation boundaries. */
 @RunWith(RobolectricTestRunner.class)
 @LooperMode(LooperMode.Mode.PAUSED)
-@Config(sdk = 35, manifest = Config.NONE, instrumentedPackages = {"org.overte.web", "org.overte.phone", "org.qtproject.qt5.android"},
+@Config(sdk = {26, 35}, manifest = Config.NONE, instrumentedPackages = {"org.overte.web", "org.overte.phone", "org.qtproject.qt5.android"},
         shadows = {PhoneEmbeddedWebFocusRobolectricTest.QtOwner.class, PhoneEmbeddedWebFocusRobolectricTest.WebDispatch.class, PhoneEmbeddedWebFocusRobolectricTest.NativeLibraries.class})
 public final class PhoneEmbeddedWebFocusRobolectricTest {
     @Implements(value = PhoneInterfaceActivity.class, isInAndroidSdk = false)
@@ -60,6 +60,9 @@ public final class PhoneEmbeddedWebFocusRobolectricTest {
     PhoneInterfaceActivity activity;
     PhoneEmbeddedWebHost host;
     @Before public void start() throws Exception {
+        int sdk = android.os.Build.VERSION.SDK_INT;
+        assertTrue("Unexpected focus-test SDK", sdk == 26 || sdk == 35);
+        System.out.println("Phone focus runtime SDK=" + sdk);
         WebDispatch.foregrounds = WebDispatch.inputs = WebDispatch.detaches = 0;
         controller = Robolectric.buildActivity(PhoneInterfaceActivity.class);
         java.io.File fixture = temporary.newFile("focus-assets.zip");

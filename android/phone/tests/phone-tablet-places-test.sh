@@ -85,8 +85,13 @@ require "$places" 'clearRezzedPortals\(\);' \
     'Places removes live local portals during script cleanup'
 require "$places" 'if[[:space:]]*\(!isAndroidPhone\)' \
     'Phone Places avoids mutable tablet-button proxy updates'
-require "$qml" 'height:[[:space:]]*Math[.]max\(82,' \
-    'Places list entries expose touch-sized delegates'
+require "$qml" 'controlHeight:[[:space:]]*Math[.]max\(48,[[:space:]]*touchMetrics[.]adaptiveMinimumControlHeight\)' \
+    'Places controls retain the adaptive minimum touch target'
+require "$script_dir/qml/tst_phone_places_delegates.qml" 'test_selectedDelegateRemainsReadableAndActionable' \
+    'Selected Places delegates have a real Qt sizing, font-scale and click contract'
+require "$repo_root/android/common/tests/qml/run-qml-tests.sh" 'phone/tests/phone-places-delegate-test[.]py' \
+    'The existing Qt Fast tier executes the Phone delegate contract'
+test -f "$script_dir/phone-places-delegate-test.py"
 require "$qml" 'ScrollBar[.]vertical:[[:space:]]*ScrollBar' \
     'Places exposes scroll position for long result lists'
 

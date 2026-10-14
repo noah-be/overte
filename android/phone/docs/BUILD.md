@@ -852,3 +852,113 @@ background suspension, toolbar/Back behavior and scaled/clipped placement. The
 texture renderer does not establish hardware video parity. Foreign-document
 texture IME and arbitrary rotated native overlays remain unqualified. F-Droid
 source-only acceptance additionally requires the existing cold-build gates.
+
+## Current Phone host matrix
+
+The structured profile below is authoritative for this Phone checkout. The nine
+Web focus/owner lifecycle cases execute on both API 26 and API 35. The actual
+Robolectric reports contain 116 cases, including 18 focus executions. The common
+Android documentation describes its parent baseline and cannot replace this
+product declaration. These are host Activity/Qt-boundary checks, not Chromium,
+acoustic, physical input or APK qualification.
+
+The existing Qt/Fast tier also executes the fixed Phone Places and domain-login
+runtime fixtures. They inspect actual scrolled controls at narrow widths and
+large font scales, and the existing Phone UI's failure/timeout/cancel handlers.
+The original Qt JUnit is retained; warnings/errors, missing cases, skips and
+runtime failures are not converted into successful results. Contracts retain
+source/portal/URL/bridge/scroll checks without requiring Qt.
+
+Normal Fast runs both fixed fixtures with Qt 5 and publishes ten original JUnit
+cases. The common login body still imports Qt Quick Controls 1.4; a Qt 6-only
+host cannot qualify that full suite. `phone-places-delegate-test.py --places-only`
+can separately exercise the five modern Places cases with Qt 5 or Qt 6.
+`--domain-only` isolates the five domain-recovery rows. For an immutable parent
+preview or negative control, `--places-qml`/`--login-qml` accept explicit input
+files; record their exact owning source revision and file hash. Such an override
+does not integrate those bytes into this product. Normal CI supplies neither
+override and must reject a still-missing upstream layout fix.
+
+<!-- android-test-profile:start -->
+```json
+{
+  "scope": "android-phone",
+  "qmlFunctions": 53,
+  "qmlRows": 69,
+  "robolectricBehaviors": 50,
+  "robolectricExecutions": 107,
+  "junitCases": 116,
+  "sdkMatrices": {
+    "legacy Interface": [
+      24,
+      26
+    ],
+    "Phone": [
+      26,
+      35
+    ],
+    "Pico": [
+      26,
+      35
+    ],
+    "legacy Quest": [
+      24,
+      28,
+      35
+    ]
+  },
+  "robolectricClasses": {
+    "io/highfidelity/hifiinterface/PermissionCheckerRobolectricTest.java": {
+      "behaviors": 6,
+      "sdks": [
+        24,
+        26
+      ]
+    },
+    "org/overte/phone/PermissionsActivityRobolectricTest.java": {
+      "behaviors": 11,
+      "sdks": [
+        26,
+        35
+      ]
+    },
+    "org/overte/phone/PhoneDeepLinkRobolectricTest.java": {
+      "behaviors": 4,
+      "sdks": [
+        26,
+        35
+      ]
+    },
+    "org/overte/phone/PhoneEmbeddedWebFocusRobolectricTest.java": {
+      "behaviors": 9,
+      "sdks": [
+        26,
+        35
+      ]
+    },
+    "org/overte/phone/RedactingDiagnosticsRobolectricTest.java": {
+      "behaviors": 7,
+      "sdks": [
+        26,
+        35
+      ]
+    },
+    "org/overte/pico/PermissionsActivityRobolectricTest.java": {
+      "behaviors": 6,
+      "sdks": [
+        26,
+        35
+      ]
+    },
+    "io/highfidelity/questInterface/PermissionsCheckerRobolectricTest.java": {
+      "behaviors": 7,
+      "sdks": [
+        24,
+        28,
+        35
+      ]
+    }
+  }
+}
+```
+<!-- android-test-profile:end -->
