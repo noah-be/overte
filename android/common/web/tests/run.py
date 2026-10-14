@@ -20,6 +20,7 @@ parser.add_argument('--android-jar', type=Path)
 parser.add_argument('--webkit-jar', type=Path)
 parser.add_argument('--jdk', type=Path, default=Path(os.environ.get('JAVA_HOME', '/usr/lib/jvm/temurin-21-jdk')))
 args = parser.parse_args()
+subprocess.run([sys.executable, str(WEB / 'tests/test_network_policy.py')], check=True)
 subprocess.run([sys.executable, str(WEB / 'tests/build-integration-test.py')], check=True)
 with tempfile.TemporaryDirectory(prefix='overte-embedded-web-') as temporary:
     stage = Path(temporary)

@@ -50,7 +50,5 @@ Script.load("/~/communityScripts/armored-chat/armored_chat.js");
 Script.load("/~/communityScripts/chatBubbles/chatBubbles.js");
 Script.load("/~/communityScripts/notificationCore/notificationCore.js");
 
-// Match the conservative LOD defaults already proven by the legacy Android
-// interface on thermally constrained mobile GPUs.
-LODManager.automaticLODAdjust = false;
-LODManager.lodAngleDeg = 0.248;
+// Native LODManager loads conservative touch defaults for unset preferences.
+// Preserve its loaded user choices when starting or restarting these scripts.

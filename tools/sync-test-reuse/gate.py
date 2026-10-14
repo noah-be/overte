@@ -67,6 +67,22 @@ def validate_sha(value: object, label: str, error_type=GateError) -> str:
     return value
 
 
+def safe_api_error(error: Exception) -> str:
+    """Classify a failed CLI request without emitting commands or response text."""
+    if isinstance(error, subprocess.CalledProcessError):
+        stderr = error.stderr or ""
+        if isinstance(stderr, bytes):
+            stderr = stderr.decode("utf-8", errors="replace")
+        statuses = re.findall(r"\(HTTP ([1-5][0-9]{2})\)", stderr)
+        status = statuses[-1] if statuses else "unknown"
+        return f"command exit={error.returncode} http={status}"
+    if isinstance(error, json.JSONDecodeError):
+        return "invalid-json"
+    if isinstance(error, OSError):
+        return f"os-error errno={error.errno if error.errno is not None else 'unknown'}"
+    return "unknown-error"
+
+
 class GitHubApi:
     """Small gh-backed API adapter; errors never degrade into authorization."""
 
@@ -84,7 +100,7 @@ class GitHubApi:
             )
             return json.loads(result.stdout) if result.stdout.strip() else {}
         except (OSError, subprocess.CalledProcessError, json.JSONDecodeError) as error:
-            raise GateError(f"GitHub API request failed: {endpoint}") from error
+            raise GateError(f"GitHub API request failed: {endpoint} ({safe_api_error(error)})") from error
 
     def bytes(self, endpoint: str) -> bytes:
         try:
@@ -93,7 +109,7 @@ class GitHubApi:
                 stderr=subprocess.PIPE,
             ).stdout
         except (OSError, subprocess.CalledProcessError) as error:
-            raise EvidenceError("qualification artifact download failed") from error
+            raise EvidenceError(f"qualification artifact download failed ({safe_api_error(error)})") from error
 
 
 @dataclass(frozen=True)
