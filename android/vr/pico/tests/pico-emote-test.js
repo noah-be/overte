@@ -65,6 +65,7 @@ for (const debug of [false, true]) {
 }
 
 // Execute the existing shared app, including its tablet/toolbar and dialog seams.
+// Dialog APIs here are explicit boundary replacements, not QObject export proof.
 // Actual Qt rendering and physical controller input remain device qualification.
 for (const hud of [false, true]) {
     for (const finishOpen of [false, true]) {
@@ -77,6 +78,7 @@ for (const hud of [false, true]) {
         let added = 0;
         let removed = 0;
         const button = { clicked, editProperties: value => properties.push(value) };
+        function setDialogOpen(value) { toggles++; dialogOpen = value; addressShown.emit(value); }
         const host = {
             addButton: value => { assert.strictEqual(value.text || value.objectName, "GOTO"); added++; return button; },
             removeButton: value => { assert.strictEqual(value, hud ? "GOTO" : button); removed++; }
@@ -85,13 +87,18 @@ for (const hud of [false, true]) {
             Settings: { getValue: key => { assert.strictEqual(key, "HUDUIEnabled"); return hud; } },
             Tablet: { getTablet: name => { assert.strictEqual(name, "com.highfidelity.interface.tablet.system"); return host; } },
             Toolbars: { getToolbar: name => { assert.strictEqual(name, "com.highfidelity.interface.toolbar.system"); return host; } },
-            DialogsManager: { addressBarShown: addressShown, toggleAddressBar: () => { toggles++; dialogOpen = !dialogOpen; addressShown.emit(dialogOpen); } },
+            DialogsManager: {
+                addressBarShown: addressShown,
+                showAddressBar: () => setDialogOpen(true), hideAddressBar: () => setDialogOpen(false),
+                // Legacy shared GOTO calls this missing export until its Main fix lands.
+                toggleAddressBar: () => setDialogOpen(!dialogOpen)
+            },
             Script: { resolvePath: name => path.resolve(root, "scripts/system", name), scriptEnding: ending }
         });
         assert.strictEqual(added, 1, "Existing GOTO app creates exactly one normal entry");
         assert.strictEqual(clicked.count, 1);
         clicked.emit();
-        assert.strictEqual(toggles, 1, "Ordinary button invokes the real DialogsManager API seam");
+        assert.strictEqual(toggles, 1, "Shared button dispatches the explicitly substituted host dialog seam");
         assert.strictEqual(dialogOpen, true);
         assert.strictEqual(properties.at(-1).isActive, true);
         if (!finishOpen) {
