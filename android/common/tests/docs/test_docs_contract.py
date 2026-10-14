@@ -1,6 +1,7 @@
 from pathlib import Path
 import sys
 import unittest
+import tempfile
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import validate_test_docs as contract
 
@@ -15,6 +16,25 @@ class DocsContractTest(unittest.TestCase):
         self.coverage = "38 explicit `test_*` functions pass (52 QtTest result rows). kills 22/22 curated mutants; extended kills 38/38."
     def test_valid_fixture(self):
         self.assertEqual([], contract.validate(self.testing,self.coverage,self.facts))
+
+    def test_actual_include_patterns_expand_all_downstream_tests(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            prefix = root / 'phone/apps/phoneInterface/src/test/java/org/overte/phone'
+            prefix.mkdir(parents=True)
+            first = prefix / 'FirstRobolectricTest.java'
+            second = prefix / 'SecondRobolectricTest.java'
+            first.write_text('@Test void one() {}')
+            second.write_text('@Test void two() {}')
+            pattern = 'org/overte/phone/*RobolectricTest.java'
+            self.assertEqual(contract.resolve_test_includes(root, [pattern, pattern]), [first, second])
+            with self.assertRaisesRegex(ValueError, 'at least once'):
+                contract.resolve_test_includes(root, ['org/overte/phone/MissingRobolectricTest.java'])
+            duplicate = root / 'other/apps/otherInterface/src/test/java/org/overte/phone/FirstRobolectricTest.java'
+            duplicate.parent.mkdir(parents=True)
+            duplicate.write_text(first.read_text())
+            with self.assertRaisesRegex(ValueError, 'duplicate class'):
+                contract.resolve_test_includes(root, [pattern])
     def test_rejects_stale_tier(self):
         self.assertTrue(any("stability" in e for e in contract.validate(self.testing.replace("stability","stable"),self.coverage,self.facts)))
     def test_rejects_stale_count(self):
