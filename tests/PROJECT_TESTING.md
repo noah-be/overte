@@ -289,6 +289,7 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `embedded-web-policy` | `host` | `python3 tests/run-project-tests.py --suite embedded-web-policy` |
 | `embedded-web-qml` | `host` | `python3 tests/run-project-tests.py --suite embedded-web-qml` |
 | `account-auth-dispatch` | `host` | `python3 tests/run-project-tests.py --suite account-auth-dispatch` |
+| `lod-preferences` | `host` | `python3 tests/run-project-tests.py --suite lod-preferences` |
 | `recorded-voice-native` | `host` | `python3 tests/run-project-tests.py --suite recorded-voice-native` |
 | `recorded-voice-qml` | `host` | `python3 tests/run-project-tests.py --suite recorded-voice-qml` |
 | `snapshot-native` | `host` | `python3 tests/run-project-tests.py --suite snapshot-native` |
