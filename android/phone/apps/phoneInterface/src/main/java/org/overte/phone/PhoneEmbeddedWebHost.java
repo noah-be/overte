@@ -44,7 +44,9 @@ final class PhoneEmbeddedWebHost implements EmbeddedWebHost {
     }
     void foreground(boolean value) {
         resumed = value;
-        if (initialized && ownsActivity()) EmbeddedWebView.setForeground(this, isForeground());
+        // A late pause must still stop this host's pages before its successor
+        // initializes. The common runtime rejects a host that no longer owns it.
+        if (initialized && (!value || ownsActivity())) EmbeddedWebView.setForeground(this, isForeground());
         files.deliver(inputAllowed());
     }
     void windowFocus() {

@@ -807,7 +807,9 @@ Activity background and destruction suspend the common media lifecycle. Window
 focus changes call the independent input hook and invalidate pointer/IME tickets
 without suspending media, rendering or bridge grants. Foreground requires the
 resumed current Qt Activity; input and picker entry/return additionally require
-real window focus.
+real window focus. Late pause/destroy still addresses the immutable old host;
+the common runtime rejects it once another host owns that runtime. Positive
+foreground and input/picker callbacks stay bound to the current Qt owner.
 The file picker uses explicit OS document selection, temporary content URIs and
 one-shot request leases; results wait for actual foreground and input-focus return. No camera,
 microphone or geolocation permissions are granted to browser documents.
@@ -835,7 +837,9 @@ This is an unpropagated test prerequisite, not Phone parent ancestry or native
 application qualification. Omit the preview after normal parent propagation.
 
 `PhoneEmbeddedWebFocusRobolectricTest` runs the actual final Phone Activity/Host
-through window-focus, pause/destroy, stale-owner and picker-return cases. Qt native
+through window-focus, pause/destroy, stale-owner and picker-return cases. It also
+executes the actual parent owner-rejection path before unavailable JNI, proving
+that late old-host pause/detach cannot clear a successor host. Qt native
 library startup and common JNI/Chromium effects are explicit observation
 boundaries. The minimal test assets are generated in a temporary ZIP and removed
 on success or failure. Native media silence and provider behavior remain outside

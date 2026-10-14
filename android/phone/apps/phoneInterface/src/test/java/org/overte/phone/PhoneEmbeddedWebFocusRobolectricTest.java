@@ -48,8 +48,9 @@ public final class PhoneEmbeddedWebFocusRobolectricTest {
     public static class WebDispatch {
         static int foregrounds, inputs, detaches;
         static boolean foreground, focused;
+        static EmbeddedWebHost lastForegroundOwner;
         @Implementation protected static void initialize(EmbeddedWebHost owner) { }
-        @Implementation protected static void setForeground(EmbeddedWebHost owner, boolean value) { foregrounds++; foreground = value; }
+        @Implementation protected static void setForeground(EmbeddedWebHost owner, boolean value) { foregrounds++; foreground = value; lastForegroundOwner = owner; }
         @Implementation protected static void setInputFocused(EmbeddedWebHost owner, boolean value) { inputs++; focused = value; }
         @Implementation protected static void relayout(EmbeddedWebHost owner) { }
         @Implementation protected static void detach(EmbeddedWebHost owner) { detaches++; }
@@ -126,6 +127,30 @@ public final class PhoneEmbeddedWebFocusRobolectricTest {
     @Test public void resumedActivityRetainsMediaForegroundWithoutWindowFocus() {
         controller.windowFocusChanged(false); controller.pause(); assertFalse(host.isForeground());
         controller.resume(); assertTrue(host.isForeground()); assertTrue(WebDispatch.foreground);
+    }
+    @Test public void actualPauseAfterQtOwnerHandoffStillAddressesOldHost() {
+        int before = WebDispatch.foregrounds; QtOwner.owner = new Activity();
+        controller.pause();
+        assertEquals(before + 1, WebDispatch.foregrounds);
+        assertSame(host, WebDispatch.lastForegroundOwner); assertFalse(WebDispatch.foreground);
+    }
+    @Test public void realCommonRejectsOldHostPauseAfterAnotherHostTookOwnership() throws Exception {
+        Field field = EmbeddedWebView.class.getDeclaredField("host"); field.setAccessible(true);
+        Object original = field.get(null);
+        EmbeddedWebHost next = new PhoneEmbeddedWebHost(activity);
+        java.lang.ref.WeakReference<EmbeddedWebHost> current = new java.lang.ref.WeakReference<>(next);
+        try {
+            field.set(null, current); int before = WebDispatch.foregrounds;
+            // Execute the actual SHA-bound parent method, bypassing the dispatch
+            // observer. A missing owner fence would reach unavailable JNI and fail.
+            org.robolectric.shadow.api.Shadow.directlyOn(EmbeddedWebView.class, "setForeground",
+                org.robolectric.util.ReflectionHelpers.ClassParameter.from(EmbeddedWebHost.class, host),
+                org.robolectric.util.ReflectionHelpers.ClassParameter.from(boolean.class, false));
+            org.robolectric.shadow.api.Shadow.directlyOn(EmbeddedWebView.class, "detach",
+                org.robolectric.util.ReflectionHelpers.ClassParameter.from(EmbeddedWebHost.class, host));
+            assertSame(current, field.get(null)); assertSame(next, current.get());
+            assertEquals(before, WebDispatch.foregrounds);
+        } finally { field.set(null, original); }
     }
     static WebChromeClient.FileChooserParams picker() {
         return new WebChromeClient.FileChooserParams() {
