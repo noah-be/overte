@@ -1730,6 +1730,8 @@ void Application::loadSettings(const QCommandLineParser& parser) {
     constexpr int IOS_TARGET_FPS { 30 };
     constexpr float IOS_DEFAULT_VIEWPORT_RESOLUTION_SCALE { 0.8f };
     const Settings iosGraphicsPreferences;
+    const auto iosSavedRenderMethod = iosGraphicsPreferences.value(QStringLiteral("renderMethod"), QVariant{});
+    const auto iosSavedHaze = iosGraphicsPreferences.value(QStringLiteral("hazeEnabled"), QVariant{});
     const bool iosSavedShadows = iosGraphicsPreferences.value(QStringLiteral("shadowsEnabled"), false).toBool();
     const bool iosSavedBloom = iosGraphicsPreferences.value(QStringLiteral("bloomEnabled"), false).toBool();
     const bool iosSavedAmbientOcclusion = iosGraphicsPreferences.value(QStringLiteral("ambientOcclusionEnabled"), false).toBool();
@@ -1764,6 +1766,10 @@ void Application::loadSettings(const QCommandLineParser& parser) {
     // NativeMetrics applies the existing transient thermal/low-power/unavailable
     // cap to the effective frame rate; it does not rewrite these preferences.
     auto iosRenderSettings = RenderScriptingInterface::getInstance();
+    if (iosSavedRenderMethod.isValid()) {
+        iosRenderSettings->setRenderMethod(static_cast<RenderScriptingInterface::RenderMethod>(iosSavedRenderMethod.toInt()));
+    }
+    if (iosSavedHaze.isValid()) { iosRenderSettings->setHazeEnabled(iosSavedHaze.toBool()); }
     iosRenderSettings->setShadowsEnabled(iosSavedShadows);
     iosRenderSettings->setBloomEnabled(iosSavedBloom);
     iosRenderSettings->setAmbientOcclusionEnabled(iosSavedAmbientOcclusion);

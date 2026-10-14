@@ -19,7 +19,7 @@ sys.path.insert(0, str(ROOT / "tests/device/contracts/lifecycle"))
 from test_login_dialog_domain_receiver import block
 
 BASELINE = "c41ddaea7976b6e3855c1f135af06a99802a0074"
-KEYS = ["shadowsEnabled", "bloomEnabled", "ambientOcclusionEnabled", "antialiasingMode",
+KEYS = ["renderMethod", "hazeEnabled", "shadowsEnabled", "bloomEnabled", "ambientOcclusionEnabled", "antialiasingMode",
         "viewportResolutionScale", "lodManager/desktopWorldDetailQuality", "refreshRateProfile",
         "customRefreshRateFocusActive", "customRefreshRateFocusInactive", "customRefreshRateStartup",
         "customRefreshRateUnfocus", "customRefreshRateMinimized", "customRefreshRateShutdown"]
@@ -43,8 +43,9 @@ class GraphicsPreferences(unittest.TestCase):
                 header.index("    // Force assign both setting")],
             "settings-value.inc": block(settings, "QVariant Settings::value("),
             "render-methods.inc": "\n".join(block(render, signature) for signature in [
-                "void RenderScriptingInterface::loadSettings(",
+                "void RenderScriptingInterface::loadSettings(", "void RenderScriptingInterface::setRenderMethod(", "void RenderScriptingInterface::forceRenderMethod(",
                 "void RenderScriptingInterface::setShadowsEnabled(", "void RenderScriptingInterface::forceShadowsEnabled(",
+                "void RenderScriptingInterface::setHazeEnabled(", "void RenderScriptingInterface::forceHazeEnabled(",
                 "void RenderScriptingInterface::setBloomEnabled(", "void RenderScriptingInterface::forceBloomEnabled(",
                 "void RenderScriptingInterface::setAmbientOcclusionEnabled(", "void RenderScriptingInterface::forceAmbientOcclusionEnabled(",
                 "void RenderScriptingInterface::setAntialiasingMode(", "void RenderScriptingInterface::forceAntialiasingMode(",
@@ -112,7 +113,7 @@ class GraphicsPreferences(unittest.TestCase):
         file = self.fresh()
         first = self.invoke(file, "startup", "first")
         self.assertEqual(first["runtime"], {"shadows": False, "bloom": False, "ao": False, "aa": 0,
-            "scale": first["runtime"]["scale"], "lod": 0, "profile": 3, "active": 30, "inactive": 30, "startup": 30})
+            "haze": True, "method": 0, "scale": first["runtime"]["scale"], "lod": 0, "profile": 3, "active": 30, "inactive": 30, "startup": 30})
         self.assertAlmostEqual(first["runtime"]["scale"], 0.8, places=6)
         second = self.invoke(file, "startup")
         self.assert_same_choices(first["stored"], second["stored"])
@@ -125,6 +126,8 @@ class GraphicsPreferences(unittest.TestCase):
             for _ in range(2):
                 result = self.invoke(file, "startup")
                 self.assert_same_choices(selected, result["stored"])
+                self.assertEqual(result["runtime"]["haze"], selected["hazeEnabled"])
+                self.assertEqual(result["runtime"]["method"], selected["renderMethod"])
                 self.assertEqual(result["runtime"]["profile"], selected["refreshRateProfile"])
                 self.assertEqual(result["runtime"]["lod"], selected["lodManager/desktopWorldDetailQuality"])
                 self.assertAlmostEqual(result["runtime"]["scale"], selected["viewportResolutionScale"], places=6)
@@ -151,6 +154,25 @@ class GraphicsPreferences(unittest.TestCase):
         self.assertEqual(result["stored"]["refreshRateProfile"], 1)
         self.assertEqual(result["stored"]["customRefreshRateFocusActive"], 47)
         self.assertEqual(result["stored"]["customRefreshRateFocusInactive"], 30)
+
+    def test_an_explicit_graphics_preset_survives_repeated_starts(self):
+        file = self.fresh()
+        self.invoke(file, "startup", "first")
+        selected = self.invoke(file, "preset")["stored"]
+        self.assertEqual(selected["performancePreset"], 4)
+        for flag in ["normal", "first", "normal"]:
+            result = self.invoke(file, "startup", flag)["stored"]
+            self.assert_same_choices(selected, result)
+            self.assertEqual(result["performancePreset"], 4)
+
+    def test_previous_preset_reassignment_drops_saved_render_method_and_haze(self):
+        file = self.fresh()
+        self.invoke(file, "startup", "first")
+        selected = self.invoke(file, "user", "first")["stored"]
+        self.invoke(file, "seed", {"performancePreset": 0})
+        previous = self.invoke(file, "startup", binary="previous")["stored"]
+        self.assertNotEqual(previous["renderMethod"], selected["renderMethod"])
+        self.assertNotEqual(previous["hazeEnabled"], selected["hazeEnabled"])
 
     def test_invalid_scale_and_profile_use_safe_values(self):
         file = self.fresh()

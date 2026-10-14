@@ -1,7 +1,8 @@
 # iOS graphics preferences and startup defaults
 
 The normal graphics page remains the generic shared page. On iOS, its saved
-shadows, bloom, ambient occlusion, anti-aliasing, resolution scale, world detail,
+render mode, haze, shadows, bloom, ambient occlusion, anti-aliasing, resolution
+scale, world detail,
 refresh-rate profile and custom Focus Active/Inactive/Startup rates now survive
 normal startup. The application captures the saved values before Render loads
 its settings or the performance preset writes defaults, then restores that
@@ -29,7 +30,7 @@ python3 ios/tests/native_contracts/test_graphics_preferences.py
 ```
 
 It compiles the actual application startup, Render load/set/force methods,
-performance-preset setup/application, LOD setters/storage, Settings value getter
+performance-preset setup/application, explicit preset choices, LOD setters/storage, Settings value getter
 and refresh setters. A real Qt INI store survives separate processes. Tests
 cover first/repeated starts, changed user choices and further changes, partial
 preferences, unknown-preset reassignment, first resolution migration, all custom

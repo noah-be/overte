@@ -47,15 +47,17 @@ const QString Settings::firstRun {"firstRun"};
 #include "settings-value.inc"
 struct AntialiasingSetupConfig { enum Mode {NONE=0,TAA,FXAA,MODE_COUNT}; };
 struct MakeLightingModelConfig {
-    void setShadow(bool) {} void setBloom(bool) {} void setAmbientOcclusion(bool) {}
+    void setShadow(bool) {} void setHaze(bool) {} void setBloom(bool) {} void setAmbientOcclusion(bool) {}
 };
 template<class F> void recursivelyUpdateLightingModel(const std::string&,F f) { MakeLightingModelConfig config; f(&config); }
 void recursivelyUpdateAntialiasingMode(const std::string&,AntialiasingSetupConfig::Mode) {}
 struct MenuOption { static constexpr int Shadows=0,AmbientOcclusion=1; };
 struct Menu { static Menu* getInstance() { static Menu instance;return &instance; } void setIsOptionChecked(int,bool) {} };
 template<class... T> void logIOSRuntimeMarker(T&&...) {}
-struct Config { void setProperty(const char*,float) {} };
-struct RenderConfig { Config* getConfig(const char*) { static Config c;return &c; } };
+struct Config { virtual ~Config()=default;void setProperty(const char*,float) {} };
+namespace render { struct SwitchConfig : Config { void setBranch(int) {} }; }
+void recursivelyUpdateMirrorRenderMethods(const QString&,int,int) {}
+struct RenderConfig { Config* getConfig(const QString&) { static render::SwitchConfig c;return &c; } };
 struct Engine { RenderConfig* getConfiguration() { static RenderConfig c;return &c; } };
 enum WorldDetailQuality {WORLD_DETAIL_LOW,WORLD_DETAIL_MEDIUM,WORLD_DETAIL_HIGH};
 struct LODManager {
@@ -117,10 +119,10 @@ public:
     static RenderScriptingInterface* getInstance() { static RenderScriptingInterface r;return &r; }
     QStringList getScreens() const { return {"display"}; }
     void setFullScreenScreen(const QString& screen) { _fullScreenScreen=screen; }
-    void forceRenderMethod(RenderMethod value) { _renderMethod=value;_renderMethodSetting.set(value); }
-    void setRenderMethod(RenderMethod value) { forceRenderMethod(value); }
-    void forceHazeEnabled(bool value) { _hazeEnabled=value;_hazeEnabledSetting.set(value); }
-    void setHazeEnabled(bool value) { forceHazeEnabled(value); }
+    void forceRenderMethod(RenderMethod);
+    static bool isValidRenderMethod(RenderMethod value) { return value>=DEFERRED && value<=FORWARD; }
+    void setRenderMethod(RenderMethod);
+    void forceHazeEnabled(bool);void setHazeEnabled(bool);
     void forceLocalLightingEnabled(bool value) { _localLightingEnabled=value;_localLightingSetting.set(value); }
     void forceProceduralMaterialsEnabled(bool value) { _proceduralMaterialsEnabled=value;_proceduralMaterialsEnabledSetting.set(value); }
     bool getShadowsEnabled() const { return _shadowsEnabled; }
@@ -181,6 +183,8 @@ int main(int argc,char** argv) {
         render->loadSettings();
         PerformanceManager performance;performance.setPerformancePreset(PerformanceManager::CUSTOM);
         const bool first=option=="first";
+        render->setRenderMethod(first?RenderScriptingInterface::FORWARD:RenderScriptingInterface::DEFERRED);
+        render->setHazeEnabled(!first);
         render->setShadowsEnabled(first);render->setBloomEnabled(!first);
         render->setAmbientOcclusionEnabled(first);
         render->setAntialiasingMode(first?AntialiasingSetupConfig::FXAA:AntialiasingSetupConfig::TAA);
@@ -189,6 +193,9 @@ int main(int argc,char** argv) {
         refresh.setRefreshRateProfile(first?RefreshRateManager::ECO:RefreshRateManager::CUSTOM);
         const int values[] {first?71:41,11,3,2,23,5};
         for(int i=0;i<RefreshRateManager::REGIME_NUM;++i) refresh.setCustomRefreshRate(static_cast<RefreshRateManager::RefreshRateRegime>(i),values[i]);
+    } else if(action=="preset") {
+        render->loadSettings();PerformanceManager performance;
+        performance.setPerformancePreset(PerformanceManager::HIGH);
     } else {
         assert(action=="startup");Application application(option=="first");application.startup();
     }
@@ -206,6 +213,7 @@ int main(int argc,char** argv) {
     }
     QJsonObject result{{"stored",saved},{"runtime",QJsonObject{
         {"shadows",render->getShadowsEnabled()},{"bloom",render->getBloomEnabled()},
+        {"haze",render->_hazeEnabled},{"method",render->_renderMethod},
         {"ao",render->getAmbientOcclusionEnabled()},{"aa",render->getAntialiasingMode()},
         {"scale",render->getViewportResolutionScale()},{"lod",DependencyManager::get<LODManager>()->getWorldDetailQuality()},
         {"profile",refresh._refreshRateProfile},{"active",refresh.rates[0]},
