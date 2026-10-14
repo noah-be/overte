@@ -44,6 +44,8 @@ TESTS = (
     test("platform-glue", "android", PYTHON, "pico-platform-glue-test.py"),
     test("android-entrypoints", "android", PYTHON, "pico-android-entrypoints-test.py"),
     test("embedded-web", "webview", PYTHON, "pico-embedded-web-test.py", requires=("c++", "pkg-config")),
+    test("legacy-web-lifecycle", "webview", PYTHON, "device/test_legacy_web_lifecycle.py", requires=("javac", "java")),
+    test("legacy-web-qt-jni", "webview", PYTHON, "device/test_legacy_web_qt.py", requires=("c++", "pkg-config", "javac", "java")),
     test("webview-bridge", "webview", PYTHON, "pico-webview-bridge-test.py"),
     test("webview-touch-state", "webview", "bash", "pico-webview-input-test.sh", requires=("javac", "java")),
     test("audio-capture-state", "audio", "bash", "pico-audio-capture-state-test.sh", requires=("javac", "java")),

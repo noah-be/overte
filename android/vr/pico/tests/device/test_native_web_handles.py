@@ -19,10 +19,11 @@ class NativeWebHandlesTest(unittest.TestCase):
         registry = between('QMutex itemRegistryMutex;', 'std::atomic<JavaVM*>')
         provider = between('class PicoWebImageProvider', 'struct JniScope')
         lifetime = between('PicoWebViewItem::PicoWebViewItem(', 'void PicoWebViewItem::setUrl(')
-        frames = between('QImage PicoWebViewItem::frameImage()', 'int PicoWebViewItem::pixelWidth()')
+        frames = between('void PicoWebViewItem::syncVisibility()', 'int PicoWebViewItem::pixelWidth()')
         callbacks = source[source.index('extern "C" JNIEXPORT void JNICALL\nJava_org_overte_pico_OffscreenWebView_nativeFrame'):]
         driver = r'''
-#include <QCoreApplication>
+#include <QGuiApplication>
+#include <QQuickItem>
 #include <QHash>
 #include <QImage>
 #include <QMutexLocker>
@@ -33,13 +34,13 @@ class NativeWebHandlesTest(unittest.TestCase):
 #include <cstdio>
 #include <cstdlib>
 #include <cstdint>
-using QQuickItem = QObject; // QuickItem input setup is an explicit boundary.
+// Actual QuickItem signals/visibility; outbound Android commands remain a boundary.
 using jlong = int64_t;
 using jint = int32_t;
 using jboolean = unsigned char;
 using jobject = void*;
 using jclass = void*;
-union jvalue { jlong j; };
+union jvalue { jlong j; bool z; };
 #define JNIEXPORT
 #define JNICALL
 // Only Java direct-buffer access and outbound command effects are substitutes.
@@ -65,9 +66,15 @@ public:
     mutable QMutex _imageMutex;
     QImage _image;
     quint64 _frameSerial = 0;
+    qint64 _nativeEpoch = -1;
+    bool _nativeRendering = false, _surfaceVisible = true;
     unsigned creations = 0;
     void acceptCreationResult(bool) { ++creations; }
-    void acceptFrame(const void*, qsizetype, int, int);
+    void acceptFrame(qint64, const void*, qsizetype, int, int);
+    void acceptLifecycle(qint64, bool);
+    void syncVisibility();
+    bool rendering() const;
+    void renderingChanged() {} // Signal notification is exercised in the whole-item Qt5 test.
     QImage frameImage() const;
     QString frameSource() const;
 };
@@ -76,7 +83,7 @@ static void need(bool value, const char* reason) {
     if (!value) { std::fprintf(stderr, "%s\n", reason); std::exit(1); }
 }
 int main(int argc, char** argv) {
-    QCoreApplication app(argc, argv);
+    QGuiApplication app(argc, argv);
     const QString mode = QString::fromLocal8Bit(argv[1]);
     JNIEnv env;
     uint32_t pixel = 0xff123456;
@@ -92,7 +99,7 @@ int main(int argc, char** argv) {
         auto* second = new (storage) PicoWebViewItem;
         const jlong currentHandle = itemRegistry.key(second);
         Java_org_overte_pico_OffscreenWebView_nativeCreationFinished(nullptr, nullptr, oldHandle, true);
-        Java_org_overte_pico_OffscreenWebView_nativeFrame(&env, nullptr, oldHandle, &pixel, 1, 1);
+        Java_org_overte_pico_OffscreenWebView_nativeFrame(&env, nullptr, oldHandle, 1, &pixel, 1, 1);
         QCoreApplication::processEvents();
         need(second->creations == 0 && second->frameImage().isNull(), "stale callback reached replacement");
         need(currentHandle > 0 && currentHandle != oldHandle, "native handle was reused");
@@ -100,7 +107,8 @@ int main(int argc, char** argv) {
         QSize size;
         need(provider.requestImage(QString::number(oldHandle, 16) + "/1", &size, {}).isNull(), "old image URL reached replacement");
         Java_org_overte_pico_OffscreenWebView_nativeCreationFinished(nullptr, nullptr, currentHandle, true);
-        Java_org_overte_pico_OffscreenWebView_nativeFrame(&env, nullptr, currentHandle, &pixel, 1, 1);
+        Java_org_overte_pico_OffscreenWebView_nativeLifecycle(nullptr, nullptr, currentHandle, 1, true);
+        Java_org_overte_pico_OffscreenWebView_nativeFrame(&env, nullptr, currentHandle, 1, &pixel, 1, 1);
         QCoreApplication::processEvents();
         need(second->creations == 1 && !second->frameImage().isNull(), "current callback was lost");
         need(second->frameSource().startsWith("image://pico-web/" + QString::number(currentHandle, 16) + "/"), "image source uses a different identity");
@@ -134,7 +142,8 @@ int main(int argc, char** argv) {
                             str(cpp), '-o', str(binary), *flags], check=True, timeout=30)
             for case in ('reuse', 'pending', 'exhaustion'):
                 with self.subTest(case=case):
-                    result = subprocess.run([str(binary), case], capture_output=True, text=True, timeout=5)
+                    result = subprocess.run([str(binary), case], capture_output=True, text=True, timeout=5,
+                                            env=__import__("os").environ | {"QT_QPA_PLATFORM": "offscreen"})
                     self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_all_native_commands_and_image_urls_use_the_same_nonpointer_identity(self):
@@ -142,7 +151,7 @@ int main(int argc, char** argv) {
         header = CPP.with_suffix('.h').read_text()
         self.assertIn('int64_t _nativeHandle { 0 };', header)
         commands = re.findall(r'\b\w+\[0\]\.j = ([^;]+);', source)
-        self.assertEqual(len(commands), 16)
+        self.assertEqual(len(commands), 17)
         self.assertEqual(set(commands), {'_nativeHandle'})
         self.assertNotIn('reinterpret_cast<jlong>(this)', source)
         self.assertNotIn('reinterpret_cast<quintptr>(this)', source)

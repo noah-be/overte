@@ -26,11 +26,16 @@ class ActivityTeardownTest(unittest.TestCase):
 public final class PicoActivityTeardownTest {
     static int web, audio, xr, qt, errors, cancelled, documentResults, webResults, qtResults;
     static class Intent {}
-    static boolean failWeb, failAudio, failInput, audioAllowed;
+    static boolean failWeb, failAudio, failInput, audioAllowed, legacyAllowed, failLegacy;
     enum Event { REDACTED }
     static class RedactingDiagnostics { static void e(Event event) { ++errors; } }
     static class OffscreenWebView {
         static final PicoWebInputGate INPUT_GATE = new PicoWebInputGate();
+        static void setForeground(PicoInterfaceActivity owner, boolean active) {
+            if (owner != PicoInterfaceActivity.getInstance()) return;
+            legacyAllowed = active;
+            if (failLegacy) throw new IllegalStateException("test-only");
+        }
         static void destroyAll() { ++web; if (failWeb) throw new IllegalStateException("test-only"); }
         static void cancelAllInput() { ++cancelled; if (failInput) throw new OutOfMemoryError("test-only"); }
 ''' + ingress + '''
@@ -96,13 +101,13 @@ public final class PicoActivityTeardownTest {
         replacement.onDestroy();
         need(PicoInterfaceActivity.INSTANCE.current() == null);
         need(web == 1 && audio == 1 && xr == 2 && qt == 2);
-        failWeb = true; failAudio = true; failInput = true;
+        failWeb = true; failAudio = true; failInput = true; failLegacy = true;
         PicoInterfaceActivity failing = new PicoInterfaceActivity();
         PicoInterfaceActivity.INSTANCE.register(failing);
         failing.onDestroy();
-        need(web == 2 && audio == 2 && xr == 3 && qt == 3 && errors == 3);
+        need(web == 2 && audio == 2 && xr == 3 && qt == 3 && errors == 4);
         need(PicoInterfaceActivity.INSTANCE.current() == null);
-        failWeb = false; failAudio = false; failInput = false;
+        failWeb = false; failAudio = false; failInput = false; failLegacy = false;
         PicoInterfaceActivity current = new PicoInterfaceActivity();
         PicoInterfaceActivity.INSTANCE.register(current);
         current.onActivityResult(501,0,null); need(documentResults==1 && webResults==0 && qtResults==0);
@@ -111,18 +116,18 @@ public final class PicoActivityTeardownTest {
         current.onResume();
         PicoWebInputGate gate = OffscreenWebView.INPUT_GATE;
         PicoWebInputGate.Ticket ticket = gate.capture();
-        need(gate.permits(ticket, current) && audioAllowed);
+        need(gate.permits(ticket, current) && audioAllowed && legacyAllowed);
         current.onPause(); // Window focus can still be true at pause.
-        need(gate.capture() == null && !audioAllowed);
+        need(gate.capture() == null && !audioAllowed && !legacyAllowed);
         current.onResume();
         need(!gate.permits(ticket, current) && gate.capture() != null);
         current.onWindowFocusChanged(false);
-        need(gate.capture() == null && !audioAllowed);
+        need(gate.capture() == null && !audioAllowed && !legacyAllowed);
         current.onWindowFocusChanged(true);
-        need(gate.capture() != null && audioAllowed);
+        need(gate.capture() != null && audioAllowed && legacyAllowed);
         current.onPause();
         current.onWindowFocusChanged(true); // Focus alone cannot override pause.
-        need(gate.capture() == null && !audioAllowed);
+        need(gate.capture() == null && !audioAllowed && !legacyAllowed);
         current.onResume();
         ticket = gate.capture();
         first.onPause(); first.onResume(); first.onWindowFocusChanged(false);

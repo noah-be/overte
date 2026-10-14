@@ -31,6 +31,15 @@ class ProductionJavaCompileTest(unittest.TestCase):
                 str(ROOT / 'android/common/documents/java/org/overte/documents/DocumentHost.java'),
                 str(ROOT / 'android/common/snapshot/java/org/overte/snapshot/SnapshotHost.java')],
                 check=True, timeout=60)
+            # Inspect actual SDK-compiled bytecode, rather than source strings.
+            descriptors = subprocess.check_output(['javap', '-private', '-s', '-classpath', scratch,
+                'org.overte.pico.OffscreenWebView'], text=True)
+            for method, signature in (
+                ('nativeLifecycle', '(JJZ)V'), ('nativeFrame', '(JJLjava/nio/ByteBuffer;II)V'),
+                ('setVisible', '(JZ)V')):
+                line = descriptors.index(method + '(')
+                actual = descriptors[line:].split('descriptor:', 1)[1].splitlines()[0].strip()
+                self.assertEqual(actual, signature, method)
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

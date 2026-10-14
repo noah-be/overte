@@ -27,10 +27,14 @@ class LegacyBoundary : public QQuickItem {
     Q_PROPERTY(QString userAgent MEMBER userAgent)
     Q_PROPERTY(bool useBackground MEMBER useBackground)
     Q_PROPERTY(QString frameSource READ frameSource)
+    Q_PROPERTY(bool rendering READ rendering NOTIFY renderingChanged)
 public:
     QString url, scriptUrl, userAgent;
     bool useBackground = true;
     QString frameSource() const { return {}; }
+    bool rendering() const { return false; }
+signals:
+    void renderingChanged();
 };
 class BridgeBoundary : public QObject {
     Q_OBJECT

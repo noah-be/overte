@@ -26,7 +26,7 @@ class NativeWebCreationTest(unittest.TestCase):
         def between(start, end):
             return source[source.index(start):source.index(end, source.index(start))]
         methods = between('void PicoWebViewItem::setUrl(', 'void PicoWebViewItem::setUserAgent(')
-        methods += between('void PicoWebViewItem::createWebView()', 'QImage PicoWebViewItem::frameImage()')
+        methods += between('void PicoWebViewItem::createWebView()', 'void PicoWebViewItem::syncVisibility()')
         fields = CPP.with_suffix('.h').read_text().split('    QString _url;', 1)[1].split('    bool _pointerPressed', 1)[0]
         driver = r'''
 #include <QCoreApplication>
@@ -72,6 +72,7 @@ public:
     int pixelHeight() const { return 480; }
     void urlChanged() { ++changed; }
     void setUseBackground(bool value) { _useBackground = value; }
+    void syncVisibility() {} // Effective Quick visibility is exercised by the whole-item Qt/JNI test.
     void setUrl(const QString&);
     void createWebView();
     void scheduleCreationRetry();

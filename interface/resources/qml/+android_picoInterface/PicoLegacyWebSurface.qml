@@ -67,11 +67,18 @@ Item {
                 enabled: false
                 property string frameSource: ""
                 property string previousSource: ""
-                onImageLoaded: requestPaint()
+                function discardFrame() {
+                    if (frameSource !== "") unloadImage(frameSource);
+                    if (previousSource !== "" && previousSource !== frameSource) unloadImage(previousSource);
+                    frameSource = "";
+                    previousSource = "";
+                    requestPaint();
+                }
+                onImageLoaded: { if (webView.rendering && frameSource !== "") requestPaint(); }
                 onPaint: {
-                    if (frameSource !== "") {
-                        var context = getContext("2d");
-                        context.clearRect(0, 0, width, height);
+                    var context = getContext("2d");
+                    context.clearRect(0, 0, width, height);
+                    if (webView.rendering && frameSource !== "" && isImageLoaded(frameSource)) {
                         context.drawImage(frameSource, 0, 0, width, height);
                     }
                 }
@@ -80,14 +87,14 @@ Item {
                         unloadImage(previousSource);
                     }
                     previousSource = frameSource;
-                    refreshTimer.restart();
+                    if (webView.rendering) refreshTimer.restart();
                 }
             }
             Timer {
                 id: refreshTimer
                 interval: 100
                 repeat: false
-                running: true
+                running: webView.rendering
                 onTriggered: {
                     var nextSource = webView.frameSource;
                     if (nextSource === "") {
@@ -105,6 +112,14 @@ Item {
                 scriptUrl: root.scriptUrl
                 useBackground: root.useBackground
                 userAgent: root.userAgent
+                onRenderingChanged: {
+                    if (!rendering) {
+                        refreshTimer.stop();
+                        webCanvas.discardFrame();
+                    } else {
+                        refreshTimer.restart();
+                    }
+                }
             }
             property alias url: webView.url
             property alias scriptUrl: webView.scriptUrl

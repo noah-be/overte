@@ -40,10 +40,19 @@ public final class OffscreenWebView {
     // Main-thread writes; input admission also reads from native/Qt threads.
     private static final Map<Long, Instance> INSTANCES = new ConcurrentHashMap<>();
     private static final PicoWebInputGate INPUT_GATE = new PicoWebInputGate();
+    private static final PicoWebInputGate FRAME_GATE = new PicoWebInputGate();
     private static final int FRAME_INTERVAL_MS = 100;
     private static final int MAX_TEXTURE_EDGE = 2048;
     private static boolean wholeDocumentDrawEnabled;
     private static Instance textFocus;
+    private static long nextFrameEpoch = 1;
+
+    private static synchronized long frameEpoch() {
+        if (nextFrameEpoch == 0) return 0;
+        long value = nextFrameEpoch;
+        nextFrameEpoch = value == Long.MAX_VALUE ? 0 : value + 1;
+        return value;
+    }
 
     private OffscreenWebView() { }
 
@@ -54,16 +63,20 @@ public final class OffscreenWebView {
     private static native void nativeInitialize();
     private static native void nativeCreationFinished(long nativeHandle, boolean created);
     private static native void nativeFrame(
-        long nativeHandle, ByteBuffer pixels, int width, int height);
+        long nativeHandle, long epoch, ByteBuffer pixels, int width, int height);
+    private static native void nativeLifecycle(long nativeHandle, long epoch, boolean rendering);
 
     private interface InstanceCommand {
         void run(Instance instance);
     }
 
     private static void postCommand(long nativeHandle, String name, InstanceCommand command) {
+        final Instance expected = INSTANCES.get(nativeHandle);
+        if (expected == null) return;
+        final WeakReference<Instance> target = new WeakReference<>(expected);
         boolean posted = MAIN.post(() -> {
             Instance instance = INSTANCES.get(nativeHandle);
-            if (instance == null) {
+            if (instance != target.get() || instance == null || !instance.active) {
                 return;
             }
             try {
@@ -76,6 +89,48 @@ public final class OffscreenWebView {
             RedactingDiagnostics.e(Event.REDACTED);
             nativeCreationFinished(nativeHandle, false);
         }
+    }
+
+    // Activity visibility is separate from the DOM/editor input focus gate.
+    // update() fences already queued frames immediately, before Android cleanup.
+    static void setForeground(PicoInterfaceActivity owner, boolean active) {
+        if (PicoInterfaceActivity.getInstance() != owner) return;
+        FRAME_GATE.update(owner, active);
+        Runnable transition = () -> {
+            if (PicoInterfaceActivity.getInstance() != owner) return;
+            for (Instance instance : new ArrayList<>(INSTANCES.values())) {
+                try {
+                    if (instance.view.getContext() != owner) {
+                        // A replacement Activity cannot keep the previous owner's
+                        // hidden media/Views alive. Fresh Qt retry uses a new epoch.
+                        destroyOnMain(instance.nativeHandle);
+                        nativeCreationFinished(instance.nativeHandle, false);
+                        continue;
+                    }
+                    if (!active) instance.suspend();
+                    else instance.updateRendering();
+                } catch (RuntimeException | OutOfMemoryError failure) {
+                    failCurrentInstance(instance.nativeHandle, instance, "foreground lifecycle", failure);
+                }
+            }
+        };
+        if (Looper.myLooper() == Looper.getMainLooper()) transition.run();
+        else if (!MAIN.post(transition)) RedactingDiagnostics.e(Event.REDACTED);
+    }
+
+    public static void setVisible(long nativeHandle, boolean visible) {
+        Instance expected = INSTANCES.get(nativeHandle);
+        if (expected == null || !expected.active) return;
+        synchronized (expected) {
+            if (expected.visible != visible) expected.visibilityRevision = frameEpoch();
+            expected.visible = visible && expected.visibilityRevision > 0;
+        }
+        // Fence queued raster/input work at admission, not only when Android's
+        // UI queue eventually applies the corresponding media transition.
+        postCommand(nativeHandle, "surface visibility", instance -> {
+            if (!visible) instance.suspend();
+            else instance.updateRendering();
+        });
     }
 
     static void setInputForeground(PicoInterfaceActivity owner, boolean active) {
@@ -94,8 +149,11 @@ public final class OffscreenWebView {
         // Queued input belongs only to the instance present at admission; avoid
         // retaining a destroyed View/Activity merely because a callback is queued.
         final WeakReference<Instance> target = new WeakReference<>(expected);
+        final long surfaceEpoch = expected.epoch;
+        final long visibilityRevision = expected.visibilityRevision;
         postCommand(handle, name, instance -> {
-            if (instance != target.get()) return;
+            if (instance != target.get() || instance.epoch != surfaceEpoch
+                    || instance.visibilityRevision != visibilityRevision || !instance.visible || !instance.rendering) return;
             PicoInterfaceActivity owner = PicoInterfaceActivity.getInstance();
             if (!INPUT_GATE.permits(ticket, owner) || !instance.active
                     || !owner.hasWindowFocus() || instance.view.getContext() != owner) return;
@@ -121,12 +179,13 @@ public final class OffscreenWebView {
             nativeCreationFinished(nativeHandle, false);
             return;
         }
+        final PicoInterfaceActivity requestedOwner = PicoInterfaceActivity.getInstance();
         boolean posted = MAIN.post(() -> {
             WebView view = null;
             try {
                 destroyOnMain(nativeHandle);
                 PicoInterfaceActivity activity = PicoInterfaceActivity.getInstance();
-                if (activity == null) {
+                if (activity == null || activity != requestedOwner) {
                     RedactingDiagnostics.e(Event.REDACTED);
                     nativeCreationFinished(nativeHandle, false);
                     return;
@@ -169,6 +228,9 @@ public final class OffscreenWebView {
                         return true;
                     }
                     @Override public void onPageFinished(WebView finishedView, String finishedUrl) {
+                        Instance current = INSTANCES.get(nativeHandle);
+                        if (current == null || !current.active || current.view != finishedView) return;
+                        if (!current.rendering) current.pauseMedia();
                         finishedView.scrollTo(0, 0);
                         RedactingDiagnostics.i(Event.REDACTED);
                     }
@@ -209,14 +271,13 @@ public final class OffscreenWebView {
                     return;
                 }
                 INSTANCES.put(nativeHandle, instance);
-                view.loadUrl(safeUrl);
+                // Creation starts dormant. Qt confirms effective surface
+                // visibility after the creation handshake; hidden pages do not
+                // run an initial document/media/frame before that confirmation.
+                instance.pendingUrl = safeUrl;
+                view.onPause();
+                nativeLifecycle(nativeHandle, instance.epoch, false);
                 RedactingDiagnostics.i(Event.REDACTED);
-                if (!MAIN.post(instance.renderFrame)) {
-                    RedactingDiagnostics.e(Event.REDACTED);
-                    destroyOnMain(nativeHandle);
-                    nativeCreationFinished(nativeHandle, false);
-                    return;
-                }
                 nativeCreationFinished(nativeHandle, true);
             } catch (RuntimeException | OutOfMemoryError exception) {
                 RedactingDiagnostics.e(Event.REDACTED);
@@ -273,8 +334,9 @@ public final class OffscreenWebView {
         Instance old = INSTANCES.remove(nativeHandle);
         if (old != null) {
             old.active = false;
+            runCleanupStep("suspend view", old::suspend);
             runCleanupStep("release editor focus", () -> releaseTextFocus(old));
-            runCleanupStep("remove frame callback", () -> MAIN.removeCallbacks(old.renderFrame));
+            runCleanupStep("remove frame callback", old::stopRendering);
             runCleanupStep("cancel touch", old::cancelActiveTouch);
             runCleanupStep("dispose frame buffer", old::disposeGraphics);
             runCleanupStep("stop loading", old.view::stopLoading);
@@ -299,7 +361,12 @@ public final class OffscreenWebView {
             instance.cancelActiveTouch();
             instance.pendingScroll = 0.0f;
             // Invalid replacement content must not leave the previous page interactive.
-            instance.view.loadUrl(safeUrl == null ? "about:blank" : safeUrl);
+            instance.pendingUrl = safeUrl == null ? "about:blank" : safeUrl;
+            if (instance.rendering) {
+                String pending = instance.pendingUrl;
+                instance.pendingUrl = null;
+                instance.view.loadUrl(pending);
+            }
         });
     }
 
@@ -399,13 +466,17 @@ public final class OffscreenWebView {
                 + "e.scrollTop+=d;"
                 + "})(%.3f,%.3f,%.3f)",
                 x, y, -wheelStep * 120.0f);
+            final long surfaceEpoch = instance.epoch;
+            final long visibilityRevision = instance.visibilityRevision;
             instance.view.evaluateJavascript(script, result -> {
                 // An unattached software WebView does not receive ViewRootImpl's
                 // normal invalidation/layout pass after compositor scrolling.
                 // Force that pass so draw(Canvas) cannot reuse stale page layers.
                 // The callback can arrive after destroy or after a replacement
                 // WebView has reused the same native handle.
-                if (instance.active && INSTANCES.get(nativeHandle) == instance) {
+                if (instance.active && instance.epoch == surfaceEpoch
+                        && instance.visibilityRevision == visibilityRevision && instance.mayRender()
+                        && INSTANCES.get(nativeHandle) == instance) {
                     try {
                         instance.refreshLayout();
                     } catch (RuntimeException | OutOfMemoryError exception) {
@@ -421,7 +492,13 @@ public final class OffscreenWebView {
         final long nativeHandle;
         final WebView view;
         final float displayDensity;
-        boolean active = true;
+        volatile boolean active = true;
+        volatile boolean visible;
+        volatile boolean rendering;
+        volatile long epoch = frameEpoch();
+        volatile long visibilityRevision = frameEpoch();
+        String pendingUrl;
+        Runnable pendingFrame;
         Bitmap bitmap;
         Canvas canvas;
         ByteBuffer pixels;
@@ -431,9 +508,13 @@ public final class OffscreenWebView {
 
         final Runnable renderFrame = new Runnable() {
             @Override public void run() {
-                if (!active || bitmap == null) {
+                if (!mayRender() || bitmap == null) {
                     return;
                 }
+                final long renderedEpoch = epoch;
+                final long renderedVisibility = visibilityRevision;
+                final PicoWebInputGate.Ticket ticket = FRAME_GATE.capture();
+                if (ticket == null) return;
                 try {
                     bitmap.eraseColor(0x00000000);
                     int saveCount = canvas.save();
@@ -446,7 +527,11 @@ public final class OffscreenWebView {
                     pixels.rewind();
                     bitmap.copyPixelsToBuffer(pixels);
                     pixels.rewind();
-                    nativeFrame(nativeHandle, pixels, bitmap.getWidth(), bitmap.getHeight());
+                    // Recheck admission after rasterization: an Activity pause
+                    // can invalidate its epoch from another thread meanwhile.
+                    if (!mayRender() || renderedEpoch != epoch || renderedVisibility != visibilityRevision
+                            || !FRAME_GATE.permits(ticket, PicoInterfaceActivity.getInstance())) return;
+                    nativeFrame(nativeHandle, renderedEpoch, pixels, bitmap.getWidth(), bitmap.getHeight());
                     if (!reportedFirstFrame) {
                         reportedFirstFrame = true;
                         RedactingDiagnostics.i(Event.REDACTED);
@@ -461,12 +546,10 @@ public final class OffscreenWebView {
                     nativeCreationFinished(nativeHandle, false);
                     return;
                 }
-                if (active && INSTANCES.get(nativeHandle) == Instance.this) {
-                    if (!MAIN.postDelayed(this, FRAME_INTERVAL_MS)) {
-                        RedactingDiagnostics.e(Event.REDACTED);
-                        destroyOnMain(nativeHandle);
-                        nativeCreationFinished(nativeHandle, false);
-                    }
+                if (mayRender() && !scheduleFrame(FRAME_INTERVAL_MS)) {
+                    RedactingDiagnostics.e(Event.REDACTED);
+                    destroyOnMain(nativeHandle);
+                    nativeCreationFinished(nativeHandle, false);
                 }
             }
         };
@@ -475,6 +558,72 @@ public final class OffscreenWebView {
             this.nativeHandle = nativeHandle;
             this.view = view;
             this.displayDensity = Math.max(1.0f, displayDensity);
+        }
+
+        boolean mayRender() {
+            PicoInterfaceActivity owner = PicoInterfaceActivity.getInstance();
+            return epoch > 0 && visibilityRevision > 0 && active && visible && rendering && INSTANCES.get(nativeHandle) == this
+                && view.getContext() == owner && FRAME_GATE.capture() != null;
+        }
+
+        boolean scheduleFrame(long delay) {
+            final PicoWebInputGate.Ticket ticket = FRAME_GATE.capture();
+            if (ticket == null || !mayRender()) return true;
+            final long scheduledEpoch = epoch;
+            final long scheduledVisibility = visibilityRevision;
+            final Runnable callback = () -> {
+                if (scheduledEpoch != epoch || scheduledVisibility != visibilityRevision || !mayRender()
+                        || !FRAME_GATE.permits(ticket, PicoInterfaceActivity.getInstance())) return;
+                pendingFrame = null;
+                renderFrame.run();
+            };
+            pendingFrame = callback;
+            return MAIN.postDelayed(callback, delay);
+        }
+
+        void stopRendering() {
+            epoch = frameEpoch();
+            rendering = false;
+            Runnable callback = pendingFrame;
+            pendingFrame = null;
+            if (callback != null) MAIN.removeCallbacks(callback);
+            nativeLifecycle(nativeHandle, epoch == 0 ? Long.MAX_VALUE : epoch, false);
+        }
+
+        void pauseMedia() {
+            // Per-view media only. WebView.pauseTimers() would also suspend
+            // unrelated active world/tablet pages in the same process.
+            view.evaluateJavascript("document.querySelectorAll('video,audio').forEach(function(m){m.pause();});", null);
+        }
+
+        void suspend() {
+            runCleanupStep("remove frame callback", this::stopRendering);
+            runCleanupStep("pause page media", this::pauseMedia);
+            runCleanupStep("pause view", view::onPause);
+            runCleanupStep("release editor focus", () -> releaseTextFocus(this));
+            runCleanupStep("cancel touch", this::cancelActiveTouch);
+            pendingScroll = 0;
+        }
+
+        void updateRendering() {
+            PicoInterfaceActivity owner = PicoInterfaceActivity.getInstance();
+            boolean allowed = active && visible && view.getContext() == owner
+                && FRAME_GATE.capture() != null && epoch > 0;
+            if (!allowed) { suspend(); return; }
+            if (rendering) return;
+            epoch = frameEpoch();
+            if (epoch == 0) { suspend(); return; }
+            rendering = true;
+            view.onResume();
+            nativeLifecycle(nativeHandle, epoch, true);
+            if (pendingUrl != null) {
+                String pending = pendingUrl;
+                pendingUrl = null;
+                view.loadUrl(pending);
+            }
+            if (!scheduleFrame(0)) {
+                failCurrentInstance(nativeHandle, this, "frame scheduling", new IllegalStateException());
+            }
         }
 
         void dispatchPointer(int action, float x, float y) {

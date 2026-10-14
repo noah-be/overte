@@ -91,10 +91,11 @@ JNI method ABI against the compiled production Java, additionally run:
 python3 android/vr/pico/tests/pico-embedded-web-test.py --api-only --jni-create \
   --android-jar /absolute/path/to/platforms/android-36/android.jar \
   --webkit-jar /absolute/path/to/androidx-webkit-1.12.1.jar \
-  --qt-jar /absolute/path/to/qualified/QtAndroid.jar
+  --qt-jar /absolute/path/to/qualified/QtAndroid.jar \
+  --core-jar /absolute/path/to/androidx-core-1.1.0.jar
 ```
 
-The three paths must be existing reviewed SDK artifacts. The test first compiles
+The four paths must be existing reviewed SDK artifacts. The test first compiles
 the production Pico Activity/Host, shared web runtime and real Qt bindings
 against those APIs; only generated APK resources and PermissionsActivity are
 excluded. It then calls the production native endpoint through a real host JVM,
@@ -103,3 +104,36 @@ previous compiled create ABI. Only Android Handler/Looper scheduling is replaced
 at the host boundary; the Android WebView, OS prompts and device lifecycle are
 not executed. This check does not build or attest a current Pico APK. Preserve
 artifact hashes and original dependency provenance separately.
+
+## Legacy inline HTML lifecycle regression
+
+The retained `data:text/html` world surface continues to use its original Pico
+renderer. It now starts dormant and renders only while its own QQuick surface
+is visible/enabled and its Activity is foreground. Input/keyboard focus is a
+separate condition. Hide/background retires queued raster and frame epochs,
+pauses this view and its DOM audio/video elements, and releases transient input.
+Show resumes the existing page without automatically restarting its media.
+A replacement Activity retires only the old owner's views. No process-wide
+`WebView.pauseTimers()` is used.
+
+```sh
+python3 android/vr/pico/tests/device/test_legacy_web_lifecycle.py
+python3 android/vr/pico/tests/device/test_legacy_web_qt.py
+python3 android/vr/pico/tests/device/test_production_java_compile.py
+```
+
+These cases are also mandatory entries in the 39-case Pico device-free catalog.
+The Java check executes the original production lifecycle/frame/cleanup methods;
+Android scheduling, Canvas, WebView media effects and native publication are
+explicit host boundaries. The Qt5 check compiles the whole production item,
+loads the real legacy QML and executes the native callbacks through a real JVM.
+Its Java peer substitutes Android WebView and supplies synthetic image buffers;
+this does not establish browser video pixels, WebAudio behavior or physical
+silence. The SDK compilation additionally checks the actual compiled callback
+descriptors. Existing producer, APK and device evidence remains source-bound;
+none is reassigned to this repair.
+
+The host visibility test covers effective QQuick visibility and Activity
+foreground, not the propagation of an entity's `visible` property into the
+shared offscreen renderer. That Main-owned producer linkage must be qualified
+separately before claiming entity-hide lifecycle acceptance.

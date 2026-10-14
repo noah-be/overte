@@ -76,7 +76,9 @@ public class WebInputQueueDriver {
         void evaluateJavascript(String script, Callback callback) { ++scrolls; callback.complete(""); }
     }
     static class Instance {
-        boolean active = true;
+        boolean active = true, visible = true, rendering = true;
+        long epoch = 1, visibilityRevision = 1;
+        boolean mayRender() { return active && visible && rendering; }
         float pendingScroll;
         final View view;
         Instance(PicoInterfaceActivity owner) { view = new View(owner); }
