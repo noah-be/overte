@@ -67,6 +67,33 @@ and exposed WebAssembly. A successful ordinary JavaScript test does not prove
 arbitrary WASM-dependent script compatibility. Report actual API/user results
 and remaining limits rather than inferring runtime parity from build flags.
 
+## Credential-bearing transport
+
+Native account token/password/provider/refresh POSTs, domain password sign-in,
+profile/locker requests and generic bearer requests require HTTPS before Qt can
+start transport. Registration and Steam/Oculus account creation explicitly mark
+their credential-bearing bodies without adding a bearer token. Authenticated
+requests use manual redirect handling, retaining their existing terminal error,
+request-generation, cancellation and settings acknowledgement paths.
+
+The actual thread-local Qt manager also rejects cleartext requests containing
+Authorization or URL credentials, including scripts and the close-event sender.
+The OAuth manager applies the same rule after injecting its account token;
+the WebEngine filter injects account tokens only into eligible HTTPS URLs.
+Anonymous/public HTTP retains its normal behavior. Explicit script HTTP Basic
+credentials remain supported on HTTPS. No additional CAs or SSL-error bypasses
+are installed by this policy.
+
+Host contracts execute the complete production account/domain receivers and
+generic/OAuth manager implementations with real Qt replies. Dependency account
+data, ATP and request transports remain stated boundaries. The tests distinguish
+one queued failure from stale context/owner deletion and preserve public HTTP
+and successful HTTPS request dispatch. Qt5 legacy error observers must receive
+exactly one error, including when an observer deletes the reply. These checks
+do not establish a TLS handshake, a signed app, visible login recovery or a
+current-artifact device journey. Client propagation and device acceptance remain
+open.
+
 ## Directory transport
 
 PLACES uses the same sequential asynchronous directory requests for flat touch,

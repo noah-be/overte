@@ -51,6 +51,8 @@ enum Type {
     None,
     Required,
     Optional,
+    // No bearer token; the request body contains a password or provider proof.
+    Credentials,
 };
 }
 

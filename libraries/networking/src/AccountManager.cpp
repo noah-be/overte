@@ -359,10 +359,13 @@ QNetworkRequest AccountManager::createRequest(QString path, AccountManagerAuth::
         requestURL.setQuery(query);
     }
 
-    if (authType != AccountManagerAuth::None ) {
+    if (authType == AccountManagerAuth::Credentials) {
+        networkRequest.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
+    } else if (authType != AccountManagerAuth::None) {
         if (hasValidAccessToken()) {
             networkRequest.setRawHeader(ACCESS_TOKEN_AUTHORIZATION_HEADER,
                                         _accountInfo.getAccessToken().authorizationHeaderValue());
+            networkRequest.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
         } else {
             if (authType == AccountManagerAuth::Required) {
                 qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
@@ -411,7 +414,13 @@ void AccountManager::sendRequest(const QString& path,
 
     QNetworkReply* networkReply = NULL;
 
-    switch (operation) {
+    if ((authType == AccountManagerAuth::Credentials || networkRequest.hasRawHeader(ACCESS_TOKEN_AUTHORIZATION_HEADER)) &&
+            !overte::network::credentialTransportAllowed(networkRequest.url())) {
+        networkReply = new overte::network::RejectedCredentialReply(networkAccessManager, operation);
+        if (dataMultiPart) {
+            connect(networkReply, &QNetworkReply::destroyed, dataMultiPart, &QHttpMultiPart::deleteLater);
+        }
+    } else switch (operation) {
         case QNetworkAccessManager::GetOperation:
             networkReply = networkAccessManager.get(networkRequest);
             break;
@@ -1085,7 +1094,7 @@ void AccountManager::requestProfile() {
     if (!owner || !credentials.current() || !profileContext.current()) { return; }
     profileRequest.setRawHeader(ACCESS_TOKEN_AUTHORIZATION_HEADER, _accountInfo.getAccessToken().authorizationHeaderValue());
 
-    QNetworkReply* profileReply = networkAccessManager.get(profileRequest);
+    QNetworkReply* profileReply = overte::network::getCredentials(networkAccessManager, profileRequest);
     // Both lifetimes must remain current. Each watcher retains its own ticket;
     // replyCurrent checks the final (profile) ticket, credentials are explicit.
     profileReply->setProperty("_overte_profile_credentials", QVariant::fromValue(credentials));
@@ -1180,7 +1189,7 @@ void AccountManager::requestAccountSettings() {
     if (!owner || !credentials.current() || !download.current()) { return; }
     lockerRequest.setRawHeader(ACCESS_TOKEN_AUTHORIZATION_HEADER, _accountInfo.getAccessToken().authorizationHeaderValue());
 
-    QNetworkReply* lockerReply = networkAccessManager.get(lockerRequest);
+    QNetworkReply* lockerReply = overte::network::getCredentials(networkAccessManager, lockerRequest);
     lockerReply->setProperty("_overte_settings_requested_timestamp", QVariant::fromValue(requestedTimestamp));
     lockerReply->setProperty("_overte_settings_credentials", QVariant::fromValue(credentials));
     overte::network::watchRequest(lockerReply, credentials);
@@ -1310,7 +1319,7 @@ void AccountManager::postAccountSettings() {
 
     auto postData = QJsonDocument(dataObj).toJson(QJsonDocument::Compact);
 
-    QNetworkReply* lockerReply = networkAccessManager.put(lockerRequest, postData);
+    QNetworkReply* lockerReply = overte::network::putCredentials(networkAccessManager, lockerRequest, postData);
     lockerReply->setProperty("_overte_settings_credentials", QVariant::fromValue(credentials));
     lockerReply->setProperty("_overte_settings_timestamp", QVariant::fromValue(snapshot.timestamp));
     overte::network::watchRequest(lockerReply, upload);

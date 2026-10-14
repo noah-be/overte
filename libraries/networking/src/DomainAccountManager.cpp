@@ -11,6 +11,7 @@
 //
 
 #include "DomainAccountManager.h"
+#include "CredentialTransportPolicy.h"
 
 #include <QTimer>
 #include <QThread>
@@ -182,7 +183,7 @@ overte::network::RequestTicket DomainAccountManager::requestAccessToken(const QS
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
 
     QNetworkAccessManager& networkAccessManager = NetworkAccessManager::getInstance();
-    QNetworkReply* requestReply = networkAccessManager.post(request, formData);
+    QNetworkReply* requestReply = overte::network::postCredentials(networkAccessManager, request, formData);
     _pendingAccessTokenReply = requestReply;
     overte::network::watchRequest(requestReply, ticket);
     requestReply->setReadBufferSize(MAX_DOMAIN_AUTH_RESPONSE_BYTES + 1);

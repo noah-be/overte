@@ -7,6 +7,7 @@
 #include <memory>
 #include <vector>
 #include <thread>
+#include "libraries/networking/src/CredentialTransportPolicy.h"
 #include "libraries/networking/src/DomainAccountManager.h"
 #include "security/redaction/SafeDiagnostics.h"
 Q_LOGGING_CATEGORY(networking, "overte.test.domain-auth")
@@ -53,6 +54,52 @@ int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
     qInstallMessageHandler(capture);
     auto& network = NetworkAccessManager::getInstance();
+    // Actual entire production methods/receivers: no password POST for an
+    // insecure endpoint, one queued current outcome, no token/cache revival.
+    for (const auto& endpoint : {"http://auth.invalid/token", "http://127.0.0.1/token",
+             "file:///token", "https://user:secret@auth.invalid/token", ""}) {
+        DomainAccountManager denied;
+        denied.setDomainURL(QUrl("hifi://denied-domain.invalid"));
+        denied.setAuthURL(QUrl(endpoint));
+        int failures = 0, terminal = 0;
+        QObject::connect(&denied, &DomainAccountManager::loginFailed, [&] { ++failures; });
+        overte::network::RequestTicket deniedTicket;
+        QObject::connect(&denied, &DomainAccountManager::loginRequestFinished,
+            [&](overte::network::RequestTicket ticket, overte::network::RequestTicket context, int outcome) {
+                assert(ticket.sameRequest(deniedTicket) && context.current());
+                assert(outcome == static_cast<int>(DomainAccountManager::LoginOutcome::Failed));
+                ++terminal;
+            });
+        const int posts = network.posts;
+        deniedTicket = denied.requestAccessToken("username-canary", "password-canary");
+        assert(network.posts == posts && failures == 0 && terminal == 0);
+        assert(denied.isAccessTokenRequestPending());
+        QCoreApplication::processEvents();
+        assert(failures == 1 && terminal == 1 && !denied.isAccessTokenRequestPending());
+        assert(!denied.isLoggedIn() && denied.getAccessToken().isEmpty());
+        QCoreApplication::processEvents();
+        assert(failures == 1 && terminal == 1 && network.posts == posts);
+    }
+    {
+        DomainAccountManager denied;
+        denied.setAuthURL(QUrl("http://auth.invalid/token"));
+        int failures = 0;
+        QObject::connect(&denied, &DomainAccountManager::loginFailed, [&] { ++failures; });
+        auto ticket = denied.requestAccessToken("u", "p");
+        denied.setClientAuthVisibility(false);
+        QCoreApplication::processEvents();
+        assert(!ticket.current() && failures == 0 && !denied.isAccessTokenRequestPending());
+    }
+    {
+        auto* denied = new DomainAccountManager;
+        denied->setAuthURL(QUrl("http://auth.invalid/token"));
+        int failures = 0;
+        QObject::connect(denied, &DomainAccountManager::loginFailed, [&] { ++failures; });
+        denied->requestAccessToken("u", "p");
+        delete denied;
+        QCoreApplication::processEvents();
+        assert(failures == 0);
+    }
     DomainAccountManager manager;
     struct OutcomeRecord { overte::network::RequestTicket ticket, context; int outcome; };
     std::vector<OutcomeRecord> outcomes;

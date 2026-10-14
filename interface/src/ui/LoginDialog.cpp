@@ -348,7 +348,7 @@ void LoginDialog::createAccountFromOculus(QString email, QString username, QStri
             }
 
             auto accountManager = DependencyManager::get<AccountManager>();
-            accountManager->sendRequest(CREATE_ACCOUNT_FROM_OCULUS_PATH, AccountManagerAuth::None,
+            accountManager->sendRequest(CREATE_ACCOUNT_FROM_OCULUS_PATH, AccountManagerAuth::Credentials,
                                         QNetworkAccessManager::PostOperation, callbackParams,
                                         QJsonDocument(payload).toJson());
             });
@@ -419,7 +419,7 @@ void LoginDialog::createAccountFromSteam(QString username) {
             }
 
             auto accountManager = DependencyManager::get<AccountManager>();
-            accountManager->sendRequest(CREATE_ACCOUNT_FROM_STEAM_PATH, AccountManagerAuth::None,
+            accountManager->sendRequest(CREATE_ACCOUNT_FROM_STEAM_PATH, AccountManagerAuth::Credentials,
                                         QNetworkAccessManager::PostOperation, callbackParams,
                                         QJsonDocument(payload).toJson());
         });
@@ -499,7 +499,7 @@ void LoginDialog::signup(const QString& email, const QString& username, const QS
     qDebug() << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
     auto accountManager = DependencyManager::get<AccountManager>();
-    accountManager->sendRequest(API_SIGNUP_PATH, AccountManagerAuth::None,
+    accountManager->sendRequest(API_SIGNUP_PATH, AccountManagerAuth::Credentials,
                                 QNetworkAccessManager::PostOperation, callbackParams,
                                 QJsonDocument(payload).toJson());
 }
