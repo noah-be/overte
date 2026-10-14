@@ -66,6 +66,8 @@ class WorldWebVisibility(unittest.TestCase):
                                    if line.startswith('const char* WebEntityRenderer::'+name+' = '))
                               for name in ('URL_PROPERTY', 'SCRIPT_URL_PROPERTY', 'USE_BACKGROUND_PROPERTY',
                                            'USER_AGENT_PROPERTY', 'GLOBAL_POSITION_PROPERTY'))
+        setup = (ROOT / 'interface/src/Application_Setup.cpp').read_text()
+        root_initialization = body(setup, 'auto rootItemLoadedFunctor = [url, webSurface]') + ';'
         # Read the actual property declarations shared by the base and Android
         # world roots. Visual loaders remain covered by embedded-web-qml.
         properties = []
@@ -79,6 +81,7 @@ class WorldWebVisibility(unittest.TestCase):
             (stage / 'production-visibility-methods.inc').write_text(methods)
             (stage / 'production-visibility-members.inc').write_text(members)
             (stage / 'production-visibility-constants.inc').write_text(constants)
+            (stage / 'production-acquire-root-initialization.inc').write_text(root_initialization)
             schema = stage / 'ProductionWorldRoot.qml'
             schema.write_text('import QtQuick 2.7\nItem {\n'+properties[0]+'\n}\n')
             fixture = HERE / 'web-entity-visibility-test.cpp'

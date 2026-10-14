@@ -8,6 +8,7 @@
 #include <QQuickWindow>
 #include <QQmlComponent>
 #include <QQmlEngine>
+#include <QQmlContext>
 #include <QSharedPointer>
 #include <QWeakPointer>
 #include <QPointer>
@@ -33,6 +34,7 @@ class OffscreenSurface : public QObject {
 public:
     using QObject::QObject;
 signals:
+    void rootContextCreated(QQmlContext* context);
     void rootItemCreated(QQuickItem* item);
 };
 } }
@@ -55,11 +57,12 @@ public:
     QQmlEngine engine;
     DocumentProbe* document {};
     ContextBoundary context;
+    int maxFps {};
     QQuickItem* getRootItem() const { return root; }
     ContextBoundary* getSurfaceContext() { return &context; }
     void resume() {}
     void resize(const QSize&) {}
-    void setMaxFps(int) {}
+    void setMaxFps(int value) { maxFps = value; }
     void createRoot() {
         delete root;
         QQmlComponent component(&engine, QUrl::fromLocalFile(rootSchema));
@@ -84,6 +87,9 @@ struct EntityBoundary {
     bool visible { true };
     QString url { DOCUMENT.toString() };
     QString scriptUrl;
+    QString userAgent;
+    bool useBackground {};
+    int maxFps { 10 };
     bool getVisible() const { return visible; }
     QString getSourceUrl() const { return url; }
     int getInputMode() const { return 0; }
@@ -94,9 +100,9 @@ struct EntityBoundary {
     int getPulseProperties() const { return 0; }
     bool getLocalSafeContext() const { return false; }
     QString getScriptURL() const { return scriptUrl; }
-    int getMaxFPS() const { return 10; }
-    bool getUseBackground() const { return false; }
-    QString getUserAgent() const { return {}; }
+    int getMaxFPS() const { return maxFps; }
+    bool getUseBackground() const { return useBackground; }
+    QString getUserAgent() const { return userAgent; }
     int getWorldPosition() const { return 0; }
     int getScaledDimensions() const { return 1; }
     QString getID() const { return "entity-boundary"; }
@@ -125,6 +131,10 @@ static std::atomic<uint32_t> _currentWebCount(0);
 static const uint32_t MAX_CONCURRENT_WEB_VIEWS = 20;
 static uint8_t YOUTUBE_MAX_FPS = 30;
 
+// The real renderer lives in render::entities. Native compilation also has
+// render::hifi from its render/shader dependencies, which shadows ::hifi here.
+// Keep that namespace boundary so a global-only fixture cannot hide lookup bugs.
+namespace render { namespace hifi {} namespace entities {
 class WebEntityRenderer : public QObject {
     Q_OBJECT
 public:
@@ -147,8 +157,21 @@ public:
     static const char* USER_AGENT_PROPERTY;
     static const char* GLOBAL_POSITION_PROPERTY;
     static ContentType getContentType(const QString&);
-    static void acquireWebSurface(const QString&, bool, QSharedPointer<OffscreenQmlSurface>& surface, bool& cached) {
+    static void acquireWebSurface(const QString& url, bool htmlContent, QSharedPointer<OffscreenQmlSurface>& surface, bool& cached) {
         assert(nextSurface); surface = nextSurface; cached = true;
+        // Execute the actual application's HTML root initializer; acquisition
+        // sets its URL, while the renderer owns script/background/user-agent.
+        if (htmlContent) {
+            auto webSurface = surface;
+#include "production-acquire-root-initialization.inc"
+            if (webSurface->getRootItem()) {
+                rootItemLoadedFunctor();
+            } else {
+                QObject::connect(webSurface.data(), &::hifi::qml::OffscreenSurface::rootContextCreated,
+                                 rootItemLoadedFunctor);
+            }
+        }
+        surface->setMaxFps(10); // Actual application acquisition default.
     }
     static void releaseWebSurface(QSharedPointer<OffscreenQmlSurface>& surface, bool& cached,
                                  std::vector<QMetaObject::Connection>& connections) {
@@ -173,6 +196,8 @@ signals:
     void webEventReceived(const QVariant&);
     void requestRenderUpdate();
 };
+} }
+using namespace render::entities;
 QSharedPointer<OffscreenQmlSurface> WebEntityRenderer::nextSurface;
 #include "production-visibility-constants.inc"
 #include "web-entity-visibility-test.moc"
@@ -216,6 +241,54 @@ int main(int argc, char** argv) {
         assert(surface->root->property("scriptUrl").toString() == entity->scriptUrl);
     }
     {
+        auto first = makeSurface();
+        auto entity = EntityItemPointer::create();
+        entity->scriptUrl = "https://source.example/current-owner.js";
+        entity->userAgent = "CurrentEntityAgent";
+        entity->useBackground = false;
+        entity->maxFps = 19;
+        WebEntityRenderer renderer;
+        update(renderer, entity);
+        assert(first->root->property("scriptUrl").toString() == entity->scriptUrl);
+        renderer.destroyWebSurface();
+        // An expired surface may be replaced by a cache entry formerly owned
+        // by a different entity. No entity property or source URL changes.
+        auto restored = makeSurface();
+        restored->root->setProperty("scriptUrl", "https://source.example/previous-owner.js");
+        restored->root->setProperty("userAgent", "PreviousEntityAgent");
+        restored->root->setProperty("useBackground", true);
+        update(renderer, entity);
+        assert(restored->root->property("url").toString() == entity->url);
+        assert(restored->root->property("scriptUrl").toString() == entity->scriptUrl);
+        assert(restored->root->property("userAgent").toString() == entity->userAgent);
+        assert(restored->root->property("useBackground").toBool() == entity->useBackground);
+        assert(restored->maxFps == entity->maxFps);
+    }
+    {
+        auto surface = makeSurface(false);
+        auto entity = EntityItemPointer::create();
+        entity->scriptUrl = "https://source.example/before-root.js";
+        entity->userAgent = "LateRootAgent";
+        WebEntityRenderer renderer;
+        int requestedUpdates {};
+        // The real scene receiver queues a forced update for the current
+        // entity. Its scene lookup/scheduling remain an explicit boundary.
+        QObject::connect(&renderer, &WebEntityRenderer::requestRenderUpdate, &renderer, [&] {
+            ++requestedUpdates;
+            update(renderer, entity);
+        }, Qt::QueuedConnection);
+        update(renderer, entity); // Acquire before the root exists.
+        entity->scriptUrl = "https://source.example/current-at-root.js";
+        surface->createRoot();
+        QCoreApplication::processEvents();
+        QCoreApplication::processEvents();
+        assert(requestedUpdates == 1);
+        assert(surface->root->property("url").toString() == entity->url);
+        assert(surface->root->property("scriptUrl").toString() == entity->scriptUrl);
+        assert(surface->root->property("userAgent").toString() == entity->userAgent);
+        assert(surface->root->property("useBackground").toBool() == entity->useBackground);
+    }
+    {
         auto surface = makeSurface(false);
         auto entity = EntityItemPointer::create();
         WebEntityRenderer renderer; renderer.buildWebSurface(entity, entity->url);
@@ -229,11 +302,15 @@ int main(int argc, char** argv) {
         auto oldEntity = EntityItemPointer::create(); oldEntity->visible = false;
         auto newEntity = EntityItemPointer::create();
         WebEntityRenderer oldOwner; oldOwner.buildWebSurface(oldEntity, oldEntity->url);
+        int staleUpdates {};
+        QObject::connect(&oldOwner, &WebEntityRenderer::requestRenderUpdate, &oldOwner,
+                         [&] { ++staleUpdates; });
         surface->createRoot(); // Old callback is queued before disconnect/cache return.
         oldOwner.destroyWebSurface();
         WebEntityRenderer newOwner; newOwner.buildWebSurface(newEntity, newEntity->url);
         const auto grant = surface->document->session.generation();
         QCoreApplication::processEvents();
+        assert(staleUpdates == 0);
         assert(surface->root->isVisible() && surface->document->session.active());
         assert(surface->document->session.allowsBridge(grant, DOCUMENT, true, 10));
         // Reuse by the same renderer establishes a fresh lease as well.
@@ -263,5 +340,6 @@ int main(int argc, char** argv) {
     }
     WebEntityRenderer::nextSurface.reset(); // All Qt windows precede QApplication teardown.
     assert(_currentWebCount == 0);
-    std::cout << "PASS actual Entity.visible, Qt descendants/native policy, late root, cache reuse, deletion and source replacement\n";
+    std::cout << "PASS Qt " << qVersion()
+              << " actual Entity.visible, native policy, namespace lookup, late root update, current-owner cache properties, deletion and source replacement\n";
 }

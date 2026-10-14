@@ -428,14 +428,21 @@ void WebEntityRenderer::buildWebSurface(const EntityItemPointer& entity, const Q
     _webSurfaceLease = QSharedPointer<int>::create(0);
     const auto lease = _webSurfaceLease;
     const QWeakPointer<OffscreenQmlSurface> weakSurface(_webSurface);
-    _connections.push_back(QObject::connect(_webSurface.data(), &hifi::qml::OffscreenSurface::rootItemCreated,
+    _connections.push_back(QObject::connect(_webSurface.data(), &::hifi::qml::OffscreenSurface::rootItemCreated,
         this, [this, lease, weakSurface](QQuickItem*) {
+            bool currentRoot = false;
             withWriteLock([&] {
                 const auto surface = weakSurface.toStrongRef();
-                if (surface && surface == _webSurface && lease == _webSurfaceLease) {
+                if (surface && surface == _webSurface && lease == _webSurfaceLease && surface->getRootItem()) {
                     synchronizeWebVisibility(_webSurfaceVisible);
+                    currentRoot = true;
                 }
             });
+            // Acquisition can finish after the entity update. Schedule its
+            // current properties through the existing queued scene receiver.
+            if (currentRoot) {
+                emit requestRenderUpdate();
+            }
         }, Qt::QueuedConnection));
     synchronizeWebVisibility(entity->getVisible());
     _webSurface->resume();
@@ -466,6 +473,9 @@ void WebEntityRenderer::destroyWebSurface() {
         _contentType = ContentType::NoContent;
         // A later entity update must rebuild even when its URL is unchanged.
         _tryingToBuildURL.clear();
+        // Acquisition initializes only the URL. The replacement/cache root
+        // must also receive this owner's unchanged script and display settings.
+        _sourceURL.clear();
     });
 }
 
