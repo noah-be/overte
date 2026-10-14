@@ -3,6 +3,7 @@
 // Execute production startup/load/preset/setter bodies with a real persistent
 // Qt store. The Setting::Manager worker, GPU/platform profiler and display
 // scheduler are explicit host boundaries, not simulated device evidence.
+#include <glm/glm.hpp>
 #include <QCoreApplication>
 #include <QSettings>
 #include <QVariant>
@@ -32,7 +33,8 @@ namespace Setting {
 template<class T> struct Handle {
     QString key; T fallback;
     Handle(QString name,T value):key(name),fallback(value) {}
-    T get() const { return store->value(key,QVariant::fromValue(fallback)).template value<T>(); }
+    T get() const { return get(fallback); }
+    T get(const T& other) const { return store->value(key,QVariant::fromValue(other)).template value<T>(); }
     void set(T value) { store->setValue(key,QVariant::fromValue(value)); }
 };
 }

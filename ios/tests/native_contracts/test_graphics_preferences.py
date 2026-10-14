@@ -82,6 +82,11 @@ class GraphicsPreferences(unittest.TestCase):
         cls.temp = tempfile.TemporaryDirectory(prefix="ios-graphics-persistence-")
         cls.directory = Path(cls.temp.name)
         flags = shlex.split(subprocess.check_output(["pkg-config", "--cflags", "--libs", "Qt6Core"], text=True))
+        glm_include = os.environ.get("OVERTE_TEST_GLM_INCLUDE")
+        if glm_include:
+            if not (Path(glm_include) / "glm/glm.hpp").is_file():
+                raise RuntimeError("The explicit GLM include directory is incomplete")
+            flags.append("-I" + glm_include)
         render = (ROOT / "interface/src/scripting/RenderScriptingInterface.cpp").read_text()
         header = (ROOT / "interface/src/scripting/RenderScriptingInterface.h").read_text()
         performance = (ROOT / "interface/src/PerformanceManager.cpp").read_text()
