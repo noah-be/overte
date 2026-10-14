@@ -6,7 +6,7 @@ import controlsUit 1.0 as HifiControls
 Rectangle {
     id: root
     readonly property string semanticScreenId: "places.home"
-    HifiControls.TouchUiMetrics { id: touchMetrics; availableWidth: root.width; availableHeight: root.height }
+    HifiControls.TouchUiMetrics { id: touchMetrics; objectName: "placesTouchMetrics"; availableWidth: root.width; availableHeight: root.height }
     color: "#303030"
     signal sendToScript(var message)
     // OffscreenQmlSurface raises the established headset keyboard on focus.
@@ -157,25 +157,25 @@ Rectangle {
         spacing: 8
         RowLayout {
             Layout.fillWidth: true
-            Text { text: qsTr("OVERTE PLACES"); color: "white"; font.bold: true
+            Text { text: qsTr("OVERTE PLACES"); color: "white"; font.bold: true; wrapMode: Text.WordWrap
                 font.pixelSize: Math.round(22 * touchMetrics.textScale); Layout.fillWidth: true }
-            Button { objectName: "refreshPlaces"; text: qsTr("Refresh"); implicitHeight: root.controlHeight
+            Button { font.pixelSize: Math.round(16 * touchMetrics.textScale); objectName: "refreshPlaces"; text: qsTr("Refresh"); implicitHeight: root.controlHeight
                 enabled: !root.loading; onClicked: root.requestContent() }
         }
         RowLayout {
             Layout.fillWidth: true
-            Button { objectName: "goBack"; text: qsTr("Back"); implicitHeight: root.controlHeight
+            Button { font.pixelSize: Math.round(16 * touchMetrics.textScale); objectName: "goBack"; text: qsTr("Back"); implicitHeight: root.controlHeight
                 Layout.fillWidth: true; onClicked: root.dispatch("GO_BACK") }
-            Button { objectName: "goForward"; text: qsTr("Forward"); implicitHeight: root.controlHeight
+            Button { font.pixelSize: Math.round(16 * touchMetrics.textScale); objectName: "goForward"; text: qsTr("Forward"); implicitHeight: root.controlHeight
                 Layout.fillWidth: true; onClicked: root.dispatch("GO_FORWARD") }
-            Button { objectName: "goHome"; text: qsTr("Home"); implicitHeight: root.controlHeight
+            Button { font.pixelSize: Math.round(16 * touchMetrics.textScale); objectName: "goHome"; text: qsTr("Home"); implicitHeight: root.controlHeight
                 Layout.fillWidth: true; onClicked: root.dispatch("GO_HOME") }
         }
         RowLayout {
             Layout.fillWidth: true
             Text { text: root.currentAddress; color: "#dddddd"; elide: Text.ElideMiddle
                 Layout.fillWidth: true; Accessible.name: qsTr("Current location") }
-            Button { objectName: "locationActions"; text: qsTr("Location"); implicitHeight: root.controlHeight
+            Button { font.pixelSize: Math.round(16 * touchMetrics.textScale); objectName: "locationActions"; text: qsTr("Location"); implicitHeight: root.controlHeight
                 enabled: root.currentAddress !== ""; onClicked: locationMenu.open() }
             Menu {
                 id: locationMenu
@@ -201,9 +201,9 @@ Rectangle {
             ColumnLayout {
                 RowLayout {
                     Layout.fillWidth: true
-                    TextField { id: search; objectName: "placesSearch"; placeholderText: qsTr("Search places")
+                    TextField { font.pixelSize: Math.round(16 * touchMetrics.textScale); id: search; objectName: "placesSearch"; placeholderText: qsTr("Search places")
                         Layout.fillWidth: true; implicitHeight: root.controlHeight; onTextChanged: root.rebuildPlaces() }
-                    Button { objectName: "maturityFilters"; text: qsTr("Ratings"); implicitHeight: root.controlHeight
+                    Button { font.pixelSize: Math.round(16 * touchMetrics.textScale); objectName: "maturityFilters"; text: qsTr("Ratings"); implicitHeight: root.controlHeight
                         onClicked: ratingPopup.open() }
                 }
                 Text { Layout.fillWidth: true; visible: root.loading; text: qsTr("Loading current domain directory...")
@@ -220,7 +220,9 @@ Rectangle {
                         width: placesList.width
                         spacing: 0
                         Button {
-                            objectName: "visitPlace"; Layout.fillWidth: true; implicitHeight: Math.max(64, root.controlHeight)
+                            objectName: "visitPlace"; Layout.fillWidth: true
+                            font.pixelSize: Math.round(20 * touchMetrics.textScale)
+                            implicitHeight: Math.max(64, root.controlHeight, contentItem.implicitHeight + topPadding + bottomPadding)
                             text: placeName + "\n" + (capacity > 0 ? attendance + "/" + capacity : attendance + qsTr(" online"))
                             enabled: placeAddress !== ""
                             onClicked: root.dispatch("TELEPORT", {name: placeName, address: placeAddress})
@@ -228,9 +230,9 @@ Rectangle {
                         Text { Layout.fillWidth: true; text: placeDescription || placeAddress; color: "#dddddd"
                             elide: Text.ElideRight; font.pixelSize: Math.round(15 * touchMetrics.textScale) }
                         RowLayout {
-                            Button { objectName: "copyPlace"; text: qsTr("Copy address"); implicitHeight: root.controlHeight
+                            Button { font.pixelSize: Math.round(16 * touchMetrics.textScale); objectName: "copyPlace"; text: qsTr("Copy address"); implicitHeight: root.controlHeight
                                 enabled: placeAddress !== ""; onClicked: root.dispatch("COPY_URL", {address: placeAddress}) }
-                            Button { objectName: "createPlacePortal"; text: qsTr("Create portal"); implicitHeight: root.controlHeight
+                            Button { font.pixelSize: Math.round(16 * touchMetrics.textScale); objectName: "createPlacePortal"; text: qsTr("Create portal"); implicitHeight: root.controlHeight
                                 enabled: placeAddress !== ""; onClicked: root.dispatch("REQUEST_PORTAL",
                                     {name: placeName, address: placeAddress, placeID: placeId}) }
                         }
@@ -238,7 +240,7 @@ Rectangle {
                 }
             }
             ColumnLayout {
-                Button { objectName: "addBookmark"; text: qsTr("Bookmark current location"); implicitHeight: root.controlHeight
+                Button { font.pixelSize: Math.round(16 * touchMetrics.textScale); objectName: "addBookmark"; text: qsTr("Bookmark current location"); implicitHeight: root.controlHeight
                     Layout.fillWidth: true; enabled: root.currentAddress !== ""; onClicked: root.editBookmark("", root.currentAddress) }
                 Text { visible: bookmarksModel.count === 0; text: qsTr("No saved bookmarks."); color: "#dddddd" }
                 ListView {
@@ -248,14 +250,14 @@ Rectangle {
                     ScrollBar.vertical: ScrollBar {}
                     delegate: ColumnLayout {
                         width: bookmarksList.width
-                        Button { objectName: "visitBookmark"; text: bookmarkName; Layout.fillWidth: true
+                        Button { font.pixelSize: Math.round(16 * touchMetrics.textScale); objectName: "visitBookmark"; text: bookmarkName; Layout.fillWidth: true
                             implicitHeight: root.controlHeight; onClicked: root.dispatch("TELEPORT",
                                 {name: bookmarkName, address: bookmarkAddress}) }
                         Text { text: bookmarkAddress; color: "#dddddd"; Layout.fillWidth: true; elide: Text.ElideMiddle }
                         RowLayout {
-                            Button { objectName: "renameBookmark"; text: qsTr("Rename"); implicitHeight: root.controlHeight
+                            Button { font.pixelSize: Math.round(16 * touchMetrics.textScale); objectName: "renameBookmark"; text: qsTr("Rename"); implicitHeight: root.controlHeight
                                 onClicked: root.editBookmark(bookmarkName, bookmarkAddress) }
-                            Button { objectName: "deleteBookmark"; text: qsTr("Delete"); implicitHeight: root.controlHeight
+                            Button { font.pixelSize: Math.round(16 * touchMetrics.textScale); objectName: "deleteBookmark"; text: qsTr("Delete"); implicitHeight: root.controlHeight
                                 onClicked: root.dispatch("DELETE_BOOKMARK", {name: bookmarkName}) }
                         }
                     }
@@ -264,9 +266,9 @@ Rectangle {
             ColumnLayout {
                 RowLayout {
                     Layout.fillWidth: true
-                    TextField { id: newServer; objectName: "newServerUrl"; placeholderText: qsTr("https://directory.example")
+                    TextField { font.pixelSize: Math.round(16 * touchMetrics.textScale); id: newServer; objectName: "newServerUrl"; placeholderText: qsTr("https://directory.example")
                         implicitHeight: root.controlHeight; Layout.fillWidth: true }
-                    Button { objectName: "addServer"; text: qsTr("Add"); implicitHeight: root.controlHeight
+                    Button { font.pixelSize: Math.round(16 * touchMetrics.textScale); objectName: "addServer"; text: qsTr("Add"); implicitHeight: root.controlHeight
                         enabled: !root.loading && /^https?:\/\/[^\s/?#]+(?:\/[^\s]*)?$/.test(newServer.text.trim())
                         onClicked: { root.dispatch("ADD_MS", {metaverseUrl: newServer.text.trim()}); newServer.clear(); root.requestContent(); } }
                 }
@@ -281,9 +283,9 @@ Rectangle {
                         Text { text: failed ? qsTr("Directory unavailable. Refresh to retry.") : serverRegion
                             color: failed ? "#ffdc8a" : "#dddddd"; Layout.fillWidth: true; wrapMode: Text.WordWrap }
                         RowLayout {
-                            CheckBox { objectName: "fetchServer"; text: qsTr("Fetch"); checked: fetched; implicitHeight: root.controlHeight
+                            CheckBox { font.pixelSize: Math.round(16 * touchMetrics.textScale); objectName: "fetchServer"; text: qsTr("Fetch"); checked: fetched; implicitHeight: root.controlHeight
                                 enabled: !root.loading; onClicked: root.changeServer(serverIndex, "FETCH_META", checked) }
-                            CheckBox { objectName: "pinServer"; text: qsTr("Pin"); checked: pinned; implicitHeight: root.controlHeight
+                            CheckBox { font.pixelSize: Math.round(16 * touchMetrics.textScale); objectName: "pinServer"; text: qsTr("Pin"); checked: pinned; implicitHeight: root.controlHeight
                                 enabled: !root.loading; onClicked: root.changeServer(serverIndex, "PIN_META", checked) }
                         }
                     }
@@ -298,7 +300,7 @@ Rectangle {
         contentItem: ColumnLayout {
             Repeater {
                 model: ["everyone", "teen", "mature", "adult", "unrated"]
-                CheckBox { objectName: "rating_" + modelData; text: modelData; implicitHeight: root.controlHeight
+                CheckBox { font.pixelSize: Math.round(16 * touchMetrics.textScale); objectName: "rating_" + modelData; text: modelData; implicitHeight: root.controlHeight
                     checked: root.maturityFilter.indexOf(modelData) !== -1
                     onClicked: root.toggleMaturity(modelData, checked) }
             }
@@ -313,17 +315,17 @@ Rectangle {
         modal: true
         title: originalName ? qsTr("Rename bookmark") : qsTr("Add bookmark")
         contentItem: ColumnLayout {
-            TextField { id: bookmarkName; objectName: "bookmarkName"; placeholderText: qsTr("Bookmark name")
+            TextField { font.pixelSize: Math.round(16 * touchMetrics.textScale); id: bookmarkName; objectName: "bookmarkName"; placeholderText: qsTr("Bookmark name")
                 Layout.fillWidth: true; implicitHeight: root.controlHeight; selectByMouse: true }
             Text { text: bookmarkDialog.address; color: "#555555"; wrapMode: Text.WrapAnywhere; Layout.fillWidth: true }
             Text { text: qsTr("Choose a new, nonempty name."); visible: !root.validBookmarkName()
                 color: "#9d241a"; wrapMode: Text.WordWrap; Layout.fillWidth: true }
         }
         footer: DialogButtonBox {
-            Button { objectName: "saveBookmark"; text: qsTr("Save"); implicitHeight: root.controlHeight
+            Button { font.pixelSize: Math.round(16 * touchMetrics.textScale); objectName: "saveBookmark"; text: qsTr("Save"); implicitHeight: root.controlHeight
                 enabled: root.validBookmarkName()
                 DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole }
-            Button { text: qsTr("Cancel"); implicitHeight: root.controlHeight
+            Button { font.pixelSize: Math.round(16 * touchMetrics.textScale); text: qsTr("Cancel"); implicitHeight: root.controlHeight
                 DialogButtonBox.buttonRole: DialogButtonBox.RejectRole }
             onAccepted: {
                 var name = bookmarkName.text.trim();

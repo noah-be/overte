@@ -185,10 +185,17 @@ TestCase {
         click("setCurrentHome");
         lastMessage("SET_HOME");
     }
-    function test_narrowTouchLayout_data() { return [{tag: "phone", width: 320}, {tag: "tablet", width: 700}]; }
+    function test_narrowTouchLayout_data() {
+        return [{tag: "phone", width: 320, fontScale: 1},
+                {tag: "phone-large-text", width: 320, fontScale: 1.5},
+                {tag: "tablet", width: 700, fontScale: 1}];
+    }
     function test_narrowTouchLayout(data) {
         page.width = data.width;
         page.height = 640;
+        var metrics = control("placesTouchMetrics");
+        metrics.profile.directTouch = true;
+        metrics.profile.fontScale = data.fontScale;
         wait(30);
         for (var i = 0; i < 3; ++i) {
             var tab = control(["placesTab", "bookmarksTab", "serversTab"][i]);
