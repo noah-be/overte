@@ -3,13 +3,21 @@
 
 import argparse
 import hashlib
+import importlib.util
 import json
+import os
 from pathlib import Path, PurePosixPath
 import re
 import shutil
 import subprocess
 import sys
 import zipfile
+import xml.etree.ElementTree as ET
+
+
+SOURCE_ROOT = Path(__file__).resolve().parents[4]
+WEB_ROOT = SOURCE_ROOT / "android/common/web"
+PICO_MANIFEST = SOURCE_ROOT / "android/vr/pico/apps/picoInterface/src/main/AndroidManifest.xml"
 
 
 EXPECTED_PACKAGE = "org.overte.pico"
@@ -75,6 +83,132 @@ def run_tool(command):
     if len(result.stdout) > 1024 * 1024:
         fail("tool output exceeds verifier bound")
     return result.stdout
+
+
+def sha256_file(path):
+    checksum = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            checksum.update(chunk)
+    return checksum.hexdigest()
+
+
+def decoder_inputs(path):
+    """Bind an SDK launcher and its actual Java runtime dependencies, when present."""
+    path = Path(path).resolve()
+    files = {str(path): sha256_file(path)}
+    sdk = path.parent.parent
+    if path.name == "apkanalyzer" and (sdk / "lib/apkanalyzer-classpath.jar").is_file():
+        for item in [sdk / "source.properties", *sorted((sdk / "lib").rglob("*.jar"))]:
+            if not item.is_file():
+                fail("incomplete APK XML decoder inputs")
+            files[str(item)] = sha256_file(item)
+        java = (Path(os.environ["JAVA_HOME"]) / "bin/java" if os.environ.get("JAVA_HOME")
+                else Path(resolve_tool(None, "java"))).resolve()
+        for item in (java, java.parent.parent / "release", java.parent.parent / "lib/modules",
+                     java.parent.parent / "lib/server/libjvm.so"):
+            if not item.is_file():
+                fail("incomplete APK XML decoder JVM inputs")
+            files[str(item)] = sha256_file(item)
+    return files
+
+
+def network_xml_from_aapt2(tree):
+    """Decode the actual SDK tree with strict hierarchy/attributes and no guesses.
+
+    SDK apkanalyzer 22.0 cannot decode generic XML lacking a resource-map chunk.
+    AAPT2 decodes those real binary resources; the parent validates the resulting
+    XML policy. Unrecognized/ambiguous output fails closed.
+    """
+    stack = []
+    root = None
+    for line in tree.splitlines():
+        if not line.strip():
+            continue
+        element = re.fullmatch(r'( *)E: ([A-Za-z][A-Za-z0-9_-]*) \(line=\d+\)', line)
+        if element:
+            indent = len(element[1])
+            while stack and stack[-1][0] >= indent:
+                stack.pop()
+            node = ET.Element(element[2])
+            if stack:
+                stack[-1][1].append(node)
+            elif root is None and indent == 0:
+                root = node
+            else:
+                fail("ambiguous binary network XML tree")
+            stack.append((indent, node))
+            continue
+        attribute = re.fullmatch(r'( *)A: ([A-Za-z][A-Za-z0-9_-]*)=(true|false|"(?:[^"\\]|\\.)*")(?: \(Raw: ("(?:[^"\\]|\\.)*")\))?', line)
+        if not attribute or not stack or len(attribute[1]) <= stack[-1][0]:
+            fail("unsupported binary network XML tree")
+        key, encoded, raw = attribute[2], attribute[3], attribute[4]
+        value = json.loads(encoded) if encoded.startswith('"') else encoded
+        if raw is not None and json.loads(raw) != value:
+            fail("ambiguous binary network XML value")
+        if key in stack[-1][1].attrib:
+            fail("duplicate binary network XML attribute")
+        stack[-1][1].set(key, value)
+    if root is None:
+        fail("missing binary network XML tree")
+    return ET.tostring(root, encoding="unicode")
+
+
+def verify_network_policy(args):
+    """Consume the parent policy against source and every actual packaged variant.
+
+    No preview path or policy override is exposed by the product CLI. Host tests
+    explicitly substitute WEB_ROOT until the normal VR parent is integrated.
+    """
+    paths = [WEB_ROOT / "network_policy.py", WEB_ROOT / "network-capability.json",
+             WEB_ROOT / "res/xml/overte_embedded_web_network_security_config.xml", PICO_MANIFEST]
+    try:
+        if any(not p.is_file() or p.is_symlink() or p.stat().st_size > 256 * 1024 for p in paths):
+            fail("missing or invalid source network capability")
+        source_hashes = {str(p): sha256_file(p) for p in paths}
+        spec = importlib.util.spec_from_file_location("overte_parent_web_network_policy", paths[0])
+        policy = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(policy)
+        capability_text = paths[1].read_text(encoding="utf-8")
+        policy.validate_source(paths[3].read_text(encoding="utf-8"),
+                               paths[2].read_text(encoding="utf-8"), capability_text)
+        analyzer = str(Path(resolve_tool(args.apkanalyzer, "apkanalyzer")).resolve())
+        aapt2 = str(Path(resolve_tool(args.aapt2, "aapt2")).resolve())
+        tools = decoder_inputs(analyzer)
+        tools.update(decoder_inputs(aapt2))
+        manifest = run_tool([analyzer, "manifest", "print", str(args.apk)])
+        inventory = run_tool([aapt2, "dump", "resources", str(args.apk)])
+        selected = policy.packaged_config_paths(manifest, inventory)
+        if len(selected) > 128:
+            fail("too many packaged network configuration variants")
+        configs = {}
+        trees = {}
+        raw = {}
+        with zipfile.ZipFile(args.apk) as archive:
+            raw["AndroidManifest.xml"] = hashlib.sha256(archive.read("AndroidManifest.xml")).hexdigest()
+            for name in selected:
+                entry = archive.getinfo(name)
+                if entry.file_size > 256 * 1024:
+                    fail("oversized packaged network configuration")
+                raw[name] = hashlib.sha256(archive.read(entry)).hexdigest()
+                trees[name] = run_tool([aapt2, "dump", "xmltree", str(args.apk), "--file", name])
+                configs[name] = network_xml_from_aapt2(trees[name])
+        grant = policy.validate_artifact(manifest, inventory, configs, capability_text)
+        if any(sha256_file(Path(path)) != digest for path, digest in {**source_hashes, **tools}.items()):
+            fail("network capability inputs changed during verification")
+        return {"capability": grant, "source_inputs_sha256": source_hashes,
+                "decoder_inputs_sha256": tools, "packaged_xml_sha256": raw,
+                "decoded_xml_sha256": {name: hashlib.sha256(text.encode()).hexdigest()
+                                       for name, text in configs.items()},
+                "binary_xml_tree_sha256": {name: hashlib.sha256(text.encode()).hexdigest()
+                                            for name, text in trees.items()},
+                "decoded_manifest_sha256": hashlib.sha256(manifest.encode()).hexdigest(),
+                "resource_inventory_sha256": hashlib.sha256(inventory.encode()).hexdigest(),
+                "physical_http_or_tls_qualified": False}
+    except VerificationError:
+        raise
+    except (OSError, ValueError, KeyError, zipfile.BadZipFile, SyntaxError):
+        fail("invalid source or packaged network capability")
 
 
 def inspect_zip(apk):
@@ -188,6 +322,8 @@ def add_candidate_arguments(parser, *, native_binding=False):
         parser.add_argument("--apk", dest="named_apk", type=Path,
                             help="named form of the candidate APK input")
     parser.add_argument("--aapt", help="path to Android aapt")
+    parser.add_argument("--aapt2", help="path to Android aapt2 resource decoder")
+    parser.add_argument("--apkanalyzer", help="path to Android binary XML decoder")
     parser.add_argument("--apksigner", help="path to Android apksigner")
     parser.add_argument("--source-revision", help="40-character Git commit used for the APK build")
     parser.add_argument("--expected-version-code")
@@ -244,6 +380,7 @@ def verify_candidate(args):
         fail("APK size exceeds verifier bound")
     aapt = resolve_tool(args.aapt, "aapt")
     apksigner = resolve_tool(args.apksigner, "apksigner")
+    original_digest = sha256_file(args.apk)
     entries, native_libraries, e2e_input_layer = inspect_zip(args.apk)
     if args.expect_e2e_input_layer and not e2e_input_layer:
         fail("Debug APK is missing the required E2E OpenXR input layer")
@@ -264,6 +401,7 @@ def verify_candidate(args):
         if signer_digest != expected_signer:
             fail("APK signer certificate does not match the protected release signer")
 
+    network_capability = verify_network_policy(args)
     identity = validate_candidate_identity(args, metadata) if identity_supplied else None
     build_evidence = None
     if identity:
@@ -277,6 +415,8 @@ def verify_candidate(args):
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             checksum.update(chunk)
     digest = checksum.hexdigest()
+    if original_digest != digest:
+        fail("candidate bytes changed during verification")
     if identity and identity['artifactSha256'] != digest:
         fail("candidate bytes changed during verification")
     manifest = {
@@ -289,6 +429,7 @@ def verify_candidate(args):
         "native_libraries": native_libraries,
         "e2e_input_layer": e2e_input_layer,
         "signature_verified": True,
+        "network_capability": network_capability,
         "signer_certificate_sha256": signer_digest,
         "identity_status": identity['status'] if identity else 'NOT_PROVIDED_VERIFICATION_PENDING',
     }
