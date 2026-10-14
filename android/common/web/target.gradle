@@ -5,6 +5,7 @@ if (!project.hasProperty('overteEmbeddedWebRoot')) {
     throw new GradleException('overteEmbeddedWebRoot is required')
 }
 android.sourceSets.main.java.srcDir new File(project.overteEmbeddedWebRoot, 'java')
+android.sourceSets.main.res.srcDir new File(project.overteEmbeddedWebRoot, 'res')
 dependencies { implementation 'androidx.webkit:webkit:1.12.1' }
 
 // Keep only the Java endpoint whose class/method names are used by C++ JNI.

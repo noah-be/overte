@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright 2026 Overte contributors. SPDX-License-Identifier: Apache-2.0 -->
+<network-security-config>
+    <!-- Android applies this capability to the application, not one WebView. -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
