@@ -10,6 +10,7 @@
 //
 
 #include "NetworkAccessManager.h"
+#include "CredentialTransportPolicy.h"
 
 #include <QThreadStorage>
 
@@ -20,13 +21,21 @@ QThreadStorage<QNetworkAccessManager*> networkAccessManagers;
 
 QNetworkAccessManager& NetworkAccessManager::getInstance() {
     if (!networkAccessManagers.hasLocalData()) {
-        networkAccessManagers.setLocalData(new QNetworkAccessManager());
+        networkAccessManagers.setLocalData(new overte::network::CredentialNetworkAccessManager());
     }
     
     return *networkAccessManagers.localData();
 }
 
 QNetworkReply* NetworkAccessManager::createRequest(Operation operation, const QNetworkRequest& request, QIODevice* device) {
+    if (overte::network::requestCarriesCredentials(request)) {
+        if (!overte::network::credentialRequestTransportAllowed(request)) {
+            return new overte::network::RejectedCredentialReply(*this, operation);
+        }
+        auto secured = request;
+        secured.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
+        return QNetworkAccessManager::createRequest(operation, secured, device);
+    }
     if (request.url().scheme() == "atp" && operation == GetOperation) {
         return new AtpReply(request.url());
         //auto url = request.url().toString();

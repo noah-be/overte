@@ -301,6 +301,8 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `safe-landing-lifecycle` | `host` | `python3 tests/run-project-tests.py --suite safe-landing-lifecycle` |
 | `embedded-web-policy` | `host` | `python3 tests/run-project-tests.py --suite embedded-web-policy` |
 | `embedded-web-qml` | `host` | `python3 tests/run-project-tests.py --suite embedded-web-qml` |
+| `web-entity-visibility` | `host` | `python3 tests/run-project-tests.py --suite web-entity-visibility` |
+| `places-native-qml` | `host` | `python3 tests/run-project-tests.py --suite places-native-qml` |
 | `account-auth-dispatch` | `host` | `python3 tests/run-project-tests.py --suite account-auth-dispatch` |
 | `lod-preferences` | `host` | `python3 tests/run-project-tests.py --suite lod-preferences` |
 | `goto-dialog-script` | `host` | `python3 tests/run-project-tests.py --suite goto-dialog-script` |
