@@ -1,0 +1,8 @@
+{
+  "schema": 1,
+  "id": "overte.android.embedded-web.http-https.v1",
+  "documentSchemes": ["http", "https"],
+  "androidCleartextScope": "application",
+  "tlsTrustAnchors": ["system"],
+  "requiresIndependentCredentialHttps": true
+}
