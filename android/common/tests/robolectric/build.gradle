@@ -88,9 +88,7 @@ sourceSets {
     test {
         java {
             srcDirs phoneTests, interfaceTests, picoTests, questTests
-            include 'org/overte/phone/PermissionsActivityRobolectricTest.java'
-            include 'org/overte/phone/PhoneDeepLinkRobolectricTest.java'
-            include 'org/overte/phone/RedactingDiagnosticsRobolectricTest.java'
+            include 'org/overte/phone/*RobolectricTest.java'
             include 'io/highfidelity/hifiinterface/HifiUtilsTest.java'
             include 'io/highfidelity/hifiinterface/PermissionCheckerRobolectricTest.java'
             include 'org/overte/pico/PermissionsActivityRobolectricTest.java'
