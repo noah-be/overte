@@ -98,23 +98,19 @@ is_android_arm64_draco_package() {
 }
 
 find_phone_draco_package() {
-    local requested="${PICO_DRACO_PACKAGE_DIR:-}" package_dir archive
+    local requested="${PICO_DRACO_PACKAGE_DIR:-}" package_dir
+    local generator="$android_root/common/conan/phone-16k-debug/generators/draco-debug-armv8-data.cmake"
+    package_dir="$(python3 "$android_root/common/conan/package-folder.py" "$generator" draco)" \
+        || fail "the prepared Phone Draco graph has no exact package binding"
+    is_android_arm64_draco_package "$package_dir" \
+        || fail "the prepared Phone Draco package is not Android ARM64"
     if [[ -n "$requested" ]]; then
         is_android_arm64_draco_package "$requested" \
             || fail "PICO_DRACO_PACKAGE_DIR is not an Android ARM64 Draco package"
-        printf '%s\n' "$requested"
-        return
+        [[ "$(realpath -e -- "$requested")" == "$package_dir" ]] \
+            || fail "PICO_DRACO_PACKAGE_DIR does not match the prepared Phone Draco graph"
     fi
-
-    while IFS= read -r -d '' archive; do
-        package_dir="${archive%/lib/libdraco.a}"
-        if is_android_arm64_draco_package "$package_dir"; then
-            printf '%s\n' "$package_dir"
-            return
-        fi
-    done < <(find "${CONAN_HOME:-${HOME}/.conan2}/p" \
-        -path '*/p/lib/libdraco.a' -type f -print0 2>/dev/null | sort -z)
-    fail "an Android ARM64 Draco Conan package was not found"
+    printf '%s\n' "$package_dir"
 }
 
 prepare() {

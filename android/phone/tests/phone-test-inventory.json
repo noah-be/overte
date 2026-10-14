@@ -22,7 +22,8 @@
       "interface/resources/qml/hifi/tablet/TabletGeneralPreferences.qml",
       "interface/resources/qml/hifi/tablet/TabletTouchConfiguration.qml",
       "interface/resources/qml/hifi/tablet/tabletWindows/TabletPreferencesLayout.qml",
-      "android/phone/apps/phoneInterface/src/main/java/org/qtproject/qt5/android/QtEditText.java"
+      "android/phone/apps/phoneInterface/src/main/java/org/qtproject/qt5/android/QtEditText.java",
+      "scripts/system/settings/qml/pages/+android_phoneInterface/*.qml"
     ]
   },
   "required_catalog_suites": [
@@ -197,12 +198,31 @@
       "android/phone/tests/test_phone_ime.py"
     ],
     "scripts/system/+android_phoneInterface/phoneGraphics.js": [
+      "android/phone/tests/phone-graphics-controller-test.js",
       "tests/javascript/test/phone-graphics.production.test.js"
+    ],
+    "scripts/system/settings/qml/pages/+android_phoneInterface/GraphicsSettings.qml": [
+      "android/phone/tests/phone-graphics-test.py",
+      "android/phone/tests/qml/graphics/tst_phonegraphics.qml"
+    ],
+    "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneWebGeometry.java": [
+      "android/phone/tests/instrumentation/PhoneWebGeometryHostTest.java",
+      "android/phone/tests/phone-embedded-web-test.py"
+    ],
+    "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneEmbeddedWebHost.java": [
+      "android/phone/tests/phone-embedded-web-test.py"
+    ],
+    "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneSnapshotHost.java": [
+      "android/phone/tests/phone-embedded-web-test.py"
+    ],
+    "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneDocumentsHost.java": [
+      "android/phone/tests/phone-embedded-web-test.py"
     ]
   },
   "runtime_boundaries": {
     "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneInterfaceActivity.java": "QtActivity/native loader, WindowInsets callbacks, predictive Back and real lifecycle require Android; pure URL, metrics normalization and legacy IME extraction policies are separately tested; the package-private E2E process handshake is covered by PhoneE2eLaunchStateTest and E2eFlightControlActivityTest",
-    "android/phone/apps/phoneInterface/src/PhoneUrlHandler.cpp": "JNI string conversion plus Qt queued URL, runtime-metrics and UI-thread Back delivery require a live Qt/JNI runtime; defensive handoff and metrics policies are separately tested"
+    "android/phone/apps/phoneInterface/src/PhoneUrlHandler.cpp": "JNI string conversion plus Qt queued URL, runtime-metrics and UI-thread Back delivery require a live Qt/JNI runtime; defensive handoff and metrics policies are separately tested",
+    "android/phone/apps/phoneInterface/src/PhoneEmbeddedWeb.cpp": "Native packaged-root registration and Qt/JNI scene-size handoff require the actual Android Qt application; host geometry and picker policies are separately compiled and behavior tested, but no device media/IME/provider qualification is claimed."
   },
   "default_script_runtime_boundaries": {
     "system/request-service.js": "generic request service integration, not Phone-owned code",
@@ -219,9 +239,6 @@
     "system/+android_phoneInterface/mobileTabletApps.js": [
       "android/common/tests/javascript/test/mobile-tablet-apps.production.test.js"
     ],
-    "system/+android_phoneInterface/phoneGraphics.js": [
-      "tests/javascript/test/phone-graphics.production.test.js"
-    ],
     "system/+android_phoneInterface/phoneEmote.js": [
       "android/common/tests/javascript/test/phone-emote.production.test.js"
     ],
@@ -230,6 +247,10 @@
     ],
     "system/quickGoto.js": [
       "android/common/tests/javascript/test/quick-goto.production.test.js"
+    ],
+    "system/+android_phoneInterface/phoneGraphics.js": [
+      "tests/javascript/test/phone-graphics.production.test.js",
+      "android/phone/tests/phone-graphics-controller-test.js"
     ]
   }
 }

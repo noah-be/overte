@@ -45,6 +45,17 @@ public final class PhoneInterfaceActivity extends QtActivity
             | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
             | View.SYSTEM_UI_FLAG_LAYOUT_STABLE;
 
+    private static native void nativePrepareWeb(String cacheDirectory);
+    void prepareNativeWeb() { nativePrepareWeb(getCacheDir().getAbsolutePath()); }
+    public static void onWebSceneSize(int width, int height) {
+        android.app.Activity current = QtNative.activity();
+        if (!(current instanceof PhoneInterfaceActivity)) return;
+        PhoneInterfaceActivity owner = (PhoneInterfaceActivity) current;
+        owner.mainHandler.post(() -> { if (QtNative.activity() == owner && owner.embeddedWebHost != null) owner.embeddedWebHost.scene(width, height); });
+    }
+    private PhoneEmbeddedWebHost embeddedWebHost;
+    private PhoneSnapshotHost snapshotHost;
+    private PhoneDocumentsHost documentsHost;
     private static native boolean nativeProcessUrl(String url);
     private static native boolean nativeHandleBack();
     private static native boolean nativeUpdateTouchUiMetrics(
@@ -82,6 +93,9 @@ public final class PhoneInterfaceActivity extends QtActivity
         PhoneInterfaceActivity activity = (PhoneInterfaceActivity) current;
         activity.mainHandler.post(() -> {
             if (QtNative.activity() != activity || activity.isFinishing()) { return; }
+            if (activity.embeddedWebHost != null) activity.embeddedWebHost.initialize();
+            if (activity.snapshotHost != null) activity.snapshotHost.initialize();
+            if (activity.documentsHost != null) activity.documentsHost.initialize();
             activity.touchUiMetrics.nativeUiReady();
             activity.touchUiMetricsRetryAttempts = 0;
             activity.captureTouchUiMetrics();
@@ -138,6 +152,7 @@ public final class PhoneInterfaceActivity extends QtActivity
     }
 
     private boolean tryHandleNativeBack() {
+        if (embeddedWebHost != null && embeddedWebHost.back()) return true;
         try {
             return nativeHandleBack();
         } catch (UnsatisfiedLinkError error) {
@@ -238,6 +253,9 @@ public final class PhoneInterfaceActivity extends QtActivity
         replacePendingE2eFlyingOverride(
                 PhoneE2eLaunchState.takePendingFlyingOverride());
         super.onCreate(savedInstanceState);
+        embeddedWebHost = new PhoneEmbeddedWebHost(this);
+        snapshotHost = new PhoneSnapshotHost(this);
+        documentsHost = new PhoneDocumentsHost(this);
         if (Build.VERSION.SDK_INT >= 33) {
             api33BackHandler = new Api33BackHandler(this);
         }
@@ -252,6 +270,9 @@ public final class PhoneInterfaceActivity extends QtActivity
     protected void onResume() {
         super.onResume();
         resumed = true;
+        if (embeddedWebHost != null) embeddedWebHost.foreground(true);
+        if (snapshotHost != null) snapshotHost.foreground(true);
+        if (documentsHost != null) documentsHost.foreground(true);
         if (accessibilityBridge != null) { accessibilityBridge.start(); }
         publishNativeForegroundState(true);
         registerInputDeviceListener();
@@ -265,6 +286,9 @@ public final class PhoneInterfaceActivity extends QtActivity
     @Override
     protected void onPause() {
         resumed = false;
+        if (embeddedWebHost != null) embeddedWebHost.foreground(false);
+        if (snapshotHost != null) snapshotHost.foreground(false);
+        if (documentsHost != null) documentsHost.foreground(false);
         if (accessibilityBridge != null) { accessibilityBridge.stop(); }
         // SH-005 invalidates the old navigation budget on suspension. An
         // explicit newer onNewIntent may populate a new request afterwards.
@@ -284,6 +308,9 @@ public final class PhoneInterfaceActivity extends QtActivity
     @Override
     protected void onDestroy() {
         resumed = false;
+        if (embeddedWebHost != null) embeddedWebHost.foreground(false);
+        if (snapshotHost != null) snapshotHost.foreground(false);
+        if (documentsHost != null) documentsHost.foreground(false);
         if (accessibilityBridge != null) { accessibilityBridge.stop(); }
         replacePendingUrl(null);
         publishNativeForegroundState(false);
@@ -297,7 +324,18 @@ public final class PhoneInterfaceActivity extends QtActivity
             ((Api33BackHandler) api33BackHandler).unregister();
             api33BackHandler = null;
         }
+        if (embeddedWebHost != null) { embeddedWebHost.detach(); embeddedWebHost = null; }
+        if (snapshotHost != null) { snapshotHost.detach(); snapshotHost = null; }
+        if (documentsHost != null) { documentsHost.detach(); documentsHost = null; }
         super.onDestroy();
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (documentsHost != null && documentsHost.activityResult(requestCode, resultCode, data)) return;
+        if (snapshotHost != null && snapshotHost.activityResult(requestCode, resultCode, data)) return;
+        if (embeddedWebHost != null && embeddedWebHost.fileResult(requestCode, resultCode, data)) return;
+        super.onActivityResult(requestCode, resultCode, data);
     }
 
     @Override
@@ -317,6 +355,9 @@ public final class PhoneInterfaceActivity extends QtActivity
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
+        if (embeddedWebHost != null) embeddedWebHost.windowFocus();
+        if (snapshotHost != null) snapshotHost.windowFocus();
+        if (documentsHost != null) documentsHost.windowFocus();
         if (hasFocus) {
             applyPhoneWindowBounds();
             captureTouchUiMetrics();

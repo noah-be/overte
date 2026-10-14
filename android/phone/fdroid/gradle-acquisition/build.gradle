@@ -13,6 +13,7 @@ layout.buildDirectory.set(file(acquisitionBuildDir))
 
 configurations {
     fdroidAcquisition
+    fdroidWebSources { transitive = false }
     fdroidLint {
         attributes {
             attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
@@ -24,6 +25,21 @@ configurations {
 dependencyLocking { lockAllConfigurations() }
 dependencies {
     fdroidAcquisition 'com.google.guava:guava:23.0'
+    fdroidAcquisition 'androidx.webkit:webkit:1.12.1'
+    // Preserve matching runtime sources in the isolated acquisition store.
+    fdroidWebSources 'androidx.annotation:annotation-experimental:1.4.1:sources@jar'
+    fdroidWebSources 'androidx.annotation:annotation-jvm:1.8.1:sources@jar'
+    fdroidWebSources 'androidx.annotation:annotation:1.8.1:sources@jar'
+    fdroidWebSources 'androidx.arch.core:core-common:2.0.0:sources@jar'
+    fdroidWebSources 'androidx.collection:collection:1.0.0:sources@jar'
+    fdroidWebSources 'androidx.core:core:1.1.0:sources@jar'
+    fdroidWebSources 'androidx.lifecycle:lifecycle-common:2.0.0:sources@jar'
+    fdroidWebSources 'androidx.lifecycle:lifecycle-runtime:2.0.0:sources@jar'
+    fdroidWebSources 'androidx.versionedparcelable:versionedparcelable:1.1.0:sources@jar'
+    fdroidWebSources 'androidx.webkit:webkit:1.12.1:sources@jar'
+    fdroidWebSources 'org.jetbrains.kotlin:kotlin-stdlib-common:1.7.10:sources@jar'
+    fdroidWebSources 'org.jetbrains.kotlin:kotlin-stdlib:1.7.10:sources@jar'
+    fdroidWebSources 'org.jetbrains:annotations:13.0:sources@jar'
     // AGP resolves release lint lazily, outside the application dependency
     // graph. Acquire it before entering the network-isolated build.
     fdroidLint 'com.android.tools.lint:lint-gradle:31.13.2'
@@ -31,7 +47,7 @@ dependencies {
 
 tasks.register('resolveFdroidAcquisition') {
     doLast {
-        [configurations.fdroidAcquisition, configurations.fdroidLint].each { configuration ->
+        [configurations.fdroidAcquisition, configurations.fdroidWebSources, configurations.fdroidLint].each { configuration ->
             configuration.files.each { file ->
                 if (!file.isFile()) throw new GradleException("unresolved artifact: ${file}")
             }

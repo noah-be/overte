@@ -56,3 +56,14 @@ include_directories("${CMAKE_SOURCE_DIR}/interface/src")
 include_hifi_library_headers(ui)
 include_hifi_library_headers(script-engine)
 target_link_libraries(${TARGET_NAME} android log m interface ui Qt5::AndroidExtras)
+
+# Reusable runtime flows from the Android parent; Phone owns its presentation host.
+include("${CMAKE_CURRENT_SOURCE_DIR}/../../../common/web/target.cmake")
+overte_target_embedded_web(${TARGET_NAME})
+target_sources(${TARGET_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src/PhoneEmbeddedWeb.cpp")
+
+include("${CMAKE_CURRENT_SOURCE_DIR}/../../../common/snapshot/target.cmake")
+overte_target_snapshot(${TARGET_NAME})
+
+include("${CMAKE_CURRENT_SOURCE_DIR}/../../../common/documents/target.cmake")
+overte_target_documents(${TARGET_NAME})

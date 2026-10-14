@@ -15,9 +15,10 @@ import copy
 
 sys.dont_write_bytecode = True
 from core import Gate, digest
+from artifact_inputs import artifact_inputs, source_text, SDK_REQUIRED, copy_bound
 from evidence import regular_file, write_receipt, validate_receipt, FIXED_FILES, MODULE
-from runtime_checks import archive_members, analyze_telemetry, e2e, inspect_payload
-from source_checks import materialize, secrets, dependencies, licenses, hygiene, android_resource, android_manifest, fdroid
+from runtime_checks import archive_members, analyze_telemetry, e2e, inspect_payload, packaged_browser_network
+from source_checks import materialize, secrets, dependencies, licenses, hygiene, android_resource, android_manifest, fdroid, NETWORK_CONFIG, NETWORK_ROOT, PHONE_MANIFEST
 from test_store import verify_inventory, write_inventory, stage_runtimes, store_paths, RUNTIMES
 from history_review import load_reviews, reviewed_exception
 
@@ -372,9 +373,8 @@ class GateContracts(unittest.TestCase):
         self.assertFalse(self.g.findings)
 
     def test_release_manifest_rejects_dangerous_mutations(self):
-        root = Path(__file__).resolve().parents[3]
-        source = (root / 'android/phone/apps/phoneInterface/src/main/AndroidManifest.xml').read_text()
-        android_manifest(self.g, source, 'manifest.xml', final=True)
+        source, _ = self.browser_fixture()
+        android_manifest(self.g, source, 'manifest.xml')
         self.assertFalse(any(r['status']=='FAIL' for r in self.g.findings))
         for before, after, rule in [
             ('android:allowBackup="false"', 'android:allowBackup="true"', 'manifest-allowBackup'),
@@ -382,8 +382,358 @@ class GateContracts(unittest.TestCase):
             ('android:exported="false"', 'android:exported="true"', 'exported-component'),
             ('android.permission.VIBRATE', 'android.permission.READ_CONTACTS', 'permission-unreviewed')]:
             self.g.findings.clear()
-            android_manifest(self.g, source.replace(before, after), 'manifest.xml', final=True)
+            android_manifest(self.g, source.replace(before, after), 'manifest.xml', final=True,
+                             packaged_network_verified=True)
             self.assertTrue(any(r['rule']==rule and r['status']=='FAIL' for r in self.g.findings), rule)
+
+    def browser_fixture(self):
+        root = Path(__file__).resolve().parents[3]
+        for rel in (NETWORK_CONFIG, NETWORK_ROOT + 'network-capability.json', PHONE_MANIFEST):
+            path = self.root / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text((root / rel).read_text())
+            captured = self.out / 'source-scope' / rel
+            captured.parent.mkdir(parents=True, exist_ok=True)
+            captured.write_bytes(path.read_bytes())
+            self.g.source_hashes[rel] = digest(captured)
+        return (self.root / PHONE_MANIFEST).read_text(), (self.root / NETWORK_CONFIG).read_text()
+
+    def test_source_browser_capability_requires_exact_resource_and_manifest(self):
+        manifest, config = self.browser_fixture()
+        android_resource(self.g, config, NETWORK_CONFIG)
+        self.assertFalse(self.g.findings)
+        for before, after in [('usesCleartextTraffic="true"', 'usesCleartextTraffic="false"'),
+                              ('@xml/overte_embedded_web_network_security_config', '@xml/other'),
+                              ('http-https.v1', 'unreviewed.v1')]:
+            with self.subTest(after=after):
+                self.g.findings.clear()
+                android_manifest(self.g, manifest.replace(before, after), 'manifest.xml')
+                self.assertTrue(any(r['rule']=='manifest-network-capability' for r in self.g.findings))
+        for corrupted in [config.replace('src="system"', 'src="user"'),
+                          config.replace('cleartextTrafficPermitted="true"', 'cleartextTrafficPermitted="false"')]:
+            (self.out / 'source-scope' / NETWORK_CONFIG).write_text(corrupted)
+            self.g.findings.clear()
+            android_manifest(self.g, manifest, 'manifest.xml')
+            self.assertTrue(any(r['rule']=='manifest-network-capability' for r in self.g.findings))
+
+    def test_final_manifest_cannot_use_source_xml_as_packaged_proof(self):
+        manifest, _ = self.browser_fixture()
+        android_manifest(self.g, manifest, 'APK/AndroidManifest.xml', final=True)
+        self.assertTrue(any(r['rule']=='manifest-network-capability' for r in self.g.findings))
+
+    def sdk_fixture(self):
+        sdk = self.base / 'sdk'
+        for relative in SDK_REQUIRED:
+            path = sdk / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b'command wiring fixture, never executed')
+            path.chmod(0o755)
+        self.g.config['artifact_sdk_bindings'] = {
+            p.relative_to(sdk).as_posix(): dict(sha256=digest(p), executable=True)
+            for p in sdk.rglob('*') if p.is_file()}
+        return sdk
+
+    def test_artifact_snapshot_rejects_wrong_apk_hash_and_removes_partial_copy(self):
+        sdk = self.sdk_fixture()
+        apk = self.base / 'input.apk'
+        apk.write_bytes(b'original')
+        with self.assertRaises(ValueError):
+            with artifact_inputs(self.g, apk, '0' * 64, sdk):
+                self.fail('wrong APK must not reach readers')
+        self.assertEqual(list((self.out / 'tmp').iterdir()), [])
+
+    def test_artifact_snapshot_rejects_missing_extra_and_corrupt_sdk_bindings(self):
+        sdk = self.sdk_fixture()
+        apk = self.base / 'input.apk'
+        apk.write_bytes(b'original')
+        original = copy.deepcopy(self.g.config['artifact_sdk_bindings'])
+        key = next(iter(original))
+        variants = [None, {}, {**original, 'extra': original[key]},
+                    {k:v for k,v in original.items() if k != key},
+                    {**original, key:dict(sha256='0'*64, executable=True)},
+                    {**original, key:dict(sha256=original[key]['sha256'], executable=False)},
+                    {**original, key:dict(sha256=original[key]['sha256'], executable=1)}]
+        for bindings in variants:
+            with self.subTest(bindings=bindings):
+                self.g.config['artifact_sdk_bindings'] = bindings
+                with self.assertRaises(ValueError):
+                    with artifact_inputs(self.g, apk, digest(apk), sdk):
+                        self.fail('invalid SDK must not reach readers')
+                self.assertEqual(list((self.out / 'tmp').iterdir()), [])
+
+    def test_artifact_snapshot_rejects_link_and_special_input_without_blocking(self):
+        sdk = self.sdk_fixture()
+        apk = self.base / 'input.apk'
+        target = self.base / 'target.apk'
+        target.write_bytes(b'original')
+        apk.symlink_to(target)
+        with self.assertRaises(OSError):
+            with artifact_inputs(self.g, apk, digest(target), sdk):
+                self.fail('link must not reach readers')
+        apk.unlink()
+        import os
+        os.mkfifo(apk)
+        with self.assertRaises(ValueError):
+            with artifact_inputs(self.g, apk, digest(target), sdk):
+                self.fail('FIFO must not reach readers')
+        self.assertEqual(list((self.out / 'tmp').iterdir()), [])
+
+    def test_artifact_snapshot_sdk_links_and_missing_required_tool_fail(self):
+        sdk = self.sdk_fixture()
+        apk = self.base / 'input.apk'
+        apk.write_bytes(b'original')
+        path = sdk / SDK_REQUIRED[0]
+        path.unlink()
+        with self.assertRaises(ValueError):
+            with artifact_inputs(self.g, apk, digest(apk), sdk):
+                self.fail('missing SDK tool must not pass')
+        path.symlink_to(apk)
+        with self.assertRaises(ValueError):
+            with artifact_inputs(self.g, apk, digest(apk), sdk):
+                self.fail('SDK link must not pass')
+        self.assertEqual(list((self.out / 'tmp').iterdir()), [])
+
+    def test_artifact_snapshot_byte_identity_survives_original_replacement(self):
+        sdk = self.sdk_fixture()
+        apk = self.base / 'input.apk'
+        apk.write_bytes(b'original')
+        expected = digest(apk)
+        with artifact_inputs(self.g, apk, expected, sdk) as (private_apk, private_sdk):
+            apk.write_bytes(b'replaced')
+            (sdk / SDK_REQUIRED[0]).write_bytes(b'replaced SDK executable')
+            self.assertEqual(private_apk.read_bytes(), b'original')
+            self.assertEqual(digest(private_apk), expected)
+            self.assertEqual((private_sdk / SDK_REQUIRED[0]).read_bytes(),
+                             b'command wiring fixture, never executed')
+            self.assertEqual(self.g.artifact_input_paths, (private_apk, private_sdk))
+            self.assertEqual(private_apk.stat().st_mode & 0o222, 0)
+        self.assertFalse(private_apk.exists())
+        self.assertFalse(private_sdk.exists())
+        self.assertIsNone(self.g.artifact_input_paths)
+
+    def test_artifact_snapshot_cleanup_on_exception_and_interrupt(self):
+        sdk = self.sdk_fixture()
+        apk = self.base / 'input.apk'
+        apk.write_bytes(b'original')
+        for failure in [ValueError, KeyboardInterrupt]:
+            with self.subTest(failure=failure), self.assertRaises(failure):
+                with artifact_inputs(self.g, apk, digest(apk), sdk):
+                    raise failure('synthetic reader failure')
+            self.assertEqual(list((self.out / 'tmp').iterdir()), [])
+            self.assertIsNone(self.g.artifact_input_paths)
+
+    def test_artifact_snapshot_rejects_nested_different_reader_snapshot(self):
+        sdk = self.sdk_fixture()
+        apk = self.base / 'input.apk'
+        apk.write_bytes(b'original')
+        with artifact_inputs(self.g, apk, digest(apk), sdk):
+            with self.assertRaises(ValueError):
+                with artifact_inputs(self.g, apk, digest(apk), sdk):
+                    self.fail('nested reader snapshot must not pass')
+        self.assertEqual(list((self.out / 'tmp').iterdir()), [])
+
+    def test_artifact_snapshot_rejects_truncated_size_and_empty_input(self):
+        sdk = self.sdk_fixture()
+        apk = self.base / 'input.apk'
+        apk.write_bytes(b'original')
+        self.g.policy['max_archive_bytes'] = 3
+        with self.assertRaises(ValueError):
+            with artifact_inputs(self.g, apk, digest(apk), sdk):
+                self.fail('oversized APK must not pass')
+        apk.write_bytes(b'')
+        with self.assertRaises(ValueError):
+            with artifact_inputs(self.g, apk, digest(apk), sdk):
+                self.fail('empty APK must not pass')
+        self.assertEqual(list((self.out / 'tmp').iterdir()), [])
+
+    def test_source_capture_is_hash_bound_and_does_not_reopen_checkout(self):
+        self.browser_fixture()
+        relative = NETWORK_ROOT + 'network-capability.json'
+        original = source_text(self.g, relative)
+        (self.root / relative).write_text('changed mutable checkout')
+        self.assertEqual(source_text(self.g, relative), original)
+        (self.out / 'source-scope' / relative).write_text('changed captured input')
+        with self.assertRaises(ValueError):
+            source_text(self.g, relative)
+        with self.assertRaises(ValueError):
+            source_text(self.g, '../outside')
+
+    def test_browser_decoder_refuses_unbound_original_apk(self):
+        manifest, _ = self.browser_fixture()
+        with patch.object(self.g, 'run') as runner:
+            self.assertFalse(packaged_browser_network(self.g, manifest, self.base/'input.apk', self.base/'sdk'))
+        runner.assert_not_called()
+
+    def test_all_artifact_readers_share_one_snapshot_and_copied_sdk(self):
+        from runtime_checks import artifact, unpack
+        manifest, config = self.browser_fixture()
+        sdk = self.sdk_fixture()
+        self.g.config.update(sdk_root=str(sdk), version_code=2, version_name='fixture',
+                             tool_versions={'apkanalyzer':'fixture-version'})
+        apk = self.base / 'input.apk'
+        with zipfile.ZipFile(apk, 'w') as z:
+            z.writestr('ordinary.txt', 'ordinary payload')
+        self.g.receipt = dict(artifact_sha256=digest(apk))
+        calls = []
+        inventory = ('resource 0x7f0c0003 xml/overte_embedded_web_network_security_config\n'
+                     '  () (file) res/a.xml type=XML\n')
+        values = {'apk-application-id':self.g.policy['application_id'], 'apk-version-code':'2',
+                  'apk-version-name':'fixture', 'apk-min-sdk':str(self.g.policy['min_sdk']),
+                  'apk-debuggable':'false', 'apk-target-sdk':'36', 'apk-certificates':'No JAR signatures',
+                  'packaged-manifest':manifest, 'version-apkanalyzer':'fixture-version',
+                  'apk-network-resource-inventory':inventory,
+                  'apk-network-resource-0':config}
+        def run(label, argv, **kwargs):
+            calls.append((label, [str(a) for a in argv], kwargs))
+            if label == 'existing-phone-apk-gate':
+                # External origin changes before subsequent manifest/XML/scanner readers.
+                apk.write_bytes(b'replaced origin')
+            log = self.out / (label + '.log')
+            log.write_text(values.get(label, ''))
+            return (1 if label == 'apk-certificates' else 0), log
+        with patch('runtime_checks.load_artifact', return_value=apk), \
+                patch.object(self.g, 'run', side_effect=run), \
+                patch.object(self.g, 'tool', side_effect=lambda name,*args: name=='fdroid'), \
+                patch.object(self.g, 'review'), patch('runtime_checks.unpack', wraps=unpack) as reader:
+            artifact(self.g)
+        snapshot = reader.call_args.args[1]
+        self.assertNotEqual(snapshot, apk)
+        for label, argv, kwargs in calls:
+            if label == 'version-apkanalyzer':
+                self.assertTrue(argv[0].startswith(str(snapshot.parent / 'sdk')))
+                continue  # Version probes have no APK reader argument.
+            self.assertIn(str(snapshot), argv, label)
+            self.assertNotIn(str(apk), argv, label)
+            if label == 'existing-phone-apk-gate':
+                self.assertNotEqual(kwargs['env']['ANDROID_SDK_ROOT'], str(sdk))
+                self.assertEqual(kwargs['env']['PATH'], '/usr/bin:/bin')
+            if label.startswith('apk-') or label == 'packaged-manifest':
+                self.assertTrue(argv[0].startswith(str(snapshot.parent / 'sdk')))
+        self.assertFalse(snapshot.exists())
+        self.assertEqual(list((self.out / 'tmp').iterdir()), [])
+        report = json.loads((self.out / 'browser-network-artifact.json').read_text())
+        self.assertEqual(report['apk_sha256'], self.g.receipt['artifact_sha256'])
+        self.assertEqual(set(report['decoded_resource_sha256']), {'res/a.xml'})
+
+    def test_receipt_evidence_readers_use_private_hash_bound_copies(self):
+        sdk = self.sdk_fixture()
+        apk = self.base / 'input.apk'
+        apk.write_bytes(b'original')
+        attempt = self.base / 'attempt'
+        attempt.mkdir()
+        original = attempt / 'gradle-runtime.json'
+        original.write_bytes(b'original evidence')
+        self.g.attempt = attempt
+        self.g.artifact = apk
+        self.g.receipt = dict(files={'gradle':[dict(path='gradle-runtime.json',sha256=digest(original))]})
+        with artifact_inputs(self.g, apk, digest(apk), sdk):
+            captured = self.g.attempt / 'gradle-runtime.json'
+            original.write_bytes(b'replaced evidence')
+            self.assertNotEqual(self.g.attempt, attempt)
+            self.assertEqual(captured.read_bytes(), b'original evidence')
+            self.assertNotEqual(self.g.artifact, apk)
+        self.assertEqual(self.g.attempt, attempt)
+        self.assertEqual(self.g.artifact, apk)
+        self.assertFalse(captured.exists())
+
+    def test_changed_receipt_evidence_fails_capture_and_cleans_up(self):
+        sdk = self.sdk_fixture()
+        apk = self.base / 'input.apk'
+        apk.write_bytes(b'original')
+        attempt = self.base / 'attempt'
+        attempt.mkdir()
+        original = attempt / 'gradle-runtime.json'
+        original.write_bytes(b'evidence')
+        self.g.attempt = attempt
+        self.g.receipt = dict(files={'gradle':[dict(path='gradle-runtime.json',sha256='0'*64)]})
+        with self.assertRaises(ValueError):
+            with artifact_inputs(self.g, apk, digest(apk), sdk):
+                self.fail('changed evidence must not reach readers')
+        self.assertEqual(self.g.attempt, attempt)
+        self.assertEqual(list((self.out / 'tmp').iterdir()), [])
+
+    def test_signed_candidate_reader_uses_snapshot_and_failure_cleans_up(self):
+        sdk = self.sdk_fixture()
+        apk = self.base / 'unsigned.apk'
+        candidate = self.base / 'candidate.apk'
+        with zipfile.ZipFile(apk, 'w') as z:
+            z.writestr('ordinary.txt', 'same payload')
+        with zipfile.ZipFile(candidate, 'w') as z:
+            z.writestr('ordinary.txt', 'same payload')
+            z.writestr('META-INF/TEST.SF', 'signature fixture')
+        directory = self.root / 'tests/device/adapters/android-phone'
+        directory.mkdir(parents=True)
+        adapter = directory / 'adapter.json'
+        adapter.write_text(json.dumps(dict(id='android-phone-adb', command=['adapter.py'])))
+        self.g.receipt = dict(artifact_sha256=digest(apk))
+        self.g.config.update(device_authorized=True, sdk_root=str(sdk), adapter_manifest=str(adapter),
+                             candidate_apk=str(candidate), candidate_sha256=digest(candidate))
+        calls = []
+        def run(label, argv, **kwargs):
+            calls.append([str(a) for a in argv])
+            self.assertEqual(label, 'candidate-signature-functional')
+            self.assertNotEqual(Path(argv[-1]), candidate)
+            self.assertEqual(digest(argv[-1]), self.g.config['candidate_sha256'])
+            return 1, self.out / 'signature-boundary-failed.log'
+        with patch('runtime_checks.load_artifact', return_value=apk), patch.object(self.g,'run',side_effect=run):
+            e2e(self.g, 'functional')
+        self.assertEqual(len(calls), 1)  # No device command follows failed signature verification.
+        self.assertFalse(Path(calls[0][-1]).exists())
+        self.assertEqual(list((self.out / 'tmp').iterdir()), [])
+
+    def test_private_analyzer_preserves_reviewed_version_guard(self):
+        from runtime_checks import sdk_analyzer_ready
+        sdk = self.sdk_fixture()
+        log = self.out / 'version.txt'
+        log.write_text('fixture-version\n')
+        for pin, expected in [(None, False), ('wrong-version', False), ('fixture-version', True)]:
+            self.g.config['tool_versions'] = {'apkanalyzer':pin}
+            with patch.object(self.g, 'run', return_value=(0,log)) as runner:
+                self.assertEqual(sdk_analyzer_ready(self.g, sdk), expected)
+            self.assertEqual(Path(runner.call_args.args[1][0]), sdk/'cmdline-tools/latest/bin/apkanalyzer')
+
+    def test_actual_artifact_resource_commands_and_all_variants(self):
+        manifest, config = self.browser_fixture()
+        manifest = manifest.replace('@xml/overte_embedded_web_network_security_config', '@ref/0x7f0c0003')
+        inventory = ('resource 0x7f0c0003 xml/overte_embedded_web_network_security_config\n'
+                     '  () (file) res/a.xml type=XML\n'
+                     '  (v28) (file) res/b.xml type=XML\n')
+        apk = self.base / 'input.apk'
+        apk.write_bytes(b'fixture apk for command wiring')
+        sdk = self.sdk_fixture()
+        def check(changes=None, failed_label=None):
+            changes = changes or {}
+            commands = []
+            def run(label, argv, **kwargs):
+                commands.append([str(a) for a in argv])
+                log = self.out / (label + '.log')
+                data = inventory if label.endswith('inventory') else config
+                log.write_text(changes.get(label, data))
+                return (1 if label == failed_label else 0), log
+            self.g.findings.clear()
+            with artifact_inputs(self.g, apk, digest(apk), sdk) as (private_apk, private_sdk):
+                with patch.object(self.g, 'run', side_effect=run):
+                    result = packaged_browser_network(self.g, manifest, private_apk, private_sdk)
+                self.assertTrue(all(cmd[-1] == str(private_apk) for cmd in commands))
+                self.assertNotEqual(private_apk, apk)
+            self.assertFalse(private_apk.exists())
+            self.assertFalse(private_sdk.exists())
+            return result, commands
+        result, commands = check()
+        self.assertTrue(result)
+        self.assertEqual(commands[0][1:3], ['dump', 'resources'])
+        self.assertTrue(commands[0][0].endswith('/sdk/build-tools/36.0.0/aapt2'))
+        self.assertEqual([cmd[4] for cmd in commands[1:]], ['res/a.xml', 'res/b.xml'])
+        self.assertTrue(all(cmd[1:4] == ['resources', 'xml', '--file'] and
+                            cmd[0].endswith('/sdk/cmdline-tools/latest/bin/apkanalyzer') for cmd in commands[1:]))
+        for changes, failure in [({}, 'apk-network-resource-inventory'),
+                                 ({}, 'apk-network-resource-1'),
+                                 ({'apk-network-resource-1': config.replace('src="system"', 'src="user"')}, None),
+                                 ({'apk-network-resource-inventory': inventory.replace('0x7f0c0003', '0x7f0c0004')}, None),
+                                 ({'apk-network-resource-inventory': ''}, None)]:
+            with self.subTest(changes=changes, failure=failure):
+                self.assertFalse(check(changes, failure)[0])
+                self.assertTrue(any(r['rule']=='apk-browser-network-capability' for r in self.g.findings))
 
     def test_soak_requires_continuous_valid_measurements(self):
         module = self.out / 'modules/idle-soak'

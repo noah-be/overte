@@ -1,6 +1,16 @@
 # This is a Gradle generated file for dependency locking.
 # Manual edits can break the build and are not advised.
 # This file is expected to be part of source control.
+androidx.annotation:annotation-experimental:1.4.1=fdroidAcquisition,fdroidWebSources
+androidx.annotation:annotation-jvm:1.8.1=fdroidAcquisition,fdroidWebSources
+androidx.annotation:annotation:1.8.1=fdroidAcquisition,fdroidWebSources
+androidx.arch.core:core-common:2.0.0=fdroidAcquisition,fdroidWebSources
+androidx.collection:collection:1.0.0=fdroidAcquisition,fdroidWebSources
+androidx.core:core:1.1.0=fdroidAcquisition,fdroidWebSources
+androidx.lifecycle:lifecycle-common:2.0.0=fdroidAcquisition,fdroidWebSources
+androidx.lifecycle:lifecycle-runtime:2.0.0=fdroidAcquisition,fdroidWebSources
+androidx.versionedparcelable:versionedparcelable:1.1.0=fdroidAcquisition,fdroidWebSources
+androidx.webkit:webkit:1.12.1=fdroidAcquisition,fdroidWebSources
 com.android.tools.analytics-library:protos:31.13.2=fdroidLint
 com.android.tools.analytics-library:shared:31.13.2=fdroidLint
 com.android.tools.analytics-library:tracker:31.13.2=fdroidLint
@@ -63,12 +73,15 @@ org.codehaus.mojo:animal-sniffer-annotations:1.14=fdroidAcquisition
 org.glassfish.jaxb:jaxb-runtime:2.3.2=fdroidLint
 org.glassfish.jaxb:txw2:2.3.2=fdroidLint
 org.jetbrains.kotlin:kotlin-reflect:2.2.0=fdroidLint
+org.jetbrains.kotlin:kotlin-stdlib-common:1.7.10=fdroidAcquisition,fdroidWebSources
 org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.2.0=fdroidLint
 org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.2.0=fdroidLint
+org.jetbrains.kotlin:kotlin-stdlib:1.7.10=fdroidAcquisition,fdroidWebSources
 org.jetbrains.kotlin:kotlin-stdlib:2.2.0=fdroidLint
 org.jetbrains.kotlinx:kotlinx-coroutines-bom:1.9.0=fdroidLint
 org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.9.0=fdroidLint
 org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0=fdroidLint
+org.jetbrains:annotations:13.0=fdroidAcquisition,fdroidWebSources
 org.jetbrains:annotations:23.0.0=fdroidLint
 org.jvnet.staxex:stax-ex:1.8.1=fdroidLint
 org.ow2.asm:asm-analysis:9.8=fdroidLint

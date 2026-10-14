@@ -19,16 +19,16 @@
     {
       "rule": "gitleaks-generic-api-key",
       "path": "android/phone/fdroid/manifests/recipe-source.lock.json",
-      "sha256": "46044f9b676266b7a71ff6b8ee62159292cf86ce498047b2a7ce8dc847578759",
-      "reason": "Reviewed 2026-10-09: this source-closure digest map changes only the SHA-256 bindings for Phone Gradle and CMake files. Both new 64-digit hexadecimal values match the actual source files. All other fields, paths and Discord-related digests are unchanged; the Discord bindings still match their source files. No credential, URL or authentication material was added. The reported matches are source-file digests, not API keys or Discord tokens. This review is bound to the complete manifest digest; any further file change requires renewed review.",
+      "sha256": "5fce2543c0698eab751513eff0ffcebba4f660f3c3ca31b54b544ac942c48a40",
+      "reason": "Semantically re-reviewed 2026-10-14 for the additive network consumer bindings: the original 45 entries are retained exactly and four application-consumer paths are added (shared Web Gradle, capability JSON, Network Security Config resource, and Phone manifest). All 49 map values are 64-hex SHA-256 digests matching actual regular source files. Every producer, source, recipe and historical field outside bound_files is unchanged. The native-owned shared bytes match protected Android afa37f2f54623ccf4f73fb5e11983ac8c71dd385. This metadata is a selected input ledger, not full application source/archive or packaged-resource qualification. Independent credential HTTPS, actual consumer/archive binding and APK validation remain required. The inherited detector locations refer to source digests, not API keys or Discord credentials. No new Gitleaks execution, producer qualification or new APK result is claimed. The complete manifest digest binds this exact semantic review; any further byte change requires renewal.",
       "owner": "Android quality gate qualification review",
       "expires": "2026-12-18"
     },
     {
       "rule": "gitleaks-discord-api-token",
       "path": "android/phone/fdroid/manifests/recipe-source.lock.json",
-      "sha256": "46044f9b676266b7a71ff6b8ee62159292cf86ce498047b2a7ce8dc847578759",
-      "reason": "Reviewed 2026-10-09: this source-closure digest map changes only the SHA-256 bindings for Phone Gradle and CMake files. Both new 64-digit hexadecimal values match the actual source files. All other fields, paths and Discord-related digests are unchanged; the Discord bindings still match their source files. No credential, URL or authentication material was added. The reported matches are source-file digests, not API keys or Discord tokens. This review is bound to the complete manifest digest; any further file change requires renewed review.",
+      "sha256": "5fce2543c0698eab751513eff0ffcebba4f660f3c3ca31b54b544ac942c48a40",
+      "reason": "Semantically re-reviewed 2026-10-14 for the additive network consumer bindings: the original 45 entries are retained exactly and four application-consumer paths are added (shared Web Gradle, capability JSON, Network Security Config resource, and Phone manifest). All 49 map values are 64-hex SHA-256 digests matching actual regular source files. Every producer, source, recipe and historical field outside bound_files is unchanged. The native-owned shared bytes match protected Android afa37f2f54623ccf4f73fb5e11983ac8c71dd385. This metadata is a selected input ledger, not full application source/archive or packaged-resource qualification. Independent credential HTTPS, actual consumer/archive binding and APK validation remain required. The inherited detector locations refer to source digests, not API keys or Discord credentials. No new Gitleaks execution, producer qualification or new APK result is claimed. The complete manifest digest binds this exact semantic review; any further byte change requires renewal.",
       "owner": "Android quality gate qualification review",
       "expires": "2026-12-18"
     },

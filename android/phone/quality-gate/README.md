@@ -100,6 +100,21 @@ names remain relevant when the Phone graph imports them.
   `registry/name@sha256:...`, provisioned from the existing F-Droid Containerfile.
   Tags and automatic pulls are rejected. Retain the image build provenance.
 - `sdk_root`: prepared SDK 36, Build-Tools 36.0.0, NDK 27.3.13750724.
+- `artifact_sdk_bindings`: independently reviewed map of every regular file in
+  `build-tools/36.0.0` and `cmdline-tools/latest`, keyed by SDK-relative path. Each
+  value is exactly `{ "sha256": "<64 lowercase hex digits>", "executable": true }`
+  (or `false` for a non-executable file). Artifact and device-candidate analysis
+  fails without this complete map, on extra/missing paths, links, changed bytes,
+  or changed executable mode. Freeze and review the prepared SDK inventory before
+  placing it in private configuration; observing a new SDK does not qualify it.
+  The original provisioning lock and producer receipts are not rewritten.
+  The gate copies these complete subtrees into a private temporary directory;
+  manifest, XML, signer and ZIP-alignment readers use those same captured bytes.
+  The existing exact `tool_versions.apkanalyzer` guard still applies to the
+  private decoder. Host Java, shell, Python, ELF tools, scanners and their system
+  libraries remain separately provisioned runner prerequisites, not SDK or app
+  closure evidence. The native ELF checker uses the system-tool PATH rather than
+  inheriting an unbound original SDK/NDK path.
 - `source_store`: acquired and verified by the existing
   `android/phone/fdroid/conan/source_closure_store.py` workflow.
 - `gradle_store`: prepared by existing
@@ -137,6 +152,18 @@ names remain relevant when the Phone graph imports them.
   configured builder, Conan/Gradle graphs, source archive, AABs, release manifest
   origin reports and native compile databases. Missing, modified or replaced
   evidence is rejected before reuse. Keep the complete attempt directory.
+  All APK readers share one private, receipt-hash-bound copy: unpacking, manifest
+  fields, actual XML variants, payload/signature scanners, and manual artifact
+  review. Receipt-bound AAB, source archive, dependency and merger evidence is
+  captured privately as well; candidate payload, signature and adapter readers
+  receive a separate copy bound to the independently expected signed digest.
+  Copies are removed on success, error and interruption. `artifact-inputs.json`
+  records the actual copied SDK/receipt bytes; `browser-network-artifact.json`
+  binds decoded manifest/XML hashes to the captured APK and capability source.
+  The capability and source XML come from hash-checked `source-scope` copies,
+  never a later reopening of the mutable checkout. This fixes replace-and-restore
+  between SDK invocations; it does not establish a complete app source closure,
+  credential HTTPS, a new producer invocation or device behavior.
   A receipt is local integrity evidence from a trusted producer, not an external
   attestation. It cannot make a partial run a full PASS.
 - `adapter_manifest`, `candidate_apk`, `candidate_sha256`, `device_authorized`:
@@ -354,3 +381,43 @@ python3 -B -m unittest -q test_gate test_history_public_identifiers test_history
 
 All 45 tests passed after this policy change. Exact bindings and current literal
 absence were also checked for all 16 actual historical records.
+# Embedded browser HTTP policy
+
+The Phone explicitly selects the shared Android browser network capability.
+Its Network Security Config permits normal HTTP documents at **application
+scope**, with system certificate authorities for TLS. This is not a per-WebView
+cleartext fence. Independent Main-owned credential HTTPS enforcement and its
+qualification are required; this policy does not establish native Qt/OpenSSL
+credential transport security or device browser acceptance.
+
+Source checks require the exact capability marker and native-owned resource.
+Artifact checks inspect the actual merged manifest, resolve its resource ID with
+SDK AAPT, and decode every selected XML variant with `apkanalyzer resources xml`.
+Optimized filenames are resolved from the APK instead of assuming source paths.
+A missing, undecodable, overridden, or differently trusted variant fails the
+release gate. Debuggable/test-only, backup, component export, permission and
+FileProvider checks remain independent and mandatory.
+
+### Actual SDK resource snapshot regression
+
+After independently reviewing the prepared SDK binding map, run:
+
+```sh
+python3 android/phone/quality-gate/test_artifact_sdk.py \
+  --sdk-root /absolute/prepared-sdk \
+  --sdk-bindings /absolute/private/sdk-artifact-bindings.json \
+  --expected-sdk-bindings-sha256 <reviewed-binding-file-sha256> \
+  --java-home /absolute/prepared-jdk \
+  --output /absolute/new-private-result
+```
+
+This compiles only resource fixtures with the original locked AAPT2 and records
+its actual Android 36 platform input. It runs the real SDK manifest/XML decoder
+against the production consumer, including ordinary system-/user-CA outcomes,
+archive replacement and restoration between invocations, SDK-origin replacement,
+mutable/captured source changes, and decoder failure. Every reader must use the
+same private APK and SDK paths, with cleanup on both accepted and rejected cases.
+The result records actual source, XML, fixture APK, SDK and Java identities.
+It does not compile Overte, establish an independent SDK acquisition provenance,
+create a producer receipt, sign/install an APK, contact a device, qualify native
+credential HTTPS, or turn the selected source lock into a full app closure.

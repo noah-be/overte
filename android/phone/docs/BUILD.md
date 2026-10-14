@@ -385,7 +385,7 @@ app having a tablet button:
 | Surface | Device-free status | Remaining device validation |
 | --- | --- | --- |
 | Login | Screen-space QML, native IME fields, touch-sized entry, cancellable pending request, idempotent focus cleanup | IME resize and real account/domain authentication |
-| Settings | Local QML with selector-backed 250% host scaling; General Settings is fail-closed to Phone Navigation and touch-look sensitivity; Security allowlists are normalized and IME-safe; incomplete scripting-plugin, controller, VR, and unbounded desktop Graphics controls are neither shown nor constructed | Every retained subpage and allowlist editor |
+| Settings | Local QML with selector-backed 250% host scaling; General Settings is fail-closed to Phone Navigation and touch-look sensitivity; Security allowlists are normalized and IME-safe; incomplete scripting-plugin, controller, VR, and unbounded desktop Graphics controls are neither shown nor constructed; the Phone graphics adapter supplies bounded world-effect controls when the shared startup and Settings hooks are integrated | Every retained subpage and allowlist editor |
 | Audio | Local QML locked to the available non-HMD context; redundant mode tab, keyboard PTT, HMD, and desktop avatar-audio overlays are selector-gated out | Device enumeration, sliders, mute, stereo and scrolling |
 | Menu | Local QML navigation | Each retained action and modal result |
 | Shield | Native privacy-radius action; closes the phone tablet after activation | Visible/audio feedback and repeated activation |
@@ -543,6 +543,28 @@ touchscreen phone meeting API 26 and OpenGL ES 3.2 requirements is
 identifiable. It exits with status 2 when crash or page-size-mismatch log lines
 are detected. The test changes device state by installing and launching the
 APK, so it is intentionally not part of the host regression test.
+
+The Phone graphics adapter uses a dedicated page and the validated
+`phoneGraphics.js` controller. It exposes local lights, haze, custom material
+shaders and mirrors while retaining the 30 FPS startup budget and a 50–70%
+render scale. User choices are stored under `phone/graphics/`; missing or invalid
+preferences retain native startup defaults. Enabling local lights restores the
+renderer grid before enabling light content. The controller accepts messages
+only from the first-party Settings screen and runs only in the Android Phone
+product. Its shared startup/profile/message-routing hooks must be integrated
+before the page becomes a normal Settings entry; iOS must retain its own
+Graphics page when the shared touch selector is propagated.
+
+Run the controller and real Qt 5 pointer/layout regressions from the repository
+root (requires Qt 5 `qmltestrunner` and Qt Quick Controls 2):
+
+```bash
+python3 android/phone/tests/phone-graphics-test.py
+```
+
+These host tests validate controls and policy. Physical-device validation still
+needs the same reference world with effects off/on, restart persistence,
+local-light correctness, mirror content and temperature/frame-rate sampling.
 
 For repeatable graphics sampling of an already installed current build,
 explicitly confirm the selected target and choose a duration:
@@ -773,3 +795,36 @@ and the launcher activity is `org.overte.phone.PermissionsActivity`.
 
 For permanent Pixel laboratory qualification, native binding requirements and
 regression-first full runs, see [Pixel E2E qualification](PIXEL_E2E.md).
+
+### Embedded tablet browser
+
+Phone registers the Android parent's `Overte.Android` backend in `phoneInterface`
+and places a real embedded WebView inside the measured Qt surface. Full scene
+bounds and QML clip bounds map through the actual surface dimensions. The 48-pixel
+Qt navigation toolbar and other Qt controls stay outside the native browser.
+The native browser owns tablet DOM input and its OS input connection. Foreground,
+window focus and Activity destruction invalidate the common runtime's grants.
+The file picker uses explicit OS document selection, temporary content URIs and
+one-shot request leases; results wait for actual foreground return. No camera,
+microphone or geolocation permissions are granted to browser documents.
+
+The pinned AndroidX WebKit dependency, transitive runtime artifacts and matching
+source archives belong to the F-Droid acquisition graph and Gradle lock. HTTP
+embedded documents are allowed explicitly by the Phone manifest; the common
+navigation policy still rejects credentials and privileged schemes, and WebView
+mixed content remains disabled. A provider that lacks the required frame-aware
+bridge features shows an update action while leaving the document usable.
+
+Run `python3 android/phone/tests/phone-embedded-web-test.py` for compiled production
+geometry behavior. Its optional `--android-jar`, `--qt-jar`, `--webkit-jar` and `--core-jar`
+arguments compile the actual Phone Activity, Host, Qt bindings and common browser
+against those artifacts. This checks Java API compatibility only. The test
+inventory records `PhoneEmbeddedWeb.cpp` as an Android Qt/JNI runtime boundary.
+
+A complete Phone app build and exact-artifact device checks are still required:
+provider bridge/iframe rejection, file picker cancellation and Activity recreation,
+IME selection/composition and keyboard insets, embedded user-driven video/audio,
+background suspension, toolbar/Back behavior and scaled/clipped placement. The
+texture renderer does not establish hardware video parity. Foreign-document
+texture IME and arbitrary rotated native overlays remain unqualified. F-Droid
+source-only acceptance additionally requires the existing cold-build gates.

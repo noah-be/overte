@@ -3,6 +3,21 @@
   "platform": "android",
   "suites": [
     {
+      "name": "phone-package-binding",
+      "entrypoint": "android/phone/tests/phone-prepare-architecture-test.sh",
+      "interpreter": "bash"
+    },
+    {
+      "name": "android-package-store",
+      "entrypoint": "android/common/conan/test_package_store.py",
+      "interpreter": "python"
+    },
+    {
+      "name": "android-package-binding",
+      "entrypoint": "android/common/conan/test_package_folder.py",
+      "interpreter": "python"
+    },
+    {
       "name": "pico4-device-free",
       "entrypoint": "android/vr/pico/tests/pico-device-free-test.sh",
       "interpreter": "bash"
@@ -58,18 +73,13 @@
       "interpreter": "python"
     },
     {
-      "name": "android-package-store",
-      "entrypoint": "android/common/conan/test_package_store.py",
-      "interpreter": "python"
-    },
-    {
-      "name": "android-package-binding",
-      "entrypoint": "android/common/conan/test_package_folder.py",
-      "interpreter": "python"
-    },
-    {
       "name": "android-embedded-web",
       "entrypoint": "android/common/web/tests/run.py",
+      "interpreter": "python"
+    },
+    {
+      "name": "phone-embedded-web",
+      "entrypoint": "android/phone/tests/phone-embedded-web-test.py",
       "interpreter": "python"
     },
     {
@@ -80,6 +90,11 @@
     {
       "name": "android-documents",
       "entrypoint": "android/common/documents/tests/run.py",
+      "interpreter": "python"
+    },
+    {
+      "name": "phone-parity-packet",
+      "entrypoint": "android/phone/device-tests/parity/test_packet.py",
       "interpreter": "python"
     }
   ]

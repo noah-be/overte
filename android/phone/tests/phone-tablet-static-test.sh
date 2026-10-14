@@ -38,6 +38,8 @@ for test_name in "${tests[@]}"; do
     "$script_dir/$test_name"
 done
 
+node "$script_dir/phone-graphics-controller-test.js"
+
 for script in \
         scripts/system/pal.js \
         scripts/system/quickGoto.js \
