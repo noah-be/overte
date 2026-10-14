@@ -7,14 +7,51 @@ dependencyLocking {
     lockMode = LockMode.STRICT
 }
 
-def phoneJava = file('../../../phone/apps/phoneInterface/src/main/java')
-def phoneTests = file('../../../phone/apps/phoneInterface/src/test/java')
+// Qualify this parent-owned harness against an explicit downstream checkout
+// without moving any product implementation into the owning parent.
+def sourceRoot = providers.gradleProperty('overteProductSourceRoot')
+        .map { file(it) }.getOrElse(file('../../../..'))
+def phoneJava = new File(sourceRoot, 'android/phone/apps/phoneInterface/src/main/java')
+def phoneTests = new File(sourceRoot, 'android/phone/apps/phoneInterface/src/test/java')
 def interfaceJava = file('../../../phone/apps/interface/src/main/java')
 def interfaceTests = file('../../../phone/apps/interface/src/test/java')
 def picoJava = file('../../../vr/pico/apps/picoInterface/src/main/java')
 def picoTests = file('../../../vr/pico/apps/picoInterface/src/test/java')
 def questJava = file('../../../vr/quest/apps/questInterface/src/main/java')
 def questTests = file('../../../vr/quest/apps/questInterface/src/test/java')
+def qtJava = new File(sourceRoot, 'android/common/libraries/qt/src/main/java')
+def sharedRedactionJava = new File(sourceRoot, 'security/redaction/java')
+def webJava = new File(sourceRoot, 'android/common/web/java')
+def snapshotJava = new File(sourceRoot, 'android/common/snapshot/java')
+def documentsJava = new File(sourceRoot, 'android/common/documents/java')
+
+configurations {
+    nativeHostApis {
+        // Match the application artifacts. Native Qt initialization is outside
+        // Robolectric; the production Web/Snapshot/Documents Java is compiled.
+        transitive = false
+    }
+}
+
+def nativeHostApiDirectory = layout.buildDirectory.dir('native-host-api-jars')
+def extractNativeHostApis = tasks.register('extractNativeHostApis') {
+    inputs.files configurations.nativeHostApis
+    outputs.dir nativeHostApiDirectory
+    doLast {
+        def destination = nativeHostApiDirectory.get().asFile
+        delete destination
+        configurations.nativeHostApis.resolvedConfiguration.resolvedArtifacts.each { artifact ->
+            copy {
+                from artifact.extension == 'aar' ? zipTree(artifact.file) : artifact.file
+                if (artifact.extension == 'aar') { include 'classes.jar' }
+                into destination
+                rename { "${artifact.moduleVersion.id.group}-${artifact.name}.jar" }
+            }
+        }
+    }
+}
+def nativeHostApiJars = files({ fileTree(nativeHostApiDirectory) { include '*.jar' } })
+        .builtBy(extractNativeHostApis)
 
 sourceSets {
     boundary {
@@ -22,7 +59,14 @@ sourceSets {
     }
     main {
         java {
-            srcDirs phoneJava, interfaceJava, picoJava, questJava
+            srcDirs phoneJava, interfaceJava, picoJava, questJava, qtJava,
+                    sharedRedactionJava, webJava, snapshotJava, documentsJava
+            include 'org/overte/phone/**'
+            include 'org/overte/security/**'
+            include 'org/overte/web/**'
+            include 'org/overte/snapshot/**'
+            include 'org/overte/documents/**'
+            include 'io/highfidelity/utils/**'
             include 'org/overte/phone/PermissionsActivity.java'
             include 'org/overte/phone/PhoneDeepLink.java'
             include 'org/overte/phone/PhoneDeepLinkNormalizer.java'
@@ -38,12 +82,15 @@ sourceSets {
         }
         compileClasspath += sourceSets.boundary.output
         runtimeClasspath += sourceSets.boundary.output
+        compileClasspath += nativeHostApiJars
+        runtimeClasspath += nativeHostApiJars
     }
     test {
         java {
             srcDirs phoneTests, interfaceTests, picoTests, questTests
             include 'org/overte/phone/PermissionsActivityRobolectricTest.java'
             include 'org/overte/phone/PhoneDeepLinkRobolectricTest.java'
+            include 'org/overte/phone/RedactingDiagnosticsRobolectricTest.java'
             include 'io/highfidelity/hifiinterface/HifiUtilsTest.java'
             include 'io/highfidelity/hifiinterface/PermissionCheckerRobolectricTest.java'
             include 'org/overte/pico/PermissionsActivityRobolectricTest.java'
@@ -60,6 +107,9 @@ java {
 }
 
 dependencies {
+    nativeHostApis 'androidx.webkit:webkit:1.12.1@aar'
+    nativeHostApis 'androidx.core:core:1.1.0@aar'
+    nativeHostApis 'androidx.annotation:annotation-jvm:1.8.1@jar'
     boundaryCompileOnly 'org.robolectric:android-all:15-robolectric-13954326'
     compileOnly 'org.robolectric:android-all:15-robolectric-13954326'
     testCompileOnly 'org.robolectric:android-all:15-robolectric-13954326'
@@ -67,6 +117,8 @@ dependencies {
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.robolectric:robolectric:4.16.1'
 }
+
+tasks.named('compileJava') { dependsOn extractNativeHostApis }
 
 def extractedTestAars = layout.buildDirectory.dir('extracted-test-aars')
 def extractTestAars = tasks.register('extractTestAars') {
@@ -91,11 +143,15 @@ test {
     dependsOn extractTestAars
     classpath += fileTree(extractedTestAars) { include '*.jar' }
     useJUnit()
-    // Avoid host-wide /tmp cleanup and extraction collisions for Conscrypt's JNI helper.
+    // Keep font/native extraction local to this harness, including downstream
+    // suites; none of these host caches belong to a product build attempt.
+    def testTempDir = layout.buildDirectory.dir('tmp/robolectric-runtime')
     def conscryptWorkDir = layout.buildDirectory.dir('tmp/conscrypt-native')
     doFirst {
+        testTempDir.get().asFile.mkdirs()
         conscryptWorkDir.get().asFile.mkdirs()
     }
+    systemProperty 'java.io.tmpdir', testTempDir.get().asFile.absolutePath
     systemProperty 'org.conscrypt.native.workdir', conscryptWorkDir.get().asFile.absolutePath
     reports.junitXml.required = true
     reports.html.required = true
