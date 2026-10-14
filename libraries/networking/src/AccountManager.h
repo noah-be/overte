@@ -51,6 +51,8 @@ enum Type {
     None,
     Required,
     Optional,
+    // No bearer token; the request body contains a password or provider proof.
+    Credentials,
 };
 }
 
@@ -84,6 +86,7 @@ public:
     void setIsAgent(bool isAgent) { _isAgent = isAgent; }
 
     const QUrl& getAuthURL() const { return _authURL; }
+    bool lastLoginTransportRejected() const { return _lastLoginTransportRejected; }
     void setAuthURL(const QUrl& authURL);
     bool hasAuthEndpoint() { return !_authURL.isEmpty(); }
     Q_INVOKABLE void updateAuthURLFromMetaverseServerURL();
@@ -188,6 +191,7 @@ private:
     DataServerAccountInfo _accountInfo;
     bool _isWaitingForTokenRefresh { false };
     bool _isWaitingForAccessToken { false };
+    bool _lastLoginTransportRejected { false };
     bool _isAgent { false };
 
     bool _isWaitingForKeypairResponse { false };

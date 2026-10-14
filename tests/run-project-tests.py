@@ -62,6 +62,10 @@ SUITES = (
         sys.executable, "tests/device/contracts/web/test_embedded_web_policy.py")),
     Suite("embedded-web-qml", "host", (
         sys.executable, "tests/device/contracts/web/test_embedded_web_qml.py")),
+    Suite("web-entity-visibility", "host", (
+        sys.executable, "tests/device/contracts/web/test_web_entity_visibility.py")),
+    Suite("places-native-qml", "host", (
+        sys.executable, "tests/device/contracts/places/test_places_qml.py")),
     Suite("account-auth-dispatch", "host", (
         sys.executable, "tests/device/contracts/lifecycle/test_account_auth_dispatch.py")),
     Suite("lod-preferences", "host", (

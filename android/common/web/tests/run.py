@@ -4,6 +4,7 @@
 """Portable policies/DOM tests; opt-in actual Qt/JNI/Android API compilation."""
 import argparse
 import os
+import signal
 from pathlib import Path
 import shlex
 import subprocess
@@ -14,6 +15,7 @@ WEB = Path(__file__).resolve().parents[1]
 ROOT = WEB.parents[2]
 parser = argparse.ArgumentParser()
 parser.add_argument('--native', action='store_true')
+parser.add_argument('--reproduce-old-hide', action='store_true', help='negative actual Qt/JNI active-only hide regression')
 parser.add_argument('--qt-root', type=Path, help='optional Qt sysroot containing usr/include and usr/lib64')
 parser.add_argument('--policy-include', type=Path, default=ROOT / 'libraries/shared/src')
 parser.add_argument('--android-jar', type=Path)
@@ -22,10 +24,16 @@ parser.add_argument('--jdk', type=Path, default=Path(os.environ.get('JAVA_HOME',
 args = parser.parse_args()
 subprocess.run([sys.executable, str(WEB / 'tests/test_network_policy.py')], check=True)
 subprocess.run([sys.executable, str(WEB / 'tests/build-integration-test.py')], check=True)
+subprocess.run([sys.executable, str(WEB / 'tests/audio-mutations.py')], check=True)
 with tempfile.TemporaryDirectory(prefix='overte-embedded-web-') as temporary:
     stage = Path(temporary)
     subprocess.run(['javac', '-d', str(stage),
         str(WEB / 'java/org/overte/web/WebInputGate.java'),
+        str(WEB / 'java/org/overte/web/WebAudioLifecycle.java'),
+        str(WEB / 'java/org/overte/web/WebLifecycleDispatch.java'),
+        str(WEB / 'java/org/overte/web/WebNavigationArchive.java'),
+        str(WEB / 'tests/java/org/overte/web/WebAudioLifecycleTest.java'),
+        str(WEB / 'tests/java/org/overte/web/WebLifecycleBoundary.java'),
         str(WEB / 'java/org/overte/web/WebDocumentState.java'),
         str(WEB / 'java/org/overte/web/WebFileChoiceLease.java'),
         str(WEB / 'java/org/overte/web/WebTextureScale.java'),
@@ -36,6 +44,7 @@ with tempfile.TemporaryDirectory(prefix='overte-embedded-web-') as temporary:
         str(WEB / 'tests/java/org/overte/web/WebLifetimeTest.java'),
         str(WEB / 'tests/java/org/overte/web/WebFrameTest.java')], check=True)
     subprocess.run(['java', '-cp', str(stage), 'org.overte.web.WebLifetimeTest'], check=True)
+    subprocess.run(['java', '-cp', str(stage), 'org.overte.web.WebAudioLifecycleTest'], check=True)
     subprocess.run(['java', '-cp', str(stage), 'org.overte.web.WebFrameTest'], check=True)
     if args.android_jar or args.webkit_jar:
         if not args.android_jar or not args.webkit_jar:
@@ -66,8 +75,23 @@ with tempfile.TemporaryDirectory(prefix='overte-embedded-web-') as temporary:
         subprocess.run(['c++', '-std=c++17', '-fPIC', '-UNDEBUG', str(WEB / 'src/NativeWebViewItem.cpp'),
             str(WEB / 'tests/native.cpp'), str(moc), str(resources), '-I' + str(WEB / 'src'),
             '-I' + str(args.policy_include), '-I' + str(args.jdk / 'include'), '-I' + str(args.jdk / 'include/linux'),
-            '-o', str(binary), *flags], env=environment, check=True)
+            '-L' + str(args.jdk / 'lib/server'), '-Wl,-rpath,' + str(args.jdk / 'lib/server'), '-ljvm', '-pthread', '-o', str(binary), *flags], env=environment, check=True)
         channel = stage / 'qwebchannel.js'
         environment['QT_QPA_PLATFORM'] = 'offscreen'
-        subprocess.run([str(binary), str(channel), str(ROOT / 'interface/resources/qml/controls/+android/EmbeddedWebBackend.qml')], env=environment, check=True)
+        command = [str(binary), str(channel), str(ROOT / 'interface/resources/qml/controls/+android/EmbeddedWebBackend.qml'), str(stage)]
+        import resource
+        resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+        subprocess.run(command, env=environment, check=True)
+        if args.reproduce_old_hide:
+            import resource
+            resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+            old = dict(environment, OVERTE_TEST_OLD_ACTIVE_VISIBILITY='1')
+            failed = subprocess.run(command, env=old, capture_output=True, text=True)
+            expected = 'field("hiddenRevision") == jlong(wire.lifecycleRevision()) && field("hiddenRevision") != jlong(before)'
+            if (failed.returncode != -signal.SIGABRT or 'Assertion' not in failed.stderr
+                    or expected not in failed.stderr or 'failed' not in failed.stderr):
+                raise AssertionError('expected inactive-hide assertion was not observed: '
+                    + str(failed.returncode) + '\n' + failed.stdout + failed.stderr)
+            sys.stderr.write(failed.stderr)
+            print('PASS: actual Qt/JNI original active-only hide comparison rejected by production-dispatch regression')
     subprocess.run(['node', str(WEB / 'tests/javascript.js'), *([str(channel)] if channel else [])], check=True)
