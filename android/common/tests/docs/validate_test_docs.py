@@ -9,6 +9,22 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 
+def resolve_test_includes(root: Path, patterns: list[str]) -> list[Path]:
+    """Expand actual Gradle include patterns without hiding missing or duplicate classes."""
+    result = set()
+    for pattern in patterns:
+        candidates = sorted(root.glob(f"**/apps/*/src/test/java/{pattern}"))
+        if not candidates:
+            raise ValueError(f"JUnit include must resolve at least once: {pattern}")
+        identities = set()
+        for path in candidates:
+            identity = path.as_posix().split('/src/test/java/', 1)[1]
+            if identity in identities:
+                raise ValueError(f"JUnit include resolves a duplicate class: {identity}")
+            identities.add(identity)
+            result.add(path)
+    return sorted(result)
+
 def source_facts(root: Path = ROOT) -> dict[str, object]:
     catalog = json.loads((root / "common/tests/suite/catalog.json").read_text())
     tiers = {tier for suite in catalog["suites"] for tier in suite["tiers"]}
@@ -25,11 +41,9 @@ def source_facts(root: Path = ROOT) -> dict[str, object]:
         "org/overte/pico/": "Pico",
         "io/highfidelity/questInterface/": "legacy Quest",
     }
-    for relative in included:
-        candidates = list(root.glob(f"**/apps/*/src/test/java/{relative}"))
-        if len(candidates) != 1:
-            raise ValueError(f"Robolectric include must resolve exactly once: {relative}")
-        text = candidates[0].read_text()
+    for candidate in resolve_test_includes(root, included):
+        relative = candidate.as_posix().split('/src/test/java/', 1)[1]
+        text = candidate.read_text()
         methods = len(re.findall(r"(?m)^\s*@Test\b", text))
         sdk = re.search(r"@Config\s*\(\s*sdk\s*=\s*\{([^}]+)\}", text)
         sdks = tuple(int(value) for value in re.findall(r"\d+", sdk.group(1))) if sdk else ()
@@ -45,12 +59,9 @@ def source_facts(root: Path = ROOT) -> dict[str, object]:
         robo_executions += methods * len(sdks)
     all_test_includes = re.findall(r"include '([^']+Test\.java)'", build)
     harness_executions = robo_executions
-    for relative in set(all_test_includes) - set(included):
-        candidates = list(root.glob(f"**/apps/*/src/test/java/{relative}"))
-        if len(candidates) != 1:
-            raise ValueError(f"JUnit include must resolve exactly once: {relative}")
+    for candidate in resolve_test_includes(root, sorted(set(all_test_includes) - set(included))):
         harness_executions += len(re.findall(
-            r"(?m)^\s*@Test\b", candidates[0].read_text(encoding="utf-8")))
+            r"(?m)^\s*@Test\b", candidate.read_text(encoding="utf-8")))
     tree = ast.parse((root / "common/tests/mutation/run_mutations.py").read_text())
     calls = [n for n in ast.walk(tree) if isinstance(n, ast.Call)
              and isinstance(n.func, ast.Name) and n.func.id == "Mutant"]
