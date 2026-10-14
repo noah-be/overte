@@ -64,13 +64,13 @@ FocusScope {
         color: "#303030"
         radius: 4
         Accessible.role: Accessible.Button
-        Accessible.name: qsTr("Reload page with a new GET request")
+        Accessible.name: qsTr("Reload page")
         Accessible.onPressAction: requestReload()
         activeFocusOnTab: true
         function requestReload() { if (root.visible && root.enabled) { nativeView.reload(); } }
         Keys.onSpacePressed: requestReload()
         Keys.onReturnPressed: requestReload()
-        Text { anchors.centerIn: parent; text: qsTr("Reload page (GET)"); color: "white" }
+        Text { anchors.centerIn: parent; text: qsTr("Reload page"); color: "white" }
         MouseArea { anchors.fill: parent; onClicked: reloadOffer.requestReload() }
     }
 

@@ -203,10 +203,16 @@ revision, including explicit reload of a previously closed page.
 A provider without reliable native mute can use a visible document. Its first
 actual suspend, including navigation away from a running page, closes only that
 WebView. The UI explains the lost transient state and provides a pointer,
-keyboard and accessibility `Reload page (GET)` action. Returning to visibility
+keyboard and accessibility `Reload page` action. Returning to visibility
 alone never restores it. Only bounded navigation URLs survive; no POST body,
 form values, JavaScript objects or running contexts are restored. Such an older
-provider does not offer full state-preserving parity. A failed native mute uses
+provider does not offer full state-preserving parity. Redirects can also close
+an initial visible load: `shouldOverrideUrlLoading` suspends before a main-frame
+redirect, and a later `onPageStarted` suspends after an earlier document epoch.
+A loading page may already execute uncooperative audio, so unfinished loading is
+not a safe exemption. Explicit reload uses the selected target URL with GET;
+redirect loops on these providers remain a browsing limitation. The host tests
+record this conservative behavior, not actual Chromium redirect callbacks. A failed native mute uses
 the same local close path. Other WebViews and Overte voice are unaffected.
 
 Native mute prevents audible output; it does not prove that AudioContext,
@@ -222,3 +228,12 @@ Only Android WebView/Looper effects are represented at that boundary. The
 portable production-controller tests cover two-page isolation, unsupported and
 throwing providers, stale callbacks and bounded URL history. These tests do not
 execute Chromium DOM or establish real audio silence.
+
+Activity foreground and input focus are separate. Product hosts must implement
+`isForeground` from actual resumed/Activity ownership, not window focus, and
+call `setInputFocused(host, hasWindowFocus)` from focus changes. The UI-thread
+hook invalidates queued input tickets, cancels pointer/editor input and clears
+Qt editor state with an exact instance/revision/input-epoch callback. It does not
+mute audio, suspend rendering or revoke the bridge. File-picker delivery still
+requires both foreground and real window focus. Phone/Pico host propagation of
+this additive hook is required before runtime acceptance.

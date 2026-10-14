@@ -113,6 +113,7 @@ public:
     void acceptCreated(bool created, quint64 revision);
     void acceptResult(quint64 grant, quint64 page, quint64 request, const QByteArray& json);
     void acceptForeground(bool active);
+    void acceptInputFocus(quint64 revision, quint64 birth, bool focused);
     QByteArray resource(quint64 grant, const QUrl& browser) const;
     QString resourceMime(quint64 grant, const QUrl& browser) const;
 signals:
@@ -163,7 +164,8 @@ private:
     QString _editorText, _editorKind;
     int _cursor { 0 }, _anchor { 0 }, _surroundingStart { 0 };
     QRectF _cursorRect;
-    quint64 _nextRequest { 1 };
+    quint64 _nextRequest { 1 }, _inputEpoch { 0 };
+    bool _inputFocused { true };
     QHash<quint64, QJSValue> _callbacks;
     QVector<QMetaObject::Connection> _geometryConnections;
     NativeWebTransport* _transport;

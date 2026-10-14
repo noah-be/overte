@@ -16,6 +16,7 @@
 #include <cassert>
 #include <cstdio>
 #include <jni.h>
+extern "C" void Java_org_overte_web_EmbeddedWebView_nativeInputFocus(JNIEnv*, jclass, jlong, jlong, jlong, jboolean);
 extern "C" void Java_org_overte_web_EmbeddedWebView_nativeInitialize(JNIEnv*, jclass);
 extern "C" jlong Java_org_overte_web_EmbeddedWebView_nativeLifecycleRevision(JNIEnv*, jclass, jlong);
 extern "C" jlong Java_org_overte_web_EmbeddedWebView_nativeGeneration(JNIEnv*, jclass, jlong);
@@ -224,6 +225,24 @@ int main(int argc, char** argv) {
         assert(!env->ExceptionCheck());
         auto field = [&](const char* name) { return env->GetStaticLongField(boundary, env->GetStaticFieldID(boundary,name,"J")); };
         const auto handle = field("handle"); const auto before = wire.generation(); assert(handle > 0 && before > 0);
+        const QUrl wireDocument("https://wire.test/page");
+        const auto birth = field("creationRevision");
+        wire.acceptPage(before,1,wireDocument); QCoreApplication::processEvents();
+        const QByteArray inputState = R"({"active":true,"text":"typed","cursor":5,"anchor":5})";
+        assert(wire.acceptMessage(before,1,wireDocument,QUrl("https://wire.test"),true,"editor",inputState));
+        Java_org_overte_web_EmbeddedWebView_nativeInputFocus(env,boundary,handle,birth,wire.lifecycleRevision(),false);
+        QCoreApplication::processEvents(); assert(!wire.editorFocused());
+        assert(wire.generation() == before && wire.allowsEditorDocument(before,1,wireDocument));
+        assert(!wire.acceptMessage(before,1,wireDocument,QUrl("https://wire.test"),true,"editor",inputState));
+        Java_org_overte_web_EmbeddedWebView_nativeInputFocus(env,boundary,handle,birth,wire.lifecycleRevision(),true);
+        assert(wire.acceptMessage(before,1,wireDocument,QUrl("https://wire.test"),true,"editor",inputState));
+        Java_org_overte_web_EmbeddedWebView_nativeInputFocus(env,boundary,handle,birth,wire.lifecycleRevision(),false);
+        Java_org_overte_web_EmbeddedWebView_nativeInputFocus(env,boundary,handle,birth,wire.lifecycleRevision(),true);
+        QCoreApplication::processEvents(); assert(!wire.editorFocused()); // A queued old focus state cannot survive lose/regain.
+        assert(wire.acceptMessage(before,1,wireDocument,QUrl("https://wire.test"),true,"editor",inputState));
+        Java_org_overte_web_EmbeddedWebView_nativeInputFocus(env,boundary,handle,birth+1,wire.lifecycleRevision(),false);
+        QCoreApplication::processEvents(); assert(wire.editorFocused()); // A stale instance cannot revoke current input.
+        std::puts("PASS: actual Qt/JNI focus-only revocation rejects queued old editors without changing active document/bridge generation");
         wire.setVisible(false); assert(!wire.generation());
         assert(!env->ExceptionCheck());
         assert(field("hiddenRevision") == jlong(wire.lifecycleRevision()) && field("hiddenRevision") != jlong(before));

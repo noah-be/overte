@@ -66,13 +66,25 @@ public final class EmbeddedWebView {
     public static void setForeground(EmbeddedWebHost owner, boolean foreground) {
         requireMain();
         if (host.get() != owner) return;
-        INPUT.update(owner, foreground);
+        setInputFocused(owner, foreground && owner.activity() != null && owner.activity().hasWindowFocus());
         nativeForeground(foreground);
         for (Instance instance : new ArrayList<>(VIEWS.values())) {
             instance.document.grant(nativeLifecycleRevision(instance.handle));
             if (!foreground) { instance.suspend(); }
             else if (instance.visible) { if (instance.destroyedDocument) instance.reportSuspended();
                 else { instance.view.setVisibility(View.VISIBLE); instance.view.onResume(); instance.authorize(); instance.armTexture(); instance.commitAudio(); instance.publish(); } }
+        }
+    }
+    /** Window/input focus is independent of Activity foreground and media lifetime. */
+    public static void setInputFocused(EmbeddedWebHost owner, boolean focused) {
+        requireMain();
+        if (host.get() != owner || owner == null) return;
+        boolean allowed = focused && owner.isForeground() && owner.activity() != null && owner.activity().hasWindowFocus();
+        INPUT.update(owner, allowed);
+        for (Instance instance : new ArrayList<>(VIEWS.values())) {
+            if (instance.owner != owner || instance.activity != owner.activity() || !instance.active) continue;
+            nativeInputFocus(instance.handle, instance.creationRevision, nativeLifecycleRevision(instance.handle), allowed);
+            if (!allowed && !instance.destroyedDocument) instance.cancelInput();
         }
     }
     public static void detach(EmbeddedWebHost owner) {
@@ -87,6 +99,7 @@ public final class EmbeddedWebView {
     private static native void nativeForeground(boolean active);
     private static native long nativeGeneration(long handle);
     private static native long nativeLifecycleRevision(long handle);
+    private static native void nativeInputFocus(long handle, long creationRevision, long revision, boolean focused);
     private static native void nativeSuspended(long handle, long creationRevision, long revision, String url, boolean back, boolean forward);
     private static native void nativeResumeRequest(long handle, long creationRevision, long revision, String url);
     private static native boolean nativeBridgeAllowed(long handle, long grant, long page, String document);
@@ -393,7 +406,10 @@ public final class EmbeddedWebView {
                 EmbeddedWebHost owner, Activity activity, WebTextureRenderer renderer) {
             this.handle = handle; this.view = view; this.overlay = overlay; this.bootstrap = bootstrap; this.editorBootstrap = editorBootstrap;
             this.owner = owner; this.activity = activity; this.renderer = renderer;
-            final boolean supported = WebViewFeature.isFeatureSupported(WebViewFeature.MUTE_AUDIO);
+            boolean available;
+            try { available = WebViewFeature.isFeatureSupported(WebViewFeature.MUTE_AUDIO); }
+            catch (RuntimeException providerFailure) { available = false; }
+            final boolean supported = available;
             audio = new WebAudioLifecycle(new WebAudioLifecycle.Output() {
                 @Override public boolean mute(boolean value) {
                     if (!supported || destroyedDocument) return false;
@@ -477,7 +493,7 @@ public final class EmbeddedWebView {
             script = WebViewCompat.addDocumentStartJavaScript(view, bootstrap, Collections.singleton(origin));
         }
         void receive(WebView source, WebMessageCompat message, Uri sourceOrigin, boolean mainFrame, boolean editor) {
-            if (source != view || !active || message.getType() != WebMessageCompat.TYPE_STRING) return;
+            if (source != view || !active || (editor && (!owner.isForeground() || !activity.hasWindowFocus())) || message.getType() != WebMessageCompat.TYPE_STRING) return;
             String encoded = message.getData();
             if (encoded == null || encoded.length() > 65536) return;
             int bytes = encoded.getBytes(StandardCharsets.UTF_8).length;
