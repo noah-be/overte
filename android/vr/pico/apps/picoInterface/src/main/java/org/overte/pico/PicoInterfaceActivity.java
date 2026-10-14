@@ -205,7 +205,8 @@ public final class PicoInterfaceActivity extends QtActivity {
         if (nativeDocuments != null) runShutdownStep("Native documents", () -> nativeDocuments.foreground(true));
         if (embeddedWeb != null) runShutdownStep("Embedded web", () -> embeddedWeb.foreground(true));
         if (accessibility != null) accessibility.start();
-        runShutdownStep("Legacy web lifecycle", () -> OffscreenWebView.setForeground(this, hasWindowFocus()));
+        // Rendering follows Activity lifecycle; window focus only gates input.
+        runShutdownStep("Legacy web lifecycle", () -> OffscreenWebView.setForeground(this, true));
         runShutdownStep("Web input", () -> OffscreenWebView.setInputForeground(this, hasWindowFocus()));
         if (INSTANCE.current() == this) PicoClientVisibility.foreground(this, true);
         if (INSTANCE.current() == this) AndroidAudioInput.setForeground(hasWindowFocus());
@@ -230,7 +231,6 @@ public final class PicoInterfaceActivity extends QtActivity {
         if (nativeDocuments != null) runShutdownStep("Native documents focus", nativeDocuments::windowFocus);
         if (embeddedWeb != null) runShutdownStep("Embedded web focus", embeddedWeb::windowFocus);
         if (INSTANCE.current() == this) {
-            runShutdownStep("Legacy web lifecycle", () -> OffscreenWebView.setForeground(this, resumed && focused));
             runShutdownStep("Web input", () -> OffscreenWebView.setInputForeground(this, resumed && focused));
             AndroidAudioInput.setForeground(resumed && focused);
         }

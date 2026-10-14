@@ -24,7 +24,7 @@ class ActivityTeardownTest(unittest.TestCase):
         ingress = web_source[web_source.index('    static void setInputForeground('):web_source.index('    private static void postInputCommand(')]
         driver = '''package org.overte.pico;
 public final class PicoActivityTeardownTest {
-    static int web, audio, xr, qt, errors, cancelled, documentResults, webResults, qtResults;
+    static int web, audio, xr, qt, errors, cancelled, documentResults, webResults, qtResults, legacyTransitions;
     static class Intent {}
     static boolean failWeb, failAudio, failInput, audioAllowed, legacyAllowed, failLegacy;
     enum Event { REDACTED }
@@ -33,6 +33,7 @@ public final class PicoActivityTeardownTest {
         static final PicoWebInputGate INPUT_GATE = new PicoWebInputGate();
         static void setForeground(PicoInterfaceActivity owner, boolean active) {
             if (owner != PicoInterfaceActivity.getInstance()) return;
+            ++legacyTransitions;
             legacyAllowed = active;
             if (failLegacy) throw new IllegalStateException("test-only");
         }
@@ -113,27 +114,42 @@ public final class PicoActivityTeardownTest {
         current.onActivityResult(501,0,null); need(documentResults==1 && webResults==0 && qtResults==0);
         current.onActivityResult(502,0,null); need(documentResults==2 && webResults==1 && qtResults==0);
         current.onActivityResult(503,0,null); need(documentResults==3 && webResults==2 && qtResults==1);
+        // Execute the actual Activity callers. Window focus only gates input/audio;
+        // resumed rendering remains active even before the first focus event.
+        current.focused = false;
         current.onResume();
         PicoWebInputGate gate = OffscreenWebView.INPUT_GATE;
-        PicoWebInputGate.Ticket ticket = gate.capture();
-        need(gate.permits(ticket, current) && audioAllowed && legacyAllowed);
-        current.onPause(); // Window focus can still be true at pause.
-        need(gate.capture() == null && !audioAllowed && !legacyAllowed);
-        current.onResume();
-        need(!gate.permits(ticket, current) && gate.capture() != null);
-        current.onWindowFocusChanged(false);
-        need(gate.capture() == null && !audioAllowed && !legacyAllowed);
+        need(gate.capture() == null && !audioAllowed && legacyAllowed);
+        int transitions = legacyTransitions;
+        current.focused = true;
         current.onWindowFocusChanged(true);
         need(gate.capture() != null && audioAllowed && legacyAllowed);
-        current.onPause();
+        need(legacyTransitions == transitions);
+        PicoWebInputGate.Ticket ticket = gate.capture();
+        current.focused = false;
+        current.onWindowFocusChanged(false);
+        need(gate.capture() == null && !audioAllowed && legacyAllowed);
+        need(legacyTransitions == transitions);
+        current.focused = true;
+        current.onWindowFocusChanged(true);
+        need(gate.capture() != null && audioAllowed && legacyAllowed);
+        need(legacyTransitions == transitions);
+        current.onPause(); // Window focus can still be true at pause.
+        need(gate.capture() == null && !audioAllowed && !legacyAllowed);
+        need(legacyTransitions == ++transitions);
         current.onWindowFocusChanged(true); // Focus alone cannot override pause.
         need(gate.capture() == null && !audioAllowed && !legacyAllowed);
+        need(legacyTransitions == transitions);
         current.onResume();
+        need(!gate.permits(ticket, current) && gate.capture() != null && legacyAllowed);
+        need(legacyTransitions == ++transitions);
         ticket = gate.capture();
         first.onPause(); first.onResume(); first.onWindowFocusChanged(false);
-        need(gate.permits(ticket, current)); // Obsolete owner cannot change ingress.
+        need(gate.permits(ticket, current) && legacyAllowed); // Obsolete owner cannot change ingress.
+        need(legacyTransitions == transitions);
         current.onDestroy();
-        need(gate.capture() == null);
+        need(gate.capture() == null && !legacyAllowed);
+        need(legacyTransitions == transitions + 1);
     }
 }
 '''

@@ -4,6 +4,7 @@
 This is a focused javac check, not a Gradle build or Android execution.
 """
 import os
+import re
 from pathlib import Path
 import subprocess
 import tempfile
@@ -40,6 +41,25 @@ class ProductionJavaCompileTest(unittest.TestCase):
                 line = descriptors.index(method + '(')
                 actual = descriptors[line:].split('descriptor:', 1)[1].splitlines()[0].strip()
                 self.assertEqual(actual, signature, method)
+
+            activity = subprocess.check_output(['javap', '-private', '-c', '-classpath', scratch,
+                'org.overte.pico.PicoInterfaceActivity'], text=True)
+            # Inspect the real SDK-compiled callback/lambda callgraph. Runtime
+            # callback sequences are also executed by test_activity_teardown.
+            blocks = re.split(r'\n(?=  (?:public|private|protected) )', activity)
+            frame_calls = [block for block in blocks if
+                'Method org/overte/pico/OffscreenWebView.setForeground:' in block]
+            self.assertEqual(len(frame_calls), 4, activity)  # create/resume/pause/destroy
+            for callback, active in (('onCreate', 0), ('onResume', 1), ('onPause', 0), ('onDestroy', 0)):
+                matches = [block for block in frame_calls if 'lambda$' + callback + '$' in block]
+                self.assertEqual(len(matches), 1, callback)
+                self.assertRegex(matches[0], r'iconst_' + str(active) +
+                    r'\s+\d+: invokestatic[^\n]+OffscreenWebView\.setForeground:')
+            focus_blocks = [block for block in blocks if 'onWindowFocusChanged(' in
+                block.splitlines()[0] or 'lambda$onWindowFocusChanged$' in block.splitlines()[0]]
+            self.assertTrue(focus_blocks)
+            self.assertFalse(any('OffscreenWebView.setForeground:' in block for block in focus_blocks))
+            self.assertTrue(any('OffscreenWebView.setInputForeground:' in block for block in focus_blocks))
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

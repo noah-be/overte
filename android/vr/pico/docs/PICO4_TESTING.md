@@ -109,7 +109,9 @@ artifact hashes and original dependency provenance separately.
 
 The retained `data:text/html` world surface continues to use its original Pico
 renderer. It now starts dormant and renders only while its own QQuick surface
-is visible/enabled and its Activity is foreground. Input/keyboard focus is a
+is visible/enabled and its Activity is resumed. Activity window-focus loss or
+gain does not pause/resume rendering; actual pause/destroy suspends it, and
+resume admits it again. Input/keyboard focus is a
 separate condition. Hide/background retires queued raster and frame epochs,
 pauses this view and its DOM audio/video elements, and releases transient input.
 Show resumes the existing page without automatically restarting its media.
