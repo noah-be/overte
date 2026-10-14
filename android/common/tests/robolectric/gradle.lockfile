@@ -1,8 +1,11 @@
 # This is a Gradle generated file for dependency locking.
 # Manual edits can break the build and are not advised.
 # This file is expected to be part of source control.
+androidx.annotation:annotation-jvm:1.8.1=nativeHostApis
+androidx.core:core:1.1.0=nativeHostApis
 androidx.test.espresso:espresso-idling-resource:3.7.0=testRuntimeClasspath
 androidx.test:monitor:1.8.0=testCompileClasspath,testRuntimeClasspath
+androidx.webkit:webkit:1.12.1=nativeHostApis
 com.almworks.sqlite4java:sqlite4java:1.0.392=testCompileClasspath,testRuntimeClasspath
 com.google.auto.value:auto-value-annotations:1.11.0=testCompileClasspath,testRuntimeClasspath
 com.google.errorprone:error_prone_annotation:2.41.0=testRuntimeClasspath
