@@ -17,6 +17,9 @@ using QQuickItem = QObject;
 using OffscreenQmlDialog = QObject;
 class AccountManager : public QObject {
     Q_OBJECT
+public:
+    bool _lastLoginTransportRejected = false; // Account data boundary; actual getter below.
+#include "account-transport-accessor.inc"
 signals:
     void loginComplete(const QUrl& authURL);
     void loginFailed();
@@ -24,7 +27,7 @@ signals:
 class DomainAccountManager : public QObject {
     Q_OBJECT
 public:
-    enum class LoginOutcome { Succeeded, Failed, Cancelled, TimedOut, ResponseRejected };
+    enum class LoginOutcome { Succeeded, Failed, Cancelled, TimedOut, ResponseRejected, TransportRejected };
     overte::network::RequestScope scope;
     bool pending {};
     bool rejectStart {};
@@ -72,6 +75,7 @@ public:
     bool getDomainLoginRequested() const { return true; } // Actual DialogsManager selection boundary.
     mutable overte::network::RequestTicket _domainLoginRequest;
     int domainDismissals {};
+    Q_INVOKABLE bool getAccountLoginTransportRejected() const;
     Q_INVOKABLE void dismissLoginDialog() { ++domainDismissals; }
 signals:
     void handleLoginCompleted();
@@ -191,6 +195,34 @@ int main(int argc, char** argv) {
         domain->scope.next();
         QCoreApplication::processEvents();
         assert(domainFailed == 4);
+        const auto beforeTransport = domainFailed;
+        dialog.loginDomain("u", "p");
+        domain->finish(DomainAccountManager::LoginOutcome::TransportRejected);
+        QCoreApplication::processEvents();
+        assert(domainFailed == beforeTransport + 1);
+        properties = view->property("lastProperties").value<QJSValue>();
+        assert(properties.property("errorString").toString() ==
+            "Domain sign-in requires an HTTPS authentication endpoint. Contact the domain owner to update it.");
+        assert(view->property("lastSource").toString() == "LinkAccountBody.qml");
+        assert(!view->property("loggingInSpinner").value<QJSValue>().property("visible").toBool());
+        // Actual getter and QML handler, for ordinary and provider form state.
+        for (bool provider : {false, true}) {
+            view->setProperty("withSteam", provider);
+            view->setProperty("linkSteam", provider);
+            account->_lastLoginTransportRejected = true;
+            emit dialog.handleLoginFailed();
+            properties = view->property("lastProperties").value<QJSValue>();
+            assert(properties.property("errorString").toString() ==
+                "Sign-in requires an HTTPS authentication endpoint. Check the configured server address.");
+            assert(properties.property("withSteam").toBool() == provider);
+            assert(properties.property("linkSteam").toBool() == provider);
+        }
+        view->setProperty("withSteam", false);
+        view->setProperty("linkSteam", false);
+        account->_lastLoginTransportRejected = false;
+        emit dialog.handleLoginFailed();
+        properties = view->property("lastProperties").value<QJSValue>();
+        assert(properties.property("errorString").toString() == "Username or password is incorrect.");
     }
     const int oldCompleted = completed, oldFailed = failed;
     emit domain->loginComplete();

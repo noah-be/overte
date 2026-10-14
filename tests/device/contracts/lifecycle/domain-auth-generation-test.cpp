@@ -67,7 +67,7 @@ int main(int argc, char** argv) {
         QObject::connect(&denied, &DomainAccountManager::loginRequestFinished,
             [&](overte::network::RequestTicket ticket, overte::network::RequestTicket context, int outcome) {
                 assert(ticket.sameRequest(deniedTicket) && context.current());
-                assert(outcome == static_cast<int>(DomainAccountManager::LoginOutcome::Failed));
+                assert(outcome == static_cast<int>(DomainAccountManager::LoginOutcome::TransportRejected));
                 ++terminal;
             });
         const int posts = network.posts;

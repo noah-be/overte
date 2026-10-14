@@ -95,6 +95,8 @@ LoginDialog::LoginDialog(QQuickItem *parent) : OffscreenQmlDialog(parent) {
                 emit handleDomainLoginFailed("cancelled");
             } else if (outcome == static_cast<int>(Outcome::TimedOut)) {
                 emit handleDomainLoginFailed("timeout");
+            } else if (outcome == static_cast<int>(Outcome::TransportRejected)) {
+                emit handleDomainLoginFailed("insecure_transport");
             } else {
                 emit handleDomainLoginFailed("failed");
             }
@@ -251,6 +253,10 @@ void LoginDialog::login(const QString& username, const QString& password) const 
     }
 #endif
     DependencyManager::get<AccountManager>()->requestAccessToken(username, password);
+}
+
+bool LoginDialog::getAccountLoginTransportRejected() const {
+    return DependencyManager::get<AccountManager>()->lastLoginTransportRejected();
 }
 
 void LoginDialog::loginDomain(const QString& username, const QString& password) const {

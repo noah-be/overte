@@ -89,8 +89,12 @@ generic/OAuth manager implementations with real Qt replies. Dependency account
 data, ATP and request transports remain stated boundaries. The tests distinguish
 one queued failure from stale context/owner deletion and preserve public HTTP
 and successful HTTPS request dispatch. Qt5 legacy error observers must receive
-exactly one error, including when an observer deletes the reply. These checks
-do not establish a TLS handshake, a signed app, visible login recovery or a
+exactly one error, including when an observer deletes the reply. A current
+transport denial retains a scoped native reason: account and domain QML recovery
+show an HTTPS endpoint error rather than blaming the password. A new account
+attempt, endpoint change or logout clears the previous account reason. Existing
+provider form context and stale/closed-domain suppression remain intact. These checks
+do not establish a TLS handshake, a signed app, visible current-artifact login recovery or a
 current-artifact device journey. Client propagation and device acceptance remain
 open.
 

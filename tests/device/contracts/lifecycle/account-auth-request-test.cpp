@@ -54,6 +54,7 @@ class AccountManager : public QObject {
 public:
     AccountInfo _accountInfo;
     overte::network::RequestScope _credentialContext;
+    bool _lastLoginTransportRejected = false;
     QUrl _authURL { "https://auth-private.invalid" };
     bool _isWaitingForTokenRefresh = false;
     bool _isWaitingForAccessToken = false;

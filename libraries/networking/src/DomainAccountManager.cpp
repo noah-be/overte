@@ -272,13 +272,15 @@ void DomainAccountManager::requestAccessTokenFinished() {
 
     } else {
         // Failure.
+        const auto outcome = requestReply->property("_overte_credential_transport_rejected").toBool()
+            ? LoginOutcome::TransportRejected : LoginOutcome::Failed;
         qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::AuthFailed);
         emit loginFailed();
         // Legacy listeners may delete this owner or replace the login context.
         if (!completionOwner || !ticket.current()) {
             return;
         }
-        emit loginRequestFinished(ticket, ticket, static_cast<int>(LoginOutcome::Failed));
+        emit loginRequestFinished(ticket, ticket, static_cast<int>(outcome));
     }
 }
 

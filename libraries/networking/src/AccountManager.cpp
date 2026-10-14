@@ -147,6 +147,7 @@ void AccountManager::resetAccountSettings() {
 }
 
 void AccountManager::logout() {
+    _lastLoginTransportRejected = false;
     const auto logoutContext = _credentialContext.next();
     QPointer<AccountManager> logoutOwner(this);
     _isWaitingForTokenRefresh = false;
@@ -262,6 +263,7 @@ QVariantMap accountMapFromFile(bool& success) {
 
 void AccountManager::setAuthURL(const QUrl& authURL) {
     if (_authURL != authURL) {
+        _lastLoginTransportRejected = false;
         const auto context = _credentialContext.next();
         const QPointer<AccountManager> owner(this);
         resetAccountSettings();
@@ -701,6 +703,7 @@ void AccountManager::setTemporaryDomain(const QUuid& domainID, const QString& ke
 }
 
 void AccountManager::requestAccessToken(const QString& login, const QString& password) {
+    _lastLoginTransportRejected = false;
     const auto requestContext = _credentialContext.next();
     QPointer<AccountManager> requestOwner(this);
     _isWaitingForAccessToken = true;
@@ -737,6 +740,7 @@ void AccountManager::requestAccessToken(const QString& login, const QString& pas
 }
 
 void AccountManager::requestAccessTokenWithAuthCode(const QString& authCode, const QString& clientId, const QString& clientSecret, const QString& redirectUri) {
+    _lastLoginTransportRejected = false;
     const auto requestContext = _credentialContext.next();
     QPointer<AccountManager> requestOwner(this);
     _isWaitingForAccessToken = true;
@@ -773,6 +777,7 @@ void AccountManager::requestAccessTokenWithAuthCode(const QString& authCode, con
 }
 
 void AccountManager::requestAccessTokenWithSteam(QByteArray authSessionTicket) {
+    _lastLoginTransportRejected = false;
     const auto requestContext = _credentialContext.next();
     QPointer<AccountManager> requestOwner(this);
     _isWaitingForAccessToken = true;
@@ -807,6 +812,7 @@ void AccountManager::requestAccessTokenWithSteam(QByteArray authSessionTicket) {
 }
 
 void AccountManager::requestAccessTokenWithOculus(const QString& nonce, const QString &oculusID) {
+    _lastLoginTransportRejected = false;
     const auto requestContext = _credentialContext.next();
     QPointer<AccountManager> requestOwner(this);
     _isWaitingForAccessToken = true;
@@ -963,6 +969,7 @@ void AccountManager::requestAccessTokenFinished() {
         return;
     }
     _isWaitingForAccessToken = false;
+    _lastLoginTransportRejected = requestReply->property("_overte_credential_transport_rejected").toBool();
 
     constexpr qint64 MAX_RESPONSE_BYTES = 1024 * 1024;
     const auto payload = requestReply->read(MAX_RESPONSE_BYTES + 1);

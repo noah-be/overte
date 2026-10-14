@@ -26,7 +26,11 @@ class DomainReceiver(unittest.TestCase):
         source = (subprocess.check_output(['git', '-C', str(ROOT), 'show',
                   baseline + ':interface/src/ui/LoginDialog.cpp'], text=True)
                   if baseline else (ROOT / 'interface/src/ui/LoginDialog.cpp').read_text())
-        qml = (ROOT / 'interface/resources/qml/LoginDialog/LoggingInBody.qml').read_text()
+        qml_relative = 'interface/resources/qml/LoginDialog/LoggingInBody.qml'
+        qml_baseline = os.environ.get('OVERTE_LOGIN_QML_BASELINE')
+        qml = (subprocess.check_output(['git', '-C', str(ROOT), 'show',
+            qml_baseline + ':' + qml_relative], text=True) if qml_baseline else (ROOT / qml_relative).read_text())
+        getter_source = (ROOT / 'interface/src/ui/LoginDialog.cpp').read_text()
         self.assertIn('Connections {\n        target: loginDialog', qml)
         functions = '\n'.join(block(qml, 'function ' + name + '(') for name in
                               ('onHandleLoginCompleted', 'onHandleLoginFailed', 'onHandleDomainLoginFailed'))
@@ -41,7 +45,11 @@ class DomainReceiver(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='overte-domain-receiver-') as temporary:
             directory = pathlib.Path(temporary)
             (directory / 'constructor.inc').write_text(block(source, 'LoginDialog::LoginDialog(') + '\n' +
-                                                      block(source, 'void LoginDialog::loginDomain('))
+                                                      block(source, 'void LoginDialog::loginDomain(') + '\n' +
+                                                      block(getter_source, 'bool LoginDialog::getAccountLoginTransportRejected('))
+            account_header = (ROOT / 'libraries/networking/src/AccountManager.h').read_text()
+            (directory / 'account-transport-accessor.inc').write_text(
+                block(account_header, '    bool lastLoginTransportRejected('))
             fixture = (here / 'login-dialog-domain-receiver.qml').read_text()
             (directory / 'receiver.qml').write_text(fixture.replace('/* ORIGINAL_HANDLERS */', functions)
                                                    .replace('/* ORIGINAL_SUCCESS */', success))

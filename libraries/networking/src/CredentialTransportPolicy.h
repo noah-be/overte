@@ -37,6 +37,7 @@ public:
             QNetworkAccessManager::Operation operation) : QNetworkReply(&manager) {
         setOperation(operation);
         setError(QNetworkReply::ContentAccessDenied, QStringLiteral("Credential requests require HTTPS"));
+        setProperty("_overte_credential_transport_rejected", true);
         setFinished(true);
         open(QIODevice::ReadOnly | QIODevice::Unbuffered);
         QTimer::singleShot(0, this, [this] {

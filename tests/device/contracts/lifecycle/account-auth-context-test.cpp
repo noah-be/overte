@@ -64,6 +64,7 @@ class AccountManager : public QObject {
 public:
     overte::network::RequestScope _credentialContext;
     DataServerAccountInfo _accountInfo;
+    bool _lastLoginTransportRejected = false;
     QUrl _authURL { "https://first-private.invalid" };
     bool _isWaitingForTokenRefresh = false, _isWaitingForAccessToken = false, _isAgent = false;
     int _numPullRetries = 3, persisted = 0, profiles = 0, removed = 0, saved = 0;
@@ -212,6 +213,9 @@ int main(int argc, char** argv) {
         assert(success == 0 && failure == int(provider != 4));
         assert(!denied._isWaitingForAccessToken && !denied._isWaitingForTokenRefresh);
         assert(denied._accountInfo.token.token.isEmpty());
+        assert(denied._lastLoginTransportRejected == bool(provider != 4));
+        denied.logout();
+        assert(!denied._lastLoginTransportRejected);
         QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
     }
     // A newer login intent on the SAME endpoint supersedes an older reply,
