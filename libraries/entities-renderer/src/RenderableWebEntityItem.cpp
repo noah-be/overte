@@ -49,7 +49,7 @@ using namespace render::entities;
 
 const QString WebEntityRenderer::QML = "Web3DSurface.qml";
 const char* WebEntityRenderer::URL_PROPERTY = "url";
-const char* WebEntityRenderer::SCRIPT_URL_PROPERTY = "scriptURL";
+const char* WebEntityRenderer::SCRIPT_URL_PROPERTY = "scriptUrl";
 const char* WebEntityRenderer::GLOBAL_POSITION_PROPERTY = "globalPosition";
 const char* WebEntityRenderer::USE_BACKGROUND_PROPERTY = "useBackground";
 const char* WebEntityRenderer::USER_AGENT_PROPERTY = "userAgent";
@@ -341,6 +341,7 @@ void WebEntityRenderer::doRenderUpdateSynchronousTyped(const ScenePointer& scene
     }
 
     withWriteLock([&] {
+        synchronizeWebVisibility(entity->getVisible());
         _inputMode = entity->getInputMode();
         _dpi = entity->getDpi();
         _color = entity->getColor();
@@ -654,6 +655,28 @@ void WebEntityRenderer::buildWebSurface(const EntityItemPointer& entity, const Q
         ++_currentWebCount;
     }
     WebEntityRenderer::acquireWebSurface(newSourceURL, isHTML, _webSurface, _cachedWebSurface);
+    // A cached surface can return to the same renderer with a different owner
+    // lifetime. Keep queued root creation from an earlier acquisition inert.
+    _webSurfaceLease = QSharedPointer<int>::create(0);
+    const auto lease = _webSurfaceLease;
+    const QWeakPointer<OffscreenQmlSurface> weakSurface(_webSurface);
+    _connections.push_back(QObject::connect(_webSurface.data(), &::hifi::qml::OffscreenSurface::rootItemCreated,
+        this, [this, lease, weakSurface](QQuickItem*) {
+            bool currentRoot = false;
+            withWriteLock([&] {
+                const auto surface = weakSurface.toStrongRef();
+                if (surface && surface == _webSurface && lease == _webSurfaceLease && surface->getRootItem()) {
+                    synchronizeWebVisibility(_webSurfaceVisible);
+                    currentRoot = true;
+                }
+            });
+            // Acquisition can finish after the entity update. Schedule its
+            // current properties through the existing queued scene receiver.
+            if (currentRoot) {
+                emit requestRenderUpdate();
+            }
+        }, Qt::QueuedConnection));
+    synchronizeWebVisibility(entity->getVisible());
     _webSurface->resume();
 
     _connections.push_back(QObject::connect(this, &WebEntityRenderer::scriptEventReceived, _webSurface.data(), &OffscreenQmlSurface::emitScriptEvent));
@@ -669,6 +692,7 @@ void WebEntityRenderer::buildWebSurface(const EntityItemPointer& entity, const Q
 void WebEntityRenderer::destroyWebSurface() {
     QSharedPointer<OffscreenQmlSurface> webSurface;
     withWriteLock([&] {
+        _webSurfaceLease.reset();
         webSurface.swap(_webSurface);
 
         if (webSurface) {
@@ -679,7 +703,22 @@ void WebEntityRenderer::destroyWebSurface() {
         }
 
         _contentType = ContentType::NoContent;
+        // A later entity update must rebuild even when its URL is unchanged.
+        _tryingToBuildURL.clear();
+        // Acquisition initializes only the URL. The replacement/cache root
+        // must also receive this owner's unchanged script and display settings.
+        _sourceURL.clear();
     });
+}
+
+void WebEntityRenderer::synchronizeWebVisibility(bool visible) {
+    // Called on the scene-owner/UI thread, like the existing URL/root updates.
+    // Effective QQuickItem visibility reaches the native browser descendants,
+    // revoking their hidden document/frame/input grants and media presentation.
+    _webSurfaceVisible = visible;
+    if (_webSurface && _webSurface->getRootItem()) {
+        _webSurface->getRootItem()->setVisible(visible);
+    }
 }
 
 glm::vec2 WebEntityRenderer::getWindowSize(const TypedEntityPointer& entity) const {

@@ -9,6 +9,7 @@
 #include <QtNetwork/QNetworkReply>
 #include "security/redaction/SafeDiagnostics.h"
 #include "libraries/networking/src/RequestCancellation.h"
+#include "libraries/networking/src/CredentialTransportPolicy.h"
 #include <cassert>
 
 Q_LOGGING_CATEGORY(networking, "overte.test.account-request")
@@ -53,6 +54,7 @@ class AccountManager : public QObject {
 public:
     AccountInfo _accountInfo;
     overte::network::RequestScope _credentialContext;
+    bool _lastLoginTransportRejected = false;
     QUrl _authURL { "https://auth-private.invalid" };
     bool _isWaitingForTokenRefresh = false;
     bool _isWaitingForAccessToken = false;
@@ -86,6 +88,31 @@ int main(int argc, char** argv) {
     auto& network = NetworkAccessManager::getInstance();
     AccountManager manager;
     const QString seed = QString::fromUtf8("secret&scope=foreign+%#= \r\nümlaut");
+    // All five actual provider methods must reject before Qt's POST boundary,
+    // then use the existing queued receiver path and release waiting state.
+    for (const auto& endpoint : {"http://auth-private.invalid", "http://127.0.0.1",
+            "file:///private/auth", "https://embedded-user:embedded-password@auth-private.invalid", ""}) {
+        for (int provider = 0; provider < 5; ++provider) {
+            AccountManager denied;
+            denied._authURL = QUrl(endpoint);
+            denied._accountInfo.token.refreshToken = seed;
+            const int before = network.posts;
+            switch (provider) {
+            case 0: denied.requestAccessToken(seed, seed); break;
+            case 1: denied.requestAccessTokenWithAuthCode(seed, seed, seed, seed); break;
+            case 2: denied.requestAccessTokenWithSteam(seed.toUtf8()); break;
+            case 3: denied.requestAccessTokenWithOculus(seed, seed); break;
+            case 4: denied.refreshAccessToken(); break;
+            }
+            assert(network.posts == before);
+            assert(denied.loginFinished == 0 && denied.refreshFinished == 0);
+            QCoreApplication::processEvents();
+            assert(denied.loginFinished == int(provider != 4));
+            assert(denied.refreshFinished == int(provider == 4));
+            assert(!denied._isWaitingForAccessToken && !denied._isWaitingForTokenRefresh);
+        }
+    }
+    if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "--transport-only") { return 0; }
     auto check = [&](const QMap<QString, QString>& expected, bool refresh = false) {
         const auto ticket = network.reply->property("_overte_request_ticket");
         assert(ticket.canConvert<overte::network::RequestTicket>());
