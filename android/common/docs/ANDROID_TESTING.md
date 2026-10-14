@@ -104,7 +104,9 @@ Android's Places JavaScript entry executes the canonical production cases in
 directory success, HTTP/transport errors, cancellation and stale responses in
 every UI mode. The existing Places coverage thresholds and exact-source
 mutation overrides remain enforced; Android does not maintain a second copy
-with obsolete synchronous desktop assumptions.
+with obsolete synchronous desktop assumptions. The Android bootstrap entry
+also runs the canonical production contract for preserving native-loaded LOD
+preferences; unset native defaults remain covered by the shared native LOD suite.
 
 Contract tests are not a replacement for behavior tests. When logic can be
 called directly, prefer an executable unit or component test. Keep text-based
