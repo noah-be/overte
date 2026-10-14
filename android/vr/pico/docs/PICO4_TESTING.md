@@ -121,7 +121,13 @@ it no longer substitutes a manually maintained Web API class.
 `OVERTE_TEST_COMMON_WEB_SOURCE_ROOT` is an explicit test dependency override for
 a reviewed owning-parent checkout. A missing API or artifact fails the check.
 
-For the actual API26/35 Activity, host, common input-gate and picker journey:
+The actual Activity, host, common input-gate and picker journey is a separately
+executed prepared-host check: five scenarios on API 26 and 35 produce ten JUnit
+cases. It requires Java 21, Gradle 8.13, Robolectric 4.16.1 with the actual API
+26/35 instrumented runtime JARs, and the real SDK 36, Qt and AndroidX inputs
+below. Neither the 39-case Pico catalog nor the currently registered 58-suite
+project host profile runs it automatically. Automatic standard-path wiring
+remains pending; record this result separately from the normal host result.
 
 ```sh
 python3 android/vr/pico/tests/pico-embedded-web-focus-api-test.py \
@@ -166,8 +172,11 @@ python3 android/vr/pico/tests/device/test_legacy_web_qt.py
 python3 android/vr/pico/tests/device/test_production_java_compile.py
 ```
 
-These cases are also mandatory entries in the 39-case Pico device-free catalog.
-The Java check executes the original production lifecycle/frame/cleanup methods;
+The lifecycle and Qt checks are mandatory entries in the 39-case Pico
+device-free catalog. The standalone SDK/callgraph check must be run separately;
+neither that catalog nor the current project host profile invokes it
+automatically. The lifecycle Java check executes the original production
+lifecycle/frame/cleanup methods;
 Android scheduling, Canvas, WebView media effects and native publication are
 explicit host boundaries. The Qt5 check compiles the whole production item,
 loads the real legacy QML and executes the native callbacks through a real JVM.
