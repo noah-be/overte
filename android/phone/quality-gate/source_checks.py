@@ -9,6 +9,7 @@ import subprocess
 import xml.etree.ElementTree as ET
 
 from core import digest, write_json
+from artifact_inputs import source_text
 from history_review import reviewed_exception
 from history_risks import reviewed_risk
 
@@ -26,8 +27,8 @@ def browser_network_source(g, manifest):
     if g.policy.get('embedded_browser_network_capability') != network_policy.CAPABILITY_ID:
         raise ValueError('release policy has not approved the browser network capability')
     return network_policy.validate_source(manifest,
-        (g.root / NETWORK_CONFIG).read_text(),
-        (g.root / (NETWORK_ROOT + 'network-capability.json')).read_text())
+        source_text(g, NETWORK_CONFIG),
+        source_text(g, NETWORK_ROOT + 'network-capability.json'))
 
 RULES = [
     ('private-key', 'FAIL', r'-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----', 'Remove the key and rotate it.'),
@@ -344,7 +345,7 @@ def android_resource(g, text, rel):
     approved_browser = False
     if rel == NETWORK_CONFIG:
         try:
-            browser_network_source(g, (g.root / PHONE_MANIFEST).read_text())
+            browser_network_source(g, source_text(g, PHONE_MANIFEST))
             network_policy.validate_config(text)
             approved_browser = True
         except (ValueError, OSError, ET.ParseError):

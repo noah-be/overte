@@ -17,6 +17,7 @@ import xml.etree.ElementTree as ET
 import zipfile
 
 from core import digest, write_json
+from artifact_inputs import artifact_inputs, copy_bound, source_text
 from evidence import role_paths, validate_receipt, write_receipt
 from source_checks import RULES, android_manifest, scan_text, texts, network_policy, NETWORK_ROOT
 from test_store import verify_inventory, stage_runtimes
@@ -279,6 +280,8 @@ def inspect_payload(g, dest, rows, prefix=''):
 def packaged_browser_network(g, manifest, apk, sdk):
     """Decode actual selected resource variants, including optimized APK names."""
     try:
+        if getattr(g, 'artifact_input_paths', None) != (apk, sdk):
+            raise ValueError('Browser artifact decoding requires the active private snapshot')
         if g.policy.get('embedded_browser_network_capability') != network_policy.CAPABILITY_ID:
             raise ValueError('release policy has not approved the browser network capability')
         rc, log = g.run('apk-network-resource-inventory',
@@ -290,14 +293,17 @@ def packaged_browser_network(g, manifest, apk, sdk):
         configs = {}
         for index, path in enumerate(paths):
             rc, log = g.run('apk-network-resource-' + str(index),
-                            ['apkanalyzer', 'resources', 'xml', '--file', path, apk])
+                            [sdk / 'cmdline-tools/latest/bin/apkanalyzer', 'resources', 'xml', '--file', path, apk])
             if rc != 0:
                 raise ValueError('selected packaged network resource could not be decoded')
             configs[path] = log.read_text()
         grant = network_policy.validate_artifact(manifest, inventory, configs,
-            (g.root / (NETWORK_ROOT + 'network-capability.json')).read_text())
+            source_text(g, NETWORK_ROOT + 'network-capability.json'))
         write_json(g.out / 'browser-network-artifact.json', dict(
             capability=grant, selected_resources=paths,
+            apk_sha256=digest(apk), manifest_xml_sha256=hashlib.sha256(manifest.encode()).hexdigest(),
+            decoded_resource_sha256={p: hashlib.sha256(v.encode()).hexdigest() for p, v in configs.items()},
+            capability_source_sha256=g.source_hashes[NETWORK_ROOT + 'network-capability.json'],
             native_credential_https='independent qualification required',
             device_webview='not established by artifact inspection'))
         return True
@@ -310,6 +316,25 @@ def artifact(g):
     apk = load_artifact(g)
     if apk.suffix != '.apk':
         raise ValueError('APK required for final manifest/device checks; AAB inventory is supplemental')
+    sdk = required_path(g, 'sdk_root')
+    with artifact_inputs(g, apk, g.receipt['artifact_sha256'], sdk) as (private_apk, private_sdk):
+        _artifact(g, private_apk, private_sdk)
+
+
+def sdk_analyzer_ready(g, sdk):
+    expected = g.config.get('tool_versions', {}).get('apkanalyzer')
+    rc, log = g.run('version-apkanalyzer',
+                    [sdk / 'cmdline-tools/latest/bin/apkanalyzer', '--version'])
+    if rc != 0:
+        return False
+    if (not isinstance(expected, str) or not expected.strip()
+            or expected.strip() not in {line.strip() for line in log.read_text().splitlines()}):
+        g.fail('tool-pin', 'apkanalyzer: private SDK version lacks its reviewed exact pin.')
+        return False
+    return True
+
+
+def _artifact(g, apk, sdk):
     dest = g.out / 'apk-unpacked'
     rows = unpack(g, apk, dest)
     write_json(g.out / 'apk-files.json', rows)
@@ -318,11 +343,11 @@ def artifact(g):
     if g.tool('gitleaks', ('version',)):
         g.run('gitleaks-artifact', ['gitleaks', 'dir', dest, '--redact=100', '--report-format=json',
                                   '--report-path', g.out / 'gitleaks-artifact.json'])
-    sdk = required_path(g, 'sdk_root')
-    env = dict(g.env, ANDROID_SDK_ROOT=str(sdk), ANDROID_HOME=str(sdk))
+    # The native ELF checker uses system host tools; no original SDK/NDK PATH is inherited.
+    env = dict(g.env, PATH='/usr/bin:/bin', ANDROID_SDK_ROOT=str(sdk), ANDROID_HOME=str(sdk))
     g.run('existing-phone-apk-gate', ['bash', g.root / 'android/phone/tests/check-phone-apk-16k.sh', apk], env=env)
-    if g.tool('apkanalyzer'):
-        rc, log = g.run('packaged-manifest', ['apkanalyzer', 'manifest', 'print', apk])
+    if sdk_analyzer_ready(g, sdk):
+        rc, log = g.run('packaged-manifest', [sdk / 'cmdline-tools/latest/bin/apkanalyzer', 'manifest', 'print', apk])
         if rc == 0:
             manifest = log.read_text()
             verified = packaged_browser_network(g, manifest, apk, sdk)
@@ -335,10 +360,10 @@ def artifact(g):
         for field, expected in [('application-id', g.policy['application_id']), ('version-code', g.config.get('version_code')),
                                 ('version-name', g.config.get('version_name')), ('min-sdk', g.policy['min_sdk']),
                                 ('debuggable', 'false')]:
-            rc, log = g.run('apk-' + field, ['apkanalyzer', 'manifest', field, apk])
+            rc, log = g.run('apk-' + field, [sdk / 'cmdline-tools/latest/bin/apkanalyzer', 'manifest', field, apk])
             if rc == 0 and log.read_text().strip() != str(expected):
                 g.fail('apk-' + field, 'Packaged value differs from release policy.', 'APK/AndroidManifest.xml')
-        rc, log = g.run('apk-target-sdk', ['apkanalyzer', 'manifest', 'target-sdk', apk])
+        rc, log = g.run('apk-target-sdk', [sdk / 'cmdline-tools/latest/bin/apkanalyzer', 'manifest', 'target-sdk', apk])
         if rc == 0 and int(log.read_text().strip()) < g.policy['target_sdk_minimum']:
             g.fail('apk-target-sdk', 'Target SDK is below reviewed policy floor.')
     # Unsigned source-built APK is expected. Do not sign or generate keys here.
@@ -474,8 +499,17 @@ def e2e(g, group):
     expected = g.config.get('candidate_sha256')
     if digest(candidate) != expected:
         raise ValueError('Installed candidate digest differs from independent expectation')
-    # Byte identity between the signed device candidate and unsigned clean build:
+    # All payload, signature and adapter readers receive private, hash-bound copies.
     apk = load_artifact(g)
+    sdk = required_path(g, 'sdk_root')
+    with artifact_inputs(g, apk, g.receipt['artifact_sha256'], sdk) as (private_apk, private_sdk):
+        private_candidate = private_apk.parent / 'candidate.apk'
+        record = copy_bound(candidate, private_candidate, expected, g.policy['max_archive_bytes'])
+        write_json(g.out / ('candidate-inputs-' + group + '.json'), record)
+        _e2e(g, group, adapter, manifest['id'], private_candidate, expected, private_apk, private_sdk)
+
+
+def _e2e(g, group, adapter, adapter_id, candidate, expected, apk, sdk):
     def payload(path):
         with zipfile.ZipFile(path) as z:
             result = {}
@@ -490,7 +524,7 @@ def e2e(g, group):
             return result
     if payload(candidate) != payload(apk):
         raise ValueError('Device candidate payload differs from the clean release APK (signatures excepted)')
-    signer = required_path(g, 'sdk_root') / 'build-tools/36.0.0/apksigner'
+    signer = sdk / 'build-tools/36.0.0/apksigner'
     rc, _ = g.run('candidate-signature-' + group, [signer, 'verify', '--verbose', '--print-certs', candidate])
     if rc != 0:
         return
@@ -533,7 +567,7 @@ def e2e(g, group):
         if (summary.get('status') != 'passed' or not summary.get('results')
                 or any(r.get('status') != 'passed' for r in summary['results'])
                 or run.get('physical') is not True or run.get('platform') != 'android'
-                or run.get('suite') != suite or run.get('adapter') != manifest['id']
+                or run.get('suite') != suite or run.get('adapter') != adapter_id
                 or not run.get('requireComplete')):
             g.fail('e2e-incomplete', f'{suite}: incomplete or non-physical execution.')
             break
