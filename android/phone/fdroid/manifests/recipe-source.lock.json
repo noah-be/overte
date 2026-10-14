@@ -126,7 +126,11 @@
     "android/common/cmake/android-compat/QtAndroidExtras/QAndroidJniObject": "e7339220bec3fabf5a1b72bbe579dd81a260bc63315536e0fdc19d96ef0b3e25",
     "android/common/cmake/android-compat/qtwebenginecoreversion.h": "537f02d3e61fcefb779f13d31f1e1f8895b89e42fb893d4bae4548ffbf9fc725",
     "android/common/cmake/android-modules/Finddiscord-rpc.cmake": "0435f68d31d5f044c80f80a2fc1869c3aa17a0c1b8f803e31d66bb4c3c9ac7da",
-    "android/common/cmake/android-modules/discord_rpc.h": "50c209cb7c37a48ecf54dee831f0099ffb80a449b7361aa13fef55d093b39dd5"
+    "android/common/cmake/android-modules/discord_rpc.h": "50c209cb7c37a48ecf54dee831f0099ffb80a449b7361aa13fef55d093b39dd5",
+    "android/common/web/target.gradle": "a5d87db6336a1d25bacf5043dc425857f67a353e6676e93a2fce0d61ccd20f05",
+    "android/common/web/network-capability.json": "63718331a22e01e1f10b512e0a9e2e0354dc92902ae496cd25f2adc8f6420737",
+    "android/common/web/res/xml/overte_embedded_web_network_security_config.xml": "1f94de528879dd9a41f51d670f62095f129d12412b0cad992c12f1b0c5f2589a",
+    "android/phone/apps/phoneInterface/src/main/AndroidManifest.xml": "87fab0b58d069c313366aca2c6bc0a9f6e2c629fdd7edfed3d5d5911c8d7b728"
   },
   "cold_build": {
     "status": "NOT_STARTED_CLEAN_ROOM_READINESS_PENDING",
