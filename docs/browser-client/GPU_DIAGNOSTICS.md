@@ -74,7 +74,7 @@ renderer family and do not provide a causal contrast.
 For a reviewed exact-head original-driver counterfactual on the authorized fork:
 
 ```sh
-gh workflow run browser-client.yml --repo noah-be/overte \
+gh workflow run browser-client.yml --repo noah-l-frank/overte \
   --ref feature/main/browser-client \
   -f startup_diagnostics=false -f avatar_sample_diagnostics=true \
   -f embedded_default_angle_control=true
