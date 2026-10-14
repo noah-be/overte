@@ -99,6 +99,13 @@ the enum-to-`MediaRecorder` mapping or start `AudioRecord`: mapping, allocation,
 blocking reads, capture-thread/JNI delivery and device-supported formats remain
 Android/Pico runtime boundaries.
 
+Android's Places JavaScript entry executes the canonical production cases in
+`tests/javascript/test/places.production.test.js`. These cover asynchronous
+directory success, HTTP/transport errors, cancellation and stale responses in
+every UI mode. The existing Places coverage thresholds and exact-source
+mutation overrides remain enforced; Android does not maintain a second copy
+with obsolete synchronous desktop assumptions.
+
 Contract tests are not a replacement for behavior tests. When logic can be
 called directly, prefer an executable unit or component test. Keep text-based
 checks for stable architectural, packaging, security and privacy guarantees.
