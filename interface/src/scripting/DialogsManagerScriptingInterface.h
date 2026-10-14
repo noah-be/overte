@@ -50,6 +50,12 @@ public slots:
     void hideAddressBar();
 
     /*@jsdoc
+     * Toggles the "Goto" dialog between shown and hidden.
+     * @function DialogsManager.toggleAddressBar
+     */
+    void toggleAddressBar();
+
+    /*@jsdoc
      * Shows the login dialog.
      * @function DialogsManager.showLoginDialog
      */

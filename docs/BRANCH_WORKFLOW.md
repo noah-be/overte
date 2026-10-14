@@ -204,6 +204,13 @@ parent delta, and accepts exactly one matching non-expired qualification from a
 successful `push` run of the expected workflow. It re-reads both permanent refs
 after verification so a target or parent race fails closed.
 
+API failures retain their fail-closed outcome and report a bounded diagnostic:
+the CLI exit code and HTTP status when present, an operating-system errno, or
+an invalid-JSON category. Raw response bodies, stderr, commands and field values
+are not logged. An unknown HTTP status does not identify the original cause.
+The adapter does not retry automatically; preserve the failed run and verify
+the current source/refs before a separately justified failed-gate rerun.
+
 Reused product suites run in a separate candidate Python environment populated
 from the trusted default branch's pinned `tests/requirements-host.txt`. The
 suite runner and its subprocesses use that same interpreter, including Conan
