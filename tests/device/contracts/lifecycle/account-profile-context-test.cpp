@@ -4,6 +4,7 @@
 #include <QtCore/QLoggingCategory>
 #include <QtCore/QPointer>
 #include <QtNetwork/QNetworkAccessManager>
+#include "libraries/networking/src/CredentialTransportPolicy.h"
 #include "libraries/networking/src/RequestCancellation.h"
 #include "security/redaction/SafeDiagnostics.h"
 #include <cassert>
@@ -85,6 +86,18 @@ signals:
 int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
     auto& network = NetworkAccessManager::getInstance();
+    for (const auto& endpoint : {"http://profile.invalid", "https://user:secret@profile.invalid"}) {
+        AccountManager denied;
+        denied._authURL = QUrl(endpoint);
+        int published = 0;
+        QObject::connect(&denied, &AccountManager::profileChanged, [&] { ++published; });
+        const auto before = network.created.size();
+        denied.requestProfile();
+        QCoreApplication::processEvents();
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        assert(network.created.size() == before && denied.persisted == 0 && published == 0);
+        assert(denied._accountInfo.getUsername() == "previous-user");
+    }
     // Reentrancy before get() returns leaves no finished receiver on the
     // obsolete reply. It must still be destroyed, without publishing anything.
     for (int transition = 0; transition < 3; ++transition) {

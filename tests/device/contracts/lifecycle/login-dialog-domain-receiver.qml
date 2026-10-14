@@ -1,4 +1,4 @@
-import QtQml
+import QtQml 2.15
 
 // Test-only visual/provider boundaries. The handlers and loadingSuccess body
 // are inserted unchanged from production; Connections is the real Qt type.
