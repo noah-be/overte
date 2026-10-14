@@ -179,11 +179,12 @@ python3 android/vr/pico/ci/verify-pico-apk.py candidate.apk \
 Existing version/signer/identity/build-evidence arguments remain required by
 qualified release callers. Network verification has no bypass flag. It decodes
 the actual binary manifest, resolves the selected resource ID and every
-configuration variant from AAPT2, and decodes all selected binary XML trees.
-SDK apkanalyzer 22.0 rejects the generic network XML in the actual fixture, so
-only the manifest uses that decoder. A strict bounded AAPT2 tree reader retains
-hierarchy and unique attributes for the unchanged parent validator. Unknown,
-ambiguous or duplicate tree data fails closed. The receipt binds source files,
+configuration variant from AAPT2, and uses the actual SDK apkanalyzer for all
+selected binary XML. The unchanged parent validator checks every decoded
+configuration. Resource-only host fixtures use the `.apk` extension because
+SDK apkanalyzer 22.0 classifies `.zip` inputs as generic archives; a real
+byte-identical `.apk`/`.zip` regression captures that boundary. The receipt binds
+source files,
 raw and decoded XML, resource inventory, SDK executables, decoder JARs and JVM
 inputs. At most 128 policy variants are accepted; every selected variant is
 validated without truncation.

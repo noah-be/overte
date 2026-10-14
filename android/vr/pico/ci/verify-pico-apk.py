@@ -12,7 +12,6 @@ import shutil
 import subprocess
 import sys
 import zipfile
-import xml.etree.ElementTree as ET
 
 
 SOURCE_ROOT = Path(__file__).resolve().parents[4]
@@ -113,47 +112,6 @@ def decoder_inputs(path):
     return files
 
 
-def network_xml_from_aapt2(tree):
-    """Decode the actual SDK tree with strict hierarchy/attributes and no guesses.
-
-    SDK apkanalyzer 22.0 cannot decode generic XML lacking a resource-map chunk.
-    AAPT2 decodes those real binary resources; the parent validates the resulting
-    XML policy. Unrecognized/ambiguous output fails closed.
-    """
-    stack = []
-    root = None
-    for line in tree.splitlines():
-        if not line.strip():
-            continue
-        element = re.fullmatch(r'( *)E: ([A-Za-z][A-Za-z0-9_-]*) \(line=\d+\)', line)
-        if element:
-            indent = len(element[1])
-            while stack and stack[-1][0] >= indent:
-                stack.pop()
-            node = ET.Element(element[2])
-            if stack:
-                stack[-1][1].append(node)
-            elif root is None and indent == 0:
-                root = node
-            else:
-                fail("ambiguous binary network XML tree")
-            stack.append((indent, node))
-            continue
-        attribute = re.fullmatch(r'( *)A: ([A-Za-z][A-Za-z0-9_-]*)=(true|false|"(?:[^"\\]|\\.)*")(?: \(Raw: ("(?:[^"\\]|\\.)*")\))?', line)
-        if not attribute or not stack or len(attribute[1]) <= stack[-1][0]:
-            fail("unsupported binary network XML tree")
-        key, encoded, raw = attribute[2], attribute[3], attribute[4]
-        value = json.loads(encoded) if encoded.startswith('"') else encoded
-        if raw is not None and json.loads(raw) != value:
-            fail("ambiguous binary network XML value")
-        if key in stack[-1][1].attrib:
-            fail("duplicate binary network XML attribute")
-        stack[-1][1].set(key, value)
-    if root is None:
-        fail("missing binary network XML tree")
-    return ET.tostring(root, encoding="unicode")
-
-
 def verify_network_policy(args):
     """Consume the parent policy against source and every actual packaged variant.
 
@@ -184,7 +142,6 @@ def verify_network_policy(args):
         if len(selected) > 128:
             fail("too many packaged network configuration variants")
         configs = {}
-        trees = {}
         raw = {}
         with zipfile.ZipFile(args.apk) as archive:
             raw["AndroidManifest.xml"] = hashlib.sha256(archive.read("AndroidManifest.xml")).hexdigest()
@@ -193,8 +150,7 @@ def verify_network_policy(args):
                 if entry.file_size > 256 * 1024:
                     fail("oversized packaged network configuration")
                 raw[name] = hashlib.sha256(archive.read(entry)).hexdigest()
-                trees[name] = run_tool([aapt2, "dump", "xmltree", str(args.apk), "--file", name])
-                configs[name] = network_xml_from_aapt2(trees[name])
+                configs[name] = run_tool([analyzer, "resources", "xml", "--file", name, str(args.apk)])
         grant = policy.validate_artifact(manifest, inventory, configs, capability_text)
         if any(sha256_file(Path(path)) != digest for path, digest in {**source_hashes, **tools}.items()):
             fail("network capability inputs changed during verification")
@@ -202,8 +158,6 @@ def verify_network_policy(args):
                 "decoder_inputs_sha256": tools, "packaged_xml_sha256": raw,
                 "decoded_xml_sha256": {name: hashlib.sha256(text.encode()).hexdigest()
                                        for name, text in configs.items()},
-                "binary_xml_tree_sha256": {name: hashlib.sha256(text.encode()).hexdigest()
-                                            for name, text in trees.items()},
                 "decoded_manifest_sha256": hashlib.sha256(manifest.encode()).hexdigest(),
                 "resource_inventory_sha256": hashlib.sha256(inventory.encode()).hexdigest(),
                 "physical_http_or_tls_qualified": False}

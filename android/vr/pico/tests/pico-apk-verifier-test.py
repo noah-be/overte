@@ -68,9 +68,7 @@ class PicoApkVerifierTests(unittest.TestCase):
         self.directory = Path(self.temporary.name)
         self.parent = network_test_parent()
         self.network_config = (self.parent / "android/common/web/res/xml" / (NETWORK_NAME + ".xml")).read_text()
-        self.aapt2 = self._tool("aapt2", "if test \"$2\" = xmltree; then\n" +
-            "printf 'E: network-security-config (line=1)\\n    E: base-config (line=2)\\n      A: cleartextTrafficPermitted=true\\n        E: trust-anchors (line=3)\\n            E: certificates (line=4)\\n              A: src=\"system\" (Raw: \"system\")\\n'\n" +
-            "else printf '  resource 0x7f010000 xml/" + NETWORK_NAME + "\\n    () (file) " + NETWORK_FILE + " type=XML\\n'; fi\n")
+        self.aapt2 = self._tool("aapt2", "printf '  resource 0x7f010000 xml/" + NETWORK_NAME + "\\n    () (file) " + NETWORK_FILE + " type=XML\\n'\n")
         self.analyzer = self.directory / "apkanalyzer-stub"
         self.analyzer.write_text("#!/usr/bin/env python3\nimport sys\n" +
             "print(" + repr(NETWORK_MANIFEST) + " if sys.argv[1] == 'manifest' else " + repr(self.network_config) + ")\n")
@@ -316,13 +314,13 @@ class PicoBinaryNetworkTests(unittest.TestCase):
         source = self.directory / "AndroidManifest.xml"
         source.write_text(manifest)
         compiled = self.directory / "compiled.zip"
-        apk = self.directory / "resource-only.zip"
+        apk = self.directory / "resource-only.apk"
         subprocess.run([str(self.aapt2), "compile", "--dir", str(res), "-o", str(compiled)],
                        check=True, capture_output=True, timeout=30)
         subprocess.run([str(self.aapt2), "link", "-I", str(self.android), "--manifest", str(source),
                         "-o", str(apk), str(compiled)], check=True, capture_output=True, timeout=30)
         if optimize:
-            optimized = self.directory / "optimized-resource-only.zip"
+            optimized = self.directory / "optimized-resource-only.apk"
             subprocess.run([str(self.aapt2), "optimize", "--shorten-resource-paths", "-o", str(optimized), str(apk)],
                            check=True, capture_output=True, timeout=30)
             apk = optimized
@@ -421,15 +419,21 @@ class PicoBinaryNetworkTests(unittest.TestCase):
             with self.assertRaisesRegex(self.module.VerificationError, "candidate bytes changed"):
                 self.module.verify_candidate(args)
 
-    def test_tree_duplicates_and_unknown_decoder_tokens_fail_closed(self):
-        for text in ('E: network-security-config (line=1)\n  A: src="system"\n  A: src="user"',
-                     'E: network-security-config (line=1)\n  A: src="system" (Raw: "user")',
-                     'E: network-security-config (line=1)\nUNKNOWN: ignored',
-                     'E: network-security-config (line=1)\nE: unrelated (line=2)'):
-            with self.subTest(text=text):
-                with self.assertRaises(self.module.VerificationError):
-                    self.module.network_xml_from_aapt2(text)
-
+    def test_actual_sdk_classifies_archive_extension_before_generic_xml(self):
+        import hashlib
+        apk = self.fixture()
+        generic = self.directory / "identical-resource-only.zip"
+        shutil.copy2(apk, generic)
+        self.assertEqual(hashlib.sha256(apk.read_bytes()).digest(), hashlib.sha256(generic.read_bytes()).digest())
+        binary = subprocess.run([str(self.analyzer), "resources", "xml", "--file", NETWORK_FILE, str(apk)],
+                                capture_output=True, text=True, timeout=30)
+        zipped = subprocess.run([str(self.analyzer), "resources", "xml", "--file", NETWORK_FILE, str(generic)],
+                                capture_output=True, text=True, timeout=30)
+        self.assertEqual(binary.returncode, 0, binary.stderr)
+        self.assertIn("network-security-config", binary.stdout)
+        self.assertNotEqual(zipped.returncode, 0)
+        with self.assertRaisesRegex(self.module.VerificationError, "command failed"):
+            self.verify(generic)
 
     def test_decoder_must_deliver_every_selected_configuration(self):
         from unittest.mock import patch
