@@ -19,6 +19,7 @@
 #include <NetworkingConstants.h>
 #include <MetaverseAPI.h>
 #include <AccountManager.h>
+#include <CredentialTransportPolicy.h>
 
 #include "ContextAwareProfile.h"
 
@@ -27,6 +28,7 @@
 namespace {
 
     bool isAuthableMetaverseURL(const QUrl& url) {
+        if (!overte::network::credentialTransportAllowed(url)) { return false; }
         auto metaverseServerURL = MetaverseAPI::getCurrentMetaverseServerURL();
         static QStringList HF_HOSTS = {
             metaverseServerURL.toString()
