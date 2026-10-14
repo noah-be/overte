@@ -354,3 +354,19 @@ python3 -B -m unittest -q test_gate test_history_public_identifiers test_history
 
 All 45 tests passed after this policy change. Exact bindings and current literal
 absence were also checked for all 16 actual historical records.
+# Embedded browser HTTP policy
+
+The Phone explicitly selects the shared Android browser network capability.
+Its Network Security Config permits normal HTTP documents at **application
+scope**, with system certificate authorities for TLS. This is not a per-WebView
+cleartext fence. Independent Main-owned credential HTTPS enforcement and its
+qualification are required; this policy does not establish native Qt/OpenSSL
+credential transport security or device browser acceptance.
+
+Source checks require the exact capability marker and native-owned resource.
+Artifact checks inspect the actual merged manifest, resolve its resource ID with
+SDK AAPT, and decode every selected XML variant with `apkanalyzer resources xml`.
+Optimized filenames are resolved from the APK instead of assuming source paths.
+A missing, undecodable, overridden, or differently trusted variant fails the
+release gate. Debuggable/test-only, backup, component export, permission and
+FileProvider checks remain independent and mandatory.

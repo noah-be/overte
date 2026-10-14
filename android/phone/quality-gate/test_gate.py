@@ -16,8 +16,8 @@ import copy
 sys.dont_write_bytecode = True
 from core import Gate, digest
 from evidence import regular_file, write_receipt, validate_receipt, FIXED_FILES, MODULE
-from runtime_checks import archive_members, analyze_telemetry, e2e, inspect_payload
-from source_checks import materialize, secrets, dependencies, licenses, hygiene, android_resource, android_manifest, fdroid
+from runtime_checks import archive_members, analyze_telemetry, e2e, inspect_payload, packaged_browser_network
+from source_checks import materialize, secrets, dependencies, licenses, hygiene, android_resource, android_manifest, fdroid, NETWORK_CONFIG, NETWORK_ROOT, PHONE_MANIFEST
 from test_store import verify_inventory, write_inventory, stage_runtimes, store_paths, RUNTIMES
 from history_review import load_reviews, reviewed_exception
 
@@ -374,7 +374,11 @@ class GateContracts(unittest.TestCase):
     def test_release_manifest_rejects_dangerous_mutations(self):
         root = Path(__file__).resolve().parents[3]
         source = (root / 'android/phone/apps/phoneInterface/src/main/AndroidManifest.xml').read_text()
-        android_manifest(self.g, source, 'manifest.xml', final=True)
+        for rel in (NETWORK_CONFIG, NETWORK_ROOT + 'network-capability.json'):
+            path = self.root / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text((root / rel).read_text())
+        android_manifest(self.g, source, 'manifest.xml')
         self.assertFalse(any(r['status']=='FAIL' for r in self.g.findings))
         for before, after, rule in [
             ('android:allowBackup="false"', 'android:allowBackup="true"', 'manifest-allowBackup'),
@@ -382,8 +386,75 @@ class GateContracts(unittest.TestCase):
             ('android:exported="false"', 'android:exported="true"', 'exported-component'),
             ('android.permission.VIBRATE', 'android.permission.READ_CONTACTS', 'permission-unreviewed')]:
             self.g.findings.clear()
-            android_manifest(self.g, source.replace(before, after), 'manifest.xml', final=True)
+            android_manifest(self.g, source.replace(before, after), 'manifest.xml', final=True,
+                             packaged_network_verified=True)
             self.assertTrue(any(r['rule']==rule and r['status']=='FAIL' for r in self.g.findings), rule)
+
+    def browser_fixture(self):
+        root = Path(__file__).resolve().parents[3]
+        for rel in (NETWORK_CONFIG, NETWORK_ROOT + 'network-capability.json', PHONE_MANIFEST):
+            path = self.root / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text((root / rel).read_text())
+        return (self.root / PHONE_MANIFEST).read_text(), (self.root / NETWORK_CONFIG).read_text()
+
+    def test_source_browser_capability_requires_exact_resource_and_manifest(self):
+        manifest, config = self.browser_fixture()
+        android_resource(self.g, config, NETWORK_CONFIG)
+        self.assertFalse(self.g.findings)
+        for before, after in [('usesCleartextTraffic="true"', 'usesCleartextTraffic="false"'),
+                              ('@xml/overte_embedded_web_network_security_config', '@xml/other'),
+                              ('http-https.v1', 'unreviewed.v1')]:
+            with self.subTest(after=after):
+                self.g.findings.clear()
+                android_manifest(self.g, manifest.replace(before, after), 'manifest.xml')
+                self.assertTrue(any(r['rule']=='manifest-network-capability' for r in self.g.findings))
+        for corrupted in [config.replace('src="system"', 'src="user"'),
+                          config.replace('cleartextTrafficPermitted="true"', 'cleartextTrafficPermitted="false"')]:
+            (self.root / NETWORK_CONFIG).write_text(corrupted)
+            self.g.findings.clear()
+            android_manifest(self.g, manifest, 'manifest.xml')
+            self.assertTrue(any(r['rule']=='manifest-network-capability' for r in self.g.findings))
+
+    def test_final_manifest_cannot_use_source_xml_as_packaged_proof(self):
+        manifest, _ = self.browser_fixture()
+        android_manifest(self.g, manifest, 'APK/AndroidManifest.xml', final=True)
+        self.assertTrue(any(r['rule']=='manifest-network-capability' for r in self.g.findings))
+
+    def test_actual_artifact_resource_commands_and_all_variants(self):
+        manifest, config = self.browser_fixture()
+        manifest = manifest.replace('@xml/overte_embedded_web_network_security_config', '@ref/0x7f0c0003')
+        inventory = ('resource 0x7f0c0003 xml/overte_embedded_web_network_security_config\n'
+                     '  () (file) res/a.xml type=XML\n'
+                     '  (v28) (file) res/b.xml type=XML\n')
+        apk = self.base / 'input.apk'
+        sdk = self.base / 'sdk'
+        def check(changes=None, failed_label=None):
+            changes = changes or {}
+            commands = []
+            def run(label, argv, **kwargs):
+                commands.append([str(a) for a in argv])
+                log = self.out / (label + '.log')
+                data = inventory if label.endswith('inventory') else config
+                log.write_text(changes.get(label, data))
+                return (1 if label == failed_label else 0), log
+            self.g.findings.clear()
+            with patch.object(self.g, 'run', side_effect=run):
+                result = packaged_browser_network(self.g, manifest, apk, sdk)
+            return result, commands
+        result, commands = check()
+        self.assertTrue(result)
+        self.assertEqual(commands[0], [str(sdk/'build-tools/36.0.0/aapt2'), 'dump', 'resources', str(apk)])
+        self.assertEqual([cmd[4] for cmd in commands[1:]], ['res/a.xml', 'res/b.xml'])
+        self.assertTrue(all(cmd[:4] == ['apkanalyzer', 'resources', 'xml', '--file'] for cmd in commands[1:]))
+        for changes, failure in [({}, 'apk-network-resource-inventory'),
+                                 ({}, 'apk-network-resource-1'),
+                                 ({'apk-network-resource-1': config.replace('src="system"', 'src="user"')}, None),
+                                 ({'apk-network-resource-inventory': inventory.replace('0x7f0c0003', '0x7f0c0004')}, None),
+                                 ({'apk-network-resource-inventory': ''}, None)]:
+            with self.subTest(changes=changes, failure=failure):
+                self.assertFalse(check(changes, failure)[0])
+                self.assertTrue(any(r['rule']=='apk-browser-network-capability' for r in self.g.findings))
 
     def test_soak_requires_continuous_valid_measurements(self):
         module = self.out / 'modules/idle-soak'

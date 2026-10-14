@@ -18,7 +18,7 @@ import zipfile
 
 from core import digest, write_json
 from evidence import role_paths, validate_receipt, write_receipt
-from source_checks import RULES, android_manifest, scan_text, texts
+from source_checks import RULES, android_manifest, scan_text, texts, network_policy, NETWORK_ROOT
 from test_store import verify_inventory, stage_runtimes
 
 
@@ -276,6 +276,36 @@ def inspect_payload(g, dest, rows, prefix=''):
             g.finding('packaged-sdk', 'FAIL', rel, 'Potential non-free/tracking SDK in shipped bytes.', 'Verify and remove prohibited runtime components.', fdroid=True, suppressible=False)
 
 
+def packaged_browser_network(g, manifest, apk, sdk):
+    """Decode actual selected resource variants, including optimized APK names."""
+    try:
+        if g.policy.get('embedded_browser_network_capability') != network_policy.CAPABILITY_ID:
+            raise ValueError('release policy has not approved the browser network capability')
+        rc, log = g.run('apk-network-resource-inventory',
+                        [sdk / 'build-tools/36.0.0/aapt2', 'dump', 'resources', apk])
+        if rc != 0:
+            raise ValueError('packaged network resource inventory is unavailable')
+        inventory = log.read_text()
+        paths = network_policy.packaged_config_paths(manifest, inventory)
+        configs = {}
+        for index, path in enumerate(paths):
+            rc, log = g.run('apk-network-resource-' + str(index),
+                            ['apkanalyzer', 'resources', 'xml', '--file', path, apk])
+            if rc != 0:
+                raise ValueError('selected packaged network resource could not be decoded')
+            configs[path] = log.read_text()
+        grant = network_policy.validate_artifact(manifest, inventory, configs,
+            (g.root / (NETWORK_ROOT + 'network-capability.json')).read_text())
+        write_json(g.out / 'browser-network-artifact.json', dict(
+            capability=grant, selected_resources=paths,
+            native_credential_https='independent qualification required',
+            device_webview='not established by artifact inspection'))
+        return True
+    except (ValueError, OSError, ET.ParseError) as error:
+        g.fail('apk-browser-network-capability', str(error), 'APK/AndroidManifest.xml', True)
+        return False
+
+
 def artifact(g):
     apk = load_artifact(g)
     if apk.suffix != '.apk':
@@ -294,7 +324,10 @@ def artifact(g):
     if g.tool('apkanalyzer'):
         rc, log = g.run('packaged-manifest', ['apkanalyzer', 'manifest', 'print', apk])
         if rc == 0:
-            permissions = android_manifest(g, log.read_text(), 'APK/AndroidManifest.xml', final=True)
+            manifest = log.read_text()
+            verified = packaged_browser_network(g, manifest, apk, sdk)
+            permissions = android_manifest(g, manifest, 'APK/AndroidManifest.xml', final=True,
+                                           packaged_network_verified=verified)
             write_json(g.out / 'permissions-final.json', permissions)
             with (g.out / 'permissions.md').open('a') as stream:
                 stream.write('\n## Packaged permissions\n\n')

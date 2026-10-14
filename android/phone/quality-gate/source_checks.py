@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Source heuristics produce reviewable locations, never copy suspected secrets."""
 import json
+import importlib.util
 from pathlib import Path
 import re
 import shutil
@@ -10,6 +11,23 @@ import xml.etree.ElementTree as ET
 from core import digest, write_json
 from history_review import reviewed_exception
 from history_risks import reviewed_risk
+
+_network_spec = importlib.util.spec_from_file_location('overte_network_policy',
+    Path(__file__).resolve().parents[2] / 'common/web/network_policy.py')
+network_policy = importlib.util.module_from_spec(_network_spec)
+_network_spec.loader.exec_module(network_policy)
+NETWORK_ROOT = 'android/common/web/'
+NETWORK_CONFIG = NETWORK_ROOT + 'res/xml/' + network_policy.RESOURCE_NAME + '.xml'
+PHONE_MANIFEST = 'android/phone/apps/phoneInterface/src/main/AndroidManifest.xml'
+
+
+def browser_network_source(g, manifest):
+    """Validate the native-owned resource; never qualify packaged bytes here."""
+    if g.policy.get('embedded_browser_network_capability') != network_policy.CAPABILITY_ID:
+        raise ValueError('release policy has not approved the browser network capability')
+    return network_policy.validate_source(manifest,
+        (g.root / NETWORK_CONFIG).read_text(),
+        (g.root / (NETWORK_ROOT + 'network-capability.json')).read_text())
 
 RULES = [
     ('private-key', 'FAIL', r'-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----', 'Remove the key and rotate it.'),
@@ -268,7 +286,7 @@ def dependencies(g):
     g.review('dependencies')
 
 
-def android_manifest(g, text, path, final=False):
+def android_manifest(g, text, path, final=False, packaged_network_verified=False):
     root = ET.fromstring(text)
     a = '{http://schemas.android.com/apk/res/android}'
     permissions = []
@@ -283,9 +301,19 @@ def android_manifest(g, text, path, final=False):
     if app is None:
         g.fail('manifest-application', 'Application element missing.', path)
         return permissions
-    for attr, bad in [('debuggable','true'), ('testOnly','true'), ('usesCleartextTraffic','true'), ('allowBackup','true')]:
+    for attr, bad in [('debuggable','true'), ('testOnly','true'), ('allowBackup','true')]:
         if app.get(a + attr) == bad:
             g.finding('manifest-' + attr, 'FAIL', path, f'Application sets {attr}={bad}.', 'Use a release-safe configuration.', fdroid=True)
+    try:
+        if final:
+            network_policy.selected_config(text)
+            if not packaged_network_verified:
+                raise ValueError('actual packaged network resource variants are not verified')
+        else:
+            browser_network_source(g, text)
+    except (ValueError, OSError, ET.ParseError) as error:
+        g.finding('manifest-network-capability', 'FAIL', path, str(error),
+                  'Verify the explicit browser capability and every selected resource; qualify native credential HTTPS separately.', fdroid=True)
     if app.get(a + 'allowBackup') is None:
         g.finding('backup-default', 'FAIL', path, 'Backup behavior is implicit.', 'Set and verify explicit backup/extraction rules.')
     if not app.get(a + 'networkSecurityConfig'):
@@ -313,11 +341,19 @@ def android_manifest(g, text, path, final=False):
 
 def android_resource(g, text, rel):
     root = ET.fromstring(text)
+    approved_browser = False
+    if rel == NETWORK_CONFIG:
+        try:
+            browser_network_source(g, (g.root / PHONE_MANIFEST).read_text())
+            network_policy.validate_config(text)
+            approved_browser = True
+        except (ValueError, OSError, ET.ParseError):
+            pass
     for node in root.iter():
         if node.tag in {'root-path', 'external-path'} and node.get('path', '').strip() in {'', '.', '/'}:
             g.finding('fileprovider-broad-path', 'FAIL', rel, 'Broad file sharing path.',
                       'Restrict FileProvider to dedicated export directories.')
-        if node.get('cleartextTrafficPermitted') == 'true':
+        if node.get('cleartextTrafficPermitted') == 'true' and not approved_browser:
             g.finding('cleartext-config', 'FAIL', rel, 'Cleartext explicitly enabled.',
                       'Remove or document a tightly scoped exception.')
         if node.tag == 'certificates' and node.get('src') == 'user':
@@ -326,12 +362,12 @@ def android_resource(g, text, rel):
 
 
 def android(g):
-    path = 'android/phone/apps/phoneInterface/src/main/AndroidManifest.xml'
+    path = PHONE_MANIFEST
     permissions = android_manifest(g, (g.root / path).read_text(), path)
     write_json(g.out / 'permissions-source.json', permissions)
     (g.out / 'permissions.md').write_text('# Android permissions\n\n| Permission | Source | Reason |\n|---|---|---|\n' + '\n'.join(f"| {p['name']} | {p['origin']} | {p['reason']} |" for p in permissions) + '\n\nFinal manifest and merger provenance are checked after the clean build.\n')
     for rel, text in texts(g):
-        if '/src/main/res/xml/' in rel:
+        if '/src/main/res/xml/' in rel or rel == NETWORK_CONFIG:
             android_resource(g, text, rel)
 
 
