@@ -34,6 +34,9 @@ def run() -> None:
     shutdown = shutdown.replace("qCDebug(audioclient)", "qDebug()")
     fixture = Path(__file__).with_name("phone-voice-clock-fixture.cpp").read_text()
     for key, value in {
+        # Capability comes from the native header, not from the presence of the
+        # hooks under test: deleting a production cancellation must still fail.
+        "HAS_RECORDED_PREVIEW": "true" if "_recordedVoiceTestActive" in header else "false",
         "VOICE_MEMBERS": members, "VOICE_METHODS": clock,
         "AUDIO_INPUT_METHOD": method(source, "void AudioClient::handleAudioInput(QByteArray& audioBuffer) {"),
         "MUTE_METHOD": method(source, "void AudioClient::setMuted(bool muted, bool emitSignal) {"),
