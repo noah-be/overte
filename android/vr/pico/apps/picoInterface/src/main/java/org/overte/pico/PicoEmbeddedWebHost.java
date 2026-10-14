@@ -17,6 +17,7 @@ import org.overte.security.SafeDiagnostics.Event;
 import org.overte.web.EmbeddedWebHost;
 import org.overte.web.EmbeddedWebView;
 import org.overte.web.WebFilePickerState;
+import org.qtproject.qt5.android.QtNative;
 
 /** Headset surfaces use the shared Qt texture and the existing controller ray. */
 final class PicoEmbeddedWebHost implements EmbeddedWebHost {
@@ -28,7 +29,7 @@ final class PicoEmbeddedWebHost implements EmbeddedWebHost {
     PicoEmbeddedWebHost(PicoInterfaceActivity activity) { this.activity = activity; }
     private static native void nativePrepareWeb(String cacheDirectory);
     void initialize() {
-        if (initialized || PicoInterfaceActivity.getInstance() != activity) return;
+        if (initialized || !ownsActivity()) return;
         nativePrepareWeb(activity.getCacheDir().getAbsolutePath());
         EmbeddedWebView.initialize(this);
         initialized = true;
@@ -36,12 +37,14 @@ final class PicoEmbeddedWebHost implements EmbeddedWebHost {
     }
     void foreground(boolean value) {
         resumed = value;
+        // Denials must reach this immutable host even after Qt changes Activity.
+        // The common host guard prevents an old host from suspending its successor.
         if (initialized) EmbeddedWebView.setForeground(this, isForeground());
-        files.deliver(isForeground());
+        files.deliver(isInputFocused());
     }
     void windowFocus() {
-        if (initialized) EmbeddedWebView.setForeground(this, isForeground());
-        files.deliver(isForeground());
+        if (initialized) EmbeddedWebView.setInputFocused(this, isInputFocused());
+        files.deliver(isInputFocused());
     }
     void detach() {
         resumed = false;
@@ -51,9 +54,13 @@ final class PicoEmbeddedWebHost implements EmbeddedWebHost {
     }
     @Override public Activity activity() { return activity; }
     @Override public boolean isForeground() {
-        return initialized && resumed && PicoInterfaceActivity.getInstance() == activity
-            && activity.hasWindowFocus() && !activity.isFinishing();
+        return initialized && resumed && ownsActivity()
+            && !activity.isFinishing() && !activity.isDestroyed();
     }
+    private boolean ownsActivity() {
+        return PicoInterfaceActivity.getInstance() == activity && QtNative.activity() == activity;
+    }
+    private boolean isInputFocused() { return isForeground() && activity.hasWindowFocus(); }
     @Override public boolean placeTabletView(WebView view, Rect bounds) {
         // A headset tablet must remain a texture in the offscreen Qt scene.
         return false;
@@ -64,7 +71,7 @@ final class PicoEmbeddedWebHost implements EmbeddedWebHost {
     }
     @Override public void diagnostic(int status) { RedactingDiagnostics.w(Event.REDACTED); }
     @Override public boolean openExternal(Uri url) {
-        if (!isForeground() || url == null || url.getUserInfo() != null
+        if (!isInputFocused() || url == null || url.getUserInfo() != null
                 || !("https".equals(url.getScheme()) || "http".equals(url.getScheme()))) return false;
         try {
             Intent browser = new Intent(Intent.ACTION_VIEW, url).addCategory(Intent.CATEGORY_BROWSABLE);
@@ -73,7 +80,7 @@ final class PicoEmbeddedWebHost implements EmbeddedWebHost {
         } catch (ActivityNotFoundException | SecurityException unavailable) { return false; }
     }
     @Override public boolean chooseFiles(ValueCallback<Uri[]> result, WebChromeClient.FileChooserParams request) {
-        if (!isForeground() || result == null || request == null
+        if (!isInputFocused() || result == null || request == null
                 || request.getMode() != WebChromeClient.FileChooserParams.MODE_OPEN
                 && request.getMode() != WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE) return false;
         int code = files.begin(result::onReceiveValue);
@@ -102,7 +109,7 @@ final class PicoEmbeddedWebHost implements EmbeddedWebHost {
                 for (int i = 0; i < Math.min(16, clips.getItemCount()); ++i) add(values, clips.getItemAt(i).getUri());
             } else { add(values, data.getData()); }
         }
-        return files.receive(code, values.isEmpty() ? null : values.toArray(new Uri[0]), isForeground());
+        return files.receive(code, values.isEmpty() ? null : values.toArray(new Uri[0]), isInputFocused());
     }
     private static void add(ArrayList<Uri> selected, Uri uri) {
         if (uri != null && "content".equals(uri.getScheme()) && !selected.contains(uri)) selected.add(uri);

@@ -105,6 +105,48 @@ at the host boundary; the Android WebView, OS prompts and device lifecycle are
 not executed. This check does not build or attest a current Pico APK. Preserve
 artifact hashes and original dependency provenance separately.
 
+## Embedded web Activity and input focus
+
+Pico's shared-web host uses Activity resume/pause for foreground. Window focus
+changes call `EmbeddedWebView.setInputFocused(owner, focused)` without pausing
+media or presentation. Native input tickets, browser actions and document
+selection still require real window focus and both the current Pico and Qt
+Activity owner. Pause and teardown still revoke the immutable old host when Qt
+has already replaced its Activity; the common owner guard protects a successor.
+
+The production SDK/callgraph check compiles the actual shared Web Java sources,
+using `OVERTE_TEST_ANDROIDX_WEBKIT_JAR` for the reviewed AndroidX WebKit 1.12.1
+`classes.jar` and `OVERTE_TEST_QT_ANDROID_JAR` for the actual Qt ownership API;
+it no longer substitutes a manually maintained Web API class.
+`OVERTE_TEST_COMMON_WEB_SOURCE_ROOT` is an explicit test dependency override for
+a reviewed owning-parent checkout. A missing API or artifact fails the check.
+
+For the actual API26/35 Activity, host, common input-gate and picker journey:
+
+```sh
+python3 android/vr/pico/tests/pico-embedded-web-focus-api-test.py \
+  --output /private/new-focus-check \
+  --common-source-root /absolute/path/to/reviewed-owning-parent \
+  --common-source-revision FULL_REVIEWED_REVISION \
+  --android-jar /absolute/path/to/platforms/android-36/android.jar \
+  --webkit-jar /absolute/path/to/androidx-webkit-1.12.1.jar \
+  --qt-jar /absolute/path/to/QtAndroid.jar \
+  --core-jar /absolute/path/to/androidx-core-1.1.0.jar
+```
+
+The runner verifies and records the owning source revision, production-source
+and artifact hashes, and uses at most four Gradle workers. `--offline-init` and
+`--gradle` select existing reviewed host inputs. No product source is replaced
+by these arguments. Before normal protected-parent propagation, a preview API
+pass does not establish a buildable integrated product.
+
+Robolectric executes the real Pico resume/pause/focus/result methods and common
+public Java callers. Native application bootstrap, Qt/OpenXR/voice and shared
+JNI endpoints are controlled boundaries. These cases prove focus revocation,
+foreground preservation, Pico/Qt owner replacement and delayed/canceled picker
+delivery; they do not execute Chromium DOM, hardware video/audio, a real document
+provider, or an HMD. Keep the original failing host as a separate negative input.
+
 ## Legacy inline HTML lifecycle regression
 
 The retained `data:text/html` world surface continues to use its original Pico
