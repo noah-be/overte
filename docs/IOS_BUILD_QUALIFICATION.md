@@ -36,6 +36,54 @@ failed, cancelled or skipped dependencies. It also reads the actual run/attempt'
 job inventory and requires successful compiler, link verification, packaging and
 artifact upload steps; an overall green reusable job alone is insufficient.
 
+A failed-only retry of the qualifier can retain the successful producer jobs
+from attempt 1 while the qualifier runs in attempt 2. The verifier requires the
+five exact selected jobs to have unique positive API snapshot job IDs and one
+consistent API snapshot attempt, belonging to the same run and PR head. A retry
+may also create new job IDs and `run_attempt: 2` records carrying the unchanged
+original successful step timestamps. The API attempt and job IDs alone do not
+prove a new compilation. The verifier supports attempt-1 API snapshots with an
+attempt-2 qualifier and same-attempt API snapshots; mixed snapshot attempts,
+backwards ordering and other earlier-attempt combinations
+fail. Every mandatory native step must still be `completed` with conclusion
+`success`. Missing or nonterminal API step data fails even when the overall job
+and package logs show success. A later API correction does not retroactively
+change an earlier failed qualification.
+
+The report preserves `runAttempt` as the qualifying attempt and separately
+records `apiSnapshotRunAttempt`, `qualifierRunAttempt` and `apiSnapshotJobIds`.
+It explicitly leaves `originalExecutionRunAttempt` and `originalExecutionJobIds`
+null, with `originalExecutionIdentityVerification` set to
+`not-observed-by-legacy-invocation`. The legacy invocation has no original
+execution receipt to establish those fields; timestamps or a new API job ID
+must not be substituted for that receipt. Preserve independently captured
+original attempt-1 job/step receipts when comparing inherited retry snapshots.
+Those separate observations do not retroactively rewrite historical reports.
+The report never attributes a fresh compilation to a later API snapshot.
+GitHub's [rerun documentation](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs)
+specifies reuse of the original event's `GITHUB_SHA` and `GITHUB_REF`. Preserve
+the separate [job API](https://docs.github.com/en/rest/actions/workflow-jobs)
+attempt records when examining a retry; same-source qualification and original
+execution identity are different observations.
+This compatibility change leaves the canonical workflow byte-identical and
+does not trigger a rerun. Before a diagnosed failed-only retry, verify that the
+run, PR head, compiled candidate and successful original producer jobs are
+unchanged, and that all mandatory native steps have terminal successful API
+results. A different candidate or unsuccessful producer cannot use this reuse.
+
+The existing final invocation checks the inner IPA and manifest, as described
+below. The pinned download action supplies extracted files; the verifier does
+not receive the original artifact ZIP or its API artifact ID. Its report therefore explicitly marks additional
+artifact-ID and original-ZIP-digest verification as
+`not-observed-by-legacy-invocation`. Those fields must not be invented from the
+producing attempt, IPA hash, filename or package logs. Independently retained
+original ZIP bytes may be compared with their exact API artifact-ID/digest
+receipt. An additional authenticated collector and independently checked ZIP
+receipt require a separate trusted-template update and normal Main → Apple →
+iOS propagation; the legacy verify step has no `GH_TOKEN` of its own. Changing
+the canonical template also changes the mandatory candidate wiring check and
+cannot transparently retrofit a frozen candidate or its old workflow snapshot.
+
 The IPA must be unique and match the manifest's exact candidate SHA, workflow
 build number, filename and SHA-256. The verifier checks the physical iPhoneOS
 platform, arm64 Mach-O executable, Full Client product and dedicated E2E identity

@@ -1921,14 +1921,9 @@ void Application::setupSignalsAndOperators() {
 
         auto accountManager = DependencyManager::get<AccountManager>();
 #if defined(OVERTE_PICO_SETUP)
-#if defined(Q_OS_ANDROID)
-        connect(accountManager.data(), &AccountManager::authRequired, this, []() {
-            auto addressManager = DependencyManager::get<AddressManager>();
-            AndroidHelper::instance().showLoginDialog(addressManager->currentAddress());
-        });
-#else
+        // The Pico full client owns a native tablet login dialog. Its Activity
+        // does not implement the retired Android launcher's Login request.
         connect(accountManager.data(), &AccountManager::authRequired, dialogsManager.data(), &DialogsManager::showLoginDialog);
-#endif
 #else
 #if defined(Q_OS_ANDROID) && !defined(ANDROID_APP_PHONE_INTERFACE)
         connect(accountManager.data(), &AccountManager::authRequired, this, []() {

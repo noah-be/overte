@@ -112,6 +112,26 @@ DEPENDENCY_XML = (
     Path(__file__).resolve().parents[2]
     / "phone/apps/phoneInterface/src/main/res/values/qt_dependencies.xml"
 )
+PHONE_COMMUNITY_RUNTIME_ASSETS = {
+    "communityScripts/armored-chat/armored_chat.js",
+    "communityScripts/armored-chat/armored_chat.qml",
+    "communityScripts/armored-chat/armored_chat_quick_message.qml",
+    "communityScripts/armored-chat/img/icon_black.png",
+    "communityScripts/armored-chat/img/icon_white.png",
+    "communityScripts/armored-chat/img/ui/send_black.png",
+    "communityScripts/armored-chat/img/ui/send_white.png",
+    "communityScripts/armored-chat/img/ui/settings_black.png",
+    "communityScripts/armored-chat/img/ui/settings_white.png",
+    "communityScripts/armored-chat/img/ui/social_black.png",
+    "communityScripts/armored-chat/img/ui/social_white.png",
+    "communityScripts/armored-chat/img/ui/world_black.png",
+    "communityScripts/armored-chat/img/ui/world_white.png",
+    "communityScripts/armored-chat/qml/ChatMessage.qml",
+    "communityScripts/chatBubbles/assets/notify.wav",
+    "communityScripts/chatBubbles/chatBubbles.js",
+    "communityScripts/notificationCore/notificationCore.js",
+    "communityScripts/notificationCore/resources/click.wav",
+}
 REQUIRED_CACHED_ASSETS = {
     "resources.rcc",
     "android_rcc_bundle.rcc",
@@ -123,12 +143,16 @@ REQUIRED_CACHED_ASSETS = {
     "scripts/system/+android_phoneInterface/mobileActionBar.js",
     "scripts/system/+android_phoneInterface/mobileTabletApps.js",
     "scripts/system/+android_phoneInterface/phoneEmote.js",
+    "scripts/system/+android_phoneInterface/phoneGraphics.js",
+    "scripts/system/create/edit.js",
+    "scripts/system/snapshot.js",
     "scripts/system/bubble.js",
     "scripts/system/pal.js",
     "scripts/system/avatarapp.js",
     "scripts/system/places/places.js",
     "scripts/system/quickGoto.js",
 }
+REQUIRED_CACHED_ASSETS.update("scripts/" + path for path in PHONE_COMMUNITY_RUNTIME_ASSETS)
 MAX_CACHE_MANIFEST_BYTES = 4 * 1024 * 1024
 MAX_CACHE_ASSET_COUNT = 32 * 1024
 MAX_CACHE_PATH_BYTES = 1024

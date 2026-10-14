@@ -79,7 +79,10 @@ if grep -Fq 'deferTabletCreationUntilOpen' "$settings"; then
 fi
 printf 'PASS: Settings do not infer product identity from persisted state\n'
 
-readonly graphics="$repo_root/scripts/system/settings/qml/pages/GraphicsSettings.qml"
+readonly graphics_entry="$repo_root/scripts/system/settings/qml/pages/GraphicsSettings.qml"
+readonly graphics="$repo_root/scripts/system/settings/qml/pages/GraphicsSettingsBase.qml"
+require "$graphics_entry" 'GraphicsSettingsBase[[:space:]]*\{' \
+    'generic Graphics Settings delegates to the shared capability-gated body'
 require "$graphics" 'SettingsTouchConfiguration[[:space:]]*\{' \
     'Graphics Settings resolves its own shared capability configuration'
 require "$graphics" 'id:[[:space:]]*touchConfiguration' \

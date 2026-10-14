@@ -10,6 +10,8 @@
     "BUILD_ANDROID.md",
     "cmake/macros/TargetOculusMobile.cmake",
     "interface/resources/qml/+android_picoInterface/Web3DSurface.qml",
+    "interface/resources/qml/+android_picoInterface/PicoLegacyWebSurface.qml",
+    "interface/resources/qml/controls/+android_picoInterface/EmbeddedWebBackend.qml",
     "interface/resources/qml/androidAppForce/ForFolderListModel.qml",
     "interface/resources/serverless/overte-hub-pico4-aggressive.json",
     "interface/resources/serverless/overte-hub-pico4-optimized-spawn.json",
@@ -132,7 +134,9 @@
     "scripts/system/tablet-ui/mobileTabletApps.js",
     "interface/resources/qml/hifi/tablet/TabletNavigation.qml",
     "interface/resources/qml/hifi/tablet/TabletPageLoader.qml",
-    "interface/resources/qml/hifi/tablet/TabletSurfaceGeometry.qml"
+    "interface/resources/qml/hifi/tablet/TabletSurfaceGeometry.qml",
+    "scripts/system/+android_phoneInterface/phoneGraphics.js",
+    "scripts/system/settings/qml/pages/+android_phoneInterface/GraphicsSettings.qml"
   ],
   "shared_mobile_selectors": [
     "+android_interface",
