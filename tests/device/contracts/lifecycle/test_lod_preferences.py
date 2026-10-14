@@ -38,7 +38,7 @@ class LodPreferences(unittest.TestCase):
             "void LODManager::setAutomaticLODAdjust(", "void LODManager::setLODAngleDeg(",
             "void LODManager::setWorldDetailQuality(WorldDetailQuality quality, bool")))
         flags = shlex.split(subprocess.check_output(["pkg-config", "--cflags", "--libs", "Qt6Core"], text=True))
-        glm_include = os.environ.get("OVERTE_LOD_GLM_INCLUDE")
+        glm_include = os.environ.get("OVERTE_TEST_GLM_INCLUDE")
         if glm_include:
             if not (Path(glm_include) / "glm/glm.hpp").is_file():
                 raise RuntimeError("The explicit GLM include directory is incomplete")
