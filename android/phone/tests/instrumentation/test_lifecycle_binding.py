@@ -1,6 +1,7 @@
 """Compile Phone's real pending-navigation consumer and check its runtime entry wiring."""
 from pathlib import Path
 import re
+import os
 import shlex
 import subprocess
 import tempfile
@@ -59,6 +60,8 @@ class PhoneLifecycleBindingTests(unittest.TestCase):
 #include <string>
 #include <type_traits>
 #include <QtCore/QCoreApplication>
+#include <QtGui/QGuiApplication>
+#include "android/phone/apps/phoneInterface/src/PhoneApplicationOwner.h"
 #include "libraries/shared/src/PhoneLoadingDiagnostics.h"
 #include <QtCore/QThread>
 #include <QtCore/QString>
@@ -129,7 +132,13 @@ struct PhoneDelivery {
 #include "phone-submit.inc"
 };
 int main(int argc, char** argv) {
-    QCoreApplication app(argc, argv);
+    {
+        QCoreApplication parser(argc, argv);
+        assert(!phoneApplication());
+        assert(!Java_org_overte_phone_PhoneInterfaceActivity_nativeProcessUrl(nullptr, nullptr, "parser must retain this URL"));
+    }
+    QGuiApplication app(argc, argv);
+    assert(phoneApplication() == &app);
     PhoneDelivery delivery;
     delivery._handoff.markReady();
     delivery.submit(true);
@@ -189,7 +198,7 @@ int main(int argc, char** argv) {
 }
 '''
         flags = shlex.split(subprocess.check_output(
-            ["pkg-config", "--cflags", "--libs", "Qt6Core", "Qt6Network"], text=True))
+            ["pkg-config", "--cflags", "--libs", "Qt6Core", "Qt6Network", "Qt6Gui"], text=True))
         with tempfile.TemporaryDirectory(prefix="phone-visibility-host-") as temporary:
             directory = Path(temporary)
             (directory / "publication.inc").write_text(publication)
@@ -204,6 +213,6 @@ int main(int argc, char** argv) {
             subprocess.run(["c++", "-std=c++17", "-fPIC", "-pthread", "-I", str(ROOT),
                             "-I", temporary, "-x", "c++", "-", "-o", str(binary), *flags],
                            input=driver, text=True, check=True, timeout=30)
-            subprocess.run([str(binary)], check=True, timeout=5)
+            subprocess.run([str(binary)], check=True, timeout=5, env=dict(os.environ, QT_QPA_PLATFORM="offscreen"))
 
 if __name__ == "__main__": unittest.main()
