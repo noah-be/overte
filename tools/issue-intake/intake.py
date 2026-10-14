@@ -20,7 +20,7 @@ _acceptance_spec = importlib.util.spec_from_file_location("overte_acceptance", P
 acceptance = importlib.util.module_from_spec(_acceptance_spec)
 _acceptance_spec.loader.exec_module(acceptance)
 
-REPOSITORY = "noah-be/overte"
+REPOSITORY = "noah-l-frank/overte"
 API = f"repos/{REPOSITORY}"
 ROOT = Path(__file__).resolve().parents[2]
 MARKER = re.compile(r"<!-- overte-issue:v1 request:([0-9a-f-]{36}) -->")
@@ -41,7 +41,7 @@ def digest(value):
 
 def gh(path, method="GET", data=None):
     if not (path == API or path.startswith(API + "/")):
-        raise IntakeError("API path is outside noah-be/overte")
+        raise IntakeError("API path is outside noah-l-frank/overte")
     args = ["gh", "api", "--hostname", "github.com", "--method", method, path]
     if data is not None:
         args += ["--input", "-"]
@@ -105,7 +105,7 @@ def load_policy(client=None, path=None):
         client.verify_repository()
         content = client.api(f"{API}/contents/.github/issue-policy.json?ref=main")
         policy = json.loads(base64.b64decode(content["content"]))
-    if policy.get("repository") != REPOSITORY or policy.get("schema") != 1 or policy.get("minimum_tool_revision", 1) > 3:
+    if policy.get("repository") != REPOSITORY or policy.get("schema") != 1 or policy.get("minimum_tool_revision", 1) > 4:
         raise IntakeError("Unsupported issue policy; update the installed tool instead of bypassing validation")
     return policy
 
@@ -442,6 +442,9 @@ def update(client, number, draft, policy, expected_snapshot, state=None, close_r
     decisions = draft.get("completion_decisions", [])
     if decisions[:len(old_decisions)] != old_decisions:
         raise IntakeError("Completion decisions are append-only; preserve earlier owner decisions")
+    if any(not isinstance(decision, dict) or decision.get("approved_by") != policy["owner_completion"]["approver"]
+           for decision in decisions[len(old_decisions):]):
+        raise IntakeError("New completion decisions must name the current policy's project owner")
     if decisions != old_decisions and not owner_approved:
         raise IntakeError("Recording an owner decision requires explicit --owner-approved authorization")
     if owner_approved and (close_reason != "completed" or not acceptance.owner_completed(draft, policy)):

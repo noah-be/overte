@@ -28,7 +28,11 @@ def check_decisions(draft, policy):
         if not isinstance(decision["id"], str) or not re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", decision["id"]) or decision["id"] in seen:
             raise ValueError("Completion decision IDs must be nonempty and unique")
         seen.add(decision["id"])
-        if decision["approved_by"] != policy["owner_completion"]["approver"]:
+        # Retain saved decisions under a renamed account without rewriting evidence.
+        # Intake.update separately requires the current login for every appended decision.
+        owners = [policy["owner_completion"]["approver"],
+                  *policy["owner_completion"].get("historical_approvers", [])]
+        if decision["approved_by"] not in owners:
             raise ValueError("Completion decision must name the policy's project owner")
         if not isinstance(decision["criterion_sha256"], str) or not re.fullmatch(r"[0-9a-f]{64}", decision["criterion_sha256"]):
             raise ValueError("Completion decision requires the exact criterion hash")

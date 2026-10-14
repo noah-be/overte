@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Behavioral tests: rejected writes, ownership, concurrency, retries and round trips."""
+import base64
 import copy
 import contextlib
 import importlib.util
@@ -44,8 +45,8 @@ def draft(kind="bug"):
 def issue(value=None, number=100, state="inbox"):
     value = value or draft()
     return {"number": number, "title": value["title"], "body": intake.render(value, POLICY),
-            "repository_url": "https://api.github.com/repos/noah-be/overte",
-            "html_url": f"https://github.com/noah-be/overte/issues/{number}", "state": "open", "state_reason": None,
+            "repository_url": "https://api.github.com/repos/noah-l-frank/overte",
+            "html_url": f"https://github.com/noah-l-frank/overte/issues/{number}", "state": "open", "state_reason": None,
             "labels": [{"name": x} for x in intake.expected_labels(value, POLICY, state)],
             "milestone": {"number": value["milestone"]} if value.get("milestone") else None, "updated_at": "2026-09-14T09:00:00Z"}
 
@@ -349,7 +350,7 @@ class GuardTests(unittest.TestCase):
         api = FakeGitHub(); row = issue()
         row["body"] = row["body"].replace("Startup displays only intended controls.", "TODO")
         api.rows[100] = row
-        api.comments[1] = {"id": 1, "body": intake.COMMENT_MARKER + " Human copied a marker.", "user": {"login": "noah-be"}, "issue_url": f"https://api.github.com/{intake.API}/issues/100"}
+        api.comments[1] = {"id": 1, "body": intake.COMMENT_MARKER + " Human copied a marker.", "user": {"login": "noah-l-frank"}, "issue_url": f"https://api.github.com/{intake.API}/issues/100"}
         human = copy.deepcopy(api.comments[1])
         guard.reconcile(api.client, 100, POLICY, apply=True, event_number=100)
         self.assertEqual(len(api.comments), 2)
@@ -619,7 +620,7 @@ class OwnerCompletionTests(unittest.TestCase):
         self.value["fields"]["evidence"] = ["Retained artifact-specific observations"]
         self.api.rows[100] = issue(self.value)
         self.decision = {
-            "id": "owner-20260907", "approved_by": "noah-be",
+            "id": "owner-20260907", "approved_by": "noah-l-frank",
             "approved_at": "2026-09-07T12:00:00Z",
             "criterion_sha256": intake.acceptance.criterion_id(self.value),
             "authorization": "Owner explicitly requested personal-alpha completion.",
@@ -712,12 +713,182 @@ class OwnerCompletionTests(unittest.TestCase):
         self.assertEqual(self.api.writes, [])
 
 
+class RenamedRepositoryTests(unittest.TestCase):
+    """Offline identity transition; fake API responses are not live issue evidence."""
+
+    def test_current_identity_and_policy_revision_are_explicit(self):
+        self.assertEqual(intake.REPOSITORY, "noah-l-frank/overte")
+        self.assertEqual(intake.API, "repos/noah-l-frank/overte")
+        self.assertEqual(POLICY["repository"], intake.REPOSITORY)
+        self.assertEqual(POLICY["minimum_tool_revision"], 4)
+        self.assertEqual(POLICY["owner_completion"], {
+            "approver": "noah-l-frank", "historical_approvers": ["noah-be"]})
+
+    def test_old_and_foreign_repository_names_reject_without_writes(self):
+        for owner in ("noah-be/overte", "overte-org/overte", "someone-else/overte",
+                      "noah-l-frank/other", "noah-l-frank/overte-extra"):
+            with self.subTest(owner=owner):
+                api = FakeGitHub(); api.owner = owner
+                with self.assertRaises(intake.IntakeError):
+                    intake.create(api.client, draft(), POLICY)
+                self.assertEqual(api.writes, [])
+
+    def test_old_identity_discovered_before_final_write_is_rejected(self):
+        api = FakeGitHub()
+        def call(path, method="GET", data=None):
+            if path.startswith(intake.API + "/issues?"):
+                api.owner = "noah-be/overte"
+            return api.call(path, method, data)
+        with self.assertRaises(intake.IntakeError):
+            intake.create(intake.Client(call), draft(), POLICY)
+        self.assertEqual(api.writes, [])
+
+    def test_api_transport_rejects_old_and_foreign_paths_before_gh(self):
+        for path in ("repos/noah-be/overte/issues", "repos/overte-org/overte/issues",
+                     "repos/noah-l-frank/overte-other/issues"):
+            with self.subTest(path=path), mock.patch.object(intake.subprocess, "run") as run:
+                with self.assertRaises(intake.IntakeError):
+                    intake.gh(path, "POST", {"title": "Must not be sent"})
+                run.assert_not_called()
+
+    def test_old_issue_urls_cannot_become_current_issue_ownership(self):
+        for change in ({"repository_url": "https://api.github.com/repos/noah-be/overte"},
+                       {"html_url": "https://github.com/noah-be/overte/issues/100"}):
+            with self.subTest(change=change):
+                api = FakeGitHub(); api.rows[100] = issue(); api.rows[100].update(change)
+                with self.assertRaises(intake.IntakeError):
+                    intake.update(api.client, 100, draft(), POLICY, intake.snapshot(api.rows[100]))
+                self.assertEqual(api.writes, [])
+
+    def test_current_main_policy_is_required_without_local_bootstrap(self):
+        calls = []
+        served_policy = POLICY
+        def transport(path, method="GET", data=None):
+            calls.append((path, method))
+            if path == intake.API:
+                return {"full_name": intake.REPOSITORY, "default_branch": "main"}
+            self.assertEqual(path, intake.API + "/contents/.github/issue-policy.json?ref=main")
+            return {"content": base64.b64encode(json.dumps(served_policy).encode()).decode()}
+        self.assertEqual(intake.load_policy(intake.Client(transport)), POLICY)
+        self.assertEqual([method for _, method in calls], ["GET", "GET"])
+        stale = {**POLICY, "repository": "noah-be/overte"}
+        served_policy = stale
+        with self.assertRaises(intake.IntakeError): intake.load_policy(intake.Client(transport))
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "policy.json"; path.write_text(json.dumps(stale))
+            with self.assertRaises(intake.IntakeError): intake.load_policy(path=path)
+
+    def test_old_runtime_and_event_repository_reject_guard_before_writes(self):
+        for runtime, event in (("noah-be/overte", intake.REPOSITORY),
+                               (intake.REPOSITORY, "noah-be/overte"),
+                               (intake.REPOSITORY, "overte-org/overte")):
+            with self.subTest(runtime=runtime, event=event), tempfile.TemporaryDirectory() as directory:
+                event_path = Path(directory) / "event.json"
+                event_path.write_text(json.dumps({"repository": {"full_name": event}}))
+                api = FakeGitHub()
+                with mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": runtime,
+                                                   "GITHUB_EVENT_PATH": str(event_path)}), \
+                     mock.patch.object(sys, "argv", ["guard.py", "--apply"]), \
+                     mock.patch.object(guard, "Client", return_value=api.client):
+                    with self.assertRaises(intake.IntakeError): guard.main()
+                self.assertEqual(api.writes, [])
+
+    def test_current_guard_runtime_and_event_are_accepted_offline(self):
+        with tempfile.TemporaryDirectory() as directory:
+            event_path = Path(directory) / "event.json"
+            event_path.write_text(json.dumps({"repository": {"full_name": intake.REPOSITORY}}))
+            api = FakeGitHub()
+            with mock.patch.dict(os.environ, {"GITHUB_REPOSITORY": intake.REPOSITORY,
+                                               "GITHUB_EVENT_PATH": str(event_path),
+                                               "GITHUB_STEP_SUMMARY": ""}), \
+                 mock.patch.object(sys, "argv", ["guard.py"]), \
+                 mock.patch.object(guard, "Client", return_value=api.client), \
+                 contextlib.redirect_stdout(io.StringIO()) as output:
+                self.assertEqual(guard.main(), 0)
+            self.assertEqual(json.loads(output.getvalue())["operational_errors"], [])
+            self.assertEqual(api.writes, [])
+
+    def test_historical_description_links_remain_byte_identical(self):
+        api = FakeGitHub(); row = issue()
+        row["body"] = "Historical source: https://github.com/noah-be/overte/issues/599\n"
+        row["labels"] = [{"name": "bug"}, {"name": "android phone"}]
+        api.rows[100] = row
+        original_body = row["body"]
+        intake.migrate(api.client, 100, draft(), POLICY, intake.snapshot(row), True)
+        self.assertEqual(intake.parse(api.rows[100], POLICY)["legacy"]["body"], original_body)
+
+    def test_new_bot_comment_links_current_rules(self):
+        api = FakeGitHub(); row = issue()
+        row["body"] = row["body"].replace("Startup displays only intended controls.", "TODO")
+        api.rows[100] = row
+        guard.reconcile(api.client, 100, POLICY, apply=True, event_number=100)
+        self.assertIn("https://github.com/noah-l-frank/overte/blob/main/docs/ISSUE_WORKFLOW.md",
+                      api.comments[1]["body"])
+
+
+class RenamedOwnerHistoryTests(unittest.TestCase):
+    setUp = OwnerCompletionTests.setUp
+
+    def historical(self):
+        value = copy.deepcopy(self.value)
+        value["completion_decisions"][0]["approved_by"] = "noah-be"
+        row = issue(value)
+        row.update(state="closed", state_reason="completed")
+        self.api.rows[100] = row
+        return value, row
+
+    def test_saved_old_decision_remains_closed_and_unchanged_on_update_and_guard(self):
+        value, row = self.historical()
+        original_decisions = copy.deepcopy(value["completion_decisions"])
+        intake.update(self.api.client, 100, value, POLICY, intake.snapshot(row))
+        saved = self.api.rows[100]
+        self.assertEqual((saved["state"], saved["state_reason"]), ("closed", "completed"))
+        self.assertEqual(intake.parse(saved, POLICY)["completion_decisions"], original_decisions)
+        self.assertEqual(guard.plan(saved, POLICY, [])["patch"], {})
+
+    def test_old_login_cannot_authorize_a_newly_appended_decision(self):
+        for existing in (False, True):
+            with self.subTest(existing=existing):
+                self.setUp()
+                value, row = self.historical() if existing else (copy.deepcopy(self.value), self.api.rows[100])
+                decision = {**self.decision, "id": "new-decision", "approved_by": "noah-be"}
+                value["completion_decisions"] = (value["completion_decisions"] if existing else []) + [decision]
+                with self.assertRaisesRegex(intake.IntakeError, "current policy's project owner"):
+                    intake.update(self.api.client, 100, value, POLICY, intake.snapshot(row),
+                                  close_reason="completed", owner_approved=True)
+                self.assertEqual(self.api.writes, [])
+
+    def test_current_decision_appends_without_rewriting_old_identity(self):
+        value, row = self.historical()
+        old = copy.deepcopy(value["completion_decisions"][0])
+        value["completion_decisions"].append({**self.decision, "id": "current-owner-decision"})
+        intake.update(self.api.client, 100, value, POLICY, intake.snapshot(row),
+                      close_reason="completed", owner_approved=True)
+        saved = intake.parse(self.api.rows[100], POLICY)["completion_decisions"]
+        self.assertEqual(saved, [old, {**self.decision, "id": "current-owner-decision"}])
+
+    def test_historical_decision_cannot_be_renamed_or_used_for_expanded_scope(self):
+        for rename in (False, True):
+            with self.subTest(rename=rename):
+                self.setUp(); value, row = self.historical()
+                if rename:
+                    value["completion_decisions"][0]["approved_by"] = "noah-l-frank"
+                else:
+                    value["fields"]["scope"] += " Expanded requirement."
+                with self.assertRaises(intake.IntakeError):
+                    intake.update(self.api.client, 100, value, POLICY, intake.snapshot(row),
+                                  close_reason="completed", owner_approved=True)
+                self.assertEqual(self.api.writes, [])
+
+
 class InstallationTests(unittest.TestCase):
     def test_install_is_repeatable_and_preserves_existing_instructions(self):
         with tempfile.TemporaryDirectory() as temporary:
             home = Path(temporary); codex = home / ".codex"; codex.mkdir()
             instructions = codex / "AGENTS.md"
-            instructions.write_text("# Existing rules\nNever write upstream.\n")
+            instructions.write_text("# Existing rules\nNever write upstream.\n"
+                "<!-- overte-issue-intake:start -->\nOld routing for noah-be/overte.\n"
+                "<!-- overte-issue-intake:end -->\n")
             args = [sys.executable, str(ROOT / "tools/issue-intake/install.py"), "--home", str(home), "--codex-home", str(codex)]
             subprocess.run(args, check=True, capture_output=True)
             first = instructions.read_text()
@@ -725,6 +896,10 @@ class InstallationTests(unittest.TestCase):
             self.assertEqual(first, instructions.read_text())
             self.assertTrue(first.startswith("# Existing rules\nNever write upstream.\n"))
             self.assertEqual(first.count("<!-- overte-issue-intake:start -->"), 1)
+            self.assertIn("noah-l-frank/overte", first)
+            self.assertNotIn("noah-be/overte", first)
+            self.assertIn("noah-l-frank/overte", (codex / "skills/overte-issue-intake/SKILL.md").read_text())
+            self.assertEqual(json.loads((home / ".local/share/overte-issue-intake/.github/issue-policy.json").read_text()), POLICY)
             result = subprocess.run([str(home / ".local/bin/overte-issue"), "--policy", str(ROOT / ".github/issue-policy.json"), "example", "bug"], check=True, capture_output=True, text=True)
             self.assertEqual(json.loads(result.stdout)["kind"], "bug")
 

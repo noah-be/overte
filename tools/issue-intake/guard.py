@@ -71,7 +71,7 @@ def reconcile(client, number, policy, apply=False, event_number=None):
         text += "\n".join("- " + x for x in result["errors"])
         text += ("\n\nAsk Codex to structure this issue with the Overte issue intake skill. "
                  "Preserve the observations and existing evidence. The validator checks the correction automatically. "
-                 "[Issue rules](https://github.com/noah-be/overte/blob/main/docs/ISSUE_WORKFLOW.md)")
+                 "[Issue rules](https://github.com/noah-l-frank/overte/blob/main/docs/ISSUE_WORKFLOW.md)")
     else:
         text += "Structure and labels checked. No corrections are currently needed. This is not a product acceptance result."
     if existing and existing[0]["body"] == text:
@@ -97,7 +97,7 @@ def main():
     parser.add_argument("--number", type=int)
     args = parser.parse_args()
     if os.environ.get("GITHUB_REPOSITORY") != REPOSITORY:
-        raise IntakeError("The guard runs only in noah-be/overte")
+        raise IntakeError("The guard runs only in noah-l-frank/overte")
     client = Client()
     # The workflow checks out trusted main. Use that same policy/code snapshot.
     policy = load_policy(path=Path(__file__).resolve().parents[2] / ".github/issue-policy.json")
