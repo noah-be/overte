@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[3]
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--runner', default=os.environ.get('OVERTE_QML_TEST_RUNNER', 'qmltestrunner'))
 parser.add_argument('--junit', type=Path)
-parser.add_argument('--places-qml', type=Path, help='Explicit mutated production input for negative controls only')
+parser.add_argument('--places-qml', type=Path, help='Explicit read-only parent prerequisite or negative input; never an in-tree qualification')
 parser.add_argument('--login-qml', type=Path, help='Explicit mutated Phone login input for negative controls only')
 selection = parser.add_mutually_exclusive_group()
 selection.add_argument('--places-only', action='store_true', help='Places-only Qt6/negative probe; normal Fast executes both Phone fixtures with Qt5')
