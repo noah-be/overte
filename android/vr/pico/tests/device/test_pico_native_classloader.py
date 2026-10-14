@@ -143,10 +143,12 @@ CPP=r'''
 #include <QQmlComponent>
 #include <QQmlFileSelector>
 #include <QElapsedTimer>
+#include <QThread>
 #include <FileDialogHelper.h>
 #include <NativeSnapshotAdapter.h>
 #include <SnapshotStorage.h>
 #include <memory>
+#include <cassert>
 #include <jni.h>
 #include "PicoNativeBridges.h"
 // Only the desktop menu boundary is controlled here. Execute the actual
@@ -174,16 +176,25 @@ static QString treeRoot;
 static QString imported;
 static jstring javaString(JNIEnv* env,const QString& value){return env->NewString(reinterpret_cast<const jchar*>(value.utf16()),value.size());}
 static QCoreApplication* application=nullptr;
-static int count=1;
-static char name[]="pico-loader-test";
-static char* arguments[]={name,nullptr};
+// The native executable owns the GUI application and its process-main thread.
+// A Java launcher creates a different JavaMain pthread; Qt's offscreen exit
+// objects can outlive that pthread's adopted QThreadData on Qt 6.4.
+extern "C" void picoLoaderCreateApplication(int& argc,char** argv){
+    assert(!application);application=new Application(argc,argv);
+}
+extern "C" void picoLoaderDestroyApplication(){
+    assert(application && application->thread()==QThread::currentThread());
+    assert(!documents && !snapshots && !activity);
+    delete application;application=nullptr;
+}
 namespace overte::lifecycle {void observeNativeVisibility(bool foreground){visible=foreground;}}
 extern "C" JavaVM* overtePicoOpenXRJavaVm(){return vm;}
 extern "C" jobject overtePicoOpenXRAcquireActivity(JNIEnv* env){return activity?env->NewGlobalRef(activity):nullptr;}
 // Accessibility engine effects are outside this lifecycle/class-loader test.
 extern "C" jboolean Java_org_overte_pico_PicoAccessibilityBridge_nativeRequestFrame(JNIEnv*,jclass,jobject,jint,jint,jint){return JNI_FALSE;}
 extern "C" jboolean Java_org_overte_pico_PicoAccessibilityBridge_nativePerformAction(JNIEnv*,jclass,jint,jstring,jstring){return JNI_FALSE;}
-extern "C" JNIEXPORT void JNICALL Java_PicoLoaderTest_initialize(JNIEnv* env,jclass){env->GetJavaVM(&vm);application=new Application(count,arguments);
+extern "C" JNIEXPORT void JNICALL Java_PicoLoaderTest_initialize(JNIEnv* env,jclass){env->GetJavaVM(&vm);
+assert(application && QCoreApplication::instance()==application && application->thread()==QThread::currentThread());
 application->setApplicationName("pico-native-loader");
 QQmlEngine engine;QQmlFileSelector selector(&engine);selector.setExtraSelectors({"android_picoInterface","android"});
 QQmlComponent surface(&engine,QUrl::fromLocalFile(QStringLiteral("@@ROOT@@/interface/resources/qml/controls/SnapshotPlatformBackend.qml")));
@@ -230,7 +241,56 @@ extern "C" JNIEXPORT jstring JNICALL Java_PicoLoaderTest_snapshot(JNIEnv* env,jc
     return javaString(env,snapshots->request(file.fileName(),"save"));
 }
 extern "C" JNIEXPORT jboolean JNICALL Java_PicoLoaderTest_completed(JNIEnv*,jclass){return documentResults==1 && snapshotResults==1;}
-extern "C" JNIEXPORT void JNICALL Java_PicoLoaderTest_shutdown(JNIEnv* env,jclass){if(activity)env->DeleteGlobalRef(activity);activity=nullptr;snapshots.reset();documents.reset();delete application;application=nullptr;}
+extern "C" JNIEXPORT void JNICALL Java_PicoLoaderTest_shutdown(JNIEnv* env,jclass){if(activity)env->DeleteGlobalRef(activity);activity=nullptr;snapshots.reset();documents.reset();}
+'''
+
+LAUNCHER_CPP=r'''
+#include <jni.h>
+#include <cassert>
+#include <string>
+#include <iostream>
+extern "C" void picoLoaderCreateApplication(int&,char**);
+extern "C" void picoLoaderDestroyApplication();
+
+int main(int argc,char** argv){
+    assert(argc==5);
+    const std::string library=argv[1], application=argv[2], invalid=argv[3];
+    std::string classPath=std::string("-Djava.class.path=")+argv[4];
+    picoLoaderCreateApplication(argc,argv);
+    JavaVMOption options[]={{classPath.data(),nullptr},
+        {const_cast<char*>("-Xcheck:jni"),nullptr},
+        {const_cast<char*>("-XX:-CreateCoredumpOnCrash"),nullptr}};
+    JavaVMInitArgs arguments {JNI_VERSION_1_8,3,options,JNI_FALSE};
+    JavaVM* vm=nullptr;JNIEnv* env=nullptr;
+    assert(JNI_CreateJavaVM(&vm,reinterpret_cast<void**>(&env),&arguments)==JNI_OK);
+    jclass driver=env->FindClass("PicoLoaderTest");
+    if(env->ExceptionCheck())env->ExceptionDescribe();
+    assert(driver && !env->ExceptionCheck());
+    jmethodID main=env->GetStaticMethodID(driver,"main","([Ljava/lang/String;)V");
+    assert(main && !env->ExceptionCheck());
+    jclass stringClass=env->FindClass("java/lang/String");
+    assert(stringClass && !env->ExceptionCheck());
+    jobjectArray values=env->NewObjectArray(3,stringClass,nullptr);
+    assert(values && !env->ExceptionCheck());
+    int index=0;
+    for(const auto& value:{library,application,invalid}){
+        jstring text=env->NewStringUTF(value.c_str());assert(text);
+        env->SetObjectArrayElement(values,index++,text);env->DeleteLocalRef(text);
+        assert(!env->ExceptionCheck());
+    }
+    // Java still System.load()s the full-client DSO and exercises two genuine
+    // URLClassLoaders. Only its GUI-process ownership boundary is corrected.
+    env->CallStaticVoidMethod(driver,main,values);
+    const bool passed=!env->ExceptionCheck();
+    if(!passed){env->ExceptionDescribe();env->ExceptionClear();}
+    env->DeleteLocalRef(values);env->DeleteLocalRef(stringClass);env->DeleteLocalRef(driver);
+    // Release Qt-owned receivers while JNI cancellation is still usable.
+    // The GUI thread itself stays alive through JVM and process-exit cleanup.
+    picoLoaderDestroyApplication();
+    assert(vm->DestroyJavaVM()==JNI_OK);
+    if(passed)std::cout<<"PASS native GUI main owns QApplication through real JVM/ClassLoader/DSO test and ordered teardown\n";
+    return passed?0:1;
+}
 '''
 
 
@@ -251,6 +311,7 @@ class PicoNativeClassLoaderTest(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='pico-loader-regression-') as scratch:
             root=Path(scratch);application=root/'application';application.mkdir()
             (root/'PicoLoaderTest.java').write_text(JAVA)
+            (root/'launcher.cpp').write_text(LAUNCHER_CPP)
             events=(ROOT/'interface/src/Application_Events.cpp').read_text()
             prelude=events.split('bool Application::event(QEvent* event) {',1)[1].split(
                 '    if ((event->type() == QEvent::InputMethod',1)[0]
@@ -320,10 +381,17 @@ public class PicoAccessibilityBridge {
                 str(ui/'FileDialogHelper.cpp'),str(ui/'ui/Logging.cpp'),str(root/'documents-moc.cpp'),str(root/'snapshots-moc.cpp'),
                 '-I'+str(ui),'-I'+str(snapshot),'-I'+str(ROOT/'interface/src/ui'),'-o',str(library),*libraries,*flags],
                 env=environment,check=True,timeout=45)
-            completed=subprocess.run(['java','-XX:-CreateCoredumpOnCrash','-cp',str(root),
-                'PicoLoaderTest',str(library),str(application),str(invalid)],capture_output=True,text=True,timeout=15,
+            launcher=root/'pico-loader-test'
+            subprocess.run(['c++','-std=c++17','-Wall','-Wextra','-Werror','-pthread',
+                '-I'+str(jdk/'include'),'-I'+str(jdk/'include/linux'),str(root/'launcher.cpp'),
+                '-L'+str(root),'-lfull-client','-Wl,-rpath,'+str(root),
+                '-L'+str(jdk/'lib/server'),'-ljvm','-Wl,-rpath,'+str(jdk/'lib/server'),
+                '-o',str(launcher)],env=environment,check=True,timeout=30)
+            completed=subprocess.run([str(launcher),str(library),str(application),str(invalid),str(root)],capture_output=True,text=True,timeout=15,
                 env=environment|{'XDG_DATA_HOME':str(root/'data')})
             self.assertEqual(0,completed.returncode,(completed.stdout+completed.stderr)[-4000:])
+            self.assertIn('PASS native GUI main owns QApplication',completed.stdout,
+                'The real JVM journey and native GUI-owned teardown must both finish')
             print('PASS Qt'+major+': actual selected Pico Snapshot, file/tree/export JNI, hierarchy, owner cancellation and immutable Activity lifecycle; OS endpoints are fixtures')
 
 

@@ -105,6 +105,25 @@ at the host boundary; the Android WebView, OS prompts and device lifecycle are
 not executed. This check does not build or attest a current Pico APK. Preserve
 artifact hashes and original dependency provenance separately.
 
+The separate class-loader regression runs the actual Pico lifecycle, document
+and Snapshot native bridges with two real Java URLClassLoaders:
+
+```sh
+python3 android/vr/pico/tests/device/test_pico_native_classloader.py
+OVERTE_NATIVE_QT_MAJOR=5 python3 android/vr/pico/tests/device/test_pico_native_classloader.py
+```
+
+It requires the selected Qt Widgets/QML/Quick development tools and a JDK with
+`lib/server/libjvm`. A native process-main driver owns QApplication, embeds the
+real JVM with Check-JNI, and keeps its GUI thread alive through ordered Qt/JVM
+teardown. Java still loads the full-client DSO and uses the foreign Activity
+loader, including missing binding, changed callback ABI, queued delivery,
+replacement-owner, file/tree cancellation and native Snapshot assertions.
+Launching QApplication inside the Java launcher's JavaMain pthread allowed Qt
+6.4 offscreen exit objects to outlive adopted thread data; that host-fixture
+lifetime must not be restored. Android scheduling, provider and OS endpoints
+remain explicit fixtures; these assertions do not qualify a device or APK.
+
 ## Legacy inline HTML lifecycle regression
 
 The retained `data:text/html` world surface continues to use its original Pico
