@@ -816,7 +816,7 @@ mixed content remains disabled. A provider that lacks the required frame-aware
 bridge features shows an update action while leaving the document usable.
 
 Run `python3 android/phone/tests/phone-embedded-web-test.py` for compiled production
-geometry behavior. Its optional `--android-jar`, `--qt-jar` and `--webkit-jar`
+geometry behavior. Its optional `--android-jar`, `--qt-jar`, `--webkit-jar` and `--core-jar`
 arguments compile the actual Phone Activity, Host, Qt bindings and common browser
 against those artifacts. This checks Java API compatibility only. The test
 inventory records `PhoneEmbeddedWeb.cpp` as an Android Qt/JNI runtime boundary.
