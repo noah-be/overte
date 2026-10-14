@@ -343,3 +343,12 @@ tasks.configureEach { task ->
         task.dependsOn tasks.named('preparePicoQtRuntime')
     }
 }
+
+// One parent-owned Android web runtime serves headset world and tablet textures.
+ext.overteEmbeddedWebRoot = file("../../../../common/web")
+apply from: new File(overteEmbeddedWebRoot, "target.gradle")
+
+ext.overteDocumentsRoot = file("../../../../common/documents")
+apply from: new File(overteDocumentsRoot, "target.gradle")
+ext.overteSnapshotRoot = file("../../../../common/snapshot")
+apply from: new File(overteSnapshotRoot, "target.gradle")

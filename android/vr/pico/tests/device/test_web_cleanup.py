@@ -56,13 +56,15 @@ public class WebCleanupTestDriver {
         View view = new View();
         Runnable renderFrame = () -> {};
         void cancelActiveTouch() { effect("touch"); }
+        void suspend() { effect("suspend"); }
+        void stopRendering() { effect("remove"); }
         void disposeGraphics() { effect("graphics"); }
     }
     static void releaseTextFocus(Instance instance) { effect("editor"); }
 ''' + methods + '''
     static void need(boolean value) { if (!value) throw new AssertionError(events.toString()); }
     public static void main(String[] args) {
-        List<String> expected = Arrays.asList("editor","remove","touch","graphics","stop","blank","destroy");
+        List<String> expected = Arrays.asList("suspend","editor","remove","touch","graphics","stop","blank","destroy");
         for (boolean oom : new boolean[]{false, true}) {
             memory = oom;
             for (String fault : expected) {

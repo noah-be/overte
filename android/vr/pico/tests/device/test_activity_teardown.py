@@ -19,16 +19,24 @@ class ActivityTeardownTest(unittest.TestCase):
         focus = 'public void onWindowFocusChanged(' + source.split(
             'public void onWindowFocusChanged(', 1)[1].split('\n    }', 1)[0] + '\n    }\n'
         lifecycle = source[source.index('    public void onResume()'):source.index('    @Override\n    public void onWindowFocusChanged')]
+        result_handler = 'protected void onActivityResult(' + source.split('protected void onActivityResult(', 1)[1].split('\n    }', 1)[0] + '\n    }\n'
         web_source = (JAVA / 'OffscreenWebView.java').read_text()
         ingress = web_source[web_source.index('    static void setInputForeground('):web_source.index('    private static void postInputCommand(')]
         driver = '''package org.overte.pico;
 public final class PicoActivityTeardownTest {
-    static int web, audio, xr, qt, errors, cancelled;
-    static boolean failWeb, failAudio, failInput, audioAllowed;
+    static int web, audio, xr, qt, errors, cancelled, documentResults, webResults, qtResults, legacyTransitions;
+    static class Intent {}
+    static boolean failWeb, failAudio, failInput, audioAllowed, legacyAllowed, failLegacy;
     enum Event { REDACTED }
     static class RedactingDiagnostics { static void e(Event event) { ++errors; } }
     static class OffscreenWebView {
         static final PicoWebInputGate INPUT_GATE = new PicoWebInputGate();
+        static void setForeground(PicoInterfaceActivity owner, boolean active) {
+            if (owner != PicoInterfaceActivity.getInstance()) return;
+            ++legacyTransitions;
+            legacyAllowed = active;
+            if (failLegacy) throw new IllegalStateException("test-only");
+        }
         static void destroyAll() { ++web; if (failWeb) throw new IllegalStateException("test-only"); }
         static void cancelAllInput() { ++cancelled; if (failInput) throw new OutOfMemoryError("test-only"); }
 ''' + ingress + '''
@@ -45,19 +53,37 @@ public final class PicoActivityTeardownTest {
         static void detach(Object owner) {}
         static void foreground(Object owner, boolean active) {}
     }
+    // The common AndroidX provider is an explicit Android boundary here.
+    static class PicoEmbeddedWebHost {
+        boolean fileResult(int code,int result,Intent data) { ++webResults; return code==502; }
+        void detach() {}
+        void foreground(boolean active) {}
+        void windowFocus() {}
+    }
+    static class PicoNativeDocumentHost {
+        boolean activityResult(int code,int result,Intent data) { ++documentResults; return code==501; }
+        void detach() {}
+        void foreground(boolean active) {}
+        void windowFocus() {}
+    }
+    static class PicoAccessibilityMonitor { void start() {} void stop() {} }
     static class QtBoundary {
+        protected void onActivityResult(int code,int result,Intent data) { ++qtResults; }
         protected void onDestroy() { ++qt; }
         public void onResume() {}
         public void onPause() {}
         public void onWindowFocusChanged(boolean focused) {}
     }
     static class PicoInterfaceActivity extends QtBoundary {
+        PicoNativeDocumentHost nativeDocuments = new PicoNativeDocumentHost();
+        PicoEmbeddedWebHost embeddedWeb = new PicoEmbeddedWebHost();
+        PicoAccessibilityMonitor accessibility = new PicoAccessibilityMonitor();
         boolean resumed, focused = true;
         boolean hasWindowFocus() { return focused; }
         static PicoInterfaceActivity getInstance() { return INSTANCE.current(); }
         static final PicoActivityInstancePolicy<PicoInterfaceActivity> INSTANCE = new PicoActivityInstancePolicy<>();
         void releaseOpenXRActivity() { ++xr; }
-''' + destroy + helper + focus + lifecycle + '''
+''' + destroy + helper + focus + lifecycle + result_handler + '''
     }
     static void need(boolean condition) { if (!condition) throw new AssertionError(); }
     public static void main(String[] args) {
@@ -76,36 +102,54 @@ public final class PicoActivityTeardownTest {
         replacement.onDestroy();
         need(PicoInterfaceActivity.INSTANCE.current() == null);
         need(web == 1 && audio == 1 && xr == 2 && qt == 2);
-        failWeb = true; failAudio = true; failInput = true;
+        failWeb = true; failAudio = true; failInput = true; failLegacy = true;
         PicoInterfaceActivity failing = new PicoInterfaceActivity();
         PicoInterfaceActivity.INSTANCE.register(failing);
         failing.onDestroy();
-        need(web == 2 && audio == 2 && xr == 3 && qt == 3 && errors == 3);
+        need(web == 2 && audio == 2 && xr == 3 && qt == 3 && errors == 4);
         need(PicoInterfaceActivity.INSTANCE.current() == null);
-        failWeb = false; failAudio = false; failInput = false;
+        failWeb = false; failAudio = false; failInput = false; failLegacy = false;
         PicoInterfaceActivity current = new PicoInterfaceActivity();
         PicoInterfaceActivity.INSTANCE.register(current);
+        current.onActivityResult(501,0,null); need(documentResults==1 && webResults==0 && qtResults==0);
+        current.onActivityResult(502,0,null); need(documentResults==2 && webResults==1 && qtResults==0);
+        current.onActivityResult(503,0,null); need(documentResults==3 && webResults==2 && qtResults==1);
+        // Execute the actual Activity callers. Window focus only gates input/audio;
+        // resumed rendering remains active even before the first focus event.
+        current.focused = false;
         current.onResume();
         PicoWebInputGate gate = OffscreenWebView.INPUT_GATE;
-        PicoWebInputGate.Ticket ticket = gate.capture();
-        need(gate.permits(ticket, current) && audioAllowed);
-        current.onPause(); // Window focus can still be true at pause.
-        need(gate.capture() == null && !audioAllowed);
-        current.onResume();
-        need(!gate.permits(ticket, current) && gate.capture() != null);
-        current.onWindowFocusChanged(false);
-        need(gate.capture() == null && !audioAllowed);
+        need(gate.capture() == null && !audioAllowed && legacyAllowed);
+        int transitions = legacyTransitions;
+        current.focused = true;
         current.onWindowFocusChanged(true);
-        need(gate.capture() != null && audioAllowed);
-        current.onPause();
+        need(gate.capture() != null && audioAllowed && legacyAllowed);
+        need(legacyTransitions == transitions);
+        PicoWebInputGate.Ticket ticket = gate.capture();
+        current.focused = false;
+        current.onWindowFocusChanged(false);
+        need(gate.capture() == null && !audioAllowed && legacyAllowed);
+        need(legacyTransitions == transitions);
+        current.focused = true;
+        current.onWindowFocusChanged(true);
+        need(gate.capture() != null && audioAllowed && legacyAllowed);
+        need(legacyTransitions == transitions);
+        current.onPause(); // Window focus can still be true at pause.
+        need(gate.capture() == null && !audioAllowed && !legacyAllowed);
+        need(legacyTransitions == ++transitions);
         current.onWindowFocusChanged(true); // Focus alone cannot override pause.
-        need(gate.capture() == null && !audioAllowed);
+        need(gate.capture() == null && !audioAllowed && !legacyAllowed);
+        need(legacyTransitions == transitions);
         current.onResume();
+        need(!gate.permits(ticket, current) && gate.capture() != null && legacyAllowed);
+        need(legacyTransitions == ++transitions);
         ticket = gate.capture();
         first.onPause(); first.onResume(); first.onWindowFocusChanged(false);
-        need(gate.permits(ticket, current)); // Obsolete owner cannot change ingress.
+        need(gate.permits(ticket, current) && legacyAllowed); // Obsolete owner cannot change ingress.
+        need(legacyTransitions == transitions);
         current.onDestroy();
-        need(gate.capture() == null);
+        need(gate.capture() == null && !legacyAllowed);
+        need(legacyTransitions == transitions + 1);
     }
 }
 '''
