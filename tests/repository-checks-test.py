@@ -41,6 +41,38 @@ def results(mode="full", security="true"):
 
 
 class RoutingTests(unittest.TestCase):
+    def test_current_account_name_keeps_exact_repository_and_base_identity(self):
+        self.assertEqual(CONFIG['repository'], 'noah-l-frank/overte')
+        self.assertEqual(CONFIG['repository_id'], 1319052603)
+        self.assertEqual(CHECKS.plan(event(), ['a.cpp'], CONFIG, BRANCHES)['mode'], 'full')
+        for side in ('repository', 'base'):
+            for change in ({'full_name': 'noah-be/overte'}, {'id': 42},
+                           {'full_name': 'overte-org/overte'}):
+                candidate = deepcopy(event())
+                identity = (candidate['repository'] if side == 'repository'
+                            else candidate['pull_request']['base']['repo'])
+                identity.update(change)
+                with self.subTest(side=side, change=change), self.assertRaises(ValueError):
+                    CHECKS.plan(candidate, ['a.cpp'], CONFIG, BRANCHES)
+        # A stale head name cannot claim same-repository sync delegation, even
+        # with the real numeric repository ID.
+        candidate = deepcopy(event('android-main', 'main'))
+        candidate['pull_request']['head']['repo'] = {
+            'full_name': 'noah-be/overte', 'id': 1319052603}
+        self.assertEqual(CHECKS.plan(candidate, ['a.cpp'], CONFIG, BRANCHES)['mode'], 'full')
+
+    def test_rename_does_not_bootstrap_the_old_default_branch_router(self):
+        legacy = {**CONFIG, 'repository': 'noah-be/overte'}
+        with self.assertRaisesRegex(ValueError, 'repository identity mismatch'):
+            CHECKS.plan(event(), ['.github/repository-checks.json'], legacy, BRANCHES)
+        manual = {'repository': deepcopy(event()['repository'])}
+        with self.assertRaisesRegex(ValueError, 'repository mismatch'):
+            CHECKS.native_required(legacy, manual)
+        self.assertTrue(CHECKS.native_required(CONFIG, manual))
+        manual['repository']['full_name'] = 'noah-be/overte'
+        with self.assertRaisesRegex(ValueError, 'repository mismatch'):
+            CHECKS.native_required(CONFIG, manual)
+
     def test_tool_manifests_select_only_the_affected_projects(self):
         for project in TOOLS.PROJECTS:
             for filename in ("package.json", "package-lock.json"):
@@ -252,6 +284,10 @@ class ToolDependencyTests(unittest.TestCase):
             updated = git('rev-parse', 'HEAD')
             payload = {'repository': event()['repository'], 'before': base, 'after': updated}
             self.assertEqual(TOOLS.push_projects(root, payload), ('tools/jsdoc',))
+            for repository in ({'full_name': 'noah-be/overte', 'id': 1319052603},
+                               {'full_name': 'noah-l-frank/overte', 'id': 42}):
+                with self.subTest(repository=repository), self.assertRaisesRegex(ValueError, 'identity mismatch'):
+                    TOOLS.push_projects(root, {**payload, 'repository': repository})
             self.assertEqual(TOOLS.push_projects(root, {**payload, 'before': '9' * 40}), ())
             with self.assertRaises(ValueError):
                 TOOLS.push_projects(root, {**payload, 'after': base})
