@@ -26,8 +26,40 @@ moc = Path(subprocess.check_output(
 if not moc.is_file() and os.environ.get("PKG_CONFIG_SYSROOT_DIR"):
     moc = Path(os.environ["PKG_CONFIG_SYSROOT_DIR"]) / str(moc).lstrip("/")
 production = ROOT / "interface/src/scripting"
+
+
+def function_body(source, marker):
+    start = source.index(marker)
+    opening = source.index("{", start)
+    depth, end = 1, opening + 1
+    while depth:
+        depth += (source[end] == "{") - (source[end] == "}")
+        end += 1
+    return source[start:end] + "\n"
+
+
 with tempfile.TemporaryDirectory(prefix="overte-goto-script-") as temporary:
     scratch = Path(temporary)
+    ui_source = (ROOT / "interface/src/ui/DialogsManager.cpp").read_text()
+    (scratch / "production-dialogs-lifecycle.inc").write_text("\n".join(
+        function_body(ui_source, "void DialogsManager::" + name + "(")
+        for name in ("showAddressBar", "hideAddressBar", "toggleAddressBar", "setAddressBarVisible")))
+    ui_header = (ROOT / "interface/src/ui/DialogsManager.h").read_text()
+    (scratch / "production-dialogs-observer.inc").write_text(
+        function_body(ui_header, "void emitAddressBarShown("))
+    ui_fixture = scratch / "dialogs-ui-lifecycle-test.cpp"
+    ui_fixture.write_text((HERE / ui_fixture.name).read_text())
+    subprocess.run([str(moc), str(ui_fixture), "-o", str(ui_fixture.with_suffix(".moc"))],
+                   check=True, timeout=30)
+    for profile, defines in (("tablet", []), ("phone", ["-DANDROID_APP_PHONE_INTERFACE"])):
+        ui_binary = scratch / ("dialogs-ui-" + profile)
+        subprocess.run([
+            "c++", "-std=c++17", "-Wall", "-Wextra", "-Werror", "-fPIC", "-pthread",
+            "-I" + str(HERE / "dialogs-fixture"), *defines, str(ui_fixture),
+            "-o", str(ui_binary), *flags,
+        ], check=True, timeout=90)
+        print(qt + " actual native UI lifecycle: " + profile, flush=True)
+        subprocess.run([str(ui_binary)], check=True, timeout=30)
     fixture = scratch / "goto-dialog-script-test.cpp"
     fixture.write_text((HERE / fixture.name).read_text())
     generated = []

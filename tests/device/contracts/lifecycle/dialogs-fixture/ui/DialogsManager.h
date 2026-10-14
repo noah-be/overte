@@ -14,7 +14,7 @@ public:
     void setVisible(bool value) { visible = value; emit addressBarShown(value); }
 public slots:
     void showAddressBar() { setVisible(true); }
-    void hideAddressBar() { ++hides; setVisible(false); }
+    void hideAddressBar() { if (visible) { ++hides; } setVisible(false); }
     void toggleAddressBar() { ++toggles; setVisible(!visible); }
     void showLoginDialog() {}
     void showFeed() {}

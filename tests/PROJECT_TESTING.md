@@ -83,8 +83,12 @@ The `goto-dialog-script` host suite compiles the complete production
 exposes that QObject to a `QJSEngine`, and runs the actual `scripts/system/goto.js`.
 Only the native UI receiver and tablet/toolbar controls are substituted. It
 checks queued dispatch, rapid toggles, external close followed by script stop,
-ordinary stop, missing close notifications, and signal/button cleanup in both
-toolbar and tablet modes. Set `OVERTE_GOTO_TEST_QT=Qt5` or `Qt6` to select the
+ordinary stop, queued clicks followed immediately by stop, missing close
+notifications, and signal/button cleanup in both toolbar and tablet modes.
+It also compiles the actual native show/hide/toggle methods and visibility
+observer for Phone and tablet branches, substituting rendering/focus boundaries,
+to verify external-close state and preservation of another app's keyboard focus.
+Set `OVERTE_GOTO_TEST_QT=Qt5` or `Qt6` to select the
 fixture SDK; extracted SDKs use standard pkg-config and runtime-library paths.
 These host results do not prove physical controller input or rendered navigation.
 The `embedded-web-qml` host suite requires Qt Quick Test's `qmltestrunner`

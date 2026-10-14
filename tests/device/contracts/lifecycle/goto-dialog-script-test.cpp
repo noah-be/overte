@@ -108,34 +108,42 @@ static void lifecycleContract(const QString& source, bool toolbar, const QString
     if (scenario != "idle") {
         emit button.clicked();
         require(dialogs->toggles == 0, "GOTO click bypassed queued UI dispatch");
-        QCoreApplication::processEvents();
-        require(dialogs->visible && button.active, "GOTO click did not open/activate the dialog");
-        if (scenario == "external-close") {
-            dialogs->setVisible(false);
-            require(!button.active, "external close left GOTO button active");
-        } else if (scenario == "rapid-clicks") {
-            emit button.clicked();
+        if (scenario == "pending-click" || scenario == "pending-double-click") {
+            if (scenario == "pending-double-click") {
+                emit button.clicked();
+            }
+        } else {
             QCoreApplication::processEvents();
-            require(!dialogs->visible && !button.active, "second click did not close GOTO");
-        } else if (scenario == "missed-close-signal") {
-            // The production API documents that some closes omit a signal.
-            // A stale observed-open state must still hide, never toggle open.
-            dialogs->visible = false;
+            require(dialogs->visible && button.active, "GOTO click did not open/activate the dialog");
+            if (scenario == "external-close") {
+                dialogs->setVisible(false);
+                require(!button.active, "external close left GOTO button active");
+            } else if (scenario == "rapid-clicks") {
+                emit button.clicked();
+                QCoreApplication::processEvents();
+                require(!dialogs->visible && !button.active, "second click did not close GOTO");
+            } else if (scenario == "missed-close-signal") {
+                // The production API documents that some closes omit a signal.
+                // Cleanup must hide safely even when the script missed a close.
+                dialogs->visible = false;
+            }
         }
     }
     const int toggles = dialogs->toggles;
     emit host.scriptEnding();
     QCoreApplication::processEvents();
     require(!dialogs->visible, "ending GOTO reopened or failed to close the dialog");
-    require(dialogs->toggles == toggles, "script cleanup toggled the UI instead of hiding it");
-    require(dialogs->hides == ((scenario == "open" || scenario == "missed-close-signal") ? 1 : 0),
-            "cleanup did not respect observed visibility or disturbed an idle dialog");
+    const int expectedToggles = scenario == "pending-click" ? 1 :
+                               scenario == "pending-double-click" ? 2 : toggles;
+    require(dialogs->toggles == expectedToggles, "script cleanup toggled the UI instead of hiding it");
+    require(dialogs->hides == ((scenario == "open" || scenario == "pending-click") ? 1 : 0),
+            "cleanup did not close pending GOTO or disturbed an idle dialog");
     require(host.removed == (toolbar ? "GOTO" : "tablet"), "GOTO button was not removed");
     const int edits = button.edits;
     emit button.clicked();
     dialogs->setVisible(true);
     QCoreApplication::processEvents();
-    require(button.edits == edits && dialogs->toggles == toggles,
+    require(button.edits == edits && dialogs->toggles == expectedToggles,
             "GOTO signal connections survived script teardown");
     dialogs->visible = false;
     std::cout << "PASS actual goto.js " << (toolbar ? "toolbar " : "tablet ")
@@ -151,7 +159,7 @@ int main(int argc, char** argv) {
         const QString source = QString::fromUtf8(file.readAll());
         apiContract();
         for (bool toolbar : { false, true }) {
-            for (const auto& scenario : { "external-close", "open", "idle", "rapid-clicks", "missed-close-signal" }) {
+            for (const auto& scenario : { "pending-click", "pending-double-click", "external-close", "open", "idle", "rapid-clicks", "missed-close-signal" }) {
                 lifecycleContract(source, toolbar, QString::fromLatin1(scenario));
             }
         }

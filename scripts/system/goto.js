@@ -18,9 +18,7 @@ var button;
 var buttonName = "GOTO";
 var toolBar = null;
 var tablet = null;
-var onGotoScreen = false;
 function onAddressBarShown(visible) {
-    onGotoScreen = visible;
     button.editProperties({isActive: visible});
 }
 
@@ -49,9 +47,9 @@ button.clicked.connect(onClicked);
 DialogsManager.addressBarShown.connect(onAddressBarShown);
 
 Script.scriptEnding.connect(function () {
-    if (onGotoScreen) {
-        DialogsManager.hideAddressBar();
-    }
+    // Queue hide after any pending click; the native receiver leaves other
+    // tablet apps and their keyboard focus alone when GOTO is already closed.
+    DialogsManager.hideAddressBar();
     button.clicked.disconnect(onClicked);
     if (tablet) {
         tablet.removeButton(button);
