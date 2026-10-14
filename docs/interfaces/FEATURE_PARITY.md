@@ -128,6 +128,35 @@ The production-script tests exercise all three UI routes with the transport
 boundary replaced. Native control completeness and current-artifact navigation
 remain separate acceptance requirements.
 
+## World Web entity visibility and surface ownership
+
+The shared native renderer applies the owning entity's `visible` value to its
+actual offscreen QML root, including first acquisition and late root creation.
+Effective Qt Quick descendant visibility reaches native browser document,
+frame and input policy. Hidden documents lose their old bridge generation;
+showing the entity requires a current grant. Queued callbacks retain a surface
+acquisition lease and cannot change a surface returned to the cache or acquired
+by another owner. A later entity update rebuilds a released surface even when
+its source URL is unchanged, reapplying that owner's script, background,
+user-agent and frame-rate settings to the current root. A late-created root
+queues the existing scene update so properties do not depend on another user
+edit; an expired acquisition cannot schedule that update.
+
+The `web-entity-visibility` host suite compiles complete production renderer
+update/build/release bodies and the real shared browser policy. Qt5/Qt6 Quick
+roots and descendants exercise hide/show, late creation, cache reuse, owner
+deletion and source replacement. The fixture retains the actual renderer's
+namespace and the shadowing render namespace observed by native compilation.
+The actual renderer property constants also
+execute against the base and Android world roots' exact QML property declarations,
+so assigning an undeclared dynamic property cannot substitute for `scriptUrl`.
+Visual loader behavior is covered separately by `embedded-web-qml`; this
+property test does not execute the downloaded script. The HTML acquisition's
+actual root-URL initializer is compiled too; it cannot stand in for reapplying
+the current owner's other properties. Entity properties, cache acquisition and
+scene/GPU endpoints are explicit fixtures. SDK compilation, real native media
+effects and physical installed-artifact observations remain separate checks.
+
 ## Script and asset bundles
 
 The common native script and asset controls now preserve the selected folder's
