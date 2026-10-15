@@ -30,7 +30,7 @@ def push_projects(root: Path, event: dict) -> tuple[str, ...]:
     if "before" not in event or "after" not in event:
         return ()
     repository = event.get("repository", {})
-    if repository.get("full_name") != "noah-be/overte" or repository.get("id") != 1319052603:
+    if repository.get("full_name") != "noah-l-frank/overte" or repository.get("id") != 1319052603:
         raise ValueError("push repository identity mismatch")
     before, after = event["before"], event["after"]
     if any(not isinstance(sha, str) or not re.fullmatch(r"[0-9a-f]{40}", sha)

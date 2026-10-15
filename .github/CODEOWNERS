@@ -3,30 +3,30 @@
 
 # Default ownership. Later rules intentionally restate privileged surfaces so
 # policy, automation, and release review remain distinct if ownership expands.
-* @noah-be
+* @noah-l-frank
 
 # Repository policy and enforcement contracts
-/.github/CODEOWNERS @noah-be
-/.github/branch-policy.json @noah-be
-/.github/branch-cleanup.json @noah-be
-/.github/rulesets/ @noah-be
-/tools/branch-policy/ @noah-be
-/tools/branch-cleanup/ @noah-be
-/tests/branch-cleanup-test.py @noah-be
-/docs/AUTOMATIC_BRANCH_CLEANUP.md @noah-be
-/tests/branch-policy-test.py @noah-be
-/tools/workflow-security/ @noah-be
-/tests/workflow-action-pin-test.py @noah-be
+/.github/CODEOWNERS @noah-l-frank
+/.github/branch-policy.json @noah-l-frank
+/.github/branch-cleanup.json @noah-l-frank
+/.github/rulesets/ @noah-l-frank
+/tools/branch-policy/ @noah-l-frank
+/tools/branch-cleanup/ @noah-l-frank
+/tests/branch-cleanup-test.py @noah-l-frank
+/docs/AUTOMATIC_BRANCH_CLEANUP.md @noah-l-frank
+/tests/branch-policy-test.py @noah-l-frank
+/tools/workflow-security/ @noah-l-frank
+/tests/workflow-action-pin-test.py @noah-l-frank
 
 # Workflow code and reusable automation
-/.github/actions/ @noah-be
-/.github/workflows/ @noah-be
+/.github/actions/ @noah-l-frank
+/.github/workflows/ @noah-l-frank
 
 # Release, publication, installer, and package paths
-/.github/workflows/*release*.yml @noah-be
-/.github/workflows/master_deploy_*.yml @noah-be
-/cmake/installer/ @noah-be
-/launchers/*/cmake/installer/ @noah-be
-/pkg-scripts/ @noah-be
-/tools/ci-scripts/linux-package-release/ @noah-be
-/tools/ci-scripts/notarize @noah-be
+/.github/workflows/*release*.yml @noah-l-frank
+/.github/workflows/master_deploy_*.yml @noah-l-frank
+/cmake/installer/ @noah-l-frank
+/launchers/*/cmake/installer/ @noah-l-frank
+/pkg-scripts/ @noah-l-frank
+/tools/ci-scripts/linux-package-release/ @noah-l-frank
+/tools/ci-scripts/notarize @noah-l-frank

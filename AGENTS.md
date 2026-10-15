@@ -13,7 +13,7 @@ unintegrated work.
 
 # Issue work in this fork
 
-For creating or changing issues in `noah-be/overte`, follow
+For creating or changing issues in `noah-l-frank/overte`, follow
 [the issue workflow](docs/ISSUE_WORKFLOW.md) and use the validated
 `overte-issue` tool. The current policy is `.github/issue-policy.json` on the
 fork's `main` branch, including when working from an older product worktree.
@@ -26,7 +26,7 @@ to create or update an issue is sufficient authorization for that operation;
 do not add a separate approval ceremony.
 
 Write GitHub content in English. The only authorized Overte GitHub write target
-is `noah-be/overte`. Explicitly bind every mutation to that fork, check ownership
+is `noah-l-frank/overte`. Explicitly bind every mutation to that fork, check ownership
 before writing, and read back the saved resource and labels. Upstream Overte
 repositories are read-only. Do not publish private device/account data.
 

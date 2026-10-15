@@ -49,6 +49,8 @@ TestCase {
         return found[found.length - 1][0];
     }
     function init() {
+        testCase.Window.window.width = width;
+        testCase.Window.window.height = height;
         page = createTemporaryObject(factory, testCase);
         verify(page !== null);
         lastMessage("READY_FOR_CONTENT");
@@ -206,5 +208,103 @@ TestCase {
             verify(pos.x >= 0 && pos.x + button.width <= page.width + 1,
                 "Action extends outside the actual narrow surface");
         }
+    }
+    function namedItems(item, name) {
+        var items = item.objectName === name ? [item] : [];
+        for (var i = 0; i < item.children.length; ++i)
+            items = items.concat(namedItems(item.children[i], name));
+        return items;
+    }
+    function test_scrolledPlaceDelegate_data() {
+        return [{tag: "narrow", width: 320, fontScale: 1},
+                {tag: "narrow-large-text", width: 320, fontScale: 1.5},
+                {tag: "wide-large-text", width: 700, fontScale: 1.5}];
+    }
+    function pressScrolledControl(item, list) {
+        verify(page.visible && item.visible && item.enabled && testCase.Window.window.visible);
+        verify(!list.moving);
+        var position = item.mapToItem(list, 0, 0);
+        verify(position.x >= 0 && position.x + item.width <= list.width + 1);
+        verify(position.y >= 0 && position.y + item.height <= list.height + 1,
+               "The real pointer target must be inside the scrolled viewport");
+        mousePress(item, item.width / 2, item.height / 2);
+        wait(list.pressDelay + 50);
+        verify(item.pressed, "The actual control must receive the delayed pointer press");
+        mouseRelease(item, item.width / 2, item.height / 2);
+    }
+    function test_scrolledPlaceDelegate(data) {
+        page.width = data.width;
+        var metrics = control("placesTouchMetrics");
+        metrics.profile.directTouch = true;
+        metrics.profile.fontScale = data.fontScale;
+        var records = [];
+        for (var i = 0; i < 30; ++i)
+            records.push({name: "Choice " + i, address: "hifi://choice-" + i,
+                          placeID: "place-" + i, maturity: "everyone"});
+        deliver("PLACE_DATA", {data: records, metaverseServers: []});
+        var list = control("visitPlace").parent;
+        while (list && typeof list.positionViewAtIndex !== "function") list = list.parent;
+        verify(list !== null, "The production delegate must belong to a scrollable ListView");
+        compare(list.pressDelay, 100, "Exercise the actual direct-touch press delay");
+        list.cancelFlick();
+        list.positionViewAtIndex(17, ListView.Center);
+        var selected = null;
+        tryVerify(function() {
+            var buttons = namedItems(page, "visitPlace");
+            for (var b = 0; b < buttons.length; ++b)
+                if (buttons[b].text.indexOf("Choice 17\n") === 0) selected = buttons[b];
+            return selected !== null && !list.moving;
+        });
+        verify(waitForRendering(page));
+        verify(list.contentY > 0, "Exercise a delegate beyond the initial viewport");
+        var position = selected.mapToItem(page, 0, 0);
+        var windowPosition = selected.mapToItem(testCase.Window.window.contentItem, 0, 0);
+        var copy = findChild(selected.parent, "copyPlace");
+        var portal = findChild(selected.parent, "createPlacePortal");
+        verify(copy !== null && portal !== null);
+        console.log("Scrolled Places geometry: page=" + page.width + " window="
+                    + testCase.Window.window.width + "x" + testCase.Window.window.height
+                    + " list=" + list.width + " delegate=" + selected.parent.width
+                    + " minimum=" + selected.parent.implicitWidth + " visit=" + selected.width
+                    + " actionsMinimum=" + copy.parent.implicitWidth
+                    + " copyMinimum=" + copy.implicitWidth + " portalMinimum=" + portal.implicitWidth);
+        verify(position.x >= 0 && position.x + selected.width <= page.width + 1,
+               "Selected control x=" + position.x + " width=" + selected.width + " page=" + page.width);
+        verify(position.y >= 0 && position.y + selected.height <= page.height + 1);
+        verify(windowPosition.x >= 0 && windowPosition.x + selected.width <= testCase.Window.window.width);
+        verify(windowPosition.y >= 0 && windowPosition.y + selected.height <= testCase.Window.window.height);
+        verify(selected.height >= Math.max(48, metrics.adaptiveMinimumControlHeight));
+        verify(selected.height + 1 >= selected.contentItem.implicitHeight + selected.topPadding + selected.bottomPadding);
+        verify(selected.font.pixelSize >= Math.round(20 * data.fontScale));
+        compare(copy.text, qsTr("Copy address"));
+        compare(portal.text, qsTr("Create portal"));
+        for (var a = 0; a < 2; ++a) {
+            var action = [copy, portal][a];
+            var actionPosition = action.mapToItem(page, 0, 0);
+            verify(action.visible && action.enabled);
+            verify(action.height >= Math.max(48, metrics.adaptiveMinimumControlHeight));
+            verify(action.font.pixelSize >= Math.round(16 * data.fontScale));
+            verify(action.width + 1 >= action.contentItem.implicitWidth + action.leftPadding + action.rightPadding,
+                   "The complete action label must fit without shrinking its font");
+            verify(actionPosition.x >= 0 && actionPosition.x + action.width <= page.width + 1);
+            verify(actionPosition.y >= 0 && actionPosition.y + action.height <= page.height + 1);
+        }
+        messages.clear();
+        pressScrolledControl(selected, list);
+        var message = lastMessage("TELEPORT");
+        compare(message.name, "Choice 17");
+        compare(message.address, "hifi://choice-17");
+        compare(messages.count, 1);
+        messages.clear();
+        pressScrolledControl(copy, list);
+        compare(lastMessage("COPY_URL").address, "hifi://choice-17");
+        compare(messages.count, 1);
+        messages.clear();
+        pressScrolledControl(portal, list);
+        var portalMessage = lastMessage("REQUEST_PORTAL");
+        compare(portalMessage.name, "Choice 17");
+        compare(portalMessage.address, "hifi://choice-17");
+        compare(portalMessage.placeID, "place-17");
+        compare(messages.count, 1);
     }
 }

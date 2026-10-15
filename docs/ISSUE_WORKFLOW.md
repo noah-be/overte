@@ -1,6 +1,6 @@
 # Structured issue workflow
 
-GitHub Issues in `noah-be/overte` are the authoritative task source. A user may
+GitHub Issues in `noah-l-frank/overte` are the authoritative task source. A user may
 describe a bug, idea, task or acceptance criterion naturally in a Codex session.
 Codex searches existing issues, structures the report and uses `overte-issue`
 to validate, create and verify it. Users do not need to memorize fields or labels.
@@ -53,7 +53,7 @@ milestone labels are introduced. Existing supplementary labels are preserved.
 - A consciously rejected proposal or duplicate closes as `not_planned`, with its
   rationale/link retained in the description. Closed issues have no workflow label.
 - `system: reference` is reserved for operating references such as
-  [#599](https://github.com/noah-be/overte/issues/599), not work to start.
+  [#599](https://github.com/noah-l-frank/overte/issues/599), not work to start.
 
 Use a small working view: Active is **Now**, Ready is **Next**, and Blocked is
 **Waiting**. Inbox/ideas and milestone acceptance remain separate views. A
@@ -88,8 +88,8 @@ overte-issue show 875
 
 The `--apply` switch distinguishes a write from a preview. It is not an additional
 permission request: use it when the user has already requested that operation.
-Do not use `--policy` in ordinary sessions; that explicit override is for local
-tests and the initial bootstrap before the policy exists on `main`.
+Do not use `--policy` in ordinary sessions; that explicit override is for
+offline development tests, never a bootstrap for live writes after a rename.
 
 `show` returns a snapshot token. Editing requires that token, so a stale draft
 does not normally overwrite an intervening change. Use `update NUMBER FILE
@@ -272,9 +272,41 @@ valid decisions and continues deriving labels from actual test records only.
 
 The authorization flag and record document the reviewed conversation; they are
 not a cryptographic owner attestation or an access-control boundary. Agents must
-not fabricate approval. The policy's minimum tool revision is 3; update older
+not fabricate approval. The policy's minimum tool revision is 4; update older
 local installations before using the new policy.
 
 An existing issue may retain its closed milestone when it is updated or closed.
 New issues and reassignment into a closed milestone remain rejected. This avoids
 reopening an already completed milestone merely to record its existing issues.
+
+## Repository account rename
+
+The authorized current repository is `noah-l-frank/overte`. The account rename
+retains repository ID `1319052603` and owner ID `10984564`; it does not authorize
+writes to any other repository. The helper resolves the current full name before
+every write and rejects the former repository name as a current API target or
+policy identity. GitHub redirects are not an alternative write route.
+
+Review and integrate the policy and helper together, then install the reviewed
+helper. Until the current policy is on the authorized fork's `main`, normal
+commands fail closed. Do not use `--policy` to bypass that transition for live
+writes. The issue workflow's repository condition must be updated in the same
+reviewed control-plane rollout.
+
+Existing original-description archives, test records, completion decisions and
+linked historical evidence retain their recorded names and hashes. The policy's
+`owner_completion.historical_approvers` permits reading saved decisions attributed
+to the same account's former login `noah-be`, only with an explicit, position-matched
+unchanged prefix from the issue readback. Draft-only validation does not accept
+that login, and it cannot authorize a newly appended decision. New decisions must
+name `noah-l-frank` and still require explicit owner approval, unchanged criteria
+and append-only history.
+As before, recorded approval is not a cryptographic identity attestation, and a
+historical disposition is not a fresh candidate or device acceptance result.
+
+The API and event guard can observe the records currently saved in an issue;
+they cannot prove when those bytes were first inserted, or whether a direct API
+writer fabricated an approval. They preserve that observed history without
+claiming pre-rename provenance. The helper's update path rechecks the saved
+snapshot and append-only prefix, and requires the current login for each new
+decision. No historical record is rewritten to manufacture a new owner identity.
