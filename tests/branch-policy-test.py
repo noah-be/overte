@@ -671,7 +671,7 @@ class BranchPolicyTests(unittest.TestCase):
             self.branches,
             base=base,
             head=head,
-            repository="noah-be/overte",
+            repository="noah-l-frank/overte",
             repository_id=repository_id,
             base_repository_id=base_repository_id,
             head_repository_id=head_repository_id,
@@ -967,7 +967,7 @@ class BranchDriftTests(unittest.TestCase):
             comparisons={"android-main": {"ahead_by": 3, "status": "ahead"}}
         )
         drifts = BRANCH_DRIFT.scan_parent(
-            self.branches, api, "noah-be/overte", "main", CURRENT_SHA
+            self.branches, api, "noah-l-frank/overte", "main", CURRENT_SHA
         )
         self.assertEqual(
             [(item.parent, item.child, item.ahead_by) for item in drifts],
@@ -982,7 +982,7 @@ class BranchDriftTests(unittest.TestCase):
 
     def test_unbound_push_observation_fails_before_any_network_read(self):
         result = subprocess.run([sys.executable, str(DRIFT_CHECKER), '--repository',
-                                 'noah-be/overte', '--observe-push'], capture_output=True, text=True)
+                                 'noah-l-frank/overte', '--observe-push'], capture_output=True, text=True)
         self.assertEqual(result.returncode, 2)
         self.assertIn('requires one explicit parent', result.stderr)
 
@@ -991,7 +991,7 @@ class BranchDriftTests(unittest.TestCase):
             BRANCH_DRIFT.scan_parent(
                 self.branches,
                 FakeBranchApi(),
-                "noah-be/overte",
+                "noah-l-frank/overte",
                 "main",
                 STALE_SHA,
             )
@@ -1003,7 +1003,7 @@ class BranchDriftTests(unittest.TestCase):
                     BRANCH_DRIFT.scan_parent(
                         self.branches,
                         FakeBranchApi(failure=failure),
-                        "noah-be/overte",
+                        "noah-l-frank/overte",
                         "main",
                         CURRENT_SHA,
                     )

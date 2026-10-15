@@ -11,6 +11,7 @@
 //
 
 #include "OAuthNetworkAccessManager.h"
+#include "CredentialTransportPolicy.h"
 
 #include <QNetworkAccessManager>
 #include <QNetworkRequest>
@@ -39,13 +40,16 @@ QNetworkReply* OAuthNetworkAccessManager::createRequest(QNetworkAccessManager::O
     if (accountManager->hasValidAccessToken()
         && req.url().host() == MetaverseAPI::getCurrentMetaverseServerURL().host()) {
         QNetworkRequest authenticatedRequest(req);
-        authenticatedRequest.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+        authenticatedRequest.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
         authenticatedRequest.setHeader(QNetworkRequest::UserAgentHeader, NetworkingConstants::OVERTE_USER_AGENT);
         authenticatedRequest.setRawHeader(ACCESS_TOKEN_AUTHORIZATION_HEADER,
                                           accountManager->getAccountInfo().getAccessToken().authorizationHeaderValue());
         
-        return QNetworkAccessManager::createRequest(op, authenticatedRequest, outgoingData);
+        return NetworkAccessManager::createRequest(op, authenticatedRequest, outgoingData);
     } else {
+        if (overte::network::requestCarriesCredentials(req)) {
+            return NetworkAccessManager::createRequest(op, req, outgoingData);
+        }
         return QNetworkAccessManager::createRequest(op, req, outgoingData);
     }
 }

@@ -95,12 +95,14 @@ LoginDialog::LoginDialog(QQuickItem *parent) : OffscreenQmlDialog(parent) {
                 emit handleDomainLoginFailed("cancelled");
             } else if (outcome == static_cast<int>(Outcome::TimedOut)) {
                 emit handleDomainLoginFailed("timeout");
+            } else if (outcome == static_cast<int>(Outcome::TransportRejected)) {
+                emit handleDomainLoginFailed("insecure_transport");
             } else {
                 emit handleDomainLoginFailed("failed");
             }
         }, Qt::QueuedConnection);
     // the login hasn't been dismissed yet if the user isn't logged in and is encouraged to login.
-#if !defined(Q_OS_ANDROID) || defined(ANDROID_APP_PHONE_INTERFACE)
+#if !defined(Q_OS_ANDROID) || defined(ANDROID_APP_PHONE_INTERFACE) || defined(ANDROID_APP_PICO_INTERFACE)
     connect(accountManager.data(), &AccountManager::loginComplete,
         this, &LoginDialog::handleLoginCompleted);
     connect(accountManager.data(), &AccountManager::loginFailed,
@@ -253,6 +255,10 @@ void LoginDialog::login(const QString& username, const QString& password) const 
     DependencyManager::get<AccountManager>()->requestAccessToken(username, password);
 }
 
+bool LoginDialog::getAccountLoginTransportRejected() const {
+    return DependencyManager::get<AccountManager>()->lastLoginTransportRejected();
+}
+
 void LoginDialog::loginDomain(const QString& username, const QString& password) const {
     qDebug() << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 #if defined(ANDROID_APP_PHONE_INTERFACE)
@@ -348,7 +354,7 @@ void LoginDialog::createAccountFromOculus(QString email, QString username, QStri
             }
 
             auto accountManager = DependencyManager::get<AccountManager>();
-            accountManager->sendRequest(CREATE_ACCOUNT_FROM_OCULUS_PATH, AccountManagerAuth::None,
+            accountManager->sendRequest(CREATE_ACCOUNT_FROM_OCULUS_PATH, AccountManagerAuth::Credentials,
                                         QNetworkAccessManager::PostOperation, callbackParams,
                                         QJsonDocument(payload).toJson());
             });
@@ -419,7 +425,7 @@ void LoginDialog::createAccountFromSteam(QString username) {
             }
 
             auto accountManager = DependencyManager::get<AccountManager>();
-            accountManager->sendRequest(CREATE_ACCOUNT_FROM_STEAM_PATH, AccountManagerAuth::None,
+            accountManager->sendRequest(CREATE_ACCOUNT_FROM_STEAM_PATH, AccountManagerAuth::Credentials,
                                         QNetworkAccessManager::PostOperation, callbackParams,
                                         QJsonDocument(payload).toJson());
         });
@@ -499,7 +505,7 @@ void LoginDialog::signup(const QString& email, const QString& username, const QS
     qDebug() << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
     auto accountManager = DependencyManager::get<AccountManager>();
-    accountManager->sendRequest(API_SIGNUP_PATH, AccountManagerAuth::None,
+    accountManager->sendRequest(API_SIGNUP_PATH, AccountManagerAuth::Credentials,
                                 QNetworkAccessManager::PostOperation, callbackParams,
                                 QJsonDocument(payload).toJson());
 }

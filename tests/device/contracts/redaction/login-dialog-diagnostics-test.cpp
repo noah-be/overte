@@ -15,7 +15,7 @@
 #endif
 static PhoneLoginState phoneLoginState;
 struct JSONCallbackParameters { QObject* callbackReceiver {}; QString jsonCallbackMethod, errorCallbackMethod; };
-namespace AccountManagerAuth { enum Type { None }; }
+namespace AccountManagerAuth { enum Type { None, Credentials }; }
 static const QString API_SIGNUP_PATH = "/api/v1/users"; // Transport route is an explicit boundary.
 struct AccountManager {
     int calls {}, signups {};
@@ -24,7 +24,7 @@ struct AccountManager {
     void requestAccessToken(const QString& u, const QString& p) { ++calls; user = u; password = p; }
     void sendRequest(const QString& path, AccountManagerAuth::Type auth, QNetworkAccessManager::Operation op,
                      const JSONCallbackParameters& callbacks, const QByteArray& payload) {
-        assert(path == API_SIGNUP_PATH && auth == AccountManagerAuth::None && op == QNetworkAccessManager::PostOperation);
+        assert(path == API_SIGNUP_PATH && auth == AccountManagerAuth::Credentials && op == QNetworkAccessManager::PostOperation);
         assert(callbacks.jsonCallbackMethod == "signupCompleted" && callbacks.errorCallbackMethod == "signupFailed");
         ++signups; receiver = callbacks.callbackReceiver; signup = payload;
     }

@@ -85,8 +85,8 @@ require "$places" 'clearRezzedPortals\(\);' \
     'Places removes live local portals during script cleanup'
 require "$places" 'if[[:space:]]*\(!isAndroidPhone\)' \
     'Phone Places avoids mutable tablet-button proxy updates'
-require "$qml" 'height:[[:space:]]*Math[.]max\(82,' \
-    'Places list entries expose touch-sized delegates'
+# The required places-native-qml Host suite verifies adaptive delegate touch
+# targets, text scaling, and scrolled pointer actions at runtime.
 require "$qml" 'ScrollBar[.]vertical:[[:space:]]*ScrollBar' \
     'Places exposes scroll position for long result lists'
 

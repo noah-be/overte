@@ -16,7 +16,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 POLICY = ".github/dependency-releases.json"
-REPOSITORY = "noah-be/overte"
+REPOSITORY = "noah-l-frank/overte"
 FAMILIES = {"phone": "android-phone-16k-deps-v", "pico": "pico4-deps-v"}
 ASSETS = {
     "phone": {"android-phone-16k-conan.tgz"},

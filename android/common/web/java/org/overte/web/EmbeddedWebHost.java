@@ -12,6 +12,7 @@ import android.webkit.WebView;
 /** Product-owned Activity, screen transform and explicit OS permission boundary. */
 public interface EmbeddedWebHost {
     Activity activity();
+    /** Actual Activity foreground/ownership, independent of window input focus. */
     boolean isForeground();
     /** Rect is in the offscreen QML scene. The product applies its actual screen transform. */
     boolean placeTabletView(WebView view, Rect sceneBounds);

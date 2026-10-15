@@ -10,7 +10,7 @@ all mandatory guest rows/flags and newly owned endpoint identity. It starts no
 Interface, assignment, world, public mutation, account or GPU workload.
 
 It runs on changes to its own source paths on the authorized topic branch,
-or by manual dispatch of an exact reviewed SHA in noah-be/overte.
+or by manual dispatch of an exact reviewed SHA in noah-l-frank/overte.
 The workflow checks the lowercase 40-character event/dispatch commit against actual checkout HEAD,
 uses pinned actions without persisted credentials, installs the same signed host
 dependencies, and runs the existing shipped-AppArmor preparation unchanged.

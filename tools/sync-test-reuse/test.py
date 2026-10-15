@@ -36,7 +36,7 @@ qualification = load("qualification")
 gate = load("gate")
 differential = load("differential")
 
-REPOSITORY = "noah-be/overte"
+REPOSITORY = "noah-l-frank/overte"
 REPOSITORY_ID = 1319052603
 BASE = "1" * 40
 PARENT = "2" * 40
@@ -56,7 +56,7 @@ class GitHubApiDiagnosticsTests(unittest.TestCase):
                     stderr=f"gh: {private} (HTTP {status})\n")
                 with mock.patch.object(gate.subprocess, "run", side_effect=error) as run:
                     with self.assertRaises(gate.GateError) as caught:
-                        gate.GitHubApi().json("repos/noah-be/overte/git/ref/heads/android-vr")
+                        gate.GitHubApi().json("repos/noah-l-frank/overte/git/ref/heads/android-vr")
                 self.assertIn(f"command exit=1 http={status}", str(caught.exception))
                 self.assertNotIn(private, str(caught.exception))
                 self.assertIs(caught.exception.__cause__, error)
@@ -66,7 +66,7 @@ class GitHubApiDiagnosticsTests(unittest.TestCase):
         error = subprocess.CalledProcessError(1, ["gh"], stderr="synthetic-sensitive-dns-message")
         with mock.patch.object(gate.subprocess, "run", side_effect=error):
             with self.assertRaises(gate.GateError) as caught:
-                gate.GitHubApi().json("repos/noah-be/overte")
+                gate.GitHubApi().json("repos/noah-l-frank/overte")
         self.assertIn("command exit=1 http=unknown", str(caught.exception))
         self.assertNotIn("synthetic-sensitive-dns-message", str(caught.exception))
 
@@ -74,14 +74,14 @@ class GitHubApiDiagnosticsTests(unittest.TestCase):
         private = "synthetic-private-response"
         with mock.patch.object(gate.subprocess, "run", return_value=SimpleNamespace(stdout=private)):
             with self.assertRaises(gate.GateError) as caught:
-                gate.GitHubApi().json("repos/noah-be/overte")
+                gate.GitHubApi().json("repos/noah-l-frank/overte")
         self.assertIn("invalid-json", str(caught.exception))
         self.assertNotIn(private, str(caught.exception))
 
     def test_os_failure_has_errno_without_private_path(self):
         with mock.patch.object(gate.subprocess, "run", side_effect=OSError(2, "synthetic-private-path")):
             with self.assertRaises(gate.GateError) as caught:
-                gate.GitHubApi().json("repos/noah-be/overte")
+                gate.GitHubApi().json("repos/noah-l-frank/overte")
         self.assertIn("os-error errno=2", str(caught.exception))
         self.assertNotIn("synthetic-private-path", str(caught.exception))
 
@@ -89,14 +89,14 @@ class GitHubApiDiagnosticsTests(unittest.TestCase):
         error = subprocess.CalledProcessError(1, ["gh"], stderr=b"synthetic-private-body (HTTP 404)")
         with mock.patch.object(gate.subprocess, "run", side_effect=error):
             with self.assertRaises(gate.EvidenceError) as caught:
-                gate.GitHubApi().bytes("repos/noah-be/overte/actions/artifacts/123/zip")
+                gate.GitHubApi().bytes("repos/noah-l-frank/overte/actions/artifacts/123/zip")
         self.assertIn("command exit=1 http=404", str(caught.exception))
         self.assertNotIn("synthetic-private-body", str(caught.exception))
 
     def test_success_and_empty_success_preserve_existing_values(self):
         for stdout, expected in (("{\"ok\": true}", {"ok": True}), ("", {})):
             with mock.patch.object(gate.subprocess, "run", return_value=SimpleNamespace(stdout=stdout)):
-                self.assertEqual(gate.GitHubApi().json("repos/noah-be/overte"), expected)
+                self.assertEqual(gate.GitHubApi().json("repos/noah-l-frank/overte"), expected)
 
 
 class MappingApi:
@@ -402,6 +402,16 @@ class TopologyContracts(unittest.TestCase):
                 result = gate.classify_event(self.event(base, edge["parent"]), config(), api)
                 self.assertEqual(result.parent, edge["parent"])
                 self.assertEqual(result.profile, "documentation")
+
+    def test_renamed_account_keeps_exact_identity_before_ordinary_classification(self):
+        candidate = self.event('main', 'fix/main/example')
+        self.assertEqual(config()['repository'], 'noah-l-frank/overte')
+        self.assertEqual(config()['repository_id'], 1319052603)
+        self.assertIsNone(gate.classify_event(candidate, config(), MappingApi()))
+        for identity in ({'full_name': 'noah-be/overte', 'id': 1319052603},
+                         {'full_name': 'noah-l-frank/overte', 'id': 42}):
+            with self.subTest(identity=identity), self.assertRaisesRegex(gate.GateError, 'repository'):
+                gate.classify_event({**candidate, 'repository': identity}, config(), MappingApi())
 
     def test_retired_desktop_targets_and_scopes_cannot_receive_sync_reuse(self):
         for platform in ("linux", "windows"):
