@@ -29,7 +29,11 @@ REPOSITORY = {"full_name": "noah-l-frank/overte", "id": 1319052603}
 REVIEWED_REVISION = "141977b15cac4a73bd35705103bc25874a431a09"
 REVIEWED_WORKFLOW = "db09fbf3858e022d1f6f50eda61ecb657666cbe5"
 REVIEWED_BOUNDARY = "sha256:9d022439f2474aa2d8c88d6eaa973a9b5d9bf3d2e81ac1dd63ac7b18086bda02"
-REVIEWED_BROWSER_BOUNDARY = "sha256:8e1da7f4f7f586f07207e42a58cee0d1215e7f7252ee48bc188d5695b6ebfb7b"
+# Independently reviewed post-V35 Browser/external readers. The first deployment
+# still requires FULL hosted verification; the whole CPU boundary above remains
+# separately unapproved for this newer control-plane source.
+REVIEWED_BROWSER_REVISION = "8aba2ad6cd78f0b1458538e1b01f6eda8720dd83"
+REVIEWED_BROWSER_BOUNDARY = "sha256:93b6825c28315af52ebb034d71a185291dd52850a021f1494a6358a65187a4db"
 REVIEWED_OUTER = "81400ce4f8ce5eee1a7d95976378bc03e2d6fb05"
 REVIEWED_CONFIGURATION = "b4cbe180ed6816ae3f1930f61a7b36902ae13ca4"
 CPU_PATHS = frozenset("browser-client/" + path for path in (
@@ -243,6 +247,7 @@ def _policy(policy_root):
                    "outer_workflow": sorted(approved_outer_workflows(policy_root)),
                    "activation": json.loads(trusted_bytes(CONFIGURATION, policy_root)).get('browser_client_required_branches', []),
                    "browser_boundary": REVIEWED_BROWSER_BOUNDARY, "external_inputs": sorted(EXTERNAL_INPUTS),
+                   "browser_reviewed_revision": REVIEWED_BROWSER_REVISION,
                    "independent_roots": INDEPENDENT_ROOTS, "independent_files": sorted(INDEPENDENT_FILES),
                    "controller": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
                    "inventory": hashlib.sha256((ROOT / "tools/test-evidence/inputs.py").read_bytes()).hexdigest()}
