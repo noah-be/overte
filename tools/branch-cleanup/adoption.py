@@ -193,7 +193,7 @@ class Writer:
         cleanup.trusted_runtime()
         self.github.verify_owner()
         main = self.github.get("git/ref/heads/main")["object"]["sha"]
-        cleanup.verify_checkout(self.root, main)
+        cleanup.verify_current_checkout(self.root, main, self.github)
         require(self.token and re.fullmatch(r"[a-z0-9-]+", self.slug), "adoption_app_not_configured")
         require(not suffix.startswith(("/", "http")) and ".." not in suffix.split("/"), "unsafe_adoption_write")
         result = cleanup.run(["gh", "api", "--method", method, "repos/" + cleanup.REPOSITORY
@@ -375,10 +375,7 @@ def main():
         github = cleanup.Github()
         rows, report["held"], source_sha = discover(github, policy)
         if os.environ.get("GITHUB_ACTIONS") == "true":
-            try:
-                cleanup.verify_checkout(root, source_sha, defer=True)
-            except cleanup.CleanupDeferred as error:
-                return cleanup.defer_before_mutation(report, str(error), args.report)
+            cleanup.verify_current_checkout(root, source_sha, github)
         token, slug = os.environ.get("ADOPTION_APP_TOKEN", ""), os.environ.get("ADOPTION_APP_SLUG", "")
         write = args.apply and bool(token and slug)
         writer = Writer(github, root, token, slug)
@@ -410,6 +407,8 @@ def main():
                     break
         report["negative"] = dict(list(report["negative"].items())[-128:])
         report["status"] = "assessed" if not args.apply or write else "app_not_configured_report_only"
+    except cleanup.CleanupDeferred as error:
+        cleanup.mark_deferred(report, error)
     except (cleanup.CleanupError, OSError, ValueError, KeyError, TypeError, zipfile.BadZipFile,
             subprocess.TimeoutExpired) as error:
         report.update(status="blocked", error=str(error) if isinstance(error, cleanup.CleanupError)
@@ -420,10 +419,14 @@ def main():
     cleanup.write_json(args.report, report)
     if os.environ.get("GITHUB_OUTPUT"):
         with Path(os.environ["GITHUB_OUTPUT"]).open("a") as out:
-            out.write("deferred=false\nmain_advanced=" + str(report["main_advanced"]).lower() + "\n")
+            out.write("main_advanced=" + str(report["main_advanced"]).lower() + "\n")
+            out.write("deferred=" + str(report["status"] == "deferred").lower() + "\n")
     if os.environ.get("GITHUB_STEP_SUMMARY"):
         with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a") as out:
             out.write("### Adopted branch history\n\nStatus: **" + report["status"] + "**.\n\n")
+            if report["status"] == "deferred":
+                out.write("Expected deferral: `" + report["reason"]
+                          + "`. The next wake-up reassesses current state.\n\n")
             for branch, verdict in report["results"].items():
                 out.write("- `" + branch.replace("`", "") + "`: " + verdict + "\n")
     print(json.dumps({"status": report["status"], "assessed": len(report["results"])}))
