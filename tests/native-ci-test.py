@@ -114,6 +114,25 @@ class RoutingTests(unittest.TestCase):
                 with self.subTest(project=project, name=name):
                     self.assertEqual(POLICY.plan([manifests[0], f'{project}/{name}'])['mode'], 'full')
 
+    def test_browser_history_fixtures_skip_native_without_exempting_neighbors(self):
+        fixtures = sorted(POLICY.HOST_BROWSER_FIXTURES)
+        self.assertEqual(len(fixtures), 7)
+        self.assertEqual(POLICY.plan(fixtures)['mode'], 'skip')
+        for path in fixtures:
+            with self.subTest(path=path):
+                self.assertEqual(POLICY.plan([path])['mode'], 'skip')
+                self.assertEqual(POLICY.plan([path], regular=False)['mode'], 'full')
+        for path in ('browser-client/tests/integration/unknown.mjs',
+                     'browser-client/tests/fixtures/unknown.json.gz',
+                     'browser-client/tests/CMakeLists.txt',
+                     'browser-client/tests/integration/configure.cmake',
+                     'browser-client/tests/fixtures/resources.qrc',
+                     'browser-client/tests/fixtures/new.cpp',
+                     'browser-client/tests/fixtures/new.h',
+                     'libraries/shared/src/AABox.cpp', 'conanfile.py'):
+            with self.subTest(path=path):
+                self.assertEqual(POLICY.plan([*fixtures, path])['mode'], 'full')
+
     def test_production_dependency_and_unknown_changes_are_conservative(self):
         for path in ('libraries/shared/src/AABox.cpp', 'libraries/shared/src/AABox.h',
                      'libraries/new/src/new.cpp', 'interface/src/Application.cpp', 'unknown.data',
