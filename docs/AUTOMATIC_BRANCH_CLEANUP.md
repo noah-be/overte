@@ -126,7 +126,10 @@ permission and URL metadata is discarded on both fresh reads and cache hits.
 
 The fixed private directory is
 `$RUNNER_TEMP/branch-cleanup-immutable-<run-id>-<attempt>`. Runner context, numeric
-IDs, directory ownership/mode and unaliased ancestors are checked. Entries use
+IDs, directory ownership/mode and unaliased ancestors are checked. Trusted
+sticky temporary ancestors such as `/tmp` are supported when each descendant retains
+trusted ownership; shared writable non-sticky ancestors remain rejected. Cache
+directories themselves retain exact private mode `0700`. Entries use
 private ordinary files, atomic replacement, an exact repository/request/run/
 attempt/controller identity and a SHA-256 envelope digest. The digest detects
 damage; it does not authenticate an untrusted writer. The workflow must retain

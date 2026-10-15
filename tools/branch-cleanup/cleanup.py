@@ -195,7 +195,12 @@ class ImmutableReadCache:
         require(root.is_absolute() and root == Path(os.path.normpath(root)), "unsafe_immutable_cache_root")
         for current in [*reversed(root.parents), root]:
             info = current.lstat()
-            require(stat.S_ISDIR(info.st_mode) and not info.st_mode & 0o022
+            # A trusted sticky temporary directory protects each child entry
+            # from other users' rename/unlink operations. Every descendant is
+            # still checked for trusted ownership and safe directory modes.
+            # Ordinary shared writable ancestors remain unsupported.
+            require(stat.S_ISDIR(info.st_mode)
+                    and (not info.st_mode & 0o022 or bool(info.st_mode & stat.S_ISVTX))
                     and info.st_uid in {0, os.getuid()}, "unsafe_immutable_cache_ancestor")
         require(root.stat().st_uid == os.getuid(), "foreign_immutable_cache_root")
         self.directory = root / ("branch-cleanup-immutable-" + run_id + "-" + attempt)

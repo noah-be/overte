@@ -11,6 +11,7 @@ import json
 import os
 from pathlib import Path
 import re
+import stat
 import subprocess
 import sys
 import tempfile
@@ -997,6 +998,42 @@ class ImmutableApiCacheTests(unittest.TestCase):
         self.assertEqual(self.github.get(self.compare), self.integrated)
         self.assertEqual(len(self.calls), 2)
         self.assertFalse(self.entry(self.compare).exists())
+
+    def test_private_cache_below_trusted_sticky_temp_retains_real_cache_hits(self):
+        shared = self.root / "sticky-temp"
+        shared.mkdir()
+        shared.chmod(0o1777)
+        private = shared / "private-runner-temp"
+        private.mkdir(mode=0o700)
+        cache = self.module.ImmutableReadCache(private, "123", "1")
+        self.responses[self.compare] = self.integrated
+        client = self.client(cache)
+        self.assertEqual(client.get(self.compare), self.integrated)
+        self.assertEqual(client.get(self.compare), self.integrated)
+        self.assertEqual(self.calls, [self.compare])
+        self.assertEqual(stat.S_IMODE(cache.directory.stat().st_mode), 0o700)
+        self.assertTrue(all(stat.S_IMODE(path.stat().st_mode) == 0o600
+                            for path in cache.directory.iterdir()))
+
+    def test_shared_writable_nonsticky_ancestors_remain_rejected(self):
+        shared = self.root / "unprotected-temp"
+        shared.mkdir()
+        private = shared / "private-runner-temp"
+        private.mkdir(mode=0o700)
+        for mode in (0o777, 0o770):
+            shared.chmod(mode)
+            with self.subTest(mode=oct(mode)), self.assertRaisesRegex(
+                    self.module.CleanupError, "unsafe_immutable_cache_ancestor"):
+                self.module.ImmutableReadCache(private, "123", "1")
+
+    def test_sticky_ancestor_does_not_allow_an_aliased_descendant(self):
+        shared = self.root / "sticky-temp"
+        shared.mkdir()
+        shared.chmod(0o1777)
+        alias = shared / "aliased-private"
+        alias.symlink_to(self.root, target_is_directory=True)
+        with self.assertRaisesRegex(self.module.CleanupError, "unsafe_immutable_cache_ancestor"):
+            self.module.ImmutableReadCache(alias, "123", "1")
 
     def test_opt_in_requires_exact_trusted_runner_context_and_default_is_disabled(self):
         self.responses[self.compare] = self.integrated
