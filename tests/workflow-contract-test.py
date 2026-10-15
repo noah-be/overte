@@ -47,50 +47,32 @@ def has_automatic_app_trigger(source):
     return re.search(r"(?m)^  (?:push|pull_request):", source) is not None
 
 
+def workflow_data(source):
+    import yaml
+    try:
+        return yaml.safe_load(source)
+    except yaml.YAMLError as error:
+        raise ValueError('invalid workflow YAML') from error
+
+
+def workflow_events(source):
+    data = workflow_data(source)
+    return data.get('on', data.get(True))
+
+
 def push_filters(source):
-    """Read the deliberately small push-filter syntax used by the two host lanes.
-
-    This is not a general YAML parser. Reject any new syntax so a workflow edit
-    cannot silently make the routing matrix test a different configuration.
-    Actionlint remains responsible for complete workflow syntax validation.
-    """
-    match = re.search(r"(?ms)^  push:\n(.*?)(?=^  [a-z_]+:|^[^ \n]|\Z)", source)
-    if match is None:
-        raise ValueError("expected an explicit push trigger")
-    result = {}
-    current = None
-
-    def pattern(value):
-        token = re.fullmatch(r'''(?:"([^"]+)"|'([^']+)'|([A-Za-z0-9_./*-]+))''', value)
-        if token is None:
-            raise ValueError(f"unsupported push pattern: {value}")
-        decoded = next(item for item in token.groups() if item is not None)
-        if not re.fullmatch(r"[A-Za-z0-9_./*-]+", decoded):
-            raise ValueError(f"unsupported push pattern: {value}")
-        return decoded
-
-    for line in match.group(1).splitlines():
-        if not line.strip() or line.lstrip().startswith("#"):
-            continue
-        field = re.fullmatch(r"    (branches|paths-ignore):(?: \[([^\]]+)\])?", line)
-        if field:
-            current = field.group(1)
-            if current in result:
-                raise ValueError(f"duplicate push field: {current}")
-            inline = field.group(2)
-            result[current] = [pattern(item.strip()) for item in inline.split(",")] if inline else []
-            if inline:
-                current = None
-            continue
-        item = re.fullmatch(r"      - (.+)", line)
-        if item and current:
-            result[current].append(pattern(item.group(1)))
-            continue
-        raise ValueError(f"unsupported push filter syntax: {line}")
-    if set(result) != {"branches", "paths-ignore"} or not all(result.values()):
-        raise ValueError("expected nonempty branches and paths-ignore lists")
-    if result["paths-ignore"] != ["**/*.md"]:
-        raise ValueError("routing matrix supports only the existing Markdown exclusion")
+    """Check the semantic push filters independently of YAML presentation."""
+    events = workflow_events(source)
+    result = events.get('push') if isinstance(events, dict) else None
+    if not isinstance(result, dict) or set(result) != {'branches', 'paths-ignore'}:
+        raise ValueError('expected explicit branches and paths-ignore filters')
+    for values in result.values():
+        if not isinstance(values, list) or not values or any(
+                not isinstance(value, str) or not re.fullmatch(r'[A-Za-z0-9_./*-]+', value)
+                for value in values):
+            raise ValueError('unsupported push filter patterns')
+    if result['paths-ignore'] != ['**/*.md']:
+        raise ValueError('routing matrix supports only the existing Markdown exclusion')
     return result
 
 
@@ -126,12 +108,9 @@ class LightweightWorkflowContracts(unittest.TestCase):
     def test_markdown_pushes_skip_expensive_shared_checks(self):
         for path in (WORKFLOW, PARENT_QUALIFICATION_WORKFLOW, CODEQL_WORKFLOW):
             source = path.read_text(encoding="utf-8")
-            push = source.split("  push:\n", 1)[1]
-            push = re.split(r"(?m)^  [a-z_]+:", push, maxsplit=1)[0]
-            self.assertIn('    paths-ignore:\n      - "**/*.md"', push)
+            self.assertEqual(workflow_events(source)['push']['paths-ignore'], ['**/*.md'])
         source = CODEQL_WORKFLOW.read_text(encoding="utf-8")
-        pull_request = source.split("  pull_request:\n", 1)[1].split("  schedule:", 1)[0]
-        self.assertIn('    paths-ignore:\n      - "**/*.md"', pull_request)
+        self.assertEqual(workflow_events(source)['pull_request']['paths-ignore'], ['**/*.md'])
 
     def test_app_test_workflows_exclude_markdown(self):
         aggregate = (WORKFLOW_DIRECTORY / "repository-checks.yml").read_text(encoding="utf-8")
@@ -389,7 +368,7 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
         self.assertIn("push:", source)
         self.assertNotIn("pull_request:", source)
         self.assertNotIn("workflow_dispatch:", source)
-        self.assertIn("branches: [main, android-main, android-vr, apple-main]", source)
+        self.assertEqual(workflow_events(source)['push']['branches'], ['main', 'android-main', 'android-vr', 'apple-main'])
         self.assertIn("ref: ${{ github.sha }}", source)
         self.assertIn("cancel-in-progress: false", source)
         self.assertIn("retention-days: 4", source)
@@ -607,18 +586,30 @@ class ArchivedRefRetirementContracts(unittest.TestCase):
 
 class ProjectWorkflowContracts(unittest.TestCase):
     def test_tool_dependency_lane_is_bounded_and_selected_by_the_trusted_router(self):
-        source = WORKFLOW.read_text()
-        light = source.split("  tool-dependencies:\n", 1)[1]
-        self.assertIn("if: needs.route.outputs.projects == ''", source)
-        self.assertIn("if: needs.route.outputs.projects != ''", light)
-        self.assertIn("persist-credentials: false", light)
-        self.assertIn('tool_dependencies.py --projects "$DEPENDENCY_PROJECTS"', light)
-        self.assertIn('GH_TOKEN: ""', light)
-        self.assertNotIn("apt-get", light)
-        self.assertNotIn("tests/run-project-tests.py", light)
-        aggregate = (WORKFLOW_DIRECTORY / "repository-checks.yml").read_text()
-        self.assertIn("needs.route.outputs.mode == 'tool-dependencies'", aggregate)
-        self.assertIn("dependency_projects: ${{ needs.route.outputs.tool_projects }}", aggregate)
+        jobs = workflow_data(WORKFLOW.read_text())['jobs']
+        self.assertEqual(jobs['project-tests']['if'], "needs.route.outputs.package_host_mode == 'full'")
+        light = jobs['tool-dependencies']
+        self.assertEqual(light['if'], "needs.route.outputs.package_host_mode == 'tool-dependencies'")
+        runs = '\n'.join(step.get('run', '') for step in light['steps'])
+        self.assertIn('trusted/tools/repository-checks/package_checks.py run', runs)
+        self.assertIn('--lane tool-dependencies', runs)
+        self.assertNotIn('apt-get', runs)
+        self.assertNotIn('tests/run-project-tests.py', runs)
+        for step in light['steps']:
+            if step.get('uses', '').startswith('actions/checkout@'):
+                self.assertIs(step['with']['persist-credentials'], False)
+        self.assertEqual(light['steps'][0]['with']['path'], 'trusted')
+        self.assertEqual(light['steps'][0]['with']['ref'], '${{ github.event.repository.default_branch }}')
+        controller = (ROOT / 'tools/repository-checks/package_checks.py').read_text()
+        self.assertIn('with controller.candidate_process_environment():', controller)
+        final = jobs['project-results']
+        self.assertEqual(final['if'], 'always()')
+        self.assertEqual(set(final['needs']), {'route', 'project-tests', 'tool-dependencies', 'package-checks'})
+        caller = workflow_data((WORKFLOW_DIRECTORY / 'repository-checks.yml').read_text())['jobs']['project']
+        self.assertIn("needs.route.outputs.mode == 'tool-dependencies'", caller['if'])
+        self.assertIn("needs.route.outputs.package_set != '[]'", caller['if'])
+        self.assertEqual(caller['with']['dependency_projects'], '${{ needs.route.outputs.tool_projects }}')
+        self.assertEqual(caller['with']['expected_package_plan'], '${{ needs.route.outputs.package_plan }}')
 
     @classmethod
     def setUpClass(cls):
@@ -695,8 +686,8 @@ class HostWorkflowRoutingContracts(unittest.TestCase):
         for branch in ("feature/main/example", "ci", "testing/example"):
             self.assertEqual(self.selected(branch, ["tests/new-test.py"]), [])
         for event in ("workflow_call", "workflow_dispatch"):
-            self.assertRegex(self.workflows["shared"], rf"(?m)^  {event}:$")
-            self.assertNotRegex(self.workflows["parent"], rf"(?m)^  {event}:$")
+            self.assertIn(event, workflow_events(self.workflows['shared']))
+            self.assertNotIn(event, workflow_events(self.workflows['parent']))
         aggregate = (WORKFLOW_DIRECTORY / "repository-checks.yml").read_text()
         self.assertIn("pull_request:", aggregate)
         self.assertIn("if: needs.route.outputs.mode == 'full'", aggregate)
@@ -728,24 +719,31 @@ class HostWorkflowRoutingContracts(unittest.TestCase):
     def test_parent_and_shared_keep_matching_tools_and_complete_host_coverage(self):
         for name, source in self.workflows.items():
             with self.subTest(workflow=name):
-                for fragment in ('python-version: "3.12"', 'node-version: "22"',
-                                 'java-version: "17"', "distribution: temurin",
-                                 "command -v cmake", "command -v ctest",
+                workflow = workflow_data(source)
+                steps = [step for job in workflow['jobs'].values() for step in job.get('steps', [])]
+                for action, key, version in (('setup-python', 'python-version', '3.12'),
+                                             ('setup-node', 'node-version', '22'),
+                                             ('setup-java', 'java-version', '17')):
+                    matching = [step['with'] for step in steps if step.get('uses', '').startswith('actions/' + action + '@')]
+                    self.assertTrue(any(item.get(key) == version for item in matching), action)
+                    if action == 'setup-java': self.assertTrue(all(item['distribution'] == 'temurin' for item in matching))
+                runs = '\n'.join(step.get('run', '') for step in steps)
+                for fragment in ("command -v cmake", "command -v ctest",
                                  "qml-module-qttest", "qtdeclarative5-dev-tools",
                                  "qt6-base-dev qt6-base-dev-tools",
                                  "unshare --user --map-root-user --net true"):
-                    self.assertIn(fragment, source)
+                    self.assertIn(fragment, runs)
                 if name == "parent":
-                    self.assertIn("-r trusted/tests/requirements-host.txt", source)
-                    self.assertIn("build/host-tests-env/bin/python trusted/tools/test-evidence/run.py", source)
-                    self.assertIn("--candidate candidate --include-platform --timeout 240 --host-timeout 900", source)
+                    self.assertIn("-r trusted/tests/requirements-host.txt", runs)
+                    self.assertIn("build/host-tests-env/bin/python trusted/tools/test-evidence/run.py", runs)
+                    self.assertIn("--candidate candidate --include-platform --timeout 240 --host-timeout 900", runs)
                     self.assertNotIn("python tests/run-project-tests.py", source)
                     self.assertNotIn("candidate/tests/run-project-tests.py", source)
                 else:
-                    self.assertIn("-r tests/requirements-host.txt", source)
-                    self.assertEqual(source.count("tests/run-project-tests.py"), 1)
-                    self.assertIn("build/host-tests-env/bin/python tests/run-project-tests.py", source)
-                    self.assertIn("--profile host --timeout 240 --host-timeout 900", source)
+                    self.assertIn("-r tests/requirements-host.txt", runs)
+                    self.assertEqual(runs.count("tests/run-project-tests.py"), 1)
+                    self.assertIn("build/host-tests-env/bin/python tests/run-project-tests.py", runs)
+                    self.assertIn("--profile host --timeout 240 --host-timeout 900", runs)
                 self.assertNotIn("tests/device/run_control_plane_tests.py", source)
                 self.assertNotIn("--shared-only", source)
                 self.assertNotIn("--platform-only", source)
@@ -866,13 +864,15 @@ class HostWorkflowRoutingContracts(unittest.TestCase):
         self.assertIn('--execution-receipt build/parent-qualification/execution.json', source)
         self.assertIn('--receipt build/parent-qualification/execution.json', source)
         self.assertIn('--candidate candidate', source)
-        evidence = source.split("      - name: Create content-addressed qualification evidence\n", 1)[1]
-        evidence = evidence.split("      - name: Upload qualification test reports\n", 1)[0]
-        self.assertEqual(evidence.count("if: steps.route.outputs.projects == ''"), 2)
-        self.assertIn("Check only affected tool dependencies and behavior", source)
-        self.assertNotIn("continue-on-error:", source)
-        self.assertIn("name: parent-qualification-${{ github.sha }}", evidence)
-        self.assertIn("if-no-files-found: error", evidence)
+        steps = workflow_data(source)['jobs']['qualify-parent']['steps']
+        create = next(step for step in steps if step['name'] == 'Create content-addressed qualification evidence')
+        upload = next(step for step in steps if step['name'] == 'Upload immutable qualification evidence')
+        for step in (create, upload):
+            self.assertEqual(step['if'], "steps.route.outputs.package_host_mode == 'full'")
+        self.assertIn('Check only affected tool dependencies and behavior', source)
+        self.assertNotIn('continue-on-error:', source)
+        self.assertEqual(upload['with']['name'], 'parent-qualification-${{ github.sha }}')
+        self.assertEqual(upload['with']['if-no-files-found'], 'error')
 
     def test_parent_trusted_checkout_contains_transitive_host_requirements(self):
         import yaml

@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -322,8 +323,11 @@ class WorkflowCostTests(unittest.TestCase):
         self.assertNotRegex(workflow, r'(?m)^  (push|pull_request|pull_request_target):')
         config = json.loads((ROOT / '.github/repository-checks.json').read_text())
         if config.get('native_required', False) or 'main' in config.get('native_required_branches', []):
-            self.assertIn("if: needs.route.outputs.native != 'skip'", caller)
-            self.assertIn('workflow-security, native]', caller)
+            jobs = yaml.safe_load(caller)['jobs']
+            self.assertEqual(jobs['native']['if'], "needs.route.outputs.native != 'skip'")
+            self.assertEqual(jobs['native']['needs'], 'route')
+            self.assertEqual(jobs['repository-checks']['if'], 'always()')
+            self.assertIn('native', jobs['repository-checks']['needs'])
         self.assertIn("timeout-minutes: ${{ inputs.mode == 'full' && 90 || 15 }}", workflow)
         self.assertIn('timeout-minutes: 10', workflow)
         self.assertNotIn('--build=missing', workflow)
@@ -523,6 +527,11 @@ class GitInventoryTests(unittest.TestCase):
             wiring = candidate / '.github/workflows/ios-build-qualification.yml'
             wiring.parent.mkdir(parents=True)
             wiring.write_bytes((ROOT / 'tools/ios-build-qualification/workflow.yml').read_bytes())
+            # The sparse trusted router now enforces the activated package
+            # generation on main. Its candidate fixture must contain the actual
+            # approved sibling workflows, rather than relying on omission.
+            for name in ('repository-checks.yml', 'project-tests.yml', 'parent-qualification.yml', 'sync-validation.yml'):
+                (wiring.parent / name).write_bytes((ROOT / '.github/workflows' / name).read_bytes())
             git('add', '.')
             git('commit', '-qm', 'Base fixture')
             base = git('rev-parse', 'HEAD')

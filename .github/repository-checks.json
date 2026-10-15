@@ -31,5 +31,8 @@
   "native_required_branches": [
     "main"
   ],
-  "direct_browser_required_branches": []
+  "direct_browser_required_branches": [],
+  "package_checks_required_branches": [
+    "main"
+  ]
 }
