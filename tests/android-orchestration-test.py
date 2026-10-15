@@ -241,6 +241,29 @@ class RequiredAndroidTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "extended-tier-prerequisite-transfer"):
             gate.admit(self.candidate, self.event, policy_root=self.policy_root)
 
+    def test_staged_detection_works_without_execution_runtime_in_trusted_sparse_checkout(self):
+        trusted = self.temporary / 'legacy-trusted-sparse'
+        for relative in ('tools/repository-checks/android_gate.py', 'tools/repository-checks/android.py', *gate.CALLERS):
+            target = trusted / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(ROOT / relative, target)
+        sparse_gate = load('legacy_sparse_android_gate', str(trusted / 'tools/repository-checks/android_gate.py'))
+        caller = self.candidate / '.github/workflows/repository-checks.yml'
+        caller.parent.mkdir(parents=True, exist_ok=True)
+        caller.write_text('# legacy non-Android caller\n')
+        self.fixture.commit()
+        with patch.object(sparse_gate, '_sources', side_effect=AssertionError('execution must remain unloaded')):
+            self.assertFalse(sparse_gate.has_staged_caller(self.candidate, policy_root=trusted))
+            # A dirty file cannot manufacture ownership absent from Git HEAD.
+            caller.write_bytes((ROOT / gate.CALLERS[0]).read_bytes())
+            self.assertFalse(sparse_gate.has_staged_caller(self.candidate, policy_root=trusted))
+            self.fixture.commit()
+            self.assertTrue(sparse_gate.has_staged_caller(self.candidate, policy_root=trusted))
+            self.assertTrue(sparse_gate.has_staged_caller(self.fixture.sparse_clone(), policy_root=trusted))
+            caller.chmod(0o755)
+            self.fixture.commit()
+            self.assertFalse(sparse_gate.has_staged_caller(self.candidate, policy_root=trusted))
+
     def test_untrusted_candidate_flags_and_corrupt_trusted_policy_cannot_authorize_activation(self):
         self.workflow_files()
         candidate_policy = self.candidate / gate.POLICY
