@@ -418,6 +418,7 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `producer-proof` | `quick` | `python3 tests/run-project-tests.py --suite producer-proof` |
 | `host-producer-preparation` | `quick` | `python3 tests/run-project-tests.py --suite host-producer-preparation` |
 | `producer-api` | `quick` | `python3 tests/run-project-tests.py --suite producer-api` |
+| `shared-sandbox` | `quick` | `python3 tests/run-project-tests.py --suite shared-sandbox` |
 | `attested-runtime` | `quick` | `python3 tests/run-project-tests.py --suite attested-runtime` |
 | `project-runner` | `quick` | `python3 tests/run-project-tests.py --suite project-runner` |
 | `python-test-runner` | `quick` | `python3 tests/run-project-tests.py --suite python-test-runner` |
@@ -672,6 +673,69 @@ native line coverage from an instrumented configured CMake build when needed.
 Intentional legacy syntax exceptions remain exact allowlists; the health suite
 rejects new or stale exceptions.
 
+
+## Dormant shared execution sandbox foundation
+
+The `shared-sandbox` quick/host suite checks a disabled source contract, fixed
+Bubblewrap argument plans, immutable Git reads, bounded diagnostic process
+control and actual-process probe parsers. Run it with
+`python3 tests/run-project-tests.py --suite shared-sandbox`. These offline
+fixtures do not qualify Linux isolation, toolchain compatibility or reusable
+test evidence. No active workflow uses this preparation.
+
+`.github/shared-sandbox.json` has no qualified hosts and cannot be enabled by
+changing a boolean or submitting probe JSON. `sandbox.execute()` and
+`capture_after_execution()` reject every request. Contract identity binds the
+actual supervisor/probe/runtime bytes and recursive trusted requirement pins;
+it describes required behavior, not an observed execution. The local probe
+reports the actual process and interpreter environment as diagnostic data with
+no authority. It never labels an ordinary host process as a sandbox.
+
+The fixed plan mounts candidate source and its Git metadata, trusted source
+projection, virtualenv and identified system/toolcache packages read-only.
+Private build output, temporary files and HOME are writable; protected outer
+reports and runner files are absent. Arbitrary mounts, environment variables,
+entrypoints and optional namespace fallbacks are rejected. Reviewed Qt variants
+and versioned setup-node/Java/Python toolcache paths remain explicit. The source
+reader uses immutable raw commits with replacements, hooks, fsmonitor and
+network protocols disabled; it never invokes candidate status/diff filters.
+Shared/partial Git stores are unsupported. It does not yet certify materialized
+worktree bytes: production needs a verified private immutable snapshot.
+
+Actual host qualification must establish a separate real host UID without sudo
+rights, mandatory mount/PID/user/network/IPC boundaries, a private procfs,
+closed extra descriptors, no host sockets, no-new-privileges and removed
+capabilities. Mapping a UID inside a user namespace alone is insufficient.
+Private loopback must work without external routing. Existing host fixtures
+require nested user/network namespaces, C++/CMake/Ninja, Qt 5/6, GLM, Java,
+Node/npm and the prepared Python aliases; disabling those features or skipping
+their tests is not qualification. Tools and runtime must be measured inside the
+effective enforced profile using protected probes before execution and after
+confirmed descendant cleanup. An outside-host measurement is not equivalent.
+
+Waiting for Bubblewrap's main command is not proof that all descendants exited:
+its monitor can return while its namespace init still waits for children.
+See the [reviewed Bubblewrap lifecycle source](https://github.com/containers/bubblewrap/blob/v0.9.0/bubblewrap.c#L457-L625).
+The diagnostic supervisor's process-group cleanup therefore never authorizes a
+post-probe or reusable result. A future trusted parent-owned cgroup-v2 domain
+must contain the launcher before candidate execution, prevent migration and
+candidate access, and prove the whole scope empty. Linux documents
+`cgroup.kill` for subtree termination and `cgroup.events` `populated=0` for no
+live descendants in the [cgroup-v2 interface](https://www.kernel.org/doc/html/latest/admin-guide/cgroup-v2.html).
+The parser alone authenticates neither a kernel filesystem nor scope ownership.
+Hosted availability, protected provisioning and the complete positive and
+adversarial qualification remain unimplemented prerequisites.
+
+The subsequent producer stage needs its own top-level run with only trusted
+jobs, an early descriptor, actual sandboxed shared execution and a terminal
+aggregate. A reusable workflow inside an unisolated outer run does not provide
+that artifact-upload boundary. The ordinary host lane must transfer ownership
+atomically so this producer does not duplicate it. Nonshared owners remain
+unsupported until their full receipts exist. Original/latest-attempt authority,
+raw archive API verification, immutable workflow source and current candidate
+bookends remain separate requirements. Legacy parent artifacts and the disabled
+attested-environment consumer cannot acquire stronger guarantees from this
+preparation or a policy toggle.
 
 ## Dormant required Android orchestration
 
