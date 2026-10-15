@@ -1365,7 +1365,40 @@
           ".github/package-workflow-generations.json",
           "tools/repository-checks/workflows/android-required.yml",
           "tools/repository-checks/workflows/android/repository-checks.yml",
-          "tools/repository-checks/workflows/android/repository-checks-direct-browser.yml"
+          "tools/repository-checks/workflows/android/repository-checks-direct-browser.yml",
+          "tools/repository-checks/android_handoff.py",
+          ".github/android-owner-transfer.json"
+        ]
+      }
+    },
+    "android-owner-transfer": {
+      "command": [
+        "python",
+        "tests/android-owner-transfer-test.py"
+      ],
+      "layer": "quick",
+      "scope": "content",
+      "environment": "host-qt5-qt6",
+      "closure": {
+        "kind": "repository",
+        "inputs": [],
+        "required": [
+          "tests/android-owner-transfer-test.py",
+          "tests/android-orchestration-test.py",
+          "tests/android-ci-test.py",
+          "tools/repository-checks/android_handoff.py",
+          "tools/repository-checks/android_gate.py",
+          "tools/repository-checks/android.py",
+          "tools/repository-checks/browser_cpu.py",
+          "tools/repository-checks/check.py",
+          "tools/repository-checks/package_checks.py",
+          "tools/test-evidence/execution.py",
+          ".github/android-owner-transfer.json",
+          ".github/android-orchestration.json",
+          ".github/android-checks.json",
+          ".github/package-workflow-generations.json",
+          "tools/repository-checks/workflows/android-owned/project-tests.yml",
+          "tools/repository-checks/workflows/android-owned/android-required.yml"
         ]
       }
     }

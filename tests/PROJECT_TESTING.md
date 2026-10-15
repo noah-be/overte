@@ -424,6 +424,7 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `repository-checks` | `quick` | `python3 tests/run-project-tests.py --suite repository-checks` |
 | `android-ci` | `quick` | `python3 tests/run-project-tests.py --suite android-ci` |
 | `android-orchestration` | `quick` | `python3 tests/run-project-tests.py --suite android-orchestration` |
+| `android-owner-transfer` | `quick` | `python3 tests/run-project-tests.py --suite android-owner-transfer` |
 | `android-build-inputs` | `quick` | `python3 tests/run-project-tests.py --suite android-build-inputs` |
 | `codeql-selection` | `quick` | `python3 tests/run-project-tests.py --suite codeql-selection` |
 | `browser-cpu-selection` | `quick` | `python3 tests/run-project-tests.py --suite browser-cpu-selection` |
@@ -724,13 +725,55 @@ caller. The Android callee must also match its trusted canonical blob; individua
 approved files cannot be freely mixed. The generation manifest and actual helper
 sources are bound in the plan. The older package templates remain byte-identical.
 
-Activation is deliberately unavailable: trusted `required_branches` is empty,
-two explicit blockers remain, and `ACTIVATION_READY` is false in the controller.
-Clearing JSON fields alone cannot authorize deployment. A later reviewed change
-must transfer advisory/profile ownership atomically, preserve the other 12 common
-or 18 Phone profile suites, and transfer the `android-long-diagnostics` and manual
-mutation/stability/endurance/regression prerequisites. Simply disabling the old
-ordinary jobs would skip label-selected jobs through their existing `needs`.
-Their exact transfer is outside this preparation. Manual ordinary verification
-preserves the existing first-five-view behavior; critical mutation remains
-mandatory on every selected PR. No branch-name waiver or evidence reuse is added.
+## Dormant complete Android ownership transfer
+
+The `android-owner-transfer` quick/host group exercises the next complete,
+context-specific generation under `tools/repository-checks/workflows/android-owned/`.
+Four additive complete tuples cover ordinary, Direct Browser, Browser, and
+combined callers. Existing approved tuples and prototype sources remain intact.
+No active workflow, profile or required branch is changed by this preparation.
+
+The proposed PR handoff removes only the two legacy Android workflows' PR
+triggers; their push, schedule, manual jobs, conditions, reports and thresholds
+remain available. The exact replacement source contracts preserve their other
+assertions and validate the new owner. Trusted old and replacement Git blob IDs
+and modes prevent overwriting an unreviewed branch contract. Immutable predecessor
+and candidate profile checks preserve all 13 common or 19 Phone entries, including
+future extras. Static profiles remain complete for direct project, push, sync,
+scheduled and legacy callers.
+
+Every selected PR still runs the ordinary 40-owner union including critical
+mutation, regardless of the head branch name. The `android-long-diagnostics`
+label additionally selects extended mutation, order/isolation stability, and
+three distinct endurance owners. Both label addition and removal trigger a new
+required result. The resulting labeled PR has 45 owners. Manual verification
+preserves the first five ordinary views, adds these diagnostics and runs Phone
+regression by default; its typed `run_regression` input can omit only regression.
+The complete union of all views contains 46 distinct owners. Diagnostics require
+actual successful fast, contracts and instrumented coverage prerequisites. A
+failed prerequisite records blocked diagnostics and fails the final gate.
+Normal and extended mutation, JaCoCo/gcov/JavaScript coverage, default and scaled
+JavaScript endurance, native endurance and QML lifecycle checks remain distinct.
+
+The new project launcher can transfer only the existing Pico profile execution
+to the independent required Android owner. Before candidate code runs it checks
+the actual GitHub outer caller, workflow source, candidate and event; then it
+independently derives the exact complete tuple and handoff plan. There is no CLI
+skip option or candidate-provided owner flag. Shared and Android jobs start in
+parallel. The launcher records Pico as pending independent ownership, never as a
+passed profile test. Its schema-2 execution receipt is diagnostic and explicitly
+nonreusable. The outer final requires the selected Android job's actual success
+and exact candidate, plan and inventory, including Pico. Missing, skipped or
+failed ownership blocks the merge. Other profile suites execute normally once.
+
+Activation remains unavailable: trusted `required_branches` is empty,
+`ACTIVATION_READY` is false, and hosted qualification is an explicit blocker.
+Clearing JSON alone cannot authorize deployment. Before activation, qualify the
+complete prospective generation on each real branch, review the final reader
+anchors, stage trusted admission on the default branch, and atomically deploy
+its callers, callees, source contracts and legacy PR-trigger retirement. Existing
+artifact diagnostics do not authenticate cross-run reuse. This slice performs
+source-only and disposable-process qualification; it makes no new Robolectric,
+native product, Gradle, APK or hosted execution claim. Non-PR post-merge push
+runs and direct legacy contexts intentionally retain their current checks; their
+remaining repetitions belong to the later event/evidence ownership work.

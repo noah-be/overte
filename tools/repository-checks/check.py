@@ -189,11 +189,15 @@ def validate_direct_wiring(candidate: Path, policy_root: Path = ROOT) -> None:
             if package_caller.is_file() and path.is_file() and path.read_bytes() == package_caller.read_bytes():
                 package_policy().validate_wiring(candidate)
                 approved.append(package_caller.read_bytes())
-            android_caller = policy_root / "tools/repository-checks/workflows/android/repository-checks-direct-browser.yml"
-            if android_caller.is_file() and path.is_file() and path.read_bytes() == android_caller.read_bytes():
-                package_policy().validate_wiring(candidate)
-                android_policy().validate_tree_wiring(android_policy()._sources(candidate).entries)
-                approved.append(android_caller.read_bytes())
+            android_callers = ["tools/repository-checks/workflows/android/repository-checks-direct-browser.yml",
+                               "tools/repository-checks/workflows/android-owned/repository-checks-direct.yml",
+                               "tools/repository-checks/workflows/android-owned/repository-checks-browser-direct.yml"]
+            for relative in android_callers:
+                android_caller = policy_root / relative
+                if android_caller.is_file() and path.is_file() and path.read_bytes() == android_caller.read_bytes():
+                    package_policy().validate_wiring(candidate)
+                    android_policy().validate_tree_wiring(android_policy()._sources(candidate).entries)
+                    approved.append(android_caller.read_bytes())
         if (not path.is_file() or any(parent.is_symlink() for parent in
                                      (candidate / ".github", candidate / ".github/workflows", path))
                 or not canonical.is_file()
