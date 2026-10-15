@@ -811,12 +811,36 @@ a successful test or reused evidence.
 
 The exclusion requires the exact reviewed host reader, discovery, manifest,
 fixture and production-source generation in the candidate and trusted checkout.
-Historical child differences, changed readers, unknown paths, mixed product
-changes, symlinks, submodules and incomplete inventories retain the complete
-host gate. Exact CI test filenames are admitted individually; arbitrary Python
-files could shadow modules used by subprocesses. Platform-owned suites still
-execute from their validated branch declaration. This initial ownership covers
-CI-only changes; finer selection within CI and product groups remains open.
+Six separately reviewed child inventories preserve their own production sources,
+platform profiles and both npm lockfiles. They are CI-only topic contents, not
+completed parent synchronizations. The target comes from the independently
+validated server event, never from the head branch or candidate policy. Unknown
+historical differences, changed readers, mixed product changes, symlinks,
+submodules and incomplete inventories retain every shared and declared platform
+suite. The exact 32 additional CI paths are listed in `CI_ROLLOUT_PATHS`; no
+directory-wide exemption for `tools/test-evidence` or `tests` is added.
+
+The initial child CI rollout changes the control-plane launcher's process cleanup.
+It therefore runs the 36 CI groups **and** `device-control-plane-full`, including
+its real `--require-qml` checks, prepared host dependencies and 900-second timeout.
+The other 15 host groups and unchanged platform declarations are omitted only
+for the reviewed complete branch graph. Subsequent unrelated CI changes run 36
+groups without Qt setup. A new reader, command, profile, optional header or import
+search-path entry invalidates the exclusion. Registry host definitions and controls,
+actual launchers and runtime helpers remain in the immutable reader identity.
+The consumed OpenXR `android/vr/common/openxr/README.md` and Phone parity
+`android/phone/device-tests/parity/fixtures/README.md` remain bound too; Markdown
+alone does not make these fixtures independent.
+
+`full_host` remains the workflow's compatibility signal for Qt prerequisites.
+The 37-group route reports `full_host=true`, `complete_receipt=false`; needing Qt
+does not mean all 59 shared groups ran. A complete receipt requires the exact
+full trusted suite inventory, all declared platform suites and no new candidate
+commands. Selection reports list omitted shared and platform groups explicitly.
+Local selector tests and fake command runs do not qualify the actual 37-group
+execution; that remains a required hosted deployment check. Deploying the CodeQL
+results caller on a child with the original workflow also needs its separately
+reviewed base-only transition; host admission does not grant it.
 
 Deployment requires the staged complete workflow tuple to be reviewed and landed
 on main before replacing the active callee. The unchanged required aggregate
@@ -891,6 +915,11 @@ so the required context is present; no language analyzer runs for that case.
 Both aggregate checkout steps and the API verifier execute in a clean job that
 never runs candidate code. The exact new CI files remain outside the reviewed
 iOS application reader graph, while their own required CI checks still run.
+
+The exact original CodeQL workflow on a protected child is admitted only as the
+base of a reviewed deployment, never as a legacy candidate. Verifier-only and
+regression-test Python changes select Python; shared extractor controls, the
+selector implementation and unknown inputs retain their cross-language checks.
 
 The independent trusted `sync-test-reuse` pull-request-target gate also pins
 the new exact CodeQL workflow when `codeql_results_required_branches` is

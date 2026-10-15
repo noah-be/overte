@@ -43,8 +43,7 @@ _SELECTIVE_WORKFLOW = "bdfd6e98d59ab787babcc94ba45c129f8cd899bd"
 _RESULTS_WORKFLOW = "b5789e4b0928ef34cc3d80e8f2fa1813422b6436"
 _GLOBAL_PATHS = {
     "AGENTS.md", ".gitattributes", ".gitignore", ".gitmodules", ".codeqlignore", ".tool-versions",
-    "tools/repository-checks/codeql.py", "tools/repository-checks/codeql_results.py",
-    "tools/test-evidence/inputs.py", "tests/codeql-selection-test.py",
+    "tools/repository-checks/codeql.py", "tools/test-evidence/inputs.py",
 }
 _PYTHON_EXTENSIONS = {".py", ".pyw", ".pyi", ".thrift"}
 _JAVASCRIPT_EXTENSIONS = {

@@ -52,6 +52,28 @@ CI_POLICY = frozenset({
     '.github/workflows/browser-client.yml', '.github/workflows/browser-direct-client.yml',
     '.github/workflows/browser-client-atomic-settings.yml',
 })
+# Individually reviewed CI propagation inputs. The production harnesses do not
+# import/read these controls or unit tests. Do not extend this to tools/** or
+# tests/**: those roots also contain real product readers and import candidates.
+CI_ROLLOUT_PATHS = frozenset({
+    '.github/android-checks.json', '.github/android-orchestration.json',
+    '.github/attested-runtime.json', '.github/sync-test-reuse.json',
+    '.github/workflows/dependency-releases.yml', '.github/workflows/repository-checks.yml',
+    '.github/workflows/repository-health.yml', '.github/workflows/sync-test-reuse.yml',
+    '.github/workflows/sync-validation.yml',
+    'tests/device/run_control_plane_tests.py', 'tests/host-producer-preparation-test.py',
+    'tests/native-ci-test.py', 'tests/project-suite-self-test.py', 'tests/run-project-tests.py',
+    'tools/native-tests/check.py',
+    'tools/test-evidence/attested-test.py', 'tools/test-evidence/attested.py',
+    'tools/test-evidence/execution-test.py', 'tools/test-evidence/execution.py',
+    'tools/test-evidence/inputs.py', 'tools/test-evidence/producer-api-test.py',
+    'tools/test-evidence/producer-test.py', 'tools/test-evidence/producer.py',
+    'tools/test-evidence/producer_api.py', 'tools/test-evidence/qualification-producer-test.py',
+    'tools/test-evidence/registry-test.py', 'tools/test-evidence/run.py',
+    'tools/test-evidence/runtime-test.py', 'tools/test-evidence/runtime.py',
+    'tools/test-evidence/test.py', 'tools/test-evidence/validate-sync-test.py',
+    'tools/test-evidence/validate-sync.py',
+})
 # These product contracts do not consume the admitted CI inputs. Their source,
 # helpers, fixtures, import/include membership AND definitions are bound below.
 PRODUCT_QUICK_SUITES = frozenset({
@@ -66,13 +88,37 @@ PROGRAM_INPUTS = (
     'tests/run-unittest-suite.py', 'tests/run-project-tests.py', 'tests/platform-profile.json',
     'tests/requirements*.txt', 'interface', 'interface/**', 'libraries', 'libraries/**',
     'scripts', 'scripts/**', 'domain-server', 'domain-server/**', 'provenance', 'provenance/**', 'tools/sbom', 'tools/sbom/**',
+    # These are execution controllers, not independent unit-test implementation.
+    # Admission as a changed CI path does not remove them from the reader graph.
+    'tools/test-evidence/attested.py', 'tools/test-evidence/execution.py',
+    'tools/test-evidence/inputs.py', 'tools/test-evidence/producer.py',
+    'tools/test-evidence/producer_api.py', 'tools/test-evidence/run.py',
+    'tools/test-evidence/runtime.py', 'tools/test-evidence/validate-sync.py',
+    # Actual assertions consume these documents; the generic Markdown rule does
+    # not exempt them. Their membership, modes and bytes remain immutable inputs.
+    'android/vr/common/openxr/README.md',
+    'android/phone/device-tests/parity/fixtures/README.md',
 )
-REVIEWED_PROGRAMS = 'f3b49e26f5a0026c089fb92f73200a622fc4745cc0e83599a972ef2aac13969f'
+# Main358937 and six main649 CI-only topic previews, preserving both child npm
+# locks, product sources and profiles. These are reader identities, not passing
+# test receipts. The changed control-plane launcher still selects its real owner.
+REVIEWED_PROGRAMS = 'e5c142d70a46be66a725bcdf652c78dab1cf17346cf2c5020c0ba272cd8ba0b4'
+REVIEWED_CHILD_PROGRAMS = {
+    'apple-main': '8be34fee156fbac2fd1f82db5d1f526194afa457e028314eddbebf6a4227c078',
+    'apple-ios': 'e8a35177e412e00bed9d0674842584e15bfee1f107e602618b7bdb28612cbb75',
+    'android-main': 'a43c20a42b2990d9abb473c4419ffc6f6cd22e1b86eef3ee1d891c65f52d482e',
+    'android-phone': '64823eb0cbc70a3fc65790b6f228b4df33136094e773862d717ab9b0639eddc8',
+    'android-vr': '118fe7cb0d84e930a487e74a9ba7ad6cec8ba41a60d3f9e6a2b95e9cdf2d2baa',
+    'android-vr-pico': '939f06ce47bb28c6efae3f97fdd26482a904b92286b5bb923cbbca082fcef79d',
+}
+CONTROL_PLANE = 'tests/device/run_control_plane_tests.py'
 
 
 def program_digest(tree, root=ROOT):
     # Persist the absence of unowned modules/headers too: checking just the
     # current delta would miss historical child search-path differences.
+    if any(entry['mode'] not in {'100644', '100755'} or entry['type'] != 'blob' for entry in tree.values()):
+        raise ValueError('host inventory contains an unreviewed nonregular input')
     owned = {entry['path'] for entry in inputs.selected_entries(tree, list(PROGRAM_INPUTS))}
     entries = [{'path': path, **entry} for path, entry in sorted(tree.items())
                if path in owned or not ci_owned(path)]
@@ -95,11 +141,12 @@ def program_digest(tree, root=ROOT):
 def ci_owned(path):
     # Exact hyphenated test filenames are safe: admitting arbitrary tests/*.py
     # could introduce json.py/sitecustomize.py into a child interpreter path.
-    return (path in CI_TESTS or path in CI_POLICY or path.startswith(CI_ROOTS)
+    return (path in CI_TESTS or path in CI_POLICY or path in CI_ROLLOUT_PATHS or path.startswith(CI_ROOTS)
             or path.endswith('.md') or path.endswith('.mdx'))
 
 
-def select(tree, paths, regular, *, unknown=False, trusted_tree=None, candidate_root=ROOT, trusted_root=ROOT):
+def select(tree, paths, regular, *, unknown=False, trusted_tree=None, candidate_root=ROOT,
+           trusted_root=ROOT, target='main', base_tree=None):
     registry = inputs.load_registry(ROOT / '.github/test-suites.json')
     names = list(registry['suites'])
     reason = 'unowned-inputs'
@@ -109,16 +156,30 @@ def select(tree, paths, regular, *, unknown=False, trusted_tree=None, candidate_
         reason = 'unowned-inputs'
     else:
         try:
-            reviewed = program_digest(tree, candidate_root) == REVIEWED_PROGRAMS
+            expected = REVIEWED_PROGRAMS if target == 'main' else REVIEWED_CHILD_PROGRAMS.get(target)
+            reviewed = expected is not None and program_digest(tree, candidate_root) == expected
             if trusted_tree is not None:
                 reviewed &= program_digest(trusted_tree, trusted_root) == REVIEWED_PROGRAMS
         except (ValueError, OSError, subprocess.SubprocessError):
             reviewed = False
         if reviewed:
-            return {'suites': [name for name in names if registry['suites'][name]['layer'] == 'quick' and name not in PRODUCT_QUICK_SUITES],
-                    'reason': 'reviewed-ci-only-inputs', 'full_host': False}
+            affected = CONTROL_PLANE in paths or (base_tree is not None and base_tree.get(CONTROL_PLANE) != tree.get(CONTROL_PLANE))
+            return {'suites': [name for name in names if (
+                        registry['suites'][name]['layer'] == 'quick' and name not in PRODUCT_QUICK_SUITES
+                        or affected and name == 'device-control-plane-full')],
+                    'reason': 'reviewed-ci-with-control-plane-update' if affected else 'reviewed-ci-only-inputs',
+                    'full_host': affected, 'include_platform': False}
         reason = 'host-reader-generation-not-reviewed'
-    return {'suites': names, 'reason': reason, 'full_host': True}
+    return {'suites': names, 'reason': reason, 'full_host': True, 'include_platform': True}
+
+
+def target_branch(event):
+    """Read the target from the same server event validated by candidate_plan."""
+    pr = event.get('pull_request')
+    if isinstance(pr, dict):
+        return (pr.get('base') or {}).get('ref')
+    ref = event.get('ref')
+    return ref[len('refs/heads/'):] if isinstance(ref, str) and ref.startswith('refs/heads/') else None
 
 
 def additional_suites(candidate_registry, registry):
@@ -169,18 +230,25 @@ def main():
         candidate = args.candidate.resolve(strict=True)
         before = execution.checkout_identity(candidate)
         policy.validate_wiring(candidate)
-        plan = policy.candidate_plan(candidate, json.loads(args.event.read_text()), args.sha)
+        event = json.loads(args.event.read_text())
+        plan = policy.candidate_plan(candidate, event, args.sha)
         if plan['candidate'] != before[0] or plan['plan'] != args.expected_plan or plan['host_mode'] != 'full':
             raise ValueError('host execution differs from the independently recomputed required plan')
+        base_tree = inputs.full_tree(candidate, plan['base']) if plan.get('base') and not plan['unknown'] else None
         selected = select(inputs.full_tree(candidate, before[0]), plan['paths'], plan['regular'],
-                          unknown=plan['unknown'], trusted_tree=inputs.full_tree(ROOT, 'HEAD'), candidate_root=candidate)
+                          unknown=plan['unknown'], trusted_tree=inputs.full_tree(ROOT, 'HEAD'),
+                          candidate_root=candidate, target=target_branch(event), base_tree=base_tree)
         registry = inputs.load_registry(ROOT / '.github/test-suites.json')
         additions = additional_suites(candidate_registry(candidate), registry)
         if additions:
             selected = {'suites': list(registry['suites']), 'full_host': True,
-                        'reason': 'new-or-changed-test-command-requires-full-verification'}
+                        'reason': 'new-or-changed-test-command-requires-full-verification', 'include_platform': True}
         selected['additional_suites'] = [name for name, _, _ in additions]
-        complete_receipt = selected['full_host'] and not additions
+        platform = execution.platform_suites(candidate, registry['suites'])
+        selected['platform_suites'] = [name for name, _ in platform] if selected['include_platform'] else []
+        selected['omitted_platform_suites'] = [name for name, _ in platform] if not selected['include_platform'] else []
+        complete_receipt = (set(selected['suites']) == set(registry['suites']) and not additions
+                            and selected['include_platform'])
         print(json.dumps(selected, sort_keys=True), flush=True)
         if args.selection_report is not None:
             report = {'schema': 1, 'kind': 'host-impact-selection', 'reusable': False,
@@ -208,7 +276,7 @@ def main():
             for name, layer, command in additions]
         suites += [package.Suite(name, 'quick', tuple(
             sys.executable if index == 0 and value == 'python' else value for index, value in enumerate(command)))
-            for name, command in execution.platform_suites(candidate, registry['suites'])]
+            for name, command in platform if selected['include_platform']]
         package.ROOT = candidate
         cancelled = []
         def interrupted(signum, _frame):
