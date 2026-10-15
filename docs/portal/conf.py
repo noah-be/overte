@@ -41,4 +41,4 @@ html_additional_pages = {"index": "portal-home.html"}
 
 # Excluded repository guides remain links to the fork's current main branch.
 # Product guides use explicit platform-branch URLs in the authored pages.
-repository_docs_url = "https://github.com/noah-be/overte/blob/main/"
+repository_docs_url = "https://github.com/noah-l-frank/overte/blob/main/"

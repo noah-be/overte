@@ -77,12 +77,16 @@ available, require approval for workflows from **all external contributors** in
 the repository Actions settings. Install a root-owned copy of
 `android/phone/ci/authorize-phone-release-runner.sh` outside the runner application
 directory and set `ACTIONS_RUNNER_HOOK_JOB_STARTED` to its absolute path in the
-runner `.env`. The hook independently permits only `noah-be/overte`, the manual
-`Android Phone release candidate` workflow, and the named release custodian as
-both actor and triggering actor. Keep the hook and its parent directory
+runner `.env`. The hook independently permits only `noah-l-frank/overte`, the manual
+`Android Phone release candidate` workflow, and `noah-l-frank` as both actor and
+triggering actor. Keep the hook and its parent directory
 non-writable by the runner service account. This local check is required even
 when GitHub's fork approval policy is enabled: labels alone are not an access
 control because pull-request code can request any repository runner label.
+
+Updating this source does not update an installed root-owned hook. Review and
+deployment of that installed copy remain separate runner-administration work;
+former repository, actor, and triggering-actor names fail closed.
 
 A standard GitHub-hosted Ubuntu runner is not currently a supported substitute:
 its 14 GB workspace is smaller than the observed combined Phone Conan and

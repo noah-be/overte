@@ -20,6 +20,7 @@ permissions:
   contents: read
 
 concurrency:
+  # Keep the existing mutex across the rename, including older in-flight runs.
   group: branch-cleanup-noah-be-overte
   cancel-in-progress: false
 
@@ -27,7 +28,7 @@ jobs:
   cleanup:
     name: Verify, back up, and retire integrated branches
     if: >-
-      github.repository == 'noah-be/overte' &&
+      github.repository == 'noah-l-frank/overte' &&
       github.repository_id == '1319052603' &&
       (github.event_name != 'pull_request_target' || github.event.pull_request.merged == true)
     runs-on: ubuntu-24.04
@@ -45,7 +46,7 @@ jobs:
       - name: Check out trusted fork main without credentials
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          repository: noah-be/overte
+          repository: noah-l-frank/overte
           ref: main
           persist-credentials: false
           fetch-depth: 1

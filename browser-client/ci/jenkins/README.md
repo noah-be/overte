@@ -29,7 +29,7 @@ still required.
 
 The helper files belong at `browser-client/ci/jenkins/` in the exact attested
 fork commit. The final pipeline refuses modified/untracked policy helpers and
-any remote other than `https://github.com/noah-be/overte`. It holds the single
+any remote other than `https://github.com/noah-l-frank/overte`. It holds the single
 non-root agent executor for preparation, all gates, cleanup and curation.
 
 Dependencies are prepared in the job's dedicated checkout, without fixture

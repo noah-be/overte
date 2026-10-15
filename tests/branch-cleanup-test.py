@@ -20,8 +20,8 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "tools/branch-cleanup/cleanup.py"
 POLICY_PATH = ROOT / ".github/branch-cleanup.json"
-FORK = "noah-be/overte"
-FORK_URL = "https://github.com/noah-be/overte.git"
+FORK = "noah-l-frank/overte"
+FORK_URL = "https://github.com/noah-l-frank/overte.git"
 PERMANENT = {
     "main", "android-main", "android-phone", "android-vr", "android-vr-pico",
     "apple-main", "apple-ios",
@@ -199,6 +199,7 @@ class PolicyAndSelectionTests(unittest.TestCase):
 
     def test_foreign_repository_or_repository_id_is_rejected(self):
         for key, value in (("repository", "overte-org/overte"), ("repository", "someone/overte"),
+                           ("repository", "noah-be/overte"),
                            ("repository_id", 42), ("repository_id", "1319052603")):
             with self.subTest(key=key, value=value):
                 policy = {**self.policy, key: value}
@@ -356,6 +357,19 @@ class GithubActivityTests(unittest.TestCase):
             return {"total_count": 0, "workflow_runs": []}
         return []
 
+    def test_keep_label_queries_the_current_account_head(self):
+        calls = []
+        def response(suffix='', paginate=False):
+            calls.append(suffix)
+            if suffix.startswith('pulls?state=all&head='):
+                self.assertIn('head=noah-l-frank%3A', suffix)
+                return [{'labels': [{'name': self.policy['keep_label']}]}]
+            return self.inactive_responses(suffix, paginate)
+        with mock.patch.object(self.github, 'get', side_effect=response):
+            holds = self.github.activity_holds([self.candidate], self.policy)
+        self.assertIn('keep_branch_label', holds[self.candidate['branch']])
+        self.assertEqual(sum(call.startswith('pulls?state=all&head=') for call in calls), 1)
+
     def active_run(self, **changes):
         return {
             "id": 987,
@@ -458,7 +472,7 @@ class GithubActivityTests(unittest.TestCase):
             self.github.get("branches?per_page=100")
         command = run.call_args.args[0]
         self.assertEqual(command[:4], ["gh", "api", "--method", "GET"])
-        self.assertEqual(command[4], "repos/noah-be/overte/branches?per_page=100")
+        self.assertEqual(command[4], "repos/noah-l-frank/overte/branches?per_page=100")
         for suffix in ("/repos/overte-org/overte", "https://github.com/overte-org/overte", "../overte"):
             with self.subTest(suffix=suffix):
                 with self.assertRaises(self.module.CleanupError):
@@ -469,11 +483,12 @@ class GithubActivityTests(unittest.TestCase):
         result = subprocess.CompletedProcess([], 0, stdout="{}", stderr="")
         with mock.patch.object(self.module, "run", return_value=result) as run:
             self.github.get(endpoint)
-        self.assertEqual(run.call_args.args[0][4], "repos/noah-be/overte/" + endpoint)
+        self.assertEqual(run.call_args.args[0][4], "repos/noah-l-frank/overte/" + endpoint)
 
     def test_foreign_owner_or_native_unguarded_cleanup_is_rejected(self):
         valid = {"full_name": FORK, "id": 1319052603, "default_branch": "main", "delete_branch_on_merge": False}
-        for change in ({"full_name": "overte-org/overte"}, {"id": 42}, {"delete_branch_on_merge": True}):
+        for change in ({"full_name": "overte-org/overte"}, {"full_name": "noah-be/overte"},
+                       {"id": 42}, {"delete_branch_on_merge": True}):
             with self.subTest(change=change):
                 with mock.patch.object(self.github, "get", return_value={**valid, **change}):
                     with self.assertRaises(self.module.CleanupError):
@@ -1000,14 +1015,14 @@ class WorkflowSafetyTests(unittest.TestCase):
     def test_runner_and_trusted_checkout_work_without_the_users_pc(self):
         self.assertIn("runs-on: ubuntu-24.04", self.source)
         self.assertNotIn("self-hosted", self.source)
-        self.assertIn("repository: noah-be/overte", self.source)
+        self.assertIn("repository: noah-l-frank/overte", self.source)
         self.assertIn("ref: main", self.source)
         self.assertIn("persist-credentials: false", self.source)
         checkout = self.source.split("- name: Plan from current GitHub state", 1)[0]
         self.assertNotIn("github.event.pull_request.head.sha", checkout)
 
     def test_fork_identity_and_serial_execution_are_explicit(self):
-        self.assertIn("github.repository == 'noah-be/overte'", self.source)
+        self.assertIn("github.repository == 'noah-l-frank/overte'", self.source)
         self.assertIn("github.repository_id == '1319052603'", self.source)
         self.assertIn("group: branch-cleanup-noah-be-overte", self.source)
         self.assertIn("cancel-in-progress: false", self.source)

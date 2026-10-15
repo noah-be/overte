@@ -51,7 +51,7 @@ An optional `--issues-json` accepts a deliberately supplied snapshot envelope:
 ```json
 {
   "schema": 1,
-  "repository": "noah-be/overte",
+  "repository": "noah-l-frank/overte",
   "complete": true,
   "generated_at": "2026-09-24T12:00:00Z",
   "issues": [
@@ -128,7 +128,7 @@ see [test coverage interpretation](../tests/PROJECT_TESTING.md).
 
 After PHONE-P1, use measured synchronization cost to evaluate intermediate branch
 responsibilities. An optional `--effort-log` reads an envelope with `schema: 1`,
-`repository: "noah-be/overte"`, and `changes`. Each change has a unique full
+`repository: "noah-l-frank/overte"`, and `changes`. Each change has a unique full
 `commit`, positive `maintenance_minutes`, `propagation_minutes` between zero and
 that total, and boolean `manual_reconciliation`. Over the last ten observations,
 more than 20% propagation effort or at least three reconciliations suggests a
