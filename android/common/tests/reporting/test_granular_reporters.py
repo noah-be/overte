@@ -1,4 +1,5 @@
 import os
+import shutil
 from pathlib import Path
 import stat
 import subprocess
@@ -17,6 +18,84 @@ def executable(path: Path, content: str) -> None:
 
 
 class GranularReporterTest(unittest.TestCase):
+    def test_common_qml_zero_exit_cannot_hide_error_failure_or_skip_junit(self):
+        for counter in ('errors', 'failures', 'skipped', None):
+            with self.subTest(counter=counter), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                runner = root / 'qmltestrunner'
+                executable(runner, '''
+previous=""
+for argument in "$@"; do
+  if [[ "$previous" == -o && "$argument" == /*,junitxml ]]; then
+    printf '%s' "$FIXTURE_JUNIT" >"${argument%,junitxml}"
+  fi
+  previous="$argument"
+done
+''')
+                original = ('<testsuite tests="1" ' + counter + '="1"><testcase result="pass"/></testsuite>'
+                            if counter else '<testsuite tests="1"><testcase name="standard-qt6"/></testsuite>')
+                result = subprocess.run([ANDROID_ROOT / 'common/tests/qml/run-qml-tests.sh'],
+                    env=os.environ | {'OVERTE_QML_TEST_RUNNER': str(runner),
+                                      'OVERTE_TEST_REPORT_DIR': str(root / 'reports'), 'FIXTURE_JUNIT': original},
+                    text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                self.assertEqual(1 if counter else 0, result.returncode, result.stdout)
+                self.assertEqual(original, (root / 'reports/qml/TEST-qml.xml').read_text())
+
+    def test_fixed_phone_runtime_is_required_and_results_cannot_disappear(self):
+        for mode in ('parent-only', 'pass', 'failure', 'skip', 'missing-report', 'zero-tests', 'false-success', 'partial'):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                android = root / 'android'
+                qml = android / 'common/tests/qml'
+                reporting = android / 'common/tests/reporting'
+                phone = android / 'phone/tests'
+                qml.mkdir(parents=True)
+                reporting.mkdir(parents=True)
+                (phone / 'qml').mkdir(parents=True)
+                for source, target in ((ANDROID_ROOT / 'common/tests/qml/run-qml-tests.sh', qml / 'run-qml-tests.sh'),
+                                       (ANDROID_ROOT / 'common/tests/reporting/atomic-junit-report.sh', reporting / 'atomic-junit-report.sh')):
+                    shutil.copy2(source, target)
+                runner = root / 'qmltestrunner'
+                executable(runner, '''
+previous=""
+for argument in "$@"; do
+  if [[ "$previous" == -o && "$argument" == /*,junitxml ]]; then
+    printf '<testsuite tests="1"><testcase result="pass"/></testsuite>' >"${argument%,junitxml}"
+  fi
+  previous="$argument"
+done
+''')
+                if mode != 'parent-only':
+                    (phone / 'qml/tst_phone_places_delegates.qml').write_text('// process-control fixture')
+                if mode not in ('parent-only', 'partial'):
+                    (phone / 'qml/tst_phone_login_domain.qml').write_text('// process-control fixture')
+                    (phone / 'phone-places-delegate-test.py').write_text('''
+import os, sys
+from pathlib import Path
+Path(os.environ['PHONE_RUNTIME_ENTERED']).write_text('entered')
+mode = os.environ['PHONE_RUNTIME_MODE']
+report = Path(sys.argv[sys.argv.index('--junit') + 1])
+if mode != 'missing-report':
+    xml = '<testsuite tests="1"><testcase result="pass"/></testsuite>'
+    if mode == 'zero-tests': xml = '<testsuite tests="0"/>'
+    if mode == 'false-success': xml = '<testsuite tests="1" errors="1"><testcase result="pass"/></testsuite>'
+    report.write_text(xml)
+raise SystemExit(7 if mode == 'failure' else 77 if mode == 'skip' else 0)
+''')
+                result = subprocess.run([qml / 'run-qml-tests.sh'], cwd=android,
+                    env=os.environ | {'OVERTE_QML_TEST_RUNNER': str(runner),
+                                      'OVERTE_TEST_REPORT_DIR': str(root / 'reports'),
+                                      'PHONE_RUNTIME_MODE': mode, 'PHONE_RUNTIME_ENTERED': str(root / 'entered')},
+                    text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                self.assertEqual(mode in ('parent-only', 'pass'), result.returncode == 0, result.stdout)
+                self.assertEqual(mode not in ('parent-only', 'partial'), (root / 'entered').exists())
+                if mode == 'skip':
+                    self.assertEqual(1, result.returncode)
+                if mode == 'failure':
+                    self.assertEqual(7, result.returncode)
+                if mode == 'false-success':
+                    self.assertEqual('1', ET.parse(root / 'reports/qml/TEST-phone-places.xml').getroot().get('errors'))
+
     def test_qml_runners_discover_common_qt5_host_tool_paths(self):
         for relative in ("common/tests/qml/run-qml-tests.sh", "common/tests/qml/run-endurance-tests.sh"):
             source = (ANDROID_ROOT / relative).read_text(encoding="utf-8")

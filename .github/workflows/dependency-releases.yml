@@ -35,7 +35,7 @@ jobs:
           python3 tools/dependency-releases/test.py
           python3 tools/dependency-releases/check.py check
           if [[ "$TARGET_BRANCH" != main && "$GITHUB_EVENT_NAME" == pull_request ]]; then
-            git fetch --no-tags https://github.com/noah-be/overte.git main
+            git fetch --no-tags https://github.com/noah-l-frank/overte.git main
             python3 tools/dependency-releases/check.py check --canonical-ref FETCH_HEAD
           fi
 

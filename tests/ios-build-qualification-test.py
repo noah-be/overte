@@ -411,7 +411,7 @@ class HistoryTests(unittest.TestCase):
                  "head_branch": "apple-ios" if item["id"] == 1 else "ci/ios/example",
                  "status": "completed", "conclusion": "failure", "event": "pull_request",
                  "created_at": f"2026-09-26T10:0{item['id']}:00Z",
-                 "html_url": f"https://github.com/noah-be/overte/actions/runs/{9000 + item['id']}"}
+                 "html_url": f"https://github.com/noah-l-frank/overte/actions/runs/{9000 + item['id']}"}
                 for item in workflows]
         responses = {
             f"repos/{HISTORY.REPOSITORY}/actions/workflows?per_page=100":
@@ -462,7 +462,7 @@ class HistoryTests(unittest.TestCase):
         def run(number, conclusion, source):
             return {"id": number, "run_attempt": 1, "run_number": number, "head_sha": source,
                     "head_branch": "apple-ios", "status": "completed", "conclusion": conclusion,
-                    "html_url": f"https://github.com/noah-be/overte/actions/runs/{number}",
+                    "html_url": f"https://github.com/noah-l-frank/overte/actions/runs/{number}",
                     "created_at": f"2026-09-{number - 650:02d}", "event": "push"}
         runs = [run(687, "failure", SOURCE), run(684, "success", SOURCE), run(669, "success", "c" * 40)]
         jobs = {687: [{"name": HISTORY.BUILD_JOB, "conclusion": "failure"}],
