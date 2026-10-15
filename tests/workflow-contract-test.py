@@ -171,7 +171,14 @@ class LightweightWorkflowContracts(unittest.TestCase):
             source = path.read_text(encoding="utf-8")
             self.assertEqual(workflow_events(source)['push']['paths-ignore'], ['**/*.md'])
         source = CODEQL_WORKFLOW.read_text(encoding="utf-8")
-        self.assertEqual(workflow_events(source)['pull_request']['paths-ignore'], ['**/*.md'])
+        canonical = (ROOT / "tools/repository-checks/workflows/codeql-results.yml").read_text()
+        if source == canonical:
+            # Required context is published for docs; the immutable selector
+            # omits both analyzer jobs, rather than omitting the entire check.
+            self.assertNotIn('paths-ignore', workflow_events(source)['pull_request'])
+            self.assertIn("if: needs.select.outputs.scan == 'true'", source)
+        else:
+            self.assertEqual(workflow_events(source)['pull_request']['paths-ignore'], ['**/*.md'])
 
     def test_app_test_workflows_exclude_markdown(self):
         aggregate = (WORKFLOW_DIRECTORY / "repository-checks.yml").read_text(encoding="utf-8")
