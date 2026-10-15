@@ -1,0 +1,24 @@
+// Copyright 2026 Overte contributors.
+// SPDX-License-Identifier: Apache-2.0
+// Test-only source prerequisite. No parent implementation is copied into Phone.
+gradle.projectsEvaluated {
+    def preview = gradle.startParameter.projectProperties['overteWebPreviewRoot']
+    def expected = gradle.startParameter.projectProperties['overteWebPreviewSha']
+    if (!preview || !expected || !(expected ==~ /[a-f0-9]{40}/)) {
+        throw new GradleException('Explicit clean common Web preview and full SHA are required')
+    }
+    def checkout = new File(preview).canonicalFile
+    def head = new ProcessBuilder('git', '-C', checkout.path, 'rev-parse', 'HEAD').start()
+    def actual = head.inputStream.text.trim()
+    if (head.waitFor() != 0 || actual != expected) throw new GradleException('Common Web preview SHA mismatch')
+    def clean = new ProcessBuilder('git', '-C', checkout.path, 'status', '--porcelain').start()
+    if (clean.inputStream.text.trim() || clean.waitFor() != 0) throw new GradleException('Common Web preview is dirty')
+    allprojects { project ->
+        if (project.plugins.hasPlugin('java')) {
+            def dirs = project.sourceSets.main.java.srcDirs.findAll {
+                !it.path.replace('\\', '/').endsWith('/android/common/web/java')
+            }
+            project.sourceSets.main.java.setSrcDirs(dirs + new File(checkout, 'android/common/web/java'))
+        }
+    }
+}
