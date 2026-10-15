@@ -69,6 +69,14 @@ def candidate_process_environment():
     stripped.update(name for name in os.environ if re.fullmatch(r"GIT_CONFIG_(?:KEY|VALUE)_[0-9]+", name))
     fixed = {"GIT_CONFIG_COUNT": "2", "GIT_CONFIG_KEY_0": "maintenance.auto", "GIT_CONFIG_VALUE_0": "false",
              "GIT_CONFIG_KEY_1": "gc.auto", "GIT_CONFIG_VALUE_1": "0"}
+    # Preserve the invocation path: resolving this symlink would select the base
+    # interpreter's bin directory and discard the prepared virtualenv semantics.
+    python_bin = Path(sys.executable).parent
+    fixed["PATH"] = str(python_bin) + os.pathsep + os.environ.get("PATH", os.defpath)
+    virtual = sys.prefix != sys.base_prefix
+    if virtual:
+        fixed["VIRTUAL_ENV"] = sys.prefix
+    stripped.add("VIRTUAL_ENV")
     affected = stripped | set(fixed)
     previous = {name: os.environ.get(name) for name in affected}
     try:
@@ -82,6 +90,12 @@ def candidate_process_environment():
                 os.environ.pop(name, None)
             else:
                 os.environ[name] = value
+
+
+def capture_execution_environment():
+    """Observe the same normalized process environment used by suite children."""
+    with candidate_process_environment():
+        return runtime.capture_host_environment()
 
 
 def _runner():
@@ -217,7 +231,7 @@ def execute(candidate, suite_names=None, *, include_platform=False, junit=None, 
     controller = _runner()
     environment = None
     try:
-        environment = runtime.capture_host_environment()
+        environment = capture_execution_environment()
     except runtime.RuntimeIdentityError as error:
         # Unknown runtime means no omission may be justified by a cached proof.
         names = list(registry["suites"])
@@ -266,7 +280,7 @@ def execute(candidate, suite_names=None, *, include_platform=False, junit=None, 
         raise ExecutionError("candidate changed during trusted suite execution")
     if environment is not None:
         try:
-            if runtime.capture_host_environment() != environment:
+            if capture_execution_environment() != environment:
                 raise ExecutionError("host environment changed during trusted suite execution")
         except runtime.RuntimeIdentityError as error:
             raise ExecutionError("host environment became unverifiable during execution") from error
