@@ -1,0 +1,102 @@
+# Dormant reuse of the original tested environment
+
+[`attested.py`](../tools/test-evidence/attested.py) prepares a cheap terminal for
+complete shared-suite reuse. It does not install or measure an unused consumer's
+Qt, Java, Node or Python test environment. Both parent and candidate source
+fingerprints retain the **exact original recorded execution environment**. The
+result explicitly has `consumer_environment: null` and `execution: null`; it
+does not claim tests ran on the consumer VM.
+
+The fixed trusted [admission policy](../.github/attested-runtime.json) ships with
+`enabled: false`. No active workflow calls this module, no public CLI or enable
+flag exists, and existing sync validation retains fresh actual-environment
+measurement and full fallback behavior. Enabling the policy alone is not a safe
+activation procedure: the additional source-level `ACTIVATION_READY = False`
+guard rejects the terminal even with enabled trusted policy. Removing it requires
+reviewed authenticated producer integration and a new qualification of those
+changed controller bytes.
+
+## Admission is separate from producer authentication
+
+`validate_environment(environment, qualified_at, expires_at, now)` checks recorded
+data against the trusted current contract. Its return value authenticates
+neither a producer nor a passed test. `plan_zero_shared(...)` likewise only
+compares complete source inputs. Callers must never treat JSON, a hash or the
+shape of either result as API provenance.
+
+The dormant `verify_zero_shared_sync(args, api=...)` uses the existing live sync
+gate before and after work. It preserves that gate's actual guarantees and
+limitations. The legacy gate currently lacks independent artifact API archive
+digest/size validation and a complete independently approved producer source
+chain. Artifact API metadata identifies a run, not an uploading job. The separate
+[producer API protocol](PRODUCER_API_PROOF.md), complete publisher/owner proof and
+credential/report isolation across all concurrent candidate jobs remain
+activation prerequisites. This preparation does not resolve or bypass them.
+
+## Bounded supported runtime generation
+
+Admission requires the exact schema/profile and reviewed Ubuntu 24.04 x86_64
+GitHub-hosted contract, CPython 3.12 in an isolated controller virtualenv with
+both Python aliases bound, Node 22/npm 10, JDK 17, Qt 5.15/6.4, all recorded tool
+and GLM digests, and complete original package inventories. Unknown/missing
+fields, unreviewed flags, Python site/lookup overrides and changed fixture
+variants are rejected. Original versions, binary hashes, package inventories,
+backends, image/kernel and namespace identities remain unchanged fingerprint
+inputs; supported versions are not declared equivalent to each other.
+
+The current recursive exact requirement pins must match the original installed
+Python package inventory. Every actual producer/controller/requirement file hash
+must also match the current trusted files. The runtime capture now includes the
+admission module and policy bytes themselves. An epoch, policy, requirement or
+controller change therefore invalidates earlier proof. There is no implicit
+compatibility allowlist. Turning the disabled policy on first requires a new
+qualification containing those enabled policy bytes.
+
+The original qualification must follow the reviewed epoch's `not_before`, stay
+within its maximum 72-hour lifetime and remain unexpired through terminal
+completion. The receipt preserves original run/attempt, qualification and expiry;
+it never renews them. Consumer admission records its own current policy digest
+separately from the original environment and source provenance.
+
+## Zero-selection terminal boundary
+
+The terminal independently verifies the exact live synchronization and local
+immutable merge. Every current shared suite must have successful matching full
+parent/candidate inputs under the admitted original environment. A single
+required, context-sensitive, missing or failing suite makes this terminal
+unavailable. It has no automatic retry, fallback, dispatch or check publication.
+
+The candidate's immutable ordinary `tests/platform-profile.json` must declare
+**no product suites**. This terminal cannot certify an unexecuted iOS or Android
+host suite. Those platforms need a separate complete authenticated owner before
+a future handoff can use this boundary. Existing bounded documentation/tool
+profiles retain their own owners.
+
+The existing branch differential runs exactly once with candidate credentials
+removed. Its own real syntax-check prerequisites remain necessary when selected;
+the terminal neither installs them nor skips a missing tool. It writes only the
+one actually executed differential JUnit case. Reused suites are listed in the
+receipt and are not fabricated as locally executed passing cases.
+
+After the differential, the terminal rechecks the immutable checkout, live
+classification, full original evidence/API gate facts, complete source plan,
+current policy hashes, live parent/base/head/merge and original expiry. Changed,
+pending, missing, incompatible or failed proof cannot produce this result.
+
+## Verification
+
+```bash
+python3 tests/run-project-tests.py --suite attested-runtime
+python3 tools/test-evidence/runtime-test.py
+python3 tools/test-evidence/registry-test.py
+python3 tests/host-producer-preparation-test.py
+```
+
+The required `attested-runtime` quick/host suite uses fake API facts and real
+temporary immutable Git checkouts. It covers disabled policy, source/history and
+package/controller drift, malformed or incompatible environments, exact flags,
+epoch/expiry changes, missing/failed/context suites, nonempty platform ownership,
+final authority/ref changes and policy mutation during the real differential.
+It executes no product build, installation, dispatch or network request. Its
+initial repository closure is conservative because fixtures read the complete
+trusted controller, registry, sync policy and recursive requirement graph.

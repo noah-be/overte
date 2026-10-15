@@ -1315,6 +1315,26 @@
           "tests/host-producer-preparation-test.py"
         ]
       }
+    },
+    "attested-runtime": {
+      "command": [
+        "python",
+        "tools/test-evidence/attested-test.py"
+      ],
+      "layer": "quick",
+      "scope": "content",
+      "environment": "host-qt5-qt6",
+      "closure": {
+        "kind": "repository",
+        "inputs": [],
+        "required": [
+          "tools/test-evidence/attested.py",
+          "tools/test-evidence/attested-test.py",
+          ".github/attested-runtime.json",
+          "tools/test-evidence/validate-sync.py",
+          "tools/test-evidence/validate-sync-test.py"
+        ]
+      }
     }
   }
 }
