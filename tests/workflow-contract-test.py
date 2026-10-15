@@ -643,6 +643,42 @@ class ArchivedRefRetirementContracts(unittest.TestCase):
         self.assertEqual([len(batch) for batch in batches], [4, 4, 4, 1])
         self.assertEqual([source for batch in batches for source in batch], sources)
 
+def assert_reviewed_host_selection(case, source):
+    """Accept the exact reviewed successor while retaining execution authority."""
+    template = ROOT / 'tools/repository-checks/workflows/host/project-tests.yml'
+    case.assertEqual(source, template.read_text(encoding='utf-8'))
+    jobs = workflow_data(source)['jobs']
+    host = jobs['project-tests']
+    case.assertEqual(host['if'], "needs.route.outputs.package_host_mode == 'full'")
+    steps = host['steps']
+    case.assertEqual(steps[0]['with']['ref'], '${{ github.event.repository.default_branch }}')
+    case.assertEqual(steps[0]['with']['path'], 'trusted')
+    case.assertEqual(steps[1]['with']['path'], 'candidate')
+    for step in steps:
+        if 'checkout@' in step.get('uses', ''):
+            case.assertIs(step['with']['persist-credentials'], False)
+    selection = next(step for step in steps if step.get('id') == 'host')
+    execution = next(step for step in steps if step['name'] == 'Run independently selected host contracts')
+    case.assertIn('--select-only --output "$GITHUB_OUTPUT"', selection['run'])
+    case.assertIn('build/host-tests-env/bin/python trusted/tools/repository-checks/host_selection.py', execution['run'])
+    for step in (selection, execution):
+        case.assertIn('--candidate candidate', step['run'])
+        case.assertIn('--event "$GITHUB_EVENT_PATH" --sha "$GITHUB_SHA"', step['run'])
+        case.assertIn('--expected-plan "$EXPECTED_PLAN"', step['run'])
+        case.assertEqual(step['env']['EXPECTED_PLAN'], '${{ needs.route.outputs.package_plan }}')
+    qt = next(step for step in steps if step['name'] == 'Install QML and portable C++ contract prerequisites')
+    case.assertEqual(qt['if'], "steps.host.outputs.full_host == 'true'")
+    runs = '\n'.join(step.get('run', '') for step in steps)
+    case.assertIn('-r candidate/tests/requirements-host.txt', runs)
+    case.assertNotIn('python candidate/tests/run-project-tests.py', runs)
+    final = jobs['project-results']
+    case.assertEqual(final['if'], 'always()')
+    case.assertIn('project-tests', final['needs'])
+    verify = final['steps'][-1]
+    case.assertEqual(verify['env']['CHECK_RESULTS'], '${{ toJSON(needs) }}')
+    case.assertIn('trusted/tools/repository-checks/package_checks.py verify', verify['run'])
+
+
 class ProjectWorkflowContracts(unittest.TestCase):
     def test_tool_dependency_lane_is_bounded_and_selected_by_the_trusted_router(self):
         jobs = workflow_data(WORKFLOW.read_text())['jobs']
@@ -715,7 +751,10 @@ class ProjectWorkflowContracts(unittest.TestCase):
     def test_ci_runs_complete_device_control_plane_with_qml(self):
         self.assertIn("qml-module-qttest", self.source)
         self.assertIn("qtdeclarative5-dev-tools", self.source)
-        self.assertIn("--profile host --timeout 240 --host-timeout 900", self.source)
+        if 'trusted/tools/repository-checks/host_selection.py' in self.source:
+            assert_reviewed_host_selection(self, self.source)
+        else:
+            self.assertIn("--profile host --timeout 240 --host-timeout 900", self.source)
         self.assertIn("device-e2e-control-plane.xml", self.source)
 
 
@@ -798,6 +837,8 @@ class HostWorkflowRoutingContracts(unittest.TestCase):
                     self.assertIn("--candidate candidate --include-platform --timeout 240 --host-timeout 900", runs)
                     self.assertNotIn("python tests/run-project-tests.py", source)
                     self.assertNotIn("candidate/tests/run-project-tests.py", source)
+                elif 'trusted/tools/repository-checks/host_selection.py' in source:
+                    assert_reviewed_host_selection(self, source)
                 else:
                     self.assertIn("-r tests/requirements-host.txt", runs)
                     self.assertEqual(runs.count("tests/run-project-tests.py"), 1)
