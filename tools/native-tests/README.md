@@ -228,12 +228,15 @@ independently of Actions cache eviction. The published immutable digest and inpu
 hashes are recorded for review before updating the native consumer. Publishing a
 package is not a product release and does not activate the native gate.
 
-This migration does not relocate the reviewed dependency image. Existing
-consumer `@sha256` references retain the original `ghcr.io/noah-be` address and
-original producer metadata. New manual productions use the current repository
-name and publish only to `ghcr.io/noah-l-frank/overte/native-dependencies`.
-Registry availability and publishing authorization for that new namespace must
-be verified before a real publication; the rename itself is not image evidence.
+Current consumers use `ghcr.io/noah-l-frank/overte/native-dependencies` with the
+same reviewed immutable digest. The former registry address stopped resolving
+in CI after the account rename. Before changing the address, verify the manifest
+digest at the current address and check its original package metadata against
+the candidate's locked dependency inputs. Preserve that metadata and its
+historical producer name; changing the download address does not create a new
+image or qualification. New manual productions use the current repository name
+and publish only to this current namespace. Registry availability and publishing
+authorization must still be verified before a real publication.
 The package verifier accepts the two exact producer names of this repository
 while retaining every locked-input hash check.
 
