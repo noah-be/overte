@@ -18,7 +18,25 @@ HELPER = ROOT / "tools/repository-checks/browser_cpu.py"
 SPEC = importlib.util.spec_from_file_location("browser_cpu_selection", HELPER)
 BROWSER = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(BROWSER)
-LEGACY = (ROOT / BROWSER.WORKFLOW).read_bytes()
+def reviewed_legacy_fixture():
+    """Recover the immutable reviewed fixture without assuming activation state."""
+    current = BROWSER.canonical_workflow().decode()
+    assert current.count('jobs:\n') == current.count('  browser:\n') == current.count('\n  verify:\n') == 1
+    legacy = (current[:current.index('jobs:\n') + len('jobs:\n')]
+              + current[current.index('  browser:\n'):current.index('\n  verify:\n')])
+    selection = "    needs: route\n    if: needs.route.outputs.mode == 'full'\n"
+    assert legacy.count(selection) == 2
+    legacy = legacy.replace(selection, '')
+    audit = ("      - name: Audit changed browser package inputs\n"
+             "        if: needs.route.outputs.audit == 'true'\n"
+             "        run: npm audit --audit-level=high\n")
+    assert legacy.count(audit) == 1
+    legacy = legacy.replace(audit, '').encode()
+    assert BROWSER._blob(legacy) == BROWSER.REVIEWED_WORKFLOW
+    return legacy
+
+
+LEGACY = reviewed_legacy_fixture()
 
 
 class BrowserCpuTests(unittest.TestCase):
