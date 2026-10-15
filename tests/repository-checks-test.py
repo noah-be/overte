@@ -28,6 +28,10 @@ PACKAGE_SPEC = importlib.util.spec_from_file_location(
     "package_checks_test", ROOT / "tools/repository-checks/package_checks.py")
 PACKAGES = importlib.util.module_from_spec(PACKAGE_SPEC)
 PACKAGE_SPEC.loader.exec_module(PACKAGES)
+CONSUMER_SPEC = importlib.util.spec_from_file_location(
+    "npm_consumers_test", ROOT / "tools/repository-checks/npm_consumers.py")
+CONSUMERS = importlib.util.module_from_spec(CONSUMER_SPEC)
+CONSUMER_SPEC.loader.exec_module(CONSUMERS)
 
 
 def event(base="main", head="fix/main/example", fork=False):
@@ -1171,6 +1175,299 @@ class PackageChecksTests(unittest.TestCase):
         for step in steps:
             if step.get('name') in ('Set up Python', 'Set up Java', 'Install QML and portable C++ contract prerequisites'):
                 self.assertEqual(step['if'], "steps.route.outputs.package_host_mode == 'full'")
+
+
+class NpmConsumerSelectionTests(unittest.TestCase):
+    """Exercise source-bound decisions with actual immutable Git objects."""
+
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory(prefix='overte-npm-consumer-selection-')
+        self.addCleanup(directory.cleanup)
+        self.outer = Path(directory.name)
+        self.root = self.outer / 'repo'
+        self.root.mkdir()
+        self.git('init', '-q')
+        self.policies = deepcopy(CONSUMERS.PROJECTS)
+        for project, policy in self.policies.items():
+            folder = self.root / project
+            folder.mkdir(parents=True)
+            (folder / 'package.json').write_text('{"private":true}\n')
+            (folder / 'consumer.js').write_text('module.exports = 1;\n')
+            self.write_lock(project, policy['old'])
+        self.base = self.commit()
+        snapshot = CONSUMERS._snapshot(self.root, self.base)
+        for project, policy in self.policies.items():
+            policy['complement'] = CONSUMERS._digest(CONSUMERS._complement(snapshot, project))
+            policy['entries'] = 2
+            policy['graph'] = CONSUMERS._digest(CONSUMERS._graph(self.lock(project), policy['node']))
+        patched = patch.dict(CONSUMERS.PROJECTS, self.policies, clear=True)
+        patched.start()
+        self.addCleanup(patched.stop)
+
+    def git(self, *args):
+        return subprocess.check_output(['git', '-c', 'user.name=Fixture',
+            '-c', 'user.email=fixture@example.invalid', *args], cwd=self.root,
+            stderr=subprocess.PIPE, text=True).strip()
+
+    def commit(self):
+        self.git('add', '--all')
+        self.git('commit', '-qm', 'Update immutable fixture')
+        return self.git('rev-parse', 'HEAD')
+
+    def lock(self, project):
+        return json.loads((self.root / project / 'package-lock.json').read_text())
+
+    def write_lock(self, project, dependency=None, *, value=None):
+        policy = self.policies[project]
+        value = value if value is not None else {'name': 'fixture', 'lockfileVersion': 3,
+            'packages': {'': {'name': 'fixture'}, policy['node']: dependency,
+                         'node_modules/unchanged': {'version': '1.0.0'}}}
+        (self.root / project / 'package-lock.json').write_text(json.dumps(value) + '\n')
+
+    def update(self, *projects):
+        for project in projects or self.policies:
+            self.write_lock(project, self.policies[project]['new'])
+
+    def selected(self, base=None):
+        return CONSUMERS.select(self.root, base or self.base, self.commit())
+
+    def assert_profiles(self, result, browser, s3):
+        self.assertFalse(result['unknown'])
+        self.assertEqual({p: r['profile'] for p, r in result['projects'].items()},
+                         {CONSUMERS.BROWSER: browser, CONSUMERS.S3: s3})
+
+    def test_exact_dependency_updates_have_independent_owners(self):
+        self.update()
+        result = self.selected()
+        self.assert_profiles(result, 'source-map-postcss-v1', 'proxy-addr-express-v1')
+        for project, selected in result['projects'].items():
+            self.assertTrue(selected['required'])
+            self.assertEqual(selected['changed_nodes'], [self.policies[project]['node']])
+            self.assertEqual(selected['execution'], 'not-performed')
+
+    def test_one_package_update_does_not_select_the_other(self):
+        self.update(CONSUMERS.S3)
+        self.assert_profiles(self.selected(), 'none', 'proxy-addr-express-v1')
+
+    def test_unrelated_ci_native_and_symlink_inputs_do_not_expand_package_owners(self):
+        self.update()
+        (self.root / 'native.cpp').write_text('int value;\n')
+        (self.root / 'ci.py').write_text('print(1)\n')
+        (self.root / 'unrelated-link').symlink_to('native.cpp')
+        self.assert_profiles(self.selected(), 'source-map-postcss-v1', 'proxy-addr-express-v1')
+
+    def test_changed_consumer_requires_full_for_its_package_only(self):
+        self.update()
+        (self.root / CONSUMERS.BROWSER / 'consumer.js').write_text('module.exports = 2;\n')
+        self.assert_profiles(self.selected(), 'full', 'proxy-addr-express-v1')
+
+    def test_historical_consumer_difference_cannot_use_a_new_reader_anchor(self):
+        (self.root / CONSUMERS.BROWSER / 'consumer.js').write_text('module.exports = 99;\n')
+        historical = self.commit()
+        self.update()
+        self.assert_profiles(self.selected(historical), 'full', 'proxy-addr-express-v1')
+
+    def test_other_dependency_changes_invalidate_the_focused_profile(self):
+        self.update()
+        lock = self.lock(CONSUMERS.BROWSER)
+        lock['packages']['node_modules/unchanged']['version'] = '2.0.0'
+        self.write_lock(CONSUMERS.BROWSER, value=lock)
+        self.assert_profiles(self.selected(), 'full', 'proxy-addr-express-v1')
+
+    def test_equal_unreviewed_historical_lock_graph_is_not_a_reviewed_profile(self):
+        lock = self.lock(CONSUMERS.BROWSER)
+        lock['packages']['node_modules/unchanged']['version'] = '9.0.0'
+        self.write_lock(CONSUMERS.BROWSER, value=lock)
+        historical = self.commit()
+        lock['packages'][self.policies[CONSUMERS.BROWSER]['node']] = self.policies[CONSUMERS.BROWSER]['new']
+        self.write_lock(CONSUMERS.BROWSER, value=lock)
+        self.assert_profiles(self.selected(historical), 'full', 'none')
+
+    def test_new_root_postcss_config_requires_browser_verification(self):
+        (self.root / 'postcss.config.cjs').write_text('module.exports = {};\n')
+        self.assert_profiles(self.selected(), 'full', 'none')
+
+    def test_new_root_npm_config_selects_both_packages(self):
+        (self.root / '.npmrc').write_text('legacy-peer-deps=true\n')
+        self.assert_profiles(self.selected(), 'full', 'full')
+
+    def test_postcss_config_directory_symlink_cannot_escape_discovery(self):
+        (self.root / '.config').symlink_to('/tmp', target_is_directory=True)
+        self.assert_profiles(self.selected(), 'full', 'none')
+
+    def test_unchanged_historical_config_does_not_start_unrelated_browser_tests(self):
+        (self.root / 'postcss.config.cjs').write_text('module.exports = {};\n')
+        historical = self.commit()
+        (self.root / 'native.cpp').write_text('int value;\n')
+        self.assert_profiles(self.selected(historical), 'none', 'none')
+
+    def test_lock_formatting_with_identical_reviewed_semantics_requires_no_execution(self):
+        project = CONSUMERS.BROWSER
+        (self.root / project / 'package-lock.json').write_text(json.dumps(self.lock(project), indent=4))
+        result = self.selected()
+        self.assert_profiles(result, 'none', 'none')
+        self.assertEqual(result['projects'][project]['reason'], 'reviewed-lockfile-format-only')
+
+    def test_dependency_downgrade_is_not_an_approved_security_update(self):
+        self.update()
+        upgraded = self.commit()
+        self.write_lock(CONSUMERS.BROWSER, self.policies[CONSUMERS.BROWSER]['old'])
+        self.assert_profiles(self.selected(upgraded), 'full', 'none')
+
+    def test_lock_symlink_and_mode_changes_require_full_for_affected_package(self):
+        for mode in ('symlink', 'executable'):
+            with self.subTest(mode=mode):
+                self.git('reset', '--hard', self.base)
+                path = self.root / CONSUMERS.BROWSER / 'package-lock.json'
+                if mode == 'symlink':
+                    path.unlink()
+                    path.symlink_to('package.json')
+                else:
+                    path.chmod(0o755)
+                self.assert_profiles(self.selected(), 'full', 'none')
+
+    def test_duplicate_fields_nonfinite_and_malformed_json_cannot_omit_execution(self):
+        for content in ('{"lockfileVersion":3,"lockfileVersion":3,"packages":{}}',
+                        '{"lockfileVersion":3,"packages":{},"bad":NaN}', '{'):
+            with self.subTest(content=content):
+                self.git('reset', '--hard', self.base)
+                (self.root / CONSUMERS.BROWSER / 'package-lock.json').write_text(content)
+                self.assert_profiles(self.selected(), 'full', 'none')
+
+    def test_invalid_commit_identity_is_unknown_and_never_a_pass(self):
+        for base in ('HEAD', '0' * 40, None):
+            with self.subTest(base=base):
+                result = CONSUMERS.select(self.root, base, self.base)
+                self.assertTrue(result['unknown'])
+                for value in result['projects'].values():
+                    self.assertEqual(value['profile'], 'full')
+                    self.assertTrue(value['required'])
+                    self.assertEqual(value['execution'], 'not-performed')
+
+    def run_consumers(self, selection, projects=None, *, failure=None, node='v22.23.3', npm='10.9.9'):
+        self.commands = []
+        real_run = CONSUMERS.subprocess.run
+        def process(arguments, **kwargs):
+            if arguments[0] == 'git':
+                return real_run(arguments, **kwargs)
+            self.commands.append(list(arguments))
+            environment = kwargs['env']
+            self.assertEqual(environment['NODE_OPTIONS'], '')
+            self.assertEqual(environment['NODE_PATH'], '')
+            for key in ('GH_TOKEN', 'GITHUB_TOKEN', 'GITHUB_OUTPUT', 'ACTIONS_RUNTIME_TOKEN',
+                        'npm_config_registry', 'NPM_CONFIG_REGISTRY'):
+                self.assertNotIn(key, environment)
+            for key in ('NPM_CONFIG_USERCONFIG', 'NPM_CONFIG_GLOBALCONFIG'):
+                self.assertEqual(Path(environment[key]).read_text(), '')
+            if arguments[0].endswith('/npm') and arguments[1:] != ['--version']:
+                self.assertEqual(arguments[-3:], ['--prefix', str(kwargs['cwd']), '--workspaces=false'])
+            if failure and arguments[1:3] == failure:
+                raise subprocess.CalledProcessError(1, arguments)
+            if arguments[1:] == ['--version']:
+                return SimpleNamespace(stdout=(node if arguments[0].endswith('node') else npm) + '\n')
+            return SimpleNamespace(returncode=0)
+        with patch.object(CONSUMERS.subprocess, 'run', side_effect=process), \
+                patch.object(CONSUMERS.shutil, 'which', side_effect=lambda name, **kwargs: '/reviewed/bin/' + name):
+            return CONSUMERS.run(self.root, selection, projects or list(self.policies))
+
+    def test_focused_execution_has_one_install_and_audit_per_package_and_no_build(self):
+        self.update()
+        selection = self.selected()
+        private = {'GH_TOKEN': 'fixture-secret', 'GITHUB_OUTPUT': 'fixture-command',
+                   'ACTIONS_RUNTIME_TOKEN': 'fixture-token', 'NODE_OPTIONS': '--bad-fixture-option',
+                   'NODE_PATH': '/fixture/path', 'npm_config_registry': 'https://example.invalid'}
+        with patch.dict(os.environ, private):
+            result = self.run_consumers(selection)
+            self.assertEqual(os.environ['GH_TOKEN'], private['GH_TOKEN'])
+        self.assertTrue(result['verified'])
+        self.assertEqual(result['application_builds'], 0)
+        commands = [args[1:-3] if args[0].endswith('/npm') else args[1:] for args in self.commands[2:]]
+        self.assertEqual(commands.count(['ci', '--ignore-scripts', '--no-fund', '--no-audit']), 2)
+        self.assertEqual(commands.count(['audit', '--audit-level=low']), 2)
+        self.assertEqual(commands.count(['test', '--ignore-scripts']), 1)
+        self.assertEqual(len(commands), 7)
+        self.assertTrue(all('build' not in args and 'playwright' not in args and 'vite' not in args
+                            for args in commands))
+
+    def test_security_audit_failure_stops_probes_and_prevents_a_receipt(self):
+        self.update()
+        with self.assertRaises(subprocess.CalledProcessError):
+            self.run_consumers(self.selected(), failure=['audit', '--audit-level=low'])
+        self.assertEqual([args[1] for args in self.commands], ['--version', '--version', 'ci', 'audit'])
+
+    def test_unqualified_node_or_npm_cannot_execute_a_focused_profile(self):
+        self.update()
+        selection = self.selected()
+        for versions in ({'node': 'v24.1.0'}, {'node': 'v22.11.0'}, {'npm': '11.0.0'}):
+            with self.subTest(versions=versions), self.assertRaises(CONSUMERS.ConsumerError):
+                self.run_consumers(selection, **versions)
+            self.assertEqual(len(self.commands), 2)
+
+    def test_forged_selection_is_recomputed_before_any_package_process(self):
+        self.update()
+        selection = self.selected()
+        selection['projects'][CONSUMERS.BROWSER]['boundary'] = {}
+        with self.assertRaises(CONSUMERS.ConsumerError):
+            self.run_consumers(selection)
+        self.assertEqual(self.commands, [])
+
+    def test_ignored_materialized_npm_config_cannot_override_git_inventory(self):
+        (self.root / '.gitignore').write_text('.npmrc\n')
+        self.base = self.commit()
+        self.update()
+        selection = self.selected()
+        (self.root / CONSUMERS.BROWSER / '.npmrc').write_text('registry=https://example.invalid\n')
+        with self.assertRaises(CONSUMERS.ConsumerError):
+            self.run_consumers(selection)
+        self.assertEqual(self.commands, [])
+
+    def test_external_workspace_and_project_config_are_disabled_by_explicit_package_prefix(self):
+        self.update()
+        selection = self.selected()
+        (self.outer / 'package.json').write_text(json.dumps({'private': True,
+            'workspaces': ['repo/browser-client', 'repo/script-archive/marketplace/S3Server']}))
+        (self.outer / '.npmrc').write_text('registry=http://127.0.0.1:9/\nignore-scripts=false\n')
+        result = self.run_consumers(selection)
+        self.assertTrue(result['verified'])
+        self.assertEqual(result['application_builds'], 0)
+
+    def test_candidate_plan_keeps_focus_opt_in_internal_and_mixed_host_owner_independent(self):
+        self.update()
+        (self.root / 'native.cpp').write_text('int value;\n')
+        head = self.commit()
+        payload = {'repository': event()['repository'], 'before': self.base,
+                   'after': head, 'ref': 'refs/heads/main', 'include_consumers': True}
+        real_load = PACKAGES.load
+        def load(name, relative):
+            return CONSUMERS if relative.endswith('/npm_consumers.py') else real_load(name, relative)
+        with patch.object(PACKAGES, 'load', side_effect=load):
+            legacy = PACKAGES.candidate_plan(self.root, payload, head)
+            focused = PACKAGES.candidate_plan(self.root, payload, head, include_consumers=True)
+        self.assertNotIn('dependency_profiles', legacy)
+        self.assertEqual(legacy['package_set'], [CONSUMERS.S3])
+        self.assertEqual(focused['host_mode'], 'full')
+        self.assertEqual(focused['package_set'], [CONSUMERS.S3, CONSUMERS.BROWSER])
+        self.assertEqual(focused['dependency_profiles']['projects'][CONSUMERS.BROWSER]['profile'],
+                         'source-map-postcss-v1')
+        self.assertNotEqual(focused['plan'], legacy['plan'])
+
+    def test_package_execution_never_duplicates_focused_projects_in_legacy_runner(self):
+        self.update()
+        head = self.commit()
+        payload = {'repository': event()['repository'], 'before': self.base,
+                   'after': head, 'ref': 'refs/heads/main'}
+        real_load = PACKAGES.load
+        def load(name, relative):
+            return CONSUMERS if relative.endswith('/npm_consumers.py') else real_load(name, relative)
+        with patch.object(PACKAGES, 'load', side_effect=load):
+            plan = PACKAGES.candidate_plan(self.root, payload, head, include_consumers=True)
+            with patch.object(CONSUMERS, 'run', return_value={'verified': True}) as focused, \
+                    patch.object(TOOLS, 'run') as legacy, patch.object(PACKAGES, 'tools', return_value=TOOLS):
+                self.assertEqual(PACKAGES.execute(self.root, plan, 'package-checks'),
+                                 PACKAGES.receipt(plan, 'package-checks'))
+            self.assertEqual(focused.call_count, 1)
+            self.assertEqual(focused.call_args.args[2], [CONSUMERS.S3, CONSUMERS.BROWSER])
+            legacy.assert_not_called()
 
 
 class CandidateTests(unittest.TestCase):

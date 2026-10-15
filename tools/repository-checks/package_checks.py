@@ -161,7 +161,9 @@ def _policy_inputs():
                   ".github/repository-checks.json", ".github/branch-policy.json",
                   "tests/run-project-tests.py", "tests/platform-profile.json",
                   "tools/sync-test-reuse/qualification.py"]
-    relatives += ["tools/repository-checks/" + name for name in ("check.py", "package_checks.py", "tool_dependencies.py", "host_selection.py")]
+    relatives += ["tools/repository-checks/" + name for name in (
+        "check.py", "package_checks.py", "tool_dependencies.py", "host_selection.py",
+        "npm_consumers.py", "npm-source-map-tests.cjs", "npm-proxy-addr-tests.cjs")]
     relatives += ["tools/test-evidence/" + name for name in ("run.py", "execution.py", "inputs.py", "runtime.py", "attested.py")]
     relatives += [".github/attested-runtime.json"]
     relatives += list(_requirement_paths())
@@ -212,7 +214,7 @@ def _digest(value):
     return hashlib.sha256((json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n").encode()).hexdigest()
 
 
-def candidate_plan(candidate, event, sha, *, include_browser=False):
+def candidate_plan(candidate, event, sha, *, include_browser=False, include_consumers=False):
     repository = event.get("repository", {})
     if repository.get("full_name") != REPOSITORY or repository.get("id") != REPOSITORY_ID:
         raise ValueError("package repository identity mismatch")
@@ -242,9 +244,18 @@ def candidate_plan(candidate, event, sha, *, include_browser=False):
     else:
         paths, regular, unknown = [], False, True
     legacy = checks.plan(event, paths, config, branches, regular)
+    consumers = None
+    if include_consumers:
+        consumers = load("package_npm_consumers", "tools/repository-checks/npm_consumers.py").select(candidate, base, sha)
+    focused_browser = (consumers is not None and consumers['projects'][BROWSER]['profile']
+                       in {'source-map-postcss-v1', 'none'})
     selected = select(paths, regular, legacy_mode=legacy["mode"],
                       legacy_projects=legacy.get("tool_projects", "").split(",") if legacy.get("tool_projects") else (),
-                      unknown=unknown, include_browser=include_browser)
+                      unknown=unknown, include_browser=include_browser or focused_browser)
+    if consumers is not None:
+        selected['package_set'] = [project for project in selected['package_set']
+                                  if consumers['projects'][project]['profile'] != 'none']
+        selected['dependency_profiles'] = consumers
     policy = _policy_inputs()
     result = {"schema": 1, "candidate": sha, "tree": _git(candidate, "rev-parse", "HEAD^{tree}"),
               "base": base, "head": head, "paths": paths, "regular": regular, "unknown": unknown,
@@ -403,8 +414,18 @@ def execute(candidate, plan, lane, *, include_browser=False):
     load("runtime", "tools/test-evidence/runtime.py")
     controller = load("package_process_boundary", "tools/test-evidence/execution.py")
     with controller.candidate_process_environment():
-        capability = {"include_browser": True} if include_browser else {}
-        tools().run(Path(candidate), projects, include_s3=True, **capability)
+        consumers = plan.get('dependency_profiles') if lane == 'package-checks' else None
+        focused = [project for project in projects if consumers is not None
+                   and consumers['projects'][project]['profile'] in {
+                       'source-map-postcss-v1', 'proxy-addr-express-v1'}]
+        if focused:
+            module = load("package_npm_consumer_execution", "tools/repository-checks/npm_consumers.py")
+            result = module.run(Path(candidate), consumers, focused)
+            print(json.dumps({'focused_npm_consumers': result}, sort_keys=True))
+        remaining = [project for project in projects if project not in focused]
+        if remaining:
+            capability = {"include_browser": True} if include_browser else {}
+            tools().run(Path(candidate), remaining, include_s3=True, **capability)
     if _git(candidate, "rev-parse", "HEAD") != plan["candidate"] or _git(candidate, "diff", "--name-only", "HEAD", "--"):
         raise ValueError("package source changed during execution")
     return receipt(plan, lane)

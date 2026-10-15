@@ -664,6 +664,47 @@ does not add a third install/build to the existing two Browser jobs. Preserve
 meaningful browser/native journey ownership until its replacement is separately
 reviewed; this helper does not activate a Browser gate or change any trigger.
 
+The separate `npm_consumers.py` capability is also internal and disabled in
+current CLI/workflow calls. With `candidate_plan(..., include_consumers=True)`,
+it independently compares complete immutable base and candidate trees and adds
+focused consumers to the required package plan. It recognizes only the reviewed
+`source-map-js` 1.2.1 to 1.2.2 update and `proxy-addr` 2.0.7 to 2.0.8 update.
+Both historical and candidate package readers, ancestor configuration discovery,
+all other lockfile entries and exact updated version/integrity metadata must
+match reviewed inputs. Other updates retain their existing package owners;
+unrelated CI/native changes neither expand nor replace package ownership.
+Formatting-only reviewed lock changes select no execution. Unknown metadata
+never becomes a passing test result.
+
+The focused executor independently recomputes its selection, requires a clean
+exact candidate and Node 22 (at least 22.12) with npm 10, disables ambient Node
+and npm configuration and rejects materialized untracked npm configuration.
+Every package npm command pins its exact package prefix and disables workspace
+discovery, so an outer workspace or project `.npmrc` cannot replace the checked
+package context.
+Each selected package receives one script-free `npm ci`, one complete
+`npm audit --audit-level=low` and its trusted functional probe. The S3 package
+also retains its existing `npm test` without pre/post lifecycle hooks. The
+source-map probe exercises mapping bounds, nested offsets, enumeration work,
+serialization, sorting without string code generation and actual PostCSS map
+consumption. The proxy probe exercises IPv4-mapped/IPv6 trust, forwarded chains
+and actual local Express request address behavior. Neither profile selects
+Vite, a Browser renderer/journey, or a native application build. These omissions
+apply to the finite reviewed dependency/consumer closure, not arbitrary npm
+updates. Live workflow activation must still atomically bind the required
+receipt and remove the duplicate legacy Browser jobs for these exact profiles.
+
+Run the source selection and execution-boundary regressions with:
+
+```bash
+python3 tests/repository-checks-test.py NpmConsumerSelectionTests -v
+```
+
+The actual locked Node 22 qualification passed both new dependency probes and
+both complete npm audits, preserved the S3 application test, and rejected the
+old dependency regressions separately. Local execution does not certify a
+hosted workflow, an activated merge gate, or a Browser/native journey.
+
 The ordinary shared-host receipt producer is also staged and inactive. Its
 alternate full workflow is
 `tools/repository-checks/workflows/producers/project-tests.yml`; the existing
