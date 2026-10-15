@@ -199,7 +199,15 @@
         "kind": "repository",
         "inputs": [],
         "required": [
-          "tests/ios-build-qualification-test.py"
+          "tests/ios-build-qualification-test.py",
+          "tools/ios-build-qualification/check.py",
+          "tools/ios-build-qualification/host.py",
+          "tools/ios-build-qualification/inputs.py",
+          "tools/ios-build-qualification/host-workflow.yml",
+          "tools/ios-build-qualification/workflow.yml",
+          "tools/ios-build-qualification/fixtures/host-launcher-52f.sh",
+          ".github/ios-host-orchestration.json",
+          ".github/ios-build-qualification.json"
         ]
       }
     },

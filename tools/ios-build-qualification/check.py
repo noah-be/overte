@@ -62,6 +62,33 @@ def input_selector(policy_root=ROOT):
     return module
 
 
+def host_handoff(policy_root=ROOT):
+    """Older explicit policy fixtures retain their exact legacy protocol."""
+    if not (policy_root / ".github/ios-host-orchestration.json").is_file():
+        return None
+    path = ROOT / "tools/ios-build-qualification/host.py"
+    spec = importlib.util.spec_from_file_location("trusted_ios_host_handoff", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@contextmanager
+def fresh_host_candidate(event, candidate, source, *, policy_root=ROOT):
+    """Next-generation PRs require live bookends; manual routes remain full."""
+    handoff = host_handoff(policy_root)
+    selected = (handoff is not None and event is not None and candidate is not None
+                and event.get("pull_request") is not None
+                and handoff.participates(candidate, source, event, policy_root=policy_root))
+    if not selected:
+        yield
+        return
+    before = handoff.fresh_context(event, candidate, source, policy_root=policy_root)
+    yield
+    require(handoff.fresh_context(event, candidate, source, policy_root=policy_root) == before,
+            "current iOS PR metadata changed during trusted verification")
+
+
 def validate_wiring(candidate, event, policy_root=ROOT):
     """Called by the independently required, default-branch repository router.
 
@@ -69,6 +96,11 @@ def validate_wiring(candidate, event, policy_root=ROOT):
     replacing its verifier. The flag is staged off until the workflow is deployed.
     """
     if event.get("pull_request", {}).get("base", {}).get("ref") != "apple-ios":
+        return
+    handoff = host_handoff(policy_root)
+    source = git(candidate, "rev-parse", "HEAD") if handoff is not None and (candidate / ".git").exists() else None
+    if source is not None and handoff.participates(candidate, source, event, policy_root=policy_root):
+        handoff.route(event, candidate, source, policy_root=policy_root)
         return
     config = configuration(policy_root)
     path = candidate / config["workflowPath"]
@@ -87,6 +119,9 @@ def route(event, candidate, expected_sha, *, policy_root=ROOT):
             "foreign repository")
     require(SHA.fullmatch(expected_sha), "invalid candidate revision")
     require(git(candidate, "rev-parse", "HEAD") == expected_sha, "wrong candidate checkout")
+    handoff = host_handoff(policy_root)
+    if handoff is not None and handoff.participates(candidate, expected_sha, event, policy_root=policy_root):
+        return handoff.route(event, candidate, expected_sha, policy_root=policy_root)
     pr = event.get("pull_request")
     if pr:
         require(pr["base"]["ref"] == "apple-ios", "qualification target must be apple-ios")
@@ -147,6 +182,19 @@ def verify_jobs(needs, source, *, event=None, candidate=None, policy_root=ROOT):
     require(isinstance(needs, dict) and set(needs) == JOBS, "incomplete qualification dependencies")
     require(needs["route"].get("result") == "success", "routing did not succeed")
     outputs = needs["route"].get("outputs", {})
+    handoff = host_handoff(policy_root)
+    next_generation = "generation" in outputs or handoff is not None and event is not None and candidate is not None \
+        and handoff.participates(candidate, source, event, policy_root=policy_root)
+    if next_generation:
+        require(handoff is not None and event is not None and candidate is not None,
+                "iOS host selection requires the independent event and exact candidate")
+        expected = handoff.route(event, candidate, source, policy_root=policy_root)
+        require(outputs == expected, "iOS host route differs from the independently recomputed candidate")
+        for name in ("host", "qt", "client"):
+            selected = expected["host_required" if name == "host" else "required"] == "true"
+            require(needs[name].get("result") == ("success" if selected else "skipped"),
+                    "iOS next-generation selected job failed, was skipped or was unexpectedly present: " + name)
+        return outputs
     require(outputs.get("source") == source and SHA.fullmatch(source), "route source mismatch")
     require(SHA.fullmatch(outputs.get("tree", "")), "missing candidate tree")
     required = outputs.get("required")
@@ -313,13 +361,18 @@ def verify_ipa(directory, source, build_number):
             "version": info.get("CFBundleShortVersionString"), "appBuild": info.get("CFBundleVersion")}
 
 
-def report(needs, source, build_number, run_id, attempt, directory, jobs, *, event=None, candidate=None, policy_root=ROOT):
+def report(needs, source, build_number, run_id, attempt, directory, jobs, *, event=None, candidate=None,
+           policy_root=ROOT, run_metadata=None):
     outputs = verify_jobs(needs, source, event=event, candidate=candidate, policy_root=policy_root)
     required = outputs["required"] == "true"
     require(all(type(value) is int and value > 0 for value in (build_number, run_id, attempt)),
             "invalid run identity")
     producer = verify_build_execution(jobs, run_id, attempt, outputs.get("head", source)) if required else None
     artifact = verify_ipa(directory, source, build_number) if required else None
+    host_producer = None
+    if "generation" in outputs and outputs["host_required"] == "true":
+        host_producer = host_handoff(policy_root).verify_execution(jobs, run_metadata, run_id, attempt,
+                                                                  outputs.get("head", source))
     result = {"schema": 1, "repository": REPOSITORY, "repositoryId": REPOSITORY_ID,
             "context": CONTEXT, "sourceRevision": source, "sourceTree": outputs["tree"],
             "baseRevision": outputs.get("base"), "headRevision": outputs.get("head"),
@@ -328,6 +381,10 @@ def report(needs, source, build_number, run_id, attempt, directory, jobs, *, eve
             "checks": "passed", "ipa": "verified" if required else "not-required",
             "reason": outputs["reason"], "artifact": artifact,
             "installation": "not-performed", "deviceAcceptance": "not-performed"}
+    if "generation" in outputs:
+        result["hostSelection"] = {"generation": outputs["generation"], "plan": outputs["selection"],
+            "inputs": outputs["host_inputs"], "applicationBuildRequired": required,
+            "iosHostRequired": outputs["host_required"] == "true", "producer": host_producer}
     if outputs["reason"] == "unchanged-tree":
         result["unchangedTreeProof"] = {"tree": outputs["tree"], "base": outputs["base"],
                                         "head": outputs["head"], "candidate": source}
@@ -351,6 +408,7 @@ def main():
     check.add_argument("--source", required=True)
     check.add_argument("--event", type=Path)
     check.add_argument("--candidate", type=Path)
+    check.add_argument("--run-metadata", type=Path)
     check.add_argument("--build-number", type=int, required=True)
     check.add_argument("--run-id", type=int, required=True)
     check.add_argument("--attempt", type=int, required=True)
@@ -360,8 +418,9 @@ def main():
     try:
         if args.command == "route":
             event = json.loads(args.event.read_text())
-            result = route(event, args.candidate, args.sha)
-            validate_wiring(args.candidate, event)
+            with fresh_host_candidate(event, args.candidate, args.sha):
+                result = route(event, args.candidate, args.sha)
+                validate_wiring(args.candidate, event)
             with args.output.open("a") as handle:
                 handle.write("".join(f"{key}={value}\n" for key, value in result.items()))
         else:
@@ -369,9 +428,11 @@ def main():
             with verification_candidate(needs, args.source,
                     event=json.loads(args.event.read_text()) if args.event is not None else None,
                     candidate=args.candidate) as (event, candidate):
-                result = report(needs, args.source, args.build_number, args.run_id, args.attempt,
-                                args.artifacts, json.loads(args.jobs.read_text()),
-                                event=event, candidate=candidate)
+                with fresh_host_candidate(event, candidate, args.source):
+                    result = report(needs, args.source, args.build_number, args.run_id, args.attempt,
+                                    args.artifacts, json.loads(args.jobs.read_text()),
+                                    event=event, candidate=candidate,
+                                    run_metadata=json.loads(args.run_metadata.read_text()) if args.run_metadata else None)
             args.output.parent.mkdir(parents=True, exist_ok=True)
             args.output.write_text(json.dumps(result, indent=2) + "\n")
             if os.environ.get("GITHUB_STEP_SUMMARY"):
