@@ -2,7 +2,7 @@
   "schema": 1,
   "repository": "noah-l-frank/overte",
   "repositoryId": 1319052603,
-  "activationTargets": [],
+  "activationTargets": ["apple-ios"],
   "reviewedSource": "52f1cc38180e96cdfd8049a4be93517961ae7dbd",
   "legacy": {
     ".github/workflows/ios-build-qualification.yml": {

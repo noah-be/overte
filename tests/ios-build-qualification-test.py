@@ -778,14 +778,14 @@ class HostGenerationTests(unittest.TestCase):
 
     def test_next_generation_requires_both_trusted_activation_controls(self):
         event, source = self.candidate({"docs/ios-fixture.md": "Independent documentation\n"})
-        with self.assertRaisesRegex(ValueError, "not qualified or activated"):
+        with patch.object(self.host, "SOURCE_READY", False), self.assertRaisesRegex(ValueError, "not qualified or activated"):
             self.host.route(event, self.root, source, policy_root=self.trusted)
         value = json.loads((self.trusted / self.host.POLICY).read_text());value["activationTargets"] = []
         (self.trusted / self.host.POLICY).write_text(json.dumps(value))
         with patch.object(self.host, "SOURCE_READY", True), self.assertRaisesRegex(ValueError, "not qualified or activated"):
             self.host.route(event, self.root, source, policy_root=self.trusted)
-        self.assertFalse(load("host").SOURCE_READY)
-        self.assertEqual(json.loads((ROOT / self.host.POLICY).read_text())["activationTargets"], [])
+        self.assertTrue(load("host").SOURCE_READY)
+        self.assertEqual(json.loads((ROOT / self.host.POLICY).read_text())["activationTargets"], ["apple-ios"])
 
     def bootstrap_tree(self):
         return self.git("rev-parse", self.legacy + "^{tree}")
@@ -884,7 +884,7 @@ class HostGenerationTests(unittest.TestCase):
                 self.host.fresh_context(event, self.root, source, policy_root=self.trusted)
         with patch.object(self.host, "SOURCE_READY", True), patch.object(self.host, "_api_get", side_effect=ValueError("unavailable")), self.assertRaises(ValueError):
             self.host.fresh_context(event, self.root, source, policy_root=self.trusted)
-        with patch.object(self.host, "_api_get") as api, self.assertRaisesRegex(ValueError, "not qualified or activated"):
+        with patch.object(self.host, "SOURCE_READY", False), patch.object(self.host, "_api_get") as api, self.assertRaisesRegex(ValueError, "not qualified or activated"):
             self.host.fresh_context(event, self.root, source, policy_root=self.trusted)
         api.assert_not_called()
 

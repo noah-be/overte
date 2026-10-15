@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Dormant complete-generation iOS host owner; no artifact or reuse authority."""
+"""Complete-generation iOS host owner; no artifact or reuse authority."""
 from __future__ import annotations
 
 import argparse
@@ -23,7 +23,7 @@ ROOT = Path(__file__).resolve().parents[2]
 POLICY = ".github/ios-host-orchestration.json"
 WORKFLOW = ".github/workflows/ios-build-qualification.yml"
 TEMPLATE = "tools/ios-build-qualification/host-workflow.yml"
-SOURCE_READY = False
+SOURCE_READY = True
 BOOTSTRAP_REVIEWED_SOURCE = "52f1cc38180e96cdfd8049a4be93517961ae7dbd"
 BOOTSTRAP_REVIEWED_TREE = "f5b44d19b5c64c96bc3f73f72c51519dbfbf08a3"
 REPOSITORY = "noah-l-frank/overte"

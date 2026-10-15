@@ -34,10 +34,50 @@ a fresh bare repository with a bounded, blob-filtered fetch from the fixed fork;
 it never checks out or executes candidate code. Missing metadata fails the gate.
 The result records `unchanged-tree`, no IPA and no new build claim.
 
-Every other change except ordinary Markdown-only changes requires a full
+In the legacy workflow, every other change except ordinary Markdown-only changes requires a full
 physical-device E2E app build. New or unrecognized paths therefore receive full
 coverage. Renamed source files, executable Markdown and symbolic links do not
 qualify for the documentation exception.
+
+## First host-only workflow deployment
+
+The protected default-branch host controller and
+[`ios-host-orchestration.json`](../.github/ios-host-orchestration.json) permit a
+first `apple-ios` PR using the exact
+[`host-workflow.yml`](../tools/ios-build-qualification/host-workflow.yml) generation.
+The source guard and target list authorize that trial. They do not establish a
+successful host run, application build, reusable artifact or device acceptance.
+Legacy input selection and all existing required contexts remain unchanged.
+
+The first lighter PR must start from reviewed source
+`52f1cc38180e96cdfd8049a4be93517961ae7dbd`, tree
+`f5b44d19b5c64c96bc3f73f72c51519dbfbf08a3`. Its complete immutable base/head/merge
+inventories may differ only at `.github/workflows/ios-build-qualification.yml`,
+replacing the exact legacy top workflow with the canonical host generation.
+The other five generation sources remain exact. A changed source tree,
+additional path, mode change or unrelated parent update requires fresh review;
+it cannot use the one-file bootstrap exception.
+
+That PR is the first end-to-end qualification. It requires the complete actual
+same-run Ubuntu host launcher, a successful test step and the existing
+`ios-device-build` final check, with fresh PR and branch-head API observations
+before and after trusted selection and verification. The new host receipt
+supports attempt 1 only. Missing, failed, cancelled, skipped or stale selected
+host work blocks merging. The Qt source build, client build, build-history
+lookup and IPA download/packaging are skipped for this exact workflow-only
+transition. No previous run is reused and no IPA is attributed to the candidate.
+
+Do not dispatch `ios-bootstrap` with every mode flag false to qualify this
+transition: that existing dispatch selects simulator and unsigned-device app
+builds. The one-file PR supplies its own required host evidence.
+
+After deployment, the changed top workflow invalidates the older general
+reader identity. Review the complete protected post-deployment source before
+enabling broader app-neutral selection. In particular, npm-only app omissions
+need applicable required Browser/S3 package owners with complete target wiring
+and actual same-candidate results; this trial does not add that permission.
+
+## Application build result verification
 
 For a required build, host tests, Qt provisioning and the complete client build
 must succeed. The final `ios-device-build` job uses `always()` and rejects missing,
