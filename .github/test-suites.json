@@ -83,6 +83,32 @@
         ]
       }
     },
+    "codeql-selection": {
+      "command": [
+        "python",
+        "tests/codeql-selection-test.py"
+      ],
+      "layer": "quick",
+      "scope": "content",
+      "environment": "host-qt5-qt6",
+      "closure": {
+        "kind": "patterns",
+        "inputs": [
+          "tests/codeql-selection-test.py",
+          "tools/repository-checks/codeql.py",
+          "tools/test-evidence/inputs.py",
+          ".github/workflows/codeql.yml",
+          ".github/codeql/codeql-config.yml"
+        ],
+        "required": [
+          "tests/codeql-selection-test.py",
+          "tools/repository-checks/codeql.py",
+          "tools/test-evidence/inputs.py",
+          ".github/workflows/codeql.yml",
+          ".github/codeql/codeql-config.yml"
+        ]
+      }
+    },
     "ios-build-qualification": {
       "command": [
         "python",

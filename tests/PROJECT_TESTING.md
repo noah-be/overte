@@ -262,6 +262,23 @@ merge candidate and the integrated parent commit remain distinct test inputs.
 
 ## Available project suites
 
+The `codeql-selection` quick suite tests the dormant
+[`tools/repository-checks/codeql.py`](../tools/repository-checks/codeql.py)
+language selector. It compares complete immutable Git trees, including deleted,
+renamed and mode-changed inputs, without importing candidate code. Pure Python
+changes select Python; JavaScript/TypeScript, templates and extracted data select
+JavaScript/TypeScript. Overlapping manifests, query-pack directories, shared
+controls, unknown inputs, incomplete inventories and unresolved aliases retain
+both languages. Scheduled scans always retain both languages.
+
+The helper does not control the active CodeQL workflow. Its tests run in the
+required quick and combined host profiles; the shared registry binds the test,
+helper, immutable-inventory module and actual CodeQL workflow/configuration.
+Future activation must use a trusted selector checkout and exact authenticated
+base/candidate commits, preserve whole-language scans and scheduled full scans,
+and review the helper's configuration hashes after changing CodeQL configuration
+or action versions. It selects languages, not individual files within a scan.
+
 The `test-evidence` quick suite checks trusted execution receipts, complete
 suite-input fingerprints, actual runtime identity and parent qualification.
 The shared registry is [`.github/test-suites.json`](../.github/test-suites.json).
@@ -302,6 +319,7 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `project-runner` | `quick` | `python3 tests/run-project-tests.py --suite project-runner` |
 | `python-test-runner` | `quick` | `python3 tests/run-project-tests.py --suite python-test-runner` |
 | `repository-checks` | `quick` | `python3 tests/run-project-tests.py --suite repository-checks` |
+| `codeql-selection` | `quick` | `python3 tests/run-project-tests.py --suite codeql-selection` |
 | `ios-build-qualification` | `quick` | `python3 tests/run-project-tests.py --suite ios-build-qualification` |
 | `repository-policy` | `quick` | `python3 tests/run-project-tests.py --suite repository-policy` |
 | `policy-consistency` | `quick` | `python3 tests/run-project-tests.py --suite policy-consistency` |
