@@ -223,6 +223,29 @@ class IsolatedConsumerTests(unittest.TestCase):
         self.assertEqual(result["reused_suites"], [])
         self.assertEqual(set(self.executed()), {"alpha", "beta"})
 
+    def test_parent_impact_report_cannot_replace_full_qualification_or_skip_sync_tests(self):
+        real_gate = VALIDATION._gate()
+        diagnostic = {"schema": 1, "kind": "host-impact-selection", "reusable": False,
+                      "candidate": self.parent, "tree": self.tree_sha,
+                      "selection": {"suites": ["alpha"], "full_host": False},
+                      "omitted_suites": ["beta"]}
+        request = SimpleNamespace(repository="noah-l-frank/overte", repository_id=1319052603,
+                                  parent="main", parent_sha=self.parent)
+        def verify(*arguments):
+            with patch.object(real_gate, "artifact_evidence", return_value=({}, diagnostic)):
+                try:
+                    return real_gate.verify_evidence(object(), {}, request)
+                except real_gate.EvidenceError as error:
+                    self.assertIn("mismatched schema", str(error))
+                    raise
+        self.gate.verify_evidence = verify
+        self.gate.EvidenceError = real_gate.EvidenceError
+        result = self.validate()
+        self.assertEqual(result["mode"], "fallback")
+        self.assertEqual(result["reused_suites"], [])
+        self.assertEqual(set(self.executed()), {"alpha", "beta"})
+        self.assertTrue(result["execution"]["include_platform"])
+
     def test_unknown_actual_runtime_executes_all_without_reusable_identity(self):
         result = self.validate(runtime_failure=runtime.RuntimeIdentityError("unsupported runtime"))
         self.assertEqual(result["reused_suites"], [])

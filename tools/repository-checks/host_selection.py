@@ -47,6 +47,7 @@ CI_POLICY = frozenset({
     '.github/workflows/branch-cleanup.yml', '.github/workflows/branch-policy.yml',
     # Complete tuple validation runs before selection; arbitrary edits fail.
     '.github/workflows/project-tests.yml', '.github/workflows/codeql.yml',
+    '.github/workflows/parent-qualification.yml',
     '.github/codeql/codeql-config.yml',
     '.github/workflows/browser-client.yml', '.github/workflows/browser-direct-client.yml',
     '.github/workflows/browser-client-atomic-settings.yml',
@@ -66,7 +67,7 @@ PROGRAM_INPUTS = (
     'tests/requirements*.txt', 'interface', 'interface/**', 'libraries', 'libraries/**',
     'scripts', 'scripts/**', 'domain-server', 'domain-server/**', 'provenance', 'provenance/**', 'tools/sbom', 'tools/sbom/**',
 )
-REVIEWED_PROGRAMS = 'd11f0f72421b9813842dc7dcf3e99497da5310eb5f5d1a4e407aca935033675a'
+REVIEWED_PROGRAMS = 'f3b49e26f5a0026c089fb92f73200a622fc4745cc0e83599a972ef2aac13969f'
 
 
 def program_digest(tree, root=ROOT):
@@ -160,6 +161,7 @@ def main():
     parser.add_argument('--junit', type=Path)
     parser.add_argument('--select-only', action='store_true')
     parser.add_argument('--output', type=Path)
+    parser.add_argument('--selection-report', type=Path)
     args = parser.parse_args()
     try:
         package = execution._runner()  # Trusted process cleanup/timeouts, never candidate runner code.
@@ -178,12 +180,22 @@ def main():
             selected = {'suites': list(registry['suites']), 'full_host': True,
                         'reason': 'new-or-changed-test-command-requires-full-verification'}
         selected['additional_suites'] = [name for name, _, _ in additions]
+        complete_receipt = selected['full_host'] and not additions
         print(json.dumps(selected, sort_keys=True), flush=True)
+        if args.selection_report is not None:
+            report = {'schema': 1, 'kind': 'host-impact-selection', 'reusable': False,
+                      'candidate': before[0], 'tree': before[1], 'package_plan': plan['plan'],
+                      'selection': selected,
+                      'omitted_suites': [name for name in registry['suites'] if name not in selected['suites']],
+                      'complete_receipt_required': complete_receipt}
+            args.selection_report.parent.mkdir(parents=True, exist_ok=True)
+            args.selection_report.write_text(json.dumps(report, sort_keys=True, indent=2) + '\n')
         if args.select_only:
             if args.output is None:
                 raise ValueError('selection requires its step output path')
             with args.output.open('a') as output:
                 output.write('full_host=' + str(selected['full_host']).lower() + '\n')
+                output.write('complete_receipt=' + str(complete_receipt).lower() + '\n')
             return 0
         if args.junit is None:
             raise ValueError('host execution requires a test report path')

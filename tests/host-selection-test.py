@@ -50,6 +50,7 @@ class HostSelectionTests(unittest.TestCase):
                        '.github/workflows/branch-cleanup.yml', 'docs/AUTOMATIC_BRANCH_CLEANUP.md'],
                       ['tools/repository-checks/check.py'], ['tests/workflow-contract-test.py'],
                       ['.github/workflows/project-tests.yml'],
+                      ['.github/workflows/parent-qualification.yml'],
                       ['.github/workflows/codeql.yml', '.github/codeql/codeql-config.yml'],
                       ['tools/ios-build-qualification/check.py', 'tests/ios-build-qualification-test.py']):
             with self.subTest(paths=paths):
@@ -166,9 +167,10 @@ class HostSelectionTests(unittest.TestCase):
             with self.subTest(field=field),self.assertRaises(ValueError):
                 HOST.additional_suites(candidate,self.registry)
 
-    def cli(self, runner_result=0, expected='c'*64, cancel=False, new_command=False, select_only=False):
+    def cli(self, runner_result=0, expected='c'*64, cancel=False, new_command=False, select_only=False, full_host=False):
         plan={'candidate':'a'*40,'plan':'c'*64,'host_mode':'full',
-              'paths':['tools/branch-cleanup/cleanup.py'],'regular':True,'unknown':False}
+              'paths':['interface/src/Application.cpp'] if full_host else ['tools/branch-cleanup/cleanup.py'],
+              'regular':True,'unknown':False}
         proposed=deepcopy(self.registry)
         if new_command:
             proposed['suites']['new-host-contract']=deepcopy(proposed['suites']['branch-cleanup'])
@@ -176,9 +178,10 @@ class HostSelectionTests(unittest.TestCase):
             proposed['suites']['new-host-contract']['command']=['python','tests/new-required-host-contract.py']
         policy=SimpleNamespace(validate_wiring=Mock(),candidate_plan=Mock(return_value=plan))
         def run(args,suites,cancelled):
-            if new_command:
+            if new_command or full_host:
                 self.assertTrue(self.all_names <= {suite[0] for suite in suites})
-                self.assertEqual(sum(command[-1]=='tests/new-required-host-contract.py' for _,_,command in suites),1)
+                if new_command:
+                    self.assertEqual(sum(command[-1]=='tests/new-required-host-contract.py' for _,_,command in suites),1)
             else:
                 self.assertEqual({suite[0] for suite in suites},self.ci_quick)
             if cancel:
@@ -191,6 +194,8 @@ class HostSelectionTests(unittest.TestCase):
             argv=['host_selection.py','--candidate',str(ROOT),'--event',str(event),'--sha','a'*40,
                   '--expected-plan',expected,'--junit',str(Path(folder)/'result.xml')]
             output=Path(folder)/'selection.txt'
+            report=Path(folder)/'selection.json'
+            argv += ['--selection-report',str(report)]
             if select_only:
                 argv += ['--select-only','--output',str(output)]
             before=signal.getsignal(signal.SIGTERM)
@@ -203,14 +208,80 @@ class HostSelectionTests(unittest.TestCase):
                  contextlib.redirect_stdout(io.StringIO()),contextlib.redirect_stderr(io.StringIO()):
                 result=HOST.main()
             controller.selection_output=output.read_text() if output.exists() else None
+            controller.selection_report=json.loads(report.read_text()) if report.exists() else None
             self.assertIs(signal.getsignal(signal.SIGTERM),before)
         return result,controller
 
     def test_new_candidate_host_command_forces_prerequisites_before_execution(self):
         result,controller=self.cli(new_command=True,select_only=True)
         self.assertEqual(result,0)
-        self.assertEqual(controller.selection_output,'full_host=true\n')
+        self.assertEqual(controller.selection_output,'full_host=true\ncomplete_receipt=false\n')
+        self.assertFalse(controller.selection_report['complete_receipt_required'])
         controller.run_suites.assert_not_called()
+
+    def test_partial_parent_plan_cannot_claim_full_or_reused_execution(self):
+        result,controller=self.cli(select_only=True)
+        self.assertEqual(result,0)
+        self.assertEqual(controller.selection_output,'full_host=false\ncomplete_receipt=false\n')
+        report=controller.selection_report
+        self.assertFalse(report['reusable'])
+        self.assertEqual(report['kind'],'host-impact-selection')
+        self.assertEqual(report['candidate'],'a'*40)
+        self.assertEqual(set(report['selection']['suites']),self.ci_quick)
+        self.assertEqual(set(report['omitted_suites']),self.all_names-self.ci_quick)
+        self.assertNotIn('results',report)
+        controller.run_suites.assert_not_called()
+
+    def test_product_parent_plan_keeps_legacy_complete_receipt_route(self):
+        result,controller=self.cli(select_only=True,full_host=True)
+        self.assertEqual(result,0)
+        self.assertEqual(controller.selection_output,'full_host=true\ncomplete_receipt=true\n')
+        self.assertTrue(controller.selection_report['complete_receipt_required'])
+        self.assertEqual(controller.selection_report['omitted_suites'],[])
+        controller.run_suites.assert_not_called()
+
+    def test_parent_template_keeps_full_receipts_separate_from_partial_execution(self):
+        import yaml
+        path=ROOT/'tools/repository-checks/workflows/host/parent-qualification.yml'
+        steps=yaml.safe_load(path.read_text())['jobs']['qualify-parent']['steps']
+        selection=next(s for s in steps if s.get('id')=='host')
+        qt=next(s for s in steps if s['name']=='Install QML and portable C++ contract prerequisites')
+        full=next(s for s in steps if s['name']=='Run complete host qualification')
+        partial=next(s for s in steps if s['name']=='Run independently selected parent host contracts')
+        self.assertLess(steps.index(selection),steps.index(qt))
+        self.assertEqual(qt['if'],"steps.host.outputs.full_host == 'true'")
+        self.assertEqual(full['if'],"steps.host.outputs.complete_receipt == 'true'")
+        self.assertIn("steps.host.outputs.complete_receipt == 'false'",partial['if'])
+        self.assertIn('trusted/tools/test-evidence/run.py',full['run'])
+        self.assertIn('trusted/tools/repository-checks/host_selection.py',partial['run'])
+        for name in ('Create content-addressed qualification evidence','Upload immutable qualification evidence'):
+            step=next(s for s in steps if s['name']==name)
+            self.assertEqual(step['if'],"steps.host.outputs.complete_receipt == 'true'")
+        upload=next(s for s in steps if s['name']=='Upload qualification test reports')
+        self.assertIn('host-selection.json',upload['with']['path'])
+        self.assertIn("always()",upload['if'])
+        generation=next(g for g in HOST.package_policy().workflow_generations() if g['name']=='parent-host-impact-v1')
+        import hashlib
+        raw=path.read_bytes()
+        expected=hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()
+        self.assertEqual(generation['workflows']['.github/workflows/parent-qualification.yml']['sha'],expected)
+
+    def test_parent_execution_route_rejects_missing_or_contradictory_outputs(self):
+        import yaml
+        import subprocess
+        path=ROOT/'tools/repository-checks/workflows/host/parent-qualification.yml'
+        steps=yaml.safe_load(path.read_text())['jobs']['qualify-parent']['steps']
+        check=next(s for s in steps if s['name']=='Require a complete host execution route')
+        select=next(s for s in steps if s.get('id')=='host')
+        qt=next(s for s in steps if s['name']=='Install QML and portable C++ contract prerequisites')
+        self.assertLess(steps.index(select),steps.index(check))
+        self.assertLess(steps.index(check),steps.index(qt))
+        for full in ('true','false','','unknown'):
+            for complete in ('true','false','','unknown'):
+                actual=subprocess.run(['/bin/bash','-c',check['run']],capture_output=True,
+                                      env={'FULL_HOST':full,'COMPLETE_RECEIPT':complete})
+                self.assertEqual(actual.returncode==0,(full,complete) in {
+                    ('true','true'),('true','false'),('false','false')},(full,complete))
 
     def test_new_candidate_command_is_required_and_failure_blocks_merging(self):
         result,controller=self.cli(new_command=True,runner_result=1)
@@ -220,6 +291,7 @@ class HostSelectionTests(unittest.TestCase):
     def test_cli_rejects_mismatched_candidate_plan_before_executing_any_command(self):
         result,controller=self.cli(expected='d'*64)
         self.assertEqual(result,1)
+        self.assertIsNone(controller.selection_report)
         controller.run_suites.assert_not_called()
 
     def test_cli_propagates_selected_suite_failure_instead_of_publishing_success(self):

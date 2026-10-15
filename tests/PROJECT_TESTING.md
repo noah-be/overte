@@ -784,6 +784,24 @@ Deployment requires the staged complete workflow tuple to be reviewed and landed
 on main before replacing the active callee. The unchanged required aggregate
 still blocks merging if host execution fails or is unexpectedly skipped.
 
+The staged `tools/repository-checks/workflows/host/parent-qualification.yml`
+applies the same impact selection to post-merge parent pushes. Its complete
+workflow tuple must land in trusted policy before deployment. Selection runs
+before Qt installation. Reviewed CI-only pushes run the CI groups; product,
+unknown, changed-reader and nonregular inputs retain the full host route.
+New candidate command variants run in the impact executor and cannot produce a
+legacy full-inventory receipt unless all commands have a supported receipt.
+
+A partial parent run uploads its real JUnit results and a diagnostic
+`host-selection.json` with the exact candidate, package plan, selected and
+omitted names, and `reusable: false`. That report makes no passing claim for
+omitted tests. It does not publish `qualification.json` or the legacy reusable
+qualification artifact. Complete executions retain the existing schema-2
+creator and full-inventory receipt checks. Until authenticated partial-evidence
+reuse is implemented, synchronization consumers treat an absent/partial parent
+qualification as unavailable and execute their required shared and platform
+tests. PR/push evidence reuse remains a separate unfinished optimization.
+
 The shared application-script group is a host group: its native chat wrapper
 requires Qt Quick Test and its other native wrappers exercise Qt/QML and C++
 contracts. Its commands and assertions are unchanged. The dependency-light quick
