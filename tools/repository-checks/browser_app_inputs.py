@@ -27,6 +27,7 @@ CODE_INPUTS = (
     'tools/repository-checks/android.py', 'tools/repository-checks/android_gate.py',
     'tools/repository-checks/android_handoff.py',
     'tools/ios-build-qualification/check.py', 'tools/ios-build-qualification/inputs.py',
+    'tools/ios-build-qualification/host.py',
     'tools/test-evidence/validate-sync.py', 'tools/sync-test-reuse/gate.py',
     'tools/sync-test-reuse/differential.py', 'tools/branch-policy/check.py',
     'tools/repository-checks/android-host-prepare.sh',
@@ -35,6 +36,7 @@ POLICY_INPUTS = (
     POLICY, '.github/browser-native-ownership.json', '.github/android-checks.json',
     '.github/android-orchestration.json', '.github/android-owner-transfer.json',
     '.github/ios-build-qualification.json',
+    '.github/ios-host-orchestration.json',
     '.github/sync-test-reuse.json',
 )
 
@@ -159,6 +161,7 @@ def owner_sources(policy_root):
         'tools/repository-checks/workflows/browser/repository-checks.yml',
         'tools/repository-checks/workflows/browser-direct-client.yml',
         'tools/repository-checks/workflows/repository-checks.yml',
+        'tools/ios-build-qualification/host-workflow.yml',
     }
     android = json.loads(package._trusted_bytes('.github/android-orchestration.json'))
     for generation in android['workflow_generations']:

@@ -289,7 +289,9 @@ class AppBoundaryTests(unittest.TestCase):
         self.assertIn('tools/repository-checks/package_checks.py', sources)
         self.assertIn('tools/sync-test-reuse/gate.py', sources)
         for name in ('.github/package-workflow-generations.json', '.github/browser-native-ownership.json',
-                     'tools/repository-checks/workflows/browser-client.yml'):
+                     'tools/repository-checks/workflows/browser-client.yml',
+                     'tools/ios-build-qualification/host.py', '.github/ios-host-orchestration.json',
+                     'tools/ios-build-qualification/host-workflow.yml'):
             path = self.trusted / name; before = path.read_bytes()
             path.write_bytes(before + b'\n')
             try:
