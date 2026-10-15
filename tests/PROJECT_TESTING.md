@@ -337,6 +337,21 @@ A stale boundary requires the application build, including a host-only change
 after an earlier reader edit. Repository-input equality keeps exact commit/tree
 provenance separate and never qualifies an older IPA for a new source revision.
 
+The iOS qualification verifier has a staged `inputSelection` setting in its
+trusted policy. An absent or false setting preserves the deployed workflow's
+legacy route and final report, including its broad ordinary-Markdown exemption.
+The enabled selector keeps packaged Markdown conservative, separates app-build
+and iOS-host decisions, and binds the complete candidate selection to a digest.
+The final verifier requires its own event and candidate checkout and recomputes
+every route field; it does not accept a caller's reason or skipped-job claim.
+
+No policy activation or workflow change is included. Enabled lightweight final
+reports fail until an independently authenticated shared host owner is wired.
+Before activation, stage that owner verification and the approved canonical
+workflow outputs (`host_required` and `selection`) and final event/candidate
+arguments through the parent policy. The existing template remains unchanged.
+Do not replace this missing evidence with another unconditional iOS-host run.
+
 Parent qualification uses the default-branch `tools/test-evidence/run.py`
 controller against a separate clean candidate checkout. It records actual
 executed suites and fingerprints rather than accepting the candidate runner's
