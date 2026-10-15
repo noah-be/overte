@@ -24,6 +24,7 @@ ROOT = Path(__file__).resolve().parents[2]
 REPOSITORY = "noah-l-frank/overte"
 REPOSITORY_ID = 1319052603
 S3 = "script-archive/marketplace/S3Server"
+BROWSER = "browser-client"
 TEMPLATES = ROOT / "tools/repository-checks/workflows/packages"
 TEMPLATE_NAMES = ("project-tests.yml", "parent-qualification.yml", "sync-validation.yml",
                   "repository-checks.yml", "repository-checks-direct.yml")
@@ -180,7 +181,7 @@ def tools():
     return load("package_owned_tools", "tools/repository-checks/tool_dependencies.py")
 
 
-def select(paths, regular=True, *, legacy_mode="full", legacy_projects=(), unknown=False):
+def select(paths, regular=True, *, legacy_mode="full", legacy_projects=(), unknown=False, include_browser=False):
     """OR-select S3 even when mixed/native/unknown changes keep host mode full."""
     for path in paths:
         if not isinstance(path, str):
@@ -190,10 +191,14 @@ def select(paths, regular=True, *, legacy_mode="full", legacy_projects=(), unkno
                 or p.is_absolute() or ".." in p.parts or str(p) != path:
             raise ValueError("invalid package input path")
     packages = [S3] if unknown or any(p == S3 or p.startswith(S3 + "/") for p in paths) else []
-    bounded = () if unknown else tools().affected_projects(paths, regular, include_s3=True)
+    browser_manifests = {BROWSER + "/package.json", BROWSER + "/package-lock.json"}
+    if include_browser and browser_manifests.intersection(paths):
+        packages.append(BROWSER)
+    capability = {"include_browser": True} if include_browser else {}
+    bounded = () if unknown else tools().affected_projects(paths, regular, include_s3=True, **capability)
     mode, projects = ("full", []) if unknown else (legacy_mode, list(legacy_projects))
     if bounded and legacy_mode not in {"delegated-sync", "documentation"}:
-        projects = [p for p in bounded if p != S3]
+        projects = [p for p in bounded if p not in {S3, BROWSER}]
         mode = "tool-dependencies" if projects else "package-dependencies"
     return {"host_mode": mode, "tool_projects": projects, "package_set": packages}
 
@@ -207,7 +212,7 @@ def _digest(value):
     return hashlib.sha256((json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n").encode()).hexdigest()
 
 
-def candidate_plan(candidate, event, sha):
+def candidate_plan(candidate, event, sha, *, include_browser=False):
     repository = event.get("repository", {})
     if repository.get("full_name") != REPOSITORY or repository.get("id") != REPOSITORY_ID:
         raise ValueError("package repository identity mismatch")
@@ -239,7 +244,7 @@ def candidate_plan(candidate, event, sha):
     legacy = checks.plan(event, paths, config, branches, regular)
     selected = select(paths, regular, legacy_mode=legacy["mode"],
                       legacy_projects=legacy.get("tool_projects", "").split(",") if legacy.get("tool_projects") else (),
-                      unknown=unknown)
+                      unknown=unknown, include_browser=include_browser)
     policy = _policy_inputs()
     result = {"schema": 1, "candidate": sha, "tree": _git(candidate, "rev-parse", "HEAD^{tree}"),
               "base": base, "head": head, "paths": paths, "regular": regular, "unknown": unknown,
@@ -372,10 +377,12 @@ def activated(event):
     return branch in targets
 
 
-def execute(candidate, plan, lane):
+def execute(candidate, plan, lane, *, include_browser=False):
     projects = plan["tool_projects"] if lane == "tool-dependencies" else plan["package_set"]
     if lane not in {"tool-dependencies", "package-checks"} or not projects:
         raise ValueError("no independently selected package execution lane")
+    # No CLI flag or candidate JSON enables this capability. Existing callers
+    # retain S3/tool ownership until the atomic Browser caller/trigger handoff.
     if _git(candidate, "rev-parse", "HEAD") != plan["candidate"] or _git(candidate, "status", "--porcelain", "--untracked-files=all"):
         raise ValueError("package source changed before execution")
     root = Path(candidate).resolve()
@@ -396,7 +403,8 @@ def execute(candidate, plan, lane):
     load("runtime", "tools/test-evidence/runtime.py")
     controller = load("package_process_boundary", "tools/test-evidence/execution.py")
     with controller.candidate_process_environment():
-        tools().run(Path(candidate), projects, include_s3=True)
+        capability = {"include_browser": True} if include_browser else {}
+        tools().run(Path(candidate), projects, include_s3=True, **capability)
     if _git(candidate, "rev-parse", "HEAD") != plan["candidate"] or _git(candidate, "diff", "--name-only", "HEAD", "--"):
         raise ValueError("package source changed during execution")
     return receipt(plan, lane)

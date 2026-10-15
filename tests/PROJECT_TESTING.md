@@ -641,6 +641,29 @@ workflow blobs in both the protected target and merge candidate, so partially
 propagated child branches retain full validation. Browser package profiling is
 separate work; this foundation does not remove browser build variants.
 
+The trusted package helpers additionally define an internal `include_browser`
+capability, disabled in every current CLI and workflow call. It recognizes only
+the exact Browser `package.json` and `package-lock.json` paths. With a trusted
+opt-in, their pure union with S3/JSDoc/server-console manifests selects the
+applicable package owners; mixed, unknown and nonregular inputs retain full host
+fallback and independent S3 coverage. Candidate JSON cannot enable this flag.
+
+The prepared Browser profile in `tool_dependencies.py` performs one install
+with scripts and the install audit disabled, one full `low` audit, the existing
+`npm run build`, and `npm test`. It verifies the reviewed build/prebuild/test
+script definitions and rejects new build/test lifecycle hooks before installing.
+The build still runs avatar preparation, which can read or fetch avatar inputs.
+Fake-command tests establish ordering and failure propagation only: no Browser
+build, unit suite, avatar preparation or E2E journey is qualified by this change.
+Development-only lock metadata does not authorize a journey omission.
+
+Deployment must bind the capability to independently recomputed required plans,
+exact complete caller generations and successful package receipts. Transfer
+standalone Browser manifest triggers atomically with that required owner so it
+does not add a third install/build to the existing two Browser jobs. Preserve
+meaningful browser/native journey ownership until its replacement is separately
+reviewed; this helper does not activate a Browser gate or change any trigger.
+
 The ordinary shared-host receipt producer is also staged and inactive. Its
 alternate full workflow is
 `tools/repository-checks/workflows/producers/project-tests.yml`; the existing
