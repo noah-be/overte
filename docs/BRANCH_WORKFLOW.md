@@ -232,6 +232,33 @@ new shadow modules from escaping an unchanged test fingerprint. These broad
 closures are explicit remaining selection work; they must not be narrowed
 without accounting for imports, generated inputs and all execution branches.
 
+Six reviewed suites now scope Python imports to complete directory inventories:
+documentation contracts use `tests`, release bundles use `tools/release`, and
+the embedded-web, Places, recorded-voice and Snapshot QML contracts use their
+respective `tests/device/contracts` directories. Their trusted `python_imports`
+definitions bind exact import roots and a reviewed module-inventory digest.
+Matching inventories replace the global Python import controls with every
+tracked input under those roots; unrelated Android Python helpers therefore do
+not invalidate these suites. Existing production, fixture, controller, runtime
+and ancestor Node package inputs remain required.
+
+The review covers the entrypoint, explicit imports and child interpreters, not
+just an observed successful import trace. Any changed, added, removed, renamed
+or mode-changed Python module, native extension or bytecode under an import
+root switches that suite to a complete repository closure. This also protects
+historical child drivers and new imports that read data outside the reviewed
+roots. Symlink or gitlink import inputs cannot authorize reuse. Unreviewed and
+new suites retain the existing conservative controls by default.
+Stale review metadata remains valid and uses that fallback; ordinary source
+changes do not require refreshing an optimization digest to pass CI.
+
+`tools/test-evidence/inputs.py` exposes `python_import_digest(tree, roots)` for
+recording an inventory after source review. The tree must come from immutable
+Git objects, including for sparse checkouts. Updating the digest without
+reviewing imports, path changes and nested interpreters does not establish a
+safe closure. The independently verified actual environment still applies to
+all reused suites; this refinement does not waive environment preparation.
+
 API failures retain their fail-closed outcome and report a bounded diagnostic:
 the CLI exit code and HTTP status when present, an operating-system errno, or
 an invalid-JSON category. Raw response bodies, stderr, commands and field values

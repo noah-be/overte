@@ -5,6 +5,7 @@ from copy import deepcopy
 import importlib.util
 import json
 from pathlib import Path
+import py_compile
 import shutil
 import subprocess
 import sys
@@ -40,7 +41,7 @@ class RegistryInventoryTests(unittest.TestCase):
                 self.assertEqual(registry["suites"][name]["layer"], suite.layer)
 
 
-class ImportResolutionIdentityTests(unittest.TestCase):
+class GitImportFixture:
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(prefix="overte-registry-resolution-")
         self.addCleanup(self.temporary.cleanup)
@@ -88,6 +89,8 @@ class ImportResolutionIdentityTests(unittest.TestCase):
         self.assertEqual(plan["reused"], [])
         self.assertEqual(plan["required"], [name])
 
+
+class ImportResolutionIdentityTests(GitImportFixture, unittest.TestCase):
     def test_added_python_shadow_module_invalidates_unchanged_test_entrypoint(self):
         name = "python-test-runner"
         registry = self.prepare_suite(name)
@@ -161,6 +164,232 @@ class ImportResolutionIdentityTests(unittest.TestCase):
                 self.assertIn(shadow, candidate)
                 self.assert_requires_execution(registry, name, parent, candidate)
                 (self.root / shadow).unlink()
+
+
+class ReviewedImportInventoryTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.registry = INPUTS.load_registry(ROOT / ".github/test-suites.json")
+        # Source reviews can legitimately become stale, or a future checkout
+        # can contain aliases that disable evidence entirely. Test policy
+        # behavior with immutable regular-file fixtures, not a requirement that
+        # every future repository tree remains eligible for this optimization.
+        cls.tree = {path: {"mode": "100644", "type": "blob", "sha": "f" * 40}
+                    for suite in cls.registry["suites"].values() for path in suite["closure"]["required"]}
+
+    def fingerprint(self, name, tree):
+        return INPUTS.suite_fingerprint(self.registry, name, tree, ENVIRONMENT)
+
+    def test_unreviewed_suites_keep_global_python_controls(self):
+        candidate = self.tree | {"android/phone/tools/unrelated-helper.py": {
+            "mode": "100644", "type": "blob", "sha": "a" * 40}}
+        for name, suite in self.registry["suites"].items():
+            if "python_imports" in suite:
+                continue
+            with self.subTest(suite=name):
+                self.assertNotEqual(self.fingerprint(name, self.tree), self.fingerprint(name, candidate))
+
+    def test_stale_review_metadata_remains_valid_with_repository_fallback(self):
+        registry = deepcopy(self.registry)
+        name = "documentation-contracts"
+        registry["suites"][name]["python_imports"]["reviewed"] = "sha256:" + "0" * 64
+        parent = INPUTS.suite_fingerprint(registry, name, self.tree, ENVIRONMENT)
+        candidate = self.tree | {"outside/data.txt": {"mode": "100644", "type": "blob", "sha": "a" * 40}}
+        # Stale optimization metadata is supported, not a CI failure requiring
+        # every future Python change to bless a new review digest.
+        self.assertNotEqual(parent, INPUTS.suite_fingerprint(registry, name, candidate, ENVIRONMENT))
+
+    def test_historical_or_changed_import_graph_uses_repository_data_closure(self):
+        for name, suite in self.registry["suites"].items():
+            if "python_imports" not in suite:
+                continue
+            with self.subTest(suite=name):
+                parent = deepcopy(self.tree)
+                # A historical child may contain a matching parent/candidate
+                # driver that imports outside the current reviewed graph.
+                parent[suite["command"][1]]["sha"] = "b" * 40
+                candidate = parent | {"unreviewed/data.txt": {
+                    "mode": "100644", "type": "blob", "sha": "c" * 40}}
+                self.assertNotEqual(self.fingerprint(name, parent), self.fingerprint(name, candidate))
+
+    def test_ancestor_node_package_controls_remain_global_after_python_review(self):
+        name = "embedded-web-qml"
+        for path in ("package.json", "tests/package.json", "tests/device/contracts/web/package.json"):
+            with self.subTest(path=path):
+                candidate = self.tree | {path: {"mode": "100644", "type": "blob", "sha": "d" * 40}}
+                self.assertNotEqual(self.fingerprint(name, self.tree), self.fingerprint(name, candidate))
+
+    def test_invalid_review_metadata_cannot_silently_narrow_inputs(self):
+        for value in ({}, {"roots": [], "reviewed": "sha256:" + "a" * 64},
+                      {"roots": ["tests/**"], "reviewed": "sha256:" + "a" * 64},
+                      {"roots": ["../tests"], "reviewed": "sha256:" + "a" * 64},
+                      {"roots": ["tests"], "reviewed": "unknown"},
+                      {"roots": ["outside"], "reviewed": "sha256:" + "a" * 64}):
+            registry = deepcopy(self.registry)
+            registry["suites"]["documentation-contracts"]["python_imports"] = value
+            with self.subTest(value=value), self.assertRaises(INPUTS.InputError):
+                INPUTS.suite_fingerprint(registry, "documentation-contracts", self.tree, ENVIRONMENT)
+
+    def test_nonstandard_python_entrypoint_cannot_escape_reviewed_module_inventory(self):
+        registry = deepcopy(self.registry)
+        definition = registry["suites"]["documentation-contracts"]
+        path = "tests/extensionless-driver"
+        definition["command"] = ["python", path]
+        definition["closure"]["inputs"].append(path)
+        definition["closure"]["required"].append(path)
+        tree = self.tree | {path: {"mode": "100644", "type": "blob", "sha": "a" * 40}}
+        # Such an entrypoint is executable Python but is not part of the
+        # reviewed .py module inventory. It needs a separate source review model.
+        with self.assertRaises(INPUTS.InputError):
+            INPUTS.suite_fingerprint(registry, "documentation-contracts", tree, ENVIRONMENT)
+
+
+class ReviewedImportGitTests(GitImportFixture, unittest.TestCase):
+    NAME = "embedded-web-qml"
+    DIRECTORY = "tests/device/contracts/web"
+    ENTRY = DIRECTORY + "/test_embedded_web_qml.py"
+
+    def prepare_review(self, source, files=None):
+        registry = self.prepare_suite(self.NAME)
+        self.write(self.ENTRY, source)
+        for path, content in (files or {}).items():
+            self.write(self.DIRECTORY + "/" + path, content)
+        parent = self.commit()
+        imports = registry["suites"][self.NAME]["python_imports"]
+        imports["reviewed"] = INPUTS.python_import_digest(parent, imports["roots"])
+        return registry, parent
+
+    def run_entry(self):
+        return subprocess.run([sys.executable, str(self.root / self.ENTRY)], cwd=self.root,
+                              text=True, capture_output=True)
+
+    def assert_unreviewed_graph_binds_external_data(self, registry, parent):
+        path = self.root / "outside/new-import-data.txt"
+        previous = path.read_text() if path.exists() else ""
+        self.write("outside/new-import-data.txt", previous + "read by an unreviewed module\n")
+        self.assert_requires_execution(registry, self.NAME, parent, self.commit())
+
+    def test_unrelated_android_helper_reuses_immutable_reviewed_fixture_proof(self):
+        registry, parent = self.prepare_review("import pathlib\nprint(pathlib.Path)\n")
+        fingerprint = INPUTS.suite_fingerprint(registry, self.NAME, parent, ENVIRONMENT)
+        self.write("android/phone/tools/unrelated-helper.py", "print('unrelated helper')\n")
+        candidate = self.commit()
+        self.assertEqual(fingerprint, INPUTS.suite_fingerprint(registry, self.NAME, candidate, ENVIRONMENT))
+        proof = {self.NAME: {"status": "passed", "fingerprint": fingerprint}}
+        self.assertEqual(INPUTS.plan_reuse(registry, parent, candidate, proof, ENVIRONMENT, ENVIRONMENT)["reused"], [self.NAME])
+
+    def test_new_regular_package_shadows_stdlib_and_cannot_establish_narrow_proof(self):
+        registry, parent = self.prepare_review("import pathlib\nprint(pathlib.Path)\n")
+        self.assertEqual(self.run_entry().returncode, 0)
+        self.write(self.DIRECTORY + "/pathlib/__init__.py", 'raise RuntimeError("new-package-shadow")\n')
+        candidate = self.commit()
+        result = self.run_entry()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("new-package-shadow", result.stderr)
+        self.assertEqual(parent[self.ENTRY], candidate[self.ENTRY])
+        self.assert_requires_execution(registry, self.NAME, parent, candidate)
+        self.assert_unreviewed_graph_binds_external_data(registry, candidate)
+
+    def test_namespace_package_changes_are_inputs(self):
+        registry, parent = self.prepare_review("from ambient_ns import helper\nprint(helper.VALUE)\n",
+                                               {"ambient_ns/helper.py": "VALUE = 42\n"})
+        self.assertEqual(self.run_entry().returncode, 0)
+        self.write(self.DIRECTORY + "/ambient_ns/__init__.py", 'raise RuntimeError("namespace-changed")\n')
+        candidate = self.commit()
+        self.assertIn("namespace-changed", self.run_entry().stderr)
+        self.assert_requires_execution(registry, self.NAME, parent, candidate)
+        self.assert_unreviewed_graph_binds_external_data(registry, candidate)
+
+    def test_changed_driver_explicit_import_root_keeps_transitive_external_data(self):
+        registry, parent = self.prepare_review("print('reviewed driver')\n")
+        self.write(self.ENTRY, "import sys\nsys.path.insert(0, 'unowned')\nimport helper\nprint(helper.VALUE)\n")
+        self.write("unowned/helper.py", "from pathlib import Path\nVALUE = Path('unowned/config.txt').read_text()\n")
+        self.write("unowned/config.txt", "first external input\n")
+        historical = self.commit()
+        self.assert_requires_execution(registry, self.NAME, parent, historical)
+        self.assertEqual(self.run_entry().stdout.strip(), "first external input")
+        self.write("unowned/config.txt", "changed external input\n")
+        candidate = self.commit()
+        self.assertEqual(historical[self.ENTRY], candidate[self.ENTRY])
+        self.assertEqual(self.run_entry().stdout.strip(), "changed external input")
+        self.assert_requires_execution(registry, self.NAME, historical, candidate)
+
+    def test_sourceless_bytecode_and_native_extension_change_actual_resolution(self):
+        for suffix in (".pyc", ".so"):
+            with self.subTest(suffix=suffix):
+                for path in (self.root / self.DIRECTORY).glob("pathlib.*"):
+                    path.unlink()
+                registry, parent = self.prepare_review("import pathlib\nprint(pathlib.Path)\n")
+                self.assertEqual(self.run_entry().returncode, 0)
+                path = self.root / self.DIRECTORY / ("pathlib" + suffix)
+                if suffix == ".pyc":
+                    source = self.root / "compile-source.py"
+                    source.write_text('raise RuntimeError("sourceless-shadow")\n', encoding="utf-8")
+                    py_compile.compile(str(source), cfile=str(path), doraise=True)
+                    source.unlink()
+                else:
+                    path.write_bytes(b"invalid native module: actual import must fail")
+                self.git("add", "--force", path.relative_to(self.root).as_posix())
+                candidate = self.commit()
+                self.assertNotEqual(self.run_entry().returncode, 0)
+                self.assert_requires_execution(registry, self.NAME, parent, candidate)
+                self.assert_unreviewed_graph_binds_external_data(registry, candidate)
+
+    def test_imported_helper_deletion_rename_and_mode_change_invalidate_proof(self):
+        registry, parent = self.prepare_review("from helper import VALUE\nprint(VALUE)\n", {"helper.py": "VALUE = 42\n"})
+        revision = self.git("rev-parse", "HEAD")
+        helper = self.root / self.DIRECTORY / "helper.py"
+        for change in ("delete", "rename", "mode"):
+            with self.subTest(change=change):
+                self.git("reset", "--hard", revision)
+                self.git("clean", "-fdx")
+                if change == "delete":
+                    helper.unlink()
+                elif change == "rename":
+                    helper.rename(helper.with_name("renamed.py"))
+                else:
+                    helper.chmod(0o755)
+                candidate = self.commit()
+                self.assertEqual(parent[self.ENTRY], candidate[self.ENTRY])
+                self.assert_requires_execution(registry, self.NAME, parent, candidate)
+                self.assert_unreviewed_graph_binds_external_data(registry, candidate)
+
+    def test_symlink_or_gitlink_import_directory_cannot_hide_external_modules(self):
+        registry, parent = self.prepare_review("import pathlib\n")
+        fingerprint = INPUTS.suite_fingerprint(registry, self.NAME, parent, ENVIRONMENT)
+        proof = {self.NAME: {"status": "passed", "fingerprint": fingerprint}}
+        for kind in ("symlink", "gitlink"):
+            with self.subTest(kind=kind):
+                if kind == "symlink":
+                    (self.root / self.DIRECTORY / "linked_package").symlink_to("../../../../../outside")
+                    candidate = self.commit()
+                    (self.root / self.DIRECTORY / "linked_package").unlink()
+                else:
+                    self.git("add", "-A")
+                    revision = self.git("rev-parse", "HEAD")
+                    self.git("update-index", "--add", "--cacheinfo", "160000," + revision + "," + self.DIRECTORY + "/vendor")
+                    self.git("commit", "-qm", "Record unproven package gitlink")
+                    candidate = INPUTS.full_tree(self.root)
+                with self.assertRaises(INPUTS.InputError):
+                    INPUTS.suite_fingerprint(registry, self.NAME, candidate, ENVIRONMENT)
+                self.assertEqual(INPUTS.plan_reuse(registry, parent, candidate, proof, ENVIRONMENT, ENVIRONMENT)["reused"], [])
+
+    def test_sparse_checkout_has_same_inventory_and_fingerprint_as_full_tree(self):
+        registry, parent = self.prepare_review("import pathlib\n")
+        self.write(".github/fixture.json", "{}\n")
+        parent = self.commit()
+        with tempfile.TemporaryDirectory(prefix="overte-import-sparse-") as temporary:
+            sparse = Path(temporary) / "candidate"
+            subprocess.run(["git", "clone", "--quiet", "--no-checkout", str(self.root), str(sparse)],
+                           check=True, capture_output=True)
+            for command in (("sparse-checkout", "init", "--cone"), ("sparse-checkout", "set", ".github"),
+                            ("checkout", "--quiet", "HEAD")):
+                subprocess.run(["git", *command], cwd=sparse, check=True, capture_output=True)
+            self.assertFalse((sparse / self.ENTRY).exists())
+            tree = INPUTS.full_tree(sparse)
+            self.assertEqual(tree, parent)
+            self.assertEqual(INPUTS.suite_fingerprint(registry, self.NAME, parent, ENVIRONMENT),
+                             INPUTS.suite_fingerprint(registry, self.NAME, tree, ENVIRONMENT))
 
 
 if __name__ == "__main__":
