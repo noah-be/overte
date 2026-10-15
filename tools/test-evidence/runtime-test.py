@@ -257,20 +257,20 @@ class RuntimeIdentityTests(unittest.TestCase):
             registry = root / ".github/test-suites.json"
             registry.write_text('{"suites":{"unrelated":"original"}}\n', encoding="utf-8")
             required, manifests = RUNTIME._requirement_inventory(root)
-            original = RUNTIME._trusted_execution(manifests, root)
+            original = RUNTIME._controller_file_hashes(manifests, root)
             self.assertEqual(required, {"pillow": "12.3.0", "pyyaml": "6.0.3"})
             self.assertIn("tests/requirements-repository.txt", original)
             self.assertNotIn(".github/test-suites.json", original)
             # The candidate tree can remain unchanged while trusted main has a
             # new process controller; the actual runtime identity must differ.
             (root / "tools/test-evidence/execution.py").write_text("# reviewed corrected controller\n", encoding="utf-8")
-            updated = RUNTIME._trusted_execution(manifests, root)
+            updated = RUNTIME._controller_file_hashes(manifests, root)
             self.assertNotEqual(original, updated)
             registry.write_text('{"suites":{"unrelated":"changed"}}\n', encoding="utf-8")
-            self.assertEqual(updated, RUNTIME._trusted_execution(manifests, root))
+            self.assertEqual(updated, RUNTIME._controller_file_hashes(manifests, root))
             (root / "tests/requirements-repository.txt").write_text("PyYAML==6.0.4\n", encoding="utf-8")
             _, changed_manifests = RUNTIME._requirement_inventory(root)
-            self.assertNotEqual(updated, RUNTIME._trusted_execution(changed_manifests, root))
+            self.assertNotEqual(updated, RUNTIME._controller_file_hashes(changed_manifests, root))
 
     def test_python_distribution_inventory_requires_actual_trusted_pins(self):
         distribution = SimpleNamespace(metadata={"Name": "PyYAML"}, version="6.0.3")
