@@ -392,6 +392,7 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `dependency-releases` | `quick` | `python3 tests/run-project-tests.py --suite dependency-releases` |
 | `test-evidence` | `quick` | `python3 tests/run-project-tests.py --suite test-evidence` |
 | `producer-proof` | `quick` | `python3 tests/run-project-tests.py --suite producer-proof` |
+| `host-producer-preparation` | `quick` | `python3 tests/run-project-tests.py --suite host-producer-preparation` |
 | `project-runner` | `quick` | `python3 tests/run-project-tests.py --suite project-runner` |
 | `python-test-runner` | `quick` | `python3 tests/run-project-tests.py --suite python-test-runner` |
 | `repository-checks` | `quick` | `python3 tests/run-project-tests.py --suite repository-checks` |
@@ -571,6 +572,38 @@ S3-only sync shortening additionally requires activation and exact approved
 workflow blobs in both the protected target and merge candidate, so partially
 propagated child branches retain full validation. Browser package profiling is
 separate work; this foundation does not remove browser build variants.
+
+The ordinary shared-host receipt producer is also staged and inactive. Its
+alternate full workflow is
+`tools/repository-checks/workflows/producers/project-tests.yml`; the existing
+package templates and active workflows remain unchanged. The full host job
+checks out trusted policy separately, installs its recursively pinned host/SBOM
+requirements into an external virtual environment, and runs the trusted
+`tools/test-evidence/run.py` against the exact clean candidate. It executes the
+complete trusted shared inventory plus validated branch-owned platform suites,
+retains the existing Qt5/Qt6, Node, Java and namespace prerequisites, and writes
+an actual execution receipt and JUnit report outside the candidate checkout.
+Failed suite runs keep their failure status and upload any resulting receipt
+for diagnosis. Missing receipts cannot certify success.
+
+`.github/package-workflow-generations.json` is trusted default-branch policy.
+It approves complete four-workflow Git blob/mode tuples for both existing
+package callers and their receipt-producing successors. Individual approved
+files cannot be mixed into an unapproved tuple. The same comparison applies to
+ordinary `.github`-only checkouts and independently authenticated API trees.
+Candidate generation manifests have no authority. The package plan binds the
+generation manifest, templates, actual trusted helper inputs and recursive
+requirements. Missing trusted inputs from an existing sparse layout are read
+as bounded ordinary blobs from its exact Git HEAD; ordinary deletions, aliases
+and unknown or corrupt policy fail closed.
+
+The `host-producer-preparation` quick suite covers this compatibility contract.
+Receipt artifacts are diagnostic execution records, not authenticated producer
+authority. A receipt's `reusable` field describes input/runtime eligibility; it
+does not authorize an omission. There is no early descriptor, publisher
+aggregate, API dispatch, artifact consumer or ordinary-PR reuse activation in
+this slice. Those require independent exact event/candidate/source/run-attempt
+authentication and complete owner verification before any checks can be waived.
 
 
 Prepare a native build with `OVERTE_BUILD_TESTS=ON` using the relevant

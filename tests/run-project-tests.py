@@ -29,6 +29,7 @@ SUITES = (
     Suite("dependency-releases", "quick", (sys.executable, "tools/dependency-releases/test.py")),
     Suite("test-evidence", "quick", (sys.executable, "tools/test-evidence/test.py")),
     Suite("producer-proof", "quick", (sys.executable, "tools/test-evidence/producer-test.py")),
+    Suite("host-producer-preparation", "quick", (sys.executable, "tests/host-producer-preparation-test.py")),
     Suite("project-runner", "quick", (sys.executable, "tests/project-suite-self-test.py")),
     Suite("python-test-runner", "quick", (sys.executable, "tests/unittest-runner-test.py")),
     Suite("repository-checks", "quick", (sys.executable, "tests/repository-checks-test.py")),
