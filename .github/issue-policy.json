@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "minimum_tool_revision": 3,
-  "repository": "noah-be/overte",
+  "minimum_tool_revision": 4,
+  "repository": "noah-l-frank/overte",
   "reference_issue": 599,
   "enforce_created_after": "2026-09-14T07:13:56Z",
   "kinds": {
@@ -136,6 +136,9 @@
     ]
   },
   "owner_completion": {
-    "approver": "noah-be"
+    "approver": "noah-l-frank",
+    "historical_approvers": [
+      "noah-be"
+    ]
   }
 }

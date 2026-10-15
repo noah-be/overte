@@ -32,6 +32,7 @@ TestCase {
             id: loginDialog
             signal handleLoginCompleted()
             signal handleLoginFailed()
+            signal handleDomainLoginFailed(string reason)
 
             function getDomainLoginRequested() { return testCase.domainRequested }
             function getDomainLoginDomain() { return testCase.requestedDomain }

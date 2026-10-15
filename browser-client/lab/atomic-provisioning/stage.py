@@ -146,7 +146,7 @@ def main(*,progress=None):
  repo=HERE.parents[2];sha=os.environ.get('PROBE_SOURCE_SHA','')
  if not re.fullmatch('[0-9a-f]{40}',sha)or subprocess.check_output(['git','-C',str(repo),'rev-parse','HEAD'],text=True,timeout=10,stderr=subprocess.PIPE).strip()!=sha:raise ValueError('exact-reviewed-source-required')
  staging_phase(progress,'fork-check')
- if os.environ.get('GITHUB_REPOSITORY')!='noah-be/overte':raise ValueError('authorized-fork-required')
+ if os.environ.get('GITHUB_REPOSITORY')!='noah-l-frank/overte':raise ValueError('authorized-fork-required')
  staging_phase(progress,'temporary-root')
  parent=Path(os.environ['RUNNER_TEMP']).resolve(strict=True)
  staging_phase(progress,'private-directories')

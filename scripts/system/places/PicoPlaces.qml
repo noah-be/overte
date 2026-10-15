@@ -229,10 +229,16 @@ Rectangle {
                         }
                         Text { Layout.fillWidth: true; text: placeDescription || placeAddress; color: "#dddddd"
                             elide: Text.ElideRight; font.pixelSize: Math.round(15 * touchMetrics.textScale) }
-                        RowLayout {
-                            Button { font.pixelSize: Math.round(16 * touchMetrics.textScale); objectName: "copyPlace"; text: qsTr("Copy address"); implicitHeight: root.controlHeight
+                        GridLayout {
+                            Layout.fillWidth: true
+                            // Reflow complete action labels instead of widening the list delegate.
+                            columns: placesList.width >= Math.ceil(copyPlaceAction.implicitWidth)
+                                + Math.ceil(createPlacePortalAction.implicitWidth) + columnSpacing ? 2 : 1
+                            Button { id: copyPlaceAction; Layout.fillWidth: true
+                                font.pixelSize: Math.round(16 * touchMetrics.textScale); objectName: "copyPlace"; text: qsTr("Copy address"); implicitHeight: root.controlHeight
                                 enabled: placeAddress !== ""; onClicked: root.dispatch("COPY_URL", {address: placeAddress}) }
-                            Button { font.pixelSize: Math.round(16 * touchMetrics.textScale); objectName: "createPlacePortal"; text: qsTr("Create portal"); implicitHeight: root.controlHeight
+                            Button { id: createPlacePortalAction; Layout.fillWidth: true
+                                font.pixelSize: Math.round(16 * touchMetrics.textScale); objectName: "createPlacePortal"; text: qsTr("Create portal"); implicitHeight: root.controlHeight
                                 enabled: placeAddress !== ""; onClicked: root.dispatch("REQUEST_PORTAL",
                                     {name: placeName, address: placeAddress, placeID: placeId}) }
                         }
