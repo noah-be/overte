@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bounded dependency checks for the documentation and server-console tools."""
+"""Bounded tool checks, with an explicit trusted-controller S3 capability."""
 
 from __future__ import annotations
 
@@ -12,17 +12,22 @@ import tempfile
 
 
 PROJECTS = ("server-console", "tools/jsdoc")
+S3_PROJECT = "script-archive/marketplace/S3Server"
+PACKAGE_PROJECTS = (*PROJECTS, S3_PROJECT)
 MANIFESTS = frozenset(f"{project}/{name}" for project in PROJECTS
                       for name in ("package.json", "package-lock.json"))
 
 
-def affected_projects(paths: list[str], regular: bool = True) -> tuple[str, ...]:
+def affected_projects(paths: list[str], regular: bool = True, *, include_s3: bool = False) -> tuple[str, ...]:
     """Only exact manifests and regular Markdown may share this narrow route."""
+    projects = PACKAGE_PROJECTS if include_s3 else PROJECTS
+    manifests = frozenset(f"{project}/{name}" for project in projects
+                          for name in ("package.json", "package-lock.json"))
     if (not regular or not paths
-            or any(path not in MANIFESTS and not path.endswith(".md") for path in paths)):
+            or any(path not in manifests and not path.endswith(".md") for path in paths)):
         return ()
-    return tuple(project for project in PROJECTS
-                 if any(path in MANIFESTS and path.startswith(project + "/") for path in paths))
+    return tuple(project for project in projects
+                 if any(path in manifests and path.startswith(project + "/") for path in paths))
 
 
 def push_projects(root: Path, event: dict) -> tuple[str, ...]:
@@ -63,13 +68,16 @@ def push_projects(root: Path, event: dict) -> tuple[str, ...]:
     return affected_projects(paths, regular)
 
 
-def validate_projects(projects: list[str]) -> None:
-    if not projects or len(projects) != len(set(projects)) or any(p not in PROJECTS for p in projects):
+def validate_projects(projects: list[str], *, include_s3: bool = False) -> None:
+    supported = PACKAGE_PROJECTS if include_s3 else PROJECTS
+    if not projects or len(projects) != len(set(projects)) or any(p not in supported for p in projects):
         raise ValueError("expected unique, explicitly supported tool projects")
 
 
-def run(root: Path, projects: list[str]) -> None:
-    validate_projects(projects)
+def run(root: Path, projects: list[str], *, include_s3: bool = False) -> None:
+    # Existing callers retain their exact two-project capability. The trusted
+    # staged package controller opts in only after recomputing the candidate.
+    validate_projects(projects, include_s3=include_s3)
     for project in projects:
         folder = root / project
         def command(*args: str) -> None:
@@ -79,9 +87,11 @@ def run(root: Path, projects: list[str]) -> None:
         if project == "server-console":
             command("npm", "test")
             command("node_modules/.bin/electron-packager", "--version")
-        else:
+        elif project == "tools/jsdoc":
             with tempfile.TemporaryDirectory(prefix="overte-jsdoc-check-") as output:
                 command("node_modules/.bin/jsdoc", "root.js", "-c", "config.json", "-d", output)
+        elif project == S3_PROJECT:
+            command("npm", "test")
 
 
 def main() -> None:

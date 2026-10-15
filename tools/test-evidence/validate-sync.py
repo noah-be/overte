@@ -171,6 +171,7 @@ def validate_sync(args, *, api=None):
     registry = inputs.load_registry(ROOT / ".github/test-suites.json")
     started = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     evidence, observed, reused, executed, projects = None, None, [], [], []
+    external_packages = []
     bounded = args.mode == "reuse" and request.profile in ("documentation", "tool-dependencies")
     if args.mode == "reuse":
         # Keep every branch differential assertion even when all common suites
@@ -179,10 +180,24 @@ def validate_sync(args, *, api=None):
     if bounded:
         with candidate_environment():
             if request.profile == "tool-dependencies":
-                projects = list(gate.tool_dependencies.affected_projects(list(request.changed_paths)))
-                if not projects:
+                paths = list(request.changed_paths)
+                s3 = "script-archive/marketplace/S3Server"
+                if any(path == s3 or path.startswith(s3 + "/") for path in paths):
+                    packages = gate.package_checks
+                    policy_event = {"repository": {"full_name": request.repository, "id": request.repository_id},
+                                    "pull_request": {"base": {"ref": request.base}}}
+                    if not packages.activated(policy_event):
+                        raise ValidationError("S3 bounded checks are not activated by trusted policy")
+                    packages.validate_wiring(candidate)
+                    selected = list(gate.tool_dependencies.affected_projects(paths, include_s3=True))
+                    external_packages = [s3] if s3 in selected else []
+                    projects = [project for project in selected if project != s3]
+                else:
+                    projects = list(gate.tool_dependencies.affected_projects(paths))
+                if not projects and not external_packages:
                     raise ValidationError("bounded tool profile has no validated affected project")
-                gate.tool_dependencies.run(candidate, projects)
+                if projects:
+                    gate.tool_dependencies.run(candidate, projects)
         _bounded_junit(args.junit, projects)
         mode = request.profile
     else:
@@ -256,6 +271,10 @@ def validate_sync(args, *, api=None):
         "conclusion": "success", "started_at": started,
         "completed_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     }
+    if external_packages:
+        # The required project aggregate owns these checks. This consumer does
+        # not claim their execution or fabricate a successful JUnit case.
+        result["external_package_set"] = external_packages
     result["receipt_digest"] = execution.digest(result)
     execution._write_receipt(args.receipt, result)
     return result

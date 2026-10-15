@@ -431,6 +431,43 @@ workflows, package behavior checks and security checks retain their ownership.
 This is an exact manifest exemption: accompanying native/build inputs, unknown
 neighboring files and non-regular changes retain conservative native validation.
 
+The S3Server required-package foundation is dormant. Its controller is
+`tools/repository-checks/package_checks.py`; its exact prospective workflows are
+in `tools/repository-checks/workflows/packages/`. Active workflow files and
+activation settings remain unchanged. The existing tool CLI still accepts only
+`server-console` and `tools/jsdoc`; adding S3 to a caller string cannot bypass
+the full host checks.
+
+The prospective controller independently computes two decisions from the exact
+candidate: `host_mode` and an OR-selected `package_set`. Regular S3
+`package.json`/`package-lock.json` changes can use a bounded Node.js 22 lane:
+one `npm ci --ignore-scripts --no-fund --no-audit`, one complete
+`npm audit --audit-level=low`, and `npm test`. There is no S3 build script.
+Mixed browser, native, unknown or non-regular changes retain their normal host
+and native checks and still select S3 whenever its inputs changed. Unknown push
+history conservatively selects full host checks and S3. Removed or non-regular
+required npm manifests cannot produce successful package evidence.
+
+The new project aggregate always checks every selected result and binds its
+receipt to the candidate commit, full tree and trusted plan. The required outer
+aggregate recomputes that plan and verifies the receipt. Legacy tool checks have
+one owner; S3 has a separate owner even during delegated syncs. A bounded sync
+does not run S3 again or claim a successful S3 JUnit case: it records the external
+required package owner. Parent qualification owns parent pushes, and the shared
+project workflow owns leaf pushes, preserving the current branch partition.
+
+Deployment requires two stages. First land the trusted helpers and dormant
+templates on the default branch. Then install the exact project, parent and sync
+templates plus the appropriate outer caller. The package caller with direct
+browser checks is separate from the existing approved browser generation, which
+remains valid. Finally activate `package_checks_required_branches` in trusted
+repository policy for each reviewed target. Until activation legacy callers stay
+valid; a new caller must prove the strict receipt contract whenever it is used.
+S3-only sync shortening additionally requires activation and exact approved
+workflow blobs in both the protected target and merge candidate, so partially
+propagated child branches retain full validation. Browser package profiling is
+separate work; this foundation does not remove browser build variants.
+
 
 Prepare a native build with `OVERTE_BUILD_TESTS=ON` using the relevant
 [build guide](../BUILD.md). Then run the project full profile against it:
