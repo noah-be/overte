@@ -72,7 +72,8 @@ def configuration(root: Path = ROOT) -> tuple[dict, dict]:
         raise ValueError("invalid repository-check configuration")
     if type(config.get("native_required", False)) is not bool:
         raise ValueError("invalid native activation setting")
-    for key in ("native_required_branches", "direct_browser_required_branches", "package_checks_required_branches"):
+    for key in ("native_required_branches", "direct_browser_required_branches", "package_checks_required_branches",
+                "browser_client_required_branches"):
         targets = config.get(key, [])
         if (not isinstance(targets, list) or any(not isinstance(name, str) or name not in branches for name in targets)
                 or len(targets) != len(set(targets))):
@@ -356,8 +357,13 @@ def native_required(config: dict, event: dict | None) -> bool:
 
 def verify(needs: dict, require_native: bool = True, *, require_direct: bool = False,
            direct_plan: dict | None = None, package_plan: dict | None = None,
-           require_packages: bool = False) -> dict:
+           require_packages: bool = False, require_browser: bool = False, browser_plan: dict | None = None) -> dict:
     expected_jobs = {"route", "project", "documentation", "workflow-security", "native"}
+    has_browser = isinstance(needs, dict) and 'browser-client' in needs
+    if has_browser:
+        expected_jobs.add('browser-client')
+    elif require_browser:
+        raise ValueError('required Browser aggregate missing')
     has_direct = isinstance(needs, dict) and "direct-browser" in needs
     if has_direct:
         expected_jobs.add("direct-browser")
@@ -416,6 +422,10 @@ def verify(needs: dict, require_native: bool = True, *, require_direct: bool = F
             raise ValueError("missing or mismatched direct-browser receipt")
         if not selected and any(job.get("outputs", {}).values()):
             raise ValueError("unexpected unselected direct-browser receipt")
+    if has_browser:
+        if browser_plan is None:
+            raise ValueError('Browser requires independently recomputed candidate inputs')
+        browser_policy().verify_outer(needs['browser-client'], outputs, browser_plan)
     return {"status": "PASS", "mode": mode,
             "delegated_requirement": "sync-test-reuse" if mode == "delegated-sync" else None}
 
@@ -424,6 +434,13 @@ def package_policy():
     spec = importlib.util.spec_from_file_location("required_package_policy", ROOT / "tools/repository-checks/package_checks.py")
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def browser_policy():
+    spec = importlib.util.spec_from_file_location('required_browser_policy', ROOT / 'tools/repository-checks/browser_cpu.py')
+    module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
 
@@ -476,6 +493,10 @@ def main() -> int:
             if packages.activated(event) or packages.has_staged_caller(args.candidate):
                 packages.validate_wiring(args.candidate)
                 result.update(packages.outputs(packages.candidate_plan(args.candidate, event, args.sha)))
+            browser = browser_policy()
+            event_name = os.environ.get('GITHUB_EVENT_NAME') or ('pull_request' if 'pull_request' in event else 'workflow_dispatch')
+            if browser.required(args.candidate, event, args.sha, event_name):
+                result.update(browser.outer_outputs(browser.route(event, event_name, args.candidate, args.sha)))
             with args.output.open("a") as output:
                 output.write("".join(f"{key}={value}\n" for key, value in result.items()))
         elif args.command == "verify":
@@ -497,9 +518,19 @@ def main() -> int:
                     raise ValueError("direct-browser verification requires exact candidate and event")
                 validate_direct_wiring(args.candidate)
                 direct_plan = direct_candidate_plan(args.candidate, event, args.sha)
+            browser = browser_policy()
+            event_name = os.environ.get('GITHUB_EVENT_NAME') or ('pull_request' if event and 'pull_request' in event else 'workflow_dispatch')
+            browser_required = browser.required(args.candidate, event or {}, args.sha, event_name)
+            browser_plan = None
+            if browser_required or 'browser_plan' in route_outputs or (isinstance(needs, dict) and 'browser-client' in needs):
+                if args.candidate is None or event is None or not args.sha:
+                    raise ValueError('Browser verification requires exact candidate and event')
+                browser_required = True
+                browser_plan = browser.route(event, event_name, args.candidate, args.sha)
             result = verify(needs, native_required(config, event),
                             require_direct=direct_browser_required(config, event), direct_plan=direct_plan,
-                            package_plan=package_plan, require_packages=package_required)
+                            package_plan=package_plan, require_packages=package_required,
+                            require_browser=browser_required, browser_plan=browser_plan)
         else:
             event = json.loads(args.event.read_text())
             validate_direct_wiring(args.candidate)

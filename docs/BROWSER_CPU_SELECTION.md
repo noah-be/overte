@@ -1,120 +1,140 @@
-# Dormant Browser CPU-history CI selection
+# Default-off required Browser selection
 
-[`browser_cpu.py`](../tools/repository-checks/browser_cpu.py) and the
-[canonical workflow template](../tools/repository-checks/workflows/browser-client.yml)
-prepare a narrow CPU-history route. The active Browser workflow is unchanged.
-It is currently advisory; this preparation does not make it a required gate or
-complete the independently required repository-check handoff.
+The trusted [controller](../tools/repository-checks/browser_cpu.py),
+[Browser callee](../tools/repository-checks/workflows/browser-client.yml) and
+[outer caller](../tools/repository-checks/workflows/browser/repository-checks.yml)
+prepare a single required Browser owner. No active workflow changes in this
+preparation. `browser_client_required_branches` is empty; current child callers
+and the standalone advisory Browser workflow retain their existing behavior.
 
-The reviewed active workflow builds the production browser twice, once in each
-of its `browser` and `native-journey` jobs. It also installs Chrome/Qt and runs
-actual browser/native journeys. Those existing job bodies and diagnostic input
-conditions remain in the dormant template. They are selected for other, mixed,
-unknown, nonregular, unreviewed-reader and manual changes.
+## Selection and dependency boundaries
 
-## Exact source scope
-
-Only twelve exact `100644` paths declared in the trusted helper may select the
-CPU route: the seven startup/fork-rename history-repair files, four reserved
-workflow-history migration files, and the existing software-fixture workflow
-reader. There is no `tests/**`, fixture directory,
-file-extension, caller path-list or candidate-supplied skip rule. New history
-paths require a trusted parent-policy review.
-
-The comparison reads both complete immutable Git trees with replacement refs
+The controller reads both complete immutable Git trees, with replacement refs
 disabled and bounded Git subprocesses. It includes additions, deletions, both
-rename paths, modes, symlinks and gitlinks. Both non-CPU reader inventories must
-match the hardcoded reviewed boundary from `2750afb6416a4dc71366974f24c8e3e87e5228af`.
-Any unknown/changed app, package, reader, workflow or other input keeps the full
-route. An earlier reader change followed by a CPU-only edit remains full until
-that graph is reviewed explicitly. A successful build does not refresh policy.
-Symlinks/gitlinks anywhere in either tree disable CPU selection independently.
+rename paths and modes. Symlinks or gitlinks anywhere in either tree disable
+selective execution. Empty, unknown, mixed or unreviewed input changes select
+full verification.
 
-The only workflow bootstrap is the exact reviewed legacy workflow blob changing
-to the exact canonical template from the independently trusted controller.
-That transition must accompany approved CPU-history edits; workflow-only edits
-remain full. Only those two reviewed workflow identities are normalized into
-the same reader boundary. Unknown workflow bytes are never normalized or
-accepted as orchestration. Candidate copies of the helper/template cannot grant
-approval. Known independent controller/registry/test-guide files are excluded
-from the reader anchor but never from the changed-path classification.
+The three modes have distinct requirements:
 
-## What the CPU job actually runs
+- `skip`: known independent host/native/documentation paths changed and both
+  complete Browser-reader inventories match the trusted reviewed boundary.
+  The Browser callee is skipped; the outer gate still verifies the exact plan.
+- `cpu`: only twelve exact regular history-repair paths changed, or those paths
+  accompany the exact paired workflow/configuration bootstrap described below.
+  The CPU job must succeed and both full jobs must be skipped.
+- `full`: both existing `browser` and `native-journey` jobs must succeed and the
+  CPU job must be skipped. Their existing build/journey bodies and diagnostic
+  conditions are preserved.
 
-The CPU lane runs the actual `npm ci` and `npm test` commands in `browser-client`,
-then both current Jenkins Python contract entry points:
+There is no generic fixture directory, extension or caller-supplied path rule.
+The twelve CPU paths are the seven startup/fork-rename repair files, four
+workflow-history migration files and the existing software-workflow reader.
+New paths require trusted policy review.
+
+All Browser source, tests, helpers, packages and fixtures remain dependencies.
+The separately enumerated 29 external inputs include the default mannequin and
+fonts, entity-properties HTML/JavaScript/CSS/image assets, snapshot and places
+scripts, licenses and four source-pinned Browser documents. Changes to each of
+those inputs select full verification. Known independent repository paths may
+skip only while the complete Browser-reader anchor remains reviewed. Unknown
+repository domains remain full.
+
+Two anchors prevent a stale negative dependency boundary. CPU selection binds
+all non-CPU repository entries. Independent-path skipping binds every Browser
+entry, including the twelve CPU readers, plus the external inputs and Browser
+workflow. A prior reader change followed by an otherwise independent change
+therefore stays full until an explicit review refreshes that anchor. A passing
+build cannot refresh policy. The reviewed snapshot is
+`141977b15cac4a73bd35705103bc25874a431a09`; narrowly listed independent controller,
+registry and contract-test files are omitted from the reader anchors.
+
+## Exact paired bootstrap
+
+The first activation may combine the twelve CPU repairs with exactly these
+three controls: the Browser workflow, outer repository workflow and activation
+configuration. The old workflows must have the exact reviewed identities and
+both new workflows must equal the independently trusted canonical pair. The
+configuration must equal a trusted serialization with the Browser target list
+absent, empty or `['main']`. Workflow-only or partial installations remain full
+or fail wiring validation. Unknown workflow bytes are never normalized.
+
+Candidate policy/configuration copies cannot approve themselves. The trusted
+controller compares both full trees and only normalizes the exact reviewed
+old/new workflow and configuration identities. The package manifest approves a
+complete four-workflow `packages-browser` tuple additively; individually known
+siblings cannot be mixed into a new generation. All earlier complete package
+and shared-receipt generations remain valid.
+
+## Required handoff
+
+Activation atomically removes the Browser workflow's standalone PR trigger and
+installs it as a local reusable callee of the existing repository workflow.
+Manual dispatch remains available. There is one automatic owner; no second
+standalone producer or new required status context is introduced.
+
+The outer route and final aggregate independently check out trusted policy and
+read the exact candidate. The callee has its own independent route and `always()`
+verifier. Every plan binds repository ID, target branch, candidate SHA/tree,
+exact ordered PR base/head merge parents, policy identity and selection. PR
+retargeting changes the plan even when branches share a commit. Activation
+uses the actual PR base ref/repository or qualified push/manual branch ref;
+head branch names and candidate activation settings grant no authority.
+
+The callee compares the caller's expected candidate and plan before executing
+selected work. Its final verifier requires the complete actual same-run job
+set and exact independently recomputed route. The existing outer `always()`
+aggregate recomputes again and accepts only the selected callee's exact
+candidate/plan/`verified=true` receipt. Missing, failed, cancelled, stale,
+forged or diagnostic receipts cannot pass. A skipped callee may expose only
+absent or known empty outputs. Either exact new workflow in the current or
+protected base tree requires the entire pair, preventing partial deployment
+and rollback even on an otherwise inactive legacy target.
+
+These checks authenticate `needs` supplied by approved same-run orchestration.
+Arbitrary JSON passed to a helper is not execution evidence. Manual startup
+diagnostics remain `diagnostic-only`; they cannot satisfy the required PR
+receipt. No prior-run reuse or extra always-running sentinel is added here.
+
+## CPU fixture prerequisites
+
+The CPU job runs real `npm ci`, `npm test` and both Jenkins Python contracts:
 
 ```bash
 python3 browser-client/ci/jenkins/test_runner.py
 python3 browser-client/ci/jenkins/test_chrome_scope.py
 ```
 
-These tests include real namespace/network/worker-isolation and private-X11
-fixtures. The lane retains ffmpeg, Xvfb, xauth, bubblewrap, slirp4netns, iproute2,
-Python and compiler/crypto prerequisites. It preserves the existing hosted
-runner AppArmor preparation and exact signed trusted-network qualification,
-including its own tests and small security-launcher C compilation. They are
-legitimate fixture prerequisites. Missing tools or namespace permission fails
-the selected job; there is no skip-as-pass fallback.
+It retains ffmpeg, Xvfb, xauth, bubblewrap, slirp4netns, iproute2, Python,
+compiler/crypto prerequisites, the existing AppArmor preparation and signed
+trusted-network qualification/tests, including its small security-launcher
+compilation. Missing tools or namespace permission fail the job.
 
-It does not run Vite/TypeScript distribution builds, install Chrome/Qt product
-dependencies, download native application artifacts, start the full laboratory
-or run actual browser/native journeys. It sets the supported browser-download
-suppression flags during npm dependency installation. Browser package/lock
-changes require the full route and its explicit `npm audit --audit-level=high`;
-the audit is not used as a substitute for behavior or build checks.
+The CPU job does not build the Vite distribution, install Chrome/Qt product
+dependencies, acquire native app artifacts or run product journeys. Supported
+browser-download suppression flags apply during npm installation. Browser
+package/lock changes select full verification and its explicit high-severity
+npm audit, in addition to behavior and build checks.
 
-The Jenkins Python guards become newly explicit in this CPU lane; they were
-not already mandatory jobs in the reviewed advisory Browser workflow. This is
-CPU and security-fixture evidence, never product/browser journey acceptance.
+## Remaining activation work
 
-## Trusted routing and final validation
+1. Land the default-off trusted prerequisite and review its final reader
+   anchors after integrating other prerequisite changes.
+2. Update the unpublished V35 repair to admit this final reusable workflow,
+   preserving V5–V34 assertion bodies and immutable historical fixtures. Review
+   its resulting Browser-reader anchor explicitly; until then independent-path
+   skips conservatively fall back to full.
+3. In one reviewed activation change install both exact canonical workflows,
+   enable the actual target, and include V34/V35 repairs. The existing required
+   repository context must consume the new callee receipt; retiring the
+   standalone trigger and adding that call are one sole-owner transfer.
+4. Verify that the first repair PR selects CPU, requires all selected evidence
+   and executes no production build/journey jobs. A combined Android/direct
+   Browser generation requires a separately approved complete caller tuple.
 
-Separate route and final jobs each check out the trusted default-branch policy
-and independently read the exact event candidate. They validate repository ID,
-the checked-out SHA, exact ordered event base/head merge parents, complete
-source inventory and the exact canonical workflow. The final rederives the
-entire plan and compares every routing output before requiring selected jobs.
-
-CPU selection requires actual CPU-job success and both heavy jobs skipped. Full
-selection requires both existing heavy jobs successful and CPU skipped. Missing,
-pending, failed, cancelled or unexpectedly executed jobs fail the final check.
-An unselected heavy-job failure cannot be converted into a green CPU skip.
-Manual startup diagnostics retain their existing execution conditions, but the
-helper labels their output `diagnostic-only`, never a required PR handoff.
-
-The verifier consumes authenticated same-run `needs` supplied by the approved
-workflow. Arbitrary JSON passed to its Python API/CLI is not authentication or
-reusable evidence. It does not elect a prior green run, renew proof or suppress
-another mandatory gate.
-
-## Activation remains separate
-
-Generate the exact dormant template to a review file with:
-
-```bash
-python3 tools/repository-checks/browser_cpu.py workflow --output /tmp/browser-client-reviewed.yml
-```
-
-The generator refuses to overwrite the active workflow in its source checkout.
-Before any activation, complete all of the following in separately reviewed work:
-
-1. Land the trusted helper/template first. Re-review/re-anchor against the final
-   trusted parent if other prerequisite changes changed its reader inventory.
-2. Extend native host-only ownership from the existing seven CPU paths to all
-   twelve exact regular paths, with negative coverage. This preparation does
-   not change the native policy or an already running prerequisite PR.
-3. Combine the exact canonical workflow installation, V34 fork-history repair
-   and bounded V35 workflow-history admission. Existing capture fixtures and the
-   shipping preparer pin the legacy workflow bytes. V34 alone does not admit a
-   future template. V35 must retain historical assertion bodies and admit only
-   exact old/new workflow bytes through its bounded archive/adapter/manifest.
-   Unknown workflow bytes and self-hash cycles remain forbidden.
-4. Wire an independently required outer repository gate to validate orchestration
-   and authenticate the exact candidate/plan/final result, then verify the first
-   source-triggered run executes CPU checks and no production-build/journey jobs.
-
-No active workflow, current repair fixture, required branch rule, dispatch or
-build is changed by this preparation. Run its required offline regression with
-`python3 tests/run-project-tests.py --suite browser-cpu-selection`; it uses small
-temporary Git repositories and never installs tools or executes product work.
+The existing native ownership policy already recognizes these twelve exact
+regular CPU paths. This preparation does not launch builds, dispatch workflows,
+change branch protection or publish source-history repairs. Run the offline
+regression with `python3 tests/run-project-tests.py --suite browser-cpu-selection`.
+Its registry uses a full-repository fallback because real CLI tests consume the
+routing, package-generation, event-target and workflow policies together.

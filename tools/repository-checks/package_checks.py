@@ -262,8 +262,12 @@ def receipt(plan, lane="project"):
 def has_staged_caller(candidate):
     """Detect only the exact next generation, retaining legacy sparse routing."""
     path = Path(candidate) / ".github/workflows/repository-checks.yml"
-    return path.is_file() and not path.is_symlink() and path.read_bytes() in {
-        (TEMPLATES / name).read_bytes() for name in ("repository-checks.yml", "repository-checks-direct.yml")}
+    if not path.is_file() or path.is_symlink() or path.stat().st_size > 1_000_000:
+        return False
+    value = path.read_bytes()
+    identity = hashlib.sha1(b"blob " + str(len(value)).encode() + b"\0" + value).hexdigest()
+    return identity in {generation["workflows"][".github/workflows/repository-checks.yml"]["sha"]
+                        for generation in workflow_generations()}
 
 
 def verify(needs, plan):

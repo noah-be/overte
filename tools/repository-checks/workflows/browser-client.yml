@@ -1,10 +1,21 @@
 name: Browser client
 
 on:
-  pull_request:
-    paths:
-      - 'browser-client/**'
-      - '.github/workflows/browser-client.yml'
+  workflow_call:
+    inputs:
+      expected_candidate:
+        type: string
+        required: true
+      expected_plan:
+        type: string
+        required: true
+    outputs:
+      candidate:
+        value: ${{ jobs.verify.outputs.candidate }}
+      plan:
+        value: ${{ jobs.verify.outputs.plan }}
+      verified:
+        value: ${{ jobs.verify.outputs.verified }}
   workflow_dispatch:
     inputs:
       startup_diagnostics:
@@ -37,6 +48,7 @@ jobs:
       tree: ${{ steps.plan.outputs.tree }}
       base: ${{ steps.plan.outputs.base }}
       head: ${{ steps.plan.outputs.head }}
+      target: ${{ steps.plan.outputs.target }}
       mode: ${{ steps.plan.outputs.mode }}
       audit: ${{ steps.plan.outputs.audit }}
       plan: ${{ steps.plan.outputs.plan }}
@@ -60,10 +72,14 @@ jobs:
           sparse-checkout: .github
       - name: Recompute exact candidate route and approved orchestration
         id: plan
+        env:
+          EXPECTED_CANDIDATE: ${{ inputs.expected_candidate }}
+          EXPECTED_PLAN: ${{ inputs.expected_plan }}
         run: >-
           python3 trusted/tools/repository-checks/browser_cpu.py route
           --event "$GITHUB_EVENT_PATH" --event-name "$GITHUB_EVENT_NAME"
           --candidate candidate --sha "$GITHUB_SHA" --output "$GITHUB_OUTPUT"
+          --expected-candidate "$EXPECTED_CANDIDATE" --expected-plan "$EXPECTED_PLAN"
 
   cpu:
     name: Browser CPU contracts and source history

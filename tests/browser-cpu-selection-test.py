@@ -4,6 +4,7 @@
 from copy import deepcopy
 import importlib.util
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -31,12 +32,16 @@ def reviewed_legacy_fixture():
              "        if: needs.route.outputs.audit == 'true'\n"
              "        run: npm audit --audit-level=high\n")
     assert legacy.count(audit) == 1
-    legacy = legacy.replace(audit, '').encode()
+    legacy = legacy.replace(audit, '')
+    start, end = legacy.index('  workflow_call:\n'), legacy.index('  workflow_dispatch:\n')
+    legacy = (legacy[:start] + "  pull_request:\n    paths:\n      - 'browser-client/**'\n      - '.github/workflows/browser-client.yml'\n" + legacy[end:]).encode()
     assert BROWSER._blob(legacy) == BROWSER.REVIEWED_WORKFLOW
     return legacy
 
 
 LEGACY = reviewed_legacy_fixture()
+REAL_BOUNDARY = BROWSER.REVIEWED_BOUNDARY
+REAL_BROWSER_BOUNDARY = BROWSER.REVIEWED_BROWSER_BOUNDARY
 
 
 class BrowserCpuTests(unittest.TestCase):
@@ -53,14 +58,20 @@ class BrowserCpuTests(unittest.TestCase):
         self.write("browser-client/package-lock.json", b'{"lockfileVersion":3}\n')
         self.write("browser-client/src/Main.ts", b"export const production = true;\n")
         self.write(BROWSER.WORKFLOW, LEGACY)
+        self.write(BROWSER.OUTER_WORKFLOW, (ROOT / '.github/workflows/repository-checks.yml').read_bytes())
+        self.write(BROWSER.CONFIGURATION, (ROOT / BROWSER.CONFIGURATION).read_bytes())
         for path in BROWSER.CPU_PATHS:
             self.write(path, b"Reviewed CPU fixture source\n")
         self.base = self.commit("Create isolated reviewed Browser readers")
         # Explicit isolated fixture review; never refresh production anchors.
-        anchor = BROWSER.review_boundary(self.root, self.base)["boundary"]
+        reviewed = BROWSER.review_boundary(self.root, self.base)
+        anchor = reviewed["boundary"]
         replacement = patch.object(BROWSER, "REVIEWED_BOUNDARY", anchor)
         replacement.start()
         self.addCleanup(replacement.stop)
+        browser_anchor = patch.object(BROWSER, 'REVIEWED_BROWSER_BOUNDARY', reviewed['browser_boundary'])
+        browser_anchor.start()
+        self.addCleanup(browser_anchor.stop)
 
     def git(self, *args):
         return subprocess.run(["git", *args], cwd=self.root, capture_output=True,
@@ -83,6 +94,7 @@ class BrowserCpuTests(unittest.TestCase):
 
     def activate_fixture(self):
         self.write(BROWSER.WORKFLOW, BROWSER.canonical_workflow())
+        self.write(BROWSER.OUTER_WORKFLOW, BROWSER.trusted_bytes(BROWSER.OUTER_TEMPLATE))
         self.base = self.commit("Integrate exact reviewed fixture orchestration")
 
     def merge(self, changes, *, base=None):
@@ -103,17 +115,21 @@ class BrowserCpuTests(unittest.TestCase):
         cpu = outputs["mode"] == "cpu"
         return {"route": {"result": "success", "outputs": deepcopy(outputs)},
                 "cpu": {"result": "success" if cpu else "skipped"},
-                "browser": {"result": "skipped" if cpu else "success"},
-                "native-journey": {"result": "skipped" if cpu else "success"}}
+                "browser": {"result": "success" if outputs["mode"] == "full" else "skipped"},
+                "native-journey": {"result": "success" if outputs["mode"] == "full" else "skipped"}}
 
     def test_all_twelve_exact_cpu_inputs_and_approved_bootstrap_select_cpu(self):
         changes = {path: b"Updated exact CPU history source\n" for path in BROWSER.CPU_PATHS}
         changes[BROWSER.WORKFLOW] = BROWSER.canonical_workflow()
+        changes[BROWSER.OUTER_WORKFLOW] = BROWSER.trusted_bytes(BROWSER.OUTER_TEMPLATE)
+        config = json.loads(BROWSER.trusted_bytes(BROWSER.CONFIGURATION))
+        config['browser_client_required_branches'] = ['main']
+        changes[BROWSER.CONFIGURATION] = (json.dumps(config, indent=2) + '\n').encode()
         event, candidate = self.merge(changes)
         selection = self.classify(candidate)
         self.assertEqual(selection["mode"], "cpu")
         self.assertEqual(selection["reason"], "approved-workflow-bootstrap-and-cpu-history")
-        self.assertEqual(len(selection["changes"]), 13)
+        self.assertEqual(len(selection["changes"]), 15)
         outputs = BROWSER.route(event, "pull_request", self.root, candidate)
         self.assertEqual(outputs["mode"], "cpu")
         self.assertEqual(outputs["audit"], "false")
@@ -123,7 +139,8 @@ class BrowserCpuTests(unittest.TestCase):
     def test_only_exact_workflow_bootstrap_bytes_can_be_admitted(self):
         event, candidate = self.merge({BROWSER.WORKFLOW: BROWSER.canonical_workflow()})
         self.assertEqual(self.classify(candidate)["mode"], "full")
-        self.assertEqual(BROWSER.route(event, "pull_request", self.root, candidate)["mode"], "full")
+        with self.assertRaisesRegex(ValueError, "paired"):
+            BROWSER.route(event, "pull_request", self.root, candidate)
         for workflow in (LEGACY + b"\n# Unknown workflow\n", BROWSER.canonical_workflow() + b"\n# Candidate skip\n"):
             event, candidate = self.merge({BROWSER.WORKFLOW: workflow, next(iter(BROWSER.CPU_PATHS)): b"Updated\n"})
             self.assertEqual(self.classify(candidate)["mode"], "full")
@@ -290,11 +307,158 @@ class BrowserCpuTests(unittest.TestCase):
 
     def test_manual_dispatch_preserves_full_scope_and_diagnostics_are_not_required_proof(self):
         self.activate_fixture()
-        event = {"repository": dict(BROWSER.REPOSITORY), "inputs": {"startup_diagnostics": "true"}}
-        outputs = BROWSER.route(event, "workflow_dispatch", self.root, self.base)
-        self.assertEqual(outputs["mode"], "full")
-        self.assertEqual(BROWSER.verify(event, "workflow_dispatch", self.root, self.base, self.needs(outputs))["verified"],
-                         "diagnostic-only")
+        event = {"repository": dict(BROWSER.REPOSITORY), "ref": "refs/heads/main", "inputs": {"startup_diagnostics": "true"}}
+        with patch.dict(os.environ, {'GITHUB_REF': 'refs/heads/main', 'GITHUB_REF_TYPE': 'branch'}):
+            outputs = BROWSER.route(event, "workflow_dispatch", self.root, self.base)
+            self.assertEqual(outputs["mode"], "full")
+            self.assertEqual(BROWSER.verify(event, "workflow_dispatch", self.root, self.base, self.needs(outputs))["verified"],
+                             "diagnostic-only")
+
+    def test_each_actual_external_source_reader_requires_full_browser_validation(self):
+        self.activate_fixture()
+        self.assertEqual(len(BROWSER.EXTERNAL_INPUTS), 29)
+        for path in sorted(BROWSER.EXTERNAL_INPUTS):
+            with self.subTest(path=path):
+                event, candidate = self.merge({path: b'Changed actual external Browser input\n'})
+                outputs = BROWSER.route(event, 'pull_request', self.root, candidate)
+                self.assertEqual(outputs['mode'], 'full')
+                BROWSER.verify(event, 'pull_request', self.root, candidate, self.needs(outputs))
+
+    def test_known_independent_native_host_and_documentation_changes_skip_all_browser_jobs(self):
+        self.activate_fixture()
+        for path in ('libraries/shared/src/Other.cpp', 'CMakeLists.txt', 'docs/unrelated.md',
+                     'tools/release/unrelated.py', 'tests/unrelated-test.py', 'server-console/index.js'):
+            with self.subTest(path=path):
+                event, candidate = self.merge({path: b'Independent repository input\n'})
+                outputs = BROWSER.route(event, 'pull_request', self.root, candidate)
+                self.assertEqual(outputs['mode'], 'skip')
+                self.assertTrue(all(value['result'] == 'skipped' for name, value in self.needs(outputs).items() if name != 'route'))
+                BROWSER.verify(event, 'pull_request', self.root, candidate, self.needs(outputs))
+                BROWSER.verify_outer({'result': 'skipped', 'outputs': {}}, BROWSER.outer_outputs(outputs), outputs)
+
+    def test_later_independent_edits_cannot_skip_after_any_browser_or_cpu_reader_change(self):
+        self.activate_fixture()
+        for reader in ('browser-client/src/Main.ts', next(iter(BROWSER.CPU_PATHS))):
+            self.git('checkout', '-q', '--detach', self.base)
+            self.write(reader, b'Reader now consumes libraries/shared/src/Other.cpp\n')
+            integrated = self.commit('Integrate an unreviewed reader')
+            event, candidate = self.merge({'libraries/shared/src/Other.cpp': b'Later external change\n'}, base=integrated)
+            self.assertEqual(BROWSER.route(event, 'pull_request', self.root, candidate)['mode'], 'full')
+
+    def test_target_ref_is_bound_even_when_seven_branches_share_the_same_base_commit(self):
+        self.activate_fixture()
+        event, candidate = self.merge({next(iter(BROWSER.CPU_PATHS)): b'CPU change\n'})
+        branches = json.loads((ROOT / '.github/branch-policy.json').read_text())['branches']
+        self.assertEqual(len(branches), 7)
+        plans = set()
+        for branch in branches:
+            changed = deepcopy(event); changed['pull_request']['base']['ref'] = branch
+            outputs = BROWSER.route(changed, 'pull_request', self.root, candidate)
+            self.assertEqual(outputs['target'], branch); plans.add(outputs['plan'])
+        self.assertEqual(len(plans), 7)
+
+    def test_trusted_activation_uses_actual_base_push_or_manual_branch_and_ignores_candidate_settings(self):
+        branches = json.loads((ROOT / '.github/branch-policy.json').read_text())['branches']
+        original = BROWSER.trusted_bytes
+        config = json.loads(original(BROWSER.CONFIGURATION)); config['browser_client_required_branches'] = ['main']
+        def trusted(relative, policy_root=ROOT):
+            return (json.dumps(config, indent=2) + '\n').encode() if relative == BROWSER.CONFIGURATION else original(relative, policy_root)
+        with patch.object(BROWSER, 'trusted_bytes', side_effect=trusted):
+            for branch in branches:
+                payload = {'repository': dict(BROWSER.REPOSITORY), 'pull_request': {
+                    'base': {'ref': branch, 'repo': dict(BROWSER.REPOSITORY)}, 'head': {'ref': 'main'}}}
+                self.assertEqual(BROWSER.activated(payload, 'pull_request'), branch == 'main')
+                self.assertEqual(BROWSER.required(None, payload, None, 'pull_request'), branch == 'main')
+                for event_name in ('push', 'workflow_dispatch'):
+                    payload = {'repository': dict(BROWSER.REPOSITORY), 'ref': 'refs/heads/' + branch}
+                    with patch.dict('os.environ', {'GITHUB_REF': 'refs/heads/' + branch, 'GITHUB_REF_TYPE': 'branch'}):
+                        self.assertEqual(BROWSER.activated(payload, event_name), branch == 'main')
+            for ref in (None, 'main', 'refs/tags/main', 'refs/heads/', 'refs/heads/a..b', 'refs/heads/a//b'):
+                with self.subTest(ref=ref), self.assertRaises(ValueError):
+                    BROWSER.activated({'repository': dict(BROWSER.REPOSITORY), 'ref': ref}, 'push')
+            foreign = {'repository': dict(BROWSER.REPOSITORY), 'pull_request': {
+                'base': {'ref': 'main', 'repo': {'full_name': 'overte-org/overte', 'id': 42}}}}
+            with self.assertRaises(ValueError): BROWSER.activated(foreign, 'pull_request')
+            with patch.dict('os.environ', {'GITHUB_REF': 'refs/tags/main', 'GITHUB_REF_TYPE': 'tag'}), self.assertRaises(ValueError):
+                BROWSER.activated({'repository': dict(BROWSER.REPOSITORY), 'ref': 'refs/heads/main'}, 'workflow_dispatch')
+        self.assertFalse(BROWSER.activated({'repository': dict(BROWSER.REPOSITORY)}, 'workflow_dispatch'))
+
+    def test_exact_paired_transfer_and_protected_base_prevent_partial_deployment_or_rollback(self):
+        event, candidate = self.merge({BROWSER.WORKFLOW: BROWSER.canonical_workflow()})
+        self.assertTrue(BROWSER.required(self.root, event, candidate, 'pull_request'))
+        with self.assertRaisesRegex(ValueError, 'paired'):
+            BROWSER.route(event, 'pull_request', self.root, candidate)
+        self.activate_fixture()
+        event, candidate = self.merge({BROWSER.WORKFLOW: LEGACY,
+            BROWSER.OUTER_WORKFLOW: (ROOT / BROWSER.OUTER_WORKFLOW).read_bytes()})
+        self.assertTrue(BROWSER.required(self.root, event, candidate, 'pull_request'))
+        with self.assertRaisesRegex(ValueError, 'canonical'):
+            BROWSER.route(event, 'pull_request', self.root, candidate)
+
+    def test_outer_required_receipt_rejects_missing_failure_diagnostic_and_forged_selection(self):
+        self.activate_fixture()
+        event, candidate = self.merge({next(iter(BROWSER.CPU_PATHS)): b'CPU change\n'})
+        outputs = BROWSER.route(event, 'pull_request', self.root, candidate)
+        receipt = {'candidate': candidate, 'plan': outputs['plan'], 'verified': 'true'}
+        BROWSER.verify_outer({'result': 'success', 'outputs': receipt}, BROWSER.outer_outputs(outputs), outputs)
+        for status in ('failure', 'cancelled', 'skipped', None):
+            with self.assertRaises(ValueError): BROWSER.verify_outer({'result': status, 'outputs': receipt}, BROWSER.outer_outputs(outputs), outputs)
+        for key, value in (('candidate', self.base), ('plan', 'forged'), ('verified', 'diagnostic-only')):
+            forged = dict(receipt); forged[key] = value
+            with self.assertRaises(ValueError): BROWSER.verify_outer({'result': 'success', 'outputs': forged}, BROWSER.outer_outputs(outputs), outputs)
+        changed = BROWSER.outer_outputs(outputs); changed['browser_mode'] = 'skip'
+        with self.assertRaises(ValueError): BROWSER.verify_outer({'result': 'success', 'outputs': receipt}, changed, outputs)
+
+    def test_unselected_outer_receipts_accept_only_absent_or_known_empty_outputs(self):
+        self.activate_fixture()
+        event, candidate = self.merge({'docs/unrelated.md': b'Independent documentation\n'})
+        plan = BROWSER.route(event, 'pull_request', self.root, candidate)
+        self.assertEqual(plan['mode'], 'skip')
+        for outputs in ({}, {'candidate': '', 'plan': '', 'verified': ''}):
+            BROWSER.verify_outer({'result': 'skipped', 'outputs': outputs}, BROWSER.outer_outputs(plan), plan)
+        for outputs in ({'verified': 'true'}, {'plan': plan['plan']}, {'unapproved': ''}, None):
+            with self.subTest(outputs=outputs), self.assertRaises(ValueError):
+                BROWSER.verify_outer({'result': 'skipped', 'outputs': outputs}, BROWSER.outer_outputs(plan), plan)
+
+    def test_actual_outer_cli_recomputes_candidate_and_receipt_without_executing_candidate_policy(self):
+        self.activate_fixture()
+        for name in ('project-tests.yml', 'parent-qualification.yml', 'sync-validation.yml'):
+            self.write('.github/workflows/' + name, (ROOT / '.github/workflows' / name).read_bytes())
+        self.base = self.commit('Install complete approved package sibling workflows')
+        event, candidate = self.merge({'browser-client/src/Main.ts': b'throw new Error("never execute router input");\n'})
+        spec = importlib.util.spec_from_file_location('browser_outer_test', ROOT / 'tools/repository-checks/check.py')
+        checks = importlib.util.module_from_spec(spec); spec.loader.exec_module(checks)
+        packages = checks.package_policy(); package_plan = packages.candidate_plan(self.root, event, candidate)
+        with patch.object(BROWSER, 'REVIEWED_BOUNDARY', REAL_BOUNDARY), patch.object(BROWSER, 'REVIEWED_BROWSER_BOUNDARY', REAL_BROWSER_BOUNDARY):
+            plan = BROWSER.route(event, 'pull_request', self.root, candidate)
+        config, branches = checks.configuration()
+        outputs = {**checks.plan(event, ['browser-client/src/Main.ts'], config, branches), 'native': 'skip',
+                   **packages.outputs(package_plan), **BROWSER.outer_outputs(plan)}
+        needs = {'route': {'result': 'success', 'outputs': outputs},
+                 'project': {'result': 'success', 'outputs': packages.receipt(package_plan)},
+                 'documentation': {'result': 'success'}, 'workflow-security': {'result': 'skipped'},
+                 'native': {'result': 'skipped'}, 'browser-client': {'result': 'success',
+                     'outputs': {'candidate': candidate, 'plan': plan['plan'], 'verified': 'true'}}}
+        event_path = Path(self.directory.name) / 'event.json'; event_path.write_text(json.dumps(event))
+        command = [sys.executable, str(ROOT / 'tools/repository-checks/check.py'), 'verify', '--candidate', str(self.root),
+                   '--sha', candidate, '--event', str(event_path), '--needs-json']
+        environment = dict(os.environ, GITHUB_EVENT_NAME='pull_request')
+        for mutation in ('valid', 'candidate', 'plan', 'diagnostic', 'missing'):
+            actual = deepcopy(needs)
+            if mutation in ('candidate', 'plan'): actual['browser-client']['outputs'][mutation] = '0' * 40
+            elif mutation == 'diagnostic': actual['browser-client']['outputs']['verified'] = 'diagnostic-only'
+            elif mutation == 'missing': del actual['browser-client']
+            result = subprocess.run(command + [json.dumps(actual)], capture_output=True, text=True, timeout=30,
+                                    env=environment)
+            self.assertEqual(result.returncode == 0, mutation == 'valid', result.stderr)
+        for expected_candidate, expected_plan, success in ((candidate, plan['plan'], True),
+                (self.base, plan['plan'], False), (candidate, 'forged', False), ('', '', False)):
+            output = Path(self.directory.name) / 'callee-output.txt'
+            result = subprocess.run([sys.executable, str(HELPER), 'route', '--candidate', str(self.root),
+                '--sha', candidate, '--event', str(event_path), '--event-name', 'pull_request', '--output', str(output),
+                '--expected-candidate', expected_candidate, '--expected-plan', expected_plan],
+                capture_output=True, text=True, timeout=30)
+            self.assertEqual(result.returncode == 0, success, result.stderr)
 
 
 class CanonicalTemplateTests(unittest.TestCase):
@@ -342,6 +506,49 @@ class CanonicalTemplateTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(output.read_bytes(), BROWSER.canonical_workflow())
         self.assertEqual(BROWSER._blob(LEGACY), BROWSER.REVIEWED_WORKFLOW)
+
+    def test_sole_automatic_owner_has_local_reusable_source_and_independent_outer_receipt(self):
+        import yaml
+        text = BROWSER.canonical_workflow().decode()
+        callee = yaml.safe_load(text)
+        events = callee.get('on', callee.get(True))
+        self.assertEqual(set(events), {'workflow_call', 'workflow_dispatch'})
+        self.assertEqual(events['workflow_call']['inputs'], {
+            name: {'type': 'string', 'required': True} for name in ('expected_candidate', 'expected_plan')})
+        self.assertEqual(events['workflow_call']['outputs'], {
+            name: {'value': '${{ jobs.verify.outputs.' + name + ' }}'} for name in ('candidate', 'plan', 'verified')})
+        route = self.job(text, 'route')
+        self.assertIn('--expected-candidate "$EXPECTED_CANDIDATE" --expected-plan "$EXPECTED_PLAN"', route)
+        caller = yaml.safe_load(BROWSER.trusted_bytes(BROWSER.OUTER_TEMPLATE))['jobs']
+        call = caller['browser-client']
+        self.assertEqual(call['uses'], './.github/workflows/browser-client.yml')
+        self.assertEqual(call['needs'], 'route')
+        self.assertEqual(call['with'], {'expected_candidate': '${{ needs.route.outputs.browser_candidate }}',
+                                       'expected_plan': '${{ needs.route.outputs.browser_plan }}'})
+        self.assertEqual(caller['repository-checks']['if'], 'always()')
+        self.assertIn('browser-client', caller['repository-checks']['needs'])
+        self.assertEqual(callee['permissions'], {'contents': 'read'})
+        self.assertNotIn('secrets:', text)
+        # Active standalone ownership is deliberately unchanged in this default-off prerequisite.
+        active = yaml.safe_load((ROOT / BROWSER.WORKFLOW).read_text())
+        self.assertIn('pull_request', active.get('on', active.get(True)))
+        self.assertEqual(json.loads((ROOT / BROWSER.CONFIGURATION).read_text())['browser_client_required_branches'], [])
+
+    def test_browser_package_generation_is_additive_complete_and_never_combines_approved_siblings(self):
+        spec = importlib.util.spec_from_file_location('browser_packages_test', ROOT / 'tools/repository-checks/package_checks.py')
+        packages = importlib.util.module_from_spec(spec); spec.loader.exec_module(packages)
+        generations = packages.workflow_generations()
+        self.assertTrue({'packages-v1', 'packages-v1-direct'} <= {row['name'] for row in generations})
+        approved = next(row['workflows'] for row in generations if row['name'] == 'packages-browser')
+        self.assertEqual(approved[BROWSER.OUTER_WORKFLOW], {'mode': '100644', 'type': 'blob',
+            'sha': BROWSER._blob(BROWSER.trusted_bytes(BROWSER.OUTER_TEMPLATE))})
+        self.assertEqual(packages.validate_tree_wiring(approved), 'packages-browser')
+        for path in approved:
+            bad = deepcopy(approved); bad[path]['sha'] = '0' * 40
+            with self.assertRaises(ValueError): packages.validate_tree_wiring(bad)
+        other = next(row['workflows'] for row in generations if row['name'] == 'shared-receipt-v1')
+        mixed = deepcopy(approved); mixed['.github/workflows/project-tests.yml'] = other['.github/workflows/project-tests.yml']
+        with self.assertRaises(ValueError): packages.validate_tree_wiring(mixed)
 
 
 if __name__ == "__main__":

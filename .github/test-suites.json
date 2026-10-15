@@ -1283,20 +1283,24 @@
       "scope": "content",
       "environment": "host-qt5-qt6",
       "closure": {
-        "kind": "patterns",
-        "inputs": [
-          "tests/browser-cpu-selection-test.py",
-          "tools/repository-checks/browser_cpu.py",
-          "tools/repository-checks/workflows/browser-client.yml",
-          "tools/test-evidence/inputs.py",
-          ".github/workflows/browser-client.yml"
-        ],
+        "kind": "repository",
+        "inputs": [],
         "required": [
           "tests/browser-cpu-selection-test.py",
           "tools/repository-checks/browser_cpu.py",
+          "tools/repository-checks/check.py",
+          "tools/repository-checks/package_checks.py",
           "tools/repository-checks/workflows/browser-client.yml",
+          "tools/repository-checks/workflows/browser/repository-checks.yml",
           "tools/test-evidence/inputs.py",
-          ".github/workflows/browser-client.yml"
+          ".github/repository-checks.json",
+          ".github/package-workflow-generations.json",
+          ".github/branch-policy.json",
+          ".github/workflows/browser-client.yml",
+          ".github/workflows/repository-checks.yml",
+          ".github/workflows/project-tests.yml",
+          ".github/workflows/parent-qualification.yml",
+          ".github/workflows/sync-validation.yml"
         ]
       }
     },
