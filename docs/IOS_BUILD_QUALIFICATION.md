@@ -49,9 +49,11 @@ The source guard and target list authorize that trial. They do not establish a
 successful host run, application build, reusable artifact or device acceptance.
 Legacy input selection and all existing required contexts remain unchanged.
 
-The first lighter PR must start from reviewed source
-`52f1cc38180e96cdfd8049a4be93517961ae7dbd`, tree
-`f5b44d19b5c64c96bc3f73f72c51519dbfbf08a3`. Its complete immutable base/head/merge
+The first lighter PR must start from a protected base with tree
+`f5b44d19b5c64c96bc3f73f72c51519dbfbf08a3`, reviewed at source
+`52f1cc38180e96cdfd8049a4be93517961ae7dbd`. History-only merges can retain that
+same complete tree; the event and fresh branch observations still bind their
+actual current commit identities. Its complete immutable base/head/merge
 inventories may differ only at `.github/workflows/ios-build-qualification.yml`,
 replacing the exact legacy top workflow with the canonical host generation.
 The other five generation sources remain exact. A changed source tree,
