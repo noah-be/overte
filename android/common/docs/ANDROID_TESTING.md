@@ -266,12 +266,11 @@ wrong actions, missing data and rejected schemes. Robolectric
 host without Android SDK, Qt or Conan, use `android/common/tests/robolectric/run-tests.sh`.
 Its small Java harness compiles the real Activity and supporting production
 sources directly, and stubs only the generated `R` symbol and the Qt-native
-Activity class at the boundary. Across Phone, legacy Interface, Pico, and
-Quest, 32 Robolectric source behaviors produce 71 executions. The exact matrix
-is Phone (API 26/35), legacy Interface (API 24/26), Pico (API 26/35), and
-legacy Quest (API 24/28/35). Phone contributes 13 source behaviors and 26
-executions. Nine framework-independent legacy `HifiUtils` checks bring the
-harness report to 80 granular JUnit cases. This harness is mandatory in the CI
+Activity class at the boundary. The exact class inventory, per-application SDK
+matrices, source behaviors, executions and granular JUnit counts are bound to
+the checkout-specific profile below or its authoritative Phone override.
+Framework-independent legacy `HifiUtils` checks are included in the total.
+This harness is mandatory in the CI
 coverage job and publishes JUnit XML.
 
 The default `coverage` tier uses a dependency-free JaCoCo harness for ten
@@ -557,3 +556,85 @@ two committed permutations, private replica paths, real parallel overlap,
 temporary-workspace cleanup, timeout handling, and that an intentional exit-23
 case makes the tier fail. Set `OVERTE_STABILITY_FIXTURE_FAIL=1` only when
 testing that red-path behavior.
+
+### Checkout-specific test counts
+
+The structured block below describes the Android-parent source baseline. A Phone child
+may extend its own classes without copying them into this parent. The validator
+compares the exact class inventory, SDK matrices and counts against one
+structured declaration: a product profile in `android/phone/docs/BUILD.md` is
+authoritative when present; otherwise this parent profile applies. Missing,
+stale, duplicate or malformed product declarations fail. Historical prose is
+never a fallback for a stale product profile. `qmlFunctions`/`qmlRows` describe
+the common QML suite; the fixed Phone runtime extension publishes a separate
+original JUnit alongside it in the same mandatory Qt/Fast tier.
+
+<!-- android-test-profile:start -->
+```json
+{
+  "scope": "android-parent",
+  "qmlFunctions": 38,
+  "qmlRows": 52,
+  "robolectricBehaviors": 32,
+  "robolectricExecutions": 71,
+  "junitCases": 80,
+  "sdkMatrices": {
+    "legacy Interface": [
+      24,
+      26
+    ],
+    "Phone": [
+      26,
+      35
+    ],
+    "Pico": [
+      26,
+      35
+    ],
+    "legacy Quest": [
+      24,
+      28,
+      35
+    ]
+  },
+  "robolectricClasses": {
+    "io/highfidelity/hifiinterface/PermissionCheckerRobolectricTest.java": {
+      "behaviors": 6,
+      "sdks": [
+        24,
+        26
+      ]
+    },
+    "org/overte/phone/PermissionsActivityRobolectricTest.java": {
+      "behaviors": 9,
+      "sdks": [
+        26,
+        35
+      ]
+    },
+    "org/overte/phone/PhoneDeepLinkRobolectricTest.java": {
+      "behaviors": 4,
+      "sdks": [
+        26,
+        35
+      ]
+    },
+    "org/overte/pico/PermissionsActivityRobolectricTest.java": {
+      "behaviors": 6,
+      "sdks": [
+        26,
+        35
+      ]
+    },
+    "io/highfidelity/questInterface/PermissionsCheckerRobolectricTest.java": {
+      "behaviors": 7,
+      "sdks": [
+        24,
+        28,
+        35
+      ]
+    }
+  }
+}
+```
+<!-- android-test-profile:end -->
