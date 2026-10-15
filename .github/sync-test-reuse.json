@@ -139,9 +139,7 @@
     "**/conanfile.txt",
     "conanfile.py",
     "conanfile.txt",
-    "tools/native-tests/**",
-    "tools/test-evidence/**",
-    ".github/test-suites.json"
+    "tools/native-tests/**"
   ],
   "required_qualified_inputs": [
     ".github/actionlint.yaml",

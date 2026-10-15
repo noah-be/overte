@@ -19,8 +19,7 @@
     "tests/repository-checks-test.py",
     "tests/repository-policy-test.py",
     "tools/native-tests/**",
-    "tests/native-ci-test.py",
-    "tools/test-evidence/**"
+    "tests/native-ci-test.py"
   ],
   "required_contexts": [
     "dependency-release-policy",
