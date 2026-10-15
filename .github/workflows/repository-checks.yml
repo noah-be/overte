@@ -28,6 +28,9 @@ jobs:
       package_host_mode: ${{ steps.plan.outputs.package_host_mode }}
       package_tool_projects: ${{ steps.plan.outputs.package_tool_projects }}
       package_set: ${{ steps.plan.outputs.package_set }}
+      browser_mode: ${{ steps.plan.outputs.browser_mode }}
+      browser_candidate: ${{ steps.plan.outputs.browser_candidate }}
+      browser_plan: ${{ steps.plan.outputs.browser_plan }}
     steps:
     - name: Check out trusted routing policy
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -74,6 +77,13 @@ jobs:
       dependency_projects: ${{ needs.route.outputs.tool_projects }}
       expected_candidate: ${{ needs.route.outputs.package_candidate }}
       expected_package_plan: ${{ needs.route.outputs.package_plan }}
+  browser-client:
+    needs: route
+    if: needs.route.outputs.browser_mode == 'cpu' || needs.route.outputs.browser_mode == 'full'
+    uses: ./.github/workflows/browser-client.yml
+    with:
+      expected_candidate: ${{ needs.route.outputs.browser_candidate }}
+      expected_plan: ${{ needs.route.outputs.browser_plan }}
   documentation:
     needs: route
     uses: ./.github/workflows/documentation-checks.yml
@@ -89,6 +99,7 @@ jobs:
     - project
     - documentation
     - workflow-security
+    - browser-client
     - native
     runs-on: ubuntu-24.04
     timeout-minutes: 5

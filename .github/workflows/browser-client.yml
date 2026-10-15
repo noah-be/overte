@@ -1,10 +1,21 @@
 name: Browser client
 
 on:
-  pull_request:
-    paths:
-      - 'browser-client/**'
-      - '.github/workflows/browser-client.yml'
+  workflow_call:
+    inputs:
+      expected_candidate:
+        type: string
+        required: true
+      expected_plan:
+        type: string
+        required: true
+    outputs:
+      candidate:
+        value: ${{ jobs.verify.outputs.candidate }}
+      plan:
+        value: ${{ jobs.verify.outputs.plan }}
+      verified:
+        value: ${{ jobs.verify.outputs.verified }}
   workflow_dispatch:
     inputs:
       startup_diagnostics:
@@ -28,7 +39,113 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  route:
+    name: Select browser verification from trusted policy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      candidate: ${{ steps.plan.outputs.candidate }}
+      tree: ${{ steps.plan.outputs.tree }}
+      base: ${{ steps.plan.outputs.base }}
+      head: ${{ steps.plan.outputs.head }}
+      target: ${{ steps.plan.outputs.target }}
+      mode: ${{ steps.plan.outputs.mode }}
+      audit: ${{ steps.plan.outputs.audit }}
+      plan: ${{ steps.plan.outputs.plan }}
+    steps:
+      - name: Check out trusted browser policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: trusted
+          persist-credentials: false
+          sparse-checkout: |
+            .github
+            tools/repository-checks
+            tools/test-evidence
+      - name: Read exact candidate Git inventory
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: candidate
+          fetch-depth: 2
+          persist-credentials: false
+          sparse-checkout: .github
+      - name: Recompute exact candidate route and approved orchestration
+        id: plan
+        env:
+          EXPECTED_CANDIDATE: ${{ inputs.expected_candidate }}
+          EXPECTED_PLAN: ${{ inputs.expected_plan }}
+        run: >-
+          python3 trusted/tools/repository-checks/browser_cpu.py route
+          --event "$GITHUB_EVENT_PATH" --event-name "$GITHUB_EVENT_NAME"
+          --candidate candidate --sha "$GITHUB_SHA" --output "$GITHUB_OUTPUT"
+          --expected-candidate "$EXPECTED_CANDIDATE" --expected-plan "$EXPECTED_PLAN"
+
+  cpu:
+    name: Browser CPU contracts and source history
+    needs: route
+    if: needs.route.outputs.mode == 'cpu'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out exact merge candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: browser-client/package-lock.json
+      - name: Install actual CPU isolation and audio fixture prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg xvfb xauth bubblewrap slirp4netns iproute2 python3 gcc libc6-dev libssl-dev g++ gpgv zstd apparmor-profiles
+      - name: Install reproducible CPU test dependencies
+        working-directory: browser-client
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+          PUPPETEER_SKIP_DOWNLOAD: 'true'
+        run: npm ci
+      - name: Preserve existing AppArmor policy and prepare exact shipped namespace profiles
+        working-directory: browser-client
+        run: |
+          python3 tools/test_prepare_apparmor_userns.py
+          sudo python3 tools/apparmor-diagnostic.py
+          sudo python3 tools/prepare-apparmor-userns.py
+          sudo python3 tools/apparmor-diagnostic.py
+      - name: Qualify reviewed dedicated network setup entrypoint
+        working-directory: browser-client
+        env:
+          OVERTE_TRUSTED_ALIAS_DIAGNOSTICS: '1'
+        run: |
+          task_network_dir="$(mktemp -d "${RUNNER_TEMP}/overte-trusted-network.XXXXXX")"
+          chmod 700 "$task_network_dir"
+          python3 tools/trusted-network/workflow/prepare_signed_library.py --output "$task_network_dir/signed-cache"
+          export OVERTE_SIGNED_LIBRARY_CACHE="$task_network_dir/signed-cache"
+          export OVERTE_SIGNED_LIBRARY_KEYRING="$task_network_dir/signed-cache/archive-keyring.gpg"
+          python3 -m unittest discover -s tools/trusted-network/tests -p 'test_*.py'
+          node --test tools/trusted-network/tests/trusted-entry.test.mjs
+          python3 tools/trusted-network/workflow/policy.py --output "$task_network_dir/policy.json"
+          python3 tools/trusted-network/workflow/build.py --policy "$task_network_dir/policy.json" --stage "$task_network_dir/stage" \
+            --signed-library-cache "$OVERTE_SIGNED_LIBRARY_CACHE" --signed-library-keyring "$OVERTE_SIGNED_LIBRARY_KEYRING"
+          task_network_hash="$(sha256sum "$task_network_dir/stage/manifest.json" | cut -d ' ' -f1)"
+          sudo python3 tools/trusted-network/workflow/prepare_signed_library.py \
+            --source-cache "$OVERTE_SIGNED_LIBRARY_CACHE" --keyring "$OVERTE_SIGNED_LIBRARY_KEYRING" --output "$task_network_dir/root-signed-cache"
+          sudo python3 tools/trusted-network/workflow/install.py --bundle "$task_network_dir/stage" --manifest-sha256 "$task_network_hash" \
+            --signed-library-cache "$task_network_dir/root-signed-cache" --signed-library-keyring "$task_network_dir/root-signed-cache/archive-keyring.gpg"
+          echo "OVERTE_GATEWAY_TRUSTED_NETWORK_SETUP=1" >> "$GITHUB_ENV"
+      - name: Run actual browser CPU contracts
+        working-directory: browser-client
+        run: npm test
+      - name: Check current Jenkins runner and branded Chrome ownership contracts
+        run: |
+          python3 browser-client/ci/jenkins/test_runner.py
+          python3 browser-client/ci/jenkins/test_chrome_scope.py
+
   browser:
+    needs: route
+    if: needs.route.outputs.mode == 'full'
     name: ${{ inputs.startup_diagnostics && 'Protocol and network startup diagnostics' || 'browser' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -46,6 +163,9 @@ jobs:
           cache-dependency-path: browser-client/package-lock.json
       - name: Install reproducible dependencies
         run: npm ci
+      - name: Audit changed browser package inputs
+        if: needs.route.outputs.audit == 'true'
+        run: npm audit --audit-level=high
       - name: Build browser distribution
         run: npm run build
       - name: Install Google Chrome
@@ -134,6 +254,8 @@ jobs:
         run: xvfb-run --auto-servernum --server-args='-screen 0 1280x720x24' npm run test:browser -- --headed
 
   native-journey:
+    needs: route
+    if: needs.route.outputs.mode == 'full'
     name: ${{ inputs.startup_diagnostics && 'Native startup diagnostics (journeys not-run)' || 'Actual native and browser core journeys' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 35
@@ -233,3 +355,42 @@ jobs:
           path: ${{ runner.temp }}/overte-native-core-evidence/*.json
           if-no-files-found: error
           retention-days: 7
+
+  verify:
+    name: Verify selected browser verification outcome
+    if: always()
+    needs: [route, cpu, browser, native-journey]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      candidate: ${{ steps.verify.outputs.candidate }}
+      plan: ${{ steps.verify.outputs.plan }}
+      verified: ${{ steps.verify.outputs.verified }}
+    steps:
+      - name: Check out trusted browser policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: trusted
+          persist-credentials: false
+          sparse-checkout: |
+            .github
+            tools/repository-checks
+            tools/test-evidence
+      - name: Read exact candidate Git inventory
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: candidate
+          fetch-depth: 2
+          persist-credentials: false
+          sparse-checkout: .github
+      - name: Independently require exact selected jobs and current plan
+        id: verify
+        env:
+          BROWSER_NEEDS: ${{ toJSON(needs) }}
+        run: |
+          python3 -c 'import os,pathlib; pathlib.Path(os.environ["RUNNER_TEMP"],"browser-needs.json").write_text(os.environ["BROWSER_NEEDS"])'
+          python3 trusted/tools/repository-checks/browser_cpu.py verify \
+            --event "$GITHUB_EVENT_PATH" --event-name "$GITHUB_EVENT_NAME" \
+            --candidate candidate --sha "$GITHUB_SHA" \
+            --needs "$RUNNER_TEMP/browser-needs.json" --output "$GITHUB_OUTPUT"
