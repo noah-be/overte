@@ -61,6 +61,8 @@
     ".github/repository-health.json",
     "tools/sync-test-reuse/**",
     "tools/repository-checks/**",
+    "tools/test-evidence/**",
+    ".github/test-suites.json",
     "tools/repository-health/**",
     "tools/repository-maintenance/**",
     "tools/repository-policy/**",

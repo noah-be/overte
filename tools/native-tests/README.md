@@ -39,6 +39,13 @@ Changed QRC collections still require native resource-build validation. The
 `full` route means the product build graph plus the eligible test manifest, not
 every legacy test or the separate project runner's `full` profile.
 
+Python and JSON inputs under `tools/test-evidence/` belong to host evidence
+selection and verification. They do not require a product build. Native sources,
+build definitions, unknown suffixes, mixed product changes, and non-regular
+entries retain their conservative native route. The shared evidence tooling and
+`.github/test-suites.json` are privileged `main`-owned policy inputs; their
+changes select workflow-security checks and enter parent qualification bindings.
+
 CMake's file API supplies the configured target dependency graph. Every configured
 C/C++ input is checked against routing exemptions; introducing compiled code under
 a formerly host-only path requires updating the routing policy in the same change. Include-only
