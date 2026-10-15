@@ -184,8 +184,9 @@ def validate_sync(args, *, api=None):
                 s3 = "script-archive/marketplace/S3Server"
                 if any(path == s3 or path.startswith(s3 + "/") for path in paths):
                     packages = gate.package_checks
-                    policy_event = {"repository": {"full_name": request.repository, "id": request.repository_id},
-                                    "pull_request": {"base": {"ref": request.base}}}
+                    identity = {"full_name": request.repository, "id": request.repository_id}
+                    policy_event = {"repository": identity,
+                                    "pull_request": {"base": {"ref": request.base, "repo": identity}}}
                     if not packages.activated(policy_event):
                         raise ValidationError("S3 bounded checks are not activated by trusted policy")
                     packages.validate_wiring(candidate)
