@@ -41,6 +41,36 @@
         ]
       }
     },
+    "producer-api": {
+      "command": [
+        "python",
+        "tools/test-evidence/producer-api-test.py"
+      ],
+      "layer": "quick",
+      "scope": "content",
+      "environment": "host-qt5-qt6",
+      "closure": {
+        "kind": "patterns",
+        "inputs": [
+          "tools/test-evidence/producer_api.py",
+          "tools/test-evidence/producer-api-test.py",
+          "tools/test-evidence/producer.py",
+          "tools/test-evidence/producer-test.py",
+          "tools/test-evidence/execution.py",
+          "tools/test-evidence/inputs.py",
+          "tools/test-evidence/runtime.py"
+        ],
+        "required": [
+          "tools/test-evidence/producer_api.py",
+          "tools/test-evidence/producer-api-test.py",
+          "tools/test-evidence/producer.py",
+          "tools/test-evidence/producer-test.py",
+          "tools/test-evidence/execution.py",
+          "tools/test-evidence/inputs.py",
+          "tools/test-evidence/runtime.py"
+        ]
+      }
+    },
     "dependency-releases": {
       "command": [
         "python",
@@ -248,6 +278,12 @@
           "tests/documentation-test.py",
           "tests/check-documentation.py"
         ]
+      },
+      "python_imports": {
+        "roots": [
+          "tests"
+        ],
+        "reviewed": "sha256:3edad7318a6c0baa9653d9546376ef895f1d7cc56b1b1a92a2f4c88e2d34dfe9"
       }
     },
     "repository-doctor": {
@@ -429,6 +465,12 @@
           "tools/release/validate-release-bundle.py",
           "tools/release/release_bundle.py"
         ]
+      },
+      "python_imports": {
+        "roots": [
+          "tools/release"
+        ],
+        "reviewed": "sha256:47a0cf1a03bc588422d6fb861d12e36e59137e238af5b4653eea0194570bc474"
       }
     },
     "workflow-contracts": {
@@ -671,6 +713,12 @@
           "interface/resources/qml/controls/EmbeddedWebView.qml",
           "tests/device/contracts/web/qml/tst_embedded_web_view.qml"
         ]
+      },
+      "python_imports": {
+        "roots": [
+          "tests/device/contracts/web"
+        ],
+        "reviewed": "sha256:69a0c02f4792549bfb1fb4fa4de2a56de83417c56e657c4fdb8c9cdc3114067a"
       }
     },
     "web-entity-visibility": {
@@ -717,6 +765,12 @@
           "scripts/system/places/PicoPlaces.qml",
           "tests/device/contracts/places/tst_places.qml"
         ]
+      },
+      "python_imports": {
+        "roots": [
+          "tests/device/contracts/places"
+        ],
+        "reviewed": "sha256:1232318e49a3cfe53e1265cf63e45a90a2f25a94eb4a91f46199e67425173d93"
       }
     },
     "account-auth-dispatch": {
@@ -829,6 +883,12 @@
           "interface/resources/qml/hifi/audio/LoopbackAudio.qml",
           "tests/device/contracts/audio/qml/tst_recorded_voice.qml"
         ]
+      },
+      "python_imports": {
+        "roots": [
+          "tests/device/contracts/audio"
+        ],
+        "reviewed": "sha256:e7d0bae4c77af4131827b0fba00a131e8f2a5bc1a039a0997006b1715ff067f3"
       }
     },
     "snapshot-native": {
@@ -896,6 +956,12 @@
           "scripts/system/snapshot/NativeSnapshotReview.qml",
           "tests/device/contracts/snapshot/qml/tst_snapshot.qml"
         ]
+      },
+      "python_imports": {
+        "roots": [
+          "tests/device/contracts/snapshot"
+        ],
+        "reviewed": "sha256:54c51decd006836b930c41c9b758c80ab25218083ebf5935484268491eb2e164"
       }
     },
     "document-tree-native": {
@@ -1206,6 +1272,32 @@
           "tests/run-project-tests.py",
           "tests/platform-profile.json",
           "tools/repository-checks/android-host-prepare.sh"
+        ]
+      }
+    },
+    "browser-cpu-selection": {
+      "command": [
+        "python",
+        "tests/browser-cpu-selection-test.py"
+      ],
+      "layer": "quick",
+      "scope": "content",
+      "environment": "host-qt5-qt6",
+      "closure": {
+        "kind": "patterns",
+        "inputs": [
+          "tests/browser-cpu-selection-test.py",
+          "tools/repository-checks/browser_cpu.py",
+          "tools/repository-checks/workflows/browser-client.yml",
+          "tools/test-evidence/inputs.py",
+          ".github/workflows/browser-client.yml"
+        ],
+        "required": [
+          "tests/browser-cpu-selection-test.py",
+          "tools/repository-checks/browser_cpu.py",
+          "tools/repository-checks/workflows/browser-client.yml",
+          "tools/test-evidence/inputs.py",
+          ".github/workflows/browser-client.yml"
         ]
       }
     },
