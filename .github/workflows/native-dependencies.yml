@@ -38,7 +38,7 @@ jobs:
       - name: Check out reviewed dependency definitions
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          repository: noah-be/overte
+          repository: noah-l-frank/overte
           ref: ${{ inputs.candidate_sha || github.sha }}
           persist-credentials: false
 
@@ -101,7 +101,7 @@ jobs:
           archive = Path('build/native-package/conan-packages.tgz')
           metadata = {
               'schema': 1,
-              'repository': 'noah-be/overte',
+              'repository': 'noah-l-frank/overte',
               'source_sha': os.environ['BASELINE_SHA'],
               'run_id': os.environ['GITHUB_RUN_ID'],
               'inputs': {name: hashlib.sha256(Path(name).read_bytes()).hexdigest() for name in files},
@@ -211,20 +211,20 @@ jobs:
   publish:
     name: Publish qualified native package image
     needs: prepare
-    if: github.repository == 'noah-be/overte' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    if: github.repository == 'noah-l-frank/overte' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
       contents: read
       packages: write
     env:
-      IMAGE: ghcr.io/noah-be/overte/native-dependencies:baseline-${{ inputs.candidate_sha || github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+      IMAGE: ghcr.io/noah-l-frank/overte/native-dependencies:baseline-${{ inputs.candidate_sha || github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
       BASELINE_SHA: ${{ inputs.candidate_sha || github.sha }}
     steps:
       - name: Check out trusted image definition
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          repository: noah-be/overte
+          repository: noah-l-frank/overte
           ref: ${{ github.sha }}
           persist-credentials: false
           sparse-checkout: tools/native-tests
@@ -242,7 +242,7 @@ jobs:
           from pathlib import Path
           root = Path('build/native-package')
           metadata = json.loads((root / 'native-package.json').read_text())
-          assert metadata['schema'] == 1 and metadata['repository'] == 'noah-be/overte'
+          assert metadata['schema'] == 1 and metadata['repository'] == 'noah-l-frank/overte'
           assert metadata['source_sha'] == os.environ['BASELINE_SHA']
           assert metadata['run_id'] == os.environ['GITHUB_RUN_ID']
           with (root / 'conan-packages.tgz').open('rb') as archive:
@@ -255,7 +255,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_ACTOR: ${{ github.actor }}
         run: |
-          test "$(docker image inspect "$IMAGE" --format '{{index .Config.Labels "org.opencontainers.image.source"}}')" = https://github.com/noah-be/overte
+          test "$(docker image inspect "$IMAGE" --format '{{index .Config.Labels "org.opencontainers.image.source"}}')" = https://github.com/noah-l-frank/overte
           echo "$GH_TOKEN" | docker login ghcr.io --username "$GH_ACTOR" --password-stdin
           docker push "$IMAGE"
           docker image inspect "$IMAGE" --format '{{index .RepoDigests 0}}' > build/native-package-image.txt
