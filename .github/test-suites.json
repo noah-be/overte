@@ -1243,6 +1243,32 @@
           "tests/platform-profile.json"
         ]
       }
+    },
+    "browser-cpu-selection": {
+      "command": [
+        "python",
+        "tests/browser-cpu-selection-test.py"
+      ],
+      "layer": "quick",
+      "scope": "content",
+      "environment": "host-qt5-qt6",
+      "closure": {
+        "kind": "patterns",
+        "inputs": [
+          "tests/browser-cpu-selection-test.py",
+          "tools/repository-checks/browser_cpu.py",
+          "tools/repository-checks/workflows/browser-client.yml",
+          "tools/test-evidence/inputs.py",
+          ".github/workflows/browser-client.yml"
+        ],
+        "required": [
+          "tests/browser-cpu-selection-test.py",
+          "tools/repository-checks/browser_cpu.py",
+          "tools/repository-checks/workflows/browser-client.yml",
+          "tools/test-evidence/inputs.py",
+          ".github/workflows/browser-client.yml"
+        ]
+      }
     }
   }
 }

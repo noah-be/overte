@@ -316,6 +316,13 @@ Future activation must use a trusted selector checkout and exact authenticated
 base/candidate commits, preserve whole-language scans and scheduled full scans,
 and review the helper's configuration hashes after changing CodeQL configuration
 or action versions. It selects languages, not individual files within a scan.
+The `browser-cpu-selection` quick suite exercises dormant trusted Browser CPU
+history routing and independent final-result validation against real Git
+histories. It also runs in the combined host profile. Its registry closure
+binds the helper, test, immutable-inventory validator, active legacy workflow
+and exact dormant template. The [Browser CPU selection guide](../docs/BROWSER_CPU_SELECTION.md)
+records the required workflow/source-history migration and outer-gate handoff
+before activation; this preparation changes no active Browser workflow.
 
 The `test-evidence` quick suite checks trusted execution receipts, complete
 suite-input fingerprints, actual runtime identity and parent qualification.
@@ -398,6 +405,7 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `android-ci` | `quick` | `python3 tests/run-project-tests.py --suite android-ci` |
 | `android-build-inputs` | `quick` | `python3 tests/run-project-tests.py --suite android-build-inputs` |
 | `codeql-selection` | `quick` | `python3 tests/run-project-tests.py --suite codeql-selection` |
+| `browser-cpu-selection` | `quick` | `python3 tests/run-project-tests.py --suite browser-cpu-selection` |
 | `ios-build-qualification` | `quick` | `python3 tests/run-project-tests.py --suite ios-build-qualification` |
 | `ios-input-selection` | `quick` | `python3 tests/run-project-tests.py --suite ios-input-selection` |
 | `repository-policy` | `quick` | `python3 tests/run-project-tests.py --suite repository-policy` |
