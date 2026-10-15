@@ -63,9 +63,9 @@ class ImportResolutionIdentityTests(unittest.TestCase):
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(content, encoding="utf-8")
 
-    def prepare_suite(self, name):
+    def prepare_suite(self, name, expected_kind="patterns"):
         definition = self.registry["suites"][name]
-        self.assertEqual(definition["closure"]["kind"], "patterns")
+        self.assertEqual(definition["closure"]["kind"], expected_kind)
         for path in definition["closure"]["required"]:
             self.write(path, "fixture\n")
         selected = deepcopy(self.registry)
@@ -136,6 +136,31 @@ class ImportResolutionIdentityTests(unittest.TestCase):
                 candidate = self.commit()
                 self.assert_requires_execution(registry, name, parent, candidate)
                 (self.root / path).unlink()
+
+    def test_native_include_search_roots_cannot_hide_new_system_header_shadows(self):
+        # These unchanged harnesses search candidate -I roots before system/Qt
+        # headers. Until positive AND negative header resolution is bound, the
+        # full repository is their necessary conservative input closure.
+        cases = (
+            ("lod-preferences", "QCoreApplication"),
+            ("web-entity-visibility", "QCoreApplication"),
+            ("recorded-voice-native", "atomic"),
+            ("performance-contracts", "atomic"),
+            ("goto-dialog-script", "interface/src/scripting/QObject"),
+        )
+        for name, shadow in cases:
+            with self.subTest(suite=name, shadow=shadow):
+                registry = self.prepare_suite(name, expected_kind="repository")
+                (self.root / shadow).unlink(missing_ok=True)
+                parent = self.commit()
+                entrypoint = registry["suites"][name]["command"][1]
+                self.write(shadow, '#error candidate header search resolution changed\n')
+                candidate = self.commit()
+                self.assertEqual(parent[entrypoint], candidate[entrypoint])
+                self.assertNotIn(shadow, parent)
+                self.assertIn(shadow, candidate)
+                self.assert_requires_execution(registry, name, parent, candidate)
+                (self.root / shadow).unlink()
 
 
 if __name__ == "__main__":

@@ -212,49 +212,6 @@ class RoutingTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             SELECT.separately_qualified_names(wrong, ROOT)
 
-    def test_prospective_transport_wiring_requires_selected_jobs_and_shared_fixtures(self):
-        import ast
-        import yaml
-        templates = ROOT / 'tools/repository-checks/workflows'
-        workflow = yaml.safe_load((templates / 'browser-direct-client.yml').read_text())
-        caller = yaml.safe_load((templates / 'repository-checks.yml').read_text())
-        triggers = workflow.get('on', workflow.get(True))
-        self.assertIn('workflow_call', triggers)
-        self.assertNotIn('pull_request', triggers, 'The aggregate replaces the standalone PR consumer')
-        jobs = workflow['jobs']
-        self.assertEqual(set(jobs['verify']['needs']), {'route', 'browser', 'native'})
-        self.assertEqual(jobs['verify']['if'], 'always()')
-        for lane, output in (('browser', 'direct_browser'), ('native', 'direct_native')):
-            self.assertEqual(jobs[lane]['needs'], 'route')
-            self.assertEqual(jobs[lane]['if'], f"needs.route.outputs.{output} == 'true'")
-        verifier = next(step for step in jobs['verify']['steps'] if step.get('id') == 'verify')
-        self.assertIn('trusted/tools/repository-checks/check.py direct-verify', verifier['run'])
-        self.assertIn('--needs-json "$DIRECT_RESULTS"', verifier['run'])
-        self.assertIn('--sha "$GITHUB_SHA"', verifier['run'])
-        self.assertIn('direct-browser', caller['jobs']['repository-checks']['needs'])
-        consumer = caller['jobs']['direct-browser']
-        self.assertEqual(consumer['uses'], './.github/workflows/browser-direct-client.yml')
-        self.assertEqual(consumer['permissions'], {'contents': 'read', 'packages': 'read'})
-        self.assertEqual(set(consumer['with']), {'expected_candidate', 'expected_plan',
-                                                'browser_required', 'native_required'})
-        aggregate = caller['jobs']['repository-checks']['steps'][-1]
-        self.assertIn('--candidate candidate --sha "$GITHUB_SHA"', aggregate['run'])
-        # These browser JSON files are read by actual C++ tests, so an extension-
-        # only frontend exemption would silently miss a required native consumer.
-        fixtures = set()
-        for source in (ROOT / 'tests/browser-direct-transport/src').glob('*.cpp'):
-            fixtures.update(re.findall(r'QFINDTESTDATA\("\.\./\.\./\.\./(browser-direct-client/[^\"]+)"\)',
-                                       source.read_text()))
-        self.assertTrue(fixtures)
-        for fixture in fixtures:
-            selected = GATE.direct_browser_plan([fixture])
-            self.assertTrue(selected['browser'] and selected['native'], fixture)
-        driver = ast.parse((ROOT / 'browser-direct-client/tools/ci-native.py').read_text())
-        for node in ast.walk(driver):
-            if (isinstance(node, ast.Constant) and isinstance(node.value, str)
-                    and node.value.startswith(('tools/native-tests/', 'tools/conan-profiles/'))):
-                self.assertTrue(GATE.direct_browser_plan([node.value])['native'], node.value)
-
     def test_known_descendant_programs_are_required_whenever_their_source_exists(self):
         policy = {'tests': {'shared-RequiredTests': []},
                   'optional_tests': {'platform-DescendantTests': []}}
@@ -328,7 +285,7 @@ class WorkflowCostTests(unittest.TestCase):
         config = json.loads((ROOT / '.github/repository-checks.json').read_text())
         if config.get('native_required', False) or 'main' in config.get('native_required_branches', []):
             self.assertIn("if: needs.route.outputs.native != 'skip'", caller)
-            self.assertRegex(caller, r'workflow-security, native(?:, direct-browser)?\]')
+            self.assertIn('workflow-security, native]', caller)
         self.assertIn("timeout-minutes: ${{ inputs.mode == 'full' && 90 || 15 }}", workflow)
         self.assertIn('timeout-minutes: 10', workflow)
         self.assertNotIn('--build=missing', workflow)
@@ -401,7 +358,7 @@ class WorkflowCostTests(unittest.TestCase):
         self.assertEqual(caller['jobs']['native']['permissions'], {'contents': 'read', 'packages': 'read'})
         self.assertNotIn('packages', caller['permissions'])
         for name, entry in caller['jobs'].items():
-            if name not in {'native', 'direct-browser'}:
+            if name != 'native':
                 self.assertNotIn('packages', entry.get('permissions', {}))
         steps = job['steps']
         verify = next(step for step in steps if step.get('name') == 'Verify reviewed prepared dependency inputs')
