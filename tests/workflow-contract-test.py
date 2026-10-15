@@ -10,6 +10,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import textwrap
 import unittest
 from unittest import mock
 
@@ -261,7 +262,8 @@ class CodeQLWorkflowContracts(unittest.TestCase):
         self.assertIn("runs-on: ubuntu-24.04", self.source)
         self.assertNotIn("self-hosted", self.source)
         self.assertIn("timeout-minutes: 30", self.source)
-        self.assertIn("language: [javascript-typescript, python]", self.source)
+        self.assertIn("language: ${{ fromJSON(needs.select.outputs.languages) }}", self.source)
+        self.assertIn("if: needs.select.outputs.scan == 'true'", self.source)
         self.assertIn("build-mode: none", self.source)
 
     def test_permissions_are_least_privilege(self):
@@ -275,7 +277,7 @@ class CodeQLWorkflowContracts(unittest.TestCase):
 
     def test_actions_are_fresh_full_sha_pins(self):
         actions = ACTION_USE.findall(self.source)
-        self.assertEqual(len(actions), 3)
+        self.assertEqual(len(actions), 5)
         self.assertEqual([action for action in actions if not FULL_SHA_ACTION.fullmatch(action)], [])
         codeql = [action for action in actions if action.startswith("github/codeql-action/")]
         self.assertEqual(
@@ -289,6 +291,34 @@ class CodeQLWorkflowContracts(unittest.TestCase):
     def test_checkout_is_credential_free_and_default_setup_is_not_mixed_in(self):
         self.assertIn("persist-credentials: false", self.source)
         self.assertNotIn("autobuild", self.source)
+
+    def test_selector_reads_trusted_policy_and_exact_immutable_candidate(self):
+        selector = self.source.split('  select:', 1)[1].split('  analyze:', 1)[0]
+        self.assertIn('ref: ${{ github.event.repository.default_branch }}', selector)
+        self.assertIn('path: trusted', selector)
+        self.assertIn('path: candidate', selector)
+        self.assertIn('fetch-depth: 2', selector)
+        self.assertEqual(selector.count('persist-credentials: false'), 2)
+        self.assertIn('CANDIDATE_SHA: ${{ github.sha }}', selector)
+        self.assertIn('BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}', selector)
+        self.assertIn('python3 trusted/tools/repository-checks/codeql.py', selector)
+        self.assertIn('--root candidate --base-sha "$BASE_SHA" --candidate-sha "$CANDIDATE_SHA"', selector)
+        self.assertIn('--event "$EVENT_NAME" > codeql-plan.json', selector)
+        self.assertIn('cron: "17 3 * * 4"', self.source)
+
+    def test_selected_analyses_fail_closed_in_final_aggregate(self):
+        aggregate = self.source.split('  codeql-checks:', 1)[1]
+        self.assertIn('if: always()', aggregate)
+        self.assertIn('needs: [select, analyze]', aggregate)
+        script = textwrap.dedent(aggregate.split('        run: |\n', 1)[1])
+        for selected in ('success', 'failure', 'cancelled', 'skipped'):
+            for scan in ('true', 'false', ''):
+                for analysis in ('success', 'failure', 'cancelled', 'skipped'):
+                    env = dict(os.environ, SELECT_RESULT=selected, SCAN=scan, ANALYZE_RESULT=analysis)
+                    result = subprocess.run(['bash', '-c', script], env=env, capture_output=True)
+                    expected = selected == 'success' and (scan, analysis) in {
+                        ('true', 'success'), ('false', 'skipped')}
+                    self.assertEqual(result.returncode == 0, expected, (selected, scan, analysis))
 
 
 class BranchGovernanceWorkflowContracts(unittest.TestCase):
