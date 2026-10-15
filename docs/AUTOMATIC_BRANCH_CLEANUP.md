@@ -5,9 +5,20 @@ working branches in `noah-l-frank/overte`. It runs on GitHub-hosted Ubuntu runne
 continues operating while the maintainer's computers are switched off.
 
 There is no branch-age requirement or waiting period. A merged pull request wakes
-the cleanup immediately; a five-minute schedule catches other eligible branches
-and retries work that was previously held. GitHub may delay scheduled workflows,
-so this is a detection interval, not a five-minute completion guarantee.
+the cleanup immediately. Completion of the listed CI workflows wakes it again,
+including failed or cancelled runs, so branches held by running CI are reassessed
+after that activity ends. Every wake-up evaluates current GitHub state; it does
+not authorize deletion from the triggering run's result or execute its code or
+artifacts. Cleanup itself is excluded from the explicit workflow-name list to
+prevent recursive runs. Keep that list current when adding or renaming workflows,
+including platform workflows maintained outside `main`. GitHub treats these
+names as glob patterns; escape literal metacharacters such as the plus signs
+in `Native C++ checks`. YAML quoting alone does not escape the pattern.
+
+A five-minute schedule catches other eligible branches, retries work that was
+previously held, and covers GitHub's workflow-chain depth limit. GitHub may delay
+scheduled workflows, so this is a detection interval, not a five-minute
+completion guarantee.
 
 GitHub's native `delete_branch_on_merge` setting remains disabled. All automated
 deletions must pass the cleanup's checks and backup sequence.

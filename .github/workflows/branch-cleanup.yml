@@ -1,10 +1,62 @@
 name: Automatic branch cleanup
 
-# Only the trusted main checkout supplies executable code. The PR event is a
-# wake-up signal; candidate trees and downloaded artifacts are never executed.
-on: # zizmor: ignore[dangerous-triggers] Merged-PR notification runs only trusted main cleanup code.
+# Only trusted main supplies executable code. PR and CI events are wake-up
+# signals; candidate trees and downloaded artifacts are never executed.
+on: # zizmor: ignore[dangerous-triggers] PR and CI notifications run only trusted main cleanup code.
   pull_request_target:
     types: [closed]
+  workflow_run:
+    # Explicit names avoid recursively waking cleanup after its own completion.
+    # Include platform workflows registered outside main and GitHub-managed CI.
+    # Names are glob patterns: escape literal metacharacters, including C++'s +.
+    workflows:
+      - ".github/workflows/ios-qt-source.yml"
+      - "Android Phone emulator acceptance"
+      - "Android Phone release candidate"
+      - "Android Phone trusted build"
+      - "Android VR integration tests"
+      - "Android branch topology"
+      - "Android tests"
+      - "Apple branch topology"
+      - "Attest and draft a verified release bundle"
+      - "Branch policy"
+      - "Branch synchronization"
+      - "Browser client"
+      - "CodeQL"
+      - "Dependabot Updates"
+      - "Dependency Graph"
+      - "Dependency release policy"
+      - "Direct browser client"
+      - "Documentation checks"
+      - "Issue intake"
+      - "Linux Server CI Build"
+      - "Native C\\+\\+ checks"
+      - "Overte CI Build"
+      - "Owned atomic settings diagnostic"
+      - "Parent qualification"
+      - "Pico 4 device acceptance"
+      - "Pico 4 release candidate"
+      - "Pico 4 trusted build"
+      - "Prepare native baseline"
+      - "Repository Health Doctor"
+      - "Repository checks"
+      - "Session 53X SHA enforcement canary"
+      - "Shared project CI"
+      - "Sync test reuse"
+      - "Sync validation"
+      - "Workflow security"
+      - "iOS Full Client simulator install diagnostic"
+      - "iOS GetMac persistent recovery"
+      - "iOS bootstrap"
+      - "iOS device build qualification"
+      - "iOS normalize unsigned IPA for Sideloadly"
+      - "iOS world candidate runtime"
+      - "iPad Fast Dev IPA"
+      - "macOS Apple Silicon GPU probe"
+      - "macOS Quick Iterate"
+      - "macOS bootstrap"
+      - "macOS runtime smoke"
+    types: [completed]
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch:
