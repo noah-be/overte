@@ -22,6 +22,15 @@ class GranularReporterTest(unittest.TestCase):
         for counter in ('errors', 'failures', 'skipped', None):
             with self.subTest(counter=counter), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
+                # Isolate Common report semantics; selected Phone runtime has its own matrix below.
+                android = root / 'android'
+                qml = android / 'common/tests/qml'
+                reporting = android / 'common/tests/reporting'
+                qml.mkdir(parents=True)
+                reporting.mkdir(parents=True)
+                for source, target in ((ANDROID_ROOT / 'common/tests/qml/run-qml-tests.sh', qml / 'run-qml-tests.sh'),
+                                       (ANDROID_ROOT / 'common/tests/reporting/atomic-junit-report.sh', reporting / 'atomic-junit-report.sh')):
+                    shutil.copy2(source, target)
                 runner = root / 'qmltestrunner'
                 executable(runner, '''
 previous=""
@@ -34,7 +43,7 @@ done
 ''')
                 original = ('<testsuite tests="1" ' + counter + '="1"><testcase result="pass"/></testsuite>'
                             if counter else '<testsuite tests="1"><testcase name="standard-qt6"/></testsuite>')
-                result = subprocess.run([ANDROID_ROOT / 'common/tests/qml/run-qml-tests.sh'],
+                result = subprocess.run([qml / 'run-qml-tests.sh'], cwd=android,
                     env=os.environ | {'OVERTE_QML_TEST_RUNNER': str(runner),
                                       'OVERTE_TEST_REPORT_DIR': str(root / 'reports'), 'FIXTURE_JUNIT': original},
                     text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
