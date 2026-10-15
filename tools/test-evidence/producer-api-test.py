@@ -360,6 +360,246 @@ class AdapterTests(unittest.TestCase):
             self.adapter._pages("actions/workflows/99/runs", "workflow_runs", search=True)
 
 
+class ManualFakeApi(FakeApi):
+    """Synthetic reviewed controller tree only; no real workflow is admitted."""
+    def json(self, endpoint):
+        path = endpoint[len(A.PREFIX):].lstrip("/").split("?", 1)[0]
+        case = self.case
+        if path == "git/commits/" + case.source.controller_commit:
+            result = {"sha": case.source.controller_commit, "tree": {"sha": case.source.controller_tree},
+                      "parents": [{"sha": "8" * 40}]}
+        elif path.startswith("git/trees/") and path.rsplit("/", 1)[1] in case.controller_trees:
+            identity = path.rsplit("/", 1)[1]
+            result = {"sha": identity, "truncated": False, "tree": case.controller_trees[identity]}
+        elif path == "actions/workflows/99/runs":
+            query = parse_qs(urlsplit(endpoint).query)
+            self.case.assertEqual(query.get("head_sha"), [case.source.controller_commit])
+            self.case.assertEqual(query.get("event"), ["workflow_dispatch"])
+            self.case.assertEqual(query.get("branch"), ["main"])
+            self.case.assertNotIn("status", query)
+            self.case.assertNotIn("created", query)
+            result = self.page(list(case.runs.values()), "workflow_runs", query)
+        elif path.startswith("actions/jobs/"):
+            identity = int(path.rsplit("/", 1)[1])
+            result = next(job for jobs in case.jobs.values() for job in jobs if job["id"] == identity)
+        elif path.startswith("check-suites/"):
+            identity = int(path.rsplit("/", 1)[1])
+            result = {"id": identity, "head_sha": case.source.controller_commit,
+                      "repository": {"id": 1319052603, "full_name": A.REPOSITORY}, "app": {"id": 15368}}
+        else:
+            return super().json(endpoint)
+        self.calls.append(endpoint)
+        return self.mutate(endpoint, deepcopy(result))
+
+
+class ManualAdapterTests(unittest.TestCase):
+    add_run = AdapterTests.add_run
+    capture = AdapterTests.capture
+    verify = AdapterTests.verify
+    authority = AdapterTests.authority
+    artifact = AdapterTests.artifact
+
+    def setUp(self):
+        AdapterTests.setUp(self)
+        example = FIXTURES.ProducerProtocolTests()
+        example.setUp()
+        sources = {
+            ".github/workflows/producer.yml": {"mode": "100644", "type": "blob", "sha": example.policy.workflow_blob},
+            "tools/test-evidence/fake-manual-controller.py": {"mode": "100644", "type": "blob", "sha": "6" * 40},
+            "tools/test-evidence/producer.py": {"mode": "100644", "type": "blob", "sha": "7" * 40},
+        }
+        self.source = A.ManualSource(True, self.binding["base_sha"], "9" * 40,
+                                     "tools/test-evidence/fake-manual-controller.py", sources)
+        self.pp = replace(example.policy, controller_digest=A.manual_identity(self.source))
+        self.policy = A.AdapterPolicy(self.pp, 99, self.pp.workflow_path, {},
+                                      "Publish descriptor", {"shared-host": "Protected shared owner"},
+                                      "manual-main-v1", self.source)
+        self.runs, self.jobs, self.artifacts, self.archives = {}, {}, {}, {}
+        self.run = replace(example.run, workflow_commit=self.source.controller_commit)
+        self.add_manual_run(self.run)
+        # Build a small immutable tree with the complete synthetic executable map.
+        directories = {"": self.source.controller_tree}
+        self.controller_trees = {self.source.controller_tree: []}
+        for path, entry in sources.items():
+            parts = path.split("/")
+            for index, part in enumerate(parts):
+                parent = "/".join(parts[:index])
+                entries = self.controller_trees[directories[parent]]
+                if index == len(parts) - 1:
+                    entries.append({"path": part, **entry})
+                else:
+                    directory = "/".join(parts[:index + 1])
+                    if directory not in directories:
+                        identity = hashlib.sha1(directory.encode()).hexdigest()
+                        directories[directory] = identity
+                        self.controller_trees[identity] = []
+                        entries.append({"path": part, "mode": "040000", "type": "tree", "sha": identity})
+        self.api = ManualFakeApi(self)
+        self.adapter = A.Adapter(self.api)
+
+    def add_manual_run(self, run, *, descriptor=True):
+        AdapterTests.add_run(self, run, descriptor=descriptor)
+        self.runs[run.run_id].update(event="workflow_dispatch", head_sha=self.source.controller_commit,
+                                     head_branch="main", pull_requests=[], referenced_workflows=[])
+        for job in self.jobs[run.run_id]:
+            job["head_sha"] = self.source.controller_commit
+        for artifact in self.artifacts[run.run_id]:
+            artifact["workflow_run"]["head_sha"] = self.source.controller_commit
+
+    def test_manual_candidate_proof_is_distinct_from_authenticated_main_source(self):
+        with patch.object(P.execution, "execute", side_effect=AssertionError("no candidate execution")):
+            snapshot = self.capture()
+            with self.assertRaisesRegex(P.ProtocolError, "protected post-kill receipt verification is not implemented"):
+                self.verify()
+        self.assertTrue(snapshot.inventory_complete)
+        chain = snapshot.source_chains[100]
+        self.assertEqual(chain["source_kind"], "manual-main-v1")
+        self.assertEqual(chain["producer_commit"], self.source.controller_commit)
+        self.assertNotEqual(chain["producer_commit"], self.binding["merge_sha"])
+        self.assertEqual(chain["original_attempt"], 1)
+        self.assertEqual(chain["owner_job_ids"], {"shared-host": 120})
+        self.assertEqual(self.authority()["state"], "proof-required", "source admission is never a passed reusable result")
+        self.assertIn(A.PREFIX + "/actions/jobs/120", self.api.calls)
+
+    def test_manual_support_is_default_off_and_json_cannot_supply_policy(self):
+        for manual in (A.ManualSource(), replace(self.source, enabled=False),
+                       replace(self.source, enabled="true"), self.source.__dict__, None):
+            self.api.calls.clear()
+            with self.subTest(manual=manual), self.assertRaises(P.ProtocolError):
+                self.adapter.capture(17, self.plan, replace(self.policy, manual=manual), now=NOW)
+            self.assertEqual(self.api.calls, [])
+        self.assertEqual(A.AdapterPolicy(self.pp, 99, self.pp.workflow_path, {}, "publisher", {}).source_kind,
+                         "reusable-pr")
+        with self.assertRaises(P.ProtocolError):
+            self.adapter.capture(17, self.plan, self.policy.__dict__, now=NOW)
+        for changes in ({"source_kind": "unreviewed"}, {"source_kind": "reusable-pr"},
+                        {"generations": {"mixed": self.generation}}):
+            with self.subTest(changes=changes), self.assertRaises(P.ProtocolError):
+                self.adapter.capture(17, self.plan, replace(self.policy, **changes), now=NOW)
+
+    def test_manual_run_cannot_change_main_repo_event_source_or_use_reusable_callee(self):
+        cases = ({"event": "pull_request"}, {"head_branch": "other"}, {"head_sha": self.binding["merge_sha"]},
+                 {"path": ".github/workflows/other.yml"}, {"workflow_id": 98},
+                 {"repository": {"id": 42, "full_name": A.REPOSITORY}},
+                 {"head_repository": {"id": 1319052603, "full_name": "overte-org/overte"}},
+                 {"pull_requests": [{"number": 17}]}, {"referenced_workflows": [{"sha": self.binding["merge_sha"]}]})
+        for change in cases:
+            with self.subTest(change=change):
+                original = deepcopy(self.runs[100])
+                self.runs[100].update(change)
+                self.assertFalse(self.capture().inventory_complete)
+                with self.assertRaises(P.ProtocolError): self.verify()
+                self.runs[100] = original
+
+    def test_complete_controller_tree_sources_modes_and_digest_must_match_review(self):
+        source = self.source
+        for change in ({"controller_tree": "8" * 40}, {"controller_commit": "7" * 40},
+                       {"controller_path": "tools/untrusted.py"},
+                       {"sources": {self.pp.workflow_path: source.sources[self.pp.workflow_path]}}):
+            with self.subTest(change=change):
+                modified = replace(source, **change)
+                policy = replace(self.policy, manual=modified,
+                                 producer=replace(self.pp, controller_digest=A.manual_identity(modified)))
+                with self.assertRaises(P.ProtocolError):
+                    self.adapter.verify(17, self.plan, policy, {"shared-host": self.context}, clock=lambda: NOW)
+        for mutation in ("blob", "mode", "truncated", "duplicate"):
+            def mutate(endpoint, value):
+                if "/git/trees/" in endpoint:
+                    if mutation == "truncated": value["truncated"] = True
+                    for entry in value["tree"][:]:
+                        if entry.get("path") == "fake-manual-controller.py":
+                            if mutation == "blob": entry["sha"] = "0" * 40
+                            elif mutation == "mode": entry["mode"] = "120000"
+                            elif mutation == "duplicate": value["tree"].append(deepcopy(entry))
+                return value
+            self.api.mutate = mutate
+            with self.subTest(mutation=mutation):
+                self.assertEqual(self.authority()["state"], "unresolved")
+        self.api.mutate = lambda endpoint, value: value
+        with self.assertRaises(P.ProtocolError):
+            self.adapter.capture(17, self.plan, replace(self.policy, producer=replace(self.pp, controller_digest="sha256:" + "0" * 64)), now=NOW)
+
+    def test_original_attempt_is_never_inferred_from_rerun_snapshot_or_old_timestamps(self):
+        self.add_manual_run(replace(self.run, run_id=101, attempt=2, latest_attempt=2), descriptor=False)
+        self.runs[101]["run_started_at"] = self.runs[100]["run_started_at"]
+        for job in self.jobs[101]:
+            job["run_attempt"] = 2  # A later snapshot can retain original success times.
+        snapshot = self.capture()
+        self.assertIn("manual-original-attempt-unavailable", snapshot.unavailable)
+        self.assertFalse(snapshot.inventory_complete)
+        with self.assertRaises(P.ProtocolError): self.verify()
+        self.assertFalse(any("/attempts/2/jobs" in call for call in self.api.calls))
+
+    def test_job_specific_identity_check_app_and_first_attempt_inventory_are_required(self):
+        for field, value in (("id", 999), ("run_id", 999), ("head_sha", self.binding["merge_sha"]),
+                             ("run_attempt", 2), ("run_attempt", True), ("name", "other")):
+            def mutate(endpoint, document):
+                if endpoint.endswith("/actions/jobs/120"): document[field] = value
+                return document
+            self.api.mutate = mutate
+            with self.subTest(field=field, value=value):
+                self.assertEqual(self.authority()["state"], "unresolved")
+        self.api.mutate = lambda endpoint, value: ({**value, "app": {"id": 42}}
+                                                   if "/check-runs/" in endpoint else value)
+        self.assertEqual(self.authority()["state"], "unresolved")
+        self.api.mutate = lambda endpoint, value: value
+        for job in self.jobs[100]: job.pop("run_attempt")
+        self.assertTrue(self.capture().inventory_complete,
+                        "first-ever attempt can authenticate job IDs without snapshot attempt fields")
+        with self.assertRaisesRegex(P.ProtocolError, "protected post-kill receipt verification is not implemented"):
+            self.verify()
+
+    def test_artifact_json_cannot_replace_actual_candidate_context_or_original_run(self):
+        with self.assertRaises(P.ProtocolError):
+            self.adapter.verify(17, self.plan, self.policy, {}, clock=lambda: NOW)
+        for context in (replace(self.context, candidate_commit=self.source.controller_commit),
+                        replace(self.context, candidate_tree="8" * 40)):
+            with self.assertRaises(P.ProtocolError):
+                self.adapter.verify(17, self.plan, self.policy, {"shared-host": context}, clock=lambda: NOW)
+        self.artifacts[100][1]["workflow_run"]["head_sha"] = self.binding["head_sha"]
+        with self.assertRaises(P.ProtocolError): self.verify()
+
+    def test_current_base_advance_or_old_base_receipt_cannot_relabel_candidate(self):
+        aggregate = deepcopy(self.aggregate)
+        receipt = aggregate["results"]["shared-host"]["receipt"]
+        receipt.update(candidate_commit="8" * 40, candidate_tree="7" * 40)
+        aggregate["results"]["shared-host"]["receipt"] = FIXTURES.signed(receipt, "receipt_digest")
+        descriptor = P.descriptor(self.binding, self.plan, self.pp, self.run)
+        aggregate["descriptor_digest"] = descriptor["descriptor_digest"]
+        self.artifacts[100].pop()
+        self.artifact(self.run, "aggregate", FIXTURES.signed(aggregate, "aggregate_digest"))
+        self.artifacts[100][-1]["workflow_run"]["head_sha"] = self.source.controller_commit
+        with self.assertRaisesRegex(P.ProtocolError, "shared source|complete original proof"):
+            self.verify()
+        self.binding["base_sha"] = "8" * 40
+        self.binding["merge_sha"] = "7" * 40
+        self.binding["merge_tree"] = "6" * 40
+        self.binding["merge_parents"][0] = self.binding["base_sha"]
+        with self.assertRaises(P.ProtocolError): self.verify()
+
+    def test_newer_pending_missing_or_failed_manual_run_never_falls_back_to_old_green(self):
+        for status, conclusion in (("queued", None), ("in_progress", None), ("completed", "failure")):
+            self.add_manual_run(replace(self.run, run_id=101, status=status, conclusion=conclusion,
+                                        attempt_started_at="2026-10-15T10:04:00Z", owners={},
+                                        publisher=replace(self.run.publisher, job_id=210,
+                                                          started_at="2026-10-15T10:04:00Z",
+                                                          completed_at="2026-10-15T10:04:10Z")),
+                                descriptor=status != "queued")
+            with self.subTest(status=status), self.assertRaises(P.ProtocolError): self.verify()
+            self.assertNotEqual(self.authority()["state"], "proof-required")
+
+    def test_final_bookend_reauthenticates_original_job_ids(self):
+        original = self.api.bytes
+        def replace_owner(endpoint):
+            raw = original(endpoint)
+            if endpoint.endswith("/1002/zip"):
+                self.jobs[100][1].update(id=121, check_run_url=f"https://api.github.com/{A.PREFIX}/check-runs/121")
+            return raw
+        with patch.object(self.api, "bytes", side_effect=replace_owner), self.assertRaisesRegex(
+                P.ProtocolError, "manual original source/job provenance changed"):
+            self.verify()
+
+
 class ReadOnlyBoundaryTests(unittest.TestCase):
     def test_only_fixed_fork_gets_are_issued_and_error_details_stay_private(self):
         real = subprocess.Popen

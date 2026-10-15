@@ -7,6 +7,9 @@ referenced_workflows identifies the ORIGINAL merge/source, never head_sha or an
 artifact assertion. Unknown sources, incomplete inventories and mixed attempts
 cannot fall back to an older green. Trusted policy is supplied by the controller;
 there is deliberately no candidate JSON/CLI policy or facts constructor.
+An explicit, default-disabled manual-main contract separates trusted controller
+source from independently materialized candidate receipts. Only original first
+attempts are supported; rerun snapshots do not establish original execution.
 """
 
 from __future__ import annotations
@@ -37,6 +40,10 @@ _DIGEST = re.compile(r"sha256:[0-9a-f]{64}\Z")
 
 class ApiError(P.ProtocolError):
     """Complete authenticated producer evidence is unavailable."""
+
+
+class OriginalAttemptUnavailable(ApiError):
+    """A rerun snapshot cannot authenticate its original producer executions."""
 
 
 def require(condition, message):
@@ -133,6 +140,27 @@ class GitHubReadOnly:
 
 
 @dataclass(frozen=True)
+class ManualSource:
+    """Trusted review input, never a candidate manifest or activation setting.
+
+    The immutable root tree binds the entire controller source, including files
+    outside the explicit executable inventory. No real workflow is preapproved.
+    """
+    enabled: bool = False
+    controller_commit: str = ""
+    controller_tree: str = ""
+    controller_path: str = ""
+    sources: dict | None = None
+
+
+def manual_identity(source):
+    require(isinstance(source, ManualSource), "trusted manual source contract unavailable")
+    return P.digest({"source_kind": "manual-main-v1", "controller_commit": source.controller_commit,
+                     "controller_tree": source.controller_tree, "controller_path": source.controller_path,
+                     "sources": source.sources})
+
+
+@dataclass(frozen=True)
 class AdapterPolicy:
     producer: P.Policy
     caller_workflow_id: int
@@ -140,6 +168,8 @@ class AdapterPolicy:
     generations: dict[str, dict]
     publisher_job: str
     owner_jobs: dict[str, str]
+    source_kind: str = "reusable-pr"
+    manual: ManualSource | None = None
 
 
 @dataclass(frozen=True)
@@ -158,6 +188,46 @@ def _policy(value, plan, number):
     P.policy_digest(value.producer)
     P.validate_plan(plan)
     positive(value.caller_workflow_id)
+    require(isinstance(value.source_kind, str) and value.source_kind in {"reusable-pr", "manual-main-v1"},
+            "unsupported producer source kind")
+    if value.source_kind == "manual-main-v1":
+        source = value.manual
+        require(isinstance(source, ManualSource) and type(source.enabled) is bool and source.enabled,
+                "manual producer source support is disabled")
+        sha(source.controller_commit)
+        sha(source.controller_tree)
+        require(value.producer.events == ("workflow_dispatch",)
+                and value.producer.workflow_ref == "refs/heads/main"
+                and value.caller_path == value.producer.workflow_path
+                and re.fullmatch(r"\.github/workflows/[a-z0-9-]+\.yml", value.caller_path)
+                and value.generations == {}, "unsupported top-level manual source contract")
+        require(isinstance(source.sources, dict) and 2 <= len(source.sources) <= 200
+                and value.caller_path in source.sources and isinstance(source.controller_path, str)
+                and source.controller_path in source.sources
+                and source.controller_path.startswith("tools/test-evidence/")
+                and source.controller_path.endswith(".py"), "complete manual controller inventory unavailable")
+        for path, entry in source.sources.items():
+            require(isinstance(path, str) and re.fullmatch(r"[A-Za-z0-9_./-]+", path)
+                    and not any(part in {"", ".", "..", ".git"} for part in path.split("/")),
+                    "unsafe manual controller source path")
+            require(isinstance(entry, dict) and set(entry) == {"mode", "type", "sha"}
+                    and entry["mode"] in {"100644", "100755"} and entry["type"] == "blob",
+                    "invalid manual controller source entry")
+            sha(entry["sha"])
+        require(source.sources[value.caller_path]["mode"] == "100644"
+                and source.sources[value.caller_path]["sha"] == value.producer.workflow_blob
+                and value.producer.controller_digest == manual_identity(source),
+                "manual controller identity differs from trusted producer policy")
+    else:
+        require(value.manual is None, "manual source cannot amend reusable-PR admission")
+        _reusable_policy(value, number)
+    require(isinstance(value.owner_jobs, dict) and set(value.owner_jobs) == set(plan["owners"])
+            and all(isinstance(name, str) and name for name in [value.publisher_job, *value.owner_jobs.values()])
+            and len({value.publisher_job, *value.owner_jobs.values()}) == 1 + len(value.owner_jobs),
+            "trusted exact publisher/owner job names unavailable")
+
+
+def _reusable_policy(value, number):
     require(value.producer.events == ("pull_request",)
             and value.producer.workflow_ref == f"refs/pull/{number}/merge"
             and value.producer.workflow_path == ".github/workflows/project-tests.yml"
@@ -171,10 +241,6 @@ def _policy(value, plan, number):
             require(isinstance(entry, dict) and set(entry) == {"mode", "type", "sha"}
                     and entry["mode"] == "100644" and entry["type"] == "blob", "invalid trusted workflow entry")
             sha(entry["sha"])
-    require(isinstance(value.owner_jobs, dict) and set(value.owner_jobs) == set(plan["owners"])
-            and all(isinstance(name, str) and name for name in [value.publisher_job, *value.owner_jobs.values()])
-            and len({value.publisher_job, *value.owner_jobs.values()}) == 1 + len(value.owner_jobs),
-            "trusted exact publisher/owner job names unavailable")
 
 
 class Adapter:
@@ -315,6 +381,67 @@ class Adapter:
                 "producer_blob": workflows[policy.producer.workflow_path]["sha"], "producer_commit": revision,
                 "producer_ref": source["ref"], "generation": matching[0]}
 
+    def _manual_chain(self, run, policy, references):
+        source = policy.manual
+        require(references["default_ref"] == "main" and references["default"] == source.controller_commit,
+                "manual controller is not current trusted main")
+        for key in ("repository", "head_repository"):
+            require(run.get(key, {}).get("id") == 1319052603
+                    and run.get(key, {}).get("full_name") == REPOSITORY, "manual run repository mismatch")
+        require(run.get("workflow_id") == policy.caller_workflow_id
+                and run.get("path") in {policy.caller_path, policy.caller_path + "@main"}
+                and run.get("event") == "workflow_dispatch" and run.get("head_branch") == "main"
+                and run.get("head_sha") == source.controller_commit
+                and run.get("pull_requests") == [] and run.get("referenced_workflows") == [],
+                "manual run is not the exact trusted top-level main controller")
+        tree, _ = self._commit(source.controller_commit)
+        require(tree == source.controller_tree, "manual controller root tree mismatch")
+        # Read immutable directory objects, never candidate-provided files or an
+        # assumed workflow path. The pinned root covers the complete source tree.
+        directories = {}
+        for path, expected in source.sources.items():
+            cursor = tree
+            parts = path.split("/")
+            for index, part in enumerate(parts):
+                if cursor not in directories:
+                    value = self._object("git/trees/" + cursor)
+                    require(value.get("sha") == cursor and value.get("truncated") is False
+                            and isinstance(value.get("tree"), list)
+                            and all(isinstance(entry, dict) for entry in value["tree"]),
+                            "complete manual controller source tree unavailable")
+                    directories[cursor] = value["tree"]
+                found = [entry for entry in directories[cursor] if entry.get("path") == part]
+                require(len(found) == 1, "manual controller source is missing or ambiguous")
+                entry = {key: found[0].get(key) for key in ("mode", "type", "sha")}
+                if index == len(parts) - 1:
+                    require(entry == expected, "manual workflow/controller source differs from trusted review")
+                else:
+                    require(entry["mode"] == "040000" and entry["type"] == "tree",
+                            "manual controller source directory is aliased")
+                    cursor = sha(entry["sha"])
+        return {"source_kind": policy.source_kind, "caller_path": policy.caller_path,
+                "caller_blob": source.sources[policy.caller_path]["sha"], "caller_commit": source.controller_commit,
+                "producer_path": policy.producer.workflow_path, "producer_blob": policy.producer.workflow_blob,
+                "producer_commit": source.controller_commit, "producer_ref": "refs/heads/main",
+                "controller_tree": tree, "controller_identity": manual_identity(source)}
+
+    def _manual_job(self, value, run, app_id):
+        # Attempt-specific inventories alone can be snapshot rows on reruns.
+        # Only an independently bookended first-ever attempt is supported here.
+        require(run["run_attempt"] == 1 and type(value.get("run_attempt", 1)) is int
+                and value.get("run_attempt", 1) == 1,
+                "manual job is not an original first-attempt execution")
+        identity = positive(value.get("id"))
+        detail = self._object(f"actions/jobs/{identity}")
+        fields = ("id", "run_id", "head_sha", "name", "status", "conclusion",
+                  "started_at", "completed_at", "check_run_url")
+        require(all(detail.get(key) == value.get(key) for key in fields)
+                and type(detail.get("run_attempt", 1)) is int and detail.get("run_attempt", 1) == 1,
+                "original manual job identity changed or unavailable")
+        # Missing run_attempt is allowed only because first-ever run attempt 1
+        # has no prior execution to relay. No timestamp supplies this identity.
+        return self._job({**detail, "run_attempt": 1}, run, app_id)
+
     def _job(self, value, run, app_id):
         require(value.get("run_id") == run["id"] and value.get("run_attempt") == run["run_attempt"]
                 and value.get("head_sha") == run["head_sha"], "mixed or foreign job attempt")
@@ -356,22 +483,30 @@ class Adapter:
         P.read_artifact(raw, kind, facts, run, now=now)
         return raw, facts
 
-    def _observation(self, listed, policy, binding, now):
+    def _observation(self, listed, policy, binding, now, references=None):
         identity = positive(listed.get("id"))
         latest = self._object(f"actions/runs/{identity}")
         latest_attempt = positive(latest.get("run_attempt"))
+        manual = policy.source_kind == "manual-main-v1"
+        if manual and latest_attempt != 1:
+            raise OriginalAttemptUnavailable("manual rerun original execution provenance is unsupported")
         attempt = self._object(f"actions/runs/{identity}/attempts/{latest_attempt}")
         fields = ("id", "workflow_id", "check_suite_id", "path", "event", "head_sha", "head_branch", "run_attempt", "status", "conclusion")
+        if manual:
+            fields += ("repository", "head_repository", "pull_requests", "referenced_workflows", "run_started_at")
         require(all(listed.get(key) == latest.get(key) == attempt.get(key) for key in fields),
                 "latest run/attempt inventory changed or mixed")
-        chain = self._chain(attempt, policy, binding)
+        chain = (self._manual_chain(attempt, policy, references) if manual
+                 else self._chain(attempt, policy, binding))
+        source_head = attempt["head_sha"]
         suite = self._object(f"check-suites/{positive(attempt.get('check_suite_id'))}")
-        require(suite.get("id") == attempt["check_suite_id"] and suite.get("head_sha") == binding["head_sha"]
+        require(suite.get("id") == attempt["check_suite_id"] and suite.get("head_sha") == source_head
                 and suite.get("repository", {}).get("id") == 1319052603
                 and suite.get("app", {}).get("id") == policy.producer.actions_app_id,
                 "run check-suite/app authority mismatch")
         jobs = self._pages(f"actions/runs/{identity}/attempts/{latest_attempt}/jobs", "jobs")
-        require(all(job.get("run_id") == identity and job.get("run_attempt") == latest_attempt for job in jobs),
+        require(all(job.get("run_id") == identity
+                    and (job.get("run_attempt", 1) if manual else job.get("run_attempt")) == latest_attempt for job in jobs),
                 "latest-attempt job snapshot contains mixed executions")
         by_name = {}
         for job in jobs:
@@ -379,15 +514,19 @@ class Adapter:
         selected = {}
         for name in [policy.publisher_job, *policy.owner_jobs.values()]:
             require(len(by_name.get(name, [])) <= 1, "selected job name is ambiguous")
-            selected[name] = self._job(by_name[name][0], attempt, policy.producer.actions_app_id) if name in by_name else None
+            authenticate = self._manual_job if manual else self._job
+            selected[name] = authenticate(by_name[name][0], attempt, policy.producer.actions_app_id) if name in by_name else None
         run = P.AuthenticatedRun(REPOSITORY, 1319052603, suite["app"]["id"], identity, latest_attempt, latest_attempt,
                                  attempt.get("run_started_at"), policy.producer.workflow_path, chain["producer_blob"],
                                  chain["producer_commit"], chain["producer_ref"], attempt["event"], attempt["status"],
                                  attempt.get("conclusion"), selected[policy.publisher_job],
                                  {name: selected[job] for name, job in policy.owner_jobs.items() if selected[job] is not None})
         P._run(run, policy.producer)
+        if manual:
+            chain.update(original_attempt=1, publisher_job_id=run.publisher.job_id if run.publisher else None,
+                         owner_job_ids={name: job.job_id for name, job in run.owners.items()})
         items = self._artifacts(run)
-        raw, facts = self._artifact(run, "descriptor", items, now, binding["head_sha"])
+        raw, facts = self._artifact(run, "descriptor", items, now, source_head)
         return P.Observation(run, raw, facts), chain, items
 
     def capture(self, number, plan, policy, *, now=None):
@@ -396,16 +535,23 @@ class Adapter:
         P._now(now)
         _policy(policy, plan, number)
         binding, references = self.current(number)
-        endpoint = f"actions/workflows/{policy.caller_workflow_id}/runs?head_sha={binding['head_sha']}"
+        if policy.source_kind == "manual-main-v1":
+            require(references["default_ref"] == "main" and references["default"] == policy.manual.controller_commit,
+                    "manual controller is not current trusted main")
+        endpoint = f"actions/workflows/{policy.caller_workflow_id}/runs?head_sha="
+        endpoint += (policy.manual.controller_commit + "&event=workflow_dispatch&branch=main"
+                     if policy.source_kind == "manual-main-v1" else binding["head_sha"])
         observations, chains, inventories, unavailable = [], {}, {}, []
         try:
             listed = self._pages(endpoint, "workflow_runs", search=True)
             for item in listed:
                 try:
-                    observation, chain, artifacts = self._observation(item, policy, binding, now)
+                    observation, chain, artifacts = self._observation(item, policy, binding, now, references)
                     observations.append(observation)
                     chains[observation.run.run_id] = chain
                     inventories[observation.run.run_id] = artifacts
+                except OriginalAttemptUnavailable:
+                    unavailable.append("manual-original-attempt-unavailable")
                 except (ApiError, P.ProtocolError, KeyError, TypeError, ValueError):
                     unavailable.append("run-source-or-proof-unclassified")
             final_list = self._pages(endpoint, "workflow_runs", search=True)
@@ -426,10 +572,15 @@ class Adapter:
         require(authority["state"] == "proof-required", "newest producer is absent, pending, failed or unresolved")
         selected = next(item for item in initial.observations if item.run.run_id == authority["run_id"])
         artifacts = initial.artifact_inventories[selected.run.run_id]
-        raw, artifact = self._artifact(selected.run, "aggregate", artifacts, clock(), initial.binding["head_sha"])
+        source_head = (policy.manual.controller_commit if policy.source_kind == "manual-main-v1"
+                       else initial.binding["head_sha"])
+        raw, artifact = self._artifact(selected.run, "aggregate", artifacts, clock(), source_head)
         require(raw is not None and artifact is not None, "newest aggregate proof is missing")
         final = self.capture(number, plan, policy, now=clock())
         require(initial.references == final.references, "current refs changed during aggregate verification")
+        if policy.source_kind == "manual-main-v1":
+            require(initial.source_chains.get(selected.run.run_id) == final.source_chains.get(selected.run.run_id),
+                    "manual original source/job provenance changed during verification")
         # Artifacts authenticate a run, not a publishing job. Retain the complete
         # independently read final inventory too: a new duplicate, deletion or
         # replacement must not leave the initially downloaded aggregate usable.
@@ -442,4 +593,9 @@ class Adapter:
                                    inventory_complete=initial.inventory_complete, final_binding=final.binding,
                                    final_observations=final.observations, final_inventory_complete=final.inventory_complete,
                                    contexts=contexts, now=clock())
+        if policy.source_kind == "manual-main-v1":
+            # Ordinary execution receipts do not prove protected publication
+            # after a parent-owned kernel scope is independently empty. Source
+            # admission is groundwork, not a policy-toggle authorization to reuse.
+            raise ApiError("manual protected post-kill receipt verification is not implemented")
         return {**value, "source_chain": final.source_chains[value["run_id"]]}
