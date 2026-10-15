@@ -290,8 +290,10 @@ class FakeCodeScanningApi:
         path, query, o = parsed.path.lstrip('/'), parse_qs(parsed.query), self.owner
         objects = {'': o.repo, 'actions/workflows/codeql.yml': o.workflow,
                    'actions/runs/12': o.run, 'actions/runs/12/attempts/1': o.run,
-                   'pulls/42': o.pr, 'git/commits/' + o.candidate: o.merge}
+                   'pulls/42': o.pr, 'commits/refs/pull/42/merge': o.merge}
         if path in objects:
+            if path == 'commits/refs/pull/42/merge':
+                assert query == {'per_page': ['1'], 'page': ['1']}
             return deepcopy(objects[path])
         if path.startswith('git/ref/'):
             ref = path[len('git/ref/'):]
@@ -390,6 +392,31 @@ class SelectedResultTests(unittest.TestCase):
                 with self.assertRaisesRegex(RESULTS.ResultError, 'executed workflow source'):
                     self.verify()
             self.env[key] = old
+
+    def test_latest_api_without_merge_sha_requires_the_current_ref_and_ordered_parents(self):
+        del self.pr['merge_commit_sha']
+        self.assertEqual(self.verify()['languages'], ['python'])
+        self.assertEqual(self.api.calls.count(RESULTS.PREFIX + '/commits/refs/pull/42/merge?per_page=1&page=1'), 2)
+        self.merge['sha'] = self.base
+        with self.assertRaisesRegex(RESULTS.ResultError, 'ordered merge parents'):
+            self.verify()
+        self.merge['sha'] = self.candidate
+        self.merge['parents'] = [{'sha': self.head}, {'sha': self.base}]
+        with self.assertRaisesRegex(RESULTS.ResultError, 'ordered merge parents'):
+            self.verify()
+
+    def test_live_merge_ref_advancement_is_rejected_at_the_final_bookend(self):
+        del self.pr['merge_commit_sha']
+        seen = [0]
+        def advance(endpoint):
+            if endpoint.endswith('/commits/refs/pull/42/merge?per_page=1&page=1'):
+                seen[0] += 1
+                if seen[0] == 2:
+                    self.merge['sha'] = self.base
+        self.api.change = advance
+        with self.assertRaisesRegex(RESULTS.ResultError, 'ordered merge parents'):
+            self.verify()
+        self.assertEqual(seen[0], 2)
 
     def test_candidate_json_cannot_choose_languages_or_import_policy(self):
         self.event['languages'] = []
