@@ -828,3 +828,87 @@ background suspension, toolbar/Back behavior and scaled/clipped placement. The
 texture renderer does not establish hardware video parity. Foreign-document
 texture IME and arbitrary rotated native overlays remain unqualified. F-Droid
 source-only acceptance additionally requires the existing cold-build gates.
+
+## Current Phone test profile
+
+This authoritative profile records the test inventory in this Phone checkout.
+The total JUnit count includes nine framework-independent legacy `HifiUtils`
+cases in addition to the Robolectric SDK executions. This declaration does not
+establish native application or physical-device acceptance.
+
+<!-- android-test-profile:start -->
+```json
+{
+  "scope": "android-phone",
+  "qmlFunctions": 53,
+  "qmlRows": 69,
+  "robolectricBehaviors": 41,
+  "robolectricExecutions": 89,
+  "junitCases": 98,
+  "sdkMatrices": {
+    "legacy Interface": [
+      24,
+      26
+    ],
+    "Phone": [
+      26,
+      35
+    ],
+    "Pico": [
+      26,
+      35
+    ],
+    "legacy Quest": [
+      24,
+      28,
+      35
+    ]
+  },
+  "robolectricClasses": {
+    "io/highfidelity/hifiinterface/PermissionCheckerRobolectricTest.java": {
+      "behaviors": 6,
+      "sdks": [
+        24,
+        26
+      ]
+    },
+    "org/overte/phone/PermissionsActivityRobolectricTest.java": {
+      "behaviors": 11,
+      "sdks": [
+        26,
+        35
+      ]
+    },
+    "org/overte/phone/PhoneDeepLinkRobolectricTest.java": {
+      "behaviors": 4,
+      "sdks": [
+        26,
+        35
+      ]
+    },
+    "org/overte/phone/RedactingDiagnosticsRobolectricTest.java": {
+      "behaviors": 7,
+      "sdks": [
+        26,
+        35
+      ]
+    },
+    "org/overte/pico/PermissionsActivityRobolectricTest.java": {
+      "behaviors": 6,
+      "sdks": [
+        26,
+        35
+      ]
+    },
+    "io/highfidelity/questInterface/PermissionsCheckerRobolectricTest.java": {
+      "behaviors": 7,
+      "sdks": [
+        24,
+        28,
+        35
+      ]
+    }
+  }
+}
+```
+<!-- android-test-profile:end -->
