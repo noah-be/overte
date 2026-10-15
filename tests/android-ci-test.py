@@ -58,6 +58,8 @@ def runtime():
                        "lookup": {"mode": "controller-virtualenv", "aliases": ["python", "python3"],
                                   "include_system_site_packages": False, "user_site_enabled": False}, "flags": {"optimize": 0}},
             "gcovr": {"version": "8.4", "executable_digest": SHA},
+            "quality": {"shellcheck": {"version": "version: 0.11.0", "executable_digest": SHA},
+                        "ruff": {"version": "ruff 0.15.22", "executable_digest": SHA}},
             "system": {"distribution": "ubuntu", "version": "24.04", "architecture": "x86_64",
                        "kernel": "6.8.0", "packages_digest": SHA},
             "trusted_execution": {name: SHA for name in android.EXECUTION_FILES}}
@@ -211,7 +213,7 @@ class AndroidOwnershipTests(unittest.TestCase):
         phone_full = android.plan(self.candidate, "android-phone", views=list(android.VIEWS))
         sparse = self.sparse_clone("phone-sparse")
         self.assertEqual(android.plan(sparse, "android-phone", views=list(android.VIEWS)), phone_full)
-        self.assertEqual(len(phone_full["executions"]["phone-robolectric-launcher"]["cases"]), 98)
+        self.assertEqual(len(phone_full["executions"]["phone-robolectric-launcher"]["cases"]), 116)
         self.assertEqual(len(phone_full["executions"]["native-host-tests"]["cases"]), 23)
         self.assertEqual(len(phone_full["executions"]["pico4-device-free"]["cases"]), 30)
         # Common branch trees do not contain Phone's additional sourceSet class.
@@ -241,7 +243,7 @@ class AndroidOwnershipTests(unittest.TestCase):
         current = android.plan(sparse, "android-phone", views=["coverage"])
         self.assertEqual(current, full)
         cases = current["executions"]["phone-robolectric-launcher"]["cases"]
-        self.assertEqual(len(cases), 100)
+        self.assertEqual(len(cases), 118)
         self.assertIn("org.overte.phone.NewBoundaryRobolectricTest::boundaryRemainsClosed[26]", cases)
         self.assertIn("org.overte.phone.NewBoundaryRobolectricTest::boundaryRemainsClosed", cases)
 
@@ -571,8 +573,8 @@ class AndroidOwnershipTests(unittest.TestCase):
         status, receipt = self.execute(["coverage"])
         self.assertEqual(status, 0)
         cases = receipt["executions"]["phone-robolectric-launcher"]["cases"]
-        self.assertEqual(len(cases), 98)
-        self.assertEqual(len({name.split("::")[0] for name in cases}), 7)
+        self.assertEqual(len(cases), 116)
+        self.assertEqual(len({name.split("::")[0] for name in cases}), 8)
         self.assertTrue(any(name.endswith("[24]") for name in cases))
         self.assertTrue(any(name.endswith("[28]") for name in cases))
         def omitted(name, item, report):
@@ -588,7 +590,7 @@ class AndroidOwnershipTests(unittest.TestCase):
         self.commit()
         status, receipt = self.execute(["coverage"])
         self.assertEqual(status, 0)
-        self.assertEqual(len(receipt["executions"]["phone-robolectric-launcher"]["cases"]), 100)
+        self.assertEqual(len(receipt["executions"]["phone-robolectric-launcher"]["cases"]), 118)
         self.assertEqual(self.verify(receipt, ["coverage"])["verified"], "true")
 
     def test_new_phone_robolectric_class_is_discovered_and_cannot_be_omitted(self):
@@ -600,7 +602,7 @@ class AndroidOwnershipTests(unittest.TestCase):
         self.commit()
         status, receipt = self.execute(["coverage"])
         self.assertEqual(status, 0)
-        self.assertEqual(len(receipt["executions"]["phone-robolectric-launcher"]["cases"]), 100)
+        self.assertEqual(len(receipt["executions"]["phone-robolectric-launcher"]["cases"]), 118)
         def omits_new_class(name, item, report):
             if name == "phone-robolectric-launcher":
                 self.junit(report / "robolectric/TEST-launcher.xml", [case for case in item["cases"]

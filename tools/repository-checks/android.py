@@ -32,7 +32,8 @@ VIEWS = ("fast", "contracts", "coverage", "android-vr", "pico", "mutation")
 DEFAULT_VIEWS = list(VIEWS[:-1])
 MAX_SOURCE_BYTES = 2_000_000
 EXECUTION_FILES = ("tools/repository-checks/android.py", "tools/test-evidence/execution.py",
-                   "tools/test-evidence/runtime.py", "tools/test-evidence/inputs.py", "tests/run-project-tests.py")
+                   "tools/test-evidence/runtime.py", "tools/test-evidence/inputs.py", "tests/run-project-tests.py",
+                   "tools/repository-checks/android-host-prepare.sh")
 TOOLS = {"bash": ("bash", "--version"), "java": ("java", "--version"),
          "javac": ("javac", "--version"), "node": ("node", "--version"),
          "compiler": ("c++", "--version"), "cmake": ("cmake", "--version"),
@@ -369,6 +370,25 @@ def _gcovr_identity(runtime):
     return {"version": gcovr_version, "executable_digest": runtime._file_digest(launcher)}
 
 
+def _quality_identity(runtime):
+    """Bind the fixed external quality layout prepared by trusted workflow code."""
+    prefix = Path(sys.prefix).resolve()
+    root = Path(sys.prefix) / "overte-static-quality"
+    if not root.is_dir() or not root.resolve().is_relative_to(prefix):
+        raise AndroidError("trusted Android static quality tools are unavailable")
+    result = {}
+    for name, relative, required in (("shellcheck", "bin/shellcheck", "version: 0.11.0"),
+                                     ("ruff", "ruff-venv/bin/ruff", "ruff 0.15.22")):
+        path = root / relative
+        if not path.is_file() or not path.resolve().is_relative_to(root.resolve()) or not os.access(path, os.X_OK):
+            raise AndroidError("Android static quality executable escapes its trusted layout")
+        output = runtime._command(path, "--version")
+        if required not in output.splitlines():
+            raise AndroidError("Android static quality tool version differs from its trusted pin")
+        result[name] = {"version": required, "executable_digest": runtime._file_digest(path)}
+    return result
+
+
 def _capture_environment():
     """Capture actual tools; never accept a candidate-supplied runtime label.
 
@@ -417,26 +437,30 @@ def _capture_environment():
         "tools": tools, "python": {"version": platform.python_version(), "executable_digest": runtime._file_digest(python),
         "packages": runtime._python_packages({}), "lookup": python_lookup,
         "flags": {name: getattr(sys.flags, name) for name in ("optimize", "isolated", "safe_path", "ignore_environment", "no_site")}},
-        "gcovr": gcovr,
+        "gcovr": gcovr, "quality": _quality_identity(runtime),
         "trusted_execution": {name: runtime._file_digest(_file(ROOT, name)) for name in EXECUTION_FILES}}
     validate_environment(result)
     return result
 
 
 def validate_environment(value):
-    fields = {"schema", "profile", "system", "tools", "python", "gcovr", "trusted_execution"}
+    fields = {"schema", "profile", "system", "tools", "python", "gcovr", "quality", "trusted_execution"}
     if not isinstance(value, dict) or set(value) != fields or type(value.get("schema")) is not int \
             or value["schema"] != 1 or value["profile"] != "android-host-java21-v1" \
             or not isinstance(value["tools"], dict) or set(value["tools"]) != set(TOOLS) | {"qmltestrunner"} \
             or not isinstance(value["gcovr"], dict) or value["gcovr"].get("version") != "8.4":
         raise AndroidError("Android runtime identity is incomplete or has the wrong profile")
+    if not isinstance(value["quality"], dict) or set(value["quality"]) != {"shellcheck", "ruff"} or any(
+            not isinstance(value["quality"][name], dict) or value["quality"][name].get("version") != version
+            for name, version in (("shellcheck", "version: 0.11.0"), ("ruff", "ruff 0.15.22"))):
+        raise AndroidError("Android static quality runtime identity is missing or has the wrong version")
     for name in ("java", "javac"):
         version = value["tools"][name].get("version", "")
         if not re.search(r'(?:^|[\s\"])(?:21)(?:[.\s\"]|$)', version):
             raise AndroidError("Android Robolectric ownership requires actual Java 21")
     if not re.fullmatch(r"v22(?:\.[0-9]+)+", value["tools"]["node"].get("version", "")):
         raise AndroidError("Android coverage requires actual Node 22")
-    for item in [*value["tools"].values(), value["gcovr"], value["python"]]:
+    for item in [*value["tools"].values(), *value["quality"].values(), value["gcovr"], value["python"]]:
         if not isinstance(item, dict) or not isinstance(item.get("executable_digest"), str) \
                 or not re.fullmatch(r"sha256:[0-9a-f]{64}", item["executable_digest"]):
             raise AndroidError("Android runtime executable identity is missing")
@@ -469,6 +493,7 @@ def process_environment(report_root):
              "OVERTE_ROBOLECTRIC_JAVA_HOME": os.environ.get("JAVA_HOME", ""),
              "OVERTE_TEST_REPORT_DIR": str(report_root), "OVERTE_ROBOLECTRIC_REPORT_DIR": str(report_root / "robolectric"),
              "OVERTE_GCOVR_COMMAND": "gcovr", "TMPDIR": str(report_root / "tmp"),
+             "OVERTE_STATIC_QUALITY_TOOLS_DIR": str(Path(sys.prefix) / "overte-static-quality"),
              "GRADLE_USER_HOME": str(Path.home() / ".gradle")}
     previous.update({name: os.environ.get(name) for name in fixed if name not in previous})
     (report_root / "tmp").mkdir(parents=True)

@@ -1,0 +1,57 @@
+{
+  "schema": 1,
+  "repository": "noah-l-frank/overte",
+  "repository_id": 1319052603,
+  "required_branches": [],
+  "activation_blockers": [
+    "extended-tier-prerequisite-transfer",
+    "advisory-profile-owner-handoff"
+  ],
+  "independent_roots": [
+    "browser-client/",
+    "browser-direct-client/",
+    "tools/branch-policy/",
+    "tools/issue-intake/",
+    "tools/repository-health/",
+    "tools/repository-maintenance/",
+    "tools/workflow-security/"
+  ],
+  "reviewed_sources": {
+    "android-main": {
+      "commit": "664fb0e83dd80f1557571471d2a8c48a86d1b2ee",
+      "tree": "bff3a92ba0f3e9f3a251fab988039b35292e9c6e",
+      "readers": "sha256:d8afed0c9115b3fff570c499f83f01dfb7c54582d271a761f016fbcea5b88e0f",
+      "entries": 10078
+    },
+    "android-phone": {
+      "commit": "277bad9119c9ee16f4bbb3038cedeb6625741d34",
+      "tree": "a4011c8011632d1caa54b33b90ab3c2ed18eee2b",
+      "readers": "sha256:eacdfaa43bafc2db115150a4337dfbeebbcd0d9dae4986006b514a25de7ac263",
+      "entries": 10338
+    },
+    "android-vr": {
+      "commit": "2199dc03b796b14d69973b50cb538e3779866306",
+      "tree": "93515ab5e5f4fe94bf9c37a5724084a6cc0db864",
+      "readers": "sha256:4cf481eac2a1161c5e7280fdde6b6cd5fc9663e7df2d2f7683b01edb10c35af7",
+      "entries": 10078
+    },
+    "android-vr-pico": {
+      "commit": "410847ff312553de81f9f8ff7e32029b22495603",
+      "tree": "00e958013604432f085d0acd12c1f73de3e9ac8d",
+      "readers": "sha256:024b9c2be3488cbe93798062a10c5e3ab7d6d953bdb6157bf29ee43d98a5fad7",
+      "entries": 10251
+    }
+  },
+  "workflow_generations": [
+    {
+      "name": "android-v1",
+      "caller": "tools/repository-checks/workflows/android/repository-checks.yml",
+      "callee": "tools/repository-checks/workflows/android-required.yml"
+    },
+    {
+      "name": "android-v1-direct",
+      "caller": "tools/repository-checks/workflows/android/repository-checks-direct-browser.yml",
+      "callee": "tools/repository-checks/workflows/android-required.yml"
+    }
+  ]
+}

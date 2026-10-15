@@ -1204,7 +1204,8 @@
           "tools/test-evidence/runtime.py",
           "tools/test-evidence/inputs.py",
           "tests/run-project-tests.py",
-          "tests/platform-profile.json"
+          "tests/platform-profile.json",
+          "tools/repository-checks/android-host-prepare.sh"
         ]
       }
     },
@@ -1221,6 +1222,34 @@
         "inputs": [],
         "required": [
           "tests/host-producer-preparation-test.py"
+        ]
+      }
+    },
+    "android-orchestration": {
+      "command": [
+        "python",
+        "tests/android-orchestration-test.py"
+      ],
+      "layer": "quick",
+      "scope": "content",
+      "environment": "host-qt5-qt6",
+      "closure": {
+        "kind": "repository",
+        "inputs": [],
+        "required": [
+          "tests/android-orchestration-test.py",
+          "tests/android-ci-test.py",
+          "tools/repository-checks/android_gate.py",
+          "tools/repository-checks/android.py",
+          "tools/repository-checks/android-host-prepare.sh",
+          "tools/repository-checks/check.py",
+          "tools/repository-checks/package_checks.py",
+          ".github/android-checks.json",
+          ".github/android-orchestration.json",
+          ".github/package-workflow-generations.json",
+          "tools/repository-checks/workflows/android-required.yml",
+          "tools/repository-checks/workflows/android/repository-checks.yml",
+          "tools/repository-checks/workflows/android/repository-checks-direct-browser.yml"
         ]
       }
     }

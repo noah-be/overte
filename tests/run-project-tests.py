@@ -34,6 +34,7 @@ SUITES = (
     Suite("python-test-runner", "quick", (sys.executable, "tests/unittest-runner-test.py")),
     Suite("repository-checks", "quick", (sys.executable, "tests/repository-checks-test.py")),
     Suite("android-ci", "quick", (sys.executable, "tests/android-ci-test.py")),
+    Suite("android-orchestration", "quick", (sys.executable, "tests/android-orchestration-test.py")),
     Suite("android-build-inputs", "quick", (sys.executable, "tests/android-build-inputs-test.py")),
     Suite("codeql-selection", "quick", (sys.executable, "tests/codeql-selection-test.py")),
     Suite("ios-build-qualification", "quick", (sys.executable, "tests/ios-build-qualification-test.py")),

@@ -25,7 +25,7 @@
       }
     },
     "android-phone": {
-      "commit": "8dd9a46a08856857dd1f44b6db6f692267f973a8",
+      "commit": "277bad9119c9ee16f4bbb3038cedeb6625741d34",
       "catalog_blob": "862c17222ea1b2f9451c72b99743fee28c5bd1d8",
       "native_cmake_blob": "0980fa0f644392a6e0faf1dbc81eb568ab17bc10",
       "pico_runner_blob": "f873d2096886739672fc869a799faec4329350f2",
@@ -36,7 +36,8 @@
         "android/phone/apps/phoneInterface/src/test/java/org/overte/phone/PhoneDeepLinkRobolectricTest.java": "f295ee50b98d3a255d692a8635227efd95f5ca3f",
         "android/phone/apps/phoneInterface/src/test/java/org/overte/phone/RedactingDiagnosticsRobolectricTest.java": "4a727bdbda8d8246ba8e03aec8c541efa75d5183",
         "android/vr/pico/apps/picoInterface/src/test/java/org/overte/pico/PermissionsActivityRobolectricTest.java": "c03541b1922b62b1d1dff4fe67827990cc2b0627",
-        "android/vr/quest/apps/questInterface/src/test/java/io/highfidelity/questInterface/PermissionsCheckerRobolectricTest.java": "9fdf5edb51973f871f319632f04701409f6160d7"
+        "android/vr/quest/apps/questInterface/src/test/java/io/highfidelity/questInterface/PermissionsCheckerRobolectricTest.java": "9fdf5edb51973f871f319632f04701409f6160d7",
+        "android/phone/apps/phoneInterface/src/test/java/org/overte/phone/PhoneEmbeddedWebFocusRobolectricTest.java": "82d5328b2843510698369c86713204117d13ce3b"
       }
     },
     "android-vr": {
@@ -1400,6 +1401,24 @@
         "org.overte.phone.PhoneDeepLinkRobolectricTest::exportedViewIntentCanonicalizesSupportedSchemes[26]",
         "org.overte.phone.PhoneDeepLinkRobolectricTest::internalExtraIsValidatedWithTheSameBoundaryRules",
         "org.overte.phone.PhoneDeepLinkRobolectricTest::internalExtraIsValidatedWithTheSameBoundaryRules[26]",
+        "org.overte.phone.PhoneEmbeddedWebFocusRobolectricTest::actualPauseAfterQtOwnerHandoffStillAddressesOldHost",
+        "org.overte.phone.PhoneEmbeddedWebFocusRobolectricTest::actualPauseAfterQtOwnerHandoffStillAddressesOldHost[26]",
+        "org.overte.phone.PhoneEmbeddedWebFocusRobolectricTest::actualPauseAndDestroyRetainBackgroundAndDetachDispatch",
+        "org.overte.phone.PhoneEmbeddedWebFocusRobolectricTest::actualPauseAndDestroyRetainBackgroundAndDetachDispatch[26]",
+        "org.overte.phone.PhoneEmbeddedWebFocusRobolectricTest::focusWhilePausedCannotAuthorizeInput",
+        "org.overte.phone.PhoneEmbeddedWebFocusRobolectricTest::focusWhilePausedCannotAuthorizeInput[26]",
+        "org.overte.phone.PhoneEmbeddedWebFocusRobolectricTest::pickerEntryAndReturnRequireActualFocusWithoutSuspendingMedia",
+        "org.overte.phone.PhoneEmbeddedWebFocusRobolectricTest::pickerEntryAndReturnRequireActualFocusWithoutSuspendingMedia[26]",
+        "org.overte.phone.PhoneEmbeddedWebFocusRobolectricTest::realCommonRejectsOldHostPauseAfterAnotherHostTookOwnership",
+        "org.overte.phone.PhoneEmbeddedWebFocusRobolectricTest::realCommonRejectsOldHostPauseAfterAnotherHostTookOwnership[26]",
+        "org.overte.phone.PhoneEmbeddedWebFocusRobolectricTest::resumedActivityRetainsMediaForegroundWithoutWindowFocus",
+        "org.overte.phone.PhoneEmbeddedWebFocusRobolectricTest::resumedActivityRetainsMediaForegroundWithoutWindowFocus[26]",
+        "org.overte.phone.PhoneEmbeddedWebFocusRobolectricTest::staleActivityCallbacksCannotDispatchOrConsumePicker",
+        "org.overte.phone.PhoneEmbeddedWebFocusRobolectricTest::staleActivityCallbacksCannotDispatchOrConsumePicker[26]",
+        "org.overte.phone.PhoneEmbeddedWebFocusRobolectricTest::staleOwnerCannotDeliverAnActuallyPendingSelection",
+        "org.overte.phone.PhoneEmbeddedWebFocusRobolectricTest::staleOwnerCannotDeliverAnActuallyPendingSelection[26]",
+        "org.overte.phone.PhoneEmbeddedWebFocusRobolectricTest::windowFocusInvalidatesInputWithoutMediaLifecycleDispatch",
+        "org.overte.phone.PhoneEmbeddedWebFocusRobolectricTest::windowFocusInvalidatesInputWithoutMediaLifecycleDispatch[26]",
         "org.overte.phone.RedactingDiagnosticsRobolectricTest::actualStorageExceptionsLogNoDetails",
         "org.overte.phone.RedactingDiagnosticsRobolectricTest::actualStorageExceptionsLogNoDetails[26]",
         "org.overte.phone.RedactingDiagnosticsRobolectricTest::cancelledPermissionCallerEmitsClosedOutcome",
@@ -1603,6 +1622,24 @@
           "restoredOrHistoryLaunchCannotReviveCancelledNavigation",
           "structuredEventsRemainUseful",
           "trustedRootAliasWorksButAccountDirectoryAliasFailsClosed"
+        ]
+      },
+      "android/phone/apps/phoneInterface/src/test/java/org/overte/phone/PhoneEmbeddedWebFocusRobolectricTest.java": {
+        "class": "org.overte.phone.PhoneEmbeddedWebFocusRobolectricTest",
+        "sdks": [
+          26,
+          35
+        ],
+        "methods": [
+          "windowFocusInvalidatesInputWithoutMediaLifecycleDispatch",
+          "actualPauseAndDestroyRetainBackgroundAndDetachDispatch",
+          "focusWhilePausedCannotAuthorizeInput",
+          "staleActivityCallbacksCannotDispatchOrConsumePicker",
+          "pickerEntryAndReturnRequireActualFocusWithoutSuspendingMedia",
+          "staleOwnerCannotDeliverAnActuallyPendingSelection",
+          "resumedActivityRetainsMediaForegroundWithoutWindowFocus",
+          "actualPauseAfterQtOwnerHandoffStillAddressesOldHost",
+          "realCommonRejectsOldHostPauseAfterAnotherHostTookOwnership"
         ]
       }
     }
