@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import replace
 from types import SimpleNamespace
@@ -122,6 +123,25 @@ def config():
 
 def entry(path, sha=WORKFLOW_BLOB):
     return {"path": path, "mode": "100644", "type": "blob", "sha": sha}
+
+
+@contextmanager
+def trusted_codeql_policy(targets):
+    """Inject explicit trusted policy data; keep the real validator executable."""
+    with tempfile.TemporaryDirectory(prefix='overte-sync-codeql-policy-') as directory:
+        root = Path(directory)
+        (root / '.github').mkdir()
+        (root / '.github/repository-checks.json').write_text(json.dumps({
+            'schema': 1, 'repository': REPOSITORY, 'repository_id': REPOSITORY_ID,
+            'codeql_results_required_branches': targets,
+        }))
+        validator = gate.validate_required_codeql_workflow
+        previous = validator.__defaults__
+        validator.__defaults__ = (root,)
+        try:
+            yield root
+        finally:
+            validator.__defaults__ = previous
 
 
 def test_registry():
@@ -643,7 +663,7 @@ class ProductRepairContracts(unittest.TestCase):
         source.read_text.return_value = json.dumps(event)
         with mock.patch.object(gate, "load_config", return_value=settings), \
              mock.patch.object(gate, "GitHubApi", return_value=api), \
-             mock.patch.object(gate, "validate_required_codeql_workflow"), \
+             trusted_codeql_policy([]), \
              mock.patch.object(gate, "verify_evidence", side_effect=AssertionError("repair must never reuse evidence")), \
              mock.patch.object(gate, "write_outputs") as output:
             self.assertEqual(gate.inspect(SimpleNamespace(config=None, event=source, output=None)), 0)
@@ -972,7 +992,7 @@ class InspectionContracts(unittest.TestCase):
     def inspect_request(self, sync_request, evidence_error=None):
         with mock.patch.object(gate, "load_config", return_value=config()), \
              mock.patch.object(gate, "GitHubApi"), \
-             mock.patch.object(gate, "validate_required_codeql_workflow"), \
+             trusted_codeql_policy([]), \
              mock.patch.object(gate, "classify_event", return_value=sync_request), \
              mock.patch.object(gate, "verify_evidence", side_effect=evidence_error) as verify, \
              mock.patch.object(gate, "write_outputs") as output:
@@ -1466,6 +1486,20 @@ class RequiredCodeQLInvocationTests(unittest.TestCase):
         self.write_policy()
         (self.policy_root / 'tools/repository-checks/codeql.py').unlink()
         self.assertFalse(gate.validate_required_codeql_workflow({}, self.api, self.policy_root))
+
+    def test_legacy_inspection_uses_explicit_inactive_policy_even_when_default_is_active(self):
+        validator = gate.validate_required_codeql_workflow
+        with trusted_codeql_policy(['main']):
+            self.assertIs(gate.validate_required_codeql_workflow, validator)
+            with self.assertRaises(gate.GateError):
+                validator({}, MappingApi())
+            calls, result = InspectionContracts().inspect_request(
+                request(), gate.EvidenceError('missing parent evidence'))
+            self.assertEqual(calls, 1)
+            self.assertEqual(result['mode'], 'fallback')
+            self.assertIs(gate.validate_required_codeql_workflow, validator)
+            with self.assertRaises(gate.GateError):
+                validator({}, MappingApi())
 
     def test_current_exact_approved_candidate_is_valid_without_job_or_candidate_policy_facts(self):
         calls = []
