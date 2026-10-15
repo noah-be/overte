@@ -8,6 +8,7 @@ complete approved callers authorize selection; arbitrary JSON is not proof.
 from __future__ import annotations
 
 import argparse
+from functools import lru_cache
 import hashlib
 import importlib.util
 import json
@@ -150,6 +151,7 @@ def trusted_bytes(relative, policy_root=ROOT):
     return value
 
 
+@lru_cache(maxsize=16)
 def _blob(data):
     # These public source identities use Git's object format, rather than a
     # digest for protecting sensitive data. Delegate its encoding and collision
