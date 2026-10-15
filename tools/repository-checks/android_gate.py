@@ -207,6 +207,24 @@ def event_views(event, event_name, selected):
     return list(owner.DEFAULT_VIEWS) + list(owner.DIAGNOSTIC_VIEWS[:3]) + (["regression"] if regression else [])
 
 
+def validate_non_android_absence(source, before=None):
+    """Bootstrap outside Android only when neither immutable tree owns it."""
+    legacy = {".github/workflows/android-tests.yml", ".github/workflows/android-vr-tests.yml"}
+    profile_path = "tests/platform-profile.json"
+    for tree in (source, before):
+        if tree is None:
+            continue  # A manual event has no predecessor tree.
+        if any(path == "android" or path.startswith("android/") or path in legacy for path in tree.entries):
+            raise ValueError("unexpected Android ownership source on a non-Android target")
+        entry = tree.entries.get(profile_path)
+        if entry is None or entry["mode"] != "100644" or entry["type"] != "blob":
+            raise ValueError("non-Android bootstrap requires a regular shared platform profile")
+        profile = tree.json(profile_path)
+        if not isinstance(profile, dict) or type(profile.get("schema")) is not int \
+                or profile != {"schema": 1, "platform": "shared", "suites": []}:
+            raise ValueError("unexpected Android or unreviewed platform profile on a non-Android target")
+
+
 def candidate_plan(candidate, event, sha, *, event_name="pull_request", policy_root=ROOT):
     """No caller-supplied branch, views, omitted cases or parent-name waivers."""
     policy = load_policy(policy_root)
@@ -218,7 +236,9 @@ def candidate_plan(candidate, event, sha, *, event_name="pull_request", policy_r
                    if before is None or source.entries.get(path) != before.entries.get(path))
     known = branch in policy["reviewed_sources"]
     selected, reason = False, "outside-Android-target"
-    if known:
+    if not known:
+        validate_non_android_absence(source, before)
+    else:
         selected, reason = True, "conservative-complete-union"
         if before is not None and not paths:
             selected, reason = False, "verified-empty-tree-delta"
@@ -305,7 +325,8 @@ def activated(event, *, policy_root=ROOT):
 
 
 def admit(candidate, event, *, policy_root=ROOT):
-    validate_tree_wiring(_sources(candidate).entries, policy_root=policy_root)
+    source = _sources(candidate)
+    validate_tree_wiring(source.entries, policy_root=policy_root)
     policy = load_policy(policy_root)
     repository = event.get("repository", {})
     base = ((event.get("pull_request") or {}).get("base") or {})
@@ -315,7 +336,11 @@ def admit(candidate, event, *, policy_root=ROOT):
             or branch not in branches or (base and any(base.get("repo", {}).get(key) != repository.get(key) for key in ("full_name", "id"))):
         raise ValueError("Android admission requires an exact reviewed event target")
     if branch not in policy["reviewed_sources"]:
-        return  # Exact paired orchestration, but no Android product owner on main/Apple.
+        source, before, *_ = _context(candidate, event,
+            source._git("rev-parse", "HEAD").decode().strip(),
+            "pull_request" if "pull_request" in event else "workflow_dispatch", policy)
+        validate_non_android_absence(source, before)
+        return  # Exact paired orchestration and proven product absence on main/Apple.
     if policy["activation_blockers"]:
         raise ValueError("Android activation blocked: " + ", ".join(policy["activation_blockers"]))
     if not ACTIVATION_READY:

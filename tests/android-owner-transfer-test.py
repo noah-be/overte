@@ -7,6 +7,7 @@ import io
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import unittest
@@ -322,13 +323,106 @@ class AndroidOwnerTransferTests(unittest.TestCase):
             proof = gate.receipt(expected);proof[field] = "forged"
             with self.assertRaises(ValueError): gate.verify_outer({"result": "success", "outputs": proof}, expected)
 
-    def test_non_android_bootstrap_does_not_require_absent_product_handoff(self):
+    def remove_android_product(self):
+        shutil.rmtree(self.candidate / "android")
+        for path in handoff.policy()["legacy_workflows"]:
+            (self.candidate / path).unlink()
+        (self.candidate / "tests/platform-profile.json").write_text(
+            json.dumps({"schema": 1, "platform": "shared", "suites": []}))
+
+    def non_android_merge(self, edit=lambda: None):
+        base = self.fixture.git("rev-parse", "HEAD")
+        self.fixture.git("checkout", "-qb", "non-android-topic")
+        edit()
+        self.fixture.git("add", "-A")
+        self.fixture.git("commit", "--allow-empty", "-qm", "Non-Android source fixture")
+        head = self.fixture.git("rev-parse", "HEAD")
+        self.fixture.git("checkout", "-q", "android-phone")
+        self.fixture.git("merge", "--no-ff", "-qm", "Exact non-Android candidate", "non-android-topic")
+        self.fixture.sha = self.fixture.git("rev-parse", "HEAD")
+        repository = {"full_name": gate.REPOSITORY, "id": gate.REPOSITORY_ID}
+        self.fixture.event = {"repository": repository, "pull_request": {
+            "base": {"ref": "main", "sha": base, "repo": repository},
+            "head": {"ref": "non-android-topic", "sha": head, "repo": repository}}}
+
+    def test_non_android_target_cannot_waive_present_android_product(self):
         self.fixture.workflow_files();self.fixture.merge()
-        self.fixture.event["pull_request"]["base"]["ref"] = "main"
-        # The same canonical optional caller can land before child activation.
-        gate.admit(self.candidate, self.fixture.event)
-        self.assertFalse(self.fixture.plan()["required"])
-        self.assertFalse(gate.activated({"repository": self.fixture.event["repository"], "ref": "refs/heads/main"}, policy_root=self.policy_root))
+        for branch in ("main", "apple-main", "apple-ios"):
+            with self.subTest(branch=branch):
+                self.fixture.event["pull_request"]["base"]["ref"] = branch
+                with self.assertRaisesRegex(ValueError, "unexpected Android ownership"):
+                    gate.admit(self.candidate, self.fixture.event, policy_root=self.policy_root)
+                with self.assertRaisesRegex(ValueError, "unexpected Android ownership"):
+                    self.fixture.plan()
+
+    def test_non_android_bootstrap_requires_absence_in_both_complete_git_trees(self):
+        self.fixture.workflow_files()
+        self.remove_android_product();self.fixture.fixture.commit()
+        self.non_android_merge()
+        # Sparse working files cannot hide source: both complete maps come from Git.
+        for branch in ("main", "apple-main", "apple-ios"):
+            with self.subTest(branch=branch):
+                self.fixture.event["pull_request"]["base"]["ref"] = branch
+                gate.admit(self.candidate, self.fixture.event, policy_root=self.policy_root)
+                self.assertFalse(self.fixture.plan()["required"])
+                with patch.dict(os.environ, self.context()), patch.object(handoff, "gate", return_value=gate):
+                    self.assertEqual(self.owner(), {})
+        manual = {"repository": self.fixture.event["repository"], "ref": "refs/heads/main"}
+        gate.admit(self.candidate, manual, policy_root=self.policy_root)
+        self.assertFalse(gate.candidate_plan(self.candidate, manual, self.fixture.sha,
+            event_name="workflow_dispatch", policy_root=self.policy_root)["required"])
+
+    def test_non_android_candidate_deletion_cannot_hide_android_predecessor(self):
+        self.fixture.workflow_files()
+        self.non_android_merge(self.remove_android_product)
+        self.assertFalse(any(path.startswith("android/") for path in self.source().entries))
+        for operation in (lambda: gate.admit(self.candidate, self.fixture.event, policy_root=self.policy_root),
+                          self.fixture.plan):
+            with self.assertRaisesRegex(ValueError, "unexpected Android ownership"):
+                operation()
+
+    def test_non_android_bootstrap_rejects_added_mixed_and_nonregular_ownership(self):
+        self.fixture.workflow_files()
+        self.remove_android_product();self.fixture.fixture.commit()
+        self.non_android_merge()
+        for relative, mode, kind in (("android/source.cpp", "100644", "blob"),
+                                     ("android", "120000", "blob"),
+                                     ("android", "160000", "commit"),
+                                     (".github/workflows/android-tests.yml", "100644", "blob"),
+                                     (".github/workflows/android-vr-tests.yml", "120000", "blob")):
+            with self.subTest(path=relative, mode=mode):
+                before = gate._sources(self.candidate, self.fixture.event["pull_request"]["base"]["sha"])
+                current = self.source()
+                current.entries[relative] = {"mode": mode, "type": kind, "sha": "a" * 40}
+                with self.assertRaisesRegex(ValueError, "unexpected Android ownership"):
+                    gate.validate_non_android_absence(current, before)
+        for mode, kind in (("120000", "blob"), ("160000", "commit"), ("100755", "blob")):
+            with self.subTest(profile_mode=mode):
+                current = self.source()
+                current.entries["tests/platform-profile.json"].update(mode=mode, type=kind)
+                with self.assertRaisesRegex(ValueError, "regular shared platform profile"):
+                    gate.validate_non_android_absence(current)
+        current = self.source();current.entries.pop("tests/platform-profile.json")
+        with self.assertRaisesRegex(ValueError, "regular shared platform profile"):
+            gate.validate_non_android_absence(current)
+
+    def test_non_android_bootstrap_rejects_android_malformed_or_mixed_profile(self):
+        self.fixture.workflow_files()
+        self.remove_android_product();self.fixture.fixture.commit()
+        self.non_android_merge()
+        absent = self.source()
+        for profile in ({"schema": 1, "platform": "android", "suites": []},
+                        {"schema": 1, "platform": "shared", "suites": [{"name": "hidden-android"}]},
+                        {"schema": True, "platform": "shared", "suites": []},
+                        {"schema": 1, "platform": "ios", "suites": []},
+                        {"schema": 1, "platform": "shared", "suites": [], "omit_android": True}):
+            with self.subTest(profile=profile):
+                (self.candidate / "tests/platform-profile.json").write_text(json.dumps(profile))
+                self.fixture.fixture.commit()
+                current = self.source()
+                for source, before in ((current, absent), (absent, current)):
+                    with self.assertRaisesRegex(ValueError, "unreviewed platform profile"):
+                        gate.validate_non_android_absence(source, before)
 
     def test_workflows_handle_label_changes_preserve_parallel_common_and_retire_only_legacy_pr(self):
         document = handoff.policy()
