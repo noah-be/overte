@@ -1181,5 +1181,12 @@ build unrelated: phony unrelated.cpp
             self.assertIn("QT_RCC_SOURCE_DATE_OVERRIDE: '1'", source)
 
 
+def load_tests(loader, suite, pattern):
+    # One existing required quick/host group owns the new boundary regressions.
+    module = load('native_app_boundary_tests', 'tests/native-app-boundary-test.py')
+    suite.addTests(loader.loadTestsFromModule(module))
+    return suite
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

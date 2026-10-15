@@ -7,6 +7,7 @@ data never enables the owner, changes the allowlist or refreshes reader anchors.
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 from pathlib import Path, PurePosixPath
 import re
@@ -81,6 +82,14 @@ def owned_paths():
     return frozenset(load_profile()[0]['paths'])
 
 
+def classified_ci_paths():
+    """Protect the exact CI ledger from configured native consumption too."""
+    spec = importlib.util.spec_from_file_location('native_ci_app_boundary', ROOT / 'tools/repository-checks/browser_cpu.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.app_inputs().ci_paths(module, ROOT)
+
+
 def reader_boundary(snapshot, profile, browser):
     excluded = set(profile['paths']) | set(browser.CPU_PATHS) | set(browser.PACKAGE_PATHS) | {
         browser.WORKFLOW, browser.OUTER_WORKFLOW, browser.CONFIGURATION, PROFILE}
@@ -119,6 +128,9 @@ def select(candidate, event, sha, paths, regular, checks):
             return {'paths': [], 'reason': 'Browser owner is advisory or inactive for target'}
         plan = browser.route(event, 'pull_request', candidate, sha)
         require(plan['mode'] == 'full', 'Browser full owner is not selected')
+        app = browser.app_inputs()
+        durable = app.enabled(browser.trusted_bytes, browser.ROOT)
+        app_policy = app.policy(browser.trusted_bytes, browser.ROOT) if durable else None
         previous = browser.snapshot(candidate, event['pull_request']['base']['sha'])
         current = browser.snapshot(candidate, sha)
         packages = checks.package_policy()
@@ -126,7 +138,11 @@ def select(candidate, event, sha, paths, regular, checks):
             browser.validate_wiring(tree)
             packages.validate_tree_wiring(tree['entries'])
             require(all(ordinary(entry) for entry in tree['entries'].values()), 'nonregular ordinary reader inventory')
-            require(reader_boundary(tree, profile, browser) == profile['reader_boundary'],
+            if durable:
+                app.validate_owner_inventory(tree, browser.inventory()._validate_tree, browser.ROOT)
+            boundary = (app.boundary(tree, profile, browser, browser.ROOT) if durable
+                        else reader_boundary(tree, profile, browser))
+            require(boundary == (app_policy['reader_boundary'] if durable else profile['reader_boundary']),
                     'ordinary reader boundary is stale or not reviewed')
         changed = {path for path in previous['entries'].keys() | current['entries'].keys()
                    if previous['entries'].get(path) != current['entries'].get(path)}
@@ -135,9 +151,13 @@ def select(candidate, event, sha, paths, regular, checks):
             require(all(entry is None or (entry['mode'] == '100644' and entry['type'] == 'blob')
                         for entry in (previous['entries'].get(path), current['entries'].get(path))),
                     'Browser source mode requires ordinary native fallback')
-        return {'paths': proposed, 'reason': 'exact inputs delegated to required full Browser owner',
+        result = {'paths': proposed, 'reason': 'exact inputs delegated to required full Browser owner',
                 'owner': 'browser-client', 'candidate': sha, 'tree': plan['tree'], 'target': plan['target'],
                 'browser_plan': plan['plan'], 'policy': identity}
+        if durable:
+            result['owner_contract'] = app.owner_identity(browser.ROOT)
+            result['app_boundary'] = app_policy['reader_boundary']
+        return result
     except (ValueError, KeyError, TypeError, AttributeError, OSError, subprocess.SubprocessError):
         # Missing policy/capability, incomplete wiring and uncertain dependency
         # closure retain ordinary full validation. They never authorize a skip.
