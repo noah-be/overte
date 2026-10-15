@@ -22,6 +22,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      pull-requests: read
     outputs:
       required: ${{ steps.plan.outputs.required }}
       host_required: ${{ steps.plan.outputs.host_required }}
@@ -48,6 +49,8 @@ jobs:
         persist-credentials: false
     - name: Select qualification from exact merge candidate
       id: plan
+      env:
+        GH_TOKEN: ${{ github.token }}
       run: python3 trusted/tools/ios-build-qualification/check.py route --event "$GITHUB_EVENT_PATH" --candidate
         candidate --sha "$GITHUB_SHA" --output "$GITHUB_OUTPUT"
     - name: Inspect prior failed iOS build before compiling
@@ -152,6 +155,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      pull-requests: read
     steps:
     - name: Check out trusted verifier
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -184,6 +188,7 @@ jobs:
       run: gh api "repos/noah-l-frank/overte/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT" > "$RUNNER_TEMP/ios-build-run.json"
     - name: Require selected jobs and verify exact IPA provenance
       env:
+        GH_TOKEN: ${{ github.token }}
         QUALIFICATION_NEEDS: ${{ toJSON(needs) }}
       run: |-
         python3 -c 'import os,pathlib; pathlib.Path(os.environ["RUNNER_TEMP"],"ios-build-needs.json").write_text(os.environ["QUALIFICATION_NEEDS"])'

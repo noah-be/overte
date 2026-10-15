@@ -399,10 +399,29 @@ proves independent in both full trees may skip Qt provision and the client build
 Application, mixed, unknown, mode, packaged-resource, stale-reader and manual
 changes retain the full application requirement. The exact three-tree noop proof
 alone may skip all three jobs. No application exclusions or reader anchors are
-expanded by this preparation. A later separately reviewed finite before/after
-workflow normalization could admit an exact orchestration-only bootstrap when
-the application compiler/readers/callees are proven unchanged; this slice does
-not install one, infer one from a passed build, or approve its own candidate.
+expanded by this preparation.
+
+One finite, still default-off bootstrap can avoid the first unrelated client
+build: the complete base tree must be the independently reviewed legacy tree
+`f5b44d19b5c64c96bc3f73f72c51519dbfbf08a3` from `52f1cc3...`, and the head and
+merge inventories must differ from it ONLY by replacing the regular top-level
+`ios-build-qualification.yml` with the exact trusted `host-v1` template. The full
+six-source legacy and next generations, unchanged app callees/launcher/dependency
+declaration, ordered PR parents and exact head/merge tree equality are checked.
+The reason is `reviewed-host-v1-workflow-bootstrap`; the complete same-run iOS
+host remains mandatory, while Qt/client/IPA are not required. Any additional
+documentation, host, package, app, unknown, deletion, rename or mode delta loses
+this exception. It cannot refresh a reader anchor, admit npm paths or carry a
+reader-then-host edit. Older artifacts retain their original source identity.
+
+The trusted next-generation route and final CLI independently read the current
+PR and both branch heads before and after their work. Fixed `/usr/bin/gh` uses
+GET only against github.com and the exact fork, an isolated configuration and a
+bounded, sanitized read credential environment. Current repository/PR identity,
+open state, target, base/head/merge SHAs and immutable ordered parents must agree;
+missing, changed or unavailable API facts fail without publishing a light route
+or successful report. Caller-provided metadata cannot replace these reads. Pure
+route/report functions alone are not a current-PR authentication boundary.
 
 The host plan binds the complete Git input tree, fixed launcher entrypoints,
 discovery inventories and retained native/QML/renderer variants. The trusted host
@@ -429,6 +448,9 @@ new policy, controller, template and small immutable launcher fixture. They use
 disposable trusted source/reader policies and require no Apple branch fetch,
 product compilation, artifact download or live qualification. Activation and
 real hosted qualification remain separate reviewed work.
+The bootstrap source and updated canonical template must be composed with the
+separate Stage B/M5 preparation before any activation. `SOURCE_READY` stays false,
+activation targets stay empty, and the legacy template remains byte-identical.
 
 Parent qualification uses the default-branch `tools/test-evidence/run.py`
 controller against a separate clean candidate checkout. It records actual

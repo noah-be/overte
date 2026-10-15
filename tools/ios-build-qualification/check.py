@@ -73,6 +73,21 @@ def host_handoff(policy_root=ROOT):
     return module
 
 
+@contextmanager
+def fresh_host_candidate(event, candidate, source, *, policy_root=ROOT):
+    """Next-generation CLI success requires independent live PR bookends."""
+    handoff = host_handoff(policy_root)
+    selected = (handoff is not None and event is not None and candidate is not None
+                and handoff.participates(candidate, source, event, policy_root=policy_root))
+    if not selected:
+        yield
+        return
+    before = handoff.fresh_context(event, candidate, source, policy_root=policy_root)
+    yield
+    require(handoff.fresh_context(event, candidate, source, policy_root=policy_root) == before,
+            "current iOS PR metadata changed during trusted verification")
+
+
 def validate_wiring(candidate, event, policy_root=ROOT):
     """Called by the independently required, default-branch repository router.
 
@@ -402,8 +417,9 @@ def main():
     try:
         if args.command == "route":
             event = json.loads(args.event.read_text())
-            result = route(event, args.candidate, args.sha)
-            validate_wiring(args.candidate, event)
+            with fresh_host_candidate(event, args.candidate, args.sha):
+                result = route(event, args.candidate, args.sha)
+                validate_wiring(args.candidate, event)
             with args.output.open("a") as handle:
                 handle.write("".join(f"{key}={value}\n" for key, value in result.items()))
         else:
@@ -411,10 +427,11 @@ def main():
             with verification_candidate(needs, args.source,
                     event=json.loads(args.event.read_text()) if args.event is not None else None,
                     candidate=args.candidate) as (event, candidate):
-                result = report(needs, args.source, args.build_number, args.run_id, args.attempt,
-                                args.artifacts, json.loads(args.jobs.read_text()),
-                                event=event, candidate=candidate,
-                                run_metadata=json.loads(args.run_metadata.read_text()) if args.run_metadata else None)
+                with fresh_host_candidate(event, candidate, args.source):
+                    result = report(needs, args.source, args.build_number, args.run_id, args.attempt,
+                                    args.artifacts, json.loads(args.jobs.read_text()),
+                                    event=event, candidate=candidate,
+                                    run_metadata=json.loads(args.run_metadata.read_text()) if args.run_metadata else None)
             args.output.parent.mkdir(parents=True, exist_ok=True)
             args.output.write_text(json.dumps(result, indent=2) + "\n")
             if os.environ.get("GITHUB_STEP_SUMMARY"):
