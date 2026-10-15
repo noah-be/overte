@@ -751,3 +751,26 @@ ordinary jobs would skip label-selected jobs through their existing `needs`.
 Their exact transfer is outside this preparation. Manual ordinary verification
 preserves the existing first-five-view behavior; critical mutation remains
 mandatory on every selected PR. No branch-name waiver or evidence reuse is added.
+
+## Staged selection for CI-only changes
+
+The staged host workflow in `tools/repository-checks/workflows/host/project-tests.yml`
+uses the default branch's trusted `host_selection.py` controller. It recomputes
+the exact package/candidate plan before selection and again before execution.
+For explicitly reviewed CI and cleanup paths it runs every quick contract while
+omitting the 15 production host groups and their Qt development installation.
+This is dependency-based impact selection; an omitted group is not reported as
+a successful test or reused evidence.
+
+The exclusion requires the exact reviewed host reader, discovery, manifest,
+fixture and production-source generation in the candidate and trusted checkout.
+Historical child differences, changed readers, unknown paths, mixed product
+changes, symlinks, submodules and incomplete inventories retain the complete
+host gate. Exact CI test filenames are admitted individually; arbitrary Python
+files could shadow modules used by subprocesses. Platform-owned suites still
+execute from their validated branch declaration. This initial ownership covers
+CI-only changes; finer selection within quick and product groups remains open.
+
+Deployment requires the staged complete workflow tuple to be reviewed and landed
+on main before replacing the active callee. The unchanged required aggregate
+still blocks merging if host execution fails or is unexpectedly skipped.
