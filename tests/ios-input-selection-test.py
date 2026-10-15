@@ -106,7 +106,8 @@ class ImmutableInputTests(unittest.TestCase):
         self.assertTrue(all(change["kind"] == "independent-host" for change in plan["changes"]))
         self.assertTrue({"tests/android-ci-test.py", "tests/repository-health-test.py", "tests/run-project-tests.py",
                          "tools/repository-checks/check.py", "tools/repository-checks/android.py",
-                         ".github/workflows/parent-qualification.yml"}.issubset(
+                         ".github/workflows/parent-qualification.yml",
+                         "tools/repository-checks/workflows/host/parent-qualification.yml"}.issubset(
                              {change["path"] for change in plan["changes"]}))
 
     def test_only_exact_reviewed_executable_host_modes_are_exempt(self):
@@ -173,6 +174,20 @@ class ImmutableInputTests(unittest.TestCase):
                 self.assertEqual([(change["path"], change["kind"]) for change in plan["changes"]],
                                  [(path, "application-input")])
                 self.assertNotEqual(plan["base"]["fingerprint"], plan["candidate"]["fingerprint"])
+
+    def test_new_ci_exemptions_cannot_hide_an_earlier_app_discovery_reader(self):
+        # Historical child readers matter even when only the later CI file is
+        # changed. A new app glob must invalidate both-side negative ownership.
+        self.write("CMakeLists.txt", "project(InputFixture)\nfile(GLOB DEVICE_INPUTS tests/device/*.py)\n")
+        integrated = self.commit("Add an application discovery reader")
+        self.write("tests/device/run_control_plane_tests.py", "raise RuntimeError('must never execute')\n")
+        candidate = self.commit("Change a newly discovered generic host runner")
+        plan = self.plan(candidate, integrated)
+        self.assertTrue(plan["requires_application_build"])
+        self.assertEqual(plan["reason"], "reader-boundary-not-reviewed")
+        self.assertFalse(plan["exclusions_applicable"])
+        self.assertEqual([change["path"] for change in plan["changes"]],
+                         ["tests/device/run_control_plane_tests.py"])
 
     def test_mixed_host_documentation_and_application_change_requires_build(self):
         self.write("docs/README.md", "# Updated documentation\n")

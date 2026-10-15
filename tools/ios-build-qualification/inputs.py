@@ -32,14 +32,61 @@ import subprocess
 # Protected apple-ios merge of the successful host-only workflow bootstrap.
 # Its only tree delta from the previous anchor is the exact reviewed workflow.
 REVIEWED_REVISION = "2fc894a0605103843b36653f250f854714a963ee"
-REVIEWED_BOUNDARY = "sha256:6395c20f61947893ee088745d44925fc9fa00b1823390bea96acf8a4b16b0635"
+REVIEWED_BOUNDARY = "sha256:8a369137ffeb67b79a087901500bdeb74dda81359197712577f0ecb5607aee05"
 
 # Reviewed host control-plane files, not generic tests/** or tools/** patterns.
 # In particular, E2E builds can compile tests/device source and fixtures.
 # These exact files are outside the reviewed app configure/build/package graph.
-# Keep iOS workflows, toolchain readers, native policy and tests/device anchored.
+# Keep application iOS workflows, toolchain readers and device contracts anchored.
+# The exact generic device control-plane runner below is not an iOS launcher input;
+# its device-control-plane-full and project-runner owners remain independently required.
 # Independent required CI must still validate these files before any app waiver.
 INDEPENDENT_HOST_PATHS = frozenset({
+    ".github/android-orchestration.json",
+    ".github/attested-runtime.json",
+    ".github/ios-host-orchestration.json",
+    ".github/package-workflow-generations.json",
+    ".github/workflows/browser-client-atomic-settings.yml",
+    ".github/workflows/browser-client.yml",
+    ".github/workflows/browser-direct-client.yml",
+    ".github/workflows/dependency-releases.yml",
+    "tests/android-build-inputs-test.py",
+    "tests/android-orchestration-test.py",
+    "tests/browser-cpu-selection-test.py",
+    "tests/device/run_control_plane_tests.py",
+    "tests/host-producer-preparation-test.py",
+    "tests/host-selection-test.py",
+    "tests/project-suite-self-test.py",
+    "tools/branch-cleanup/adoption.py",
+    "tools/ios-build-qualification/fixtures/host-launcher-52f.sh",
+    "tools/ios-build-qualification/host-workflow.yml",
+    "tools/ios-build-qualification/host.py",
+    "tools/repository-checks/android-build-inputs.py",
+    "tools/repository-checks/android-host-prepare.sh",
+    "tools/repository-checks/android_gate.py",
+    "tools/repository-checks/browser_cpu.py",
+    "tools/repository-checks/host_selection.py",
+    "tools/repository-checks/package_checks.py",
+    "tools/repository-checks/tool_dependencies.py",
+    "tools/repository-checks/workflows/android-required.yml",
+    "tools/repository-checks/workflows/android/repository-checks-direct-browser.yml",
+    "tools/repository-checks/workflows/android/repository-checks.yml",
+    "tools/repository-checks/workflows/browser-client.yml",
+    "tools/repository-checks/workflows/browser/repository-checks.yml",
+    "tools/repository-checks/workflows/host/parent-qualification.yml",
+    "tools/repository-checks/workflows/host/project-tests.yml",
+    "tools/repository-checks/workflows/packages/parent-qualification.yml",
+    "tools/repository-checks/workflows/packages/project-tests.yml",
+    "tools/repository-checks/workflows/packages/repository-checks-direct.yml",
+    "tools/repository-checks/workflows/packages/repository-checks.yml",
+    "tools/repository-checks/workflows/packages/sync-validation.yml",
+    "tools/repository-checks/workflows/producers/project-tests.yml",
+    "tools/test-evidence/attested-test.py",
+    "tools/test-evidence/attested.py",
+    "tools/test-evidence/producer-api-test.py",
+    "tools/test-evidence/producer-test.py",
+    "tools/test-evidence/producer.py",
+    "tools/test-evidence/producer_api.py",
     ".github/android-checks.json",
     ".github/codeql/codeql-config.yml",
     ".github/repository-checks.json",
@@ -92,9 +139,11 @@ INDEPENDENT_HOST_PATHS = frozenset({
     "tools/test-evidence/validate-sync-test.py",
     "tools/test-evidence/validate-sync.py",
 })
-# The reviewed health test and shared runner are executable in Git. No other
+# The reviewed project self-test, health test and runner are executable in Git. No other
 # executable host path, document or mode transition gets an implicit exemption.
-INDEPENDENT_EXECUTABLE_HOST_PATHS = frozenset({"tests/repository-health-test.py", "tests/run-project-tests.py"})
+INDEPENDENT_EXECUTABLE_HOST_PATHS = frozenset({
+    "tests/project-suite-self-test.py", "tests/repository-health-test.py", "tests/run-project-tests.py",
+})
 INDEPENDENT_DOCUMENTS = frozenset({
     "CONTRIBUTING.md", "README.md", "ios/README.md", "tests/PROJECT_TESTING.md",
 })

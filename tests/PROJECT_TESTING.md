@@ -394,6 +394,21 @@ A stale boundary requires the application build, including a host-only change
 after an earlier reader edit. Repository-input equality keeps exact commit/tree
 provenance separate and never qualifies an older IPA for a new source revision.
 
+The separately deployed `host-v1` iOS qualification generation uses this
+selector while retaining its own required, same-run iOS host contracts. Its
+finite independent inventory includes the reviewed CI ownership and receipt
+helpers, workflow templates, policy files and exact generic control-plane
+runner. These files are outside the protected iOS application configure,
+resource, E2E and packaging reader graph; their shared `project-runner`,
+`device-control-plane-full` and CI contract checks remain required when selected.
+Only `tests/project-suite-self-test.py` is added to the exact executable-host
+inventory. The reader boundary is recomputed from protected `apple-ios` commit
+`2fc894a0605103843b36653f250f854714a963ee`, never from an unprotected candidate.
+Neither npm lockfile is admitted by this CI-only inventory; a future package
+waiver requires independently enforced package owners. Unknown neighboring
+files, mode changes and historical application reader drift still require the
+application build. This classification does not publish IPA or reuse evidence.
+
 The iOS qualification verifier has a staged `inputSelection` setting in its
 trusted policy. An absent or false setting preserves the deployed workflow's
 legacy route and final report, including its broad ordinary-Markdown exemption.
