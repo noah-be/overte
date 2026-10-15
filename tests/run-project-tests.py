@@ -36,6 +36,7 @@ SUITES = (
     Suite("attested-runtime", "quick", (sys.executable, "tools/test-evidence/attested-test.py")),
     Suite("project-runner", "quick", (sys.executable, "tests/project-suite-self-test.py")),
     Suite("python-test-runner", "quick", (sys.executable, "tests/unittest-runner-test.py")),
+    Suite("host-selection", "quick", (sys.executable, "tests/host-selection-test.py")),
     Suite("repository-checks", "quick", (sys.executable, "tests/repository-checks-test.py")),
     Suite("android-ci", "quick", (sys.executable, "tests/android-ci-test.py")),
     Suite("android-orchestration", "quick", (sys.executable, "tests/android-orchestration-test.py")),

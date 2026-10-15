@@ -1368,6 +1368,23 @@
           "tools/repository-checks/workflows/android/repository-checks-direct-browser.yml"
         ]
       }
+    },
+    "host-selection": {
+      "command": [
+        "python",
+        "tests/host-selection-test.py"
+      ],
+      "layer": "quick",
+      "scope": "content",
+      "environment": "host-qt5-qt6",
+      "closure": {
+        "kind": "repository",
+        "inputs": [],
+        "required": [
+          "tests/host-selection-test.py",
+          "tools/repository-checks/host_selection.py"
+        ]
+      }
     }
   }
 }

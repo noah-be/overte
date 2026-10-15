@@ -160,7 +160,7 @@ def _policy_inputs():
                   ".github/repository-checks.json", ".github/branch-policy.json",
                   "tests/run-project-tests.py", "tests/platform-profile.json",
                   "tools/sync-test-reuse/qualification.py"]
-    relatives += ["tools/repository-checks/" + name for name in ("check.py", "package_checks.py", "tool_dependencies.py")]
+    relatives += ["tools/repository-checks/" + name for name in ("check.py", "package_checks.py", "tool_dependencies.py", "host_selection.py")]
     relatives += ["tools/test-evidence/" + name for name in ("run.py", "execution.py", "inputs.py", "runtime.py", "attested.py")]
     relatives += [".github/attested-runtime.json"]
     relatives += list(_requirement_paths())

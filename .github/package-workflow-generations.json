@@ -229,6 +229,31 @@
           "sha": "d3dfafa5fc38283be616e38756972de3606e234b"
         }
       }
+    },
+    {
+      "name": "host-impact-v1",
+      "workflows": {
+        ".github/workflows/project-tests.yml": {
+          "mode": "100644",
+          "type": "blob",
+          "sha": "8920a91e79c8e25c34c0afdeda610d71a625dde9"
+        },
+        ".github/workflows/parent-qualification.yml": {
+          "mode": "100644",
+          "type": "blob",
+          "sha": "ffc8e340af19d46a16c0a0dbd6872b2405cfd00e"
+        },
+        ".github/workflows/sync-validation.yml": {
+          "mode": "100644",
+          "type": "blob",
+          "sha": "2a18a765923e0691a2bd1d98f546cc5f933b539c"
+        },
+        ".github/workflows/repository-checks.yml": {
+          "mode": "100644",
+          "type": "blob",
+          "sha": "81400ce4f8ce5eee1a7d95976378bc03e2d6fb05"
+        }
+      }
     }
   ]
 }
