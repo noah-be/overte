@@ -375,7 +375,10 @@ def main():
         github = cleanup.Github()
         rows, report["held"], source_sha = discover(github, policy)
         if os.environ.get("GITHUB_ACTIONS") == "true":
-            cleanup.verify_checkout(root, source_sha)
+            try:
+                cleanup.verify_checkout(root, source_sha, defer=True)
+            except cleanup.CleanupDeferred as error:
+                return cleanup.defer_before_mutation(report, str(error), args.report)
         token, slug = os.environ.get("ADOPTION_APP_TOKEN", ""), os.environ.get("ADOPTION_APP_SLUG", "")
         write = args.apply and bool(token and slug)
         writer = Writer(github, root, token, slug)
@@ -417,7 +420,7 @@ def main():
     cleanup.write_json(args.report, report)
     if os.environ.get("GITHUB_OUTPUT"):
         with Path(os.environ["GITHUB_OUTPUT"]).open("a") as out:
-            out.write("main_advanced=" + str(report["main_advanced"]).lower() + "\n")
+            out.write("deferred=false\nmain_advanced=" + str(report["main_advanced"]).lower() + "\n")
     if os.environ.get("GITHUB_STEP_SUMMARY"):
         with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a") as out:
             out.write("### Adopted branch history\n\nStatus: **" + report["status"] + "**.\n\n")

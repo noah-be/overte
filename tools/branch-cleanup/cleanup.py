@@ -41,6 +41,44 @@ class CleanupError(RuntimeError):
     """An incomplete or unsafe condition; no fallback authorization is implied."""
 
 
+class CleanupDeferred(CleanupError):
+    """Expected stale checkout, usable only before adoption or planning mutations."""
+
+
+def api_failure(args, result):
+    """Return fixed diagnostic labels; never relay URLs, payloads or stderr."""
+    method, family = "GET", "unknown"
+    if len(args) > 2 and args[2] == "graphql":
+        method, family = "POST", "graphql"
+    if "--method" in args:
+        index = args.index("--method") + 1
+        method = args[index] if index < len(args) and args[index] in {"GET", "POST", "PATCH", "PUT", "DELETE"} else "UNKNOWN"
+    prefix = "repos/" + REPOSITORY
+    for item in args[2:]:
+        if item == prefix or item.startswith(prefix + "/"):
+            parts = item[len(prefix):].strip("/").split("?", 1)[0].split("/")
+            family = "repository" if parts == [""] else parts[0] if parts[0] in {
+                "branches", "pulls", "issues", "compare", "releases", "deployments", "rules", "rulesets", "actions", "git",
+            } else "unknown"
+            children = {"actions": {"runs", "workflows", "artifacts"}, "git": {"ref", "refs", "commits", "trees", "tags", "blobs"}}
+            if family in children and len(parts) > 1 and parts[1] in children[family]:
+                family += "_" + parts[1]
+            break
+    stderr = result.stderr or ""
+    if isinstance(stderr, bytes):
+        stderr = stderr[:8192].decode("utf-8", errors="replace")
+    else:
+        stderr = stderr[:8192]
+    statuses = re.findall(r"\bHTTP ([1-5][0-9]{2})\b", stderr)
+    status = statuses[-1] if statuses else "unknown"
+    category = {"401": "unauthorized", "403": "forbidden", "404": "not_found", "409": "conflict",
+                "422": "invalid_request", "429": "rate_limited"}.get(status, "server_error" if status.startswith("5")
+                                                                       else "cli_error" if status == "unknown" else "http_error")
+    if status in {"403", "429"} and any(text in stderr.lower() for text in ("api rate limit exceeded", "secondary rate limit")):
+        category = "rate_limited"
+    return CleanupError(f"github_api_{method.lower()}_{family}_http_{status}_{category}")
+
+
 def require(condition, reason):
     if not condition:
         raise CleanupError(reason)
@@ -54,6 +92,8 @@ def run(args, **kwargs):
                             timeout=kwargs.pop("timeout", 1200), **kwargs)
     if check and result.returncode:
         # Do not relay arbitrary command output, credentials, or API payloads.
+        if Path(args[0]).name == "gh" and len(args) > 1 and args[1] == "api":
+            raise api_failure(args, result)
         raise CleanupError(f"{Path(args[0]).name}_failed_exit_{result.returncode}")
     return result
 
@@ -504,10 +544,25 @@ def trusted_runtime():
     require(os.environ.get("GITHUB_EVENT_NAME") in {"pull_request_target", "schedule", "workflow_dispatch", "workflow_run"}, "untrusted_workflow_event")
 
 
-def verify_checkout(root, source_sha):
+def verify_checkout(root, source_sha, *, defer=False):
     """Never use a stale checkout's policy after trusted main has advanced."""
     actual = run(["git", "-C", str(root), "rev-parse", "HEAD"]).stdout.strip()
-    require(actual == source_sha, "trusted_checkout_is_stale")
+    if actual != source_sha:
+        raise (CleanupDeferred if defer else CleanupError)("trusted_checkout_is_stale")
+
+
+def defer_before_mutation(report, reason, path):
+    """An early stale checkout grants no candidates or mutation permission."""
+    report.update(status="deferred", reason=reason, candidate_count=0, deleted=[])
+    if "main_advanced" in report:
+        report["main_advanced"] = False
+    write_json(path, report)
+    if os.environ.get("GITHUB_OUTPUT"):
+        with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
+            output.write("deferred=true\ncandidate_count=0\nmain_advanced=false\n")
+    summary(report)
+    print(json.dumps({"status": "deferred", "reason": reason, "candidate_count": 0, "deleted": 0}))
+    return 0
 
 
 def summary(report):
@@ -518,6 +573,8 @@ def summary(report):
             out.write(f"Status: **{report.get('status', 'unknown')}**. Deleted: **{len(report.get('deleted', []))}**.\n\n")
             if report.get("error"):
                 out.write("Cleanup stopped: `" + report["error"] + "`. Branches were not bypassed.\n\n")
+            if report.get("status") == "deferred":
+                out.write("Cleanup deferred: `" + report["reason"] + "`. No candidates were authorized; a later scheduled run will reassess.\n\n")
             for branch, reasons in sorted(report.get("held", {}).items()):
                 out.write("- `" + branch.replace("`", "") + "`: " + ", ".join(sorted(set(reasons))) + "\n")
 
@@ -546,12 +603,12 @@ def main():
         if args.command == "plan":
             plan = make_plan(github, policy)
             if os.environ.get("GITHUB_ACTIONS") == "true":
-                verify_checkout(root, plan["source_sha"])
+                verify_checkout(root, plan["source_sha"], defer=True)
             write_json(args.output, plan)
             report.update(status="planned", held=plan["held"], candidate_count=plan["candidate_count"])
             if os.environ.get("GITHUB_OUTPUT"):
                 with Path(os.environ["GITHUB_OUTPUT"]).open("a") as out:
-                    out.write("candidate_count=" + str(plan["candidate_count"]) + "\n")
+                    out.write("deferred=false\ncandidate_count=" + str(plan["candidate_count"]) + "\n")
         elif args.command == "backup":
             trusted_runtime()
             plan = load_plan(args.plan)
@@ -612,6 +669,8 @@ def main():
                     report["backup_artifact_id"] = args.backup_artifact_id
             report["status"] = "completed"
     except (CleanupError, OSError, ValueError, KeyError, subprocess.TimeoutExpired) as error:
+        if args.command == "plan" and isinstance(error, CleanupDeferred):
+            return defer_before_mutation(report, str(error), args.report)
         report.update(status="blocked", error=str(error) if isinstance(error, CleanupError) else type(error).__name__)
         if getattr(args, "report", None):
             write_json(args.report, report)
