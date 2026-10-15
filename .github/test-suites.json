@@ -1224,7 +1224,7 @@
         "tests/javascript/test/tablet-users.production.test.js",
         "tests/javascript/test/tablet.test.js"
       ],
-      "layer": "quick",
+      "layer": "host",
       "scope": "content",
       "environment": "host-qt5-qt6",
       "closure": {

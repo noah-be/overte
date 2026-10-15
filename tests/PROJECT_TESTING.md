@@ -490,7 +490,7 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `performance-contracts` | `quick` | `python3 tests/run-project-tests.py --suite performance-contracts` |
 | `server-console-behavior` | `quick` | `python3 tests/run-project-tests.py --suite server-console-behavior` |
 | `source-layout` | `quick` | `python3 tests/run-project-tests.py --suite source-layout` |
-| `shared-script-behavior` | `quick` | `python3 tests/run-project-tests.py --suite shared-script-behavior` |
+| `shared-script-behavior` | `host` | `python3 tests/run-project-tests.py --suite shared-script-behavior` |
 | `native-ctest` | `native` | `python3 tests/run-project-tests.py --suite native-ctest` |
 <!-- generated:test-suites:end -->
 
@@ -758,8 +758,9 @@ mandatory on every selected PR. No branch-name waiver or evidence reuse is added
 The staged host workflow in `tools/repository-checks/workflows/host/project-tests.yml`
 uses the default branch's trusted `host_selection.py` controller. It recomputes
 the exact package/candidate plan before selection and again before execution.
-For explicitly reviewed CI and cleanup paths it runs every quick contract while
-omitting the 15 production host groups and their Qt development installation.
+For explicitly reviewed CI and cleanup paths it runs the 36 CI contract groups while
+omitting the 16 production host groups, seven unchanged product quick groups,
+and their Qt development installation.
 This is dependency-based impact selection; an omitted group is not reported as
 a successful test or reused evidence.
 
@@ -770,8 +771,31 @@ changes, symlinks, submodules and incomplete inventories retain the complete
 host gate. Exact CI test filenames are admitted individually; arbitrary Python
 files could shadow modules used by subprocesses. Platform-owned suites still
 execute from their validated branch declaration. This initial ownership covers
-CI-only changes; finer selection within quick and product groups remains open.
+CI-only changes; finer selection within CI and product groups remains open.
 
 Deployment requires the staged complete workflow tuple to be reviewed and landed
 on main before replacing the active callee. The unchanged required aggregate
 still blocks merging if host execution fails or is unexpectedly skipped.
+
+The shared application-script group is a host group: its native chat wrapper
+requires Qt Quick Test and its other native wrappers exercise Qt/QML and C++
+contracts. Its commands and assertions are unchanged. The dependency-light quick
+profile does not run this mixed production group. The full native profile retains
+its existing script coverage. Relevant product changes and
+conservative full-host selection still require every one of its tests.
+
+The seven product quick groups omitted for CI-only input changes cover shared
+JavaScript security regressions, VirtualBaton, server-console behavior, device
+result schemas, Jenkins tooling, desktop input, and performance contracts. Their
+actual dependencies have no reads/imports/execution of the admitted CI roots.
+The immutable guard includes their complete definitions as well as the complete
+non-CI source inventory. A changed reader/definition or unknown historical input
+requires full verification; the product assertions remain unchanged.
+
+The trusted executor also reads the candidate registry as bounded data. New or
+changed command/context combinations execute in addition to required trusted
+checks; candidate definitions cannot drop or replace an existing command. A new
+command conservatively requires full setup and verification before it can pass. Exact
+duplicate commands in the same context execute once. Unsupported new execution
+contexts fail closed for explicit owner review. This prevents newly registered
+tests from remaining unexecuted until after their first merge.

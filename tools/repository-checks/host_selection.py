@@ -51,6 +51,12 @@ CI_POLICY = frozenset({
     '.github/workflows/browser-client.yml', '.github/workflows/browser-direct-client.yml',
     '.github/workflows/browser-client-atomic-settings.yml',
 })
+# These product contracts do not consume the admitted CI inputs. Their source,
+# helpers, fixtures, import/include membership AND definitions are bound below.
+PRODUCT_QUICK_SUITES = frozenset({
+    'codeql-remediation', 'javascript-behavior', 'server-console-behavior',
+    'device-result-schema', 'device-jenkins', 'desktop-input-protocol', 'performance-contracts',
+})
 # Bind the actual reviewed readers, imports, discovery roots, and subprocess
 # launchers. A new reader or historical child variant cannot silently inherit
 # this exclusion; it requires a fresh review or executes the complete suite.
@@ -60,7 +66,7 @@ PROGRAM_INPUTS = (
     'tests/requirements*.txt', 'interface', 'interface/**', 'libraries', 'libraries/**',
     'scripts', 'scripts/**', 'domain-server', 'domain-server/**', 'provenance', 'provenance/**', 'tools/sbom', 'tools/sbom/**',
 )
-REVIEWED_PROGRAMS = '6c05f2c28b722559c78606b418a5195e527057d084b8facc196bf19dbf7f3d2d'
+REVIEWED_PROGRAMS = 'd11f0f72421b9813842dc7dcf3e99497da5310eb5f5d1a4e407aca935033675a'
 
 
 def program_digest(tree, root=ROOT):
@@ -80,7 +86,7 @@ def program_digest(tree, root=ROOT):
         raise ValueError('host registry is oversized')
     raw = subprocess.check_output(['git', '--no-replace-objects', 'cat-file', 'blob', sha], cwd=root, timeout=30)
     registry = inputs._validate_registry(json.loads(raw, object_pairs_hook=inputs._unique_object))
-    definitions = {name: suite for name, suite in registry['suites'].items() if suite['layer'] == 'host'}
+    definitions = {name: suite for name, suite in registry['suites'].items() if suite['layer'] == 'host' or name in PRODUCT_QUICK_SUITES}
     payload = {'programs': entries, 'host_definitions': definitions, 'controls': registry['control_inputs']}
     return hashlib.sha256((json.dumps(payload, sort_keys=True, separators=(',', ':')) + '\n').encode()).hexdigest()
 
@@ -108,10 +114,34 @@ def select(tree, paths, regular, *, unknown=False, trusted_tree=None, candidate_
         except (ValueError, OSError, subprocess.SubprocessError):
             reviewed = False
         if reviewed:
-            return {'suites': [name for name in names if registry['suites'][name]['layer'] == 'quick'],
+            return {'suites': [name for name in names if registry['suites'][name]['layer'] == 'quick' and name not in PRODUCT_QUICK_SUITES],
                     'reason': 'reviewed-ci-only-inputs', 'full_host': False}
         reason = 'host-reader-generation-not-reviewed'
     return {'suites': names, 'reason': reason, 'full_host': True}
+
+
+def additional_suites(candidate_registry, registry):
+    """Monotonically add new candidate commands; never replace a trusted check."""
+    environments = {suite['environment'] for suite in registry['suites'].values()}
+    seen = {(tuple(suite['command']), suite['environment']) for suite in registry['suites'].values()}
+    additions = []
+    for name, suite in candidate_registry['suites'].items():
+        key = (tuple(suite['command']), suite['environment'])
+        if key in seen:
+            continue  # One actual command/context serves duplicate definitions.
+        if suite['environment'] not in environments or suite['command'][0] not in {'python', 'node', 'bash'}:
+            raise ValueError('new test context requires a reviewed host owner')
+        seen.add(key)
+        suffix = hashlib.sha256(json.dumps(key).encode()).hexdigest()[:12]
+        additions.append((name + '-candidate-' + suffix, suite['layer'], suite['command']))
+    return additions
+
+
+def candidate_registry(candidate):
+    path = candidate / '.github/test-suites.json'
+    if path.is_symlink() or not path.is_file() or path.stat().st_size > 1_000_000:
+        raise ValueError('candidate test registry must be a bounded ordinary file')
+    return inputs.load_registry(path)
 
 
 def package_policy():
@@ -142,6 +172,12 @@ def main():
             raise ValueError('host execution differs from the independently recomputed required plan')
         selected = select(inputs.full_tree(candidate, before[0]), plan['paths'], plan['regular'],
                           unknown=plan['unknown'], trusted_tree=inputs.full_tree(ROOT, 'HEAD'), candidate_root=candidate)
+        registry = inputs.load_registry(ROOT / '.github/test-suites.json')
+        additions = additional_suites(candidate_registry(candidate), registry)
+        if additions:
+            selected = {'suites': list(registry['suites']), 'full_host': True,
+                        'reason': 'new-or-changed-test-command-requires-full-verification'}
+        selected['additional_suites'] = [name for name, _, _ in additions]
         print(json.dumps(selected, sort_keys=True), flush=True)
         if args.select_only:
             if args.output is None:
@@ -155,6 +191,9 @@ def main():
         suites = [package.Suite(name, registry['suites'][name]['layer'], tuple(
             sys.executable if index == 0 and value == 'python' else value
             for index, value in enumerate(registry['suites'][name]['command']))) for name in selected['suites']]
+        suites += [package.Suite(name, layer, tuple(
+            sys.executable if index == 0 and value == 'python' else value for index, value in enumerate(command)))
+            for name, layer, command in additions]
         suites += [package.Suite(name, 'quick', tuple(
             sys.executable if index == 0 and value == 'python' else value for index, value in enumerate(command)))
             for name, command in execution.platform_suites(candidate, registry['suites'])]
