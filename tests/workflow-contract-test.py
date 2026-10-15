@@ -324,12 +324,10 @@ class CodeQLWorkflowContracts(unittest.TestCase):
                     self.assertEqual(result.returncode == 0, expected, (selected, scan, analysis))
 
 
-class SelectedCodeQLResultWorkflowContracts(CodeQLWorkflowContracts):
-    @classmethod
-    def setUpClass(cls):
-        cls.source = (ROOT / "tools/repository-checks/workflows/codeql-results.yml").read_text()
-
     def test_selected_results_are_independent_and_cannot_bypass_the_truth_table(self):
+        canonical = (ROOT / "tools/repository-checks/workflows/codeql-results.yml").read_text()
+        if self.source != canonical:
+            self.skipTest("Selected-result generation is covered by its staged workflow contracts")
         workflow = workflow_data(self.source)
         job = workflow['jobs']['codeql-checks']
         self.assertEqual(job['permissions'], {'contents': 'read', 'actions': 'read',
@@ -357,6 +355,15 @@ class SelectedCodeQLResultWorkflowContracts(CodeQLWorkflowContracts):
         self.assertEqual(set(triggers['push']['branches']), expected)
         self.assertEqual(set(triggers['pull_request']['branches']), expected)
 
+
+@unittest.skipIf(
+    CODEQL_WORKFLOW.read_text() == (ROOT / "tools/repository-checks/workflows/codeql-results.yml").read_text(),
+    "The identical deployed generation is already covered by the active workflow contracts",
+)
+class SelectedCodeQLResultWorkflowContracts(CodeQLWorkflowContracts):
+    @classmethod
+    def setUpClass(cls):
+        cls.source = (ROOT / "tools/repository-checks/workflows/codeql-results.yml").read_text()
 
 class BranchGovernanceWorkflowContracts(unittest.TestCase):
     def test_policy_is_a_native_read_only_pull_request_check(self):
