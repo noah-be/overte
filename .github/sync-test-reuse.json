@@ -43,7 +43,8 @@
       "tests/device/ios/test_ios_native_binding_contract.py",
       "tests/device/ios/adapters/appium_adapter.py",
       "tests/device/ios/self_tests/test_appium_adapter.py",
-      "tests/device/self_tests/test_ios_remotexpc_tunnel.py"
+      "tests/device/self_tests/test_ios_remotexpc_tunnel.py",
+      "tests/device/self_tests/test_ios_personal_team_fetch.py"
     ]
   },
   "qualified_inputs": [
