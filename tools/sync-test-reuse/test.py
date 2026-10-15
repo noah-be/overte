@@ -489,7 +489,7 @@ class ProductRepairContracts(unittest.TestCase):
 
     def fixture(self, changes=None, target="android-vr-pico"):
         settings = config()
-        paths = settings["reconciliation_repair_paths"][target]
+        paths = settings["reconciliation_repair_paths"].get(target, [])
         edge = settings["edges"][target]
         parent = edge["parent"]
         scope = edge["scope"]
@@ -636,6 +636,35 @@ class ProductRepairContracts(unittest.TestCase):
         request = self.classify(event, settings, api)
         self.assertEqual(request.repair_paths, tuple(sorted(paths)))
         self.inspect(event, settings, api)
+
+    def test_ios_kit_fetch_fixture_repair_requires_complete_fallback(self):
+        path = "tests/device/self_tests/test_ios_personal_team_fetch.py"
+        event, settings, api = self.fixture(
+            [{"filename": path, "status": "modified"}], target="apple-ios")
+        request = self.classify(event, settings, api)
+        self.assertEqual(request.repair_paths, (path,))
+        self.assertNotIn(path, request.parent_changed_paths)
+        # inspect() rejects evidence reuse and requires the complete leaf profile.
+        self.inspect(event, settings, api)
+
+    def test_ios_kit_fetch_fixture_repair_does_not_admit_neighbors(self):
+        repair = {"filename": "tests/device/self_tests/test_ios_personal_team_fetch.py",
+                  "status": "modified"}
+        for path in (
+                "tests/device/self_tests/test_ios_personal_team_fetch_extra.py",
+                "tests/device/self_tests/test_ios_personal_team_artifacts.py",
+                "tests/device/ios/fetch_personal_team_kit.py",
+                "tools/sync-test-reuse/gate.py"):
+            changes = [repair, {"filename": path, "status": "modified"}]
+            with self.subTest(path=path), self.assertRaises(gate.GateError):
+                self.classify(*self.fixture(changes, target="apple-ios"))
+
+    def test_ios_kit_fetch_fixture_repair_is_not_cross_platform(self):
+        changes = [{"filename": "tests/device/self_tests/test_ios_personal_team_fetch.py",
+                    "status": "modified"}]
+        for target in ("android-phone", "android-vr", "android-vr-pico", "apple-main"):
+            with self.subTest(target=target), self.assertRaises(gate.GateError):
+                self.classify(*self.fixture(changes, target=target))
 
     def test_ios_parent_contract_repairs_cannot_carry_product_or_neighbor_changes(self):
         repairs = [
