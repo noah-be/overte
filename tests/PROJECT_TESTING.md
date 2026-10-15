@@ -394,6 +394,21 @@ A stale boundary requires the application build, including a host-only change
 after an earlier reader edit. Repository-input equality keeps exact commit/tree
 provenance separate and never qualifies an older IPA for a new source revision.
 
+The separately deployed `host-v1` iOS qualification generation uses this
+selector while retaining its own required, same-run iOS host contracts. Its
+finite independent inventory includes the reviewed CI ownership and receipt
+helpers, workflow templates, policy files and exact generic control-plane
+runner. These files are outside the protected iOS application configure,
+resource, E2E and packaging reader graph; their shared `project-runner`,
+`device-control-plane-full` and CI contract checks remain required when selected.
+Only `tests/project-suite-self-test.py` is added to the exact executable-host
+inventory. The reader boundary is recomputed from protected `apple-ios` commit
+`2fc894a0605103843b36653f250f854714a963ee`, never from an unprotected candidate.
+Neither npm lockfile is admitted by this CI-only inventory; a future package
+waiver requires independently enforced package owners. Unknown neighboring
+files, mode changes and historical application reader drift still require the
+application build. This classification does not publish IPA or reuse evidence.
+
 The iOS qualification verifier has a staged `inputSelection` setting in its
 trusted policy. An absent or false setting preserves the deployed workflow's
 legacy route and final report, including its broad ordinary-Markdown exemption.
@@ -625,6 +640,29 @@ S3-only sync shortening additionally requires activation and exact approved
 workflow blobs in both the protected target and merge candidate, so partially
 propagated child branches retain full validation. Browser package profiling is
 separate work; this foundation does not remove browser build variants.
+
+The trusted package helpers additionally define an internal `include_browser`
+capability, disabled in every current CLI and workflow call. It recognizes only
+the exact Browser `package.json` and `package-lock.json` paths. With a trusted
+opt-in, their pure union with S3/JSDoc/server-console manifests selects the
+applicable package owners; mixed, unknown and nonregular inputs retain full host
+fallback and independent S3 coverage. Candidate JSON cannot enable this flag.
+
+The prepared Browser profile in `tool_dependencies.py` performs one install
+with scripts and the install audit disabled, one full `low` audit, the existing
+`npm run build`, and `npm test`. It verifies the reviewed build/prebuild/test
+script definitions and rejects new build/test lifecycle hooks before installing.
+The build still runs avatar preparation, which can read or fetch avatar inputs.
+Fake-command tests establish ordering and failure propagation only: no Browser
+build, unit suite, avatar preparation or E2E journey is qualified by this change.
+Development-only lock metadata does not authorize a journey omission.
+
+Deployment must bind the capability to independently recomputed required plans,
+exact complete caller generations and successful package receipts. Transfer
+standalone Browser manifest triggers atomically with that required owner so it
+does not add a third install/build to the existing two Browser jobs. Preserve
+meaningful browser/native journey ownership until its replacement is separately
+reviewed; this helper does not activate a Browser gate or change any trigger.
 
 The ordinary shared-host receipt producer is also staged and inactive. Its
 alternate full workflow is

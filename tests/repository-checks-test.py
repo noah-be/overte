@@ -679,6 +679,120 @@ class PackageChecksTests(unittest.TestCase):
     def selected(self, paths, regular=True, **kwargs):
         return PACKAGES.select(paths, regular, **kwargs)
 
+    def test_browser_manifests_require_internal_opt_in_and_select_the_exact_package_union(self):
+        browser = PACKAGES.BROWSER
+        s3 = PACKAGES.S3
+        for name in ('package.json', 'package-lock.json'):
+            path = browser + '/' + name
+            self.assertEqual(self.selected([path])['host_mode'], 'full')
+            self.assertEqual(self.selected([path])['package_set'], [])
+            self.assertEqual(TOOLS.affected_projects([path], include_s3=True), ())
+            with self.assertRaises(ValueError):
+                TOOLS.validate_projects([browser], include_s3=True)
+            self.assertEqual(self.selected([path], include_browser=True), {
+                'host_mode': 'package-dependencies', 'tool_projects': [], 'package_set': [browser]})
+        paths = [browser + '/package-lock.json', s3 + '/package-lock.json']
+        self.assertEqual(self.selected(paths, include_browser=True), {
+            'host_mode': 'package-dependencies', 'tool_projects': [], 'package_set': [s3, browser]})
+        paths += ['server-console/package.json', 'tools/jsdoc/package-lock.json']
+        self.assertEqual(self.selected(paths, include_browser=True), {
+            'host_mode': 'tool-dependencies', 'tool_projects': ['server-console', 'tools/jsdoc'],
+            'package_set': [s3, browser]})
+
+    def test_browser_opt_in_never_weakens_mixed_unknown_or_nonregular_fallback(self):
+        manifests = [PACKAGES.BROWSER + '/package-lock.json', PACKAGES.S3 + '/package-lock.json']
+        for extra in ('native.cpp', 'browser-client/src/changed.ts', 'browser-client/package-extra.json',
+                      'browser-client/.npmrc', 'unknown', 'tools/repository-checks/check.py'):
+            selected = self.selected([*manifests, extra], include_browser=True)
+            self.assertEqual(selected['host_mode'], 'full', extra)
+            self.assertEqual(selected['package_set'], [PACKAGES.S3, PACKAGES.BROWSER])
+        for options in ({'regular': False}, {'unknown': True}):
+            selected = self.selected(manifests, include_browser=True, **options)
+            self.assertEqual(selected['host_mode'], 'full')
+            self.assertEqual(selected['package_set'], [PACKAGES.S3, PACKAGES.BROWSER])
+        self.assertEqual(self.selected([], unknown=True, include_browser=True)['package_set'], [PACKAGES.S3])
+        self.assertEqual(self.selected(manifests, legacy_mode='delegated-sync', include_browser=True)['host_mode'],
+                         'delegated-sync')
+
+    def test_browser_profile_uses_existing_scripts_once_and_propagates_each_failure(self):
+        expected = [('npm', 'ci', '--ignore-scripts', '--no-fund', '--no-audit'),
+                    ('npm', 'audit', '--audit-level=low'), ('npm', 'run', 'build'), ('npm', 'test')]
+        with patch.object(TOOLS.subprocess, 'run') as run:
+            TOOLS.run(ROOT, [PACKAGES.BROWSER], include_browser=True)
+        self.assertEqual([call.args[0] for call in run.call_args_list], expected)
+        self.assertTrue(all(call.kwargs['cwd'] == ROOT / PACKAGES.BROWSER and call.kwargs['check']
+                            for call in run.call_args_list))
+        for failure in range(len(expected)):
+            with self.subTest(failure=failure), patch.object(TOOLS.subprocess, 'run',
+                    side_effect=[None] * failure + [subprocess.CalledProcessError(1, 'npm')]) as run:
+                with self.assertRaises(subprocess.CalledProcessError):
+                    TOOLS.run(ROOT, [PACKAGES.BROWSER], include_browser=True)
+                self.assertEqual(run.call_count, failure + 1)
+
+    def test_browser_profile_rejects_unreviewed_lifecycle_or_script_changes_before_install(self):
+        original = json.loads((ROOT / 'browser-client/package.json').read_text())
+        for name in (*TOOLS.BROWSER_MANIFEST_SCRIPTS, 'postbuild', 'pretest', 'posttest'):
+            with self.subTest(script=name), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                package = root / PACKAGES.BROWSER
+                package.mkdir()
+                manifest = deepcopy(original)
+                manifest['scripts'][name] = 'node -e "process.exit(0)"'
+                (package / 'package.json').write_text(json.dumps(manifest))
+                (package / 'package-lock.json').write_text('{}')
+                with patch.object(TOOLS.subprocess, 'run') as run, self.assertRaises(ValueError):
+                    TOOLS.run(root, [PACKAGES.BROWSER], include_browser=True)
+                run.assert_not_called()
+        with patch.object(TOOLS.subprocess, 'run') as run, self.assertRaises(ValueError):
+            TOOLS.run(ROOT, [PACKAGES.BROWSER, PACKAGES.BROWSER], include_browser=True)
+        run.assert_not_called()
+
+    def test_browser_and_s3_union_executes_each_package_once_without_unrelated_tool_commands(self):
+        with patch.object(TOOLS.subprocess, 'run') as run:
+            TOOLS.run(ROOT, [PACKAGES.S3, PACKAGES.BROWSER], include_s3=True, include_browser=True)
+        for project, count in ((PACKAGES.S3, 3), (PACKAGES.BROWSER, 4)):
+            calls = [call.args[0] for call in run.call_args_list if call.kwargs['cwd'] == ROOT / project]
+            self.assertEqual(len(calls), count)
+            self.assertEqual(sum(command[:2] == ('npm', 'ci') for command in calls), 1)
+            self.assertEqual(sum(command[:2] == ('npm', 'audit') for command in calls), 1)
+            self.assertEqual(sum(command[:2] == ('npm', 'test') for command in calls), 1)
+        self.assertEqual(len(run.call_args_list), 7)
+
+    def test_browser_candidate_plan_and_execution_require_trusted_opt_in_not_event_json(self):
+        root, git, base = self.fixture()
+        browser = root / PACKAGES.BROWSER
+        browser.mkdir()
+        (browser / 'package.json').write_bytes((ROOT / 'browser-client/package.json').read_bytes())
+        (browser / 'package-lock.json').write_text('{}')
+        git('add', '.'); git('commit', '-qm', 'Add ordinary browser fixture manifests')
+        base = git('rev-parse', 'HEAD')
+        (browser / 'package-lock.json').write_text('{"updated":true}')
+        git('commit', '-qam', 'Browser fixture lock update'); head = git('rev-parse', 'HEAD')
+        payload = self.push(base, head)
+        payload['include_browser'] = True
+        payload['browser_client_required_branches'] = ['main']
+        legacy = PACKAGES.candidate_plan(root, payload, head)
+        self.assertEqual((legacy['host_mode'], legacy['package_set']), ('full', []))
+        selected = PACKAGES.candidate_plan(root, payload, head, include_browser=True)
+        self.assertEqual((selected['host_mode'], selected['package_set']), ('package-dependencies', [PACKAGES.BROWSER]))
+        self.assertNotEqual(selected['plan'], legacy['plan'])
+        seen = []
+        def run(candidate, projects, **options):
+            self.assertNotIn('GH_TOKEN', os.environ)
+            self.assertNotIn('GITHUB_OUTPUT', os.environ)
+            seen.append((candidate, projects, options))
+        with patch.object(PACKAGES, 'tools', return_value=SimpleNamespace(run=run)), patch.dict(os.environ,
+                {'GH_TOKEN': 'private', 'GITHUB_OUTPUT': 'private-command'}):
+            self.assertEqual(PACKAGES.execute(root, selected, 'package-checks', include_browser=True),
+                             PACKAGES.receipt(selected, 'package-checks'))
+            self.assertEqual(os.environ['GH_TOKEN'], 'private')
+        self.assertEqual(seen, [(root, [PACKAGES.BROWSER], {'include_s3': True, 'include_browser': True})])
+        for outcome in ('failure', 'cancelled', 'skipped'):
+            needs = self.needs(selected)
+            needs['package-checks']['result'] = outcome
+            with self.subTest(outcome=outcome), self.assertRaises(ValueError):
+                PACKAGES.verify(needs, selected)
+
     def test_legacy_capabilities_stay_bounded_under_explicit_inactive_policy(self):
         path = PACKAGES.S3 + '/package-lock.json'
         self.assertEqual(TOOLS.affected_projects([path]), ())
