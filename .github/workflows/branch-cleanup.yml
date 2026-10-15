@@ -8,6 +8,7 @@ on: # zizmor: ignore[dangerous-triggers] PR and CI notifications run only truste
   workflow_run:
     # Explicit names avoid recursively waking cleanup after its own completion.
     # Include platform workflows registered outside main and GitHub-managed CI.
+    # Names are glob patterns: escape literal metacharacters, including C++'s +.
     workflows:
       - ".github/workflows/ios-qt-source.yml"
       - "Android Phone emulator acceptance"
@@ -29,7 +30,7 @@ on: # zizmor: ignore[dangerous-triggers] PR and CI notifications run only truste
       - "Documentation checks"
       - "Issue intake"
       - "Linux Server CI Build"
-      - "Native C++ checks"
+      - "Native C\\+\\+ checks"
       - "Overte CI Build"
       - "Owned atomic settings diagnostic"
       - "Parent qualification"
