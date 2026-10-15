@@ -22,6 +22,10 @@ DIRECT_NATIVE_FIXTURES = frozenset({
     "browser-direct-client/tests/fixtures/native-wire.json",
     "browser-direct-client/tests/fixtures/native-avatar-audio.json",
 })
+DIRECT_HOST_NPM_MANIFESTS = frozenset({
+    "script-archive/marketplace/S3Server/package.json",
+    "script-archive/marketplace/S3Server/package-lock.json",
+})
 DIRECT_BROWSER_ASSETS = frozenset({
     "LICENSE", "LICENSES/Apache-2.0.txt",
     "interface/resources/meshes/defaultAvatar_full.fst",
@@ -138,7 +142,8 @@ def direct_browser_plan(paths: list[str], regular: bool = True, *, verified_empt
             native = not ((known_root or known_file) and name.suffix in DIRECT_FRONTEND_SUFFIXES)
         elif path in DIRECT_BROWSER_ASSETS:
             browser = True
-        elif (path.startswith(DIRECT_HOST_ROOTS) or path.startswith(".github/")
+        elif (path in DIRECT_HOST_NPM_MANIFESTS
+              or path.startswith(DIRECT_HOST_ROOTS) or path.startswith(".github/")
               or path in {"COPYING", ".gitignore", ".gitattributes", "requirements.txt", "AGENTS.md"}):
             continue
         else:

@@ -95,6 +95,25 @@ class RoutingTests(unittest.TestCase):
                            'tools/jsdoc/unknown.json', 'libraries/shared/src/AABox.cpp'):
                 self.assertEqual(POLICY.plan([path, native])['mode'], 'full')
 
+    def test_javascript_package_manifests_do_not_build_the_native_product(self):
+        projects = ('browser-client', 'browser-direct-client',
+                    'script-archive/marketplace/S3Server')
+        manifests = [f'{project}/{name}' for project in projects
+                     for name in ('package.json', 'package-lock.json')]
+        self.assertEqual(POLICY.plan(manifests)['mode'], 'skip')
+        for path in manifests:
+            with self.subTest(path=path):
+                self.assertEqual(POLICY.plan([path])['mode'], 'skip')
+                self.assertEqual(POLICY.plan([path], regular=False)['mode'], 'full')
+                for native in ('libraries/shared/src/AABox.cpp',
+                               'conanfile.py', 'cmake/macros/TargetGlm.cmake'):
+                    self.assertEqual(POLICY.plan([path, native])['mode'], 'full')
+        for project in projects:
+            for name in ('CMakeLists.txt', 'input.cmake', 'resources.qrc',
+                         'unknown.json', 'package-lock.json.cpp', 'new.h'):
+                with self.subTest(project=project, name=name):
+                    self.assertEqual(POLICY.plan([manifests[0], f'{project}/{name}'])['mode'], 'full')
+
     def test_production_dependency_and_unknown_changes_are_conservative(self):
         for path in ('libraries/shared/src/AABox.cpp', 'libraries/shared/src/AABox.h',
                      'libraries/new/src/new.cpp', 'interface/src/Application.cpp', 'unknown.data',
