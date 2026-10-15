@@ -75,9 +75,10 @@ def host_handoff(policy_root=ROOT):
 
 @contextmanager
 def fresh_host_candidate(event, candidate, source, *, policy_root=ROOT):
-    """Next-generation CLI success requires independent live PR bookends."""
+    """Next-generation PRs require live bookends; manual routes remain full."""
     handoff = host_handoff(policy_root)
     selected = (handoff is not None and event is not None and candidate is not None
+                and event.get("pull_request") is not None
                 and handoff.participates(candidate, source, event, policy_root=policy_root))
     if not selected:
         yield

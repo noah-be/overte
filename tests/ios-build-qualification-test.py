@@ -961,6 +961,37 @@ class HostGenerationTests(unittest.TestCase):
                 self.assertEqual(output.exists(), not changed)
                 self.assertEqual(len(calls), 4 if changed else 6)
 
+    def test_manual_cli_keeps_full_build_without_pr_api_and_rejects_another_target(self):
+        event_file = self.trusted / "manual-event.json"
+        output = self.trusted / "manual-output.txt"
+        route, wiring = CHECK.route, CHECK.validate_wiring
+        def with_policy(function):
+            def call(*args, **kwargs):
+                kwargs["policy_root"] = self.trusted
+                return function(*args, **kwargs)
+            return call
+        for ref, expected_code in (("refs/heads/apple-ios", 0), ("refs/heads/main", 1)):
+            event_file.write_text(json.dumps({"repository": {"full_name": CHECK.REPOSITORY,
+                "id": CHECK.REPOSITORY_ID}, "ref": ref}))
+            output.unlink(missing_ok=True)
+            with (patch.object(self.host, "SOURCE_READY", True), patch.object(CHECK, "host_handoff", return_value=self.host),
+                  patch.object(self.host, "_api_get", side_effect=AssertionError("manual route requested PR metadata")) as api,
+                  patch.object(CHECK, "route", side_effect=with_policy(route)),
+                  patch.object(CHECK, "validate_wiring", side_effect=with_policy(wiring)),
+                  patch.object(sys, "argv", ["check.py", "route", "--event", str(event_file), "--candidate", str(self.root),
+                      "--sha", self.base, "--output", str(output)]),
+                  patch.object(sys, "stdout", new_callable=io.StringIO) as stdout,
+                  patch.object(sys, "stderr", new_callable=io.StringIO)):
+                self.assertEqual(CHECK.main(), expected_code, ref)
+            api.assert_not_called()
+            self.assertEqual(output.exists(), expected_code == 0)
+            if expected_code == 0:
+                result = json.loads(stdout.getvalue())
+                self.assertEqual((result["required"], result["host_required"], result["reason"]),
+                                 ("true", "true", "manual-application-build-required"))
+                self.assertIn("required=true\n", output.read_text())
+                self.assertIn("host_required=true\n", output.read_text())
+
     def test_proven_host_and_docs_changes_keep_ios_host_and_skip_app_only(self):
         for path in ("docs/ios-fixture.md", "tools/test-evidence/run.py"):
             event, source = self.candidate({path: "Reviewed independent input\n"})
