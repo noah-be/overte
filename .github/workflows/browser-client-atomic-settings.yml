@@ -30,7 +30,7 @@ permissions:
   contents: read
 jobs:
   atomic-settings:
-    if: github.repository == 'noah-be/overte'
+    if: github.repository == 'noah-l-frank/overte'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
@@ -38,7 +38,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          repository: noah-be/overte
+          repository: noah-l-frank/overte
           ref: ${{ inputs.source_sha || github.sha }}
           persist-credentials: false
       - name: Require exact reviewed source

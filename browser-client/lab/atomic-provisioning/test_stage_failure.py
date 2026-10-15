@@ -62,6 +62,20 @@ class CommandBoundary(unittest.TestCase):
   def main(*,progress):progress(SECRET)
   code,result,err=self.invoke(main);self.assertEqual(code,1);self.assertEqual(result['phase'],'preparation');self.assertEqual(result['failureCategory'],'validation-refused')
 
+class ForkAuthorization(unittest.TestCase):
+ def test_former_foreign_and_prefix_repositories_refuse_before_private_sideeffects(self):
+  sha='a'*40
+  for repository in ('noah-be/overte','overte-org/overte','someone-else/overte','noah-l-frank/overte-other'):
+   with self.subTest(repository=repository),patch.dict(os.environ,{'PROBE_SOURCE_SHA':sha,'GITHUB_REPOSITORY':repository},clear=True),patch.object(stage.subprocess,'check_output',return_value=sha+'\n'),patch.object(stage.tempfile,'mkdtemp')as directory,patch.object(stage,'signed_dependency')as dependency:
+    with self.assertRaisesRegex(ValueError,'authorized-fork-required'):stage.main()
+    directory.assert_not_called();dependency.assert_not_called()
+ def test_current_fork_reaches_private_root_only_after_exact_source(self):
+  sha='a'*40
+  class ReachedPrivateRoot(Exception):pass
+  with tempfile.TemporaryDirectory()as temp,patch.dict(os.environ,{'PROBE_SOURCE_SHA':sha,'GITHUB_REPOSITORY':'noah-l-frank/overte','RUNNER_TEMP':temp},clear=True),patch.object(stage.subprocess,'check_output',return_value=sha+'\n'),patch.object(stage.tempfile,'mkdtemp',side_effect=ReachedPrivateRoot)as directory,patch.object(stage,'signed_dependency')as dependency:
+   with self.assertRaises(ReachedPrivateRoot):stage.main()
+   directory.assert_called_once();dependency.assert_not_called()
+
 class ActualStage(unittest.TestCase):
  def setUp(self):
   self.cache=Path(os.environ['ATOMIC_DIAGNOSTIC_CACHE']);self.keyring=Path(os.environ['ATOMIC_DIAGNOSTIC_TEST_KEYRING']);self.record=json.loads((stage.HERE/'dependency.json').read_text());self.mapping={self.record['releaseURL']:self.cache/'InRelease','https://archive.ubuntu.com/ubuntu/dists/noble/'+self.record['packagesPath']:self.cache/'Packages.xz',self.record['packageURL']:self.cache/'strace.deb'}
@@ -112,7 +126,7 @@ class ActualStage(unittest.TestCase):
    self.assertEqual(phases[-1],'archive-list');self.assertNotIn(SECRET,json.dumps(stage.staging_failure(caught.exception,phases[-1])))
  def test_actual_source_and_fork_refusal_precedes_directory_and_dependency(self):
   sha='a'*40
-  for env,returned,wanted in [({'PROBE_SOURCE_SHA':sha,'GITHUB_REPOSITORY':'noah-be/overte'},'b'*40,'source-check'),({'PROBE_SOURCE_SHA':sha,'GITHUB_REPOSITORY':'overte-org/overte'},sha,'fork-check')]:
+  for env,returned,wanted in [({'PROBE_SOURCE_SHA':sha,'GITHUB_REPOSITORY':'noah-l-frank/overte'},'b'*40,'source-check'),({'PROBE_SOURCE_SHA':sha,'GITHUB_REPOSITORY':'overte-org/overte'},sha,'fork-check')]:
    phases=[]
    with patch.dict(os.environ,env,clear=True),patch.object(stage.subprocess,'check_output',return_value=returned)as output,patch.object(stage.tempfile,'mkdtemp')as make,patch.object(stage,'signed_dependency')as dependency:
     with self.assertRaises(ValueError):stage.main(progress=phases.append)
@@ -123,7 +137,7 @@ class ActualStage(unittest.TestCase):
    self.assertEqual(keyring,'/usr/share/keyrings/ubuntu-archive-keyring.gpg');return original(directory,self.keyring,self.fetch,progress=progress)
   with tempfile.TemporaryDirectory()as temp:
    env=Path(temp)/'env';env.write_text('')
-   with patch.dict(os.environ,{'PROBE_SOURCE_SHA':sha,'GITHUB_REPOSITORY':'noah-be/overte','RUNNER_TEMP':temp,'GITHUB_ENV':str(env)},clear=True),patch.object(stage.subprocess,'check_output',wraps=stage.subprocess.check_output)as output,patch.object(stage,'signed_dependency',side_effect=dependency):
+   with patch.dict(os.environ,{'PROBE_SOURCE_SHA':sha,'GITHUB_REPOSITORY':'noah-l-frank/overte','RUNNER_TEMP':temp,'GITHUB_ENV':str(env)},clear=True),patch.object(stage.subprocess,'check_output',wraps=stage.subprocess.check_output)as output,patch.object(stage,'signed_dependency',side_effect=dependency):
     real=output._mock_wraps
     def check(command,**kwargs):return sha+'\n'if command[0]=='git'else real(command,**kwargs)
     output.side_effect=check;stage.main(progress=phases.append)

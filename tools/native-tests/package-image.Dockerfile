@@ -13,8 +13,8 @@ RUN apt-get update -qq && apt-get install -y --no-install-recommends \
     qml-module-qtquick-controls qml-module-qtquick-controls2 qml-module-qt-labs-settings \
     qml-module-qtquick-dialogs qml-module-qtwebengine \
     && rm -rf /var/lib/apt/lists/*
-LABEL org.opencontainers.image.source="https://github.com/noah-be/overte"
-LABEL org.opencontainers.image.description="Qualified Linux native-test dependencies for noah-be/overte"
+LABEL org.opencontainers.image.source="https://github.com/noah-l-frank/overte"
+LABEL org.opencontainers.image.description="Qualified Linux native-test dependencies for noah-l-frank/overte"
 RUN --mount=type=bind,from=packages,target=/native-packages \
     conan cache restore /native-packages/conan-packages.tgz
 COPY native-package.json /opt/overte-native-package.json
