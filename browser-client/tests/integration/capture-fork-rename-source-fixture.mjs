@@ -1,6 +1,7 @@
 // Copyright 2026 Overte contributors
 // SPDX-License-Identifier: Apache-2.0
 // Finite CPU history only. Current physical admission never recovers old source.
+import {normalizeRetainedWorkflowInput} from './capture-workflow-source-fixture.mjs';
 import {openSync, closeSync, fstatSync, readSync, realpathSync, constants} from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -83,7 +84,7 @@ function recover(relative, bytes, current) {
 }
 
 export function normalizeForkRenameInput(relative, bytes) {
-    return recover(relative, bytes, FORK_CURRENT);
+    return recover(relative, normalizeRetainedWorkflowInput(relative, bytes), FORK_CURRENT);
 }
 
 export function recoverCaptureV33Input(relative, bytes) {

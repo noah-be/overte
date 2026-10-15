@@ -1,9 +1,9 @@
 // Copyright 2026 Overte contributors
 // SPDX-License-Identifier: Apache-2.0
-// Current physical V34 source admission and retained CPU history are separate.
+// Retained V34 CPU assertions; current physical admission is checked by V35.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFile, writeFile, mkdtemp, mkdir, rm, unlink, symlink, link, chmod} from 'node:fs/promises';
+import {readFile as readPhysicalFile, writeFile, mkdtemp, mkdir, rm, unlink, symlink, link, chmod} from 'node:fs/promises';
 import {lstat, realpath} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -15,14 +15,21 @@ import {
     normalizeForkRenameInput, recoverCaptureV33Input, readCurrentForkRenameSource,
 } from './integration/capture-fork-rename-source-fixture.mjs';
 
+import {recoverCaptureV34Input, readWorkflowHistoricalSource} from './integration/capture-workflow-source-fixture.mjs';
+
 const root = fileURLToPath(new URL('../../', import.meta.url));
+const readFile = async (input, options) => {
+    const file = input instanceof URL ? fileURLToPath(input) : path.resolve(input);
+    const bytes = recoverCaptureV34Input(path.relative(root, file), await readPhysicalFile(input));
+    return typeof options === 'string' ? bytes.toString(options) : bytes;
+};
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const bytes = await readFile(new URL('./fixtures/capture-fork-rename-v34-complete-source-manifest.json', import.meta.url));
 const manifest = JSON.parse(bytes), d = manifest.forkRenameDerivation;
 const previousBytes = await readFile(new URL('./fixtures/capture-startup-integration-v33-complete-source-manifest.json', import.meta.url));
 const previous = JSON.parse(previousBytes);
 const preparerPath = 'browser-client/tests/integration/prepare-tablet-capture-acceptance.mjs';
-const preparer = await readFile(path.join(root, preparerPath), 'utf8');
+const preparer = readWorkflowHistoricalSource(preparerPath);
 const start = preparer.indexOf('const manifestBytes=await readFile(proposal);');
 const end = preparer.indexOf('const directory=await mkdtemp(', start);
 assert(start >= 0 && end > start);
