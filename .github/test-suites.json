@@ -1368,6 +1368,29 @@
           "tools/repository-checks/workflows/android/repository-checks-direct-browser.yml"
         ]
       }
+    },
+    "shared-sandbox": {
+      "command": [
+        "python",
+        "tools/test-evidence/sandbox-test.py"
+      ],
+      "layer": "quick",
+      "scope": "content",
+      "environment": "host-qt5-qt6",
+      "closure": {
+        "kind": "repository",
+        "inputs": [],
+        "required": [
+          "tools/test-evidence/sandbox.py",
+          "tools/test-evidence/sandbox_probe.py",
+          "tools/test-evidence/sandbox-test.py",
+          "tools/test-evidence/runtime.py",
+          ".github/shared-sandbox.json",
+          "tests/requirements-host.txt",
+          "tests/requirements-repository.txt",
+          "tools/sbom/requirements-validation.txt"
+        ]
+      }
     }
   }
 }

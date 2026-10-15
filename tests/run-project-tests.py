@@ -31,6 +31,7 @@ SUITES = (
     Suite("producer-proof", "quick", (sys.executable, "tools/test-evidence/producer-test.py")),
     Suite("host-producer-preparation", "quick", (sys.executable, "tests/host-producer-preparation-test.py")),
     Suite("producer-api", "quick", (sys.executable, "tools/test-evidence/producer-api-test.py")),
+    Suite("shared-sandbox", "quick", (sys.executable, "tools/test-evidence/sandbox-test.py")),
     Suite("attested-runtime", "quick", (sys.executable, "tools/test-evidence/attested-test.py")),
     Suite("project-runner", "quick", (sys.executable, "tests/project-suite-self-test.py")),
     Suite("python-test-runner", "quick", (sys.executable, "tests/unittest-runner-test.py")),
