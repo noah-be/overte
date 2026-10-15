@@ -40,6 +40,31 @@ def reviewed_legacy_fixture():
 
 
 LEGACY = reviewed_legacy_fixture()
+
+
+def reviewed_outer_fixture(template=None):
+    """Reverse only the exact approved addition; never read mutable active bytes."""
+    current = (template if template is not None else BROWSER.trusted_bytes(BROWSER.OUTER_TEMPLATE)).decode()
+    additions = (
+        "      browser_mode: ${{ steps.plan.outputs.browser_mode }}\n"
+        "      browser_candidate: ${{ steps.plan.outputs.browser_candidate }}\n"
+        "      browser_plan: ${{ steps.plan.outputs.browser_plan }}\n",
+        "  browser-client:\n    needs: route\n"
+        "    if: needs.route.outputs.browser_mode == 'cpu' || needs.route.outputs.browser_mode == 'full'\n"
+        "    uses: ./.github/workflows/browser-client.yml\n    with:\n"
+        "      expected_candidate: ${{ needs.route.outputs.browser_candidate }}\n"
+        "      expected_plan: ${{ needs.route.outputs.browser_plan }}\n",
+        "    - browser-client\n",
+    )
+    for addition in additions:
+        assert current.count(addition) == 1
+        current = current.replace(addition, '', 1)
+    value = current.encode()
+    assert BROWSER._blob(value) == '81400ce4f8ce5eee1a7d95976378bc03e2d6fb05' == BROWSER.REVIEWED_OUTER
+    return value
+
+
+LEGACY_OUTER = reviewed_outer_fixture()
 REAL_BOUNDARY = BROWSER.REVIEWED_BOUNDARY
 REAL_BROWSER_BOUNDARY = BROWSER.REVIEWED_BROWSER_BOUNDARY
 
@@ -58,8 +83,10 @@ class BrowserCpuTests(unittest.TestCase):
         self.write("browser-client/package-lock.json", b'{"lockfileVersion":3}\n')
         self.write("browser-client/src/Main.ts", b"export const production = true;\n")
         self.write(BROWSER.WORKFLOW, LEGACY)
-        self.write(BROWSER.OUTER_WORKFLOW, (ROOT / '.github/workflows/repository-checks.yml').read_bytes())
-        self.write(BROWSER.CONFIGURATION, (ROOT / BROWSER.CONFIGURATION).read_bytes())
+        self.write(BROWSER.OUTER_WORKFLOW, LEGACY_OUTER)
+        configuration = json.loads(BROWSER.trusted_bytes(BROWSER.CONFIGURATION))
+        configuration['browser_client_required_branches'] = []
+        self.write(BROWSER.CONFIGURATION, (json.dumps(configuration, indent=2) + '\n').encode())
         for path in BROWSER.CPU_PATHS:
             self.write(path, b"Reviewed CPU fixture source\n")
         self.base = self.commit("Create isolated reviewed Browser readers")
@@ -390,7 +417,7 @@ class BrowserCpuTests(unittest.TestCase):
             BROWSER.route(event, 'pull_request', self.root, candidate)
         self.activate_fixture()
         event, candidate = self.merge({BROWSER.WORKFLOW: LEGACY,
-            BROWSER.OUTER_WORKFLOW: (ROOT / BROWSER.OUTER_WORKFLOW).read_bytes()})
+            BROWSER.OUTER_WORKFLOW: LEGACY_OUTER})
         self.assertTrue(BROWSER.required(self.root, event, candidate, 'pull_request'))
         with self.assertRaisesRegex(ValueError, 'canonical'):
             BROWSER.route(event, 'pull_request', self.root, candidate)
@@ -529,10 +556,30 @@ class CanonicalTemplateTests(unittest.TestCase):
         self.assertIn('browser-client', caller['repository-checks']['needs'])
         self.assertEqual(callee['permissions'], {'contents': 'read'})
         self.assertNotIn('secrets:', text)
-        # Active standalone ownership is deliberately unchanged in this default-off prerequisite.
-        active = yaml.safe_load((ROOT / BROWSER.WORKFLOW).read_text())
-        self.assertIn('pull_request', active.get('on', active.get(True)))
-        self.assertEqual(json.loads((ROOT / BROWSER.CONFIGURATION).read_text())['browser_client_required_branches'], [])
+        # The same regression remains valid after the separately reviewed
+        # atomic activation; no intermediate or unknown active shape is valid.
+        active = (ROOT / BROWSER.WORKFLOW).read_bytes()
+        outer = (ROOT / BROWSER.OUTER_WORKFLOW).read_bytes()
+        targets = json.loads(BROWSER.trusted_bytes(BROWSER.CONFIGURATION))['browser_client_required_branches']
+        if active == LEGACY:
+            self.assertEqual(outer, LEGACY_OUTER)
+            self.assertEqual(targets, [])
+        else:
+            self.assertEqual(active, BROWSER.canonical_workflow())
+            self.assertEqual(outer, BROWSER.trusted_bytes(BROWSER.OUTER_TEMPLATE))
+            branches = json.loads((ROOT / '.github/branch-policy.json').read_text())['branches']
+            self.assertTrue(targets)
+            self.assertEqual(len(targets), len(set(targets)))
+            self.assertTrue(set(targets) <= set(branches))
+
+    def test_legacy_outer_fixture_refuses_any_unknown_change_or_partial_inverse(self):
+        canonical = BROWSER.trusted_bytes(BROWSER.OUTER_TEMPLATE)
+        self.assertEqual(BROWSER._blob(LEGACY_OUTER), BROWSER.REVIEWED_OUTER)
+        for value in (canonical + b'\n# unreviewed change\n',
+                      canonical.replace(b'    - browser-client\n', b'', 1),
+                      canonical.replace(b'      browser_plan:', b'      unreviewed_browser_plan:', 1)):
+            with self.subTest(template=value[:40]), self.assertRaises(AssertionError):
+                reviewed_outer_fixture(value)
 
     def test_browser_package_generation_is_additive_complete_and_never_combines_approved_siblings(self):
         spec = importlib.util.spec_from_file_location('browser_packages_test', ROOT / 'tools/repository-checks/package_checks.py')
