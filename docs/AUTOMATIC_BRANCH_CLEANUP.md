@@ -11,7 +11,9 @@ after that activity ends. Every wake-up evaluates current GitHub state; it does
 not authorize deletion from the triggering run's result or execute its code or
 artifacts. Cleanup itself is excluded from the explicit workflow-name list to
 prevent recursive runs. Keep that list current when adding or renaming workflows,
-including platform workflows maintained outside `main`.
+including platform workflows maintained outside `main`. GitHub treats these
+names as glob patterns; escape literal metacharacters such as the plus signs
+in `Native C++ checks`. YAML quoting alone does not escape the pattern.
 
 A five-minute schedule catches other eligible branches, retries work that was
 previously held, and covers GitHub's workflow-chain depth limit. GitHub may delay

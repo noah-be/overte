@@ -1077,17 +1077,28 @@ class WorkflowSafetyTests(unittest.TestCase):
         self.assertIn("types: [completed]", trigger)
         self.assertNotIn("Automatic branch cleanup", names)
         self.assertNotIn("*", names)
+        literal_names = [re.sub(r"\\(.)", r"\1", name) for name in names]
         for path in (ROOT / ".github/workflows").glob("*.yml"):
             if path.name == "branch-cleanup.yml":
                 continue
             name = re.search(r"^name: (.+)$", path.read_text(), re.M)
             self.assertIsNotNone(name, path)
-            self.assertIn(name.group(1), names, f"Missing CI completion wake-up for {path}")
+            self.assertIn(name.group(1), literal_names, f"Missing CI completion wake-up for {path}")
         # These run from platform branches or are managed by GitHub.
         for name in ("Android tests", "iOS bootstrap", "Pico 4 trusted build", "Dependabot Updates"):
             self.assertIn(name, names)
         self.assertNotIn("github.event.workflow_run.head_sha", self.source)
         self.assertNotIn("github.event.workflow_run.conclusion", self.source)
+
+    def test_workflow_name_patterns_escape_every_literal_metacharacter(self):
+        trigger = self.source.split("  workflow_run:\n", 1)[1].split("  schedule:\n", 1)[0]
+        names = [json.loads(name) for name in re.findall(r'^      - (".*")$', trigger, re.M)]
+        self.assertIn(r"Native C\+\+ checks", names)
+        for pattern in names:
+            with self.subTest(pattern=pattern):
+                # GitHub parses names as globs, even when YAML quotes them.
+                # Accept literal names only; an unescaped C++ fails at startup.
+                self.assertRegex(pattern, r"^(?:[^\\*?+!\[\]]|\\[\\*?+!\[\]])+$")
 
     def test_ci_completion_runtime_accepts_only_the_trusted_main_context(self):
         module = load_cleanup()
