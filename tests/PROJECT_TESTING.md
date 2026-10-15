@@ -271,6 +271,7 @@ They require no Android SDK, Gradle run or product build. The controller and
 [reviewed policy](../.github/android-checks.json) are staged for later workflow
 wiring. Its current evidence closure covers the repository because controller
 loading also validates the branch-owned platform profile.
+
 The `codeql-selection` quick suite tests the dormant
 [`tools/repository-checks/codeql.py`](../tools/repository-checks/codeql.py)
 language selector. It compares complete immutable Git trees, including deleted,
