@@ -72,7 +72,7 @@ def configuration(root: Path = ROOT) -> tuple[dict, dict]:
         raise ValueError("invalid repository-check configuration")
     if type(config.get("native_required", False)) is not bool:
         raise ValueError("invalid native activation setting")
-    for key in ("native_required_branches", "direct_browser_required_branches"):
+    for key in ("native_required_branches", "direct_browser_required_branches", "package_checks_required_branches"):
         targets = config.get(key, [])
         if (not isinstance(targets, list) or any(not isinstance(name, str) or name not in branches for name in targets)
                 or len(targets) != len(set(targets))):
@@ -180,10 +180,18 @@ def validate_direct_wiring(candidate: Path, policy_root: Path = ROOT) -> None:
     for name in DIRECT_WORKFLOWS:
         path = candidate / ".github/workflows" / name
         canonical = policy_root / "tools/repository-checks/workflows" / name
+        # Keep the independently reviewed browser generation valid. The next
+        # package caller is a separate, exact generation with all owners wired.
+        approved = [canonical.read_bytes()] if canonical.is_file() else []
+        if name == "repository-checks.yml":
+            package_caller = policy_root / "tools/repository-checks/workflows/packages/repository-checks-direct.yml"
+            if package_caller.is_file() and path.is_file() and path.read_bytes() == package_caller.read_bytes():
+                package_policy().validate_wiring(candidate)
+                approved.append(package_caller.read_bytes())
         if (not path.is_file() or any(parent.is_symlink() for parent in
                                      (candidate / ".github", candidate / ".github/workflows", path))
                 or not canonical.is_file()
-                or path.read_bytes() != canonical.read_bytes()):
+                or path.read_bytes() not in approved):
             raise ValueError(f"direct-browser workflow differs from trusted orchestration: {name}")
 
 
@@ -347,7 +355,8 @@ def native_required(config: dict, event: dict | None) -> bool:
 
 
 def verify(needs: dict, require_native: bool = True, *, require_direct: bool = False,
-           direct_plan: dict | None = None) -> dict:
+           direct_plan: dict | None = None, package_plan: dict | None = None,
+           require_packages: bool = False) -> dict:
     expected_jobs = {"route", "project", "documentation", "workflow-security", "native"}
     has_direct = isinstance(needs, dict) and "direct-browser" in needs
     if has_direct:
@@ -374,6 +383,21 @@ def verify(needs: dict, require_native: bool = True, *, require_direct: bool = F
                 "documentation": "success",
                 "project": "success" if mode in {"full", "tool-dependencies"} else "skipped",
                 "workflow-security": "success" if security == "true" else "skipped"}
+    package_contract = require_packages or "package_plan" in outputs or any(
+        key.startswith("package_") for key in needs["project"].get("outputs", {}))
+    if package_contract:
+        if package_plan is None:
+            raise ValueError("package verification requires independently recomputed candidate inputs")
+        packages = package_policy()
+        if any(outputs.get(key) != value for key, value in packages.outputs(package_plan).items()):
+            raise ValueError("required package route/candidate/plan mismatch")
+        selected = bool(package_plan["package_set"]) or package_plan["host_mode"] in {"full", "tool-dependencies"}
+        required["project"] = "success" if selected else "skipped"
+        job = needs["project"]
+        if selected and job.get("outputs") != packages.receipt(package_plan):
+            raise ValueError("required package project receipt missing or stale")
+        if not selected and any(job.get("outputs", {}).values()):
+            raise ValueError("unexpected unselected package receipt")
     for job, conclusion in required.items():
         if needs[job].get("result") != conclusion:
             raise ValueError(f"{job}: expected {conclusion}, got {needs[job].get('result', 'missing')}")
@@ -394,6 +418,14 @@ def verify(needs: dict, require_native: bool = True, *, require_direct: bool = F
             raise ValueError("unexpected unselected direct-browser receipt")
     return {"status": "PASS", "mode": mode,
             "delegated_requirement": "sync-test-reuse" if mode == "delegated-sync" else None}
+
+
+def package_policy():
+    spec = importlib.util.spec_from_file_location("required_package_policy", ROOT / "tools/repository-checks/package_checks.py")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def main() -> int:
@@ -440,19 +472,34 @@ def main() -> int:
                 validate_direct_wiring(args.candidate)
             result = plan(event, paths, config, branches, documentation_safe)
             result.update(direct_outputs(direct_candidate_plan(args.candidate, event, args.sha)))
+            packages = package_policy()
+            if packages.activated(event) or packages.has_staged_caller(args.candidate):
+                packages.validate_wiring(args.candidate)
+                result.update(packages.outputs(packages.candidate_plan(args.candidate, event, args.sha)))
             with args.output.open("a") as output:
                 output.write("".join(f"{key}={value}\n" for key, value in result.items()))
         elif args.command == "verify":
             event = json.loads(args.event.read_text()) if args.event is not None else None
             needs = json.loads(args.needs_json)
             direct_plan = None
+            packages = package_policy()
+            package_plan = None
+            package_required = packages.activated(event or {})
+            route_outputs = needs.get("route", {}).get("outputs", {}) if isinstance(needs, dict) else {}
+            project_outputs = needs.get("project", {}).get("outputs", {}) if isinstance(needs, dict) else {}
+            if package_required or "package_plan" in route_outputs or any(key.startswith("package_") for key in project_outputs):
+                if args.candidate is None or event is None or not args.sha:
+                    raise ValueError("package verification requires exact candidate and event")
+                packages.validate_wiring(args.candidate)
+                package_plan = packages.candidate_plan(args.candidate, event, args.sha)
             if isinstance(needs, dict) and "direct-browser" in needs:
                 if args.candidate is None or event is None or not args.sha:
                     raise ValueError("direct-browser verification requires exact candidate and event")
                 validate_direct_wiring(args.candidate)
                 direct_plan = direct_candidate_plan(args.candidate, event, args.sha)
             result = verify(needs, native_required(config, event),
-                            require_direct=direct_browser_required(config, event), direct_plan=direct_plan)
+                            require_direct=direct_browser_required(config, event), direct_plan=direct_plan,
+                            package_plan=package_plan, require_packages=package_required)
         else:
             event = json.loads(args.event.read_text())
             validate_direct_wiring(args.candidate)

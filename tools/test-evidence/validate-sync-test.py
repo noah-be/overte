@@ -384,6 +384,38 @@ class IsolatedConsumerTests(unittest.TestCase):
         self.assertEqual(result["bounded_projects"], ["server-console"])
         self.assertIsNone(result["execution"])
 
+    def test_s3_sync_names_external_required_owner_without_duplicate_or_fake_pass(self):
+        from unittest.mock import Mock
+        s3 = 'script-archive/marketplace/S3Server'
+        for mixed in (False, True):
+            self.args.profile = self.request.profile = 'tool-dependencies'
+            paths = [s3 + '/package-lock.json'] + (['server-console/package.json'] if mixed else [])
+            self.request.changed_paths = tuple(paths)
+            self.gate.paginate_pull_files = lambda *arguments: [{'filename': path, 'status': 'modified'} for path in paths]
+            self.gate.changed_paths = lambda documents: {item['filename'] for item in documents}
+            run = Mock()
+            selector = Mock(return_value=(s3, 'server-console') if mixed else (s3,))
+            self.gate.tool_dependencies = SimpleNamespace(affected_projects=selector, run=run)
+            self.gate.package_checks = SimpleNamespace(activated=Mock(return_value=True), validate_wiring=Mock())
+            with patch.object(VALIDATION, '_differential') as differential:
+                result = self.validate(runtime_failure=AssertionError('host capture is unnecessary'))
+            differential.assert_called_once()
+            self.assertEqual(result['external_package_set'], [s3])
+            self.assertEqual(result['bounded_projects'], ['server-console'] if mixed else [])
+            self.assertEqual(result['executed_suites'], [])
+            self.assertNotIn(s3, self.args.junit.read_text())
+            self.gate.package_checks.validate_wiring.assert_called_once_with(self.candidate)
+            selector.assert_called_once_with(paths, include_s3=True)
+            if mixed: run.assert_called_once_with(self.candidate, ['server-console'])
+            else: run.assert_not_called()
+        self.gate.package_checks.activated.return_value = False
+        with patch.object(VALIDATION, '_differential'), self.assertRaisesRegex(VALIDATION.ValidationError, 'not activated'):
+            self.validate()
+        self.gate.package_checks.activated.return_value = True
+        self.gate.package_checks.validate_wiring.side_effect = ValueError('unapproved owner')
+        with patch.object(VALIDATION, '_differential'), self.assertRaisesRegex(ValueError, 'unapproved owner'):
+            self.validate()
+
     def test_candidate_secrets_are_removed_and_trusted_read_token_is_restored(self):
         with patch.dict(os.environ, {"GH_TOKEN": "original", "GITHUB_OUTPUT": "command-file"}):
             with VALIDATION.candidate_environment():

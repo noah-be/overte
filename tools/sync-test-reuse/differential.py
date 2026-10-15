@@ -131,7 +131,9 @@ def required_roots(root: Path, profile: str, changed: list[str]) -> None:
             / "tools/repository-checks/tool_dependencies.py")
         tools = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(tools)
-        if not tools.affected_projects(changed):
+        # A capability, not authorization: the trusted gate independently
+        # checks activation and exact required package workflow ownership.
+        if not tools.affected_projects(changed, include_s3=True):
             raise ValueError("tool dependency profile received an unrelated change")
         return
     for relative in PROFILES[profile]:

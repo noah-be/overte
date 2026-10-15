@@ -504,6 +504,38 @@ class TopologyContracts(unittest.TestCase):
                 result = gate.classify_event(self.event('android-main', 'main'), config(), api)
                 self.assertEqual(result.profile, profile)
 
+    def test_s3_bounded_sync_requires_trusted_activation_and_both_exact_workflow_trees(self):
+        package = gate.package_checks
+        filename = package.S3 + '/package-lock.json'
+        approved = {filename: entry(filename)}
+        for name in ('project-tests.yml', 'parent-qualification.yml', 'sync-validation.yml', 'repository-checks.yml'):
+            data = (package.TEMPLATES / name).read_bytes()
+            approved['.github/workflows/' + name] = {'mode': '100644', 'type': 'blob',
+                'sha': hashlib.sha1(b'blob ' + str(len(data)).encode() + b'\0' + data).hexdigest()}
+        for enabled, invalid_side, mode in ((False, None, '100644'), (True, None, '100644'),
+                                           (True, 0, '100644'), (True, 1, '100644'),
+                                           (True, None, '120000')):
+            trees = [deepcopy(approved), deepcopy(approved)]
+            for tree in trees: tree[filename]['mode'] = mode
+            if invalid_side is not None:
+                trees[invalid_side]['.github/workflows/project-tests.yml']['sha'] = '0' * 40
+            with self.subTest(enabled=enabled, invalid_side=invalid_side, mode=mode), \
+                 mock.patch.object(package, 'activated', return_value=enabled), \
+                 mock.patch.object(gate, 'branch_sha', side_effect=[BASE, PARENT] * 3), \
+                 mock.patch.object(gate, 'commit', side_effect=[{'sha': PARENT}, {'sha': MERGE, 'parents': [{'sha': BASE}, {'sha': PARENT}]}]), \
+                 mock.patch.object(gate, 'compare_merge_base', return_value=HEAD), \
+                 mock.patch.object(gate, 'compare_files', return_value=(HEAD, {filename})), \
+                 mock.patch.object(gate, 'paginate_pull_files', return_value=[{'filename': filename}]), \
+                 mock.patch.object(gate, 'recursive_tree', side_effect=[(TREE, tree) for tree in trees]) as reads:
+                api = MappingApi({f'repos/{REPOSITORY}/pulls/610': {'state': 'open', 'mergeable': True, 'merge_commit_sha': MERGE}})
+                if invalid_side is not None:
+                    with self.assertRaises(gate.GateError):
+                        gate.classify_event(self.event('android-main', 'main'), config(), api)
+                else:
+                    result = gate.classify_event(self.event('android-main', 'main'), config(), api)
+                    self.assertEqual(result.profile, 'tool-dependencies' if enabled and mode == '100644' else 'android-family')
+                    self.assertEqual(reads.call_count, 2 if enabled else 0)
+
     def test_executable_docs_and_code_renames_keep_full_qualification(self):
         for change in ({"filename": "docs/helper.py"},
                        {"filename": "docs/helper.md", "previous_filename": "tools/helper.py"}):
@@ -989,6 +1021,8 @@ class DifferentialContracts(unittest.TestCase):
     def test_tool_profile_rejects_mixed_changes_and_empty_tool_inventory(self):
         valid = ['tools/jsdoc/package-lock.json']
         differential.required_roots(Path('.'), 'tool-dependencies', valid)
+        differential.required_roots(Path('.'), 'tool-dependencies',
+                                    ['script-archive/marketplace/S3Server/package-lock.json'])
         for paths in ([], ['docs/a.md'], valid + ['libraries/shared/src/AABox.cpp'],
                       valid + ['tools/jsdoc/CMakeLists.txt']):
             with self.assertRaises(ValueError):
