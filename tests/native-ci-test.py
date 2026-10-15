@@ -316,12 +316,23 @@ class WorkflowCostTests(unittest.TestCase):
             self.assertIn('native-ccache-' + image.group(2)[:12] + '-v1-', workflow)
 
     def test_consumer_requires_a_pinned_fork_image_before_offline_resolution(self):
+        import ast
         import yaml
         workflow = yaml.safe_load((ROOT / '.github/workflows/native-tests.yml').read_text())
         caller = yaml.safe_load((ROOT / '.github/workflows/repository-checks.yml').read_text())
         job = workflow['jobs']['build']
         self.assertRegex(job['container']['image'],
-                         r'^ghcr\.io/noah-be/overte/native-dependencies@sha256:[0-9a-f]{64}$')
+                         r'^ghcr\.io/noah-l-frank/overte/native-dependencies@sha256:[0-9a-f]{64}$')
+        direct = yaml.safe_load((ROOT / '.github/workflows/browser-direct-client.yml').read_text())
+        self.assertEqual(direct['jobs']['native']['container']['image'], job['container']['image'])
+        for name in ('manage.py', 'build-native.py'):
+            tree = ast.parse((ROOT / 'browser-direct-client/lab' / name).read_text())
+            images = [ast.literal_eval(node.value) for node in tree.body
+                      if isinstance(node, ast.Assign)
+                      and any(isinstance(target, ast.Name) and target.id == 'IMAGE'
+                              for target in node.targets)]
+            with self.subTest(lab_consumer=name):
+                self.assertEqual(images, [job['container']['image']])
         self.assertEqual(job['container']['credentials'],
                          {'username': '${{ github.actor }}', 'password': '${{ secrets.GITHUB_TOKEN }}'})
         self.assertEqual(workflow['permissions'], {'contents': 'read', 'packages': 'read'})
