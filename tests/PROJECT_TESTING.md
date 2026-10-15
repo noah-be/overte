@@ -733,7 +733,7 @@ Bubblewrap argument plans, immutable Git reads, bounded diagnostic process
 control and actual-process probe parsers. Run it with
 `python3 tests/run-project-tests.py --suite shared-sandbox`. These offline
 fixtures do not qualify Linux isolation, toolchain compatibility or reusable
-test evidence. No active workflow uses this preparation.
+test evidence. No production workflow uses this preparation.
 
 `.github/shared-sandbox.json` has no qualified hosts and cannot be enabled by
 changing a boolean or submitting probe JSON. `sandbox.execute()` and
@@ -776,7 +776,7 @@ candidate access, and prove the whole scope empty. Linux documents
 live descendants in the [cgroup-v2 interface](https://www.kernel.org/doc/html/latest/admin-guide/cgroup-v2.html).
 The parser alone authenticates neither a kernel filesystem nor scope ownership.
 Hosted availability, protected provisioning and the complete positive and
-adversarial qualification remain unimplemented prerequisites.
+adversarial qualification remain unobserved prerequisites.
 
 The subsequent producer stage needs its own top-level run with only trusted
 jobs, an early descriptor, actual sandboxed shared execution and a terminal
@@ -789,15 +789,21 @@ bookends remain separate requirements. Legacy parent artifacts and the disabled
 attested-environment consumer cannot acquire stronger guarantees from this
 preparation or a policy toggle.
 
-The additional `shared-sandbox-host` quick/host suite checks the prospective
+The additional `shared-sandbox-host` quick/host suite checks the
 manual host diagnostic's control order and negative results with fake kernel
-facts and fixed process fixtures. Its source template is
-`tools/test-evidence/workflows/shared-sandbox-host-diagnostic.yml`; no active
-workflow, dispatch, package installation, local user provisioning or actual
-host qualification is performed by the quick suite.
+facts and fixed process fixtures. The actual manual workflow is
+[`.github/workflows/shared-sandbox-host-diagnostic.yml`](../.github/workflows/shared-sandbox-host-diagnostic.yml),
+and must exactly match its reviewed source template under
+`tools/test-evidence/workflows/`. It has no PR, push, schedule or reusable-workflow
+trigger and is never an ordinary PR requirement. The quick suite performs no
+dispatch, package installation, local user provisioning or actual host qualification.
 
-After a separate reviewed deployment, that manual-only workflow can provision
+On the fork's protected `main`, that manual-only workflow can provision
 one fixed, locked, no-home account on a disposable Ubuntu 24 GitHub-hosted VM.
+Its first step rejects any other source context before checkout or provisioning;
+it accepts no candidate command, token, branch or fixture input. Its only token
+permission is repository-content read, the immutable checkout stores no
+credentials, and its artifact is diagnostic output with no reuse authority.
 It checks actual account groups and root's sudo policy, then starts a transient
 root service with `systemd-run --wait --pipe --property=Delegate=yes`. The
 diagnostic independently queries the unit's `ControlGroup` and `Delegate`,
@@ -806,6 +812,15 @@ mount. It moves its controller to its own child and creates root-only fixture
 scopes below the delegated subtree. It never writes attributes of systemd's
 root or the delegated unit itself. This follows
 [systemd's delegation ownership rules](https://systemd.io/CGROUP_DELEGATION/).
+
+The diagnostic installs no packages. The disposable host must already provide
+root-owned non-setuid Bubblewrap, `ip`, `unshare`, system Python with `venv`,
+`sudo` and a systemd manager with writable cgroup-v2 delegation. Provisioning
+needs the hosted runner's passwordless sudo authority and the reviewed namespace
+sysctl; an existing diagnostic account is rejected rather than reused. Missing
+tools, unsupported manager/kernel behavior or inaccessible source/command-file
+paths fail the run. Their availability has not been established by offline
+checks, and a failed diagnostic must be investigated before retrying.
 
 A trusted bootstrap starts with a distinct actual UID/GID and no supplementary
 groups, and waits before executing Bubblewrap. The parent checks its kernel

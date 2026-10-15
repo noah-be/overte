@@ -45,6 +45,7 @@ class ContextTests(unittest.TestCase):
             H.host_context(context(), effective_uid=1001)
         for key, value in (("GITHUB_EVENT_NAME", "pull_request"), ("GITHUB_REF", "refs/heads/ci/example"),
                            ("GITHUB_REPOSITORY", "overte-org/overte"), ("RUNNER_ENVIRONMENT", "self-hosted"),
+                           ("GITHUB_REPOSITORY_ID", "1"), ("GITHUB_WORKFLOW_REF", H.WORKFLOW.replace("main", "other")),
                            ("ImageOS", "ubuntu22"), ("SUDO_UID", "0"), ("GITHUB_SHA", "HEAD")):
             with self.subTest(key=key), self.assertRaises(H.Unavailable):
                 H.host_context({**context(), key: value}, effective_uid=0)
@@ -335,8 +336,10 @@ class SupervisorFixtures(unittest.TestCase):
 
 
 class FixedResultTests(unittest.TestCase):
-    def test_dormant_template_has_no_pr_trigger_or_success_skip_for_unsupported_host(self):
+    def test_actual_manual_diagnostic_matches_reviewed_template_without_pr_or_reusable_trigger(self):
         template = (H.ROOT / "tools/test-evidence/workflows/shared-sandbox-host-diagnostic.yml").read_text()
+        actual = (H.ROOT / ".github/workflows/shared-sandbox-host-diagnostic.yml").read_text()
+        self.assertEqual(actual, template)
         self.assertIn("workflow_dispatch: null", template)
         self.assertNotIn("pull_request:", template)
         self.assertNotIn("workflow_call:", template)
@@ -345,7 +348,6 @@ class FixedResultTests(unittest.TestCase):
         self.assertIn("Reject unsupported source context", template)
         self.assertIn("QUALIFY_GITHUB_ENV=", template)
         self.assertNotIn("continue-on-error", template)
-        self.assertFalse((H.ROOT / ".github/workflows/shared-sandbox-host-diagnostic.yml").exists())
     def test_parser_fixture_pass_is_not_production_qualification(self):
         H.validate_case("protections", protection_result(), outside())
         with self.assertRaises(sandbox.SandboxUnavailable):
