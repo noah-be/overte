@@ -408,7 +408,9 @@ class BrowserCpuTests(unittest.TestCase):
             with self.assertRaises(ValueError): BROWSER.activated(foreign, 'pull_request')
             with patch.dict('os.environ', {'GITHUB_REF': 'refs/tags/main', 'GITHUB_REF_TYPE': 'tag'}), self.assertRaises(ValueError):
                 BROWSER.activated({'repository': dict(BROWSER.REPOSITORY), 'ref': 'refs/heads/main'}, 'workflow_dispatch')
-        self.assertFalse(BROWSER.activated({'repository': dict(BROWSER.REPOSITORY)}, 'workflow_dispatch'))
+        config['browser_client_required_branches'] = []
+        with patch.object(BROWSER, 'trusted_bytes', side_effect=trusted):
+            self.assertFalse(BROWSER.activated({'repository': dict(BROWSER.REPOSITORY)}, 'workflow_dispatch'))
 
     def test_exact_paired_transfer_and_protected_base_prevent_partial_deployment_or_rollback(self):
         event, candidate = self.merge({BROWSER.WORKFLOW: BROWSER.canonical_workflow()})
