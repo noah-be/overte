@@ -8,8 +8,10 @@ from unittest.mock import patch
 import importlib.util
 import json
 import subprocess
+import sys
 import tempfile
 import unittest
+import venv
 
 
 SPEC = importlib.util.spec_from_file_location("test_evidence_runtime", Path(__file__).with_name("runtime.py"))
@@ -47,6 +49,9 @@ class RuntimeIdentityTests(unittest.TestCase):
         with ExitStack() as stack:
             stack.enter_context(patch.dict(RUNTIME.os.environ, _BASE_ENVIRONMENT | (environment or {}), clear=True))
             stack.enter_context(patch.object(RUNTIME, "_os_identity", return_value={"distribution": "ubuntu", "version": "24.04"}))
+            stack.enter_context(patch.object(RUNTIME, "_python_lookup_identity", return_value={
+                "mode": "controller-virtualenv", "aliases": ["python", "python3"], "include_system_site_packages": False,
+                "user_site_enabled": False}))
             stack.enter_context(patch.object(RUNTIME, "_checked_executable", side_effect=tool))
             stack.enter_context(patch.object(RUNTIME, "_file_digest", side_effect=lambda path: "sha256:" + ("b" if path.name in versions else "a") * 64))
             stack.enter_context(patch.object(RUNTIME, "_command", side_effect=query))
@@ -113,6 +118,52 @@ class RuntimeIdentityTests(unittest.TestCase):
                       "PKG_CONFIG_PATH": str(base / "lib/pkgconfig"), "LD_LIBRARY_PATH": str(base / "lib")})
         with self.assertRaises(RUNTIME.RuntimeIdentityError):
             self.capture({"LD_LIBRARY_PATH": "/candidate/lib"})
+
+    def test_actual_controller_venv_bin_is_supported_but_other_workspace_bins_are_not(self):
+        actual_bin = Path(sys.executable).parent
+        self.capture({"PATH": str(actual_bin) + ":/usr/bin:/bin"})
+        with self.assertRaises(RUNTIME.RuntimeIdentityError):
+            self.capture({"PATH": "/workspace/another-venv/bin:/usr/bin:/bin"})
+
+    def test_python_aliases_bind_effective_venv_instead_of_only_the_shared_binary(self):
+        with tempfile.TemporaryDirectory(prefix="overte-python-lookup-") as temporary:
+            prefix = Path(temporary) / "host-env"
+            venv.EnvBuilder(with_pip=False, symlinks=True).create(prefix)
+            executable = prefix / "bin/python"
+            with patch.object(RUNTIME.sys, "executable", str(executable)), \
+                    patch.object(RUNTIME.sys, "prefix", str(prefix)), \
+                    patch.object(RUNTIME.site, "ENABLE_USER_SITE", False), \
+                    patch.dict(RUNTIME.os.environ, {"PATH": str(prefix / "bin") + ":/usr/bin:/bin", "VIRTUAL_ENV": str(prefix)}):
+                identity = RUNTIME._python_lookup_identity()
+                self.assertEqual(identity, {"mode": "controller-virtualenv", "aliases": ["python", "python3"],
+                                            "include_system_site_packages": False, "user_site_enabled": False})
+                self.assertNotIn(str(prefix), json.dumps(identity))
+                with patch.object(RUNTIME.site, "ENABLE_USER_SITE", True), \
+                        self.assertRaises(RUNTIME.RuntimeIdentityError):
+                    RUNTIME._python_lookup_identity()
+                for observed in ({"prefix": sys.base_prefix, "base_prefix": sys.base_prefix, "user_site": False},
+                                 {"prefix": str(prefix), "base_prefix": sys.base_prefix, "user_site": True}):
+                    with self.subTest(observed=observed), patch.object(RUNTIME, "_command", return_value=json.dumps(observed)), \
+                            self.assertRaises(RUNTIME.RuntimeIdentityError):
+                        RUNTIME._python_lookup_identity()
+                with patch.dict(RUNTIME.os.environ, {"PATH": "/usr/bin:/bin:" + str(prefix / "bin")}), \
+                        self.assertRaises(RUNTIME.RuntimeIdentityError):
+                    RUNTIME._python_lookup_identity()
+                with patch.dict(RUNTIME.os.environ, {"VIRTUAL_ENV": "/unrelated/prefix"}), \
+                        self.assertRaises(RUNTIME.RuntimeIdentityError):
+                    RUNTIME._python_lookup_identity()
+                config = prefix / "pyvenv.cfg"
+                config.write_text(config.read_text().replace("include-system-site-packages = false", "include-system-site-packages = true"))
+                with self.assertRaises(RUNTIME.RuntimeIdentityError):
+                    RUNTIME._python_lookup_identity()
+
+    def test_only_exact_fixed_git_capture_overrides_are_supported(self):
+        identity = self.capture(dict(RUNTIME._FIXED_GIT_OVERRIDES))
+        self.assertEqual(identity["flags"]["git_process_overrides"], "maintenance-disabled")
+        for overrides in ({"GIT_CONFIG_COUNT": "2"}, dict(RUNTIME._FIXED_GIT_OVERRIDES) | {"GIT_CONFIG_VALUE_0": "true"},
+                          dict(RUNTIME._FIXED_GIT_OVERRIDES) | {"GIT_CONFIG_KEY_9": "other"}):
+            with self.subTest(overrides=overrides), self.assertRaises(RUNTIME.RuntimeIdentityError):
+                self.capture(overrides)
 
     def test_standard_hosted_path_allows_only_the_identified_system_jdk_directory(self):
         java_home = Path("/usr/lib/jvm/temurin-17-jdk-amd64")

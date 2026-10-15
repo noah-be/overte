@@ -588,19 +588,8 @@
       "scope": "content",
       "environment": "host-qt5-qt6",
       "closure": {
-        "kind": "patterns",
-        "inputs": [
-          "tests/device/contracts/web/test_web_entity_visibility.py",
-          "tests/device/contracts/web/**",
-          "libraries/shared/src/**",
-          "libraries/entities-renderer/src/**",
-          "interface/src/Application_Setup.cpp",
-          "interface/resources/qml/**",
-          "libraries/entities-renderer/src/RenderableWebEntityItem.cpp",
-          "libraries/entities-renderer/src/RenderableWebEntityItem.h",
-          "libraries/shared/src/EmbeddedWebPolicy.h",
-          "tests/device/contracts/web/web-entity-visibility-test.cpp"
-        ],
+        "kind": "repository",
+        "inputs": [],
         "required": [
           "tests/device/contracts/web/test_web_entity_visibility.py",
           "libraries/entities-renderer/src/RenderableWebEntityItem.cpp",
@@ -668,21 +657,8 @@
       "scope": "content",
       "environment": "host-qt5-qt6",
       "closure": {
-        "kind": "patterns",
-        "inputs": [
-          "tests/device/contracts/lifecycle/test_lod_preferences.py",
-          "tests/device/contracts/lifecycle/**",
-          "interface/src/LODManager.*",
-          "libraries/octree/src/**",
-          "libraries/shared/src/**",
-          "interface/src/LODManager.cpp",
-          "interface/src/LODManager.h",
-          "libraries/octree/src/OctreeConstants.h",
-          "libraries/octree/src/OctreeUtils.cpp",
-          "libraries/shared/src/SettingHandle.h",
-          "tests/device/contracts/lifecycle/lod-preferences-test.cpp",
-          "tests/device/contracts/lifecycle/test_login_dialog_domain_receiver.py"
-        ],
+        "kind": "repository",
+        "inputs": [],
         "required": [
           "tests/device/contracts/lifecycle/test_lod_preferences.py",
           "interface/src/LODManager.cpp",
@@ -704,18 +680,8 @@
       "scope": "content",
       "environment": "host-qt5-qt6",
       "closure": {
-        "kind": "patterns",
-        "inputs": [
-          "tests/device/contracts/lifecycle/test_goto_dialog_script.py",
-          "tests/device/contracts/lifecycle/**",
-          "interface/src/ui/DialogsManager.*",
-          "interface/src/scripting/DialogsManagerScriptingInterface.*",
-          "scripts/system/goto.js",
-          "interface/src/ui/DialogsManager.cpp",
-          "interface/src/ui/DialogsManager.h",
-          "interface/src/scripting/DialogsManagerScriptingInterface.cpp",
-          "interface/src/scripting/DialogsManagerScriptingInterface.h"
-        ],
+        "kind": "repository",
+        "inputs": [],
         "required": [
           "tests/device/contracts/lifecycle/test_goto_dialog_script.py",
           "interface/src/ui/DialogsManager.cpp",
@@ -735,18 +701,8 @@
       "scope": "content",
       "environment": "host-qt5-qt6",
       "closure": {
-        "kind": "patterns",
-        "inputs": [
-          "tests/device/contracts/audio/test_recorded_voice_test.py",
-          "tests/device/contracts/audio/**",
-          "libraries/audio-client/src/**",
-          "libraries/audio/src/**",
-          "libraries/audio-client/src/AudioClient.cpp",
-          "libraries/audio-client/src/AudioClient.h",
-          "libraries/audio-client/src/PhoneVoiceTestBuffer.h",
-          "libraries/audio/src/AudioScriptingInterface.cpp",
-          "tests/device/contracts/audio/recorded-voice-native-fixture.cpp"
-        ],
+        "kind": "repository",
+        "inputs": [],
         "required": [
           "tests/device/contracts/audio/test_recorded_voice_test.py",
           "libraries/audio-client/src/AudioClient.cpp",
@@ -1016,20 +972,8 @@
       "scope": "content",
       "environment": "host-qt5-qt6",
       "closure": {
-        "kind": "patterns",
-        "inputs": [
-          "tests/run-unittest-suite.py",
-          "tests/performance/**",
-          "tests/device/fixture/**",
-          "interface/src/metrics/**",
-          "interface/src/RefreshRateManager.cpp",
-          "tests/performance/schema/test_metrics.py",
-          "tests/performance/schema/test_native_metrics.py",
-          "tests/performance/schema/reference-fixture.json",
-          "tests/performance/schema/metrics.py",
-          "tests/performance/analyze.py",
-          "interface/src/metrics/NativeMetrics.cpp"
-        ],
+        "kind": "repository",
+        "inputs": [],
         "required": [
           "tests/run-unittest-suite.py",
           "tests/performance/schema/test_metrics.py",

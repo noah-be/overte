@@ -11,6 +11,7 @@ import sys
 import tempfile
 from unittest import mock
 import unittest
+import venv
 
 import execution
 
@@ -167,7 +168,7 @@ class TrustedExecutionTests(unittest.TestCase):
             self.execute(runtime_side_effect=[ENVIRONMENT, {"profile": "different"}])
         self.assertFalse(self.receipt.exists())
 
-    def test_candidate_git_cleanup_and_token_isolation_do_not_change_parent_capture(self):
+    def test_candidate_git_cleanup_and_token_isolation_match_capture_and_restore_parent(self):
         self.git("config", "maintenance.auto", "true")
         self.git("config", "gc.auto", "37")
         self.write("tests/first.py", """import json, os, subprocess
@@ -186,7 +187,8 @@ Path('build/policy-observation.json').write_text(json.dumps(observed))
         parent = {name: "synthetic-parent-only" for name in PRIVATE_VARIABLES}
         parent.update({"GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "user.name",
                        "GIT_CONFIG_VALUE_0": "Parent observation fixture", "GIT_CONFIG_KEY_7": "unused.parent",
-                       "GIT_CONFIG_VALUE_7": "preserve", "GIT_CONFIG_PARAMETERS": "'gc.auto=38'"})
+                       "GIT_CONFIG_VALUE_7": "preserve", "GIT_CONFIG_PARAMETERS": "'gc.auto=38'",
+                       "PATH": os.environ.get("PATH", os.defpath), "VIRTUAL_ENV": "unrelated-parent-prefix"})
         captures = []
         def capture():
             captures.append({name: os.environ.get(name) for name in parent})
@@ -198,7 +200,11 @@ Path('build/policy-observation.json').write_text(json.dumps(observed))
             self.assertEqual({name: os.environ.get(name) for name in parent}, parent)
         self.assertEqual(status, 0)
         self.assertTrue(receipt["reusable"])
-        self.assertEqual(captures, [parent, parent], "trusted runtime capture must see unchanged parent environment")
+        captured = {name: None for name in parent}
+        captured.update({"GIT_CONFIG_COUNT": "2", "GIT_CONFIG_KEY_0": "maintenance.auto", "GIT_CONFIG_VALUE_0": "false",
+                         "PATH": str(Path(sys.executable).parent) + os.pathsep + parent["PATH"],
+                         "VIRTUAL_ENV": sys.prefix if sys.prefix != sys.base_prefix else None})
+        self.assertEqual(captures, [captured, captured], "runtime capture must observe the same effective child environment")
         observed = json.loads((self.root / "build/policy-observation.json").read_text())
         self.assertEqual(observed.pop("maintenance"), "false")
         self.assertEqual(observed.pop("gc"), "0")
@@ -214,6 +220,33 @@ Path('build/policy-observation.json').write_text(json.dumps(observed))
                 with self.assertRaises(OSError):
                     self.execute(["first"])
             self.assertTrue(dict(os.environ) == before, "launch failure must restore the trusted parent environment")
+
+    def test_env_python3_wrapper_uses_controller_venv_despite_ambient_system_python(self):
+        if not Path("/usr/bin/python3").exists():
+            self.skipTest("fixture requires the supported Linux system Python alias")
+        prefix = Path(self.temporary.name) / "host-env"
+        venv.EnvBuilder(with_pip=False, symlinks=True).create(prefix)
+        site_packages = prefix / "lib" / f"python{sys.version_info.major}.{sys.version_info.minor}" / "site-packages"
+        (site_packages / "controller_only_fixture.py").write_text("VALUE = 'prepared-controller-env'\n")
+        wrapper = Path(self.temporary.name) / "env-python-wrapper"
+        wrapper.write_text("#!/usr/bin/env python3\nimport json, os, sys\nfrom controller_only_fixture import VALUE\n"
+                           "print(json.dumps({'value': VALUE, 'same_prefix': sys.prefix == os.environ.get('VIRTUAL_ENV')}))\n")
+        wrapper.chmod(0o755)
+        parent = {"PATH": "/usr/bin:/bin", "VIRTUAL_ENV": "unrelated-parent-prefix"}
+        with mock.patch.dict(os.environ, parent), mock.patch.object(execution.sys, "executable", str(prefix / "bin/python")), \
+                mock.patch.object(execution.sys, "prefix", str(prefix)), \
+                mock.patch.object(execution.runtime.site, "ENABLE_USER_SITE", False):
+            ambient = subprocess.run([str(wrapper)], capture_output=True, text=True)
+            self.assertNotEqual(ambient.returncode, 0, "ambient base Python must not see the venv-only fixture dependency")
+            before = dict(os.environ)
+            with self.assertRaisesRegex(RuntimeError, "fixture failure"):
+                with execution.candidate_process_environment():
+                    identity = execution.runtime._python_lookup_identity()
+                    self.assertEqual(identity["mode"], "controller-virtualenv")
+                    result = subprocess.run([str(wrapper)], capture_output=True, text=True, check=True)
+                    self.assertEqual(json.loads(result.stdout), {"value": "prepared-controller-env", "same_prefix": True})
+                    raise RuntimeError("fixture failure")
+            self.assertEqual(dict(os.environ), before, "failure must restore PATH and VIRTUAL_ENV exactly")
 
     def test_private_process_environment_covers_the_sync_consumer_boundary(self):
         source = ast.parse((Path(execution.__file__).parent / "validate-sync.py").read_text())

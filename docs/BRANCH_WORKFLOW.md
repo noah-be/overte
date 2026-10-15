@@ -244,6 +244,10 @@ from the trusted default branch's pinned `tests/requirements-host.txt`. The
 suite runner and its subprocesses use that same interpreter, including Conan
 for actual package-store fixture builds. Parent qualification does not install
 Python dependencies into a later isolated validation runner.
+The controller also normalizes `PATH` and `VIRTUAL_ENV` for subprocesses launched
+through `env python3`. Runtime capture observes that same effective environment
+and verifies both Python aliases, the actual virtualenv prefix and disabled base
+and user site packages before any suite result can be reused.
 
 The trusted controller disables automatic Git maintenance and garbage collection
 only within candidate subprocesses. This prevents detached Git writers

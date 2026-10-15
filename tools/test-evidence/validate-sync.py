@@ -197,7 +197,7 @@ def validate_sync(args, *, api=None):
                 if evidence.get("candidate_inputs") != local_tree:
                     raise ValidationError("local immutable candidate inputs differ from verified API inputs")
                 try:
-                    actual_environment = runtime.capture_host_environment()
+                    actual_environment = execution.capture_execution_environment()
                     plan = inputs.plan_reuse(
                         registry, evidence["parent_inputs"], local_tree, evidence["results"]["suites"],
                         evidence["environment"], actual_environment,

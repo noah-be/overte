@@ -162,6 +162,24 @@ class IsolatedConsumerTests(unittest.TestCase):
         self.assertEqual(result["parent_evidence"]["expires_at"], self.evidence["expires_at"])
         self.assertEqual(json.loads(self.args.receipt.read_text()), result)
 
+    def test_pre_reuse_and_execution_capture_observe_the_same_effective_child_environment(self):
+        captures = []
+
+        def capture():
+            captures.append({name: os.environ.get(name) for name in (
+                "PATH", "VIRTUAL_ENV", "GIT_CONFIG_COUNT", "GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0",
+                "GH_TOKEN", "GITHUB_TOKEN", "GITHUB_OUTPUT",
+            )})
+            return self.environment
+
+        result = self.validate(runtime_failure=capture)
+        self.assertEqual(len(captures), 3, "pre-reuse, before-execution and after-execution observations are required")
+        self.assertTrue(all(value == captures[0] for value in captures))
+        self.assertEqual(captures[0]["GIT_CONFIG_COUNT"], "2")
+        self.assertTrue(captures[0]["PATH"].startswith(str(Path(VALIDATION.sys.executable).parent) + os.pathsep))
+        self.assertIsNone(captures[0]["GH_TOKEN"])
+        self.assertEqual(result["reused_suites"], ["alpha", "beta"])
+
     def test_normal_reuse_keeps_exactly_one_token_free_branch_differential(self):
         original = VALIDATION._differential
         calls = []

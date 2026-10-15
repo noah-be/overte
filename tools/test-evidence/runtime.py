@@ -16,6 +16,7 @@ import os
 import platform
 import re
 import shutil
+import site
 import subprocess
 import sys
 import sysconfig
@@ -80,6 +81,14 @@ _TRUSTED_EXECUTION_FILES = (
     "tools/test-evidence/run.py", "tools/test-evidence/execution.py", "tools/test-evidence/inputs.py",
     "tools/test-evidence/runtime.py", "tests/run-project-tests.py", "tools/sync-test-reuse/qualification.py",
 )
+_FIXED_GIT_OVERRIDES = {
+    "GIT_CONFIG_COUNT": "2", "GIT_CONFIG_KEY_0": "maintenance.auto", "GIT_CONFIG_VALUE_0": "false",
+    "GIT_CONFIG_KEY_1": "gc.auto", "GIT_CONFIG_VALUE_1": "0",
+}
+_PYTHON_LOOKUP_PROBE = (
+    "import json,site,sys;print(json.dumps({'prefix':sys.prefix,"
+    "'base_prefix':sys.base_prefix,'user_site':site.ENABLE_USER_SITE}))"
+)
 
 
 def _fail(label: str) -> RuntimeIdentityError:
@@ -112,14 +121,19 @@ def _file_digest(path: Path) -> str:
         raise _fail("a required runtime input cannot be read") from error
 
 
-def _command(executable: Path, *arguments: str) -> str:
+def _command(executable: Path, *arguments: str, python_environment: bool = False) -> str:
     # Only fixed read-only queries call this helper. Running from / and using a
     # small environment prevents tool discovery/imports from the candidate tree.
+    environment = {"PATH": "/usr/bin:/bin", "LANG": "C", "LC_ALL": "C", "HOME": "/nonexistent"}
+    if python_environment:
+        # setup-python's shared interpreter can require its own already bound
+        # base library directory. No arbitrary inherited overlay is forwarded.
+        environment["LD_LIBRARY_PATH"] = str(Path(sys.base_prefix).resolve() / "lib")
     try:
         result = subprocess.run(
             [str(executable), *arguments], cwd="/", check=True,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=_TIMEOUT_SECONDS,
-            env={"PATH": "/usr/bin:/bin", "LANG": "C", "LC_ALL": "C", "HOME": "/nonexistent"},
+            env=environment,
         )
     except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired, UnicodeError) as error:
         raise _fail("a required read-only runtime identity query failed") from error
@@ -147,10 +161,57 @@ def _identified_java_home() -> Path | None:
     return home
 
 
+def _python_lookup_identity() -> dict:
+    """Prove env-python aliases use the controller's effective Python prefix."""
+    executable = Path(sys.executable)
+    directory = executable.parent
+    if not executable.is_absolute():
+        raise _fail("the controller Python invocation path is unsupported")
+    virtual = sys.prefix != sys.base_prefix
+    if virtual:
+        if os.environ.get("VIRTUAL_ENV") != sys.prefix:
+            raise _fail("the Python virtualenv process environment is not normalized")
+        try:
+            config = {}
+            for line in (Path(sys.prefix) / "pyvenv.cfg").read_text(encoding="utf-8").splitlines():
+                if "=" in line:
+                    key, value = line.split("=", 1)
+                    config[key.strip()] = value.strip()
+        except (OSError, UnicodeError) as error:
+            raise _fail("the actual Python virtualenv configuration is unavailable") from error
+        if config.get("include-system-site-packages", "").lower() != "false":
+            raise _fail("the Python virtualenv must exclude unbound base site packages")
+    elif "VIRTUAL_ENV" in os.environ:
+        raise _fail("the Python process environment claims another virtualenv")
+    if site.ENABLE_USER_SITE is not False:
+        raise _fail("the controller Python environment must exclude unbound user site packages")
+    try:
+        resolved = executable.resolve(strict=True)
+        for name in ("python", "python3"):
+            located = shutil.which(name)
+            if located is None or Path(located).parent != directory \
+                    or Path(located).resolve(strict=True) != resolved:
+                raise _fail("ambient Python aliases do not use the identified controller environment")
+            observed = json.loads(_command(Path(located), "-B", "-c", _PYTHON_LOOKUP_PROBE, python_environment=True))
+            if observed != {"prefix": sys.prefix, "base_prefix": sys.base_prefix, "user_site": False}:
+                raise _fail("ambient Python aliases have a different effective package environment")
+    except OSError as error:
+        raise _fail("the effective child Python environment cannot be identified") from error
+    except (ValueError, TypeError) as error:
+        raise _fail("the effective child Python environment returned unsupported identity data") from error
+    return {"mode": "controller-virtualenv" if virtual else "controller-base", "aliases": ["python", "python3"],
+            "include_system_site_packages": False if virtual else None, "user_site_enabled": False}
+
+
 def _flags() -> dict[str, str]:
     if sys._xoptions:
         raise _fail("unsupported Python interpreter options prevent reusable evidence")
-    allowed = set(_CHOICES) | {"OVERTE_QML_TEST_RUNNER", "PKG_CONFIG_PATH", "LD_LIBRARY_PATH"}
+    git_names = {name for name in os.environ if name.startswith("GIT_CONFIG")}
+    if git_names and (git_names != set(_FIXED_GIT_OVERRIDES) or any(
+        os.environ[name] != value for name, value in _FIXED_GIT_OVERRIDES.items()
+    )):
+        raise _fail("unsupported Git process overrides prevent reusable evidence")
+    allowed = set(_CHOICES) | {"OVERTE_QML_TEST_RUNNER", "PKG_CONFIG_PATH", "LD_LIBRARY_PATH"} | set(_FIXED_GIT_OVERRIDES)
     for name in os.environ:
         if name not in allowed and (
             name in _UNSUPPORTED_VARIABLES or name.startswith(_SENSITIVE_PREFIXES)
@@ -158,14 +219,16 @@ def _flags() -> dict[str, str]:
             raise _fail("unsupported host test environment overrides prevent reusable evidence")
     java_home = _identified_java_home()
     java_directories = {str(java_home / "bin"), str(Path(os.environ["JAVA_HOME"]) / "bin")} if java_home else set()
+    python_directory = str(Path(sys.executable).parent)
     for directory in os.environ.get("PATH", os.defpath).split(os.pathsep):
         path = Path(directory)
         if not directory or not path.is_absolute() or ".." in path.parts or (
-            directory not in _DEFAULT_PATH_DIRECTORIES and directory not in java_directories
+            directory not in _DEFAULT_PATH_DIRECTORIES and directory not in java_directories and directory != python_directory
             and not path.is_relative_to("/opt/hostedtoolcache")
         ):
             raise _fail("unsupported host executable search paths prevent reusable evidence")
     flags = {}
+    flags["git_process_overrides"] = "maintenance-disabled" if git_names else "none"
     flags["JAVA_HOME"] = "identified-jdk" if java_home else "path"
     for name, (choices, default) in _CHOICES.items():
         value = os.environ.get(name, default)
@@ -356,6 +419,7 @@ def capture_host_environment() -> dict:
     no candidate files, network request, build, or sudo operation is involved.
     """
     flags = _flags()
+    python_lookup = _python_lookup_identity()
     operating_system = _os_identity()
     python = _checked_executable(sys.executable)
     if platform.python_implementation() != "CPython":
@@ -411,7 +475,7 @@ def capture_host_environment() -> dict:
                        "debug", "inspect", "interactive", "optimize", "dont_write_bytecode", "no_user_site",
                        "no_site", "ignore_environment", "verbose", "bytes_warning", "quiet", "hash_randomization",
                        "isolated", "dev_mode", "utf8_mode", "warn_default_encoding", "safe_path",
-                   )}, "packages": _python_packages(required)},
+                   )}, "packages": _python_packages(required), "process_lookup": python_lookup},
         "tools": tools,
         "qt": {"modules": qt, "tools": qt_tools},
         "glm": {"header_digest": _file_digest(Path("/usr/include/glm/glm.hpp")),
