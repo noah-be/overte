@@ -64,6 +64,25 @@ class RoutingTests(unittest.TestCase):
                 self.assertEqual(route['mode'], 'full')
                 self.assertEqual(route['paths'], [path])
 
+    def test_host_evidence_tools_do_not_hide_native_or_build_inputs(self):
+        host = ['tools/test-evidence/inputs.py', 'tools/test-evidence/runtime.py',
+                'tools/test-evidence/fixtures/example.json']
+        for path in host:
+            with self.subTest(path=path):
+                self.assertEqual(POLICY.plan([path])['mode'], 'skip')
+                self.assertEqual(POLICY.plan([path], regular=False)['mode'], 'full')
+        for path in ('tools/test-evidence/new.cpp', 'tools/test-evidence/new.h',
+                     'tools/test-evidence/CMakeLists.txt',
+                     'tools/test-evidence/generate.cmake',
+                     'tools/test-evidence/resources.qrc',
+                     'tools/test-evidence/unmapped.data',
+                     'tools/test-evidence-sibling/inputs.py',
+                     'libraries/shared/src/AABox.cpp'):
+            with self.subTest(path=path):
+                result = POLICY.plan([*host, path])
+                self.assertEqual(result['mode'], 'full')
+                self.assertEqual(result['paths'], [path])
+
     def test_core_test_edit_uses_bounded_core_lane(self):
         for path in ('tests/shared/src/AABoxTests.cpp', 'tools/native-tests/check.py', 'tools/native-tests/run.py'):
             self.assertEqual(POLICY.plan([path])['mode'], 'core')

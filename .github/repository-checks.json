@@ -10,6 +10,7 @@
     "tools/workflow-security/**",
     "tools/branch-cleanup/**",
     "tools/repository-checks/**",
+    "tools/test-evidence/**",
     "tools/ios-build-qualification/**",
     "tests/ios-build-qualification-test.py",
     "tools/repository-policy/**",
