@@ -518,7 +518,7 @@ class RulesetManifestContracts(unittest.TestCase):
         settings = json.loads(
             (RULESETS / "repository-merge-settings.json").read_text(encoding="utf-8")
         )
-        self.assertEqual(settings["repository"], "noah-be/overte")
+        self.assertEqual(settings["repository"], "noah-l-frank/overte")
         self.assertEqual(
             settings["settings"],
             {

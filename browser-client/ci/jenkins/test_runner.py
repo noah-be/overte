@@ -47,16 +47,30 @@ class Source(unittest.TestCase):
             self.assertNotIn(key,environment)
 
     def test_exact_authorized_commit_and_fetch_url_are_required(self):
+        self.assertEqual(r.REMOTE,'https://github.com/noah-l-frank/overte')
         sha='a'*40
         answers=[SimpleNamespace(stdout=sha+'\n'),SimpleNamespace(stdout=r.REMOTE+'\n')]
         with patch.object(r.subprocess,'run',side_effect=answers):
             self.assertEqual(r.checked_source(Path('/owned/checkout'),sha),sha)
 
     def test_wrong_fork_or_wrong_commit_is_refused(self):
-        for head,url in [('b'*40,r.REMOTE),('a'*40,'https://github.com/overte-org/overte')]:
+        for head,url in [('b'*40,r.REMOTE), *[('a'*40,url) for url in (
+                'https://github.com/overte-org/overte','https://github.com/noah-be/overte',
+                'https://github.com/noah-be/overte.git','https://github.com/someone-else/overte',
+                'https://github.com/noah-l-frank/overte-other')]]:
             with self.subTest(head=head,url=url),patch.object(r.subprocess,'run',side_effect=[
                     SimpleNamespace(stdout=head),SimpleNamespace(stdout=url)]),self.assertRaises(RuntimeError):
                 r.checked_source(Path('/owned/checkout'),'a'*40)
+
+    def test_former_or_foreign_remote_stops_main_before_workspace_and_children(self):
+        for url in ('https://github.com/noah-be/overte','https://github.com/overte-org/overte'):
+            with self.subTest(url=url),tempfile.TemporaryDirectory() as directory:
+                with patch.object(sys,'argv',['run.py','--repo',directory,'--source-sha','a'*40]), \
+                     patch.object(r.subprocess,'run',side_effect=[SimpleNamespace(stdout='a'*40),SimpleNamespace(stdout=url)]), \
+                     patch.object(r,'checkout_clean') as clean,patch.object(Path,'mkdir') as mkdir, \
+                     patch.object(r.subprocess,'Popen') as child:
+                    with self.assertRaisesRegex(RuntimeError,'source-remote-is-not-authorized-fork'):r.main()
+                    clean.assert_not_called();mkdir.assert_not_called();child.assert_not_called()
 
     def test_invalid_sha_fails_before_any_git_or_network_command(self):
         for sha in ('main','A'*40,'a'*39,'a'*40+'; command','../fork'):
@@ -242,7 +256,9 @@ class PrivateConfiguration(unittest.TestCase):
             self.assertEqual(concurrent.findtext('abortPrevious'),'false')
             script=xml.find('definition/script').text
             self.assertIn('node("authored-test-selector")',script)
-            self.assertIn('https://github.com/noah-be/overte',script)
+            self.assertIn('https://github.com/noah-l-frank/overte',script)
+            self.assertNotIn('https://github.com/noah-be/overte',script)
+            self.assertIn('Exact reviewed noah-l-frank/overte topic commit',parameter.findtext('description'))
             self.assertIn('disableConcurrentBuilds()',script)
             self.assertIn('browser-client/ci/jenkins/prepare.py',script)
             self.assertIn('browser-client/ci/jenkins/run.py',script)
