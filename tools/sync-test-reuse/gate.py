@@ -742,8 +742,14 @@ def dispatch_and_wait(args: argparse.Namespace) -> int:
 
 def cancel_redundant(args: argparse.Namespace) -> int:
     config = load_config(args.config)
-    api = GitHubApi()
     wanted = set(config["redundant_pull_request_workflows"])
+    if not wanted:
+        # Older descendant workflows still call this trusted default-branch
+        # helper with --window 60. Modern routing owns the selected executions;
+        # an empty retired inventory needs neither API calls nor a polling wait.
+        print("cancelled_redundant_runs=0")
+        return 0
+    api = GitHubApi()
     cancelled: set[int] = set()
     deadline = time.monotonic() + args.window
     while time.monotonic() < deadline:

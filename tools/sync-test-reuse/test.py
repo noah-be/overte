@@ -1029,6 +1029,24 @@ class DifferentialContracts(unittest.TestCase):
                 differential.required_roots(Path('.'), 'tool-dependencies', paths)
 
 
+class RetiredCancellationContracts(unittest.TestCase):
+    def test_legacy_command_returns_immediately_without_api_or_polling(self):
+        self.assertEqual(config()["redundant_pull_request_workflows"], [])
+        legacy = ["cancel-redundant", "--repository", REPOSITORY, "--pull-request", "7", "--head-sha", HEAD]
+        for window in ([], ["--window", "60"]):
+            with self.subTest(arguments=window), \
+                    mock.patch.object(sys, "argv", ["gate.py", *legacy, *window]), \
+                    mock.patch.object(gate, "GitHubApi", side_effect=AssertionError("unexpected API access")) as api, \
+                    mock.patch.object(gate.time, "monotonic", side_effect=AssertionError("unexpected polling")) as clock, \
+                    mock.patch.object(gate.time, "sleep", side_effect=AssertionError("unexpected wait")) as sleep, \
+                    mock.patch.object(sys, "stdout", new_callable=io.StringIO) as output:
+                self.assertEqual(gate.main(), 0)
+                self.assertEqual(output.getvalue(), "cancelled_redundant_runs=0\n")
+                api.assert_not_called()
+                clock.assert_not_called()
+                sleep.assert_not_called()
+
+
 class DispatchContracts(unittest.TestCase):
     def run_document(self, correlation="gate-700-attempt-2", *, run_id=902,
                      status="completed", conclusion="success"):

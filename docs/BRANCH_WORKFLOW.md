@@ -249,6 +249,12 @@ through `env python3`. Runtime capture observes that same effective environment
 and verifies both Python aliases, the actual virtualenv prefix and disabled base
 and user site packages before any suite result can be reused.
 
+The hosted search-path policy includes GitHub's exact Ubuntu Composer binary
+directory. An unrecognized neighboring directory still prevents reusable
+evidence; it does not become trusted merely by sharing that prefix. The first
+schema-2 parent run passed every suite but safely produced nonreusable evidence
+because this standard image path was missing from the reviewed policy.
+
 The trusted controller disables automatic Git maintenance and garbage collection
 only within candidate subprocesses. This prevents detached Git writers
 from racing strict temporary-repository cleanup, including in older candidate
@@ -265,6 +271,18 @@ an earlier attempt's result. The gate waits for the current attempt to
 become visible and complete successfully. Multiple matching runs, an
 unsuccessful current run, or a timeout fail the gate in both reuse and full
 fallback mode.
+
+The gate completes after successful isolated validation without a subsequent
+workflow-cancellation polling window. Selected executions belong to their
+routers; shared-suite reuse does not cancel independent platform checks. The
+retired cancellation inventory is empty. The legacy `cancel-redundant` command,
+including `--window 60` calls from older descendant workflows, returns
+immediately without querying or cancelling GitHub runs.
+
+Draft candidates are checked on `opened` and `synchronize`, so marking an
+unchanged draft ready does not restart synchronization validation. The
+`reopened` and `edited` events remain enabled; retargeting a pull request must
+still validate its current base, head, and exact merge candidate.
 
 The trusted default-branch `reconciliation_repair_paths` configuration can
 authorize exact nonprivileged product paths per target. A reconciliation

@@ -96,6 +96,13 @@ class RuntimeIdentityTests(unittest.TestCase):
     def test_supported_explicit_default_overrides_normalize(self):
         self.assertEqual(self.capture(), self.capture({"QT_QPA_PLATFORM": "offscreen", "QT_QUICK_BACKEND": "software"}))
 
+    def test_reviewed_composer_search_path_does_not_allow_neighboring_user_paths(self):
+        composer = "/home/runner/.config/composer/vendor/bin"
+        self.assertEqual(self.capture({"PATH": composer + ":/usr/bin:/bin"}), self.capture())
+        for directory in (composer + "/child", composer + "-other", "/other/.config/composer/vendor/bin"):
+            with self.subTest(directory=directory), self.assertRaises(RUNTIME.RuntimeIdentityError):
+                self.capture({"PATH": directory + ":/usr/bin:/bin"})
+
     def test_unknown_override_and_test_mutation_cannot_produce_matching_unknown(self):
         for variable in ("OVERTE_NEW_TEST_FLAG", "OVERTE_TEST_GLM_INCLUDE", "OVERTE_QT5_ROOT",
                          "OVERTE_WEB_VISIBILITY_BASELINE", "OVERTE_DEVICE_TARGET_SELECTOR",
@@ -174,6 +181,7 @@ class RuntimeIdentityTests(unittest.TestCase):
             "/usr/local/sbin", "/usr/local/bin", "/usr/sbin", "/usr/bin", "/sbin", "/bin",
             "/usr/local/games", "/usr/games", "/home/runner/.dotnet/tools",
             "/home/runner/.local/share/powershell", "/home/runner/.local/bin", "/opt/pipx_bin", "/snap/bin",
+            "/home/runner/.config/composer/vendor/bin",
         ))
         with patch.dict(RUNTIME.os.environ, _BASE_ENVIRONMENT | {"JAVA_HOME": str(java_home), "PATH": standard_path}, clear=True), \
                 patch.object(RUNTIME.Path, "resolve", autospec=True, side_effect=lambda path, *args, **kwargs: path), \

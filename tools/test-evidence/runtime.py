@@ -36,6 +36,9 @@ _DEFAULT_PATH_DIRECTORIES = {
     "/home/runner/.dotnet/tools", "/home/runner/.local/share/powershell", "/home/runner/.local/bin",
     "/home/linuxbrew/.linuxbrew/bin", "/home/linuxbrew/.linuxbrew/sbin",
     "/usr/local/games", "/usr/games", "/home/runner/.ghcup/bin",
+    # Official Ubuntu image install-php.sh adds this exact Composer directory.
+    # https://github.com/actions/runner-images/blob/ubuntu24/20261012.334/images/ubuntu/scripts/build/install-php.sh#L96
+    "/home/runner/.config/composer/vendor/bin",
 }
 _COMMANDS = {
     "bash": ("bash", "--version"),
