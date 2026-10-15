@@ -75,7 +75,7 @@
     {
       "rule": "credential-literal",
       "path": "tests/device/contracts/redaction/login-dialog-diagnostics-test.cpp",
-      "sha256": "55139f90417de33b20b4fc16182f9cc67d1a41a27fe9b60cb28cb0887491530b",
+      "sha256": "2440f5d378b765959d144dcc93836581559343c4f39651b832e815d3db6e8774",
       "reason": "Reviewed synthetic canaries used to assert that private values never reach diagnostic output. These test fixtures do not authenticate against a service. Preserve the redaction assertions; any file change requires renewed review.",
       "owner": "Android Phone remediation review",
       "expires": "2026-12-18"
