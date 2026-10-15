@@ -58,6 +58,7 @@ needs a native build, cache preparation, and staged gate activation.
 | Review dormant Android APK source selection | [Android build inputs](ANDROID_BUILD_INPUTS.md) |
 | Review dormant Browser CPU-history CI selection | [Browser CPU selection](BROWSER_CPU_SELECTION.md) |
 | Review dormant authenticated producer evidence | [Producer API proof](PRODUCER_API_PROOF.md) |
+| Review dormant shared reuse without consumer setup | [Attested runtime reuse](ATTESTED_RUNTIME_REUSE.md) |
 | Work on a platform port | [Platform guides](interfaces/README.md) |
 | Build or test the experimental direct browser client | [Direct browser build guide](browser-direct-client/BUILD.md) |
 | Choose the next product outcome | [Roadmap](ROADMAP.md) |

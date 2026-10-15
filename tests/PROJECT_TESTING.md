@@ -292,6 +292,15 @@ and sync owners need complete inner validators. Actual publisher isolation,
 producer concurrency/fallback ownership and trusted caller/template compatibility
 require separate implementation and review.
 
+The `attested-runtime` quick/host suite tests a separate, default-off
+[original-runtime admission and zero-selection terminal](../docs/ATTESTED_RUNTIME_REUSE.md).
+It preserves the exact original tested environment in source fingerprints and
+does not install or claim to measure the unused consumer VM. Every shared suite
+must be reusable and the declared product inventory must be empty. Policy,
+controller, exact requirement, variant, source, authority or expiry changes
+prevent a result. Existing legacy API provenance limits remain activation
+blockers; this dormant helper changes no active workflow or current sync fallback.
+
 The `android-ci` suite runs in both the quick and combined host profiles. It
 checks the staged Android ownership controller with disposable Git trees,
 mocked command results and isolated Python environments. These fixtures verify
@@ -409,6 +418,7 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `producer-proof` | `quick` | `python3 tests/run-project-tests.py --suite producer-proof` |
 | `host-producer-preparation` | `quick` | `python3 tests/run-project-tests.py --suite host-producer-preparation` |
 | `producer-api` | `quick` | `python3 tests/run-project-tests.py --suite producer-api` |
+| `attested-runtime` | `quick` | `python3 tests/run-project-tests.py --suite attested-runtime` |
 | `project-runner` | `quick` | `python3 tests/run-project-tests.py --suite project-runner` |
 | `python-test-runner` | `quick` | `python3 tests/run-project-tests.py --suite python-test-runner` |
 | `repository-checks` | `quick` | `python3 tests/run-project-tests.py --suite repository-checks` |
