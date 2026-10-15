@@ -57,6 +57,6 @@ class MigrationControls(unittest.TestCase):
  def test_local_unqualified_profile_cannot_pass_hosted_operational_body(self):
   with self.assertRaises(AssertionError):self.run_real({**self.good(),'profile':'local-unqualified'})
  def test_workflow_runs_explicit_census_without_relaunching_required_test(self):
-  text=(ROOT/'.github/workflows/browser-client-atomic-settings.yml').read_text();self.assertEqual(text.count('python3 -B browser-client/lab/atomic-provisioning/operational_contracts.py'),1);self.assertNotIn('python3 -B -m unittest discover',text);self.assertIn("github.repository == 'noah-be/overte'",text);self.assertIn('steps.contracts.outcome ==',text)
+  text=(ROOT/'.github/workflows/browser-client-atomic-settings.yml').read_text();self.assertEqual(text.count('python3 -B browser-client/lab/atomic-provisioning/operational_contracts.py'),1);self.assertNotIn('python3 -B -m unittest discover',text);self.assertIn("github.repository == 'noah-l-frank/overte'",text);self.assertIn('steps.contracts.outcome ==',text)
 
 if __name__=='__main__':unittest.main(verbosity=2)

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "repository": "noah-be/overte",
+  "repository": "noah-l-frank/overte",
   "repository_id": 1319052603,
   "trusted_actions_app_id": 15368,
   "evidence_max_age_hours": 72,
@@ -43,7 +43,8 @@
       "tests/device/ios/test_ios_native_binding_contract.py",
       "tests/device/ios/adapters/appium_adapter.py",
       "tests/device/ios/self_tests/test_appium_adapter.py",
-      "tests/device/self_tests/test_ios_remotexpc_tunnel.py"
+      "tests/device/self_tests/test_ios_remotexpc_tunnel.py",
+      "tests/device/self_tests/test_ios_personal_team_fetch.py"
     ]
   },
   "qualified_inputs": [

@@ -15,7 +15,7 @@ import subprocess
 import sys
 import time
 
-REMOTE = 'https://github.com/noah-be/overte'
+REMOTE = 'https://github.com/noah-l-frank/overte'
 SOURCE_FILES = ('run.py', 'namespace-owner.py', 'gates.py', 'prepare.py', 'probe.py', 'owned-exec.py', 'owned-xvfb.py', 'chrome-payload.py')
 
 

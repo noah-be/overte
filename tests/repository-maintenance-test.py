@@ -91,8 +91,8 @@ class EvidenceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "snapshot.json"
             for content in ('{"repository":"overte-org/overte"}',
-                            '{"repository":"noah-be/overte","x":1,"x":2}',
-                            '{"repository":"noah-be/overte","x":NaN}'):
+                            '{"repository":"noah-l-frank/overte","x":1,"x":2}',
+                            '{"repository":"noah-l-frank/overte","x":NaN}'):
                 path.write_text(content)
                 with self.assertRaises(ValueError):
                     MAINTENANCE.read_document(path)
@@ -222,7 +222,7 @@ class GitTests(unittest.TestCase):
 
     def test_report_refuses_source_input_symlink_and_git_metadata_overwrite(self):
         path = self.directory / "input.json"
-        path.write_text('{"repository":"noah-be/overte"}')
+        path.write_text('{"repository":"noah-l-frank/overte"}')
         link = self.directory / "link.json"
         link.symlink_to(path)
         for target, inputs in ((self.root / "README.md", []), (self.root / ".git/config", []),

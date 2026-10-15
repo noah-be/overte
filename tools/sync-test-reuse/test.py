@@ -36,7 +36,7 @@ qualification = load("qualification")
 gate = load("gate")
 differential = load("differential")
 
-REPOSITORY = "noah-be/overte"
+REPOSITORY = "noah-l-frank/overte"
 REPOSITORY_ID = 1319052603
 BASE = "1" * 40
 PARENT = "2" * 40
@@ -56,7 +56,7 @@ class GitHubApiDiagnosticsTests(unittest.TestCase):
                     stderr=f"gh: {private} (HTTP {status})\n")
                 with mock.patch.object(gate.subprocess, "run", side_effect=error) as run:
                     with self.assertRaises(gate.GateError) as caught:
-                        gate.GitHubApi().json("repos/noah-be/overte/git/ref/heads/android-vr")
+                        gate.GitHubApi().json("repos/noah-l-frank/overte/git/ref/heads/android-vr")
                 self.assertIn(f"command exit=1 http={status}", str(caught.exception))
                 self.assertNotIn(private, str(caught.exception))
                 self.assertIs(caught.exception.__cause__, error)
@@ -66,7 +66,7 @@ class GitHubApiDiagnosticsTests(unittest.TestCase):
         error = subprocess.CalledProcessError(1, ["gh"], stderr="synthetic-sensitive-dns-message")
         with mock.patch.object(gate.subprocess, "run", side_effect=error):
             with self.assertRaises(gate.GateError) as caught:
-                gate.GitHubApi().json("repos/noah-be/overte")
+                gate.GitHubApi().json("repos/noah-l-frank/overte")
         self.assertIn("command exit=1 http=unknown", str(caught.exception))
         self.assertNotIn("synthetic-sensitive-dns-message", str(caught.exception))
 
@@ -74,14 +74,14 @@ class GitHubApiDiagnosticsTests(unittest.TestCase):
         private = "synthetic-private-response"
         with mock.patch.object(gate.subprocess, "run", return_value=SimpleNamespace(stdout=private)):
             with self.assertRaises(gate.GateError) as caught:
-                gate.GitHubApi().json("repos/noah-be/overte")
+                gate.GitHubApi().json("repos/noah-l-frank/overte")
         self.assertIn("invalid-json", str(caught.exception))
         self.assertNotIn(private, str(caught.exception))
 
     def test_os_failure_has_errno_without_private_path(self):
         with mock.patch.object(gate.subprocess, "run", side_effect=OSError(2, "synthetic-private-path")):
             with self.assertRaises(gate.GateError) as caught:
-                gate.GitHubApi().json("repos/noah-be/overte")
+                gate.GitHubApi().json("repos/noah-l-frank/overte")
         self.assertIn("os-error errno=2", str(caught.exception))
         self.assertNotIn("synthetic-private-path", str(caught.exception))
 
@@ -89,14 +89,14 @@ class GitHubApiDiagnosticsTests(unittest.TestCase):
         error = subprocess.CalledProcessError(1, ["gh"], stderr=b"synthetic-private-body (HTTP 404)")
         with mock.patch.object(gate.subprocess, "run", side_effect=error):
             with self.assertRaises(gate.EvidenceError) as caught:
-                gate.GitHubApi().bytes("repos/noah-be/overte/actions/artifacts/123/zip")
+                gate.GitHubApi().bytes("repos/noah-l-frank/overte/actions/artifacts/123/zip")
         self.assertIn("command exit=1 http=404", str(caught.exception))
         self.assertNotIn("synthetic-private-body", str(caught.exception))
 
     def test_success_and_empty_success_preserve_existing_values(self):
         for stdout, expected in (("{\"ok\": true}", {"ok": True}), ("", {})):
             with mock.patch.object(gate.subprocess, "run", return_value=SimpleNamespace(stdout=stdout)):
-                self.assertEqual(gate.GitHubApi().json("repos/noah-be/overte"), expected)
+                self.assertEqual(gate.GitHubApi().json("repos/noah-l-frank/overte"), expected)
 
 
 class MappingApi:
@@ -403,6 +403,16 @@ class TopologyContracts(unittest.TestCase):
                 self.assertEqual(result.parent, edge["parent"])
                 self.assertEqual(result.profile, "documentation")
 
+    def test_renamed_account_keeps_exact_identity_before_ordinary_classification(self):
+        candidate = self.event('main', 'fix/main/example')
+        self.assertEqual(config()['repository'], 'noah-l-frank/overte')
+        self.assertEqual(config()['repository_id'], 1319052603)
+        self.assertIsNone(gate.classify_event(candidate, config(), MappingApi()))
+        for identity in ({'full_name': 'noah-be/overte', 'id': 1319052603},
+                         {'full_name': 'noah-l-frank/overte', 'id': 42}):
+            with self.subTest(identity=identity), self.assertRaisesRegex(gate.GateError, 'repository'):
+                gate.classify_event({**candidate, 'repository': identity}, config(), MappingApi())
+
     def test_retired_desktop_targets_and_scopes_cannot_receive_sync_reuse(self):
         for platform in ("linux", "windows"):
             for base, head in ((platform + "-main", "main"),
@@ -479,7 +489,7 @@ class ProductRepairContracts(unittest.TestCase):
 
     def fixture(self, changes=None, target="android-vr-pico"):
         settings = config()
-        paths = settings["reconciliation_repair_paths"][target]
+        paths = settings["reconciliation_repair_paths"].get(target, [])
         edge = settings["edges"][target]
         parent = edge["parent"]
         scope = edge["scope"]
@@ -626,6 +636,35 @@ class ProductRepairContracts(unittest.TestCase):
         request = self.classify(event, settings, api)
         self.assertEqual(request.repair_paths, tuple(sorted(paths)))
         self.inspect(event, settings, api)
+
+    def test_ios_kit_fetch_fixture_repair_requires_complete_fallback(self):
+        path = "tests/device/self_tests/test_ios_personal_team_fetch.py"
+        event, settings, api = self.fixture(
+            [{"filename": path, "status": "modified"}], target="apple-ios")
+        request = self.classify(event, settings, api)
+        self.assertEqual(request.repair_paths, (path,))
+        self.assertNotIn(path, request.parent_changed_paths)
+        # inspect() rejects evidence reuse and requires the complete leaf profile.
+        self.inspect(event, settings, api)
+
+    def test_ios_kit_fetch_fixture_repair_does_not_admit_neighbors(self):
+        repair = {"filename": "tests/device/self_tests/test_ios_personal_team_fetch.py",
+                  "status": "modified"}
+        for path in (
+                "tests/device/self_tests/test_ios_personal_team_fetch_extra.py",
+                "tests/device/self_tests/test_ios_personal_team_artifacts.py",
+                "tests/device/ios/fetch_personal_team_kit.py",
+                "tools/sync-test-reuse/gate.py"):
+            changes = [repair, {"filename": path, "status": "modified"}]
+            with self.subTest(path=path), self.assertRaises(gate.GateError):
+                self.classify(*self.fixture(changes, target="apple-ios"))
+
+    def test_ios_kit_fetch_fixture_repair_is_not_cross_platform(self):
+        changes = [{"filename": "tests/device/self_tests/test_ios_personal_team_fetch.py",
+                    "status": "modified"}]
+        for target in ("android-phone", "android-vr", "android-vr-pico", "apple-main"):
+            with self.subTest(target=target), self.assertRaises(gate.GateError):
+                self.classify(*self.fixture(changes, target=target))
 
     def test_ios_parent_contract_repairs_cannot_carry_product_or_neighbor_changes(self):
         repairs = [

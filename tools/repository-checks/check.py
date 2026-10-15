@@ -29,7 +29,7 @@ def tool_dependency_projects(paths: list[str], regular: bool) -> tuple[str, ...]
 def configuration(root: Path = ROOT) -> tuple[dict, dict]:
     config = json.loads((root / ".github/repository-checks.json").read_text())
     branches = json.loads((root / ".github/branch-policy.json").read_text())["branches"]
-    if (config.get("schema") != 1 or config.get("repository") != "noah-be/overte"
+    if (config.get("schema") != 1 or config.get("repository") != "noah-l-frank/overte"
             or config.get("repository_id") != 1319052603
             or config.get("documentation_suffixes") != [".md"]
             or not config.get("workflow_security_paths")):

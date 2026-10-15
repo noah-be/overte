@@ -60,8 +60,8 @@ class IosFedoraSyncTest(unittest.TestCase):
             "path": ".github/workflows/ios-bootstrap.yml@apple-ios",
             "head_branch": "apple-ios",
             "head_sha": self.revision,
-            "repository": {"full_name": "noah-be/overte", "id": 42},
-            "head_repository": {"full_name": "noah-be/overte", "id": 42},
+            "repository": {"full_name": "noah-l-frank/overte", "id": 42},
+            "head_repository": {"full_name": "noah-l-frank/overte", "id": 42},
             "run_attempt": 2,
             "status": "completed",
             "conclusion": "success",
@@ -77,7 +77,7 @@ class IosFedoraSyncTest(unittest.TestCase):
             "expired": False,
             "digest": "sha256:" + "b" * 64,
             "archive_download_url": (
-                "https://api.github.com/repos/noah-be/overte/actions/artifacts/"
+                "https://api.github.com/repos/noah-l-frank/overte/actions/artifacts/"
                 f"{50 if role == 'overte' else 51}/zip"
             ),
             "workflow_run": {
@@ -109,7 +109,7 @@ class IosFedoraSyncTest(unittest.TestCase):
 
     def test_dispatch_uses_versioned_api_and_returns_exact_run(self):
         opener = Opener([{"workflow_run_id": 8675309}])
-        api = SYNC.GitHubApi("noah-be/overte", "private-token", opener=opener)
+        api = SYNC.GitHubApi("noah-l-frank/overte", "private-token", opener=opener)
         self.assertEqual(8675309, api.dispatch({"qt_host_cache_key": "host"}))
         request = opener.requests[0][0]
         self.assertEqual("POST", request.method)
@@ -148,7 +148,7 @@ class IosFedoraSyncTest(unittest.TestCase):
         error = urllib.error.HTTPError(
             "https://api.github.com/private-token", 403, "private-token", {}, io.BytesIO(b"private-token")
         )
-        api = SYNC.GitHubApi("noah-be/overte", "private-token", opener=Opener([error]))
+        api = SYNC.GitHubApi("noah-l-frank/overte", "private-token", opener=Opener([error]))
         try:
             with self.assertRaises(SYNC.HandoffError) as raised:
                 api.run(1)
@@ -257,7 +257,7 @@ class IosFedoraSyncTest(unittest.TestCase):
             "createdAt": "2026-08-25T12:00:00Z",
             "notAfter": "2026-08-26T12:00:00Z",
             "provenance": {
-                "repository": "noah-be/overte", "repositoryId": 42,
+                "repository": "noah-l-frank/overte", "repositoryId": 42,
                 "workflow": ".github/workflows/ios-bootstrap.yml",
                 "reusableWorkflow": ".github/workflows/ios-fedora-e2e-producer.yml",
                 "ref": "refs/heads/apple-ios", "runId": 123, "runAttempt": 2,
@@ -451,7 +451,7 @@ class IosFedoraSyncTest(unittest.TestCase):
 
     def test_failed_final_binding_removes_owned_run_directory(self):
         arguments = mock.Mock(
-            repository="noah-be/overte",
+            repository="noah-l-frank/overte",
             destination=self.root / "handoff",
             run_id=123,
             run_attempt=2,
