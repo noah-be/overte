@@ -513,10 +513,22 @@ class GitInventoryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             trusted, candidate = root / 'trusted', root / 'candidate'
-            trusted.mkdir()
             candidate.mkdir()
-            for directory in directories:
-                shutil.copytree(ROOT / directory, trusted / directory)
+            def sparse_trusted(paths):
+                # Exercise a real sparse Git checkout: the reviewed package
+                # controller reads immutable skip-worktree blobs for trusted
+                # requirements that this routing checkout does not materialize.
+                subprocess.run(['git', 'clone', '-q', '--shared', '--no-checkout',
+                                str(ROOT), str(trusted)], check=True,
+                               capture_output=True)
+                subprocess.run(['git', '-C', str(trusted), 'sparse-checkout',
+                                'set', '--cone', *paths], check=True,
+                               capture_output=True)
+                subprocess.run(['git', '-C', str(trusted), 'checkout', '-q', '--detach',
+                                subprocess.check_output(['git', 'rev-parse', 'HEAD'],
+                                                        cwd=ROOT, text=True).strip()],
+                               check=True, capture_output=True)
+            sparse_trusted(directories)
             def git(*args):
                 return subprocess.check_output(['git', *args], cwd=candidate,
                                                text=True, stderr=subprocess.PIPE).strip()
@@ -564,9 +576,7 @@ class GitInventoryTests(unittest.TestCase):
             native_checkout = next(step for step in native_workflow['jobs']['build']['steps']
                                    if step.get('name') == 'Check out trusted selection tools')
             shutil.rmtree(trusted)
-            trusted.mkdir()
-            for directory in native_checkout['with']['sparse-checkout'].splitlines():
-                shutil.copytree(ROOT / directory, trusted / directory)
+            sparse_trusted(native_checkout['with']['sparse-checkout'].splitlines())
             # A propagated caller must not activate Linux builds on platform bases.
             base = merge
             git('switch', '-qc', 'native-candidate')
