@@ -262,12 +262,104 @@ merge candidate and the integrated parent commit remain distinct test inputs.
 
 ## Available project suites
 
+The `producer-proof` quick suite tests the dormant
+[`producer.py`](../tools/test-evidence/producer.py) protocol. Its descriptors bind
+the exact live PR base, head, merge commit/tree, selected owners, trusted policy
+and producer workflow source separately from the tested candidate. Bounded
+single-member artifacts require independently authenticated run, job, app and
+artifact facts. A self-consistent JSON digest does not authenticate a producer.
+
+Authority selection considers all run statuses and attempts. Missing current
+attempts, unresolved descriptors, ambiguous ordering and mixed job attempts
+prevent reuse; a newer pending, failed or cancelled producer cannot inherit an
+older green result. Aggregate verification requires the exact selected successful
+jobs, unchanged final live identity, the original expiry and actual source/runtime
+inputs. Shared owners use the existing trusted execution-receipt validator.
+Other owner kinds and relayed or mixed-attempt proofs remain unsupported.
+
+This protocol has no workflow integration, dispatch, retry or metadata-skip
+capability. Before activation, a trusted API adapter must authenticate and fully
+enumerate current runs, attempts, artifact ownership and resolved workflow blobs;
+all selected native, documentation, security, browser and sync owners need complete
+inner validators. Producers must publish descriptors before candidate work and
+retain complete aggregate proof. Producer concurrency/fallback ownership and
+trusted caller/template compatibility require separate implementation and review.
+
+The `android-ci` suite runs in both the quick and combined host profiles. It
+checks the staged Android ownership controller with disposable Git trees,
+mocked command results and isolated Python environments. These fixtures verify
+the Fast/Contracts union, one owner for Robolectric and Pico, complete native
+and Robolectric SDK case coverage, and failure propagation through tier views.
+Planning and receipt verification read bounded regular Git blobs from the exact
+commit, including newly discovered Phone test classes, so a `.github`-only sparse
+checkout produces the same plan as a full checkout. Running selected commands
+still requires their candidate files to be checked out. The fixtures reject
+missing, symbolic-link, gitlink, oversized and dirty source inputs.
+They require no Android SDK, Gradle run or product build. The controller and
+[reviewed policy](../.github/android-checks.json) are staged for later workflow
+wiring. Its current evidence closure covers the repository because controller
+loading also validates the branch-owned platform profile.
+
+The `codeql-selection` quick suite tests the dormant
+[`tools/repository-checks/codeql.py`](../tools/repository-checks/codeql.py)
+language selector. It compares complete immutable Git trees, including deleted,
+renamed and mode-changed inputs, without importing candidate code. Pure Python
+changes select Python; JavaScript/TypeScript, templates and extracted data select
+JavaScript/TypeScript. Overlapping manifests, query-pack directories, shared
+controls, unknown inputs, incomplete inventories and unresolved aliases retain
+both languages. Scheduled scans always retain both languages.
+
+The helper does not control the active CodeQL workflow. Its tests run in the
+required quick and combined host profiles; the shared registry binds the test,
+helper, immutable-inventory module and actual CodeQL workflow/configuration.
+Future activation must use a trusted selector checkout and exact authenticated
+base/candidate commits, preserve whole-language scans and scheduled full scans,
+and review the helper's configuration hashes after changing CodeQL configuration
+or action versions. It selects languages, not individual files within a scan.
+
 The `test-evidence` quick suite checks trusted execution receipts, complete
 suite-input fingerprints, actual runtime identity and parent qualification.
 The shared registry is [`.github/test-suites.json`](../.github/test-suites.json).
 It declares canonical commands and complete source/fixture/helper closures;
 unreviewed closures remain conservative. Changed Python import modules and
 ancestor Node package metadata cannot hide behind an unchanged entry point.
+
+The `android-build-inputs` quick suite checks dormant Phone and Pico APK source
+planning with real immutable Git histories, including standalone npm locks,
+native/Java/Gradle/Conan inputs, packaged resources, mode changes and stale reader
+boundaries. It also runs in the combined host profile. The precise registry
+closure binds its test, planner and shared immutable Git reader; global controls
+bind Python import resolution. The [Android build-input guide](../docs/ANDROID_BUILD_INPUTS.md)
+explains why this source plan neither changes the existing manual build triggers
+nor proves external dependencies, build execution or reusable APKs.
+
+The `ios-input-selection` quick suite exercises the dormant iOS repository-input
+selector with temporary Git histories. It covers additions, deletions, renames,
+file modes, symlinks, gitlinks, packaged resources and changed build readers.
+The suite runs in both the quick and combined host profiles. Its registry closure
+includes the test and selector implementation; shared controls also bind Python
+import-resolution inputs. Missing inputs or unmatched proof require execution.
+
+The selector is not active iOS routing or application-build evidence. Exclusions
+apply only when both complete trees match the trusted reviewed reader boundary.
+A stale boundary requires the application build, including a host-only change
+after an earlier reader edit. Repository-input equality keeps exact commit/tree
+provenance separate and never qualifies an older IPA for a new source revision.
+
+The iOS qualification verifier has a staged `inputSelection` setting in its
+trusted policy. An absent or false setting preserves the deployed workflow's
+legacy route and final report, including its broad ordinary-Markdown exemption.
+The enabled selector keeps packaged Markdown conservative, separates app-build
+and iOS-host decisions, and binds the complete candidate selection to a digest.
+The final verifier requires its own event and candidate checkout and recomputes
+every route field; it does not accept a caller's reason or skipped-job claim.
+
+No policy activation or workflow change is included. Enabled lightweight final
+reports fail until an independently authenticated shared host owner is wired.
+Before activation, stage that owner verification and the approved canonical
+workflow outputs (`host_required` and `selection`) and final event/candidate
+arguments through the parent policy. The existing template remains unchanged.
+Do not replace this missing evidence with another unconditional iOS-host run.
 
 Parent qualification uses the default-branch `tools/test-evidence/run.py`
 controller against a separate clean candidate checkout. It records actual
@@ -299,10 +391,15 @@ entries out of this shared table allows it to propagate unchanged to children.
 | --- | --- | --- |
 | `dependency-releases` | `quick` | `python3 tests/run-project-tests.py --suite dependency-releases` |
 | `test-evidence` | `quick` | `python3 tests/run-project-tests.py --suite test-evidence` |
+| `producer-proof` | `quick` | `python3 tests/run-project-tests.py --suite producer-proof` |
 | `project-runner` | `quick` | `python3 tests/run-project-tests.py --suite project-runner` |
 | `python-test-runner` | `quick` | `python3 tests/run-project-tests.py --suite python-test-runner` |
 | `repository-checks` | `quick` | `python3 tests/run-project-tests.py --suite repository-checks` |
+| `android-ci` | `quick` | `python3 tests/run-project-tests.py --suite android-ci` |
+| `android-build-inputs` | `quick` | `python3 tests/run-project-tests.py --suite android-build-inputs` |
+| `codeql-selection` | `quick` | `python3 tests/run-project-tests.py --suite codeql-selection` |
 | `ios-build-qualification` | `quick` | `python3 tests/run-project-tests.py --suite ios-build-qualification` |
+| `ios-input-selection` | `quick` | `python3 tests/run-project-tests.py --suite ios-input-selection` |
 | `repository-policy` | `quick` | `python3 tests/run-project-tests.py --suite repository-policy` |
 | `policy-consistency` | `quick` | `python3 tests/run-project-tests.py --suite policy-consistency` |
 | `documentation-contracts` | `quick` | `python3 tests/run-project-tests.py --suite documentation-contracts` |
@@ -430,6 +527,43 @@ their JavaScript packages and do not select an Overte native build. Browser
 workflows, package behavior checks and security checks retain their ownership.
 This is an exact manifest exemption: accompanying native/build inputs, unknown
 neighboring files and non-regular changes retain conservative native validation.
+
+The S3Server required-package foundation is dormant. Its controller is
+`tools/repository-checks/package_checks.py`; its exact prospective workflows are
+in `tools/repository-checks/workflows/packages/`. Active workflow files and
+activation settings remain unchanged. The existing tool CLI still accepts only
+`server-console` and `tools/jsdoc`; adding S3 to a caller string cannot bypass
+the full host checks.
+
+The prospective controller independently computes two decisions from the exact
+candidate: `host_mode` and an OR-selected `package_set`. Regular S3
+`package.json`/`package-lock.json` changes can use a bounded Node.js 22 lane:
+one `npm ci --ignore-scripts --no-fund --no-audit`, one complete
+`npm audit --audit-level=low`, and `npm test`. There is no S3 build script.
+Mixed browser, native, unknown or non-regular changes retain their normal host
+and native checks and still select S3 whenever its inputs changed. Unknown push
+history conservatively selects full host checks and S3. Removed or non-regular
+required npm manifests cannot produce successful package evidence.
+
+The new project aggregate always checks every selected result and binds its
+receipt to the candidate commit, full tree and trusted plan. The required outer
+aggregate recomputes that plan and verifies the receipt. Legacy tool checks have
+one owner; S3 has a separate owner even during delegated syncs. A bounded sync
+does not run S3 again or claim a successful S3 JUnit case: it records the external
+required package owner. Parent qualification owns parent pushes, and the shared
+project workflow owns leaf pushes, preserving the current branch partition.
+
+Deployment requires two stages. First land the trusted helpers and dormant
+templates on the default branch. Then install the exact project, parent and sync
+templates plus the appropriate outer caller. The package caller with direct
+browser checks is separate from the existing approved browser generation, which
+remains valid. Finally activate `package_checks_required_branches` in trusted
+repository policy for each reviewed target. Until activation legacy callers stay
+valid; a new caller must prove the strict receipt contract whenever it is used.
+S3-only sync shortening additionally requires activation and exact approved
+workflow blobs in both the protected target and merge candidate, so partially
+propagated child branches retain full validation. Browser package profiling is
+separate work; this foundation does not remove browser build variants.
 
 
 Prepare a native build with `OVERTE_BUILD_TESTS=ON` using the relevant

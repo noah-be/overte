@@ -31,6 +31,17 @@ HOST_TOOL_MANIFESTS = frozenset({
     'script-archive/marketplace/S3Server/package.json',
     'script-archive/marketplace/S3Server/package-lock.json',
 })
+# Exact CPU-only browser provenance fixtures. None are read by the reviewed
+# native CMake/Conan/resource graph; browser tests remain their execution owner.
+HOST_BROWSER_FIXTURES = frozenset({
+    'browser-client/tests/integration/capture-startup-integration-source-fixture.mjs',
+    'browser-client/tests/tablet-capture-startup-integration-manifest.test.mjs',
+    'browser-client/tests/integration/prepare-tablet-capture-acceptance.mjs',
+    'browser-client/tests/integration/capture-fork-rename-source-fixture.mjs',
+    'browser-client/tests/fixtures/capture-v33-fork-rename-before.json.gz',
+    'browser-client/tests/fixtures/capture-fork-rename-v34-complete-source-manifest.json',
+    'browser-client/tests/tablet-capture-fork-rename-manifest.test.mjs',
+})
 HOST_EVIDENCE_SUFFIXES = frozenset({'.py', '.json'})
 CORE_ROOTS = ('tests/shared/',)
 RUNTIME_ASSETS = {'.qml', '.js', '.png', '.jpg', '.jpeg', '.svg', '.webp', '.gif',
@@ -64,7 +75,7 @@ def plan(paths: list[str], regular: bool = True, *, verified_empty: bool = False
                 or path.startswith(('tools/native-tests/', 'tests/native-', 'cmake/',
                                         '.github/workflows/native-', '.github/actions/conan-install/'))):
             relevant.append(path)
-        elif path in HOST_NATIVE_FIXTURES or path in HOST_TOOL_MANIFESTS:
+        elif path in HOST_NATIVE_FIXTURES or path in HOST_TOOL_MANIFESTS or path in HOST_BROWSER_FIXTURES:
             continue
         elif (path.startswith('tools/test-evidence/')
               and PurePosixPath(path).suffix in HOST_EVIDENCE_SUFFIXES):

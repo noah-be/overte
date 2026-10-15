@@ -33,6 +33,10 @@ _tool_spec = importlib.util.spec_from_file_location(
     "sync_tool_dependencies", ROOT / "tools/repository-checks/tool_dependencies.py")
 tool_dependencies = importlib.util.module_from_spec(_tool_spec)
 _tool_spec.loader.exec_module(tool_dependencies)
+_package_spec = importlib.util.spec_from_file_location(
+    "sync_package_checks", ROOT / "tools/repository-checks/package_checks.py")
+package_checks = importlib.util.module_from_spec(_package_spec)
+_package_spec.loader.exec_module(package_checks)
 _input_spec = importlib.util.spec_from_file_location(
     "sync_suite_inputs", ROOT / "tools/test-evidence/inputs.py")
 suite_inputs = importlib.util.module_from_spec(_input_spec)
@@ -417,12 +421,20 @@ def classify_event(event: dict, config: dict, api: GitHubApi) -> SyncRequest | N
         for item in changed_documents
     )
     tool_only = False
-    if not repairs and tool_dependencies.affected_projects(list(changed)):
+    package_enabled = package_checks.activated(event)
+    bounded_projects = (tool_dependencies.affected_projects(list(changed), include_s3=True)
+                        if package_enabled else tool_dependencies.affected_projects(list(changed)))
+    if not repairs and bounded_projects:
         # Both sides must be regular blobs. Include rename sources in `changed`
         # so an unrelated source/build path cannot disappear into this lane.
         tool_only = True
         for sha in (current_base, merge_sha):
             _, tree = recursive_tree(api, repository, sha, error_type=GateError)
+            if package_checks.S3 in bounded_projects:
+                try:
+                    package_checks.validate_tree_wiring(tree)
+                except ValueError as error:
+                    raise GateError(str(error)) from error
             if any(path in tree and (tree[path]["mode"] != "100644" or tree[path]["type"] != "blob")
                    for path in changed):
                 tool_only = False
