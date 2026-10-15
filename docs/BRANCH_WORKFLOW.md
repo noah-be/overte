@@ -249,6 +249,12 @@ through `env python3`. Runtime capture observes that same effective environment
 and verifies both Python aliases, the actual virtualenv prefix and disabled base
 and user site packages before any suite result can be reused.
 
+The hosted search-path policy includes GitHub's exact Ubuntu Composer binary
+directory. An unrecognized neighboring directory still prevents reusable
+evidence; it does not become trusted merely by sharing that prefix. The first
+schema-2 parent run passed every suite but safely produced nonreusable evidence
+because this standard image path was missing from the reviewed policy.
+
 The trusted controller disables automatic Git maintenance and garbage collection
 only within candidate subprocesses. This prevents detached Git writers
 from racing strict temporary-repository cleanup, including in older candidate
