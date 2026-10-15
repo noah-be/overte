@@ -35,9 +35,11 @@ class HostSelectionTests(unittest.TestCase):
         self.review.start()
         self.addCleanup(self.review.stop)
 
-    def selected(self, paths, *, tree=None, regular=True, unknown=False, trusted_tree=None):
+    def selected(self, paths, *, tree=None, regular=True, unknown=False, trusted_tree=None,
+                 target='main', base_tree=None):
         return HOST.select(self.tree if tree is None else tree, paths, regular,
-                           unknown=unknown, trusted_tree=self.tree if trusted_tree is None else trusted_tree)
+                           unknown=unknown, trusted_tree=self.tree if trusted_tree is None else trusted_tree,
+                           target=target, base_tree=base_tree)
 
     def test_reviewed_generation_binds_actual_reader_inventory(self):
         tree=deepcopy(self.tree)
@@ -82,7 +84,10 @@ class HostSelectionTests(unittest.TestCase):
                      'unknown/data.bin','provenance/artifact_identity.py','tools/sbom/verify-artifact-identity.py',
                      'browser-client/package-lock.json','script-archive/marketplace/S3Server/package-lock.json'):
             with self.subTest(path=path):
-                result=self.selected(['tools/branch-cleanup/cleanup.py',path])
+                tree=deepcopy(self.tree)
+                if path == 'tests/run-project-tests.py':
+                    tree[path]['sha']='b'*40  # A changed implementation is not an owned-path waiver.
+                result=self.selected(['tools/branch-cleanup/cleanup.py',path],tree=tree)
                 self.assertTrue(result['full_host'])
                 self.assertEqual(set(result['suites']),self.all_names)
 
@@ -107,12 +112,17 @@ class HostSelectionTests(unittest.TestCase):
         self.assertTrue(result['full_host'])
 
     def test_deleted_reader_and_nonregular_reader_fail_closed(self):
-        for mode in ('deleted','120000','160000'):
-            with self.subTest(mode=mode):
-                tree=deepcopy(self.tree);path='tests/device/run_control_plane_tests.py'
-                if mode=='deleted': del tree[path]
-                else: tree[path]={'mode':mode,'type':'commit' if mode=='160000' else 'blob','sha':'a'*40}
-                self.assertTrue(self.selected(['tools/branch-cleanup/cleanup.py'],tree=tree)['full_host'])
+        for mode in ('deleted','100755','120000','160000'):
+            for side in ('candidate','trusted'):
+                with self.subTest(mode=mode,side=side):
+                    tree=deepcopy(self.tree);path='tests/device/run_control_plane_tests.py'
+                    if mode=='deleted': del tree[path]
+                    else: tree[path]={'mode':mode,'type':'commit' if mode=='160000' else 'blob','sha':'a'*40}
+                    result=self.selected(['tools/branch-cleanup/cleanup.py'],
+                                         tree=tree if side=='candidate' else self.tree,
+                                         trusted_tree=tree if side=='trusted' else self.tree)
+                    self.assertTrue(result['full_host'])
+                    self.assertTrue(result['include_platform'])
 
     def test_unknown_nonregular_and_empty_inventory_cannot_get_quick_only(self):
         for kwargs in ({'regular':False},{'unknown':True}):
@@ -167,9 +177,93 @@ class HostSelectionTests(unittest.TestCase):
             with self.subTest(field=field),self.assertRaises(ValueError):
                 HOST.additional_suites(candidate,self.registry)
 
-    def cli(self, runner_result=0, expected='c'*64, cancel=False, new_command=False, select_only=False, full_host=False):
+    def test_six_child_graphs_are_target_specific_and_initial_launcher_owner_is_required(self):
+        targets=set(HOST.REVIEWED_CHILD_PROGRAMS)
+        self.assertEqual(targets,{'apple-main','apple-ios','android-main','android-phone','android-vr','android-vr-pico'})
+        self.assertEqual(len(set(HOST.REVIEWED_CHILD_PROGRAMS.values())),6)
+        # Portable graph fixtures do not require historical objects in shallow CI.
+        # The six actual immutable topic trees are separately checked locally.
+        for index,target in enumerate(sorted(targets)):
+            with self.subTest(target=target):
+                child=deepcopy(self.tree)
+                child['tests/platform-profile.json']['sha']=str(index+1)*40
+                digest=HOST.program_digest(child)
+                previous=deepcopy(child);previous[HOST.CONTROL_PLANE]['sha']='a'*40
+                with patch.dict(HOST.REVIEWED_CHILD_PROGRAMS,{target:digest}):
+                    initial=self.selected([HOST.CONTROL_PLANE,'tools/branch-cleanup/cleanup.py'],
+                                          tree=child,target=target,base_tree=previous)
+                    self.assertEqual(set(initial['suites']),self.ci_quick|{'device-control-plane-full'})
+                    self.assertTrue(initial['full_host'])
+                    self.assertFalse(initial['include_platform'])
+                    later=self.selected(['tools/branch-cleanup/cleanup.py'],tree=child,target=target,base_tree=child)
+                    self.assertEqual(set(later['suites']),self.ci_quick)
+                    self.assertFalse(later['full_host'])
+                    self.assertFalse(later['include_platform'])
+                    self.assertTrue(self.selected(['tools/branch-cleanup/cleanup.py'],tree=child,target='main')['include_platform'])
+
+    def test_immutable_launcher_difference_requires_owner_even_without_caller_path_hint(self):
+        previous=deepcopy(self.tree);previous[HOST.CONTROL_PLANE]['sha']='b'*40
+        selected=self.selected(['tools/branch-cleanup/cleanup.py'],base_tree=previous)
+        self.assertIn('device-control-plane-full',selected['suites'])
+        self.assertTrue(selected['full_host'])
+
+    def test_exact_ci_admissions_do_not_waive_neighboring_tests_or_runtime_readers(self):
+        self.assertEqual(len(HOST.CI_ROLLOUT_PATHS),32)
+        for path in ('tools/test-evidence/new-reader.py','tests/project-suite-self-test-extra.py',
+                     '.github/workflows/repository-checks-extra.yml'):
+            self.assertTrue(self.selected([path])['include_platform'],path)
+        for path in ('tests/run-project-tests.py','tools/test-evidence/execution.py',
+                     'tools/test-evidence/inputs.py','tools/test-evidence/validate-sync.py'):
+            changed=deepcopy(self.tree);changed[path]['sha']='b'*40
+            self.assertTrue(self.selected(['tools/branch-cleanup/cleanup.py'],tree=changed)['include_platform'],path)
+
+    def test_both_consumed_platform_readmes_and_optional_membership_remain_bound(self):
+        reviewed=deepcopy(self.tree)
+        docs=('android/vr/common/openxr/README.md','android/phone/device-tests/parity/fixtures/README.md')
+        for path in docs:
+            reviewed[path]={'mode':'100644','type':'blob','sha':'a'*40}
+        with patch.object(HOST,'REVIEWED_PROGRAMS',HOST.program_digest(reviewed)):
+            for path in (*docs,'tests/platform-profile.json','libraries/shared/src/PhoneLoadingDiagnostics.h',
+                         'tests/json.py','tests/json/__init__.py','json.py','json/__init__.py'):
+                for side in ('candidate','trusted'):
+                    with self.subTest(path=path,side=side):
+                        changed=deepcopy(reviewed)
+                        changed[path]={'mode':'100644','type':'blob','sha':'b'*40}
+                        result=self.selected(['tools/branch-cleanup/cleanup.py'],
+                                             tree=changed if side=='candidate' else reviewed,
+                                             trusted_tree=changed if side=='trusted' else reviewed)
+                        self.assertEqual(set(result['suites']),self.all_names)
+                        self.assertTrue(result['include_platform'])
+            for path in docs:
+                for mode in ('deleted','100755','120000','160000','rename'):
+                    changed=deepcopy(reviewed)
+                    if mode=='deleted':del changed[path]
+                    elif mode=='rename':changed[path+'.new']=changed.pop(path)
+                    else:changed[path]={'mode':mode,'type':'commit' if mode=='160000' else 'blob','sha':'a'*40}
+                    self.assertTrue(self.selected(['tools/branch-cleanup/cleanup.py'],tree=changed,
+                                                  trusted_tree=reviewed)['include_platform'],(path,mode))
+
+    def test_excluded_ci_symlink_or_gitlink_cannot_get_partial_verification(self):
+        for mode in ('120000','160000'):
+            for side in ('candidate','trusted'):
+                changed=deepcopy(self.tree)
+                changed['tools/branch-cleanup/cleanup.py']={'mode':mode,'type':'commit' if mode=='160000' else 'blob','sha':'a'*40}
+                result=self.selected(['tests/branch-cleanup-test.py'],
+                                     tree=changed if side=='candidate' else self.tree,
+                                     trusted_tree=changed if side=='trusted' else self.tree)
+                self.assertTrue(result['include_platform'])
+
+    def test_target_comes_from_server_base_or_push_ref_not_head_branch(self):
+        self.assertEqual(HOST.target_branch({'pull_request':{'base':{'ref':'apple-ios'},'head':{'ref':'main'}}}),'apple-ios')
+        self.assertEqual(HOST.target_branch({'ref':'refs/heads/android-phone'}),'android-phone')
+        self.assertIsNone(HOST.target_branch({'ref':'refs/tags/main'}))
+        self.assertTrue(self.selected(['tools/branch-cleanup/cleanup.py'],target='unknown')['include_platform'])
+
+    def cli(self, runner_result=0, expected='c'*64, cancel=False, new_command=False,
+            select_only=False, full_host=False, control_changed=False, platform=False):
         plan={'candidate':'a'*40,'plan':'c'*64,'host_mode':'full',
-              'paths':['interface/src/Application.cpp'] if full_host else ['tools/branch-cleanup/cleanup.py'],
+              'paths':(['interface/src/Application.cpp'] if full_host else
+                       [HOST.CONTROL_PLANE] if control_changed else ['tools/branch-cleanup/cleanup.py']),
               'regular':True,'unknown':False}
         proposed=deepcopy(self.registry)
         if new_command:
@@ -180,17 +274,24 @@ class HostSelectionTests(unittest.TestCase):
         def run(args,suites,cancelled):
             if new_command or full_host:
                 self.assertTrue(self.all_names <= {suite[0] for suite in suites})
+                if platform:
+                    self.assertIn('fixture-platform',{suite[0] for suite in suites})
                 if new_command:
                     self.assertEqual(sum(command[-1]=='tests/new-required-host-contract.py' for _,_,command in suites),1)
             else:
-                self.assertEqual({suite[0] for suite in suites},self.ci_quick)
+                expected_names=self.ci_quick | ({'device-control-plane-full'} if control_changed else set())
+                self.assertEqual({suite[0] for suite in suites},expected_names)
+                self.assertEqual(args.host_timeout,900)
+                if control_changed:
+                    command=next(command for name,_,command in suites if name=='device-control-plane-full')
+                    self.assertIn('--require-qml',command)
             if cancel:
                 signal.getsignal(signal.SIGTERM)(signal.SIGTERM,None)
                 self.assertEqual(cancelled,[signal.SIGTERM])
             return runner_result
         controller=SimpleNamespace(Suite=lambda *args:args,run_suites=Mock(side_effect=run))
         with tempfile.TemporaryDirectory() as folder:
-            event=Path(folder)/'event.json';event.write_text('{}')
+            event=Path(folder)/'event.json';event.write_text('{"ref":"refs/heads/main"}')
             argv=['host_selection.py','--candidate',str(ROOT),'--event',str(event),'--sha','a'*40,
                   '--expected-plan',expected,'--junit',str(Path(folder)/'result.xml')]
             output=Path(folder)/'selection.txt'
@@ -203,7 +304,8 @@ class HostSelectionTests(unittest.TestCase):
                  patch.object(HOST.execution,'_runner',return_value=controller), \
                  patch.object(HOST.execution,'checkout_identity',return_value=('a'*40,'b'*40)), \
                  patch.object(HOST.inputs,'full_tree',return_value=self.tree), \
-                 patch.object(HOST.execution,'platform_suites',return_value=[]), \
+                 patch.object(HOST.execution,'platform_suites',return_value=(
+                     [('fixture-platform',['python','tests/fixture-platform.py'])] if platform else [])), \
                  patch.object(HOST,'candidate_registry',return_value=proposed), \
                  contextlib.redirect_stdout(io.StringIO()),contextlib.redirect_stderr(io.StringIO()):
                 result=HOST.main()
@@ -218,6 +320,44 @@ class HostSelectionTests(unittest.TestCase):
         self.assertEqual(controller.selection_output,'full_host=true\ncomplete_receipt=false\n')
         self.assertFalse(controller.selection_report['complete_receipt_required'])
         controller.run_suites.assert_not_called()
+
+    def test_partial_host_owner_keeps_qt_without_claiming_full_receipt(self):
+        result,controller=self.cli(control_changed=True,select_only=True,platform=True)
+        self.assertEqual(result,0)
+        self.assertEqual(controller.selection_output,'full_host=true\ncomplete_receipt=false\n')
+        report=controller.selection_report
+        self.assertFalse(report['complete_receipt_required'])
+        self.assertFalse(report['reusable'])
+        self.assertEqual(set(report['selection']['suites']),self.ci_quick|{'device-control-plane-full'})
+        self.assertEqual(report['selection']['platform_suites'],[])
+        self.assertEqual(report['selection']['omitted_platform_suites'],['fixture-platform'])
+        controller.run_suites.assert_not_called()
+
+    def test_partial_host_owner_failure_blocks_and_unchanged_platform_is_not_executed(self):
+        result,controller=self.cli(control_changed=True,platform=True,runner_result=1)
+        self.assertEqual(result,1)
+        controller.run_suites.assert_called_once()
+
+    def test_real_runner_preserves_qml_requirement_900_seconds_and_host_failure(self):
+        runner=HOST.execution._runner()
+        command=tuple(self.registry['suites']['device-control-plane-full']['command'])
+        suite=runner.Suite('device-control-plane-full','host',command)
+        args=SimpleNamespace(timeout=240,host_timeout=900,native_build_dir=None,junit=None,fail_fast=False)
+        with patch.object(runner,'run_command',return_value=(1,'fake selected host failure','')) as execute, \
+             contextlib.redirect_stdout(io.StringIO()),contextlib.redirect_stderr(io.StringIO()):
+            status=runner.run_suites(args,[suite],[])
+        self.assertEqual(status,1)
+        actual,timeout,cancelled=execute.call_args.args
+        self.assertIn('--require-qml',actual)
+        self.assertEqual(actual[-2:],['--timeout-seconds','900'])
+        self.assertEqual(timeout,900)
+        self.assertEqual(cancelled,[])
+
+    def test_full_fallback_executes_declared_platform_instead_of_waiving_it(self):
+        result,controller=self.cli(full_host=True,platform=True)
+        self.assertEqual(result,0)
+        self.assertEqual(controller.selection_report['selection']['platform_suites'],['fixture-platform'])
+        self.assertEqual(controller.selection_report['selection']['omitted_platform_suites'],[])
 
     def test_partial_parent_plan_cannot_claim_full_or_reused_execution(self):
         result,controller=self.cli(select_only=True)
