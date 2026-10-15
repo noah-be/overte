@@ -8,6 +8,17 @@ Run commands from the repository root. The shared runner provides repository
 checks, a complete portable host profile, and an optional configured native
 layer. Physical-device acceptance has separate commands and evidence requirements.
 
+Automatic Browser client workflows run only when their own client files change:
+`browser-client/` for the Browser client and `browser-direct-client/` for the
+Direct browser client. Their package manifests and lockfiles remain relevant.
+Markdown-only edits, workflow configuration, cleanup, shared native sources and
+platform-only changes do not start Browser builds, rendering tests or journeys.
+The atomic-settings diagnostic retains only its exact Browser laboratory inputs.
+Workflow changes receive the ordinary workflow/security contract checks. Native
+and platform changes retain their applicable independent checks. Explicit manual
+diagnostics remain available. Required Browser-owner activation is not deployed
+by this change.
+
 ## Host prerequisites
 
 Pull requests changing only the regular `package.json` / `package-lock.json`

@@ -96,6 +96,65 @@ def artifact_retention_limit(workflow_name, artifact_lines):
     return 90 if source_checkpoint else 30
 
 
+class BrowserTriggerContracts(unittest.TestCase):
+    """Browser product work is selected only by changes in its own client."""
+
+    @staticmethod
+    def selects(filters, paths):
+        for path in paths:
+            selected = False
+            for pattern in filters:
+                negative = pattern.startswith('!')
+                glob = pattern[1:] if negative else pattern
+                # GitHub's **/ also matches zero directory components.
+                if fnmatch.fnmatchcase(path, glob) or fnmatch.fnmatchcase(path, glob.replace('/**/', '/')):
+                    selected = not negative
+            if selected:
+                return True
+        return False
+
+    def test_browser_workflows_ignore_unrelated_changes_and_keep_own_source_and_packages(self):
+        unrelated = [
+            '.github/workflows/browser-client.yml', '.github/workflows/browser-direct-client.yml',
+            '.github/native-tests.json', 'tools/native-tests/select.py',
+            'tools/branch-cleanup/cleanup.py', 'tests/branch-cleanup-test.py',
+            'libraries/networking/src/NodeList.cpp', 'libraries/shared/src/shared/WebRTC.h',
+            'domain-server/src/DomainServer.cpp', 'assignment-client/src/Agent.cpp',
+            'cmake/macros/TargetDataChannel.cmake', 'tests/browser-direct-transport/main.cpp',
+            'ios/tests/run-tests.sh', 'android/app/src/Main.java', 'docs/BRANCH_WORKFLOW.md',
+            'script-archive/marketplace/S3Server/package-lock.json',
+        ]
+        for filename, root, events in (
+                ('browser-client.yml', 'browser-client', ('pull_request',)),
+                ('browser-direct-client.yml', 'browser-direct-client', ('pull_request', 'push'))):
+            source = (WORKFLOW_DIRECTORY / filename).read_text()
+            for event in events:
+                filters = workflow_events(source)[event]['paths']
+                with self.subTest(workflow=filename, event=event):
+                    self.assertFalse(self.selects(filters, unrelated))
+                    for path in unrelated:
+                        self.assertFalse(self.selects(filters, [path]), path)
+                    for suffix in ('src/main.ts', 'gateway/server.mjs', 'tests/behavior.test.ts',
+                                   'public/model.glb', 'package.json', 'package-lock.json'):
+                        self.assertTrue(self.selects(filters, [f'{root}/{suffix}']), suffix)
+                    for suffix in ('README.md', 'docs/nested/guide.md', 'guide.mdx'):
+                        self.assertFalse(self.selects(filters, [f'{root}/{suffix}']), suffix)
+                    self.assertTrue(self.selects(filters, [*unrelated, f'{root}/src/main.ts']))
+                    other = 'browser-direct-client' if root == 'browser-client' else 'browser-client'
+                    self.assertFalse(self.selects(filters, [f'{other}/package-lock.json']))
+
+    def test_atomic_diagnostic_requires_a_changed_browser_laboratory_input(self):
+        events = workflow_events((WORKFLOW_DIRECTORY / 'browser-client-atomic-settings.yml').read_text())
+        self.assertNotIn('pull_request', events)
+        filters = events['push']['paths']
+        self.assertTrue(all(not value.startswith('!') and value.startswith('browser-client/') for value in filters))
+        self.assertTrue(self.selects(filters, ['browser-client/lab/atomic-provisioning/stage.py']))
+        self.assertTrue(self.selects(filters, ['browser-client/lab/manage.py']))
+        for path in ('.github/workflows/browser-client-atomic-settings.yml', 'tools/branch-cleanup/cleanup.py',
+                     'ios/Interface.mm', 'browser-client/src/world.ts', 'browser-client/README.md'):
+            self.assertFalse(self.selects(filters, [path]), path)
+
+
 class LightweightWorkflowContracts(unittest.TestCase):
     def test_documentation_changes_use_lightweight_checks(self):
         documentation = DOCUMENTATION_WORKFLOW.read_text(encoding="utf-8")

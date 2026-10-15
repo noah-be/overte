@@ -4,7 +4,8 @@ on:
   pull_request:
     paths:
       - 'browser-client/**'
-      - '.github/workflows/browser-client.yml'
+      - '!browser-client/**/*.md'
+      - '!browser-client/**/*.mdx'
   workflow_dispatch:
     inputs:
       startup_diagnostics:
