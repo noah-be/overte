@@ -14,8 +14,8 @@ require_value() {
     fi
 }
 
-require_value GITHUB_REPOSITORY noah-be/overte
+require_value GITHUB_REPOSITORY noah-l-frank/overte
 require_value GITHUB_EVENT_NAME workflow_dispatch
 require_value GITHUB_WORKFLOW 'Android Phone release candidate'
-require_value GITHUB_ACTOR noah-be
-require_value GITHUB_TRIGGERING_ACTOR noah-be
+require_value GITHUB_ACTOR noah-l-frank
+require_value GITHUB_TRIGGERING_ACTOR noah-l-frank
