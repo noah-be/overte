@@ -867,7 +867,8 @@ tests from remaining unexecuted until after their first merge.
 
 ## Selected CodeQL security results
 
-The staged `tools/repository-checks/workflows/codeql-results.yml` preserves the
+On `main`, `.github/workflows/codeql.yml` deploys the canonical
+`tools/repository-checks/workflows/codeql-results.yml` generation. It preserves the
 whole-language scans and final selected-job truth table, then independently
 checks GitHub's processed security results. GitHub's native summary may be
 neutral when an unchanged language was deliberately omitted. A successful
@@ -894,5 +895,7 @@ iOS application reader graph, while their own required CI checks still run.
 The independent trusted `sync-test-reuse` pull-request-target gate also pins
 the new exact CodeQL workflow when `codeql_results_required_branches` is
 activated for the target. A candidate cannot substitute an older workflow or
-imitate the result job name to avoid its verifier. The source-stage target list
-is empty; the caller deployment enables `main` only after the helper is protected.
+imitate the result job name to avoid its verifier. The source prerequisite kept the target list empty. The deployed caller now
+enables `main`; all other targets retain their staged compatibility until their
+reviewed workflow deployment. The separate required-context ruleset is applied
+only after this workflow has passed live qualification.
