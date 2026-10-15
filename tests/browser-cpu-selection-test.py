@@ -452,7 +452,7 @@ class BrowserCpuTests(unittest.TestCase):
     def test_actual_outer_cli_recomputes_candidate_and_receipt_without_executing_candidate_policy(self):
         self.activate_fixture()
         for name in ('project-tests.yml', 'parent-qualification.yml', 'sync-validation.yml'):
-            self.write('.github/workflows/' + name, (ROOT / '.github/workflows' / name).read_bytes())
+            self.write('.github/workflows/' + name, (ROOT / 'tools/repository-checks/workflows/packages' / name).read_bytes())
         self.base = self.commit('Install complete approved package sibling workflows')
         event, candidate = self.merge({'browser-client/src/Main.ts': b'throw new Error("never execute router input");\n'})
         spec = importlib.util.spec_from_file_location('browser_outer_test', ROOT / 'tools/repository-checks/check.py')
