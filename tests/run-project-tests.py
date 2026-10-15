@@ -33,6 +33,7 @@ SUITES = (
     Suite("repository-checks", "quick", (sys.executable, "tests/repository-checks-test.py")),
     Suite("android-ci", "quick", (sys.executable, "tests/android-ci-test.py")),
     Suite("ios-build-qualification", "quick", (sys.executable, "tests/ios-build-qualification-test.py")),
+    Suite("ios-input-selection", "quick", (sys.executable, "tests/ios-input-selection-test.py")),
     Suite("repository-policy", "quick", (sys.executable, "tests/repository-policy-test.py")),
     Suite("policy-consistency", "quick", (sys.executable, "tools/repository-policy/check.py")),
     Suite("documentation-contracts", "quick", (sys.executable, "tests/documentation-test.py")),

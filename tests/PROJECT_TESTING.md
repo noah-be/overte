@@ -279,6 +279,19 @@ It declares canonical commands and complete source/fixture/helper closures;
 unreviewed closures remain conservative. Changed Python import modules and
 ancestor Node package metadata cannot hide behind an unchanged entry point.
 
+The `ios-input-selection` quick suite exercises the dormant iOS repository-input
+selector with temporary Git histories. It covers additions, deletions, renames,
+file modes, symlinks, gitlinks, packaged resources and changed build readers.
+The suite runs in both the quick and combined host profiles. Its registry closure
+includes the test and selector implementation; shared controls also bind Python
+import-resolution inputs. Missing inputs or unmatched proof require execution.
+
+The selector is not active iOS routing or application-build evidence. Exclusions
+apply only when both complete trees match the trusted reviewed reader boundary.
+A stale boundary requires the application build, including a host-only change
+after an earlier reader edit. Repository-input equality keeps exact commit/tree
+provenance separate and never qualifies an older IPA for a new source revision.
+
 Parent qualification uses the default-branch `tools/test-evidence/run.py`
 controller against a separate clean candidate checkout. It records actual
 executed suites and fingerprints rather than accepting the candidate runner's
@@ -314,6 +327,7 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `repository-checks` | `quick` | `python3 tests/run-project-tests.py --suite repository-checks` |
 | `android-ci` | `quick` | `python3 tests/run-project-tests.py --suite android-ci` |
 | `ios-build-qualification` | `quick` | `python3 tests/run-project-tests.py --suite ios-build-qualification` |
+| `ios-input-selection` | `quick` | `python3 tests/run-project-tests.py --suite ios-input-selection` |
 | `repository-policy` | `quick` | `python3 tests/run-project-tests.py --suite repository-policy` |
 | `policy-consistency` | `quick` | `python3 tests/run-project-tests.py --suite policy-consistency` |
 | `documentation-contracts` | `quick` | `python3 tests/run-project-tests.py --suite documentation-contracts` |

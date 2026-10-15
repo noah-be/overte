@@ -99,6 +99,26 @@
         ]
       }
     },
+    "ios-input-selection": {
+      "command": [
+        "python",
+        "tests/ios-input-selection-test.py"
+      ],
+      "layer": "quick",
+      "scope": "content",
+      "environment": "host-qt5-qt6",
+      "closure": {
+        "kind": "patterns",
+        "inputs": [
+          "tests/ios-input-selection-test.py",
+          "tools/ios-build-qualification/inputs.py"
+        ],
+        "required": [
+          "tests/ios-input-selection-test.py",
+          "tools/ios-build-qualification/inputs.py"
+        ]
+      }
+    },
     "repository-policy": {
       "command": [
         "python",
