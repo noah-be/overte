@@ -42,7 +42,7 @@ python3 tools/dependency-releases/check.py audit
 ## Version replacement
 
 1. Build and test the replacement, assign a new immutable version, and publish
-   its dependency archives with checksums in `noah-be/overte` only. Temporary
+   its dependency archives with checksums in `noah-l-frank/overte` only. Temporary
    overlap with the previous version is expected during this maintenance
    operation; the strict inventory check remains red until retirement finishes.
    Do not leave the operation unfinished as a normal steady state.

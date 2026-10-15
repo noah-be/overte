@@ -17,7 +17,7 @@ import tempfile
 
 
 ROOT = Path(__file__).resolve().parents[2]
-REPOSITORY = "noah-be/overte"
+REPOSITORY = "noah-l-frank/overte"
 SHA = re.compile(r"[0-9a-f]{40}")
 KINDS = {"feature", "fix", "docs", "refactor", "test", "tests", "ci", "sync", "task", "promote", "reconcile"}
 
@@ -64,7 +64,7 @@ def read_document(path: Path | None) -> dict | None:
         raise ValueError("non-finite snapshot number")
     document = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=pairs, parse_constant=reject_constant)
     if not isinstance(document, dict) or document.get("repository") != REPOSITORY:
-        raise ValueError("provided snapshot must identify noah-be/overte")
+        raise ValueError("provided snapshot must identify noah-l-frank/overte")
     return document
 
 

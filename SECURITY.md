@@ -11,13 +11,13 @@ platform documentation.
 
 GitHub Private Vulnerability Reporting is enabled for this fork. Report a
 concern that requires private handling through GitHub's
-[private **Report a vulnerability** form](https://github.com/noah-be/overte/security/advisories/new).
+[private **Report a vulnerability** form](https://github.com/noah-l-frank/overte/security/advisories/new).
 Do not put credentials, private logs, device identifiers, account data, or
 exploit material in a public issue, discussion, or pull request. The issue
-tracker remains disabled.
+tracker follows the [structured issue workflow](docs/ISSUE_WORKFLOW.md).
 
 For a concern that is safe to discuss publicly, open a
-[draft pull request](https://github.com/noah-be/overte/compare) with a minimal
+[draft pull request](https://github.com/noah-l-frank/overte/compare) with a minimal
 patch or reproduction and no credentials, private logs, device identifiers,
 account data, or exploit material. Use the private form above for technical
 details that should not be public.
