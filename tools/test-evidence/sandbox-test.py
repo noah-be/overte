@@ -226,6 +226,25 @@ class ImmutableGitTests(Fixture):
         (self.repository / ".git/config").write_text("invalid Git configuration that must never be parsed\n")
         self.assertEqual(S.pristine_git_identity(self.repository, self.revision), original)
 
+    def test_public_git_commit_identity_uses_protected_stdin_without_object_writes(self):
+        actual = S._git
+        with patch.object(S, "_git", wraps=actual) as reader:
+            observed = S.pristine_git_identity(self.repository, self.revision)
+        hashing = [call for call in reader.call_args_list if "hash-object" in call.args]
+        self.assertEqual(len(hashing), 1)
+        self.assertEqual(hashing[0].args, (self.repository, "hash-object", "-t", "commit", "--stdin"))
+        self.assertEqual(hashing[0].kwargs["input_bytes"], actual(self.repository, "cat-file", "commit", self.revision))
+        self.assertEqual(observed["commit"], self.revision)
+
+    def test_malformed_or_different_public_object_identity_is_rejected(self):
+        actual = S._git
+        for value in (b"private-invalid-output", b"0" * 40, b"a" * 40):
+            with self.subTest(value=value):
+                def query(candidate, *args, **kwargs):
+                    return value if args[0] == "hash-object" else actual(candidate, *args, **kwargs)
+                with patch.object(S, "_git", side_effect=query), self.assertRaises(S.SandboxUnavailable):
+                    S.pristine_git_identity(self.repository, self.revision)
+
     def test_external_partial_or_grafted_git_objects_are_unsupported(self):
         for name in ("objects/info/alternates", "objects/info/http-alternates", "info/grafts", "shallow", "objects/pack/pack-x.promisor"):
             with self.subTest(name=name):

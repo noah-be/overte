@@ -131,7 +131,7 @@ def contract(root=ROOT):
     return {**value, "digest": "sha256:" + hashlib.sha256(_canonical(value)).hexdigest()}
 
 
-def _git(candidate, *arguments):
+def _git(candidate, *arguments, input_bytes=None):
     # Do not inherit candidate/user Git configuration, helpers, replacement
     # objects, lazy fetch or pager behavior into an outside-sandbox process.
     environment = {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8",
@@ -141,6 +141,8 @@ def _git(candidate, *arguments):
     command = ["/usr/bin/git", "--no-replace-objects", "-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null",
                "-c", "protocol.allow=never", "-c", "core.pager=cat", "-c", "maintenance.auto=false",
                "-c", "gc.auto=0", *arguments]
+    _require(input_bytes is None or (type(input_bytes) is bytes and len(input_bytes) <= 1_000_000),
+             "protected Git input exceeds its source metadata bound")
     try:
         # Never ask outside-sandbox Git to parse candidate .git/config at all.
         # A private bare metadata projection exposes only the checked immutable
@@ -152,7 +154,8 @@ def _git(candidate, *arguments):
             (control / "HEAD").write_text("ref: refs/heads/main\n", encoding="ascii")
             (control / "config").write_text("[core]\nrepositoryformatversion = 0\nbare = true\n", encoding="ascii")
             return subprocess.run([*command[:1], "--git-dir", str(control), *command[1:]], cwd=control,
-                                  env=environment, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                  env=environment, input=input_bytes, stdin=subprocess.DEVNULL if input_bytes is None else None,
+                                  stdout=subprocess.PIPE,
                                   stderr=subprocess.DEVNULL, timeout=10, check=True).stdout
     except (OSError, subprocess.SubprocessError) as error:
         raise SandboxUnavailable("protected immutable Git read failed") from error
@@ -184,7 +187,10 @@ def pristine_git_identity(candidate, revision):
              "candidate commit object exceeds its bounded source metadata size")
     commit = _git(candidate, "cat-file", "commit", revision)
     _require(len(commit) == int(size), "candidate commit object changed during inspection")
-    _require(hashlib.sha1(b"commit " + str(len(commit)).encode() + b"\0" + commit).hexdigest() == revision,
+    # This is Git's public object identity, not a security hash. Ask the fixed
+    # protected Git binary to check it without writing any object or metadata.
+    observed = _git(candidate, "hash-object", "-t", "commit", "--stdin", input_bytes=commit).strip()
+    _require(re.fullmatch(rb"[0-9a-f]{40}", observed) and observed.decode("ascii") == revision,
              "candidate commit object hash differs")
     try:
         header = commit.split(b"\n\n", 1)[0].splitlines()
