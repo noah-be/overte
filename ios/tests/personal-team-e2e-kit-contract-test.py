@@ -24,8 +24,8 @@ WORKFLOW = ROOT / ".github/workflows/ios-personal-team-e2e-kit.yml"
 BOOTSTRAP = ROOT / ".github/workflows/ios-bootstrap.yml"
 DOCUMENTATION = ROOT / "docs/ios/PERSONAL_TEAM_E2E.md"
 PROVENANCE_ARGUMENTS = (
-    "overte-org/overte",
-    123456,
+    "noah-l-frank/overte",
+    1319052603,
     "refs/heads/apple-ios",
     ".github/workflows/ios-bootstrap.yml",
     ".github/workflows/ios-personal-team-e2e-kit.yml",
@@ -302,8 +302,8 @@ def assert_tools_contract() -> None:
             "maximumProfileLifetimeDays": 7,
         }
         assert payload["provenance"] == {
-            "repository": "overte-org/overte",
-            "repositoryId": 123456,
+            "repository": "noah-l-frank/overte",
+            "repositoryId": 1319052603,
             "workflow": ".github/workflows/ios-bootstrap.yml",
             "reusableWorkflow": ".github/workflows/ios-personal-team-e2e-kit.yml",
             "ref": "refs/heads/apple-ios",

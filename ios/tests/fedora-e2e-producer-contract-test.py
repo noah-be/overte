@@ -229,8 +229,8 @@ def main() -> None:
         raise AssertionError("profile accepted a different code-signing certificate")
     provenance = {
         "created_at": "2029-01-01T00:00:00Z",
-        "source_repository": "overte-org/overte",
-        "source_repository_id": 123456,
+        "source_repository": "noah-l-frank/overte",
+        "source_repository_id": 1319052603,
         "source_ref": "refs/heads/apple-ios",
         "workflow": ".github/workflows/ios-bootstrap.yml",
         "reusable_workflow": ".github/workflows/ios-fedora-e2e-producer.yml",
@@ -253,8 +253,8 @@ def main() -> None:
         "createdAt": "2029-01-01T00:00:00Z",
         "notAfter": "2029-01-02T00:00:00Z",
         "provenance": {
-            "repository": "overte-org/overte",
-            "repositoryId": 123456,
+            "repository": "noah-l-frank/overte",
+            "repositoryId": 1319052603,
             "workflow": ".github/workflows/ios-bootstrap.yml",
             "reusableWorkflow": ".github/workflows/ios-fedora-e2e-producer.yml",
             "ref": "refs/heads/apple-ios",
@@ -271,6 +271,26 @@ def main() -> None:
         },
         "testBuildContractVersion": 1,
     }
+    for repository, repository_id in (
+        ("noah-be/overte", 1319052603), ("overte-org/overte", 1319052603),
+        ("foreign/overte", 1319052603), ("noah-l-frank/overte", 42),
+        ("noah-l-frank/overte", True),
+    ):
+        invalid = {**provenance, "source_repository": repository,
+                   "source_repository_id": repository_id}
+        try:
+            tool.build_manifest(
+                kind="overte-app", source_revision="a" * 40,
+                artifact_name="0001-OverteIOSClient-Release-device-signed.ipa",
+                artifact_sha256="b" * 64, artifact_size=123,
+                bundle_id="org.overte.interface.e2e", team_id="ABCDE12345",
+                application_identifier=application_id, profile_expiration=expiration,
+                **invalid,
+            )
+        except ValueError as error:
+            assert "source repository" in str(error)
+        else:
+            raise AssertionError("protected producer accepted an unauthorized repository tuple")
     xctest_metadata = {
         "bundle": {"id": "org.overte.WebDriverAgentRunner"},
         "signing": {

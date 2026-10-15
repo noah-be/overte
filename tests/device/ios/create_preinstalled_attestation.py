@@ -71,7 +71,8 @@ def validate_overte_reuse(value: object, source_revision: str) -> None:
             "runAttempt", "runNumber", "artifactId", "artifactName",
             "artifactSize", "artifactCreatedAt", "actionsArchiveSha256",
         }
-        or provenance.get("repository") != "noah-be/overte"
+        or provenance.get("repository") != "noah-l-frank/overte"
+        or provenance.get("repositoryId") != 1319052603
         or provenance.get("workflow") != ".github/workflows/ios-bootstrap.yml"
         or provenance.get("ref") != "refs/heads/apple-ios"
         or provenance.get("runAttempt") != 1
@@ -159,7 +160,8 @@ def validate_kit(path: Path, *, private: bool = True) -> dict:
             or not isinstance(provenance, dict) or set(provenance) != {
                 "repository", "repositoryId", "workflow", "reusableWorkflow", "ref",
                 "runId", "runAttempt"}
-            or provenance.get("repository") != "noah-be/overte"
+            or provenance.get("repository") != "noah-l-frank/overte"
+            or provenance.get("repositoryId") != 1319052603
             or provenance.get("workflow") != ".github/workflows/ios-bootstrap.yml"
             or provenance.get("reusableWorkflow")
             != ".github/workflows/ios-personal-team-e2e-kit.yml"

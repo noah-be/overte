@@ -27,7 +27,7 @@ permissions:
 
 jobs:
   gate-contracts:
-    if: github.repository == 'noah-be/overte'
+    if: github.repository == 'noah-l-frank/overte'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -39,13 +39,13 @@ jobs:
           python3 -m unittest discover -s ios/release-check -p 'test_*.py'
           node ios/release-check/test_tablet_users.cjs
   provision-qt:
-    if: github.repository == 'noah-be/overte' && inputs.qt_host_cache_key == ''
+    if: github.repository == 'noah-l-frank/overte' && inputs.qt_host_cache_key == ''
     needs: gate-contracts
     uses: ./.github/workflows/ios-qt-source.yml
     with:
       preserve_reusable_data: true
   production-after-qt:
-    if: github.repository == 'noah-be/overte' && inputs.qt_host_cache_key == ''
+    if: github.repository == 'noah-l-frank/overte' && inputs.qt_host_cache_key == ''
     needs: provision-qt
     uses: ./.github/workflows/ios-integrated.yml
     with:
@@ -58,7 +58,7 @@ jobs:
       qt_host_artifact_prefix: ${{ needs.provision-qt.outputs.qt_host_artifact_prefix }}
       qt_ios_artifact_prefix: ${{ needs.provision-qt.outputs.qt_ios_artifact_prefix }}
   production-from-checkpoints:
-    if: github.repository == 'noah-be/overte' && inputs.qt_host_cache_key != ''
+    if: github.repository == 'noah-l-frank/overte' && inputs.qt_host_cache_key != ''
     needs: gate-contracts
     uses: ./.github/workflows/ios-integrated.yml
     with:

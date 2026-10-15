@@ -1908,7 +1908,7 @@ def test_ci_contract() -> None:
             job == "integrated-ios-after-qt" and "needs: provision-qt-ios" in job_bodies[job]
         ), f"{job} must wait directly or transitively for device-free host contracts"
     assert "inputs.prerelease_build" in job_bodies["prerelease-build"]
-    assert "github.repository == 'noah-be/overte'" in job_bodies["prerelease-build"]
+    assert "github.repository == 'noah-l-frank/overte'" in job_bodies["prerelease-build"]
     release_workflow = (SOURCE_ROOT / ".github/workflows/ios-release-build.yml").read_text(encoding="utf-8")
     assert "macos_runner: macos-26" in release_workflow
     assert "e2e_test_build: true" not in release_workflow

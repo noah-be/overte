@@ -1240,7 +1240,8 @@ def validate_install_receipt(path: Path) -> dict:
                 or provenance.get("reusableWorkflow")
                 != ".github/workflows/ios-fedora-e2e-producer.yml"
                 or provenance.get("ref") != "refs/heads/apple-ios"
-                or provenance.get("repository") != "noah-be/overte"
+                or provenance.get("repository") != "noah-l-frank/overte"
+                or provenance.get("repositoryId") != 1319052603
                 or any(isinstance(provenance.get(key), bool)
                        or not isinstance(provenance.get(key), int)
                        or provenance[key] <= 0

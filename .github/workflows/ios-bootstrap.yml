@@ -137,7 +137,7 @@ concurrency:
 
 jobs:
   prerelease-build:
-    if: github.repository == 'noah-be/overte' && github.event_name == 'workflow_dispatch' && inputs.prerelease_build
+    if: github.repository == 'noah-l-frank/overte' && github.event_name == 'workflow_dispatch' && inputs.prerelease_build
     needs: host-contracts
     permissions:
       actions: write

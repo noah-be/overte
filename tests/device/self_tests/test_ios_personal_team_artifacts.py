@@ -74,7 +74,7 @@ class IosPersonalTeamArtifactsTest(unittest.TestCase):
             "sourceRevision": "a" * 40,
             "createdAt": self.now.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "provenance": {
-                "repository": "noah-be/overte", "repositoryId": 42,
+                "repository": "noah-l-frank/overte", "repositoryId": 1319052603,
                 "workflow": ".github/workflows/ios-bootstrap.yml",
                 "reusableWorkflow": ".github/workflows/ios-personal-team-e2e-kit.yml",
                 "ref": "refs/heads/apple-ios", "runId": 123, "runAttempt": 1,
@@ -127,6 +127,31 @@ class IosPersonalTeamArtifactsTest(unittest.TestCase):
             overte_ipa=self.overte.resolve(), wda_ipa=self.wda.resolve(),
             receipt=self.receipt.resolve(), rcodesign=(self.root / "rcodesign").resolve(),
         )
+
+    def test_operative_repository_tuple_is_required_by_both_kit_consumers(self):
+        original = json.loads(self.kit.read_text())
+        CREATOR.validate_kit(self.kit)
+        VERIFY.validate_contracts(self.arguments())
+        for repository, repository_id in (
+                ("noah-be/overte", 1319052603),
+                ("overte-org/overte", 1319052603),
+                ("foreign/overte", 1319052603),
+                ("noah-l-frank/overte", 42),
+                ("noah-l-frank/overte", True)):
+            with self.subTest(repository=repository, repository_id=repository_id):
+                value = json.loads(json.dumps(original))
+                value["provenance"].update(repository=repository, repositoryId=repository_id)
+                self.kit.write_text(json.dumps(value))
+                # Rebind the human attestation to the changed bytes: identity must
+                # still fail even when that separate hash boundary is satisfied.
+                attestation = json.loads(self.attestation.read_text())
+                attestation["unsignedKitManifestSha256"] = hashlib.sha256(
+                    self.kit.read_bytes()).hexdigest()
+                self.attestation.write_text(json.dumps(attestation))
+                with self.assertRaisesRegex(ValueError, "provenance"):
+                    CREATOR.validate_kit(self.kit)
+                with self.assertRaisesRegex(VERIFY.VERIFY.VerificationError, "provenance"):
+                    VERIFY.validate_contracts(self.arguments())
 
     def test_contract_and_human_boundary_are_strict(self):
         _kit, _attestation, deadline = VERIFY.validate_contracts(self.arguments())

@@ -132,8 +132,8 @@ class IosPersonalTeamWdaSigningTest(unittest.TestCase):
             "sourceRevision": "a" * 40,
             "createdAt": "2026-08-27T00:00:00Z",
             "provenance": {
-                "repository": "noah-be/overte",
-                "repositoryId": 123,
+                "repository": "noah-l-frank/overte",
+                "repositoryId": 1319052603,
                 "workflow": ".github/workflows/ios-bootstrap.yml",
                 "reusableWorkflow": ".github/workflows/ios-personal-team-e2e-kit.yml",
                 "ref": "refs/heads/apple-ios",
@@ -633,6 +633,22 @@ raise SystemExit(3)
         with mock.patch.object(SIGN, "LOCK_FILE", lock), self.assertRaisesRegex(
                 SIGN.SigningError, "pinned SHA-256"):
             SIGN.require_pinned_tool(self.resigner, "resigner")
+
+    def test_kit_manifest_requires_current_overte_repository_tuple(self):
+        original = json.loads(self.manifest.read_text())
+        SIGN.validate_kit_manifest(self.manifest, self.input)
+        for repository, repository_id in (
+                ("noah-be/overte", 1319052603),
+                ("overte-org/overte", 1319052603),
+                ("foreign/overte", 1319052603),
+                ("noah-l-frank/overte", 123),
+                ("noah-l-frank/overte", True)):
+            with self.subTest(repository=repository, repository_id=repository_id):
+                value = json.loads(json.dumps(original))
+                value["provenance"].update(repository=repository, repositoryId=repository_id)
+                self.manifest.write_text(json.dumps(value))
+                with self.assertRaisesRegex(SIGN.SigningError, "provenance"):
+                    SIGN.validate_kit_manifest(self.manifest, self.input)
 
     def test_kit_manifest_sha_binding_is_mandatory(self):
         SIGN.validate_kit_manifest(self.manifest, self.input)
