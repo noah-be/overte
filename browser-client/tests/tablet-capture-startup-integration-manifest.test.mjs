@@ -1,16 +1,22 @@
 // Copyright 2026 Overte contributors
 // SPDX-License-Identifier: Apache-2.0
-// Current physical source admission is independent of both historical CPU cohorts.
+// Retained V33 CPU assertions; current physical admission is checked by V34.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFile, writeFile, mkdtemp, mkdir, rm, lstat, realpath, unlink, symlink} from 'node:fs/promises';
+import {readFile as readPhysicalFile, writeFile, mkdtemp, mkdir, rm, lstat, realpath, unlink, symlink} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {tmpdir} from 'node:os';
 import {createHash} from 'node:crypto';
 import {normalizeStartupIntegrationInput, readStartupIntegrationParentSource, decodeStartupIntegrationHistory} from './integration/capture-startup-integration-source-fixture.mjs';
 
+import {recoverCaptureV33Input, readForkRenameHistoricalSource} from './integration/capture-fork-rename-source-fixture.mjs';
 const root = fileURLToPath(new URL('../../', import.meta.url));
+const readFile = async (input, options) => {
+    const file = input instanceof URL ? fileURLToPath(input) : path.resolve(input);
+    const bytes = recoverCaptureV33Input(path.relative(root, file), await readPhysicalFile(input));
+    return typeof options === 'string' ? bytes.toString(options) : bytes;
+};
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 const bytes = await readFile(new URL('./fixtures/capture-startup-integration-v33-complete-source-manifest.json', import.meta.url));
 const manifest = JSON.parse(bytes), derivation = manifest.startupIntegrationDerivation;
@@ -18,7 +24,7 @@ const previousBytes = await readFile(new URL('./fixtures/capture-movement-input-
 const previous = JSON.parse(previousBytes);
 const startupBytes = await readFile(new URL('./fixtures/capture-startup-runtime-v31-complete-source-manifest.json', import.meta.url));
 const startup = JSON.parse(startupBytes);
-const preparer = await readFile(new URL('./integration/prepare-tablet-capture-acceptance.mjs', import.meta.url), 'utf8');
+const preparer = readForkRenameHistoricalSource('browser-client/tests/integration/prepare-tablet-capture-acceptance.mjs');
 const start = preparer.indexOf('const manifestBytes=await readFile(proposal);');
 const end = preparer.indexOf('const directory=await mkdtemp(', start);
 assert(start >= 0 && end > start);

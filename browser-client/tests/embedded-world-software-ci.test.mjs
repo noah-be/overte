@@ -1,9 +1,10 @@
 // Copyright 2026 Overte contributors
 // SPDX-License-Identifier: Apache-2.0
-// Current software-fixture policy; genuine extracted launch path, no browser.
+// Retained software-fixture CPU assertions; V35 independently checks the physical current workflow.
 import test from 'node:test';import assert from 'node:assert/strict';import vm from 'node:vm';import {readFile} from 'node:fs/promises';import {createHash}from'node:crypto';
 import {readCaptureV26Source}from'./integration/capture-software-managed-source-fixture.mjs';
-const workflow=await readFile(new URL('../../.github/workflows/browser-client.yml',import.meta.url),'utf8'),before=await readCaptureV26Source('.github/workflows/browser-client.yml'),runner=await readFile(new URL('./integration/embedded-world.mjs',import.meta.url),'utf8');
+import {normalizeWorkflowInput} from './integration/capture-workflow-source-fixture.mjs';
+const workflow=normalizeWorkflowInput('.github/workflows/browser-client.yml',await readFile(new URL('../../.github/workflows/browser-client.yml',import.meta.url))).toString('utf8'),before=await readCaptureV26Source('.github/workflows/browser-client.yml'),runner=await readFile(new URL('./integration/embedded-world.mjs',import.meta.url),'utf8');
 const sha=s=>createHash('sha256').update(s).digest('hex'),plain=x=>JSON.parse(JSON.stringify(x));
 const changes=[['embedded_swangle_diagnostic:','embedded_default_angle_control:'],["description: 'Request the single SwiftShader ANGLE launch flag during the unchanged embedded GPU proof'","description: 'Run the unchanged embedded GPU proof with the original default ANGLE selection instead of the software-fixture driver request'"],["OVERTE_EMBEDDED_USE_SWANGLE: ${{ github.event_name == 'workflow_dispatch' && inputs.embedded_swangle_diagnostic && '1' || '' }}","OVERTE_EMBEDDED_USE_SWANGLE: ${{ github.event_name == 'workflow_dispatch' && inputs.embedded_default_angle_control && '0' || '1' }}"]];
 function expression(w){const m=w.match(/OVERTE_EMBEDDED_USE_SWANGLE: \$\{\{ ([^\n]+) \}\}/g);assert.equal(m.length,1);return m[0].split('${{ ')[1].slice(0,-3);}
