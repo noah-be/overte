@@ -64,7 +64,7 @@ jobs:
             RUNNER_ENVIRONMENT="$RUNNER_ENVIRONMENT" ImageOS="$ImageOS" ImageVersion="$ImageVersion" \
             QUALIFY_GITHUB_ENV="$GITHUB_ENV" QUALIFY_GITHUB_OUTPUT="$GITHUB_OUTPUT" \
             /usr/bin/python3 -I "$GITHUB_WORKSPACE/tools/test-evidence/sandbox_host.py" \
-            > "$RUNNER_TEMP/shared-sandbox-diagnostic/result.json"
+            | tee -- "$RUNNER_TEMP/shared-sandbox-diagnostic/result.json" > /dev/null
       - name: Remove only the disposable account created by this job
         if: always() && steps.account.outputs.created == 'true'
         run: sudo -n /usr/sbin/userdel overte-ci-qualification
