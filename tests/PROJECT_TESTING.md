@@ -892,6 +892,11 @@ Both aggregate checkout steps and the API verifier execute in a clean job that
 never runs candidate code. The exact new CI files remain outside the reviewed
 iOS application reader graph, while their own required CI checks still run.
 
+The exact original CodeQL workflow on a protected child is admitted only as the
+base of a reviewed deployment, never as a legacy candidate. Verifier-only and
+regression-test Python changes select Python; shared extractor controls, the
+selector implementation and unknown inputs retain their cross-language checks.
+
 The independent trusted `sync-test-reuse` pull-request-target gate also pins
 the new exact CodeQL workflow when `codeql_results_required_branches` is
 activated for the target. A candidate cannot substitute an older workflow or

@@ -246,9 +246,13 @@ class Verifier:
         except (OSError, subprocess.SubprocessError, codeql.inputs.InputError):
             raise ResultError('complete immutable candidate and base unavailable') from None
         workflows = {codeql._SELECTIVE_WORKFLOW, getattr(codeql, '_RESULTS_WORKFLOW', codeql._SELECTIVE_WORKFLOW)}
-        for tree in trees:
+        for side, tree in enumerate(trees):
             for path, old in codeql._REVIEWED_CONTROLS.items():
-                allowed = workflows if path == WORKFLOW else {old}
+                allowed = set(workflows) if path == WORKFLOW else {old}
+                if side == 0 and path == WORKFLOW:
+                    # The six protected child bases still use this exact
+                    # original workflow. It cannot authorize a legacy candidate.
+                    allowed.add(old)
                 require(tree.get(path) in [{'mode': '100644', 'type': 'blob', 'sha': value} for value in allowed],
                         'analysis workflow or configuration is not approved')
         plan = codeql.select_repository(self.root, self.base, self.source, event=self.event_name)

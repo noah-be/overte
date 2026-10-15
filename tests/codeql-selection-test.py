@@ -8,6 +8,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -109,9 +110,14 @@ class LanguageSelectionTests(unittest.TestCase):
                      "custom/qlpack.yml", "packs/codeql-pack.lock.yml", "custom/codeql-config.yml",
                      "custom/codeql-python/model.py", "custom/qlpacks/model.yaml", "AGENTS.md", ".gitignore",
                      ".gitattributes", ".gitmodules", ".codeqlignore", ".tool-versions",
-                     "tools/repository-checks/codeql.py", "tools/test-evidence/inputs.py", "tests/codeql-selection-test.py"):
+                     "tools/repository-checks/codeql.py", "tools/test-evidence/inputs.py"):
             with self.subTest(path=path):
                 self.assertTrue(self.change(path, replacement=entry("b"))["full_scan"])
+
+    def test_verifier_and_regression_python_changes_do_not_change_javascript_extraction(self):
+        for path in ('tools/repository-checks/codeql_results.py', 'tests/codeql-selection-test.py'):
+            with self.subTest(path=path):
+                self.assertEqual(self.change(path, replacement=entry('b'))['languages'], ['python'])
 
     def test_unrelated_workflow_data_and_local_actions_keep_their_own_language(self):
         self.assertEqual(self.change('.github/workflows/new.yml', replacement=entry('b'))['languages'],
@@ -417,6 +423,38 @@ class SelectedResultTests(unittest.TestCase):
         with self.assertRaisesRegex(RESULTS.ResultError, 'ordered merge parents'):
             self.verify()
         self.assertEqual(seen[0], 2)
+
+    def test_original_child_workflow_is_base_only_and_unknown_workflows_still_reject(self):
+        workflow = RESULTS.WORKFLOW
+        original = 'name: Original child workflow fixture\non: push\njobs: {}\n'
+        self.git('checkout', '-q', '--detach', self.base)
+        self.write(workflow, original)
+        base = self.commit()
+        original_blob = self.git('rev-parse', base + ':' + workflow)
+        self.write(workflow, (ROOT / workflow).read_text())
+        head = self.commit()
+
+        def select_at_merge(head):
+            candidate = self.git('commit-tree', self.git('rev-parse', head + '^{tree}'),
+                                 '-p', base, '-p', head, '-m', 'Child workflow transition fixture')
+            self.git('checkout', '-q', '--detach', candidate)
+            self.pr['base']['sha'], self.pr['head']['sha'] = base, head
+            self.event['pull_request'] = deepcopy(self.pr)
+            env = dict(self.env, GITHUB_SHA=candidate, GITHUB_WORKFLOW_SHA=candidate,
+                       CODEQL_EXPECTED_LANGUAGES='["javascript-typescript","python"]')
+            return RESULTS.Verifier(self.root, self.event, env, api=self.api).plan()
+
+        # A synthetic approved baseline avoids relying on historical objects in
+        # hosted shallow checkouts; the real six base blobs are checked offline.
+        with patch.dict(RESULTS.codeql._REVIEWED_CONTROLS, {workflow: original_blob}):
+            self.assertEqual(select_at_merge(head), ['javascript-typescript', 'python'])
+        with self.assertRaisesRegex(RESULTS.ResultError, 'not approved'):
+            select_at_merge(head)
+        self.write(workflow, original)
+        legacy_head = self.commit()
+        with patch.dict(RESULTS.codeql._REVIEWED_CONTROLS, {workflow: original_blob}):
+            with self.assertRaisesRegex(RESULTS.ResultError, 'not approved'):
+                select_at_merge(legacy_head)
 
     def test_candidate_json_cannot_choose_languages_or_import_policy(self):
         self.event['languages'] = []
