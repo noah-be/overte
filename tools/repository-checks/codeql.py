@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Plan language-level CodeQL scans from two complete immutable Git trees.
 
-This helper is deliberately inactive: no workflow consumes its output yet. Run
-the reviewed helper from a trusted checkout, never a copy from the candidate.
+The CodeQL workflow runs this helper from a trusted default-branch checkout,
+never a copy from the candidate.
 It selects whole-language analyses; it does not restrict files within a scan.
 
 The reviewed no-build configuration has no custom query/model packs or generated
@@ -36,6 +36,9 @@ _REVIEWED_CONTROLS = {
     ".github/codeql/codeql-config.yml": "143b03ba44b4abb36488c598882a6a05c69d3fbf",
     ".github/workflows/codeql.yml": "4b5364715eb1bbf0fb3611f1e5eee44852f5a5d4",
 }
+# The activation PR remains compatible with the existing trusted CLI. Its first
+# scan uses both languages; subsequent scans admit this exact reviewed workflow.
+_SELECTIVE_WORKFLOW = "bdfd6e98d59ab787babcc94ba45c129f8cd899bd"
 _GLOBAL_PATHS = {
     "AGENTS.md", ".gitattributes", ".gitignore", ".gitmodules", ".codeqlignore", ".tool-versions",
     "tools/repository-checks/codeql.py", "tools/test-evidence/inputs.py", "tests/codeql-selection-test.py",
@@ -59,7 +62,7 @@ _OBJECT = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})")
 def _global_input(path: str, pack_roots=()) -> bool:
     relative = PurePosixPath(path)
     name = relative.name.lower()
-    return (path in _GLOBAL_PATHS or path.startswith(".github/")
+    return (path in _GLOBAL_PATHS or path in _REVIEWED_CONTROLS
             or any(relative.is_relative_to(root) for root in pack_roots)
             or any("codeql" in part.lower() or part.lower() in {"qlpack", "qlpacks"}
                    for part in relative.parts[:-1])
@@ -127,8 +130,9 @@ def select_languages(base_tree: dict | None, candidate_tree: dict | None, *, eve
                for path in sorted(base_tree.keys() | candidate_tree.keys())
                if base_tree.get(path) != candidate_tree.get(path)]
     for path, sha in _REVIEWED_CONTROLS.items():
-        expected = {"mode": "100644", "type": "blob", "sha": sha}
-        if base_tree.get(path) != expected or candidate_tree.get(path) != expected:
+        hashes = {sha, _SELECTIVE_WORKFLOW} if path == '.github/workflows/codeql.yml' else {sha}
+        expected = [{"mode": "100644", "type": "blob", "sha": digest} for digest in hashes]
+        if base_tree.get(path) not in expected or candidate_tree.get(path) not in expected:
             return _result(LANGUAGES, [{"code": "unreviewed-analysis-configuration", "path": path}], changes)
     if not changes:
         return _result((), [{"code": "identical-immutable-inputs"}], [])

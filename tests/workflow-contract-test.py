@@ -10,6 +10,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import textwrap
 import unittest
 from unittest import mock
 
@@ -261,7 +262,8 @@ class CodeQLWorkflowContracts(unittest.TestCase):
         self.assertIn("runs-on: ubuntu-24.04", self.source)
         self.assertNotIn("self-hosted", self.source)
         self.assertIn("timeout-minutes: 30", self.source)
-        self.assertIn("language: [javascript-typescript, python]", self.source)
+        self.assertIn("language: ${{ fromJSON(needs.select.outputs.languages) }}", self.source)
+        self.assertIn("if: needs.select.outputs.scan == 'true'", self.source)
         self.assertIn("build-mode: none", self.source)
 
     def test_permissions_are_least_privilege(self):
@@ -275,7 +277,7 @@ class CodeQLWorkflowContracts(unittest.TestCase):
 
     def test_actions_are_fresh_full_sha_pins(self):
         actions = ACTION_USE.findall(self.source)
-        self.assertEqual(len(actions), 3)
+        self.assertEqual(len(actions), 5)
         self.assertEqual([action for action in actions if not FULL_SHA_ACTION.fullmatch(action)], [])
         codeql = [action for action in actions if action.startswith("github/codeql-action/")]
         self.assertEqual(
@@ -289,6 +291,34 @@ class CodeQLWorkflowContracts(unittest.TestCase):
     def test_checkout_is_credential_free_and_default_setup_is_not_mixed_in(self):
         self.assertIn("persist-credentials: false", self.source)
         self.assertNotIn("autobuild", self.source)
+
+    def test_selector_reads_trusted_policy_and_exact_immutable_candidate(self):
+        selector = self.source.split('  select:', 1)[1].split('  analyze:', 1)[0]
+        self.assertIn('ref: ${{ github.event.repository.default_branch }}', selector)
+        self.assertIn('path: trusted', selector)
+        self.assertIn('path: candidate', selector)
+        self.assertIn('fetch-depth: 2', selector)
+        self.assertEqual(selector.count('persist-credentials: false'), 2)
+        self.assertIn('CANDIDATE_SHA: ${{ github.sha }}', selector)
+        self.assertIn('BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}', selector)
+        self.assertIn('python3 trusted/tools/repository-checks/codeql.py', selector)
+        self.assertIn('--root candidate --base-sha "$BASE_SHA" --candidate-sha "$CANDIDATE_SHA"', selector)
+        self.assertIn('--event "$EVENT_NAME" > codeql-plan.json', selector)
+        self.assertIn('cron: "17 3 * * 4"', self.source)
+
+    def test_selected_analyses_fail_closed_in_final_aggregate(self):
+        aggregate = self.source.split('  codeql-checks:', 1)[1]
+        self.assertIn('if: always()', aggregate)
+        self.assertIn('needs: [select, analyze]', aggregate)
+        script = textwrap.dedent(aggregate.split('        run: |\n', 1)[1])
+        for selected in ('success', 'failure', 'cancelled', 'skipped'):
+            for scan in ('true', 'false', ''):
+                for analysis in ('success', 'failure', 'cancelled', 'skipped'):
+                    env = dict(os.environ, SELECT_RESULT=selected, SCAN=scan, ANALYZE_RESULT=analysis)
+                    result = subprocess.run(['bash', '-c', script], env=env, capture_output=True)
+                    expected = selected == 'success' and (scan, analysis) in {
+                        ('true', 'success'), ('false', 'skipped')}
+                    self.assertEqual(result.returncode == 0, expected, (selected, scan, analysis))
 
 
 class BranchGovernanceWorkflowContracts(unittest.TestCase):
@@ -643,6 +673,42 @@ class ArchivedRefRetirementContracts(unittest.TestCase):
         self.assertEqual([len(batch) for batch in batches], [4, 4, 4, 1])
         self.assertEqual([source for batch in batches for source in batch], sources)
 
+def assert_reviewed_host_selection(case, source):
+    """Accept the exact reviewed successor while retaining execution authority."""
+    template = ROOT / 'tools/repository-checks/workflows/host/project-tests.yml'
+    case.assertEqual(source, template.read_text(encoding='utf-8'))
+    jobs = workflow_data(source)['jobs']
+    host = jobs['project-tests']
+    case.assertEqual(host['if'], "needs.route.outputs.package_host_mode == 'full'")
+    steps = host['steps']
+    case.assertEqual(steps[0]['with']['ref'], '${{ github.event.repository.default_branch }}')
+    case.assertEqual(steps[0]['with']['path'], 'trusted')
+    case.assertEqual(steps[1]['with']['path'], 'candidate')
+    for step in steps:
+        if 'checkout@' in step.get('uses', ''):
+            case.assertIs(step['with']['persist-credentials'], False)
+    selection = next(step for step in steps if step.get('id') == 'host')
+    execution = next(step for step in steps if step['name'] == 'Run independently selected host contracts')
+    case.assertIn('--select-only --output "$GITHUB_OUTPUT"', selection['run'])
+    case.assertIn('build/host-tests-env/bin/python trusted/tools/repository-checks/host_selection.py', execution['run'])
+    for step in (selection, execution):
+        case.assertIn('--candidate candidate', step['run'])
+        case.assertIn('--event "$GITHUB_EVENT_PATH" --sha "$GITHUB_SHA"', step['run'])
+        case.assertIn('--expected-plan "$EXPECTED_PLAN"', step['run'])
+        case.assertEqual(step['env']['EXPECTED_PLAN'], '${{ needs.route.outputs.package_plan }}')
+    qt = next(step for step in steps if step['name'] == 'Install QML and portable C++ contract prerequisites')
+    case.assertEqual(qt['if'], "steps.host.outputs.full_host == 'true'")
+    runs = '\n'.join(step.get('run', '') for step in steps)
+    case.assertIn('-r candidate/tests/requirements-host.txt', runs)
+    case.assertNotIn('python candidate/tests/run-project-tests.py', runs)
+    final = jobs['project-results']
+    case.assertEqual(final['if'], 'always()')
+    case.assertIn('project-tests', final['needs'])
+    verify = final['steps'][-1]
+    case.assertEqual(verify['env']['CHECK_RESULTS'], '${{ toJSON(needs) }}')
+    case.assertIn('trusted/tools/repository-checks/package_checks.py verify', verify['run'])
+
+
 class ProjectWorkflowContracts(unittest.TestCase):
     def test_tool_dependency_lane_is_bounded_and_selected_by_the_trusted_router(self):
         jobs = workflow_data(WORKFLOW.read_text())['jobs']
@@ -715,7 +781,10 @@ class ProjectWorkflowContracts(unittest.TestCase):
     def test_ci_runs_complete_device_control_plane_with_qml(self):
         self.assertIn("qml-module-qttest", self.source)
         self.assertIn("qtdeclarative5-dev-tools", self.source)
-        self.assertIn("--profile host --timeout 240 --host-timeout 900", self.source)
+        if 'trusted/tools/repository-checks/host_selection.py' in self.source:
+            assert_reviewed_host_selection(self, self.source)
+        else:
+            self.assertIn("--profile host --timeout 240 --host-timeout 900", self.source)
         self.assertIn("device-e2e-control-plane.xml", self.source)
 
 
@@ -798,6 +867,8 @@ class HostWorkflowRoutingContracts(unittest.TestCase):
                     self.assertIn("--candidate candidate --include-platform --timeout 240 --host-timeout 900", runs)
                     self.assertNotIn("python tests/run-project-tests.py", source)
                     self.assertNotIn("candidate/tests/run-project-tests.py", source)
+                elif 'trusted/tools/repository-checks/host_selection.py' in source:
+                    assert_reviewed_host_selection(self, source)
                 else:
                     self.assertIn("-r tests/requirements-host.txt", runs)
                     self.assertEqual(runs.count("tests/run-project-tests.py"), 1)

@@ -33,7 +33,7 @@ class ProjectSuiteCliTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("repository-health", result.stdout)
         self.assertIn("source-layout", result.stdout)
-        self.assertIn("shared-script-behavior", result.stdout)
+        self.assertNotIn("shared-script-behavior", result.stdout)
         self.assertIn("device-e2e-contracts", result.stdout)
         self.assertIn("documentation ", result.stdout)
         self.assertIn("repository-checks", result.stdout)
@@ -65,9 +65,9 @@ class ProjectSuiteCliTests(unittest.TestCase):
             "lod-preferences",
             "goto-dialog-script",
             "recorded-voice-native", "recorded-voice-qml", "snapshot-native", "snapshot-qml",
-            "document-tree-native", "obj-material-native",
+            "document-tree-native", "obj-material-native", "shared-script-behavior",
         })
-        self.assertEqual(set(native), set(quick) | {"native-ctest"})
+        self.assertEqual(set(native), set(quick) | {"native-ctest", "shared-script-behavior"})
         self.assertIn("fixture-platform", host)
         self.assertIn("--require-qml", host["device-control-plane-full"].command)
 

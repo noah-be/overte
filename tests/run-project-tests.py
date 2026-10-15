@@ -36,6 +36,7 @@ SUITES = (
     Suite("attested-runtime", "quick", (sys.executable, "tools/test-evidence/attested-test.py")),
     Suite("project-runner", "quick", (sys.executable, "tests/project-suite-self-test.py")),
     Suite("python-test-runner", "quick", (sys.executable, "tests/unittest-runner-test.py")),
+    Suite("host-selection", "quick", (sys.executable, "tests/host-selection-test.py")),
     Suite("repository-checks", "quick", (sys.executable, "tests/repository-checks-test.py")),
     Suite("android-ci", "quick", (sys.executable, "tests/android-ci-test.py")),
     Suite("android-orchestration", "quick", (sys.executable, "tests/android-orchestration-test.py")),
@@ -114,7 +115,7 @@ SUITES = (
         "node", "--test", "server-console/test/open-url.test.js", "server-console/test/file-tail.test.js",
         "server-console/test/notification-compat.test.js")),
     Suite("source-layout", "quick", (sys.executable, "tests/source-layout-test.py")),
-    Suite("shared-script-behavior", "quick", ("node", "--test", *tuple(
+    Suite("shared-script-behavior", "host", ("node", "--test", *tuple(
         str(path.relative_to(ROOT)) for path in sorted((ROOT / "tests/javascript/test").glob("*.test.js"))))),
     Suite("native-ctest", "native", ("bash", "tests/project-native-test.sh")),
 )
@@ -198,7 +199,10 @@ def select(args: argparse.Namespace) -> list[Suite]:
         return [suite for suite in SUITES if suite.layer in {"quick", "host"}
                 and suite.name not in {"device-e2e-contracts", "native-smoke"}]
     layers = {"quick"} if args.profile == "quick" else {"quick", "native"}
-    return [suite for suite in SUITES if suite.layer in layers]
+    # Preserve the full native profile's existing script coverage after moving
+    # the Qt-dependent group out of the dependency-light quick profile.
+    return [suite for suite in SUITES if suite.layer in layers
+            or args.profile == "full" and suite.name == "shared-script-behavior"]
 
 
 def write_junit(path: Path, results: list[dict[str, object]], elapsed: float) -> None:
@@ -332,7 +336,7 @@ def run_suites(args: argparse.Namespace, suites: list[Suite], cancelled: list[in
     for suite in suites:
         command = list(suite.command)
         timeout = args.timeout
-        if suite.name == "device-control-plane-full":
+        if suite.name == "device-control-plane-full" or suite.name.startswith("device-control-plane-full-candidate-"):
             timeout = args.host_timeout
             command.extend(("--timeout-seconds", str(timeout)))
         if suite.name == "native-ctest" and args.native_build_dir:

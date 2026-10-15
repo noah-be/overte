@@ -104,7 +104,7 @@ class LanguageSelectionTests(unittest.TestCase):
         self.assertNotEqual(plan["changes"][0]["before"]["mode"], plan["changes"][0]["after"]["mode"])
 
     def test_every_shared_analysis_control_and_query_pack_keeps_both_languages(self):
-        for path in (".github/workflows/codeql.yml", ".github/workflows/new.yml", ".github/actions/scan/index.py",
+        for path in (".github/workflows/codeql.yml",
                      ".github/codeql/model.py", "custom/queries/check.ql", "custom/queries/lib.qll", "queries/security.qls",
                      "custom/qlpack.yml", "packs/codeql-pack.lock.yml", "custom/codeql-config.yml",
                      "custom/codeql-python/model.py", "custom/qlpacks/model.yaml", "AGENTS.md", ".gitignore",
@@ -112,6 +112,29 @@ class LanguageSelectionTests(unittest.TestCase):
                      "tools/repository-checks/codeql.py", "tools/test-evidence/inputs.py", "tests/codeql-selection-test.py"):
             with self.subTest(path=path):
                 self.assertTrue(self.change(path, replacement=entry("b"))["full_scan"])
+
+    def test_unrelated_workflow_data_and_local_actions_keep_their_own_language(self):
+        self.assertEqual(self.change('.github/workflows/new.yml', replacement=entry('b'))['languages'],
+                         ['javascript-typescript'])
+        self.assertEqual(self.change('.github/actions/scan/index.py', replacement=entry('b'))['languages'],
+                         ['python'])
+
+    def test_reviewed_selective_workflow_supports_pure_language_changes(self):
+        for digest in (CODEQL._REVIEWED_CONTROLS['.github/workflows/codeql.yml'], CODEQL._SELECTIVE_WORKFLOW):
+            before = reviewed_tree()
+            before['.github/workflows/codeql.yml']['sha'] = digest
+            after = deepcopy(before)
+            after['tools/check.py'] = entry('b')
+            self.assertEqual(CODEQL.select_languages(before, after)['languages'], ['python'])
+        before = reviewed_tree()
+        after = deepcopy(before)
+        after['.github/workflows/codeql.yml']['sha'] = CODEQL._SELECTIVE_WORKFLOW
+        self.assertTrue(CODEQL.select_languages(before, after)['full_scan'])
+
+    def test_saved_workflow_digest_matches_the_actual_reviewed_activation(self):
+        actual = subprocess.check_output(['git', 'hash-object', '.github/workflows/codeql.yml'],
+                                         cwd=ROOT, text=True).strip()
+        self.assertEqual(actual, CODEQL._SELECTIVE_WORKFLOW)
 
     def test_both_sides_must_match_reviewed_actual_workflow_and_configuration(self):
         for path in CODEQL._REVIEWED_CONTROLS:
