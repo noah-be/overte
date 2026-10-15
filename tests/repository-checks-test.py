@@ -46,6 +46,38 @@ def results(mode="full", security="true"):
             "workflow-security": {"result": "success" if security == "true" else "skipped"}}
 
 
+def inactive_browser_trusted_checkout(test):
+    """Run historical CLI contracts with explicit disposable trusted policy.
+
+    A real sparse clone retains immutable omitted requirement blobs. Only this
+    fixture's Browser activation list changes; actual ROOT is never modified.
+    Dedicated Browser tests exercise the current activated required handoff.
+    """
+    directory = tempfile.TemporaryDirectory(prefix='overte-inactive-browser-policy-')
+    test.addCleanup(directory.cleanup)
+    trusted = Path(directory.name) / 'trusted'
+    subprocess.run(['git', 'clone', '-q', '--shared', '--no-checkout', str(ROOT), str(trusted)],
+                   check=True, capture_output=True)
+    subprocess.run(['git', '-C', str(trusted), 'sparse-checkout', 'set', '--cone', '.github',
+                    'tools/repository-checks', 'tools/test-evidence', 'tools/native-tests',
+                    'tools/ios-build-qualification'], check=True, capture_output=True)
+    revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
+    subprocess.run(['git', '-C', str(trusted), 'checkout', '-q', '--detach', revision],
+                   check=True, capture_output=True)
+    original = (ROOT / '.github/repository-checks.json').read_bytes()
+    policy = trusted / '.github/repository-checks.json'
+    config = json.loads(policy.read_bytes())
+    config['browser_client_required_branches'] = []
+    policy.write_text(json.dumps(config, indent=2) + '\n')
+    spec = importlib.util.spec_from_file_location('inactive_browser_repository_checks',
+                                                trusted / 'tools/repository-checks/check.py')
+    checks = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(checks)
+    test.assertEqual(checks.configuration()[0]['browser_client_required_branches'], [])
+    test.assertEqual((ROOT / '.github/repository-checks.json').read_bytes(), original)
+    return trusted, checks.package_policy()
+
+
 class RoutingTests(unittest.TestCase):
     def test_current_account_name_keeps_exact_repository_and_base_identity(self):
         self.assertEqual(CONFIG['repository'], 'noah-l-frank/overte')
@@ -211,6 +243,7 @@ class AggregateTests(unittest.TestCase):
             CHECKS.native_required(config, wrong)
 
     def test_legacy_cli_inherits_the_runner_event_for_scoped_activation(self):
+        trusted, _ = inactive_browser_trusted_checkout(self)
         legacy = results()
         del legacy["native"]
         del legacy["route"]["outputs"]["native"]
@@ -219,7 +252,7 @@ class AggregateTests(unittest.TestCase):
             for target in ('main', 'apple-ios'):
                 payload = event(target)
                 path.write_text(json.dumps(payload))
-                result = subprocess.run([sys.executable, str(ROOT / 'tools/repository-checks/check.py'),
+                result = subprocess.run([sys.executable, str(trusted / 'tools/repository-checks/check.py'),
                                          'verify', '--needs-json', json.dumps(legacy)],
                                         env={**os.environ, 'GITHUB_EVENT_PATH': str(path)}, capture_output=True)
                 self.assertEqual(result.returncode == 0, not CHECKS.native_required(CONFIG, payload),
@@ -245,11 +278,13 @@ class AggregateTests(unittest.TestCase):
         dependencies = set(jobs['repository-checks']['needs'])
         required_jobs = {'route', 'project', 'documentation', 'workflow-security'}
         self.assertTrue(required_jobs <= dependencies)
-        self.assertTrue(dependencies <= required_jobs | {'native', 'direct-browser'})
+        self.assertTrue(dependencies <= required_jobs | {'native', 'direct-browser', 'browser-client'})
         if CONFIG.get('native_required', False) or 'main' in CONFIG.get('native_required_branches', []):
             self.assertIn('native', dependencies)
         if 'main' in CONFIG.get('direct_browser_required_branches', []):
             self.assertIn('direct-browser', dependencies)
+        if 'main' in CONFIG.get('browser_client_required_branches', []):
+            self.assertIn('browser-client', dependencies)
         self.assertEqual(jobs['repository-checks']['if'], 'always()')
         self.assertNotIn("paths:", source)
         self.assertNotIn("secrets:", source)
@@ -485,6 +520,7 @@ class DirectBrowserTests(unittest.TestCase):
             CHECKS.direct_browser_required(config, bad)
 
     def test_candidate_plan_cli_rechecks_exact_merge_tree_and_trusted_templates(self):
+        trusted, trusted_packages = inactive_browser_trusted_checkout(self)
         with tempfile.TemporaryDirectory() as temporary:
             candidate = Path(temporary)
             def git(*args):
@@ -537,7 +573,7 @@ class DirectBrowserTests(unittest.TestCase):
             event_file, output = candidate / "event.json", candidate / "outputs"
             event_file.write_text(json.dumps(payload))
             common = ["--event", str(event_file), "--candidate", str(candidate), "--sha", sha]
-            command = [sys.executable, str(ROOT / "tools/repository-checks/check.py")]
+            command = [sys.executable, str(trusted / "tools/repository-checks/check.py")]
             run = subprocess.run(command + ["direct-plan", *common, "--output", str(output),
                                            "--expected-candidate", sha, "--expected-plan", selected["plan"],
                                            "--expected-browser", "true", "--expected-native", "false"], capture_output=True)
@@ -550,7 +586,7 @@ class DirectBrowserTests(unittest.TestCase):
                                            "--needs-json", json.dumps(self.inner_results(selected))], capture_output=True)
             self.assertEqual(run.returncode, 0, run.stderr.decode())
             outer = self.outer_results(selected)
-            package_plan = PACKAGES.candidate_plan(candidate, payload, sha)
+            package_plan = trusted_packages.candidate_plan(candidate, payload, sha)
             outer['route']['outputs'].update(PACKAGES.outputs(package_plan))
             outer['project']['outputs'] = PACKAGES.receipt(package_plan)
             run = subprocess.run(command + ["verify", *common, "--needs-json", json.dumps(outer)], capture_output=True)
@@ -923,11 +959,12 @@ class PackageChecksTests(unittest.TestCase):
                 self.assertFalse(output.exists())
 
     def test_outer_cli_independently_recomputes_the_candidate_instead_of_trusting_outputs(self):
+        trusted, trusted_packages = inactive_browser_trusted_checkout(self)
         root, git, base = self.fixture()
         (root / PACKAGES.S3 / 'package-lock.json').write_text('{"updated":true}')
         git('commit', '-qam', 'Package update'); head = git('rev-parse', 'HEAD')
         payload = self.push(base, head)
-        plan = PACKAGES.candidate_plan(root, payload, head)
+        plan = trusted_packages.candidate_plan(root, payload, head)
         needs = results(); needs['route']['outputs'].update(PACKAGES.outputs(plan))
         needs['project']['outputs'] = PACKAGES.receipt(plan)
         with tempfile.TemporaryDirectory() as directory:
@@ -937,7 +974,7 @@ class PackageChecksTests(unittest.TestCase):
                 if forged:
                     candidate['route']['outputs']['package_plan'] = 'c' * 64
                     candidate['project']['outputs']['package_plan'] = 'c' * 64
-                result = subprocess.run([sys.executable, str(ROOT / 'tools/repository-checks/check.py'),
+                result = subprocess.run([sys.executable, str(trusted / 'tools/repository-checks/check.py'),
                     'verify', '--candidate', str(root), '--event', str(event_file), '--sha', head,
                     '--needs-json', json.dumps(candidate)], capture_output=True, text=True)
                 self.assertEqual(result.returncode == 0, not forged, result.stderr)
