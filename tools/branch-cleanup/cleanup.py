@@ -18,9 +18,9 @@ import subprocess
 import tempfile
 import urllib.parse
 
-REPOSITORY = "noah-be/overte"
+REPOSITORY = "noah-l-frank/overte"
 REPOSITORY_ID = 1319052603
-REMOTE = "https://github.com/noah-be/overte.git"
+REMOTE = "https://github.com/noah-l-frank/overte.git"
 WORKFLOW = ".github/workflows/branch-cleanup.yml"
 PERMANENT = {
     "main", "android-main", "android-phone", "android-vr", "android-vr-pico",
@@ -226,7 +226,7 @@ class Github:
                     held.setdefault(row["branch"], []).append("github_actions_still_active")
                     break
         for row in candidates:
-            head = urllib.parse.quote("noah-be:" + row["branch"], safe="")
+            head = urllib.parse.quote("noah-l-frank:" + row["branch"], safe="")
             prs = self.get("pulls?state=all&head=" + head + "&per_page=100", paginate=True)
             if any(policy["keep_label"] in {label["name"] for label in pr.get("labels", [])} for pr in prs):
                 held.setdefault(row["branch"], []).append("keep_branch_label")

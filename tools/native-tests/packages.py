@@ -9,11 +9,15 @@ from pathlib import Path
 import re
 import sys
 
+# The pinned image retains its original pre-rename metadata. New producers use
+# the current name of the same repository; neither provenance record is rewritten.
+PRODUCER_REPOSITORIES = {'noah-be/overte', 'noah-l-frank/overte'}
+
 INPUTS = ('conanfile.py', 'tools/conan-profiles/linux', 'tools/native-tests/conan-linux.lock')
 
 
 def verify(source: Path, metadata: dict) -> dict:
-    if (metadata.get('schema') != 1 or metadata.get('repository') != 'noah-be/overte'
+    if (metadata.get('schema') != 1 or metadata.get('repository') not in PRODUCER_REPOSITORIES
             or not re.fullmatch(r'[0-9a-f]{40}', str(metadata.get('source_sha', '')))
             or not re.fullmatch(r'[1-9][0-9]*', str(metadata.get('run_id', '')))
             or not re.fullmatch(r'[0-9a-f]{64}', str(metadata.get('archive_sha256', '')))

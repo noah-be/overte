@@ -23,6 +23,20 @@ def tar(data,*,kind=tarfile.REGTYPE,duplicate=False,name=None):
    member=tarfile.TarInfo(name or k.spec()['memberName']);member.type=kind;member.size=len(data)if kind==tarfile.REGTYPE else 0;member.linkname='untrusted-link';archive.addfile(member,io.BytesIO(data)if member.size else None)
  return out.getvalue()
 
+class ForkAuthorization(unittest.TestCase):
+ def test_former_foreign_and_prefix_repositories_refuse_before_private_sideeffects(self):
+  sha='a'*40
+  for repository in ('noah-be/overte','overte-org/overte','someone-else/overte','noah-l-frank/overte-other'):
+   with self.subTest(repository=repository),patch.dict(os.environ,{'PROBE_SOURCE_SHA':sha,'GITHUB_REPOSITORY':repository},clear=True),patch.object(k.subprocess,'check_output',return_value=sha+'\n'),patch.object(k.tempfile,'mkdtemp')as directory,patch.object(k,'provision')as provision:
+    with self.assertRaisesRegex(ValueError,'authorized-fork-required'):k.main()
+    directory.assert_not_called();provision.assert_not_called()
+ def test_current_fork_reaches_private_root_only_after_exact_source(self):
+  sha='a'*40
+  class ReachedPrivateRoot(Exception):pass
+  with tempfile.TemporaryDirectory()as temp,patch.dict(os.environ,{'PROBE_SOURCE_SHA':sha,'GITHUB_REPOSITORY':'noah-l-frank/overte','RUNNER_TEMP':temp},clear=True),patch.object(k.subprocess,'check_output',return_value=sha+'\n'),patch.object(k.tempfile,'mkdtemp',side_effect=ReachedPrivateRoot)as directory,patch.object(k,'provision')as provision:
+   with self.assertRaises(ReachedPrivateRoot):k.main()
+   directory.assert_called_once();provision.assert_not_called()
+
 class TrustedKeyring(unittest.TestCase):
  def setUp(self):self.record=k.spec();self.key=stage.regular(KEYRING);self.assertEqual(len(self.key),3607);self.assertEqual(stage.digest(self.key),self.record['memberSHA256'])
  def test_pinned_package_record_is_exact_signed_cached_noble_index_member(self):
@@ -83,7 +97,7 @@ class TrustedKeyring(unittest.TestCase):
  def test_main_private_trust_input_export_only_after_locked_creation(self):
   with tempfile.TemporaryDirectory()as temp:
    env=Path(temp)/'env';env.write_bytes(b'');env.chmod(0o600)
-   with patch.dict(os.environ,{'PROBE_SOURCE_SHA':'a'*40,'GITHUB_REPOSITORY':'noah-be/overte','RUNNER_TEMP':temp,'GITHUB_ENV':str(env)},clear=True),patch.object(k.subprocess,'check_output',return_value='a'*40+'\n'),patch.object(k,'provision',side_effect=lambda directory,**kw:k.locked_write(directory,self.key,self.record)):
+   with patch.dict(os.environ,{'PROBE_SOURCE_SHA':'a'*40,'GITHUB_REPOSITORY':'noah-l-frank/overte','RUNNER_TEMP':temp,'GITHUB_ENV':str(env)},clear=True),patch.object(k.subprocess,'check_output',return_value='a'*40+'\n'),patch.object(k,'provision',side_effect=lambda directory,**kw:k.locked_write(directory,self.key,self.record)):
     k.main()
    lines=env.read_text().splitlines();self.assertEqual(len(lines),1);name,value=lines[0].split('=',1);self.assertEqual(name,'ATOMIC_REVIEWED_KEYRING');result=Path(value);self.assertEqual(stat.S_IMODE(result.parent.stat().st_mode),0o700);self.assertEqual(stage.regular(result,private=True),self.key)
  def test_safe_cli_failure_never_reflects_exception_or_private_paths(self):
@@ -96,14 +110,14 @@ class TrustedKeyring(unittest.TestCase):
    root=Path(temp);source=root/'reviewed.gpg';stage.write(source,self.key);env=root/'env';stage.write(env,b'');observed=[]
    def dependency(directory,keyring,*,progress):
     self.assertNotEqual(Path(keyring),source);self.assertEqual(stage.regular(keyring,private=True),self.key);observed.append(keyring);return original(directory,keyring,lambda url:mapping[url].read_bytes(),progress=progress)
-   with patch.dict(os.environ,{'PROBE_SOURCE_SHA':'a'*40,'GITHUB_REPOSITORY':'noah-be/overte','RUNNER_TEMP':temp,'GITHUB_ENV':str(env),'ATOMIC_REVIEWED_KEYRING':str(source)},clear=True),patch.object(stage.subprocess,'check_output',wraps=stage.subprocess.check_output)as output,patch.object(stage,'signed_dependency',side_effect=dependency):
+   with patch.dict(os.environ,{'PROBE_SOURCE_SHA':'a'*40,'GITHUB_REPOSITORY':'noah-l-frank/overte','RUNNER_TEMP':temp,'GITHUB_ENV':str(env),'ATOMIC_REVIEWED_KEYRING':str(source)},clear=True),patch.object(stage.subprocess,'check_output',wraps=stage.subprocess.check_output)as output,patch.object(stage,'signed_dependency',side_effect=dependency):
     output.side_effect=lambda argv,**kw:'a'*40+'\n'if argv[0]=='git'else actual(argv,**kw);stage.main()
    self.assertEqual(len(observed),1);self.assertIn('ATOMIC_PROBE_DIRECTORY=',env.read_text())
  def test_stage_main_refuses_modified_writable_symlink_hardlink_before_signature(self):
   with tempfile.TemporaryDirectory()as temp:
    root=Path(temp);valid=root/'key';stage.write(valid,self.key);bad=root/'bad';stage.write(bad,b'changed');writable=root/'writable';stage.write(writable,self.key,0o666);alias=root/'alias';alias.symlink_to(valid);linked=root/'linked';stage.write(linked,self.key);os.link(linked,root/'otherlink');env=root/'env';stage.write(env,b'')
    for path in(bad,writable,alias,linked):
-    with patch.dict(os.environ,{'PROBE_SOURCE_SHA':'a'*40,'GITHUB_REPOSITORY':'noah-be/overte','RUNNER_TEMP':temp,'GITHUB_ENV':str(env),'ATOMIC_REVIEWED_KEYRING':str(path)},clear=True),patch.object(stage.subprocess,'check_output',return_value='a'*40+'\n'),patch.object(stage,'signed_dependency')as dependency:
+    with patch.dict(os.environ,{'PROBE_SOURCE_SHA':'a'*40,'GITHUB_REPOSITORY':'noah-l-frank/overte','RUNNER_TEMP':temp,'GITHUB_ENV':str(env),'ATOMIC_REVIEWED_KEYRING':str(path)},clear=True),patch.object(stage.subprocess,'check_output',return_value='a'*40+'\n'),patch.object(stage,'signed_dependency')as dependency:
      with self.assertRaises((ValueError,OSError)):stage.main()
      dependency.assert_not_called()
 

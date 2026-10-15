@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "repository": "noah-be/overte",
+  "repository": "noah-l-frank/overte",
   "bundles": {
     "phone": {
       "tag": "android-phone-16k-deps-v3",

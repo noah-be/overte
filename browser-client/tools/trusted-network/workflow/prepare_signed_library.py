@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 """Only stage pinned public proofs privately; never install packages or policy."""
-import argparse,hashlib,importlib.util,json,os,stat,sys,urllib.request
+import argparse,hashlib,importlib.util,json,os,ssl,stat,sys,time,urllib.error,urllib.request
 from pathlib import Path
 import signed_library as library
 HERE=Path(__file__).resolve().parent
@@ -17,15 +17,36 @@ KEYRING_PACKAGE_HASH='36de43b15853ccae0028e9a767613770c704833f82586f28eb262f0311
 class NoRedirect(urllib.request.HTTPRedirectHandler):
  def redirect_request(self,*args,**kwargs):return None
 
+class DownloadFailure(ValueError):
+ """Only fixed categories and bounded numbers may reach public CI output."""
+ def __init__(self,kind,attempts,status=None):
+  super().__init__('signed-library-download-refused')
+  assert kind in {'http-status','network','response-identity','content-digest'}
+  assert type(attempts)is int and 1<=attempts<=3
+  self.details={'phase':'download','reason':kind,'attempts':attempts}
+  if type(status)is int and 100<=status<=599:self.details['httpStatus']=status
+
 def download(url,size,digest):
  # Every permitted URL and byte bound is source-pinned, not caller input.
  known={(row[0],row[1],row[2])for row in INPUTS.values()}|{(KEYRING_URL,11124,KEYRING_PACKAGE_HASH)}
  if(url,size,digest)not in known:raise ValueError('signed-library-download-scope')
- with urllib.request.build_opener(NoRedirect()).open(url,timeout=15)as response:
-  if response.status!=200 or response.geturl()!=url:raise ValueError('signed-library-download-refused')
-  content=response.read(size+1)
- if len(content)!=size or hashlib.sha256(content).hexdigest()!=digest:raise ValueError('signed-library-download-digest')
- return content
+ for attempt in range(1,4):
+  try:
+   with urllib.request.build_opener(NoRedirect()).open(url,timeout=15)as response:
+    if response.status!=200 or response.geturl()!=url:raise DownloadFailure('response-identity',attempt)
+    content=response.read(size+1)
+   if len(content)!=size or hashlib.sha256(content).hexdigest()!=digest:raise DownloadFailure('content-digest',attempt)
+   return content
+  except urllib.error.HTTPError as error:
+   status=error.code
+   error.close()
+   if status not in {408,429,500,502,503,504}or attempt==3:
+    raise DownloadFailure('http-status',attempt,status)from None
+  except (urllib.error.URLError,TimeoutError,ConnectionError)as error:
+   # TLS trust failures are final; never retry with a different trust policy.
+   tls_failure=isinstance(getattr(error,'reason',error),ssl.SSLError)
+   if tls_failure or attempt==3:raise DownloadFailure('network',attempt)from None
+  time.sleep(attempt)  # At most 1s + 2s; never retry redirects or bad bytes.
 
 def source_bytes(path,size,digest):
  # Public proofs are not a source of execution authority: require exact digest
@@ -109,6 +130,8 @@ def main():
  parser=argparse.ArgumentParser();parser.add_argument('--output',required=True);parser.add_argument('--source-cache');parser.add_argument('--keyring')
  args=parser.parse_args()
  try:result=prepare(args.output,source_cache=args.source_cache,keyring=args.keyring)
+ except DownloadFailure as error:
+  print(json.dumps({'version':1,'scope':'pinned-signed-python-library-inputs','completed':False,'category':'pinned-input-preparation-refused','failure':error.details},sort_keys=True));return 1
  except Exception:
   # Private developer traceback is deliberately not reflected into CI output.
   print(json.dumps({'version':1,'scope':'pinned-signed-python-library-inputs','completed':False,'category':'pinned-input-preparation-refused'}));return 1

@@ -27,7 +27,7 @@ STATE = ROOT / "runtime/processes.json"
 READINESS = ROOT / "runtime/assignment-readiness.json"
 READINESS_STABLE_SECONDS = 3
 PLAN = json.loads((SOURCE / "resources.json").read_text())
-IMAGE = "ghcr.io/noah-be/overte/native-dependencies@sha256:a692b477cd2efdfc1f3d0f059a8eebba4852d37509a2efa945937ef2fe073373"
+IMAGE = "ghcr.io/noah-l-frank/overte/native-dependencies@sha256:a692b477cd2efdfc1f3d0f059a8eebba4852d37509a2efa945937ef2fe073373"
 OWNER = hashlib.sha256(str(REPO).encode()).hexdigest()
 CONTAINER_ROOT = "/src/build/browser-direct/lab"
 
