@@ -3,7 +3,7 @@ run-name: Sync test reuse for PR ${{ github.event.pull_request.number || 'contra
 
 on: # zizmor: ignore[dangerous-triggers] Default-branch data-only gate; candidate execution is dispatched read-only without secrets.
   pull_request_target:
-    types: [opened, reopened, synchronize, edited, ready_for_review]
+    types: [opened, reopened, synchronize, edited]
     branches:
       - main
       - android-main
@@ -69,17 +69,6 @@ jobs:
           --head-sha "$HEAD_SHA" --merge-sha "$MERGE_SHA"
           --gate-run-id "$GITHUB_RUN_ID" --gate-run-attempt "$GITHUB_RUN_ATTEMPT"
           --output "$GITHUB_OUTPUT"
-      - name: Stop only redundant common suites after accepted reuse
-        if: github.event_name == 'pull_request_target' && steps.inspect.outputs.mode == 'reuse'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          HEAD_SHA: ${{ steps.inspect.outputs.head_sha }}
-          PULL_REQUEST: ${{ steps.inspect.outputs.pr }}
-          REPOSITORY: ${{ steps.inspect.outputs.repository }}
-        run: >-
-          python3 tools/sync-test-reuse/gate.py cancel-redundant
-          --repository "$REPOSITORY" --pull-request "$PULL_REQUEST"
-          --head-sha "$HEAD_SHA" --window 60
       - name: Publish decision
         if: github.event_name == 'pull_request_target'
         env:
