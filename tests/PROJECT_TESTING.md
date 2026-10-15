@@ -424,6 +424,13 @@ selected native result; host sync qualification cannot substitute for it. Its
 broad dependency environment must be prepared and qualified before activation.
 This local wiring does not establish that the gate is deployed on GitHub.
 
+Exact `package.json` and `package-lock.json` changes in `browser-client`,
+`browser-direct-client`, and `script-archive/marketplace/S3Server` belong to
+their JavaScript packages and do not select an Overte native build. Browser
+workflows, package behavior checks and security checks retain their ownership.
+This is an exact manifest exemption: accompanying native/build inputs, unknown
+neighboring files and non-regular changes retain conservative native validation.
+
 
 Prepare a native build with `OVERTE_BUILD_TESTS=ON` using the relevant
 [build guide](../BUILD.md). Then run the project full profile against it:
