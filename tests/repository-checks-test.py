@@ -240,14 +240,17 @@ class AggregateTests(unittest.TestCase):
         self.assertTrue(all(item["integration_id"] == 15368 for item in entries))
         source = (ROOT / ".github/workflows/repository-checks.yml").read_text()
         self.assertIn("if: always()", source)
-        dependencies = "route, project, documentation, workflow-security"
-        if CONFIG.get("native_required", False) or "main" in CONFIG.get("native_required_branches", []):
-            dependencies += ", native"
-        else:
-            dependencies += "(?:, native)?"
-        dependencies += (", direct-browser" if "main" in CONFIG.get("direct_browser_required_branches", [])
-                         else "(?:, direct-browser)?")
-        self.assertRegex(source, r"needs: \[" + dependencies + r"\]")
+        import yaml
+        jobs = yaml.safe_load(source)['jobs']
+        dependencies = set(jobs['repository-checks']['needs'])
+        required_jobs = {'route', 'project', 'documentation', 'workflow-security'}
+        self.assertTrue(required_jobs <= dependencies)
+        self.assertTrue(dependencies <= required_jobs | {'native', 'direct-browser'})
+        if CONFIG.get('native_required', False) or 'main' in CONFIG.get('native_required_branches', []):
+            self.assertIn('native', dependencies)
+        if 'main' in CONFIG.get('direct_browser_required_branches', []):
+            self.assertIn('direct-browser', dependencies)
+        self.assertEqual(jobs['repository-checks']['if'], 'always()')
         self.assertNotIn("paths:", source)
         self.assertNotIn("secrets:", source)
         self.assertNotIn("secrets.", source)
@@ -495,6 +498,13 @@ class DirectBrowserTests(unittest.TestCase):
             workflows.mkdir(parents=True)
             for name in CHECKS.DIRECT_WORKFLOWS:
                 (workflows / name).write_bytes((ROOT / "tools/repository-checks/workflows" / name).read_bytes())
+            # Exercise the approved combined generation once the trusted main
+            # policy requires package receipts; legacy byte compatibility has
+            # independent inactive-policy coverage below.
+            for name in ('project-tests.yml', 'parent-qualification.yml', 'sync-validation.yml'):
+                (workflows / name).write_bytes((PACKAGES.TEMPLATES / name).read_bytes())
+            (workflows / 'repository-checks.yml').write_bytes(
+                (PACKAGES.TEMPLATES / 'repository-checks-direct.yml').read_bytes())
             source = candidate / "browser-direct-client/lab/manage.py"
             source.parent.mkdir(parents=True)
             source.write_text("# before\n")
@@ -540,6 +550,9 @@ class DirectBrowserTests(unittest.TestCase):
                                            "--needs-json", json.dumps(self.inner_results(selected))], capture_output=True)
             self.assertEqual(run.returncode, 0, run.stderr.decode())
             outer = self.outer_results(selected)
+            package_plan = PACKAGES.candidate_plan(candidate, payload, sha)
+            outer['route']['outputs'].update(PACKAGES.outputs(package_plan))
+            outer['project']['outputs'] = PACKAGES.receipt(package_plan)
             run = subprocess.run(command + ["verify", *common, "--needs-json", json.dumps(outer)], capture_output=True)
             self.assertEqual(run.returncode, 0, run.stderr.decode())
             outer["direct-browser"]["outputs"]["plan"] = "0" * 64
@@ -630,15 +643,17 @@ class PackageChecksTests(unittest.TestCase):
     def selected(self, paths, regular=True, **kwargs):
         return PACKAGES.select(paths, regular, **kwargs)
 
-    def test_legacy_capabilities_and_current_required_callers_stay_inactive(self):
+    def test_legacy_capabilities_stay_bounded_under_explicit_inactive_policy(self):
         path = PACKAGES.S3 + '/package-lock.json'
         self.assertEqual(TOOLS.affected_projects([path]), ())
         with self.assertRaises(ValueError):
             TOOLS.validate_projects([PACKAGES.S3])
         self.assertEqual(CHECKS.plan(event(), [path], CONFIG, BRANCHES)['mode'], 'full')
-        self.assertFalse(PACKAGES.activated(event()))
-        for branch in BRANCHES:
-            self.assertFalse(PACKAGES.activated(event(branch)))
+        policy = SimpleNamespace(configuration=lambda: ({**CONFIG, 'package_checks_required_branches': []}, BRANCHES))
+        with patch.object(PACKAGES, 'load', return_value=policy):
+            for branch in BRANCHES:
+                self.assertFalse(PACKAGES.activated(event(branch)))
+                self.assertFalse(PACKAGES.activated({'repository': event()['repository'], 'ref': 'refs/heads/' + branch}))
         self.assertEqual(CHECKS.verify(results())['status'], 'PASS')
 
     def test_exact_s3_manifests_bound_the_package_lane_without_host_setup(self):
@@ -719,7 +734,7 @@ class PackageChecksTests(unittest.TestCase):
         return root, git, git('rev-parse', 'HEAD')
 
     def push(self, base, head):
-        return {'repository': event()['repository'], 'before': base, 'after': head}
+        return {'repository': event()['repository'], 'before': base, 'after': head, 'ref': 'refs/heads/main'}
 
     def test_immutable_push_selection_covers_added_deleted_renamed_modes_and_missing_history(self):
         for change in ('add', 'edit', 'delete', 'rename', 'executable', 'symlink', 'submodule'):
@@ -927,14 +942,49 @@ class PackageChecksTests(unittest.TestCase):
                     '--needs-json', json.dumps(candidate)], capture_output=True, text=True)
                 self.assertEqual(result.returncode == 0, not forged, result.stderr)
 
-    def test_activation_uses_trusted_target_policy_and_never_candidate_head_names(self):
-        policy = SimpleNamespace(configuration=lambda: ({'package_checks_required_branches': ['main']}, {}))
+    def test_activation_matrix_binds_each_pr_push_and_manual_to_its_actual_target(self):
+        self.assertEqual(len(BRANCHES), 7)
+        policy = SimpleNamespace(configuration=lambda: ({'package_checks_required_branches': ['main']}, BRANCHES))
         with patch.object(PACKAGES, 'load', return_value=policy):
-            self.assertTrue(PACKAGES.activated(event('main', 'apple-ios')))
-            for target in ('apple-main', 'apple-ios', 'android-main', 'android-phone'):
-                self.assertFalse(PACKAGES.activated(event(target, 'main')))
-            wrong = event(); wrong['repository']['full_name'] = 'overte-org/overte'
-            with self.assertRaises(ValueError): PACKAGES.activated(wrong)
+            for branch in BRANCHES:
+                expected = branch == 'main'
+                for head in BRANCHES:
+                    with self.subTest(kind='PR', branch=branch, head=head):
+                        # Top-level/head refs must never override the PR base.
+                        payload = event(branch, head, fork=True); payload['ref'] = 'refs/heads/main'
+                        self.assertEqual(PACKAGES.activated(payload), expected)
+                with patch.dict(os.environ, {'GITHUB_EVENT_NAME': 'push', 'GITHUB_REF': 'refs/heads/main'}):
+                    self.assertEqual(PACKAGES.activated({'repository': event()['repository'],
+                        'ref': 'refs/heads/' + branch, 'before': '1' * 40, 'after': '2' * 40}), expected)
+                for ref in ('refs/heads/' + branch, branch):
+                    with self.subTest(kind='manual', branch=branch, ref=ref), patch.dict(os.environ, {
+                            'GITHUB_EVENT_NAME': 'workflow_dispatch', 'GITHUB_REF': 'refs/heads/' + branch,
+                            'GITHUB_REF_TYPE': 'branch'}):
+                        self.assertEqual(PACKAGES.activated({'repository': event()['repository'], 'ref': ref,
+                                                            'inputs': {}, 'workflow': '.github/workflows/repository-checks.yml'}), expected)
+
+    def test_activation_rejects_foreign_missing_malformed_tag_and_conflicting_manual_identity(self):
+        policy = SimpleNamespace(configuration=lambda: ({'package_checks_required_branches': ['main']}, BRANCHES))
+        with patch.object(PACKAGES, 'load', return_value=policy):
+            for identity in ({'full_name': 'overte-org/overte', 'id': CONFIG['repository_id']},
+                             {'full_name': CONFIG['repository'], 'id': 42}, None):
+                bad = event(); bad['repository'] = identity
+                with self.subTest(identity=identity), self.assertRaises(ValueError): PACKAGES.activated(bad)
+                bad = event(); bad['pull_request']['base']['repo'] = identity
+                with self.assertRaises(ValueError): PACKAGES.activated(bad)
+            for ref in (None, '', 'main', 'refs/tags/main', 'refs/pull/1/merge', 'refs/heads/',
+                        'refs/heads/main\n', 'refs/heads/main..old', 'refs/heads/-main',
+                        'refs/heads/.main', 'refs/heads/main.lock', 'refs/heads/main@{1}',
+                        'refs/heads/a//b', 'refs/heads/a b', 'refs/heads/a?b', 'https://github.com/other/main'):
+                with self.subTest(ref=ref), patch.dict(os.environ, {'GITHUB_EVENT_NAME': 'push'}), self.assertRaises(ValueError):
+                    PACKAGES.activated({'repository': event()['repository'], 'ref': ref})
+            for value in (None, [], {}, {'base': {}}, {'base': {'repo': event()['repository'], 'ref': 'refs/heads/main'}}):
+                with self.subTest(pr=value), self.assertRaises(ValueError):
+                    PACKAGES.activated({'repository': event()['repository'], 'pull_request': value})
+            for runner_ref, ref_type in (('refs/heads/apple-ios', 'branch'), ('refs/tags/main', 'tag')):
+                with patch.dict(os.environ, {'GITHUB_EVENT_NAME': 'workflow_dispatch', 'GITHUB_REF': runner_ref,
+                                            'GITHUB_REF_TYPE': ref_type}), self.assertRaises(ValueError):
+                    PACKAGES.activated({'repository': event()['repository'], 'ref': 'main'})
 
     def test_templates_bind_required_orchestration_and_no_unrelated_package_setup(self):
         import yaml

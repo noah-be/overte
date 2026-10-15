@@ -528,14 +528,16 @@ workflows, package behavior checks and security checks retain their ownership.
 This is an exact manifest exemption: accompanying native/build inputs, unknown
 neighboring files and non-regular changes retain conservative native validation.
 
-The S3Server required-package foundation is dormant. Its controller is
-`tools/repository-checks/package_checks.py`; its exact prospective workflows are
-in `tools/repository-checks/workflows/packages/`. Active workflow files and
-activation settings remain unchanged. The existing tool CLI still accepts only
+The versioned S3Server required-package policy selects `main`; the six child
+branches retain legacy compatibility until their explicit activation. Its trusted
+controller is `tools/repository-checks/package_checks.py`; the approved exact
+workflow generations remain in `tools/repository-checks/workflows/packages/`.
+Local activation wiring does not establish deployment on GitHub. The existing
+tool CLI still accepts only
 `server-console` and `tools/jsdoc`; adding S3 to a caller string cannot bypass
 the full host checks.
 
-The prospective controller independently computes two decisions from the exact
+The controller independently computes two decisions from the exact
 candidate: `host_mode` and an OR-selected `package_set`. Regular S3
 `package.json`/`package-lock.json` changes can use a bounded Node.js 22 lane:
 one `npm ci --ignore-scripts --no-fund --no-audit`, one complete
@@ -553,13 +555,18 @@ does not run S3 again or claim a successful S3 JUnit case: it records the extern
 required package owner. Parent qualification owns parent pushes, and the shared
 project workflow owns leaf pushes, preserving the current branch partition.
 
-Deployment requires two stages. First land the trusted helpers and dormant
-templates on the default branch. Then install the exact project, parent and sync
+Deployment requires two stages. The trusted helpers and approved templates
+must land on the default branch before installing the exact project, parent and sync
 templates plus the appropriate outer caller. The package caller with direct
 browser checks is separate from the existing approved browser generation, which
 remains valid. Finally activate `package_checks_required_branches` in trusted
 repository policy for each reviewed target. Until activation legacy callers stay
 valid; a new caller must prove the strict receipt contract whenever it is used.
+PR activation uses the exact base repository and branch, never the head branch.
+Push activation uses the qualified branch in the event ref. A manual run with an
+unqualified ref additionally requires matching trusted runner branch metadata;
+tags, missing refs and malformed identities fail closed. Activating `main` does
+not activate old child push or manual callers.
 S3-only sync shortening additionally requires activation and exact approved
 workflow blobs in both the protected target and merge candidate, so partially
 propagated child branches retain full validation. Browser package profiling is

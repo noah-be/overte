@@ -184,11 +184,47 @@ def activated(event):
     targets = config.get("package_checks_required_branches", [])
     if not targets:
         return False
+    if not isinstance(event, dict):
+        raise ValueError("invalid package activation event")
     repo = event.get("repository") or {}
+    if not isinstance(repo, dict):
+        raise ValueError("invalid package activation repository")
     if repo.get("full_name") != REPOSITORY or repo.get("id") != REPOSITORY_ID:
         raise ValueError("package activation repository mismatch")
-    pr = event.get("pull_request")
-    return pr is None or pr.get("base", {}).get("ref") in targets
+    if "pull_request" in event:
+        pr = event["pull_request"]
+        base = pr.get("base") if isinstance(pr, dict) else None
+        base_repo = base.get("repo") if isinstance(base, dict) else None
+        if not isinstance(base_repo, dict) or base_repo.get("full_name") != REPOSITORY \
+                or base_repo.get("id") != REPOSITORY_ID:
+            raise ValueError("invalid package activation base repository")
+        branch = base.get("ref")
+        if isinstance(branch, str) and branch.startswith("refs/"):
+            raise ValueError("invalid package activation PR branch")
+    else:
+        ref = event.get("ref")
+        if not isinstance(ref, str):
+            raise ValueError("missing package activation branch ref")
+        if ref.startswith("refs/heads/"):
+            branch = ref[len("refs/heads/"):]
+        elif not ref.startswith("refs/") and os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch":
+            # Dispatch payload refs can be unqualified. Runner metadata must
+            # prove that this exact ref is a branch rather than an equal tag.
+            branch = ref
+        else:
+            raise ValueError("unsupported package activation ref")
+        if os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch" and (
+                os.environ.get("GITHUB_REF") != "refs/heads/" + branch
+                or os.environ.get("GITHUB_REF_TYPE", "branch") != "branch"):
+            raise ValueError("manual package activation branch identity mismatch")
+    # Git branch syntax, checked in linear time. A malformed ref cannot turn an
+    # activated target into an apparently inactive legacy caller.
+    if (not isinstance(branch, str) or not branch or branch.startswith(("-", "/"))
+            or branch.endswith("/") or "//" in branch or ".." in branch or "@{" in branch or branch == "@"
+            or any(ord(char) <= 32 or ord(char) == 127 or char in "~^:?*[\\" for char in branch)
+            or any(part.startswith(".") or part.endswith((".", ".lock")) for part in branch.split("/"))):
+        raise ValueError("invalid package activation branch")
+    return branch in targets
 
 
 def execute(candidate, plan, lane):

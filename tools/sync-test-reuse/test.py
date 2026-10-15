@@ -443,7 +443,8 @@ class TopologyContracts(unittest.TestCase):
             "repository": {"full_name": REPOSITORY, "id": REPOSITORY_ID},
             "pull_request": {
                 "number": 610,
-                "base": {"ref": base, "sha": base_sha},
+                "base": {"ref": base, "sha": base_sha,
+                         "repo": {"full_name": REPOSITORY, "id": REPOSITORY_ID}},
                 "head": {"ref": head, "sha": head_sha, "repo": {"id": repo_id}},
             },
         }
