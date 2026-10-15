@@ -36,5 +36,7 @@
     "main"
   ],
   "browser_client_required_branches": [],
-  "codeql_results_required_branches": []
+  "codeql_results_required_branches": [
+    "main"
+  ]
 }

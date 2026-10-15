@@ -2,13 +2,11 @@ name: CodeQL
 
 on:
   push:
-    branches: [main]
+    branches: [main, apple-main, apple-ios, android-main, android-phone, android-vr, android-vr-pico]
     paths-ignore:
       - "**/*.md"
   pull_request:
-    branches: [main]
-    paths-ignore:
-      - "**/*.md"
+    branches: [main, apple-main, apple-ios, android-main, android-phone, android-vr, android-vr-pico]
   schedule:
     - cron: "17 3 * * 4"
 
@@ -102,12 +100,16 @@ jobs:
           category: "/language:${{ matrix.language }}"
 
   codeql-checks:
-    name: codeql-checks
+    name: codeql-security-results
     if: always()
     needs: [select, analyze]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
-    permissions: {}
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+      security-events: read
     steps:
       - name: Require every selected analysis
         env:
@@ -121,3 +123,30 @@ jobs:
             true:success|false:skipped) ;;
             *) echo 'Selected CodeQL analysis did not succeed' >&2; exit 1 ;;
           esac
+
+      - name: Check out trusted selected-result policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: trusted
+          persist-credentials: false
+          sparse-checkout: |
+            tools/repository-checks
+            tools/test-evidence
+
+      - name: Read the exact candidate for independent result selection
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: candidate
+          fetch-depth: 2
+          persist-credentials: false
+          sparse-checkout: .github
+
+      - name: Require current selected-language security results
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CODEQL_EXPECTED_LANGUAGES: ${{ needs.select.outputs.languages }}
+        run: >-
+          python3 trusted/tools/repository-checks/codeql_results.py
+          --root candidate --event-file "$GITHUB_EVENT_PATH"
