@@ -252,6 +252,12 @@ The full control-plane suite requires QML and writes its detailed report to
 `build/test-results/device-e2e-control-plane.xml`. Its total time limit is
 `--host-timeout`; other suites retain `--timeout`. On timeout the runner allows
 up to five additional seconds to clean up isolated workers before forcing exit.
+On Linux, both outer runners also adopt and reap escaped descendants if a nested
+scheduler must be killed, with a separate one-second reaping deadline. Detached
+children cannot survive the runner or keep its captured output pipe open. This
+ownership requires a standalone, single-threaded process with no existing
+children. On Linux, an occupied process is rejected before launching the command
+or changing ownership; embedded concurrent callers are unsupported.
 Failures in the full group fail the combined project result.
 
 Shared CI, parent qualification and sync fallback use this combined profile.

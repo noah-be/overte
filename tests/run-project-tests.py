@@ -6,6 +6,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 import argparse
+from contextlib import contextmanager
+import ctypes
 import json
 import os
 import signal
@@ -214,7 +216,60 @@ def write_junit(path: Path, results: list[dict[str, object]], elapsed: float) ->
     ET.ElementTree(root).write(path, encoding="utf-8", xml_declaration=True)
 
 
-def stop_process(process: subprocess.Popen) -> str:
+@contextmanager
+def command_owner():
+    """Adopt escaped descendants even when a nested scheduler is force-killed."""
+    if not sys.platform.startswith("linux"):
+        yield lambda: None
+        return
+    # Keep each CLI self-contained for its existing sparse/bootstrap checkouts.
+    children = Path(f"/proc/self/task/{os.getpid()}/children")
+    # These standalone CLIs must own every child created in this scope. An
+    # existing child could later exit and hand us unrelated grandchildren; a
+    # concurrent thread could create unrelated children after any snapshot.
+    tasks = {task.name for task in Path("/proc/self/task").iterdir()}
+    if tasks != {str(os.getpid())} or children.read_text().split():
+        raise RuntimeError("command ownership requires a child-free single-threaded process")
+    libc = ctypes.CDLL(None, use_errno=True)
+    previous = ctypes.c_int()
+    if libc.prctl(37, ctypes.byref(previous), 0, 0, 0) != 0:
+        raise OSError(ctypes.get_errno(), "cannot read child-subreaper state")
+    if libc.prctl(36, 1, 0, 0, 0) != 0:
+        raise OSError(ctypes.get_errno(), "cannot set child-subreaper state")
+
+    def reap():
+        # The immediate Popen child must already be waited for. The checked
+        # standalone scope owns all remaining adopted children.
+        deadline = time.monotonic() + 1
+        while True:
+            owned = [int(pid) for pid in children.read_text().split()]
+            if not owned:
+                return
+            for pid in owned:
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+            for pid in owned:
+                try:
+                    os.waitpid(pid, os.WNOHANG)
+                except ChildProcessError:
+                    pass
+            if time.monotonic() >= deadline:
+                raise RuntimeError("owned command descendants did not terminate within cleanup deadline")
+            time.sleep(0.01)
+
+    try:
+        yield reap
+    finally:
+        try:
+            reap()
+        finally:
+            if libc.prctl(36, previous.value, 0, 0, 0) != 0:
+                raise OSError(ctypes.get_errno(), "cannot restore child-subreaper state")
+
+
+def stop_process(process: subprocess.Popen, reap) -> str:
     """Let nested schedulers clean their workers before forcing the suite down."""
     try:
         os.killpg(process.pid, signal.SIGTERM)
@@ -227,11 +282,19 @@ def stop_process(process: subprocess.Popen) -> str:
             os.killpg(process.pid, signal.SIGKILL)
         except ProcessLookupError:
             pass
+        process.wait()
+        # Escaped descendants may still hold stdout open after scheduler death.
+        reap()
         output, _ = process.communicate()
     return output
 
 
 def run_command(command: list[str], timeout: int, cancelled: list[int]) -> tuple[int, str, str]:
+    with command_owner() as reap:
+        return run_owned_command(command, timeout, cancelled, reap)
+
+
+def run_owned_command(command, timeout, cancelled, reap):
     if cancelled:
         return 128 + cancelled[0], "", f"interrupted by signal {cancelled[0]}"
     # Signal handlers only set a flag. Cancellation cannot interrupt Popen before
@@ -243,21 +306,21 @@ def run_command(command: list[str], timeout: int, cancelled: list[int]) -> tuple
     try:
         while True:
             if cancelled:
-                return (128 + cancelled[0], stop_process(process),
+                return (128 + cancelled[0], stop_process(process, reap),
                         f"interrupted by signal {cancelled[0]}")
             remaining = deadline - time.monotonic()
             if remaining <= 0:
-                return 1, stop_process(process), f"timeout after {timeout}s"
+                return 1, stop_process(process, reap), f"timeout after {timeout}s"
             try:
                 output, _ = process.communicate(timeout=min(0.1, remaining))
                 if cancelled:
-                    return (128 + cancelled[0], stop_process(process),
+                    return (128 + cancelled[0], stop_process(process, reap),
                             f"interrupted by signal {cancelled[0]}")
                 return process.returncode, output, ""
             except subprocess.TimeoutExpired:
                 continue
     except BaseException:
-        stop_process(process)
+        stop_process(process, reap)
         raise
 
 
