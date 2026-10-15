@@ -76,13 +76,27 @@ class IosPersonalTeamFetchTest(unittest.TestCase):
             "name": "ios-personal-team-e2e-kit-v3-123-2", "expired": False,
             "id": 77, "digest": "sha256:" + "1" * 64,
             "archive_download_url":
-                "https://api.github.com/repos/noah-be/overte/actions/artifacts/77/zip",
+                f"https://api.github.com/repos/{FETCH.SYNC.DEFAULT_REPOSITORY}/actions/artifacts/77/zip",
             "workflow_run": {
                 "id": 123, "repository_id": 42, "head_repository_id": 42,
                 "head_branch": "apple-ios", "head_sha": "a" * 40,
             },
         }
         self.assertIs(item, FETCH.select_artifact({"total_count": 1, "artifacts": [item]}, run))
+        # A configured positive must not authorize another repository or origin.
+        for url in (
+            "https://api.github.com/repos/foreign/overte/actions/artifacts/77/zip",
+            f"https://foreign.example/repos/{FETCH.SYNC.DEFAULT_REPOSITORY}/actions/artifacts/77/zip",
+        ):
+            with self.subTest(foreign_artifact_origin=url):
+                rejected = {**item, "archive_download_url": url}
+                with self.assertRaisesRegex(FETCH.SYNC.HandoffError, "provenance is invalid"):
+                    FETCH.select_artifact({"total_count": 1, "artifacts": [rejected]}, run)
+        for field in ("repository_id", "head_repository_id"):
+            with self.subTest(artifact_repository_id=field):
+                rejected = {**item, "workflow_run": {**item["workflow_run"], field: 43}}
+                with self.assertRaisesRegex(FETCH.SYNC.HandoffError, "provenance is invalid"):
+                    FETCH.select_artifact({"total_count": 1, "artifacts": [rejected]}, run)
         item["name"] = "ios-personal-team-e2e-kit-v3-999-1"
         with self.assertRaisesRegex(FETCH.SYNC.HandoffError, "no unique"):
             FETCH.select_artifact({"total_count": 1, "artifacts": [item]}, run)
@@ -100,7 +114,7 @@ class IosPersonalTeamFetchTest(unittest.TestCase):
             "expired": False,
             "created_at": "2026-08-26T19:17:40Z",
             "archive_download_url":
-                "https://api.github.com/repos/noah-be/overte/actions/artifacts/"
+                f"https://api.github.com/repos/{FETCH.SYNC.DEFAULT_REPOSITORY}/actions/artifacts/"
                 "9619898701/zip",
             "workflow_run": {
                 "id": 33000393530, "repository_id": 42,
@@ -111,6 +125,22 @@ class IosPersonalTeamFetchTest(unittest.TestCase):
         api = mock.Mock()
         api.artifacts.return_value = [item]
         self.assertIs(item, REUSE.select_artifact(api, run))
+        for url in (
+            "https://api.github.com/repos/foreign/overte/actions/artifacts/9619898701/zip",
+            f"https://foreign.example/repos/{FETCH.SYNC.DEFAULT_REPOSITORY}/actions/artifacts/9619898701/zip",
+        ):
+            with self.subTest(foreign_reusable_origin=url):
+                api.artifacts.return_value = [{**item, "archive_download_url": url}]
+                with self.assertRaisesRegex(REUSE.SYNC.HandoffError, "provenance is invalid"):
+                    REUSE.select_artifact(api, run)
+        for field in ("repository_id", "head_repository_id"):
+            with self.subTest(reusable_repository_id=field):
+                api.artifacts.return_value = [
+                    {**item, "workflow_run": {**item["workflow_run"], field: 43}}
+                ]
+                with self.assertRaisesRegex(REUSE.SYNC.HandoffError, "provenance is invalid"):
+                    REUSE.select_artifact(api, run)
+        api.artifacts.return_value = [item]
         run["run_attempt"] = 2
         with self.assertRaisesRegex(REUSE.SYNC.HandoffError, "attempt 1"):
             REUSE.select_artifact(api, run)
@@ -152,13 +182,13 @@ class IosPersonalTeamFetchTest(unittest.TestCase):
 
         opener = Opener()
         value = FETCH.api_json(
-            "https://api.github.com/repos/noah-be/overte/actions/runs/123",
+            f"https://api.github.com/repos/{FETCH.SYNC.DEFAULT_REPOSITORY}/actions/runs/123",
             "private-token", opener=opener,
         )
         self.assertTrue(value["ok"])
         self.assertEqual("Bearer private-token", opener.request.get_header("Authorization"))
         request = urllib.request.Request(
-            "https://api.github.com/repos/noah-be/overte/actions/artifacts/77/zip",
+            f"https://api.github.com/repos/{FETCH.SYNC.DEFAULT_REPOSITORY}/actions/artifacts/77/zip",
             headers={"Authorization": "Bearer private-token"},
         )
         redirected = FETCH.SYNC.SafeRedirectHandler().redirect_request(
@@ -170,7 +200,7 @@ class IosPersonalTeamFetchTest(unittest.TestCase):
 
     def test_dispatch_selects_only_returned_run_attempt_one_with_audited_inputs(self):
         arguments = argparse.Namespace(
-            repository="noah-be/overte", run_id=None, run_attempt=None,
+            repository=FETCH.SYNC.DEFAULT_REPOSITORY, run_id=None, run_attempt=None,
             timeout_seconds=3600, poll_seconds=20,
             qt_host_cache_key="overte-qt-host-v2-a-contract-" + "1" * 64,
             qt_ios_cache_key="overte-qt-ios-v2-b-contract-" + "2" * 64,
@@ -201,24 +231,39 @@ class IosPersonalTeamFetchTest(unittest.TestCase):
 
     def test_explicit_selection_never_dispatches_or_uses_latest(self):
         arguments = argparse.Namespace(
-            repository="noah-be/overte", run_id=123, run_attempt=2,
+            repository=FETCH.SYNC.DEFAULT_REPOSITORY, run_id=123, run_attempt=2,
         )
         run = {
             "id": 123, "event": "workflow_dispatch",
             "path": ".github/workflows/ios-bootstrap.yml",
             "head_branch": "apple-ios", "head_sha": "a" * 40,
-            "repository": {"id": 42, "full_name": "noah-be/overte"},
-            "head_repository": {"id": 42, "full_name": "noah-be/overte"},
+            "repository": {"id": 42, "full_name": FETCH.SYNC.DEFAULT_REPOSITORY},
+            "head_repository": {"id": 42, "full_name": FETCH.SYNC.DEFAULT_REPOSITORY},
             "run_attempt": 2, "status": "completed", "conclusion": "success",
         }
         with mock.patch.object(FETCH, "api_json", return_value=run) as request, \
                 mock.patch.object(FETCH.SYNC, "GitHubApi") as api:
             self.assertIs(run, FETCH.select_run(arguments, "private-token"))
         request.assert_called_once_with(
-            "https://api.github.com/repos/noah-be/overte/actions/runs/123",
+            f"https://api.github.com/repos/{FETCH.SYNC.DEFAULT_REPOSITORY}/actions/runs/123",
             "private-token",
         )
         api.assert_not_called()
+        # Keep independent run/head identity checks alongside the configured positive.
+        for field in ("repository", "head_repository"):
+            for identity in (
+                {"id": 42, "full_name": "foreign/overte"},
+                {"id": 0, "full_name": FETCH.SYNC.DEFAULT_REPOSITORY},
+                {"id": 43, "full_name": FETCH.SYNC.DEFAULT_REPOSITORY},
+            ):
+                with self.subTest(run_identity_field=field, identity=identity):
+                    rejected = {**run, field: identity}
+                    with mock.patch.object(FETCH, "api_json", return_value=rejected), \
+                            mock.patch.object(FETCH.SYNC, "GitHubApi") as rejected_api:
+                        with self.assertRaisesRegex(
+                                FETCH.SYNC.HandoffError, "protected iOS producer boundary"):
+                            FETCH.select_run(arguments, "private-token")
+                    rejected_api.assert_not_called()
 
 
 if __name__ == "__main__":
