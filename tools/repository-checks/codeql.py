@@ -67,10 +67,25 @@ def _global_input(path: str, pack_roots=()) -> bool:
             or relative.suffix.lower() in _QUERY_EXTENSIONS or name.endswith(".dbscheme.stats"))
 
 
+def _python_requirements_manifest(name: str) -> bool:
+    """Recognize named requirements without ambiguous nested repetition."""
+    stem, separator, extension = name.rpartition(".")
+    if not separator or extension not in {"txt", "in"}:
+        return False
+    for prefix in ("requirements", "constraints"):
+        if stem == prefix:
+            return True
+        if stem.startswith(prefix):
+            suffix = stem[len(prefix):]
+            return (len(suffix) > 1 and suffix[0] in "-_."
+                    and all(suffix[1:].split(".")))
+    return False
+
+
 def _source_languages(path: str) -> tuple[str, ...] | None:
     relative = PurePosixPath(path)
     name, extension = relative.name, relative.suffix.lower()
-    if name in _PYTHON_MANIFESTS or re.fullmatch(r"(?:requirements|constraints)(?:[-_.][^.]+)*\.(?:txt|in)", name):
+    if name in _PYTHON_MANIFESTS or _python_requirements_manifest(name):
         if extension in _JAVASCRIPT_EXTENSIONS:
             return LANGUAGES  # Lock/YAML manifests are also extracted as JS data.
         return ("python",)
