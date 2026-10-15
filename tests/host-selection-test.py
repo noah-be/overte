@@ -266,6 +266,35 @@ class HostSelectionTests(unittest.TestCase):
         expected=hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()
         self.assertEqual(generation['workflows']['.github/workflows/parent-qualification.yml']['sha'],expected)
 
+    def test_parent_impact_report_cannot_replace_full_sync_qualification(self):
+        source=ROOT/'tools/test-evidence/validate-sync-test.py'
+        spec=importlib.util.spec_from_file_location('parent_sync_consumer_fixture',source)
+        module=importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        case=module.IsolatedConsumerTests()
+        case.setUp()
+        self.addCleanup(case.doCleanups)
+        gate=module.VALIDATION._gate()
+        diagnostic={'schema':1,'kind':'host-impact-selection','reusable':False,
+                    'candidate':case.parent,'tree':case.tree_sha,
+                    'selection':{'suites':['alpha'],'full_host':False},'omitted_suites':['beta']}
+        request=SimpleNamespace(repository='noah-l-frank/overte',repository_id=1319052603,
+                                parent='main',parent_sha=case.parent)
+        def verify(*arguments):
+            with patch.object(gate,'artifact_evidence',return_value=({},diagnostic)):
+                try:
+                    return gate.verify_evidence(object(),{},request)
+                except gate.EvidenceError as error:
+                    self.assertIn('mismatched schema',str(error))
+                    raise
+        case.gate.verify_evidence=verify
+        case.gate.EvidenceError=gate.EvidenceError
+        result=case.validate()
+        self.assertEqual(result['mode'],'fallback')
+        self.assertEqual(result['reused_suites'],[])
+        self.assertEqual(set(case.executed()),{'alpha','beta'})
+        self.assertTrue(result['execution']['include_platform'])
+
     def test_parent_execution_route_rejects_missing_or_contradictory_outputs(self):
         import yaml
         import subprocess
