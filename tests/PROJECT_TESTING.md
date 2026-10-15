@@ -743,6 +743,30 @@ bookends remain separate requirements. Legacy parent artifacts and the disabled
 attested-environment consumer cannot acquire stronger guarantees from this
 preparation or a policy toggle.
 
+The read-only `producer_api.py` adapter additionally prepares an explicit
+`manual-main-v1` source kind. The existing `reusable-pr` contract remains the
+default. Manual support requires a separately supplied trusted `ManualSource`
+with `enabled=True`, the exact current `main` controller commit and root tree,
+its complete reviewed executable-source inventory, workflow ID/path/blob and
+controller digest. No real manual workflow or controller generation is approved
+or installed by this preparation; fake-API tests use synthetic source objects.
+A manual run's `head_sha` identifies its controller, never the tested candidate.
+The adapter independently reads the current PR base/head/merge/tree/parents;
+candidate context and inner receipts remain separate proof requirements.
+
+Manual source admission supports only a first-ever attempt numbered 1. It reads
+the [specific run attempt](https://docs.github.com/en/rest/actions/workflow-runs#get-a-workflow-run-attempt),
+the [attempt's job inventory and individual job IDs](https://docs.github.com/en/rest/actions/workflow-jobs#list-jobs-for-a-workflow-run-attempt),
+and Actions check-suite/app authority. A later attempt is explicitly unavailable;
+old timestamps and a current job snapshot do not establish original execution.
+Unknown, pending, failed, incomplete or changed evidence never falls back to an
+older green. The [artifact API](https://docs.github.com/en/rest/actions/artifacts#get-an-artifact)
+binds archive bytes to a run; it does not identify the uploading job. Exact
+reviewed controller source must still protect publication from candidate work.
+Even a well-formed manual aggregate remains blocked at the adapter terminal:
+protected post-kill receipt verification has not been implemented. Enabling the
+source policy cannot turn ordinary receipt JSON into that missing proof.
+
 ## Dormant required Android orchestration
 
 The `android-orchestration` quick/host group verifies the next required Android
