@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-"""Compile every production Pico Java caller using SDK 36 and explicit dependency stubs.
+"""Compile Pico Java with SDK 36 and the actual shared Web API.
 
-This is a focused javac check, not a Gradle build or Android execution.
+QtActivity/Documents/Snapshot bootstrap boundaries remain explicit stubs;
+QtNative ownership is compiled against the actual QtAndroid.jar API. This is a
+focused javac/callgraph check, not a Gradle build or Android execution.
 """
 import os
 import re
@@ -17,17 +19,23 @@ HERE = Path(__file__).parent
 class ProductionJavaCompileTest(unittest.TestCase):
     def test_all_production_pico_java_sources_compile(self):
         sdk = Path(os.environ.get('ANDROID_SDK_ROOT', str(Path.home() / 'Android/Sdk')))
+        common = Path(os.environ.get('OVERTE_TEST_COMMON_WEB_SOURCE_ROOT', str(ROOT)))
+        webkit = Path(os.environ.get('OVERTE_TEST_ANDROIDX_WEBKIT_JAR', str(ROOT /
+            'android/common/tests/robolectric/build/native-host-api-jars/androidx.webkit-webkit.jar')))
+        self.assertTrue(webkit.is_file(), 'Provide the actual AndroidX WebKit 1.12.1 classes.jar through OVERTE_TEST_ANDROIDX_WEBKIT_JAR')
+        qt = Path(os.environ.get('OVERTE_TEST_QT_ANDROID_JAR', ''))
+        self.assertTrue(qt.is_file(), 'Provide actual QtAndroid.jar through OVERTE_TEST_QT_ANDROID_JAR')
+        web = common / 'android/common/web/java'
+        self.assertTrue(web.is_dir(), 'The actual owning-parent Web sources are required')
         stubs = [HERE / 'java-stubs' / name for name in (
             'org/qtproject/qt5/android/bindings/QtActivity.java',
             'io/highfidelity/utils/HifiUtils.java', 'org/overte/pico/R.java',
-            'org/overte/web/EmbeddedWebView.java',
             'org/overte/documents/DocumentAdapter.java', 'org/overte/snapshot/SnapshotAdapter.java')]
         with tempfile.TemporaryDirectory(prefix='pico-production-javac-') as scratch:
             subprocess.run(['javac', '-encoding', 'UTF-8', '-cp',
-                str(sdk / 'platforms/android-36/android.jar'), '-d', scratch,
+                os.pathsep.join([str(sdk / 'platforms/android-36/android.jar'),str(webkit),str(qt)]), '-d', scratch,
                 *map(str, sorted(JAVA.glob('*.java'))), *map(str, stubs),
-                str(ROOT / 'android/common/web/java/org/overte/web/EmbeddedWebHost.java'),
-                str(ROOT / 'android/common/web/java/org/overte/web/WebFilePickerState.java'),
+                *map(str, sorted(web.rglob('*.java'))),
                 str(ROOT / 'security/redaction/java/org/overte/security/SafeDiagnostics.java'),
                 str(ROOT / 'android/common/documents/java/org/overte/documents/DocumentHost.java'),
                 str(ROOT / 'android/common/snapshot/java/org/overte/snapshot/SnapshotHost.java')],
@@ -60,6 +68,20 @@ class ProductionJavaCompileTest(unittest.TestCase):
             self.assertTrue(focus_blocks)
             self.assertFalse(any('OffscreenWebView.setForeground:' in block for block in focus_blocks))
             self.assertTrue(any('OffscreenWebView.setInputForeground:' in block for block in focus_blocks))
+
+            host = subprocess.check_output(['javap', '-private', '-c', '-classpath', scratch,
+                'org.overte.pico.PicoEmbeddedWebHost'], text=True)
+            host_blocks = re.split(r'\n(?=  (?:public|private|protected|void|boolean) )', host)
+            window = next(block for block in host_blocks if block.splitlines()[0].strip() == 'void windowFocus();')
+            self.assertIn('EmbeddedWebView.setInputFocused:', window)
+            self.assertNotIn('EmbeddedWebView.setForeground:', window)
+            foreground = next(block for block in host_blocks if block.splitlines()[0].strip() == 'public boolean isForeground();')
+            self.assertNotIn('hasWindowFocus:', foreground)
+            self.assertIn('isFinishing:', foreground)
+            self.assertIn('isDestroyed:', foreground)
+            owner = next(block for block in host_blocks if block.splitlines()[0].strip() == 'private boolean ownsActivity();')
+            self.assertIn('QtNative.activity:', owner)
+            self.assertIn('PicoInterfaceActivity.getInstance:', owner)
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

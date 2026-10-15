@@ -124,6 +124,54 @@ Launching QApplication inside the Java launcher's JavaMain pthread allowed Qt
 lifetime must not be restored. Android scheduling, provider and OS endpoints
 remain explicit fixtures; these assertions do not qualify a device or APK.
 
+## Embedded web Activity and input focus
+
+Pico's shared-web host uses Activity resume/pause for foreground. Window focus
+changes call `EmbeddedWebView.setInputFocused(owner, focused)` without pausing
+media or presentation. Native input tickets, browser actions and document
+selection still require real window focus and both the current Pico and Qt
+Activity owner. Pause and teardown still revoke the immutable old host when Qt
+has already replaced its Activity; the common owner guard protects a successor.
+
+The production SDK/callgraph check compiles the actual shared Web Java sources,
+using `OVERTE_TEST_ANDROIDX_WEBKIT_JAR` for the reviewed AndroidX WebKit 1.12.1
+`classes.jar` and `OVERTE_TEST_QT_ANDROID_JAR` for the actual Qt ownership API;
+it no longer substitutes a manually maintained Web API class.
+`OVERTE_TEST_COMMON_WEB_SOURCE_ROOT` is an explicit test dependency override for
+a reviewed owning-parent checkout. A missing API or artifact fails the check.
+
+The actual Activity, host, common input-gate and picker journey is a separately
+executed prepared-host check: five scenarios on API 26 and 35 produce ten JUnit
+cases. It requires Java 21, Gradle 8.13, Robolectric 4.16.1 with the actual API
+26/35 instrumented runtime JARs, and the real SDK 36, Qt and AndroidX inputs
+below. Neither the 39-case Pico catalog nor the currently registered 60-suite
+project host profile runs it automatically. Automatic standard-path wiring
+remains pending; record this result separately from the normal host result.
+
+```sh
+python3 android/vr/pico/tests/pico-embedded-web-focus-api-test.py \
+  --output /private/new-focus-check \
+  --android-jar /absolute/path/to/platforms/android-36/android.jar \
+  --webkit-jar /absolute/path/to/androidx-webkit-1.12.1.jar \
+  --qt-jar /absolute/path/to/QtAndroid.jar \
+  --core-jar /absolute/path/to/androidx-core-1.1.0.jar
+```
+
+The runner verifies and records the owning source revision, production-source
+and artifact hashes, and uses at most four Gradle workers. `--offline-init` and
+`--gradle` select existing reviewed host inputs. No product source is replaced
+by these arguments. The default uses the actual in-tree shared Java sources;
+`--common-source-root` with `--common-source-revision` explicitly selects a
+separate reviewed dependency checkout for diagnostics. The recorded source and
+input hashes do not attest protected-branch integration or a current APK build.
+
+Robolectric executes the real Pico resume/pause/focus/result methods and common
+public Java callers. Native application bootstrap, Qt/OpenXR/voice and shared
+JNI endpoints are controlled boundaries. These cases prove focus revocation,
+foreground preservation, Pico/Qt owner replacement and delayed/canceled picker
+delivery; they do not execute Chromium DOM, hardware video/audio, a real document
+provider, or an HMD. Keep the original failing host as a separate negative input.
+
 ## Legacy inline HTML lifecycle regression
 
 The retained `data:text/html` world surface continues to use its original Pico
@@ -143,8 +191,11 @@ python3 android/vr/pico/tests/device/test_legacy_web_qt.py
 python3 android/vr/pico/tests/device/test_production_java_compile.py
 ```
 
-These cases are also mandatory entries in the 39-case Pico device-free catalog.
-The Java check executes the original production lifecycle/frame/cleanup methods;
+The lifecycle and Qt checks are mandatory entries in the 39-case Pico
+device-free catalog. The standalone SDK/callgraph check must be run separately;
+neither that catalog nor the current project host profile invokes it
+automatically. The lifecycle Java check executes the original production
+lifecycle/frame/cleanup methods;
 Android scheduling, Canvas, WebView media effects and native publication are
 explicit host boundaries. The Qt5 check compiles the whole production item,
 loads the real legacy QML and executes the native callbacks through a real JVM.
