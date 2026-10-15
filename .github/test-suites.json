@@ -83,6 +83,28 @@
         ]
       }
     },
+    "android-build-inputs": {
+      "command": [
+        "python",
+        "tests/android-build-inputs-test.py"
+      ],
+      "layer": "quick",
+      "scope": "content",
+      "environment": "host-qt5-qt6",
+      "closure": {
+        "kind": "patterns",
+        "inputs": [
+          "tests/android-build-inputs-test.py",
+          "tools/repository-checks/android-build-inputs.py",
+          "tools/ios-build-qualification/inputs.py"
+        ],
+        "required": [
+          "tests/android-build-inputs-test.py",
+          "tools/repository-checks/android-build-inputs.py",
+          "tools/ios-build-qualification/inputs.py"
+        ]
+      }
+    },
     "codeql-selection": {
       "command": [
         "python",

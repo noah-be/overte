@@ -301,6 +301,15 @@ It declares canonical commands and complete source/fixture/helper closures;
 unreviewed closures remain conservative. Changed Python import modules and
 ancestor Node package metadata cannot hide behind an unchanged entry point.
 
+The `android-build-inputs` quick suite checks dormant Phone and Pico APK source
+planning with real immutable Git histories, including standalone npm locks,
+native/Java/Gradle/Conan inputs, packaged resources, mode changes and stale reader
+boundaries. It also runs in the combined host profile. The precise registry
+closure binds its test, planner and shared immutable Git reader; global controls
+bind Python import resolution. The [Android build-input guide](../docs/ANDROID_BUILD_INPUTS.md)
+explains why this source plan neither changes the existing manual build triggers
+nor proves external dependencies, build execution or reusable APKs.
+
 The `ios-input-selection` quick suite exercises the dormant iOS repository-input
 selector with temporary Git histories. It covers additions, deletions, renames,
 file modes, symlinks, gitlinks, packaged resources and changed build readers.
@@ -348,6 +357,7 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `python-test-runner` | `quick` | `python3 tests/run-project-tests.py --suite python-test-runner` |
 | `repository-checks` | `quick` | `python3 tests/run-project-tests.py --suite repository-checks` |
 | `android-ci` | `quick` | `python3 tests/run-project-tests.py --suite android-ci` |
+| `android-build-inputs` | `quick` | `python3 tests/run-project-tests.py --suite android-build-inputs` |
 | `codeql-selection` | `quick` | `python3 tests/run-project-tests.py --suite codeql-selection` |
 | `ios-build-qualification` | `quick` | `python3 tests/run-project-tests.py --suite ios-build-qualification` |
 | `ios-input-selection` | `quick` | `python3 tests/run-project-tests.py --suite ios-input-selection` |
