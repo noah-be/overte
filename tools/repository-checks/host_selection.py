@@ -45,6 +45,9 @@ CI_POLICY = frozenset({
     '.github/test-suites.json',
     '.github/ios-host-orchestration.json', '.github/ios-build-qualification.json',
     '.github/workflows/branch-cleanup.yml', '.github/workflows/branch-policy.yml',
+    # Complete tuple validation runs before selection; arbitrary edits fail.
+    '.github/workflows/project-tests.yml', '.github/workflows/codeql.yml',
+    '.github/codeql/codeql-config.yml',
     '.github/workflows/browser-client.yml', '.github/workflows/browser-direct-client.yml',
     '.github/workflows/browser-client-atomic-settings.yml',
 })
@@ -57,7 +60,7 @@ PROGRAM_INPUTS = (
     'tests/requirements*.txt', 'interface', 'interface/**', 'libraries', 'libraries/**',
     'scripts', 'scripts/**', 'domain-server', 'domain-server/**', 'provenance', 'provenance/**', 'tools/sbom', 'tools/sbom/**',
 )
-REVIEWED_PROGRAMS = '78e482c6c46d4ba237a8f2dbe764a182ec9f73e6a3610b668237072d3a9038f6'
+REVIEWED_PROGRAMS = '6c05f2c28b722559c78606b418a5195e527057d084b8facc196bf19dbf7f3d2d'
 
 
 def program_digest(tree, root=ROOT):

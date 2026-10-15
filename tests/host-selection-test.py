@@ -48,6 +48,8 @@ class HostSelectionTests(unittest.TestCase):
                       ['tools/branch-cleanup/adoption.py', 'tests/branch-cleanup-test.py',
                        '.github/workflows/branch-cleanup.yml', 'docs/AUTOMATIC_BRANCH_CLEANUP.md'],
                       ['tools/repository-checks/check.py'], ['tests/workflow-contract-test.py'],
+                      ['.github/workflows/project-tests.yml'],
+                      ['.github/workflows/codeql.yml', '.github/codeql/codeql-config.yml'],
                       ['tools/ios-build-qualification/check.py', 'tests/ios-build-qualification-test.py']):
             with self.subTest(paths=paths):
                 plan=self.selected(paths)
@@ -58,7 +60,7 @@ class HostSelectionTests(unittest.TestCase):
     def test_unknown_product_setup_shadow_and_mixed_changes_keep_full_host(self):
         for path in ('interface/src/Application.cpp','libraries/audio-client/src/AudioClient.cpp',
                      'tests/device/catalog.json','tests/run-project-tests.py','tests/run-unittest-suite.py',
-                     'tests/requirements-host.txt','.github/workflows/project-tests.yml',
+                     'tests/requirements-host.txt','.github/workflows/unreviewed-host.yml',
                      'tests/json.py','json.py','tests/sitecustomize.py','PhoneLoadingDiagnostics.h',
                      'unknown/data.bin','provenance/artifact_identity.py','tools/sbom/verify-artifact-identity.py',
                      'browser-client/package-lock.json','script-archive/marketplace/S3Server/package-lock.json'):
