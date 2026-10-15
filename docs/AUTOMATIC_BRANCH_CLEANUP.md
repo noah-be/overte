@@ -198,6 +198,22 @@ The Actions run contains a `branch-cleanup-report-<run-id>-<run-attempt>` artifa
 with the plan and outcome. Retained branches carry reasons; successful deletions
 record their recovery information. Failures remain visible in the workflow run.
 
+Expected concurrent changes use status `deferred` and a successful workflow step,
+so they do not produce a failed-workflow notification. For a changed `main`
+snapshot, fresh fork ownership and GitHub ancestry checks must independently
+confirm that both snapshots remain in current `main`. An unrelated checkout,
+rewind, missing proof or unavailable API still fails. Newly observed activity or
+a changed candidate immediately before deletion also defers that attempt.
+
+A deferral stops the remaining mutations, records its reason in the summary and
+report, and leaves reassessment to the normal CI/PR wake-ups and schedule. A
+deferred plan publishes zero candidates and removes any stale plan; a deferred
+history stage skips deletion planning. No `continue-on-error` masks errors.
+Invalid policy, ownership/protection failures, incomplete activity inventories,
+backup/restore errors and unexpected command/API failures remain red and retain
+their normal failure notifications. Personal GitHub notification preferences are
+unchanged.
+
 Manual dispatch defaults to `report`. It performs the assessment without creating
 backups or deleting branches:
 
