@@ -14,8 +14,10 @@ import json
 import os
 from pathlib import Path
 import re
+import stat
 import subprocess
 import tempfile
+import threading
 import time
 import urllib.parse
 
@@ -175,14 +177,264 @@ def select_candidates(branches, policy, comparisons, holds=None):
     return result, held
 
 
+class ImmutableReadCache:
+    """Private, per-attempt optimization; never a cache of deletion decisions.
+
+    Only trusted cleanup processes may access this directory. The digest detects
+    damaged entries; it does not authenticate data from another process, job,
+    artifact or cache service. Mutable observations always bypass this class.
+    """
+    MAX_ENTRY = 3_000_000
+    MAX_ENTRIES = 2048
+    MAX_BYTES = 64 * 1024 * 1024
+
+    def __init__(self, runner_temp, run_id, attempt):
+        require(all(isinstance(value, str) and re.fullmatch(r"[1-9][0-9]*", value)
+                    for value in (run_id, attempt)), "invalid_immutable_cache_attempt")
+        root = Path(runner_temp)
+        require(root.is_absolute() and root == Path(os.path.normpath(root)), "unsafe_immutable_cache_root")
+        for current in [*reversed(root.parents), root]:
+            info = current.lstat()
+            require(stat.S_ISDIR(info.st_mode) and not info.st_mode & 0o022
+                    and info.st_uid in {0, os.getuid()}, "unsafe_immutable_cache_ancestor")
+        require(root.stat().st_uid == os.getuid(), "foreign_immutable_cache_root")
+        self.directory = root / ("branch-cleanup-immutable-" + run_id + "-" + attempt)
+        self.directory.mkdir(mode=0o700, exist_ok=True)
+        info = self.directory.lstat()
+        require(stat.S_ISDIR(info.st_mode) and stat.S_IMODE(info.st_mode) == 0o700
+                and info.st_uid == os.getuid(), "unsafe_immutable_cache_directory")
+        self.context = {"repository": REPOSITORY, "repository_id": REPOSITORY_ID,
+                        "run_id": run_id, "attempt": attempt,
+                        "controller": hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
+        self.locks, self.guard = {}, threading.Lock()
+
+    @staticmethod
+    def canonical(value):
+        return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
+
+    @staticmethod
+    def blob_identity(raw):
+        # Public Git object encoding, never a checksum of secret material.
+        # Fixed Git with no filters/-w, no inherited configuration and no
+        # candidate cwd cannot run checkout filters or modify an object store.
+        require(type(raw) is bytes and len(raw) <= 1_500_000, "workflow_content_too_large")
+        try:
+            result = subprocess.run(["/usr/bin/git", "--no-replace-objects", "hash-object", "--no-filters", "--stdin"],
+                cwd="/", input=raw, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=10, check=True,
+                env={"PATH": "/usr/bin:/bin", "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null"})
+            value = result.stdout.decode("ascii").strip()
+        except (OSError, UnicodeError, subprocess.SubprocessError):
+            raise CleanupError("workflow_git_object_encoding_unavailable") from None
+        require(SHA.fullmatch(value), "invalid_workflow_git_object_encoding")
+        return value
+
+    @staticmethod
+    def request(suffix, paginate):
+        if paginate:
+            return None
+        # Fixed query spelling excludes branch refs, arbitrary parameters and
+        # API listings whose completeness or membership can change over time.
+        if re.fullmatch(r"compare/[0-9a-f]{40}\.\.\.[0-9a-f]{40}\?per_page=1", suffix):
+            return {"kind": "compare", "endpoint": suffix}
+        match = re.fullmatch(r"contents/(\.github/workflows(?:/[^?]+)?)\?ref=([0-9a-f]{40})", suffix)
+        if match:
+            path = urllib.parse.unquote(match[1])
+            name = path.removeprefix(".github/workflows/")
+            if (path == ".github/workflows" or
+                    path.startswith(".github/workflows/") and "/" not in name
+                    and name not in {"", ".", ".."} and path.endswith((".yml", ".yaml"))):
+                if not any(char in path for char in "\r\n\0\\") and urllib.parse.quote(path, safe="/") == match[1]:
+                    return {"kind": "contents", "endpoint": suffix}
+        return None
+
+    @staticmethod
+    def validate(request, value):
+        if request["kind"] == "compare":
+            require(isinstance(value, dict) and value.get("status") in {"ahead", "behind", "identical", "diverged"}
+                    and type(value.get("behind_by")) is int and value["behind_by"] >= 0
+                    and isinstance(value.get("merge_base_commit"), dict)
+                    and isinstance(value["merge_base_commit"].get("sha"), str)
+                    and SHA.fullmatch(value["merge_base_commit"]["sha"]), "invalid_cached_immutable_compare")
+        else:
+            path = urllib.parse.unquote(request["endpoint"].split("?", 1)[0][9:])
+            if path == ".github/workflows":
+                require(isinstance(value, list) and len(value) < 1000, "invalid_cached_workflow_directory")
+                seen = set()
+                for item in value:
+                    name = item.get("path") if isinstance(item, dict) else None
+                    require(isinstance(name, str) and name.startswith(path + "/") and "/" not in name[len(path) + 1:]
+                            and name[len(path) + 1:] not in {"", ".", ".."}
+                            and not any(char in name for char in "\r\n\0") and name not in seen,
+                            "invalid_cached_workflow_directory_entry")
+                    seen.add(name)
+                    if name.endswith((".yml", ".yaml")):
+                        require(item.get("type") == "file" and isinstance(item.get("sha"), str)
+                                and SHA.fullmatch(item["sha"]), "invalid_cached_workflow_file_entry")
+            else:
+                require(isinstance(value, dict) and value.get("path") == path and value.get("type") == "file"
+                        and value.get("encoding") == "base64" and isinstance(value.get("content"), str)
+                        and len(value["content"]) <= 2_000_000 and isinstance(value.get("sha"), str)
+                        and SHA.fullmatch(value["sha"]) and "target" not in value and "submodule_git_url" not in value,
+                        "invalid_cached_workflow_content")
+                import base64
+                import binascii
+                try:
+                    raw = base64.b64decode(re.sub(rb"[ \t\r\n]", b"", value["content"].encode("ascii")), validate=True)
+                    raw.decode("utf-8")
+                except (ValueError, UnicodeError, binascii.Error):
+                    raise CleanupError("invalid_cached_workflow_encoding") from None
+                require(ImmutableReadCache.blob_identity(raw) == value["sha"],
+                        "cached_workflow_blob_mismatch")
+                require("size" not in value or type(value["size"]) is int and value["size"] == len(raw),
+                        "cached_workflow_size_mismatch")
+
+    @staticmethod
+    def project(request, value):
+        # Exact Git identities do not freeze account metadata or API URLs.
+        # Return only the immutable facts used by cleanup, on misses AND hits.
+        if request["kind"] == "compare":
+            return {"status": value["status"], "behind_by": value["behind_by"],
+                    "merge_base_commit": {"sha": value["merge_base_commit"]["sha"]}}
+        if isinstance(value, list):
+            return [{key: item[key] for key in ("path", "type", "sha") if key in item} for item in value]
+        return {key: value[key] for key in ("path", "type", "sha", "encoding", "content", "size") if key in value}
+
+    def _read(self, path, request):
+        try:
+            descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+            with os.fdopen(descriptor, "rb") as stream:
+                info = os.fstat(stream.fileno())
+                require(stat.S_ISREG(info.st_mode) and stat.S_IMODE(info.st_mode) == 0o600
+                        and info.st_uid == os.getuid() and info.st_nlink == 1 and info.st_size <= self.MAX_ENTRY,
+                        "unsafe_immutable_cache_entry")
+                data = stream.read(self.MAX_ENTRY + 1)
+            require(len(data) <= self.MAX_ENTRY, "oversized_immutable_cache_entry")
+            def unique(pairs):
+                result = {}
+                for key, value in pairs:
+                    require(key not in result, "duplicate_immutable_cache_field")
+                    result[key] = value
+                return result
+            entry = json.loads(data, object_pairs_hook=unique)
+            require(isinstance(entry, dict) and set(entry) == {"schema", "context", "request", "value", "digest"}
+                    and type(entry["schema"]) is int and entry["schema"] == 1
+                    and entry["context"] == self.context and entry["request"] == request,
+                    "foreign_immutable_cache_entry")
+            claimed = entry.pop("digest")
+            require(claimed == hashlib.sha256(self.canonical(entry)).hexdigest(), "damaged_immutable_cache_entry")
+            self.validate(request, entry["value"])
+            return self.project(request, entry["value"])
+        except (CleanupError, OSError, ValueError, TypeError, KeyError):
+            return None  # A damaged entry grants no permission; fetch again.
+
+    def _write(self, path, request, value):
+        # Capacity inspection and atomic writes share a short filesystem lock;
+        # immutable network reads for different keys remain concurrent.
+        with self.guard:
+            self._write_locked(path, request, value)
+
+    def _write_locked(self, path, request, value):
+        entry = {"schema": 1, "context": self.context, "request": request, "value": value}
+        entry["digest"] = hashlib.sha256(self.canonical(entry)).hexdigest()
+        data = self.canonical(entry)
+        if len(data) > self.MAX_ENTRY:
+            return
+        try:
+            total, count = 0, 0
+            for item in self.directory.iterdir():
+                count += 1
+                total += item.lstat().st_size
+                if count >= self.MAX_ENTRIES or total + len(data) > self.MAX_BYTES:
+                    return
+            with tempfile.NamedTemporaryFile(dir=self.directory, delete=False) as stream:
+                temporary = Path(stream.name)
+                stream.write(data)
+            try:
+                temporary.replace(path)
+            finally:
+                temporary.unlink(missing_ok=True)
+        except OSError:
+            pass  # A full/unavailable cache cannot replace fresh API evidence.
+
+    def get(self, request, fetch, observe=None):
+        info = self.directory.lstat()
+        require(stat.S_ISDIR(info.st_mode) and stat.S_IMODE(info.st_mode) == 0o700
+                and info.st_uid == os.getuid(), "unsafe_immutable_cache_directory")
+        key = hashlib.sha256(self.canonical(request)).hexdigest()
+        with self.guard:
+            lock = (None if key not in self.locks and len(self.locks) >= self.MAX_ENTRIES
+                    else self.locks.setdefault(key, threading.Lock()))
+        if lock is None:
+            if observe:
+                observe(False)
+            value = fetch()
+            self.validate(request, value)
+            return self.project(request, value)
+        with lock:
+            path = self.directory / (key + ".json")
+            value = self._read(path, request)
+            if observe:
+                observe(value is not None)
+            if value is None:
+                value = fetch()
+                self.validate(request, value)
+                value = self.project(request, value)
+                self._write(path, request, value)
+            return value
+
+
 class Github:
+    def __init__(self):
+        self.cache = None
+        self.cache_checked = False
+        self._cache_statistics = {"state": "disabled", "hits": 0, "misses": 0,
+                                  "fresh_api_invocations": {"contents": 0, "compare": 0, "other": 0}}
+        self._statistics_lock = threading.Lock()
+
+    def cache_statistics(self):
+        """Per-client CLI call counters, never HTTP page or quota measurements."""
+        with self._statistics_lock:
+            return {**self._cache_statistics,
+                    "fresh_api_invocations": dict(self._cache_statistics["fresh_api_invocations"])}
+
+    def _observe_cache(self, hit):
+        with self._statistics_lock:
+            self._cache_statistics["hits" if hit else "misses"] += 1
+
     def get(self, suffix="", paginate=False):
         require(not suffix.startswith(("/", "http"))
                 and not {".", ".."}.intersection(suffix.split("?", 1)[0].split("/")), "unsafe_api_path")
         endpoint = "repos/" + REPOSITORY + ("/" + suffix if suffix else "")
+        with self._statistics_lock:
+            if not self.cache_checked:
+                enabled = os.environ.get("BRANCH_CLEANUP_IMMUTABLE_CACHE", "")
+                require(enabled in {"", "1"}, "invalid_immutable_cache_switch")
+                if enabled:
+                    trusted_runtime()
+                    run_id, attempt = os.environ.get("GITHUB_RUN_ID", ""), os.environ.get("GITHUB_RUN_ATTEMPT", "")
+                    require(all(re.fullmatch(r"[1-9][0-9]*", value) for value in (run_id, attempt)), "invalid_immutable_cache_attempt")
+                    try:
+                        self.cache = ImmutableReadCache(os.environ.get("RUNNER_TEMP", ""), run_id, attempt)
+                        self._cache_statistics["state"] = "enabled"
+                    except (CleanupError, OSError):
+                        # Optional cache provisioning cannot invalidate fresh API
+                        # evidence. Only initialization is optional; API failures,
+                        # invalid responses and all ordinary guards remain fatal.
+                        self.cache = None
+                        self._cache_statistics["state"] = "unavailable"
+                self.cache_checked = True
+        request = ImmutableReadCache.request(suffix, paginate)
+        kind = request["kind"] if request is not None else "other"
+        if self.cache is not None and request is not None:
+            return self.cache.get(request, lambda: self._get(endpoint, paginate, kind), self._observe_cache)
+        return self._get(endpoint, paginate, kind)
+
+    def _get(self, endpoint, paginate, kind):
         args = ["gh", "api", "--method", "GET", endpoint]
         if paginate:
             args += ["--paginate", "--slurp"]
+        with self._statistics_lock:
+            self._cache_statistics["fresh_api_invocations"][kind] += 1
         value = json.loads(run(args, timeout=180).stdout)
         if not paginate:
             return value
@@ -393,7 +645,7 @@ class Github:
                 source = raw.decode("utf-8")
             except (UnicodeError, ValueError, binascii.Error):
                 raise CleanupError("invalid_workflow_content_encoding") from None
-            actual = hashlib.sha1(b"blob " + str(len(raw)).encode("ascii") + b"\0" + raw).hexdigest()
+            actual = ImmutableReadCache.blob_identity(raw)
             require(actual == blob_sha, "workflow_blob_identity_mismatch")
             if "size" in value:
                 require(type(value["size"]) is int and value["size"] == len(raw),
@@ -548,6 +800,13 @@ def trusted_runtime():
     require(os.environ.get("GITHUB_EVENT_NAME") in {"pull_request_target", "schedule", "workflow_dispatch", "workflow_run"}, "untrusted_workflow_event")
 
 
+def record_cache_statistics(report, github):
+    # Only the trusted adapter's internal counters are retained. Old offline
+    # fakes need not implement telemetry; arbitrary API values are never used.
+    if type(getattr(github, "_cache_statistics", None)) is dict:
+        report["immutable_api_cache"] = github.cache_statistics()
+
+
 def verify_checkout(root, source_sha):
     """Never use a stale checkout's policy after trusted main has advanced."""
     actual = run(["git", "-C", str(root), "rev-parse", "HEAD"]).stdout.strip()
@@ -700,6 +959,7 @@ def main():
             args.output.unlink(missing_ok=True)
             report["candidate_count"] = 0
     except (CleanupError, OSError, ValueError, KeyError, subprocess.TimeoutExpired) as error:
+        record_cache_statistics(report, github)
         report.update(status="blocked", error=str(error) if isinstance(error, CleanupError) else type(error).__name__)
         if getattr(args, "report", None):
             write_json(args.report, report)
@@ -710,6 +970,7 @@ def main():
         with Path(os.environ["GITHUB_OUTPUT"]).open("a") as out:
             out.write("candidate_count=" + str(report["candidate_count"]) + "\n")
             out.write("deferred=" + str(report["status"] == "deferred").lower() + "\n")
+    record_cache_statistics(report, github)
     if getattr(args, "report", None):
         write_json(args.report, report)
         summary(report)

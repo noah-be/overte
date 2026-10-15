@@ -103,6 +103,75 @@ record a hold or keep an associated PR open. A local checkout alone cannot reser
 that remote branch. This is the deliberate boundary of operating entirely on
 GitHub; the workflow has no Jenkins, local daemon, or self-hosted runner dependency.
 
+## Dormant immutable-read cache
+
+`cleanup.py` prepares an opt-in cache for repeated read-only assessments within
+one trusted cleanup run and attempt. It is disabled by default; the current
+workflow does not enable it. A later reviewed workflow change can set
+`BRANCH_CLEANUP_IMMUTABLE_CACHE=1` for the trusted adoption, plan and apply steps.
+No candidate source, downloaded artifact or other job may populate this cache.
+It is not an `actions/cache` entry or a cross-run proof store.
+
+Only two exact request forms are eligible: workflow-directory/file Contents
+reads with a full commit SHA, and the cleanup's comparison of two full commit
+SHAs. A new SHA, path or comparison pair requires a new read. Branch and tag
+refs, repository ownership/settings, current branch protection, PRs, issues,
+actions activity, releases, deployments, rules, artifact receipts and paginated
+queries always remain fresh. Git object endpoints and local Git history are
+not cached by this bounded preparation. All existing preflight, final assessment,
+independent backup restore and exact deletion leases remain required.
+Eligible responses return only the workflow path/type/blob/content/size or
+comparison status/behind-count/merge-base SHA used by cleanup. Mutable user,
+permission and URL metadata is discarded on both fresh reads and cache hits.
+
+The fixed private directory is
+`$RUNNER_TEMP/branch-cleanup-immutable-<run-id>-<attempt>`. Runner context, numeric
+IDs, directory ownership/mode and unaliased ancestors are checked. Entries use
+private ordinary files, atomic replacement, an exact repository/request/run/
+attempt/controller identity and a SHA-256 envelope digest. The digest detects
+damage; it does not authenticate an untrusted writer. The workflow must retain
+its existing trusted-code-only execution boundary. Workflow bodies additionally
+retain their existing decoded Git blob identity check before reference scanning;
+fixed system Git performs public object encoding without filters or object writes.
+Corrupt, foreign, public, aliased or oversized entries cause a fresh read or a
+closed failure. Failed requests and invalid fresh responses are never cached as
+success. Limits are 2,048 entries, 64 MiB total and 3 MB per entry; saturation
+uses fresh evidence. Entries and workflow bodies are not uploaded or logged.
+If the hosted filesystem cannot establish the private cache during initialization,
+the assessment keeps the original uncached API path. This optional initialization
+fallback cannot mask API failures, invalid responses or changed safety evidence.
+
+Retained adoption and cleanup reports include fixed `immutable_api_cache`
+telemetry: `state` (`disabled`, `enabled` or `unavailable`), numeric `hits` and
+`misses`, and `fresh_api_invocations` for `contents`, `compare` and `other`.
+Counters cover that phase's adapter, include failed fresh invocation attempts,
+and remain separate across processes. A paginated CLI invocation counts once;
+these counters measure neither HTTP pages nor quota use. They contain no
+endpoints, response headers, workflow contents or credentials and never affect
+selection or deletion permission.
+Direct archive downloads, writer/GraphQL operations and Git transport remain
+outside these adapter counters.
+
+For unchanged SHAs, the first workflow assessment still needs every unique
+directory/content request. Later adoption/plan/apply assessments in that same
+attempt can reuse those exact reads; mutable safety checks continue in full.
+For example, 81 unchanged workflow requests across four passes become 81 initial
+requests rather than 324. This is an arithmetic example, not a hosted measurement.
+The offline fixture proves eight initial requests and zero additional requests
+on the second pass; changing a permanent head refetches its new exact inputs.
+
+Both cleanup reads and the independent Branch policy workflow currently use
+the built-in `GITHUB_TOKEN`. GitHub documents its primary limit as
+[1,000 requests per hour per repository](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#primary-rate-limit-for-github_token-in-github-actions),
+with a higher Enterprise Cloud allowance and additional secondary limits. These
+workflows can therefore compete for the repository's allowance. Cold reads,
+changed SHAs, mutable checks, other runs and other workflows remain costs. This
+cache does not guarantee sufficient quota and grants no permission when an API
+request fails. The trusted automatic cleanup job opts in with
+`BRANCH_CLEANUP_IMMUTABLE_CACHE=1`; other callers keep the uncached default.
+Hosted cache availability and savings must be read from actual retained reports;
+the offline fixtures do not establish live token quota or a measured API saving.
+
 ## Backups and recovery
 
 Before deleting any planned branches, the workflow:
