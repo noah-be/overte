@@ -277,13 +277,20 @@ jobs, unchanged final live identity, the original expiry and actual source/runti
 inputs. Shared owners use the existing trusted execution-receipt validator.
 Other owner kinds and relayed or mixed-attempt proofs remain unsupported.
 
-This protocol has no workflow integration, dispatch, retry or metadata-skip
-capability. Before activation, a trusted API adapter must authenticate and fully
-enumerate current runs, attempts, artifact ownership and resolved workflow blobs;
-all selected native, documentation, security, browser and sync owners need complete
-inner validators. Producers must publish descriptors before candidate work and
-retain complete aggregate proof. Producer concurrency/fallback ownership and
-trusted caller/template compatibility require separate implementation and review.
+The `producer-api` quick and host suite tests the dormant
+[read-only authenticated API adapter](../docs/PRODUCER_API_PROOF.md). It derives
+run, latest-attempt job, app, artifact and original reusable-workflow facts from
+independent GitHub GET responses. It verifies a complete trusted workflow tuple
+at the API-observed original merge, all-status paginated authority inventories,
+bounded raw archive digests and initial/final live refs. Fake API fixtures
+cannot replace missing authentication with artifact claims or an older green.
+
+These helpers have no workflow integration, dispatch, retry or metadata-skip
+capability. Before activation, producers must publish early descriptors and
+complete aggregate proof; all selected native, documentation, security, browser
+and sync owners need complete inner validators. Actual publisher isolation,
+producer concurrency/fallback ownership and trusted caller/template compatibility
+require separate implementation and review.
 
 The `android-ci` suite runs in both the quick and combined host profiles. It
 checks the staged Android ownership controller with disposable Git trees,
@@ -392,6 +399,7 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `dependency-releases` | `quick` | `python3 tests/run-project-tests.py --suite dependency-releases` |
 | `test-evidence` | `quick` | `python3 tests/run-project-tests.py --suite test-evidence` |
 | `producer-proof` | `quick` | `python3 tests/run-project-tests.py --suite producer-proof` |
+| `producer-api` | `quick` | `python3 tests/run-project-tests.py --suite producer-api` |
 | `project-runner` | `quick` | `python3 tests/run-project-tests.py --suite project-runner` |
 | `python-test-runner` | `quick` | `python3 tests/run-project-tests.py --suite python-test-runner` |
 | `repository-checks` | `quick` | `python3 tests/run-project-tests.py --suite repository-checks` |
