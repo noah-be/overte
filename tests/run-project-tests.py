@@ -27,6 +27,7 @@ class Suite:
 
 SUITES = (
     Suite("dependency-releases", "quick", (sys.executable, "tools/dependency-releases/test.py")),
+    Suite("test-evidence", "quick", (sys.executable, "tools/test-evidence/test.py")),
     Suite("project-runner", "quick", (sys.executable, "tests/project-suite-self-test.py")),
     Suite("python-test-runner", "quick", (sys.executable, "tests/unittest-runner-test.py")),
     Suite("repository-checks", "quick", (sys.executable, "tests/repository-checks-test.py")),
@@ -250,7 +251,8 @@ def run_command(command: list[str], timeout: int, cancelled: list[int]) -> tuple
         raise
 
 
-def run_suites(args: argparse.Namespace, suites: list[Suite], cancelled: list[int]) -> int:
+def run_suites(args: argparse.Namespace, suites: list[Suite], cancelled: list[int],
+               result_callback=None) -> int:
 
     results = []
     overall_started = time.monotonic()
@@ -270,8 +272,10 @@ def run_suites(args: argparse.Namespace, suites: list[Suite], cancelled: list[in
         print(f"{status.upper():7} {suite.name:<24} {duration:7.3f}s")
         if status == "failed":
             print(output.rstrip(), file=sys.stderr)
-        results.append(dict(name=suite.name, status=status, message=message,
-                            output=output, time=duration))
+        result = dict(name=suite.name, status=status, message=message, output=output, time=duration)
+        results.append(result)
+        if result_callback is not None:
+            result_callback(result)
         if cancelled or (status == "failed" and args.fail_fast):
             break
 

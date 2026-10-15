@@ -33,6 +33,10 @@ _tool_spec = importlib.util.spec_from_file_location(
     "sync_tool_dependencies", ROOT / "tools/repository-checks/tool_dependencies.py")
 tool_dependencies = importlib.util.module_from_spec(_tool_spec)
 _tool_spec.loader.exec_module(tool_dependencies)
+_input_spec = importlib.util.spec_from_file_location(
+    "sync_suite_inputs", ROOT / "tools/test-evidence/inputs.py")
+suite_inputs = importlib.util.module_from_spec(_input_spec)
+_input_spec.loader.exec_module(suite_inputs)
 
 
 class GateError(ValueError):
@@ -447,11 +451,22 @@ def recursive_tree(api: GitHubApi, repository: str, commit_sha: str, error_type=
             raise error_type("GitHub API returned an incomplete recursive tree")
         entries: dict[str, dict[str, str]] = {}
         for item in value["tree"]:
-            if item.get("type") != "blob":
+            if not isinstance(item, dict):
+                raise error_type("GitHub API returned malformed tree data")
+            if item.get("type") == "tree":
                 continue
-            entry = {key: item[key] for key in ("path", "mode", "type", "sha")}
+            if item.get("type") not in {"blob", "commit"}:
+                raise error_type("GitHub API returned an unsupported tree object")
+            try:
+                entry = {key: item[key] for key in ("path", "mode", "type", "sha")}
+            except KeyError as error:
+                raise error_type("GitHub API omitted tree entry metadata") from error
             if not all(isinstance(entry[key], str) for key in entry) or entry["path"] in entries:
                 raise error_type("GitHub API returned malformed or duplicate tree entries")
+            changed_paths([{"filename": entry["path"]}])
+            validate_sha(entry["sha"], "tree object SHA", error_type)
+            if {"100644": "blob", "100755": "blob", "120000": "blob", "160000": "commit"}.get(entry["mode"]) != entry["type"]:
+                raise error_type("GitHub API returned a mismatched tree mode and object type")
             entries[entry["path"]] = entry
         return tree_sha, entries
     except GateError as error:
@@ -463,6 +478,16 @@ def select_entries(tree: dict[str, dict[str, str]], patterns: list[str]) -> list
         (entry for path, entry in tree.items() if any(fnmatch(path, pattern) for pattern in patterns)),
         key=lambda item: item["path"],
     )
+
+
+def input_registry() -> dict:
+    """Only default-branch policy may define the inputs of a reusable suite."""
+    return suite_inputs.load_registry(ROOT / ".github/test-suites.json")
+
+
+def input_tree(tree: dict[str, dict[str, str]]) -> dict[str, dict[str, str]]:
+    return {path: {key: item[key] for key in ("mode", "type", "sha")}
+            for path, item in tree.items()}
 
 
 def artifact_evidence(api: GitHubApi, config: dict, request: SyncRequest) -> tuple[dict, dict]:
@@ -518,7 +543,7 @@ def artifact_evidence(api: GitHubApi, config: dict, request: SyncRequest) -> tup
 def verify_evidence(api: GitHubApi, config: dict, request: SyncRequest, now: datetime | None = None) -> dict:
     run, evidence = artifact_evidence(api, config, request)
     expected = {
-        "schema": 1,
+        "schema": 2,
         "repository": request.repository,
         "repository_id": request.repository_id,
         "parent_branch": request.parent,
@@ -527,6 +552,11 @@ def verify_evidence(api: GitHubApi, config: dict, request: SyncRequest, now: dat
     for key, value in expected.items():
         if evidence.get(key) != value:
             raise EvidenceError(f"qualification evidence has mismatched {key}")
+    if evidence.get("reusable") is not True:
+        raise EvidenceError("parent verification has no reusable runtime identity")
+    if not isinstance(evidence.get("execution_receipt_digest"), str) or not re.fullmatch(
+            r"sha256:[0-9a-f]{64}", evidence["execution_receipt_digest"]):
+        raise EvidenceError("parent qualification omits its actual execution receipt identity")
     parent_tree_sha, parent_tree = recursive_tree(api, request.repository, request.parent_sha)
     if evidence.get("parent_tree") != parent_tree_sha:
         raise EvidenceError("qualification evidence has a mismatched parent tree")
@@ -551,8 +581,14 @@ def verify_evidence(api: GitHubApi, config: dict, request: SyncRequest, now: dat
     if workflow != workflow_expected:
         raise EvidenceError("qualification workflow/run binding is mismatched")
     results = evidence.get("results")
-    if not isinstance(results, dict) or results.get("conclusion") != "success" or results.get("suites") != ["project-quick", "device-control-plane-full"]:
+    if not isinstance(results, dict) or results.get("conclusion") != "success" or not isinstance(results.get("suites"), dict):
         raise EvidenceError("qualification suite result is incomplete")
+    try:
+        registry = input_registry()
+    except suite_inputs.InputError as error:
+        raise EvidenceError("trusted suite input registry is unavailable") from error
+    if set(results["suites"]) != set(registry["suites"]):
+        raise EvidenceError("qualification does not contain the actual complete shared suite inventory")
     now = now or datetime.now(timezone.utc)
     qualified = parse_time(evidence.get("qualified_at"), "qualified_at")
     expires = parse_time(evidence.get("expires_at"), "expires_at")
@@ -565,16 +601,29 @@ def verify_evidence(api: GitHubApi, config: dict, request: SyncRequest, now: dat
     if actual_digest != expected_digest:
         raise EvidenceError("qualification evidence digest is invalid")
     _, merge_tree = recursive_tree(api, request.repository, request.merge_sha)
-    qualified_parent_delta = sorted(
-        path for path in request.parent_changed_paths
-        if any(fnmatch(path, pattern) for pattern in config["qualified_inputs"])
-    )
-    for path in qualified_parent_delta:
-        if merge_tree.get(path) != parent_tree.get(path):
-            raise EvidenceError("qualified parent-delta input changed in the expected merge tree: " + path)
+    try:
+        parent_inputs = input_tree(parent_tree)
+        candidate_inputs = input_tree(merge_tree)
+        environment = evidence.get("environment")
+        for name, proof in results["suites"].items():
+            if (not isinstance(proof, dict) or set(proof) != {"status", "fingerprint"}
+                    or proof["status"] != "passed"
+                    or proof["fingerprint"] != suite_inputs.suite_fingerprint(
+                        registry, name, parent_inputs, environment)):
+                raise EvidenceError("parent suite proof does not match its actual trusted input closure")
+        # This is a source-only preview. The isolated validator compares its
+        # actual installed runtime before consuming any reusable suite result.
+        candidate_plan = suite_inputs.plan_reuse(
+            registry, parent_inputs, candidate_inputs, results["suites"],
+            environment, environment)
+    except (suite_inputs.InputError, KeyError, TypeError) as error:
+        raise EvidenceError("complete shared suite inputs or runtime identity are unavailable") from error
+    if not candidate_plan["reused"]:
+        raise EvidenceError("no shared suite has matching complete candidate inputs")
     if branch_sha(api, request.repository, request.base) != request.base_sha or branch_sha(api, request.repository, request.parent) != request.parent_sha:
         raise EvidenceError("target or parent head moved during evidence validation")
-    return evidence
+    return {**evidence, "candidate_plan": candidate_plan,
+            "parent_inputs": parent_inputs, "candidate_inputs": candidate_inputs}
 
 
 def write_outputs(path: Path | None, values: dict[str, object]) -> None:
@@ -605,6 +654,9 @@ def inspect(args: argparse.Namespace) -> int:
         try:
             evidence = verify_evidence(api, config, request)
             evidence_run = str(evidence["workflow"]["run_id"])
+            plan = evidence["candidate_plan"]
+            reason = (f"exact parent suite proofs accepted; {len(plan['reused'])} source matches, "
+                      f"{len(plan['required'])} suites require candidate execution; runtime rechecked in validation")
         except EvidenceError as error:
             mode, reason = "fallback", str(error).replace("\n", " ")
     values = {

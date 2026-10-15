@@ -18,7 +18,8 @@
     "tests/repository-checks-test.py",
     "tests/repository-policy-test.py",
     "tools/native-tests/**",
-    "tests/native-ci-test.py"
+    "tests/native-ci-test.py",
+    "tools/test-evidence/**"
   ],
   "required_contexts": [
     "dependency-release-policy",
@@ -29,5 +30,6 @@
   "native_required": false,
   "native_required_branches": [
     "main"
-  ]
+  ],
+  "direct_browser_required_branches": []
 }

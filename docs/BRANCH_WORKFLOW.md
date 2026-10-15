@@ -197,12 +197,40 @@ configuration, successful results, run identity, GitHub Actions App ID, and
 validity interval. Its canonical JSON digest makes accidental or malicious
 content changes detectable.
 
+Qualification schema 2 records the actual successful shared suite inventory,
+each suite's complete input fingerprint, the execution receipt digest, and the
+observed host environment. The trusted execution controller loads
+`.github/test-suites.json` from its own default-branch checkout and runs those
+commands against the clean immutable parent checkout. Candidate runner output
+cannot certify an omitted suite. Product declarations remain separately
+validated data and their declared suites also run during full qualification.
+The runtime identity also hashes the actual trusted controller, runner,
+fingerprinting code, attestor and recursively included requirement manifests.
+Older parent-tree copies cannot hide a change to the helpers actually executed.
+
 The trusted `sync-test-reuse` check is loaded only from the default branch. For
 one of the six direct edges it re-reads the current base and parent refs,
 validates the exact merge parents and merge tree, rejects paths outside the
 parent delta, and accepts exactly one matching non-expired qualification from a
 successful `push` run of the expected workflow. It re-reads both permanent refs
 after verification so a target or parent race fails closed.
+
+The suite verifier compares complete parent and candidate input closures, not
+only paths changed by the parent. Existing child implementations, helpers,
+headers, QML, modes and submodule commits therefore remain relevant even when
+the synchronization has no textual conflict. Suites with matching source
+inputs are only provisionally reusable: the isolated validator compares its
+actual installed host environment before accepting any original result. It
+runs exactly the shared suites whose proof does not match, plus the declared
+product suites. Missing/stale/schema-1 evidence or an unsupported environment
+requires complete verification rather than a matching unknown identity.
+
+The initial input registry uses reviewed component closures where available
+and conservative repository closures elsewhere. Importable Python/native
+modules and ancestor Node package metadata are bound conservatively to prevent
+new shadow modules from escaping an unchanged test fingerprint. These broad
+closures are explicit remaining selection work; they must not be narrowed
+without accounting for imports, generated inputs and all execution branches.
 
 API failures retain their fail-closed outcome and report a bounded diagnostic:
 the CLI exit code and HTTP status when present, an operating-system errno, or
@@ -211,14 +239,14 @@ are not logged. An unknown HTTP status does not identify the original cause.
 The adapter does not retry automatically; preserve the failed run and verify
 the current source/refs before a separately justified failed-gate rerun.
 
-Reused product suites run in a separate candidate Python environment populated
+Selected shared and product suites run in a separate Python environment populated
 from the trusted default branch's pinned `tests/requirements-host.txt`. The
 suite runner and its subprocesses use that same interpreter, including Conan
 for actual package-store fixture builds. Parent qualification does not install
 Python dependencies into a later isolated validation runner.
 
-The complete fallback disables automatic Git maintenance and garbage collection
-only within its disposable test invocation. This prevents detached Git writers
+The trusted controller disables automatic Git maintenance and garbage collection
+only within candidate subprocesses. This prevents detached Git writers
 from racing strict temporary-repository cleanup, including in older candidate
 tests. Candidate source files, assertion failures, and cleanup errors remain
 unchanged; the runner does not alter global Git configuration.
@@ -284,8 +312,10 @@ owner-thread checks and cancellation behavior. All three exact paths force
 complete fallback and the independent iOS application build gate. Additional
 test files and production changes still use their ordinary owning-layer PRs.
 
-When all bindings match, a separate read-only validation workflow runs only the
-edge-specific hardware-free differential profile. The redundant Android and
+When all bindings match, a separate read-only validation workflow runs the
+edge-specific hardware-free differential profile, rechecks actual runtime
+identity, and executes shared suites without matching complete-input proof.
+The redundant Android and
 project-wide suites delegate to this required check, while topology, policy,
 workflow-security, documentation, and relevant Android VR or iOS checks remain
 independent. A Markdown-only sync selects only documentation and contract

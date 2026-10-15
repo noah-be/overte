@@ -2,10 +2,16 @@
 """Security and reproducibility contracts for shared repository workflows."""
 
 import fnmatch
+import ast
+import importlib.util
 import json
+import os
 from pathlib import Path
 import re
+import subprocess
+import sys
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -344,17 +350,28 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
         self.assertNotIn("${{ secrets.", source)
 
     def test_candidate_execution_is_isolated_read_only(self):
+        import yaml
         source = SYNC_VALIDATION_WORKFLOW.read_text(encoding="utf-8")
-        self.assertRegex(source, r"(?m)^permissions:\n  contents: read\n  pull-requests: read$")
-        self.assertNotIn("actions: write", source)
+        workflow = yaml.safe_load(source)
+        self.assertEqual(workflow['permissions'], {'actions': 'read', 'contents': 'read', 'pull-requests': 'read'})
+        self.assertNotRegex(source, r"(?m)^\s+[a-z-]+: write$")
         self.assertNotIn("secrets.", source)
-        self.assertIn("ref: main", source)
-        self.assertIn("path: trusted", source)
-        self.assertIn("ref: ${{ inputs.expected_merge_sha }}", source)
-        self.assertIn("path: candidate", source)
+        steps = workflow['jobs']['validate']['steps']
+        checkouts = [step['with'] for step in steps if step.get('uses', '').startswith('actions/checkout@')]
+        self.assertEqual([(step['path'], step['ref'], step['persist-credentials']) for step in checkouts],
+                         [('trusted', 'main', False), ('candidate', '${{ inputs.expected_merge_sha }}', False)])
         self.assertIn("inputs.mode == 'fallback'", source)
         self.assertIn('GH_TOKEN: ""', source)
         self.assertIn('GITHUB_TOKEN: ""', source)
+        self.assertNotIn('candidate/tests/run-project-tests.py', source)
+        self.assertNotIn('python tests/run-project-tests.py', source)
+        for step in steps:
+            if 'trusted/tools/test-evidence/validate-sync.py' in step.get('run', ''):
+                self.assertNotEqual(step.get('working-directory'), 'candidate')
+                self.assertIn('--candidate candidate', step['run'])
+                for field in ('base-sha', 'head-sha', 'merge-sha'):
+                    self.assertIn('--' + field, step['run'])
+                self.assertIn('--receipt build/test-results/sync-validation.json', step['run'])
 
     def test_qualification_is_exact_push_only_and_bounded(self):
         source = PARENT_QUALIFICATION_WORKFLOW.read_text(encoding="utf-8")
@@ -367,10 +384,22 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
         self.assertIn("retention-days: 4", source)
 
     def test_reused_shared_qualification_still_runs_product_suites(self):
+        import yaml
         source = SYNC_VALIDATION_WORKFLOW.read_text(encoding="utf-8")
-        self.assertIn("inputs.mode == 'reuse' && inputs.profile != 'documentation'", source)
-        self.assertIn("tests/run-project-tests.py --platform-only --timeout 240", source)
-        self.assertIn("working-directory: candidate", source)
+        steps = yaml.safe_load(source)['jobs']['validate']['steps']
+        product = next(step for step in steps if 'build/host-tests-env/bin/python trusted/tools/test-evidence/validate-sync.py'
+                       in step.get('run', ''))
+        self.assertEqual(product['if'], "inputs.mode == 'fallback' || (inputs.profile != 'documentation' && inputs.profile != 'tool-dependencies')")
+        self.assertIn('--mode "$MODE" --profile "$PROFILE"', product['run'])
+        self.assertEqual(product['env']['MODE'], '${{ inputs.mode }}')
+        # The trusted consumer, rather than a mutable candidate runner, owns
+        # execution of all declared product suites on reuse and fallback alike.
+        consumer = ast.parse((ROOT / 'tools/test-evidence/validate-sync.py').read_text())
+        executions = [node for node in ast.walk(consumer) if isinstance(node, ast.Call)
+                      and isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name)
+                      and (node.func.value.id, node.func.attr) == ('execution', 'execute')]
+        self.assertEqual(len(executions), 1)
+        self.assertTrue(next(item.value for item in executions[0].keywords if item.arg == 'include_platform').value)
 
     def test_project_workflow_is_reusable_with_single_caller_routing(self):
         source = WORKFLOW.read_text(encoding="utf-8")
@@ -693,27 +722,37 @@ class HostWorkflowRoutingContracts(unittest.TestCase):
                                  "command -v cmake", "command -v ctest",
                                  "qml-module-qttest", "qtdeclarative5-dev-tools",
                                  "qt6-base-dev qt6-base-dev-tools",
-                                 "unshare --user --map-root-user --net true",
-                                 "-r tests/requirements-host.txt"):
+                                 "unshare --user --map-root-user --net true"):
                     self.assertIn(fragment, source)
-                self.assertEqual(source.count("tests/run-project-tests.py"), 1)
-                self.assertIn("build/host-tests-env/bin/python tests/run-project-tests.py", source)
-                self.assertIn("--profile host --timeout 240 --host-timeout 900", source)
+                if name == "parent":
+                    self.assertIn("-r trusted/tests/requirements-host.txt", source)
+                    self.assertIn("build/host-tests-env/bin/python trusted/tools/test-evidence/run.py", source)
+                    self.assertIn("--candidate candidate --include-platform --timeout 240 --host-timeout 900", source)
+                    self.assertNotIn("python tests/run-project-tests.py", source)
+                    self.assertNotIn("candidate/tests/run-project-tests.py", source)
+                else:
+                    self.assertIn("-r tests/requirements-host.txt", source)
+                    self.assertEqual(source.count("tests/run-project-tests.py"), 1)
+                    self.assertIn("build/host-tests-env/bin/python tests/run-project-tests.py", source)
+                    self.assertIn("--profile host --timeout 240 --host-timeout 900", source)
                 self.assertNotIn("tests/device/run_control_plane_tests.py", source)
                 self.assertNotIn("--shared-only", source)
                 self.assertNotIn("--platform-only", source)
                 self.assertNotIn("continue-on-error:", source)
 
     def test_host_namespace_setup_is_ephemeral_and_preserves_isolation(self):
+        import yaml
         workflows = [(name, source, "Prepare isolated host evidence validators")
                      for name, source in self.workflows.items()]
         workflows.append(("sync-fallback", SYNC_VALIDATION_WORKFLOW.read_text(encoding="utf-8"),
-                          "Run the complete common fallback"))
+                          "Prepare isolated shared and product Python validators"))
         for name, source, step in workflows:
             with self.subTest(workflow=name):
                 self.assertIn("runs-on: ubuntu-24.04", source)
-                setup = source.split(f"      - name: {step}\n", 1)[1]
-                setup = setup.split("      - name:", 1)[0]
+                setup_steps = [item for job in yaml.safe_load(source)['jobs'].values()
+                               for item in job.get('steps', []) if item.get('name') == step]
+                self.assertEqual(len(setup_steps), 1)
+                setup = setup_steps[0]['run']
                 guard = 'test "$RUNNER_ENVIRONMENT" = github-hosted'
                 setting = "sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0"
                 probe = "unshare --user --map-root-user --net true"
@@ -738,45 +777,70 @@ class HostWorkflowRoutingContracts(unittest.TestCase):
         for package in ('qt6-base-dev', 'qt6-base-dev-tools', 'pkg-config',
                         'qml-module-qttest', 'qtdeclarative5-dev-tools'):
             self.assertIn(package, install['run'].split())
-        for name in ('Run product suites not covered by shared parent qualification',
-                     'Run the complete common fallback'):
-            self.assertLess(index, next(i for i, step in enumerate(steps) if step.get('name') == name))
+        executions = [i for i, step in enumerate(steps)
+                      if 'build/host-tests-env/bin/python trusted/tools/test-evidence/validate-sync.py'
+                      in step.get('run', '')]
+        self.assertEqual(len(executions), 1, 'Reuse and fallback share one trusted execution controller')
+        self.assertLess(index, executions[0])
+        self.assertEqual(install['if'], steps[executions[0]]['if'])
 
     def test_reused_product_suites_share_the_prepared_python_interpreter(self):
         import yaml
         steps = yaml.safe_load(SYNC_VALIDATION_WORKFLOW.read_text())['jobs']['validate']['steps']
-        name = 'Prepare isolated product Python validators'
+        name = 'Prepare isolated shared and product Python validators'
         index = next(i for i, step in enumerate(steps) if step.get('name') == name)
         prepare = steps[index]
-        product = next(step for step in steps if step['name'].startswith('Run product suites'))
+        product = next(step for step in steps if 'build/host-tests-env/bin/python trusted/tools/test-evidence/validate-sync.py'
+                       in step.get('run', ''))
         self.assertEqual(prepare['if'], product['if'])
-        self.assertEqual(prepare['working-directory'], 'candidate')
-        self.assertEqual(product['working-directory'], prepare['working-directory'])
+        self.assertIsNone(prepare.get('working-directory'))
+        self.assertIsNone(product.get('working-directory'))
         self.assertLess(index, steps.index(product))
         interpreter = 'build/host-tests-env/bin/python'
         self.assertIn('python3 -m venv build/host-tests-env', prepare['run'])
         self.assertIn(interpreter + ' -m pip install --disable-pip-version-check '
-                      '-r ../trusted/tests/requirements-host.txt', prepare['run'])
+                      '-r trusted/tests/requirements-host.txt', prepare['run'])
         self.assertEqual(product['run'].split()[0], interpreter)
-        self.assertIn('--platform-only --timeout 240', product['run'])
-        self.assertEqual(product['env'], {'GH_TOKEN': '', 'GITHUB_TOKEN': ''})
-        self.assertEqual(prepare['env'], product['env'])
+        self.assertIn('trusted/tools/test-evidence/validate-sync.py', product['run'])
+        self.assertIn('--candidate candidate', product['run'])
+        self.assertEqual(prepare['env'], {'GH_TOKEN': '', 'GITHUB_TOKEN': ''})
+        # The controller uses this read-only token for API evidence; its scoped
+        # candidate environment removes it before executing any candidate input.
+        self.assertEqual(product['env']['GH_TOKEN'], '${{ github.token }}')
         self.assertNotIn('continue-on-error', prepare)
         self.assertNotIn('continue-on-error', product)
 
     def test_complete_fallback_isolates_disposable_git_background_writers(self):
         import yaml
         steps = yaml.safe_load(SYNC_VALIDATION_WORKFLOW.read_text())['jobs']['validate']['steps']
-        fallback = next(step for step in steps if step['name'] == 'Run the complete common fallback')
-        self.assertEqual(fallback['working-directory'], 'candidate')
-        self.assertEqual(fallback['env'], {
-            'GH_TOKEN': '', 'GITHUB_TOKEN': '', 'GIT_CONFIG_COUNT': '2',
-            'GIT_CONFIG_KEY_0': 'maintenance.auto', 'GIT_CONFIG_VALUE_0': 'false',
-            'GIT_CONFIG_KEY_1': 'gc.auto', 'GIT_CONFIG_VALUE_1': '0',
-        })
-        self.assertIn('--profile host --timeout 240 --host-timeout 900', fallback['run'])
+        fallback = next(step for step in steps if 'build/host-tests-env/bin/python trusted/tools/test-evidence/validate-sync.py'
+                        in step.get('run', ''))
+        self.assertIn("inputs.mode == 'fallback'", fallback['if'])
+        self.assertNotEqual(fallback.get('working-directory'), 'candidate')
         self.assertNotIn('git config --global', fallback['run'])
         self.assertNotIn('continue-on-error', fallback)
+        # Background-writer policy now belongs to the shared trusted controller,
+        # applying equally to qualification, reuse, and fallback subprocesses.
+        directory = ROOT / 'tools/test-evidence'
+        spec = importlib.util.spec_from_file_location('workflow_contract_execution', directory / 'execution.py')
+        execution = importlib.util.module_from_spec(spec)
+        with mock.patch.object(sys, 'path', [str(directory), *sys.path]), mock.patch.dict(sys.modules):
+            spec.loader.exec_module(execution)
+            hostile = {'GIT_CONFIG_COUNT': '1', 'GIT_CONFIG_KEY_0': 'maintenance.auto',
+                       'GIT_CONFIG_VALUE_0': 'true', 'GIT_CONFIG_KEY_9': 'gc.auto', 'GIT_CONFIG_VALUE_9': '1',
+                       'GH_TOKEN': 'fixture-private', 'GITHUB_TOKEN': 'fixture-private',
+                       'GITHUB_ENV': '/fixture/private-command-file', 'GITHUB_OUTPUT': '/fixture/private-command-file'}
+            with mock.patch.dict(os.environ, hostile):
+                before = dict(os.environ)
+                with execution.candidate_process_environment():
+                    self.assertEqual(os.environ['GIT_CONFIG_COUNT'], '2')
+                    self.assertNotIn('GIT_CONFIG_KEY_9', os.environ)
+                    for variable in ('GH_TOKEN', 'GITHUB_TOKEN', 'GITHUB_ENV', 'GITHUB_OUTPUT'):
+                        self.assertNotIn(variable, os.environ)
+                    for key, expected in (('maintenance.auto', 'false'), ('gc.auto', '0')):
+                        observed = subprocess.check_output(['git', 'config', '--get', key], text=True).strip()
+                        self.assertEqual(observed, expected)
+                self.assertEqual(dict(os.environ), before, 'Trusted API/runtime operations retain their original environment')
 
     def test_parent_evidence_stays_bound_to_the_successful_exact_push(self):
         source = self.workflows["parent"]
@@ -784,8 +848,13 @@ class HostWorkflowRoutingContracts(unittest.TestCase):
         self.assertIn("PARENT_COMMIT: ${{ github.sha }}", source)
         self.assertIn("RUN_ATTEMPT: ${{ github.run_attempt }}", source)
         self.assertIn("RUN_ID: ${{ github.run_id }}", source)
+
         self.assertIn("cancel-in-progress: false", source)
-        self.assertLess(source.index("tests/run-project-tests.py"), source.index("qualification.py"))
+        self.assertLess(source.index("trusted/tools/test-evidence/run.py"), source.index("qualification.py"))
+        self.assertIn('trusted/tools/sync-test-reuse/qualification.py', source)
+        self.assertIn('--execution-receipt build/parent-qualification/execution.json', source)
+        self.assertIn('--receipt build/parent-qualification/execution.json', source)
+        self.assertIn('--candidate candidate', source)
         evidence = source.split("      - name: Create content-addressed qualification evidence\n", 1)[1]
         evidence = evidence.split("      - name: Upload qualification test reports\n", 1)[0]
         self.assertEqual(evidence.count("if: steps.route.outputs.projects == ''"), 2)
@@ -794,14 +863,46 @@ class HostWorkflowRoutingContracts(unittest.TestCase):
         self.assertIn("name: parent-qualification-${{ github.sha }}", evidence)
         self.assertIn("if-no-files-found: error", evidence)
 
+    def test_parent_trusted_checkout_contains_transitive_host_requirements(self):
+        import yaml
+        workflow = yaml.safe_load(PARENT_QUALIFICATION_WORKFLOW.read_text())
+        checkout = next(step['with'] for step in workflow['jobs']['qualify-parent']['steps']
+                        if step.get('with', {}).get('path') == 'trusted')
+        # File paths require non-cone mode. Every recursively included pip file
+        # must exist in this checkout before installation/runtime fingerprinting.
+        self.assertIs(checkout['sparse-checkout-cone-mode'], False)
+        included = checkout['sparse-checkout'].split()
+        pending = [ROOT / 'tests/requirements-host.txt']
+        seen = set()
+        while pending:
+            path = pending.pop().resolve()
+            if path in seen:
+                continue
+            seen.add(path)
+            relative = path.relative_to(ROOT).as_posix()
+            self.assertTrue(any(relative == entry or relative.startswith(entry.rstrip('/') + '/')
+                                for entry in included), relative + ' is missing from trusted checkout')
+            for line in path.read_text().splitlines():
+                if line.strip().startswith('-r '):
+                    pending.append(path.parent / line.strip()[3:].strip())
+
     def test_bounded_tool_sync_skips_product_and_host_prerequisites(self):
         import yaml
         steps = yaml.safe_load(SYNC_VALIDATION_WORKFLOW.read_text())['jobs']['validate']['steps']
-        tools = next(step for step in steps if step['name'] == 'Check only affected tool dependencies and behavior')
-        self.assertEqual(tools['if'], "inputs.mode == 'reuse' && inputs.profile == 'tool-dependencies'")
-        self.assertIn('trusted/tools/repository-checks/tool_dependencies.py', tools['run'])
-        product = next(step for step in steps if step['name'].startswith('Run product suites'))
+        tools = next(step for step in steps if step['name'] == 'Verify bounded synchronization without product setup')
+        self.assertEqual(tools['if'], "inputs.mode == 'reuse' && (inputs.profile == 'documentation' || inputs.profile == 'tool-dependencies')")
+        self.assertEqual(tools['run'].split()[0], 'python3')
+        self.assertIn('trusted/tools/test-evidence/validate-sync.py', tools['run'])
+        self.assertIn('--mode reuse --profile "$PROFILE"', tools['run'])
+        self.assertNotIn('apt-get', tools['run'])
+        self.assertNotIn('host-tests-env', tools['run'])
+        product = next(step for step in steps if 'build/host-tests-env/bin/python trusted/tools/test-evidence/validate-sync.py'
+                       in step.get('run', ''))
         self.assertIn("inputs.profile != 'tool-dependencies'", product['if'])
+        for step in steps:
+            if 'apt-get' in step.get('run', '') or step.get('name') in {
+                    'Set up candidate Java', 'Prepare isolated shared and product Python validators'}:
+                self.assertEqual(step['if'], product['if'])
 
 
 

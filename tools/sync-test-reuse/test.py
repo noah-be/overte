@@ -124,6 +124,26 @@ def entry(path, sha=WORKFLOW_BLOB):
     return {"path": path, "mode": "100644", "type": "blob", "sha": sha}
 
 
+def test_registry():
+    return {"schema": 1, "control_inputs": ["tests/run-project-tests.py"], "suites": {
+        "fixture-host": {
+            "command": ["python", "tests/run-project-tests.py"], "layer": "host",
+            "scope": "content", "environment": "fixture-host",
+            "closure": {"kind": "repository", "inputs": [], "required": []},
+        },
+    }}
+
+
+def bind_suite_proofs(document, tree, registry=None):
+    registry = registry or test_registry()
+    document["environment"] = {"schema": 1, "runtime": "fixture-host"}
+    document["reusable"] = True
+    document["results"] = {"conclusion": "success", "suites": {
+        name: {"status": "passed", "fingerprint": gate.suite_inputs.suite_fingerprint(
+            registry, name, gate.input_tree(tree), document["environment"])}
+        for name in registry["suites"]}}
+
+
 def evidence_fixture(now=None):
     now = now or datetime.now(timezone.utc).replace(microsecond=0)
     entries = sorted(
@@ -132,12 +152,13 @@ def evidence_fixture(now=None):
     )
     workflow_entry = next(item for item in entries if item["path"] == config()["qualification_workflow"])
     document = {
-        "schema": 1,
+        "schema": 2,
         "repository": REPOSITORY,
         "repository_id": REPOSITORY_ID,
         "parent_branch": "main",
         "parent_commit": PARENT,
         "parent_tree": TREE,
+        "execution_receipt_digest": "sha256:" + "a" * 64,
         "qualified_inputs": entries,
         "qualified_inputs_digest": gate.digest_entries(entries),
         "workflow": {
@@ -149,12 +170,12 @@ def evidence_fixture(now=None):
             "event": "push",
             "trusted_app_id": 15368,
         },
-        "results": {"conclusion": "success", "suites": ["project-quick", "device-control-plane-full"]},
         "qualified_at": now.isoformat().replace("+00:00", "Z"),
         "expires_at": (now + timedelta(hours=72)).isoformat().replace("+00:00", "Z"),
     }
-    document["evidence_digest"] = "sha256:" + hashlib.sha256(gate.canonical_json(document)).hexdigest()
     tree = {item["path"]: item for item in entries}
+    bind_suite_proofs(document, tree)
+    document["evidence_digest"] = "sha256:" + hashlib.sha256(gate.canonical_json(document)).hexdigest()
     return document, tree
 
 
@@ -172,6 +193,11 @@ def request(parent="main", parent_sha=PARENT, base="android-main", parent_change
 
 
 class QualificationContracts(unittest.TestCase):
+    def setUp(self):
+        patch = mock.patch.object(gate, "input_registry", side_effect=test_registry)
+        patch.start()
+        self.addCleanup(patch.stop)
+
     def test_manifest_digest_is_order_and_content_addressed(self):
         one = [entry("a"), entry("b")]
         self.assertEqual(qualification.entries_digest(one), qualification.entries_digest(list(one)))
@@ -239,6 +265,7 @@ class QualificationContracts(unittest.TestCase):
             document["qualified_inputs"] = entries
             document["qualified_inputs_digest"] = qualification.entries_digest(entries)
             document["workflow"]["blob_sha"] = parent_tree[settings["qualification_workflow"]]["sha"]
+            bind_suite_proofs(document, parent_tree)
             document.pop("evidence_digest")
             document["evidence_digest"] = "sha256:" + hashlib.sha256(gate.canonical_json(document)).hexdigest()
 
@@ -261,12 +288,17 @@ class QualificationContracts(unittest.TestCase):
                                      qualification.entries_digest(changed))
                     with mock.patch.object(gate, "artifact_evidence", return_value=({"id": 99, "run_attempt": 1}, document)), \
                          mock.patch.object(gate, "recursive_tree", side_effect=[(TREE, parent_tree), ("7" * 40, merge_tree)]):
-                        with self.assertRaisesRegex(gate.EvidenceError, "qualified parent-delta input changed"):
+                        with self.assertRaisesRegex(gate.EvidenceError, "complete candidate inputs"):
                             gate.verify_evidence(object(), settings, request(parent_changed_paths=(relative,)))
                     unchanged = changed
 
 
 class EvidenceContracts(unittest.TestCase):
+    def setUp(self):
+        patch = mock.patch.object(gate, "input_registry", side_effect=test_registry)
+        patch.start()
+        self.addCleanup(patch.stop)
+
     def verify(self, document=None, parent_tree=None, merge_tree=None, now=None, sync_request=None):
         evidence, tree = evidence_fixture(now)
         if document:
@@ -307,18 +339,45 @@ class EvidenceContracts(unittest.TestCase):
             with self.subTest(path=path), self.assertRaises(gate.EvidenceError):
                 self.verify(merge_tree=changed)
 
-    def test_historical_target_input_outside_parent_delta_does_not_invalidate_reuse(self):
+    def test_historical_target_input_outside_parent_delta_requires_candidate_execution(self):
         _, tree = evidence_fixture()
         path = "tests/run-project-tests.py"
         changed = dict(tree)
         changed[path] = dict(changed[path], sha="f" * 40)
-        self.assertEqual(
+        with self.assertRaisesRegex(gate.EvidenceError, "complete candidate inputs"):
             self.verify(
                 merge_tree=changed,
                 sync_request=request(parent_changed_paths=("interface/example.cpp",)),
-            )["parent_commit"],
-            PARENT,
-        )
+            )
+
+    def test_historical_child_difference_selects_only_affected_complete_suite_inputs(self):
+        registry = test_registry()
+        definition = registry["suites"].pop("fixture-host")
+        for name in ("alpha", "beta"):
+            registry["suites"][name] = deepcopy(definition)
+            registry["suites"][name]["closure"] = {
+                "kind": "patterns", "inputs": [f"libraries/{name}/**"],
+                "required": [f"libraries/{name}/Source.cpp"],
+            }
+        document, tree = evidence_fixture()
+        for name in registry["suites"]:
+            path = f"libraries/{name}/Source.cpp"
+            tree[path] = entry(path)
+        bind_suite_proofs(document, tree, registry)
+        changed = deepcopy(tree)
+        changed["libraries/alpha/Source.cpp"]["sha"] = "f" * 40
+        with mock.patch.object(gate, "input_registry", return_value=registry):
+            verified = self.verify(document, tree, changed,
+                                   sync_request=request(parent_changed_paths=("interface/unrelated.cpp",)))
+        self.assertEqual(verified["candidate_plan"]["reused"], ["beta"])
+        self.assertEqual(verified["candidate_plan"]["required"], ["alpha"])
+        self.assertEqual(verified["candidate_inputs"]["libraries/alpha/Source.cpp"]["sha"], "f" * 40)
+
+    def test_legacy_and_unidentified_runtime_evidence_cannot_authorize_reuse(self):
+        for mutation in ({"schema": 1}, {"reusable": False}, {"environment": None},
+                         {"results": {"conclusion": "success", "suites": {}}}):
+            with self.subTest(mutation=mutation), self.assertRaises(gate.EvidenceError):
+                self.verify(mutation)
 
     def test_parent_delta_deletion_must_be_absent_from_candidate(self):
         _, tree = evidence_fixture()
