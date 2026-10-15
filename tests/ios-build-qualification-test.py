@@ -1001,6 +1001,27 @@ class HostGenerationTests(unittest.TestCase):
             with patch.object(self.host, "SOURCE_READY", True), patch.object(CHECK, "host_handoff", return_value=self.host):
                 CHECK.validate_wiring(self.root, event, self.trusted)
 
+    def test_protected_bootstrap_boundary_refresh_restores_only_reviewed_host_omissions(self):
+        path = self.trusted / "tools/ios-build-qualification/inputs.py"
+        reviewed = path.read_text()
+        selector = CHECK.input_selector(self.trusted)
+        legacy_boundary = selector.review_boundary(self.root, self.legacy)["boundary"]
+        self.assertNotEqual(legacy_boundary, selector.REVIEWED_BOUNDARY)
+        event, source = self.candidate({"tools/test-evidence/run.py": "# Independent host update\n"})
+        # A distinct source length also distinguishes rapid fixture rewrites
+        # from a timestamp/size-matching Python bytecode cache entry.
+        path.write_text(reviewed.replace(selector.REVIEWED_BOUNDARY, legacy_boundary)
+                        + "\n# Previous trusted deployment anchor.\n")
+        stale = self.route(event, source)
+        self.assertEqual((stale["required"], stale["host_required"], stale["reason"]),
+                         ("true", "true", "reader-boundary-not-reviewed"))
+        path.write_text(reviewed)
+        refreshed = self.route(event, source)
+        self.assertEqual((refreshed["required"], refreshed["host_required"], refreshed["reason"]),
+                         ("false", "true", "independent-host-or-documentation-only"))
+        self.assertEqual(self.verify(refreshed, event, source), refreshed)
+        self.assertNotEqual(stale["selection"], refreshed["selection"])
+
     def test_only_exact_three_tree_noop_can_skip_host_and_app(self):
         event, source = self.candidate()
         output = self.route(event, source)
@@ -1010,6 +1031,8 @@ class HostGenerationTests(unittest.TestCase):
     def test_app_unknown_mixed_packaged_mode_and_nonregular_inputs_keep_full(self):
         for changes in ({"interface/src/ios-unknown.cpp": "// application\n"},
                         {"unknown-host-helper.py": "# unknown\n"},
+                        {"browser-client/package-lock.json": '{"lockfileVersion":3}\n'},
+                        {"script-archive/marketplace/S3Server/package-lock.json": '{"lockfileVersion":3}\n'},
                         {"docs/ios-fixture.md": "Doc\n", "CMakeLists.txt": "project(Changed)\n"},
                         {"interface/resources/README.md": "Packaged source\n"},
                         {"docs/ios-fixture.md": ("100755", "Executable document\n")},

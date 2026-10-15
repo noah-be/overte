@@ -29,8 +29,10 @@ import re
 import subprocess
 
 
-REVIEWED_REVISION = "52f1cc38180e96cdfd8049a4be93517961ae7dbd"
-REVIEWED_BOUNDARY = "sha256:b585e91776c6a6027d8868b7cae15ce6e3a6dd13a990ce103a6893e0fbe76847"
+# Protected apple-ios merge of the successful host-only workflow bootstrap.
+# Its only tree delta from the previous anchor is the exact reviewed workflow.
+REVIEWED_REVISION = "2fc894a0605103843b36653f250f854714a963ee"
+REVIEWED_BOUNDARY = "sha256:6395c20f61947893ee088745d44925fc9fa00b1823390bea96acf8a4b16b0635"
 
 # Reviewed host control-plane files, not generic tests/** or tools/** patterns.
 # In particular, E2E builds can compile tests/device source and fixtures.
