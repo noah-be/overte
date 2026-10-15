@@ -10,12 +10,38 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tempfile
 import unittest
 from unittest.mock import patch
 
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
+REVIEWED_WORKFLOWS = {
+    ".github/workflows/android-tests.yml": (
+        "tests/fixtures/android-owner-transfer/android-tests-original.yml",
+        "86f727401d2458814b6de6f3eaa1c7308058fa03"),
+    ".github/workflows/android-vr-tests.yml": (
+        "tests/fixtures/android-owner-transfer/android-vr-tests-original.yml",
+        "174d58419f7d0e8ecd15e4a1ab101f72bb81877f"),
+}
+
+
+def reviewed_workflow(target, root=ROOT):
+    """Read finite reviewed bytes without relying on checkout Git history."""
+    relative, expected = REVIEWED_WORKFLOWS[target]
+    fixture = root / relative
+    if fixture.is_symlink() or not fixture.is_file():
+        raise ValueError("reviewed original Android workflow fixture is unavailable")
+    source = fixture.read_bytes()
+    identity = subprocess.check_output(
+        ["/usr/bin/git", "--no-replace-objects", "hash-object", "--no-filters", "--stdin"],
+        input=source, cwd=root, timeout=10, stderr=subprocess.PIPE,
+        env={"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8", "GIT_CONFIG_NOSYSTEM": "1",
+             "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_COUNT": "0"}).decode("ascii").strip()
+    if identity != expected:
+        raise ValueError("reviewed original Android workflow fixture identity changed")
+    return source.decode("utf-8")
 
 
 def load(name, relative):
@@ -30,6 +56,30 @@ gate = prior.gate
 handoff = load("android_transfer_subject", "tools/repository-checks/android_handoff.py")
 shared, _ = gate.android()._shared()
 OBSERVED = {"profile": "offline-owned-controller-fixture", "python": "isolated fixture"}
+
+
+class PortableOriginalWorkflowTests(unittest.TestCase):
+    def test_original_workflow_fixtures_validate_without_repository_or_historical_objects(self):
+        with tempfile.TemporaryDirectory(prefix="overte-original-workflows-") as directory:
+            portable = Path(directory)
+            self.assertFalse((portable / ".git").exists())
+            for target, (relative, expected) in REVIEWED_WORKFLOWS.items():
+                fixture = portable / relative
+                fixture.parent.mkdir(parents=True, exist_ok=True)
+                original = (ROOT / relative).read_bytes()
+                fixture.write_bytes(original)
+                with self.subTest(target=target):
+                    self.assertEqual(reviewed_workflow(target, portable), original.decode("utf-8"))
+                    self.assertEqual(handoff.policy()["legacy_workflows"][target]["reviewed_blob"], expected)
+                    fixture.write_bytes(original + b"\n")
+                    with self.assertRaisesRegex(ValueError, "identity changed"):
+                        reviewed_workflow(target, portable)
+                    fixture.unlink()
+                    with self.assertRaisesRegex(ValueError, "unavailable"):
+                        reviewed_workflow(target, portable)
+                    fixture.symlink_to(ROOT / relative)
+                    with self.assertRaisesRegex(ValueError, "unavailable"):
+                        reviewed_workflow(target, portable)
 
 
 class AndroidOwnerTransferTests(unittest.TestCase):
@@ -429,7 +479,8 @@ class AndroidOwnerTransferTests(unittest.TestCase):
         for target, entry in document["legacy_workflows"].items():
             current = (ROOT / entry["source"]).read_text()
             self.assertNotRegex(current, r"(?m)^  pull_request:$")
-            original = subprocess.check_output(["git", "--no-replace-objects", "cat-file", "blob", entry["reviewed_blob"]], cwd=ROOT, text=True)
+            self.assertEqual(entry["reviewed_blob"], REVIEWED_WORKFLOWS[target][1])
+            original = reviewed_workflow(target)
             self.assertEqual(current, original[:original.index("  pull_request:\n")] + original[original.index("  push:\n"):])
         for name in ("repository-checks.yml", "repository-checks-direct.yml", "repository-checks-browser.yml", "repository-checks-browser-direct.yml"):
             text = (ROOT / handoff.OWNED / name).read_text()
