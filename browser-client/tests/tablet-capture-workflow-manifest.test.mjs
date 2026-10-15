@@ -84,14 +84,14 @@ test('V35 preserves every V34 row with exactly three CPU migrations three admiss
 test('workflow admission binds the exact old Git source and the exact reviewed canonical generation', async () => {
     const history = readWorkflowHistory(), migration = d.workflowMigration;
     assert.equal(history.provenance.baseCommit, '1a87371f7644e88bc2609b4b5830c6f1ae64594d');
-    assert.equal(history.provenance.templateCommit, 'e4ce7d451bc8523ef4cc8bc29cd2e8e17aec989a');
-    assert.equal(history.provenance.templateBlob, 'ed61f454f9048d9532b162e8ee716decd2a6b776');
+    assert.equal(history.provenance.templateCommit, '725494dadd8300fe036e2cb57e4fe79f52349c2a');
+    assert.equal(history.provenance.templateBlob, '60b62758c84dc73d7e0593ef7483cee9fb1717c6');
     assert.equal(Object.keys(history.files).length, 5); assert.equal(d.historyInputCount, 5);
     const before = Buffer.from(readWorkflowHistoricalSource(workflowPath));
     const current = readCurrentWorkflowSource(workflowPath, path.join(root, workflowPath));
     const canonical = await readFile(path.join(root, 'tools/repository-checks/workflows/browser-client.yml'));
     assert.equal(sha(before), '5ef53a7c48d502b8c64d0d22042a50a5ac37c15c35b55fde9149deaa2e768a20');
-    assert.equal(sha(current), '74c4ab6d18a40d910e6306c281db2c07fb0f08aa012f2001acce6436d221e417');
+    assert.equal(sha(current), '1b8a0da5739ab27e422854aa34175057b41cd317c53e2b43d33d717941c1d01d');
     assert.deepEqual(current, canonical);
     assert.equal(blob(before), migration.beforeBlobSHA);
     assert.equal(history.provenance.sources[workflowPath].blob, migration.beforeBlobSHA);
@@ -113,8 +113,14 @@ test('physical current software ANGLE diagnostics and all retained browser and n
     recovered = recovered.split(selection).join('');
     const audit = "      - name: Audit changed browser package inputs\n        if: needs.route.outputs.audit == 'true'\n        run: npm audit --audit-level=high\n";
     assert.equal(recovered.split(audit).length, 2); recovered = recovered.replace(audit, '');
-    // Only the exact reviewed route/CPU/verify jobs, two selection guards and
-    // the single audit step are removed. Every original byte must remain.
+    const reusable = "  workflow_call:\n    inputs:\n      expected_candidate:\n        type: string\n        required: true\n      expected_plan:\n        type: string\n        required: true\n    outputs:\n      candidate:\n        value: ${{ jobs.verify.outputs.candidate }}\n      plan:\n        value: ${{ jobs.verify.outputs.plan }}\n      verified:\n        value: ${{ jobs.verify.outputs.verified }}\n";
+    const standalone = "  pull_request:\n    paths:\n      - 'browser-client/**'\n      - '.github/workflows/browser-client.yml'\n";
+    assert.equal(recovered.split(reusable).length, 2);
+    assert(!current.includes('  pull_request:'));
+    recovered = recovered.replace(reusable, standalone);
+    // Remove only the exact reviewed route/CPU/verify jobs, two selection
+    // guards and single audit step, then reverse the sole-owner trigger
+    // transfer. Every retained action, permission, deadline and step is exact.
     assert.equal(recovered, before);
     const input = "      embedded_default_angle_control:\n        description: 'Run the unchanged embedded GPU proof with the original default ANGLE selection instead of the software-fixture driver request'\n        type: boolean\n        default: false\n";
     assert.equal(current.split(input).length, 2);

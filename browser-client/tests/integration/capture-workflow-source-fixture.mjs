@@ -7,13 +7,13 @@ import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
 import {gunzipSync} from 'node:zlib';
 
-const ARCHIVE = "38296e4fed3e546631e1690bb6e488bf37a596b06657f6a59b4803db767b303a";
+const ARCHIVE = "2028768f474626287d6acec97801ee619c21f59abf9eb8ef75a10a59e3a6f143";
 const BEFORE = {".github/workflows/browser-client.yml": "5ef53a7c48d502b8c64d0d22042a50a5ac37c15c35b55fde9149deaa2e768a20", "browser-client/tests/integration/capture-fork-rename-source-fixture.mjs": "132980dd3fb3db905a257adc1beb1cabc65a2f5cdf136c472aac2dcac72c47c0", "browser-client/tests/integration/prepare-tablet-capture-acceptance.mjs": "96aaa40880dfed65bd4361ce8555ba06e902bcb970ad7e1a036aa88a529526de", "browser-client/tests/tablet-capture-fork-rename-manifest.test.mjs": "138a9088f0e2a8e20cbf9a5f831a4f0cb71c77508bdc1373fc137626e7165e39", "browser-client/tests/embedded-world-software-ci.test.mjs": "721087f99954e684204025eb53e822930e9b05af9745d543555b3883a7281d94"};
-const WORKFLOW_CURRENT = {".github/workflows/browser-client.yml": "74c4ab6d18a40d910e6306c281db2c07fb0f08aa012f2001acce6436d221e417"};
+const WORKFLOW_CURRENT = {".github/workflows/browser-client.yml": "1b8a0da5739ab27e422854aa34175057b41cd317c53e2b43d33d717941c1d01d"};
 const CPU_CURRENT = {"browser-client/tests/integration/capture-fork-rename-source-fixture.mjs": "8ec9ae03e25a7a8e17bc1f2dd6fb475498c2c44a79e4a3413316460964b2ed4b", "browser-client/tests/tablet-capture-fork-rename-manifest.test.mjs": "7c447dced06da00ae856b6aa1dacb93617b2ac88449d1e8108b26558beaeecba", "browser-client/tests/embedded-world-software-ci.test.mjs": "3776e9f14e32c3f4a02b0fd30327fc88dbe597556cf739a0a8e544f4ffa1d938"};
 const BASE = "1a87371f7644e88bc2609b4b5830c6f1ae64594d";
-const TEMPLATE = "e4ce7d451bc8523ef4cc8bc29cd2e8e17aec989a";
-const TEMPLATE_BLOB = "ed61f454f9048d9532b162e8ee716decd2a6b776";
+const TEMPLATE = "725494dadd8300fe036e2cb57e4fe79f52349c2a";
+const TEMPLATE_BLOB = "60b62758c84dc73d7e0593ef7483cee9fb1717c6";
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 const blobDigest = bytes => createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
 const refuse = () => { throw Error('Historical workflow transition source refused'); };

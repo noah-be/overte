@@ -1758,21 +1758,21 @@
     {
       "path": "browser-client/tests/integration/capture-workflow-source-fixture.mjs",
       "beforeSHA256": null,
-      "afterSHA256": "cf1f338df648450c2bdbb71931a7a48001d8e4ddba9de5891f764493cc742af0",
+      "afterSHA256": "5d7a2fe5eee0d58b7f8e927baa28f4b12419b476872df86b9515ef7f993901f0",
       "bytes": 6498
     },
     {
       "path": "browser-client/tests/fixtures/capture-v34-workflow-before.json.gz",
       "beforeSHA256": null,
-      "afterSHA256": "38296e4fed3e546631e1690bb6e488bf37a596b06657f6a59b4803db767b303a",
+      "afterSHA256": "2028768f474626287d6acec97801ee619c21f59abf9eb8ef75a10a59e3a6f143",
       "bytes": 12723,
       "binary": true
     },
     {
       "path": "browser-client/tests/tablet-capture-workflow-manifest.test.mjs",
       "beforeSHA256": null,
-      "afterSHA256": "ef0370fb311a33b8adba716be6ff7feb91970f5d9cd6f30b99eeb90cd6fe462d",
-      "bytes": 17497
+      "afterSHA256": "d70e846933a490a59e22b2f65e90fa6c2f8052a29c7c0fa3c9af49a1a963c7c5",
+      "bytes": 18278
     }
   ],
   "dependencyPins": {
@@ -1888,7 +1888,7 @@
       "tests/integration/tablet-push-to-talk.mjs"
     ],
     "chromeEnvironmentSourcePins": {
-      ".github/workflows/browser-client.yml": "74c4ab6d18a40d910e6306c281db2c07fb0f08aa012f2001acce6436d221e417",
+      ".github/workflows/browser-client.yml": "1b8a0da5739ab27e422854aa34175057b41cd317c53e2b43d33d717941c1d01d",
       "browser-client/ci/jenkins/README.md": "34aeaf89b2512ae1fb42dfca5edb39270406e5aea4010a73b8e279e617f7b542",
       "browser-client/ci/jenkins/chrome-payload.py": "6e9c456bb29c6d0c19e579ae394956a5dbd63eddc2bb9de7ef00cebd9d38eddb",
       "browser-client/ci/jenkins/gates.py": "547f59dddaaf8b15078f86d63ebb40b67d36adbf87b1564bdfe3cacd1660a5e1",
@@ -5351,7 +5351,7 @@
   "workflowDerivation": {
     "previousManifestSHA256": "f5b6995554b711be7e23170bf159bea8143781e8f86b5b2b39b2aa35b33a1990",
     "sourceCommit": "1a87371f7644e88bc2609b4b5830c6f1ae64594d",
-    "canonicalWorkflowCommit": "e4ce7d451bc8523ef4cc8bc29cd2e8e17aec989a",
+    "canonicalWorkflowCommit": "725494dadd8300fe036e2cb57e4fe79f52349c2a",
     "sourceMigrations": {
       "browser-client/tests/integration/capture-fork-rename-source-fixture.mjs": {
         "afterSHA256": "8ec9ae03e25a7a8e17bc1f2dd6fb475498c2c44a79e4a3413316460964b2ed4b",
@@ -5373,15 +5373,15 @@
     ],
     "workflowMigration": {
       "beforeSHA256": "5ef53a7c48d502b8c64d0d22042a50a5ac37c15c35b55fde9149deaa2e768a20",
-      "afterSHA256": "74c4ab6d18a40d910e6306c281db2c07fb0f08aa012f2001acce6436d221e417",
-      "bytes": 20505,
+      "afterSHA256": "1b8a0da5739ab27e422854aa34175057b41cd317c53e2b43d33d717941c1d01d",
+      "bytes": 21037,
       "beforeBlobSHA": "db09fbf3858e022d1f6f50eda61ecb657666cbe5",
-      "afterBlobSHA": "ed61f454f9048d9532b162e8ee716decd2a6b776"
+      "afterBlobSHA": "60b62758c84dc73d7e0593ef7483cee9fb1717c6"
     },
     "historyInputCount": 5,
     "historyInflatedBytes": 46818,
     "historyGzipBytes": 12723,
-    "historySHA256": "38296e4fed3e546631e1690bb6e488bf37a596b06657f6a59b4803db767b303a",
+    "historySHA256": "2028768f474626287d6acec97801ee619c21f59abf9eb8ef75a10a59e3a6f143",
     "historicalFixturesSHA256": {
       "browser-client/tests/fixtures/capture-avatar-consumption-v30-complete-source-manifest.json": "401f70b0e627d0a672bf73c7acf1c9c7b0916e21707eb39e7268356827a43dcc",
       "browser-client/tests/fixtures/capture-avatar-diagnostic-v17-complete-source-manifest.json": "a4b106047cc97db0219324e0c645b162ed145520cd7c00cb0efdf7eeb8c255d7",
