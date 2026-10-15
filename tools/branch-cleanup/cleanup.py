@@ -488,7 +488,7 @@ def trusted_runtime():
             and os.environ.get("GITHUB_REPOSITORY_ID") == str(REPOSITORY_ID), "foreign_workflow_context")
     ref = os.environ.get("GITHUB_WORKFLOW_REF", "")
     require(ref == REPOSITORY + "/" + WORKFLOW + "@refs/heads/main", "untrusted_workflow_ref")
-    require(os.environ.get("GITHUB_EVENT_NAME") in {"pull_request_target", "schedule", "workflow_dispatch"}, "untrusted_workflow_event")
+    require(os.environ.get("GITHUB_EVENT_NAME") in {"pull_request_target", "schedule", "workflow_dispatch", "workflow_run"}, "untrusted_workflow_event")
 
 
 def verify_checkout(root, source_sha):
