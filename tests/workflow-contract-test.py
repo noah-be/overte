@@ -373,6 +373,17 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
                     self.assertIn('--' + field, step['run'])
                 self.assertIn('--receipt build/test-results/sync-validation.json', step['run'])
 
+    def test_sync_reuse_has_no_readiness_rerun_or_postvalidation_cancellation(self):
+        import yaml
+        source = SYNC_REUSE_WORKFLOW.read_text(encoding="utf-8")
+        workflow = yaml.safe_load(source)
+        triggers = workflow.get('on', workflow.get(True))
+        self.assertEqual(triggers['pull_request_target']['types'], ['opened', 'reopened', 'synchronize', 'edited'])
+        self.assertNotIn('cancel-redundant', source)
+        self.assertNotIn('--window', source)
+        self.assertEqual(source.count('gate.py dispatch-and-wait'), 1)
+        self.assertTrue(workflow['concurrency']['cancel-in-progress'])
+
     def test_qualification_is_exact_push_only_and_bounded(self):
         source = PARENT_QUALIFICATION_WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("push:", source)
