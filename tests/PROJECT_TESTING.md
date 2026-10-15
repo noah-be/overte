@@ -378,12 +378,57 @@ and iOS-host decisions, and binds the complete candidate selection to a digest.
 The final verifier requires its own event and candidate checkout and recomputes
 every route field; it does not accept a caller's reason or skipped-job claim.
 
-No policy activation or workflow change is included. Enabled lightweight final
-reports fail until an independently authenticated shared host owner is wired.
-Before activation, stage that owner verification and the approved canonical
-workflow outputs (`host_required` and `selection`) and final event/candidate
-arguments through the parent policy. The existing template remains unchanged.
-Do not replace this missing evidence with another unconditional iOS-host run.
+The legacy protocol still rejects unsupported lightweight final reports. Its
+existing canonical template and full IPA verifier remain unchanged. The next
+protocol is separately prepared in `tools/ios-build-qualification/host-workflow.yml`;
+the old `inputSelection` boolean cannot select or authorize that generation.
+
+The default-off iOS host handoff admits one complete source generation, including
+the top-level workflow, both local reusable callees, host launcher, hosted network
+wrapper and Python dependency declaration. The unchanged source pins come from
+the reviewed apple-ios revision `52f1cc38180e96cdfd8049a4be93517961ae7dbd`.
+The trusted policy pins their Git modes and blob identities; it reads fixed blob
+contents from the candidate's object store instead of copying the large reusable
+workflows into main. A missing, altered or mixed generation fails. A next-generation
+protected base cannot roll back to the legacy protocol. Policy activation targets
+are empty and the independent `SOURCE_READY` guard is false.
+
+Every non-noop next-generation candidate requires the complete existing iOS host
+suite once. Only a host/documentation delta that the unchanged application selector
+proves independent in both full trees may skip Qt provision and the client build.
+Application, mixed, unknown, mode, packaged-resource, stale-reader and manual
+changes retain the full application requirement. The exact three-tree noop proof
+alone may skip all three jobs. No application exclusions or reader anchors are
+expanded by this preparation. A later separately reviewed finite before/after
+workflow normalization could admit an exact orchestration-only bootstrap when
+the application compiler/readers/callees are proven unchanged; this slice does
+not install one, infer one from a passed build, or approve its own candidate.
+
+The host plan binds the complete Git input tree, fixed launcher entrypoints,
+discovery inventories and retained native/QML/renderer variants. The trusted host
+controller requires Qt6 Core/Gui/Qml/Concurrent/WebChannel, Vulkan/GLM, all existing
+QML modules, the real QML runner, Node 22 and the reviewed network wrapper before
+executing the unchanged launcher. Optional local Qt skips cannot produce a CI
+host success. Candidate children receive no API tokens or Actions command files;
+tracked inputs and the independently derived plan are checked after execution.
+
+The next final receives its own event and exact candidate, recomputes every route
+field, and requires the selected same-run host job and successful nonempty
+`Run iOS host contracts` step. Host-only evidence binds the run, attempt, source,
+generation and full host-input identity without qualifying or reusing an IPA.
+The initial host proof supports attempt 1 only, with API identity and actual
+job/step timestamps. Every later attempt fails closed because new API snapshot
+IDs, attempt fields and timestamps do not independently reconstruct original
+execution. M6 must authenticate that original producer before retries or reuse
+can be admitted. Legacy full-build retry and IPA checks retain their existing
+behavior. No cross-run host reuse is introduced.
+
+These offline real-Git regressions run inside the existing
+`ios-build-qualification` quick/host suite, whose repository closure includes the
+new policy, controller, template and small immutable launcher fixture. They use
+disposable trusted source/reader policies and require no Apple branch fetch,
+product compilation, artifact download or live qualification. Activation and
+real hosted qualification remain separate reviewed work.
 
 Parent qualification uses the default-branch `tools/test-evidence/run.py`
 controller against a separate clean candidate checkout. It records actual
