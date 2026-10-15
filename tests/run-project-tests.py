@@ -31,6 +31,7 @@ SUITES = (
     Suite("project-runner", "quick", (sys.executable, "tests/project-suite-self-test.py")),
     Suite("python-test-runner", "quick", (sys.executable, "tests/unittest-runner-test.py")),
     Suite("repository-checks", "quick", (sys.executable, "tests/repository-checks-test.py")),
+    Suite("browser-cpu-selection", "quick", (sys.executable, "tests/browser-cpu-selection-test.py")),
     Suite("ios-build-qualification", "quick", (sys.executable, "tests/ios-build-qualification-test.py")),
     Suite("repository-policy", "quick", (sys.executable, "tests/repository-policy-test.py")),
     Suite("policy-consistency", "quick", (sys.executable, "tools/repository-policy/check.py")),

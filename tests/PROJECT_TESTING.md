@@ -262,6 +262,14 @@ merge candidate and the integrated parent commit remain distinct test inputs.
 
 ## Available project suites
 
+The `browser-cpu-selection` quick suite exercises dormant trusted Browser CPU
+history routing and independent final-result validation against real Git
+histories. It also runs in the combined host profile. Its registry closure
+binds the helper, test, immutable-inventory validator, active legacy workflow
+and exact dormant template. The [Browser CPU selection guide](../docs/BROWSER_CPU_SELECTION.md)
+records the required workflow/source-history migration and outer-gate handoff
+before activation; this preparation changes no active Browser workflow.
+
 The `test-evidence` quick suite checks trusted execution receipts, complete
 suite-input fingerprints, actual runtime identity and parent qualification.
 The shared registry is [`.github/test-suites.json`](../.github/test-suites.json).
@@ -302,6 +310,7 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `project-runner` | `quick` | `python3 tests/run-project-tests.py --suite project-runner` |
 | `python-test-runner` | `quick` | `python3 tests/run-project-tests.py --suite python-test-runner` |
 | `repository-checks` | `quick` | `python3 tests/run-project-tests.py --suite repository-checks` |
+| `browser-cpu-selection` | `quick` | `python3 tests/run-project-tests.py --suite browser-cpu-selection` |
 | `ios-build-qualification` | `quick` | `python3 tests/run-project-tests.py --suite ios-build-qualification` |
 | `repository-policy` | `quick` | `python3 tests/run-project-tests.py --suite repository-policy` |
 | `policy-consistency` | `quick` | `python3 tests/run-project-tests.py --suite policy-consistency` |
