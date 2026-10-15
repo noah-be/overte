@@ -16,6 +16,7 @@ from pathlib import Path
 import re
 import subprocess
 import tempfile
+import time
 import urllib.parse
 
 REPOSITORY = "noah-l-frank/overte"
@@ -192,21 +193,33 @@ class Github:
             obj = annotation.get("object")
         return None
 
+    def active_run_pages(self):
+        endpoints = ["actions/runs?status=" + status + "&per_page=100" for status in
+                     ["queued", "in_progress", "waiting", "pending", "requested"]]
+        # GitHub can briefly return a count from one index snapshot and rows
+        # from another when jobs change state. Retry the entire inventory; an
+        # incomplete response never supplies permission to merge or delete.
+        for delay in (0, 2, 5, 10):
+            if delay:
+                time.sleep(delay)
+            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as pool:
+                pages = list(pool.map(lambda endpoint: self.get(endpoint, paginate=True), endpoints))
+            for page in pages:
+                require(isinstance(page, dict) and type(page.get("total_count")) is int
+                        and page["total_count"] >= 0 and isinstance(page.get("workflow_runs"), list),
+                        "active_run_listing_invalid")
+            if all(page["total_count"] == len(page["workflow_runs"]) for page in pages):
+                return pages
+        raise CleanupError("active_run_listing_incomplete")
+
     def activity_holds(self, candidates, policy):
         names = {r["branch"] for r in candidates}
         held = self.open_pr_holds(names)
         if not names:
             return held
         own_run = int(os.environ.get("GITHUB_RUN_ID", "0"))
-        endpoints = ["actions/runs?status=" + status + "&per_page=100" for status in
-                     ["queued", "in_progress", "waiting", "pending", "requested"]]
-        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as pool:
-            pages = list(pool.map(lambda endpoint: self.get(endpoint, paginate=True), endpoints))
         active = []
-        for page in pages:
-            require(isinstance(page, dict) and isinstance(page.get("total_count"), int)
-                    and isinstance(page.get("workflow_runs"), list), "active_run_listing_invalid")
-            require(page.get("total_count", 0) == len(page.get("workflow_runs", [])), "active_run_listing_incomplete")
+        for page in self.active_run_pages():
             active += [r for r in page["workflow_runs"] if r["id"] != own_run
                        and r.get("path", "").split("@", 1)[0] != WORKFLOW]
         for row in candidates:
