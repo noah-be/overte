@@ -30,21 +30,50 @@ import subprocess
 
 
 REVIEWED_REVISION = "52f1cc38180e96cdfd8049a4be93517961ae7dbd"
-REVIEWED_BOUNDARY = "sha256:f2723395852e96ce2758bbf4126b844f57a2f29d6937cd86989b9404cc1d751f"
+REVIEWED_BOUNDARY = "sha256:b585e91776c6a6027d8868b7cae15ce6e3a6dd13a990ce103a6893e0fbe76847"
 
 # Reviewed host control-plane files, not generic tests/** or tools/** patterns.
 # In particular, E2E builds can compile tests/device source and fixtures.
-# These files were not read by the app configure/build/package graph at the
-# reviewed revision. The newly staged selector and its test have no app caller.
+# These exact files are outside the reviewed app configure/build/package graph.
+# Keep iOS workflows, toolchain readers, native policy and tests/device anchored.
+# Independent required CI must still validate these files before any app waiver.
 INDEPENDENT_HOST_PATHS = frozenset({
+    ".github/android-checks.json",
+    ".github/codeql/codeql-config.yml",
+    ".github/repository-checks.json",
     ".github/sync-test-reuse.json",
     ".github/test-suites.json",
+    ".github/workflows/branch-cleanup.yml",
+    ".github/workflows/codeql.yml",
+    ".github/workflows/parent-qualification.yml",
+    ".github/workflows/project-tests.yml",
+    ".github/workflows/repository-checks.yml",
+    ".github/workflows/repository-health.yml",
+    ".github/workflows/sync-test-reuse.yml",
+    ".github/workflows/sync-validation.yml",
+    ".github/workflows/workflow-security.yml",
+    "tests/android-ci-test.py",
+    "tests/branch-cleanup-test.py",
+    "tests/branch-policy-test.py",
+    "tests/codeql-selection-test.py",
     "tests/ios-build-qualification-test.py",
     "tests/ios-input-selection-test.py",
     "tests/native-ci-test.py",
     "tests/repository-checks-test.py",
+    "tests/repository-health-test.py",
+    "tests/run-project-tests.py",
     "tests/workflow-contract-test.py",
+    "tools/branch-cleanup/cleanup.py",
+    "tools/branch-policy/check.py",
+    "tools/ios-build-qualification/check.py",
     "tools/ios-build-qualification/inputs.py",
+    "tools/native-tests/README.md",
+    "tools/native-tests/check.py",
+    "tools/repository-checks/android.py",
+    "tools/repository-checks/check.py",
+    "tools/repository-checks/codeql.py",
+    "tools/repository-checks/workflows/browser-direct-client.yml",
+    "tools/repository-checks/workflows/repository-checks.yml",
     "tools/sync-test-reuse/differential.py",
     "tools/sync-test-reuse/gate.py",
     "tools/sync-test-reuse/qualification.py",
@@ -61,6 +90,9 @@ INDEPENDENT_HOST_PATHS = frozenset({
     "tools/test-evidence/validate-sync-test.py",
     "tools/test-evidence/validate-sync.py",
 })
+# The reviewed health test and shared runner are executable in Git. No other
+# executable host path, document or mode transition gets an implicit exemption.
+INDEPENDENT_EXECUTABLE_HOST_PATHS = frozenset({"tests/repository-health-test.py", "tests/run-project-tests.py"})
 INDEPENDENT_DOCUMENTS = frozenset({
     "CONTRIBUTING.md", "README.md", "ios/README.md", "tests/PROJECT_TESTING.md",
 })
@@ -151,9 +183,10 @@ def read_snapshot(repository: Path | str, revision: str) -> Snapshot:
 
 
 def _kind(entry: Entry) -> str:
+    expected = "100755" if entry.path in INDEPENDENT_EXECUTABLE_HOST_PATHS else "100644"
+    if entry.path in INDEPENDENT_HOST_PATHS and entry.mode == expected:
+        return "independent-host"
     if entry.mode == "100644":
-        if entry.path in INDEPENDENT_HOST_PATHS:
-            return "independent-host"
         if entry.path in INDEPENDENT_DOCUMENTS or (
                 entry.path.startswith("docs/") and PurePosixPath(entry.path).suffix == ".md"):
             return "independent-documentation"
@@ -182,6 +215,7 @@ def _policy() -> str:
     return _digest({"domain": _INPUT_DOMAIN, "reviewed_revision": REVIEWED_REVISION,
                     "reviewed_boundary": REVIEWED_BOUNDARY,
                     "host_paths": sorted(INDEPENDENT_HOST_PATHS), "documents": sorted(INDEPENDENT_DOCUMENTS),
+                    "executable_host_paths": sorted(INDEPENDENT_EXECUTABLE_HOST_PATHS),
                     "document_rule": "ordinary-docs/**/*.md", "nonregular_rule": "disable-all-exclusions",
                     "implementation": hashlib.sha256(Path(__file__).read_bytes()).hexdigest()})
 

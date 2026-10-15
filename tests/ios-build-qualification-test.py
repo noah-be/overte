@@ -400,6 +400,175 @@ class CandidateTests(unittest.TestCase):
             CHECK.route(event, self.root, "d" * 40)
 
 
+class InputSelectionCompatibilityTests(unittest.TestCase):
+    git = CandidateTests.git
+
+    def setUp(self):
+        CandidateTests.setUp(self)
+        self.policy_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.policy_directory.cleanup)
+        self.trusted = Path(self.policy_directory.name)
+        (self.trusted / ".github").mkdir()
+        directory = self.trusted / "tools/ios-build-qualification"
+        directory.mkdir(parents=True)
+        self.config = json.loads((ROOT / ".github/ios-build-qualification.json").read_text())
+        self.config["inputSelection"] = True
+        self.save_config()
+        canonical = (ROOT / "tools/ios-build-qualification/workflow.yml").read_text()
+        (directory / "workflow.yml").write_text(canonical)
+        (directory / "check.py").write_bytes((ROOT / "tools/ios-build-qualification/check.py").read_bytes())
+        self.write(".github/workflows/ios-build-qualification.yml", canonical)
+        self.write("CMakeLists.txt", "project(ReviewedFixture)\n")
+        self.write("docs/guide.md", "# Reviewed independent guide\n")
+        self.write("tools/test-evidence/run.py", "# Reviewed independent host control\n")
+        self.base = self.commit("Create reviewed app reader and independent host fixture")
+        selector = CHECK.input_selector()
+        anchor = selector.review_boundary(self.root, self.base)["boundary"]
+        code = (ROOT / "tools/ios-build-qualification/inputs.py").read_text()
+        code = code.replace(selector.REVIEWED_BOUNDARY, anchor)
+        (directory / "inputs.py").write_text(code)
+
+    def save_config(self):
+        (self.trusted / ".github/ios-build-qualification.json").write_text(json.dumps(self.config))
+
+    def write(self, relative, value):
+        path = self.root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(value)
+
+    def commit(self, message):
+        self.git("add", "-A")
+        self.git("commit", "-qm", message, "--allow-empty")
+        return self.git("rev-parse", "HEAD")
+
+    def candidate(self, relative=None, value="Changed\n"):
+        if relative is not None:
+            self.write(relative, value)
+        head = self.commit("Prepare exact iOS candidate head")
+        merge = self.git("commit-tree", "HEAD^{tree}", "-p", self.base, "-p", head, "-m", "Exact candidate")
+        self.git("checkout", "--detach", merge)
+        repo = {"id": CHECK.REPOSITORY_ID, "full_name": CHECK.REPOSITORY}
+        event = {"repository": repo, "pull_request": {
+            "base": {"sha": self.base, "ref": "apple-ios", "repo": repo},
+            "head": {"sha": head, "ref": "fix/ios/example", "repo": repo}}}
+        return event, merge
+
+    def route(self, event, merge):
+        return CHECK.route(event, self.root, merge, policy_root=self.trusted)
+
+    def needs(self, decision):
+        return {"route": {"result": "success", "outputs": decision}, **{name: {
+            "result": "success" if decision.get("host_required" if name == "host" else "required") == "true" else "skipped"}
+            for name in ("host", "qt", "client")}}
+
+    def verify(self, decision, event, merge):
+        return CHECK.verify_jobs(self.needs(decision), merge, event=event, candidate=self.root, policy_root=self.trusted)
+
+    def test_absent_false_and_malformed_trusted_flag_preserve_legacy_or_fail_closed(self):
+        event, merge = self.candidate("tools/test-evidence/run.py", "raise RuntimeError('never execute candidate')\n")
+        selected = self.route(event, merge)
+        self.assertEqual((selected["required"], selected["host_required"]), ("false", "false"))
+        self.assertEqual(selected["reason"], "independent-host-or-documentation-only")
+        for value in (False, None):
+            if value is None:
+                self.config.pop("inputSelection", None)
+            else:
+                self.config["inputSelection"] = value
+            self.save_config()
+            legacy = self.route(event, merge)
+            self.assertEqual(legacy["required"], "true")
+            self.assertEqual(legacy["reason"], "application-build-required")
+            self.assertNotIn("host_required", legacy)
+            self.assertNotIn("selection", legacy)
+        self.config["inputSelection"] = "true"
+        self.save_config()
+        with self.assertRaisesRegex(ValueError, "trusted build qualification policy"):
+            self.route(event, merge)
+
+    def test_enabled_light_route_cannot_publish_green_without_authenticated_shared_owner(self):
+        event, merge = self.candidate("tools/test-evidence/run.py", "# Independent host change\n")
+        decision = self.route(event, merge)
+        self.assertEqual(decision["required"], "false")
+        self.assertEqual(decision["host_required"], "false")
+        with self.assertRaisesRegex(ValueError, "independently authenticated shared host owner"):
+            self.verify(decision, event, merge)
+        with self.assertRaisesRegex(ValueError, "independently authenticated shared host owner"):
+            CHECK.report(self.needs(decision), merge, 688, 123, 1, Path("missing"), [],
+                         event=event, candidate=self.root, policy_root=self.trusted)
+
+    def test_enabled_documentation_plan_is_explicit_but_final_activation_remains_blocked(self):
+        event, merge = self.candidate("docs/guide.md", "# Independent guide changed\n")
+        decision = self.route(event, merge)
+        self.assertEqual(decision["required"], "false")
+        with self.assertRaisesRegex(ValueError, "independently authenticated shared host owner"):
+            self.verify(decision, event, merge)
+
+    def test_final_verifier_recomputes_every_source_reason_and_selection_field(self):
+        event, merge = self.candidate("code.cpp", "int changedApplication;\n")
+        decision = self.route(event, merge)
+        self.assertEqual(self.verify(decision, event, merge), decision)
+        changes = {"required": "false", "host_required": "false", "source": "c" * 40,
+                   "tree": "c" * 40, "base": "c" * 40, "head": "c" * 40,
+                   "reason": "independent-host-or-documentation-only", "selection": "sha256:" + "c" * 64,
+                   "unreviewed_skip": "true"}
+        for field, value in changes.items():
+            changed = {**decision, field: value}
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                self.verify(changed, event, merge)
+        for field in decision:
+            changed = dict(decision)
+            del changed[field]
+            with self.subTest(missing=field), self.assertRaises(ValueError):
+                self.verify(changed, event, merge)
+        with self.assertRaisesRegex(ValueError, "independent event and candidate"):
+            CHECK.verify_jobs(self.needs(decision), merge, policy_root=self.trusted)
+        altered = copy.deepcopy(event)
+        altered["pull_request"]["head"]["sha"] = "d" * 40
+        with self.assertRaisesRegex(ValueError, "exact event base and head"):
+            self.verify(decision, altered, merge)
+
+    def test_packaged_markdown_mixed_unknown_and_empty_inputs_still_require_app_and_host(self):
+        for relative in ("scripts/README.md", "interface/resources/README.md", "unknown/host-helper.py", None):
+            with self.subTest(path=relative):
+                self.git("checkout", "-q", "--detach", self.base)
+                if relative is not None:
+                    self.write("tools/test-evidence/run.py", "# Mixed independent host change\n")
+                event, merge = self.candidate(relative)
+                decision = self.route(event, merge)
+                self.assertEqual((decision["required"], decision["host_required"]), ("true", "true"))
+                self.assertEqual(self.verify(decision, event, merge), decision)
+
+    def test_reader_change_then_host_only_candidate_cannot_use_stale_boundary(self):
+        self.write("CMakeLists.txt", "project(ReviewedFixture)\nfile(READ tools/test-evidence/run.py APP_INPUT)\n")
+        self.base = self.commit("Integrate a new application reader")
+        event, merge = self.candidate("tools/test-evidence/run.py", "# Newly consumed application input\n")
+        decision = self.route(event, merge)
+        self.assertEqual(decision["reason"], "reader-boundary-not-reviewed")
+        self.assertEqual((decision["required"], decision["host_required"]), ("true", "true"))
+        self.assertEqual(self.verify(decision, event, merge), decision)
+
+    def test_manual_run_and_full_report_keep_exact_source_and_no_reused_app_claim(self):
+        event, merge = self.candidate("code.cpp", "int modified;\n")
+        decision = self.route(event, merge)
+        jobs = records()
+        for job in jobs:
+            job["head_sha"] = event["pull_request"]["head"]["sha"]
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            fixture(directory, sourceRevision=merge)
+            result = CHECK.report(self.needs(decision), merge, 688, 123, 1, directory, jobs,
+                                  event=event, candidate=self.root, policy_root=self.trusted)
+        self.assertEqual(result["ipa"], "verified")
+        self.assertEqual(result["sourceRevision"], merge)
+        self.assertEqual(result["inputSelection"], {"plan": decision["selection"],
+                         "applicationBuildRequired": True, "iosHostRequired": True})
+        manual = {"repository": event["repository"]}
+        decision = self.route(manual, merge)
+        self.assertEqual((decision["required"], decision["host_required"]), ("true", "true"))
+        self.assertEqual(decision["reason"], "manual-application-build-required")
+        self.assertEqual(self.verify(decision, manual, merge), decision)
+
+
 class HistoryTests(unittest.TestCase):
     def test_history_covers_qualification_failures_and_workflow_identity(self):
         repo = {"full_name": HISTORY.REPOSITORY, "id": HISTORY.REPOSITORY_ID}

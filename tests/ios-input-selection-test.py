@@ -95,6 +95,39 @@ class ImmutableInputTests(unittest.TestCase):
                          {"README.md", "tools/test-evidence/run.py"})
         self.assertTrue(all(change["new"] is None for change in plan["changes"]))
 
+    def test_reviewed_host_foundation_inventory_can_propagate_without_app_input_changes(self):
+        for relative in INPUTS.INDEPENDENT_HOST_PATHS:
+            destination = self.root / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_text("raise RuntimeError('candidate host code must never execute')\n")
+            destination.chmod(0o755 if relative in INPUTS.INDEPENDENT_EXECUTABLE_HOST_PATHS else 0o644)
+        plan = self.assert_independent(self.commit("Propagate reviewed host CI foundation inventory"))
+        self.assertTrue(plan["changes"])
+        self.assertTrue(all(change["kind"] == "independent-host" for change in plan["changes"]))
+        self.assertTrue({"tests/android-ci-test.py", "tests/repository-health-test.py", "tests/run-project-tests.py",
+                         "tools/repository-checks/check.py", "tools/repository-checks/android.py",
+                         ".github/workflows/parent-qualification.yml"}.issubset(
+                             {change["path"] for change in plan["changes"]}))
+
+    def test_only_exact_reviewed_executable_host_modes_are_exempt(self):
+        for relative in INPUTS.INDEPENDENT_EXECUTABLE_HOST_PATHS:
+            with self.subTest(path=relative):
+                self.git("checkout", "-q", "--detach", self.base)
+                self.write(relative, "# Exact independent executable host check\n")
+                (self.root / relative).chmod(0o755)
+                executable = self.commit("Add reviewed executable host check")
+                self.assert_independent(executable)
+                (self.root / relative).chmod(0o644)
+                changed_mode = self.commit("Change the reviewed host mode")
+                plan = self.plan(changed_mode, executable)
+                self.assertTrue(plan["requires_application_build"])
+                self.assertEqual(plan["changes"][0]["kind"], "application-input")
+        self.git("checkout", "-q", "--detach", self.base)
+        (self.root / "tools/test-evidence/run.py").chmod(0o755)
+        plan = self.plan(self.commit("Make a different independent host file executable"))
+        self.assertTrue(plan["requires_application_build"])
+        self.assertEqual(plan["changes"][0]["kind"], "application-input")
+
     def test_rename_inventory_retains_both_paths(self):
         self.git("mv", "docs/README.md", "docs/RENAMED.md")
         candidate = self.commit("Rename an independent guide")
