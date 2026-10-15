@@ -262,6 +262,30 @@ merge candidate and the integrated parent commit remain distinct test inputs.
 
 ## Available project suites
 
+The `test-evidence` quick suite checks trusted execution receipts, complete
+suite-input fingerprints, actual runtime identity and parent qualification.
+The shared registry is [`.github/test-suites.json`](../.github/test-suites.json).
+It declares canonical commands and complete source/fixture/helper closures;
+unreviewed closures remain conservative. Changed Python import modules and
+ancestor Node package metadata cannot hide behind an unchanged entry point.
+
+Parent qualification uses the default-branch `tools/test-evidence/run.py`
+controller against a separate clean candidate checkout. It records actual
+executed suites and fingerprints rather than accepting the candidate runner's
+claim about the selected inventory. The controller preserves timeout and
+process cleanup, scopes disabled Git fixture maintenance to candidate
+subprocesses, and removes GitHub tokens and Actions command-file variables from
+those subprocesses. Receipt and virtualenv outputs must remain outside the
+candidate's tracked/unignored source tree.
+
+Reusable proof requires the actual supported host environment, including
+toolchain, Qt backends, package versions and relevant flags. An unsupported
+identity still runs the required full verification but produces no reusable
+pass. An isolated sync validator independently checks full candidate inputs,
+actual environment, original provenance and expiry; it executes unmatched
+shared suites and declared product suites. See the
+[reuse protocol](../docs/BRANCH_WORKFLOW.md#exact-parent-test-reuse).
+
 The following inventory is generated from the runner's common and native
 suites. Regenerate it with `python3 tools/repository-policy/check.py --write`
 after changing their registration; do not maintain a second list manually.
@@ -274,6 +298,7 @@ entries out of this shared table allows it to propagate unchanged to children.
 | Suite | Layer | Run individually |
 | --- | --- | --- |
 | `dependency-releases` | `quick` | `python3 tests/run-project-tests.py --suite dependency-releases` |
+| `test-evidence` | `quick` | `python3 tests/run-project-tests.py --suite test-evidence` |
 | `project-runner` | `quick` | `python3 tests/run-project-tests.py --suite project-runner` |
 | `python-test-runner` | `quick` | `python3 tests/run-project-tests.py --suite python-test-runner` |
 | `repository-checks` | `quick` | `python3 tests/run-project-tests.py --suite repository-checks` |

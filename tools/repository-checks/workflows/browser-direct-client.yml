@@ -1,0 +1,190 @@
+name: Direct browser client
+
+on:
+  workflow_call:
+    inputs:
+      expected_candidate:
+        type: string
+        required: true
+      expected_plan:
+        type: string
+        required: true
+      browser_required:
+        type: boolean
+        required: true
+      native_required:
+        type: boolean
+        required: true
+    outputs:
+      candidate:
+        value: ${{ jobs.verify.outputs.candidate }}
+      plan:
+        value: ${{ jobs.verify.outputs.plan }}
+      verified:
+        value: ${{ jobs.verify.outputs.verified }}
+  push:
+    # The trusted router owns dependencies, including transitive libraries and
+    # assets. A second path list here could silently omit relevant changes.
+    branches: [main, apple-main, apple-ios, android-main, android-phone, android-vr, android-vr-pico]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  route:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      direct_browser: ${{ steps.plan.outputs.direct_browser }}
+      direct_native: ${{ steps.plan.outputs.direct_native }}
+      direct_plan: ${{ steps.plan.outputs.direct_plan }}
+      candidate: ${{ steps.plan.outputs.candidate }}
+    steps:
+      - name: Check out trusted direct-browser policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: trusted
+          persist-credentials: false
+          sparse-checkout: |
+            .github
+            tools/repository-checks
+      - name: Read candidate Git metadata and orchestration
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: candidate
+          fetch-depth: 2
+          persist-credentials: false
+          sparse-checkout: .github
+      - name: Read the exact protected push comparison
+        if: github.event_name == 'push'
+        working-directory: candidate
+        env:
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          [[ "$PUSH_BEFORE" =~ ^[0-9a-f]{40}$ ]]
+          if [[ "$PUSH_BEFORE" != 0000000000000000000000000000000000000000 ]]; then
+            git cat-file -e "$PUSH_BEFORE^{commit}" 2>/dev/null || git fetch --no-tags --depth=1 origin "$PUSH_BEFORE"
+          fi
+      - name: Recompute exact candidate selection and caller identity
+        id: plan
+        env:
+          EXPECTED_CANDIDATE: ${{ inputs.expected_candidate }}
+          EXPECTED_PLAN: ${{ inputs.expected_plan }}
+          EXPECTED_BROWSER: ${{ inputs.browser_required && 'true' || 'false' }}
+          EXPECTED_NATIVE: ${{ inputs.native_required && 'true' || 'false' }}
+        run: >-
+          python3 trusted/tools/repository-checks/check.py direct-plan
+          --event "$GITHUB_EVENT_PATH" --candidate candidate --sha "$GITHUB_SHA"
+          --expected-candidate "$EXPECTED_CANDIDATE" --expected-plan "$EXPECTED_PLAN"
+          --expected-browser "$EXPECTED_BROWSER" --expected-native "$EXPECTED_NATIVE"
+          --output "$GITHUB_OUTPUT"
+
+  browser:
+    needs: route
+    if: needs.route.outputs.direct_browser == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: '24'
+      - name: Install production protocol-check prerequisites
+        run: sudo apt-get update && sudo apt-get install -y qt6-base-dev qt6-base-dev-tools libglm-dev python3-xlib python3-pil
+      - name: Check native packet table and signature
+        run: python3 browser-direct-client/tools/generate-protocol.py --check
+      - name: Verify source provenance, browser behavior, types, and production build
+        working-directory: browser-direct-client
+        run: |
+          npm ci
+          npm run verify:reuse
+          npm run verify:sdk
+          npm test
+          python3 e2e/run-control.test.py
+          python3 e2e/native-host-actions.test.py
+          python3 e2e/native-visitor-qualification.test.py
+          python3 e2e/native-build-evidence.test.py
+          python3 e2e/chrome-permission-ui.test.py
+          python3 e2e/https-fixtures.test.py
+          npm run build
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: direct-browser-production
+          path: browser-direct-client/dist
+          if-no-files-found: error
+          retention-days: 7
+
+  native:
+    needs: route
+    if: needs.route.outputs.direct_native == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    container:
+      image: ghcr.io/noah-l-frank/overte/native-dependencies@sha256:a692b477cd2efdfc1f3d0f059a8eebba4852d37509a2efa945937ef2fe073373
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build actual server components and run bounded native transport tests
+        run: python3 browser-direct-client/tools/ci-native.py
+      - name: Retain exact native test evidence
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: direct-browser-native-results
+          path: build/browser-direct-ci/native-results.xml
+          if-no-files-found: error
+          retention-days: 7
+
+  verify:
+    if: always()
+    needs: [route, browser, native]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      candidate: ${{ steps.verify.outputs.candidate }}
+      plan: ${{ steps.verify.outputs.plan }}
+      verified: ${{ steps.verify.outputs.verified }}
+    steps:
+      - name: Check out trusted direct-browser policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: trusted
+          persist-credentials: false
+          sparse-checkout: |
+            .github
+            tools/repository-checks
+      - name: Read candidate Git metadata and orchestration
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: candidate
+          fetch-depth: 2
+          persist-credentials: false
+          sparse-checkout: .github
+      - name: Read the exact protected push comparison
+        if: github.event_name == 'push'
+        working-directory: candidate
+        env:
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          [[ "$PUSH_BEFORE" =~ ^[0-9a-f]{40}$ ]]
+          if [[ "$PUSH_BEFORE" != 0000000000000000000000000000000000000000 ]]; then
+            git cat-file -e "$PUSH_BEFORE^{commit}" 2>/dev/null || git fetch --no-tags --depth=1 origin "$PUSH_BEFORE"
+          fi
+      - name: Require every selected browser and transport result
+        id: verify
+        env:
+          DIRECT_RESULTS: ${{ toJSON(needs) }}
+        run: >-
+          python3 trusted/tools/repository-checks/check.py direct-verify
+          --event "$GITHUB_EVENT_PATH" --candidate candidate --sha "$GITHUB_SHA"
+          --needs-json "$DIRECT_RESULTS" --output "$GITHUB_OUTPUT"

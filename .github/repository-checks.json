@@ -30,5 +30,6 @@
   "native_required": false,
   "native_required_branches": [
     "main"
-  ]
+  ],
+  "direct_browser_required_branches": []
 }

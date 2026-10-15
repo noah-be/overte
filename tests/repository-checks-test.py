@@ -5,6 +5,7 @@ from copy import deepcopy
 import importlib.util
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -234,10 +235,14 @@ class AggregateTests(unittest.TestCase):
         self.assertTrue(all(item["integration_id"] == 15368 for item in entries))
         source = (ROOT / ".github/workflows/repository-checks.yml").read_text()
         self.assertIn("if: always()", source)
+        dependencies = "route, project, documentation, workflow-security"
         if CONFIG.get("native_required", False) or "main" in CONFIG.get("native_required_branches", []):
-            self.assertIn("needs: [route, project, documentation, workflow-security, native]", source)
+            dependencies += ", native"
         else:
-            self.assertRegex(source, r"needs: \[route, project, documentation, workflow-security(?:, native)?\]")
+            dependencies += "(?:, native)?"
+        dependencies += (", direct-browser" if "main" in CONFIG.get("direct_browser_required_branches", [])
+                         else "(?:, direct-browser)?")
+        self.assertRegex(source, r"needs: \[" + dependencies + r"\]")
         self.assertNotIn("paths:", source)
         self.assertNotIn("secrets:", source)
         self.assertNotIn("secrets.", source)
@@ -260,6 +265,273 @@ class AggregateTests(unittest.TestCase):
                      "tools/repository-policy/check.py", "tools/repository-health/check.py",
                      "tests/requirements-repository.txt"):
             self.assertTrue(any(fnmatch.fnmatchcase(path, pattern) for pattern in reuse["qualified_inputs"]), path)
+
+
+class DirectBrowserTests(unittest.TestCase):
+    def test_prospective_transport_wiring_requires_selected_jobs_and_shared_fixtures(self):
+        import ast
+        import yaml
+        templates = ROOT / 'tools/repository-checks/workflows'
+        workflow = yaml.safe_load((templates / 'browser-direct-client.yml').read_text())
+        caller = yaml.safe_load((templates / 'repository-checks.yml').read_text())
+        triggers = workflow.get('on', workflow.get(True))
+        self.assertIn('workflow_call', triggers)
+        self.assertNotIn('pull_request', triggers, 'The aggregate replaces the standalone PR consumer')
+        jobs = workflow['jobs']
+        self.assertEqual(set(jobs['verify']['needs']), {'route', 'browser', 'native'})
+        self.assertEqual(jobs['verify']['if'], 'always()')
+        for lane, output in (('browser', 'direct_browser'), ('native', 'direct_native')):
+            self.assertEqual(jobs[lane]['needs'], 'route')
+            self.assertEqual(jobs[lane]['if'], f"needs.route.outputs.{output} == 'true'")
+        verifier = next(step for step in jobs['verify']['steps'] if step.get('id') == 'verify')
+        self.assertIn('trusted/tools/repository-checks/check.py direct-verify', verifier['run'])
+        self.assertIn('--needs-json "$DIRECT_RESULTS"', verifier['run'])
+        self.assertIn('--sha "$GITHUB_SHA"', verifier['run'])
+        self.assertIn('direct-browser', caller['jobs']['repository-checks']['needs'])
+        consumer = caller['jobs']['direct-browser']
+        self.assertEqual(consumer['uses'], './.github/workflows/browser-direct-client.yml')
+        self.assertEqual(consumer['permissions'], {'contents': 'read', 'packages': 'read'})
+        self.assertEqual(set(consumer['with']), {'expected_candidate', 'expected_plan',
+                                                'browser_required', 'native_required'})
+        aggregate = caller['jobs']['repository-checks']['steps'][-1]
+        self.assertIn('--candidate candidate --sha "$GITHUB_SHA"', aggregate['run'])
+        # These browser JSON files are read by actual C++ tests, so an extension-
+        # only frontend exemption would silently miss a required native consumer.
+        fixtures = set()
+        for source in (ROOT / 'tests/browser-direct-transport/src').glob('*.cpp'):
+            fixtures.update(re.findall(r'QFINDTESTDATA\("\.\./\.\./\.\./(browser-direct-client/[^\"]+)"\)',
+                                       source.read_text()))
+        self.assertTrue(fixtures)
+        for fixture in fixtures:
+            selected = CHECKS.direct_browser_plan([fixture])
+            self.assertTrue(selected['browser'] and selected['native'], fixture)
+        driver = ast.parse((ROOT / 'browser-direct-client/tools/ci-native.py').read_text())
+        for node in ast.walk(driver):
+            if (isinstance(node, ast.Constant) and isinstance(node.value, str)
+                    and node.value.startswith(('tools/native-tests/', 'tools/conan-profiles/'))):
+                self.assertTrue(CHECKS.direct_browser_plan([node.value])['native'], node.value)
+
+    def test_push_routing_cannot_omit_transitive_dependencies(self):
+        import yaml
+        workflow = yaml.safe_load((ROOT / 'tools/repository-checks/workflows/browser-direct-client.yml').read_text())
+        events = workflow.get('on', workflow.get(True))
+        push = events['push']
+        self.assertEqual(set(push), {'branches'})
+        self.assertEqual(set(push['branches']), set(BRANCHES))
+        for path in ('LICENSE', 'interface/resources/meshes/mannequin/mannequin.fbx',
+                     'libraries/shared/src/Constants.h', 'libraries/avatars/src/AvatarData.cpp',
+                     'libraries/audio/src/AudioConstants.h', 'tools/native-tests/packages.py',
+                     'CMakeLists.txt', 'conanfile.py'):
+            selected = CHECKS.direct_browser_plan([path])
+            self.assertTrue(selected['browser'] or selected['native'], path)
+
+    def candidate_plan(self, browser=True, native=False):
+        return {"browser": browser, "native": native, "candidate": "a" * 40, "plan": "b" * 64}
+
+    def inner_results(self, selected):
+        return {"route": {"result": "success", "outputs": CHECKS.direct_outputs(selected)},
+                **{lane: {"result": "success" if selected[lane] else "skipped"}
+                   for lane in ("browser", "native")}}
+
+    def outer_results(self, selected):
+        candidate = results()
+        candidate["route"]["outputs"].update(CHECKS.direct_outputs(selected))
+        candidate["direct-browser"] = {"result": "success", "outputs": {
+            "verified": "true", "candidate": selected["candidate"], "plan": selected["plan"]}}
+        if not selected["browser"] and not selected["native"]:
+            candidate["direct-browser"] = {"result": "skipped", "outputs": {}}
+        return candidate
+
+    def test_frontend_docs_and_lab_tools_do_not_build_native_products(self):
+        for path in ("browser-direct-client/src/world.ts", "browser-direct-client/src/style.css",
+                     "browser-direct-client/package-lock.json", "browser-direct-client/lab/build-native.py",
+                     "browser-direct-client/e2e/native-build-evidence.test.py", "browser-direct-client/README.md"):
+            with self.subTest(path=path):
+                self.assertFalse(CHECKS.direct_browser_plan([path])["native"])
+        self.assertTrue(CHECKS.direct_browser_plan(["browser-direct-client/src/world.ts"])["browser"])
+        self.assertFalse(CHECKS.direct_browser_plan(["browser-direct-client/README.md"])["browser"])
+        for path in ("tools/repository-checks/check.py", "tests/repository-checks-test.py", "docs/ci.md",
+                     "tools/test-evidence/execution.py", "tools/test-evidence/fixture.json"):
+            self.assertEqual(CHECKS.direct_browser_plan([path]),
+                             {"browser": False, "native": False, "reasons": {"browser": [], "native": []}})
+        for path in CHECKS.DIRECT_UNRELATED_NATIVE_TOOLS:
+            selected = CHECKS.direct_browser_plan([path])
+            self.assertFalse(selected["browser"] or selected["native"], path)
+
+    def test_native_fixtures_libraries_and_complete_build_context_require_transport(self):
+        paths = sorted(CHECKS.DIRECT_NATIVE_FIXTURES) + [
+            "libraries/avatars/src/AvatarData.cpp", "libraries/audio/src/AudioConstants.h",
+            "libraries/shared/src/GLMHelpers.h", "libraries/script-engine/src/ScriptEngine.cpp",
+            "libraries/model-networking/src/ModelCache.cpp", "libraries/new-component/src/input.h",
+            "domain-server/src/LocalUserPolicy.h", "assignment-client/src/entities/BrowserEntityProjection.h",
+            "tests/browser-direct-transport/src/WebRTCTransportTests.cpp", "tests/networking/src/PacketTests.cpp",
+            "cmake/macros/TargetDataChannel.cmake", "CMakeLists.txt", "conanfile.py", "conan.lock",
+            ".github/native-tests.json", "tools/native-tests/conan-linux.lock", "tools/conan-profiles/linux",
+            "browser-direct-client/tools/ci-native.py", "browser-direct-client/lab/new.cpp",
+            "browser-direct-client/lab/CMakeLists.txt", "browser-direct-client/new.unknown",
+            "tools/test-evidence/new.cpp", "tools/test-evidence/new.unknown"]
+        for path in paths:
+            with self.subTest(path=path):
+                self.assertTrue(CHECKS.direct_browser_plan([path])["native"])
+        for path in CHECKS.DIRECT_NATIVE_FIXTURES:
+            self.assertTrue(CHECKS.direct_browser_plan([path])["browser"])
+        mixed = CHECKS.direct_browser_plan(["browser-direct-client/src/world.ts", paths[0]])
+        self.assertTrue(mixed["browser"] and mixed["native"])
+
+    def test_browser_generation_assets_and_nonregular_unknown_inputs_are_not_omitted(self):
+        for path in CHECKS.DIRECT_BROWSER_ASSETS | {"libraries/networking/src/udt/PacketHeaders.cpp"}:
+            self.assertTrue(CHECKS.direct_browser_plan([path])["browser"], path)
+        for paths, regular in (([], True), (["browser-direct-client/README.md"], False),
+                               (["unowned/new-input"], True)):
+            selected = CHECKS.direct_browser_plan(paths, regular)
+            self.assertTrue(selected["browser"] and selected["native"])
+        self.assertFalse(CHECKS.direct_browser_plan([], verified_empty=True)["native"])
+        with self.assertRaises(ValueError):
+            CHECKS.direct_browser_plan(["a"], verified_empty=True)
+        for path in ("../outside", "/absolute", "", "bad\x00path", "bad\\path", 123):
+            with self.subTest(path=path), self.assertRaises(ValueError):
+                CHECKS.direct_browser_plan([path])
+
+    def test_inner_selected_failure_skip_missing_and_misbound_route_fail(self):
+        selected = self.candidate_plan(True, True)
+        good = self.inner_results(selected)
+        self.assertEqual(CHECKS.verify_direct(good, selected)["verified"], "true")
+        for lane in ("route", "browser", "native"):
+            for conclusion in ("failure", "skipped", "cancelled", None):
+                bad = deepcopy(good)
+                bad[lane]["result"] = conclusion
+                with self.subTest(lane=lane, conclusion=conclusion), self.assertRaises(ValueError):
+                    CHECKS.verify_direct(bad, selected)
+            bad = deepcopy(good)
+            del bad[lane]
+            with self.assertRaises(ValueError):
+                CHECKS.verify_direct(bad, selected)
+        for field in CHECKS.direct_outputs(selected):
+            bad = deepcopy(good)
+            bad["route"]["outputs"][field] = "wrong"
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                CHECKS.verify_direct(bad, selected)
+        unselected = self.candidate_plan(True, False)
+        good = self.inner_results(unselected)
+        self.assertEqual(CHECKS.verify_direct(good, unselected)["verified"], "true")
+        good["native"]["result"] = "success"
+        with self.assertRaises(ValueError):
+            CHECKS.verify_direct(good, unselected)
+
+    def test_outer_receipt_is_required_even_before_branch_activation(self):
+        selected = self.candidate_plan()
+        good = self.outer_results(selected)
+        self.assertEqual(CHECKS.verify(good, direct_plan=selected)["status"], "PASS")
+        with self.assertRaises(ValueError):
+            CHECKS.verify(good)
+        for field in ("candidate", "plan", "verified"):
+            bad = deepcopy(good)
+            bad["direct-browser"]["outputs"][field] = "wrong"
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                CHECKS.verify(bad, direct_plan=selected)
+        for conclusion in ("failure", "skipped", "cancelled", None):
+            bad = deepcopy(good)
+            bad["direct-browser"]["result"] = conclusion
+            with self.assertRaises(ValueError):
+                CHECKS.verify(bad, direct_plan=selected)
+        good["route"]["outputs"]["direct_native"] = "true"
+        with self.assertRaises(ValueError):
+            CHECKS.verify(good, direct_plan=selected)
+        empty = self.candidate_plan(False, False)
+        self.assertEqual(CHECKS.verify(self.outer_results(empty), direct_plan=empty)["status"], "PASS")
+
+    def test_only_trusted_base_activation_permits_legacy_omission(self):
+        config = {**CONFIG, "direct_browser_required_branches": ["main"]}
+        self.assertFalse(CHECKS.direct_browser_required({**config, "direct_browser_required_branches": []}, None))
+        for head in ("fix/main/example", "apple-ios", "main"):
+            self.assertTrue(CHECKS.direct_browser_required(config, event("main", head)))
+        for base in ("apple-ios", "android-main", "android-vr-pico"):
+            self.assertFalse(CHECKS.direct_browser_required(config, event(base, "main")))
+        self.assertEqual(CHECKS.verify(results(), require_direct=False)["status"], "PASS")
+        with self.assertRaisesRegex(ValueError, "aggregate missing"):
+            CHECKS.verify(results(), require_direct=True)
+        for payload in (None, {}, {"repository": {"full_name": "overte-org/overte", "id": 1}}):
+            with self.assertRaises(ValueError):
+                CHECKS.direct_browser_required(config, payload)
+        bad = event()
+        bad["pull_request"]["base"]["repo"] = {"full_name": "contributor/fork", "id": 12}
+        with self.assertRaises(ValueError):
+            CHECKS.direct_browser_required(config, bad)
+
+    def test_candidate_plan_cli_rechecks_exact_merge_tree_and_trusted_templates(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            candidate = Path(temporary)
+            def git(*args):
+                return subprocess.check_output(["git", "-c", "core.hooksPath=/dev/null",
+                                                "-c", "commit.gpgsign=false", *args],
+                                               cwd=candidate, text=True, stderr=subprocess.PIPE).strip()
+            git("init", "-q", "--initial-branch=main")
+            git("config", "user.name", "Fixture")
+            git("config", "user.email", "fixture@example.invalid")
+            workflows = candidate / ".github/workflows"
+            workflows.mkdir(parents=True)
+            for name in CHECKS.DIRECT_WORKFLOWS:
+                (workflows / name).write_bytes((ROOT / "tools/repository-checks/workflows" / name).read_bytes())
+            source = candidate / "browser-direct-client/lab/manage.py"
+            source.parent.mkdir(parents=True)
+            source.write_text("# before\n")
+            git("add", ".")
+            git("commit", "-qm", "Base")
+            base = git("rev-parse", "HEAD")
+            git("checkout", "-qb", "fix/main/example")
+            source.write_text("# after\n")
+            git("add", ".")
+            git("commit", "-qm", "Head")
+            head = git("rev-parse", "HEAD")
+            git("checkout", "-q", "main")
+            git("merge", "--no-ff", "-qm", "Candidate", "fix/main/example")
+            sha = git("rev-parse", "HEAD")
+            payload = event()
+            payload["pull_request"]["base"]["sha"] = base
+            payload["pull_request"]["head"]["sha"] = head
+            selected = CHECKS.direct_candidate_plan(candidate, payload, sha)
+            self.assertTrue(selected["browser"])
+            self.assertFalse(selected["native"])
+            push = {"repository": payload["repository"], "before": base, "after": sha}
+            pushed = CHECKS.direct_candidate_plan(candidate, push, sha)
+            self.assertTrue(pushed["browser"])
+            self.assertFalse(pushed["native"])
+            empty = CHECKS.direct_candidate_plan(candidate, {**push, "before": sha}, sha)
+            self.assertFalse(empty["browser"] or empty["native"])
+            with self.assertRaises(ValueError):
+                CHECKS.direct_candidate_plan(candidate, {**push, "after": head}, sha)
+            CHECKS.validate_direct_wiring(candidate)
+            event_file, output = candidate / "event.json", candidate / "outputs"
+            event_file.write_text(json.dumps(payload))
+            common = ["--event", str(event_file), "--candidate", str(candidate), "--sha", sha]
+            command = [sys.executable, str(ROOT / "tools/repository-checks/check.py")]
+            run = subprocess.run(command + ["direct-plan", *common, "--output", str(output),
+                                           "--expected-candidate", sha, "--expected-plan", selected["plan"],
+                                           "--expected-browser", "true", "--expected-native", "false"], capture_output=True)
+            self.assertEqual(run.returncode, 0, run.stderr.decode())
+            run = subprocess.run(command + ["direct-plan", *common, "--output", str(output),
+                                           "--expected-candidate", sha, "--expected-plan", selected["plan"],
+                                           "--expected-browser", "true", "--expected-native", "true"], capture_output=True)
+            self.assertNotEqual(run.returncode, 0)
+            run = subprocess.run(command + ["direct-verify", *common, "--output", str(output),
+                                           "--needs-json", json.dumps(self.inner_results(selected))], capture_output=True)
+            self.assertEqual(run.returncode, 0, run.stderr.decode())
+            outer = self.outer_results(selected)
+            run = subprocess.run(command + ["verify", *common, "--needs-json", json.dumps(outer)], capture_output=True)
+            self.assertEqual(run.returncode, 0, run.stderr.decode())
+            outer["direct-browser"]["outputs"]["plan"] = "0" * 64
+            run = subprocess.run(command + ["verify", *common, "--needs-json", json.dumps(outer)], capture_output=True)
+            self.assertNotEqual(run.returncode, 0)
+            with self.assertRaises(ValueError):
+                CHECKS.direct_candidate_plan(candidate, payload, head)
+            changed = workflows / "browser-direct-client.yml"
+            changed.write_text(changed.read_text().replace("    if: always()", "    if: false"))
+            with self.assertRaises(ValueError):
+                CHECKS.validate_direct_wiring(candidate)
+            changed.unlink()
+            changed.symlink_to(ROOT / "tools/repository-checks/workflows/browser-direct-client.yml")
+            with self.assertRaises(ValueError):
+                CHECKS.validate_direct_wiring(candidate)
 
 
 class ToolDependencyTests(unittest.TestCase):
