@@ -35,6 +35,7 @@ class RoutingTests(unittest.TestCase):
     def test_host_changes_do_not_start_native_builds(self):
         for path in ('README.md', 'docs/developer.md', 'tools/native-tests/README.md', 'scripts/system/main.js',
                      'tests/device/run_control_plane_tests.py', 'tests/project-health-test.py',
+                     'tools/native-tests/check.py', 'tests/native-ci-test.py',
                      'tools/sync-test-reuse/test.py', 'server-console/src/main.js',
                      '.github/ISSUE_TEMPLATE/bug.yml', 'interface/resources/qml/Main.qml',
                      'interface/resources/images/example.png'):
@@ -85,8 +86,22 @@ class RoutingTests(unittest.TestCase):
                 self.assertEqual(result['paths'], [path])
 
     def test_core_test_edit_uses_bounded_core_lane(self):
-        for path in ('tests/shared/src/AABoxTests.cpp', 'tools/native-tests/check.py', 'tools/native-tests/run.py'):
+        for path in ('tests/shared/src/AABoxTests.cpp', 'tools/native-tests/select.py',
+                     'tools/native-tests/run.py', 'tools/native-tests/qt-test.py'):
             self.assertEqual(POLICY.plan([path])['mode'], 'core')
+
+    def test_routing_only_edits_preserve_native_and_nonregular_selection(self):
+        routing = ['tools/native-tests/check.py', 'tests/native-ci-test.py']
+        self.assertEqual(POLICY.plan(routing)['mode'], 'skip')
+        self.assertEqual(POLICY.plan(routing, regular=False)['mode'], 'full')
+        for native in ('libraries/shared/src/AABox.cpp', 'conanfile.py',
+                       'tools/native-tests/CMakeLists.txt', 'tools/native-tests/new.cpp',
+                       'tools/native-tests/unknown.py'):
+            with self.subTest(native=native):
+                selected = POLICY.plan([*routing, native])
+                self.assertEqual(selected['mode'], 'full')
+                self.assertEqual(selected['paths'], [native])
+        self.assertEqual(POLICY.plan([*routing, 'tools/native-tests/run.py'])['mode'], 'core')
 
     def test_jsdoc_dependency_manifests_skip_native_but_build_and_unknown_paths_do_not(self):
         for path in ('tools/jsdoc/package.json', 'tools/jsdoc/package-lock.json'):
@@ -714,13 +729,15 @@ class CMakeGraphTests(unittest.TestCase):
             selected = SELECT.select(targets, {'shared-Fixture'}, route['paths'], source)
             self.assertFalse(selected['broad'])
             self.assertEqual(set(selected['targets']), {'interface', 'shared-Fixture'})
-        combined = POLICY.plan(['interface/src/octree/SafeLanding.cpp',
-                                'tools/native-tests/check.py',
-                                'tests/safe-landing/safe-landing-driver.cpp'])
-        self.assertEqual(combined['mode'], 'full')
-        selected = SELECT.select(targets, {'shared-Fixture'}, combined['paths'], source)
-        self.assertTrue(selected['broad'])
-        self.assertEqual(set(selected['targets']), {'interface', 'shared-Fixture', 'unrelated'})
+        for helper, broad in (('tools/native-tests/check.py', False),
+                              ('tools/native-tests/run.py', True)):
+            combined = POLICY.plan(['interface/src/octree/SafeLanding.cpp', helper,
+                                    'tests/safe-landing/safe-landing-driver.cpp'])
+            self.assertEqual(combined['mode'], 'full')
+            selected = SELECT.select(targets, {'shared-Fixture'}, combined['paths'], source)
+            self.assertEqual(selected['broad'], broad)
+            expected = {'interface', 'shared-Fixture'} | ({'unrelated'} if broad else set())
+            self.assertEqual(set(selected['targets']), expected)
 
     def test_actual_cmake_fixture_inputs_cannot_hide_in_host_exception(self):
         with tempfile.TemporaryDirectory() as temporary:
