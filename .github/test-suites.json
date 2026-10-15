@@ -1387,6 +1387,8 @@
         "inputs": [],
         "required": [
           "tests/android-owner-transfer-test.py",
+          "tests/fixtures/android-owner-transfer/android-tests-original.yml",
+          "tests/fixtures/android-owner-transfer/android-vr-tests-original.yml",
           "tests/android-orchestration-test.py",
           "tests/android-ci-test.py",
           "tools/repository-checks/android_handoff.py",

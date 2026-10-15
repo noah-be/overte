@@ -929,6 +929,12 @@ Four additive complete tuples cover ordinary, Direct Browser, Browser, and
 combined callers. Existing approved tuples and prototype sources remain intact.
 No active workflow, profile or required branch is changed by this preparation.
 
+The original two Android workflows are retained as exact ordinary fixtures under
+`tests/fixtures/android-owner-transfer/`. The tests verify their fixed reviewed
+Git blob identities with system Git before applying the original trigger-removal
+assertions. They work without repository metadata or historical objects, so
+shallow CI checkouts need no child-ref fetch or additional history.
+
 The proposed PR handoff removes only the two legacy Android workflows' PR
 triggers; their push, schedule, manual jobs, conditions, reports and thresholds
 remain available. The exact replacement source contracts preserve their other
