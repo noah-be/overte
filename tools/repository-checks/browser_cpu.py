@@ -151,7 +151,14 @@ def trusted_bytes(relative, policy_root=ROOT):
 
 
 def _blob(data):
-    return hashlib.sha1(b"blob " + str(len(data)).encode() + b"\0" + data).hexdigest()
+    # These public source identities use Git's object format, rather than a
+    # digest for protecting sensitive data. Delegate its encoding and collision
+    # detection to Git; --stdin without -w neither filters nor writes objects.
+    result = subprocess.run(["git", "--no-replace-objects", "hash-object", "--stdin"],
+                            cwd=ROOT, input=data, check=True, stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE, timeout=10).stdout.decode("ascii").strip()
+    require(SHA.fullmatch(result), "trusted source requires a SHA-1 Git object identity")
+    return result
 
 
 def _entry(sha):
