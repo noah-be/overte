@@ -10,6 +10,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -388,6 +389,33 @@ class GithubActivityTests(unittest.TestCase):
         with mock.patch.dict(os.environ, {"GITHUB_RUN_ID": "1234"}):
             with mock.patch.object(self.github, "get", side_effect=response):
                 return self.github.activity_holds(candidates or [self.candidate], self.policy)
+
+    def test_fresh_plan_releases_ci_hold_after_the_last_related_run_finishes(self):
+        branches = [{"name": name, "sha": self.candidate["base_sha"], "protected": True}
+                    for name in sorted(PERMANENT)]
+        branches.append({"name": self.candidate["branch"], "sha": self.candidate["sha"], "protected": False})
+        comparison = {"status": "ahead", "behind_by": 0,
+                      "merge_base_commit": {"sha": self.candidate["sha"]}}
+        active = [self.active_run(head_branch=self.candidate["base"])]
+
+        def response(suffix="", paginate=False):
+            if suffix.startswith("actions/runs?status=in_progress&"):
+                return {"total_count": len(active), "workflow_runs": list(active)}
+            if suffix == "rules/branches/main":
+                return [{"type": "deletion"}, {"type": "non_fast_forward"}]
+            return self.inactive_responses(suffix, paginate)
+
+        with mock.patch.object(self.github, "verify_owner"), \
+                mock.patch.object(self.github, "branches", return_value=branches), \
+                mock.patch.object(self.github, "comparisons", return_value={self.candidate["branch"]: comparison}), \
+                mock.patch.object(self.github, "workflow_holds", return_value={}), \
+                mock.patch.object(self.github, "get", side_effect=response):
+            plan = self.module.make_plan(self.github, self.policy)
+            self.assertEqual(plan["candidate_count"], 0)
+            self.assertIn("github_actions_still_active", plan["held"][self.candidate["branch"]])
+            active.clear()
+            plan = self.module.make_plan(self.github, self.policy)
+            self.assertEqual(plan["candidates"], [self.candidate])
 
     def test_active_run_on_candidate_or_intended_base_reserves_the_candidate(self):
         matches = (
@@ -1041,6 +1069,41 @@ class WorkflowSafetyTests(unittest.TestCase):
     def test_report_mode_does_not_run_backup_or_apply(self):
         self.assertEqual(self.source.count("inputs.mode == 'apply'"), 3)
         self.assertIn("default: report", self.source)
+
+    def test_ci_completion_covers_known_workflows_without_cleanup_recursion(self):
+        trigger = self.source.split("  workflow_run:\n", 1)[1].split("  schedule:\n", 1)[0]
+        names = [json.loads(name) for name in re.findall(r'^      - (".*")$', trigger, re.M)]
+        self.assertEqual(len(names), len(set(names)))
+        self.assertIn("types: [completed]", trigger)
+        self.assertNotIn("Automatic branch cleanup", names)
+        self.assertNotIn("*", names)
+        for path in (ROOT / ".github/workflows").glob("*.yml"):
+            if path.name == "branch-cleanup.yml":
+                continue
+            name = re.search(r"^name: (.+)$", path.read_text(), re.M)
+            self.assertIsNotNone(name, path)
+            self.assertIn(name.group(1), names, f"Missing CI completion wake-up for {path}")
+        # These run from platform branches or are managed by GitHub.
+        for name in ("Android tests", "iOS bootstrap", "Pico 4 trusted build", "Dependabot Updates"):
+            self.assertIn(name, names)
+        self.assertNotIn("github.event.workflow_run.head_sha", self.source)
+        self.assertNotIn("github.event.workflow_run.conclusion", self.source)
+
+    def test_ci_completion_runtime_accepts_only_the_trusted_main_context(self):
+        module = load_cleanup()
+        context = {
+            "GITHUB_ACTIONS": "true", "GITHUB_REPOSITORY": FORK,
+            "GITHUB_REPOSITORY_ID": "1319052603", "GITHUB_EVENT_NAME": "workflow_run",
+            "GITHUB_WORKFLOW_REF": FORK + "/.github/workflows/branch-cleanup.yml@refs/heads/main",
+        }
+        with mock.patch.dict(os.environ, context, clear=True):
+            module.trusted_runtime()
+            for change in ({"GITHUB_ACTIONS": "false"}, {"GITHUB_REPOSITORY": "overte-org/overte"},
+                           {"GITHUB_REPOSITORY_ID": "1"}, {"GITHUB_EVENT_NAME": "push"},
+                           {"GITHUB_WORKFLOW_REF": FORK + "/.github/workflows/branch-cleanup.yml@refs/heads/untrusted"}):
+                with self.subTest(change=change), mock.patch.dict(os.environ, change):
+                    with self.assertRaises(module.CleanupError):
+                        module.trusted_runtime()
 
 
 if __name__ == "__main__":
