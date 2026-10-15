@@ -458,7 +458,8 @@ class InputSelectionCompatibilityTests(unittest.TestCase):
 
     def needs(self, decision):
         return {"route": {"result": "success", "outputs": decision}, **{name: {
-            "result": "success" if decision.get("host_required" if name == "host" else "required") == "true" else "skipped"}
+            "result": "success" if (decision.get("host_required", decision.get("required"))
+                if name == "host" else decision.get("required")) == "true" else "skipped"}
             for name in ("host", "qt", "client")}}
 
     def verify(self, decision, event, merge):
@@ -527,16 +528,102 @@ class InputSelectionCompatibilityTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "exact event base and head"):
             self.verify(decision, altered, merge)
 
-    def test_packaged_markdown_mixed_unknown_and_empty_inputs_still_require_app_and_host(self):
-        for relative in ("scripts/README.md", "interface/resources/README.md", "unknown/host-helper.py", None):
+    def test_packaged_markdown_mixed_and_unknown_inputs_still_require_app_and_host(self):
+        for relative in ("scripts/README.md", "interface/resources/README.md", "unknown/host-helper.py"):
             with self.subTest(path=relative):
                 self.git("checkout", "-q", "--detach", self.base)
-                if relative is not None:
-                    self.write("tools/test-evidence/run.py", "# Mixed independent host change\n")
+                self.write("tools/test-evidence/run.py", "# Mixed independent host change\n")
                 event, merge = self.candidate(relative)
                 decision = self.route(event, merge)
                 self.assertEqual((decision["required"], decision["host_required"]), ("true", "true"))
                 self.assertEqual(self.verify(decision, event, merge), decision)
+
+    def test_identical_base_head_and_merge_trees_skip_builds_with_independent_proof(self):
+        event, merge = self.candidate()
+        for flag in (False, True):
+            with self.subTest(input_selection=flag):
+                self.config["inputSelection"] = flag
+                self.save_config()
+                decision = self.route(event, merge)
+                self.assertEqual(decision["reason"], "unchanged-tree")
+                self.assertEqual(decision["required"], "false")
+                self.assertEqual(self.verify(decision, event, merge), decision)
+                result = CHECK.report(self.needs(decision), merge, 688, 123, 1, Path("missing"), [],
+                                      event=event, candidate=self.root, policy_root=self.trusted)
+                self.assertEqual((result["ipa"], result["artifact"], result["producer"]),
+                                 ("not-required", None, None))
+                self.assertEqual(result["unchangedTreeProof"]["candidate"], merge)
+                self.assertNotIn("inputSelection", result)
+                for field in ("tree", "base", "head", "source"):
+                    changed = {**decision, field: "e" * 40}
+                    with self.subTest(forged=field), self.assertRaises(ValueError):
+                        self.verify(changed, event, merge)
+                with self.assertRaisesRegex(ValueError, "independent event and candidate"):
+                    CHECK.verify_jobs(self.needs(decision), merge, policy_root=self.trusted)
+                for state in ("failure", "cancelled", "success"):
+                    selected = self.needs(decision)
+                    selected["host"]["result"] = state
+                    with self.subTest(unexpected_host=state), self.assertRaises(ValueError):
+                        CHECK.verify_jobs(selected, merge, event=event, candidate=self.root,
+                                          policy_root=self.trusted)
+        altered = copy.deepcopy(event)
+        altered["pull_request"]["base"]["sha"], altered["pull_request"]["head"]["sha"] = (
+            altered["pull_request"]["head"]["sha"], altered["pull_request"]["base"]["sha"])
+        with self.assertRaisesRegex(ValueError, "exact event base and head"):
+            self.verify(decision, altered, merge)
+
+    def test_real_source_changes_cannot_claim_an_unchanged_tree(self):
+        event, merge = self.candidate("code.cpp", "int changed;\n")
+        actual = self.route(event, merge)
+        forged = {field: actual[field] for field in ("source", "tree", "base", "head")}
+        forged.update(required="false", reason="unchanged-tree")
+        with self.assertRaisesRegex(ValueError, "independent exact candidate"):
+            self.verify(forged, event, merge)
+
+    def test_equal_base_and_merge_with_a_different_head_is_not_a_history_only_noop(self):
+        event, _ = self.candidate("code.cpp", "int changedHead;\n")
+        head = event["pull_request"]["head"]["sha"]
+        merge = self.git("commit-tree", self.base + "^{tree}", "-p", self.base, "-p", head,
+                         "-m", "Merge that discarded the head change")
+        self.git("checkout", "--detach", merge)
+        for flag in (False, True):
+            self.config["inputSelection"] = flag
+            self.save_config()
+            decision = self.route(event, merge)
+            self.assertEqual(decision["required"], "true")
+            self.assertNotEqual(decision["reason"], "unchanged-tree")
+            self.assertEqual(self.verify(decision, event, merge), decision)
+
+    def test_legacy_cli_reads_bare_metadata_for_noop_without_executing_candidate(self):
+        event, merge = self.candidate()
+        decision = self.route(event, merge)
+        event_file = self.root.parent / "independent-event.json"
+        event_file.write_text(json.dumps(event))
+        original_run = subprocess.run
+        observed = []
+        def local_transport(command, **kwargs):
+            observed.append(command)
+            if "fetch" in command:
+                command = [str(self.root) if arg == "https://github.com/noah-l-frank/overte.git" else arg
+                           for arg in command]
+            return original_run(command, **kwargs)
+        with patch.dict(CHECK.os.environ, {"GITHUB_EVENT_PATH": str(event_file)}), \
+                patch.object(CHECK.subprocess, "run", side_effect=local_transport):
+            with CHECK.verification_candidate(self.needs(decision), merge) as (actual, metadata):
+                self.assertEqual(actual, event)
+                self.assertEqual(CHECK.git(metadata, "rev-parse", "--is-bare-repository"), "true")
+                self.assertEqual(CHECK.verify_jobs(self.needs(decision), merge, event=actual,
+                    candidate=metadata, policy_root=self.trusted), decision)
+        fetch = next(c for c in observed if "fetch" in c)
+        self.assertIn("https://github.com/noah-l-frank/overte.git", fetch)
+        self.assertIn("--filter=blob:none", fetch)
+        self.assertIn("--depth=2", fetch)
+        self.assertFalse(any("checkout" in c for c in observed))
+        with patch.dict(CHECK.os.environ, {"GITHUB_EVENT_PATH": str(event_file)}), \
+                patch.object(CHECK.subprocess, "run", side_effect=OSError("private transport detail")):
+            with self.assertRaisesRegex(ValueError, "^independent unchanged-tree Git metadata is unavailable$"):
+                with CHECK.verification_candidate(self.needs(decision), merge):
+                    self.fail("transport failure cannot authorize omission")
 
     def test_reader_change_then_host_only_candidate_cannot_use_stale_boundary(self):
         self.write("CMakeLists.txt", "project(ReviewedFixture)\nfile(READ tools/test-evidence/run.py APP_INPUT)\n")

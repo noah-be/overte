@@ -25,7 +25,16 @@ the versioned files alone do not establish active protection.
 The workflow runs for every PR targeting `apple-ios`, including parent merges and
 retargeting. The router reads the exact synthetic merge candidate, checks its two
 parents against the event, and never executes candidate code while selecting a
-route. Every change except ordinary Markdown-only changes requires a full
+route. History-only PRs whose base, head and merge have the exact same Git tree
+require no host, Qt or application build. This compares all tracked contents,
+paths and modes, rather than trusting an empty file list from the PR API. The
+final verifier independently checks the event, ordered parents and all three
+tree identities again. The deployed legacy workflow obtains this metadata in
+a fresh bare repository with a bounded, blob-filtered fetch from the fixed fork;
+it never checks out or executes candidate code. Missing metadata fails the gate.
+The result records `unchanged-tree`, no IPA and no new build claim.
+
+Every other change except ordinary Markdown-only changes requires a full
 physical-device E2E app build. New or unrecognized paths therefore receive full
 coverage. Renamed source files, executable Markdown and symbolic links do not
 qualify for the documentation exception.
