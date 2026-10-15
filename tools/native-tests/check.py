@@ -24,6 +24,12 @@ HOST_NATIVE_FIXTURES = frozenset({
 })
 HOST_TOOL_MANIFESTS = frozenset({
     'tools/jsdoc/package.json', 'tools/jsdoc/package-lock.json',
+    # These packages feed JavaScript tools/clients, not the native CMake graph.
+    # Keep exact ownership: neighboring unknown files still require validation.
+    'browser-client/package.json', 'browser-client/package-lock.json',
+    'browser-direct-client/package.json', 'browser-direct-client/package-lock.json',
+    'script-archive/marketplace/S3Server/package.json',
+    'script-archive/marketplace/S3Server/package-lock.json',
 })
 HOST_EVIDENCE_SUFFIXES = frozenset({'.py', '.json'})
 CORE_ROOTS = ('tests/shared/',)

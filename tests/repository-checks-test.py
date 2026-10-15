@@ -358,6 +358,24 @@ class DirectBrowserTests(unittest.TestCase):
             selected = CHECKS.direct_browser_plan([path])
             self.assertFalse(selected["browser"] or selected["native"], path)
 
+    def test_s3_npm_manifests_do_not_select_optional_browser_or_native_products(self):
+        manifests = ["script-archive/marketplace/S3Server/package.json",
+                     "script-archive/marketplace/S3Server/package-lock.json"]
+        empty = {"browser": False, "native": False,
+                 "reasons": {"browser": [], "native": []}}
+        self.assertEqual(CHECKS.direct_browser_plan(manifests), empty)
+        for path in manifests:
+            self.assertEqual(CHECKS.direct_browser_plan([path]), empty)
+            self.assertTrue(CHECKS.direct_browser_plan([path], False)["native"])
+            self.assertTrue(CHECKS.direct_browser_plan([path, "libraries/shared/src/AABox.cpp"])["native"])
+        for name in ("CMakeLists.txt", "input.cmake", "resources.qrc", "unknown.json", "new.cpp"):
+            self.assertTrue(CHECKS.direct_browser_plan(
+                [*manifests, f"script-archive/marketplace/S3Server/{name}"])["native"])
+        browser = CHECKS.direct_browser_plan(
+            [*manifests, "browser-direct-client/package-lock.json"])
+        self.assertTrue(browser["browser"])
+        self.assertFalse(browser["native"])
+
     def test_native_fixtures_libraries_and_complete_build_context_require_transport(self):
         paths = sorted(CHECKS.DIRECT_NATIVE_FIXTURES) + [
             "libraries/avatars/src/AvatarData.cpp", "libraries/audio/src/AudioConstants.h",
