@@ -267,6 +267,11 @@ checks the staged Android ownership controller with disposable Git trees,
 mocked command results and isolated Python environments. These fixtures verify
 the Fast/Contracts union, one owner for Robolectric and Pico, complete native
 and Robolectric SDK case coverage, and failure propagation through tier views.
+Planning and receipt verification read bounded regular Git blobs from the exact
+commit, including newly discovered Phone test classes, so a `.github`-only sparse
+checkout produces the same plan as a full checkout. Running selected commands
+still requires their candidate files to be checked out. The fixtures reject
+missing, symbolic-link, gitlink, oversized and dirty source inputs.
 They require no Android SDK, Gradle run or product build. The controller and
 [reviewed policy](../.github/android-checks.json) are staged for later workflow
 wiring. Its current evidence closure covers the repository because controller

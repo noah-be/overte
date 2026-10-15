@@ -21,6 +21,7 @@ import platform
 import re
 import shutil
 import signal
+import subprocess
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
@@ -29,6 +30,7 @@ ROOT = Path(__file__).resolve().parents[2]
 PRODUCER = "overte-trusted-android-execution-v1"
 VIEWS = ("fast", "contracts", "coverage", "android-vr", "pico", "mutation")
 DEFAULT_VIEWS = list(VIEWS[:-1])
+MAX_SOURCE_BYTES = 2_000_000
 EXECUTION_FILES = ("tools/repository-checks/android.py", "tools/test-evidence/execution.py",
                    "tools/test-evidence/runtime.py", "tools/test-evidence/inputs.py", "tests/run-project-tests.py")
 TOOLS = {"bash": ("bash", "--version"), "java": ("java", "--version"),
@@ -61,7 +63,7 @@ def _pairs(pairs):
 
 def _json(path):
     try:
-        if path.is_symlink() or path.stat().st_size > 2_000_000:
+        if path.is_symlink() or path.stat().st_size > MAX_SOURCE_BYTES:
             raise AndroidError("unsafe or oversized JSON input")
         return json.loads(path.read_text(), object_pairs_hook=_pairs)
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
@@ -96,6 +98,88 @@ def _shared():
             or Path(runtime.__file__).resolve() != directory / "runtime.py":
         raise AndroidError("Android controller imported an untrusted execution helper")
     return execution, runtime
+
+
+class _GitSources:
+    """Bounded regular blobs from one fixed commit, independent of sparse files."""
+
+    def __init__(self, candidate, commit, tree, shared):
+        self.candidate = candidate
+        self.sizes = {}
+        self.contents = {}
+        # Replacement refs must not substitute another tree or blob for the
+        # immutable commit named in the plan. No candidate hooks or filters run.
+        actual_tree = self._git("rev-parse", "--verify", commit + "^{tree}").decode("ascii").strip()
+        if actual_tree != tree:
+            raise AndroidError("Android commit tree differs from its checkout identity")
+        entries = {}
+        try:
+            for record in self._git("ls-tree", "-rz", "--full-tree", commit).split(b"\0"):
+                if not record:
+                    continue
+                metadata, path = record.split(b"\t", 1)
+                mode, kind, sha = metadata.decode("ascii").split(" ")
+                relative = path.decode("utf-8", errors="strict")
+                if relative in entries:
+                    raise AndroidError("duplicate Android Git source path")
+                entries[relative] = {"mode": mode, "type": kind, "sha": sha}
+            self.entries = shared.inputs._validate_tree(entries)
+        except (ValueError, UnicodeError) as error:
+            raise AndroidError("invalid immutable Android source tree") from error
+
+    def _git(self, *arguments, data=None):
+        try:
+            return subprocess.run(["git", "--no-replace-objects", *arguments], cwd=self.candidate,
+                input=data, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, timeout=30).stdout
+        except (OSError, subprocess.SubprocessError) as error:
+            raise AndroidError("immutable Android Git source is unavailable") from error
+
+    def require(self, paths):
+        pending = {}
+        for relative in paths:
+            entry = self.entries.get(relative)
+            if entry is None:
+                raise AndroidError("required Android Git source is missing")
+            if entry["mode"] not in {"100644", "100755"} or entry["type"] != "blob":
+                raise AndroidError("required Android Git source is not a regular blob")
+            if entry["sha"] not in self.sizes:
+                pending[entry["sha"]] = None
+        if not pending:
+            return
+        # Check object size before reading contents, including entrypoints that
+        # only need an existence/mode check. Read no candidate-provided command.
+        identities = list(pending)
+        lines = self._git("cat-file", "--batch-check",
+                          data="".join(sha + "\n" for sha in identities).encode("ascii")).splitlines()
+        if len(lines) != len(identities):
+            raise AndroidError("incomplete Android Git source inventory")
+        for sha, line in zip(identities, lines):
+            match = re.fullmatch(rb"([0-9a-f]{40}) blob ([0-9]+)", line)
+            if match is None or match[1].decode("ascii") != sha:
+                raise AndroidError("required Android Git blob is unavailable")
+            size = int(match[2])
+            if size > MAX_SOURCE_BYTES:
+                raise AndroidError("required Android Git source is oversized")
+            self.sizes[sha] = size
+
+    def text(self, relative):
+        self.require([relative])
+        sha = self.entries[relative]["sha"]
+        if sha not in self.contents:
+            content = self._git("cat-file", "blob", sha)
+            if len(content) != self.sizes[sha]:
+                raise AndroidError("Android Git source size changed")
+            try:
+                self.contents[sha] = content.decode("utf-8", errors="strict")
+            except UnicodeError as error:
+                raise AndroidError("Android Git source is not UTF-8") from error
+        return self.contents[sha]
+
+    def json(self, relative):
+        try:
+            return json.loads(self.text(relative), object_pairs_hook=_pairs)
+        except json.JSONDecodeError as error:
+            raise AndroidError("invalid Android Git JSON input") from error
 
 
 def load_policy(policy_root=ROOT):
@@ -141,8 +225,8 @@ def load_policy(policy_root=ROOT):
     return policy
 
 
-def _validate_catalog(candidate, policy):
-    catalog = _json(_file(candidate, "android/common/tests/suite/catalog.json"))
+def _validate_catalog(sources, policy):
+    catalog = sources.json("android/common/tests/suite/catalog.json")
     if not isinstance(catalog, dict) or type(catalog.get("schemaVersion")) is not int or catalog.get("schemaVersion") != 1 \
             or not isinstance(catalog.get("suites"), list):
         raise AndroidError("invalid candidate Android catalog")
@@ -160,7 +244,7 @@ def _validate_catalog(candidate, policy):
         actual = observed[name]
         if actual.get("command") != expected["command"] or sorted(actual["tiers"]) != expected["tiers"]:
             raise AndroidError("candidate Android suite command or tier ownership differs from trusted policy")
-        _file(candidate / "android", expected["command"][0])
+    sources.require(["android/" + item["command"][0] for item in policy["catalog_suites"].values()])
 
 
 def _java_declarations(source):
@@ -170,20 +254,20 @@ def _java_declarations(source):
     return tokens.sub(lambda match: " " * len(match.group()), source)
 
 
-def _robolectric_cases(candidate, branch, policy, shared, commit):
+def _robolectric_cases(source_tree, branch, policy):
     sources = dict(policy["robolectric_sources"])
     sources.update(policy["branch_robolectric_sources"].get(branch, {}))
     phone = "android/phone/apps/phoneInterface/src/test/java/org/overte/phone/"
-    tracked = shared.inputs.full_tree(candidate, commit)
     # The reviewed Gradle sourceSet includes every direct *RobolectricTest.java
     # in this directory. New simple classes/methods are discovered as data;
     # their omission from actual JUnit cannot hide behind the old inventory.
-    for path in tracked:
+    for path in source_tree.entries:
         if path.startswith(phone) and "/" not in path[len(phone):] and path.endswith("RobolectricTest.java"):
             sources.setdefault(path, None)
+    source_tree.require(sources)
     results = []
     for path, required in sources.items():
-        source = _java_declarations(_file(candidate, path).read_text())
+        source = _java_declarations(source_tree.text(path))
         package = re.search(r'\bpackage\s+([A-Za-z_][\w.]*)\s*;', source)
         name = Path(path).stem
         if package is None or not re.search(r'\bclass\s+' + re.escape(name) + r'\b', source):
@@ -216,6 +300,7 @@ def _robolectric_cases(candidate, branch, policy, shared, commit):
 
 
 def plan(candidate, branch, *, views=None, policy_root=ROOT):
+    """Plan from immutable Git objects; source files need not be checked out."""
     candidate = Path(candidate).resolve(strict=True)
     shared, _ = _shared()
     commit, tree = shared.checkout_identity(candidate)
@@ -227,7 +312,8 @@ def plan(candidate, branch, *, views=None, policy_root=ROOT):
             or len(set(selected)) != len(selected) or any(name not in VIEWS for name in selected):
         raise AndroidError("Android views must be unique trusted names")
     selected = [name for name in VIEWS if name in selected]
-    _validate_catalog(candidate, policy)
+    sources = _GitSources(candidate, commit, tree, shared)
+    _validate_catalog(sources, policy)
     chosen = {name: json.loads(canonical(policy["views"][name])) for name in selected}
     names = dict.fromkeys(proof["execution"] for members in chosen.values() for proof in members.values())
     executions = {name: json.loads(canonical(policy["executions"][name])) for name in names}
@@ -235,11 +321,12 @@ def plan(candidate, branch, *, views=None, policy_root=ROOT):
         if name in executions:
             executions[name]["cases"] = cases
     if "phone-robolectric-launcher" in executions:
-        executions["phone-robolectric-launcher"]["cases"] = _robolectric_cases(candidate, branch, policy, shared, commit)
+        executions["phone-robolectric-launcher"]["cases"] = _robolectric_cases(sources, branch, policy)
     if "pico" in chosen:
         chosen["pico"]["pico4-device-free"]["cases"] = executions["pico4-device-free"]["cases"]
-    for item in executions.values():
-        _file(candidate / "android", item["command"][1])
+    sources.require(["android/" + item["command"][1] for item in executions.values()])
+    if shared.checkout_identity(candidate) != (commit, tree):
+        raise AndroidError("Android checkout changed during source planning")
     source = {"policy": policy, "controller": "sha256:" + hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
     result = {"schema": 1, "repository": policy["repository"], "repository_id": policy["repository_id"],
               "branch": branch, "candidate": commit, "tree": tree, "policy": digest(source),
@@ -522,6 +609,10 @@ def execute(candidate, branch, *, views=None, policy_root=ROOT, receipt_path=Non
             run_command=None, capture=None):
     candidate = Path(candidate).resolve(strict=True)
     current = plan(candidate, branch, views=views, policy_root=policy_root)
+    # Planning and receipt verification work in a sparse metadata checkout.
+    # Actual execution still requires materialized candidate entrypoints.
+    for item in current["executions"].values():
+        _file(candidate / "android", item["command"][1])
     if receipt_path is not None and Path(receipt_path).resolve().is_relative_to(candidate):
         raise AndroidError("Android execution receipt must be outside the immutable candidate")
     shared, _ = _shared()

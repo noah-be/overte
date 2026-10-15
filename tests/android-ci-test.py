@@ -75,6 +75,9 @@ class AndroidOwnershipTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.candidate = Path(self.temporary.name) / "candidate"
         self.candidate.mkdir()
+        candidate_policy = self.candidate / ".github/android-checks.json"
+        candidate_policy.parent.mkdir()
+        candidate_policy.write_text('{"untrusted": "candidate policy must never select the plan"}\n')
         self.policy = android.load_policy()
         suites = [{"id": name, "command": item["command"], "tiers": item["tiers"],
                    "kind": "fixture", "description": name}
@@ -91,14 +94,7 @@ class AndroidOwnershipTests(unittest.TestCase):
             path.write_text("# Immutable offline source fixture.\n")
         sources = dict(self.policy["robolectric_sources"])
         sources.update(self.policy["branch_robolectric_sources"].get("android-phone", {}))
-        for relative, item in sources.items():
-            path = self.candidate / relative
-            path.parent.mkdir(parents=True, exist_ok=True)
-            package, name = item["class"].rsplit(".", 1)
-            config = ("@RunWith(RobolectricTestRunner.class)\n@Config(sdk = {" +
-                ", ".join(map(str, item["sdks"])) + "}, manifest = Config.NONE)\n") if item["sdks"] else ""
-            methods = "\n".join("@Test public void " + method + "() {}" for method in item["methods"])
-            path.write_text("package " + package + ";\n" + config + "public final class " + name + " {\n" + methods + "\n}\n")
+        self.write_java_sources(sources)
         self.git("init", "-q", "-b", "android-phone")
         self.git("config", "user.email", "android-ci@example.invalid")
         self.git("config", "user.name", "Android CI fixture")
@@ -107,6 +103,16 @@ class AndroidOwnershipTests(unittest.TestCase):
         self.behavior = None
         self.branch = "android-phone"
         self.active_items = None
+
+    def write_java_sources(self, sources):
+        for relative, item in sources.items():
+            path = self.candidate / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            package, name = item["class"].rsplit(".", 1)
+            config = ("@RunWith(RobolectricTestRunner.class)\n@Config(sdk = {" +
+                ", ".join(map(str, item["sdks"])) + "}, manifest = Config.NONE)\n") if item["sdks"] else ""
+            methods = "\n".join("@Test public void " + method + "() {}" for method in item["methods"])
+            path.write_text("package " + package + ";\n" + config + "public final class " + name + " {\n" + methods + "\n}\n")
 
     def git(self, *args):
         return subprocess.check_output(["git", *args], cwd=self.candidate, stderr=subprocess.PIPE, text=True).strip()
@@ -119,6 +125,18 @@ class AndroidOwnershipTests(unittest.TestCase):
         change(self.catalog)
         self.catalog_path.write_text(json.dumps(self.catalog))
         self.commit()
+
+    def sparse_clone(self, name="sparse"):
+        sparse = Path(self.temporary.name) / name
+        commands = [["git", "clone", "--quiet", "--no-checkout", "--no-hardlinks", str(self.candidate), str(sparse)],
+                    ["git", "-C", str(sparse), "sparse-checkout", "init", "--cone"],
+                    ["git", "-C", str(sparse), "sparse-checkout", "set", ".github"],
+                    ["git", "-C", str(sparse), "checkout", "--quiet", "--detach", "HEAD"]]
+        for command in commands:
+            subprocess.run(command, check=True, capture_output=True, text=True)
+        self.assertFalse((sparse / "android").exists())
+        self.assertTrue((sparse / ".github/android-checks.json").is_file())
+        return sparse
 
     def junit(self, path, names, *, failed=False, skipped=False, duplicate=False, counters=None):
         names = list(names)
@@ -188,6 +206,185 @@ class AndroidOwnershipTests(unittest.TestCase):
             self.assertEqual(set(current["executions"]), FAST | CONTRACT_ONLY)
             self.assertEqual(len(current["executions"]), 34)
         self.assertEqual(len(set(self.policy["views"]["contracts"]) & FAST), 14)
+
+    def test_full_and_github_only_sparse_plans_preserve_all_actual_branch_variants(self):
+        phone_full = android.plan(self.candidate, "android-phone", views=list(android.VIEWS))
+        sparse = self.sparse_clone("phone-sparse")
+        self.assertEqual(android.plan(sparse, "android-phone", views=list(android.VIEWS)), phone_full)
+        self.assertEqual(len(phone_full["executions"]["phone-robolectric-launcher"]["cases"]), 98)
+        self.assertEqual(len(phone_full["executions"]["native-host-tests"]["cases"]), 23)
+        self.assertEqual(len(phone_full["executions"]["pico4-device-free"]["cases"]), 30)
+        # Common branch trees do not contain Phone's additional sourceSet class.
+        for relative in self.policy["branch_robolectric_sources"]["android-phone"]:
+            if relative not in self.policy["robolectric_sources"]:
+                (self.candidate / relative).unlink()
+        self.write_java_sources(self.policy["robolectric_sources"])
+        self.commit()
+        sparse = self.sparse_clone("common-sparse")
+        for branch in ("android-main", "android-vr", "android-vr-pico"):
+            with self.subTest(branch=branch):
+                full = android.plan(self.candidate, branch, views=list(android.VIEWS))
+                self.assertEqual(android.plan(sparse, branch, views=list(android.VIEWS)), full)
+                self.assertEqual(len(full["executions"]["phone-robolectric-launcher"]["cases"]), 80)
+                self.assertEqual(len(full["executions"]["native-host-tests"]["cases"]), 21)
+                self.assertEqual(len(full["executions"]["pico4-device-free"]["cases"]),
+                                 39 if branch == "android-vr-pico" else 30)
+
+    def test_new_phone_robolectric_class_is_discovered_without_materializing_sources(self):
+        relative = "android/phone/apps/phoneInterface/src/test/java/org/overte/phone/NewBoundaryRobolectricTest.java"
+        (self.candidate / relative).write_text("package org.overte.phone;\n@RunWith(RobolectricTestRunner.class)\n"
+            "@Config(sdk = {26, 35}, manifest = Config.NONE)\npublic final class NewBoundaryRobolectricTest {\n"
+            "@Test public void boundaryRemainsClosed() {}\n}\n")
+        self.commit()
+        sparse = self.sparse_clone()
+        full = android.plan(self.candidate, "android-phone", views=["coverage"])
+        current = android.plan(sparse, "android-phone", views=["coverage"])
+        self.assertEqual(current, full)
+        cases = current["executions"]["phone-robolectric-launcher"]["cases"]
+        self.assertEqual(len(cases), 100)
+        self.assertIn("org.overte.phone.NewBoundaryRobolectricTest::boundaryRemainsClosed[26]", cases)
+        self.assertIn("org.overte.phone.NewBoundaryRobolectricTest::boundaryRemainsClosed", cases)
+
+    def test_sparse_verification_reads_the_same_source_proof_without_running_candidate_code(self):
+        status, receipt = self.execute(["coverage"])
+        self.assertEqual(status, 0)
+        sparse = self.sparse_clone()
+        self.assertEqual(android.verify(sparse, "android-phone", receipt, views=["coverage"],
+                                       environment=runtime())["verified"], "true")
+        command = mock.Mock(side_effect=AssertionError("planning cannot execute candidate code"))
+        capture = mock.Mock(side_effect=AssertionError("empty plan needs no runtime"))
+        with self.assertRaisesRegex(android.AndroidError, "source input is unavailable"):
+            android.execute(sparse, "android-phone", views=["coverage"], run_command=command, capture=capture)
+        with redirect_stdout(io.StringIO()):
+            status, empty = android.execute(sparse, "android-phone", views=[], run_command=command, capture=capture)
+        self.assertEqual(status, 0)
+        self.assertEqual(android.verify(sparse, "android-phone", empty, views=[])["verified"], "true")
+        command.assert_not_called()
+        capture.assert_not_called()
+
+    def test_git_catalog_entrypoint_and_java_deletions_fail_in_full_and_sparse_plans(self):
+        initial = self.git("rev-parse", "HEAD")
+        paths = ("android/common/tests/suite/catalog.json", "android/common/tests/shell-syntax-test.sh",
+                 next(iter(self.policy["robolectric_sources"])))
+        for index, relative in enumerate(paths):
+            with self.subTest(path=relative):
+                self.git("reset", "--hard", "--quiet", initial)
+                (self.candidate / relative).unlink()
+                self.commit()
+                sparse = self.sparse_clone("missing-" + str(index))
+                for checkout in (self.candidate, sparse):
+                    with self.assertRaisesRegex(android.AndroidError, "source is missing"):
+                        android.plan(checkout, "android-phone")
+
+    def test_git_symlink_and_gitlink_sources_cannot_supply_catalog_entrypoint_or_java(self):
+        initial = self.git("rev-parse", "HEAD")
+        paths = ("android/common/tests/suite/catalog.json", "android/common/tests/shell-syntax-test.sh",
+                 next(iter(self.policy["robolectric_sources"])))
+        for index, relative in enumerate(paths):
+            for mode in ("120000", "160000"):
+                with self.subTest(path=relative, mode=mode):
+                    self.git("reset", "--hard", "--quiet", initial)
+                    path = self.candidate / relative
+                    path.unlink()
+                    if mode == "120000":
+                        path.symlink_to("/bin/true")
+                        self.commit()
+                    else:
+                        path.mkdir()
+                        self.git("update-index", "--add", "--cacheinfo", mode, initial, relative)
+                        self.git("commit", "-qm", "Non-regular immutable Android source fixture")
+                    sparse = self.sparse_clone("nonregular-" + str(index) + "-" + mode)
+                    for checkout in (self.candidate, sparse):
+                        with self.assertRaisesRegex(android.AndroidError, "not a regular blob"):
+                            android.plan(checkout, "android-phone")
+
+    def test_discovered_java_symlinks_and_gitlinks_cannot_escape_the_case_inventory(self):
+        initial = self.git("rev-parse", "HEAD")
+        relative = "android/phone/apps/phoneInterface/src/test/java/org/overte/phone/NewBoundaryRobolectricTest.java"
+        for mode in ("120000", "160000"):
+            with self.subTest(mode=mode):
+                self.git("reset", "--hard", "--quiet", initial)
+                path = self.candidate / relative
+                if path.is_symlink():
+                    path.unlink()
+                if mode == "120000":
+                    path.symlink_to("PermissionsActivityRobolectricTest.java")
+                    self.commit()
+                else:
+                    path.mkdir()
+                    self.git("update-index", "--add", "--cacheinfo", mode, initial, relative)
+                    self.git("commit", "-qm", "Discovered non-regular Java source fixture")
+                sparse = self.sparse_clone("new-source-" + mode)
+                for checkout in (self.candidate, sparse):
+                    with self.assertRaisesRegex(android.AndroidError, "not a regular blob"):
+                        android.plan(checkout, "android-phone", views=["coverage"])
+
+    def test_regular_executable_git_mode_remains_supported_and_changes_source_identity(self):
+        previous = android.plan(self.candidate, "android-phone")
+        relative = "android/common/tests/shell-syntax-test.sh"
+        self.git("update-index", "--chmod=+x", relative)
+        (self.candidate / relative).chmod(0o755)
+        self.git("commit", "-qm", "Executable immutable Android entrypoint fixture")
+        current = android.plan(self.candidate, "android-phone")
+        self.assertEqual(android.plan(self.sparse_clone(), "android-phone"), current)
+        self.assertNotEqual(previous["tree"], current["tree"])
+        self.assertNotEqual(previous["plan"], current["plan"])
+        self.assertEqual(previous["executions"], current["executions"])
+
+    def test_git_replacement_blob_cannot_substitute_robolectric_source(self):
+        previous = android.plan(self.candidate, "android-phone", views=["coverage"])
+        relative = next(iter(self.policy["robolectric_sources"]))
+        original = self.git("rev-parse", "HEAD:" + relative)
+        replacement = subprocess.run(["git", "hash-object", "-w", "--stdin"], cwd=self.candidate,
+            input=b"// Counterfeit replacement with no mandatory Java tests.\n", check=True,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.decode("ascii").strip()
+        self.git("replace", original, replacement)
+        self.assertEqual(android.plan(self.candidate, "android-phone", views=["coverage"]), previous)
+
+    def test_oversized_git_catalog_entrypoint_and_java_fail_before_content_read(self):
+        initial = self.git("rev-parse", "HEAD")
+        paths = ("android/common/tests/suite/catalog.json", "android/common/tests/shell-syntax-test.sh",
+                 next(iter(self.policy["robolectric_sources"])))
+        actual_run = subprocess.run
+        for index, relative in enumerate(paths):
+            with self.subTest(path=relative):
+                self.git("reset", "--hard", "--quiet", initial)
+                (self.candidate / relative).write_bytes(b"x" * (android.MAX_SOURCE_BYTES + 1))
+                self.commit()
+                oversized = self.git("rev-parse", "HEAD:" + relative)
+                sparse = self.sparse_clone("oversized-" + str(index))
+                def bounded(command, *args, **kwargs):
+                    self.assertNotEqual(command[-3:], ["cat-file", "blob", oversized],
+                                        "oversized source contents must never be read")
+                    return actual_run(command, *args, **kwargs)
+                with mock.patch.object(android.subprocess, "run", side_effect=bounded):
+                    for checkout in (self.candidate, sparse):
+                        with self.assertRaisesRegex(android.AndroidError, "source is oversized"):
+                            android.plan(checkout, "android-phone")
+
+    def test_dirty_full_and_sparse_checkouts_never_produce_an_immutable_plan(self):
+        sparse = self.sparse_clone()
+        for checkout in (self.candidate, sparse):
+            source = checkout / ".github/android-checks.json"
+            original = source.read_text()
+            for kind in ("unstaged", "staged", "deleted", "untracked"):
+                with self.subTest(checkout=checkout.name, kind=kind):
+                    untracked = checkout / ".github/untracked.json"
+                    if kind == "deleted":
+                        source.unlink()
+                    elif kind == "untracked":
+                        untracked.write_text("untracked candidate input")
+                    else:
+                        source.write_text("dirty candidate input")
+                        if kind == "staged":
+                            subprocess.run(["git", "-C", str(checkout), "add", ".github"],
+                                           check=True, capture_output=True)
+                    with self.assertRaises(ValueError):
+                        android.plan(checkout, "android-phone")
+                    subprocess.run(["git", "-C", str(checkout), "reset", "--hard", "--quiet", "HEAD"],
+                                   check=True, capture_output=True)
+                    untracked.unlink(missing_ok=True)
+                    self.assertEqual(source.read_text(), original)
 
     def test_each_owner_runs_once_and_populates_all_selected_views(self):
         status, receipt = self.execute(list(android.VIEWS))
