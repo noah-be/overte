@@ -75,6 +75,12 @@ intentional native skip is accepted only when the trusted route says `skip`.
 Host qualification artifacts do not certify native results and cannot bypass
 this additional gate.
 
+The seven CPU-only browser capture-history fixtures listed in
+`HOST_BROWSER_FIXTURES` also belong to browser JavaScript tests. Updating their
+source-history adapter or manifest does not compile the native product. This is
+an exact file inventory: neighboring unknown files, native/build definitions,
+mixed product changes and non-regular entries retain conservative validation.
+
 The full native job has a 90-minute ceiling; the small core job has a 15-minute
 ceiling. Dependency resolution has a 10-minute ceiling and each CTest program
 a 120-second ceiling. The first GitHub full build took 68 minutes 22 seconds

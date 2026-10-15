@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 
@@ -23,6 +24,10 @@ TOOL_SPEC = importlib.util.spec_from_file_location(
     "tool_dependencies_test", ROOT / "tools/repository-checks/tool_dependencies.py")
 TOOLS = importlib.util.module_from_spec(TOOL_SPEC)
 TOOL_SPEC.loader.exec_module(TOOLS)
+PACKAGE_SPEC = importlib.util.spec_from_file_location(
+    "package_checks_test", ROOT / "tools/repository-checks/package_checks.py")
+PACKAGES = importlib.util.module_from_spec(PACKAGE_SPEC)
+PACKAGE_SPEC.loader.exec_module(PACKAGES)
 
 
 def event(base="main", head="fix/main/example", fork=False):
@@ -619,6 +624,352 @@ class ToolDependencyTests(unittest.TestCase):
             self.assertEqual(calls[1], ("npm", "audit", "--audit-level=low"))
             self.assertEqual(calls[2], ("npm", "test"))
             self.assertTrue(all(call.kwargs["check"] for call in run.call_args_list))
+
+
+class PackageChecksTests(unittest.TestCase):
+    def selected(self, paths, regular=True, **kwargs):
+        return PACKAGES.select(paths, regular, **kwargs)
+
+    def test_legacy_capabilities_and_current_required_callers_stay_inactive(self):
+        path = PACKAGES.S3 + '/package-lock.json'
+        self.assertEqual(TOOLS.affected_projects([path]), ())
+        with self.assertRaises(ValueError):
+            TOOLS.validate_projects([PACKAGES.S3])
+        self.assertEqual(CHECKS.plan(event(), [path], CONFIG, BRANCHES)['mode'], 'full')
+        self.assertFalse(PACKAGES.activated(event()))
+        for branch in BRANCHES:
+            self.assertFalse(PACKAGES.activated(event(branch)))
+        self.assertEqual(CHECKS.verify(results())['status'], 'PASS')
+
+    def test_exact_s3_manifests_bound_the_package_lane_without_host_setup(self):
+        for name in ('package.json', 'package-lock.json'):
+            selected = self.selected([PACKAGES.S3 + '/' + name, 'docs/change.md'])
+            self.assertEqual(selected, {'host_mode': 'package-dependencies', 'tool_projects': [],
+                                        'package_set': [PACKAGES.S3]})
+        selected = self.selected([PACKAGES.S3 + '/package-lock.json', 'tools/jsdoc/package.json'])
+        self.assertEqual(selected['host_mode'], 'tool-dependencies')
+        self.assertEqual(selected['tool_projects'], ['tools/jsdoc'])
+        self.assertEqual(selected['package_set'], [PACKAGES.S3])
+
+    def test_mixed_browser_native_unknown_source_and_nonregular_inputs_keep_both_owners(self):
+        manifest = PACKAGES.S3 + '/package-lock.json'
+        for path in ('browser-client/package-lock.json', 'browser-direct-client/src/world.ts',
+                     'libraries/shared/src/AABox.cpp', 'CMakeLists.txt', 'new/unknown',
+                     PACKAGES.S3 + '/index.js', PACKAGES.S3 + '/test.js',
+                     PACKAGES.S3 + '/unknown.json', PACKAGES.S3 + '/CMakeLists.txt'):
+            selected = self.selected([manifest, path])
+            self.assertEqual(selected['host_mode'], 'full', path)
+            self.assertEqual(selected['package_set'], [PACKAGES.S3], path)
+        self.assertEqual(self.selected([manifest], False)['host_mode'], 'full')
+        self.assertEqual(self.selected([], unknown=True)['package_set'], [PACKAGES.S3])
+        self.assertEqual(self.selected([manifest], unknown=True)['host_mode'], 'full')
+        self.assertEqual(self.selected([])['host_mode'], 'full')
+        self.assertEqual(self.selected(['browser-client/package.json'])['package_set'], [])
+        delegated = self.selected([manifest, 'tools/jsdoc/package-lock.json'], legacy_mode='delegated-sync')
+        self.assertEqual(delegated['host_mode'], 'delegated-sync')
+        self.assertEqual(delegated['tool_projects'], [])
+        self.assertEqual(delegated['package_set'], [PACKAGES.S3])
+
+    def test_package_paths_cannot_escape_or_smuggle_untrusted_selection(self):
+        for path in ('../escape', '/absolute', 'a/../b', 'a//b', 'a\\b', '', None, 'bad\0name'):
+            with self.subTest(path=path), self.assertRaises(ValueError):
+                self.selected([path])
+        for projects in ([PACKAGES.S3, PACKAGES.S3], ['unknown'], ['../server-console']):
+            with self.assertRaises(ValueError):
+                TOOLS.validate_projects(projects, include_s3=True)
+
+    def test_s3_executes_one_complete_audit_and_real_functional_command(self):
+        with patch.object(TOOLS.subprocess, 'run') as run:
+            TOOLS.run(ROOT, [PACKAGES.S3], include_s3=True)
+        self.assertEqual([c.args[0] for c in run.call_args_list], [
+            ('npm', 'ci', '--ignore-scripts', '--no-fund', '--no-audit'),
+            ('npm', 'audit', '--audit-level=low'), ('npm', 'test')])
+        self.assertTrue(all(c.kwargs['cwd'] == ROOT / PACKAGES.S3 and c.kwargs['check']
+                            for c in run.call_args_list))
+        for failure in range(3):
+            with self.subTest(failure=failure), patch.object(TOOLS.subprocess, 'run',
+                    side_effect=[None] * failure + [subprocess.CalledProcessError(1, 'npm')]) as run:
+                with self.assertRaises(subprocess.CalledProcessError):
+                    TOOLS.run(ROOT, [PACKAGES.S3], include_s3=True)
+                self.assertEqual(run.call_count, failure + 1)
+
+    def fixture(self):
+        temporary = tempfile.TemporaryDirectory(prefix='overte-package-contract-')
+        self.addCleanup(temporary.cleanup)
+        root = Path(temporary.name)
+        def git(*args):
+            return subprocess.check_output(['git', '-c', 'commit.gpgsign=false', *args],
+                                           cwd=root, text=True, stderr=subprocess.PIPE).strip()
+        git('init', '-q', '--initial-branch=main')
+        git('config', 'user.name', 'Fixture')
+        git('config', 'user.email', 'fixture@example.invalid')
+        for name in PACKAGES.TEMPLATE_NAMES:
+            if name == 'repository-checks-direct.yml':
+                continue
+            path = root / '.github/workflows' / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes((PACKAGES.TEMPLATES / name).read_bytes())
+        folder = root / PACKAGES.S3
+        folder.mkdir(parents=True)
+        for name in ('package.json', 'package-lock.json'):
+            (folder / name).write_text('{}')
+        (root / '.gitignore').write_text('node_modules/\n')
+        (root / 'native.cpp').write_text('source')
+        git('add', '.'); git('commit', '-qm', 'Base fixture')
+        return root, git, git('rev-parse', 'HEAD')
+
+    def push(self, base, head):
+        return {'repository': event()['repository'], 'before': base, 'after': head}
+
+    def test_immutable_push_selection_covers_added_deleted_renamed_modes_and_missing_history(self):
+        for change in ('add', 'edit', 'delete', 'rename', 'executable', 'symlink', 'submodule'):
+            root, git, base = self.fixture()
+            path = root / PACKAGES.S3 / 'package-lock.json'
+            if change == 'add':
+                path.unlink(); git('commit', '-qam', 'Before new manifest'); base = git('rev-parse', 'HEAD')
+                path.write_text('{"new":true}')
+            elif change == 'edit': path.write_text('{"changed":true}')
+            elif change == 'delete': path.unlink()
+            elif change == 'rename': git('mv', 'native.cpp', PACKAGES.S3 + '/README.md')
+            elif change == 'executable': path.chmod(0o755)
+            elif change == 'symlink': path.unlink(); path.symlink_to('package.json')
+            else:
+                path.unlink(); git('add', '-u')
+                git('update-index', '--add', '--cacheinfo', '160000,' + base + ',' + PACKAGES.S3 + '/package-lock.json')
+            if change != 'submodule': git('add', '-A')
+            git('commit', '-qm', 'Changed package fixture')
+            head = git('rev-parse', 'HEAD')
+            plan = PACKAGES.candidate_plan(root, self.push(base, head), head)
+            self.assertEqual(plan['host_mode'], 'package-dependencies' if change in ('add', 'edit', 'delete') else 'full', change)
+            self.assertEqual(plan['package_set'], [PACKAGES.S3], change)
+            self.assertEqual(plan['tree'], git('rev-parse', 'HEAD^{tree}'))
+            unknown = PACKAGES.candidate_plan(root, self.push('9' * 40, head), head)
+            self.assertTrue(unknown['unknown'])
+            self.assertEqual(unknown['host_mode'], 'full')
+            self.assertEqual(unknown['package_set'], [PACKAGES.S3])
+            with self.assertRaises(ValueError): PACKAGES.candidate_plan(root, self.push(base, head), base)
+        empty = PACKAGES.candidate_plan(root, self.push(head, head), head)
+        self.assertEqual(empty['host_mode'], 'full')
+
+    def test_exact_merge_and_foreign_head_candidate_cannot_change_identity(self):
+        root, git, base = self.fixture()
+        git('checkout', '-qb', 'fix/main/fixture')
+        (root / PACKAGES.S3 / 'package-lock.json').write_text('{"updated":true}')
+        git('commit', '-qam', 'Package change')
+        head = git('rev-parse', 'HEAD')
+        git('checkout', '-q', 'main'); git('merge', '-q', '--no-ff', '--no-edit', 'fix/main/fixture')
+        merge = git('rev-parse', 'HEAD')
+        payload = event(fork=True)
+        payload['pull_request']['base']['sha'] = base
+        payload['pull_request']['head']['sha'] = head
+        plan = PACKAGES.candidate_plan(root, payload, merge)
+        self.assertEqual(plan['host_mode'], 'package-dependencies')
+        payload['pull_request']['base']['sha'] = head
+        with self.assertRaises(ValueError): PACKAGES.candidate_plan(root, payload, merge)
+        with self.assertRaises(ValueError): PACKAGES.candidate_plan(root, self.push(base, merge), head)
+        payload = self.push(base, merge); payload['repository'] = {'full_name': 'overte-org/overte', 'id': 1}
+        with self.assertRaises(ValueError): PACKAGES.candidate_plan(root, payload, merge)
+
+    def plan(self, host='package-dependencies', packages=True):
+        return {'candidate': 'a' * 40, 'plan': 'b' * 64, 'host_mode': host,
+                'tool_projects': ['tools/jsdoc'] if host == 'tool-dependencies' else [],
+                'package_set': [PACKAGES.S3] if packages else []}
+
+    def needs(self, plan):
+        result = {'route': {'result': 'success', 'outputs': PACKAGES.outputs(plan)}}
+        for lane, selected in (('project-tests', plan['host_mode'] == 'full'),
+                               ('tool-dependencies', plan['host_mode'] == 'tool-dependencies'),
+                               ('package-checks', bool(plan['package_set']))):
+            result[lane] = {'result': 'success' if selected else 'skipped',
+                            'outputs': PACKAGES.receipt(plan, lane) if selected and lane != 'project-tests' else {}}
+        return result
+
+    def test_inner_verifier_requires_every_selected_lane_and_exact_receipts(self):
+        for host in ('full', 'tool-dependencies', 'package-dependencies', 'delegated-sync', 'documentation'):
+            plan = self.plan(host)
+            needs = self.needs(plan)
+            self.assertEqual(PACKAGES.verify(needs, plan), PACKAGES.receipt(plan))
+            for job in needs:
+                for outcome in ('failure', 'cancelled', 'skipped', 'neutral'):
+                    if outcome == needs[job]['result']: continue
+                    modified = deepcopy(needs); modified[job]['result'] = outcome
+                    with self.subTest(host=host, job=job, outcome=outcome), self.assertRaises(ValueError):
+                        PACKAGES.verify(modified, plan)
+                modified = deepcopy(needs); del modified[job]
+                with self.assertRaises(ValueError): PACKAGES.verify(modified, plan)
+            for key in ('package_candidate', 'package_plan', 'package_verified', 'package_lane'):
+                modified = deepcopy(needs); modified['package-checks']['outputs'][key] = 'forged'
+                with self.assertRaises(ValueError): PACKAGES.verify(modified, plan)
+            modified = deepcopy(needs); modified['route']['outputs']['package_set'] = '[]'
+            with self.assertRaises(ValueError): PACKAGES.verify(modified, plan)
+
+    def test_outer_verifier_recomputes_proof_and_preserves_legacy_shape(self):
+        plan = self.plan()
+        needs = results(); needs['route']['outputs'].update(PACKAGES.outputs(plan))
+        needs['project']['outputs'] = PACKAGES.receipt(plan)
+        self.assertEqual(CHECKS.verify(needs, package_plan=plan)['status'], 'PASS')
+        with self.assertRaises(ValueError): CHECKS.verify(needs)
+        with self.assertRaises(ValueError): CHECKS.verify(results(), require_packages=True, package_plan=plan)
+        for mutation in ('receipt', 'route', 'skipped', 'failure', 'cancelled'):
+            modified = deepcopy(needs)
+            if mutation == 'receipt': modified['project']['outputs']['package_candidate'] = 'c' * 40
+            elif mutation == 'route': modified['route']['outputs']['package_set'] = '[]'
+            else: modified['project']['result'] = mutation
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                CHECKS.verify(modified, package_plan=plan)
+        # Delegated syncs retain their separate gate and still require S3 here.
+        needs['route']['outputs']['mode'] = 'delegated-sync'
+        plan['host_mode'] = 'delegated-sync'; needs['route']['outputs'].update(PACKAGES.outputs(plan))
+        self.assertEqual(CHECKS.verify(needs, package_plan=plan)['status'], 'PASS')
+        self.assertEqual(CHECKS.verify(results())['status'], 'PASS')
+
+    def test_exact_templates_reject_any_changed_owner_and_keep_browser_generation(self):
+        root, git, base = self.fixture()
+        PACKAGES.validate_wiring(root)
+        self.assertTrue(PACKAGES.has_staged_caller(root))
+        for name in ('project-tests.yml', 'parent-qualification.yml', 'sync-validation.yml', 'repository-checks.yml'):
+            path = root / '.github/workflows' / name; original = path.read_bytes()
+            path.write_bytes(original + b'\n# different owner\n')
+            with self.assertRaises(ValueError): PACKAGES.validate_wiring(root)
+            path.write_bytes(original)
+        caller = root / '.github/workflows/repository-checks.yml'
+        caller.write_bytes((PACKAGES.TEMPLATES / 'repository-checks-direct.yml').read_bytes())
+        browser = root / '.github/workflows/browser-direct-client.yml'
+        browser.write_bytes((ROOT / 'tools/repository-checks/workflows/browser-direct-client.yml').read_bytes())
+        CHECKS.validate_direct_wiring(root)
+        caller.write_bytes((ROOT / 'tools/repository-checks/workflows/repository-checks.yml').read_bytes())
+        CHECKS.validate_direct_wiring(root)
+        self.assertFalse(PACKAGES.has_staged_caller(root))
+        with self.assertRaises(ValueError): PACKAGES.validate_wiring(root)
+        caller.unlink(); caller.symlink_to(ROOT / 'tools/repository-checks/workflows/repository-checks.yml')
+        with self.assertRaises(ValueError): CHECKS.validate_direct_wiring(root)
+
+    def test_api_tree_wiring_requires_exact_blobs_and_regular_modes(self):
+        import hashlib
+        tree = {}
+        for name in ('project-tests.yml', 'parent-qualification.yml', 'sync-validation.yml', 'repository-checks.yml'):
+            value = (PACKAGES.TEMPLATES / name).read_bytes()
+            tree['.github/workflows/' + name] = {'type': 'blob', 'mode': '100644',
+                'sha': hashlib.sha1(b'blob ' + str(len(value)).encode() + b'\0' + value).hexdigest()}
+        PACKAGES.validate_tree_wiring(tree)
+        for name in tree:
+            for mutation in ({'sha': 'a' * 40}, {'mode': '120000'}, {'type': 'commit'}, {'mode': '100755'}):
+                modified = deepcopy(tree); modified[name].update(mutation)
+                with self.assertRaises(ValueError): PACKAGES.validate_tree_wiring(modified)
+
+    def test_execution_is_bound_to_clean_candidate_and_restores_trusted_environment(self):
+        root, git, base = self.fixture()
+        plan = PACKAGES.candidate_plan(root, self.push(base, base), base)
+        plan['package_set'] = [PACKAGES.S3]
+        seen = []
+        def run(candidate, projects, **kwargs):
+            self.assertNotIn('GH_TOKEN', os.environ)
+            self.assertNotIn('GITHUB_OUTPUT', os.environ)
+            self.assertNotIn('ACTIONS_RUNTIME_TOKEN', os.environ)
+            seen.append((candidate, projects, kwargs))
+        with patch.object(PACKAGES, 'tools', return_value=SimpleNamespace(run=run)), patch.dict(os.environ,
+                {'GH_TOKEN': 'private', 'GITHUB_OUTPUT': 'private-command', 'ACTIONS_RUNTIME_TOKEN': 'private'}):
+            self.assertEqual(PACKAGES.execute(root, plan, 'package-checks'), PACKAGES.receipt(plan, 'package-checks'))
+            self.assertEqual(os.environ['GH_TOKEN'], 'private')
+            self.assertEqual(os.environ['GITHUB_OUTPUT'], 'private-command')
+        self.assertEqual(seen, [(root, [PACKAGES.S3], {'include_s3': True})])
+        (root / PACKAGES.S3 / 'package.json').write_text('dirty')
+        with self.assertRaises(ValueError): PACKAGES.execute(root, plan, 'package-checks')
+        git('checkout', '--', PACKAGES.S3 + '/package.json')
+        path = root / PACKAGES.S3 / 'package.json'; path.unlink(); path.symlink_to('package-lock.json')
+        git('add', '-A'); git('commit', '-qm', 'Symlink fixture')
+        plan['candidate'] = git('rev-parse', 'HEAD')
+        with self.assertRaises(ValueError): PACKAGES.execute(root, plan, 'package-checks')
+
+    def test_cli_recomputes_caller_expectations_and_never_receipts_failed_execution(self):
+        from contextlib import redirect_stdout, redirect_stderr
+        import io
+        root, git, base = self.fixture()
+        (root / PACKAGES.S3 / 'package-lock.json').write_text('{"updated":true}')
+        git('commit', '-qam', 'Package update'); head = git('rev-parse', 'HEAD')
+        plan = PACKAGES.candidate_plan(root, self.push(base, head), head)
+        with tempfile.TemporaryDirectory() as directory:
+            event_file = Path(directory) / 'event.json'; event_file.write_text(json.dumps(self.push(base, head)))
+            output = Path(directory) / 'output'
+            argv = ['package_checks.py', 'run', '--candidate', str(root), '--event', str(event_file),
+                    '--sha', head, '--output', str(output), '--expected-candidate', head,
+                    '--expected-plan', plan['plan']]
+            def failure(*args, **kwargs):
+                raise subprocess.CalledProcessError(1, 'npm audit')
+            helper = SimpleNamespace(affected_projects=TOOLS.affected_projects, run=failure)
+            with patch.object(PACKAGES, 'tools', return_value=helper), patch.object(sys, 'argv', argv), \
+                    redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                self.assertEqual(PACKAGES.main(), 1)
+            self.assertFalse(output.exists(), 'Failure must not publish an execution receipt')
+            for option, value in (('--expected-candidate', 'c' * 40), ('--expected-plan', 'c' * 64)):
+                args = list(argv); args[args.index(option) + 1] = value
+                with patch.object(sys, 'argv', args), redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                    self.assertEqual(PACKAGES.main(), 1)
+                self.assertFalse(output.exists())
+
+    def test_outer_cli_independently_recomputes_the_candidate_instead_of_trusting_outputs(self):
+        root, git, base = self.fixture()
+        (root / PACKAGES.S3 / 'package-lock.json').write_text('{"updated":true}')
+        git('commit', '-qam', 'Package update'); head = git('rev-parse', 'HEAD')
+        payload = self.push(base, head)
+        plan = PACKAGES.candidate_plan(root, payload, head)
+        needs = results(); needs['route']['outputs'].update(PACKAGES.outputs(plan))
+        needs['project']['outputs'] = PACKAGES.receipt(plan)
+        with tempfile.TemporaryDirectory() as directory:
+            event_file = Path(directory) / 'event.json'; event_file.write_text(json.dumps(payload))
+            for forged in (False, True):
+                candidate = deepcopy(needs)
+                if forged:
+                    candidate['route']['outputs']['package_plan'] = 'c' * 64
+                    candidate['project']['outputs']['package_plan'] = 'c' * 64
+                result = subprocess.run([sys.executable, str(ROOT / 'tools/repository-checks/check.py'),
+                    'verify', '--candidate', str(root), '--event', str(event_file), '--sha', head,
+                    '--needs-json', json.dumps(candidate)], capture_output=True, text=True)
+                self.assertEqual(result.returncode == 0, not forged, result.stderr)
+
+    def test_activation_uses_trusted_target_policy_and_never_candidate_head_names(self):
+        policy = SimpleNamespace(configuration=lambda: ({'package_checks_required_branches': ['main']}, {}))
+        with patch.object(PACKAGES, 'load', return_value=policy):
+            self.assertTrue(PACKAGES.activated(event('main', 'apple-ios')))
+            for target in ('apple-main', 'apple-ios', 'android-main', 'android-phone'):
+                self.assertFalse(PACKAGES.activated(event(target, 'main')))
+            wrong = event(); wrong['repository']['full_name'] = 'overte-org/overte'
+            with self.assertRaises(ValueError): PACKAGES.activated(wrong)
+
+    def test_templates_bind_required_orchestration_and_no_unrelated_package_setup(self):
+        import yaml
+        d = yaml.safe_load((PACKAGES.TEMPLATES / 'project-tests.yml').read_text())
+        jobs = d['jobs']; final = jobs['project-results']
+        self.assertEqual(final['if'], 'always()')
+        self.assertEqual(set(final['needs']), {'route', 'project-tests', 'tool-dependencies', 'package-checks'})
+        self.assertEqual(jobs['project-tests']['if'], "needs.route.outputs.package_host_mode == 'full'")
+        self.assertEqual(jobs['package-checks']['if'], "needs.route.outputs.package_set != '[]'")
+        for lane in ('route', 'tool-dependencies', 'package-checks', 'project-results'):
+            steps = jobs[lane]['steps']
+            self.assertEqual(steps[0]['with']['ref'], '${{ github.event.repository.default_branch }}')
+            self.assertEqual(steps[0]['with']['path'], 'trusted')
+            self.assertEqual(steps[1]['with']['path'], 'candidate')
+            self.assertIn('trusted/tools/repository-checks/package_checks.py', steps[-1]['run'])
+            self.assertTrue(all(s['with']['persist-credentials'] is False for s in steps if s.get('uses', '').startswith('actions/checkout@')))
+        package = jobs['package-checks']['steps']
+        self.assertEqual(package[2]['with'], {'node-version': '22'})
+        self.assertEqual(len(package), 4)
+        self.assertEqual(d['permissions'], {'contents': 'read'})
+        for name in ('repository-checks.yml', 'repository-checks-direct.yml'):
+            caller = yaml.safe_load((PACKAGES.TEMPLATES / name).read_text())['jobs']
+            self.assertIn("needs.route.outputs.package_set != '[]'", caller['project']['if'])
+            self.assertIn('--candidate candidate --sha "$GITHUB_SHA"', caller['repository-checks']['steps'][-1]['run'])
+            self.assertIn('project', caller['repository-checks']['needs'])
+            self.assertIn('tools/test-evidence', caller['route']['steps'][0]['with']['sparse-checkout'])
+            self.assertEqual(set(caller['project']['with']), {'dependency_projects', 'expected_candidate', 'expected_package_plan'})
+        parent = yaml.safe_load((PACKAGES.TEMPLATES / 'parent-qualification.yml').read_text())
+        steps = parent['jobs']['qualify-parent']['steps']
+        package = steps[-1]
+        self.assertEqual(package['if'], "steps.route.outputs.package_set != '[]'")
+        self.assertIn('--lane package-checks', package['run'])
+        for step in steps:
+            if step.get('name') in ('Set up Python', 'Set up Java', 'Install QML and portable C++ contract prerequisites'):
+                self.assertEqual(step['if'], "steps.route.outputs.package_host_mode == 'full'")
 
 
 class CandidateTests(unittest.TestCase):

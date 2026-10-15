@@ -15,6 +15,32 @@
     "**/package.json"
   ],
   "suites": {
+    "producer-proof": {
+      "command": [
+        "python",
+        "tools/test-evidence/producer-test.py"
+      ],
+      "layer": "quick",
+      "scope": "content",
+      "environment": "host-qt5-qt6",
+      "closure": {
+        "kind": "patterns",
+        "inputs": [
+          "tools/test-evidence/producer.py",
+          "tools/test-evidence/producer-test.py",
+          "tools/test-evidence/execution.py",
+          "tools/test-evidence/inputs.py",
+          "tools/test-evidence/runtime.py"
+        ],
+        "required": [
+          "tools/test-evidence/producer.py",
+          "tools/test-evidence/producer-test.py",
+          "tools/test-evidence/execution.py",
+          "tools/test-evidence/inputs.py",
+          "tools/test-evidence/runtime.py"
+        ]
+      }
+    },
     "dependency-releases": {
       "command": [
         "python",
@@ -83,6 +109,54 @@
         ]
       }
     },
+    "android-build-inputs": {
+      "command": [
+        "python",
+        "tests/android-build-inputs-test.py"
+      ],
+      "layer": "quick",
+      "scope": "content",
+      "environment": "host-qt5-qt6",
+      "closure": {
+        "kind": "patterns",
+        "inputs": [
+          "tests/android-build-inputs-test.py",
+          "tools/repository-checks/android-build-inputs.py",
+          "tools/ios-build-qualification/inputs.py"
+        ],
+        "required": [
+          "tests/android-build-inputs-test.py",
+          "tools/repository-checks/android-build-inputs.py",
+          "tools/ios-build-qualification/inputs.py"
+        ]
+      }
+    },
+    "codeql-selection": {
+      "command": [
+        "python",
+        "tests/codeql-selection-test.py"
+      ],
+      "layer": "quick",
+      "scope": "content",
+      "environment": "host-qt5-qt6",
+      "closure": {
+        "kind": "patterns",
+        "inputs": [
+          "tests/codeql-selection-test.py",
+          "tools/repository-checks/codeql.py",
+          "tools/test-evidence/inputs.py",
+          ".github/workflows/codeql.yml",
+          ".github/codeql/codeql-config.yml"
+        ],
+        "required": [
+          "tests/codeql-selection-test.py",
+          "tools/repository-checks/codeql.py",
+          "tools/test-evidence/inputs.py",
+          ".github/workflows/codeql.yml",
+          ".github/codeql/codeql-config.yml"
+        ]
+      }
+    },
     "ios-build-qualification": {
       "command": [
         "python",
@@ -96,6 +170,26 @@
         "inputs": [],
         "required": [
           "tests/ios-build-qualification-test.py"
+        ]
+      }
+    },
+    "ios-input-selection": {
+      "command": [
+        "python",
+        "tests/ios-input-selection-test.py"
+      ],
+      "layer": "quick",
+      "scope": "content",
+      "environment": "host-qt5-qt6",
+      "closure": {
+        "kind": "patterns",
+        "inputs": [
+          "tests/ios-input-selection-test.py",
+          "tools/ios-build-qualification/inputs.py"
+        ],
+        "required": [
+          "tests/ios-input-selection-test.py",
+          "tools/ios-build-qualification/inputs.py"
         ]
       }
     },
@@ -1088,6 +1182,29 @@
         "inputs": [],
         "required": [
           "tools/test-evidence/test.py"
+        ]
+      }
+    },
+    "android-ci": {
+      "command": [
+        "python",
+        "tests/android-ci-test.py"
+      ],
+      "layer": "quick",
+      "scope": "content",
+      "environment": "host-qt5-qt6",
+      "closure": {
+        "kind": "repository",
+        "inputs": [],
+        "required": [
+          "tests/android-ci-test.py",
+          "tools/repository-checks/android.py",
+          ".github/android-checks.json",
+          "tools/test-evidence/execution.py",
+          "tools/test-evidence/runtime.py",
+          "tools/test-evidence/inputs.py",
+          "tests/run-project-tests.py",
+          "tests/platform-profile.json"
         ]
       }
     }
