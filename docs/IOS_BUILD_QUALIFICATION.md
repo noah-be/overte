@@ -73,11 +73,19 @@ Do not dispatch `ios-bootstrap` with every mode flag false to qualify this
 transition: that existing dispatch selects simulator and unsigned-device app
 builds. The one-file PR supplies its own required host evidence.
 
-After deployment, the changed top workflow invalidates the older general
-reader identity. Review the complete protected post-deployment source before
-enabling broader app-neutral selection. In particular, npm-only app omissions
-need applicable required Browser/S3 package owners with complete target wiring
-and actual same-candidate results; this trial does not add that permission.
+PR #1300 completed this deployment without a Qt or client build. Its protected
+merge `2fc894a0605103843b36653f250f854714a963ee` has tree
+`94566f00d4cc1665d98cb570d285f5f80b7bd0a7`. The general reader anchor now uses
+that protected source: its only tree change from the older anchor is the exact
+reviewed top workflow. Already reviewed independent CI and documentation paths
+can therefore omit the app build while retaining fresh mandatory iOS host
+checks. Both input trees must still match this reader boundary; new application
+readers invalidate the exception even for a later CI-only change.
+
+The finite independent-path inventory is unchanged. npm-only app omissions
+still need applicable required Browser/S3 package owners with complete target
+wiring and actual same-candidate results; this deployment does not add that
+permission. The original bootstrap guard and legacy generation remain unchanged.
 
 ## Application build result verification
 
