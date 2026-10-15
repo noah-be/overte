@@ -89,8 +89,10 @@ raise SystemExit(7 if mode == 'failure' else 77 if mode == 'skip' else 0)
                     text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
                 self.assertEqual(mode in ('parent-only', 'pass'), result.returncode == 0, result.stdout)
                 self.assertEqual(mode not in ('parent-only', 'partial'), (root / 'entered').exists())
-                if mode == 'skip': self.assertEqual(1, result.returncode)
-                if mode == 'failure': self.assertEqual(7, result.returncode)
+                if mode == 'skip':
+                    self.assertEqual(1, result.returncode)
+                if mode == 'failure':
+                    self.assertEqual(7, result.returncode)
                 if mode == 'false-success':
                     self.assertEqual('1', ET.parse(root / 'reports/qml/TEST-phone-places.xml').getroot().get('errors'))
 
