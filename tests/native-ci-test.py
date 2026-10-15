@@ -528,6 +528,13 @@ class GitInventoryTests(unittest.TestCase):
                                 subprocess.check_output(['git', 'rev-parse', 'HEAD'],
                                                         cwd=ROOT, text=True).strip()],
                                check=True, capture_output=True)
+                # This historical package/IOS sparse contract has an explicit
+                # inactive Browser policy inside its disposable trusted clone.
+                # The actual activated Browser pair has dedicated CLI tests.
+                policy = trusted / '.github/repository-checks.json'
+                config = json.loads(policy.read_text())
+                config['browser_client_required_branches'] = []
+                policy.write_text(json.dumps(config, indent=2) + '\n')
             sparse_trusted(directories)
             def git(*args):
                 return subprocess.check_output(['git', *args], cwd=candidate,
@@ -539,11 +546,11 @@ class GitInventoryTests(unittest.TestCase):
             wiring = candidate / '.github/workflows/ios-build-qualification.yml'
             wiring.parent.mkdir(parents=True)
             wiring.write_bytes((ROOT / 'tools/ios-build-qualification/workflow.yml').read_bytes())
-            # The sparse trusted router now enforces the activated package
-            # generation on main. Its candidate fixture must contain the actual
-            # approved sibling workflows, rather than relying on omission.
+            # Use the complete exact historical package tuple, independent of
+            # later active Browser/Android caller generations.
             for name in ('repository-checks.yml', 'project-tests.yml', 'parent-qualification.yml', 'sync-validation.yml'):
-                (wiring.parent / name).write_bytes((ROOT / '.github/workflows' / name).read_bytes())
+                (wiring.parent / name).write_bytes(
+                    (ROOT / 'tools/repository-checks/workflows/packages' / name).read_bytes())
             git('add', '.')
             git('commit', '-qm', 'Base fixture')
             base = git('rev-parse', 'HEAD')
