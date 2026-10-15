@@ -116,7 +116,7 @@ jobs:
           --junit fast=build/test-results/suite/TEST-android-fast.xml
           --junit native=build/test-results/native/TEST-native.xml
           --junit javascript=build/test-results/javascript/TEST-javascript.xml
-          --junit qml=build/test-results/qml/TEST-qml.xml
+          --junit 'qml=build/test-results/qml/TEST-*.xml'
           --output build/reports/summary/fast.md
       - name: Publish JUnit report
         if: always()
