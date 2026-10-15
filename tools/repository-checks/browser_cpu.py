@@ -87,6 +87,19 @@ JOBS = {"route", "cpu", "browser", "native-journey"}
 SHA = re.compile(r"[0-9a-f]{40}\Z")
 _DOMAIN = "overte-browser-cpu-history-selection-v1"
 _inputs = None
+_app_inputs = None
+
+
+def app_inputs():
+    """Load trusted dormant app-boundary policy, never a candidate helper."""
+    global _app_inputs
+    if _app_inputs is None:
+        spec = importlib.util.spec_from_file_location(
+            'trusted_browser_app_inputs', ROOT / 'tools/repository-checks/browser_app_inputs.py')
+        require(spec is not None and spec.loader is not None, 'trusted app-boundary helper unavailable')
+        _app_inputs = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(_app_inputs)
+    return _app_inputs
 
 
 def inventory():
@@ -223,7 +236,7 @@ def review_boundary(repository, revision, *, policy_root=ROOT):
 
 
 def _policy(policy_root):
-    return digest({"domain": _DOMAIN, "reviewed_revision": REVIEWED_REVISION,
+    policy = {"domain": _DOMAIN, "reviewed_revision": REVIEWED_REVISION,
                    "reviewed_boundary": REVIEWED_BOUNDARY, "cpu_paths": sorted(CPU_PATHS),
                    "independent_policy_paths": sorted(INDEPENDENT_POLICY_PATHS),
                    "legacy_workflow": REVIEWED_WORKFLOW, "canonical_workflow": _blob(canonical_workflow(policy_root)),
@@ -232,7 +245,10 @@ def _policy(policy_root):
                    "browser_boundary": REVIEWED_BROWSER_BOUNDARY, "external_inputs": sorted(EXTERNAL_INPUTS),
                    "independent_roots": INDEPENDENT_ROOTS, "independent_files": sorted(INDEPENDENT_FILES),
                    "controller": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
-                   "inventory": hashlib.sha256((ROOT / "tools/test-evidence/inputs.py").read_bytes()).hexdigest()})
+                   "inventory": hashlib.sha256((ROOT / "tools/test-evidence/inputs.py").read_bytes()).hexdigest()}
+    if app_inputs().enabled(trusted_bytes, policy_root):
+        policy['owner_contract'] = app_inputs().owner_identity(policy_root)
+    return digest(policy)
 
 
 def classify(previous, current, *, policy_root=ROOT):
@@ -375,11 +391,15 @@ def route(event, event_name, candidate, expected_sha, *, policy_root=ROOT):
                 "invalid PR revisions")
         require(git(candidate, "show", "-s", "--format=%P", expected_sha).decode().split() == [base, head],
                 "candidate does not merge exact event base and head")
-        selection = classify(snapshot(candidate, base), current, policy_root=policy_root)
+        previous = snapshot(candidate, base)
+        selection = classify(previous, current, policy_root=policy_root)
     else:
         require(event_name == "workflow_dispatch" and "pull_request" not in event, "unsupported browser event")
         base, head = "", expected_sha
         selection = {"mode": "full", "audit": True, "reason": "manual-full-verification"}
+    if app_inputs().enabled(trusted_bytes, policy_root):
+        for tree in (previous, current) if event_name == 'pull_request' else (current,):
+            app_inputs().validate_owner_inventory(tree, inventory()._validate_tree, policy_root)
     binding = {"candidate": expected_sha, "tree": current["tree"], "base": base, "head": head, 'target': target,
                "mode": selection["mode"], "audit": str(selection["audit"]).lower()}
     return {**binding, "plan": digest({"policy": _policy(policy_root), "event_name": event_name,

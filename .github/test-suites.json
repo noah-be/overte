@@ -1042,7 +1042,10 @@
         "kind": "repository",
         "inputs": [],
         "required": [
-          "tests/native-ci-test.py"
+          "tests/native-ci-test.py",
+          "tests/native-app-boundary-test.py",
+          "tools/repository-checks/browser_app_inputs.py",
+          ".github/browser-native-app-inputs.json"
         ]
       }
     },
