@@ -104,6 +104,31 @@
           "sha": "9f16a5aa23124d0826d9f57f5df5060ee989a1a4"
         }
       }
+    },
+    {
+      "name": "packages-browser",
+      "workflows": {
+        ".github/workflows/project-tests.yml": {
+          "mode": "100644",
+          "type": "blob",
+          "sha": "3494f7c12bd295b9c3ddf9f61fc7e42278be6fc9"
+        },
+        ".github/workflows/parent-qualification.yml": {
+          "mode": "100644",
+          "type": "blob",
+          "sha": "ffc8e340af19d46a16c0a0dbd6872b2405cfd00e"
+        },
+        ".github/workflows/sync-validation.yml": {
+          "mode": "100644",
+          "type": "blob",
+          "sha": "2a18a765923e0691a2bd1d98f546cc5f933b539c"
+        },
+        ".github/workflows/repository-checks.yml": {
+          "mode": "100644",
+          "type": "blob",
+          "sha": "22061cbfdeef8fb90f281634d0d43d09546c33b1"
+        }
+      }
     }
   ]
 }

@@ -324,12 +324,13 @@ base/candidate commits, preserve whole-language scans and scheduled full scans,
 and review the helper's configuration hashes after changing CodeQL configuration
 or action versions. It selects languages, not individual files within a scan.
 The `browser-cpu-selection` quick suite exercises dormant trusted Browser CPU
-history routing and independent final-result validation against real Git
-histories. It also runs in the combined host profile. Its registry closure
-binds the helper, test, immutable-inventory validator, active legacy workflow
-and exact dormant template. The [Browser CPU selection guide](../docs/BROWSER_CPU_SELECTION.md)
-records the required workflow/source-history migration and outer-gate handoff
-before activation; this preparation changes no active Browser workflow.
+history routing and both inner and outer required-result validation against
+real Git histories. It also runs in the combined host profile. Its registry
+uses a full-repository fallback because actual CLI tests read trusted routing,
+package-generation, event-target and workflow policies together. The
+[Browser selection guide](../docs/BROWSER_CPU_SELECTION.md) records the exact
+paired sole-owner transfer and source-history migration still required before
+activation. Browser activation remains off and active workflows are unchanged.
 
 The `test-evidence` quick suite checks trusted execution receipts, complete
 suite-input fingerprints, actual runtime identity and parent qualification.
