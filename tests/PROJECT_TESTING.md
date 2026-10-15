@@ -835,8 +835,13 @@ Activation remains unavailable: trusted `required_branches` is empty,
 Clearing JSON alone cannot authorize deployment. Before activation, qualify the
 complete prospective generation on each real branch, review the final reader
 anchors, stage trusted admission on the default branch, and atomically deploy
-its callers, callees, source contracts and legacy PR-trigger retirement. Existing
-artifact diagnostics do not authenticate cross-run reuse. This slice performs
+its callers, callees, source contracts and legacy PR-trigger retirement.
+Main/Apple bootstrap callers may skip Android only when both immutable PR trees
+contain no Android source or legacy Android workflow and retain the regular,
+empty shared platform profile. Manual callers prove the same current-tree
+absence. Unexpected source, a nonregular input, an Android or unknown profile,
+or removal of a predecessor's Android ownership fails closed. Existing artifact
+diagnostics do not authenticate cross-run reuse. This slice performs
 source-only and disposable-process qualification; it makes no new Robolectric,
 native product, Gradle, APK or hosted execution claim. Non-PR post-merge push
 runs and direct legacy contexts intentionally retain their current checks; their
