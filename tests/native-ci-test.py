@@ -12,7 +12,6 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -30,226 +29,6 @@ SELECT = load('native_select', 'tools/native-tests/select.py')
 GATE = load('native_gate', 'tools/repository-checks/check.py')
 SHADERS = load('native_shaders', 'tools/native-tests/shader-cache.py')
 PACKAGES = load('native_packages', 'tools/native-tests/packages.py')
-OWNER = load('native_browser_owner', 'tools/native-tests/browser-owner.py')
-READ_OWNER_PROFILE = OWNER.load_profile
-
-
-class RequiredBrowserOwnershipTests(unittest.TestCase):
-    def setUp(self):
-        directory = tempfile.TemporaryDirectory(prefix='overte-native-browser-owner-')
-        self.addCleanup(directory.cleanup)
-        self.root = Path(directory.name)
-        self.git('init', '-q', '--initial-branch=main')
-        self.git('config', 'user.name', 'Native Browser ownership fixture')
-        self.git('config', 'user.email', 'fixture@example.invalid')
-        self.git('config', 'commit.gpgsign', 'false')
-        self.git('config', 'core.fileMode', 'true')
-        self.browser = GATE.browser_policy()
-        self.config = json.loads(self.browser.trusted_bytes(self.browser.CONFIGURATION))
-        self.config['browser_client_required_branches'] = ['main']
-        original = self.browser.trusted_bytes
-        def trusted(relative, policy_root=ROOT):
-            return ((json.dumps(self.config, indent=2) + '\n').encode()
-                    if relative == self.browser.CONFIGURATION else original(relative, policy_root))
-        for context in (patch.object(self.browser, 'trusted_bytes', side_effect=trusted),
-                        patch.object(GATE, 'browser_policy', return_value=self.browser),
-                        patch.object(POLICY, 'repository_checks', return_value=GATE),
-                        patch.object(POLICY, 'browser_ownership', return_value=OWNER)):
-            context.start(); self.addCleanup(context.stop)
-        self.write(self.browser.WORKFLOW, self.browser.canonical_workflow())
-        self.write(self.browser.OUTER_WORKFLOW, self.browser.trusted_bytes(self.browser.OUTER_TEMPLATE))
-        for name in ('project-tests.yml', 'parent-qualification.yml', 'sync-validation.yml'):
-            self.write('.github/workflows/' + name, (ROOT / '.github/workflows' / name).read_bytes())
-        self.write('CMakeLists.txt', b'project(ReviewedNativeFixture)\n')
-        self.write('browser-client/src/world.ts', b'export const world = true;\n')
-        self.base = self.commit('Reviewed ordinary readers and exact mandatory Browser owner')
-        self.profile, self.identity = OWNER.load_profile()
-        self.profile = copy.deepcopy(self.profile)
-        # An explicit isolated fixture review, never a production policy refresh.
-        self.profile['reader_boundary'] = OWNER.reader_boundary(
-            self.browser.snapshot(self.root, self.base), self.profile, self.browser)
-        context = patch.object(OWNER, 'load_profile', return_value=(self.profile, self.identity))
-        context.start(); self.addCleanup(context.stop)
-
-    def git(self, *args):
-        return subprocess.check_output(['git', *args], cwd=self.root, text=True, stderr=subprocess.PIPE).strip()
-
-    def write(self, path, data):
-        target = self.root / path
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(data)
-
-    def commit(self, message):
-        self.git('add', '-A'); self.git('commit', '-qm', message)
-        return self.git('rev-parse', 'HEAD')
-
-    def merge(self, changes, *, base=None):
-        base = base or self.base
-        self.git('checkout', '-q', '--detach', base)
-        for path, data in changes.items():
-            if data is None:
-                (self.root / path).unlink()
-            else:
-                self.write(path, data)
-        head = self.commit('Change immutable ownership fixture inputs')
-        self.git('checkout', '-q', '-B', 'fixture-merge', base)
-        self.git('merge', '-q', '--no-ff', '-m', 'Exact ownership fixture candidate', head)
-        sha = self.git('rev-parse', 'HEAD')
-        repository = dict(self.browser.REPOSITORY)
-        event = {'repository': repository, 'pull_request': {
-            'base': {'ref': 'main', 'repo': repository, 'sha': base},
-            'head': {'ref': 'fix/main/frontend-fixture', 'repo': repository, 'sha': head}}}
-        return event, sha
-
-    def test_real_js_candidate_omits_ordinary_build_only_with_exact_required_full_owner(self):
-        event, sha = self.merge({'browser-client/src/world.ts': b'throw new Error("routing must not execute candidate");\n'})
-        result = POLICY.candidate_plan(self.root, event, sha)
-        self.assertEqual(result['mode'], 'skip')
-        handoff = result['browser_handoff']
-        expected = self.browser.route(event, 'pull_request', self.root, sha)
-        self.assertEqual(expected['mode'], 'full')
-        self.assertEqual(handoff['candidate'], sha)
-        self.assertEqual(handoff['browser_plan'], expected['plan'])
-        self.assertEqual(handoff['paths'], ['browser-client/src/world.ts'])
-        self.assertEqual(POLICY.plan(handoff['paths'])['mode'], 'full', 'Path-only API must never grant ownership')
-
-    def test_advisory_owner_and_candidate_activation_or_policy_cannot_authorize_omission(self):
-        self.config['browser_client_required_branches'] = []
-        event, sha = self.merge({'browser-client/src/world.ts': b'export const changed = true;\n',
-            self.browser.CONFIGURATION: b'{"browser_client_required_branches":["main"]}',
-            OWNER.PROFILE: b'{"paths":["browser-client/new-unknown.js"]}'})
-        self.assertEqual(POLICY.candidate_plan(self.root, event, sha)['mode'], 'full')
-        self.config['browser_client_required_branches'] = ['main']
-        event, sha = self.merge({'browser-client/new-unknown.js': b'unknown frontend\n',
-            OWNER.PROFILE: b'{"paths":["browser-client/new-unknown.js"]}'})
-        self.assertEqual(POLICY.candidate_plan(self.root, event, sha)['mode'], 'full')
-
-    def test_unknown_native_build_and_mixed_inputs_retain_complete_fallback(self):
-        for path in ('browser-client/new-unknown.js', 'browser-client/native-input/src/NativeInput.cpp',
-                     'browser-client/tools/build-native-input.py', 'browser-client/new.cmake',
-                     'browser-client/CMakeLists.txt', 'browser-client/new.qrc', 'libraries/shared/src/Changed.cpp',
-                     'tools/native-tests/check.py'):
-            with self.subTest(path=path):
-                event, sha = self.merge({'browser-client/src/world.ts': b'Frontend edit\n', path: b'Other input\n'})
-                result = POLICY.candidate_plan(self.root, event, sha)
-                self.assertEqual(result['mode'], 'full')
-                self.assertNotIn('browser_handoff', result)
-
-    def test_stale_ordinary_reader_blocks_later_frontend_only_exemption(self):
-        self.write('CMakeLists.txt', b'file(READ browser-client/src/world.ts PROGRAM_INPUT)\n')
-        integrated = self.commit('Integrate a new ordinary Browser source consumer')
-        event, sha = self.merge({'browser-client/src/world.ts': b'Later frontend-only edit\n'}, base=integrated)
-        self.assertEqual(POLICY.candidate_plan(self.root, event, sha)['mode'], 'full')
-
-    def test_partial_pair_missing_package_sibling_and_rollback_are_never_delegated(self):
-        changes = {'browser-client/src/world.ts': b'Frontend edit\n'}
-        for path in (self.browser.WORKFLOW, self.browser.OUTER_WORKFLOW, '.github/workflows/project-tests.yml'):
-            with self.subTest(path=path):
-                event, sha = self.merge({**changes, path: b'Unknown or retired orchestration\n'})
-                self.assertEqual(POLICY.candidate_plan(self.root, event, sha)['mode'], 'full')
-        self.git('checkout', '-q', '--detach', self.base)
-        self.write(self.browser.OUTER_WORKFLOW, b'Old incomplete base caller\n')
-        partial_base = self.commit('Previously integrated incomplete caller fixture')
-        event, sha = self.merge({**changes, self.browser.OUTER_WORKFLOW:
-            self.browser.trusted_bytes(self.browser.OUTER_TEMPLATE)}, base=partial_base)
-        self.assertEqual(POLICY.candidate_plan(self.root, event, sha)['mode'], 'full')
-
-    def test_nonregular_modes_aliases_and_unknown_rename_destinations_keep_full(self):
-        self.git('checkout', '-q', '--detach', self.base)
-        (self.root / 'browser-client/src/world.ts').chmod(0o755)
-        mode = self.commit('Make frontend executable')
-        event, sha = self.merge({'browser-client/src/world.ts': b'Executable frontend edit\n'}, base=mode)
-        self.assertEqual(POLICY.candidate_plan(self.root, event, sha)['mode'], 'full')
-        self.git('checkout', '-q', '--detach', self.base)
-        (self.root / 'alias').symlink_to('browser-client/src/world.ts')
-        alias = self.commit('Add an uninspected source alias')
-        event, sha = self.merge({'browser-client/src/world.ts': b'Alias referent edit\n'}, base=alias)
-        self.assertEqual(POLICY.candidate_plan(self.root, event, sha)['mode'], 'full')
-        event, sha = self.merge({'browser-client/src/world.ts': None, 'browser-client/src/unknown-new.ts': b'Renamed source\n'})
-        self.assertEqual(POLICY.candidate_plan(self.root, event, sha)['mode'], 'full')
-        self.git('checkout', '-q', '--detach', self.base)
-        self.git('update-index', '--add', '--cacheinfo', '160000,' + self.base + ',vendor/uninspected')
-        self.git('commit', '-qm', 'Add uninspected Git dependency')
-        dependency = self.git('rev-parse', 'HEAD')
-        event, sha = self.merge({'browser-client/src/world.ts': b'Later frontend edit\n'}, base=dependency)
-        self.assertEqual(POLICY.candidate_plan(self.root, event, sha)['mode'], 'full')
-
-    def test_deleting_a_known_frontend_still_requires_full_browser_evidence(self):
-        event, sha = self.merge({'browser-client/src/world.ts': None})
-        result = POLICY.candidate_plan(self.root, event, sha)
-        self.assertEqual(result['mode'], 'skip')
-        self.assertEqual(result['browser_handoff']['paths'], ['browser-client/src/world.ts'])
-
-    def test_retargeting_preserves_all_seven_native_branch_boundaries(self):
-        event, sha = self.merge({'browser-client/src/world.ts': b'Frontend edit\n'})
-        branches = json.loads((ROOT / '.github/branch-policy.json').read_text())['branches']
-        self.assertEqual(len(branches), 7)
-        for branch in branches:
-            payload = copy.deepcopy(event); payload['pull_request']['base']['ref'] = branch
-            result = POLICY.candidate_plan(self.root, payload, sha)
-            self.assertEqual(result['mode'], 'skip')
-            self.assertEqual('browser_handoff' in result, branch == 'main')
-
-    def test_failed_skipped_missing_or_diagnostic_browser_owner_cannot_merge_native_skip(self):
-        event, sha = self.merge({'browser-client/src/world.ts': b'Frontend edit\n'})
-        self.assertEqual(POLICY.candidate_plan(self.root, event, sha)['mode'], 'skip')
-        plan = self.browser.route(event, 'pull_request', self.root, sha)
-        needs = {'route': {'result': 'success', 'outputs': {'mode': 'full', 'security': 'false', 'native': 'skip',
-                  **self.browser.outer_outputs(plan)}}, 'project': {'result': 'success'},
-                 'documentation': {'result': 'success'}, 'workflow-security': {'result': 'skipped'},
-                 'native': {'result': 'skipped'}, 'browser-client': {'result': 'success', 'outputs': {
-                     'candidate': sha, 'plan': plan['plan'], 'verified': 'true'}}}
-        self.assertEqual(GATE.verify(needs, require_browser=True, browser_plan=plan)['status'], 'PASS')
-        for mutation in ('failure', 'skipped', 'cancelled', 'missing', 'diagnostic', 'stale'):
-            altered = copy.deepcopy(needs)
-            if mutation == 'missing': del altered['browser-client']
-            elif mutation == 'diagnostic': altered['browser-client']['outputs']['verified'] = 'diagnostic-only'
-            elif mutation == 'stale': altered['browser-client']['outputs']['plan'] = 'unproven'
-            else: altered['browser-client']['result'] = mutation
-            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
-                GATE.verify(altered, require_browser=True, browser_plan=plan)
-
-    def test_cmake_guard_rejects_frontend_consumed_by_any_compiled_ordinary_target(self):
-        for path in ('browser-client/src/world.ts', 'browser-client/src/../src/world.ts'):
-            target = {'name': 'ordinary-app', 'type': 'EXECUTABLE', 'sources': [{'path': path}]}
-            with self.subTest(path=path), self.assertRaisesRegex(ValueError, 'consumes a delegated Browser input'):
-                SELECT.validate_input_routes([target], self.root, POLICY.plan, OWNER.owned_paths())
-        SELECT.validate_input_routes([{**target, 'type': 'UTILITY'}], self.root, POLICY.plan, OWNER.owned_paths())
-
-    def test_absent_policy_or_nonfull_browser_selection_retains_ordinary_full(self):
-        event, sha = self.merge({'browser-client/src/world.ts': b'Frontend edit\n'})
-        with patch.object(OWNER, 'load_profile', side_effect=ValueError('Unavailable trusted review')):
-            self.assertEqual(POLICY.candidate_plan(self.root, event, sha)['mode'], 'full')
-        for mode in ('skip', 'cpu', None):
-            with self.subTest(mode=mode), patch.object(self.browser, 'route', return_value={'mode': mode}):
-                self.assertEqual(POLICY.candidate_plan(self.root, event, sha)['mode'], 'full')
-
-    def test_frozen_profile_rejects_unknown_fields_native_extensions_and_malformed_identity(self):
-        self.assertEqual(len(self.profile['paths']), 834)
-        policy = self.root / OWNER.PROFILE
-        for mutation in ('field', 'native', 'duplicate', 'bootstrap', 'anchor'):
-            value = copy.deepcopy(self.profile)
-            if mutation == 'field': value['candidate_skip'] = True
-            elif mutation == 'native': value['paths'][0] = 'browser-client/new.cpp'
-            elif mutation == 'duplicate': value['paths'].append(value['paths'][0])
-            elif mutation == 'bootstrap': value['bootstrap_inputs']['tools/native-tests/check.py']['after']['sha'] = 'HEAD'
-            else: value['reader_boundary'] = 'unreviewed'
-            self.write(OWNER.PROFILE, (json.dumps(value) + '\n').encode())
-            with self.subTest(mutation=mutation), patch.object(OWNER, 'ROOT', self.root), self.assertRaises(ValueError):
-                READ_OWNER_PROFILE()
-        self.write(OWNER.PROFILE, ('{"schema":1,' + json.dumps(self.profile)[1:]).encode())
-        with patch.object(OWNER, 'ROOT', self.root), self.assertRaises(ValueError):
-            READ_OWNER_PROFILE()
-
-    def test_exact_reader_bootstrap_does_not_hide_later_controller_changes(self):
-        path = 'tools/native-tests/check.py'
-        row = self.profile['bootstrap_inputs'][path]
-        before = {'entries': {path: row['before']}}
-        current = {'entries': {path: row['after']}}
-        expected = OWNER.reader_boundary(before, self.profile, self.browser)
-        self.assertEqual(OWNER.reader_boundary(current, self.profile, self.browser), expected)
-        current['entries'][path] = {**row['after'], 'sha': 'f' * 40}
-        self.assertNotEqual(OWNER.reader_boundary(current, self.profile, self.browser), expected)
 
 
 class RoutingTests(unittest.TestCase):
@@ -261,7 +40,6 @@ class RoutingTests(unittest.TestCase):
                      'interface/resources/images/example.png'):
             with self.subTest(path=path):
                 self.assertEqual(POLICY.plan([path])['mode'], 'skip')
-
 
     def test_safe_landing_host_fixtures_have_exact_exemptions(self):
         fixtures = ['tests/safe-landing/safe-landing-driver.cpp',
@@ -1179,13 +957,6 @@ build unrelated: phony unrelated.cpp
             self.assertIn('--selection build/native-selection.json --output', source)
             self.assertIn('shader-cache.py refresh --build build/native', source)
             self.assertIn("QT_RCC_SOURCE_DATE_OVERRIDE: '1'", source)
-
-
-def load_tests(loader, suite, pattern):
-    # One existing required quick/host group owns the new boundary regressions.
-    module = load('native_app_boundary_tests', 'tests/native-app-boundary-test.py')
-    suite.addTests(loader.loadTestsFromModule(module))
-    return suite
 
 
 if __name__ == '__main__':

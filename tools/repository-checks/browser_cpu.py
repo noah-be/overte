@@ -29,11 +29,7 @@ REPOSITORY = {"full_name": "noah-l-frank/overte", "id": 1319052603}
 REVIEWED_REVISION = "141977b15cac4a73bd35705103bc25874a431a09"
 REVIEWED_WORKFLOW = "db09fbf3858e022d1f6f50eda61ecb657666cbe5"
 REVIEWED_BOUNDARY = "sha256:9d022439f2474aa2d8c88d6eaa973a9b5d9bf3d2e81ac1dd63ac7b18086bda02"
-# Independently reviewed post-V35 Browser/external readers. The first deployment
-# still requires FULL hosted verification; the whole CPU boundary above remains
-# separately unapproved for this newer control-plane source.
-REVIEWED_BROWSER_REVISION = "8aba2ad6cd78f0b1458538e1b01f6eda8720dd83"
-REVIEWED_BROWSER_BOUNDARY = "sha256:93b6825c28315af52ebb034d71a185291dd52850a021f1494a6358a65187a4db"
+REVIEWED_BROWSER_BOUNDARY = "sha256:8e1da7f4f7f586f07207e42a58cee0d1215e7f7252ee48bc188d5695b6ebfb7b"
 REVIEWED_OUTER = "81400ce4f8ce5eee1a7d95976378bc03e2d6fb05"
 REVIEWED_CONFIGURATION = "b4cbe180ed6816ae3f1930f61a7b36902ae13ca4"
 CPU_PATHS = frozenset("browser-client/" + path for path in (
@@ -91,19 +87,6 @@ JOBS = {"route", "cpu", "browser", "native-journey"}
 SHA = re.compile(r"[0-9a-f]{40}\Z")
 _DOMAIN = "overte-browser-cpu-history-selection-v1"
 _inputs = None
-_app_inputs = None
-
-
-def app_inputs():
-    """Load trusted dormant app-boundary policy, never a candidate helper."""
-    global _app_inputs
-    if _app_inputs is None:
-        spec = importlib.util.spec_from_file_location(
-            'trusted_browser_app_inputs', ROOT / 'tools/repository-checks/browser_app_inputs.py')
-        require(spec is not None and spec.loader is not None, 'trusted app-boundary helper unavailable')
-        _app_inputs = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(_app_inputs)
-    return _app_inputs
 
 
 def inventory():
@@ -199,19 +182,10 @@ def configuration_variants(policy_root=ROOT):
     return result
 
 
-def approved_outer_workflows(policy_root=ROOT):
-    """Exact additive callers; a complete trusted tuple is still mandatory."""
-    paths = [OUTER_TEMPLATE]
-    paths += ["tools/repository-checks/workflows/android-owned/" + name for name in (
-        "repository-checks-browser.yml", "repository-checks-browser-direct.yml")
-        if (Path(policy_root) / "tools/repository-checks/workflows/android-owned" / name).is_file()]
-    return {_blob(trusted_bytes(path, policy_root)) for path in paths}
-
-
 def _normalizations(policy_root):
     return {
         WORKFLOW: ({REVIEWED_WORKFLOW, _blob(canonical_workflow(policy_root))}, REVIEWED_WORKFLOW),
-        OUTER_WORKFLOW: ({REVIEWED_OUTER} | approved_outer_workflows(policy_root), REVIEWED_OUTER),
+        OUTER_WORKFLOW: ({REVIEWED_OUTER, _blob(trusted_bytes(OUTER_TEMPLATE, policy_root))}, REVIEWED_OUTER),
         CONFIGURATION: (configuration_variants(policy_root), REVIEWED_CONFIGURATION),
     }
 
@@ -240,20 +214,16 @@ def review_boundary(repository, revision, *, policy_root=ROOT):
 
 
 def _policy(policy_root):
-    policy = {"domain": _DOMAIN, "reviewed_revision": REVIEWED_REVISION,
+    return digest({"domain": _DOMAIN, "reviewed_revision": REVIEWED_REVISION,
                    "reviewed_boundary": REVIEWED_BOUNDARY, "cpu_paths": sorted(CPU_PATHS),
                    "independent_policy_paths": sorted(INDEPENDENT_POLICY_PATHS),
                    "legacy_workflow": REVIEWED_WORKFLOW, "canonical_workflow": _blob(canonical_workflow(policy_root)),
-                   "outer_workflow": sorted(approved_outer_workflows(policy_root)),
+                   "outer_workflow": _blob(trusted_bytes(OUTER_TEMPLATE, policy_root)),
                    "activation": json.loads(trusted_bytes(CONFIGURATION, policy_root)).get('browser_client_required_branches', []),
                    "browser_boundary": REVIEWED_BROWSER_BOUNDARY, "external_inputs": sorted(EXTERNAL_INPUTS),
-                   "browser_reviewed_revision": REVIEWED_BROWSER_REVISION,
                    "independent_roots": INDEPENDENT_ROOTS, "independent_files": sorted(INDEPENDENT_FILES),
                    "controller": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
-                   "inventory": hashlib.sha256((ROOT / "tools/test-evidence/inputs.py").read_bytes()).hexdigest()}
-    if app_inputs().enabled(trusted_bytes, policy_root):
-        policy['owner_contract'] = app_inputs().owner_identity(policy_root)
-    return digest(policy)
+                   "inventory": hashlib.sha256((ROOT / "tools/test-evidence/inputs.py").read_bytes()).hexdigest()})
 
 
 def classify(previous, current, *, policy_root=ROOT):
@@ -302,14 +272,8 @@ def validate_wiring(current, *, policy_root=ROOT):
     require(current["entries"].get(WORKFLOW) == {"mode": "100644", "type": "blob",
                                                 "sha": _blob(canonical_workflow(policy_root))},
             "browser workflow differs from trusted canonical orchestration")
-    require(current['entries'].get(OUTER_WORKFLOW) in [_entry(sha) for sha in approved_outer_workflows(policy_root)],
+    require(current['entries'].get(OUTER_WORKFLOW) == _entry(_blob(trusted_bytes(OUTER_TEMPLATE, policy_root))),
             'Browser requires the exact paired sole-owner outer workflow')
-    if current['entries'].get(OUTER_WORKFLOW) != _entry(_blob(trusted_bytes(OUTER_TEMPLATE, policy_root))):
-        spec = importlib.util.spec_from_file_location("browser_complete_package_tuple", ROOT / "tools/repository-checks/package_checks.py")
-        package = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(package)
-        package.ROOT = Path(policy_root)
-        package.validate_tree_wiring(current['entries'])
 
 
 def target_branch(event, event_name):
@@ -362,8 +326,7 @@ def _contract_at(candidate, revision, policy_root):
             continue
         metadata, path = row.split(b'\t', 1)
         mode, kind, sha = metadata.decode('ascii').split()
-        if mode == '100644' and kind == 'blob' and (expected.get(path.decode()) == sha or
-                path.decode() == OUTER_WORKFLOW and sha in approved_outer_workflows(policy_root)):
+        if mode == '100644' and kind == 'blob' and expected.get(path.decode()) == sha:
             return True
     return False
 
@@ -396,15 +359,11 @@ def route(event, event_name, candidate, expected_sha, *, policy_root=ROOT):
                 "invalid PR revisions")
         require(git(candidate, "show", "-s", "--format=%P", expected_sha).decode().split() == [base, head],
                 "candidate does not merge exact event base and head")
-        previous = snapshot(candidate, base)
-        selection = classify(previous, current, policy_root=policy_root)
+        selection = classify(snapshot(candidate, base), current, policy_root=policy_root)
     else:
         require(event_name == "workflow_dispatch" and "pull_request" not in event, "unsupported browser event")
         base, head = "", expected_sha
         selection = {"mode": "full", "audit": True, "reason": "manual-full-verification"}
-    if app_inputs().enabled(trusted_bytes, policy_root):
-        for tree in (previous, current) if event_name == 'pull_request' else (current,):
-            app_inputs().validate_owner_inventory(tree, inventory()._validate_tree, policy_root)
     binding = {"candidate": expected_sha, "tree": current["tree"], "base": base, "head": head, 'target': target,
                "mode": selection["mode"], "audit": str(selection["audit"]).lower()}
     return {**binding, "plan": digest({"policy": _policy(policy_root), "event_name": event_name,

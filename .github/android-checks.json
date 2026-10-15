@@ -73,13 +73,9 @@
     "android-vr",
     "contracts",
     "coverage",
-    "endurance",
     "fast",
     "mutation",
-    "mutation-extended",
-    "regression",
-    "robolectric",
-    "stability"
+    "robolectric"
   ],
   "catalog_suites": {
     "test-android-e2e-launcher": {
@@ -452,49 +448,6 @@
       ],
       "tiers": [
         "mutation"
-      ]
-    },
-    "native-policy-endurance": {
-      "command": [
-        "common/tests/native/run-endurance-tests.sh"
-      ],
-      "tiers": [
-        "endurance"
-      ]
-    },
-    "qml-lifecycle-endurance": {
-      "command": [
-        "common/tests/qml/run-endurance-tests.sh"
-      ],
-      "tiers": [
-        "endurance"
-      ]
-    },
-    "device-free-order-isolation-stability": {
-      "command": [
-        "common/tests/stability/run-tests.sh"
-      ],
-      "tiers": [
-        "stability"
-      ]
-    },
-    "phone-device-free-regression": {
-      "command": [
-        "phone/tests/phone-static-regression-test.sh"
-      ],
-      "tiers": [
-        "regression"
-      ]
-    },
-    "critical-policy-mutations-extended": {
-      "command": [
-        "common/tests/mutation/run-critical-policy-mutations.sh",
-        "--extended",
-        "--report",
-        "build/reports/mutation/critical-policies-extended.json"
-      ],
-      "tiers": [
-        "mutation-extended"
       ]
     }
   },
@@ -1036,75 +989,6 @@
         "serverless-fixtures",
         "power-analyzer"
       ]
-    },
-    "critical-policy-mutations-extended": {
-      "command": [
-        "bash",
-        "common/tests/mutation/run-critical-policy-mutations.sh",
-        "--extended",
-        "--report",
-        "build/reports/mutation/critical-policies-extended.json"
-      ],
-      "timeout": 480,
-      "variant": "mutation-extended",
-      "report": null,
-      "cases": []
-    },
-    "device-free-order-isolation-stability": {
-      "command": [
-        "bash",
-        "common/tests/stability/run-tests.sh"
-      ],
-      "timeout": 1800,
-      "variant": "stability",
-      "report": null,
-      "cases": []
-    },
-    "javascript-lifecycle-endurance-scaled": {
-      "command": [
-        "bash",
-        "common/tests/javascript/run-lifecycle-endurance.sh"
-      ],
-      "timeout": 120,
-      "variant": "endurance",
-      "report": null,
-      "cases": [],
-      "environment": {
-        "OVERTE_JS_ENDURANCE_CYCLES": "100"
-      }
-    },
-    "native-policy-endurance": {
-      "command": [
-        "bash",
-        "common/tests/native/run-endurance-tests.sh"
-      ],
-      "timeout": 120,
-      "variant": "endurance",
-      "report": null,
-      "cases": [],
-      "environment": {
-        "OVERTE_NATIVE_ENDURANCE_CYCLES": "1000"
-      }
-    },
-    "qml-lifecycle-endurance": {
-      "command": [
-        "bash",
-        "common/tests/qml/run-endurance-tests.sh"
-      ],
-      "timeout": 120,
-      "variant": "endurance",
-      "report": null,
-      "cases": []
-    },
-    "phone-device-free-regression": {
-      "command": [
-        "bash",
-        "phone/tests/phone-static-regression-test.sh"
-      ],
-      "timeout": 480,
-      "variant": "regression",
-      "report": null,
-      "cases": []
     }
   },
   "views": {
@@ -1413,38 +1297,6 @@
     "mutation": {
       "critical-policy-mutations": {
         "execution": "critical-policy-mutations",
-        "cases": []
-      }
-    },
-    "mutation-extended": {
-      "critical-policy-mutations-extended": {
-        "execution": "critical-policy-mutations-extended",
-        "cases": []
-      }
-    },
-    "stability": {
-      "device-free-order-isolation-stability": {
-        "execution": "device-free-order-isolation-stability",
-        "cases": []
-      }
-    },
-    "endurance": {
-      "javascript-lifecycle-endurance": {
-        "execution": "javascript-lifecycle-endurance-scaled",
-        "cases": []
-      },
-      "native-policy-endurance": {
-        "execution": "native-policy-endurance",
-        "cases": []
-      },
-      "qml-lifecycle-endurance": {
-        "execution": "qml-lifecycle-endurance",
-        "cases": []
-      }
-    },
-    "regression": {
-      "phone-device-free-regression": {
-        "execution": "phone-device-free-regression",
         "cases": []
       }
     }
@@ -1798,27 +1650,5 @@
     "artifact_id": 11955867510,
     "candidate": "d76d7195ee92d0a10a3d9b7a62400a6b489c39d9",
     "cases": 80
-  },
-  "prerequisites": {
-    "mutation-extended": [
-      "fast",
-      "contracts",
-      "coverage"
-    ],
-    "stability": [
-      "fast",
-      "contracts",
-      "coverage"
-    ],
-    "endurance": [
-      "fast",
-      "contracts",
-      "coverage"
-    ],
-    "regression": [
-      "fast",
-      "contracts",
-      "coverage"
-    ]
   }
 }

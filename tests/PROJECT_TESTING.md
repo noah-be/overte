@@ -8,6 +8,17 @@ Run commands from the repository root. The shared runner provides repository
 checks, a complete portable host profile, and an optional configured native
 layer. Physical-device acceptance has separate commands and evidence requirements.
 
+Automatic Browser client workflows run only when their own client files change:
+`browser-client/` for the Browser client and `browser-direct-client/` for the
+Direct browser client. Their package manifests and lockfiles remain relevant.
+Markdown-only edits, workflow configuration, cleanup, shared native sources and
+platform-only changes do not start Browser builds, rendering tests or journeys.
+The atomic-settings diagnostic retains only its exact Browser laboratory inputs.
+Workflow changes receive the ordinary workflow/security contract checks. Native
+and platform changes retain their applicable independent checks. Explicit manual
+diagnostics remain available. Required Browser-owner activation is not deployed
+by this change.
+
 ## Host prerequisites
 
 Pull requests changing only the regular `package.json` / `package-lock.json`
@@ -384,79 +395,12 @@ and iOS-host decisions, and binds the complete candidate selection to a digest.
 The final verifier requires its own event and candidate checkout and recomputes
 every route field; it does not accept a caller's reason or skipped-job claim.
 
-The legacy protocol still rejects unsupported lightweight final reports. Its
-existing canonical template and full IPA verifier remain unchanged. The next
-protocol is separately prepared in `tools/ios-build-qualification/host-workflow.yml`;
-the old `inputSelection` boolean cannot select or authorize that generation.
-
-The default-off iOS host handoff admits one complete source generation, including
-the top-level workflow, both local reusable callees, host launcher, hosted network
-wrapper and Python dependency declaration. The unchanged source pins come from
-the reviewed apple-ios revision `52f1cc38180e96cdfd8049a4be93517961ae7dbd`.
-The trusted policy pins their Git modes and blob identities; it reads fixed blob
-contents from the candidate's object store instead of copying the large reusable
-workflows into main. A missing, altered or mixed generation fails. A next-generation
-protected base cannot roll back to the legacy protocol. Policy activation targets
-are empty and the independent `SOURCE_READY` guard is false.
-
-Every non-noop next-generation candidate requires the complete existing iOS host
-suite once. Only a host/documentation delta that the unchanged application selector
-proves independent in both full trees may skip Qt provision and the client build.
-Application, mixed, unknown, mode, packaged-resource, stale-reader and manual
-changes retain the full application requirement. The exact three-tree noop proof
-alone may skip all three jobs. No application exclusions or reader anchors are
-expanded by this preparation.
-
-One finite, still default-off bootstrap can avoid the first unrelated client
-build: the complete base tree must be the independently reviewed legacy tree
-`f5b44d19b5c64c96bc3f73f72c51519dbfbf08a3` from `52f1cc3...`, and the head and
-merge inventories must differ from it ONLY by replacing the regular top-level
-`ios-build-qualification.yml` with the exact trusted `host-v1` template. The full
-six-source legacy and next generations, unchanged app callees/launcher/dependency
-declaration, ordered PR parents and exact head/merge tree equality are checked.
-The reason is `reviewed-host-v1-workflow-bootstrap`; the complete same-run iOS
-host remains mandatory, while Qt/client/IPA are not required. Any additional
-documentation, host, package, app, unknown, deletion, rename or mode delta loses
-this exception. It cannot refresh a reader anchor, admit npm paths or carry a
-reader-then-host edit. Older artifacts retain their original source identity.
-
-The trusted next-generation route and final CLI independently read the current
-PR and both branch heads before and after their work. Fixed `/usr/bin/gh` uses
-GET only against github.com and the exact fork, an isolated configuration and a
-bounded, sanitized read credential environment. Current repository/PR identity,
-open state, target, base/head/merge SHAs and immutable ordered parents must agree;
-missing, changed or unavailable API facts fail without publishing a light route
-or successful report. Caller-provided metadata cannot replace these reads. Pure
-route/report functions alone are not a current-PR authentication boundary.
-
-The host plan binds the complete Git input tree, fixed launcher entrypoints,
-discovery inventories and retained native/QML/renderer variants. The trusted host
-controller requires Qt6 Core/Gui/Qml/Concurrent/WebChannel, Vulkan/GLM, all existing
-QML modules, the real QML runner, Node 22 and the reviewed network wrapper before
-executing the unchanged launcher. Optional local Qt skips cannot produce a CI
-host success. Candidate children receive no API tokens or Actions command files;
-tracked inputs and the independently derived plan are checked after execution.
-
-The next final receives its own event and exact candidate, recomputes every route
-field, and requires the selected same-run host job and successful nonempty
-`Run iOS host contracts` step. Host-only evidence binds the run, attempt, source,
-generation and full host-input identity without qualifying or reusing an IPA.
-The initial host proof supports attempt 1 only, with API identity and actual
-job/step timestamps. Every later attempt fails closed because new API snapshot
-IDs, attempt fields and timestamps do not independently reconstruct original
-execution. M6 must authenticate that original producer before retries or reuse
-can be admitted. Legacy full-build retry and IPA checks retain their existing
-behavior. No cross-run host reuse is introduced.
-
-These offline real-Git regressions run inside the existing
-`ios-build-qualification` quick/host suite, whose repository closure includes the
-new policy, controller, template and small immutable launcher fixture. They use
-disposable trusted source/reader policies and require no Apple branch fetch,
-product compilation, artifact download or live qualification. Activation and
-real hosted qualification remain separate reviewed work.
-The bootstrap source and updated canonical template must be composed with the
-separate Stage B/M5 preparation before any activation. `SOURCE_READY` stays false,
-activation targets stay empty, and the legacy template remains byte-identical.
+No policy activation or workflow change is included. Enabled lightweight final
+reports fail until an independently authenticated shared host owner is wired.
+Before activation, stage that owner verification and the approved canonical
+workflow outputs (`host_required` and `selection`) and final event/candidate
+arguments through the parent policy. The existing template remains unchanged.
+Do not replace this missing evidence with another unconditional iOS-host run.
 
 Parent qualification uses the default-branch `tools/test-evidence/run.py`
 controller against a separate clean candidate checkout. It records actual
@@ -491,15 +435,12 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `producer-proof` | `quick` | `python3 tests/run-project-tests.py --suite producer-proof` |
 | `host-producer-preparation` | `quick` | `python3 tests/run-project-tests.py --suite host-producer-preparation` |
 | `producer-api` | `quick` | `python3 tests/run-project-tests.py --suite producer-api` |
-| `shared-sandbox` | `quick` | `python3 tests/run-project-tests.py --suite shared-sandbox` |
-| `shared-sandbox-host` | `quick` | `python3 tests/run-project-tests.py --suite shared-sandbox-host` |
 | `attested-runtime` | `quick` | `python3 tests/run-project-tests.py --suite attested-runtime` |
 | `project-runner` | `quick` | `python3 tests/run-project-tests.py --suite project-runner` |
 | `python-test-runner` | `quick` | `python3 tests/run-project-tests.py --suite python-test-runner` |
 | `repository-checks` | `quick` | `python3 tests/run-project-tests.py --suite repository-checks` |
 | `android-ci` | `quick` | `python3 tests/run-project-tests.py --suite android-ci` |
 | `android-orchestration` | `quick` | `python3 tests/run-project-tests.py --suite android-orchestration` |
-| `android-owner-transfer` | `quick` | `python3 tests/run-project-tests.py --suite android-owner-transfer` |
 | `android-build-inputs` | `quick` | `python3 tests/run-project-tests.py --suite android-build-inputs` |
 | `codeql-selection` | `quick` | `python3 tests/run-project-tests.py --suite codeql-selection` |
 | `browser-cpu-selection` | `quick` | `python3 tests/run-project-tests.py --suite browser-cpu-selection` |
@@ -748,173 +689,6 @@ Intentional legacy syntax exceptions remain exact allowlists; the health suite
 rejects new or stale exceptions.
 
 
-## Dormant shared execution sandbox foundation
-
-The `shared-sandbox` quick/host suite checks a disabled source contract, fixed
-Bubblewrap argument plans, immutable Git reads, bounded diagnostic process
-control and actual-process probe parsers. Run it with
-`python3 tests/run-project-tests.py --suite shared-sandbox`. These offline
-fixtures do not qualify Linux isolation, toolchain compatibility or reusable
-test evidence. No production workflow uses this preparation.
-
-`.github/shared-sandbox.json` has no qualified hosts and cannot be enabled by
-changing a boolean or submitting probe JSON. `sandbox.execute()` and
-`capture_after_execution()` reject every request. Contract identity binds the
-actual supervisor/probe/runtime bytes and recursive trusted requirement pins;
-it describes required behavior, not an observed execution. The local probe
-reports the actual process and interpreter environment as diagnostic data with
-no authority. It never labels an ordinary host process as a sandbox.
-
-The fixed plan mounts candidate source and its Git metadata, trusted source
-projection, virtualenv and identified system/toolcache packages read-only.
-Private build output, temporary files and HOME are writable; protected outer
-reports and runner files are absent. Arbitrary mounts, environment variables,
-entrypoints and optional namespace fallbacks are rejected. Reviewed Qt variants
-and versioned setup-node/Java/Python toolcache paths remain explicit. The source
-reader uses immutable raw commits with replacements, hooks, fsmonitor and
-network protocols disabled; it never invokes candidate status/diff filters.
-Shared/partial Git stores are unsupported. It does not yet certify materialized
-worktree bytes: production needs a verified private immutable snapshot.
-
-Actual host qualification must establish a separate real host UID without sudo
-rights, mandatory mount/PID/user/network/IPC boundaries, a private procfs,
-closed extra descriptors, no host sockets, no-new-privileges and removed
-capabilities. Mapping a UID inside a user namespace alone is insufficient.
-Private loopback must work without external routing. Existing host fixtures
-require nested user/network namespaces, C++/CMake/Ninja, Qt 5/6, GLM, Java,
-Node/npm and the prepared Python aliases; disabling those features or skipping
-their tests is not qualification. Tools and runtime must be measured inside the
-effective enforced profile using protected probes before execution and after
-confirmed descendant cleanup. An outside-host measurement is not equivalent.
-
-Waiting for Bubblewrap's main command is not proof that all descendants exited:
-its monitor can return while its namespace init still waits for children.
-See the [reviewed Bubblewrap lifecycle source](https://github.com/containers/bubblewrap/blob/v0.9.0/bubblewrap.c#L457-L625).
-The diagnostic supervisor's process-group cleanup therefore never authorizes a
-post-probe or reusable result. A future trusted parent-owned cgroup-v2 domain
-must contain the launcher before candidate execution, prevent migration and
-candidate access, and prove the whole scope empty. Linux documents
-`cgroup.kill` for subtree termination and `cgroup.events` `populated=0` for no
-live descendants in the [cgroup-v2 interface](https://www.kernel.org/doc/html/latest/admin-guide/cgroup-v2.html).
-The parser alone authenticates neither a kernel filesystem nor scope ownership.
-Hosted availability, protected provisioning and the complete positive and
-adversarial qualification remain unobserved prerequisites.
-
-The subsequent producer stage needs its own top-level run with only trusted
-jobs, an early descriptor, actual sandboxed shared execution and a terminal
-aggregate. A reusable workflow inside an unisolated outer run does not provide
-that artifact-upload boundary. The ordinary host lane must transfer ownership
-atomically so this producer does not duplicate it. Nonshared owners remain
-unsupported until their full receipts exist. Original/latest-attempt authority,
-raw archive API verification, immutable workflow source and current candidate
-bookends remain separate requirements. Legacy parent artifacts and the disabled
-attested-environment consumer cannot acquire stronger guarantees from this
-preparation or a policy toggle.
-
-The additional `shared-sandbox-host` quick/host suite checks the
-manual host diagnostic's control order and negative results with fake kernel
-facts and fixed process fixtures. The actual manual workflow is
-[`.github/workflows/shared-sandbox-host-diagnostic.yml`](../.github/workflows/shared-sandbox-host-diagnostic.yml),
-and must exactly match its reviewed source template under
-`tools/test-evidence/workflows/`. It has no PR, push, schedule or reusable-workflow
-trigger and is never an ordinary PR requirement. The quick suite performs no
-dispatch, package installation, local user provisioning or actual host qualification.
-
-On the fork's protected `main`, that manual-only workflow can provision
-one fixed, locked, no-home account on a disposable Ubuntu 24 GitHub-hosted VM.
-Its first step rejects any other source context before checkout or provisioning;
-it accepts no candidate command, token, branch or fixture input. Its only token
-permission is repository-content read, the immutable checkout stores no
-credentials, and its artifact is diagnostic output with no reuse authority.
-It checks actual account groups and root's sudo policy, then starts a transient
-root service with `systemd-run --wait --pipe --property=Delegate=yes`. The
-diagnostic independently queries the unit's `ControlGroup` and `Delegate`,
-compares its actual `/proc/self/cgroup`, and verifies the real writable cgroup-v2
-mount. It moves its controller to its own child and creates root-only fixture
-scopes below the delegated subtree. It never writes attributes of systemd's
-root or the delegated unit itself. This follows
-[systemd's delegation ownership rules](https://systemd.io/CGROUP_DELEGATION/).
-
-The diagnostic installs no packages. The disposable host must already provide
-root-owned non-setuid Bubblewrap, `ip`, `unshare`, system Python with `venv`,
-`sudo` and a systemd manager with writable cgroup-v2 delegation. Provisioning
-needs the hosted runner's passwordless sudo authority and the reviewed namespace
-sysctl; an existing diagnostic account is rejected rather than reused. Missing
-tools, unsupported manager/kernel behavior or inaccessible source/command-file
-paths fail the run. Their availability has not been established by offline
-checks, and a failed diagnostic must be investigated before retrying.
-
-A trusted bootstrap starts with a distinct actual UID/GID and no supplementary
-groups, and waits before executing Bubblewrap. The parent checks its kernel
-identity, moves it into an exclusively owned scope and confirms membership
-before release. Only the gate descriptor crosses that launch boundary and is
-closed before exec. Fixed, read-only fixture bytes then probe private procfs,
-all mandatory namespaces, no-new-privileges/capabilities, read-only source/Git/
-policy/venv mounts, private writable HOME/temp/build, actual runner command-file
-inaccessibility, host filesystem/abstract sockets and descriptor canaries.
-Neither command files nor credential contents are read or logged. Private
-loopback and nested user/network namespaces must actually work. Bubblewrap's
-[network setup implementation](https://github.com/containers/bubblewrap/blob/v0.9.0/network.c#L128-L185)
-initializes its own loopback; the nested fixture explicitly initializes its
-new private interface. No existing assertion is waived.
-
-Daemon, bounded fork and timeout cases confirm kernel-subtree termination using
-parent-opened `cgroup.kill`/`cgroup.events` descriptors. A source-supplied JSON,
-EOF, PID/group exit or namespace UID number cannot authenticate that ownership.
-For daemon and fork-exit, the trusted low-UID bootstrap creates one or three
-fixed trusted cleanup canaries only after authenticated scope attachment and
-release.
-They close standard streams and acknowledge readiness before the unchanged
-Bubblewrap command starts. These controls remain outside its private PID
-namespace, because namespace-init teardown could otherwise already reap the
-inner fixture. After reaping the initial command, the parent must observe
-`populated=1` and the minimum actual kernel member count in its owned subtree;
-the report retains this observation before `cgroup.kill` establishes zero.
-Missing or already empty observations fail. These prove kernel cleanup of the
-trusted canaries, rather than sandbox escape or inner-fixture survival beyond
-PID namespace teardown. The separate fixed controls have a bounded lifetime
-beyond the case deadline, and no sandbox namespace assertion
-or production execution guard is relaxed.
-Unavailable tools, unsupported delegation, nonempty scopes or failed attacks
-return nonzero, with no successful skip. The template fails unsupported source
-contexts before provisioning and collects the transient service afterward.
-Its namespace sysctl setting matches the existing disposable Ubuntu host
-profile; the local quick checks never change it.
-
-Even a future `boundary-diagnostic-passed` record has `authority=none`,
-`production_qualified=false` and `runtime_compatibility=unqualified`. It records
-actual image/kernel/tool/source identities for review, not a reusable suite
-receipt. Full Node/Java/Qt/GLM/Python dependency/variant compatibility, verified
-materialized candidate snapshots, protected same-profile before/after runtime
-capture, abrupt-controller-death cleanup, producer/API provenance and the
-atomic ownership handoff remain prerequisites. Hosted systemd/kernel support
-has not been observed by these offline fixtures; enabling production or legacy
-attested reuse remains impossible through this diagnostic.
-
-The read-only `producer_api.py` adapter additionally prepares an explicit
-`manual-main-v1` source kind. The existing `reusable-pr` contract remains the
-default. Manual support requires a separately supplied trusted `ManualSource`
-with `enabled=True`, the exact current `main` controller commit and root tree,
-its complete reviewed executable-source inventory, workflow ID/path/blob and
-controller digest. No real manual workflow or controller generation is approved
-or installed by this preparation; fake-API tests use synthetic source objects.
-A manual run's `head_sha` identifies its controller, never the tested candidate.
-The adapter independently reads the current PR base/head/merge/tree/parents;
-candidate context and inner receipts remain separate proof requirements.
-
-Manual source admission supports only a first-ever attempt numbered 1. It reads
-the [specific run attempt](https://docs.github.com/en/rest/actions/workflow-runs#get-a-workflow-run-attempt),
-the [attempt's job inventory and individual job IDs](https://docs.github.com/en/rest/actions/workflow-jobs#list-jobs-for-a-workflow-run-attempt),
-and Actions check-suite/app authority. A later attempt is explicitly unavailable;
-old timestamps and a current job snapshot do not establish original execution.
-Unknown, pending, failed, incomplete or changed evidence never falls back to an
-older green. The [artifact API](https://docs.github.com/en/rest/actions/artifacts#get-an-artifact)
-binds archive bytes to a run; it does not identify the uploading job. Exact
-reviewed controller source must still protect publication from candidate work.
-Even a well-formed manual aggregate remains blocked at the adapter terminal:
-protected post-kill receipt verification has not been implemented. Enabling the
-source policy cannot turn ordinary receipt JSON into that missing proof.
-
 ## Dormant required Android orchestration
 
 The `android-orchestration` quick/host group verifies the next required Android
@@ -967,66 +741,13 @@ caller. The Android callee must also match its trusted canonical blob; individua
 approved files cannot be freely mixed. The generation manifest and actual helper
 sources are bound in the plan. The older package templates remain byte-identical.
 
-## Dormant complete Android ownership transfer
-
-The `android-owner-transfer` quick/host group exercises the next complete,
-context-specific generation under `tools/repository-checks/workflows/android-owned/`.
-Four additive complete tuples cover ordinary, Direct Browser, Browser, and
-combined callers. Existing approved tuples and prototype sources remain intact.
-No active workflow, profile or required branch is changed by this preparation.
-
-The original two Android workflows are retained as exact ordinary fixtures under
-`tests/fixtures/android-owner-transfer/`. The tests verify their fixed reviewed
-Git blob identities with system Git before applying the original trigger-removal
-assertions. They work without repository metadata or historical objects, so
-shallow CI checkouts need no child-ref fetch or additional history.
-
-The proposed PR handoff removes only the two legacy Android workflows' PR
-triggers; their push, schedule, manual jobs, conditions, reports and thresholds
-remain available. The exact replacement source contracts preserve their other
-assertions and validate the new owner. Trusted old and replacement Git blob IDs
-and modes prevent overwriting an unreviewed branch contract. Immutable predecessor
-and candidate profile checks preserve all 13 common or 19 Phone entries, including
-future extras. Static profiles remain complete for direct project, push, sync,
-scheduled and legacy callers.
-
-Every selected PR still runs the ordinary 40-owner union including critical
-mutation, regardless of the head branch name. The `android-long-diagnostics`
-label additionally selects extended mutation, order/isolation stability, and
-three distinct endurance owners. Both label addition and removal trigger a new
-required result. The resulting labeled PR has 45 owners. Manual verification
-preserves the first five ordinary views, adds these diagnostics and runs Phone
-regression by default; its typed `run_regression` input can omit only regression.
-The complete union of all views contains 46 distinct owners. Diagnostics require
-actual successful fast, contracts and instrumented coverage prerequisites. A
-failed prerequisite records blocked diagnostics and fails the final gate.
-Normal and extended mutation, JaCoCo/gcov/JavaScript coverage, default and scaled
-JavaScript endurance, native endurance and QML lifecycle checks remain distinct.
-
-The new project launcher can transfer only the existing Pico profile execution
-to the independent required Android owner. Before candidate code runs it checks
-the actual GitHub outer caller, workflow source, candidate and event; then it
-independently derives the exact complete tuple and handoff plan. There is no CLI
-skip option or candidate-provided owner flag. Shared and Android jobs start in
-parallel. The launcher records Pico as pending independent ownership, never as a
-passed profile test. Its schema-2 execution receipt is diagnostic and explicitly
-nonreusable. The outer final requires the selected Android job's actual success
-and exact candidate, plan and inventory, including Pico. Missing, skipped or
-failed ownership blocks the merge. Other profile suites execute normally once.
-
-Activation remains unavailable: trusted `required_branches` is empty,
-`ACTIVATION_READY` is false, and hosted qualification is an explicit blocker.
-Clearing JSON alone cannot authorize deployment. Before activation, qualify the
-complete prospective generation on each real branch, review the final reader
-anchors, stage trusted admission on the default branch, and atomically deploy
-its callers, callees, source contracts and legacy PR-trigger retirement.
-Main/Apple bootstrap callers may skip Android only when both immutable PR trees
-contain no Android source or legacy Android workflow and retain the regular,
-empty shared platform profile. Manual callers prove the same current-tree
-absence. Unexpected source, a nonregular input, an Android or unknown profile,
-or removal of a predecessor's Android ownership fails closed. Existing artifact
-diagnostics do not authenticate cross-run reuse. This slice performs
-source-only and disposable-process qualification; it makes no new Robolectric,
-native product, Gradle, APK or hosted execution claim. Non-PR post-merge push
-runs and direct legacy contexts intentionally retain their current checks; their
-remaining repetitions belong to the later event/evidence ownership work.
+Activation is deliberately unavailable: trusted `required_branches` is empty,
+two explicit blockers remain, and `ACTIVATION_READY` is false in the controller.
+Clearing JSON fields alone cannot authorize deployment. A later reviewed change
+must transfer advisory/profile ownership atomically, preserve the other 12 common
+or 18 Phone profile suites, and transfer the `android-long-diagnostics` and manual
+mutation/stability/endurance/regression prerequisites. Simply disabling the old
+ordinary jobs would skip label-selected jobs through their existing `needs`.
+Their exact transfer is outside this preparation. Manual ordinary verification
+preserves the existing first-five-view behavior; critical mutation remains
+mandatory on every selected PR. No branch-name waiver or evidence reuse is added.

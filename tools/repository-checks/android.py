@@ -30,8 +30,6 @@ ROOT = Path(__file__).resolve().parents[2]
 PRODUCER = "overte-trusted-android-execution-v1"
 VIEWS = ("fast", "contracts", "coverage", "android-vr", "pico", "mutation")
 DEFAULT_VIEWS = list(VIEWS[:-1])
-DIAGNOSTIC_VIEWS = ("mutation-extended", "stability", "endurance", "regression")
-SUPPORTED_VIEWS = VIEWS + DIAGNOSTIC_VIEWS
 MAX_SOURCE_BYTES = 2_000_000
 EXECUTION_FILES = ("tools/repository-checks/android.py", "tools/test-evidence/execution.py",
                    "tools/test-evidence/runtime.py", "tools/test-evidence/inputs.py", "tests/run-project-tests.py",
@@ -189,17 +187,17 @@ def load_policy(policy_root=ROOT):
     policy = _json(_file(Path(policy_root), ".github/android-checks.json"))
     fields = {"schema", "repository", "repository_id", "branches", "environment", "reviewed_sources",
               "catalog_tiers", "catalog_suites", "executions", "views", "branch_cases",
-              "robolectric_sources", "branch_robolectric_sources", "reviewed_robolectric_report", "prerequisites"}
+              "robolectric_sources", "branch_robolectric_sources", "reviewed_robolectric_report"}
     if not isinstance(policy, dict) or set(policy) != fields or type(policy["schema"]) is not int \
             or policy["schema"] != 1 or policy["repository"] != "noah-l-frank/overte" \
             or policy["repository_id"] != 1319052603 or policy["environment"] != "android-host-java21-v1" \
-            or set(policy["views"]) != set(SUPPORTED_VIEWS) or len(policy["branches"]) != 4 \
+            or set(policy["views"]) != set(VIEWS) or len(policy["branches"]) != 4 \
             or set(policy["branches"]) != {"android-main", "android-phone", "android-vr", "android-vr-pico"}:
         raise AndroidError("invalid trusted Android policy")
     for name, item in policy["executions"].items():
-        if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", name) or set(item) not in (
-            {"command", "timeout", "variant", "report", "cases"},
-            {"command", "timeout", "variant", "report", "cases", "environment"}) or not isinstance(item["command"], list) or len(item["command"]) < 2 \
+        if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", name) or set(item) != {
+            "command", "timeout", "variant", "report", "cases"
+        } or not isinstance(item["command"], list) or len(item["command"]) < 2 \
                 or item["command"][0] not in ("python", "bash") \
                 or type(item["timeout"]) is not int or not 0 < item["timeout"] <= 3600 \
                 or item["report"] not in (None, "native", "robolectric", "pico") \
@@ -208,19 +206,11 @@ def load_policy(policy_root=ROOT):
     for name, item in policy["executions"].items():
         if name == "pico4-device-free":
             continue
-        original = policy["catalog_suites"].get("javascript-lifecycle-endurance" if name ==
-                                                   "javascript-lifecycle-endurance-scaled" else name)
+        original = policy["catalog_suites"].get(name)
         if original is None or item["command"] != [
             "python" if original["command"][0].endswith(".py") else "bash", *original["command"]
         ]:
             raise AndroidError("trusted Android execution disagrees with its reviewed catalog command")
-    if policy["prerequisites"] != {name: ["fast", "contracts", "coverage"] for name in DIAGNOSTIC_VIEWS}:
-        raise AndroidError("diagnostics must retain all ordinary prerequisite views")
-    for name, item in policy["executions"].items():
-        expected_environment = {"javascript-lifecycle-endurance-scaled": {"OVERTE_JS_ENDURANCE_CYCLES": "100"},
-                                "native-policy-endurance": {"OVERTE_NATIVE_ENDURANCE_CYCLES": "1000"}}.get(name, {})
-        if item.get("environment", {}) != expected_environment:
-            raise AndroidError("Android diagnostic scale or ambient overrides differ from reviewed policy")
     for branch, owners in policy["branch_cases"].items():
         if branch not in policy["branches"] or not isinstance(owners, dict):
             raise AndroidError("invalid Android branch assertion ownership")
@@ -320,12 +310,9 @@ def plan(candidate, branch, *, views=None, policy_root=ROOT):
         raise AndroidError("Android plan requires a reviewed product branch")
     selected = list(DEFAULT_VIEWS) if views is None else views
     if not isinstance(selected, list) or any(not isinstance(name, str) for name in selected) \
-            or len(set(selected)) != len(selected) or any(name not in SUPPORTED_VIEWS for name in selected):
+            or len(set(selected)) != len(selected) or any(name not in VIEWS for name in selected):
         raise AndroidError("Android views must be unique trusted names")
-    selected = [name for name in SUPPORTED_VIEWS if name in selected]
-    if any(view in selected and not set(required).issubset(selected)
-           for view, required in policy["prerequisites"].items()):
-        raise AndroidError("diagnostic plan omits actual fast/contracts/coverage prerequisites")
+    selected = [name for name in VIEWS if name in selected]
     sources = _GitSources(candidate, commit, tree, shared)
     _validate_catalog(sources, policy)
     chosen = {name: json.loads(canonical(policy["views"][name])) for name in selected}
@@ -344,8 +331,7 @@ def plan(candidate, branch, *, views=None, policy_root=ROOT):
     source = {"policy": policy, "controller": "sha256:" + hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
     result = {"schema": 1, "repository": policy["repository"], "repository_id": policy["repository_id"],
               "branch": branch, "candidate": commit, "tree": tree, "policy": digest(source),
-              "environment": policy["environment"], "executions": executions, "views": chosen,
-              "prerequisites": {view: required for view, required in policy["prerequisites"].items() if view in chosen}}
+              "environment": policy["environment"], "executions": executions, "views": chosen}
     result["plan"] = digest(result)
     return result
 
@@ -493,7 +479,7 @@ def validate_environment(value):
 
 
 @contextmanager
-def process_environment(report_root, overrides=None):
+def process_environment(report_root):
     """Apply one policy to normalized runtime capture and candidate children."""
     shared, runtime = _shared()
     names = {name for name in os.environ if name.startswith(runtime._SENSITIVE_PREFIXES)
@@ -509,7 +495,6 @@ def process_environment(report_root, overrides=None):
              "OVERTE_GCOVR_COMMAND": "gcovr", "TMPDIR": str(report_root / "tmp"),
              "OVERTE_STATIC_QUALITY_TOOLS_DIR": str(Path(sys.prefix) / "overte-static-quality"),
              "GRADLE_USER_HOME": str(Path.home() / ".gradle")}
-    fixed.update(overrides or {})
     previous.update({name: os.environ.get(name) for name in fixed if name not in previous})
     (report_root / "tmp").mkdir(parents=True)
     with shared.candidate_process_environment():
@@ -687,15 +672,7 @@ def execute(candidate, branch, *, views=None, policy_root=ROOT, receipt_path=Non
                        str(report_root / "pico.xml") if value == "{report}" else value
                        for index, value in enumerate(item["command"])]
             cases, report_digest = {}, None
-            prerequisite_owners = {proof["execution"] for view, required in current["prerequisites"].items()
-                                   if name in {proof["execution"] for proof in current["views"][view].values()}
-                                   for prerequisite in required for proof in current["views"][prerequisite].values()}
-            if any(results.get(owner, {}).get("status") != "passed" for owner in prerequisite_owners):
-                results[name] = {"status": "blocked", "returncode": None, "command": digest(item["command"]),
-                                 "cases": {}, "reports": None, "environment": digest(environment)}
-                print(f"BLOCKED {name}: ordinary prerequisite did not pass")
-                continue
-            with process_environment(report_root, item.get("environment")):
+            with process_environment(report_root):
                 returncode, _output, _message = command_runner(command, item["timeout"], cancelled)
             status = "passed" if returncode == 0 else "failed"
             if status == "passed":
@@ -735,7 +712,7 @@ def main():
     parser.add_argument("--candidate", type=Path, required=True)
     parser.add_argument("--branch", required=True)
     selection = parser.add_mutually_exclusive_group()
-    selection.add_argument("--view", action="append", choices=SUPPORTED_VIEWS)
+    selection.add_argument("--view", action="append", choices=VIEWS)
     selection.add_argument("--no-views", action="store_true")
     parser.add_argument("--receipt", type=Path)
     parser.add_argument("--reports", type=Path)

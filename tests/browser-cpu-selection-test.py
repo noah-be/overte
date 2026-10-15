@@ -563,7 +563,12 @@ class CanonicalTemplateTests(unittest.TestCase):
         active = (ROOT / BROWSER.WORKFLOW).read_bytes()
         outer = (ROOT / BROWSER.OUTER_WORKFLOW).read_bytes()
         targets = json.loads(BROWSER.trusted_bytes(BROWSER.CONFIGURATION))['browser_client_required_branches']
-        if active == LEGACY:
+        # The existing advisory owner also supports this exact trigger-only
+        # reduction. It grants no required-owner activation or reader approval.
+        narrowed_advisory = LEGACY.replace(
+            b"      - '.github/workflows/browser-client.yml'\n",
+            b"      - '!browser-client/**/*.md'\n      - '!browser-client/**/*.mdx'\n", 1)
+        if active in (LEGACY, narrowed_advisory):
             self.assertEqual(outer, LEGACY_OUTER)
             self.assertEqual(targets, [])
         else:
