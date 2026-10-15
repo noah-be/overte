@@ -16,12 +16,15 @@ workflows; fifteen minutes is a detection interval, not a completion guarantee.
 Every assessment reads current GitHub state. It does not authorize deletion from
 a triggering event's result or execute candidate code or artifacts. If trusted
 `main` advances before adoption or planning starts work, the stale checkout
-reports `deferred`, a fixed reason and zero authorized candidates. The remaining
-planning/backup/deletion steps are skipped and a later scheduled run reassesses
+reports `deferred`, a fixed reason and zero authorized candidates after fresh
+ownership and ancestry checks confirm that both snapshots remain in current
+`main`. The remaining planning/backup/deletion steps are skipped and a later
+scheduled run reassesses
 from current trusted code. This early deferral performs no adoption mutation or
-branch deletion. Staleness during backup or apply, incomplete integration,
-invalid backups, API failures and permission errors remain failures; none are
-converted into deletion permission or a successful backup.
+branch deletion. Backup still requires an exact trusted checkout. During apply,
+a freshly verified advance of `main` also defers before deletion. Unproven
+staleness, incomplete integration, invalid backups, API failures and permission
+errors remain failures; none grant deletion permission or a successful backup.
 
 API errors include only fixed method, endpoint-family, HTTP-status and category
 labels in the redacted report. Unknown HTTP causes remain unknown; raw response
@@ -207,6 +210,22 @@ using that copy.
 The Actions run contains a `branch-cleanup-report-<run-id>-<run-attempt>` artifact
 with the plan and outcome. Retained branches carry reasons; successful deletions
 record their recovery information. Failures remain visible in the workflow run.
+
+Expected concurrent changes use status `deferred` and a successful workflow step,
+so they do not produce a failed-workflow notification. For a changed `main`
+snapshot, fresh fork ownership and GitHub ancestry checks must independently
+confirm that both snapshots remain in current `main`. An unrelated checkout,
+rewind, missing proof or unavailable API still fails. Newly observed activity or
+a changed candidate immediately before deletion also defers that attempt.
+
+A deferral stops the remaining mutations, records its reason in the summary and
+report, and leaves reassessment to closed-PR wake-ups and the bounded schedule. A
+deferred plan publishes zero candidates and removes any stale plan; a deferred
+history stage skips deletion planning. No `continue-on-error` masks errors.
+Invalid policy, ownership/protection failures, incomplete activity inventories,
+backup/restore errors and unexpected command/API failures remain red and retain
+their normal failure notifications. Personal GitHub notification preferences are
+unchanged.
 
 Manual dispatch defaults to `report`. It performs the assessment without creating
 backups or deleting branches:

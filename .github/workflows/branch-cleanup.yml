@@ -93,7 +93,7 @@ jobs:
             --report "$RUNNER_TEMP/branch-cleanup/adoption.json" "${mode_args[@]}"
 
       - name: Refresh trusted main after a history-only main merge
-        if: steps.history.outputs.main_advanced == 'true'
+        if: steps.history.outputs.main_advanced == 'true' && steps.history.outputs.deferred != 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: noah-l-frank/overte

@@ -1001,8 +1001,16 @@ class ApplyRecoveryTests(unittest.TestCase):
         self.artifact = dict(workflow_run={"id": 123}, name="branch-cleanup-backup-123-1",
                              expired=False, size_in_bytes=100, digest="sha256:" + "c" * 64)
 
-    def apply(self, artifact=None, plans=None):
+    def apply(self, artifact=None, plans=None, main=None):
         def get(endpoint):
+            if main is not None and endpoint == "git/ref/heads/main":
+                return {"object": {"sha": main}}
+            if main is not None and endpoint.startswith("compare/"):
+                revision = endpoint.split("/", 1)[1].split("...", 1)[0]
+                ancestor = self.fixture.git(self.fixture.seed, "merge-base", "--is-ancestor",
+                                            revision, main, check=False).returncode == 0
+                return {"status": "ahead" if ancestor else "diverged", "behind_by": 0 if ancestor else 1,
+                        "merge_base_commit": {"sha": revision if ancestor else self.fixture.initial}}
             self.assertEqual(endpoint, "actions/artifacts/456")
             self.events.append(("verify_artifact",))
             return self.artifact if artifact is None else artifact
@@ -1070,10 +1078,161 @@ class ApplyRecoveryTests(unittest.TestCase):
         self.prepare_apply()
         changed = {**self.plan, "candidates": [], "held": {self.fixture.merged_branch: ["open_pull_request_head"]}}
         result, report = self.apply(plans=[self.plan, changed])
-        self.assertEqual(result, 1)
-        self.assertEqual(report["error"], "activity_changed_before_delete")
+        self.assertEqual(result, 0)
+        self.assertEqual(report["status"], "deferred")
+        self.assertEqual(report["reason"], "activity_changed_before_delete")
+        self.assertNotIn("error", report)
+        self.assertEqual(report["held"][self.fixture.merged_branch], ["open_pull_request_head"])
         self.assertFalse(self.pushes())
         self.assert_branch_exists()
+
+
+    def test_confirmed_main_advance_before_or_after_restore_defers_without_deleting(self):
+        self.prepare_apply()
+        current = self.fixture.advance_remote_branch("main")
+        changed = {**self.plan, "source_sha": current}
+        for plans, reason in (([changed], "trusted_main_or_policy_changed"),
+                              ([self.plan, changed], "trusted_main_changed_before_delete")):
+            with self.subTest(reason=reason):
+                result, report = self.apply(plans=plans, main=current)
+                self.assertEqual(result, 0)
+                self.assertEqual(report["status"], "deferred")
+                self.assertEqual(report["reason"], reason)
+                self.assertEqual(report["deferred_details"]["current_main_sha"], current)
+                self.assertNotIn("error", report)
+                self.assertFalse(self.pushes())
+                self.assert_branch_exists()
+
+    def test_policy_mismatch_and_unproven_main_change_remain_real_failures(self):
+        self.prepare_apply()
+        for change, main in (({"policy_sha256": "c" * 64}, None),
+                             ({"source_sha": self.fixture.initial}, self.fixture.initial)):
+            with self.subTest(change=change):
+                result, report = self.apply(plans=[{**self.plan, **change}], main=main)
+                self.assertEqual(result, 1)
+                self.assertEqual(report["status"], "blocked")
+                self.assertEqual(report["error"], "trusted_main_or_policy_changed")
+                self.assertFalse(self.pushes())
+                self.assert_branch_exists()
+
+
+class ExpectedDeferralTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.adoption = load_adoption()
+        cls.module = cls.adoption.cleanup
+
+    def setUp(self):
+        self.previous, self.current = "a" * 40, "b" * 40
+        self.github = mock.Mock(spec=self.module.Github)
+        self.github.get.side_effect = self.response
+        self.policy = json.loads(POLICY_PATH.read_text())
+
+    def response(self, endpoint):
+        if endpoint == "git/ref/heads/main":
+            return {"object": {"sha": self.current}}
+        self.assertEqual(endpoint, f"compare/{self.previous}...{self.current}?per_page=1")
+        return {"status": "ahead", "behind_by": 0, "merge_base_commit": {"sha": self.previous}}
+
+    def run_entry(self, adoption=False, failure=None):
+        with tempfile.TemporaryDirectory() as directory:
+            report, output, summary, plan = (Path(directory) / name for name in
+                                             ("report.json", "output", "summary", "plan.json"))
+            plan.write_text("stale plan must not survive a deferral")
+            argv = ["adoption.py", "--report", str(report)] if adoption else [
+                "cleanup.py", "plan", "--report", str(report), "--output", str(plan)]
+            result = subprocess.CompletedProcess([], 0, stdout=self.previous + "\n", stderr="")
+            with mock.patch.object(sys, "argv", argv), \
+                    mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true", "GITHUB_OUTPUT": str(output),
+                                                "GITHUB_STEP_SUMMARY": str(summary)}, clear=True), \
+                    mock.patch.object(self.module, "Github", return_value=self.github), \
+                    mock.patch.object(self.module, "run", return_value=result), \
+                    mock.patch.object(self.module, "make_plan", return_value={"source_sha": self.current}), \
+                    mock.patch.object(self.adoption, "discover", return_value=([], {}, self.current)), \
+                    mock.patch.object(self.adoption.Graph, "fetch") as fetch, \
+                    mock.patch.object(self.adoption.Writer, "reconcile") as write:
+                if failure:
+                    self.github.get.side_effect = failure
+                code = self.adoption.main() if adoption else self.module.main()
+                fetch.assert_not_called()
+                write.assert_not_called()
+            return (code, json.loads(report.read_text()), output.read_text() if output.exists() else "",
+                    summary.read_text() if summary.exists() else "", plan.exists())
+
+    def test_plan_defers_with_zero_output_and_removes_stale_plan(self):
+        code, report, output, summary, plan_exists = self.run_entry()
+        self.assertEqual(code, 0)
+        self.assertEqual(report["status"], "deferred")
+        self.assertEqual(report["reason"], "trusted_checkout_is_stale")
+        self.assertNotIn("error", report)
+        self.assertEqual(report["candidate_count"], 0)
+        self.assertIn("candidate_count=0\n", output)
+        self.assertIn("deferred=true\n", output)
+        self.assertIn("Expected deferral", summary)
+        self.assertFalse(plan_exists)
+        self.github.verify_owner.assert_called_once()
+
+    def test_adoption_defers_and_signals_the_workflow_to_skip_deletion_planning(self):
+        code, report, output, summary, _ = self.run_entry(adoption=True)
+        self.assertEqual(code, 0)
+        self.assertEqual(report["status"], "deferred")
+        self.assertNotIn("error", report)
+        self.assertIn("deferred=true\n", output)
+        self.assertIn("main_advanced=false\n", output)
+        self.assertIn("Expected deferral", summary)
+
+    def test_api_errors_and_unproven_or_malformed_ancestry_stay_red(self):
+        for adoption in (False, True):
+            for proof in ({}, {"status": "diverged", "behind_by": 1},
+                          {"status": "ahead", "behind_by": 0, "merge_base_commit": {"sha": "c" * 40}},
+                          {"status": "ahead", "behind_by": 0, "merge_base_commit": None},
+                          {"status": "ahead", "behind_by": False, "merge_base_commit": {"sha": self.previous}},
+                          self.module.CleanupError("github_api_unavailable")):
+                with self.subTest(adoption=adoption, proof=proof):
+                    def response(endpoint):
+                        if endpoint == "git/ref/heads/main":
+                            return {"object": {"sha": self.current}}
+                        if isinstance(proof, Exception):
+                            raise proof
+                        return proof
+                    code, report, output, _, _ = self.run_entry(adoption=adoption, failure=response)
+                    self.assertEqual(code, 1)
+                    self.assertEqual(report["status"], "blocked")
+                    self.assertIn("error", report)
+                    self.assertNotIn("deferred=true", output)
+
+    def test_foreign_owner_is_a_real_failure_even_when_main_ancestry_looks_valid(self):
+        self.github.verify_owner.side_effect = self.module.CleanupError("repository_ownership_mismatch")
+        for adoption in (False, True):
+            code, report, _, _, _ = self.run_entry(adoption=adoption)
+            self.assertEqual(code, 1)
+            self.assertEqual(report["error"], "repository_ownership_mismatch")
+
+    def test_a_second_main_advance_requires_proof_for_both_earlier_snapshots(self):
+        newest = "c" * 40
+        for retained in (False, True):
+            with self.subTest(retained=retained):
+                def response(endpoint):
+                    if endpoint == "git/ref/heads/main":
+                        return {"object": {"sha": newest}}
+                    revision = endpoint.split("/", 1)[1].split("...", 1)[0]
+                    self.assertIn(revision, (self.previous, self.current))
+                    self.assertIn("..." + newest, endpoint)
+                    return {"status": "ahead" if retained or revision == self.previous else "diverged",
+                            "behind_by": 0, "merge_base_commit": {"sha": revision}}
+                self.github.get.side_effect = response
+                with self.assertRaises(self.module.CleanupError) as caught:
+                    self.module.defer_main_change(self.github, self.previous, self.current, "main_changed")
+                self.assertEqual(isinstance(caught.exception, self.module.CleanupDeferred), retained)
+
+    def test_app_write_is_stopped_before_mutation_on_a_confirmed_main_change(self):
+        writer = self.adoption.Writer(self.github, ROOT, "offline-app-token", "overte-test")
+        result = subprocess.CompletedProcess([], 0, stdout=self.previous + "\n", stderr="")
+        with mock.patch.object(self.module, "trusted_runtime"), \
+                mock.patch.object(self.module, "run", return_value=result) as run:
+            with self.assertRaises(self.module.CleanupDeferred):
+                writer.write("pulls", "POST", {"head": "example"})
+        self.assertTrue(all(call.args[0][0] == "git" for call in run.call_args_list))
 
 
 class AdoptedHistoryTests(unittest.TestCase):
@@ -1140,12 +1299,12 @@ class AdoptedHistoryTests(unittest.TestCase):
         self.github.get.return_value = {"object": {"sha": self.row["base_sha"]}}
         result = subprocess.CompletedProcess([], 0, stdout='{"ok": true}', stderr="")
         with mock.patch.object(self.module, "trusted_runtime") as runtime, \
-                mock.patch.object(self.module, "verify_checkout") as checkout, \
+                mock.patch.object(self.module, "verify_current_checkout") as checkout, \
                 mock.patch.object(self.module, "run", return_value=result) as run:
             self.assertEqual(writer.write("pulls", "POST", {"head": "example"}), {"ok": True})
         runtime.assert_called_once()
         self.github.verify_owner.assert_called_once()
-        checkout.assert_called_once_with(ROOT, self.row["base_sha"])
+        checkout.assert_called_once_with(ROOT, self.row["base_sha"], self.github)
         self.assertIn("repos/" + FORK + "/pulls", run.call_args.args[0])
         self.assertNotIn("offline-app-token", " ".join(run.call_args.args[0]))
         self.assertEqual(run.call_args.kwargs["env"], {"GH_TOKEN": "offline-app-token"})
@@ -1153,7 +1312,7 @@ class AdoptedHistoryTests(unittest.TestCase):
     def test_missing_app_identity_and_foreign_owner_prevent_writes(self):
         self.github.get.return_value = {"object": {"sha": self.row["base_sha"]}}
         with mock.patch.object(self.module, "trusted_runtime"), \
-                mock.patch.object(self.module, "verify_checkout"), \
+                mock.patch.object(self.module, "verify_current_checkout"), \
                 mock.patch.object(self.module, "run") as run:
             for token, slug in (("", "overte-test"), ("token", ""), ("token", "../foreign")):
                 with self.assertRaises(self.module.CleanupError):
@@ -1539,13 +1698,19 @@ class CleanupPreflightTests(unittest.TestCase):
 
     def plan(self, failure=None, *, stale=True):
         plan = dict(source_sha="a" * 40, candidate_count=2, held={}, candidates=[{}, {}])
+        def response(endpoint):
+            if endpoint == "git/ref/heads/main":
+                return {"object": {"sha": "a" * 40}}
+            self.assertEqual(endpoint, "compare/" + "b" * 40 + "..." + "a" * 40 + "?per_page=1")
+            return {"status": "ahead", "behind_by": 0, "merge_base_commit": {"sha": "b" * 40}}
         with mock.patch.object(sys, "argv", [str(SCRIPT), "plan", "--output", str(self.root / "plan.json"),
                                              "--report", str(self.report)]), \
                 mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true", "GITHUB_OUTPUT": str(self.outputs)}, clear=True), \
-                mock.patch.object(self.module, "Github"), \
+                mock.patch.object(self.module, "Github") as github, \
                 mock.patch.object(self.module, "make_plan", **({"side_effect": failure} if failure else {"return_value": plan})), \
                 mock.patch.object(self.module, "run", return_value=subprocess.CompletedProcess([], 0, stdout=("b" if stale else "a") * 40)), \
                 mock.patch.object(self.module, "GitStore", side_effect=AssertionError("preflight never mutates")):
+            github.return_value.get.side_effect = response
             return self.module.main(), json.loads(self.report.read_text())
 
     def test_stale_plan_defers_without_authorizing_its_earlier_candidates(self):
@@ -1556,7 +1721,7 @@ class CleanupPreflightTests(unittest.TestCase):
         self.assertNotIn("error", report)
         self.assertFalse((self.root / "plan.json").exists())
         self.assertEqual(dict(line.split("=", 1) for line in self.outputs.read_text().splitlines()),
-                         {"deferred": "true", "candidate_count": "0", "main_advanced": "false"})
+                         {"deferred": "true", "candidate_count": "0"})
 
     def test_fresh_plan_retains_candidates_but_genuine_errors_remain_red(self):
         code, report = self.plan(stale=False)
@@ -1567,7 +1732,7 @@ class CleanupPreflightTests(unittest.TestCase):
                 code, report = self.plan(self.module.CleanupError(reason))
                 self.assertEqual((code, report["status"], report["error"]), (1, "blocked", reason))
 
-    def test_backup_and_apply_never_convert_stale_errors_to_success(self):
+    def test_backup_and_apply_require_an_exact_initial_checkout(self):
         for command in ("backup", "apply"):
             args = [str(SCRIPT), command, "--plan", str(self.root / "plan.json")]
             args += ["--output-dir", str(self.root / "backup")] if command == "backup" else [
@@ -1577,11 +1742,12 @@ class CleanupPreflightTests(unittest.TestCase):
                     mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(self.module, "Github"), \
                     mock.patch.object(self.module, "trusted_runtime"), \
                     mock.patch.object(self.module, "load_plan", return_value={"source_sha": "a" * 40}), \
-                    mock.patch.object(self.module, "verify_checkout", side_effect=self.module.CleanupDeferred("trusted_checkout_is_stale")), \
+                    mock.patch.object(self.module, "run", return_value=subprocess.CompletedProcess([], 0, stdout="b" * 40)), \
                     mock.patch.object(self.module, "GitStore", side_effect=AssertionError("no mutation")):
                 self.assertEqual(self.module.main(), 1)
             self.assertFalse((self.root / "backup").exists())
         self.assertEqual(json.loads(self.report.read_text())["status"], "blocked")
+        self.assertEqual(json.loads(self.report.read_text())["error"], "trusted_checkout_is_stale")
 
     def test_api_failure_labels_are_actionable_without_exposing_payloads_or_credentials(self):
         for stderr, status, category in (
@@ -1608,12 +1774,20 @@ class CleanupPreflightTests(unittest.TestCase):
                 mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true", "GITHUB_OUTPUT": str(self.outputs)}, clear=True), \
                 mock.patch.object(adoption, "discover", return_value=([{}], {}, "a" * 40)), \
                 mock.patch.object(adoption.cleanup, "run", return_value=subprocess.CompletedProcess([], 0, stdout="b" * 40)), \
-                mock.patch.object(adoption.cleanup, "Github"), mock.patch.object(adoption, "load_negative_cache") as cache, \
+                mock.patch.object(adoption.cleanup, "Github") as github, mock.patch.object(adoption, "load_negative_cache") as cache, \
                 mock.patch.object(adoption, "Graph") as graph, mock.patch.object(adoption, "Writer") as writer:
+            def response(endpoint):
+                if endpoint == "git/ref/heads/main":
+                    return {"object": {"sha": "a" * 40}}
+                self.assertEqual(endpoint, "compare/" + "b" * 40 + "..." + "a" * 40 + "?per_page=1")
+                return {"status": "ahead", "behind_by": 0, "merge_base_commit": {"sha": "b" * 40}}
+            github.return_value.get.side_effect = response
             self.assertEqual(adoption.main(), 0)
         cache.assert_not_called(); graph.assert_not_called(); writer.assert_not_called()
         saved = json.loads(self.report.read_text())
-        self.assertEqual((saved["status"], saved["candidate_count"], saved["deleted"]), ("deferred", 0, []))
+        self.assertEqual(saved["status"], "deferred")
+        self.assertEqual(saved["reason"], "trusted_checkout_is_stale")
+        self.assertEqual(saved["deferred_details"]["current_main_sha"], "a" * 40)
         self.assertFalse(saved["main_advanced"])
         self.assertIn("deferred=true", self.outputs.read_text())
 
@@ -1621,15 +1795,16 @@ class CleanupPreflightTests(unittest.TestCase):
         adoption = load_adoption()
         for preflight in (True, False):
             error = adoption.cleanup.CleanupError("github_api_get_branches_http_403_forbidden") if preflight \
-                else adoption.cleanup.CleanupDeferred("trusted_checkout_is_stale")
+                else adoption.cleanup.CleanupError("github_api_get_actions_artifacts_http_403_forbidden")
             with self.subTest(preflight=preflight), mock.patch.object(sys, "argv", ["adoption.py", "--report", str(self.report)]), \
                     mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}, clear=True), \
                     mock.patch.object(adoption.cleanup, "Github"), \
                     mock.patch.object(adoption, "discover", **({"side_effect": error} if preflight else {"return_value": ([], {}, "a" * 40)})), \
-                    mock.patch.object(adoption.cleanup, "verify_checkout"), \
+                    mock.patch.object(adoption.cleanup, "verify_current_checkout"), \
                     mock.patch.object(adoption, "load_negative_cache", side_effect=error):
                 self.assertEqual(adoption.main(), 1)
             self.assertEqual(json.loads(self.report.read_text())["status"], "blocked")
+            self.assertEqual(json.loads(self.report.read_text())["error"], str(error))
 
 
 class WorkflowSafetyTests(unittest.TestCase):
@@ -1666,6 +1841,12 @@ class WorkflowSafetyTests(unittest.TestCase):
     def test_report_mode_does_not_run_backup_or_apply(self):
         self.assertEqual(self.source.count("inputs.mode == 'apply'"), 5)
         self.assertIn("default: report", self.source)
+
+    def test_verified_history_deferral_skips_planning_without_hiding_failures(self):
+        plan = self.source.split("- name: Plan from current GitHub state", 1)[1].split(
+            "- name: Build and verify a self-contained Git backup", 1)[0]
+        self.assertIn("if: steps.history.outputs.deferred != 'true'", plan)
+        self.assertNotIn("continue-on-error", self.source)
 
     def test_adoption_uses_a_scoped_app_and_runs_before_the_original_delete_plan(self):
         app = self.source.index("- name: Create repository-scoped history integration token")

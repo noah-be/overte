@@ -42,7 +42,11 @@ class CleanupError(RuntimeError):
 
 
 class CleanupDeferred(CleanupError):
-    """Expected stale checkout, usable only before adoption or planning mutations."""
+    """Verified concurrent work stopped this attempt before further mutations."""
+
+    def __init__(self, reason, **details):
+        super().__init__(reason)
+        self.details = details
 
 
 def api_failure(args, result):
@@ -544,25 +548,41 @@ def trusted_runtime():
     require(os.environ.get("GITHUB_EVENT_NAME") in {"pull_request_target", "schedule", "workflow_dispatch", "workflow_run"}, "untrusted_workflow_event")
 
 
-def verify_checkout(root, source_sha, *, defer=False):
+def verify_checkout(root, source_sha):
     """Never use a stale checkout's policy after trusted main has advanced."""
     actual = run(["git", "-C", str(root), "rev-parse", "HEAD"]).stdout.strip()
+    require(actual == source_sha, "trusted_checkout_is_stale")
+
+
+def defer_main_change(github, previous, observed, reason):
+    """A mismatch is quiet only when both snapshots are retained by current main."""
+    require(previous != observed and all(isinstance(sha, str) and SHA.fullmatch(sha)
+                                        for sha in (previous, observed)), reason)
+    github.verify_owner()
+    reference = github.get("git/ref/heads/main")
+    require(isinstance(reference, dict) and isinstance(reference.get("object"), dict), "invalid_current_main")
+    current = reference["object"].get("sha")
+    require(isinstance(current, str) and SHA.fullmatch(current), "invalid_current_main")
+    for revision in dict.fromkeys((previous, observed)):
+        if revision == current:
+            continue
+        comparison = github.get(f"compare/{revision}...{current}?per_page=1")
+        require(isinstance(comparison, dict) and comparison.get("status") == "ahead"
+                and type(comparison.get("behind_by")) is int and comparison["behind_by"] == 0
+                and isinstance(comparison.get("merge_base_commit"), dict)
+                and comparison["merge_base_commit"].get("sha") == revision, reason)
+    raise CleanupDeferred(reason, previous_main_sha=previous,
+                          observed_main_sha=observed, current_main_sha=current)
+
+
+def verify_current_checkout(root, source_sha, github):
+    actual = run(["git", "-C", str(root), "rev-parse", "HEAD"]).stdout.strip()
     if actual != source_sha:
-        raise (CleanupDeferred if defer else CleanupError)("trusted_checkout_is_stale")
+        defer_main_change(github, actual, source_sha, "trusted_checkout_is_stale")
 
 
-def defer_before_mutation(report, reason, path):
-    """An early stale checkout grants no candidates or mutation permission."""
-    report.update(status="deferred", reason=reason, candidate_count=0, deleted=[])
-    if "main_advanced" in report:
-        report["main_advanced"] = False
-    write_json(path, report)
-    if os.environ.get("GITHUB_OUTPUT"):
-        with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
-            output.write("deferred=true\ncandidate_count=0\nmain_advanced=false\n")
-    summary(report)
-    print(json.dumps({"status": "deferred", "reason": reason, "candidate_count": 0, "deleted": 0}))
-    return 0
+def mark_deferred(report, error):
+    report.update(status="deferred", reason=str(error), deferred_details=error.details)
 
 
 def summary(report):
@@ -574,7 +594,8 @@ def summary(report):
             if report.get("error"):
                 out.write("Cleanup stopped: `" + report["error"] + "`. Branches were not bypassed.\n\n")
             if report.get("status") == "deferred":
-                out.write("Cleanup deferred: `" + report["reason"] + "`. No candidates were authorized; a later scheduled run will reassess.\n\n")
+                out.write("Expected deferral: `" + report["reason"]
+                          + "`. The next wake-up reassesses current state.\n\n")
             for branch, reasons in sorted(report.get("held", {}).items()):
                 out.write("- `" + branch.replace("`", "") + "`: " + ", ".join(sorted(set(reasons))) + "\n")
 
@@ -603,12 +624,9 @@ def main():
         if args.command == "plan":
             plan = make_plan(github, policy)
             if os.environ.get("GITHUB_ACTIONS") == "true":
-                verify_checkout(root, plan["source_sha"], defer=True)
+                verify_current_checkout(root, plan["source_sha"], github)
             write_json(args.output, plan)
             report.update(status="planned", held=plan["held"], candidate_count=plan["candidate_count"])
-            if os.environ.get("GITHUB_OUTPUT"):
-                with Path(os.environ["GITHUB_OUTPUT"]).open("a") as out:
-                    out.write("deferred=false\ncandidate_count=" + str(plan["candidate_count"]) + "\n")
         elif args.command == "backup":
             trusted_runtime()
             plan = load_plan(args.plan)
@@ -647,7 +665,9 @@ def main():
                     and artifact.get("expired") is False and artifact.get("size_in_bytes", 0) > 0
                     and artifact.get("digest") == "sha256:" + artifact_digest, "uploaded_backup_not_verified")
             fresh = make_plan(github, policy)
-            require(fresh["source_sha"] == plan["source_sha"] and fresh["policy_sha256"] == plan["policy_sha256"], "trusted_main_or_policy_changed")
+            require(fresh["policy_sha256"] == plan["policy_sha256"], "trusted_main_or_policy_changed")
+            if fresh["source_sha"] != plan["source_sha"]:
+                defer_main_change(github, plan["source_sha"], fresh["source_sha"], "trusted_main_or_policy_changed")
             available = {r["branch"]: r for r in fresh["candidates"]}
             selected = [r for r in plan["candidates"] if available.get(r["branch"]) == r]
             for row in plan["candidates"]:
@@ -663,20 +683,33 @@ def main():
                     # independent restore; exact SHA leases guard the ref update.
                     final = make_plan(github, policy)
                     final_candidates = {r["branch"]: r for r in final["candidates"]}
-                    require(final["source_sha"] == plan["source_sha"], "trusted_main_changed_before_delete")
-                    require(all(final_candidates.get(r["branch"]) == r for r in selected), "activity_changed_before_delete")
+                    if final["source_sha"] != plan["source_sha"]:
+                        defer_main_change(github, plan["source_sha"], final["source_sha"], "trusted_main_changed_before_delete")
+                    if not all(final_candidates.get(r["branch"]) == r for r in selected):
+                        for row in selected:
+                            if final_candidates.get(row["branch"]) != row:
+                                report["held"][row["branch"]] = final["held"].get(
+                                    row["branch"], ["state_changed_after_backup"])
+                        raise CleanupDeferred("activity_changed_before_delete")
                     report["deleted"] = store.delete(selected, github)
                     report["backup_artifact_id"] = args.backup_artifact_id
             report["status"] = "completed"
+    except CleanupDeferred as error:
+        mark_deferred(report, error)
+        if args.command == "plan":
+            args.output.unlink(missing_ok=True)
+            report["candidate_count"] = 0
     except (CleanupError, OSError, ValueError, KeyError, subprocess.TimeoutExpired) as error:
-        if args.command == "plan" and isinstance(error, CleanupDeferred):
-            return defer_before_mutation(report, str(error), args.report)
         report.update(status="blocked", error=str(error) if isinstance(error, CleanupError) else type(error).__name__)
         if getattr(args, "report", None):
             write_json(args.report, report)
         summary(report)
         print("Branch cleanup stopped; inspect its redacted report.")
         return 1
+    if args.command == "plan" and os.environ.get("GITHUB_OUTPUT"):
+        with Path(os.environ["GITHUB_OUTPUT"]).open("a") as out:
+            out.write("candidate_count=" + str(report["candidate_count"]) + "\n")
+            out.write("deferred=" + str(report["status"] == "deferred").lower() + "\n")
     if getattr(args, "report", None):
         write_json(args.report, report)
         summary(report)
