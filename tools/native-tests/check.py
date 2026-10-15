@@ -41,6 +41,10 @@ HOST_BROWSER_FIXTURES = frozenset({
     'browser-client/tests/fixtures/capture-v33-fork-rename-before.json.gz',
     'browser-client/tests/fixtures/capture-fork-rename-v34-complete-source-manifest.json',
     'browser-client/tests/tablet-capture-fork-rename-manifest.test.mjs',
+    'browser-client/tests/integration/capture-workflow-source-fixture.mjs',
+    'browser-client/tests/fixtures/capture-v34-workflow-before.json.gz',
+    'browser-client/tests/fixtures/capture-workflow-v35-complete-source-manifest.json',
+    'browser-client/tests/tablet-capture-workflow-manifest.test.mjs',
 })
 HOST_EVIDENCE_SUFFIXES = frozenset({'.py', '.json'})
 CORE_ROOTS = ('tests/shared/',)

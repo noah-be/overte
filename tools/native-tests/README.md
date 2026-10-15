@@ -75,7 +75,7 @@ intentional native skip is accepted only when the trusted route says `skip`.
 Host qualification artifacts do not certify native results and cannot bypass
 this additional gate.
 
-The seven CPU-only browser capture-history fixtures listed in
+The eleven CPU-only browser capture-history fixtures listed in
 `HOST_BROWSER_FIXTURES` also belong to browser JavaScript tests. Updating their
 source-history adapter or manifest does not compile the native product. This is
 an exact file inventory: neighboring unknown files, native/build definitions,
