@@ -138,6 +138,17 @@ If the hosted filesystem cannot establish the private cache during initializatio
 the assessment keeps the original uncached API path. This optional initialization
 fallback cannot mask API failures, invalid responses or changed safety evidence.
 
+Retained adoption and cleanup reports include fixed `immutable_api_cache`
+telemetry: `state` (`disabled`, `enabled` or `unavailable`), numeric `hits` and
+`misses`, and `fresh_api_invocations` for `contents`, `compare` and `other`.
+Counters cover that phase's adapter, include failed fresh invocation attempts,
+and remain separate across processes. A paginated CLI invocation counts once;
+these counters measure neither HTTP pages nor quota use. They contain no
+endpoints, response headers, workflow contents or credentials and never affect
+selection or deletion permission.
+Direct archive downloads, writer/GraphQL operations and Git transport remain
+outside these adapter counters.
+
 For unchanged SHAs, the first workflow assessment still needs every unique
 directory/content request. Later adoption/plan/apply assessments in that same
 attempt can reuse those exact reads; mutable safety checks continue in full.

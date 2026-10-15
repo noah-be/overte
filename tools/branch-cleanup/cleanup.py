@@ -352,7 +352,7 @@ class ImmutableReadCache:
         except OSError:
             pass  # A full/unavailable cache cannot replace fresh API evidence.
 
-    def get(self, request, fetch):
+    def get(self, request, fetch, observe=None):
         info = self.directory.lstat()
         require(stat.S_ISDIR(info.st_mode) and stat.S_IMODE(info.st_mode) == 0o700
                 and info.st_uid == os.getuid(), "unsafe_immutable_cache_directory")
@@ -361,12 +361,16 @@ class ImmutableReadCache:
             lock = (None if key not in self.locks and len(self.locks) >= self.MAX_ENTRIES
                     else self.locks.setdefault(key, threading.Lock()))
         if lock is None:
+            if observe:
+                observe(False)
             value = fetch()
             self.validate(request, value)
             return self.project(request, value)
         with lock:
             path = self.directory / (key + ".json")
             value = self._read(path, request)
+            if observe:
+                observe(value is not None)
             if value is None:
                 value = fetch()
                 self.validate(request, value)
@@ -379,35 +383,54 @@ class Github:
     def __init__(self):
         self.cache = None
         self.cache_checked = False
+        self._cache_statistics = {"state": "disabled", "hits": 0, "misses": 0,
+                                  "fresh_api_invocations": {"contents": 0, "compare": 0, "other": 0}}
+        self._statistics_lock = threading.Lock()
+
+    def cache_statistics(self):
+        """Per-client CLI call counters, never HTTP page or quota measurements."""
+        with self._statistics_lock:
+            return {**self._cache_statistics,
+                    "fresh_api_invocations": dict(self._cache_statistics["fresh_api_invocations"])}
+
+    def _observe_cache(self, hit):
+        with self._statistics_lock:
+            self._cache_statistics["hits" if hit else "misses"] += 1
 
     def get(self, suffix="", paginate=False):
         require(not suffix.startswith(("/", "http"))
                 and not {".", ".."}.intersection(suffix.split("?", 1)[0].split("/")), "unsafe_api_path")
         endpoint = "repos/" + REPOSITORY + ("/" + suffix if suffix else "")
-        if not self.cache_checked:
-            enabled = os.environ.get("BRANCH_CLEANUP_IMMUTABLE_CACHE", "")
-            require(enabled in {"", "1"}, "invalid_immutable_cache_switch")
-            if enabled:
-                trusted_runtime()
-                run_id, attempt = os.environ.get("GITHUB_RUN_ID", ""), os.environ.get("GITHUB_RUN_ATTEMPT", "")
-                require(all(re.fullmatch(r"[1-9][0-9]*", value) for value in (run_id, attempt)), "invalid_immutable_cache_attempt")
-                try:
-                    self.cache = ImmutableReadCache(os.environ.get("RUNNER_TEMP", ""), run_id, attempt)
-                except (CleanupError, OSError):
-                    # Optional cache provisioning cannot invalidate fresh API
-                    # evidence. Only initialization is optional; API failures,
-                    # invalid responses and all ordinary guards remain fatal.
-                    self.cache = None
-            self.cache_checked = True
+        with self._statistics_lock:
+            if not self.cache_checked:
+                enabled = os.environ.get("BRANCH_CLEANUP_IMMUTABLE_CACHE", "")
+                require(enabled in {"", "1"}, "invalid_immutable_cache_switch")
+                if enabled:
+                    trusted_runtime()
+                    run_id, attempt = os.environ.get("GITHUB_RUN_ID", ""), os.environ.get("GITHUB_RUN_ATTEMPT", "")
+                    require(all(re.fullmatch(r"[1-9][0-9]*", value) for value in (run_id, attempt)), "invalid_immutable_cache_attempt")
+                    try:
+                        self.cache = ImmutableReadCache(os.environ.get("RUNNER_TEMP", ""), run_id, attempt)
+                        self._cache_statistics["state"] = "enabled"
+                    except (CleanupError, OSError):
+                        # Optional cache provisioning cannot invalidate fresh API
+                        # evidence. Only initialization is optional; API failures,
+                        # invalid responses and all ordinary guards remain fatal.
+                        self.cache = None
+                        self._cache_statistics["state"] = "unavailable"
+                self.cache_checked = True
         request = ImmutableReadCache.request(suffix, paginate)
+        kind = request["kind"] if request is not None else "other"
         if self.cache is not None and request is not None:
-            return self.cache.get(request, lambda: self._get(endpoint, paginate))
-        return self._get(endpoint, paginate)
+            return self.cache.get(request, lambda: self._get(endpoint, paginate, kind), self._observe_cache)
+        return self._get(endpoint, paginate, kind)
 
-    def _get(self, endpoint, paginate):
+    def _get(self, endpoint, paginate, kind):
         args = ["gh", "api", "--method", "GET", endpoint]
         if paginate:
             args += ["--paginate", "--slurp"]
+        with self._statistics_lock:
+            self._cache_statistics["fresh_api_invocations"][kind] += 1
         value = json.loads(run(args, timeout=180).stdout)
         if not paginate:
             return value
@@ -773,6 +796,13 @@ def trusted_runtime():
     require(os.environ.get("GITHUB_EVENT_NAME") in {"pull_request_target", "schedule", "workflow_dispatch", "workflow_run"}, "untrusted_workflow_event")
 
 
+def record_cache_statistics(report, github):
+    # Only the trusted adapter's internal counters are retained. Old offline
+    # fakes need not implement telemetry; arbitrary API values are never used.
+    if type(getattr(github, "_cache_statistics", None)) is dict:
+        report["immutable_api_cache"] = github.cache_statistics()
+
+
 def verify_checkout(root, source_sha, *, defer=False):
     """Never use a stale checkout's policy after trusted main has advanced."""
     actual = run(["git", "-C", str(root), "rev-parse", "HEAD"]).stdout.strip()
@@ -898,6 +928,7 @@ def main():
                     report["backup_artifact_id"] = args.backup_artifact_id
             report["status"] = "completed"
     except (CleanupError, OSError, ValueError, KeyError, subprocess.TimeoutExpired) as error:
+        record_cache_statistics(report, github)
         if args.command == "plan" and isinstance(error, CleanupDeferred):
             return defer_before_mutation(report, str(error), args.report)
         report.update(status="blocked", error=str(error) if isinstance(error, CleanupError) else type(error).__name__)
@@ -906,6 +937,7 @@ def main():
         summary(report)
         print("Branch cleanup stopped; inspect its redacted report.")
         return 1
+    record_cache_statistics(report, github)
     if getattr(args, "report", None):
         write_json(args.report, report)
         summary(report)

@@ -371,6 +371,7 @@ def main():
     version = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
     report = {"repository": cleanup.REPOSITORY, "version": version, "status": "started",
               "results": {}, "held": {}, "negative": {}, "main_advanced": False}
+    github = None
     try:
         github = cleanup.Github()
         rows, report["held"], source_sha = discover(github, policy)
@@ -378,6 +379,7 @@ def main():
             try:
                 cleanup.verify_checkout(root, source_sha, defer=True)
             except cleanup.CleanupDeferred as error:
+                cleanup.record_cache_statistics(report, github)
                 return cleanup.defer_before_mutation(report, str(error), args.report)
         token, slug = os.environ.get("ADOPTION_APP_TOKEN", ""), os.environ.get("ADOPTION_APP_SLUG", "")
         write = args.apply and bool(token and slug)
@@ -414,9 +416,11 @@ def main():
             subprocess.TimeoutExpired) as error:
         report.update(status="blocked", error=str(error) if isinstance(error, cleanup.CleanupError)
                       else type(error).__name__)
+        cleanup.record_cache_statistics(report, github)
         cleanup.write_json(args.report, report)
         print("Adoption assessment stopped; inspect its redacted report.")
         return 1
+    cleanup.record_cache_statistics(report, github)
     cleanup.write_json(args.report, report)
     if os.environ.get("GITHUB_OUTPUT"):
         with Path(os.environ["GITHUB_OUTPUT"]).open("a") as out:

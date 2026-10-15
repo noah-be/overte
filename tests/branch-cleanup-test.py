@@ -813,6 +813,7 @@ class ImmutableApiCacheTests(unittest.TestCase):
         client = self.module.Github()
         client.cache = cache or self.cache
         client.cache_checked = True
+        client._cache_statistics["state"] = "enabled"
         return client
 
     def file(self, source):
@@ -1030,6 +1031,8 @@ class ImmutableApiCacheTests(unittest.TestCase):
             self.responses[self.compare] = self.module.CleanupError("rate_limited")
             with self.assertRaisesRegex(self.module.CleanupError, "rate_limited"): github.get(self.compare)
         self.assertEqual(self.calls.count(self.compare), 3)
+        self.assertEqual(github.cache_statistics(), {"state": "unavailable", "hits": 0, "misses": 0,
+            "fresh_api_invocations": {"contents": 0, "compare": 3, "other": 0}})
 
     def test_public_git_encoding_ignores_ambient_config_and_writes_no_objects(self):
         raw = b"public fixed workflow source\n"
@@ -1039,6 +1042,25 @@ class ImmutableApiCacheTests(unittest.TestCase):
             value = self.cache.blob_identity(raw)
         self.assertEqual(value, hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest())
         self.assertEqual(set(self.root.iterdir()), before)
+
+    def test_telemetry_counts_cache_outcomes_and_cli_invocations_without_http_page_claims(self):
+        self.responses = {self.compare: self.integrated, self.contents: self.content,
+                          "branches?per_page=100": [[1], [2]]}
+        for endpoint in (self.compare, self.contents):
+            self.github.get(endpoint); self.github.get(endpoint)
+        self.assertEqual(self.github.get("branches?per_page=100", paginate=True), [1, 2])
+        expected = {"state": "enabled", "hits": 2, "misses": 2,
+                    "fresh_api_invocations": {"contents": 1, "compare": 1, "other": 1}}
+        self.assertEqual(self.github.cache_statistics(), expected)
+        modified = self.github.cache_statistics()
+        modified["fresh_api_invocations"]["compare"] = 999
+        self.assertEqual(self.github.cache_statistics(), expected)
+        self.responses[self.compare] = self.module.CleanupError("synthetic_failure")
+        with mock.patch.dict(os.environ, {"BRANCH_CLEANUP_IMMUTABLE_CACHE": ""}):
+            ordinary = self.module.Github()
+            with self.assertRaises(self.module.CleanupError): ordinary.get(self.compare)
+        self.assertEqual(ordinary.cache_statistics(), {"state": "disabled", "hits": 0, "misses": 0,
+            "fresh_api_invocations": {"contents": 0, "compare": 1, "other": 0}})
 
 
 class GitBackupsAndDeletionTests(unittest.TestCase):
@@ -1792,12 +1814,12 @@ class CleanupPreflightTests(unittest.TestCase):
         self.report = self.root / "report.json"
         self.outputs = self.root / "outputs"
 
-    def plan(self, failure=None, *, stale=True):
+    def plan(self, failure=None, *, stale=True, github=None):
         plan = dict(source_sha="a" * 40, candidate_count=2, held={}, candidates=[{}, {}])
         with mock.patch.object(sys, "argv", [str(SCRIPT), "plan", "--output", str(self.root / "plan.json"),
                                              "--report", str(self.report)]), \
                 mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true", "GITHUB_OUTPUT": str(self.outputs)}, clear=True), \
-                mock.patch.object(self.module, "Github"), \
+                mock.patch.object(self.module, "Github", return_value=github), \
                 mock.patch.object(self.module, "make_plan", **({"side_effect": failure} if failure else {"return_value": plan})), \
                 mock.patch.object(self.module, "run", return_value=subprocess.CompletedProcess([], 0, stdout=("b" if stale else "a") * 40)), \
                 mock.patch.object(self.module, "GitStore", side_effect=AssertionError("preflight never mutates")):
@@ -1812,6 +1834,18 @@ class CleanupPreflightTests(unittest.TestCase):
         self.assertFalse((self.root / "plan.json").exists())
         self.assertEqual(dict(line.split("=", 1) for line in self.outputs.read_text().splitlines()),
                          {"deferred": "true", "candidate_count": "0", "main_advanced": "false"})
+
+    def test_plan_report_retains_only_fixed_adapter_counters(self):
+        github = self.module.Github()
+        with mock.patch.dict(os.environ, {"BRANCH_CLEANUP_IMMUTABLE_CACHE": ""}), \
+                mock.patch.object(self.module, "run", return_value=subprocess.CompletedProcess([], 0, stdout="[]")):
+            github.get("actions/runs?private=synthetic-private-marker")
+        for stale in (False, True):
+            _, report = self.plan(stale=stale, github=github)
+            self.assertEqual(report["immutable_api_cache"], github.cache_statistics())
+            self.assertEqual(report["immutable_api_cache"]["fresh_api_invocations"]["other"], 1)
+            self.assertNotIn("synthetic-private-marker", json.dumps(report))
+            self.assertNotIn("actions/runs", json.dumps(report))
 
     def test_fresh_plan_retains_candidates_but_genuine_errors_remain_red(self):
         code, report = self.plan(stale=False)
@@ -1871,6 +1905,26 @@ class CleanupPreflightTests(unittest.TestCase):
         self.assertEqual((saved["status"], saved["candidate_count"], saved["deleted"]), ("deferred", 0, []))
         self.assertFalse(saved["main_advanced"])
         self.assertIn("deferred=true", self.outputs.read_text())
+
+    def test_adoption_reports_retain_counters_on_success_and_preflight_deferral(self):
+        adoption = load_adoption()
+        github = adoption.cleanup.Github()
+        with mock.patch.dict(os.environ, {"BRANCH_CLEANUP_IMMUTABLE_CACHE": ""}), \
+                mock.patch.object(adoption.cleanup, "run", return_value=subprocess.CompletedProcess([], 0, stdout="[]")):
+            github.get("actions/runs?private=synthetic-private-marker")
+        for stale in (False, True):
+            with mock.patch.object(sys, "argv", ["adoption.py", "--report", str(self.report)]), \
+                    mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}, clear=True), \
+                    mock.patch.object(adoption.cleanup, "Github", return_value=github), \
+                    mock.patch.object(adoption, "discover", return_value=([], {}, "a" * 40)), \
+                    mock.patch.object(adoption.cleanup, "verify_checkout", side_effect=(
+                        adoption.cleanup.CleanupDeferred("trusted_checkout_is_stale") if stale else None)), \
+                    mock.patch.object(adoption, "load_negative_cache", return_value={}), \
+                    mock.patch.object(adoption, "Writer"), mock.patch.object(adoption, "Graph"):
+                self.assertEqual(adoption.main(), 0)
+            report = json.loads(self.report.read_text())
+            self.assertEqual(report["immutable_api_cache"], github.cache_statistics())
+            self.assertNotIn("synthetic-private-marker", json.dumps(report))
 
     def test_adoption_errors_after_preflight_and_generic_api_errors_remain_failures(self):
         adoption = load_adoption()
