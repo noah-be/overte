@@ -1207,6 +1207,22 @@
           "tests/platform-profile.json"
         ]
       }
+    },
+    "host-producer-preparation": {
+      "command": [
+        "python",
+        "tests/host-producer-preparation-test.py"
+      ],
+      "layer": "quick",
+      "scope": "content",
+      "environment": "host-qt5-qt6",
+      "closure": {
+        "kind": "repository",
+        "inputs": [],
+        "required": [
+          "tests/host-producer-preparation-test.py"
+        ]
+      }
     }
   }
 }
