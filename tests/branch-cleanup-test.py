@@ -2217,7 +2217,7 @@ class WorkflowSafetyTests(unittest.TestCase):
     def test_closed_pr_manual_and_bounded_schedule_replace_ci_completion_fanout(self):
         self.assertNotIn("  workflow_run:", self.source)
         self.assertIn("  pull_request_target:\n    types: [closed]", self.source)
-        self.assertIn('cron: "*/15 * * * *"', self.source)
+        self.assertIn('cron: "7,22,37,52 * * * *"', self.source)
         self.assertIn("  workflow_dispatch:", self.source)
         self.assertNotIn("github.event.workflow_run.head_sha", self.source)
         self.assertNotIn("github.event.workflow_run.conclusion", self.source)

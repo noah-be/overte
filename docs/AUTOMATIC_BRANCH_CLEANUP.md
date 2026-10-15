@@ -12,6 +12,10 @@ assessments and replaced pending runs without adding deletion evidence. The
 existing mutex keeps `cancel-in-progress: false`, so a new notification does not
 interrupt a running backup or deletion sequence. GitHub may delay scheduled
 workflows; fifteen minutes is a detection interval, not a completion guarantee.
+The schedule uses UTC minutes 7, 22, 37 and 52 to avoid the documented
+top-of-hour scheduler load while retaining four assessments per hour. Confirm
+scheduled operation with an actual `schedule`-event run; a successful closed-PR
+assessment alone does not establish that the scheduler is firing.
 
 Every assessment reads current GitHub state. It does not authorize deletion from
 a triggering event's result or execute candidate code or artifacts. If trusted

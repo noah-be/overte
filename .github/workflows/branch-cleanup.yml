@@ -7,7 +7,8 @@ on: # zizmor: ignore[dangerous-triggers] Closed PR notifications run only truste
   pull_request_target:
     types: [closed]
   schedule:
-    - cron: "*/15 * * * *"
+    # Offset from the documented top-of-hour scheduler load; still four per hour.
+    - cron: "7,22,37,52 * * * *"
   workflow_dispatch:
     inputs:
       mode:
