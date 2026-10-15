@@ -26,9 +26,15 @@ native build still checks out the complete candidate source.
 | Change | Native work |
 | --- | --- |
 | Only known documentation, scripts, host-test paths, or an exact empty PR delta | No native job |
-| Only `tests/shared` test sources/headers or native routing/runner Python | Small system-dependency build of the shared test component |
+| Only `tools/native-tests/check.py` or `tests/native-ci-test.py` | Host routing and merge-gate regressions; no native job |
+| Only `tests/shared` test sources/headers or native execution/graph drivers (`run.py`, `select.py`, `qt-test.py`) | Small system-dependency build of the shared test component |
 | Production C++ libraries or applications | Configure the product graph; build changed components and affected tests |
 | Build/dependency definitions, unknown paths, non-regular files | Conservative product configuration and wider selection |
+
+The router and its regression tests do not change native compilation inputs or
+execute the compiler. The required `native-ci-policy` host suite validates their
+selection and merge enforcement. Mixed native inputs, unknown neighbors, build
+definitions and non-regular entries retain the conservative native route.
 
 The full graph includes the Linux client, servers, native tools, and eligible
 tests. Manual test applications and other platform toolchains remain separate.

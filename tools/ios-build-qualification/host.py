@@ -35,6 +35,128 @@ VARIANTS = ["complete-reviewed-launcher", "Qt6Core/Gui/Qml/Concurrent/WebChannel
             "Qt5/Qt6-CMake-contracts", "renderer-mutations", "hosted-isolated-network", "Node22"]
 
 
+# Dependency audit of protected apple-ios 2fc894a and the CI-only rollout.
+# These exact files are not imported, discovered, executed or read by the iOS
+# product launcher. All other entries, including documentation, native scan
+# membership, local imports and historical child differences, remain anchored.
+# This proves only that the own host run is unaffected; it is not a passing
+# test receipt, shared-owner handoff or application-build selection authority.
+REVIEWED_CI_HOST_BOUNDARY = "13fa4cd533f88d961dcc4624fe8ebeb7d37ee859e66022453c91f8a81dccf7bf"
+CI_HOST_INDEPENDENT_PATHS = frozenset({
+    '.github/android-checks.json',
+    '.github/android-orchestration.json',
+    '.github/attested-runtime.json',
+    '.github/ios-host-orchestration.json',
+    '.github/package-workflow-generations.json',
+    '.github/repository-checks.json',
+    '.github/sync-test-reuse.json',
+    '.github/test-suites.json',
+    '.github/workflows/branch-cleanup.yml',
+    '.github/workflows/browser-client-atomic-settings.yml',
+    '.github/workflows/browser-client.yml',
+    '.github/workflows/browser-direct-client.yml',
+    '.github/workflows/codeql.yml',
+    '.github/workflows/dependency-releases.yml',
+    '.github/workflows/parent-qualification.yml',
+    '.github/workflows/project-tests.yml',
+    '.github/workflows/repository-checks.yml',
+    '.github/workflows/repository-health.yml',
+    '.github/workflows/sync-test-reuse.yml',
+    '.github/workflows/sync-validation.yml',
+    'docs/ANDROID_BUILD_INPUTS.md',
+    'docs/ATTESTED_RUNTIME_REUSE.md',
+    'docs/AUTOMATIC_BRANCH_CLEANUP.md',
+    'docs/BRANCH_WORKFLOW.md',
+    'docs/BROWSER_CPU_SELECTION.md',
+    'docs/DEPENDENCY_RELEASES.md',
+    'docs/IOS_BUILD_QUALIFICATION.md',
+    'docs/PRODUCER_API_PROOF.md',
+    'docs/README.md',
+    'docs/REPOSITORY_HEALTH.md',
+    'tests/PROJECT_TESTING.md',
+    'tests/android-build-inputs-test.py',
+    'tests/android-ci-test.py',
+    'tests/android-orchestration-test.py',
+    'tests/branch-cleanup-test.py',
+    'tests/branch-policy-test.py',
+    'tests/browser-cpu-selection-test.py',
+    'tests/codeql-selection-test.py',
+    'tests/device/run_control_plane_tests.py',
+    'tests/host-producer-preparation-test.py',
+    'tests/host-selection-test.py',
+    'tests/ios-build-qualification-test.py',
+    'tests/ios-input-selection-test.py',
+    'tests/native-ci-test.py',
+    'tests/project-suite-self-test.py',
+    'tests/repository-checks-test.py',
+    'tests/repository-health-test.py',
+    'tests/run-project-tests.py',
+    'tests/workflow-contract-test.py',
+    'tools/branch-cleanup/adoption.py',
+    'tools/branch-cleanup/cleanup.py',
+    'tools/branch-policy/check.py',
+    'tools/ios-build-qualification/check.py',
+    'tools/ios-build-qualification/fixtures/host-launcher-52f.sh',
+    'tools/ios-build-qualification/host-workflow.yml',
+    'tools/ios-build-qualification/host.py',
+    'tools/ios-build-qualification/inputs.py',
+    'tools/native-tests/README.md',
+    'tools/native-tests/check.py',
+    'tools/repository-checks/android-build-inputs.py',
+    'tools/repository-checks/android-host-prepare.sh',
+    'tools/repository-checks/android.py',
+    'tools/repository-checks/android_gate.py',
+    'tools/repository-checks/browser_cpu.py',
+    'tools/repository-checks/check.py',
+    'tools/repository-checks/codeql.py',
+    'tools/repository-checks/codeql_results.py',
+    'tools/repository-checks/host_selection.py',
+    'tools/repository-checks/package_checks.py',
+    'tools/repository-checks/tool_dependencies.py',
+    'tools/repository-checks/workflows/android-required.yml',
+    'tools/repository-checks/workflows/android/repository-checks-direct-browser.yml',
+    'tools/repository-checks/workflows/android/repository-checks.yml',
+    'tools/repository-checks/workflows/browser-client.yml',
+    'tools/repository-checks/workflows/browser-direct-client.yml',
+    'tools/repository-checks/workflows/browser/repository-checks.yml',
+    'tools/repository-checks/workflows/codeql-main.json',
+    'tools/repository-checks/workflows/codeql-results.yml',
+    'tools/repository-checks/workflows/host/parent-qualification.yml',
+    'tools/repository-checks/workflows/host/project-tests.yml',
+    'tools/repository-checks/workflows/packages/parent-qualification.yml',
+    'tools/repository-checks/workflows/packages/project-tests.yml',
+    'tools/repository-checks/workflows/packages/repository-checks-direct.yml',
+    'tools/repository-checks/workflows/packages/repository-checks.yml',
+    'tools/repository-checks/workflows/packages/sync-validation.yml',
+    'tools/repository-checks/workflows/producers/project-tests.yml',
+    'tools/repository-checks/workflows/repository-checks.yml',
+    'tools/sync-test-reuse/differential.py',
+    'tools/sync-test-reuse/gate.py',
+    'tools/sync-test-reuse/qualification.py',
+    'tools/sync-test-reuse/test.py',
+    'tools/test-evidence/attested-test.py',
+    'tools/test-evidence/attested.py',
+    'tools/test-evidence/execution-test.py',
+    'tools/test-evidence/execution.py',
+    'tools/test-evidence/inputs.py',
+    'tools/test-evidence/producer-api-test.py',
+    'tools/test-evidence/producer-test.py',
+    'tools/test-evidence/producer.py',
+    'tools/test-evidence/producer_api.py',
+    'tools/test-evidence/qualification-producer-test.py',
+    'tools/test-evidence/registry-test.py',
+    'tools/test-evidence/run.py',
+    'tools/test-evidence/runtime-test.py',
+    'tools/test-evidence/runtime.py',
+    'tools/test-evidence/test.py',
+    'tools/test-evidence/validate-sync-test.py',
+    'tools/test-evidence/validate-sync.py',
+})
+CI_HOST_EXECUTABLE_PATHS = frozenset({
+    "tests/project-suite-self-test.py", "tests/repository-health-test.py", "tests/run-project-tests.py",
+})
+
+
 def require(condition, message):
     if not condition:
         raise ValueError(message)
@@ -258,6 +380,39 @@ def host_inventory(candidate, snapshot, *, policy_root=ROOT):
                    "entrypoints": sorted(required), "variants": VARIANTS})
 
 
+def ci_host_boundary(snapshot):
+    """Bind the complete reviewed reader complement, including path absence."""
+    if any(entry.mode not in {"100644", "100755"} or entry.object_type != "blob"
+           for entry in snapshot.entries):
+        return None
+    values = [entry.identity() for entry in sorted(snapshot.entries)
+              if entry.path not in CI_HOST_INDEPENDENT_PATHS]
+    return hashlib.sha256((json.dumps(values, sort_keys=True, separators=(",", ":"),
+                                     allow_nan=False) + "\n").encode()).hexdigest()
+
+
+def ci_host_omission(previous, current):
+    """Finite negative dependency proof; never infer independence from app inputs."""
+    old, new = entries(previous), entries(current)
+    changed = {path for path in old.keys() | new.keys() if old.get(path) != new.get(path)}
+    if not changed or not changed <= CI_HOST_INDEPENDENT_PATHS:
+        return None
+    if any((old[path]["mode"], old[path]["type"]) != (new[path]["mode"], new[path]["type"])
+           for path in changed if path in old and path in new):
+        return None
+    if any(value["mode"] != ("100755" if path in CI_HOST_EXECUTABLE_PATHS else "100644")
+           or value["type"] != "blob" for tree in (old, new) for path, value in tree.items()
+           if path in CI_HOST_INDEPENDENT_PATHS):
+        return None
+    if any(ci_host_boundary(snapshot) != REVIEWED_CI_HOST_BOUNDARY
+           for snapshot in (previous, current)):
+        return None
+    return {"schema": 1, "reason": "reviewed-ci-only-host-inputs",
+            "boundary": REVIEWED_CI_HOST_BOUNDARY, "changedPaths": sorted(changed),
+            "base": {"revision": previous.revision, "tree": previous.tree},
+            "candidate": {"revision": current.revision, "tree": current.tree}}
+
+
 def route(event, candidate, source, *, policy_root=ROOT):
     base, head = context(event, candidate, source)
     generation, current = resolve(candidate, source, policy_root=policy_root)
@@ -277,6 +432,11 @@ def route(event, candidate, source, *, policy_root=ROOT):
                 selection = inputs.candidate_plan(candidate, base, source)
             required, host_required = selection["requires_application_build"], True
             reason = selection["reason"]
+            omission = None if required else ci_host_omission(previous, current)
+            if omission is not None:
+                host_required = False
+                reason = omission["reason"]
+                selection = {**selection, "host_omission": omission}
     else:
         selection = inputs.input_fingerprint(candidate, source)
         reason, required, host_required = "manual-application-build-required", True, True

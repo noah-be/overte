@@ -1022,9 +1022,80 @@ class HostGenerationTests(unittest.TestCase):
         self.assertEqual(self.verify(refreshed, event, source), refreshed)
         self.assertNotEqual(stale["selection"], refreshed["selection"])
 
-    def test_only_exact_three_tree_noop_can_skip_host_and_app(self):
+    def test_reviewed_ci_reader_complement_skips_own_host_without_a_test_receipt(self):
+        inputs = self.host.selector(self.trusted)
+        boundary = self.host.ci_host_boundary(inputs.read_snapshot(self.root, self.base))
+        event, source = self.candidate({"tools/ios-build-qualification/host.py": "# Changed independent CI owner\n",
+                                        "tests/device/run_control_plane_tests.py": "# Changed shared owner\n"})
+        with patch.object(self.host, "REVIEWED_CI_HOST_BOUNDARY", boundary):
+            output = self.route(event, source)
+            self.assertEqual((output["required"], output["host_required"], output["reason"]),
+                             ("false", "false", "reviewed-ci-only-host-inputs"))
+            self.assertEqual(self.verify(output, event, source), output)
+            with patch.object(CHECK, "host_handoff", return_value=self.host), \
+                    patch.object(self.host, "verify_execution", side_effect=AssertionError("no host executed")), \
+                    patch.object(CHECK, "verify_ipa", side_effect=AssertionError("no IPA built")):
+                result = CHECK.report(self.needs(output), source, 688, 123, 1, self.root, [],
+                    event=event, candidate=self.root, policy_root=self.trusted)
+            self.assertEqual(result["ipa"], "not-required")
+            self.assertIsNone(result["hostSelection"]["producer"])
+            self.assertIs(result["hostSelection"]["iosHostRequired"], False)
+            for name in ("host", "qt", "client"):
+                needs = self.needs(output);needs[name]["result"] = "success"
+                with self.assertRaises(ValueError): self.verify(output, event, source, required=needs)
+
+    def test_ci_host_boundary_is_finite_and_binds_both_historical_reader_trees(self):
+        inputs = self.host.selector(self.trusted)
+        previous = inputs.read_snapshot(self.root, self.base)
+        boundary = self.host.ci_host_boundary(previous)
+        ci = "tools/ios-build-qualification/host.py"
+        with patch.object(self.host, "REVIEWED_CI_HOST_BOUNDARY", boundary):
+            # Exercise every reviewed filename without relying on historical Git objects.
+            all_ci = self.commit(self.base, {path: (
+                "100755" if path in self.host.CI_HOST_EXECUTABLE_PATHS else "100644",
+                "# Independent CI fixture\n") for path in self.host.CI_HOST_INDEPENDENT_PATHS})
+            selected = self.host.ci_host_omission(previous, inputs.read_snapshot(self.root, all_ci))
+            self.assertEqual(set(selected["changedPaths"]), self.host.CI_HOST_INDEPENDENT_PATHS)
+            mode_change = self.commit(all_ci, {ci: ("100755", "# Changed independent executable mode\n")})
+            self.assertIsNone(self.host.ci_host_omission(inputs.read_snapshot(self.root, all_ci),
+                                                       inputs.read_snapshot(self.root, mode_change)))
+            removed_ci = self.commit(all_ci, {ci: None})
+            self.assertIsNotNone(self.host.ci_host_omission(inputs.read_snapshot(self.root, all_ci),
+                                                          inputs.read_snapshot(self.root, removed_ci)))
+            cases = ({"ios/tests/dsym_fixture.py": "# Changed imported helper\n"},
+                     {"ios/tests/port-contract-test.py": "# Changed source reader\n"},
+                     {"ios/tests/port-contract-test.py": None},
+                     {"docs/ios/HOST_PREPARATION.md": "Changed consumed documentation\n"},
+                     {"tools/new-native-input.h": "class QRegExp {};\n"},
+                     {"ios/release-check/test_added.py": "# New discovered test\n"},
+                     {"tests/device/ios/self_tests/test_added.py": "# New discovered test\n"},
+                     {"unknown/ci-helper.py": "# Unreviewed input\n"},
+                     {"ios/tests/port-contract-test.py": ("100755", "# Changed mode\n")},
+                     {ci: ("120000", "outside")},
+                     {ci: ("100755", "# Unreviewed executable CI addition\n")},
+                     {"unknown-link": ("120000", "outside")},
+                     {"unknown-gitlink": ("160000", "")})
+            for changes in cases:
+                with self.subTest(changes=changes):
+                    revision = self.commit(self.base, {ci: "# Independent CI edit\n", **changes})
+                    self.assertIsNone(self.host.ci_host_omission(previous, inputs.read_snapshot(self.root, revision)))
+            drift = self.commit(self.base, {"ios/tests/dsym_fixture.py": "# Historical new reader\n"})
+            restored = self.commit(drift, {ci: "# CI edit\n", "ios/tests/dsym_fixture.py": None})
+            self.assertEqual(self.host.ci_host_boundary(inputs.read_snapshot(self.root, restored)), boundary)
+            self.assertIsNone(self.host.ci_host_omission(inputs.read_snapshot(self.root, drift),
+                                                       inputs.read_snapshot(self.root, restored)))
+            self.assertIsNone(self.host.ci_host_omission(previous, previous))
+
+    def test_application_requirement_never_uses_ci_host_omission(self):
+        event, source = self.candidate({"interface/src/changed.cpp": "// Application input\n"})
+        with patch.object(self.host, "ci_host_omission", side_effect=AssertionError("app needs full host")):
+            output = self.route(event, source)
+        self.assertEqual((output["required"], output["host_required"]), ("true", "true"))
+
+    def test_exact_three_tree_noop_can_skip_host_and_app_without_ci_boundary(self):
         event, source = self.candidate()
-        output = self.route(event, source)
+        with patch.object(self.host, "ci_host_omission", side_effect=AssertionError("no-op has its own proof")):
+            output = self.route(event, source)
         self.assertEqual((output["required"], output["host_required"], output["reason"]), ("false", "false", "unchanged-tree"))
         self.assertEqual(self.verify(output, event, source), output)
 

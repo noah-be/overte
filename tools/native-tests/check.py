@@ -66,10 +66,14 @@ def plan(paths: list[str], regular: bool = True, *, verified_empty: bool = False
             raise ValueError('invalid changed path')
         if path.endswith('.md'):
             continue
-        # Routing/runner changes need an actual small native smoke plus their
-        # host regressions, not a rebuild of unrelated product applications.
-        if path in ('tools/native-tests/check.py', 'tools/native-tests/select.py',
-                    'tools/native-tests/run.py', 'tools/native-tests/qt-test.py', 'tests/native-ci-test.py'):
+        # The router and its behavioral regressions only classify immutable
+        # inputs; neither configures, compiles nor launches native tests.
+        # Their host owner checks selection and merge enforcement directly.
+        if path in ('tools/native-tests/check.py', 'tests/native-ci-test.py'):
+            continue
+        # Execution/graph drivers still need a small real native smoke.
+        if path in ('tools/native-tests/select.py', 'tools/native-tests/run.py',
+                    'tools/native-tests/qt-test.py'):
             relevant.append(path)
             core_only.add(path)
             continue
