@@ -60,7 +60,7 @@ PROGRAM_INPUTS = (
     'tests/requirements*.txt', 'interface', 'interface/**', 'libraries', 'libraries/**',
     'scripts', 'scripts/**', 'domain-server', 'domain-server/**', 'provenance', 'provenance/**', 'tools/sbom', 'tools/sbom/**',
 )
-REVIEWED_PROGRAMS = '6c05f2c28b722559c78606b418a5195e527057d084b8facc196bf19dbf7f3d2d'
+REVIEWED_PROGRAMS = 'a42d8b2da312abc846663da2d97126ad36bc33f5a29aa1511b1efed1ee961d95'
 
 
 def program_digest(tree, root=ROOT):

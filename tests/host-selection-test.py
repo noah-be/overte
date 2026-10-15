@@ -57,6 +57,14 @@ class HostSelectionTests(unittest.TestCase):
                 self.assertFalse(plan['full_host'])
                 self.assertNotIn('device-control-plane-full',plan['suites'])
 
+    def test_qt_script_contracts_are_required_for_product_changes_and_omitted_for_ci_only(self):
+        self.assertEqual(self.registry['suites']['shared-script-behavior']['layer'],'host')
+        ci=self.selected(['tools/branch-cleanup/cleanup.py'])
+        self.assertNotIn('shared-script-behavior',ci['suites'])
+        product=self.selected(['scripts/system/chat.js'])
+        self.assertIn('shared-script-behavior',product['suites'])
+        self.assertTrue(product['full_host'])
+
     def test_unknown_product_setup_shadow_and_mixed_changes_keep_full_host(self):
         for path in ('interface/src/Application.cpp','libraries/audio-client/src/AudioClient.cpp',
                      'tests/device/catalog.json','tests/run-project-tests.py','tests/run-unittest-suite.py',

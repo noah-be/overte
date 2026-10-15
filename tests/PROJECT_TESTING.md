@@ -490,7 +490,7 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `performance-contracts` | `quick` | `python3 tests/run-project-tests.py --suite performance-contracts` |
 | `server-console-behavior` | `quick` | `python3 tests/run-project-tests.py --suite server-console-behavior` |
 | `source-layout` | `quick` | `python3 tests/run-project-tests.py --suite source-layout` |
-| `shared-script-behavior` | `quick` | `python3 tests/run-project-tests.py --suite shared-script-behavior` |
+| `shared-script-behavior` | `host` | `python3 tests/run-project-tests.py --suite shared-script-behavior` |
 | `native-ctest` | `native` | `python3 tests/run-project-tests.py --suite native-ctest` |
 <!-- generated:test-suites:end -->
 
@@ -759,7 +759,7 @@ The staged host workflow in `tools/repository-checks/workflows/host/project-test
 uses the default branch's trusted `host_selection.py` controller. It recomputes
 the exact package/candidate plan before selection and again before execution.
 For explicitly reviewed CI and cleanup paths it runs every quick contract while
-omitting the 15 production host groups and their Qt development installation.
+omitting the 16 production host groups and their Qt development installation.
 This is dependency-based impact selection; an omitted group is not reported as
 a successful test or reused evidence.
 
@@ -775,3 +775,9 @@ CI-only changes; finer selection within quick and product groups remains open.
 Deployment requires the staged complete workflow tuple to be reviewed and landed
 on main before replacing the active callee. The unchanged required aggregate
 still blocks merging if host execution fails or is unexpectedly skipped.
+
+The shared application-script group is a host group: its native chat wrapper
+requires Qt Quick Test and its other native wrappers exercise Qt/QML and C++
+contracts. Its commands and assertions are unchanged. The dependency-light quick
+profile does not run this mixed production group; relevant product changes and
+conservative full-host selection still require every one of its tests.

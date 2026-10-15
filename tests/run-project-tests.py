@@ -115,7 +115,7 @@ SUITES = (
         "node", "--test", "server-console/test/open-url.test.js", "server-console/test/file-tail.test.js",
         "server-console/test/notification-compat.test.js")),
     Suite("source-layout", "quick", (sys.executable, "tests/source-layout-test.py")),
-    Suite("shared-script-behavior", "quick", ("node", "--test", *tuple(
+    Suite("shared-script-behavior", "host", ("node", "--test", *tuple(
         str(path.relative_to(ROOT)) for path in sorted((ROOT / "tests/javascript/test").glob("*.test.js"))))),
     Suite("native-ctest", "native", ("bash", "tests/project-native-test.sh")),
 )
