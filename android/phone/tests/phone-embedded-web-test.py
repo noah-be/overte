@@ -6,13 +6,28 @@ from pathlib import Path
 import argparse
 import subprocess
 import tempfile
+import re
 ROOT = Path(__file__).resolve().parents[3]
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--android-jar', type=Path)
 parser.add_argument('--qt-jar', type=Path)
 parser.add_argument('--webkit-jar', type=Path)
 parser.add_argument('--core-jar', type=Path)
+parser.add_argument('--common-web-preview', type=Path, help='explicit read-only Android parent prerequisite before propagation')
+parser.add_argument('--expected-common-sha', help='full Git SHA for that clean prerequisite checkout')
 args = parser.parse_args()
+web_source = ROOT / 'android/common/web/java'
+if args.common_web_preview or args.expected_common_sha:
+    if not args.common_web_preview or not re.fullmatch('[0-9a-f]{40}', args.expected_common_sha or ''):
+        parser.error('common preview requires its path and exact full Git SHA')
+    preview = args.common_web_preview.resolve()
+    actual = subprocess.check_output(['git', '-C', str(preview), 'rev-parse', 'HEAD'], text=True).strip()
+    dirty = subprocess.check_output(['git', '-C', str(preview), 'status', '--porcelain'], text=True).strip()
+    if actual != args.expected_common_sha or dirty:
+        parser.error('common preview is dirty or does not match the explicit SHA')
+    web_source = preview / 'android/common/web/java'
+    if not web_source.is_dir():
+        parser.error('common preview has no production Web source directory')
 with tempfile.TemporaryDirectory(prefix='phone-embedded-web-') as stage:
     sources = [ROOT / f'android/phone/apps/phoneInterface/src/main/java/org/overte/phone/{name}.java'
                for name in ('PhoneWebGeometry',)]
@@ -40,7 +55,7 @@ with tempfile.TemporaryDirectory(prefix='phone-embedded-web-') as stage:
         production = list((ROOT / 'android/phone/apps/phoneInterface/src/main/java').rglob('*.java'))
         production = [path for path in production if path.name != 'PermissionsActivity.java']
         production += list((ROOT / 'android/common/libraries/qt/src/main/java').rglob('*.java'))
-        production += list((ROOT / 'android/common/web/java').rglob('*.java'))
+        production += list(web_source.rglob('*.java'))
         production += list((ROOT / 'android/common/snapshot/java').rglob('*.java'))
         production += list((ROOT / 'android/common/documents/java').rglob('*.java'))
         production += list((ROOT / 'security/redaction/java').rglob('*.java'))

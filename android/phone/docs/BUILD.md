@@ -802,10 +802,16 @@ Phone registers the Android parent's `Overte.Android` backend in `phoneInterface
 and places a real embedded WebView inside the measured Qt surface. Full scene
 bounds and QML clip bounds map through the actual surface dimensions. The 48-pixel
 Qt navigation toolbar and other Qt controls stay outside the native browser.
-The native browser owns tablet DOM input and its OS input connection. Foreground,
-window focus and Activity destruction invalidate the common runtime's grants.
+The native browser owns tablet DOM input and its OS input connection. Actual
+Activity background and destruction suspend the common media lifecycle. Window
+focus changes call the independent input hook and invalidate pointer/IME tickets
+without suspending media, rendering or bridge grants. Foreground requires the
+resumed current Qt Activity; input and picker entry/return additionally require
+real window focus. Late pause/destroy still addresses the immutable old host;
+the common runtime rejects it once another host owns that runtime. Positive
+foreground and input/picker callbacks stay bound to the current Qt owner.
 The file picker uses explicit OS document selection, temporary content URIs and
-one-shot request leases; results wait for actual foreground return. No camera,
+one-shot request leases; results wait for actual foreground and input-focus return. No camera,
 microphone or geolocation permissions are granted to browser documents.
 
 The pinned AndroidX WebKit dependency, transitive runtime artifacts and matching
@@ -821,6 +827,24 @@ arguments compile the actual Phone Activity, Host, Qt bindings and common browse
 against those artifacts. This checks Java API compatibility only. The test
 inventory records `PhoneEmbeddedWeb.cpp` as an Android Qt/JNI runtime boundary.
 
+Before regular parent propagation, API compilation may read an explicit clean
+Android preview with `--common-web-preview <checkout> --expected-common-sha <sha>`.
+It compiles that production Web source, not a substitute API class. The test-only
+`android/phone/tests/web-focus-preview.init.gradle` supplies the same prerequisite
+to the existing locked JVM harness with `-PoverteWebPreviewRoot=<checkout>` and
+`-PoverteWebPreviewSha=<sha>`; it verifies SHA/cleanliness before selecting sources.
+This is an unpropagated test prerequisite, not Phone parent ancestry or native
+application qualification. Omit the preview after normal parent propagation.
+
+`PhoneEmbeddedWebFocusRobolectricTest` runs the actual final Phone Activity/Host
+through window-focus, pause/destroy, stale-owner and picker-return cases. It also
+executes the actual parent owner-rejection path before unavailable JNI, proving
+that late old-host pause/detach cannot clear a successor host. Qt native
+library startup and common JNI/Chromium effects are explicit observation
+boundaries. The minimal test assets are generated in a temporary ZIP and removed
+on success or failure. Native media silence and provider behavior remain outside
+this host dispatch test; no TLS implementation or package policy is changed.
+
 A complete Phone app build and exact-artifact device checks are still required:
 provider bridge/iframe rejection, file picker cancellation and Activity recreation,
 IME selection/composition and keyboard insets, embedded user-driven video/audio,
@@ -829,12 +853,31 @@ texture renderer does not establish hardware video parity. Foreign-document
 texture IME and arbitrary rotated native overlays remain unqualified. F-Droid
 source-only acceptance additionally requires the existing cold-build gates.
 
-## Current Phone test profile
+## Current Phone host matrix
 
-This authoritative profile records the test inventory in this Phone checkout.
-The total JUnit count includes nine framework-independent legacy `HifiUtils`
-cases in addition to the Robolectric SDK executions. This declaration does not
-establish native application or physical-device acceptance.
+The structured profile below is authoritative for this Phone checkout. The nine
+Web focus/owner lifecycle cases execute on both API 26 and API 35. The actual
+Robolectric reports contain 116 cases, including 18 focus executions. The common
+Android documentation describes its parent baseline and cannot replace this
+product declaration. These are host Activity/Qt-boundary checks, not Chromium,
+acoustic, physical input or APK qualification.
+
+The existing Qt/Fast tier also executes the fixed Phone Places and domain-login
+runtime fixtures. They inspect actual scrolled controls at narrow widths and
+large font scales, and the existing Phone UI's failure/timeout/cancel handlers.
+The original Qt JUnit is retained; warnings/errors, missing cases, skips and
+runtime failures are not converted into successful results. Contracts retain
+source/portal/URL/bridge/scroll checks without requiring Qt.
+
+Normal Fast runs both fixed fixtures with Qt 5 and publishes ten original JUnit
+cases. The common login body still imports Qt Quick Controls 1.4; a Qt 6-only
+host cannot qualify that full suite. `phone-places-delegate-test.py --places-only`
+can separately exercise the five modern Places cases with Qt 5 or Qt 6.
+`--domain-only` isolates the five domain-recovery rows. For an immutable parent
+preview or negative control, `--places-qml`/`--login-qml` accept explicit input
+files; record their exact owning source revision and file hash. Such an override
+does not integrate those bytes into this product. Normal CI supplies neither
+override and must reject a still-missing upstream layout fix.
 
 <!-- android-test-profile:start -->
 ```json
@@ -842,9 +885,9 @@ establish native application or physical-device acceptance.
   "scope": "android-phone",
   "qmlFunctions": 53,
   "qmlRows": 69,
-  "robolectricBehaviors": 41,
-  "robolectricExecutions": 89,
-  "junitCases": 98,
+  "robolectricBehaviors": 50,
+  "robolectricExecutions": 107,
+  "junitCases": 116,
   "sdkMatrices": {
     "legacy Interface": [
       24,
@@ -881,6 +924,13 @@ establish native application or physical-device acceptance.
     },
     "org/overte/phone/PhoneDeepLinkRobolectricTest.java": {
       "behaviors": 4,
+      "sdks": [
+        26,
+        35
+      ]
+    },
+    "org/overte/phone/PhoneEmbeddedWebFocusRobolectricTest.java": {
+      "behaviors": 9,
       "sdks": [
         26,
         35
