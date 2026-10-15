@@ -1090,6 +1090,29 @@
           "tools/test-evidence/test.py"
         ]
       }
+    },
+    "android-ci": {
+      "command": [
+        "python",
+        "tests/android-ci-test.py"
+      ],
+      "layer": "quick",
+      "scope": "content",
+      "environment": "host-qt5-qt6",
+      "closure": {
+        "kind": "repository",
+        "inputs": [],
+        "required": [
+          "tests/android-ci-test.py",
+          "tools/repository-checks/android.py",
+          ".github/android-checks.json",
+          "tools/test-evidence/execution.py",
+          "tools/test-evidence/runtime.py",
+          "tools/test-evidence/inputs.py",
+          "tests/run-project-tests.py",
+          "tests/platform-profile.json"
+        ]
+      }
     }
   }
 }

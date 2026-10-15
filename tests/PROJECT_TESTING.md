@@ -262,6 +262,16 @@ merge candidate and the integrated parent commit remain distinct test inputs.
 
 ## Available project suites
 
+The `android-ci` suite runs in both the quick and combined host profiles. It
+checks the staged Android ownership controller with disposable Git trees,
+mocked command results and isolated Python environments. These fixtures verify
+the Fast/Contracts union, one owner for Robolectric and Pico, complete native
+and Robolectric SDK case coverage, and failure propagation through tier views.
+They require no Android SDK, Gradle run or product build. The controller and
+[reviewed policy](../.github/android-checks.json) are staged for later workflow
+wiring. Its current evidence closure covers the repository because controller
+loading also validates the branch-owned platform profile.
+
 The `test-evidence` quick suite checks trusted execution receipts, complete
 suite-input fingerprints, actual runtime identity and parent qualification.
 The shared registry is [`.github/test-suites.json`](../.github/test-suites.json).
@@ -302,6 +312,7 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `project-runner` | `quick` | `python3 tests/run-project-tests.py --suite project-runner` |
 | `python-test-runner` | `quick` | `python3 tests/run-project-tests.py --suite python-test-runner` |
 | `repository-checks` | `quick` | `python3 tests/run-project-tests.py --suite repository-checks` |
+| `android-ci` | `quick` | `python3 tests/run-project-tests.py --suite android-ci` |
 | `ios-build-qualification` | `quick` | `python3 tests/run-project-tests.py --suite ios-build-qualification` |
 | `repository-policy` | `quick` | `python3 tests/run-project-tests.py --suite repository-policy` |
 | `policy-consistency` | `quick` | `python3 tests/run-project-tests.py --suite policy-consistency` |
