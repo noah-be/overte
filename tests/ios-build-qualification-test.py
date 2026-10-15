@@ -4,6 +4,7 @@
 import copy
 import hashlib
 import importlib.util
+import io
 import json
 from pathlib import Path
 import plistlib
@@ -13,6 +14,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 import zipfile
@@ -785,6 +787,211 @@ class HostGenerationTests(unittest.TestCase):
         self.assertFalse(load("host").SOURCE_READY)
         self.assertEqual(json.loads((ROOT / self.host.POLICY).read_text())["activationTargets"], [])
 
+    def bootstrap_tree(self):
+        return self.git("rev-parse", self.legacy + "^{tree}")
+
+    def bootstrap_candidate(self, changes=None, *, base=None):
+        return self.candidate({self.host.WORKFLOW: (self.trusted / self.host.TEMPLATE).read_text(),
+                               **(changes or {})}, base=base or self.legacy)
+
+    def test_finite_legacy_workflow_bootstrap_keeps_full_host_without_qt_or_ipa(self):
+        event, source = self.bootstrap_candidate()
+        self.assertTrue(CHECK.input_selector(self.trusted).candidate_plan(self.root, self.legacy, source)["requires_application_build"])
+        with patch.object(self.host, "BOOTSTRAP_REVIEWED_TREE", self.bootstrap_tree()):
+            output = self.route(event, source)
+            self.assertEqual((output["required"], output["host_required"], output["reason"]),
+                             ("false", "true", "reviewed-host-v1-workflow-bootstrap"))
+            self.assertEqual(self.verify(output, event, source), output)
+            jobs, run = self.execution(event["pull_request"]["head"]["sha"])
+            with patch.object(self.host, "SOURCE_READY", True), patch.object(CHECK, "host_handoff", return_value=self.host), \
+                    patch.object(CHECK, "verify_ipa", side_effect=AssertionError("bootstrap cannot manufacture an IPA")):
+                result = CHECK.report(self.needs(output), source, 688, 123, 1, self.root, jobs,
+                    event=event, candidate=self.root, policy_root=self.trusted, run_metadata=run)
+            self.assertEqual((result["ipa"], result["artifact"]), ("not-required", None))
+            self.assertEqual(result["hostSelection"]["producer"]["originalExecutionJobId"], 456)
+            for state in ("skipped", "failure", "cancelled", None):
+                required = self.needs(output);required["host"]["result"] = state
+                with self.assertRaises(ValueError): self.verify(output, event, source, required=required)
+
+    def test_bootstrap_cannot_approve_a_different_reader_tree_or_any_mixed_change(self):
+        event, source = self.bootstrap_candidate()
+        self.assertEqual(self.route(event, source)["required"], "true")
+        for path in ("docs/bootstrap.md", "tools/test-evidence/run.py", "unknown-input", "CMakeLists.txt",
+                     "interface/resources/packaged.md", "browser-client/package.json", "browser-client/package-lock.json",
+                     "script-archive/marketplace/S3Server/package.json", "script-archive/marketplace/S3Server/package-lock.json"):
+            with self.subTest(path=path), patch.object(self.host, "BOOTSTRAP_REVIEWED_TREE", self.bootstrap_tree()):
+                event, source = self.bootstrap_candidate({path: "Additional input\n"})
+                self.assertEqual((self.route(event, source)["required"], self.route(event, source)["host_required"]), ("true", "true"))
+        with patch.object(self.host, "BOOTSTRAP_REVIEWED_TREE", self.bootstrap_tree()):
+            changed_base = self.commit(self.legacy, {"CMakeLists.txt": "file(READ .github/workflows/ios-build-qualification.yml APP_INPUT)\n"})
+            event, source = self.bootstrap_candidate(base=changed_base)
+            self.assertEqual(self.route(event, source)["required"], "true")
+
+    def test_bootstrap_requires_regular_complete_generations_and_exact_head_tree(self):
+        with patch.object(self.host, "BOOTSTRAP_REVIEWED_TREE", self.bootstrap_tree()):
+            for path in self.host.PATHS:
+                for altered in (None, ("120000", "outside"), ("100755", "Changed mode/source\n")):
+                    with self.subTest(path=path, altered=altered):
+                        event, source = self.bootstrap_candidate({path: altered})
+                        with patch.object(self.host, "SOURCE_READY", True), self.assertRaises(ValueError):
+                            self.host.route(event, self.root, source, policy_root=self.trusted)
+            event, _ = self.bootstrap_candidate({"docs/head-only.md": "Not present in the merge\n"})
+            head = event["pull_request"]["head"]["sha"]
+            source = self.commit(self.legacy, {self.host.WORKFLOW: (self.trusted / self.host.TEMPLATE).read_text()},
+                                 parents=[self.legacy, head])
+            self.assertEqual(self.route(event, source)["required"], "true")
+            source = self.commit(head, {}, parents=[head, self.legacy])
+            with self.assertRaisesRegex(ValueError, "exact ordered event parents"):
+                self.route(event, source)
+
+    def live_facts(self, event, source):
+        event = copy.deepcopy(event);event["number"] = event["pull_request"]["number"] = 42
+        prefix = "repos/" + CHECK.REPOSITORY
+        live = {**copy.deepcopy(event["pull_request"]), "state": "open", "merged": False, "merge_commit_sha": source}
+        facts = {prefix + "/pulls/42": live}
+        for side in ("base", "head"):
+            item = event["pull_request"][side]
+            key = prefix + "/git/ref/heads/" + self.host.quote(item["ref"], safe="")
+            facts[key] = {"ref": "refs/heads/" + item["ref"], "object": {"type": "commit", "sha": item["sha"]}}
+        return event, facts
+
+    def test_fresh_context_independently_reads_pr_and_both_current_branch_heads(self):
+        event, source = self.bootstrap_candidate()
+        event, facts = self.live_facts(event, source)
+        seen = []
+        def api(endpoint):
+            seen.append(endpoint)
+            return copy.deepcopy(facts[endpoint])
+        with patch.object(self.host, "SOURCE_READY", True), patch.object(self.host, "_api_get", side_effect=api):
+            observed = self.host.fresh_context(event, self.root, source, policy_root=self.trusted)
+        self.assertEqual(seen, list(facts))
+        self.assertEqual(observed["candidate"], source)
+        self.assertEqual(observed["number"], 42)
+        self.assertEqual(observed["baseRef"], "apple-ios")
+
+    def test_stale_foreign_closed_or_unavailable_current_metadata_never_authorizes_bootstrap(self):
+        event, source = self.bootstrap_candidate();event, facts = self.live_facts(event, source)
+        pull = "repos/" + CHECK.REPOSITORY + "/pulls/42"
+        mutations = (lambda f: f[pull].update(state="closed"), lambda f: f[pull].update(merged=True),
+                     lambda f: f[pull].update(number=True), lambda f: f[pull].update(merge_commit_sha=SOURCE),
+                     lambda f: f[pull]["base"].update(ref="main"), lambda f: f[pull]["base"].update(sha=SOURCE),
+                     lambda f: f[pull]["head"]["repo"].update(id=1), lambda f: f[pull].update(head=[]),
+                     lambda f: f[next(k for k in f if k.endswith("apple-ios"))]["object"].update(sha=SOURCE),
+                     lambda f: f[list(f)[-1]]["object"].update(type="tag"))
+        for mutate in mutations:
+            changed = copy.deepcopy(facts);mutate(changed)
+            with patch.object(self.host, "SOURCE_READY", True), patch.object(self.host, "_api_get", side_effect=lambda key: changed[key]), self.assertRaises(ValueError):
+                self.host.fresh_context(event, self.root, source, policy_root=self.trusted)
+        with patch.object(self.host, "SOURCE_READY", True), patch.object(self.host, "_api_get", side_effect=ValueError("unavailable")), self.assertRaises(ValueError):
+            self.host.fresh_context(event, self.root, source, policy_root=self.trusted)
+        with patch.object(self.host, "_api_get") as api, self.assertRaisesRegex(ValueError, "not qualified or activated"):
+            self.host.fresh_context(event, self.root, source, policy_root=self.trusted)
+        api.assert_not_called()
+
+    def test_final_live_bookend_refuses_ref_change_during_trusted_verification(self):
+        event, source = self.bootstrap_candidate();event, facts = self.live_facts(event, source)
+        with (patch.object(self.host, "SOURCE_READY", True), patch.object(CHECK, "host_handoff", return_value=self.host),
+              patch.object(self.host, "_api_get", side_effect=lambda key: copy.deepcopy(facts[key])) as api):
+            with CHECK.fresh_host_candidate(event, self.root, source, policy_root=self.trusted):
+                pass
+            self.assertEqual(api.call_count, 6)
+            with self.assertRaisesRegex(ValueError, "branch head changed"):
+                with CHECK.fresh_host_candidate(event, self.root, source, policy_root=self.trusted):
+                    facts[list(facts)[-1]]["object"]["sha"] = SOURCE
+
+    def test_fixed_get_reader_has_no_candidate_path_config_or_raw_error_channel(self):
+        completed = subprocess.CompletedProcess([], 0, stdout=b'{"number":42}', stderr=b'')
+        secret = "offline-fixture-token-not-a-secret"
+        with (patch.dict(self.host.os.environ, {"GH_TOKEN": secret, "GH_HOST": "untrusted.invalid", "GH_CONFIG_DIR": "/candidate"}),
+              patch.object(self.host.Path, "stat", return_value=SimpleNamespace(st_mode=0o100755, st_uid=0)),
+              patch.object(self.host.subprocess, "run", return_value=completed) as run):
+            self.assertEqual(self.host._api_get("repos/noah-l-frank/overte/pulls/42"), {"number": 42})
+            argv = run.call_args.args[0];environment = run.call_args.kwargs["env"]
+            self.assertEqual(argv[:7], ["/usr/bin/gh", "api", "--hostname", "github.com", "--method", "GET", "repos/noah-l-frank/overte/pulls/42"])
+            self.assertEqual(environment["GH_TOKEN"], secret)
+            self.assertNotIn("GH_HOST", environment)
+            self.assertNotEqual(environment["GH_CONFIG_DIR"], "/candidate")
+            for response in (subprocess.CompletedProcess([], 1, stdout=b'', stderr=secret.encode()),
+                             subprocess.CompletedProcess([], 0, stdout=b'{"number":42,"number":43}', stderr=b''),
+                             subprocess.CompletedProcess([], 0, stdout=b'[' + b'0' * 1_000_001 + b']', stderr=b'')):
+                run.return_value = response
+                with self.assertRaises(ValueError) as error: self.host._api_get("repos/noah-l-frank/overte/pulls/42")
+                self.assertNotIn(secret, str(error.exception))
+
+    def test_route_and_final_clis_publish_nothing_when_the_last_live_bookend_changes(self):
+        event, source = self.bootstrap_candidate();event, facts = self.live_facts(event, source)
+        event_file = self.trusted / "event.json";event_file.write_text(json.dumps(event))
+        output = self.trusted / "result.json"
+        jobs, run = self.execution(event["pull_request"]["head"]["sha"])
+        with patch.object(self.host, "BOOTSTRAP_REVIEWED_TREE", self.bootstrap_tree()):
+            selected = self.route(event, source)
+        for name, value in (("needs", self.needs(selected)), ("jobs", jobs), ("run", run)):
+            (self.trusted / (name + ".json")).write_text(json.dumps(value))
+        route, report, wiring, fresh = CHECK.route, CHECK.report, CHECK.validate_wiring, self.host.fresh_context
+        def with_policy(function):
+            def call(*args, **kwargs):
+                kwargs["policy_root"] = self.trusted
+                return function(*args, **kwargs)
+            return call
+        for action in ("route", "verify"):
+            arguments = ["check.py", action, "--event", str(event_file), "--candidate", str(self.root), "--output", str(output)]
+            if action == "route":
+                arguments += ["--sha", source]
+            else:
+                arguments += ["--source", source, "--needs", str(self.trusted / "needs.json"),
+                    "--jobs", str(self.trusted / "jobs.json"), "--run-metadata", str(self.trusted / "run.json"),
+                    "--build-number", "688", "--run-id", "123", "--attempt", "1", "--artifacts", str(self.trusted / "absent-ipa")]
+            for changed in (False, True):
+                output.unlink(missing_ok=True)
+                calls = []
+                def api(endpoint):
+                    calls.append(endpoint)
+                    value = copy.deepcopy(facts[endpoint])
+                    if changed and len(calls) == 4:
+                        value["merge_commit_sha"] = SOURCE
+                    return value
+                with (patch.object(self.host, "SOURCE_READY", True), patch.object(self.host, "BOOTSTRAP_REVIEWED_TREE", self.bootstrap_tree()),
+                      patch.object(CHECK, "host_handoff", return_value=self.host), patch.object(self.host, "fresh_context", side_effect=with_policy(fresh)),
+                      patch.object(self.host, "_api_get", side_effect=api), patch.object(CHECK, "route", side_effect=with_policy(route)),
+                      patch.object(CHECK, "report", side_effect=with_policy(report)), patch.object(CHECK, "validate_wiring", side_effect=with_policy(wiring)),
+                      patch.object(sys, "argv", arguments), patch.object(sys, "stdout", new_callable=io.StringIO),
+                      patch.object(sys, "stderr", new_callable=io.StringIO), patch.dict(self.host.os.environ, {"GITHUB_STEP_SUMMARY": ""})):
+                    code = CHECK.main()
+                self.assertEqual(code, 1 if changed else 0, (action, calls))
+                self.assertEqual(output.exists(), not changed)
+                self.assertEqual(len(calls), 4 if changed else 6)
+
+    def test_manual_cli_keeps_full_build_without_pr_api_and_rejects_another_target(self):
+        event_file = self.trusted / "manual-event.json"
+        output = self.trusted / "manual-output.txt"
+        route, wiring = CHECK.route, CHECK.validate_wiring
+        def with_policy(function):
+            def call(*args, **kwargs):
+                kwargs["policy_root"] = self.trusted
+                return function(*args, **kwargs)
+            return call
+        for ref, expected_code in (("refs/heads/apple-ios", 0), ("refs/heads/main", 1)):
+            event_file.write_text(json.dumps({"repository": {"full_name": CHECK.REPOSITORY,
+                "id": CHECK.REPOSITORY_ID}, "ref": ref}))
+            output.unlink(missing_ok=True)
+            with (patch.object(self.host, "SOURCE_READY", True), patch.object(CHECK, "host_handoff", return_value=self.host),
+                  patch.object(self.host, "_api_get", side_effect=AssertionError("manual route requested PR metadata")) as api,
+                  patch.object(CHECK, "route", side_effect=with_policy(route)),
+                  patch.object(CHECK, "validate_wiring", side_effect=with_policy(wiring)),
+                  patch.object(sys, "argv", ["check.py", "route", "--event", str(event_file), "--candidate", str(self.root),
+                      "--sha", self.base, "--output", str(output)]),
+                  patch.object(sys, "stdout", new_callable=io.StringIO) as stdout,
+                  patch.object(sys, "stderr", new_callable=io.StringIO)):
+                self.assertEqual(CHECK.main(), expected_code, ref)
+            api.assert_not_called()
+            self.assertEqual(output.exists(), expected_code == 0)
+            if expected_code == 0:
+                result = json.loads(stdout.getvalue())
+                self.assertEqual((result["required"], result["host_required"], result["reason"]),
+                                 ("true", "true", "manual-application-build-required"))
+                self.assertIn("required=true\n", output.read_text())
+                self.assertIn("host_required=true\n", output.read_text())
+
     def test_proven_host_and_docs_changes_keep_ios_host_and_skip_app_only(self):
         for path in ("docs/ios-fixture.md", "tools/test-evidence/run.py"):
             event, source = self.candidate({path: "Reviewed independent input\n"})
@@ -933,6 +1140,12 @@ class HostGenerationTests(unittest.TestCase):
             self.assertRegex(declaration, r"^(?:\./\.github/workflows/[a-z-]+\.yml|[^@\s]+@[0-9a-f]{40})$")
         for field in ("host_required", "generation", "selection", "host_inputs"):
             self.assertEqual(current["jobs"]["route"]["outputs"][field], "${{ steps.plan.outputs." + field + " }}")
+        for name in ("route", "ios-device-build"):
+            self.assertEqual(current["jobs"][name]["permissions"]["pull-requests"], "read")
+        route = next(step for step in current["jobs"]["route"]["steps"] if step.get("id") == "plan")
+        final = next(step for step in current["jobs"]["ios-device-build"]["steps"] if step.get("name") == "Require selected jobs and verify exact IPA provenance")
+        self.assertEqual(route["env"]["GH_TOKEN"], "${{ github.token }}")
+        self.assertEqual(final["env"]["GH_TOKEN"], "${{ github.token }}")
 
     def test_preflight_requires_real_qt_modules_and_preserves_forced_launcher_variants(self):
         seen = []

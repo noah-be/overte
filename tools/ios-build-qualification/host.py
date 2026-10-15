@@ -13,14 +13,19 @@ from pathlib import Path
 import posixpath
 import re
 import shutil
+import stat
 import subprocess
 import sys
+import tempfile
+from urllib.parse import quote
 
 ROOT = Path(__file__).resolve().parents[2]
 POLICY = ".github/ios-host-orchestration.json"
 WORKFLOW = ".github/workflows/ios-build-qualification.yml"
 TEMPLATE = "tools/ios-build-qualification/host-workflow.yml"
 SOURCE_READY = False
+BOOTSTRAP_REVIEWED_SOURCE = "52f1cc38180e96cdfd8049a4be93517961ae7dbd"
+BOOTSTRAP_REVIEWED_TREE = "f5b44d19b5c64c96bc3f73f72c51519dbfbf08a3"
 REPOSITORY = "noah-l-frank/overte"
 REPOSITORY_ID = 1319052603
 SHA = re.compile(r"[0-9a-f]{40}\Z")
@@ -138,6 +143,98 @@ def context(event, candidate, source):
     return "", source
 
 
+def workflow_bootstrap(candidate, previous, current, head, *, policy_root=ROOT):
+    """Finite source proof, never a new reader anchor or activation authority.
+
+    Only the independently reviewed complete legacy tree can take this route.
+    A later reader/host/package edit cannot inherit the bootstrap exception.
+    """
+    if policy(policy_root)["reviewedSource"] != BOOTSTRAP_REVIEWED_SOURCE \
+            or previous.tree != BOOTSTRAP_REVIEWED_TREE or current.tree != head.tree:
+        return None
+    before, _ = resolve(candidate, previous.revision, policy_root=policy_root)
+    after, _ = resolve(candidate, head.revision, policy_root=policy_root)
+    if before != "legacy" or after != "host-v1":
+        return None
+    old, new = entries(previous), entries(current)
+    approved = generations(policy_root)
+    expected = {**old, WORKFLOW: approved["host-v1"][WORKFLOW]}
+    if new != expected or old == new or any(value["mode"] not in {"100644", "100755"}
+            or value["type"] != "blob" for value in (*old.values(), *new.values())):
+        return None
+    return {"schema": 1, "reason": "reviewed-host-v1-workflow-bootstrap", "requires_application_build": False,
+            "reviewed_source": BOOTSTRAP_REVIEWED_SOURCE, "reviewed_tree": BOOTSTRAP_REVIEWED_TREE,
+            "base": {"revision": previous.revision, "tree": previous.tree},
+            "head": {"revision": head.revision, "tree": head.tree},
+            "candidate": {"revision": current.revision, "tree": current.tree},
+            "workflow": {"path": WORKFLOW, "old": approved["legacy"][WORKFLOW], "new": approved["host-v1"][WORKFLOW]},
+            "generations": approved, "normalized_inputs": digest([entry.identity() for entry in previous.entries])}
+
+
+def _api_get(endpoint):
+    """Independently read one bounded GitHub fact; never accept artifact claims."""
+    token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
+    require(isinstance(token, str) and token, "fresh iOS PR metadata requires the trusted read credential")
+    executable = Path("/usr/bin/gh")
+    info = executable.stat()
+    require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and not info.st_mode & 0o022,
+            "fixed trusted GitHub reader is unavailable or mutable")
+    try:
+        with tempfile.TemporaryDirectory(prefix="overte-ios-github-reader-") as directory:
+            result = subprocess.run([str(executable), "api", "--hostname", "github.com", "--method", "GET", endpoint],
+                stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30,
+                env={"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8", "GH_TOKEN": token,
+                     "HOME": directory, "GH_CONFIG_DIR": directory, "GH_PROMPT_DISABLED": "1"})
+        require(result.returncode == 0 and len(result.stdout) <= 1_000_000 and len(result.stderr) <= 65536,
+                "fresh iOS PR GitHub metadata is unavailable or exceeds bounds")
+        def unique(pairs):
+            value = {}
+            for key, item in pairs:
+                require(key not in value, "ambiguous fresh iOS PR GitHub metadata")
+                value[key] = item
+            return value
+        value = json.loads(result.stdout, object_pairs_hook=unique)
+        require(isinstance(value, dict), "fresh iOS PR GitHub metadata is not one object")
+        return value
+    except (OSError, subprocess.SubprocessError, UnicodeError, json.JSONDecodeError) as error:
+        raise ValueError("fresh iOS PR GitHub metadata is unavailable") from error
+
+
+def fresh_context(event, candidate, source, *, policy_root=ROOT):
+    """Trusted CLI bookend: actual GETs and local immutable parents must agree.
+
+    JSON supplied by a workflow/caller is never accepted as a fresh API proof.
+    Pure route/report APIs still need these CLI bookends at deployment.
+    """
+    base, head = context(event, candidate, source)
+    require(SOURCE_READY and "apple-ios" in policy(policy_root)["activationTargets"],
+            "iOS host-only generation is not qualified or activated")
+    number = event.get("number")
+    pr = event.get("pull_request", {})
+    require(base and type(number) is int and number > 0 and type(pr.get("number")) is int
+            and pr["number"] == number, "fresh iOS PR number is missing or inconsistent")
+    branch = pr["head"].get("ref")
+    require(isinstance(branch, str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]*", branch)
+            and not any(part in {"", ".", ".."} for part in branch.split("/")), "unsupported current iOS PR head ref")
+    prefix = "repos/" + REPOSITORY
+    live = _api_get(prefix + "/pulls/" + str(number))
+    require(type(live.get("number")) is int and live["number"] == number and live.get("state") == "open"
+            and live.get("merged") is False and live.get("merge_commit_sha") == source,
+            "iOS PR is closed or its current merge candidate changed")
+    for side, revision, name in (("base", base, "apple-ios"), ("head", head, branch)):
+        value = live.get(side, {})
+        require(isinstance(value, dict) and value.get("ref") == name and value.get("sha") == revision
+                and isinstance(value.get("repo"), dict) and value["repo"].get("full_name") == REPOSITORY
+                and type(value["repo"].get("id")) is int and value["repo"]["id"] == REPOSITORY_ID,
+                "current iOS PR target, source or repository changed")
+        reference = _api_get(prefix + "/git/ref/heads/" + quote(name, safe=""))
+        require(reference.get("ref") == "refs/heads/" + name and isinstance(reference.get("object"), dict)
+                and reference["object"].get("type") == "commit"
+                and reference["object"].get("sha") == revision, "current iOS PR branch head changed")
+    return {"repository": REPOSITORY, "repositoryId": REPOSITORY_ID, "number": number,
+            "baseRef": "apple-ios", "base": base, "headRef": branch, "head": head, "candidate": source}
+
+
 def host_inventory(candidate, snapshot, *, policy_root=ROOT):
     """The full Git tree binds all transitive tests, fixtures and native variants."""
     document = policy(policy_root)
@@ -175,7 +272,9 @@ def route(event, candidate, source, *, policy_root=ROOT):
             reason, required, host_required = "unchanged-tree", False, False
             selection = {"tree": current.tree, "base": base, "head": head, "candidate": source}
         else:
-            selection = inputs.candidate_plan(candidate, base, source)
+            selection = workflow_bootstrap(candidate, previous, current, head_source, policy_root=policy_root)
+            if selection is None:
+                selection = inputs.candidate_plan(candidate, base, source)
             required, host_required = selection["requires_application_build"], True
             reason = selection["reason"]
     else:
