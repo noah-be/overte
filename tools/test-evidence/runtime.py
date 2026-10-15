@@ -312,7 +312,7 @@ def _requirements(root: Path = ROOT) -> dict[str, str]:
     return _requirement_inventory(root)[0]
 
 
-def _trusted_execution(manifests: dict[str, str], root: Path = ROOT) -> dict[str, str]:
+def _controller_file_hashes(manifests: dict[str, str], root: Path = ROOT) -> dict[str, str]:
     """Bind the actual default-branch controller/attestor, not candidate copies.
 
     The complete registry is deliberately excluded: each suite fingerprint
@@ -482,7 +482,7 @@ def capture_host_environment() -> dict:
                 "configuration_digest": _file_digest(Path("/usr/include/glm/detail/setup.hpp"))},
         "system_packages": _debian_packages(),
         "flags": flags,
-        "trusted_execution": _trusted_execution(manifests),
+        "trusted_execution": _controller_file_hashes(manifests),
     }
     # Make the contract explicitly JSON-only and independent of insertion order.
     return json.loads(json.dumps(identity, sort_keys=True, separators=(",", ":"), allow_nan=False))
