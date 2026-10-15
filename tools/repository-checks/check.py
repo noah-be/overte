@@ -189,6 +189,11 @@ def validate_direct_wiring(candidate: Path, policy_root: Path = ROOT) -> None:
             if package_caller.is_file() and path.is_file() and path.read_bytes() == package_caller.read_bytes():
                 package_policy().validate_wiring(candidate)
                 approved.append(package_caller.read_bytes())
+            android_caller = policy_root / "tools/repository-checks/workflows/android/repository-checks-direct-browser.yml"
+            if android_caller.is_file() and path.is_file() and path.read_bytes() == android_caller.read_bytes():
+                package_policy().validate_wiring(candidate)
+                android_policy().validate_tree_wiring(android_policy()._sources(candidate).entries)
+                approved.append(android_caller.read_bytes())
         if (not path.is_file() or any(parent.is_symlink() for parent in
                                      (candidate / ".github", candidate / ".github/workflows", path))
                 or not canonical.is_file()
@@ -357,13 +362,19 @@ def native_required(config: dict, event: dict | None) -> bool:
 
 def verify(needs: dict, require_native: bool = True, *, require_direct: bool = False,
            direct_plan: dict | None = None, package_plan: dict | None = None,
-           require_packages: bool = False, require_browser: bool = False, browser_plan: dict | None = None) -> dict:
+           require_packages: bool = False, require_browser: bool = False, browser_plan: dict | None = None,
+           android_plan: dict | None = None, require_android: bool = False) -> dict:
     expected_jobs = {"route", "project", "documentation", "workflow-security", "native"}
     has_browser = isinstance(needs, dict) and 'browser-client' in needs
     if has_browser:
         expected_jobs.add('browser-client')
     elif require_browser:
         raise ValueError('required Browser aggregate missing')
+    has_android = isinstance(needs, dict) and "android" in needs
+    if has_android:
+        expected_jobs.add("android")
+    elif require_android:
+        raise ValueError("required Android aggregate missing")
     has_direct = isinstance(needs, dict) and "direct-browser" in needs
     if has_direct:
         expected_jobs.add("direct-browser")
@@ -426,8 +437,23 @@ def verify(needs: dict, require_native: bool = True, *, require_direct: bool = F
         if browser_plan is None:
             raise ValueError('Browser requires independently recomputed candidate inputs')
         browser_policy().verify_outer(needs['browser-client'], outputs, browser_plan)
+    if has_android:
+        if android_plan is None:
+            raise ValueError("Android requires an independently recomputed candidate plan")
+        owner = android_policy()
+        if any(outputs.get(key) != value for key, value in owner.outputs(android_plan).items()):
+            raise ValueError("aggregate Android routing/candidate/inventory mismatch")
+        owner.verify_outer(needs["android"], android_plan)
     return {"status": "PASS", "mode": mode,
             "delegated_requirement": "sync-test-reuse" if mode == "delegated-sync" else None}
+
+
+def android_policy():
+    spec = importlib.util.spec_from_file_location("required_android_orchestration", ROOT / "tools/repository-checks/android_gate.py")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def package_policy():
@@ -497,6 +523,11 @@ def main() -> int:
             event_name = os.environ.get('GITHUB_EVENT_NAME') or ('pull_request' if 'pull_request' in event else 'workflow_dispatch')
             if browser.required(args.candidate, event, args.sha, event_name):
                 result.update(browser.outer_outputs(browser.route(event, event_name, args.candidate, args.sha)))
+            android = android_policy()
+            if android.activated(event) or android.has_staged_caller(args.candidate):
+                android.admit(args.candidate, event)
+                result.update(android.outputs(android.candidate_plan(
+                    args.candidate, event, args.sha, event_name=os.environ.get("GITHUB_EVENT_NAME", "pull_request"))))
             with args.output.open("a") as output:
                 output.write("".join(f"{key}={value}\n" for key, value in result.items()))
         elif args.command == "verify":
@@ -527,10 +558,20 @@ def main() -> int:
                     raise ValueError('Browser verification requires exact candidate and event')
                 browser_required = True
                 browser_plan = browser.route(event, event_name, args.candidate, args.sha)
+            android = android_policy()
+            android_plan = None
+            android_required = android.activated(event or {})
+            if android_required or "android" in needs or any(key.startswith("android_") for key in route_outputs):
+                if args.candidate is None or event is None or not args.sha:
+                    raise ValueError("Android verification requires exact candidate and event")
+                android.admit(args.candidate, event)
+                android_plan = android.candidate_plan(args.candidate, event, args.sha,
+                    event_name=os.environ.get("GITHUB_EVENT_NAME", "pull_request"))
             result = verify(needs, native_required(config, event),
                             require_direct=direct_browser_required(config, event), direct_plan=direct_plan,
                             package_plan=package_plan, require_packages=package_required,
-                            require_browser=browser_required, browser_plan=browser_plan)
+                            require_browser=browser_required, browser_plan=browser_plan,
+                            android_plan=android_plan, require_android=android_required)
         else:
             event = json.loads(args.event.read_text())
             validate_direct_wiring(args.candidate)
