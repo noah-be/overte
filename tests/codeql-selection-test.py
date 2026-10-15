@@ -134,7 +134,10 @@ class LanguageSelectionTests(unittest.TestCase):
     def test_saved_workflow_digest_matches_the_actual_reviewed_activation(self):
         actual = subprocess.check_output(['git', 'hash-object', '.github/workflows/codeql.yml'],
                                          cwd=ROOT, text=True).strip()
-        self.assertEqual(actual, CODEQL._SELECTIVE_WORKFLOW)
+        self.assertIn(actual, {CODEQL._SELECTIVE_WORKFLOW, CODEQL._RESULTS_WORKFLOW})
+        canonical = ROOT / "tools/repository-checks/workflows/codeql-results.yml"
+        expected = subprocess.check_output(["git", "hash-object", str(canonical)], cwd=ROOT, text=True).strip()
+        self.assertEqual(expected, CODEQL._RESULTS_WORKFLOW)
 
     def test_both_sides_must_match_reviewed_actual_workflow_and_configuration(self):
         for path in CODEQL._REVIEWED_CONTROLS:
@@ -260,6 +263,366 @@ class ImmutableRepositoryTests(unittest.TestCase):
                 self.assertTrue(CODEQL.select_repository(self.root, sha, self.base)["full_scan"])
                 self.assertTrue(CODEQL.select_repository(self.root, self.base, sha)["full_scan"])
         self.assertTrue(CODEQL.select_repository("/missing-repository", "", "", event="schedule")["full_scan"])
+
+
+RESULT_SPEC = importlib.util.spec_from_file_location("trusted_codeql_results", ROOT / "tools/repository-checks/codeql_results.py")
+RESULTS = importlib.util.module_from_spec(RESULT_SPEC)
+assert RESULT_SPEC.loader
+RESULT_SPEC.loader.exec_module(RESULTS)
+
+
+class FakeCodeScanningApi:
+    """Authenticated server response fixture; never executes gh or a candidate."""
+    def __init__(self, owner):
+        self.owner, self.calls = owner, []
+        self.error = None
+        self.change = None
+
+    def json(self, endpoint):
+        from urllib.parse import parse_qs, urlsplit
+        self.calls.append(endpoint)
+        if self.error:
+            raise self.error
+        if self.change:
+            self.change(endpoint)
+        assert endpoint == RESULTS.PREFIX or endpoint.startswith(RESULTS.PREFIX + '/')
+        parsed = urlsplit(endpoint[len(RESULTS.PREFIX):])
+        path, query, o = parsed.path.lstrip('/'), parse_qs(parsed.query), self.owner
+        objects = {'': o.repo, 'actions/workflows/codeql.yml': o.workflow,
+                   'actions/runs/12': o.run, 'actions/runs/12/attempts/1': o.run,
+                   'pulls/42': o.pr, 'git/commits/' + o.candidate: o.merge}
+        if path in objects:
+            return deepcopy(objects[path])
+        if path.startswith('git/ref/'):
+            ref = path[len('git/ref/'):]
+            return {'ref': 'refs/' + ref, 'object': {'type': 'commit', 'sha': o.refs[ref]}}
+        if path == 'actions/runs/12/attempts/1/jobs':
+            items = o.jobs
+            count = len(items) if o.job_total is None else o.job_total
+            field = 'jobs'
+        elif path == 'code-scanning/analyses':
+            assert query['ref'] == [o.env['GITHUB_REF']] and query['tool_name'] == ['CodeQL']
+            items, field = o.analyses, None
+        elif path.startswith('code-scanning/analyses/'):
+            return deepcopy(next(x for x in o.analyses if x['id'] == int(path.rsplit('/', 1)[1])))
+        elif path == 'code-scanning/alerts':
+            assert query['state'] == ['open'] and query['ref'] == [o.env['GITHUB_REF']]
+            items, field = o.alerts, None
+        elif path.startswith('code-scanning/alerts/') and path.endswith('/instances'):
+            assert query['ref'] == [o.env['GITHUB_REF']]
+            items, field = o.instances[int(path.split('/')[2])], None
+        else:
+            raise AssertionError('Unexpected fixed API endpoint: ' + path)
+        page = int(query['page'][0])
+        assert query['per_page'] == ['100']
+        rows = deepcopy(items[(page - 1) * 100:page * 100])
+        return {'total_count': count, field: rows} if field else rows
+
+
+class SelectedResultTests(unittest.TestCase):
+    git = ImmutableRepositoryTests.git
+    write = ImmutableRepositoryTests.write
+    commit = ImmutableRepositoryTests.commit
+
+    def setUp(self):
+        ImmutableRepositoryTests.setUp(self)
+        self.write('tools/check.py', '# immutable changed Python source\n')
+        self.head = self.commit()
+        tree = self.git('rev-parse', 'HEAD^{tree}')
+        self.candidate = self.git('commit-tree', tree, '-p', self.base, '-p', self.head, '-m', 'Exact merge fixture')
+        self.git('checkout', '-q', '--detach', self.candidate)
+        self.repo = {'id': RESULTS.REPOSITORY_ID, 'full_name': RESULTS.REPOSITORY, 'default_branch': 'main'}
+        side = lambda ref, revision: {'ref': ref, 'sha': revision, 'repo': deepcopy(self.repo)}
+        self.pr = {'number': 42, 'state': 'open', 'base': side('main', self.base),
+                   'head': side('fix/main/example', self.head), 'merge_commit_sha': self.candidate}
+        self.event = {'repository': deepcopy(self.repo), 'number': 42, 'pull_request': deepcopy(self.pr)}
+        self.env = {'GITHUB_ACTIONS': 'true', 'GITHUB_REPOSITORY': RESULTS.REPOSITORY,
+                    'GITHUB_REPOSITORY_ID': str(RESULTS.REPOSITORY_ID), 'GITHUB_EVENT_NAME': 'pull_request',
+                    'GITHUB_SHA': self.candidate, 'GITHUB_RUN_ID': '12', 'GITHUB_RUN_ATTEMPT': '1',
+                    'GITHUB_REF': 'refs/pull/42/merge', 'GITHUB_HEAD_REF': 'fix/main/example',
+                    'GITHUB_BASE_REF': 'main', 'CODEQL_EXPECTED_LANGUAGES': '["python"]',
+                    'GITHUB_WORKFLOW_SHA': self.candidate,
+                    'GITHUB_WORKFLOW_REF': RESULTS.REPOSITORY + '/' + RESULTS.WORKFLOW + '@refs/pull/42/merge'}
+        self.refs = {'heads/main': self.base, 'heads/fix/main/example': self.head, 'pull/42/merge': self.candidate}
+        self.merge = {'sha': self.candidate, 'parents': [{'sha': self.base}, {'sha': self.head}]}
+        self.workflow = {'id': 7, 'path': RESULTS.WORKFLOW, 'state': 'active'}
+        self.run = {'id': 12, 'run_attempt': 1, 'workflow_id': 7, 'path': RESULTS.WORKFLOW,
+                    'repository': deepcopy(self.repo), 'head_repository': deepcopy(self.repo),
+                    'head_sha': self.head, 'head_branch': 'fix/main/example', 'event': 'pull_request',
+                    'status': 'in_progress', 'conclusion': None, 'run_started_at': '2026-10-15T21:00:00Z'}
+        self.jobs = [{'id': 81, 'name': 'CodeQL (python)', 'run_id': 12, 'run_attempt': 1,
+                      'head_sha': self.head, 'status': 'completed', 'conclusion': 'success',
+                      'started_at': '2026-10-15T21:00:01Z', 'completed_at': '2026-10-15T21:00:21Z',
+                      'steps': [{'name': 'Analyze', 'status': 'completed', 'conclusion': 'success',
+                                 'started_at': '2026-10-15T21:00:10Z', 'completed_at': '2026-10-15T21:00:20Z'}]}]
+        self.jobs.append(dict(self.jobs[0], id=80, name='Select affected CodeQL languages', steps=[],
+                              started_at='2026-10-15T21:00:00Z', completed_at='2026-10-15T21:00:01Z'))
+        self.job_total = None
+        self.analyses = [{'id': 91, 'ref': self.env['GITHUB_REF'], 'commit_sha': self.candidate,
+                          'analysis_key': RESULTS.ANALYSIS_KEY, 'environment': '{"language":"python"}',
+                          'category': '/language:python', 'error': '', 'rules_count': 43, 'results_count': 1,
+                          'created_at': '2026-10-15T21:00:15Z', 'tool': {'name': 'CodeQL', 'version': '2.27.2'}}]
+        self.alerts, self.instances = [], {}
+        self.api = FakeCodeScanningApi(self)
+
+    def verify(self, **options):
+        return RESULTS.Verifier(self.root, self.event, self.env, api=self.api, **options).verify(processing_seconds=0)
+
+    def test_real_immutable_selection_success_accepts_nonzero_dismissed_result_count(self):
+        result = self.verify()
+        self.assertEqual(result['languages'], ['python'])
+        self.assertEqual(result['analyses'], [{'id': 91, 'category': '/language:python', 'rules_count': 43, 'job_id': 81}])
+        self.assertEqual(result['open_selected_findings'], 0)
+        self.assertEqual(self.api.calls.count(RESULTS.PREFIX + '/pulls/42'), 2)
+        self.assertNotIn('results_count', json.dumps(result))
+        self.assertNotIn('location', json.dumps(result))
+
+    def test_server_workflow_identity_and_fresh_api_replace_unreliable_event_merge_field(self):
+        for event_merge in (None, self.base):
+            self.event['pull_request']['merge_commit_sha'] = event_merge
+            self.assertEqual(self.verify()['languages'], ['python'])
+        self.assertFalse(any('/git/ref/pull/' in call for call in self.api.calls))
+        for key, value in [('GITHUB_WORKFLOW_SHA', self.base),
+                           ('GITHUB_WORKFLOW_REF', RESULTS.REPOSITORY + '/' + RESULTS.WORKFLOW + '@refs/heads/main')]:
+            old = self.env[key]
+            self.env[key] = value
+            with self.subTest(key=key):
+                with self.assertRaisesRegex(RESULTS.ResultError, 'executed workflow source'):
+                    self.verify()
+            self.env[key] = old
+
+    def test_candidate_json_cannot_choose_languages_or_import_policy(self):
+        self.event['languages'] = []
+        self.env['CODEQL_EXPECTED_LANGUAGES'] = '[]'
+        with self.assertRaisesRegex(RESULTS.ResultError, 'independent immutable selection'):
+            self.verify()
+
+    def test_unknown_duplicate_languages_and_foreign_actions_repository_reject(self):
+        for key, value in [('CODEQL_EXPECTED_LANGUAGES', '["python","python"]'),
+                           ('CODEQL_EXPECTED_LANGUAGES', '["ruby"]'),
+                           ('GITHUB_REPOSITORY', 'overte-org/overte'), ('GITHUB_RUN_ATTEMPT', '2')]:
+            with self.subTest(key=key, value=value):
+                env = dict(self.env, **{key: value})
+                with self.assertRaises(RESULTS.ResultError):
+                    RESULTS.Verifier(self.root, self.event, env, api=self.api).verify(processing_seconds=0)
+
+    def test_foreign_api_repository_and_workflow_identity_reject(self):
+        for target, key, value in [(self.run['repository'], 'full_name', 'overte-org/overte'),
+                                   (self.run['head_repository'], 'id', 1),
+                                   (self.run, 'workflow_id', 8), (self.run, 'path', '.github/workflows/fake.yml'),
+                                   (self.run, 'head_sha', self.base), (self.run, 'run_attempt', 2)]:
+            old = target[key]
+            with self.subTest(key=key):
+                target[key] = value
+                with self.assertRaises(RESULTS.ResultError): self.verify()
+                target[key] = old
+
+    def test_failed_skipped_missing_duplicate_and_carried_old_jobs_reject(self):
+        original = deepcopy(self.jobs)
+        mutations = [[], original * 2]
+        for key, value in [('conclusion', 'failure'), ('conclusion', 'skipped'), ('status', 'in_progress'),
+                           ('run_attempt', 2), ('conclusion', 'cancelled'), ('head_sha', self.base), ('started_at', '2026-10-14T21:00:01Z')]:
+            row = deepcopy(original[0]); row[key] = value
+            mutations.append([row])
+        for jobs in mutations:
+            with self.subTest(jobs=jobs):
+                self.jobs = jobs
+                with self.assertRaises(RESULTS.ResultError): self.verify()
+        self.jobs = original
+        self.jobs[0]['steps'][0]['conclusion'] = 'skipped'
+        with self.assertRaises(RESULTS.ResultError): self.verify()
+
+    def test_stale_or_missing_analysis_wrong_category_environment_errors_and_zero_rules_reject(self):
+        original = deepcopy(self.analyses[0])
+        changes = [('commit_sha', self.base), ('category', '/language:javascript-typescript'),
+                   ('environment', '{"language":"python","other":true}'), ('analysis_key', 'other:analyze'),
+                   ('error', 'extractor failed'), ('rules_count', 0), ('rules_count', True),
+                   ('created_at', '2026-10-15T20:59:00Z'), ('ref', 'refs/heads/main'),
+                   ('tool', {'name': 'different'})]
+        for key, value in changes:
+            with self.subTest(key=key):
+                self.analyses = [dict(original, **{key: value})]
+                with self.assertRaises(RESULTS.ResultError): self.verify()
+        self.analyses = []
+        with self.assertRaises(RESULTS.ResultError): self.verify()
+        self.analyses = [original, dict(original, id=92)]
+        with self.assertRaisesRegex(RESULTS.ResultError, 'ambiguous'): self.verify()
+
+    def test_any_open_selected_finding_blocks_without_severity_threshold(self):
+        self.alerts = [{'number': 9, 'state': 'open', 'tool': {'name': 'CodeQL'}}]
+        self.instances = {9: [{'ref': self.env['GITHUB_REF'], 'commit_sha': self.candidate,
+                               'category': '/language:python', 'state': 'open', 'analysis_key': RESULTS.ANALYSIS_KEY}]}
+        with self.assertRaisesRegex(RESULTS.ResultError, 'open CodeQL finding'): self.verify()
+        self.instances[9][0]['commit_sha'] = self.base
+        with self.assertRaisesRegex(RESULTS.ResultError, 'stale'): self.verify()
+        self.instances[9][0]['state'] = 'fixed'
+        self.assertEqual(self.verify()['open_selected_findings'], 0)
+        self.instances[9][0]['state'] = 'dismissed'
+        self.assertEqual(self.verify()['open_selected_findings'], 0)
+        self.instances[9][0]['state'] = 'open'
+        self.instances[9][0]['category'] = '/language:javascript-typescript'
+        self.assertEqual(self.verify()['open_selected_findings'], 0)
+
+    def test_changed_pr_branch_refs_merge_and_ordered_parents_reject(self):
+        for target, key, value in [(self.pr['base'], 'sha', self.head), (self.pr['head'], 'ref', 'foreign'),
+                                   (self.pr, 'merge_commit_sha', self.head), (self.refs, 'heads/main', self.head),
+                                   (self.refs, 'heads/fix/main/example', self.base),
+                                   (self.merge, 'parents', [{'sha': self.head}, {'sha': self.base}])]:
+            old = deepcopy(target[key]); target[key] = value
+            with self.subTest(key=key):
+                with self.assertRaises(RESULTS.ResultError): self.verify()
+            target[key] = old
+
+    def test_fresh_bookends_reject_pr_advancement_future_attempt_and_analysis_replacement(self):
+        for mutation in ('pr', 'attempt', 'analysis'):
+            seen = [0]
+            def change(endpoint):
+                trigger = '/pulls/42' if mutation == 'pr' else '/actions/runs/12' if mutation == 'attempt' else '/code-scanning/analyses/91'
+                if endpoint.endswith(trigger):
+                    seen[0] += 1
+                    if mutation == 'pr' and seen[0] == 2: self.pr['head']['sha'] = self.base
+                    if mutation == 'attempt' and seen[0] == 2: self.run['run_attempt'] = 2
+                    if mutation == 'analysis': self.analyses[0]['rules_count'] += 1
+            self.api.change = change
+            with self.subTest(mutation=mutation):
+                with self.assertRaises(RESULTS.ResultError): self.verify()
+            self.pr['head']['sha'] = self.head; self.run['run_attempt'] = 1; self.analyses[0]['rules_count'] = 43
+
+    def test_all_pages_are_read_for_analyses_alerts_instances_and_jobs(self):
+        self.jobs = [dict(self.jobs[0], id=1000 + i, name='unrelated') for i in range(100)] + self.jobs
+        self.analyses = [dict(self.analyses[0], id=2000 + i, commit_sha=self.base) for i in range(100)] + self.analyses
+        self.alerts = [{'number': i, 'state': 'open', 'tool': {'name': 'CodeQL'}} for i in range(1, 102)]
+        self.instances = {i: [{'ref': self.env['GITHUB_REF'], 'commit_sha': self.candidate,
+                              'category': '/language:javascript-typescript', 'state': 'open'}] for i in range(1, 102)}
+        self.instances[101] = [dict(self.instances[101][0], ordinal=i) for i in range(100)] + [
+            {'ref': self.env['GITHUB_REF'], 'commit_sha': self.candidate, 'category': '/language:python', 'state': 'open'}]
+        with self.assertRaisesRegex(RESULTS.ResultError, 'open CodeQL finding'): self.verify()
+        for endpoint in ('/jobs?', '/analyses?', '/alerts?', '/101/instances?'):
+            self.assertTrue(any(endpoint in call and 'page=2' in call for call in self.api.calls), endpoint)
+
+    def test_truncated_counted_inventory_and_api_errors_never_become_success_or_poll(self):
+        self.job_total = len(self.jobs) + 1
+        with self.assertRaisesRegex(RESULTS.ResultError, 'truncated'): self.verify()
+        self.job_total = None
+        self.api.error = RuntimeError('fake HTTP 403')
+        with self.assertRaises(RuntimeError): self.verify()
+
+    def test_repeated_and_excessive_array_pagination_reject_incomplete_inventory(self):
+        record = deepcopy(self.analyses[0])
+        self.analyses = [dict(record, id=1000 + index, commit_sha=self.base) for index in range(1000)]
+        with self.assertRaisesRegex(RESULTS.ResultError, 'bounded pagination'): self.verify()
+        self.analyses = [record, deepcopy(record)]
+        with self.assertRaisesRegex(RESULTS.ResultError, 'repeated API'): self.verify()
+
+    def test_only_missing_sarif_processing_can_poll_then_current_results_must_arrive(self):
+        clock = [0]
+        saved = deepcopy(self.analyses)
+        self.analyses = []
+        def sleep(seconds):
+            clock[0] += seconds
+            self.analyses = deepcopy(saved)
+        result = RESULTS.Verifier(self.root, self.event, self.env, api=self.api,
+                                  clock=lambda: clock[0], sleep=sleep).verify(processing_seconds=5)
+        self.assertEqual(clock[0], 5)
+        self.assertEqual(result['languages'], ['python'])
+
+    def test_empty_languages_still_require_current_selector_success_but_no_analysis_or_alert_api(self):
+        self.git('checkout', '-q', '--detach', self.base)
+        self.write('docs/design.md', 'Changed Markdown only\n')
+        self.head = self.commit()
+        self.candidate = self.git('commit-tree', self.git('rev-parse', 'HEAD^{tree}'),
+                                  '-p', self.base, '-p', self.head, '-m', 'Documentation merge')
+        self.git('checkout', '-q', '--detach', self.candidate)
+        self.env.update(CODEQL_EXPECTED_LANGUAGES='[]', GITHUB_SHA=self.candidate, GITHUB_WORKFLOW_SHA=self.candidate)
+        self.pr['head']['sha'] = self.head
+        self.pr['merge_commit_sha'] = self.candidate
+        self.event['pull_request'] = deepcopy(self.pr)
+        self.refs.update({'heads/fix/main/example': self.head, 'pull/42/merge': self.candidate})
+        self.merge = {'sha': self.candidate, 'parents': [{'sha': self.base}, {'sha': self.head}]}
+        self.run['head_sha'] = self.head
+        self.jobs = [dict(self.jobs[-1], head_sha=self.head)]
+        self.analyses = []
+        self.assertEqual(self.verify()['analyses'], [])
+        self.assertFalse(any('/code-scanning/' in call for call in self.api.calls))
+        self.jobs[0]['conclusion'] = 'failure'
+        with self.assertRaises(RESULTS.ResultError): self.verify()
+
+    def test_seven_permanent_pr_targets_are_bound_and_arbitrary_target_is_rejected(self):
+        for target in sorted(RESULTS.TARGETS):
+            self.env['GITHUB_BASE_REF'] = target
+            self.event['pull_request']['base']['ref'] = target
+            self.pr['base']['ref'] = target
+            self.refs['heads/' + target] = self.base
+            with self.subTest(target=target):
+                self.assertEqual(self.verify()['languages'], ['python'])
+        self.env['GITHUB_BASE_REF'] = 'unreviewed-target'
+        self.event['pull_request']['base']['ref'] = 'unreviewed-target'
+        with self.assertRaisesRegex(RESULTS.ResultError, 'permanent target'):
+            self.verify()
+
+    def test_all_seven_push_targets_require_their_actual_branch_source(self):
+        self.env.update(GITHUB_EVENT_NAME='push', GITHUB_REF_TYPE='branch')
+        self.run.update(event='push', head_sha=self.candidate)
+        for job in self.jobs: job['head_sha'] = self.candidate
+        for target in sorted(RESULTS.TARGETS):
+            ref = 'refs/heads/' + target
+            self.env['GITHUB_REF'] = ref
+            self.env['GITHUB_WORKFLOW_REF'] = RESULTS.REPOSITORY + '/' + RESULTS.WORKFLOW + '@' + ref
+            self.event = {'repository': deepcopy(self.repo), 'before': self.base, 'after': self.candidate,
+                          'deleted': False, 'ref': ref}
+            self.refs['heads/' + target] = self.candidate
+            self.run['head_branch'] = target
+            self.analyses[0]['ref'] = ref
+            with self.subTest(target=target):
+                self.assertEqual(self.verify()['languages'], ['python'])
+
+    def test_cli_uses_only_server_event_and_withholds_untrusted_error_details(self):
+        from contextlib import redirect_stdout, redirect_stderr
+        import io
+        import os
+        import sys
+        from unittest.mock import patch
+        event_file = self.root / 'server-event.json'
+        event_file.write_text(json.dumps(self.event))
+        env = {**self.env, 'GITHUB_EVENT_PATH': str(event_file)}
+        output, errors = io.StringIO(), io.StringIO()
+        arguments = ['codeql_results.py', '--root', str(self.root), '--event-file', str(event_file)]
+        with patch.dict(os.environ, env), patch.object(sys, 'argv', arguments), \
+                patch.object(RESULTS, 'default_api', return_value=self.api), \
+                redirect_stdout(output), redirect_stderr(errors):
+            self.assertEqual(RESULTS.main(), 0)
+        self.assertEqual(json.loads(output.getvalue())['languages'], ['python'])
+        self.assertEqual(errors.getvalue(), '')
+        self.api.error = RuntimeError('fake private API response must not appear')
+        output, errors = io.StringIO(), io.StringIO()
+        with patch.dict(os.environ, env), patch.object(sys, 'argv', arguments), \
+                patch.object(RESULTS, 'default_api', return_value=self.api), \
+                redirect_stdout(output), redirect_stderr(errors):
+            self.assertEqual(RESULTS.main(), 1)
+        self.assertEqual(output.getvalue(), '')
+        self.assertNotIn('fake private', errors.getvalue())
+
+    def test_push_and_schedule_bind_exact_branch_run_source_and_selection(self):
+        for event_name in ('push', 'schedule'):
+            with self.subTest(event=event_name):
+                self.env.update(GITHUB_EVENT_NAME=event_name, GITHUB_REF='refs/heads/main', GITHUB_REF_TYPE='branch',
+                                GITHUB_WORKFLOW_REF=RESULTS.REPOSITORY + '/' + RESULTS.WORKFLOW + '@refs/heads/main')
+                self.event = {'repository': deepcopy(self.repo), 'before': self.base, 'after': self.candidate,
+                              'deleted': False, 'ref': 'refs/heads/main'}
+                self.refs['heads/main'] = self.candidate
+                self.run.update(event=event_name, head_sha=self.candidate, head_branch='main')
+                for job in self.jobs: job['head_sha'] = self.candidate
+                self.analyses[0].update(ref='refs/heads/main')
+                if event_name == 'schedule':
+                    self.env['CODEQL_EXPECTED_LANGUAGES'] = json.dumps(list(CODEQL.LANGUAGES))
+                    js = dict(self.jobs[0], id=82, name='CodeQL (javascript-typescript)')
+                    self.jobs.append(js)
+                    self.analyses.append(dict(self.analyses[0], id=92, category='/language:javascript-typescript',
+                                              environment='{"language":"javascript-typescript"}'))
+                self.assertEqual(self.verify()['languages'], json.loads(self.env['CODEQL_EXPECTED_LANGUAGES']))
+                self.refs['heads/main'] = self.base
+                with self.assertRaisesRegex(RESULTS.ResultError, 'advanced'): self.verify()
+
 
 
 if __name__ == "__main__":

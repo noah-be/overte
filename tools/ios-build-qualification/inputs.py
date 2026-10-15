@@ -42,6 +42,9 @@ REVIEWED_BOUNDARY = "sha256:8a369137ffeb67b79a087901500bdeb74dda81359197712577f0
 # its device-control-plane-full and project-runner owners remain independently required.
 # Independent required CI must still validate these files before any app waiver.
 INDEPENDENT_HOST_PATHS = frozenset({
+    "tools/repository-checks/codeql_results.py",
+    "tools/repository-checks/workflows/codeql-results.yml",
+    "tools/repository-checks/workflows/codeql-main.json",
     ".github/android-orchestration.json",
     ".github/attested-runtime.json",
     ".github/ios-host-orchestration.json",

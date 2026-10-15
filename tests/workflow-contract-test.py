@@ -40,6 +40,9 @@ RULESET_FILES = {
     "Immutable Pico 4 release and dependency tags": "pico4-release-tags.json",
     "Permanent branch governance": "permanent-branches.json",
 }
+STAGED_RULESET_FILES = {
+    "Selected CodeQL security results on main": ROOT / "tools/repository-checks/workflows/codeql-main.json",
+}
 ACTION_USE = re.compile(r"^\s*uses:\s*([^\s#]+)", re.MULTILINE)
 FULL_SHA_ACTION = re.compile(r"^[^@\s]+@[0-9a-f]{40}$")
 
@@ -170,7 +173,14 @@ class LightweightWorkflowContracts(unittest.TestCase):
             source = path.read_text(encoding="utf-8")
             self.assertEqual(workflow_events(source)['push']['paths-ignore'], ['**/*.md'])
         source = CODEQL_WORKFLOW.read_text(encoding="utf-8")
-        self.assertEqual(workflow_events(source)['pull_request']['paths-ignore'], ['**/*.md'])
+        canonical = (ROOT / "tools/repository-checks/workflows/codeql-results.yml").read_text()
+        if source == canonical:
+            # Required context is published for docs; the immutable selector
+            # omits both analyzer jobs, rather than omitting the entire check.
+            self.assertNotIn('paths-ignore', workflow_events(source)['pull_request'])
+            self.assertIn("if: needs.select.outputs.scan == 'true'", source)
+        else:
+            self.assertEqual(workflow_events(source)['pull_request']['paths-ignore'], ['**/*.md'])
 
     def test_app_test_workflows_exclude_markdown(self):
         aggregate = (WORKFLOW_DIRECTORY / "repository-checks.yml").read_text(encoding="utf-8")
@@ -277,7 +287,8 @@ class CodeQLWorkflowContracts(unittest.TestCase):
 
     def test_actions_are_fresh_full_sha_pins(self):
         actions = ACTION_USE.findall(self.source)
-        self.assertEqual(len(actions), 5)
+        canonical = ROOT / "tools/repository-checks/workflows/codeql-results.yml"
+        self.assertEqual(len(actions), 7 if self.source == canonical.read_text() else 5)
         self.assertEqual([action for action in actions if not FULL_SHA_ACTION.fullmatch(action)], [])
         codeql = [action for action in actions if action.startswith("github/codeql-action/")]
         self.assertEqual(
@@ -310,7 +321,8 @@ class CodeQLWorkflowContracts(unittest.TestCase):
         aggregate = self.source.split('  codeql-checks:', 1)[1]
         self.assertIn('if: always()', aggregate)
         self.assertIn('needs: [select, analyze]', aggregate)
-        script = textwrap.dedent(aggregate.split('        run: |\n', 1)[1])
+        steps = workflow_data(self.source)['jobs']['codeql-checks']['steps']
+        script = next(step['run'] for step in steps if step['name'] == 'Require every selected analysis')
         for selected in ('success', 'failure', 'cancelled', 'skipped'):
             for scan in ('true', 'false', ''):
                 for analysis in ('success', 'failure', 'cancelled', 'skipped'):
@@ -320,6 +332,47 @@ class CodeQLWorkflowContracts(unittest.TestCase):
                         ('true', 'success'), ('false', 'skipped')}
                     self.assertEqual(result.returncode == 0, expected, (selected, scan, analysis))
 
+
+    def test_selected_results_are_independent_and_cannot_bypass_the_truth_table(self):
+        canonical = (ROOT / "tools/repository-checks/workflows/codeql-results.yml").read_text()
+        if self.source != canonical:
+            self.skipTest("Selected-result generation is covered by its staged workflow contracts")
+        workflow = workflow_data(self.source)
+        job = workflow['jobs']['codeql-checks']
+        self.assertEqual(job['permissions'], {'contents': 'read', 'actions': 'read',
+                         'pull-requests': 'read', 'security-events': 'read'})
+        steps = job['steps']
+        self.assertEqual(steps[0]['name'], 'Require every selected analysis')
+        trusted = next(step for step in steps if step['name'] == 'Check out trusted selected-result policy')
+        self.assertEqual(trusted['with']['ref'], '${{ github.event.repository.default_branch }}')
+        self.assertEqual(trusted['with']['path'], 'trusted')
+        candidate = next(step for step in steps if step['name'] == 'Read the exact candidate for independent result selection')
+        self.assertEqual(candidate['with']['ref'], '${{ github.sha }}')
+        verify = steps[-1]
+        self.assertEqual(verify['name'], 'Require current selected-language security results')
+        self.assertIn('trusted/tools/repository-checks/codeql_results.py', verify['run'])
+        for flag in ('--root candidate', '--event-file "$GITHUB_EVENT_PATH"'):
+            self.assertIn(flag, verify['run'])
+        self.assertEqual(verify['env']['GH_TOKEN'], '${{ github.token }}')
+        self.assertEqual(verify['env']['CODEQL_EXPECTED_LANGUAGES'], '${{ needs.select.outputs.languages }}')
+        self.assertNotIn('continue-on-error:', self.source)
+        # The named required context must also exist for documentation-only PRs.
+        triggers = workflow.get('on', workflow.get(True))
+        self.assertNotIn('paths-ignore', triggers['pull_request'])
+        self.assertEqual(triggers['push']['paths-ignore'], ['**/*.md'])
+        expected = {'main', 'apple-main', 'apple-ios', 'android-main', 'android-phone', 'android-vr', 'android-vr-pico'}
+        self.assertEqual(set(triggers['push']['branches']), expected)
+        self.assertEqual(set(triggers['pull_request']['branches']), expected)
+
+
+@unittest.skipIf(
+    CODEQL_WORKFLOW.read_text() == (ROOT / "tools/repository-checks/workflows/codeql-results.yml").read_text(),
+    "The identical deployed generation is already covered by the active workflow contracts",
+)
+class SelectedCodeQLResultWorkflowContracts(CodeQLWorkflowContracts):
+    @classmethod
+    def setUpClass(cls):
+        cls.source = (ROOT / "tools/repository-checks/workflows/codeql-results.yml").read_text()
 
 class BranchGovernanceWorkflowContracts(unittest.TestCase):
     def test_policy_is_a_native_read_only_pull_request_check(self):
@@ -501,12 +554,16 @@ class RulesetManifestContracts(unittest.TestCase):
             name: json.loads((RULESETS / filename).read_text(encoding="utf-8"))
             for name, filename in RULESET_FILES.items()
         }
+        cls.manifests.update({
+            name: json.loads(path.read_text(encoding="utf-8"))
+            for name, path in STAGED_RULESET_FILES.items()
+        })
 
     @staticmethod
     def rule(manifest, rule_type):
         return next(rule for rule in manifest["rules"] if rule["type"] == rule_type)
 
-    def test_all_five_persistent_rulesets_are_complete_and_versioned(self):
+    def test_all_persistent_rulesets_are_complete_and_versioned(self):
         versioned = []
         for path in RULESETS.glob("*.json"):
             candidate = json.loads(path.read_text(encoding="utf-8"))
@@ -514,7 +571,7 @@ class RulesetManifestContracts(unittest.TestCase):
                 versioned.append(path.name)
 
         self.assertEqual(sorted(versioned), sorted(RULESET_FILES.values()))
-        self.assertEqual(set(self.manifests), set(RULESET_FILES))
+        self.assertEqual(set(self.manifests), set(RULESET_FILES) | set(STAGED_RULESET_FILES))
         for name, manifest in self.manifests.items():
             self.assertEqual(manifest["name"], name)
             self.assertIn(manifest["target"], ("branch", "tag"))
@@ -529,6 +586,7 @@ class RulesetManifestContracts(unittest.TestCase):
             "Android target branch topology": "Enforce Android parent sync path",
             "Apple target branch topology": "Enforce apple-main sync path",
             "Permanent branch governance": "branch-policy",
+            "Selected CodeQL security results on main": "codeql-security-results",
         }
         for name, context in expected.items():
             parameters = self.rule(
@@ -550,6 +608,10 @@ class RulesetManifestContracts(unittest.TestCase):
                     {"context": "repository-checks", "integration_id": 15368}
                 )
             self.assertEqual(parameters["required_status_checks"], expected_checks)
+            if name == "Selected CodeQL security results on main":
+                self.assertEqual(self.manifests[name]["conditions"]["ref_name"],
+                                 {"include": ["refs/heads/main"], "exclude": []})
+                self.assertEqual(len(self.manifests[name]["rules"]), 1)
 
 
     def test_solo_profile_is_active_without_locking_out_the_maintainer(self):

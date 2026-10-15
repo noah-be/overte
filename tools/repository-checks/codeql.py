@@ -39,9 +39,12 @@ _REVIEWED_CONTROLS = {
 # The activation PR remains compatible with the existing trusted CLI. Its first
 # scan uses both languages; subsequent scans admit this exact reviewed workflow.
 _SELECTIVE_WORKFLOW = "bdfd6e98d59ab787babcc94ba45c129f8cd899bd"
+# Exact staged selected-result workflow; install only after this policy is protected.
+_RESULTS_WORKFLOW = "b5789e4b0928ef34cc3d80e8f2fa1813422b6436"
 _GLOBAL_PATHS = {
     "AGENTS.md", ".gitattributes", ".gitignore", ".gitmodules", ".codeqlignore", ".tool-versions",
-    "tools/repository-checks/codeql.py", "tools/test-evidence/inputs.py", "tests/codeql-selection-test.py",
+    "tools/repository-checks/codeql.py", "tools/repository-checks/codeql_results.py",
+    "tools/test-evidence/inputs.py", "tests/codeql-selection-test.py",
 }
 _PYTHON_EXTENSIONS = {".py", ".pyw", ".pyi", ".thrift"}
 _JAVASCRIPT_EXTENSIONS = {
@@ -130,7 +133,7 @@ def select_languages(base_tree: dict | None, candidate_tree: dict | None, *, eve
                for path in sorted(base_tree.keys() | candidate_tree.keys())
                if base_tree.get(path) != candidate_tree.get(path)]
     for path, sha in _REVIEWED_CONTROLS.items():
-        hashes = {sha, _SELECTIVE_WORKFLOW} if path == '.github/workflows/codeql.yml' else {sha}
+        hashes = {sha, _SELECTIVE_WORKFLOW, _RESULTS_WORKFLOW} if path == '.github/workflows/codeql.yml' else {sha}
         expected = [{"mode": "100644", "type": "blob", "sha": digest} for digest in hashes]
         if base_tree.get(path) not in expected or candidate_tree.get(path) not in expected:
             return _result(LANGUAGES, [{"code": "unreviewed-analysis-configuration", "path": path}], changes)

@@ -485,6 +485,126 @@ def recursive_tree(api: GitHubApi, repository: str, commit_sha: str, error_type=
         raise error_type(str(error)) from error
 
 
+def validate_required_codeql_workflow(event: dict, api: GitHubApi, policy_root: Path = ROOT) -> bool:
+    """Protect result-verifier invocation before even an ordinary PR can pass.
+
+    Activation and the sole approved workflow blob belong to the trusted default
+    checkout. A candidate config, job name or successful result cannot authorize
+    replacing this workflow with an exit-only or fabricated security job.
+    """
+    policy = json.loads((policy_root / '.github/repository-checks.json').read_text(encoding='utf-8'))
+    if not isinstance(policy, dict):
+        raise GateError('invalid trusted CodeQL result activation policy')
+    targets = policy.get('codeql_results_required_branches', [])
+    permanent = {'main', 'apple-main', 'apple-ios', 'android-main', 'android-phone', 'android-vr', 'android-vr-pico'}
+    if (policy.get('schema') != 1 or policy.get('repository') != 'noah-l-frank/overte'
+            or policy.get('repository_id') != 1319052603 or not isinstance(targets, list)
+            or any(not isinstance(target, str) or target not in permanent for target in targets)
+            or len(targets) != len(set(targets))):
+        raise GateError('invalid trusted CodeQL result activation policy')
+    if not targets:
+        return False
+    try:
+        pr = event['pull_request']
+        base = pr['base']
+        target = base['ref']
+        if target not in permanent:
+            raise GateError('invalid CodeQL result target')
+        if target not in targets:
+            return False
+        head = pr['head']
+        repository, repository_id = 'noah-l-frank/overte', 1319052603
+        number = pr['number']
+        if (type(number) is not int or number <= 0 or type(event.get('number')) is not int
+                or event['number'] != number):
+            raise GateError('invalid CodeQL result PR number')
+        for identity in (event['repository'], base['repo'], head['repo']):
+            if identity.get('full_name') != repository or identity.get('id') != repository_id:
+                raise GateError('CodeQL result PR must belong to the reviewed fork')
+        base_sha = validate_sha(base['sha'], 'CodeQL event base')
+        head_sha = validate_sha(head['sha'], 'CodeQL event head')
+        head_ref = head['ref']
+        if (base_sha == '0' * 40 or head_sha == '0' * 40 or not isinstance(head_ref, str)
+                or not re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_./-]*', head_ref)
+                or '..' in head_ref or '//' in head_ref or head_ref.endswith(('/', '.', '.lock'))
+                or any(part.startswith('.') for part in head_ref.split('/'))):
+            raise GateError('invalid CodeQL result head identity')
+    except (KeyError, TypeError, AttributeError) as error:
+        raise GateError('invalid CodeQL result event identity') from error
+    spec = importlib.util.spec_from_file_location('sync_required_codeql_policy', policy_root / 'tools/repository-checks/codeql.py')
+    if spec is None or spec.loader is None:
+        raise GateError('trusted CodeQL workflow policy unavailable')
+    trusted = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(trusted)
+    expected = validate_sha(getattr(trusted, '_RESULTS_WORKFLOW', None), 'approved CodeQL result workflow')
+    if expected == '0' * 40:
+        raise GateError('approved CodeQL workflow identity is unavailable')
+    refs = {f'repos/{repository}/git/ref/heads/{quote(ref, safe="")}': 'refs/heads/' + ref
+            for ref in (target, head_ref)}
+
+    class FixedForkReadOnly:
+        def json(self, endpoint):
+            if not isinstance(endpoint, str) or not endpoint.startswith('repos/' + repository + '/'):
+                raise GateError('CodeQL invocation lookup escaped the reviewed fork')
+            value = api.json(endpoint)
+            if endpoint in refs and (not isinstance(value, dict) or value.get('ref') != refs[endpoint]
+                                     or not isinstance(value.get('object'), dict) or value['object'].get('type') != 'commit'):
+                raise GateError('CodeQL invocation branch reference identity mismatch')
+            tree_prefix = 'repos/' + repository + '/git/trees/'
+            if endpoint.startswith(tree_prefix):
+                requested = endpoint[len(tree_prefix):].split('?', 1)[0]
+                if not isinstance(value, dict) or value.get('sha') != requested:
+                    raise GateError('CodeQL invocation tree identity mismatch')
+            return value
+
+    readonly = FixedForkReadOnly()
+
+    def fresh():
+        current = readonly.json(f'repos/{repository}/pulls/{number}')
+        if (not isinstance(current, dict) or type(current.get('number')) is not int
+                or current['number'] != number or current.get('state') != 'open'):
+            raise GateError('CodeQL result PR is closed or unavailable')
+        for side, ref, revision in (('base', target, base_sha), ('head', head_ref, head_sha)):
+            value = current.get(side)
+            if (not isinstance(value, dict) or value.get('ref') != ref or value.get('sha') != revision
+                    or not isinstance(value.get('repo'), dict) or value['repo'].get('full_name') != repository
+                    or value['repo'].get('id') != repository_id
+                    or branch_sha(readonly, repository, ref) != revision):
+                raise GateError('CodeQL result PR or branch head changed')
+        if current.get('mergeable') is False:
+            raise GateError('CodeQL result PR has merge conflicts')
+        if current.get('mergeable') is None or current.get('merge_commit_sha') is None:
+            return None
+        if current.get('mergeable') is not True:
+            raise GateError('CodeQL result mergeability is unknown')
+        candidate = validate_sha(current.get('merge_commit_sha'), 'current CodeQL candidate')
+        if candidate == '0' * 40:
+            raise GateError('invalid current CodeQL candidate')
+        return candidate
+
+    candidate = None
+    for attempt in range(6):
+        candidate = fresh()
+        if candidate is not None:
+            break
+        if attempt < 5:
+            time.sleep(3)
+    if candidate is None:
+        raise GateError('CodeQL candidate merge computation did not complete')
+    merge = commit(readonly, repository, candidate)
+    if commit_parents(merge) != (base_sha, head_sha):
+        raise GateError('CodeQL candidate ordered parents differ from the current PR')
+    tree_sha, tree = recursive_tree(readonly, repository, candidate, error_type=GateError)
+    if tree_sha == '0' * 40 or tree_sha != commit_tree(merge):
+        raise GateError('CodeQL candidate tree changed')
+    actual = tree.get('.github/workflows/codeql.yml', {})
+    if any(actual.get(key) != value for key, value in {'mode': '100644', 'type': 'blob', 'sha': expected}.items()):
+        raise GateError('candidate must retain the exact approved CodeQL security-result workflow')
+    if fresh() != candidate:
+        raise GateError('CodeQL candidate changed during invocation verification')
+    return True
+
+
 def select_entries(tree: dict[str, dict[str, str]], patterns: list[str]) -> list[dict[str, str]]:
     return sorted(
         (entry for path, entry in tree.items() if any(fnmatch(path, pattern) for pattern in patterns)),
@@ -651,6 +771,7 @@ def inspect(args: argparse.Namespace) -> int:
     config = load_config(args.config)
     event = json.loads(args.event.read_text(encoding="utf-8"))
     api = GitHubApi()
+    validate_required_codeql_workflow(event, api)
     request = classify_event(event, config, api)
     if request is None:
         write_outputs(args.output, {"classification": "ordinary", "mode": "ordinary"})

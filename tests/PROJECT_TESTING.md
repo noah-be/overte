@@ -863,3 +863,36 @@ command conservatively requires full setup and verification before it can pass. 
 duplicate commands in the same context execute once. Unsupported new execution
 contexts fail closed for explicit owner review. This prevents newly registered
 tests from remaining unexecuted until after their first merge.
+
+
+## Selected CodeQL security results
+
+The staged `tools/repository-checks/workflows/codeql-results.yml` preserves the
+whole-language scans and final selected-job truth table, then independently
+checks GitHub's processed security results. GitHub's native summary may be
+neutral when an unchanged language was deliberately omitted. A successful
+analyzer exit alone therefore cannot serve as the selected finding gate.
+
+The trusted verifier must bind current candidate, repository, original workflow
+run/attempt, successful selected analysis jobs and processed analysis categories.
+Missing, stale, ambiguous or failed processing cannot pass. Open findings in a
+selected category block the result; dismissed findings retain their dismissal.
+The verifier does not reuse SARIF, upload empty results for omitted languages or
+publish private source/alert payloads. Weekly full scans remain unchanged.
+
+The source verifier and exact workflow generation must be protected before
+installing the active workflow. The staged main-only ruleset payload is
+`tools/repository-checks/workflows/codeql-main.json`; apply it only after the new gate has passed
+on a real PR. This adds `codeql-security-results` to the existing required contexts on
+`main`; other branches receive this requirement only after their own deployment.
+The staged workflow runs a selection/result check for documentation-only PRs
+so the required context is present; no language analyzer runs for that case.
+Both aggregate checkout steps and the API verifier execute in a clean job that
+never runs candidate code. The exact new CI files remain outside the reviewed
+iOS application reader graph, while their own required CI checks still run.
+
+The independent trusted `sync-test-reuse` pull-request-target gate also pins
+the new exact CodeQL workflow when `codeql_results_required_branches` is
+activated for the target. A candidate cannot substitute an older workflow or
+imitate the result job name to avoid its verifier. The source-stage target list
+is empty; the caller deployment enables `main` only after the helper is protected.
