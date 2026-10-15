@@ -425,6 +425,7 @@ entries out of this shared table allows it to propagate unchanged to children.
 | `host-producer-preparation` | `quick` | `python3 tests/run-project-tests.py --suite host-producer-preparation` |
 | `producer-api` | `quick` | `python3 tests/run-project-tests.py --suite producer-api` |
 | `shared-sandbox` | `quick` | `python3 tests/run-project-tests.py --suite shared-sandbox` |
+| `shared-sandbox-host` | `quick` | `python3 tests/run-project-tests.py --suite shared-sandbox-host` |
 | `attested-runtime` | `quick` | `python3 tests/run-project-tests.py --suite attested-runtime` |
 | `project-runner` | `quick` | `python3 tests/run-project-tests.py --suite project-runner` |
 | `python-test-runner` | `quick` | `python3 tests/run-project-tests.py --suite python-test-runner` |
@@ -742,6 +743,71 @@ raw archive API verification, immutable workflow source and current candidate
 bookends remain separate requirements. Legacy parent artifacts and the disabled
 attested-environment consumer cannot acquire stronger guarantees from this
 preparation or a policy toggle.
+
+The additional `shared-sandbox-host` quick/host suite checks the prospective
+manual host diagnostic's control order and negative results with fake kernel
+facts and fixed process fixtures. Its source template is
+`tools/test-evidence/workflows/shared-sandbox-host-diagnostic.yml`; no active
+workflow, dispatch, package installation, local user provisioning or actual
+host qualification is performed by the quick suite.
+
+After a separate reviewed deployment, that manual-only workflow can provision
+one fixed, locked, no-home account on a disposable Ubuntu 24 GitHub-hosted VM.
+It checks actual account groups and root's sudo policy, then starts a transient
+root service with `systemd-run --wait --pipe --property=Delegate=yes`. The
+diagnostic independently queries the unit's `ControlGroup` and `Delegate`,
+compares its actual `/proc/self/cgroup`, and verifies the real writable cgroup-v2
+mount. It moves its controller to its own child and creates root-only fixture
+scopes below the delegated subtree. It never writes attributes of systemd's
+root or the delegated unit itself. This follows
+[systemd's delegation ownership rules](https://systemd.io/CGROUP_DELEGATION/).
+
+A trusted bootstrap starts with a distinct actual UID/GID and no supplementary
+groups, and waits before executing Bubblewrap. The parent checks its kernel
+identity, moves it into an exclusively owned scope and confirms membership
+before release. Only the gate descriptor crosses that launch boundary and is
+closed before exec. Fixed, read-only fixture bytes then probe private procfs,
+all mandatory namespaces, no-new-privileges/capabilities, read-only source/Git/
+policy/venv mounts, private writable HOME/temp/build, actual runner command-file
+inaccessibility, host filesystem/abstract sockets and descriptor canaries.
+Neither command files nor credential contents are read or logged. Private
+loopback and nested user/network namespaces must actually work. Bubblewrap's
+[network setup implementation](https://github.com/containers/bubblewrap/blob/v0.9.0/network.c#L128-L185)
+initializes its own loopback; the nested fixture explicitly initializes its
+new private interface. No existing assertion is waived.
+
+Daemon, bounded fork and timeout cases confirm kernel-subtree termination using
+parent-opened `cgroup.kill`/`cgroup.events` descriptors. A source-supplied JSON,
+EOF, PID/group exit or namespace UID number cannot authenticate that ownership.
+For daemon and fork-exit, the trusted low-UID bootstrap creates one or three
+fixed trusted cleanup canaries only after authenticated scope attachment and
+release.
+They close standard streams and acknowledge readiness before the unchanged
+Bubblewrap command starts. These controls remain outside its private PID
+namespace, because namespace-init teardown could otherwise already reap the
+inner fixture. After reaping the initial command, the parent must observe
+`populated=1` and the minimum actual kernel member count in its owned subtree;
+the report retains this observation before `cgroup.kill` establishes zero.
+Missing or already empty observations fail. These prove kernel cleanup of the
+trusted canaries, rather than sandbox escape or inner-fixture survival beyond
+PID namespace teardown. The separate fixed controls have a bounded lifetime
+beyond the case deadline, and no sandbox namespace assertion
+or production execution guard is relaxed.
+Unavailable tools, unsupported delegation, nonempty scopes or failed attacks
+return nonzero, with no successful skip. The template fails unsupported source
+contexts before provisioning and collects the transient service afterward.
+Its namespace sysctl setting matches the existing disposable Ubuntu host
+profile; the local quick checks never change it.
+
+Even a future `boundary-diagnostic-passed` record has `authority=none`,
+`production_qualified=false` and `runtime_compatibility=unqualified`. It records
+actual image/kernel/tool/source identities for review, not a reusable suite
+receipt. Full Node/Java/Qt/GLM/Python dependency/variant compatibility, verified
+materialized candidate snapshots, protected same-profile before/after runtime
+capture, abrupt-controller-death cleanup, producer/API provenance and the
+atomic ownership handoff remain prerequisites. Hosted systemd/kernel support
+has not been observed by these offline fixtures; enabling production or legacy
+attested reuse remains impossible through this diagnostic.
 
 ## Dormant required Android orchestration
 

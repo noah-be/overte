@@ -1424,6 +1424,31 @@
           "tools/sbom/requirements-validation.txt"
         ]
       }
+    },
+    "shared-sandbox-host": {
+      "command": [
+        "python",
+        "tools/test-evidence/sandbox-host-test.py"
+      ],
+      "layer": "quick",
+      "scope": "content",
+      "environment": "host-qt5-qt6",
+      "closure": {
+        "kind": "repository",
+        "inputs": [],
+        "required": [
+          "tools/test-evidence/sandbox_host.py",
+          "tools/test-evidence/sandbox_host_fixture.py",
+          "tools/test-evidence/sandbox-host-test.py",
+          "tools/test-evidence/workflows/shared-sandbox-host-diagnostic.yml",
+          "tools/test-evidence/sandbox.py",
+          "tools/test-evidence/runtime.py",
+          ".github/shared-sandbox.json",
+          "tests/requirements-host.txt",
+          "tests/requirements-repository.txt",
+          "tools/sbom/requirements-validation.txt"
+        ]
+      }
     }
   }
 }
